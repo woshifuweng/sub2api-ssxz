@@ -661,6 +661,38 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_BuildRequestRejectsInvalidBas
 	require.Error(t, err)
 }
 
+func TestGatewayService_AnthropicAPIKeyPassthrough_PublicBaseURLAllowedWhenHostEnforcementDisabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(`{"model":"claude-3-5-sonnet-latest"}`)))
+
+	svc := &GatewayService{
+		cfg: &config.Config{
+			Security: config.SecurityConfig{
+				URLAllowlist: config.URLAllowlistConfig{
+					Enabled:              true,
+					EnforceUpstreamHosts: false,
+					UpstreamHosts:        []string{"api.anthropic.com"},
+					AllowPrivateHosts:    false,
+				},
+			},
+		},
+	}
+	account := &Account{
+		Platform: PlatformAnthropic,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "k",
+			"base_url": "https://public-proxy.example.com",
+		},
+	}
+
+	req, err := svc.buildUpstreamRequestAnthropicAPIKeyPassthrough(context.Background(), c, account, []byte(`{"model":"claude-3-5-sonnet-latest"}`), "k")
+	require.NoError(t, err)
+	require.Equal(t, "https://public-proxy.example.com/v1/messages?beta=true", req.URL.String())
+}
+
 func TestGatewayService_AnthropicOAuth_NotAffectedByAPIKeyPassthroughToggle(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()

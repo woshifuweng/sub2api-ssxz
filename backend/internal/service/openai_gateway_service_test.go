@@ -1652,8 +1652,9 @@ func TestOpenAIValidateUpstreamBaseURLEnabledEnforcesAllowlist(t *testing.T) {
 	cfg := &config.Config{
 		Security: config.SecurityConfig{
 			URLAllowlist: config.URLAllowlistConfig{
-				Enabled:       true,
-				UpstreamHosts: []string{"example.com"},
+				Enabled:              true,
+				EnforceUpstreamHosts: true,
+				UpstreamHosts:        []string{"example.com"},
 			},
 		},
 	}
@@ -1664,6 +1665,54 @@ func TestOpenAIValidateUpstreamBaseURLEnabledEnforcesAllowlist(t *testing.T) {
 	}
 	if _, err := svc.validateUpstreamBaseURL("https://evil.com"); err == nil {
 		t.Fatalf("expected non-allowlisted host to fail")
+	}
+}
+
+func TestOpenAIValidateUpstreamBaseURLEnabledWithoutEnforcementAllowsPublicHost(t *testing.T) {
+	cfg := &config.Config{
+		Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{
+				Enabled:              true,
+				EnforceUpstreamHosts: false,
+				UpstreamHosts:        []string{"example.com"},
+				AllowPrivateHosts:    false,
+			},
+		},
+	}
+	svc := &OpenAIGatewayService{cfg: cfg}
+
+	normalized, err := svc.validateUpstreamBaseURL("https://api.deepseek.com")
+	if err != nil {
+		t.Fatalf("expected public host to pass when upstream host enforcement is disabled, got %v", err)
+	}
+	if normalized != "https://api.deepseek.com" {
+		t.Fatalf("unexpected normalized url: %q", normalized)
+	}
+	if _, err := svc.validateUpstreamBaseURL("https://127.0.0.1"); err == nil {
+		t.Fatalf("expected private host to remain blocked")
+	}
+}
+
+func TestOpenAIValidateUpstreamBaseURLEnabledWithoutEnforcement_AllowsRealThirdPartyHosts(t *testing.T) {
+	cfg := &config.Config{
+		Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{
+				Enabled:              true,
+				EnforceUpstreamHosts: false,
+				UpstreamHosts:        []string{"api.openai.com"},
+				AllowPrivateHosts:    false,
+			},
+		},
+	}
+	svc := &OpenAIGatewayService{cfg: cfg}
+
+	for _, raw := range []string{
+		"https://maolaoapi.com",
+		"https://llm.ai-token.com.cn",
+	} {
+		normalized, err := svc.validateUpstreamBaseURL(raw)
+		require.NoError(t, err, raw)
+		require.Equal(t, raw, normalized)
 	}
 }
 

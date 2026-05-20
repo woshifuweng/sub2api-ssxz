@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -212,4 +213,28 @@ func TestAccountTestService_OpenAIImageModelUsesImagesAPI(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), `"type":"image"`)
 	require.Contains(t, recorder.Body.String(), `data:image/png;base64,QUJD`)
 	require.Contains(t, recorder.Body.String(), `"type":"test_complete"`)
+}
+
+func TestAccountTestService_ValidateUpstreamBaseURL_AllowsRealThirdPartyHostsWhenNotEnforced(t *testing.T) {
+	svc := &AccountTestService{
+		cfg: &config.Config{
+			Security: config.SecurityConfig{
+				URLAllowlist: config.URLAllowlistConfig{
+					Enabled:              true,
+					EnforceUpstreamHosts: false,
+					UpstreamHosts:        []string{"api.openai.com"},
+					AllowPrivateHosts:    false,
+				},
+			},
+		},
+	}
+
+	for _, raw := range []string{
+		"https://maolaoapi.com",
+		"https://llm.ai-token.com.cn",
+	} {
+		normalized, err := svc.validateUpstreamBaseURL(raw)
+		require.NoError(t, err, raw)
+		require.Equal(t, raw, normalized)
+	}
 }

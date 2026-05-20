@@ -278,11 +278,12 @@ type SecurityConfig struct {
 }
 
 type URLAllowlistConfig struct {
-	Enabled           bool     `mapstructure:"enabled"`
-	UpstreamHosts     []string `mapstructure:"upstream_hosts"`
-	PricingHosts      []string `mapstructure:"pricing_hosts"`
-	CRSHosts          []string `mapstructure:"crs_hosts"`
-	AllowPrivateHosts bool     `mapstructure:"allow_private_hosts"`
+	Enabled              bool     `mapstructure:"enabled"`
+	UpstreamHosts        []string `mapstructure:"upstream_hosts"`
+	EnforceUpstreamHosts bool     `mapstructure:"enforce_upstream_hosts"`
+	PricingHosts         []string `mapstructure:"pricing_hosts"`
+	CRSHosts             []string `mapstructure:"crs_hosts"`
+	AllowPrivateHosts    bool     `mapstructure:"allow_private_hosts"`
 	// 关闭 URL 白名单校验时，是否允许 http URL（默认只允许 https）
 	AllowInsecureHTTP bool `mapstructure:"allow_insecure_http"`
 }
@@ -1350,6 +1351,7 @@ func setDefaults() {
 		"cloudcode-pa.googleapis.com",
 		"*.openai.azure.com",
 	})
+	viper.SetDefault("security.url_allowlist.enforce_upstream_hosts", false)
 	viper.SetDefault("security.url_allowlist.pricing_hosts", []string{
 		"raw.githubusercontent.com",
 	})

@@ -196,6 +196,11 @@ security:
       - "generativelanguage.googleapis.com"
       - "cloudcode-pa.googleapis.com"
       - "*.openai.azure.com"
+    # Whether to strictly enforce upstream_hosts for account-level custom base_url.
+    # Default false: still block private/unsafe hosts, but allow public third-party upstreams.
+    # 是否对账号自定义 base_url 严格执行 upstream_hosts 白名单。
+    # 默认 false：仍阻止私网/危险主机，但允许公共第三方上游。
+    enforce_upstream_hosts: false
     # Allowed hosts for pricing data download
     # 允许下载定价数据的主机列表
     pricing_hosts:

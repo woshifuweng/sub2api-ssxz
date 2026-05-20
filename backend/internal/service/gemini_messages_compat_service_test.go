@@ -163,6 +163,30 @@ func TestConvertClaudeToolsToGeminiTools_CustomType(t *testing.T) {
 	}
 }
 
+func TestGeminiMessagesCompatService_ValidateUpstreamBaseURL_AllowsRealThirdPartyHostsWhenNotEnforced(t *testing.T) {
+	svc := &GeminiMessagesCompatService{
+		cfg: &config.Config{
+			Security: config.SecurityConfig{
+				URLAllowlist: config.URLAllowlistConfig{
+					Enabled:              true,
+					EnforceUpstreamHosts: false,
+					UpstreamHosts:        []string{"generativelanguage.googleapis.com"},
+					AllowPrivateHosts:    false,
+				},
+			},
+		},
+	}
+
+	for _, raw := range []string{
+		"https://maolaoapi.com",
+		"https://llm.ai-token.com.cn",
+	} {
+		normalized, err := svc.validateUpstreamBaseURL(raw)
+		require.NoError(t, err, raw)
+		require.Equal(t, raw, normalized)
+	}
+}
+
 func TestGeminiHandleNativeNonStreamingResponse_DebugDisabledDoesNotEmitHeaderLogs(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	logSink, restore := captureStructuredLog(t)

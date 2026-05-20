@@ -5592,9 +5592,13 @@ func (s *OpenAIGatewayService) validateUpstreamBaseURL(raw string) (string, erro
 	opts := urlvalidator.ValidationOptions{}
 	if s.cfg != nil {
 		allowInsecureHTTP = s.cfg.Security.URLAllowlist.AllowInsecureHTTP
+		allowedHosts := []string(nil)
+		if s.cfg.Security.URLAllowlist.EnforceUpstreamHosts {
+			allowedHosts = s.cfg.Security.URLAllowlist.UpstreamHosts
+		}
 		opts = urlvalidator.ValidationOptions{
-			AllowedHosts:     s.cfg.Security.URLAllowlist.UpstreamHosts,
-			RequireAllowlist: s.cfg.Security.URLAllowlist.Enabled,
+			AllowedHosts:     allowedHosts,
+			RequireAllowlist: s.cfg.Security.URLAllowlist.Enabled && s.cfg.Security.URLAllowlist.EnforceUpstreamHosts,
 			AllowPrivate:     s.cfg.Security.URLAllowlist.AllowPrivateHosts,
 		}
 	}
