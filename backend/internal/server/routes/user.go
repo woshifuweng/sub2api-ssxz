@@ -65,6 +65,9 @@ func ExecutableUserRoutes(h *handler.Handlers) []gatewayctx.RouteDef {
 			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/usage/dashboard/api-keys-usage", Handler: h.Usage.DashboardAPIKeysUsageGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
 		)
 	}
+	if h.ImageStudio != nil {
+		out = append(out, gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/image-studio/generate", Handler: h.ImageStudio.GenerateGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}})
+	}
 	if h.Totp != nil {
 		out = append(out,
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/totp/status", Handler: h.Totp.GetStatusGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
@@ -160,6 +163,13 @@ func RegisterUserRoutes(
 			subscriptions.GET("/active", h.Subscription.GetActive)
 			subscriptions.GET("/progress", h.Subscription.GetProgress)
 			subscriptions.GET("/summary", h.Subscription.GetSummary)
+		}
+
+		if h.ImageStudio != nil {
+			imageStudio := authenticated.Group("/image-studio")
+			{
+				imageStudio.POST("/generate", h.ImageStudio.Generate)
+			}
 		}
 
 		registerUserFeatureRoutes(authenticated, h)
