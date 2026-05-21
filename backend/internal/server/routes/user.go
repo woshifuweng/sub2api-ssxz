@@ -68,6 +68,9 @@ func ExecutableUserRoutes(h *handler.Handlers) []gatewayctx.RouteDef {
 	if h.ImageStudio != nil {
 		out = append(out, gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/image-studio/generate", Handler: h.ImageStudio.GenerateGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}})
 	}
+	if h.ChatStudio != nil {
+		out = append(out, gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/chat-studio/complete", Handler: h.ChatStudio.CompleteGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}})
+	}
 	if h.Totp != nil {
 		out = append(out,
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/totp/status", Handler: h.Totp.GetStatusGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
@@ -169,6 +172,12 @@ func RegisterUserRoutes(
 			imageStudio := authenticated.Group("/image-studio")
 			{
 				imageStudio.POST("/generate", h.ImageStudio.Generate)
+			}
+		}
+		if h.ChatStudio != nil {
+			chatStudio := authenticated.Group("/chat-studio")
+			{
+				chatStudio.POST("/complete", h.ChatStudio.Complete)
 			}
 		}
 

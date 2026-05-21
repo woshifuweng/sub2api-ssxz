@@ -139,6 +139,16 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/ai-chat',
+    name: 'ChatStudio',
+    component: () => import('@/views/user/ChatStudioView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'AI Chat'
+    }
+  },
+  {
     path: '/image-studio',
     name: 'ImageStudio',
     component: () => import('@/views/user/ImageStudioView.vue'),

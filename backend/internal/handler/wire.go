@@ -107,6 +107,7 @@ func ProvideHandlers(
 	paymentWebhookHandler *PaymentWebhookHandler,
 	availableChannelHandler *AvailableChannelHandler,
 	imageStudioHandler *ImageStudioHandler,
+	chatStudioHandler *ChatStudioHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 	_ *adminTaskStateCacheSetup,
@@ -131,6 +132,7 @@ func ProvideHandlers(
 		PaymentWebhook:   paymentWebhookHandler,
 		AvailableChannel: availableChannelHandler,
 		ImageStudio:      imageStudioHandler,
+		ChatStudio:       chatStudioHandler,
 	}
 }
 
@@ -162,6 +164,7 @@ var ProviderSet = wire.NewSet(
 	NewPaymentWebhookHandler,
 	NewAvailableChannelHandler,
 	NewImageStudioHandler,
+	NewChatStudioHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,
