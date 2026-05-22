@@ -110,12 +110,22 @@
       </section>
 
       <section class="min-h-[520px] rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-600 dark:bg-dark-800">
-        <div class="mb-4 flex items-center justify-between">
+        <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 class="text-lg font-semibold text-gray-900 dark:text-white">生成结果</h2>
-          <button v-if="results.length" type="button" class="btn btn-secondary btn-sm" @click="clearResults">
-            <Icon name="trash" size="sm" />
-            <span>清空</span>
-          </button>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" class="btn btn-secondary btn-sm" @click="copyPrompt">
+              <Icon name="copy" size="sm" />
+              <span>复制提示词</span>
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" :disabled="generating" @click="generate">
+              <Icon name="refresh" size="sm" />
+              <span>重新生成</span>
+            </button>
+            <button v-if="results.length" type="button" class="btn btn-secondary btn-sm" @click="clearResults">
+              <Icon name="trash" size="sm" />
+              <span>清空</span>
+            </button>
+          </div>
         </div>
 
         <div v-if="!results.length" class="flex min-h-[440px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50 text-sm text-gray-400 dark:border-dark-600 dark:bg-dark-900/40">
@@ -260,10 +270,21 @@ async function requestImageStudio() {
 async function readImageResponse(response: Response) {
   const payload = await response.json().catch(() => null)
   if (!response.ok) {
-    const message = payload?.error?.message || payload?.message || payload?.detail || `生成失败 (${response.status})`
+    const rawMessage = payload?.error?.message || payload?.message || payload?.detail || `生成失败 (${response.status})`
+    const message = normalizeImageError(rawMessage)
     throw new Error(message)
   }
   return payload
+}
+
+function normalizeImageError(message: string) {
+  if (/does not support OpenAI Images API|images api|image/i.test(message)) {
+    return '当前账号暂不支持图片生成/改图接口。请联系管理员开通支持 gpt-image-2 或 OpenAI Images API 的上游账号后再使用。'
+  }
+  if (/please create an active OpenAI API key/i.test(message)) {
+    return '当前没有可用于作图的 API Key。请先在后台创建包含 gpt-image-2 的可用 Key，或联系管理员分配图片分组。'
+  }
+  return message
 }
 
 function extractImages(payload: any): ResultImage[] {
@@ -294,6 +315,19 @@ function downloadResult(item: ResultImage, index: number) {
   document.body.appendChild(link)
   link.click()
   link.remove()
+}
+
+async function copyPrompt() {
+  const text = [
+    `作图类型：${templates.find((item) => item.id === templateId.value)?.label || templateId.value}`,
+    `商品名称：${productName.value || '未填写'}`,
+    `核心卖点：${sellingPoints.value || '未填写'}`,
+    `风格：${style.value}`,
+    `尺寸：${size.value}`,
+    `张数：${count.value}`,
+    selectedFile.value ? `参考图：${selectedFile.value.name}` : '参考图：无'
+  ].join('\n')
+  await navigator.clipboard.writeText(text)
 }
 
 function clearResults() {
