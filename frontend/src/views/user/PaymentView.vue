@@ -1,10 +1,70 @@
 <template>
   <AppLayout>
-    <div class="mx-auto max-w-4xl space-y-6">
+    <div class="mx-auto max-w-6xl space-y-6">
       <div v-if="loading" class="flex items-center justify-center py-20">
         <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
       </div>
       <template v-else>
+        <section v-if="paymentPhase === 'select' && !selectedPlan" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-700 dark:bg-dark-900">
+          <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <div>
+              <div class="mb-3 flex flex-wrap items-center gap-2">
+                <span class="inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-950/40 dark:text-primary-300">
+                  <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+                  购买与扣费
+                </span>
+                <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-gray-300">
+                  当前余额 ${{ user?.balance?.toFixed(2) || '0.00' }}
+                </span>
+              </div>
+              <h1 class="text-2xl font-bold tracking-normal text-gray-900 dark:text-white">
+                先充值余额，或购买适合你的套餐
+              </h1>
+              <p class="mt-3 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-400">
+                普通聊天和电商文案通常按模型 token 扣费，AI 作图会按图片模型的规则扣费。网页工具、API Key、第三方软件接入都会统一记录到用量明细里。
+              </p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2">
+              <RouterLink to="/usage" class="rounded-xl border border-gray-200 bg-gray-50 p-3 transition hover:border-primary-300 hover:bg-primary-50 dark:border-dark-700 dark:bg-dark-800/70 dark:hover:border-primary-500/70 dark:hover:bg-primary-950/30">
+                <Icon name="chart" size="sm" class="mb-2 text-primary-500" />
+                <p class="text-sm font-semibold text-gray-900 dark:text-white">用量明细</p>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">查看每次消耗</p>
+              </RouterLink>
+              <RouterLink to="/available-channels" class="rounded-xl border border-gray-200 bg-gray-50 p-3 transition hover:border-primary-300 hover:bg-primary-50 dark:border-dark-700 dark:bg-dark-800/70 dark:hover:border-primary-500/70 dark:hover:bg-primary-950/30">
+                <Icon name="server" size="sm" class="mb-2 text-primary-500" />
+                <p class="text-sm font-semibold text-gray-900 dark:text-white">可用模型</p>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">查看价格和能力</p>
+              </RouterLink>
+              <RouterLink to="/redeem" class="rounded-xl border border-gray-200 bg-gray-50 p-3 transition hover:border-primary-300 hover:bg-primary-50 dark:border-dark-700 dark:bg-dark-800/70 dark:hover:border-primary-500/70 dark:hover:bg-primary-950/30">
+                <Icon name="gift" size="sm" class="mb-2 text-primary-500" />
+                <p class="text-sm font-semibold text-gray-900 dark:text-white">兑换额度</p>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">使用兑换码</p>
+              </RouterLink>
+              <RouterLink to="/keys" class="rounded-xl border border-gray-200 bg-gray-50 p-3 transition hover:border-primary-300 hover:bg-primary-50 dark:border-dark-700 dark:bg-dark-800/70 dark:hover:border-primary-500/70 dark:hover:bg-primary-950/30">
+                <Icon name="key" size="sm" class="mb-2 text-primary-500" />
+                <p class="text-sm font-semibold text-gray-900 dark:text-white">API Key</p>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">第三方接入</p>
+              </RouterLink>
+            </div>
+          </div>
+
+          <div class="mt-5 grid gap-3 md:grid-cols-3">
+            <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-800/70">
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">余额充值</p>
+              <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">适合普通聊天、电商文案、API 临时使用。用多少扣多少，余额不足时调用会失败。</p>
+            </div>
+            <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-800/70">
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">套餐订阅</p>
+              <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">适合长期客户。不同套餐可以绑定不同分组、模型倍率和每日/月度额度。</p>
+            </div>
+            <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-800/70">
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">图片扣费</p>
+              <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">图片能力需要支持 Images API 的上游账号。开通后建议按张展示消耗，避免客户误解。</p>
+            </div>
+          </div>
+        </section>
+
         <!-- Tab Switcher (hide during payment and subscription confirm) -->
         <div v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan" class="flex space-x-1 rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
           <button v-for="tab in tabs" :key="tab.key"

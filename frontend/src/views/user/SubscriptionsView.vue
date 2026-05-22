@@ -1,6 +1,53 @@
 <template>
   <AppLayout>
     <div class="space-y-6">
+      <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-700 dark:bg-dark-900">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div class="mb-3 flex flex-wrap items-center gap-2">
+              <span class="inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-950/40 dark:text-primary-300">
+                <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+                我的套餐
+              </span>
+              <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-gray-300">
+                分组权限和额度进度
+              </span>
+            </div>
+            <h1 class="text-2xl font-bold tracking-normal text-gray-900 dark:text-white">
+              查看你当前能使用的模型套餐
+            </h1>
+            <p class="mt-3 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-400">
+              套餐会影响可用分组、模型范围、每日或每月额度。普通聊天、电商文案、API 接入都会按后台配置计入这里的使用进度。
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <RouterLink to="/purchase" class="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700">
+              <Icon name="creditCard" size="sm" />
+              购买套餐
+            </RouterLink>
+            <RouterLink to="/available-channels" class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500">
+              <Icon name="server" size="sm" />
+              查看模型
+            </RouterLink>
+          </div>
+        </div>
+
+        <div class="mt-5 grid gap-3 md:grid-cols-3">
+          <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-800/70">
+            <p class="text-sm font-semibold text-gray-900 dark:text-white">有效期</p>
+            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">显示套餐到期时间。到期后该分组权限会失效，需要续费或更换套餐。</p>
+          </div>
+          <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-800/70">
+            <p class="text-sm font-semibold text-gray-900 dark:text-white">额度进度</p>
+            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">每日、每周、每月额度会按模型消耗累计，进度接近上限时建议提前充值。</p>
+          </div>
+          <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-800/70">
+            <p class="text-sm font-semibold text-gray-900 dark:text-white">分组能力</p>
+            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">不同分组可以对应聊天、图片、电商或开发者能力，管理员可在后台单独配置。</p>
+          </div>
+        </div>
+      </section>
+
       <!-- Loading State -->
       <div v-if="loading" class="flex justify-center py-12">
         <div
@@ -21,6 +68,16 @@
         <p class="text-gray-500 dark:text-dark-400">
           {{ t('userSubscriptions.noActiveSubscriptionsDesc') }}
         </p>
+        <div class="mt-6 flex flex-wrap justify-center gap-2">
+          <RouterLink to="/purchase" class="btn btn-primary">
+            <Icon name="creditCard" size="sm" class="mr-1.5" />
+            购买套餐
+          </RouterLink>
+          <RouterLink to="/redeem" class="btn btn-secondary">
+            <Icon name="gift" size="sm" class="mr-1.5" />
+            兑换额度
+          </RouterLink>
+        </div>
       </div>
 
       <!-- Subscriptions Grid -->
