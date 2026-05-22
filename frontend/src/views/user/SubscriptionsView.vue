@@ -48,6 +48,8 @@
         </div>
       </section>
 
+      <PlanCapabilityGuide />
+
       <!-- Loading State -->
       <div v-if="loading" class="flex justify-center py-12">
         <div
@@ -299,6 +301,7 @@ import subscriptionsAPI from '@/api/subscriptions'
 import type { UserSubscription } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
+import PlanCapabilityGuide from '@/components/user/PlanCapabilityGuide.vue'
 import { formatDateOnly } from '@/utils/format'
 
 const { t } = useI18n()
