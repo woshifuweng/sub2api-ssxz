@@ -256,6 +256,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { useAuthStore } from '@/stores/auth'
@@ -309,8 +310,9 @@ const commercePlatforms = ['淘宝/天猫', '拼多多', '抖音', '小红书', 
 const commerceTones = ['高转化', '种草风', '专业质感', '直播口播', '简洁高级']
 
 const authStore = useAuthStore()
+const route = useRoute()
 const selectedModel = ref('gpt-5.5')
-const mode = ref<WorkMode>('chat')
+const mode = ref<WorkMode>(route.query.mode === 'ecommerce' ? 'commerce' : 'chat')
 const draft = ref('')
 const messages = ref<ChatMessage[]>([])
 const sending = ref(false)
