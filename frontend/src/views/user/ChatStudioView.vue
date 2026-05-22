@@ -450,12 +450,11 @@ onMounted(() => {
   } else if (!activeSessionId.value) {
     activateSession(sessions.value[0].id)
   }
+  applyRoutePrefill()
 })
 
-watch(() => route.query.mode, (value) => {
-  if (value === 'ecommerce' && mode.value !== 'commerce') {
-    switchMode('commerce')
-  }
+watch(() => route.fullPath, () => {
+  applyRoutePrefill()
 })
 
 watch([selectedModel, mode], () => {
@@ -578,6 +577,47 @@ function applyPrompt(prompt: string) {
     return
   }
   draft.value = prompt
+}
+
+function getQueryValue(value: unknown) {
+  if (Array.isArray(value)) return typeof value[0] === 'string' ? value[0] : ''
+  return typeof value === 'string' ? value : ''
+}
+
+function isCommerceGoal(value: string): value is CommerceGoal {
+  return commerceScenes.some((scene) => scene.value === value)
+}
+
+function applyRoutePrefill() {
+  const query = route.query
+  const targetMode: WorkMode = query.mode === 'ecommerce' ? 'commerce' : 'chat'
+
+  if (targetMode !== mode.value) {
+    switchMode(targetMode)
+  }
+
+  if (targetMode === 'commerce') {
+    const scene = getQueryValue(query.scene)
+    if (isCommerceGoal(scene)) commerceForm.outputGoal = scene
+
+    const productName = getQueryValue(query.productName)
+    const sellingPoints = getQueryValue(query.sellingPoints)
+    const platform = getQueryValue(query.platform)
+    const tone = getQueryValue(query.tone)
+    const audience = getQueryValue(query.audience)
+    const extra = getQueryValue(query.extra)
+
+    if (productName) commerceForm.productName = productName
+    if (sellingPoints) commerceForm.sellingPoints = sellingPoints
+    if (platform && commercePlatforms.includes(platform)) commerceForm.platform = platform
+    if (tone && commerceTones.includes(tone)) commerceForm.tone = tone
+    if (audience) commerceForm.audience = audience
+    if (extra) commerceForm.extra = extra
+    return
+  }
+
+  const prompt = getQueryValue(query.prompt)
+  if (prompt) draft.value = prompt
 }
 
 async function sendChatMessage() {

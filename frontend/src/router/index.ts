@@ -159,6 +159,16 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/apps',
+    name: 'AppCenter',
+    component: () => import('@/views/user/AppCenterView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'SSXZ App Center'
+    }
+  },
+  {
     path: '/keys',
     name: 'Keys',
     component: () => import('@/views/user/KeysView.vue'),

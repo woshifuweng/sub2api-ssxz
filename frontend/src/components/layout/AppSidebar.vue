@@ -584,6 +584,7 @@ const purchaseEnabled = computed(() => (
 const userNavItems = computed((): NavItem[] => {
   const items: NavItem[] = [
     { path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
+    { path: '/apps', label: '轻应用', icon: DashboardIcon },
     { path: '/ai-chat', label: 'AI 聊天', icon: ChatStudioIcon },
     { path: '/image-studio', label: 'AI 作图', icon: ImageStudioIcon },
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
@@ -629,6 +630,7 @@ const userNavItems = computed((): NavItem[] => {
 // Personal navigation items (for admin's "My Account" section, without Dashboard)
 const personalNavItems = computed((): NavItem[] => {
   const items: NavItem[] = [
+    { path: '/apps', label: '轻应用', icon: DashboardIcon },
     { path: '/ai-chat', label: 'AI 聊天', icon: ChatStudioIcon },
     { path: '/image-studio', label: 'AI 作图', icon: ImageStudioIcon },
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },

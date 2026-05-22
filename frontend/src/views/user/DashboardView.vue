@@ -37,7 +37,14 @@
                 </span>
               </div>
 
-              <div class="grid gap-3 sm:grid-cols-3">
+              <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <RouterLink
+                  to="/apps"
+                  class="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
+                >
+                  <Icon name="grid" size="sm" />
+                  轻应用
+                </RouterLink>
                 <RouterLink
                   to="/ai-chat"
                   class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700"
