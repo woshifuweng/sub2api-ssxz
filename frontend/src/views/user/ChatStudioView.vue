@@ -106,6 +106,19 @@
       </header>
 
       <div ref="messageListRef" class="flex-1 space-y-4 overflow-y-auto px-5 py-5">
+        <div
+          v-if="capabilityError"
+          class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200"
+        >
+          {{ capabilityError }}
+        </div>
+        <div
+          v-else-if="loaded && !hasChat"
+          class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm leading-6 text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300"
+        >
+          当前账号暂未检测到可用聊天分组。请在 Sub2 后台给用户分配包含 gpt-5.5 或其他聊天模型的分组。
+        </div>
+
         <div v-if="currentMessages.length === 0" class="flex h-full min-h-[420px] items-center justify-center">
           <div class="max-w-md text-center">
             <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-300">
@@ -166,7 +179,7 @@
               <span class="rounded-md bg-gray-100 px-2 py-1 dark:bg-dark-700">{{ selectedModel }}</span>
               <span>Enter 发送，Shift+Enter 换行</span>
             </div>
-            <button type="button" class="btn btn-primary" :disabled="sending || !draft.trim()" @click="sendChatMessage">
+            <button type="button" class="btn btn-primary" :disabled="sending || !draft.trim() || (loaded && !hasChat)" @click="sendChatMessage">
               <Icon v-if="sending" name="refresh" size="sm" class="animate-spin" />
               <Icon v-else name="arrowUp" size="sm" />
               <span>{{ sending ? '发送中' : '发送' }}</span>
@@ -183,7 +196,7 @@
               <Icon name="copy" size="sm" />
               <span>复制需求</span>
             </button>
-            <button type="button" class="btn btn-primary" :disabled="sending || !canGenerateCommerce" @click="sendCommerceMessage">
+            <button type="button" class="btn btn-primary" :disabled="sending || !canGenerateCommerce || (loaded && !hasChat)" @click="sendCommerceMessage">
               <Icon v-if="sending" name="refresh" size="sm" class="animate-spin" />
               <Icon v-else name="sparkles" size="sm" />
               <span>{{ sending ? '生成中' : '生成文案' }}</span>
@@ -292,6 +305,7 @@ import { useRoute } from 'vue-router'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { useAuthStore } from '@/stores/auth'
+import { useUserCapabilities } from '@/composables/useUserCapabilities'
 import Icon from '@/components/icons/Icon.vue'
 
 type WorkMode = 'chat' | 'commerce'
@@ -327,13 +341,15 @@ const STORAGE_KEY = 'ssxz.chat-studio.sessions.v1'
 
 const route = useRoute()
 const authStore = useAuthStore()
+const {
+  chatModels,
+  errorMessage: capabilityError,
+  hasChat,
+  loaded,
+  loadCapabilities
+} = useUserCapabilities()
 
-const models = [
-  { id: 'gpt-5.5', name: 'GPT-5.5' },
-  { id: 'gpt-5.4', name: 'GPT-5.4' },
-  { id: 'gpt-5.2', name: 'GPT-5.2' },
-  { id: 'gpt-5.4-mini', name: 'GPT-5.4 Mini' }
-]
+const models = computed(() => chatModels.value)
 
 const quickPrompts = [
   {
@@ -411,7 +427,7 @@ const commerceForm = reactive({
 const activeSession = computed(() => sessions.value.find((item) => item.id === activeSessionId.value) || null)
 const currentMessages = computed(() => activeSession.value?.messages || [])
 const visibleQuickPrompts = computed(() => quickPrompts.filter((item) => item.mode === mode.value))
-const activeModel = computed(() => models.find((item) => item.id === selectedModel.value))
+const activeModel = computed(() => models.value.find((item) => item.id === selectedModel.value))
 const selectedCommerceScene = computed(() => commerceScenes.find((item) => item.value === commerceForm.outputGoal))
 const workspaceTitle = computed(() => mode.value === 'commerce' ? '电商文案工作台' : activeModel.value?.name || 'AI 对话')
 const emptyTitle = computed(() => mode.value === 'commerce' ? '填写右侧表单，生成商用文案' : '直接输入问题开始')
@@ -427,6 +443,7 @@ const balanceText = computed(() => {
 })
 
 onMounted(() => {
+  loadCapabilities()
   loadSessions()
   if (!sessions.value.length) {
     createSession(mode.value)
@@ -447,6 +464,12 @@ watch([selectedModel, mode], () => {
   activeSession.value.mode = mode.value
   touchSession()
 })
+
+watch(chatModels, (nextModels) => {
+  if (!nextModels.some((model) => model.id === selectedModel.value)) {
+    selectedModel.value = nextModels[0]?.id || 'gpt-5.5'
+  }
+}, { immediate: true })
 
 function loadSessions() {
   try {

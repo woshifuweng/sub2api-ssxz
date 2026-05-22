@@ -138,16 +138,27 @@
               />
             </div>
 
+            <div
+              v-if="loaded && !hasImage"
+              class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200"
+            >
+              当前账号暂未检测到图片分组。你可以先查看页面流程；真正生成图片需要在 Sub2 后台给用户分配支持 gpt-image-2 / OpenAI Images API 的分组。
+            </div>
+
             <button
               type="button"
               class="btn btn-primary w-full justify-center"
-              :disabled="generating"
+              :disabled="generating || (loaded && !hasImage)"
               @click="generate"
             >
               <Icon v-if="!generating" name="sparkles" size="sm" />
               <Icon v-else name="refresh" size="sm" class="animate-spin" />
               <span>{{ generating ? '正在生成...' : `消耗约 ${count} 张，立即生成` }}</span>
             </button>
+
+            <p v-if="capabilityError" class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
+              {{ capabilityError }}
+            </p>
 
             <p v-if="errorMessage" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm leading-6 text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
               {{ errorMessage }}
@@ -182,7 +193,7 @@
           <Icon name="sparkles" size="xl" class="text-gray-300 dark:text-dark-500" />
           <h3 class="mt-4 text-base font-semibold text-gray-800 dark:text-dark-100">开始一次创作</h3>
           <p class="mt-2 max-w-md text-sm leading-6 text-gray-500 dark:text-dark-400">
-            选择一个预设，填写商品名和卖点即可。当前如果上游账号没有开通图片接口，系统会明确提示，不会让客户误以为页面坏了。
+            选择一个预设，填写商品名和卖点即可。{{ imageCapability?.reason || '系统会根据当前账号分组判断是否支持作图。' }}
           </p>
         </div>
 
@@ -210,8 +221,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useUserCapabilities } from '@/composables/useUserCapabilities'
 import Icon from '@/components/icons/Icon.vue'
 
 type StudioTemplate = 'background' | 'white' | 'scene' | 'poster'
@@ -378,6 +390,13 @@ const presets: ImagePreset[] = [
 ]
 
 const authStore = useAuthStore()
+const {
+  capabilities,
+  errorMessage: capabilityError,
+  hasImage,
+  loaded,
+  loadCapabilities
+} = useUserCapabilities()
 const selectedFile = ref<File | null>(null)
 const previewUrl = ref('')
 const activeCategory = ref<PresetCategory>('commerce')
@@ -401,9 +420,14 @@ const imageCredits = computed(() => {
 const selectedPreset = computed(() => presets.find((preset) => preset.id === selectedPresetId.value) || presets[0])
 
 const filteredPresets = computed(() => presets.filter((preset) => preset.category === activeCategory.value))
+const imageCapability = computed(() => capabilities.value.find((item) => item.key === 'image'))
 
 onBeforeUnmount(() => {
   if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+})
+
+onMounted(() => {
+  loadCapabilities()
 })
 
 function applyPreset(preset: ImagePreset) {

@@ -6,7 +6,7 @@
       </div>
 
       <template v-else-if="stats">
-        <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-900">
+        <section class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-900">
           <div class="grid gap-6 p-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)] lg:p-6">
             <div class="flex flex-col justify-between gap-6">
               <div>
@@ -20,31 +20,41 @@
                   </span>
                 </div>
                 <h1 class="text-2xl font-bold tracking-normal text-gray-900 dark:text-white md:text-3xl">
-                  先选场景，再开始使用 AI
+                  先看能力，再开始使用 AI
                 </h1>
                 <p class="mt-3 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-400">
-                  普通用户可以直接聊天，电商用户进入文案和作图工具，开发者再去生成 API Key。网页里的聊天、文案和作图都会经过后台 Key、余额和日志，不需要客户理解接口。
+                  普通用户可以直接聊天，电商用户进入文案和作图工具，开发者再创建 API Key。系统会根据账号分组显示可用能力，避免客户点进不能用的入口。
                 </p>
+              </div>
+
+              <div class="flex flex-wrap gap-2">
+                <span
+                  v-for="groupName in activeGroupLabels"
+                  :key="groupName"
+                  class="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-300"
+                >
+                  {{ groupName }}
+                </span>
               </div>
 
               <div class="grid gap-3 sm:grid-cols-3">
                 <RouterLink
                   to="/ai-chat"
-                  class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700"
+                  class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700"
                 >
                   <Icon name="chat" size="sm" />
                   开始聊天
                 </RouterLink>
                 <RouterLink
                   to="/ai-chat?mode=ecommerce"
-                  class="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
+                  class="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
                 >
                   <Icon name="clipboard" size="sm" />
                   电商文案
                 </RouterLink>
                 <RouterLink
                   to="/image-studio"
-                  class="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
+                  class="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
                 >
                   <Icon name="sparkles" size="sm" />
                   AI 作图
@@ -52,7 +62,7 @@
               </div>
             </div>
 
-            <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/70">
+            <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/70">
               <div class="mb-4 flex items-center justify-between">
                 <div>
                   <p class="text-sm font-semibold text-gray-900 dark:text-white">账户概览</p>
@@ -64,19 +74,19 @@
               </div>
 
               <div class="grid grid-cols-2 gap-3">
-                <div class="rounded-xl bg-white p-3 dark:bg-dark-900">
+                <div class="rounded-lg bg-white p-3 dark:bg-dark-900">
                   <p class="text-xs text-gray-500 dark:text-gray-400">当前余额</p>
                   <p class="mt-1 text-xl font-bold text-emerald-600 dark:text-emerald-400">${{ formatMoney(balance) }}</p>
                 </div>
-                <div class="rounded-xl bg-white p-3 dark:bg-dark-900">
+                <div class="rounded-lg bg-white p-3 dark:bg-dark-900">
                   <p class="text-xs text-gray-500 dark:text-gray-400">今日消耗</p>
                   <p class="mt-1 text-xl font-bold text-gray-900 dark:text-white">${{ formatMoney(stats.today_actual_cost || 0) }}</p>
                 </div>
-                <div class="rounded-xl bg-white p-3 dark:bg-dark-900">
+                <div class="rounded-lg bg-white p-3 dark:bg-dark-900">
                   <p class="text-xs text-gray-500 dark:text-gray-400">今日请求</p>
                   <p class="mt-1 text-xl font-bold text-gray-900 dark:text-white">{{ formatCompact(stats.today_requests || 0) }}</p>
                 </div>
-                <div class="rounded-xl bg-white p-3 dark:bg-dark-900">
+                <div class="rounded-lg bg-white p-3 dark:bg-dark-900">
                   <p class="text-xs text-gray-500 dark:text-gray-400">可用 Key</p>
                   <p class="mt-1 text-xl font-bold text-gray-900 dark:text-white">{{ stats.active_api_keys || 0 }}/{{ stats.total_api_keys || 0 }}</p>
                 </div>
@@ -97,15 +107,19 @@
           </div>
         </section>
 
-        <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-700 dark:bg-dark-900">
+        <section class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-700 dark:bg-dark-900">
           <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p class="text-sm font-medium text-primary-600 dark:text-primary-400">开始使用</p>
-              <h2 class="text-xl font-semibold text-gray-900 dark:text-white">选择你要使用的 AI 服务</h2>
+              <p class="text-sm font-medium text-primary-600 dark:text-primary-400">账号能力</p>
+              <h2 class="text-xl font-semibold text-gray-900 dark:text-white">当前账号能使用哪些服务</h2>
             </div>
             <p class="max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-              客户可以按自己的需求进入不同工作台。你作为管理员仍然在后台管理上游账号、模型、分组、余额和扣费。
+              这里会根据 Sub2 分组、渠道和模型自动判断。你后续建立套餐后，客户会看到更清楚的“已开通 / 未开通”状态。
             </p>
+          </div>
+
+          <div v-if="capabilityError" class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
+            {{ capabilityError }}
           </div>
 
           <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -113,7 +127,10 @@
               v-for="entry in productEntries"
               :key="entry.to"
               :to="entry.to"
-              class="group flex min-h-[170px] flex-col justify-between rounded-xl border border-gray-200 bg-gray-50 p-4 transition hover:-translate-y-0.5 hover:border-primary-400 hover:bg-primary-50 hover:shadow-md dark:border-dark-700 dark:bg-dark-800/70 dark:hover:border-primary-500/70 dark:hover:bg-primary-950/30"
+              class="group flex min-h-[190px] flex-col justify-between rounded-lg border p-4 transition hover:-translate-y-0.5 hover:shadow-md"
+              :class="entry.enabled
+                ? 'border-gray-200 bg-gray-50 hover:border-primary-400 hover:bg-primary-50 dark:border-dark-700 dark:bg-dark-800/70 dark:hover:border-primary-500/70 dark:hover:bg-primary-950/30'
+                : 'border-amber-200 bg-amber-50/60 hover:border-amber-300 dark:border-amber-900/50 dark:bg-amber-900/10'"
             >
               <div>
                 <div class="mb-3 flex items-center justify-between gap-2">
@@ -121,12 +138,23 @@
                     <Icon :name="entry.icon" size="xs" />
                     {{ entry.badge }}
                   </span>
-                  <Icon name="arrowRight" size="sm" class="text-primary-500 transition group-hover:translate-x-1" />
+                  <span
+                    class="rounded-md px-2 py-0.5 text-xs font-semibold"
+                    :class="entry.enabled
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                      : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200'"
+                  >
+                    {{ entry.enabled ? '已开通' : '待开通' }}
+                  </span>
                 </div>
                 <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ entry.title }}</h3>
                 <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">{{ entry.description }}</p>
+                <p class="mt-3 text-xs leading-5 text-gray-500 dark:text-gray-400">{{ entry.reason }}</p>
               </div>
-              <span class="mt-4 text-sm font-medium text-primary-600 dark:text-primary-400">{{ entry.action }}</span>
+              <span class="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary-600 dark:text-primary-400">
+                {{ entry.action }}
+                <Icon name="arrowRight" size="sm" class="transition group-hover:translate-x-1" />
+              </span>
             </RouterLink>
           </div>
         </section>
@@ -135,9 +163,9 @@
           <div
             v-for="step in onboardingSteps"
             :key="step.title"
-            class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-700 dark:bg-dark-900"
+            class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-700 dark:bg-dark-900"
           >
-            <div class="mb-4 flex h-9 w-9 items-center justify-center rounded-xl bg-primary-50 text-sm font-bold text-primary-700 dark:bg-primary-950/40 dark:text-primary-300">
+            <div class="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 text-sm font-bold text-primary-700 dark:bg-primary-950/40 dark:text-primary-300">
               {{ step.index }}
             </div>
             <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ step.title }}</h3>
@@ -178,6 +206,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { usageAPI, type UserDashboardStats as UserStatsType } from '@/api/usage'
+import { useUserCapabilities } from '@/composables/useUserCapabilities'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -188,6 +217,13 @@ import UserDashboardQuickActions from '@/components/user/dashboard/UserDashboard
 import type { ModelStat, TrendDataPoint, UsageLog } from '@/types'
 
 const authStore = useAuthStore()
+const {
+  activeGroupLabels,
+  capabilities,
+  errorMessage: capabilityError,
+  loadCapabilities
+} = useUserCapabilities()
+
 const user = computed(() => authStore.user)
 const balance = computed(() => user.value?.balance || 0)
 const userEmail = computed(() => user.value?.email || '当前用户')
@@ -200,30 +236,40 @@ const trendData = ref<TrendDataPoint[]>([])
 const modelStats = ref<ModelStat[]>([])
 const recentUsage = ref<UsageLog[]>([])
 
-const productEntries = [
+const capabilityByKey = computed(() => {
+  return Object.fromEntries(capabilities.value.map((item) => [item.key, item]))
+})
+
+const productEntries = computed(() => [
   {
     to: '/ai-chat',
     icon: 'chat' as const,
     badge: '普通聊天',
     title: 'AI 聊天',
-    description: '像官网一样直接提问、写作、翻译、总结资料，适合普通客户日常使用。',
-    action: '打开聊天'
+    description: '像官网一样直接提问、写作、翻译、总结资料，也适合普通客户日常使用。',
+    action: '打开聊天',
+    enabled: capabilityByKey.value.chat?.enabled ?? true,
+    reason: capabilityByKey.value.chat?.reason || '使用后台可用聊天模型'
   },
   {
     to: '/ai-chat?mode=ecommerce',
     icon: 'clipboard' as const,
     badge: '电商工具',
     title: '电商文案',
-    description: '按商品名、核心卖点、平台和风格生成标题、卖点、小红书、直播口播等内容。',
-    action: '写商品文案'
+    description: '按商品名、卖点、平台和风格生成标题、卖点、小红书、直播口播等内容。',
+    action: '写商品文案',
+    enabled: capabilityByKey.value.commerce?.enabled ?? true,
+    reason: capabilityByKey.value.commerce?.reason || '使用聊天模型加电商模板'
   },
   {
     to: '/image-studio',
     icon: 'sparkles' as const,
     badge: '图片工作台',
     title: 'AI 作图',
-    description: '用于商品图、白底图、场景图和海报图。需要账号分组里有支持图片接口的上游。',
-    action: '进入作图'
+    description: '用于商品图、白底图、场景图和海报图。需要图片上游账号或图片分组。',
+    action: '进入作图',
+    enabled: capabilityByKey.value.image?.enabled ?? false,
+    reason: capabilityByKey.value.image?.reason || '需要图片分组'
   },
   {
     to: '/keys',
@@ -231,9 +277,11 @@ const productEntries = [
     badge: '开发者',
     title: '第三方接入',
     description: '生成 API Key 后，可接入 Cherry Studio、Codex、Claude Code、CC Switch 等工具。',
-    action: '管理密钥'
+    action: '管理密钥',
+    enabled: capabilityByKey.value.developer?.enabled ?? true,
+    reason: capabilityByKey.value.developer?.reason || '可创建 API Key 接入第三方工具'
   }
-]
+])
 
 const onboardingSteps = [
   {
@@ -279,7 +327,10 @@ const formatCompact = (value: number) =>
 const loadStats = async () => {
   loading.value = true
   try {
-    await authStore.refreshUser()
+    await Promise.all([
+      authStore.refreshUser(),
+      loadCapabilities()
+    ])
     stats.value = await usageAPI.getDashboardStats()
   } catch (error) {
     console.error('Failed to load dashboard stats:', error)
