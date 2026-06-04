@@ -141,3 +141,10 @@ docs/*
 frontend/coverage/
 aicodex
 output/
+
+# Local sensitive/deploy artifacts
+.ssh-temp/
+.deploy-stage*/
+deploy-stage*/
+deploy/*.local.yaml
+*.staging.local.yaml
