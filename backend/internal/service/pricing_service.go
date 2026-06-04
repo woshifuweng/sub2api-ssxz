@@ -137,6 +137,15 @@ func (s *PricingService) InitializeWithBackground(enableBackground bool) error {
 		logger.LegacyPrintf("service.pricing", "[Pricing] Failed to create data directory: %v", err)
 	}
 
+	if s.remotePricingDisabled() {
+		logger.LegacyPrintf("service.pricing", "%s", "[Pricing] remote pricing disabled by local safe-test gate")
+		if err := s.loadLocalPricingOnly(); err != nil {
+			return fmt.Errorf("failed to load local pricing data: %w", err)
+		}
+		logger.LegacyPrintf("service.pricing", "[Pricing] Service initialized with %d models", len(s.pricingData))
+		return nil
+	}
+
 	// 首次加载价格数据
 	if err := s.checkAndUpdatePricing(); err != nil {
 		logger.LegacyPrintf("service.pricing", "[Pricing] Initial load failed, using fallback: %v", err)
@@ -222,6 +231,11 @@ func (s *PricingService) checkAndUpdatePricing() error {
 
 // syncWithRemote 与远程同步（基于哈希校验）
 func (s *PricingService) syncWithRemote() error {
+	if s.remotePricingDisabled() {
+		logger.LegacyPrintf("service.pricing", "%s", "[Pricing] remote pricing disabled by local safe-test gate")
+		return nil
+	}
+
 	pricingFile := s.getPricingFilePath()
 
 	// 计算本地文件哈希
@@ -266,6 +280,10 @@ func (s *PricingService) syncWithRemote() error {
 
 // downloadPricingData 从远程下载价格数据
 func (s *PricingService) downloadPricingData() error {
+	if s.remotePricingDisabled() {
+		return fmt.Errorf("remote pricing disabled by local safe-test gate")
+	}
+
 	remoteURL, err := s.validatePricingURL(s.cfg.Pricing.RemoteURL)
 	if err != nil {
 		return err
@@ -434,6 +452,31 @@ func (s *PricingService) loadPricingData(filePath string) error {
 	s.mu.Unlock()
 
 	logger.LegacyPrintf("service.pricing", "[Pricing] Loaded %d models from %s", len(pricingData), filePath)
+	return nil
+}
+
+func (s *PricingService) remotePricingDisabled() bool {
+	return s.cfg != nil && s.cfg.Pricing.DisableRemote
+}
+
+func (s *PricingService) loadLocalPricingOnly() error {
+	if err := s.loadPricingData(s.getPricingFilePath()); err == nil {
+		return nil
+	}
+
+	if fallbackFile := strings.TrimSpace(s.cfg.Pricing.FallbackFile); fallbackFile != "" {
+		if err := s.loadPricingData(fallbackFile); err == nil {
+			return nil
+		}
+	}
+
+	s.mu.Lock()
+	s.pricingData = make(map[string]*LiteLLMModelPricing)
+	s.localHash = ""
+	s.lastUpdated = time.Now()
+	s.mu.Unlock()
+
+	logger.LegacyPrintf("service.pricing", "%s", "[Pricing] remote pricing disabled; using empty in-memory pricing fallback")
 	return nil
 }
 

@@ -231,6 +231,8 @@ type PricingConfig struct {
 	RemoteURL string `mapstructure:"remote_url"`
 	// 哈希校验文件URL
 	HashURL string `mapstructure:"hash_url"`
+	// 禁用远程定价下载（本地安全测试使用，默认关闭）
+	DisableRemote bool `mapstructure:"disable_remote"`
 	// 本地数据目录
 	DataDir string `mapstructure:"data_dir"`
 	// 回退文件路径
@@ -1163,6 +1165,9 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	// 环境变量支持
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	if err := viper.BindEnv("pricing.disable_remote", "SUB2API_DISABLE_REMOTE_PRICING"); err != nil {
+		return nil, fmt.Errorf("bind pricing disable remote env: %w", err)
+	}
 
 	// 默认值
 	setDefaults()
@@ -1458,6 +1463,7 @@ func setDefaults() {
 	// Pricing - 从 model-price-repo 同步模型定价和上下文窗口数据（固定到 commit，避免分支漂移）
 	viper.SetDefault("pricing.remote_url", "https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/c7947e9871687e664180bc971d4837f1fc2784a9/model_prices_and_context_window.json")
 	viper.SetDefault("pricing.hash_url", "https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/c7947e9871687e664180bc971d4837f1fc2784a9/model_prices_and_context_window.sha256")
+	viper.SetDefault("pricing.disable_remote", false)
 	viper.SetDefault("pricing.data_dir", "./data")
 	viper.SetDefault("pricing.fallback_file", "./resources/model-pricing/model_prices_and_context_window.json")
 	viper.SetDefault("pricing.update_interval_hours", 24)
