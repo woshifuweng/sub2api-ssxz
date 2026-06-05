@@ -114,7 +114,7 @@ export default {
   keyUsage: {
     title: 'API Key Usage',
     subtitle: 'Enter your API Key to view real-time spending and usage status',
-    placeholder: 'sk-ant-mirror-xxxxxxxxxxxx',
+    placeholder: 'your-api-key',
     query: 'Query',
     querying: 'Querying...',
     privacyNote: 'Your Key is processed locally in the browser and will not be stored',
@@ -360,8 +360,8 @@ export default {
     expand: 'Expand',
     logout: 'Logout',
     github: 'GitHub',
-    mySubscriptions: 'My Subscriptions',
-    buySubscription: 'Recharge / Subscription',
+    mySubscriptions: 'My Access',
+    buySubscription: 'Contact Recharge',
     docs: 'Docs',
     sora: 'Sora Studio'
   },

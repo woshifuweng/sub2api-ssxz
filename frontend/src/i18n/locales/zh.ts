@@ -114,7 +114,7 @@ export default {
   keyUsage: {
     title: 'API Key 用量查询',
     subtitle: '输入您的 API Key 以查看实时消费金额与使用状态',
-    placeholder: 'sk-ant-mirror-xxxxxxxxxxxx',
+    placeholder: 'your-api-key',
     query: '查询',
     querying: '查询中...',
     privacyNote: '您的 Key 仅在浏览器本地处理，不会被存储',
@@ -360,8 +360,8 @@ export default {
     expand: '展开',
     logout: '退出登录',
     github: 'GitHub',
-    mySubscriptions: '我的订阅',
-    buySubscription: '充值/订阅',
+    mySubscriptions: '我的权限',
+    buySubscription: '联系充值',
     docs: '文档',
     sora: 'Sora 创作'
   },
