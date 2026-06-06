@@ -25,6 +25,23 @@
         </RouterLink>
       </nav>
 
+      <section class="mt-6 space-y-2" aria-label="历史会话">
+        <div class="px-3 text-xs font-semibold uppercase tracking-normal text-zinc-500 dark:text-zinc-400 ssxz-sidebar-text">
+          历史会话
+        </div>
+        <RouterLink
+          v-for="item in historyItems"
+          :key="item.label"
+          :to="item.to"
+          class="ssxz-nav-item"
+          :title="item.label"
+          :aria-label="item.label"
+        >
+          <Icon :name="item.icon" size="sm" />
+          <span class="ssxz-sidebar-text">{{ item.label }}</span>
+        </RouterLink>
+      </section>
+
       <div class="absolute bottom-4 left-3 right-3 space-y-2">
         <button
           type="button"
@@ -63,6 +80,7 @@
                 <Icon name="chevronDown" size="xs" />
               </button>
               <div v-if="userMenuOpen" class="ssxz-user-menu">
+                <RouterLink class="ssxz-menu-link" to="/app/developer" @click="userMenuOpen = false">开发者 API</RouterLink>
                 <RouterLink class="ssxz-menu-link" to="/app/account" @click="userMenuOpen = false">账户设置</RouterLink>
                 <RouterLink class="ssxz-menu-link" to="/app/billing" @click="userMenuOpen = false">余额与账单</RouterLink>
                 <RouterLink v-if="isAdmin" class="ssxz-menu-link" to="/admin/dashboard" @click="userMenuOpen = false">管理员后台</RouterLink>
@@ -124,11 +142,13 @@ const sidebarCollapsed = ref(readSidebarCollapsed())
 const isDark = ref(document.documentElement.classList.contains('dark'))
 
 const navItems: Array<{ label: string; to: string; icon: IconName }> = [
-  { label: '新对话', to: '/app?new=1', icon: 'chat' },
-  { label: 'AI 作图', to: '/app/image', icon: 'sparkles' },
-  { label: '开发者 API', to: '/app/developer', icon: 'terminal' },
-  { label: '余额充值', to: '/app/billing', icon: 'creditCard' },
-  { label: '账户设置', to: '/app/account', icon: 'userCircle' }
+  { label: '新对话', to: '/app?new=1', icon: 'chat' }
+]
+
+const historyItems: Array<{ label: string; to: string; icon: IconName }> = [
+  { label: '电商主图 brief', to: '/app', icon: 'sparkles' },
+  { label: '商品详情文案', to: '/app', icon: 'chat' },
+  { label: '小红书封面方向', to: '/app', icon: 'sparkles' }
 ]
 
 const balanceText = computed(() => (authStore.user?.balance ?? 0).toFixed(2))

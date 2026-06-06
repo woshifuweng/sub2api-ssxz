@@ -5,7 +5,7 @@
     :eyebrow="activeContent.eyebrow"
     :icon="activeContent.icon"
   >
-    <template #actions>
+    <template v-if="showHeaderActions" #actions>
       <div class="app-workspace-actions">
         <RouterLink :to="activeContent.secondaryAction.to" class="ssxz-btn-secondary rounded-full">
           <Icon :name="activeContent.secondaryAction.icon" size="sm" />
@@ -25,12 +25,21 @@
         <p>{{ activeContent.description }}</p>
       </div>
 
-      <div v-if="activeSection === 'chat'" class="workspace-composer">
+      <div v-if="isConversationWorkspace" class="workspace-composer unified-composer">
         <textarea
           v-model="draft"
           rows="4"
-          placeholder="Sketch a prompt, outline the audience, or plan the next conversation."
+          placeholder="直接描述你想完成的事，例如：帮我生成一张 16:9 的电商主图，参考这张图改成小红书封面风格。"
         />
+        <div class="composer-tool-grid" aria-label="Optional composer tools">
+          <button v-for="tool in composerTools" :key="tool.label" type="button" class="composer-tool">
+            <Icon :name="tool.icon" size="xs" />
+            <span>
+              <strong>{{ tool.label }}</strong>
+              <small>{{ tool.description }}</small>
+            </span>
+          </button>
+        </div>
         <div class="composer-footer">
           <div class="prompt-chip-row">
             <button
@@ -45,7 +54,7 @@
           </div>
           <button type="button" class="ssxz-btn-primary rounded-full" :disabled="!draft.trim()" @click="recordDraft">
             <Icon name="arrowUp" size="sm" />
-            Save draft
+            记录草稿
           </button>
         </div>
       </div>
@@ -56,65 +65,57 @@
       </div>
     </section>
 
-    <section v-if="activeSection === 'chat' && localMessages.length" class="workspace-local-thread">
+    <section v-if="isConversationWorkspace" class="unified-conversation-shell" aria-label="Unified conversation preview">
+      <div class="conversation-canvas">
+        <article v-for="item in conversationPreviewItems" :key="item.title" class="conversation-message-card" :data-kind="item.kind">
+          <span class="conversation-avatar">
+            <Icon :name="item.icon" size="sm" />
+          </span>
+          <span class="conversation-message-copy">
+            <span class="conversation-message-kicker">{{ item.kicker }}</span>
+            <strong>{{ item.title }}</strong>
+            <small>{{ item.description }}</small>
+          </span>
+        </article>
+
+        <article v-for="message in localMessages" :key="message.id" class="conversation-message-card" data-kind="draft">
+          <span class="conversation-avatar">
+            <Icon name="chat" size="sm" />
+          </span>
+          <span class="conversation-message-copy">
+            <span class="conversation-message-kicker">{{ message.role }}</span>
+            <strong>本地草稿已记录</strong>
+            <small>{{ message.content }}</small>
+          </span>
+        </article>
+      </div>
+
+      <aside class="composer-intent-panel" aria-label="Parsed image intent preview">
+        <span class="pending-badge">图片任务草稿</span>
+        <h3>自然语言会先变成会话中的计划卡片</h3>
+        <p>
+          这里展示的是 E-A 静态壳：比例、用途、风格和参考图关系都来自输入框语义，保持待生成、未计费。
+        </p>
+        <ul>
+          <li v-for="item in intentSummaryItems" :key="item.label">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+          </li>
+        </ul>
+        <p v-if="activeSection === 'image'" class="legacy-route-note">
+          `/app/image` 仅作为兼容入口展示同一输入框能力；图片请求应回到当前会话中表达。
+        </p>
+      </aside>
+    </section>
+
+    <section v-if="activeSection === 'chat' && localMessages.length && !isConversationWorkspace" class="workspace-local-thread">
       <article v-for="message in localMessages" :key="message.id" class="local-message">
         <span class="local-message-role">{{ message.role }}</span>
         <p>{{ message.content }}</p>
       </article>
     </section>
 
-    <section
-      v-if="isUnifiedWorkspaceSection"
-      class="conversation-ia-panel"
-      :aria-label="`${activeContent.label} conversation workspace structure`"
-    >
-      <div class="conversation-ia-copy">
-        <span class="detail-kicker">{{ conversationPanel.kicker }}</span>
-        <h2>{{ conversationPanel.title }}</h2>
-        <p>{{ conversationPanel.description }}</p>
-
-        <div class="conversation-thread-shell" aria-label="Conversation preview">
-          <article v-for="item in conversationPanel.thread" :key="item.title" class="conversation-thread-item">
-            <span class="conversation-thread-icon">
-              <Icon :name="item.icon" size="sm" />
-            </span>
-            <span class="conversation-thread-copy">
-              <span>{{ item.kicker }}</span>
-              <strong>{{ item.title }}</strong>
-              <small>{{ item.description }}</small>
-            </span>
-          </article>
-        </div>
-      </div>
-
-      <aside class="pending-image-plan" aria-label="Pending image plan card">
-        <span class="pending-badge">{{ conversationPanel.imagePlan.badge }}</span>
-        <h3>{{ conversationPanel.imagePlan.title }}</h3>
-        <p>{{ conversationPanel.imagePlan.description }}</p>
-        <ul>
-          <li v-for="item in conversationPanel.imagePlan.items" :key="item">
-            <span class="check-dot" />
-            <span>{{ item }}</span>
-          </li>
-        </ul>
-      </aside>
-    </section>
-
-    <section v-if="activeSection === 'home'" class="workspace-entry-grid" aria-label="Workspace sections">
-      <RouterLink v-for="entry in workspaceEntries" :key="entry.to" :to="entry.to" class="workspace-entry-card">
-        <span class="workspace-entry-icon">
-          <Icon :name="entry.icon" size="sm" />
-        </span>
-        <span class="workspace-entry-copy">
-          <span class="workspace-entry-kicker">{{ entry.kicker }}</span>
-          <span class="workspace-entry-title">{{ entry.title }}</span>
-          <span class="workspace-entry-description">{{ entry.description }}</span>
-        </span>
-        <Icon name="arrowUp" size="xs" class="workspace-entry-arrow" />
-      </RouterLink>
-    </section>
-
-    <section v-else class="workspace-section-grid" :aria-label="`${activeContent.label} workspace preview`">
+    <section v-if="!isConversationWorkspace" class="workspace-section-grid" :aria-label="`${activeContent.label} workspace preview`">
       <article v-for="card in activeContent.cards" :key="card.title" class="workspace-section-card">
         <span class="workspace-section-card-icon">
           <Icon :name="card.icon" size="sm" />
@@ -125,7 +126,7 @@
       </article>
     </section>
 
-    <section class="workspace-detail-panel">
+    <section v-if="!isConversationWorkspace" class="workspace-detail-panel">
       <div>
         <span class="detail-kicker">{{ activeContent.detailKicker }}</span>
         <h2>{{ activeContent.detailTitle }}</h2>
@@ -139,7 +140,7 @@
       </ul>
     </section>
 
-    <section class="workspace-note-strip">
+    <section v-if="!isConversationWorkspace" class="workspace-note-strip">
       <span class="note-dot" />
       <span>
         This workspace is a guided preview: you can move between sections, draft ideas, and review the flow while live actions arrive in later batches.
@@ -156,14 +157,6 @@ import AppSectionShell from '@/components/user/AppSectionShell.vue'
 
 type IconName = InstanceType<typeof Icon>['$props']['name']
 type SectionKey = 'home' | 'chat' | 'image' | 'developer' | 'billing' | 'account'
-
-interface WorkspaceEntry {
-  title: string
-  kicker: string
-  description: string
-  icon: IconName
-  to: string
-}
 
 interface SectionCard {
   title: string
@@ -203,28 +196,23 @@ interface LocalMessage {
   content: string
 }
 
-type UnifiedSectionKey = Extract<SectionKey, 'home' | 'chat' | 'image'>
+interface ComposerTool {
+  label: string
+  description: string
+  icon: IconName
+}
 
-interface ConversationThreadItem {
+interface ConversationPreviewItem {
+  kind: 'user' | 'assistant' | 'reference' | 'image-plan' | 'result'
   kicker: string
   title: string
   description: string
   icon: IconName
 }
 
-interface PendingImagePlan {
-  badge: string
-  title: string
-  description: string
-  items: string[]
-}
-
-interface ConversationPanel {
-  kicker: string
-  title: string
-  description: string
-  thread: ConversationThreadItem[]
-  imagePlan: PendingImagePlan
+interface IntentSummaryItem {
+  label: string
+  value: string
 }
 
 const route = useRoute()
@@ -232,186 +220,98 @@ const draft = ref('')
 const localMessages = ref<LocalMessage[]>([])
 
 const sectionKeys: readonly SectionKey[] = ['home', 'chat', 'image', 'developer', 'billing', 'account']
-const unifiedSectionKeys: readonly UnifiedSectionKey[] = ['home', 'chat', 'image']
-
-const workspaceEntries: WorkspaceEntry[] = [
-  {
-    title: 'AI Chat',
-    kicker: 'Conversation lane',
-    description: 'Work with text messages and image planning cards inside one conversation shell.',
-    icon: 'chat',
-    to: '/app/chat'
-  },
-  {
-    title: 'AI Image',
-    kicker: 'Image planning lane',
-    description: 'Turn a visual brief into a pending image card that belongs to the same workspace.',
-    icon: 'sparkles',
-    to: '/app/image'
-  },
-  {
-    title: 'Developer API',
-    kicker: 'Integration guide',
-    description: 'Preview where keys, models, limits, and release checks will be managed.',
-    icon: 'terminal',
-    to: '/app/developer'
-  },
-  {
-    title: 'Billing',
-    kicker: 'Account overview',
-    description: 'See how balance, usage, invoices, and plan details will be organized.',
-    icon: 'creditCard',
-    to: '/app/billing'
-  },
-  {
-    title: 'Account',
-    kicker: 'Profile center',
-    description: 'Find profile, preferences, and security settings in a familiar account hub.',
-    icon: 'userCircle',
-    to: '/app/account'
-  }
-]
 
 const promptChips = [
-  { label: 'Launch pitch', prompt: 'Draft five crisp benefits for a product launch, with audience, angle, and proof points.' },
-  { label: 'Image plan', prompt: 'Turn this idea into a visual plan with subject, setting, lighting, color, ratio, and reference notes.' },
-  { label: 'Integration plan', prompt: 'List the checks needed before an integration: model choice, access, limits, errors, and release gates.' }
+  { label: '商品详情文案', prompt: '帮我写一段适合详情页首屏的商品卖点文案，语气清晰、可信、适合普通用户阅读。' },
+  { label: '16:9 电商主图', prompt: '帮我生成一张 16:9 的电商主图，白色背景，主体清楚，适合商品详情页首图。' },
+  { label: '小红书封面', prompt: '参考这张图的氛围，规划一张小红书封面风格的图片任务草稿。' }
 ]
 
-const conversationPanels: Record<UnifiedSectionKey, ConversationPanel> = {
-  home: {
-    kicker: 'Unified conversation',
-    title: 'One workspace for text and image planning',
-    description: 'The home view should feel like the start of the same AI conversation, with recent context and pending visual work visible together.',
-    thread: [
-      {
-        kicker: 'User message',
-        title: 'Plan a product launch story',
-        description: 'A text prompt can start the conversation, set the audience, and define the creative goal.',
-        icon: 'chat'
-      },
-      {
-        kicker: 'Assistant placeholder',
-        title: 'Reply outline waits in the same thread',
-        description: 'The workspace can reserve a calm response area without calling a model in this phase.',
-        icon: 'sparkles'
-      },
-      {
-        kicker: 'Image plan',
-        title: 'Visual brief is attached to the conversation',
-        description: 'A pending image card can sit beside the text flow instead of living on a separate island.',
-        icon: 'terminal'
-      }
-    ],
-    imagePlan: {
-      badge: 'Pending image plan',
-      title: 'Visual card belongs to the current conversation',
-      description: 'Use this shell to show that image work is planned from conversation context and can be reviewed before any live action exists.',
-      items: ['Goal and output use stay visible.', 'Style, ratio, and references are grouped.', 'The card remains planning-only in this phase.']
-    }
+const composerTools: ComposerTool[] = [
+  { label: '参考图', description: '占位壳，不处理文件', icon: 'sparkles' },
+  { label: '图片模式', description: '从自然语言识别任务', icon: 'terminal' },
+  { label: '比例', description: '如 16:9 / 4:5 / 1:1', icon: 'chat' },
+  { label: '风格', description: '如小红书、海报、电商', icon: 'sparkles' },
+  { label: '用途', description: '主图、封面、详情页', icon: 'terminal' },
+  { label: '提示词优化', description: '后续批次接入', icon: 'chat' }
+]
+
+const conversationPreviewItems: ConversationPreviewItem[] = [
+  {
+    kind: 'user',
+    kicker: 'User message',
+    title: '帮我生成一张 16:9 的电商主图',
+    description: '用户只在同一个输入框描述目标；比例和用途先作为静态语义被识别。',
+    icon: 'chat'
   },
-  chat: {
-    kicker: 'Conversation view',
-    title: 'Text and image planning share the same thread',
-    description: 'The chat route should show how a future conversation can hold text notes, reply placeholders, and pending visual cards together.',
-    thread: [
-      {
-        kicker: 'Text message',
-        title: 'Describe the campaign or question',
-        description: 'The message area starts with ordinary text planning and local drafts.',
-        icon: 'chat'
-      },
-      {
-        kicker: 'Assistant placeholder',
-        title: 'Response area is prepared, not live',
-        description: 'Copy and structure can be reviewed while live replies remain scheduled for later.',
-        icon: 'sparkles'
-      },
-      {
-        kicker: 'Pending image card',
-        title: 'Image brief can appear inside the conversation',
-        description: 'Creative goal, style, ratio, and reference notes are visible as part of the same thread.',
-        icon: 'terminal'
-      }
-    ],
-    imagePlan: {
-      badge: 'Planning card',
-      title: 'Image work starts from chat context',
-      description: 'The card explains what the future visual work needs, while staying safely in preview mode.',
-      items: ['No live reply is requested.', 'No visual work is started.', 'No financial action is connected.']
-    }
+  {
+    kind: 'reference',
+    kicker: 'Reference placeholder',
+    title: '参考图留在当前会话',
+    description: '参考图能力显示为占位壳；本阶段不选择文件、不上传、不写入资产。',
+    icon: 'sparkles'
   },
-  image: {
-    kicker: 'Image planning view',
-    title: 'Build the visual brief, then return it to the conversation',
-    description: 'The image route remains useful as a focused planning surface, but the output is a pending card that belongs to the same workspace history.',
-    thread: [
-      {
-        kicker: 'Conversation context',
-        title: 'Start from the current user goal',
-        description: 'The image plan should inherit intent from the workspace rather than behave like an isolated page.',
-        icon: 'chat'
-      },
-      {
-        kicker: 'Creative brief',
-        title: 'Organize goal, style, ratio, and references',
-        description: 'The planning section collects the ingredients a designer or creator would review first.',
-        icon: 'sparkles'
-      },
-      {
-        kicker: 'Pending card',
-        title: 'Send the brief back to the conversation shell',
-        description: 'The card stays pending and descriptive until a later batch introduces live capability.',
-        icon: 'terminal'
-      }
-    ],
-    imagePlan: {
-      badge: 'Planning handoff',
-      title: 'Image brief links back to the workspace thread',
-      description: 'This area clarifies how the visual plan can be reviewed alongside text messages and future history.',
-      items: ['Reference area is descriptive only.', 'Canvas preview remains a planning surface.', 'The next state is pending, not completed.']
-    }
+  {
+    kind: 'image-plan',
+    kicker: 'Image task draft',
+    title: '图片任务草稿：16:9 / 电商主图 / 清爽商品风格',
+    description: '计划卡片进入同一会话流，状态为 pending、not generated、not billed。',
+    icon: 'terminal'
+  },
+  {
+    kind: 'assistant',
+    kicker: 'Assistant placeholder',
+    title: '后续可继续追问或修改图片方向',
+    description: '例如“改成 4:5”“背景换白色”“更像小红书封面”，仍留在同一 conversation。',
+    icon: 'sparkles'
   }
-}
+]
+
+const intentSummaryItems: IntentSummaryItem[] = [
+  { label: '任务类型', value: '图片任务草稿' },
+  { label: '比例', value: '从“16:9 / 4:5”等文字识别' },
+  { label: '用途', value: '从“电商主图 / 小红书封面”等语义识别' },
+  { label: '状态', value: 'pending / not generated / not billed' }
+]
 
 const sectionContent: Record<SectionKey, SectionContent> = {
   home: {
     label: 'Home',
-    shellTitle: 'AI Workspace',
-    shellSubtitle: 'A calm conversation workspace for text, image planning, developer, billing, and account work.',
-    eyebrow: 'SSXZ AI Workspace',
+    shellTitle: 'Unified AI Conversation',
+    shellSubtitle: 'One conversation window for writing, reference images, and pending image task drafts.',
+    eyebrow: 'SSXZ AI',
     icon: 'sparkles',
-    pill: 'Unified conversation workspace',
-    heading: 'Start with one AI thread, then branch into the work it needs.',
-    description: 'Use the workspace home to see how conversation, image planning, recent context, and account areas belong to one product surface instead of separate tools.',
-    status: 'Preview mode: text and image planning are organized together while live actions arrive later.',
-    primaryAction: { label: 'Open chat', to: '/app/chat', icon: 'chat' },
-    secondaryAction: { label: 'Plan image', to: '/app/image', icon: 'sparkles' },
-    detailKicker: 'Workspace IA',
-    detailTitle: 'Conversation first, sections second',
-    detailDescription: 'The main app routes now share a conversation-centered structure: chat holds the thread, image planning creates a pending visual card, and the home view keeps the flow understandable.',
+    pill: 'Unified conversation',
+    heading: 'Start with one input. Let text and image tasks share the same thread.',
+    description: 'Type a request naturally: write copy, attach a reference placeholder, ask for a 16:9 product hero, or revise an image direction without switching into a separate image page.',
+    status: 'Preview mode: composer tools are static, image tasks stay pending, and no live capability is triggered.',
+    primaryAction: { label: 'New conversation', to: '/app?new=1', icon: 'chat' },
+    secondaryAction: { label: 'Workspace home', to: '/app', icon: 'sparkles' },
+    detailKicker: 'Unified IA',
+    detailTitle: 'One composer owns text and image intent',
+    detailDescription: 'The app starts from a single conversation surface. Image parameters are optional helpers near the composer, not a required form flow.',
     cards: [],
     checklist: [
-      'The home view introduces one conversation workspace rather than a dashboard.',
-      'Image planning is shown as part of the same thread and history shell.',
-      'Developer, billing, and account areas remain supporting sections for later refinement.'
+      'Users do not choose chat versus image before typing.',
+      'Image intent is represented as a pending card in the same conversation.',
+      'Developer, billing, and account areas are supporting settings, not primary creation lanes.'
     ]
   },
   chat: {
     label: 'Chat',
-    shellTitle: 'Conversation Workspace',
-    shellSubtitle: 'Plan text messages and pending image cards inside the same AI thread.',
-    eyebrow: 'Conversation Workspace',
+    shellTitle: 'Unified AI Conversation',
+    shellSubtitle: 'The chat compatibility route renders the same conversation workspace as /app.',
+    eyebrow: 'SSXZ AI',
     icon: 'chat',
-    pill: 'Unified thread',
-    heading: 'Write, plan, and attach visual work in one conversation.',
-    description: 'Use the prompt area to sketch the user message, then review how a pending image plan can sit in the same thread without starting live work.',
+    pill: 'Compatibility route',
+    heading: 'This is the same workspace: text, references, and image drafts in one thread.',
+    description: 'Use the composer as the primary product surface. A request like “make this 4:5 for a social cover” stays in the same conversation and becomes a planning card.',
     status: 'Preview mode: drafts and pending visual cards are local planning surfaces.',
-    primaryAction: { label: 'Plan image card', to: '/app/image', icon: 'sparkles' },
+    primaryAction: { label: 'New conversation', to: '/app?new=1', icon: 'chat' },
     secondaryAction: { label: 'Workspace home', to: '/app', icon: 'sparkles' },
     detailKicker: 'Conversation IA',
-    detailTitle: 'Text message plus pending image card',
-    detailDescription: 'The chat route now explains how text planning, assistant placeholders, and image cards share a single conversation shell.',
+    detailTitle: 'Text message plus pending image task card',
+    detailDescription: 'The chat route remains compatible, but it no longer forms a separate product mode.',
     cards: [
       {
         title: 'User message',
@@ -440,19 +340,19 @@ const sectionContent: Record<SectionKey, SectionContent> = {
   },
   image: {
     label: 'Image',
-    shellTitle: 'Image Planning Workspace',
-    shellSubtitle: 'Turn conversation context into a focused visual brief and pending card.',
-    eyebrow: 'Image Planning',
+    shellTitle: 'Unified AI Conversation',
+    shellSubtitle: 'Image requests now start from the same composer instead of a separate image workspace.',
+    eyebrow: 'SSXZ AI',
     icon: 'sparkles',
-    pill: 'Conversation image plan',
-    heading: 'Shape the image brief, then keep it with the conversation.',
-    description: 'Organize goal, output use, style, ratio, reference direction, prompt structure, and preview notes as a planning card that can live beside text messages.',
-    status: 'Preview mode: this image section prepares a pending planning card for the shared workspace.',
-    primaryAction: { label: 'Back to thread', to: '/app/chat', icon: 'chat' },
+    pill: 'Image route compatibility',
+    heading: 'Image creation starts in the conversation input.',
+    description: 'This route keeps old links safe while pointing the user back to the unified composer. Describe the ratio, style, use case, and reference direction naturally in the same thread.',
+    status: 'Preview mode: image capability is represented as a pending conversation draft, not a separate page.',
+    primaryAction: { label: 'New conversation', to: '/app?new=1', icon: 'chat' },
     secondaryAction: { label: 'Workspace home', to: '/app', icon: 'sparkles' },
-    detailKicker: 'Image planning flow',
-    detailTitle: 'Goal, use, style, canvas, reference, prompt, pending card',
-    detailDescription: 'The image route is a focused planning desk for the same conversation: it gathers visual intent and returns a reviewable card to the shared thread.',
+    detailKicker: 'Compatibility',
+    detailTitle: 'Image tools live beside the composer',
+    detailDescription: 'The image route no longer owns the main creation flow. It shows the same conversation shell so existing links do not become a separate product mode.',
     cards: [
       {
         title: 'Creation goal',
@@ -630,17 +530,13 @@ const activeSection = computed<SectionKey>(() => {
 })
 
 const activeContent = computed(() => sectionContent[activeSection.value])
-const isUnifiedWorkspaceSection = computed(() => isUnifiedSectionKey(activeSection.value))
-const conversationPanel = computed(() => (
-  isUnifiedSectionKey(activeSection.value) ? conversationPanels[activeSection.value] : conversationPanels.home
+const isConversationWorkspace = computed(() => (
+  activeSection.value === 'home' || activeSection.value === 'chat' || activeSection.value === 'image'
 ))
+const showHeaderActions = computed(() => !isConversationWorkspace.value)
 
 function isSectionKey(value: unknown): value is SectionKey {
   return typeof value === 'string' && sectionKeys.includes(value as SectionKey)
-}
-
-function isUnifiedSectionKey(value: SectionKey): value is UnifiedSectionKey {
-  return unifiedSectionKeys.includes(value as UnifiedSectionKey)
 }
 
 function applyPrompt(prompt: string) {
@@ -716,6 +612,11 @@ function recordDraft() {
   padding: 0.85rem;
 }
 
+.unified-composer {
+  display: grid;
+  gap: 0.8rem;
+}
+
 .workspace-composer textarea {
   min-height: 8rem;
   width: 100%;
@@ -730,6 +631,47 @@ function recordDraft() {
 
 .workspace-composer textarea::placeholder {
   color: var(--ssxz-subtle);
+}
+
+.composer-tool-grid {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.composer-tool {
+  display: flex;
+  min-height: 4.25rem;
+  align-items: flex-start;
+  gap: 0.5rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-lg);
+  background: var(--ssxz-surface-muted);
+  color: var(--ssxz-text);
+  padding: 0.7rem;
+  text-align: left;
+}
+
+.composer-tool svg {
+  color: var(--ssxz-primary);
+  margin-top: 0.1rem;
+}
+
+.composer-tool span {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.composer-tool strong {
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.composer-tool small {
+  color: var(--ssxz-body);
+  font-size: 0.72rem;
+  line-height: 1.35;
 }
 
 .composer-footer {
@@ -812,6 +754,131 @@ function recordDraft() {
   color: var(--ssxz-body);
   line-height: 1.7;
   white-space: pre-wrap;
+}
+
+.unified-conversation-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(20rem, 0.75fr);
+  gap: 1rem;
+}
+
+.conversation-canvas,
+.composer-intent-panel {
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-2xl);
+  background: var(--ssxz-surface-raised);
+  box-shadow: var(--ssxz-shadow-sm);
+  padding: 1rem;
+}
+
+.conversation-canvas {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.conversation-message-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.8rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-xl);
+  background: var(--ssxz-surface-muted);
+  padding: 0.9rem;
+}
+
+.conversation-message-card[data-kind='image-plan'],
+.conversation-message-card[data-kind='result'] {
+  border-color: color-mix(in srgb, var(--ssxz-primary) 34%, var(--ssxz-border));
+  background: var(--ssxz-active-bg);
+}
+
+.conversation-avatar {
+  display: inline-flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 0.85rem;
+  background: var(--ssxz-surface-raised);
+  color: var(--ssxz-primary);
+}
+
+.conversation-message-copy {
+  display: grid;
+  gap: 0.26rem;
+  min-width: 0;
+}
+
+.conversation-message-kicker {
+  color: var(--ssxz-primary);
+  font-size: 0.72rem;
+  font-weight: 760;
+}
+
+.conversation-message-copy strong {
+  color: var(--ssxz-text);
+  font-size: 0.95rem;
+}
+
+.conversation-message-copy small {
+  color: var(--ssxz-body);
+  font-size: 0.82rem;
+  line-height: 1.58;
+  white-space: pre-wrap;
+}
+
+.composer-intent-panel {
+  align-self: start;
+}
+
+.composer-intent-panel h3 {
+  margin-top: 0.45rem;
+  color: var(--ssxz-text);
+  font-size: 1.1rem;
+  font-weight: 760;
+}
+
+.composer-intent-panel p {
+  margin-top: 0.5rem;
+  color: var(--ssxz-body);
+  font-size: 0.84rem;
+  line-height: 1.65;
+}
+
+.composer-intent-panel ul {
+  display: grid;
+  gap: 0.58rem;
+  margin: 0.95rem 0 0;
+  padding: 0;
+}
+
+.composer-intent-panel li {
+  display: grid;
+  gap: 0.18rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-lg);
+  background: var(--ssxz-surface-muted);
+  color: var(--ssxz-body);
+  padding: 0.65rem;
+  list-style: none;
+}
+
+.composer-intent-panel li span {
+  color: var(--ssxz-primary);
+  font-size: 0.72rem;
+  font-weight: 760;
+}
+
+.composer-intent-panel li strong {
+  color: var(--ssxz-text);
+  font-size: 0.84rem;
+  font-weight: 720;
+}
+
+.legacy-route-note {
+  border-top: 1px solid var(--ssxz-border);
+  padding-top: 0.75rem;
 }
 
 .conversation-ia-panel {
@@ -1083,6 +1150,11 @@ function recordDraft() {
 }
 
 @media (max-width: 1120px) {
+  .composer-tool-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .unified-conversation-shell,
   .conversation-ia-panel,
   .workspace-detail-panel {
     grid-template-columns: 1fr;
@@ -1101,6 +1173,10 @@ function recordDraft() {
     flex-direction: column;
   }
 
+  .composer-tool-grid {
+    grid-template-columns: 1fr;
+  }
+
   .workspace-entry-grid,
   .workspace-section-grid {
     grid-template-columns: 1fr;
@@ -1111,6 +1187,10 @@ function recordDraft() {
   }
 
   .conversation-thread-item {
+    grid-template-columns: 1fr;
+  }
+
+  .conversation-message-card {
     grid-template-columns: 1fr;
   }
 
