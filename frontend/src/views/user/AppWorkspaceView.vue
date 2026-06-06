@@ -5,108 +5,71 @@
     :eyebrow="activeContent.eyebrow"
     :icon="activeContent.icon"
   >
-    <section v-if="isConversationWorkspace" class="chat-workspace" :data-section="activeSection">
-      <div class="chat-statusbar" aria-label="Workspace status">
-        <span class="status-pill">Static E-A shell</span>
-        <span class="status-copy">One conversation for writing, image intent, references, and follow-up edits.</span>
-      </div>
+    <section v-if="isUnifiedWorkspace" class="minimal-workspace" :data-section="activeSection">
+      <p v-if="activeSection === 'image'" class="image-route-note">
+        图片生成已合并到对话输入框，直接描述你想要的图片即可。
+      </p>
 
-      <div class="conversation-frame">
-        <section class="conversation-empty" aria-label="Start a conversation">
-          <span v-if="activeSection === 'image'" class="route-note">
-            The image entry is now folded into the same conversation composer.
-          </span>
-          <h1>What would you like to do today?</h1>
-          <p>
-            Ask for copy, describe an image, mention a ratio like 16:9, or add reference context in the same thread.
-          </p>
+      <div class="conversation-area" :class="{ 'has-local-draft': localDrafts.length > 0 }">
+        <section v-if="localDrafts.length === 0" class="empty-state" aria-label="开始对话">
+          <h1>今天想做什么？</h1>
+          <p>直接输入问题，也可以描述想生成或修改的图片。</p>
         </section>
 
-        <section class="conversation-stream" aria-label="Conversation preview">
-          <article
-            v-for="message in visibleMessages"
-            :key="message.id"
-            class="message-row"
-            :data-role="message.role"
-          >
-            <span class="message-avatar">
-              <Icon :name="message.icon" size="sm" />
+        <section v-else class="local-thread" aria-label="本地对话草稿">
+          <article v-for="item in localDrafts" :key="item.id" class="message-row">
+            <span class="message-avatar">你</span>
+            <div class="message-bubble">
+              <p>{{ item.text }}</p>
+            </div>
+          </article>
+
+          <article class="assistant-note">
+            <span class="message-avatar assistant-avatar">
+              <Icon name="sparkles" size="sm" />
             </span>
             <div class="message-bubble">
-              <span class="message-label">{{ message.label }}</span>
-              <p>{{ message.text }}</p>
+              <p>{{ latestDraftHint }}</p>
             </div>
-          </article>
-
-          <article class="image-task-card" aria-label="Pending image task card">
-            <div class="image-task-header">
-              <span>
-                <Icon name="sparkles" size="sm" />
-                Image task draft
-              </span>
-              <strong>pending / not generated / not billed</strong>
-            </div>
-            <dl>
-              <div v-for="item in imageTaskFields" :key="item.label">
-                <dt>{{ item.label }}</dt>
-                <dd>{{ item.value }}</dd>
-              </div>
-            </dl>
-            <p>
-              This card is a static placeholder inside the conversation. Real image creation, files, usage, and billing remain off.
-            </p>
-          </article>
-
-          <article class="pending-result" aria-label="Pending result placeholder">
-            <Icon name="terminal" size="sm" />
-            <span>Image result placeholder. A future image result can appear here after real capability is connected.</span>
           </article>
         </section>
       </div>
 
-      <section class="conversation-composer" aria-label="Conversation composer">
-        <div class="composer-tools" aria-label="Optional tools">
-          <button v-for="tool in composerTools" :key="tool.label" type="button" class="tool-chip">
-            <Icon :name="tool.icon" size="xs" />
-            {{ tool.label }}
-          </button>
-        </div>
-        <div class="composer-box">
+      <section class="composer-wrap" aria-label="对话输入框">
+        <form class="composer" @submit.prevent="recordDraft">
+          <span class="composer-tool" aria-label="附件入口待接入" title="上传参考图">
+            <Icon name="plus" size="sm" />
+          </span>
+          <span class="composer-tool image-tool" aria-label="图片能力待接入" title="图片">
+            <Icon name="sparkles" size="sm" />
+            图片
+          </span>
           <textarea
             v-model="draft"
-            rows="2"
-            placeholder="Ask anything, for example: Generate a 16:9 ecommerce hero image with a clean white background."
+            rows="1"
+            placeholder="输入你的问题，或直接描述想生成的图片…"
           />
-          <button type="button" class="send-button" :disabled="!draft.trim()" @click="recordDraft" aria-label="Add local draft">
+          <button class="send-button" type="submit" :disabled="!draft.trim()" aria-label="发送本地草稿">
             <Icon name="arrowUp" size="sm" />
           </button>
+        </form>
+
+        <div class="suggestions" aria-label="建议示例">
+          <span v-for="item in suggestionChips" :key="item">{{ item }}</span>
         </div>
-        <div class="prompt-chips" aria-label="Example prompts">
-          <button
-            v-for="prompt in promptChips"
-            :key="prompt.label"
-            type="button"
-            @click="applyPrompt(prompt.prompt)"
-          >
-            {{ prompt.label }}
-          </button>
-        </div>
+        <p class="composer-note">当前仅记录本地草稿，不会生成图片、上传文件或扣费。</p>
       </section>
     </section>
 
     <section v-else class="support-section" :data-section="activeSection">
-      <div class="support-copy">
-        <span class="support-pill">{{ activeContent.pill }}</span>
-        <h1>{{ activeContent.heading }}</h1>
-        <p>{{ activeContent.description }}</p>
-      </div>
-      <div class="support-grid">
-        <article v-for="card in activeContent.cards" :key="card.title" class="support-card">
-          <Icon :name="card.icon" size="sm" />
-          <span>{{ card.kicker }}</span>
-          <h3>{{ card.title }}</h3>
-          <p>{{ card.description }}</p>
-        </article>
+      <span class="support-pill">{{ activeContent.pill }}</span>
+      <h1>{{ activeContent.heading }}</h1>
+      <p>{{ activeContent.description }}</p>
+      <div class="support-actions">
+        <span v-for="item in activeContent.cards" :key="item.title">
+          <Icon :name="item.icon" size="sm" />
+          {{ item.title }}
+        </span>
       </div>
     </section>
   </AppSectionShell>
@@ -123,8 +86,6 @@ type SectionKey = 'home' | 'chat' | 'image' | 'developer' | 'billing' | 'account
 
 interface WorkspaceCard {
   title: string
-  kicker: string
-  description: string
   icon: IconName
 }
 
@@ -139,184 +100,91 @@ interface SectionContent {
   cards: WorkspaceCard[]
 }
 
-interface ConversationMessage {
+interface LocalDraft {
   id: string
-  role: 'user' | 'assistant' | 'system'
-  label: string
   text: string
-  icon: IconName
-}
-
-interface ComposerTool {
-  label: string
-  icon: IconName
-}
-
-interface ImageTaskField {
-  label: string
-  value: string
 }
 
 const route = useRoute()
 const draft = ref('')
-const localMessages = ref<ConversationMessage[]>([])
+const localDrafts = ref<LocalDraft[]>([])
 
 const sectionKeys: readonly SectionKey[] = ['home', 'chat', 'image', 'developer', 'billing', 'account']
 
-const composerTools: ComposerTool[] = [
-  { label: 'Reference', icon: 'sparkles' },
-  { label: 'Image mode', icon: 'sparkles' },
-  { label: 'Ratio', icon: 'terminal' },
-  { label: 'Style', icon: 'chat' },
-  { label: 'Use case', icon: 'terminal' },
-  { label: 'Prompt help', icon: 'sparkles' }
-]
-
-const promptChips = [
-  {
-    label: '16:9 ecommerce hero',
-    prompt: 'Generate a 16:9 ecommerce hero image with a clean white background and a clear product subject.'
-  },
-  {
-    label: 'Write product copy',
-    prompt: 'Write concise product detail copy with a clear benefit, trusted tone, and easy-to-scan bullets.'
-  },
-  {
-    label: 'Refine image direction',
-    prompt: 'Make the last image direction feel more premium and suitable for a social cover.'
-  }
-]
-
-const baseMessages: ConversationMessage[] = [
-  {
-    id: 'user-image-request',
-    role: 'user',
-    label: 'You',
-    text: 'Generate a 16:9 ecommerce hero image with a clean white background and a clear product subject.',
-    icon: 'chat'
-  },
-  {
-    id: 'assistant-understanding',
-    role: 'assistant',
-    label: 'Assistant',
-    text: 'I understand this as an image task draft. I can keep it in this conversation as pending, not generated, and not billed.',
-    icon: 'sparkles'
-  },
-  {
-    id: 'reference-placeholder',
-    role: 'system',
-    label: 'Reference placeholder',
-    text: 'A reference image can stay attached to this thread later. No file is selected or uploaded in this static shell.',
-    icon: 'terminal'
-  }
-]
-
-const imageTaskFields: ImageTaskField[] = [
-  { label: 'Task', value: 'Image draft' },
-  { label: 'Ratio', value: '16:9, understood from natural language' },
-  { label: 'Use case', value: 'Ecommerce hero / product detail lead image' },
-  { label: 'Style', value: 'Clean white background, clear subject, premium but practical' },
-  { label: 'State', value: 'pending / not generated / not billed' }
+const suggestionChips = [
+  '生成一张 16:9 电商主图',
+  '写一段商品详情文案',
+  '优化这张参考图'
 ]
 
 const sectionContent: Record<SectionKey, SectionContent> = {
   home: {
     shellTitle: 'SSXZ AI',
-    shellSubtitle: 'A single conversation workspace for writing and image task drafts.',
-    eyebrow: 'Conversation',
+    shellSubtitle: '一个输入框完成聊天、写作和图片需求。',
+    eyebrow: '对话',
     icon: 'sparkles',
-    pill: 'Workspace',
-    heading: 'Start from the composer.',
-    description: 'The main product surface is one conversation, not separate feature pages.',
+    pill: '工作台',
+    heading: '今天想做什么？',
+    description: '这是统一对话入口，图片能力会从输入框附近逐步接入。',
     cards: []
   },
   chat: {
     shellTitle: 'SSXZ AI',
-    shellSubtitle: 'The chat route shares the same conversation workspace.',
-    eyebrow: 'Conversation',
+    shellSubtitle: '和 /app 相同的统一对话体验。',
+    eyebrow: '对话',
     icon: 'chat',
-    pill: 'Chat',
-    heading: 'The same conversation surface.',
-    description: 'Text and image intent stay in one thread.',
+    pill: '对话',
+    heading: '继续对话',
+    description: '聊天、写作和图片需求都从同一个输入框开始。',
     cards: []
   },
   image: {
     shellTitle: 'SSXZ AI',
-    shellSubtitle: 'Image requests are handled from the same composer.',
-    eyebrow: 'Conversation',
+    shellSubtitle: '图片能力已合并到统一输入框。',
+    eyebrow: '对话',
     icon: 'sparkles',
-    pill: 'Image compatibility',
-    heading: 'Image work starts in chat.',
-    description: 'Old image links now point back to the same conversation-first experience.',
+    pill: '图片',
+    heading: '直接描述你想要的图片',
+    description: '无需进入独立作图页面，说出比例、用途和风格即可。',
     cards: []
   },
   developer: {
-    shellTitle: 'Developer',
-    shellSubtitle: 'A supporting area for future API setup.',
-    eyebrow: 'Settings',
+    shellTitle: '开发者',
+    shellSubtitle: '辅助入口，不影响主对话工作台。',
+    eyebrow: '设置',
     icon: 'terminal',
-    pill: 'Developer',
-    heading: 'Developer API setup belongs in settings, not the main creation flow.',
-    description: 'This static area keeps integration planning separate from the conversation workspace.',
+    pill: '开发者',
+    heading: '开发者 API',
+    description: '这里保留为后续 API 接入说明与设置入口，不展示真实密钥或地址。',
     cards: [
-      {
-        title: 'Keys',
-        kicker: 'Preview',
-        description: 'A future place for key management guidance.',
-        icon: 'terminal'
-      },
-      {
-        title: 'Models',
-        kicker: 'Guide',
-        description: 'A future place for model access and limits.',
-        icon: 'sparkles'
-      }
+      { title: '接入说明', icon: 'book' },
+      { title: '密钥设置', icon: 'key' }
     ]
   },
   billing: {
-    shellTitle: 'Billing',
-    shellSubtitle: 'A supporting area for balance and usage review.',
-    eyebrow: 'Settings',
+    shellTitle: '账单',
+    shellSubtitle: '辅助入口，不触发支付或扣费。',
+    eyebrow: '设置',
     icon: 'creditCard',
-    pill: 'Billing',
-    heading: 'Billing stays away from the main conversation flow.',
-    description: 'This static area frames future account finance information without live actions.',
+    pill: '账单',
+    heading: '余额与账单',
+    description: '这里仅作为后续余额、用量和账单入口，不展示可执行支付动作。',
     cards: [
-      {
-        title: 'Balance',
-        kicker: 'Preview',
-        description: 'A future overview of account credit.',
-        icon: 'creditCard'
-      },
-      {
-        title: 'Usage',
-        kicker: 'Preview',
-        description: 'A future overview of usage records.',
-        icon: 'chat'
-      }
+      { title: '余额概览', icon: 'creditCard' },
+      { title: '用量记录', icon: 'chart' }
     ]
   },
   account: {
-    shellTitle: 'Account',
-    shellSubtitle: 'A supporting area for profile and preferences.',
-    eyebrow: 'Settings',
+    shellTitle: '账户',
+    shellSubtitle: '辅助入口，保持普通用户设置心智。',
+    eyebrow: '设置',
     icon: 'userCircle',
-    pill: 'Account',
-    heading: 'Account settings stay simple.',
-    description: 'This static area gives profile, preferences, and security settings a clear home.',
+    pill: '账户',
+    heading: '账户设置',
+    description: '这里保留基础资料、偏好和安全设置入口，不展示后台权限信息。',
     cards: [
-      {
-        title: 'Profile',
-        kicker: 'Settings',
-        description: 'A future place for identity details.',
-        icon: 'userCircle'
-      },
-      {
-        title: 'Preferences',
-        kicker: 'Settings',
-        description: 'A future place for language, theme, and notifications.',
-        icon: 'sparkles'
-      }
+      { title: '个人资料', icon: 'userCircle' },
+      { title: '偏好设置', icon: 'cog' }
     ]
   }
 }
@@ -327,29 +195,32 @@ const activeSection = computed<SectionKey>(() => {
 })
 
 const activeContent = computed(() => sectionContent[activeSection.value])
-const isConversationWorkspace = computed(() => (
+const isUnifiedWorkspace = computed(() => (
   activeSection.value === 'home' || activeSection.value === 'chat' || activeSection.value === 'image'
 ))
-const visibleMessages = computed(() => [...baseMessages, ...localMessages.value])
+
+const latestDraftHint = computed(() => {
+  const latest = localDrafts.value[localDrafts.value.length - 1]?.text ?? ''
+  const looksLikeImage = /图片|图|海报|封面|主图|参考图|16:9|4:5|1:1|风格/.test(latest)
+
+  if (looksLikeImage) {
+    return '我会把它理解为图片需求草稿：先识别比例、用途和风格；当前不会真实生成、上传或扣费。'
+  }
+
+  return '我已记录这条本地草稿；当前不会请求真实模型。'
+})
 
 function isSectionKey(value: unknown): value is SectionKey {
   return typeof value === 'string' && sectionKeys.includes(value as SectionKey)
-}
-
-function applyPrompt(prompt: string) {
-  draft.value = prompt
 }
 
 function recordDraft() {
   const content = draft.value.trim()
   if (!content) return
 
-  localMessages.value.push({
+  localDrafts.value.push({
     id: `local-${Date.now()}`,
-    role: 'user',
-    label: 'Local draft',
-    text: content,
-    icon: 'chat'
+    text: content
   })
   draft.value = ''
 }
@@ -357,256 +228,146 @@ function recordDraft() {
 
 <style scoped>
 :deep(.ssxz-page-heading) {
-  padding-bottom: 0.75rem;
+  display: none;
 }
 
-:deep(.ssxz-page-heading h2) {
-  font-size: 1rem;
-}
-
-:deep(.ssxz-page-heading p) {
-  max-width: 34rem;
-}
-
-.chat-workspace {
+.minimal-workspace {
   display: grid;
-  min-height: calc(100vh - 9rem);
+  min-height: calc(100vh - 4rem);
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 1rem;
+  padding: 0 clamp(0rem, 2vw, 1.5rem) 1.5rem;
 }
 
-.chat-statusbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.65rem;
-  color: var(--ssxz-body);
-  font-size: 0.8rem;
-}
-
-.status-pill,
-.route-note,
-.message-label,
-.image-task-header span,
-.support-pill,
-.support-card span {
-  color: var(--ssxz-primary);
-  font-size: 0.72rem;
-  font-weight: 760;
-}
-
-.status-pill,
-.route-note {
-  display: inline-flex;
+.image-route-note {
+  justify-self: center;
+  max-width: 34rem;
   border: 1px solid var(--ssxz-border);
-  border-radius: 9999px;
+  border-radius: 999px;
   background: var(--ssxz-surface-muted);
-  padding: 0.35rem 0.62rem;
-}
-
-.conversation-frame {
-  display: grid;
-  gap: 1rem;
-  align-content: start;
-}
-
-.conversation-empty {
-  display: grid;
-  justify-items: center;
-  gap: 0.6rem;
-  margin: 1rem auto 0;
-  max-width: 42rem;
+  color: var(--ssxz-body);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  padding: 0.42rem 0.75rem;
   text-align: center;
 }
 
-.conversation-empty h1 {
-  color: var(--ssxz-text);
-  font-size: clamp(2rem, 4vw, 3.4rem);
-  font-weight: 760;
-  line-height: 1.05;
+.conversation-area {
+  display: grid;
+  align-items: center;
+  justify-items: center;
+  min-height: 24rem;
 }
 
-.conversation-empty p {
-  max-width: 35rem;
+.conversation-area.has-local-draft {
+  align-items: end;
+  justify-items: stretch;
+}
+
+.empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 0.65rem;
+  text-align: center;
+}
+
+.empty-state h1 {
+  color: var(--ssxz-text);
+  font-size: clamp(1.9rem, 4vw, 3rem);
+  font-weight: 760;
+  line-height: 1.1;
+}
+
+.empty-state p,
+.composer-note,
+.message-bubble p,
+.support-section p {
   color: var(--ssxz-body);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   line-height: 1.7;
 }
 
-.conversation-stream {
+.local-thread {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.85rem;
   margin: 0 auto;
-  width: min(100%, 46rem);
+  width: min(100%, 44rem);
 }
 
-.message-row {
+.message-row,
+.assistant-note {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.75rem;
-}
-
-.message-row[data-role='user'] {
-  margin-left: clamp(0rem, 8vw, 5rem);
+  gap: 0.7rem;
 }
 
 .message-avatar {
   display: inline-flex;
-  height: 2.25rem;
-  width: 2.25rem;
+  height: 2rem;
+  width: 2rem;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--ssxz-border);
-  border-radius: 9999px;
-  background: var(--ssxz-surface-raised);
-  color: var(--ssxz-primary);
-}
-
-.message-bubble,
-.image-task-card,
-.pending-result,
-.composer-box,
-.support-card {
-  border: 1px solid var(--ssxz-border);
-  background: var(--ssxz-surface-raised);
-  box-shadow: var(--ssxz-shadow-sm);
-}
-
-.message-bubble {
-  border-radius: 1.15rem;
-  padding: 0.85rem 1rem;
-}
-
-.message-bubble p,
-.image-task-card p,
-.pending-result,
-.support-copy p,
-.support-card p {
-  color: var(--ssxz-body);
-  font-size: 0.88rem;
-  line-height: 1.65;
-}
-
-.image-task-card {
-  display: grid;
-  gap: 0.85rem;
-  border-color: color-mix(in srgb, var(--ssxz-primary) 34%, var(--ssxz-border));
-  border-radius: 1.2rem;
-  margin-left: 3rem;
-  padding: 1rem;
-}
-
-.image-task-header {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.image-task-header span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.image-task-header strong {
+  border-radius: 999px;
+  background: var(--ssxz-surface-muted);
   color: var(--ssxz-text);
   font-size: 0.76rem;
   font-weight: 760;
 }
 
-.image-task-card dl {
-  display: grid;
-  gap: 0.55rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin: 0;
-}
-
-.image-task-card div {
-  border: 1px solid var(--ssxz-border);
-  border-radius: 0.85rem;
-  background: var(--ssxz-surface-muted);
-  padding: 0.65rem;
-}
-
-.image-task-card dt {
+.assistant-avatar {
   color: var(--ssxz-primary);
-  font-size: 0.7rem;
-  font-weight: 760;
 }
 
-.image-task-card dd {
-  margin: 0.22rem 0 0;
-  color: var(--ssxz-text);
-  font-size: 0.83rem;
-  line-height: 1.45;
-}
-
-.pending-result {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  border-radius: 1rem;
-  margin-left: 3rem;
+.message-bubble {
+  border-radius: 1.1rem;
+  background: var(--ssxz-surface-raised);
   padding: 0.85rem 1rem;
 }
 
-.pending-result svg {
-  color: var(--ssxz-primary);
-}
-
-.conversation-composer {
-  position: sticky;
-  bottom: 1rem;
+.composer-wrap {
   display: grid;
   gap: 0.55rem;
   margin: 0 auto;
   width: min(100%, 48rem);
-  border: 1px solid var(--ssxz-border);
-  border-radius: 1.35rem;
-  background: color-mix(in srgb, var(--ssxz-surface-raised) 94%, transparent);
-  box-shadow: var(--ssxz-shadow);
-  padding: 0.75rem;
-  backdrop-filter: blur(18px);
 }
 
-.composer-tools,
-.prompt-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-}
-
-.tool-chip,
-.prompt-chips button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  border: 1px solid var(--ssxz-border);
-  border-radius: 9999px;
-  background: var(--ssxz-surface-muted);
-  color: var(--ssxz-body);
-  font-size: 0.76rem;
-  font-weight: 680;
-  padding: 0.38rem 0.64rem;
-}
-
-.tool-chip svg {
-  color: var(--ssxz-primary);
-}
-
-.composer-box {
+.composer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
   align-items: end;
-  gap: 0.65rem;
-  border-radius: 1.05rem;
+  gap: 0.45rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 1.4rem;
+  background: var(--ssxz-surface-raised);
+  box-shadow: var(--ssxz-shadow);
   padding: 0.7rem;
 }
 
-.composer-box textarea {
-  min-height: 3.2rem;
-  max-height: 9rem;
+.composer-tool,
+.send-button {
+  display: inline-flex;
+  height: 2.35rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+}
+
+.composer-tool {
+  min-width: 2.35rem;
+  gap: 0.35rem;
+  background: var(--ssxz-surface-muted);
+  color: var(--ssxz-body);
+  font-size: 0.82rem;
+  padding: 0 0.7rem;
+}
+
+.image-tool {
+  color: var(--ssxz-primary);
+}
+
+.composer textarea {
+  min-height: 2.35rem;
+  max-height: 8rem;
   resize: vertical;
   border: 0;
   background: transparent;
@@ -614,97 +375,100 @@ function recordDraft() {
   font-size: 0.98rem;
   line-height: 1.55;
   outline: none;
+  padding: 0.35rem 0.2rem;
 }
 
-.composer-box textarea::placeholder {
+.composer textarea::placeholder {
   color: var(--ssxz-subtle);
 }
 
 .send-button {
-  display: inline-flex;
-  height: 2.4rem;
-  width: 2.4rem;
-  align-items: center;
-  justify-content: center;
+  width: 2.35rem;
   border: 0;
-  border-radius: 9999px;
   background: var(--ssxz-primary);
   color: white;
 }
 
 .send-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.46;
+  cursor: default;
+  opacity: 0.42;
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.45rem;
+}
+
+.suggestions span {
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  background: var(--ssxz-surface-muted);
+  color: var(--ssxz-body);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  padding: 0.36rem 0.65rem;
+}
+
+.composer-note {
+  margin: 0;
+  text-align: center;
 }
 
 .support-section {
   display: grid;
-  gap: 1rem;
-}
-
-.support-copy {
+  align-content: center;
+  justify-items: start;
+  gap: 0.8rem;
+  min-height: 24rem;
   max-width: 42rem;
 }
 
-.support-copy h1 {
-  margin-top: 0.85rem;
+.support-pill,
+.support-actions span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  background: var(--ssxz-surface-muted);
+  color: var(--ssxz-primary);
+  font-size: 0.78rem;
+  font-weight: 720;
+  padding: 0.38rem 0.7rem;
+}
+
+.support-section h1 {
   color: var(--ssxz-text);
   font-size: clamp(1.8rem, 3vw, 2.6rem);
   font-weight: 760;
   line-height: 1.12;
 }
 
-.support-copy p {
-  margin-top: 0.7rem;
-}
-
-.support-grid {
-  display: grid;
-  gap: 0.85rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.support-card {
-  display: grid;
-  gap: 0.55rem;
-  border-radius: 1rem;
-  padding: 1rem;
-}
-
-.support-card svg {
-  color: var(--ssxz-primary);
-}
-
-.support-card h3 {
-  color: var(--ssxz-text);
-  font-size: 1rem;
-  font-weight: 760;
+.support-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 @media (max-width: 720px) {
-  .chat-workspace {
-    min-height: calc(100vh - 8rem);
+  .minimal-workspace {
+    min-height: calc(100vh - 3rem);
+    padding: 0 0 1rem;
+  }
+
+  .composer {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .image-tool {
+    display: none;
   }
 
   .message-row,
-  .message-row[data-role='user'] {
+  .assistant-note {
     grid-template-columns: 1fr;
-    margin-left: 0;
-  }
-
-  .image-task-card,
-  .pending-result {
-    margin-left: 0;
-  }
-
-  .image-task-card dl,
-  .support-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .conversation-composer {
-    bottom: 0.5rem;
-    border-radius: 1rem;
   }
 }
 </style>

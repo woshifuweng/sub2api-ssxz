@@ -6,11 +6,11 @@
         <span class="ssxz-brand-mark">S</span>
         <span class="ssxz-brand-copy ssxz-sidebar-text">
           <span class="ssxz-brand-title">SSXZ AI</span>
-          <span class="ssxz-brand-subtitle">工作台</span>
+          <span class="ssxz-brand-subtitle">对话工作台</span>
         </span>
       </RouterLink>
 
-      <nav class="space-y-1">
+      <nav class="space-y-1" aria-label="主导航">
         <RouterLink
           v-for="item in navItems"
           :key="item.to"
@@ -40,9 +40,25 @@
           <Icon :name="item.icon" size="sm" />
           <span class="ssxz-sidebar-text">{{ item.label }}</span>
         </RouterLink>
+        <p v-if="historyItems.length === 0" class="ssxz-empty-history ssxz-sidebar-text">
+          暂无历史会话
+        </p>
       </section>
 
       <div class="absolute bottom-4 left-3 right-3 space-y-2">
+        <nav class="ssxz-secondary-links" aria-label="次级入口">
+          <RouterLink
+            v-for="item in secondaryItems"
+            :key="item.to"
+            :to="item.to"
+            class="ssxz-nav-item"
+            :title="item.label"
+            :aria-label="item.label"
+          >
+            <Icon :name="item.icon" size="sm" />
+            <span class="ssxz-sidebar-text">{{ item.label }}</span>
+          </RouterLink>
+        </nav>
         <button
           type="button"
           class="ssxz-theme-toggle"
@@ -62,17 +78,14 @@
           <button
             type="button"
             class="ssxz-btn-icon ssxz-sidebar-toggle-desktop"
-            :aria-label="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
-            :title="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
+            :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+            :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
             :aria-expanded="!sidebarCollapsed"
             @click="toggleSidebarCollapsed"
           >
             <Icon name="menu" size="sm" />
           </button>
           <div class="flex items-center gap-2">
-            <RouterLink v-if="authStore.isAuthenticated" to="/app/billing" class="ssxz-balance-pill hidden sm:inline-flex">
-              余额 ${{ balanceText }}
-            </RouterLink>
             <div v-if="authStore.isAuthenticated" class="relative">
               <button type="button" class="ssxz-user-button" @click="userMenuOpen = !userMenuOpen">
                 <span class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold" style="background: linear-gradient(135deg, var(--ssxz-primary), var(--ssxz-accent)); color: white">{{ userInitial }}</span>
@@ -109,7 +122,6 @@
         <slot />
       </div>
     </main>
-
   </div>
 </template>
 
@@ -128,7 +140,7 @@ withDefaults(defineProps<{
   eyebrow?: string
   icon?: IconName
 }>(), {
-  eyebrow: 'SSXZ AI 工作台',
+  eyebrow: 'SSXZ AI 对话工作台',
   icon: 'sparkles'
 })
 
@@ -145,20 +157,21 @@ const navItems: Array<{ label: string; to: string; icon: IconName }> = [
   { label: '新对话', to: '/app?new=1', icon: 'chat' }
 ]
 
-const historyItems: Array<{ label: string; to: string; icon: IconName }> = [
-  { label: '电商主图 brief', to: '/app', icon: 'sparkles' },
-  { label: '商品详情文案', to: '/app', icon: 'chat' },
-  { label: '小红书封面方向', to: '/app', icon: 'sparkles' }
+const historyItems: Array<{ label: string; to: string; icon: IconName }> = []
+
+const secondaryItems: Array<{ label: string; to: string; icon: IconName }> = [
+  { label: '开发者', to: '/app/developer', icon: 'terminal' },
+  { label: '账单', to: '/app/billing', icon: 'creditCard' },
+  { label: '账户', to: '/app/account', icon: 'userCircle' }
 ]
 
-const balanceText = computed(() => (authStore.user?.balance ?? 0).toFixed(2))
 const userLabel = computed(() => authStore.user?.username || authStore.user?.email?.split('@')[0] || '账户')
 const userInitial = computed(() => userLabel.value.slice(0, 1).toUpperCase())
 const isAdmin = computed(() => authStore.isAdmin)
 
 function isActive(path: string) {
   const normalizedPath = path.split('?')[0]
-  if (normalizedPath === '/app') return route.path === '/app' || route.path === '/app/chat'
+  if (normalizedPath === '/app') return route.path === '/app' || route.path === '/app/chat' || route.path === '/app/image'
   return route.path === normalizedPath
 }
 
@@ -204,3 +217,21 @@ onMounted(() => {
   initTheme()
 })
 </script>
+
+<style scoped>
+.ssxz-empty-history {
+  border: 1px dashed var(--ssxz-border);
+  border-radius: 0.85rem;
+  color: var(--ssxz-subtle);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  margin: 0 0.25rem;
+  padding: 0.7rem 0.75rem;
+}
+
+.ssxz-secondary-links {
+  display: grid;
+  gap: 0.25rem;
+  opacity: 0.82;
+}
+</style>
