@@ -282,43 +282,63 @@ const sectionContent: Record<SectionKey, SectionContent> = {
   },
   image: {
     label: 'Image',
-    shellTitle: 'AI Image Workspace',
-    shellSubtitle: 'Plan creative direction, references, and composition before image creation opens.',
-    eyebrow: 'Image Workspace',
+    shellTitle: 'Image Creation Workspace',
+    shellSubtitle: 'Shape the creative brief, visual direction, and canvas plan before live creation opens.',
+    eyebrow: 'Creative Workspace',
     icon: 'sparkles',
-    pill: 'Image section',
-    heading: 'Turn a visual idea into a clear creative brief.',
-    description: 'Map the subject, style, composition, aspect ratio, and reference direction so the future image flow has a strong starting point.',
-    status: 'Preview mode: prepare the brief now; live creation arrives later.',
-    primaryAction: { label: 'Developer setup', to: '/app/developer', icon: 'terminal' },
-    secondaryAction: { label: 'Chat draft', to: '/app/chat', icon: 'chat' },
-    detailKicker: 'Creative checklist',
-    detailTitle: 'From idea to production-ready brief',
-    detailDescription: 'Use the cards below to organize creative intent before any generation workflow is introduced.',
+    pill: 'Image brief',
+    heading: 'Build a review-ready visual plan before opening the canvas.',
+    description: 'Organize the goal, use case, style, ratio, reference direction, and prompt structure so designers and creators can review the brief with confidence.',
+    status: 'Preview mode: plan the image workflow now; live creation remains scheduled for a later batch.',
+    primaryAction: { label: 'Draft prompt', to: '/app/chat', icon: 'chat' },
+    secondaryAction: { label: 'Workspace home', to: '/app', icon: 'sparkles' },
+    detailKicker: 'Creative workflow',
+    detailTitle: 'Goal, style, canvas, reference, prompt, preview',
+    detailDescription: 'The image area now reads like a guided creative desk: clarify what the work is for, how it should feel, and what a future canvas should prepare.',
     cards: [
       {
-        title: 'Creative goal',
-        kicker: 'Brief',
-        description: 'Define the scene, product, character, or mood you want the image to express.',
+        title: 'Creation goal',
+        kicker: 'Purpose',
+        description: 'Name the subject, audience, and final use case before choosing a visual direction.',
         icon: 'sparkles'
       },
       {
-        title: 'Style notes',
-        kicker: 'Direction',
-        description: 'Capture color, lighting, medium, framing, and aspect ratio preferences.',
+        title: 'Style preference',
+        kicker: 'Look',
+        description: 'Capture mood, color, lighting, medium, and framing as reusable art direction.',
         icon: 'chat'
       },
       {
-        title: 'Reference intent',
-        kicker: 'Context',
-        description: 'Describe any reference material, constraints, or must-avoid details.',
+        title: 'Canvas ratio',
+        kicker: 'Format',
+        description: 'Compare square, portrait, poster, cover, and custom ratios as planning choices.',
+        icon: 'terminal'
+      },
+      {
+        title: 'Reference notes',
+        kicker: 'Input',
+        description: 'Describe reference images, brand boundaries, and must-avoid details without handling files here.',
+        icon: 'sparkles'
+      },
+      {
+        title: 'Prompt structure',
+        kicker: 'Words',
+        description: 'Break the brief into subject, setting, composition, style, lighting, and constraints.',
+        icon: 'chat'
+      },
+      {
+        title: 'Canvas preview',
+        kicker: 'Next',
+        description: 'Reserve a calm preview area for future visual review while this screen stays descriptive.',
         icon: 'terminal'
       }
     ],
     checklist: [
-      'Brief structure is ready for subject, style, ratio, and references.',
-      'The page keeps creative planning separate from live creation.',
-      'Billing and usage behavior remain outside this preview.'
+      'Start with the creative target and intended output before writing prompt details.',
+      'Keep style, ratio, and reference direction visible in one reviewable brief.',
+      'Use prompt structure to separate subject, composition, lighting, and constraints.',
+      'Treat the preview area as a planning canvas until live creation opens later.',
+      'No live creation, file handling, or financial action starts from this static workspace.'
     ]
   },
   developer: {
