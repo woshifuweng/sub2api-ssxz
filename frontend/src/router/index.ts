@@ -144,61 +144,67 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/app',
     name: 'AppWorkspace',
-    component: () => import('@/views/user/DashboardView.vue'),
+    component: () => import('@/views/user/AppWorkspaceView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'SSXZ AI Workbench'
+      title: 'SSXZ AI Workbench',
+      appSection: 'home'
     }
   },
   {
     path: '/app/chat',
     name: 'AppChat',
-    component: () => import('@/views/user/ChatStudioView.vue'),
+    component: () => import('@/views/user/AppWorkspaceView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'AI Chat'
+      title: 'AI Chat',
+      appSection: 'chat'
     }
   },
   {
     path: '/app/image',
     name: 'AppImage',
-    component: () => import('@/views/user/ImageStudioView.vue'),
+    component: () => import('@/views/user/AppWorkspaceView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'AI Image Studio'
+      title: 'AI Image Studio',
+      appSection: 'image'
     }
   },
   {
     path: '/app/developer',
     name: 'AppDeveloper',
-    component: () => import('@/views/user/KeysView.vue'),
+    component: () => import('@/views/user/AppWorkspaceView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Developer API'
+      title: 'Developer API',
+      appSection: 'developer'
     }
   },
   {
     path: '/app/billing',
     name: 'AppBilling',
-    component: () => import('@/views/user/UsageView.vue'),
+    component: () => import('@/views/user/AppWorkspaceView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Billing'
+      title: 'Billing',
+      appSection: 'billing'
     }
   },
   {
     path: '/app/account',
     name: 'AppAccount',
-    component: () => import('@/views/user/ProfileView.vue'),
+    component: () => import('@/views/user/AppWorkspaceView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Account'
+      title: 'Account',
+      appSection: 'account'
     }
   },
 
