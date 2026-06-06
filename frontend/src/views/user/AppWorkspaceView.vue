@@ -29,7 +29,7 @@
         <textarea
           v-model="draft"
           rows="4"
-          placeholder="Draft a prompt or plan a conversation. This stays local until chat is connected."
+          placeholder="Sketch a prompt, outline the audience, or plan the next conversation."
         />
         <div class="composer-footer">
           <div class="prompt-chip-row">
@@ -77,7 +77,7 @@
       </RouterLink>
     </section>
 
-    <section v-else class="workspace-section-grid" :aria-label="`${activeContent.label} static preview`">
+    <section v-else class="workspace-section-grid" :aria-label="`${activeContent.label} workspace preview`">
       <article v-for="card in activeContent.cards" :key="card.title" class="workspace-section-card">
         <span class="workspace-section-card-icon">
           <Icon :name="card.icon" size="sm" />
@@ -105,7 +105,7 @@
     <section class="workspace-note-strip">
       <span class="note-dot" />
       <span>
-        Router handles /app authentication and returnTo. This component only switches static workspace sections and does not call chat, image, billing, account, or backend APIs.
+        This workspace is a guided preview: you can move between sections, draft ideas, and review the flow while live actions arrive in later batches.
       </span>
     </section>
   </AppSectionShell>
@@ -175,96 +175,96 @@ const sectionKeys: readonly SectionKey[] = ['home', 'chat', 'image', 'developer'
 const workspaceEntries: WorkspaceEntry[] = [
   {
     title: 'AI Chat',
-    kicker: 'Static workspace',
-    description: 'Prepare prompts and conversation goals before the real chat service is connected.',
+    kicker: 'Conversation planning',
+    description: 'Shape prompts, tone, and response goals before starting a model conversation.',
     icon: 'chat',
     to: '/app/chat'
   },
   {
     title: 'AI Image',
     kicker: 'Creative planning',
-    description: 'Collect image ideas, style notes, aspect ratios, and reference intent without starting a generation job.',
+    description: 'Gather image ideas, style notes, aspect ratios, and reference intent in one place.',
     icon: 'sparkles',
     to: '/app/image'
   },
   {
     title: 'Developer API',
-    kicker: 'Integration preview',
-    description: 'Review API, model, key, and permission entry points without requesting account data.',
+    kicker: 'Integration guide',
+    description: 'Preview where keys, models, limits, and release checks will be managed.',
     icon: 'terminal',
     to: '/app/developer'
   },
   {
     title: 'Billing',
-    kicker: 'Account entry',
-    description: 'Keep balance, usage, invoice, and order entry points visible without loading payment data.',
+    kicker: 'Account overview',
+    description: 'See how balance, usage, invoices, and plan details will be organized.',
     icon: 'creditCard',
     to: '/app/billing'
   },
   {
     title: 'Account',
     kicker: 'Profile center',
-    description: 'Reserve space for profile, preference, and security settings without reading profile data.',
+    description: 'Find profile, preferences, and security settings in a familiar account hub.',
     icon: 'userCircle',
     to: '/app/account'
   }
 ]
 
 const promptChips = [
-  { label: 'Product pitch', prompt: 'Draft five crisp benefits for a product launch, with audience, angle, and proof points.' },
+  { label: 'Launch pitch', prompt: 'Draft five crisp benefits for a product launch, with audience, angle, and proof points.' },
   { label: 'Image brief', prompt: 'Turn this idea into a visual brief with subject, setting, lighting, color, and style notes.' },
-  { label: 'API plan', prompt: 'List the checks needed before an API integration: model, auth, quotas, errors, and release gates.' }
+  { label: 'Integration plan', prompt: 'List the checks needed before an integration: model choice, access, limits, errors, and release gates.' }
 ]
 
 const sectionContent: Record<SectionKey, SectionContent> = {
   home: {
     label: 'Home',
     shellTitle: 'AI Workspace',
-    shellSubtitle: 'A static landing area for chat, image, developer, billing, and account work. Real services stay disconnected.',
+    shellSubtitle: 'A calm starting point for chat, image, developer, billing, and account work.',
     eyebrow: 'SSXZ AI Workspace',
     icon: 'sparkles',
-    pill: 'Unified /app workspace',
-    heading: 'Choose a workspace section without triggering backend work.',
-    description: 'The shell is active across /app routes. It now reads route metadata and shows the right static section while router auth remains the only login gate.',
-    status: 'Static workspace overview. No chat, image, billing, account, or backend requests run here.',
+    pill: 'Unified workspace',
+    heading: 'Start from one workspace and move into the task you need.',
+    description: 'Use the quick entries to plan conversations, image work, integrations, billing review, or account settings. Each area is organized now, with live actions coming later.',
+    status: 'Preview mode: explore the workspace structure and prepare your next task.',
     primaryAction: { label: 'Open chat', to: '/app/chat', icon: 'chat' },
     secondaryAction: { label: 'View billing', to: '/app/billing', icon: 'creditCard' },
-    detailKicker: 'Activation status',
-    detailTitle: 'Workspace routing is active',
-    detailDescription: 'Each /app route points to this shell and passes an appSection value through route meta.',
+    detailKicker: 'Workspace guide',
+    detailTitle: 'Everything has a place',
+    detailDescription: 'The main app routes now share one workspace shell, so each section feels connected while keeping its own purpose.',
     cards: [],
     checklist: [
-      'Router handles /app authentication before this component mounts.',
-      'Each section is a static preview and avoids service calls.',
-      'Legacy routes continue to land on the canonical /app section paths.'
+      'Chat, image, developer, billing, and account sections are available from one hub.',
+      'Each section focuses on planning and orientation before live actions are added.',
+      'Older app links continue to land on the matching workspace section.'
     ]
   },
   chat: {
     label: 'Chat',
     shellTitle: 'AI Chat Workspace',
-    shellSubtitle: 'Draft prompts and conversation plans locally. The chat workspace client is not called from this screen.',
-    eyebrow: 'Static Chat Section',
+    shellSubtitle: 'Draft prompts and shape the conversation before model replies are connected.',
+    eyebrow: 'Chat Workspace',
     icon: 'chat',
     pill: 'Chat section',
-    heading: 'Prepare the conversation before real chat is enabled.',
-    description: 'Use this section to shape prompts, compare angles, and save local draft notes without sending messages to a model.',
-    status: 'Local draft mode only. No conversation, message, or model request is sent.',
+    heading: 'Shape the conversation before you send it.',
+    description: 'Use the prompt area to clarify the goal, audience, tone, and expected output. Saved drafts stay on the page as planning notes.',
+    status: 'Preview mode: draft locally while model chat is prepared for a later release.',
     primaryAction: { label: 'Image ideas', to: '/app/image', icon: 'sparkles' },
     secondaryAction: { label: 'Workspace home', to: '/app', icon: 'sparkles' },
-    detailKicker: 'No runtime client',
-    detailTitle: 'Chat stays offline in this batch',
-    detailDescription: 'The text area and prompt chips are local UI helpers. Conversation persistence and model replies remain for a later batch.',
+    detailKicker: 'Conversation flow',
+    detailTitle: 'A clearer prompt, a better first reply',
+    detailDescription: 'This area helps you prepare context, constraints, and review criteria before the live chat flow is introduced.',
     cards: [
       {
         title: 'Prompt draft',
-        kicker: 'Local only',
-        description: 'Capture the goal, audience, and tone before a real chat flow exists.',
+        kicker: 'Plan',
+        description: 'Capture the goal, audience, and tone before turning the idea into a conversation.',
         icon: 'chat'
       },
       {
-        title: 'Model placeholder',
-        kicker: 'Not connected',
-        description: 'Reserve the future model selector area without reading model or account capability data.',
+        title: 'Model notes',
+        kicker: 'Prepare',
+        description: 'Keep space for future model choices, response style, and quality checks.',
         icon: 'terminal'
       },
       {
@@ -275,173 +275,173 @@ const sectionContent: Record<SectionKey, SectionContent> = {
       }
     ],
     checklist: [
-      'No chatWorkspace methods are called.',
-      'No message is saved outside local component state.',
-      'No usage or billing event is produced.'
+      'Drafts remain local to the workspace view.',
+      'Prompt chips help you start from a useful structure.',
+      'Live replies, history, and usage tracking are reserved for later.'
     ]
   },
   image: {
     label: 'Image',
     shellTitle: 'AI Image Workspace',
-    shellSubtitle: 'A static creative planning area for image tasks. Real generation and uploads remain disconnected.',
-    eyebrow: 'Static Image Section',
+    shellSubtitle: 'Plan creative direction, references, and composition before image creation opens.',
+    eyebrow: 'Image Workspace',
     icon: 'sparkles',
     pill: 'Image section',
-    heading: 'Shape image intent without starting a generation task.',
-    description: 'Plan subject, style, composition, aspect ratio, and reference intent while AppImageView and generation APIs stay frozen.',
-    status: 'Static image brief only. No asset upload, generation job, or image API is triggered.',
+    heading: 'Turn a visual idea into a clear creative brief.',
+    description: 'Map the subject, style, composition, aspect ratio, and reference direction so the future image flow has a strong starting point.',
+    status: 'Preview mode: prepare the brief now; live creation arrives later.',
     primaryAction: { label: 'Developer setup', to: '/app/developer', icon: 'terminal' },
     secondaryAction: { label: 'Chat draft', to: '/app/chat', icon: 'chat' },
     detailKicker: 'Creative checklist',
-    detailTitle: 'Generation remains offline',
-    detailDescription: 'This section is for planning the image workflow and does not import or render AppImageView.',
+    detailTitle: 'From idea to production-ready brief',
+    detailDescription: 'Use the cards below to organize creative intent before any generation workflow is introduced.',
     cards: [
       {
         title: 'Creative goal',
         kicker: 'Brief',
-        description: 'Write the target scene, product, character, or mood before a real task exists.',
+        description: 'Define the scene, product, character, or mood you want the image to express.',
         icon: 'sparkles'
       },
       {
         title: 'Style notes',
-        kicker: 'Static controls',
-        description: 'Reserve space for future style, color, lighting, and aspect ratio controls.',
+        kicker: 'Direction',
+        description: 'Capture color, lighting, medium, framing, and aspect ratio preferences.',
         icon: 'chat'
       },
       {
         title: 'Reference intent',
-        kicker: 'No upload',
-        description: 'Describe reference material without accepting files or creating assets.',
+        kicker: 'Context',
+        description: 'Describe any reference material, constraints, or must-avoid details.',
         icon: 'terminal'
       }
     ],
     checklist: [
-      'No image task is created.',
-      'No reference asset upload runs.',
-      'No generation, billing, or usage status is read.'
+      'Brief structure is ready for subject, style, ratio, and references.',
+      'The page keeps creative planning separate from live creation.',
+      'Billing and usage behavior remain outside this preview.'
     ]
   },
   developer: {
     label: 'Developer',
     shellTitle: 'Developer Workspace',
-    shellSubtitle: 'Static API and key management entry points without loading keys, permissions, or admin data.',
-    eyebrow: 'Static Developer Section',
+    shellSubtitle: 'Preview integration surfaces for keys, models, limits, and release readiness.',
+    eyebrow: 'Developer Workspace',
     icon: 'terminal',
     pill: 'Developer section',
-    heading: 'Prepare API integration without reading private account data.',
-    description: 'This section reserves space for keys, models, quotas, and release checks while all API key and permission calls stay disconnected.',
-    status: 'Static developer overview only. No key, permission, or admin endpoint is called.',
+    heading: 'Plan the developer setup before live management tools arrive.',
+    description: 'Use this area to understand where access keys, model choices, limits, and launch checks will fit into the product.',
+    status: 'Preview mode: integration planning is visible; live management actions come later.',
     primaryAction: { label: 'Billing overview', to: '/app/billing', icon: 'creditCard' },
     secondaryAction: { label: 'Workspace home', to: '/app', icon: 'sparkles' },
     detailKicker: 'Integration checklist',
-    detailTitle: 'API setup is a placeholder',
-    detailDescription: 'Use this screen to outline what a future API setup page should explain without requesting real key data.',
+    detailTitle: 'A safe place to prepare launch details',
+    detailDescription: 'This section frames the information a developer will need before keys, limits, and production checks become interactive.',
     cards: [
       {
-        title: 'API keys',
-        kicker: 'Placeholder',
-        description: 'Reserve the key management area without listing, creating, or revealing keys.',
+        title: 'Access keys',
+        kicker: 'Preview',
+        description: 'Show where key management guidance and creation flows will live.',
         icon: 'terminal'
       },
       {
         title: 'Model access',
-        kicker: 'Static',
-        description: 'Show where model capability guidance can live without capability calls.',
+        kicker: 'Guide',
+        description: 'Prepare the future area for model availability, limits, and recommended defaults.',
         icon: 'sparkles'
       },
       {
         title: 'Release checks',
         kicker: 'Plan',
-        description: 'Collect auth, rate limit, and error handling reminders for later implementation.',
+        description: 'Collect authentication, rate limit, error handling, and monitoring reminders.',
         icon: 'chat'
       }
     ],
     checklist: [
-      'No API key endpoint is called.',
-      'No permissions or admin data is loaded.',
-      'No private account value is rendered.'
+      'Key management is presented as a future product area.',
+      'Model and limit guidance stays descriptive.',
+      'Account-sensitive details stay out of this preview.'
     ]
   },
   billing: {
     label: 'Billing',
     shellTitle: 'Billing Workspace',
-    shellSubtitle: 'Static balance, usage, and billing entry points without loading financial data or starting checkout.',
-    eyebrow: 'Static Billing Section',
+    shellSubtitle: 'Preview balance, usage, invoices, and plan organization before billing actions open.',
+    eyebrow: 'Billing Workspace',
     icon: 'creditCard',
     pill: 'Billing section',
-    heading: 'Preview billing surfaces without touching checkout flows.',
-    description: 'The section keeps account finance navigation visible while order, invoice, usage, recharge, and checkout calls remain disabled.',
-    status: 'Static billing overview only. No balance, order, invoice, or checkout request is sent.',
+    heading: 'Understand where billing information will live.',
+    description: 'This section shows the planned shape for balance, usage, invoices, and plan details before financial actions are opened.',
+    status: 'Preview mode: billing organization is visible; live financial actions arrive later.',
     primaryAction: { label: 'Account settings', to: '/app/account', icon: 'userCircle' },
     secondaryAction: { label: 'Developer setup', to: '/app/developer', icon: 'terminal' },
-    detailKicker: 'Financial boundary',
-    detailTitle: 'Checkout remains fully disconnected',
-    detailDescription: 'This batch does not read balances, create orders, open checkout pages, or produce billing events.',
+    detailKicker: 'Billing overview',
+    detailTitle: 'Clear finance surfaces for later review',
+    detailDescription: 'The workspace can explain what users will review here while plan changes, invoices, and usage records remain descriptive.',
     cards: [
       {
         title: 'Balance preview',
-        kicker: 'Static',
-        description: 'Reserve the account balance card without requesting balance data.',
+        kicker: 'Overview',
+        description: 'Prepare a simple balance area for future account credit information.',
         icon: 'creditCard'
       },
       {
         title: 'Usage summary',
-        kicker: 'Static',
-        description: 'Hold space for future usage charts without usage API calls.',
+        kicker: 'Trends',
+        description: 'Show where future usage charts and plan limits can be explained.',
         icon: 'chat'
       },
       {
         title: 'Billing history',
-        kicker: 'Static',
-        description: 'Show a future invoice and order area without reading order records.',
+        kicker: 'Records',
+        description: 'Reserve a clean area for invoices and order history once those views are enabled.',
         icon: 'terminal'
       }
     ],
     checklist: [
-      'No checkout callback, recharge, order, or invoice flow is touched.',
-      'No usage or balance endpoint is called.',
-      'No billing event is produced.'
+      'Financial action buttons are reserved for a later workflow.',
+      'Balance and usage content is framed as an upcoming overview.',
+      'Invoices and orders remain descriptive until live records are ready.'
     ]
   },
   account: {
     label: 'Account',
     shellTitle: 'Account Workspace',
-    shellSubtitle: 'Static account, preference, and security entry points without profile or auth-state changes.',
-    eyebrow: 'Static Account Section',
+    shellSubtitle: 'Preview profile, preferences, and security settings in one account area.',
+    eyebrow: 'Account Workspace',
     icon: 'userCircle',
     pill: 'Account section',
-    heading: 'Reserve account settings without reading profile data.',
-    description: 'Use this section to frame profile, preferences, notifications, and security areas while auth/session logic remains untouched.',
-    status: 'Static account overview only. No profile, auth-state, or permission request is sent.',
+    heading: 'Keep account settings easy to find.',
+    description: 'This area organizes profile, preferences, notifications, and security settings so the future account page has a clear shape.',
+    status: 'Preview mode: settings are outlined while account editing arrives later.',
     primaryAction: { label: 'Chat workspace', to: '/app/chat', icon: 'chat' },
     secondaryAction: { label: 'Billing overview', to: '/app/billing', icon: 'creditCard' },
-    detailKicker: 'Account boundary',
-    detailTitle: 'Profile stays untouched',
-    detailDescription: 'This screen does not modify login, registration, verification, auth-state, permission, or role behavior.',
+    detailKicker: 'Account center',
+    detailTitle: 'Profile and preferences share one home',
+    detailDescription: 'The section gives users a stable place to expect identity, preferences, notifications, and security controls later.',
     cards: [
       {
         title: 'Profile',
-        kicker: 'Placeholder',
-        description: 'Reserve profile identity and contact areas without loading user records.',
+        kicker: 'Identity',
+        description: 'Prepare space for display name, contact details, and personal context.',
         icon: 'userCircle'
       },
       {
         title: 'Preferences',
-        kicker: 'Static',
-        description: 'Show where language, theme, and notifications can live later.',
+        kicker: 'Settings',
+        description: 'Group language, theme, and notification preferences in a predictable area.',
         icon: 'sparkles'
       },
       {
         title: 'Security',
-        kicker: 'Static',
-        description: 'Reserve verification and security settings without changing auth logic.',
+        kicker: 'Protection',
+        description: 'Frame where verification and security controls will be reviewed.',
         icon: 'terminal'
       }
     ],
     checklist: [
-      'No profile endpoint is called.',
-      'No login, registration, verification, auth-state, or role logic changes.',
-      'No credential-like value is read or displayed.'
+      'Profile details are represented as upcoming settings.',
+      'Security controls are descriptive in this preview.',
+      'Login and verification behavior remain outside this workspace polish.'
     ]
   }
 }
@@ -482,7 +482,7 @@ function recordDraft() {
 
 .workspace-section-hero {
   display: grid;
-  gap: 1.25rem;
+  gap: 1.35rem;
 }
 
 .workspace-section-copy {
@@ -494,8 +494,8 @@ function recordDraft() {
   border: 1px solid var(--ssxz-border);
   border-radius: 9999px;
   background: var(--ssxz-surface-muted);
-  padding: 0.5rem 0.85rem;
-  color: var(--ssxz-body);
+  padding: 0.48rem 0.82rem;
+  color: var(--ssxz-text);
   font-size: 0.75rem;
   font-weight: 720;
 }
@@ -504,15 +504,15 @@ function recordDraft() {
   margin-top: 1rem;
   max-width: 48rem;
   color: var(--ssxz-text);
-  font-size: clamp(2rem, 4vw, 3.5rem);
+  font-size: 2.75rem;
   font-weight: 760;
-  line-height: 1.05;
+  line-height: 1.08;
 }
 
 .workspace-section-hero p {
   margin-top: 1rem;
   max-width: 45rem;
-  color: var(--ssxz-muted);
+  color: var(--ssxz-body);
   font-size: 0.95rem;
   line-height: 1.8;
 }
@@ -688,7 +688,7 @@ function recordDraft() {
 .workspace-section-card-kicker,
 .detail-kicker {
   display: block;
-  color: var(--ssxz-muted);
+  color: var(--ssxz-primary);
   font-size: 0.72rem;
   font-weight: 760;
 }
@@ -703,7 +703,7 @@ function recordDraft() {
 .workspace-entry-description,
 .workspace-section-card p,
 .workspace-detail-panel p {
-  color: var(--ssxz-muted);
+  color: var(--ssxz-body);
   font-size: 0.84rem;
   line-height: 1.65;
 }
@@ -779,9 +779,10 @@ function recordDraft() {
   border: 1px solid var(--ssxz-border);
   border-radius: 9999px;
   background: var(--ssxz-surface-muted);
-  color: var(--ssxz-muted);
+  color: var(--ssxz-body);
   padding: 0.75rem 1rem;
   font-size: 0.82rem;
+  line-height: 1.55;
 }
 
 @media (max-width: 1120px) {
@@ -809,6 +810,10 @@ function recordDraft() {
 
   .workspace-entry-card {
     min-height: 0;
+  }
+
+  .workspace-section-hero h1 {
+    font-size: 2.05rem;
   }
 
   .workspace-note-strip {
