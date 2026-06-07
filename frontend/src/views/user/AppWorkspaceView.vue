@@ -44,30 +44,20 @@
           </div>
 
           <div class="composer-row">
-            <div class="tool-menu-wrap">
-              <button
-                type="button"
-                class="plus-button"
-                aria-label="打开工具菜单"
-                :aria-expanded="toolMenuOpen"
-                @click="toolMenuOpen = !toolMenuOpen"
-              >
-                <Icon name="plus" size="sm" />
-              </button>
-
-              <div v-if="toolMenuOpen" class="tool-popover" role="menu">
-                <button type="button" role="menuitem" @click="chooseImage">
-                  <Icon name="upload" size="sm" />
-                  上传图片
-                </button>
-              </div>
-            </div>
+            <button
+              type="button"
+              class="plus-button"
+              aria-label="添加参考图"
+              title="添加参考图"
+              @click="chooseImage"
+            >
+              <Icon name="plus" size="sm" />
+            </button>
 
             <textarea
               v-model="draft"
               rows="2"
               :placeholder="composerPlaceholder"
-              @focus="toolMenuOpen = false"
             />
 
             <button class="send-button" type="submit" :disabled="!canSubmit" aria-label="发送">
@@ -128,7 +118,6 @@ interface ImagePreview {
 const route = useRoute()
 const draft = ref('')
 const messages = ref<LocalMessage[]>([])
-const toolMenuOpen = ref(false)
 const imageInput = ref<HTMLInputElement | null>(null)
 const imagePreviews = ref<ImagePreview[]>([])
 
@@ -184,7 +173,6 @@ function isSectionKey(value: unknown): value is SectionKey {
 }
 
 function chooseImage() {
-  toolMenuOpen.value = false
   imageInput.value?.click()
 }
 
@@ -422,10 +410,6 @@ onBeforeUnmount(() => {
   gap: 0.55rem;
 }
 
-.tool-menu-wrap {
-  position: relative;
-}
-
 .plus-button,
 .send-button {
   display: inline-flex;
@@ -440,38 +424,6 @@ onBeforeUnmount(() => {
   border: 1px solid var(--ssxz-border);
   background: var(--ssxz-surface-muted);
   color: var(--ssxz-text);
-}
-
-.tool-popover {
-  position: absolute;
-  bottom: calc(100% + 0.55rem);
-  left: 0;
-  z-index: 5;
-  display: grid;
-  min-width: 11rem;
-  gap: 0.18rem;
-  border: 1px solid var(--ssxz-border);
-  border-radius: 1rem;
-  background: var(--ssxz-surface-raised);
-  box-shadow: var(--ssxz-shadow);
-  padding: 0.45rem;
-}
-
-.tool-popover button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  border: 0;
-  border-radius: 0.75rem;
-  background: transparent;
-  color: var(--ssxz-text);
-  font-size: 0.88rem;
-  padding: 0.58rem 0.7rem;
-  text-align: left;
-}
-
-.tool-popover button:hover {
-  background: var(--ssxz-surface-muted);
 }
 
 .composer-card textarea {

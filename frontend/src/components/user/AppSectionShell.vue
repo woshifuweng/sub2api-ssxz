@@ -44,19 +44,6 @@
       </section>
 
       <div class="ssxz-sidebar-bottom">
-        <nav class="ssxz-secondary-links" aria-label="次级入口">
-          <RouterLink
-            v-for="item in secondaryItems"
-            :key="item.to"
-            :to="item.to"
-            class="ssxz-nav-item"
-            :title="item.label"
-            :aria-label="item.label"
-          >
-            <Icon :name="item.icon" size="sm" />
-            <span class="ssxz-sidebar-text">{{ item.label }}</span>
-          </RouterLink>
-        </nav>
         <button
           type="button"
           class="ssxz-theme-toggle"
@@ -91,10 +78,6 @@
                 <Icon name="chevronDown" size="xs" />
               </button>
               <div v-if="userMenuOpen" class="ssxz-user-menu">
-                <RouterLink class="ssxz-menu-link" to="/app/developer" @click="userMenuOpen = false">开发者 API</RouterLink>
-                <RouterLink class="ssxz-menu-link" to="/app/account" @click="userMenuOpen = false">账户设置</RouterLink>
-                <RouterLink class="ssxz-menu-link" :to="ledgerPath" @click="userMenuOpen = false">余额与账单</RouterLink>
-                <RouterLink v-if="isAdmin" class="ssxz-menu-link" to="/admin/dashboard" @click="userMenuOpen = false">管理员后台</RouterLink>
                 <button type="button" class="ssxz-menu-link text-red-600 dark:text-red-300" @click="logout">退出登录</button>
               </div>
             </div>
@@ -156,17 +139,9 @@ const navItems: Array<{ label: string; to: string; icon: IconName }> = [
 ]
 
 const historyItems: Array<{ label: string; to: string; icon: IconName }> = []
-const ledgerPath = '/app/' + ['bill', 'ing'].join('')
-
-const secondaryItems: Array<{ label: string; to: string; icon: IconName }> = [
-  { label: '开发者', to: '/app/developer', icon: 'terminal' },
-  { label: '账单', to: ledgerPath, icon: 'creditCard' },
-  { label: '账户', to: '/app/account', icon: 'userCircle' }
-]
 
 const userLabel = computed(() => authStore.user?.username || authStore.user?.email?.split('@')[0] || '账户')
 const userInitial = computed(() => userLabel.value.slice(0, 1).toUpperCase())
-const isAdmin = computed(() => authStore.isAdmin)
 
 function isActive(path: string) {
   const normalizedPath = path.split('?')[0]
