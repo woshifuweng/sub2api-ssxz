@@ -44,16 +44,19 @@
           </div>
 
           <div class="composer-row">
-            <label
-              :for="imageInputId"
-              class="plus-button"
-              role="button"
-              tabindex="0"
-              aria-label="添加参考图"
-              title="添加参考图"
-            >
-              <Icon name="plus" size="sm" />
-            </label>
+            <div class="plus-button composer-plus" title="添加参考图">
+              <span class="composer-plus-icon" aria-hidden="true">
+                <Icon name="plus" size="sm" />
+              </span>
+              <input
+                class="composer-file-input"
+                type="file"
+                accept="image/*"
+                multiple
+                aria-label="上传图片"
+                @change="handleImageSelect"
+              />
+            </div>
 
             <textarea
               v-model="draft"
@@ -65,16 +68,6 @@
               <Icon name="arrowUp" size="sm" />
             </button>
           </div>
-
-          <input
-            :id="imageInputId"
-            class="sr-only"
-            type="file"
-            accept="image/*"
-            multiple
-            aria-label="上传图片"
-            @change="handleImageSelect"
-          />
         </form>
 
         <div v-if="messages.length === 0" class="prompt-chips" aria-label="建议输入">
@@ -122,7 +115,6 @@ const route = useRoute()
 const draft = ref('')
 const messages = ref<LocalMessage[]>([])
 const imagePreviews = ref<ImagePreview[]>([])
-const imageInputId = 'workspace-image-input'
 
 const sectionKeys: readonly SectionKey[] = ['home', 'chat', 'image']
 
@@ -424,9 +416,28 @@ onBeforeUnmount(() => {
 }
 
 .plus-button {
+  position: relative;
+  overflow: hidden;
   border: 1px solid var(--ssxz-border);
   background: var(--ssxz-surface-muted);
   color: var(--ssxz-text);
+  cursor: pointer;
+}
+
+.composer-plus-icon {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+}
+
+.composer-file-input {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  opacity: 0;
 }
 
 .composer-card textarea {
@@ -455,15 +466,6 @@ onBeforeUnmount(() => {
 .send-button:disabled {
   cursor: default;
   opacity: 0.42;
-}
-
-.sr-only {
-  position: absolute;
-  height: 1px;
-  width: 1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
 }
 
 .prompt-chips {
