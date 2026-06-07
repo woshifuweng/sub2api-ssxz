@@ -42,20 +42,6 @@
         </button>
       </nav>
 
-      <section v-if="activeUtilityContent" class="ssxz-utility-panel" aria-live="polite">
-        <div class="ssxz-utility-title ssxz-sidebar-text">{{ activeUtilityContent.label }}</div>
-        <p class="ssxz-sidebar-text">{{ activeUtilityContent.description }}</p>
-      </section>
-
-      <section class="ssxz-usage-panel" aria-label="用量信息">
-        <div class="ssxz-section-label ssxz-sidebar-text">用量信息</div>
-        <div class="ssxz-usage-row">
-          <span class="ssxz-sidebar-text">当前余额</span>
-          <strong>${{ userBalance }}</strong>
-        </div>
-        <p class="ssxz-usage-note ssxz-sidebar-text">暂无用量数据</p>
-      </section>
-
       <section class="ssxz-history" aria-label="历史会话">
         <div class="ssxz-section-label ssxz-sidebar-text">历史会话</div>
         <RouterLink
@@ -138,6 +124,26 @@
           </div>
         </section>
 
+        <section v-if="activeUtilityContent" class="ssxz-workspace-utility-center" aria-live="polite">
+          <div class="ssxz-utility-center-heading">
+            <Icon :name="activeUtilityContent.icon" size="sm" />
+            <div>
+              <h3>{{ activeUtilityContent.label }}</h3>
+              <p>{{ activeUtilityContent.description }}</p>
+            </div>
+          </div>
+          <dl v-if="activeUtility === 'usage'" class="ssxz-usage-details">
+            <div>
+              <dt>剩余余额</dt>
+              <dd>${{ userBalance }}</dd>
+            </div>
+            <div>
+              <dt>用量记录</dt>
+              <dd>暂无用量记录</dd>
+            </div>
+          </dl>
+        </section>
+
         <slot />
       </div>
     </main>
@@ -152,7 +158,7 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 
 type IconName = InstanceType<typeof Icon>['$props']['name']
-type UtilityId = 'developer' | 'billing' | 'account'
+type UtilityId = 'developer' | 'billing' | 'account' | 'usage'
 
 withDefaults(defineProps<{
   title: string
@@ -179,6 +185,12 @@ const navItems: Array<{ label: string; to: string; icon: IconName }> = [
 ]
 
 const utilityItems: Array<{ id: UtilityId; label: string; icon: IconName; description: string }> = [
+  {
+    id: 'usage',
+    label: '用量中心',
+    icon: 'chartBar',
+    description: '查看消耗与余额。当前仅展示已确认的账户余额，暂无用量记录时不会编造数据。'
+  },
   {
     id: 'developer',
     label: '开发者 API',
@@ -410,9 +422,76 @@ onMounted(() => {
   font-size: 0.86rem;
 }
 
+.ssxz-workspace-utility-center {
+  display: grid;
+  gap: 0.9rem;
+  margin: 0 0 1rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 1.15rem;
+  background: color-mix(in srgb, var(--ssxz-surface-raised) 86%, transparent);
+  box-shadow: var(--ssxz-shadow-sm);
+  padding: 1rem;
+}
+
+.ssxz-utility-center-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.ssxz-utility-center-heading svg {
+  margin-top: 0.15rem;
+  color: var(--ssxz-primary);
+}
+
+.ssxz-utility-center-heading h3 {
+  color: var(--ssxz-text);
+  font-size: 0.98rem;
+  font-weight: 780;
+  margin: 0;
+}
+
+.ssxz-utility-center-heading p {
+  color: var(--ssxz-body);
+  font-size: 0.84rem;
+  line-height: 1.6;
+  margin: 0.2rem 0 0;
+}
+
+.ssxz-usage-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin: 0;
+}
+
+.ssxz-usage-details div {
+  border: 1px solid var(--ssxz-border);
+  border-radius: 0.95rem;
+  background: color-mix(in srgb, var(--ssxz-surface-muted) 72%, transparent);
+  padding: 0.8rem;
+}
+
+.ssxz-usage-details dt {
+  color: var(--ssxz-subtle);
+  font-size: 0.75rem;
+  font-weight: 760;
+}
+
+.ssxz-usage-details dd {
+  color: var(--ssxz-text);
+  font-size: 0.94rem;
+  font-weight: 780;
+  margin: 0.25rem 0 0;
+}
+
 @media (max-width: 640px) {
   .ssxz-balance-pill {
     display: none;
+  }
+
+  .ssxz-usage-details {
+    grid-template-columns: 1fr;
   }
 }
 </style>

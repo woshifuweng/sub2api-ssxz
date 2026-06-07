@@ -8,8 +8,8 @@
     <section v-if="isUnifiedWorkspace" class="workspace-page" :data-section="activeSection">
       <div class="workspace-main" :class="{ 'has-messages': messages.length > 0 }">
         <section v-if="messages.length === 0" class="empty-state" aria-label="开始对话">
-          <h1>欢迎使用 SSXZ AI，有什么可以帮忙的？</h1>
-          <p>支持智能对话、图片理解、内容生成与开发接入。输入你的需求，或上传图片让 AI 直接处理。</p>
+          <h1>欢迎使用 SSXZ AI 工作台</h1>
+          <p>输入问题或上传参考图，开始你的智能工作流。</p>
         </section>
 
         <section v-else class="message-list" aria-label="本地消息流">
@@ -43,8 +43,12 @@
             <article v-for="image in imagePreviews" :key="image.id" class="attachment-preview-card">
               <img :src="image.url" alt="参考图" @error="removeImagePreview(image.id)" />
               <div class="attachment-copy">
-                <span>{{ image.name }}</span>
-                <small>已添加参考图</small>
+                <span :title="image.name">{{ image.name }}</span>
+                <small class="attachment-status">
+                  <Icon name="checkCircle" size="xs" />
+                  <span>已添加</span>
+                  <span class="attachment-size">{{ image.sizeLabel }}</span>
+                </small>
               </div>
               <button type="button" class="remove-preview" aria-label="移除图片" @click="removeImagePreview(image.id)">
                 <Icon name="x" size="xs" />
@@ -53,30 +57,11 @@
             <button type="button" class="clear-previews" @click="clearImagePreviews">清空</button>
           </div>
 
-          <div class="composer-row">
-            <button
-              type="button"
-              class="plus-button composer-plus"
-              title="添加内容"
-              :aria-expanded="assetPanelOpen"
-              aria-controls="workspace-asset-panel"
-              @click="assetPanelOpen = !assetPanelOpen"
-            >
-              <span class="composer-plus-icon" aria-hidden="true">
-                <Icon name="plus" size="sm" />
-              </span>
-            </button>
-
-            <textarea
-              v-model="draft"
-              rows="2"
-              :placeholder="composerPlaceholder"
-            />
-
-            <button class="send-button" type="submit" :disabled="!canSubmit" aria-label="发送">
-              <Icon name="arrowUp" size="sm" />
-            </button>
-          </div>
+          <textarea
+            v-model="draft"
+            rows="2"
+            :placeholder="composerPlaceholder"
+          />
 
           <div v-if="assetPanelOpen" id="workspace-asset-panel" class="asset-panel" aria-label="上传能力面板">
             <label class="asset-option is-ready" title="上传图片">
@@ -139,6 +124,33 @@
                 <p v-if="chatModels.length === 0">暂无可用模型</p>
               </div>
             </div>
+            <button
+              type="button"
+              class="plus-button composer-plus"
+              title="添加内容"
+              :aria-expanded="assetPanelOpen"
+              aria-controls="workspace-asset-panel"
+              @click="assetPanelOpen = !assetPanelOpen"
+            >
+              <span class="composer-plus-icon" aria-hidden="true">
+                <Icon name="plus" size="sm" />
+              </span>
+            </button>
+            <button
+              v-for="item in disabledToolbarItems"
+              :key="item.label"
+              type="button"
+              class="toolbar-tool is-disabled"
+              disabled
+              aria-disabled="true"
+              title="即将开放"
+            >
+              <Icon :name="item.icon" size="xs" />
+              <span>{{ item.label }}</span>
+            </button>
+            <button class="send-button" type="submit" :disabled="!canSubmit" aria-label="发送">
+              <Icon name="arrowUp" size="sm" />
+            </button>
           </div>
         </form>
       </section>
@@ -179,6 +191,8 @@ interface ImagePreview {
   id: string
   file: File
   name: string
+  size: number
+  sizeLabel: string
   url: string
 }
 
@@ -222,6 +236,12 @@ const disabledAssetOptions: Array<{ label: string; icon: IconName }> = [
   { label: '文档', icon: 'document' },
   { label: '表格', icon: 'chart' },
   { label: '代码', icon: 'terminal' }
+]
+
+const disabledToolbarItems: Array<{ label: string; icon: IconName }> = [
+  { label: '联网', icon: 'globe' },
+  { label: '记忆', icon: 'lightbulb' },
+  { label: '工具箱', icon: 'grid' }
 ]
 
 const sectionContent: Record<string, SectionContent> = {
@@ -302,6 +322,8 @@ function readImagePreview(file: File, index: number): Promise<ImagePreview | nul
         id: `${Date.now()}-${index}-${file.name}`,
         file,
         name: file.name,
+        size: file.size,
+        sizeLabel: formatFileSize(file.size),
         url: result
       } : null)
     }
@@ -423,6 +445,19 @@ function selectModel(modelId: string) {
 
 function getModelCapabilityLabel(_modelId: string) {
   return '聊天'
+}
+
+function formatFileSize(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let value = bytes
+  let unitIndex = 0
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex += 1
+  }
+  const precision = value >= 10 || unitIndex === 0 ? 0 : 1
+  return `${value.toFixed(precision)} ${units[unitIndex]}`
 }
 
 async function requestChatCompletion(payloadMessages: ChatStudioPayloadMessage[], model: string) {
@@ -620,10 +655,11 @@ onBeforeUnmount(() => {
 
 .attachment-preview-card {
   display: grid;
-  grid-template-columns: 4rem minmax(0, 8rem) auto;
+  grid-template-columns: 3.75rem minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.55rem;
-  max-width: 16rem;
+  width: min(100%, 18rem);
+  min-height: 4.65rem;
   border: 1px solid var(--ssxz-border);
   border-radius: 1rem;
   background: var(--ssxz-surface-muted);
@@ -631,8 +667,8 @@ onBeforeUnmount(() => {
 }
 
 .attachment-preview-card img {
-  height: 4rem;
-  width: 4rem;
+  height: 3.75rem;
+  width: 3.75rem;
   border-radius: 0.8rem;
   object-fit: cover;
 }
@@ -652,9 +688,23 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.attachment-copy small {
-  color: var(--ssxz-subtle);
+.attachment-status {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.28rem;
+  color: color-mix(in srgb, #16a34a 82%, var(--ssxz-text));
   font-size: 0.72rem;
+  font-weight: 760;
+}
+
+.attachment-status svg {
+  flex: 0 0 auto;
+}
+
+.attachment-size {
+  color: var(--ssxz-subtle);
+  font-weight: 700;
 }
 
 .remove-preview {
@@ -679,19 +729,12 @@ onBeforeUnmount(() => {
   padding: 0.35rem 0.62rem;
 }
 
-.composer-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 0.55rem;
-}
-
 .composer-tool-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.55rem;
+  gap: 0.45rem;
+  overflow-x: auto;
   padding: 0 0.05rem;
 }
 
@@ -760,6 +803,26 @@ onBeforeUnmount(() => {
 .asset-option.is-disabled {
   cursor: not-allowed;
   opacity: 0.56;
+}
+
+.toolbar-tool {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.32rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ssxz-surface-muted) 80%, transparent);
+  color: var(--ssxz-subtle);
+  font-size: 0.78rem;
+  font-weight: 740;
+  padding: 0 0.68rem;
+  white-space: nowrap;
+}
+
+.toolbar-tool.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .model-selector {
@@ -873,6 +936,7 @@ onBeforeUnmount(() => {
   border: 0;
   background: var(--ssxz-primary);
   color: white;
+  margin-left: auto;
 }
 
 .send-button:disabled {
