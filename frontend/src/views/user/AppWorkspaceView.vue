@@ -21,14 +21,23 @@
           >
             <span class="message-avatar">{{ message.role === 'user' ? '你' : 'AI' }}</span>
             <div class="message-bubble" :data-state="message.state">
-              <p>{{ message.text }}</p>
+              <p v-if="message.text">{{ message.text }}</p>
+              <div v-if="message.attachments?.length" class="message-attachments" aria-label="消息图片">
+                <img
+                  v-for="attachment in message.attachments"
+                  :key="attachment.id"
+                  :src="attachment.url"
+                  :alt="attachment.name"
+                  :title="attachment.name"
+                  @error="removeMessageAttachment(message.id, attachment.id)"
+                />
+              </div>
             </div>
           </article>
         </section>
       </div>
 
       <section class="composer-zone" aria-label="统一输入框">
-        <p v-if="sendError" class="send-error" role="alert">{{ sendError }}</p>
         <form class="composer-card" @submit.prevent="submitDraft">
           <div v-if="imagePreviews.length" class="attachment-preview-list">
             <article v-for="image in imagePreviews" :key="image.id" class="attachment-preview-card">
@@ -106,6 +115,7 @@ interface LocalMessage {
   role: MessageRole
   text: string
   state?: MessageState
+  attachments?: MessageAttachment[]
 }
 
 interface ImagePreview {
@@ -113,6 +123,13 @@ interface ImagePreview {
   file: File
   name: string
   url: string
+}
+
+interface MessageAttachment {
+  id: string
+  name: string
+  url: string
+  type: 'image'
 }
 
 interface ChatStudioPayloadMessage {
@@ -133,7 +150,6 @@ const draft = ref('')
 const messages = ref<LocalMessage[]>([])
 const imagePreviews = ref<ImagePreview[]>([])
 const isSending = ref(false)
-const sendError = ref('')
 
 const sectionKeys: readonly SectionKey[] = ['home', 'chat', 'image']
 
@@ -230,15 +246,27 @@ async function submitDraft() {
   if (!content && imagePreviews.value.length === 0) return
   if (isSending.value) return
 
-  sendError.value = ''
+  const userText = content
+  const attachments = imagePreviews.value.map(toMessageAttachment)
+  messages.value.push({
+    id: createMessageId('user'),
+    role: 'user',
+    text: userText,
+    attachments
+  })
 
-  const imageCount = imagePreviews.value.length
-  if (!content && imageCount > 0) {
-    sendError.value = '请先输入想让 AI 处理的文字需求。'
+  draft.value = ''
+  clearImagePreviews()
+
+  if (!userText && attachments.length > 0) {
+    messages.value.push({
+      id: createMessageId('assistant'),
+      role: 'assistant',
+      text: '请补充你想让我如何处理这张图片。'
+    })
     return
   }
 
-  const userText = content
   const assistantMessage: LocalMessage = {
     id: createMessageId('assistant'),
     role: 'assistant',
@@ -246,15 +274,7 @@ async function submitDraft() {
     state: 'loading'
   }
 
-  messages.value.push({
-    id: createMessageId('user'),
-    role: 'user',
-    text: userText
-  })
   messages.value.push(assistantMessage)
-
-  draft.value = ''
-  clearImagePreviews()
 
   isSending.value = true
   try {
@@ -262,13 +282,31 @@ async function submitDraft() {
     assistantMessage.text = extractAssistantText(response)
     delete assistantMessage.state
   } catch (error) {
-    console.error('Failed to send workspace chat message:', error)
+    console.error('Workspace chat send failed', {
+      endpoint: '/chat-studio/complete',
+      status: getErrorStatus(error),
+      message: getErrorMessage(error)
+    })
     assistantMessage.text = '发送失败，请稍后重试。'
     assistantMessage.state = 'error'
-    sendError.value = '发送失败，请稍后重试。'
   } finally {
     isSending.value = false
   }
+}
+
+function toMessageAttachment(image: ImagePreview): MessageAttachment {
+  return {
+    id: image.id,
+    name: image.name,
+    url: image.url,
+    type: 'image'
+  }
+}
+
+function removeMessageAttachment(messageId: string, attachmentId: string) {
+  const message = messages.value.find((item) => item.id === messageId)
+  if (!message?.attachments) return
+  message.attachments = message.attachments.filter((item) => item.id !== attachmentId)
 }
 
 function createMessageId(prefix: string) {
@@ -293,6 +331,21 @@ async function requestChatCompletion(payloadMessages: ChatStudioPayloadMessage[]
     temperature: 0.7
   })
   return data
+}
+
+function getErrorStatus(error: unknown) {
+  if (typeof error !== 'object' || error === null) return undefined
+  const value = error as { status?: number; response?: { status?: number } }
+  return value.response?.status || value.status
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) return error.message
+  if (typeof error !== 'object' || error === null) return 'unknown error'
+  const value = error as { message?: unknown; response?: { data?: { message?: unknown; detail?: unknown; error?: { message?: unknown } } } }
+  const data = value.response?.data
+  const message = data?.error?.message || data?.message || data?.detail || value.message
+  return typeof message === 'string' && message.trim() ? message : 'unknown error'
 }
 
 function extractAssistantText(payload: ChatStudioResponse): string {
@@ -398,6 +451,20 @@ onBeforeUnmount(() => {
   padding: 0.9rem 1rem;
 }
 
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.message-attachments img {
+  height: 5rem;
+  width: 5rem;
+  border-radius: 0.9rem;
+  object-fit: cover;
+}
+
 .message-bubble[data-state='loading'] p {
   color: var(--ssxz-subtle);
 }
@@ -405,14 +472,6 @@ onBeforeUnmount(() => {
 .message-bubble[data-state='error'] {
   border: 1px solid color-mix(in srgb, var(--ssxz-danger, #dc2626) 32%, transparent);
   background: color-mix(in srgb, var(--ssxz-danger, #dc2626) 8%, var(--ssxz-surface-raised));
-}
-
-.send-error {
-  width: min(100%, 52rem);
-  color: var(--ssxz-danger, #dc2626);
-  font-size: 0.86rem;
-  line-height: 1.5;
-  margin: 0;
 }
 
 .composer-zone {
