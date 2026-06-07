@@ -25,6 +25,28 @@
         </RouterLink>
       </nav>
 
+      <nav class="ssxz-secondary-nav" aria-label="工作台入口">
+        <button
+          v-for="item in utilityItems"
+          :key="item.id"
+          type="button"
+          class="ssxz-nav-item ssxz-utility-item"
+          :class="{ 'is-active': activeUtility === item.id }"
+          :title="item.label"
+          :aria-label="item.label"
+          :aria-expanded="activeUtility === item.id"
+          @click="toggleUtilityPanel(item.id)"
+        >
+          <Icon :name="item.icon" size="sm" />
+          <span class="ssxz-sidebar-text">{{ item.label }}</span>
+        </button>
+      </nav>
+
+      <section v-if="activeUtilityContent" class="ssxz-utility-panel" aria-live="polite">
+        <div class="ssxz-utility-title ssxz-sidebar-text">{{ activeUtilityContent.label }}</div>
+        <p class="ssxz-sidebar-text">{{ activeUtilityContent.description }}</p>
+      </section>
+
       <section class="ssxz-history" aria-label="历史会话">
         <div class="ssxz-section-label ssxz-sidebar-text">历史会话</div>
         <RouterLink
@@ -72,12 +94,19 @@
           </button>
           <div class="flex items-center gap-2">
             <div v-if="authStore.isAuthenticated" class="relative">
-              <button type="button" class="ssxz-user-button" @click="userMenuOpen = !userMenuOpen">
+              <div class="ssxz-account-cluster">
+                <span class="ssxz-balance-pill">余额 ${{ userBalance }}</span>
+                <button type="button" class="ssxz-user-button" @click="userMenuOpen = !userMenuOpen">
                 <span class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold" style="background: linear-gradient(135deg, var(--ssxz-primary), var(--ssxz-accent)); color: white">{{ userInitial }}</span>
                 <span class="hidden max-w-32 truncate sm:inline">{{ userLabel }}</span>
                 <Icon name="chevronDown" size="xs" />
-              </button>
+                </button>
+              </div>
               <div v-if="userMenuOpen" class="ssxz-user-menu">
+                <div class="ssxz-menu-summary">
+                  <strong>{{ userLabel }}</strong>
+                  <span>余额 ${{ userBalance }}</span>
+                </div>
                 <button type="button" class="ssxz-menu-link text-red-600 dark:text-red-300" @click="logout">退出登录</button>
               </div>
             </div>
@@ -114,6 +143,7 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 
 type IconName = InstanceType<typeof Icon>['$props']['name']
+type UtilityId = 'developer' | 'billing' | 'account'
 
 withDefaults(defineProps<{
   title: string
@@ -130,6 +160,7 @@ const router = useRouter()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const userMenuOpen = ref(false)
+const activeUtility = ref<UtilityId | null>(null)
 const SIDEBAR_COLLAPSED_KEY = 'ssxz.app.sidebar.collapsed'
 const sidebarCollapsed = ref(readSidebarCollapsed())
 const isDark = ref(document.documentElement.classList.contains('dark'))
@@ -138,15 +169,46 @@ const navItems: Array<{ label: string; to: string; icon: IconName }> = [
   { label: '新对话', to: '/app?new=1', icon: 'chat' }
 ]
 
+const utilityItems: Array<{ id: UtilityId; label: string; icon: IconName; description: string }> = [
+  {
+    id: 'developer',
+    label: '开发者 API',
+    icon: 'terminal',
+    description: '开发者能力将在工作台内收敛呈现，当前不会跳转旧后台。'
+  },
+  {
+    id: 'billing',
+    label: '余额充值',
+    icon: 'creditCard',
+    description: '余额信息已显示在右上角，充值入口将以工作台形态接入。'
+  },
+  {
+    id: 'account',
+    label: '账户设置',
+    icon: 'userCircle',
+    description: '账户菜单在右上角展开，当前不会进入旧控制台。'
+  }
+]
+
 const historyItems: Array<{ label: string; to: string; icon: IconName }> = []
 
 const userLabel = computed(() => authStore.user?.username || authStore.user?.email?.split('@')[0] || '账户')
 const userInitial = computed(() => userLabel.value.slice(0, 1).toUpperCase())
+const userBalance = computed(() => formatMoney(authStore.user?.balance || 0))
+const activeUtilityContent = computed(() => utilityItems.find((item) => item.id === activeUtility.value) ?? null)
 
 function isActive(path: string) {
   const normalizedPath = path.split('?')[0]
   if (normalizedPath === '/app') return route.path === '/app' || route.path === '/app/chat' || route.path === '/app/image'
   return route.path === normalizedPath
+}
+
+function toggleUtilityPanel(id: UtilityId) {
+  activeUtility.value = activeUtility.value === id ? null : id
+}
+
+function formatMoney(value: number) {
+  return Number(value || 0).toFixed(2)
 }
 
 function readSidebarCollapsed() {
@@ -198,6 +260,36 @@ onMounted(() => {
   gap: 0.45rem;
 }
 
+.ssxz-secondary-nav {
+  display: grid;
+  gap: 0.28rem;
+  margin-top: 0.9rem;
+}
+
+.ssxz-utility-item {
+  border: 0;
+  text-align: left;
+}
+
+.ssxz-utility-panel {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.7rem 0.15rem 0;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 0.95rem;
+  background: color-mix(in srgb, var(--ssxz-surface-muted) 78%, transparent);
+  color: var(--ssxz-subtle);
+  font-size: 0.78rem;
+  line-height: 1.55;
+  padding: 0.72rem 0.78rem;
+}
+
+.ssxz-utility-title {
+  color: var(--ssxz-text);
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
 .ssxz-new-chat {
   border: 1px solid var(--ssxz-border);
   background: var(--ssxz-surface-raised);
@@ -241,5 +333,46 @@ onMounted(() => {
   display: grid;
   gap: 0.18rem;
   opacity: 0.84;
+}
+
+.ssxz-account-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ssxz-balance-pill {
+  display: inline-flex;
+  min-height: 2.1rem;
+  align-items: center;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ssxz-surface-raised) 88%, transparent);
+  color: var(--ssxz-text);
+  font-size: 0.82rem;
+  font-weight: 760;
+  padding: 0 0.75rem;
+}
+
+.ssxz-menu-summary {
+  display: grid;
+  gap: 0.18rem;
+  border-bottom: 1px solid var(--ssxz-border);
+  color: var(--ssxz-body);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  margin-bottom: 0.35rem;
+  padding: 0.2rem 0.35rem 0.55rem;
+}
+
+.ssxz-menu-summary strong {
+  color: var(--ssxz-text);
+  font-size: 0.86rem;
+}
+
+@media (max-width: 640px) {
+  .ssxz-balance-pill {
+    display: none;
+  }
 }
 </style>

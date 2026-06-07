@@ -78,6 +78,34 @@
               <Icon name="arrowUp" size="sm" />
             </button>
           </div>
+
+          <div class="composer-tool-row" aria-label="输入辅助工具">
+            <label class="composer-tool composer-tool-upload" title="上传图片">
+              <Icon name="upload" size="xs" />
+              <span>上传图片</span>
+              <input
+                class="composer-tool-file-input"
+                type="file"
+                accept="image/*"
+                multiple
+                aria-label="上传图片"
+                @change="handleImageSelect"
+              />
+            </label>
+            <button
+              v-for="tool in disabledTools"
+              :key="tool.label"
+              type="button"
+              class="composer-tool is-disabled"
+              disabled
+              title="即将开放"
+              :aria-label="`${tool.label}，即将开放`"
+            >
+              <Icon :name="tool.icon" size="xs" />
+              <span>{{ tool.label }}</span>
+              <small>即将开放</small>
+            </button>
+          </div>
         </form>
 
         <div v-if="messages.length === 0" class="prompt-chips" aria-label="建议输入">
@@ -163,6 +191,13 @@ const promptChips = [
   '生成 16:9 电商主图',
   '写商品详情文案',
   '上传参考图优化'
+]
+
+const disabledTools: Array<{ label: string; icon: IconName }> = [
+  { label: '上传文件', icon: 'document' },
+  { label: '联网', icon: 'globe' },
+  { label: '记忆', icon: 'brain' },
+  { label: '工具箱', icon: 'grid' }
 ]
 
 const sectionContent: Record<string, SectionContent> = {
@@ -596,6 +631,61 @@ onBeforeUnmount(() => {
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: end;
   gap: 0.55rem;
+}
+
+.composer-tool-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0 0.05rem;
+}
+
+.composer-tool {
+  position: relative;
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.32rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ssxz-surface-muted) 86%, transparent);
+  color: var(--ssxz-body);
+  font-size: 0.78rem;
+  font-weight: 720;
+  line-height: 1;
+  padding: 0 0.66rem;
+}
+
+.composer-tool-upload {
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.composer-tool-upload:hover {
+  border-color: color-mix(in srgb, var(--ssxz-primary) 46%, var(--ssxz-border));
+  color: var(--ssxz-text);
+}
+
+.composer-tool-file-input {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.composer-tool.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.composer-tool small {
+  color: var(--ssxz-subtle);
+  font-size: 0.68rem;
+  font-weight: 700;
 }
 
 .plus-button,
