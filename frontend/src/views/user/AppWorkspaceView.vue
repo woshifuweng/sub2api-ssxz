@@ -167,7 +167,7 @@ function isSectionKey(value: unknown): value is SectionKey {
   return typeof value === 'string' && sectionKeys.includes(value as SectionKey)
 }
 
-function handleImageSelect(event: Event) {
+async function handleImageSelect(event: Event) {
   const target = event.target as HTMLInputElement
   const files = Array.from(target.files ?? []).filter((file) => file.type.startsWith('image/'))
   if (!files.length) {
@@ -176,25 +176,35 @@ function handleImageSelect(event: Event) {
   }
 
   const slots = Math.max(0, 4 - imagePreviews.value.length)
-  const nextImages = files.slice(0, slots).map((file, index) => ({
-    id: `${Date.now()}-${index}-${file.name}`,
-    file,
-    name: file.name,
-    url: URL.createObjectURL(file)
-  }))
+  const nextImages = (await Promise.all(
+    files.slice(0, slots).map((file, index) => readImagePreview(file, index))
+  )).filter((image): image is ImagePreview => Boolean(image))
   imagePreviews.value.push(...nextImages)
   target.value = ''
 }
 
+function readImagePreview(file: File, index: number): Promise<ImagePreview | null> {
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : ''
+      resolve(result.startsWith('data:image/') ? {
+        id: `${Date.now()}-${index}-${file.name}`,
+        file,
+        name: file.name,
+        url: result
+      } : null)
+    }
+    reader.onerror = () => resolve(null)
+    reader.readAsDataURL(file)
+  })
+}
+
 function removeImagePreview(id: string) {
-  const image = imagePreviews.value.find((item) => item.id === id)
-  if (!image) return
-  URL.revokeObjectURL(image.url)
   imagePreviews.value = imagePreviews.value.filter((item) => item.id !== id)
 }
 
 function clearImagePreviews() {
-  imagePreviews.value.forEach((image) => URL.revokeObjectURL(image.url))
   imagePreviews.value = []
 }
 
