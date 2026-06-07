@@ -177,34 +177,37 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/app/developer',
     name: 'AppDeveloper',
-    component: () => import('@/views/user/AppWorkspaceView.vue'),
+    component: () => import('@/views/user/KeysView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Developer API',
-      appSection: 'developer'
+      title: 'API Keys',
+      titleKey: 'keys.title',
+      descriptionKey: 'keys.description'
     }
   },
   {
     path: '/app/billing',
     name: 'AppBilling',
-    component: () => import('@/views/user/AppWorkspaceView.vue'),
+    component: () => import('@/views/user/UsageView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Billing',
-      appSection: 'billing'
+      title: 'Usage',
+      titleKey: 'usage.title',
+      descriptionKey: 'usage.description'
     }
   },
   {
     path: '/app/account',
     name: 'AppAccount',
-    component: () => import('@/views/user/AppWorkspaceView.vue'),
+    component: () => import('@/views/user/ProfileView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Account',
-      appSection: 'account'
+      title: 'Profile',
+      titleKey: 'profile.title',
+      descriptionKey: 'profile.description'
     }
   },
 

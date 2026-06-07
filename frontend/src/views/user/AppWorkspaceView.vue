@@ -29,15 +29,18 @@
 
       <section class="composer-zone" aria-label="统一输入框">
         <form class="composer-card" @submit.prevent="submitDraft">
-          <div v-if="imagePreview" class="attachment-preview">
-            <img :src="imagePreview.url" alt="本地图片预览" />
-            <div class="attachment-copy">
-              <span>{{ imagePreview.name }}</span>
-              <small>本地预览，未上传</small>
-            </div>
-            <button type="button" class="remove-preview" aria-label="移除图片" @click="removeImagePreview">
-              <Icon name="x" size="xs" />
-            </button>
+          <div v-if="imagePreviews.length" class="attachment-preview-list">
+            <article v-for="image in imagePreviews" :key="image.id" class="attachment-preview-card">
+              <img :src="image.url" alt="本地图片预览" @error="removeImagePreview(image.id)" />
+              <div class="attachment-copy">
+                <span>{{ image.name }}</span>
+                <small>本地预览</small>
+              </div>
+              <button type="button" class="remove-preview" aria-label="移除图片" @click="removeImagePreview(image.id)">
+                <Icon name="x" size="xs" />
+              </button>
+            </article>
+            <button type="button" class="clear-previews" @click="clearImagePreviews">清空</button>
           </div>
 
           <div class="composer-row">
@@ -56,18 +59,6 @@
                 <button type="button" role="menuitem" @click="chooseImage">
                   <Icon name="upload" size="sm" />
                   上传图片
-                </button>
-                <button type="button" role="menuitem" @click="showLightToast('文件处理能力待接入，本轮不会上传服务器。')">
-                  <Icon name="document" size="sm" />
-                  上传文件
-                </button>
-                <button type="button" role="menuitem" @click="showLightToast('联网能力待接入，本轮不会发起网络请求。')">
-                  <Icon name="globe" size="sm" />
-                  联网搜索
-                </button>
-                <button type="button" role="menuitem" @click="showLightToast('工具箱待接入。')">
-                  <Icon name="grid" size="sm" />
-                  工具箱
                 </button>
               </div>
             </div>
@@ -89,6 +80,7 @@
             class="sr-only"
             type="file"
             accept="image/*"
+            multiple
             @change="handleImageSelect"
           />
         </form>
@@ -98,22 +90,9 @@
             {{ item }}
           </button>
         </div>
-
-        <p v-if="toastMessage" class="light-toast">{{ toastMessage }}</p>
       </section>
     </section>
 
-    <section v-else class="support-section" :data-section="activeSection">
-      <span class="support-pill">{{ activeContent.pill }}</span>
-      <h1>{{ activeContent.heading }}</h1>
-      <p>{{ activeContent.description }}</p>
-      <div class="support-actions">
-        <span v-for="item in activeContent.cards" :key="item.title">
-          <Icon :name="item.icon" size="sm" />
-          {{ item.title }}
-        </span>
-      </div>
-    </section>
   </AppSectionShell>
 </template>
 
@@ -127,20 +106,11 @@ type IconName = InstanceType<typeof Icon>['$props']['name']
 type SectionKey = string
 type MessageRole = 'user' | 'assistant'
 
-interface WorkspaceCard {
-  title: string
-  icon: IconName
-}
-
 interface SectionContent {
   shellTitle: string
   shellSubtitle: string
   eyebrow: string
   icon: IconName
-  pill: string
-  heading: string
-  description: string
-  cards: WorkspaceCard[]
 }
 
 interface LocalMessage {
@@ -150,6 +120,7 @@ interface LocalMessage {
 }
 
 interface ImagePreview {
+  id: string
   name: string
   url: string
 }
@@ -158,12 +129,10 @@ const route = useRoute()
 const draft = ref('')
 const messages = ref<LocalMessage[]>([])
 const toolMenuOpen = ref(false)
-const toastMessage = ref('')
 const imageInput = ref<HTMLInputElement | null>(null)
-const imagePreview = ref<ImagePreview | null>(null)
+const imagePreviews = ref<ImagePreview[]>([])
 
-const ledgerSection = ['bill', 'ing'].join('')
-const sectionKeys: readonly SectionKey[] = ['home', 'chat', 'image', 'developer', ledgerSection, 'account']
+const sectionKeys: readonly SectionKey[] = ['home', 'chat', 'image']
 
 const imageIntentPattern = /生成图片|主图|16:9|海报|封面|改图|参考图|图片|白底|商品图|小红书/
 
@@ -178,70 +147,19 @@ const sectionContent: Record<string, SectionContent> = {
     shellTitle: 'SSXZ AI',
     shellSubtitle: '统一对话入口',
     eyebrow: '对话',
-    icon: 'sparkles',
-    pill: '工作台',
-    heading: '今天想做什么？',
-    description: '聊天、写作和图片需求都从同一个输入框开始。',
-    cards: []
+    icon: 'sparkles'
   },
   chat: {
     shellTitle: 'SSXZ AI',
     shellSubtitle: '统一对话入口',
     eyebrow: '对话',
-    icon: 'chat',
-    pill: '对话',
-    heading: '继续对话',
-    description: '这里和 /app 保持同一套对话体验。',
-    cards: []
+    icon: 'chat'
   },
   image: {
     shellTitle: 'SSXZ AI',
     shellSubtitle: '图片需求也从对话输入框开始',
     eyebrow: '对话',
-    icon: 'sparkles',
-    pill: '图片',
-    heading: '描述你想生成或修改的图片',
-    description: '上传参考图，或直接说明比例、风格和用途。',
-    cards: []
-  },
-  developer: {
-    shellTitle: '开发者',
-    shellSubtitle: '辅助入口',
-    eyebrow: '设置',
-    icon: 'terminal',
-    pill: '开发者',
-    heading: '开发者 API',
-    description: '这里保留为后续 API 接入说明与设置入口，不展示真实密钥或地址。',
-    cards: [
-      { title: '接入说明', icon: 'book' },
-      { title: '密钥设置', icon: 'key' }
-    ]
-  },
-  [ledgerSection]: {
-    shellTitle: '账单',
-    shellSubtitle: '辅助入口',
-    eyebrow: '设置',
-    icon: 'creditCard',
-    pill: '账单',
-    heading: '余额与账单',
-    description: '这里仅作为后续余额、用量和账单入口，不展示可执行支付动作。',
-    cards: [
-      { title: '余额概览', icon: 'creditCard' },
-      { title: '用量记录', icon: 'chart' }
-    ]
-  },
-  account: {
-    shellTitle: '账户',
-    shellSubtitle: '辅助入口',
-    eyebrow: '设置',
-    icon: 'userCircle',
-    pill: '账户',
-    heading: '账户设置',
-    description: '这里保留基础资料、偏好和安全设置入口，不展示后台权限信息。',
-    cards: [
-      { title: '个人资料', icon: 'userCircle' },
-      { title: '偏好设置', icon: 'cog' }
-    ]
+    icon: 'sparkles'
   }
 }
 
@@ -259,7 +177,7 @@ const composerPlaceholder = computed(() => (
     ? '上传参考图，或直接描述你想生成/修改的图片...'
     : '输入你的问题，或上传图片后直接描述你想怎么处理...'
 ))
-const canSubmit = computed(() => draft.value.trim().length > 0 || imagePreview.value !== null)
+const canSubmit = computed(() => draft.value.trim().length > 0 || imagePreviews.value.length > 0)
 
 function isSectionKey(value: unknown): value is SectionKey {
   return typeof value === 'string' && sectionKeys.includes(value as SectionKey)
@@ -272,55 +190,58 @@ function chooseImage() {
 
 function handleImageSelect(event: Event) {
   const target = event.target as HTMLInputElement
-  const file = target.files?.[0]
-  if (!file) return
+  const files = Array.from(target.files ?? []).filter((file) => file.type.startsWith('image/'))
+  if (!files.length) return
 
-  removeImagePreview()
-  imagePreview.value = {
+  const slots = Math.max(0, 4 - imagePreviews.value.length)
+  const nextImages = files.slice(0, slots).map((file, index) => ({
+    id: `${Date.now()}-${index}-${file.name}`,
     name: file.name,
     url: URL.createObjectURL(file)
-  }
+  }))
+  imagePreviews.value.push(...nextImages)
   target.value = ''
 }
 
-function removeImagePreview() {
-  if (imagePreview.value) {
-    URL.revokeObjectURL(imagePreview.value.url)
-    imagePreview.value = null
-  }
+function removeImagePreview(id: string) {
+  const image = imagePreviews.value.find((item) => item.id === id)
+  if (!image) return
+  URL.revokeObjectURL(image.url)
+  imagePreviews.value = imagePreviews.value.filter((item) => item.id !== id)
 }
 
-function showLightToast(message: string) {
-  toolMenuOpen.value = false
-  toastMessage.value = message
+function clearImagePreviews() {
+  imagePreviews.value.forEach((image) => URL.revokeObjectURL(image.url))
+  imagePreviews.value = []
 }
 
 function submitDraft() {
   const content = draft.value.trim()
-  if (!content && !imagePreview.value) return
+  if (!content && imagePreviews.value.length === 0) return
 
-  const userText = content || '请参考这张图片。'
-  const isImageIntent = imageIntentPattern.test(userText) || imagePreview.value !== null
+  const imageCount = imagePreviews.value.length
+  const userText = content || `请参考这 ${imageCount} 张图片。`
+  const isImageIntent = imageIntentPattern.test(userText) || imageCount > 0
 
   messages.value.push({
     id: `user-${Date.now()}`,
     role: 'user',
-    text: userText
+    text: imageCount > 0 ? `${userText}（已添加 ${imageCount} 张本地图片）` : userText
   })
   messages.value.push({
     id: `assistant-${Date.now()}`,
     role: 'assistant',
     text: isImageIntent
-      ? '已识别为图片生成/编辑需求。当前为前端预览，未生成、未上传、未计费。'
-      : '已记录你的需求。当前为前端预览，不会调用真实 AI。'
+      ? '演示预览：已识别为图片相关需求，尚未生成结果。'
+      : '演示预览：已记录你的输入。'
   })
 
   draft.value = ''
-  toastMessage.value = ''
+  clearImagePreviews()
 }
 
 onBeforeUnmount(() => {
-  removeImagePreview()
+  clearImagePreviews()
 })
 </script>
 
@@ -364,9 +285,7 @@ onBeforeUnmount(() => {
 }
 
 .empty-state p,
-.message-bubble p,
-.support-section p,
-.light-toast {
+.message-bubble p {
   color: var(--ssxz-body);
   font-size: 0.95rem;
   line-height: 1.7;
@@ -428,19 +347,26 @@ onBeforeUnmount(() => {
   padding: 0.8rem;
 }
 
-.attachment-preview {
-  display: grid;
-  grid-template-columns: 4rem minmax(0, 1fr) auto;
+.attachment-preview-list {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.7rem;
-  max-width: 22rem;
+  gap: 0.55rem;
+}
+
+.attachment-preview-card {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 8rem) auto;
+  align-items: center;
+  gap: 0.55rem;
+  max-width: 16rem;
   border: 1px solid var(--ssxz-border);
   border-radius: 1rem;
   background: var(--ssxz-surface-muted);
   padding: 0.45rem;
 }
 
-.attachment-preview img {
+.attachment-preview-card img {
   height: 4rem;
   width: 4rem;
   border-radius: 0.8rem;
@@ -477,6 +403,16 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   background: color-mix(in srgb, var(--ssxz-text) 9%, transparent);
   color: var(--ssxz-body);
+}
+
+.clear-previews {
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ssxz-text) 8%, transparent);
+  color: var(--ssxz-subtle);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.35rem 0.62rem;
 }
 
 .composer-row {
@@ -590,47 +526,6 @@ onBeforeUnmount(() => {
   font-size: 0.82rem;
   line-height: 1.4;
   padding: 0.38rem 0.7rem;
-}
-
-.light-toast {
-  margin: 0;
-  text-align: center;
-}
-
-.support-section {
-  display: grid;
-  align-content: center;
-  justify-items: start;
-  gap: 0.8rem;
-  min-height: 24rem;
-  max-width: 42rem;
-}
-
-.support-pill,
-.support-actions span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.38rem;
-  border: 1px solid var(--ssxz-border);
-  border-radius: 999px;
-  background: var(--ssxz-surface-muted);
-  color: var(--ssxz-primary);
-  font-size: 0.78rem;
-  font-weight: 720;
-  padding: 0.38rem 0.7rem;
-}
-
-.support-section h1 {
-  color: var(--ssxz-text);
-  font-size: clamp(1.8rem, 3vw, 2.6rem);
-  font-weight: 760;
-  line-height: 1.12;
-}
-
-.support-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
 }
 
 @media (max-width: 720px) {
