@@ -213,7 +213,6 @@ const selectedModelId = ref('')
 const {
   chatModels,
   hasChat,
-  imageModels,
   loadCapabilities
 } = useUserCapabilities()
 
@@ -422,11 +421,7 @@ function selectModel(modelId: string) {
   modelMenuOpen.value = false
 }
 
-function getModelCapabilityLabel(modelId: string) {
-  const isTextModel = availableModelIds.value.includes(modelId)
-  const isImageModel = imageModels.value.some((model) => model.toLowerCase() === modelId.toLowerCase())
-  if (isTextModel && isImageModel) return '聊天 / 作图'
-  if (isImageModel) return '作图'
+function getModelCapabilityLabel(_modelId: string) {
   return '聊天'
 }
 
