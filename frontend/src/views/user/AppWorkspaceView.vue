@@ -44,15 +44,16 @@
           </div>
 
           <div class="composer-row">
-            <button
-              type="button"
+            <label
+              :for="imageInputId"
               class="plus-button"
+              role="button"
+              tabindex="0"
               aria-label="添加参考图"
               title="添加参考图"
-              @click="chooseImage"
             >
               <Icon name="plus" size="sm" />
-            </button>
+            </label>
 
             <textarea
               v-model="draft"
@@ -66,11 +67,12 @@
           </div>
 
           <input
-            ref="imageInput"
+            :id="imageInputId"
             class="sr-only"
             type="file"
             accept="image/*"
             multiple
+            aria-label="上传图片"
             @change="handleImageSelect"
           />
         </form>
@@ -111,6 +113,7 @@ interface LocalMessage {
 
 interface ImagePreview {
   id: string
+  file: File
   name: string
   url: string
 }
@@ -118,8 +121,8 @@ interface ImagePreview {
 const route = useRoute()
 const draft = ref('')
 const messages = ref<LocalMessage[]>([])
-const imageInput = ref<HTMLInputElement | null>(null)
 const imagePreviews = ref<ImagePreview[]>([])
+const imageInputId = 'workspace-image-input'
 
 const sectionKeys: readonly SectionKey[] = ['home', 'chat', 'image']
 
@@ -172,18 +175,18 @@ function isSectionKey(value: unknown): value is SectionKey {
   return typeof value === 'string' && sectionKeys.includes(value as SectionKey)
 }
 
-function chooseImage() {
-  imageInput.value?.click()
-}
-
 function handleImageSelect(event: Event) {
   const target = event.target as HTMLInputElement
   const files = Array.from(target.files ?? []).filter((file) => file.type.startsWith('image/'))
-  if (!files.length) return
+  if (!files.length) {
+    target.value = ''
+    return
+  }
 
   const slots = Math.max(0, 4 - imagePreviews.value.length)
   const nextImages = files.slice(0, slots).map((file, index) => ({
     id: `${Date.now()}-${index}-${file.name}`,
+    file,
     name: file.name,
     url: URL.createObjectURL(file)
   }))
