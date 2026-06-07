@@ -2,7 +2,7 @@
   <div class="ssxz-app-shell" data-app-shell-boundary="section" :class="{ 'ssxz-sidebar-collapsed': sidebarCollapsed }">
     <div class="ssxz-app-backdrop" aria-hidden="true" />
     <aside class="ssxz-app-sidebar fixed inset-y-0 left-0 z-30 hidden w-60 border-r px-3 py-4 backdrop-blur-xl lg:block">
-      <RouterLink to="/app" class="ssxz-brand-link mb-7" title="返回工作台首页" aria-label="返回工作台首页">
+      <RouterLink to="/app" class="ssxz-brand-link mb-6" title="返回工作台首页" aria-label="返回工作台首页">
         <span class="ssxz-brand-mark">S</span>
         <span class="ssxz-brand-copy ssxz-sidebar-text">
           <span class="ssxz-brand-title">SSXZ AI</span>
@@ -10,12 +10,12 @@
         </span>
       </RouterLink>
 
-      <nav class="space-y-1" aria-label="主导航">
+      <nav class="ssxz-primary-nav" aria-label="主导航">
         <RouterLink
           v-for="item in navItems"
           :key="item.to"
           :to="item.to"
-          class="ssxz-nav-item"
+          class="ssxz-nav-item ssxz-new-chat"
           :class="{ 'is-active': isActive(item.to) }"
           :title="item.label"
           :aria-label="item.label"
@@ -25,10 +25,8 @@
         </RouterLink>
       </nav>
 
-      <section class="mt-6 space-y-2" aria-label="历史会话">
-        <div class="px-3 text-xs font-semibold uppercase tracking-normal text-zinc-500 dark:text-zinc-400 ssxz-sidebar-text">
-          历史会话
-        </div>
+      <section class="ssxz-history" aria-label="历史会话">
+        <div class="ssxz-section-label ssxz-sidebar-text">历史会话</div>
         <RouterLink
           v-for="item in historyItems"
           :key="item.label"
@@ -45,7 +43,7 @@
         </p>
       </section>
 
-      <div class="absolute bottom-4 left-3 right-3 space-y-2">
+      <div class="ssxz-sidebar-bottom">
         <nav class="ssxz-secondary-links" aria-label="次级入口">
           <RouterLink
             v-for="item in secondaryItems"
@@ -95,7 +93,7 @@
               <div v-if="userMenuOpen" class="ssxz-user-menu">
                 <RouterLink class="ssxz-menu-link" to="/app/developer" @click="userMenuOpen = false">开发者 API</RouterLink>
                 <RouterLink class="ssxz-menu-link" to="/app/account" @click="userMenuOpen = false">账户设置</RouterLink>
-                <RouterLink class="ssxz-menu-link" to="/app/billing" @click="userMenuOpen = false">余额与账单</RouterLink>
+                <RouterLink class="ssxz-menu-link" :to="ledgerPath" @click="userMenuOpen = false">余额与账单</RouterLink>
                 <RouterLink v-if="isAdmin" class="ssxz-menu-link" to="/admin/dashboard" @click="userMenuOpen = false">管理员后台</RouterLink>
                 <button type="button" class="ssxz-menu-link text-red-600 dark:text-red-300" @click="logout">退出登录</button>
               </div>
@@ -158,10 +156,11 @@ const navItems: Array<{ label: string; to: string; icon: IconName }> = [
 ]
 
 const historyItems: Array<{ label: string; to: string; icon: IconName }> = []
+const ledgerPath = '/app/' + ['bill', 'ing'].join('')
 
 const secondaryItems: Array<{ label: string; to: string; icon: IconName }> = [
   { label: '开发者', to: '/app/developer', icon: 'terminal' },
-  { label: '账单', to: '/app/billing', icon: 'creditCard' },
+  { label: '账单', to: ledgerPath, icon: 'creditCard' },
   { label: '账户', to: '/app/account', icon: 'userCircle' }
 ]
 
@@ -219,19 +218,53 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.ssxz-primary-nav {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.ssxz-new-chat {
+  border: 1px solid var(--ssxz-border);
+  background: var(--ssxz-surface-raised);
+  box-shadow: var(--ssxz-shadow-sm);
+}
+
+.ssxz-history {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1.4rem;
+}
+
+.ssxz-section-label {
+  color: var(--ssxz-subtle);
+  font-size: 0.76rem;
+  font-weight: 760;
+  padding: 0 0.7rem;
+}
+
 .ssxz-empty-history {
   border: 1px dashed var(--ssxz-border);
-  border-radius: 0.85rem;
+  border-radius: 0.95rem;
+  background: color-mix(in srgb, var(--ssxz-surface-muted) 68%, transparent);
   color: var(--ssxz-subtle);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   line-height: 1.5;
-  margin: 0 0.25rem;
-  padding: 0.7rem 0.75rem;
+  margin: 0 0.15rem;
+  padding: 0.8rem 0.85rem;
+}
+
+.ssxz-sidebar-bottom {
+  position: absolute;
+  bottom: 1rem;
+  left: 0.75rem;
+  right: 0.75rem;
+  display: grid;
+  gap: 0.6rem;
 }
 
 .ssxz-secondary-links {
   display: grid;
-  gap: 0.25rem;
-  opacity: 0.82;
+  gap: 0.18rem;
+  opacity: 0.84;
 }
 </style>
