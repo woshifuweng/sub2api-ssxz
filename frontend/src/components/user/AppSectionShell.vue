@@ -47,6 +47,15 @@
         <p class="ssxz-sidebar-text">{{ activeUtilityContent.description }}</p>
       </section>
 
+      <section class="ssxz-usage-panel" aria-label="用量信息">
+        <div class="ssxz-section-label ssxz-sidebar-text">用量信息</div>
+        <div class="ssxz-usage-row">
+          <span class="ssxz-sidebar-text">当前余额</span>
+          <strong>${{ userBalance }}</strong>
+        </div>
+        <p class="ssxz-usage-note ssxz-sidebar-text">暂无用量数据</p>
+      </section>
+
       <section class="ssxz-history" aria-label="历史会话">
         <div class="ssxz-section-label ssxz-sidebar-text">历史会话</div>
         <RouterLink
@@ -174,19 +183,19 @@ const utilityItems: Array<{ id: UtilityId; label: string; icon: IconName; descri
     id: 'developer',
     label: '开发者 API',
     icon: 'terminal',
-    description: '开发者能力将在工作台内收敛呈现，当前不会跳转旧后台。'
+    description: '开发接入能力将在工作台内呈现；你也可以直接在对话里描述接入需求。'
   },
   {
     id: 'billing',
     label: '余额充值',
     icon: 'creditCard',
-    description: '余额信息已显示在右上角，充值入口将以工作台形态接入。'
+    description: '当前余额显示在右上角，充值能力将以工作台形态接入。'
   },
   {
     id: 'account',
     label: '账户设置',
     icon: 'userCircle',
-    description: '账户菜单在右上角展开，当前不会进入旧控制台。'
+    description: '账户信息在右上角展开，可在此查看余额与退出登录。'
   }
 ]
 
@@ -288,6 +297,37 @@ onMounted(() => {
   color: var(--ssxz-text);
   font-size: 0.82rem;
   font-weight: 760;
+}
+
+.ssxz-usage-panel {
+  display: grid;
+  gap: 0.48rem;
+  margin-top: 1rem;
+}
+
+.ssxz-usage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--ssxz-surface-raised) 82%, transparent);
+  color: var(--ssxz-body);
+  font-size: 0.8rem;
+  padding: 0.68rem 0.78rem;
+}
+
+.ssxz-usage-row strong {
+  color: var(--ssxz-text);
+  font-size: 0.88rem;
+}
+
+.ssxz-usage-note {
+  color: var(--ssxz-subtle);
+  font-size: 0.76rem;
+  line-height: 1.45;
+  margin: 0 0.2rem;
 }
 
 .ssxz-new-chat {

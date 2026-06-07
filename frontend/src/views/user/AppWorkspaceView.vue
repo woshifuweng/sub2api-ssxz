@@ -8,8 +8,8 @@
     <section v-if="isUnifiedWorkspace" class="workspace-page" :data-section="activeSection">
       <div class="workspace-main" :class="{ 'has-messages': messages.length > 0 }">
         <section v-if="messages.length === 0" class="empty-state" aria-label="开始对话">
-          <h1>今天想做什么？</h1>
-          <p>直接输入问题，也可以上传图片后描述想怎么处理。</p>
+          <h1>欢迎使用 SSXZ AI，有什么可以帮忙的？</h1>
+          <p>支持智能对话、图片理解、内容生成与开发接入。输入你的需求，或上传图片让 AI 直接处理。</p>
         </section>
 
         <section v-else class="message-list" aria-label="本地消息流">
@@ -41,10 +41,10 @@
         <form class="composer-card" @submit.prevent="submitDraft">
           <div v-if="imagePreviews.length" class="attachment-preview-list">
             <article v-for="image in imagePreviews" :key="image.id" class="attachment-preview-card">
-              <img :src="image.url" alt="本地图片预览" @error="removeImagePreview(image.id)" />
+              <img :src="image.url" alt="参考图" @error="removeImagePreview(image.id)" />
               <div class="attachment-copy">
                 <span>{{ image.name }}</span>
-                <small>本地预览</small>
+                <small>已添加参考图</small>
               </div>
               <button type="button" class="remove-preview" aria-label="移除图片" @click="removeImagePreview(image.id)">
                 <Icon name="x" size="xs" />
@@ -54,19 +54,18 @@
           </div>
 
           <div class="composer-row">
-            <div class="plus-button composer-plus" title="添加参考图">
+            <button
+              type="button"
+              class="plus-button composer-plus"
+              title="添加内容"
+              :aria-expanded="assetPanelOpen"
+              aria-controls="workspace-asset-panel"
+              @click="assetPanelOpen = !assetPanelOpen"
+            >
               <span class="composer-plus-icon" aria-hidden="true">
                 <Icon name="plus" size="sm" />
               </span>
-              <input
-                class="composer-file-input"
-                type="file"
-                accept="image/*"
-                multiple
-                aria-label="上传图片"
-                @change="handleImageSelect"
-              />
-            </div>
+            </button>
 
             <textarea
               v-model="draft"
@@ -79,12 +78,15 @@
             </button>
           </div>
 
-          <div class="composer-tool-row" aria-label="输入辅助工具">
-            <label class="composer-tool composer-tool-upload" title="上传图片">
-              <Icon name="upload" size="xs" />
-              <span>上传图片</span>
+          <div v-if="assetPanelOpen" id="workspace-asset-panel" class="asset-panel" aria-label="上传能力面板">
+            <label class="asset-option is-ready" title="上传图片">
+              <Icon name="upload" size="sm" />
+              <span>
+                <strong>图片</strong>
+                <small>上传参考图</small>
+              </span>
               <input
-                class="composer-tool-file-input"
+                class="asset-file-input"
                 type="file"
                 accept="image/*"
                 multiple
@@ -93,26 +95,52 @@
               />
             </label>
             <button
-              v-for="tool in disabledTools"
-              :key="tool.label"
+              v-for="item in disabledAssetOptions"
+              :key="item.label"
               type="button"
-              class="composer-tool is-disabled"
+              class="asset-option is-disabled"
               disabled
               title="即将开放"
-              :aria-label="`${tool.label}，即将开放`"
+              :aria-label="`${item.label}，即将开放`"
             >
-              <Icon :name="tool.icon" size="xs" />
-              <span>{{ tool.label }}</span>
-              <small>即将开放</small>
+              <Icon :name="item.icon" size="sm" />
+              <span>
+                <strong>{{ item.label }}</strong>
+                <small>即将开放</small>
+              </span>
             </button>
           </div>
-        </form>
 
-        <div v-if="messages.length === 0" class="prompt-chips" aria-label="建议输入">
-          <button v-for="item in promptChips" :key="item" type="button" @click="draft = item">
-            {{ item }}
-          </button>
-        </div>
+          <div class="composer-tool-row" aria-label="输入辅助工具">
+            <div class="model-selector">
+              <button
+                type="button"
+                class="model-trigger"
+                :disabled="!chatModels.length"
+                :aria-expanded="modelMenuOpen"
+                aria-controls="workspace-model-menu"
+                @click="modelMenuOpen = !modelMenuOpen"
+              >
+                <span>{{ selectedModelLabel }}</span>
+                <Icon name="chevronDown" size="xs" />
+              </button>
+              <div v-if="modelMenuOpen" id="workspace-model-menu" class="model-menu">
+                <button
+                  v-for="model in chatModels"
+                  :key="model.id"
+                  type="button"
+                  class="model-option"
+                  :class="{ 'is-selected': model.id === activeChatModel }"
+                  @click="selectModel(model.id)"
+                >
+                  <span>{{ model.name || model.id }}</span>
+                  <small>{{ getModelCapabilityLabel(model.id) }}</small>
+                </button>
+                <p v-if="chatModels.length === 0">暂无可用模型</p>
+              </div>
+            </div>
+          </div>
+        </form>
       </section>
     </section>
 
@@ -120,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import Icon from '@/components/icons/Icon.vue'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
@@ -179,25 +207,22 @@ const draft = ref('')
 const messages = ref<LocalMessage[]>([])
 const imagePreviews = ref<ImagePreview[]>([])
 const isSending = ref(false)
+const assetPanelOpen = ref(false)
+const modelMenuOpen = ref(false)
+const selectedModelId = ref('')
 const {
   chatModels,
   hasChat,
+  imageModels,
   loadCapabilities
 } = useUserCapabilities()
 
 const sectionKeys: readonly SectionKey[] = ['home', 'chat', 'image']
 
-const promptChips = [
-  '生成 16:9 电商主图',
-  '写商品详情文案',
-  '上传参考图优化'
-]
-
-const disabledTools: Array<{ label: string; icon: IconName }> = [
-  { label: '上传文件', icon: 'document' },
-  { label: '联网', icon: 'globe' },
-  { label: '记忆', icon: 'brain' },
-  { label: '工具箱', icon: 'grid' }
+const disabledAssetOptions: Array<{ label: string; icon: IconName }> = [
+  { label: '文档', icon: 'document' },
+  { label: '表格', icon: 'chart' },
+  { label: '代码', icon: 'terminal' }
 ]
 
 const sectionContent: Record<string, SectionContent> = {
@@ -232,13 +257,21 @@ const isUnifiedWorkspace = computed(() => (
 ))
 const composerPlaceholder = computed(() => (
   activeSection.value === 'image'
-    ? '上传参考图，或直接描述你想生成/修改的图片...'
-    : '输入你的问题，或上传图片后直接描述你想怎么处理...'
+    ? '上传参考图，或直接描述你想生成/修改的图片……'
+    : '输入你的问题，或上传图片后直接描述你想怎么处理……'
 ))
 const canSubmit = computed(() => !isSending.value && (draft.value.trim().length > 0 || imagePreviews.value.length > 0))
 const availableModelIds = computed(() => chatModels.value.map((model) => model.id))
-const activeChatModel = computed(() => (hasChat.value ? availableModelIds.value[0] || '' : ''))
+const activeChatModel = computed(() => {
+  if (!hasChat.value) return ''
+  if (selectedModelId.value && availableModelIds.value.includes(selectedModelId.value)) return selectedModelId.value
+  return availableModelIds.value[0] || ''
+})
 const canUseChatModel = computed(() => Boolean(activeChatModel.value))
+const selectedModelLabel = computed(() => {
+  const model = chatModels.value.find((item) => item.id === activeChatModel.value)
+  return model?.name || activeChatModel.value || '暂无可用模型'
+})
 
 function isSectionKey(value: unknown): value is SectionKey {
   return typeof value === 'string' && sectionKeys.includes(value as SectionKey)
@@ -257,6 +290,7 @@ async function handleImageSelect(event: Event) {
     files.slice(0, slots).map((file, index) => readImagePreview(file, index))
   )).filter((image): image is ImagePreview => Boolean(image))
   imagePreviews.value.push(...nextImages)
+  assetPanelOpen.value = false
   target.value = ''
 }
 
@@ -342,7 +376,7 @@ async function submitDraft() {
       status: getErrorStatus(error),
       message: getErrorMessage(error)
     })
-    assistantMessage.text = '发送失败，请稍后重试。'
+    assistantMessage.text = '当前模型服务暂不可用，请稍后重试。'
     assistantMessage.state = 'error'
   } finally {
     isSending.value = false
@@ -381,6 +415,19 @@ function buildChatPayloadMessages(): ChatStudioPayloadMessage[] {
 function resolveUsableChatModel() {
   if (!canUseChatModel.value) return ''
   return activeChatModel.value
+}
+
+function selectModel(modelId: string) {
+  selectedModelId.value = modelId
+  modelMenuOpen.value = false
+}
+
+function getModelCapabilityLabel(modelId: string) {
+  const isTextModel = availableModelIds.value.includes(modelId)
+  const isImageModel = imageModels.value.some((model) => model.toLowerCase() === modelId.toLowerCase())
+  if (isTextModel && isImageModel) return '聊天 / 作图'
+  if (isImageModel) return '作图'
+  return '聊天'
 }
 
 async function requestChatCompletion(payloadMessages: ChatStudioPayloadMessage[], model: string) {
@@ -427,6 +474,17 @@ function extractAssistantText(payload: ChatStudioResponse): string {
 onMounted(() => {
   loadCapabilities()
 })
+
+watch(chatModels, (models) => {
+  if (!models.length) {
+    selectedModelId.value = ''
+    modelMenuOpen.value = false
+    return
+  }
+  if (!models.some((model) => model.id === selectedModelId.value)) {
+    selectedModelId.value = models[0].id
+  }
+}, { immediate: true })
 
 onBeforeUnmount(() => {
   clearImagePreviews()
@@ -637,37 +695,64 @@ onBeforeUnmount(() => {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.42rem;
+  justify-content: space-between;
+  gap: 0.55rem;
   padding: 0 0.05rem;
 }
 
-.composer-tool {
-  position: relative;
-  display: inline-flex;
-  min-height: 2rem;
-  align-items: center;
-  gap: 0.32rem;
+.asset-panel {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
   border: 1px solid var(--ssxz-border);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ssxz-surface-muted) 86%, transparent);
-  color: var(--ssxz-body);
-  font-size: 0.78rem;
-  font-weight: 720;
-  line-height: 1;
-  padding: 0 0.66rem;
+  border-radius: 1.1rem;
+  background: color-mix(in srgb, var(--ssxz-surface-muted) 78%, transparent);
+  padding: 0.55rem;
 }
 
-.composer-tool-upload {
+.asset-option {
+  position: relative;
+  display: inline-flex;
+  min-height: 3.2rem;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 0.9rem;
+  background: var(--ssxz-surface-raised);
+  color: var(--ssxz-body);
+  font-size: 0.82rem;
+  line-height: 1.2;
+  padding: 0.62rem 0.7rem;
+  text-align: left;
+}
+
+.asset-option span {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.asset-option strong {
+  color: var(--ssxz-text);
+  font-size: 0.86rem;
+}
+
+.asset-option small {
+  color: var(--ssxz-subtle);
+  font-size: 0.72rem;
+}
+
+.asset-option.is-ready {
   cursor: pointer;
   overflow: hidden;
 }
 
-.composer-tool-upload:hover {
+.asset-option.is-ready:hover {
   border-color: color-mix(in srgb, var(--ssxz-primary) 46%, var(--ssxz-border));
-  color: var(--ssxz-text);
+  background: color-mix(in srgb, var(--ssxz-primary) 7%, var(--ssxz-surface-raised));
 }
 
-.composer-tool-file-input {
+.asset-file-input {
   position: absolute;
   inset: 0;
   z-index: 5;
@@ -677,15 +762,74 @@ onBeforeUnmount(() => {
   opacity: 0;
 }
 
-.composer-tool.is-disabled {
+.asset-option.is-disabled {
   cursor: not-allowed;
   opacity: 0.56;
 }
 
-.composer-tool small {
+.model-selector {
+  position: relative;
+  min-width: 9rem;
+}
+
+.model-trigger {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.36rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ssxz-surface-muted) 86%, transparent);
+  color: var(--ssxz-text);
+  font-size: 0.78rem;
+  font-weight: 760;
+  padding: 0 0.72rem;
+}
+
+.model-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.model-menu {
+  position: absolute;
+  bottom: calc(100% + 0.45rem);
+  left: 0;
+  z-index: 20;
+  display: grid;
+  gap: 0.25rem;
+  min-width: 14rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 1rem;
+  background: var(--ssxz-surface-raised);
+  box-shadow: var(--ssxz-shadow);
+  padding: 0.45rem;
+}
+
+.model-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--ssxz-text);
+  font-size: 0.82rem;
+  font-weight: 740;
+  padding: 0.55rem 0.62rem;
+  text-align: left;
+}
+
+.model-option:hover,
+.model-option.is-selected {
+  background: color-mix(in srgb, var(--ssxz-primary) 10%, transparent);
+}
+
+.model-option small,
+.model-menu p {
   color: var(--ssxz-subtle);
-  font-size: 0.68rem;
-  font-weight: 700;
+  font-size: 0.72rem;
 }
 
 .plus-button,
@@ -711,16 +855,6 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 1;
   display: inline-flex;
-}
-
-.composer-file-input {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  width: 100%;
-  height: 100%;
-  cursor: pointer;
-  opacity: 0;
 }
 
 .composer-card textarea {
@@ -751,23 +885,6 @@ onBeforeUnmount(() => {
   opacity: 0.42;
 }
 
-.prompt-chips {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.45rem;
-}
-
-.prompt-chips button {
-  border: 1px solid var(--ssxz-border);
-  border-radius: 999px;
-  background: var(--ssxz-surface-muted);
-  color: var(--ssxz-body);
-  font-size: 0.82rem;
-  line-height: 1.4;
-  padding: 0.38rem 0.7rem;
-}
-
 @media (max-width: 720px) {
   .workspace-page {
     min-height: calc(100vh - 3rem);
@@ -782,6 +899,10 @@ onBeforeUnmount(() => {
 
   .composer-card {
     border-radius: 1.25rem;
+  }
+
+  .asset-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>
