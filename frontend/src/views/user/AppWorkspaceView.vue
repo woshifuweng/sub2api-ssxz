@@ -83,12 +83,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import Icon from '@/components/icons/Icon.vue'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import { apiClient } from '@/api/client'
-import { useUserCapabilities } from '@/composables/useUserCapabilities'
 
 type IconName = InstanceType<typeof Icon>['$props']['name']
 type SectionKey = string
@@ -130,7 +129,6 @@ interface ChatStudioResponse {
 }
 
 const route = useRoute()
-const { chatModels, defaultTextModel, loadCapabilities } = useUserCapabilities()
 const draft = ref('')
 const messages = ref<LocalMessage[]>([])
 const imagePreviews = ref<ImagePreview[]>([])
@@ -180,11 +178,6 @@ const composerPlaceholder = computed(() => (
     ? '上传参考图，或直接描述你想生成/修改的图片...'
     : '输入你的问题，或上传图片后直接描述你想怎么处理...'
 ))
-const activeTextModel = computed(() => {
-  const preferred = defaultTextModel.value
-  if (preferred) return preferred
-  return chatModels.value[0]?.id || 'auto'
-})
 const canSubmit = computed(() => !isSending.value && (draft.value.trim().length > 0 || imagePreviews.value.length > 0))
 
 function isSectionKey(value: unknown): value is SectionKey {
@@ -265,7 +258,7 @@ async function submitDraft() {
 
   isSending.value = true
   try {
-    const response = await requestChatCompletion(buildChatPayloadMessages(), activeTextModel.value)
+    const response = await requestChatCompletion(buildChatPayloadMessages())
     assistantMessage.text = extractAssistantText(response)
     delete assistantMessage.state
   } catch (error) {
@@ -292,9 +285,9 @@ function buildChatPayloadMessages(): ChatStudioPayloadMessage[] {
     .slice(-40)
 }
 
-async function requestChatCompletion(payloadMessages: ChatStudioPayloadMessage[], model: string) {
+async function requestChatCompletion(payloadMessages: ChatStudioPayloadMessage[]) {
   const { data } = await apiClient.post<ChatStudioResponse>('/chat-studio/complete', {
-    model,
+    model: 'auto',
     mode: 'general',
     messages: payloadMessages,
     temperature: 0.7
@@ -317,10 +310,6 @@ function extractAssistantText(payload: ChatStudioResponse): string {
   }
   return '已收到回复，但当前页面无法展示返回内容。'
 }
-
-onMounted(() => {
-  loadCapabilities()
-})
 
 onBeforeUnmount(() => {
   clearImagePreviews()
