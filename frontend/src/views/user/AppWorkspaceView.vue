@@ -153,7 +153,6 @@ const imagePreviews = ref<ImagePreview[]>([])
 const isSending = ref(false)
 const {
   chatModels,
-  defaultTextModel,
   hasChat,
   loadCapabilities
 } = useUserCapabilities()
@@ -203,15 +202,8 @@ const composerPlaceholder = computed(() => (
 ))
 const canSubmit = computed(() => !isSending.value && (draft.value.trim().length > 0 || imagePreviews.value.length > 0))
 const availableModelIds = computed(() => chatModels.value.map((model) => model.id))
-const defaultUsableModel = computed(() => {
-  const preferred = defaultTextModel.value
-  if (preferred) {
-    const matched = availableModelIds.value.find((model) => model.toLowerCase() === preferred.toLowerCase())
-    if (matched) return matched
-  }
-  return availableModelIds.value[0] || ''
-})
-const canUseChatModel = computed(() => hasChat.value && availableModelIds.value.length > 0 && Boolean(defaultUsableModel.value))
+const activeChatModel = computed(() => (hasChat.value ? availableModelIds.value[0] || '' : ''))
+const canUseChatModel = computed(() => Boolean(activeChatModel.value))
 
 function isSectionKey(value: unknown): value is SectionKey {
   return typeof value === 'string' && sectionKeys.includes(value as SectionKey)
@@ -353,7 +345,7 @@ function buildChatPayloadMessages(): ChatStudioPayloadMessage[] {
 
 function resolveUsableChatModel() {
   if (!canUseChatModel.value) return ''
-  return defaultUsableModel.value
+  return activeChatModel.value
 }
 
 async function requestChatCompletion(payloadMessages: ChatStudioPayloadMessage[], model: string) {
