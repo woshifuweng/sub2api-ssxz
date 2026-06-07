@@ -20,7 +20,7 @@
             :data-role="message.role"
           >
             <span class="message-avatar">{{ message.role === 'user' ? '你' : 'AI' }}</span>
-            <div class="message-bubble">
+            <div class="message-bubble" :data-state="message.state">
               <p>{{ message.text }}</p>
             </div>
           </article>
@@ -28,6 +28,7 @@
       </div>
 
       <section class="composer-zone" aria-label="统一输入框">
+        <p v-if="sendError" class="send-error" role="alert">{{ sendError }}</p>
         <form class="composer-card" @submit.prevent="submitDraft">
           <div v-if="imagePreviews.length" class="attachment-preview-list">
             <article v-for="image in imagePreviews" :key="image.id" class="attachment-preview-card">
@@ -82,14 +83,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import Icon from '@/components/icons/Icon.vue'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
+import { apiClient } from '@/api/client'
+import { useUserCapabilities } from '@/composables/useUserCapabilities'
 
 type IconName = InstanceType<typeof Icon>['$props']['name']
 type SectionKey = string
 type MessageRole = 'user' | 'assistant'
+type MessageState = 'loading' | 'error'
 
 interface SectionContent {
   shellTitle: string
@@ -102,6 +106,7 @@ interface LocalMessage {
   id: string
   role: MessageRole
   text: string
+  state?: MessageState
 }
 
 interface ImagePreview {
@@ -111,14 +116,28 @@ interface ImagePreview {
   url: string
 }
 
+interface ChatStudioPayloadMessage {
+  role: MessageRole
+  content: string
+}
+
+interface ChatStudioResponse {
+  choices?: Array<{
+    message?: {
+      content?: string | Array<{ text?: string; content?: string }>
+    }
+  }>
+}
+
 const route = useRoute()
+const { chatModels, defaultTextModel, loadCapabilities } = useUserCapabilities()
 const draft = ref('')
 const messages = ref<LocalMessage[]>([])
 const imagePreviews = ref<ImagePreview[]>([])
+const isSending = ref(false)
+const sendError = ref('')
 
 const sectionKeys: readonly SectionKey[] = ['home', 'chat', 'image']
-
-const imageIntentPattern = /生成图片|主图|16:9|海报|封面|改图|参考图|图片|白底|商品图|小红书/
 
 const promptChips = [
   '生成 16:9 电商主图',
@@ -161,7 +180,12 @@ const composerPlaceholder = computed(() => (
     ? '上传参考图，或直接描述你想生成/修改的图片...'
     : '输入你的问题，或上传图片后直接描述你想怎么处理...'
 ))
-const canSubmit = computed(() => draft.value.trim().length > 0 || imagePreviews.value.length > 0)
+const activeTextModel = computed(() => {
+  const preferred = defaultTextModel.value
+  if (preferred) return preferred
+  return chatModels.value[0]?.id || 'auto'
+})
+const canSubmit = computed(() => !isSending.value && (draft.value.trim().length > 0 || imagePreviews.value.length > 0))
 
 function isSectionKey(value: unknown): value is SectionKey {
   return typeof value === 'string' && sectionKeys.includes(value as SectionKey)
@@ -208,30 +232,95 @@ function clearImagePreviews() {
   imagePreviews.value = []
 }
 
-function submitDraft() {
+async function submitDraft() {
   const content = draft.value.trim()
   if (!content && imagePreviews.value.length === 0) return
+  if (isSending.value) return
+
+  sendError.value = ''
 
   const imageCount = imagePreviews.value.length
-  const userText = content || `请参考这 ${imageCount} 张图片。`
-  const isImageIntent = imageIntentPattern.test(userText) || imageCount > 0
+  if (!content && imageCount > 0) {
+    sendError.value = '请先输入想让 AI 处理的文字需求。'
+    return
+  }
+
+  const userText = content
+  const assistantMessage: LocalMessage = {
+    id: createMessageId('assistant'),
+    role: 'assistant',
+    text: '正在思考...',
+    state: 'loading'
+  }
 
   messages.value.push({
-    id: `user-${Date.now()}`,
+    id: createMessageId('user'),
     role: 'user',
-    text: imageCount > 0 ? `${userText}（已添加 ${imageCount} 张本地图片）` : userText
+    text: userText
   })
-  messages.value.push({
-    id: `assistant-${Date.now()}`,
-    role: 'assistant',
-    text: isImageIntent
-      ? '演示预览：已识别为图片相关需求，尚未生成结果。'
-      : '演示预览：已记录你的输入。'
-  })
+  messages.value.push(assistantMessage)
 
   draft.value = ''
   clearImagePreviews()
+
+  isSending.value = true
+  try {
+    const response = await requestChatCompletion(buildChatPayloadMessages(), activeTextModel.value)
+    assistantMessage.text = extractAssistantText(response)
+    delete assistantMessage.state
+  } catch (error) {
+    console.error('Failed to send workspace chat message:', error)
+    assistantMessage.text = '发送失败，请稍后重试。'
+    assistantMessage.state = 'error'
+    sendError.value = '发送失败，请稍后重试。'
+  } finally {
+    isSending.value = false
+  }
 }
+
+function createMessageId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function buildChatPayloadMessages(): ChatStudioPayloadMessage[] {
+  return messages.value
+    .filter((message) => !message.state && message.text.trim())
+    .map((message) => ({
+      role: message.role,
+      content: message.text.trim()
+    }))
+    .slice(-40)
+}
+
+async function requestChatCompletion(payloadMessages: ChatStudioPayloadMessage[], model: string) {
+  const { data } = await apiClient.post<ChatStudioResponse>('/chat-studio/complete', {
+    model,
+    mode: 'general',
+    messages: payloadMessages,
+    temperature: 0.7
+  })
+  return data
+}
+
+function extractAssistantText(payload: ChatStudioResponse): string {
+  const content = payload?.choices?.[0]?.message?.content
+  if (typeof content === 'string' && content.trim()) {
+    return content.trim()
+  }
+  if (Array.isArray(content)) {
+    const text = content
+      .map((item) => item?.text || item?.content || '')
+      .filter(Boolean)
+      .join('\n')
+      .trim()
+    if (text) return text
+  }
+  return '已收到回复，但当前页面无法展示返回内容。'
+}
+
+onMounted(() => {
+  loadCapabilities()
+})
 
 onBeforeUnmount(() => {
   clearImagePreviews()
@@ -318,6 +407,23 @@ onBeforeUnmount(() => {
   background: var(--ssxz-surface-raised);
   box-shadow: var(--ssxz-shadow-sm);
   padding: 0.9rem 1rem;
+}
+
+.message-bubble[data-state='loading'] p {
+  color: var(--ssxz-subtle);
+}
+
+.message-bubble[data-state='error'] {
+  border: 1px solid color-mix(in srgb, var(--ssxz-danger, #dc2626) 32%, transparent);
+  background: color-mix(in srgb, var(--ssxz-danger, #dc2626) 8%, var(--ssxz-surface-raised));
+}
+
+.send-error {
+  width: min(100%, 52rem);
+  color: var(--ssxz-danger, #dc2626);
+  font-size: 0.86rem;
+  line-height: 1.5;
+  margin: 0;
 }
 
 .composer-zone {
