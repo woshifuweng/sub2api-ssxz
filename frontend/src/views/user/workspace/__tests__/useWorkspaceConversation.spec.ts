@@ -74,6 +74,16 @@ describe('useWorkspaceConversation', () => {
     expect(workspace.conversations.value[0].title).toBe('Saved')
   })
 
+  it('hides generic transport errors behind product copy', async () => {
+    api.listConversations.mockRejectedValueOnce({ message: 'Request failed with status code 500' })
+    const workspace = useWorkspaceConversation()
+
+    await workspace.loadHistory()
+
+    expect(workspace.errorMessage.value).toBeTruthy()
+    expect(workspace.errorMessage.value).not.toContain('Request failed with status code 500')
+  })
+
   it('creates a conversation and persists user and assistant messages on send', async () => {
     const workspace = useWorkspaceConversation()
 

@@ -261,7 +261,11 @@ function normalizeErrorMessage(error: unknown, fallback: string) {
   if (typeof error === 'object' && error !== null) {
     const value = error as { message?: unknown; response?: { data?: { message?: unknown; detail?: unknown } } }
     const message = value.response?.data?.message || value.response?.data?.detail || value.message
-    if (typeof message === 'string' && message.trim()) return message
+    if (typeof message === 'string' && message.trim() && !isTransportErrorMessage(message)) return message
   }
   return fallback
+}
+
+function isTransportErrorMessage(message: string) {
+  return /^request failed with status code \d+$/i.test(message.trim())
 }

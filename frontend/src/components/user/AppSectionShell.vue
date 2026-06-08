@@ -11,18 +11,19 @@
       </RouterLink>
 
       <nav class="ssxz-primary-nav" aria-label="主导航">
-        <RouterLink
+        <button
           v-for="item in navItems"
           :key="item.to"
-          :to="item.to"
+          type="button"
           class="ssxz-nav-item ssxz-new-chat"
           :class="{ 'is-active': isActive(item.to) }"
           :title="item.label"
           :aria-label="item.label"
+          @click="handlePrimaryNav(item.to)"
         >
           <Icon :name="item.icon" size="sm" />
           <span class="ssxz-sidebar-text">{{ item.label }}</span>
-        </RouterLink>
+        </button>
       </nav>
 
       <nav class="ssxz-secondary-nav" aria-label="工作台入口">
@@ -44,18 +45,23 @@
 
       <section class="ssxz-history" aria-label="历史会话">
         <div class="ssxz-section-label ssxz-sidebar-text">历史会话</div>
-        <RouterLink
+        <button
           v-for="item in historyItems"
-          :key="item.label"
-          :to="item.to"
-          class="ssxz-nav-item"
-          :title="item.label"
-          :aria-label="item.label"
+          :key="item.id"
+          type="button"
+          class="ssxz-nav-item ssxz-history-item"
+          :class="{ 'is-active': item.id === activeConversationId }"
+          :title="item.title"
+          :aria-label="item.title"
+          @click="emit('select-conversation', item.id)"
         >
-          <Icon :name="item.icon" size="sm" />
-          <span class="ssxz-sidebar-text">{{ item.label }}</span>
-        </RouterLink>
-        <p v-if="historyItems.length === 0" class="ssxz-empty-history ssxz-sidebar-text">
+          <Icon name="chat" size="sm" />
+          <span class="ssxz-sidebar-text">{{ item.title || '未命名对话' }}</span>
+        </button>
+        <p v-if="historyLoading" class="ssxz-empty-history ssxz-sidebar-text">
+          正在同步历史...
+        </p>
+        <p v-if="!historyLoading && historyItems.length === 0" class="ssxz-empty-history ssxz-sidebar-text">
           暂无历史会话
         </p>
       </section>
@@ -154,6 +160,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Icon from '@/components/icons/Icon.vue'
+import type { ChatConversation } from '@/api/chatWorkspace'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 
@@ -165,10 +172,21 @@ withDefaults(defineProps<{
   subtitle: string
   eyebrow?: string
   icon?: IconName
+  historyItems?: ChatConversation[]
+  activeConversationId?: number | null
+  historyLoading?: boolean
 }>(), {
   eyebrow: 'SSXZ AI 对话工作台',
-  icon: 'sparkles'
+  icon: 'sparkles',
+  historyItems: () => [],
+  activeConversationId: null,
+  historyLoading: false
 })
+
+const emit = defineEmits<{
+  (e: 'new-chat'): void
+  (e: 'select-conversation', id: number): void
+}>()
 
 const route = useRoute()
 const router = useRouter()
@@ -211,7 +229,6 @@ const utilityItems: Array<{ id: UtilityId; label: string; icon: IconName; descri
   }
 ]
 
-const historyItems: Array<{ label: string; to: string; icon: IconName }> = []
 
 const userLabel = computed(() => authStore.user?.username || authStore.user?.email?.split('@')[0] || '账户')
 const userInitial = computed(() => userLabel.value.slice(0, 1).toUpperCase())
@@ -226,6 +243,16 @@ function isActive(path: string) {
 
 function toggleUtilityPanel(id: UtilityId) {
   activeUtility.value = activeUtility.value === id ? null : id
+}
+
+function handlePrimaryNav(to: string) {
+  activeUtility.value = null
+  if (to === '/app?new=1') {
+    emit('new-chat')
+    if (route.path !== '/app') router.push('/app')
+    return
+  }
+  router.push(to)
 }
 
 function formatMoney(value: number) {
