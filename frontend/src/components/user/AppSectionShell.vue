@@ -165,7 +165,7 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 
 type IconName = InstanceType<typeof Icon>['$props']['name']
-type UtilityId = 'developer' | 'billing' | 'account' | 'usage'
+type UtilityId = 'developer' | 'account' | 'usage'
 
 withDefaults(defineProps<{
   title: string
@@ -214,12 +214,6 @@ const utilityItems: Array<{ id: UtilityId; label: string; icon: IconName; descri
     label: '开发者 API',
     icon: 'terminal',
     description: '开发接入能力将在工作台内呈现；你也可以直接在对话里描述接入需求。'
-  },
-  {
-    id: 'billing',
-    label: '余额充值',
-    icon: 'creditCard',
-    description: '当前余额显示在右上角，充值能力将以工作台形态接入。'
   },
   {
     id: 'account',

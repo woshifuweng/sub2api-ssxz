@@ -3,10 +3,7 @@ export const DEFAULT_AUTH_REDIRECT = '/app'
 const CANONICAL_APP_REDIRECTS = new Set([
   '/app',
   '/app/chat',
-  '/app/image',
-  '/app/developer',
-  '/app/billing',
-  '/app/account'
+  '/app/image'
 ])
 
 const LEGACY_AUTH_REDIRECTS: Record<string, string> = {
@@ -14,16 +11,7 @@ const LEGACY_AUTH_REDIRECTS: Record<string, string> = {
   '/home': '/',
   '/ai-chat': '/app/chat',
   '/image-studio': '/app/image',
-  '/developers': '/app/developer',
-  '/usage': '/app/billing',
-  '/redeem': '/app/billing',
-  '/subscriptions': '/app/billing',
-  '/orders': '/app/billing',
-  '/profile': '/app/account',
-  '/keys': '/app/developer',
   '/apps': '/app',
-  '/key-usage': '/app/developer',
-  '/purchase': '/app/billing',
   '/monitor': '/app',
   '/sora': '/app/image'
 }
