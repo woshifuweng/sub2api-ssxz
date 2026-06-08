@@ -297,6 +297,50 @@ onMounted(() => {
 </script>
 
 <style scoped>
+@media (min-width: 1024px) {
+  .ssxz-app-content {
+    margin-left: 15rem;
+  }
+
+  .ssxz-sidebar-collapsed .ssxz-app-content {
+    margin-left: 5rem;
+  }
+
+  .ssxz-sidebar-collapsed .ssxz-app-sidebar {
+    width: 5rem;
+  }
+
+  .ssxz-sidebar-collapsed .ssxz-sidebar-text {
+    display: none;
+  }
+}
+
+.ssxz-nav-item,
+.ssxz-theme-toggle {
+  display: inline-flex;
+  min-height: 2.55rem;
+  width: 100%;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 0.75rem;
+  color: var(--ssxz-body);
+  font-size: 0.92rem;
+  line-height: 1.3;
+  padding: 0.55rem 0.7rem;
+}
+
+.ssxz-nav-item:hover,
+.ssxz-theme-toggle:hover,
+.ssxz-nav-item.is-active {
+  background: color-mix(in srgb, var(--ssxz-primary) 10%, transparent);
+  color: var(--ssxz-text);
+}
+
+.ssxz-nav-item svg,
+.ssxz-theme-toggle svg {
+  flex: 0 0 auto;
+}
+
 .ssxz-primary-nav {
   display: grid;
   gap: 0.45rem;
@@ -373,6 +417,9 @@ onMounted(() => {
   display: grid;
   gap: 0.5rem;
   margin-top: 1.4rem;
+  max-height: min(32rem, calc(100vh - 23rem));
+  overflow-y: auto;
+  padding-right: 0.15rem;
 }
 
 .ssxz-section-label {
@@ -391,6 +438,19 @@ onMounted(() => {
   line-height: 1.5;
   margin: 0 0.15rem;
   padding: 0.8rem 0.85rem;
+}
+
+.ssxz-history-item {
+  align-items: flex-start;
+}
+
+.ssxz-history-item .ssxz-sidebar-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.35;
+  text-align: left;
 }
 
 .ssxz-sidebar-bottom {
@@ -412,10 +472,12 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  white-space: nowrap;
 }
 
 .ssxz-balance-pill {
   display: inline-flex;
+  flex: 0 0 auto;
   min-height: 2.1rem;
   align-items: center;
   border: 1px solid var(--ssxz-border);
@@ -425,6 +487,14 @@ onMounted(() => {
   font-size: 0.82rem;
   font-weight: 760;
   padding: 0 0.75rem;
+}
+
+:deep(.ssxz-user-button) {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.45rem;
+  white-space: nowrap;
 }
 
 .ssxz-menu-summary {

@@ -196,7 +196,7 @@ watch(chatModels, (models) => {
   min-height: calc(100vh - 4rem);
   grid-template-rows: minmax(0, 1fr) auto auto;
   gap: 1rem;
-  padding: 1rem 0 1.5rem;
+  padding: 1rem 0 max(2rem, env(safe-area-inset-bottom));
 }
 
 .workspace-main {
@@ -219,9 +219,11 @@ watch(chatModels, (models) => {
 .empty-state h1 {
   margin: 0;
   color: var(--ssxz-text);
-  font-size: clamp(2.25rem, 6vw, 4.75rem);
+  font-size: clamp(2.25rem, 4.6vw, 3.6rem);
   font-weight: 760;
-  line-height: 1.02;
+  line-height: 1.06;
+  text-wrap: balance;
+  word-break: keep-all;
 }
 
 .empty-state p,
@@ -244,9 +246,9 @@ watch(chatModels, (models) => {
 
 .composer-zone {
   position: sticky;
-  bottom: 0.75rem;
+  bottom: max(1rem, env(safe-area-inset-bottom));
   z-index: 6;
-  width: min(56rem, calc(100vw - 2rem));
+  width: min(56rem, 100%);
   margin: 0 auto;
 }
 
@@ -563,7 +565,7 @@ watch(chatModels, (models) => {
 
   .composer-zone {
     width: min(100%, calc(100vw - 1rem));
-    bottom: 0.5rem;
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
   }
 
   :deep(.asset-panel) {
