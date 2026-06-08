@@ -5,6 +5,15 @@
 
 import { apiClient } from './client'
 
+export const CHAT_MESSAGE_TYPE_TEXT = 'text'
+export const CHAT_MESSAGE_TYPE_ATTACHMENT = 'attachment'
+export const CHAT_MESSAGE_TYPE_IMAGE_TASK = 'image_task'
+export const CHAT_MESSAGE_TYPE_ERROR_CARD = 'error_card'
+
+export const CHAT_ASSET_KIND_IMAGE = 'image'
+export const CHAT_ASSET_SOURCE_USER_UPLOAD = 'user_upload'
+export const CHAT_ASSET_ROLE_ATTACHMENT = 'attachment'
+
 export interface ChatConversation {
   id: number
   title: string
