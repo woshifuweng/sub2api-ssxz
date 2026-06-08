@@ -3,13 +3,28 @@
  * Defines all application routes with lazy loading and navigation guards
  */
 
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { createRouter, createWebHistory, type RouteLocationGeneric, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
 import { useNavigationLoadingState } from '@/composables/useNavigationLoading'
 import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { resolveDocumentTitle } from './title'
+import { resolveAuthRedirect, resolveRouteAuthRedirect } from '@/utils/authRedirect'
+
+const redirectLegacyRoute = (path: string) => (to: RouteLocationGeneric) => ({
+  path,
+  query: to.query,
+  hash: to.hash
+})
+
+function isAppRoutePath(path: string): boolean {
+  return path === '/app' || path.startsWith('/app/')
+}
+
+function resolveLoginReturnTo(to: RouteLocationGeneric): string {
+  return isAppRoutePath(to.path) ? resolveAuthRedirect(to.fullPath) : to.fullPath
+}
 
 /**
  * Route definitions with lazy loading
@@ -28,13 +43,17 @@ const routes: RouteRecordRaw[] = [
 
   // ==================== Public Routes ====================
   {
-    path: '/home',
+    path: '/',
     name: 'Home',
     component: () => import('@/views/HomeView.vue'),
     meta: {
       requiresAuth: false,
       title: 'Home'
     }
+  },
+  {
+    path: '/home',
+    redirect: '/'
   },
   {
     path: '/login',
@@ -121,46 +140,43 @@ const routes: RouteRecordRaw[] = [
     }
   },
 
-  // ==================== User Routes ====================
+  // ==================== User App Routes ====================
   {
-    path: '/',
-    redirect: '/home'
-  },
-  {
-    path: '/dashboard',
-    name: 'Dashboard',
-    component: () => import('@/views/user/DashboardView.vue'),
+    path: '/app',
+    name: 'AppWorkspace',
+    component: () => import('@/views/user/AppWorkspaceView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Dashboard',
-      titleKey: 'dashboard.title',
-      descriptionKey: 'dashboard.welcomeMessage'
+      title: 'SSXZ AI Workbench',
+      appSection: 'home'
     }
   },
   {
-    path: '/ai-chat',
-    name: 'ChatStudio',
-    component: () => import('@/views/user/ChatStudioView.vue'),
+    path: '/app/chat',
+    name: 'AppChat',
+    component: () => import('@/views/user/AppWorkspaceView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'AI Chat'
+      title: 'AI Chat',
+      appSection: 'chat'
     }
   },
   {
-    path: '/image-studio',
-    name: 'ImageStudio',
-    component: () => import('@/views/user/ImageStudioView.vue'),
+    path: '/app/image',
+    name: 'AppImage',
+    component: () => import('@/views/user/AppWorkspaceView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'AI Image Studio'
+      title: 'AI Image Studio',
+      appSection: 'image'
     }
   },
   {
-    path: '/keys',
-    name: 'Keys',
+    path: '/app/developer',
+    name: 'AppDeveloper',
     component: () => import('@/views/user/KeysView.vue'),
     meta: {
       requiresAuth: true,
@@ -171,27 +187,89 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/usage',
-    name: 'Usage',
+    path: '/app/billing',
+    name: 'AppBilling',
     component: () => import('@/views/user/UsageView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Usage Records',
+      title: 'Usage',
       titleKey: 'usage.title',
       descriptionKey: 'usage.description'
     }
   },
   {
-    path: '/redeem',
-    name: 'Redeem',
-    component: () => import('@/views/user/RedeemView.vue'),
+    path: '/app/account',
+    name: 'AppAccount',
+    component: () => import('@/views/user/ProfileView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Redeem Code',
-      titleKey: 'redeem.title',
-      descriptionKey: 'redeem.description'
+      title: 'Profile',
+      titleKey: 'profile.title',
+      descriptionKey: 'profile.description'
+    }
+  },
+
+  // ==================== Legacy User Route Redirects ====================
+  {
+    path: '/dashboard',
+    redirect: redirectLegacyRoute('/app')
+  },
+  {
+    path: '/ai-chat',
+    redirect: redirectLegacyRoute('/app/chat')
+  },
+  {
+    path: '/image-studio',
+    redirect: redirectLegacyRoute('/app/image')
+  },
+  {
+    path: '/apps',
+    name: 'AppCenter',
+    component: () => import('@/views/user/AppCenterView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'SSXZ App Center'
+    }
+  },
+  {
+    path: '/developers',
+    redirect: redirectLegacyRoute('/app/developer')
+  },
+  {
+    path: '/usage',
+    redirect: redirectLegacyRoute('/app/billing')
+  },
+  {
+    path: '/redeem',
+    redirect: redirectLegacyRoute('/app/billing')
+  },
+  {
+    path: '/profile',
+    redirect: redirectLegacyRoute('/app/account')
+  },
+  {
+    path: '/subscriptions',
+    redirect: redirectLegacyRoute('/app/billing')
+  },
+  {
+    path: '/orders',
+    redirect: redirectLegacyRoute('/app/billing')
+  },
+
+  // ==================== User Support Routes ====================
+  {
+    path: '/keys',
+    name: 'Keys',
+    component: () => import('@/views/user/KeysView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'API Keys',
+      titleKey: 'keys.title',
+      descriptionKey: 'keys.description'
     }
   },
   {
@@ -217,30 +295,6 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/profile',
-    name: 'Profile',
-    component: () => import('@/views/user/ProfileView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Profile',
-      titleKey: 'profile.title',
-      descriptionKey: 'profile.description'
-    }
-  },
-  {
-    path: '/subscriptions',
-    name: 'Subscriptions',
-    component: () => import('@/views/user/SubscriptionsView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'My Subscriptions',
-      titleKey: 'userSubscriptions.title',
-      descriptionKey: 'userSubscriptions.description'
-    }
-  },
-  {
     path: '/purchase',
     name: 'PurchaseSubscription',
     component: () => import('@/views/user/PurchaseRouteView.vue'),
@@ -250,18 +304,6 @@ const routes: RouteRecordRaw[] = [
       title: 'Purchase Subscription',
       titleKey: 'purchase.title',
       descriptionKey: 'purchase.description'
-    }
-  },
-  {
-    path: '/orders',
-    name: 'OrderList',
-    component: () => import('@/views/user/UserOrdersView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'My Orders',
-      titleKey: 'nav.myOrders',
-      requiresPayment: true
     }
   },
   {
@@ -595,7 +637,7 @@ let authInitialized = false
 const navigationLoading = useNavigationLoadingState()
 // 延迟初始化预加载，传入 router 实例
 let routePrefetch: ReturnType<typeof useRoutePrefetch> | null = null
-const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/setup', '/payment/result', '/payment/stripe', '/payment/stripe-popup']
+const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/app', '/setup', '/payment/result', '/payment/stripe', '/payment/stripe-popup']
 
 router.beforeEach((to, _from, next) => {
   // 开始导航加载状态
@@ -642,15 +684,17 @@ router.beforeEach((to, _from, next) => {
         next()
         return
       }
-      // Admin users go to admin dashboard, regular users go to user dashboard
-      next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+      next(resolveRouteAuthRedirect(to.query, authStore.isAdmin ? '/admin/dashboard' : '/app'))
       return
     }
     // Backend mode: block public pages for unauthenticated users (except login, key-usage, setup)
     if (appStore.backendModeEnabled && !authStore.isAuthenticated) {
-      const isAllowed = BACKEND_MODE_ALLOWED_PATHS.some((p) => to.path === p || to.path.startsWith(p))
+      const isAllowed = to.path === '/' || BACKEND_MODE_ALLOWED_PATHS.some((p) => to.path === p || to.path.startsWith(p))
       if (!isAllowed) {
-        next('/login')
+        next({
+          path: '/login',
+          query: { returnTo: resolveLoginReturnTo(to) }
+        })
         return
       }
     }
@@ -663,20 +707,20 @@ router.beforeEach((to, _from, next) => {
     // Not authenticated, redirect to login
     next({
       path: '/login',
-      query: { redirect: to.fullPath } // Save intended destination
+      query: { returnTo: resolveLoginReturnTo(to) } // Save intended destination
     })
     return
   }
 
   // Check admin requirement
   if (requiresAdmin && !authStore.isAdmin) {
-    // User is authenticated but not admin, redirect to user dashboard
-    next('/dashboard')
+    // User is authenticated but not admin, redirect to the user app workspace.
+    next('/app')
     return
   }
 
   if (to.meta.requiresPayment && !appStore.cachedPublicSettings?.payment_enabled) {
-    next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+    next(authStore.isAdmin ? '/admin/dashboard' : '/app')
     return
   }
 
@@ -691,8 +735,8 @@ router.beforeEach((to, _from, next) => {
     ]
 
     if (restrictedPaths.some((path) => to.path.startsWith(path))) {
-      // 简易模式下访问受限页面,重定向到仪表板
-      next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+      // 简易模式下访问受限页面，普通用户回到工作台，管理员回到后台。
+      next(authStore.isAdmin ? '/admin/dashboard' : '/app')
       return
     }
   }
@@ -703,9 +747,12 @@ router.beforeEach((to, _from, next) => {
       next()
       return
     }
-    const isAllowed = BACKEND_MODE_ALLOWED_PATHS.some((p) => to.path === p || to.path.startsWith(p))
+    const isAllowed = to.path === '/' || BACKEND_MODE_ALLOWED_PATHS.some((p) => to.path === p || to.path.startsWith(p))
     if (!isAllowed) {
-      next('/login')
+      next({
+        path: '/login',
+        query: { returnTo: resolveLoginReturnTo(to) }
+      })
       return
     }
   }
