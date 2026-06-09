@@ -3,13 +3,28 @@
  * Defines all application routes with lazy loading and navigation guards
  */
 
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { createRouter, createWebHistory, type RouteLocationGeneric, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
 import { useNavigationLoadingState } from '@/composables/useNavigationLoading'
 import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { resolveDocumentTitle } from './title'
+import { resolveAuthRedirect, resolveRouteAuthRedirect } from '@/utils/authRedirect'
+
+const redirectLegacyRoute = (path: string) => (to: RouteLocationGeneric) => ({
+  path,
+  query: to.query,
+  hash: to.hash
+})
+
+function isAppRoutePath(path: string): boolean {
+  return path === '/app' || path.startsWith('/app/')
+}
+
+function resolveLoginReturnTo(to: RouteLocationGeneric): string {
+  return isAppRoutePath(to.path) ? resolveAuthRedirect(to.fullPath) : to.fullPath
+}
 
 /**
  * Route definitions with lazy loading
@@ -28,13 +43,17 @@ const routes: RouteRecordRaw[] = [
 
   // ==================== Public Routes ====================
   {
-    path: '/home',
+    path: '/',
     name: 'Home',
     component: () => import('@/views/HomeView.vue'),
     meta: {
       requiresAuth: false,
       title: 'Home'
     }
+  },
+  {
+    path: '/home',
+    redirect: '/'
   },
   {
     path: '/login',
@@ -123,8 +142,37 @@ const routes: RouteRecordRaw[] = [
 
   // ==================== User Routes ====================
   {
-    path: '/',
-    redirect: '/home'
+    path: '/app',
+    name: 'AppWorkspace',
+    component: () => import('@/views/user/AppWorkspaceView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'SSXZ AI Workbench',
+      appSection: 'home'
+    }
+  },
+  {
+    path: '/app/chat',
+    name: 'AppChat',
+    component: () => import('@/views/user/AppWorkspaceView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'AI Chat',
+      appSection: 'chat'
+    }
+  },
+  {
+    path: '/app/image',
+    name: 'AppImage',
+    component: () => import('@/views/user/AppWorkspaceView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'AI Image Studio',
+      appSection: 'image'
+    }
   },
   {
     path: '/dashboard',
@@ -140,23 +188,11 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/ai-chat',
-    name: 'ChatStudio',
-    component: () => import('@/views/user/ChatStudioView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'AI Chat'
-    }
+    redirect: redirectLegacyRoute('/app/chat')
   },
   {
     path: '/image-studio',
-    name: 'ImageStudio',
-    component: () => import('@/views/user/ImageStudioView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'AI Image Studio'
-    }
+    redirect: redirectLegacyRoute('/app/image')
   },
   {
     path: '/keys',
@@ -642,8 +678,7 @@ router.beforeEach((to, _from, next) => {
         next()
         return
       }
-      // Admin users go to admin dashboard, regular users go to user dashboard
-      next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+      next(resolveRouteAuthRedirect(to.query, authStore.isAdmin ? '/admin/dashboard' : '/app'))
       return
     }
     // Backend mode: block public pages for unauthenticated users (except login, key-usage, setup)
@@ -663,7 +698,7 @@ router.beforeEach((to, _from, next) => {
     // Not authenticated, redirect to login
     next({
       path: '/login',
-      query: { redirect: to.fullPath } // Save intended destination
+      query: { returnTo: resolveLoginReturnTo(to) } // Save intended destination
     })
     return
   }

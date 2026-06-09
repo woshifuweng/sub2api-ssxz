@@ -155,7 +155,7 @@
       <p class="text-gray-500 dark:text-dark-400">
         {{ t('auth.dontHaveAccount') }}
         <router-link
-          to="/register"
+          :to="registerInAppLink"
           class="font-medium text-primary-600 transition-colors hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
         >
           {{ t('auth.signUp') }}
@@ -176,8 +176,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, reactive, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { AuthLayout } from '@/components/layout'
 import LinuxDoOAuthSection from '@/components/auth/LinuxDoOAuthSection.vue'
@@ -186,6 +186,7 @@ import Icon from '@/components/icons/Icon.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { useAuthStore, useAppStore } from '@/stores'
 import { getPublicSettings, isTotp2FARequired } from '@/api/auth'
+import { resolveRouteAuthRedirect } from '@/utils/authRedirect'
 import type { TotpLoginResponse } from '@/types'
 
 const { t } = useI18n()
@@ -193,6 +194,7 @@ const { t } = useI18n()
 // ==================== Router & Stores ====================
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const appStore = useAppStore()
 
@@ -228,6 +230,18 @@ const errors = reactive({
   email: '',
   password: '',
   turnstile: ''
+})
+
+const registerInAppLink = computed(() => {
+  const hasReturnTarget = route.query.returnTo !== undefined || route.query.redirect !== undefined
+  const returnTo = hasReturnTarget ? resolveRouteAuthRedirect(route.query) : undefined
+
+  return {
+    path: '/register',
+    query: {
+      ...(returnTo ? { returnTo } : {})
+    }
+  }
 })
 
 // ==================== Lifecycle ====================
@@ -341,9 +355,7 @@ async function handleLogin(): Promise<void> {
     // Show success toast
     appStore.showSuccess(t('auth.loginSuccess'))
 
-    // Redirect to dashboard or intended route
-    const redirectTo = (router.currentRoute.value.query.redirect as string) || '/dashboard'
-    await router.push(redirectTo)
+    await router.push(resolveRouteAuthRedirect(route.query))
   } catch (error: unknown) {
     // Reset Turnstile on error
     if (turnstileRef.value) {
@@ -383,9 +395,7 @@ async function handle2FAVerify(code: string): Promise<void> {
     show2FAModal.value = false
     appStore.showSuccess(t('auth.loginSuccess'))
 
-    // Redirect to dashboard or intended route
-    const redirectTo = (router.currentRoute.value.query.redirect as string) || '/dashboard'
-    await router.push(redirectTo)
+    await router.push(resolveRouteAuthRedirect(route.query))
   } catch (error: unknown) {
     const err = error as { message?: string; response?: { data?: { message?: string } } }
     const message = err.response?.data?.message || err.message || t('profile.totp.loginFailed')
