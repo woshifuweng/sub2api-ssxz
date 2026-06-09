@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -13,6 +14,10 @@ import (
 )
 
 func TestStartRustSidecarUpstreamServerServesHTTPOverUnixSocket(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix socket upstream server test is unix-oriented")
+	}
+
 	socketPath := filepath.Join(t.TempDir(), "rust-upstream.sock")
 	cfg := &config.Config{}
 	cfg.Rust.Sidecar.Enabled = true

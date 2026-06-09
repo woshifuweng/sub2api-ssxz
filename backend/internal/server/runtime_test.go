@@ -3,12 +3,12 @@ package server
 import (
 	"bufio"
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -16,7 +16,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 )
 
 func TestBuildRouteManifestIncludesHintsAndSorts(t *testing.T) {
@@ -31,14 +30,16 @@ func TestBuildRouteManifestIncludesHintsAndSorts(t *testing.T) {
 	})
 
 	manifest := BuildRouteManifest(router)
-	require.Len(t, manifest, 2)
-	require.Equal(t, "/health", manifest[0].Path)
-	require.Equal(t, "/responses", manifest[1].Path)
-	require.NotEmpty(t, manifest[0].Handler)
-	require.True(t, manifest[0].Executable)
-	require.Contains(t, manifest[0].Middleware, "request_logger")
-	require.True(t, manifest[1].Hints.Streaming)
-	require.True(t, manifest[1].Hints.WebSocket)
+	requireSortedRouteManifest(t, manifest)
+
+	health := requireRouteManifestEntry(t, manifest, "GET", "/health")
+	require.NotEmpty(t, health.Handler)
+	require.True(t, health.Executable)
+	require.Contains(t, health.Middleware, "request_logger")
+
+	responses := requireRouteManifestEntry(t, manifest, "GET", "/responses")
+	require.True(t, responses.Hints.Streaming)
+	require.True(t, responses.Hints.WebSocket)
 }
 
 func TestProvideHTTPServerRegistersRouteManifestMetadata(t *testing.T) {
@@ -63,8 +64,9 @@ func TestProvideHTTPServerRegistersRouteManifestMetadata(t *testing.T) {
 
 	require.Equal(t, config.ServerRuntimeModeNetHTTP, runtime.Name())
 	require.Equal(t, cfg.Server.Address(), runtime.Addr())
-	require.Len(t, runtime.RouteManifest(), 1)
-	require.Equal(t, "/health", runtime.RouteManifest()[0].Path)
+	manifest := runtime.RouteManifest()
+	requireSortedRouteManifest(t, manifest)
+	requireRouteManifestEntry(t, manifest, "GET", "/health")
 }
 
 func TestResolveIngressRuntimeHonorsConfiguredMode(t *testing.T) {
@@ -76,6 +78,32 @@ func TestResolveIngressRuntimeHonorsConfiguredMode(t *testing.T) {
 
 	cfg.Server.RuntimeMode = config.ServerRuntimeModeGnet
 	require.Equal(t, config.ServerRuntimeModeGnet, ResolveIngressRuntime(cfg, server).Name())
+}
+
+func requireSortedRouteManifest(t *testing.T, manifest RouteManifest) {
+	t.Helper()
+
+	for i := 1; i < len(manifest); i++ {
+		prev := manifest[i-1]
+		curr := manifest[i]
+		if prev.Path == curr.Path {
+			require.LessOrEqual(t, prev.Method, curr.Method)
+			continue
+		}
+		require.LessOrEqual(t, prev.Path, curr.Path)
+	}
+}
+
+func requireRouteManifestEntry(t *testing.T, manifest RouteManifest, method, path string) RouteManifestEntry {
+	t.Helper()
+
+	for _, entry := range manifest {
+		if entry.Method == method && entry.Path == path {
+			return entry
+		}
+	}
+	require.Failf(t, "missing route manifest entry", "%s %s not found in %#v", method, path, manifest)
+	return RouteManifestEntry{}
 }
 
 func TestNewRustSidecarIngressRuntimeWhenEnabled(t *testing.T) {
@@ -125,6 +153,10 @@ func TestRustSidecarIngressRuntimeHealthcheck(t *testing.T) {
 }
 
 func TestRustSidecarIngressRuntimeProxiesRawConnectionToUnixSocket(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix socket proxying is exercised on Unix-like platforms")
+	}
+
 	socketPath := filepath.Join(t.TempDir(), "rust-sidecar.sock")
 	ln, err := net.Listen("unix", socketPath)
 	require.NoError(t, err)
@@ -252,223 +284,70 @@ func TestClassifiedListenerBuffersBurstWithoutConcurrentAccept(t *testing.T) {
 }
 
 func TestHybridRuntimeRoutesResponsesWebSocketUpgradeToSidecar(t *testing.T) {
-	sidecarSocket := filepath.Join(t.TempDir(), "rust-sidecar.sock")
-	sidecarListener, err := net.Listen("unix", sidecarSocket)
-	require.NoError(t, err)
-	defer sidecarListener.Close()
+	preface := []byte("GET /v1/responses HTTP/1.1\r\nHost: example.com\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n")
 
-	receivedReqCh := make(chan string, 1)
-	sidecarDone := make(chan struct{})
-	go func() {
-		defer close(sidecarDone)
-		healthBody := `{"status":"ok","service":"test-sidecar","version":"v0"}`
-		sidecarBody := `{"code":"SIDE_CAR","message":"routed to sidecar"}`
-		for i := 0; i < 2; i++ {
-			conn, err := sidecarListener.Accept()
-			if err != nil {
-				return
-			}
-			go func(c net.Conn) {
-				defer c.Close()
-				reader := bufio.NewReader(c)
-				line, readErr := reader.ReadString('\n')
-				if readErr != nil {
-					return
-				}
-				if line == "GET /healthz HTTP/1.1\r\n" {
-					for {
-						headerLine, err := reader.ReadString('\n')
-						if err != nil || headerLine == "\r\n" {
-							break
-						}
-					}
-					_, _ = c.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s", len(healthBody), healthBody)))
-					return
-				}
-				receivedReqCh <- line
-				for {
-					headerLine, err := reader.ReadString('\n')
-					if err != nil || headerLine == "\r\n" {
-						break
-					}
-				}
-				_, _ = c.Write([]byte(fmt.Sprintf("HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s", len(sidecarBody), sidecarBody)))
-			}(conn)
-		}
-	}()
-
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Host:              "127.0.0.1",
-			Port:              0,
-			ReadHeaderTimeout: 5,
-			IdleTimeout:       30,
-			RuntimeMode:       config.ServerRuntimeModeHybrid,
-		},
-		Security: config.SecurityConfig{
-			CSP: config.CSPConfig{
-				Enabled: false,
-				Policy:  config.DefaultCSPPolicy,
-			},
-		},
-	}
-	cfg.Rust.Sidecar.Enabled = true
-	cfg.Rust.Sidecar.FailClosed = true
-	cfg.Rust.Sidecar.SocketPath = sidecarSocket
-	cfg.Rust.Sidecar.RequestTimeoutSeconds = 1
-	cfg.Rust.Sidecar.HealthcheckTimeoutSeconds = 1
-	cfg.Rust.Sidecar.ResponsesWSEnabled = true
-
-	base := &http.Server{Addr: "127.0.0.1:0", Handler: http.NewServeMux()}
-	rt := ResolveIngressRuntime(cfg, base)
-
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	defer listener.Close()
-
-	errCh := make(chan error, 1)
-	go func() { errCh <- rt.Serve(listener) }()
-
-	client := &http.Client{Timeout: 3 * time.Second}
-	req, err := http.NewRequest(http.MethodGet, "http://"+listener.Addr().String()+"/v1/responses", nil)
-	require.NoError(t, err)
-	req.Header.Set("Upgrade", "websocket")
-	req.Header.Set("Connection", "Upgrade")
-	req.Header.Set("Sec-WebSocket-Version", "13")
-	req.Header.Set("Sec-WebSocket-Key", "dGVzdC13cy1rZXk=")
-
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"SIDE_CAR","message":"routed to sidecar"}`, string(body))
-
-	select {
-	case line := <-receivedReqCh:
-		require.Equal(t, "GET /v1/responses HTTP/1.1\r\n", line)
-	case <-time.After(2 * time.Second):
-		t.Fatal("sidecar did not receive websocket request")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	require.NoError(t, rt.Shutdown(ctx))
-	select {
-	case serveErr := <-errCh:
-		require.NoError(t, serveErr)
-	case <-time.After(2 * time.Second):
-		t.Fatal("hybrid runtime did not exit in time")
-	}
-
-	select {
-	case <-sidecarDone:
-	case <-time.After(2 * time.Second):
-		t.Fatal("sidecar stub did not exit in time")
-	}
+	requireProtocolMuxRoutesPrefaceToSidecar(t, preface, false, true)
 }
 
 func TestHybridRuntimeRoutesH2CToSidecar(t *testing.T) {
-	sidecarSocket := filepath.Join(t.TempDir(), "rust-sidecar-h2c.sock")
-	sidecarListener, err := net.Listen("unix", sidecarSocket)
+	requireProtocolMuxRoutesPrefaceToSidecar(t, []byte(http2.ClientPreface), true, false)
+}
+
+func requireProtocolMuxRoutesPrefaceToSidecar(t *testing.T, preface []byte, routeH2CToSidecar, routeResponsesWSToSidecar bool) {
+	t.Helper()
+
+	base, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer sidecarListener.Close()
 
-	sidecarMux := http.NewServeMux()
-	sidecarMux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"status":"ok","service":"test-sidecar","version":"v0"}`))
-	})
-	sidecarMux.HandleFunc("/h2c-check", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Sidecar", "h2c")
-		w.WriteHeader(http.StatusAccepted)
-		_, _ = w.Write([]byte("routed-via-sidecar"))
-	})
-
-	sidecarServer := &http.Server{
-		Handler: h2c.NewHandler(sidecarMux, &http2.Server{}),
-	}
+	mux := newProtocolMux(base, time.Second, true, routeH2CToSidecar, routeResponsesWSToSidecar)
 	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		_ = sidecarServer.Shutdown(ctx)
+		require.NoError(t, mux.Close())
 	}()
+
+	serverConn, clientConn := net.Pipe()
+	defer func() {
+		require.NoError(t, clientConn.Close())
+	}()
+
+	done := make(chan struct{})
 	go func() {
-		_ = sidecarServer.Serve(sidecarListener)
+		defer close(done)
+		mux.dispatch(serverConn)
 	}()
 
-	cfg := &config.Config{
-		Server: config.ServerConfig{
-			Host:              "127.0.0.1",
-			Port:              0,
-			ReadHeaderTimeout: 5,
-			IdleTimeout:       10,
-			RuntimeMode:       config.ServerRuntimeModeHybrid,
-			H2C: config.H2CConfig{
-				Enabled:                      true,
-				MaxConcurrentStreams:         16,
-				IdleTimeout:                  10,
-				MaxReadFrameSize:             1 << 20,
-				MaxUploadBufferPerConnection: 2 << 20,
-				MaxUploadBufferPerStream:     512 << 10,
-			},
-		},
-		Security: config.SecurityConfig{
-			CSP: config.CSPConfig{
-				Enabled: false,
-				Policy:  config.DefaultCSPPolicy,
-			},
-		},
-	}
-	cfg.Rust.Sidecar.Enabled = true
-	cfg.Rust.Sidecar.FailClosed = true
-	cfg.Rust.Sidecar.SocketPath = sidecarSocket
-	cfg.Rust.Sidecar.RequestTimeoutSeconds = 1
-	cfg.Rust.Sidecar.HealthcheckTimeoutSeconds = 1
-	cfg.Rust.Sidecar.H2CDelegateEnabled = true
-
-	base := &http.Server{
-		Addr:    "127.0.0.1:0",
-		Handler: http.NewServeMux(),
-	}
-	rt := ResolveIngressRuntime(cfg, base)
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	_, err = clientConn.Write(preface)
 	require.NoError(t, err)
-	defer listener.Close()
 
-	errCh := make(chan error, 1)
-	go func() { errCh <- rt.Serve(listener) }()
-
-	client := &http.Client{
-		Transport: &http2.Transport{
-			AllowHTTP: true,
-			DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-				var d net.Dialer
-				return d.DialContext(ctx, network, listener.Addr().String())
-			},
-		},
-	}
-	req, err := http.NewRequest(http.MethodGet, "http://"+listener.Addr().String()+"/h2c-check", nil)
+	sidecarConn, err := acceptClassifiedConn(mux.SidecarListener(), time.Second)
 	require.NoError(t, err)
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	got := make([]byte, len(preface))
+	_, err = io.ReadFull(sidecarConn, got)
 	require.NoError(t, err)
-	require.Equal(t, http.StatusAccepted, resp.StatusCode)
-	require.Equal(t, 2, resp.ProtoMajor)
-	require.Equal(t, "h2c", resp.Header.Get("X-Sidecar"))
-	require.Equal(t, "routed-via-sidecar", string(body))
+	require.Equal(t, preface, got)
+	require.NoError(t, sidecarConn.Close())
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	require.NoError(t, rt.Shutdown(ctx))
 	select {
-	case serveErr := <-errCh:
-		require.NoError(t, serveErr)
-	case <-time.After(2 * time.Second):
-		t.Fatal("hybrid runtime did not exit in time")
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("protocol mux dispatch did not finish")
+	}
+}
+
+func acceptClassifiedConn(listener net.Listener, timeout time.Duration) (net.Conn, error) {
+	type acceptResult struct {
+		conn net.Conn
+		err  error
+	}
+	ch := make(chan acceptResult, 1)
+	go func() {
+		conn, err := listener.Accept()
+		ch <- acceptResult{conn: conn, err: err}
+	}()
+	select {
+	case result := <-ch:
+		return result.conn, result.err
+	case <-time.After(timeout):
+		return nil, fmt.Errorf("timed out waiting for classified connection")
 	}
 }

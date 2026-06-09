@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -624,6 +625,10 @@ func TestOpenAIResponsesWebSocket_ShouldUseRustSidecarFlag(t *testing.T) {
 }
 
 func TestOpenAIResponsesWebSocket_UsesRustSidecarWhenEnabled(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("rust sidecar websocket proxy test uses unix sockets")
+	}
+
 	gin.SetMode(gin.TestMode)
 
 	sidecarSocket := filepath.Join(t.TempDir(), "rust-sidecar.sock")

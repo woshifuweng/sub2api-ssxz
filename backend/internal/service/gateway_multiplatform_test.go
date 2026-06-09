@@ -2011,6 +2011,14 @@ func (m *mockConcurrencyCache) GetUsersLoadBatch(ctx context.Context, users []Us
 	return result, nil
 }
 
+func gatewayTestLoad(accountID int64, currentConcurrency, waitingCount int) *AccountLoadInfo {
+	return &AccountLoadInfo{
+		AccountID:          accountID,
+		CurrentConcurrency: currentConcurrency,
+		WaitingCount:       waitingCount,
+	}
+}
+
 // TestGatewayService_SelectAccountWithLoadAwareness tests load-aware account selection
 func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 	ctx := context.Background()
@@ -2646,8 +2654,8 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 
 		concurrencyCache := &mockConcurrencyCache{
 			loadMap: map[int64]*AccountLoadInfo{
-				1: {AccountID: 1, LoadRate: 80},
-				2: {AccountID: 2, LoadRate: 20},
+				1: gatewayTestLoad(1, 4, 0),
+				2: gatewayTestLoad(2, 1, 0),
 			},
 		}
 
@@ -2704,8 +2712,8 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		concurrencyCache := &mockConcurrencyCache{
 			acquireResults: map[int64]bool{1: false, 2: false},
 			loadMap: map[int64]*AccountLoadInfo{
-				1: {AccountID: 1, LoadRate: 10},
-				2: {AccountID: 2, LoadRate: 20},
+				1: gatewayTestLoad(1, 0, 0),
+				2: gatewayTestLoad(2, 1, 0),
 			},
 		}
 
@@ -2761,9 +2769,9 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 
 		concurrencyCache := &mockConcurrencyCache{
 			loadMap: map[int64]*AccountLoadInfo{
-				1: {AccountID: 1, LoadRate: 100},
-				2: {AccountID: 2, LoadRate: 100},
-				3: {AccountID: 3, LoadRate: 0},
+				1: gatewayTestLoad(1, 5, 0),
+				2: gatewayTestLoad(2, 5, 0),
+				3: gatewayTestLoad(3, 0, 0),
 			},
 		}
 
@@ -2851,8 +2859,8 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 
 		concurrencyCache := &mockConcurrencyCache{
 			loadMap: map[int64]*AccountLoadInfo{
-				1: {AccountID: 1, LoadRate: 10},
-				2: {AccountID: 2, LoadRate: 10},
+				1: gatewayTestLoad(1, 0, 0),
+				2: gatewayTestLoad(2, 0, 0),
 			},
 		}
 
@@ -3055,8 +3063,8 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		concurrencyCache := &mockConcurrencyCache{
 			acquireResults: map[int64]bool{1: false, 2: false},
 			loadMap: map[int64]*AccountLoadInfo{
-				1: {AccountID: 1, LoadRate: 10},
-				2: {AccountID: 2, LoadRate: 20},
+				1: gatewayTestLoad(1, 0, 0),
+				2: gatewayTestLoad(2, 1, 0),
 			},
 		}
 
@@ -3093,7 +3101,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 
 		concurrencyCache := &mockConcurrencyCache{
 			loadMap: map[int64]*AccountLoadInfo{
-				1: {AccountID: 1, LoadRate: 50},
+				1: gatewayTestLoad(1, 2, 1),
 			},
 			skipDefaultLoad: true,
 		}

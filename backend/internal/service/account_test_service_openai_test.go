@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -207,9 +208,11 @@ func TestAccountTestService_OpenAIImageModelUsesImagesAPI(t *testing.T) {
 	err := svc.testOpenAIAccountConnection(gatewayctx.FromGin(ctx), account, "gpt-image-1", "")
 	require.NoError(t, err)
 	require.Equal(t, 1, upstream.callCount)
-	require.Contains(t, upstream.requestBodies[0], []byte(`"model":"gpt-image-1"`))
-	require.Contains(t, upstream.requestBodies[0], []byte(defaultOpenAIImageTestPrompt))
-	require.Len(t, upstream.responses, 0)
+	require.Len(t, upstream.requestBodies, 1)
+	var imageRequest map[string]any
+	require.NoError(t, json.Unmarshal(upstream.requestBodies[0], &imageRequest))
+	require.Equal(t, "gpt-image-1", imageRequest["model"])
+	require.Equal(t, defaultOpenAIImageTestPrompt, imageRequest["prompt"])
 	require.Contains(t, recorder.Body.String(), `"type":"image"`)
 	require.Contains(t, recorder.Body.String(), `data:image/png;base64,QUJD`)
 	require.Contains(t, recorder.Body.String(), `"type":"test_complete"`)
