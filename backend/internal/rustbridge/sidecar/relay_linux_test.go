@@ -14,10 +14,10 @@ import (
 func TestRelayCopyOneWayLinuxSocketPair(t *testing.T) {
 	srcRelay, srcPeer := newRelayTCPPair(t)
 	dstRelay, dstPeer := newRelayUnixPair(t)
-	defer srcRelay.Close()
-	defer srcPeer.Close()
-	defer dstRelay.Close()
-	defer dstPeer.Close()
+	defer func() { _ = srcRelay.Close() }()
+	defer func() { _ = srcPeer.Close() }()
+	defer func() { _ = dstRelay.Close() }()
+	defer func() { _ = dstPeer.Close() }()
 	setRelayTestDeadline(t, srcRelay, srcPeer, dstRelay, dstPeer)
 
 	payload := bytes.Repeat([]byte("linux-splice-relay:"), 32768)
@@ -77,7 +77,7 @@ func newRelayTCPPair(t *testing.T) (net.Conn, net.Conn) {
 	if err != nil {
 		t.Fatalf("listen tcp: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	acceptCh := make(chan net.Conn, 1)
 	acceptErr := make(chan error, 1)

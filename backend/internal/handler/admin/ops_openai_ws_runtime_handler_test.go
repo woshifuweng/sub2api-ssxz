@@ -112,10 +112,10 @@ func TestOpsHandler_GetOpenAIWSRuntime_IncludesRustSidecarHealth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen unix: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	server := &http.Server{Handler: mux}
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 
 	go func() {
 		_ = server.Serve(ln)

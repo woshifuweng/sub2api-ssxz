@@ -26,8 +26,8 @@ func relayCopyPlatform(dst net.Conn, src net.Conn) (int64, bool, error) {
 	if err := unix.Pipe2(pipeFDs, unix.O_CLOEXEC|unix.O_NONBLOCK); err != nil {
 		return 0, false, nil
 	}
-	defer unix.Close(pipeFDs[0])
-	defer unix.Close(pipeFDs[1])
+	defer func() { _ = unix.Close(pipeFDs[0]) }()
+	defer func() { _ = unix.Close(pipeFDs[1]) }()
 	_, _ = unix.FcntlInt(uintptr(pipeFDs[0]), unix.F_SETPIPE_SZ, relaySpliceChunk)
 
 	var copied int64
