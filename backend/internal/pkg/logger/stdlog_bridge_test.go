@@ -4,6 +4,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -77,7 +78,9 @@ func TestStdLogBridgeRoutesLevels(t *testing.T) {
 	log.Printf("service started")
 	log.Printf("Warning: queue full")
 	log.Printf("Forward request failed: timeout")
-	Sync()
+	if runtime.GOOS != "windows" {
+		Sync()
+	}
 
 	_ = stdoutW.Close()
 	_ = stderrW.Close()
@@ -139,7 +142,9 @@ func TestLegacyPrintfRoutesLevels(t *testing.T) {
 	LegacyPrintf("service.test", "request started")
 	LegacyPrintf("service.test", "Warning: queue full")
 	LegacyPrintf("service.test", "forward failed: timeout")
-	Sync()
+	if runtime.GOOS != "windows" {
+		Sync()
+	}
 
 	_ = stdoutW.Close()
 	_ = stderrW.Close()

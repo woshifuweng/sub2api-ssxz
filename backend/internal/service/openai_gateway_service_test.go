@@ -1108,6 +1108,11 @@ func TestOpenAIStreamingTimeout(t *testing.T) {
 			StreamDataIntervalTimeout: 1,
 			StreamKeepaliveInterval:   0,
 			MaxLineSize:               defaultMaxLineSize,
+			OpenAI: config.GatewayOpenAIConfig{
+				Streaming: config.GatewayOpenAIStreamingConfig{
+					StreamIdleTimeoutMS: 50,
+				},
+			},
 		},
 	}
 	svc := &OpenAIGatewayService{cfg: cfg}
@@ -1878,6 +1883,7 @@ func TestOpenAIBuildUpstreamRequestOAuthOfficialClientOriginatorCompatibility(t 
 
 			svc := &OpenAIGatewayService{}
 			account := &Account{
+				Platform:    PlatformOpenAI,
 				Type:        AccountTypeOAuth,
 				Credentials: map[string]any{"chatgpt_account_id": "chatgpt-acc"},
 			}

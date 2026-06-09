@@ -8,9 +8,33 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Detect changed areas
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/security-scan.yml'
+            frontend:
+              - 'frontend/**'
+              - 'tools/check_pnpm_audit_exceptions.py'
+              - '.github/audit-exceptions.yml'
+              - '.github/workflows/security-scan.yml'
+
   backend-security:
+    needs: changes
+    if: github.event_name == 'schedule' || needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -28,6 +52,8 @@ jobs:
           govulncheck ./...
 
   frontend-security:
+    needs: changes
+    if: github.event_name == 'schedule' || needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

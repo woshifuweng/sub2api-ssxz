@@ -210,6 +210,11 @@ func (h *AuthHandler) LoginGateway(c gatewayctx.GatewayContext) {
 		return
 	}
 
+	if strings.TrimSpace(req.Email) == "" || strings.TrimSpace(req.Password) == "" {
+		response.ErrorContext(authJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: email and password are required")
+		return
+	}
+
 	token, user, err := h.authService.Login(c.Request().Context(), req.Email, req.Password)
 	if err != nil {
 		response.ErrorFromContext(authJSONResponder{ctx: c}, err)
