@@ -164,7 +164,7 @@ func parseImageStudioRequest(c gatewayctx.GatewayContext) (*imageStudioRequest, 
 			if err != nil {
 				return nil, fmt.Errorf("failed to read image")
 			}
-			defer file.Close()
+			defer func() { _ = file.Close() }()
 			data, err := io.ReadAll(io.LimitReader(file, imageStudioMaxUpload+1))
 			if err != nil {
 				return nil, fmt.Errorf("failed to read image")
