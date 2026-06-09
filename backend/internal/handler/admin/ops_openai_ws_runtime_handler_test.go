@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"runtime"
 	"sync/atomic"
 	"testing"
 
@@ -72,6 +73,10 @@ func TestOpsHandler_GetOpenAIWSRuntime_IncludesRustFFIMetrics(t *testing.T) {
 }
 
 func TestOpsHandler_GetOpenAIWSRuntime_IncludesRustSidecarHealth(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("rust sidecar health test uses unix sockets")
+	}
+
 	socketPath := filepath.Join(t.TempDir(), "rust-sidecar.sock")
 	var healthHits atomic.Int64
 

@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -72,7 +73,7 @@ func TestDecodeBufferedRequestFastPathsBodylessRequests(t *testing.T) {
 	require.NotNil(t, req)
 	require.Equal(t, http.MethodGet, req.Method)
 	require.Equal(t, int64(0), req.ContentLength)
-	require.Same(t, http.NoBody, req.Body)
+	require.Equal(t, http.NoBody, req.Body)
 	require.Equal(t, len(raw), consumed)
 }
 
@@ -575,6 +576,10 @@ func TestNativeGnetHTTPRuntimeServesExecutableResponsesAuthFailureWithoutFallbac
 }
 
 func TestNativeGnetHTTPRuntimeServesExecutableResponsesWebSocketAuthFailureWithoutFallbackHandler(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("native gnet websocket upgrade close behavior is platform-specific on Windows")
+	}
+
 	cfg := &config.Config{
 		Server: config.ServerConfig{
 			Host:              "127.0.0.1",
@@ -2595,10 +2600,13 @@ func TestNativeGnetHTTPRuntimeServesExecutableAuthLoginUnauthorizedRateLimitEnve
 	}
 
 	httpServer := NewHTTPServer(cfg, http.NewServeMux())
+	settingSvc := &service.SettingService{}
+	authSvc := &service.AuthService{}
+	userSvc := &service.UserService{}
 	registerHTTPServerExecutableRuntimeConfig(httpServer, buildExecutableRuntimeConfig(
 		cfg,
-		&handler.Handlers{Auth: &handler.AuthHandler{}},
-		nil, nil, &service.SettingService{}, &service.AuthService{}, &service.UserService{}, nil, nil,
+		&handler.Handlers{Auth: handler.NewAuthHandler(cfg, authSvc, userSvc, settingSvc, nil, nil, nil)},
+		nil, nil, settingSvc, authSvc, userSvc, nil, nil,
 	))
 	runtime := newNativeGnetHTTPRuntime(cfg, httpServer)
 

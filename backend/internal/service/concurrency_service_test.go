@@ -217,7 +217,7 @@ func TestGenerateRequestID_UsesStablePrefixAndMonotonicCounter(t *testing.T) {
 func TestGetAccountsLoadBatch_ReturnsCorrectData(t *testing.T) {
 	expected := map[int64]*AccountLoadInfo{
 		1: {AccountID: 1, CurrentConcurrency: 3, WaitingCount: 0, LoadRate: 60},
-		2: {AccountID: 2, CurrentConcurrency: 5, WaitingCount: 2, LoadRate: 100},
+		2: {AccountID: 2, CurrentConcurrency: 5, WaitingCount: 2, LoadRate: 140},
 	}
 	cache := &stubConcurrencyCacheForTest{loadBatch: expected}
 	svc := NewConcurrencyService(cache)

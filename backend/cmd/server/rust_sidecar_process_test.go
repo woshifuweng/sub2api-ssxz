@@ -2,6 +2,7 @@ package main
 
 import (
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"testing"
 
@@ -48,10 +49,10 @@ func TestRustSidecarProcessEnvIncludesRelayLimits(t *testing.T) {
 		}
 	}
 
-	if envMap["SUB2API_RUST_SIDECAR_SOCKET"] != "/tmp/sub2api-sidecar.sock" {
+	if envMap["SUB2API_RUST_SIDECAR_SOCKET"] != filepath.Clean("/tmp/sub2api-sidecar.sock") {
 		t.Fatalf("unexpected sidecar socket env: %+v", envMap)
 	}
-	if envMap["SUB2API_RUST_UPSTREAM_SOCKET"] != "/tmp/sub2api-upstream.sock" {
+	if envMap["SUB2API_RUST_UPSTREAM_SOCKET"] != filepath.Clean("/tmp/sub2api-upstream.sock") {
 		t.Fatalf("unexpected upstream socket env: %+v", envMap)
 	}
 	if envMap["SUB2API_RUST_REQUEST_TIMEOUT_MS"] != "7000" {

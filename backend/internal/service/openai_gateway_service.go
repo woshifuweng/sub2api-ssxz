@@ -3276,10 +3276,10 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthroughContext(
 	req.Header.Del("x-api-key")
 	req.Header.Del("x-goog-api-key")
 	req.Header.Set("authorization", "Bearer "+token)
+	isCodexCLI := openai.IsCodexOfficialClientByHeaders(req.Header.Get("user-agent"), req.Header.Get("originator")) || (s.cfg != nil && s.cfg.Gateway.ForceCodexCLI)
 
 	// OAuth 透传到 ChatGPT internal API 时补齐必要头。
 	if account.Type == AccountTypeOAuth {
-		isCodexCLI := openai.IsCodexOfficialClientByHeaders(req.Header.Get("user-agent"), req.Header.Get("originator")) || (s.cfg != nil && s.cfg.Gateway.ForceCodexCLI)
 		sampledFingerprint := s.observeOpenAIOfficialClientSample(ctx, c, account, isCodexCLI)
 		if sampledFingerprint == nil {
 			sampledFingerprint = s.getOpenAISampledFingerprint(ctx, account)
@@ -3420,7 +3420,6 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthroughContext(
 		}
 	}
 
-	isCodexCLI := openai.IsCodexOfficialClientByHeaders(req.Header.Get("user-agent"), req.Header.Get("originator")) || (s.cfg != nil && s.cfg.Gateway.ForceCodexCLI)
 	if upstreamUA := s.resolveOpenAIUpstreamUserAgent(ctx, c, account, isCodexCLI); upstreamUA != "" {
 		req.Header.Set("user-agent", upstreamUA)
 	}
@@ -5591,15 +5590,16 @@ func (s *OpenAIGatewayService) validateUpstreamBaseURL(raw string) (string, erro
 	var allowInsecureHTTP bool
 	opts := urlvalidator.ValidationOptions{}
 	if s.cfg != nil {
-		allowInsecureHTTP = s.cfg.Security.URLAllowlist.AllowInsecureHTTP
+		urlAllowlist := s.cfg.Security.URLAllowlist
+		allowInsecureHTTP = urlAllowlist.AllowInsecureHTTP
 		allowedHosts := []string(nil)
-		if s.cfg.Security.URLAllowlist.EnforceUpstreamHosts {
-			allowedHosts = s.cfg.Security.URLAllowlist.UpstreamHosts
+		if urlAllowlist.Enabled && urlAllowlist.EnforceUpstreamHosts {
+			allowedHosts = urlAllowlist.UpstreamHosts
 		}
 		opts = urlvalidator.ValidationOptions{
 			AllowedHosts:     allowedHosts,
-			RequireAllowlist: s.cfg.Security.URLAllowlist.Enabled && s.cfg.Security.URLAllowlist.EnforceUpstreamHosts,
-			AllowPrivate:     s.cfg.Security.URLAllowlist.AllowPrivateHosts,
+			RequireAllowlist: urlAllowlist.Enabled && urlAllowlist.EnforceUpstreamHosts,
+			AllowPrivate:     !urlAllowlist.Enabled || urlAllowlist.AllowPrivateHosts,
 		}
 	}
 	normalized, err := urlvalidator.ValidateHTTPURL(raw, allowInsecureHTTP, opts)

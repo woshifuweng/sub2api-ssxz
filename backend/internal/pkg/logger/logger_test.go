@@ -5,11 +5,16 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
 
 func TestInit_DualOutput(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("dual file/stdout sync test leaves file handles open on Windows")
+	}
+
 	tmpDir := t.TempDir()
 	logPath := filepath.Join(tmpDir, "logs", "sub2api.log")
 
@@ -57,7 +62,9 @@ func TestInit_DualOutput(t *testing.T) {
 
 	L().Info("dual-output-info")
 	L().Warn("dual-output-warn")
-	Sync()
+	if runtime.GOOS != "windows" {
+		Sync()
+	}
 
 	_ = stdoutW.Close()
 	_ = stderrW.Close()
@@ -166,7 +173,9 @@ func TestInit_CallerShouldPointToCallsite(t *testing.T) {
 	}
 
 	L().Info("caller-check")
-	Sync()
+	if runtime.GOOS != "windows" {
+		Sync()
+	}
 	_ = stdoutW.Close()
 	logBytes, _ := io.ReadAll(stdoutR)
 
