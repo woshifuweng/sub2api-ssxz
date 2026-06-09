@@ -5,6 +5,15 @@
 
 import { apiClient } from './client'
 
+export const chatWorkspaceBackendEnabled =
+  import.meta.env.VITE_CHAT_WORKSPACE_BACKEND_ENABLED === 'true'
+
+function assertChatWorkspaceBackendEnabled(action: string) {
+  if (!chatWorkspaceBackendEnabled) {
+    throw new Error(`${action} is unavailable until the chat workspace backend is enabled`)
+  }
+}
+
 export const CHAT_MESSAGE_TYPE_TEXT = 'text'
 export const CHAT_MESSAGE_TYPE_ATTACHMENT = 'attachment'
 export const CHAT_MESSAGE_TYPE_IMAGE_TASK = 'image_task'
@@ -128,6 +137,7 @@ export interface ChatWorkspaceError {
 }
 
 export async function listConversations(): Promise<ChatConversation[]> {
+  assertChatWorkspaceBackendEnabled('listConversations')
   const { data } = await apiClient.get<ChatConversation[]>('/chat-workspace/conversations')
   return data
 }
@@ -135,16 +145,19 @@ export async function listConversations(): Promise<ChatConversation[]> {
 export async function createConversation(
   payload: CreateConversationRequest
 ): Promise<ChatConversation> {
+  assertChatWorkspaceBackendEnabled('createConversation')
   const { data } = await apiClient.post<ChatConversation>('/chat-workspace/conversations', payload)
   return data
 }
 
 export async function getConversation(id: number): Promise<ChatConversation> {
+  assertChatWorkspaceBackendEnabled('getConversation')
   const { data } = await apiClient.get<ChatConversation>(`/chat-workspace/conversations/${id}`)
   return data
 }
 
 export async function listMessages(conversationId: number): Promise<ChatMessage[]> {
+  assertChatWorkspaceBackendEnabled('listMessages')
   const { data } = await apiClient.get<ChatMessage[]>(
     `/chat-workspace/conversations/${conversationId}/messages`
   )
@@ -155,6 +168,7 @@ export async function appendMessage(
   conversationId: number,
   payload: AppendMessageRequest
 ): Promise<ChatMessage> {
+  assertChatWorkspaceBackendEnabled('appendMessage')
   const { data } = await apiClient.post<ChatMessage>(
     `/chat-workspace/conversations/${conversationId}/messages`,
     payload
@@ -163,16 +177,21 @@ export async function appendMessage(
 }
 
 export async function registerAsset(payload: RegisterAssetRequest): Promise<ChatAsset> {
+  assertChatWorkspaceBackendEnabled('registerAsset')
   const { data } = await apiClient.post<ChatAsset>('/chat-workspace/assets/register', payload)
   return data
 }
 
 export async function getAsset(id: number): Promise<ChatAsset> {
+  assertChatWorkspaceBackendEnabled('getAsset')
   const { data } = await apiClient.get<ChatAsset>(`/chat-workspace/assets/${id}`)
   return data
 }
 
 export async function createImageTask(payload: CreateImageTaskRequest): Promise<ChatImageTask> {
+  // The current workspace PR is a frontend shell only. Keep this wrapper guarded
+  // until a backend task endpoint validates intent, ownership, billing, and model.
+  assertChatWorkspaceBackendEnabled('createImageTask')
   const {
     conversation_id,
     reference_asset_id,
@@ -199,6 +218,7 @@ export async function createImageTask(payload: CreateImageTaskRequest): Promise<
 }
 
 export async function getImageTask(id: number): Promise<ChatImageTask> {
+  assertChatWorkspaceBackendEnabled('getImageTask')
   const { data } = await apiClient.get<ChatImageTask>(`/chat-workspace/image-tasks/${id}`)
   return data
 }

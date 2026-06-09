@@ -1,5 +1,5 @@
 <template>
-  <form class="composer-card" @submit.prevent="emit('submit')">
+  <form class="composer-card" @submit.prevent="handleSubmit">
     <div v-if="assetPreviews.length" class="attachment-preview-list" data-testid="workspace-asset-previews">
       <article v-for="asset in assetPreviews" :key="asset.id" class="attachment-preview-card">
         <img :src="asset.url" :alt="asset.name" />
@@ -67,7 +67,8 @@
         type="submit"
         data-testid="workspace-send"
         :disabled="!canSubmit"
-        aria-label="发送"
+        :title="backendEnabled ? '发送' : '统一工作台后端正在接入，暂不可发送'"
+        :aria-label="backendEnabled ? '发送' : '统一工作台后端正在接入，暂不可发送'"
       >
         <Icon v-if="sending" name="sync" size="sm" />
         <Icon v-else name="arrowUp" size="sm" />
@@ -92,6 +93,7 @@ const props = defineProps<{
   selectedModel: string
   models: ChatModelOption[]
   intent: WorkspaceIntent
+  backendEnabled?: boolean
   sending: boolean
   assetPreviews: WorkspaceAssetPreview[]
   rejectedFiles: RejectedWorkspaceFile[]
@@ -121,6 +123,7 @@ const informationalTools: Array<{ label: string; description: string; icon: Icon
 
 const placeholder = computed(() => placeholders[props.intent])
 const canSubmit = computed(() =>
+  props.backendEnabled === true &&
   !props.sending &&
   Boolean(props.selectedModel) &&
   (props.modelValue.trim().length > 0 || props.assetPreviews.length > 0)
@@ -133,6 +136,10 @@ function handleInput(event: Event) {
 function handleKeydown(event: KeyboardEvent) {
   if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return
   event.preventDefault()
+  handleSubmit()
+}
+
+function handleSubmit() {
   if (canSubmit.value) emit('submit')
 }
 </script>

@@ -23,6 +23,7 @@ function mountComposer(overrides = {}) {
       selectedModel: 'gpt-5.5',
       models,
       intent: 'image',
+      backendEnabled: true,
       sending: false,
       assetPreviews: [],
       rejectedFiles: [],
@@ -57,5 +58,14 @@ describe('WorkspaceComposer', () => {
     await wrapper.get('form').trigger('submit.prevent')
 
     expect(wrapper.emitted('submit')).toHaveLength(1)
+  })
+
+  it('keeps submit disabled when the workspace backend is unavailable', async () => {
+    const wrapper = mountComposer({ backendEnabled: false, modelValue: 'hello' })
+
+    await wrapper.get('form').trigger('submit.prevent')
+
+    expect(wrapper.get('[data-testid="workspace-send"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.emitted('submit')).toBeUndefined()
   })
 })

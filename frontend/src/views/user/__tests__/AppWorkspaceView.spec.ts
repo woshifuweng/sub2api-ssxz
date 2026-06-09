@@ -14,7 +14,9 @@ const mocks = vi.hoisted(() => ({
   apiClient: {
     get: vi.fn(),
     post: vi.fn()
-  }
+  },
+  createObjectURL: vi.fn((file: File) => `blob:workspace-preview-${file.name}`),
+  revokeObjectURL: vi.fn()
 }))
 
 vi.mock('vue-router', () => ({
@@ -59,7 +61,6 @@ import AppWorkspaceView from '../AppWorkspaceView.vue'
 
 describe('AppWorkspaceView interactions', () => {
   beforeEach(() => {
-    let messageId = 1
     mocks.route.value = { meta: { appSection: 'image' } }
     mocks.chatModels.value = [
       { id: 'gpt-5.5', name: 'GPT-5.5', tier: 'premium' },
@@ -67,44 +68,27 @@ describe('AppWorkspaceView interactions', () => {
     ]
     mocks.defaultTextModel.value = 'gpt-5.5'
     mocks.hasChat.value = true
-    mocks.loadCapabilities.mockClear()
+    mocks.loadCapabilities.mockReset()
     mocks.apiClient.get.mockReset()
     mocks.apiClient.post.mockReset()
-    mocks.apiClient.get.mockResolvedValue({ data: [] })
-    mocks.apiClient.post.mockImplementation((url: string, payload: Record<string, unknown>) => {
-      if (url === '/chat-workspace/conversations') {
-        return Promise.resolve({
-          data: {
-            id: 1,
-            title: payload.title || 'hello',
-            status: 'active',
-            created_at: '2026-06-08T00:00:00Z',
-            updated_at: '2026-06-08T00:00:00Z'
-          }
-        })
-      }
-      if (url.includes('/chat-workspace/conversations/1/messages')) {
-        return Promise.resolve({
-          data: {
-            id: messageId++,
-            conversation_id: 1,
-            message_type: payload.message_type,
-            role: payload.role,
-            content: payload.content,
-            created_at: '2026-06-08T00:00:00Z',
-            updated_at: '2026-06-08T00:00:00Z'
-          }
-        })
-      }
-      if (url === '/chat-studio/complete') {
-        return Promise.resolve({
-          data: {
-            choices: [{ message: { content: 'assistant reply' } }]
-          }
-        })
-      }
-      return Promise.resolve({ data: {} })
+    mocks.createObjectURL.mockClear()
+    mocks.revokeObjectURL.mockClear()
+    vi.stubGlobal('URL', {
+      createObjectURL: mocks.createObjectURL,
+      revokeObjectURL: mocks.revokeObjectURL
     })
+  })
+
+  it('mounts the shell without requesting chat-workspace endpoints', async () => {
+    const wrapper = mount(AppWorkspaceView)
+    await flushPromises()
+
+    expect(mocks.loadCapabilities).toHaveBeenCalledTimes(1)
+    expect(mocks.apiClient.get).not.toHaveBeenCalled()
+    expect(mocks.apiClient.post).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('统一工作台后端正在接入')
+
+    wrapper.unmount()
   })
 
   it('opens the model menu and closes after selecting a model', async () => {
@@ -125,19 +109,53 @@ describe('AppWorkspaceView interactions', () => {
     wrapper.unmount()
   })
 
-  it('persists a draft and clears the workspace when starting a new chat', async () => {
+  it('keeps sending disabled and does not call chat-studio or chat-workspace APIs', async () => {
     const wrapper = mount(AppWorkspaceView)
     await nextTick()
 
     await wrapper.get('textarea').setValue('hello')
     await wrapper.get('form').trigger('submit.prevent')
     await flushPromises()
-    expect(wrapper.findAll('.message-row')).toHaveLength(2)
-    expect(mocks.apiClient.post).toHaveBeenCalledWith('/chat-workspace/conversations', { title: 'hello' })
 
+    expect(wrapper.get('[data-testid="workspace-send"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.findAll('.message-row')).toHaveLength(0)
+    expect(mocks.apiClient.get).not.toHaveBeenCalled()
+    expect(mocks.apiClient.post).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('keeps uploaded images as local previews without backend payloads', async () => {
+    const wrapper = mount(AppWorkspaceView)
+    await nextTick()
+
+    await wrapper.get('[data-testid="workspace-add-content"]').trigger('click')
+    const input = wrapper.get('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      value: [new File(['abc'], 'sample.png', { type: 'image/png' })],
+      configurable: true
+    })
+    await input.trigger('change')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="workspace-asset-previews"]').exists()).toBe(true)
+    expect(mocks.createObjectURL).toHaveBeenCalled()
+    expect(JSON.stringify(mocks.apiClient.post.mock.calls)).not.toContain('data:image')
+    expect(mocks.apiClient.post).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('clears local shell state when starting a new chat without backend calls', async () => {
+    const wrapper = mount(AppWorkspaceView)
+    await nextTick()
+
+    await wrapper.get('textarea').setValue('hello')
     await wrapper.get('.test-new-chat').trigger('click')
+
     expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('')
     expect(wrapper.findAll('.message-row')).toHaveLength(0)
+    expect(mocks.apiClient.post).not.toHaveBeenCalled()
 
     wrapper.unmount()
   })

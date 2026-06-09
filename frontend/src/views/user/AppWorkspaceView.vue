@@ -31,6 +31,9 @@
       <p v-if="workspace.errorMessage.value" class="workspace-error" role="alert">
         {{ workspace.errorMessage.value }}
       </p>
+      <p v-else-if="!workspace.backendEnabled.value" class="workspace-notice" role="status">
+        统一工作台后端正在接入，暂不可发送。当前仅展示工作台入口。
+      </p>
 
       <section class="composer-zone" aria-label="统一输入框">
         <WorkspaceComposer
@@ -38,6 +41,7 @@
           :selected-model="activeChatModel"
           :models="chatModels"
           :intent="workspaceIntent"
+          :backend-enabled="workspace.backendEnabled.value"
           :sending="workspace.sending.value || assets.registering.value"
           :asset-previews="assets.previews.value"
           :rejected-files="assets.rejectedFiles.value"
@@ -142,18 +146,12 @@ async function submitDraft() {
   if (!text && assets.previews.value.length === 0) return
   if (!activeChatModel.value || workspace.sending.value || assets.registering.value) return
 
-  const conversationId = await workspace.ensureConversationForAssets(text || '图片任务')
-  const attachments = await assets.registerPendingAssets(conversationId)
-
   await workspace.sendTextMessage({
     text,
     model: activeChatModel.value,
     intent: workspaceIntent.value,
-    attachments
+    attachments: assets.getLocalAttachments()
   })
-
-  draft.value = ''
-  assets.clearPreviews()
 }
 
 async function selectConversation(id: number) {
@@ -242,6 +240,17 @@ watch(chatModels, (models) => {
   background: color-mix(in srgb, #ef4444 9%, var(--ssxz-surface));
   color: #b91c1c;
   padding: 0.75rem 1rem;
+}
+
+.workspace-notice {
+  margin: 0 auto;
+  max-width: 42rem;
+  border: 1px solid color-mix(in srgb, var(--ssxz-primary) 28%, transparent);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--ssxz-primary) 8%, var(--ssxz-surface));
+  color: var(--ssxz-text);
+  padding: 0.75rem 1rem;
+  text-align: center;
 }
 
 .composer-zone {

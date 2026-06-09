@@ -1,11 +1,4 @@
-import { ref } from 'vue'
-import {
-  CHAT_ASSET_KIND_IMAGE,
-  CHAT_ASSET_ROLE_ATTACHMENT,
-  CHAT_ASSET_SOURCE_USER_UPLOAD,
-  registerAsset,
-  type ChatAsset
-} from '@/api/chatWorkspace'
+import { getCurrentInstance, onBeforeUnmount, ref } from 'vue'
 import type { WorkspaceAttachment } from './useWorkspaceConversation'
 
 export interface WorkspaceAssetPreview {
@@ -15,7 +8,6 @@ export interface WorkspaceAssetPreview {
   url: string
   size: number
   sizeLabel: string
-  asset?: ChatAsset
 }
 
 export interface RejectedWorkspaceFile {
@@ -42,7 +34,7 @@ export function useWorkspaceAssets() {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${file.name}`,
         file,
         name: file.name,
-        url: await readAsDataUrl(file),
+        url: URL.createObjectURL(file),
         size: file.size,
         sizeLabel: formatFileSize(file.size)
       })
@@ -53,44 +45,33 @@ export function useWorkspaceAssets() {
   }
 
   function removePreview(id: string) {
-    previews.value = previews.value.filter((preview) => preview.id !== id)
+    const next = previews.value.filter((preview) => {
+      if (preview.id !== id) return true
+      URL.revokeObjectURL(preview.url)
+      return false
+    })
+    previews.value = next
   }
 
   function clearPreviews() {
+    for (const preview of previews.value) {
+      URL.revokeObjectURL(preview.url)
+    }
     previews.value = []
     rejectedFiles.value = []
   }
 
-  async function registerPendingAssets(conversationId: number): Promise<WorkspaceAttachment[]> {
-    registering.value = true
-    try {
-      const attachments: WorkspaceAttachment[] = []
-      for (const preview of previews.value) {
-        const asset = preview.asset || await registerAsset({
-          conversation_id: conversationId,
-          asset_kind: CHAT_ASSET_KIND_IMAGE,
-          source_type: CHAT_ASSET_SOURCE_USER_UPLOAD,
-          asset_role: CHAT_ASSET_ROLE_ATTACHMENT,
-          storage_provider: 'pending',
-          url: preview.url,
-          preview_url: preview.url,
-          original_name: preview.name,
-          content_type: preview.file.type,
-          byte_size: preview.file.size
-        })
-        preview.asset = asset
-        attachments.push({
-          id: preview.id,
-          name: preview.name,
-          url: preview.url,
-          type: 'image',
-          asset
-        })
-      }
-      return attachments
-    } finally {
-      registering.value = false
-    }
+  function getLocalAttachments(): WorkspaceAttachment[] {
+    return previews.value.map((preview) => ({
+      id: preview.id,
+      name: preview.name,
+      url: preview.url,
+      type: 'image'
+    }))
+  }
+
+  if (getCurrentInstance()) {
+    onBeforeUnmount(clearPreviews)
   }
 
   return {
@@ -99,18 +80,9 @@ export function useWorkspaceAssets() {
     rejectedFiles,
     addFiles,
     clearPreviews,
-    registerPendingAssets,
+    getLocalAttachments,
     removePreview
   }
-}
-
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '')
-    reader.onerror = () => reject(reader.error || new Error('file read failed'))
-    reader.readAsDataURL(file)
-  })
 }
 
 function formatFileSize(bytes: number) {

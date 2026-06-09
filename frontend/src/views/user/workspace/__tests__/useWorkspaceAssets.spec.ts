@@ -1,40 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const api = vi.hoisted(() => ({
-  registerAsset: vi.fn()
-}))
-
-vi.mock('@/api/chatWorkspace', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/api/chatWorkspace')>()
-  return {
-    ...actual,
-    registerAsset: api.registerAsset
-  }
-})
-
 import { useWorkspaceAssets } from '../useWorkspaceAssets'
+
+const objectUrls = vi.hoisted(() => ({
+  create: vi.fn((file: File) => `blob:workspace-preview-${file.name}`),
+  revoke: vi.fn()
+}))
 
 describe('useWorkspaceAssets', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    api.registerAsset.mockResolvedValue({
-      id: 9,
-      asset_kind: 'image',
-      source_type: 'user_upload',
-      asset_role: 'attachment',
-      storage_provider: 'pending',
-      storage_key: '',
-      url: 'data:image/png;base64,abc',
-      original_name: 'sample.png',
-      content_type: 'image/png',
-      byte_size: 10,
-      status: 'registered',
-      created_at: 'a',
-      updated_at: 'b'
+    vi.stubGlobal('URL', {
+      createObjectURL: objectUrls.create,
+      revokeObjectURL: objectUrls.revoke
     })
   })
 
-  it('accepts image files and rejects non-images', async () => {
+  it('accepts image files as local previews and rejects non-images', async () => {
     const assets = useWorkspaceAssets()
     const image = new File(['abc'], 'sample.png', { type: 'image/png' })
     const text = new File(['abc'], 'notes.txt', { type: 'text/plain' })
@@ -42,35 +23,40 @@ describe('useWorkspaceAssets', () => {
     await assets.addFiles([image, text])
 
     expect(assets.previews.value).toHaveLength(1)
+    expect(assets.previews.value[0].url).toBe('blob:workspace-preview-sample.png')
+    expect(assets.previews.value[0].url).not.toContain('data:image')
     expect(assets.rejectedFiles.value[0].name).toBe('notes.txt')
   })
 
-  it('registers pending image assets for a conversation', async () => {
+  it('returns local attachments without asset records or base64 payloads', async () => {
     const assets = useWorkspaceAssets()
     const image = new File(['abc'], 'sample.png', { type: 'image/png' })
 
     await assets.addFiles([image])
-    const registered = await assets.registerPendingAssets(10)
+    const attachments = assets.getLocalAttachments()
 
-    expect(api.registerAsset).toHaveBeenCalledWith(expect.objectContaining({
-      conversation_id: 10,
-      asset_kind: 'image',
-      source_type: 'user_upload',
-      asset_role: 'attachment',
-      original_name: 'sample.png',
-      content_type: 'image/png'
-    }))
-    expect(registered[0].asset?.id).toBe(9)
+    expect(attachments).toEqual([
+      expect.objectContaining({
+        name: 'sample.png',
+        type: 'image',
+        url: 'blob:workspace-preview-sample.png'
+      })
+    ])
+    expect(attachments[0].asset).toBeUndefined()
+    expect(JSON.stringify(attachments)).not.toContain('data:image')
   })
 
-  it('removes previews and clears state', async () => {
+  it('revokes preview object URLs when removing or clearing previews', async () => {
     const assets = useWorkspaceAssets()
-    const image = new File(['abc'], 'sample.png', { type: 'image/png' })
+    const first = new File(['abc'], 'first.png', { type: 'image/png' })
+    const second = new File(['abc'], 'second.png', { type: 'image/png' })
 
-    await assets.addFiles([image])
-    const id = assets.previews.value[0].id
-    assets.removePreview(id)
+    await assets.addFiles([first, second])
+    assets.removePreview(assets.previews.value[0].id)
+    expect(objectUrls.revoke).toHaveBeenCalledWith('blob:workspace-preview-first.png')
 
+    assets.clearPreviews()
+    expect(objectUrls.revoke).toHaveBeenCalledWith('blob:workspace-preview-second.png')
     expect(assets.previews.value).toHaveLength(0)
   })
 })
