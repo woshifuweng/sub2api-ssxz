@@ -26,6 +26,8 @@ func TestExecutableUserRoutesChatWorkspacePathsAreRegistered(t *testing.T) {
 		key := route.Method + " " + route.Path
 		if _, ok := expected[key]; ok {
 			found[key] = true
+			require.Contains(t, route.Middleware, "request_logger")
+			require.Contains(t, route.Middleware, "client_request_id")
 			require.Contains(t, route.Middleware, "jwt_auth")
 			require.Contains(t, route.Middleware, "backend_mode_user_guard")
 		}

@@ -22,6 +22,7 @@ func newChatWorkspaceHandlerTestRouter(userID int64) (*gin.Engine, *service.Chat
 	h := NewChatWorkspaceHandler(svc)
 
 	router := gin.New()
+	router.Use(middleware.RequestLogger(), middleware.ClientRequestID())
 	if userID > 0 {
 		router.Use(func(c *gin.Context) {
 			c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: userID})
@@ -45,8 +46,17 @@ func TestChatWorkspaceHandlerRejectsUnauthenticatedAccess(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusUnauthorized, rec.Code)
+	require.NotEmpty(t, rec.Header().Get("X-Request-ID"))
+	var envelope chatWorkspaceErrorEnvelope
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &envelope))
+	require.Equal(t, workspaceReasonUnauthenticated, envelope.Reason)
+	require.NotEmpty(t, envelope.Metadata["request_id"])
+	require.NotEmpty(t, envelope.Metadata["client_request_id"])
 	require.NotContains(t, rec.Body.String(), "stack")
 	require.NotContains(t, rec.Body.String(), "Authorization")
+	require.NotContains(t, rec.Body.String(), "api_key")
+	require.NotContains(t, rec.Body.String(), "token")
+	require.NotContains(t, rec.Body.String(), "secret")
 }
 
 func TestChatWorkspaceHandlerCreatesConversationAndRestoresMessages(t *testing.T) {
@@ -104,15 +114,31 @@ func TestChatWorkspaceHandlerRejectsDisabledCapabilityWithoutLeakingInternals(t 
 	router.ServeHTTP(appendRec, appendReq)
 
 	require.Equal(t, http.StatusBadRequest, appendRec.Code)
+	var errorEnvelope chatWorkspaceErrorEnvelope
+	require.NoError(t, json.Unmarshal(appendRec.Body.Bytes(), &errorEnvelope))
+	require.Equal(t, workspaceReasonCapabilityUnavailable, errorEnvelope.Reason)
+	require.NotEmpty(t, errorEnvelope.Metadata["request_id"])
+	require.NotEmpty(t, errorEnvelope.Metadata["client_request_id"])
 	require.Contains(t, appendRec.Body.String(), "Capability is not available")
 	require.NotContains(t, appendRec.Body.String(), "SQL")
 	require.NotContains(t, appendRec.Body.String(), "provider")
+	require.NotContains(t, appendRec.Body.String(), "Authorization")
+	require.NotContains(t, appendRec.Body.String(), "api_key")
+	require.NotContains(t, appendRec.Body.String(), "token")
+	require.NotContains(t, appendRec.Body.String(), "secret")
 
 	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/chat-workspace/conversations/1/messages", nil)
 	listRec := httptest.NewRecorder()
 	router.ServeHTTP(listRec, listReq)
 	require.Equal(t, http.StatusOK, listRec.Code)
 	require.NotContains(t, listRec.Body.String(), `"role":"assistant"`)
+}
+
+type chatWorkspaceErrorEnvelope struct {
+	Code     int               `json:"code"`
+	Message  string            `json:"message"`
+	Reason   string            `json:"reason"`
+	Metadata map[string]string `json:"metadata"`
 }
 
 type handlerMemoryChatWorkspaceRepo struct {
