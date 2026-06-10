@@ -59,6 +59,10 @@ type OpenAIImagesRequest struct {
 	Size               string
 	ExplicitSize       bool
 	SizeTier           string
+	Quality            string
+	Style              string
+	Background         string
+	OutputFormat       string
 	ResponseFormat     string
 	HasMask            bool
 	HasNativeOptions   bool
@@ -168,6 +172,10 @@ func parseOpenAIImagesJSONRequest(body []byte, req *OpenAIImagesRequest) error {
 		req.ExplicitSize = req.Size != ""
 	}
 	req.ResponseFormat = strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "response_format").String()))
+	req.Quality = strings.TrimSpace(gjson.GetBytes(body, "quality").String())
+	req.Style = strings.TrimSpace(gjson.GetBytes(body, "style").String())
+	req.Background = strings.TrimSpace(gjson.GetBytes(body, "background").String())
+	req.OutputFormat = strings.TrimSpace(gjson.GetBytes(body, "output_format").String())
 	req.HasMask = gjson.GetBytes(body, "mask").Exists()
 	req.HasNativeOptions = hasOpenAINativeImageOptions(func(path string) bool {
 		return gjson.GetBytes(body, path).Exists()
@@ -240,6 +248,14 @@ func parseOpenAIImagesMultipartRequest(body []byte, contentType string, req *Ope
 			req.ExplicitSize = value != ""
 		case "response_format":
 			req.ResponseFormat = strings.ToLower(value)
+		case "quality":
+			req.Quality = value
+		case "style":
+			req.Style = value
+		case "background":
+			req.Background = value
+		case "output_format":
+			req.OutputFormat = value
 		case "stream":
 			parsed, err := strconv.ParseBool(value)
 			if err != nil {
@@ -448,6 +464,29 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKeyContext(
 		requestModel = mapped
 	}
 	upstreamModel := account.GetMappedModel(requestModel)
+	MergeUpstreamQualityAuditRecordContext(c, UpstreamQualityAuditInput{
+		Operation: func() UpstreamQualityOperation {
+			if parsed.IsEdits() {
+				return UpstreamQualityOperationImageEdit
+			}
+			return UpstreamQualityOperationImageGeneration
+		}(),
+		RequestedModel: requestModel,
+		MappedModel:    upstreamModel,
+		UpstreamModel:  upstreamModel,
+		ProviderName:   account.Platform,
+		Endpoint:       parsed.Endpoint,
+		ImageParams: UpstreamQualityImageParams{
+			Size:         parsed.Size,
+			Quality:      parsed.Quality,
+			Style:        parsed.Style,
+			Background:   parsed.Background,
+			OutputFormat: parsed.OutputFormat,
+			Count:        parsed.N,
+		},
+		Prompt: parsed.Prompt,
+		Status: "upstream_prepared",
+	})
 
 	forwardBody, forwardContentType, err := rewriteOpenAIImagesModel(body, parsed.ContentType, upstreamModel)
 	if err != nil {
@@ -535,6 +574,19 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKeyContext(
 		}
 	}
 
+	duration := time.Since(startTime)
+	MergeUpstreamQualityAuditRecordContext(c, UpstreamQualityAuditInput{
+		RequestID: resp.Header.Get("x-request-id"),
+		LatencyMs: duration.Milliseconds(),
+		Status:    "succeeded",
+		TokenUsage: UpstreamQualityUsage{
+			InputTokens:  usage.InputTokens,
+			OutputTokens: usage.OutputTokens,
+			TotalTokens:  usage.InputTokens + usage.OutputTokens,
+			ImageCount:   imageCount,
+		},
+	})
+
 	return &OpenAIForwardResult{
 		RequestID:       resp.Header.Get("x-request-id"),
 		Usage:           usage,
@@ -542,7 +594,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKeyContext(
 		UpstreamModel:   upstreamModel,
 		Stream:          parsed.Stream,
 		ResponseHeaders: resp.Header.Clone(),
-		Duration:        time.Since(startTime),
+		Duration:        duration,
 		FirstTokenMs:    firstTokenMs,
 		ImageCount:      imageCount,
 		ImageSize:       parsed.SizeTier,

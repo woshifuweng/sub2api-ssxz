@@ -112,6 +112,25 @@ func (h *ImageStudioHandler) GenerateGateway(c gatewayctx.GatewayContext) {
 		response.ErrorContext(imageStudioResponder{ctx: c}, http.StatusBadRequest, err.Error())
 		return
 	}
+	operation := service.UpstreamQualityOperationImageGeneration
+	if len(req.FileData) > 0 {
+		operation = service.UpstreamQualityOperationImageEdit
+	}
+	service.SetUpstreamQualityAuditRecordContext(c, service.BuildUpstreamQualityAuditRecord(service.UpstreamQualityAuditInput{
+		Route:          "/api/v1/image-studio/generate",
+		Operation:      operation,
+		RequestedModel: imageStudioModel,
+		ProviderName:   imageStudioProviderName(apiKey),
+		Endpoint:       endpoint,
+		ImageParams: service.UpstreamQualityImageParams{
+			Size:  req.Size,
+			Style: req.Style,
+			Count: req.Count,
+		},
+		Prompt:         prompt,
+		PromptEnhanced: true,
+		Status:         "prepared",
+	}))
 
 	upstreamReq := cloneRequestForImageStudioGateway(c.Request(), endpoint, body, contentType, apiKey.Key)
 	c.SetRequest(upstreamReq)
@@ -353,4 +372,11 @@ func sanitizeStudioFileName(value string) string {
 
 func escapeMultipartFileName(value string) string {
 	return strings.NewReplacer("\\", "\\\\", `"`, "\\\"").Replace(sanitizeStudioFileName(value))
+}
+
+func imageStudioProviderName(apiKey *service.APIKey) string {
+	if apiKey == nil || apiKey.Group == nil {
+		return ""
+	}
+	return apiKey.Group.Platform
 }

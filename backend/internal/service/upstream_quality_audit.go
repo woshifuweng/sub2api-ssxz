@@ -1,0 +1,376 @@
+package service
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"net/url"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
+)
+
+const UpstreamQualityAuditContextKey = "upstream_quality_audit"
+
+type UpstreamQualityOperation string
+
+const (
+	UpstreamQualityOperationTextCompletion  UpstreamQualityOperation = "text_completion"
+	UpstreamQualityOperationImageGeneration UpstreamQualityOperation = "image_generation"
+	UpstreamQualityOperationImageEdit       UpstreamQualityOperation = "image_edit"
+)
+
+type UpstreamQualityImageParams struct {
+	Size         string `json:"size,omitempty"`
+	Quality      string `json:"quality,omitempty"`
+	Style        string `json:"style,omitempty"`
+	Background   string `json:"background,omitempty"`
+	OutputFormat string `json:"output_format,omitempty"`
+	Count        int    `json:"count,omitempty"`
+}
+
+type UpstreamQualityTextParams struct {
+	Temperature     *float64 `json:"temperature,omitempty"`
+	TopP            *float64 `json:"top_p,omitempty"`
+	MaxTokens       *int     `json:"max_tokens,omitempty"`
+	ReasoningEffort string   `json:"reasoning_effort,omitempty"`
+	ResponseFormat  string   `json:"response_format,omitempty"`
+}
+
+type UpstreamQualityUsage struct {
+	InputTokens  int `json:"input_tokens,omitempty"`
+	OutputTokens int `json:"output_tokens,omitempty"`
+	TotalTokens  int `json:"total_tokens,omitempty"`
+	ImageCount   int `json:"image_count,omitempty"`
+}
+
+type UpstreamQualityAuditRecord struct {
+	RequestID        string                     `json:"request_id,omitempty"`
+	Route            string                     `json:"route,omitempty"`
+	Operation        UpstreamQualityOperation   `json:"operation,omitempty"`
+	RequestedModel   string                     `json:"requested_model,omitempty"`
+	MappedModel      string                     `json:"mapped_model,omitempty"`
+	UpstreamModel    string                     `json:"upstream_model,omitempty"`
+	ProviderName     string                     `json:"provider_name,omitempty"`
+	EndpointLabel    string                     `json:"endpoint_label,omitempty"`
+	EndpointHostHash string                     `json:"endpoint_host_hash,omitempty"`
+	ServiceTier      string                     `json:"service_tier,omitempty"`
+	FallbackUsed     bool                       `json:"fallback_used,omitempty"`
+	FallbackReason   string                     `json:"fallback_reason,omitempty"`
+	LatencyMs        int64                      `json:"latency_ms,omitempty"`
+	Status           string                     `json:"status,omitempty"`
+	ErrorCode        string                     `json:"error_code,omitempty"`
+	TokenUsage       UpstreamQualityUsage       `json:"token_usage,omitempty"`
+	TextParams       UpstreamQualityTextParams  `json:"text_params,omitempty"`
+	ImageParams      UpstreamQualityImageParams `json:"image_params,omitempty"`
+	PromptHash       string                     `json:"prompt_hash,omitempty"`
+	PromptPreview    string                     `json:"prompt_preview_redacted,omitempty"`
+	PromptEnhanced   bool                       `json:"prompt_enhancer_used,omitempty"`
+	CreatedAt        time.Time                  `json:"created_at,omitempty"`
+}
+
+type UpstreamQualityAuditInput struct {
+	RequestID      string
+	Route          string
+	Operation      UpstreamQualityOperation
+	RequestedModel string
+	MappedModel    string
+	UpstreamModel  string
+	ProviderName   string
+	Endpoint       string
+	ServiceTier    string
+	FallbackUsed   bool
+	FallbackReason string
+	LatencyMs      int64
+	Status         string
+	ErrorCode      string
+	TokenUsage     UpstreamQualityUsage
+	TextParams     UpstreamQualityTextParams
+	ImageParams    UpstreamQualityImageParams
+	Prompt         string
+	PromptEnhanced bool
+	CreatedAt      time.Time
+}
+
+func BuildUpstreamQualityAuditRecord(input UpstreamQualityAuditInput) UpstreamQualityAuditRecord {
+	endpointLabel, endpointHostHash := auditEndpointLabels(input.Endpoint)
+	createdAt := input.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now()
+	}
+
+	requestedModel := strings.TrimSpace(input.RequestedModel)
+	mappedModel := strings.TrimSpace(input.MappedModel)
+	upstreamModel := strings.TrimSpace(input.UpstreamModel)
+	fallbackUsed := input.FallbackUsed
+	if !fallbackUsed && requestedModel != "" && upstreamModel != "" && upstreamModel != requestedModel {
+		fallbackUsed = true
+	}
+
+	return UpstreamQualityAuditRecord{
+		RequestID:        trimAuditValue(input.RequestID, 128),
+		Route:            trimAuditValue(input.Route, 160),
+		Operation:        input.Operation,
+		RequestedModel:   trimAuditValue(requestedModel, 160),
+		MappedModel:      trimAuditValue(mappedModel, 160),
+		UpstreamModel:    trimAuditValue(upstreamModel, 160),
+		ProviderName:     trimAuditValue(input.ProviderName, 80),
+		EndpointLabel:    endpointLabel,
+		EndpointHostHash: endpointHostHash,
+		ServiceTier:      trimAuditValue(input.ServiceTier, 80),
+		FallbackUsed:     fallbackUsed,
+		FallbackReason:   trimAuditValue(input.FallbackReason, 240),
+		LatencyMs:        input.LatencyMs,
+		Status:           trimAuditValue(input.Status, 80),
+		ErrorCode:        trimAuditValue(input.ErrorCode, 120),
+		TokenUsage:       input.TokenUsage,
+		TextParams:       sanitizeAuditTextParams(input.TextParams),
+		ImageParams:      sanitizeAuditImageParams(input.ImageParams),
+		PromptHash:       auditPromptHash(input.Prompt),
+		PromptPreview:    auditPromptPreview(input.Prompt, 120),
+		PromptEnhanced:   input.PromptEnhanced,
+		CreatedAt:        createdAt,
+	}
+}
+
+func SetUpstreamQualityAuditRecordContext(ctx gatewayctx.GatewayContext, record UpstreamQualityAuditRecord) {
+	if ctx == nil {
+		return
+	}
+	ctx.SetValue(UpstreamQualityAuditContextKey, record)
+}
+
+func GetUpstreamQualityAuditRecordContext(ctx gatewayctx.GatewayContext) (UpstreamQualityAuditRecord, bool) {
+	if ctx == nil {
+		return UpstreamQualityAuditRecord{}, false
+	}
+	value, ok := ctx.Value(UpstreamQualityAuditContextKey)
+	if !ok {
+		return UpstreamQualityAuditRecord{}, false
+	}
+	record, ok := value.(UpstreamQualityAuditRecord)
+	return record, ok
+}
+
+func MergeUpstreamQualityAuditRecordContext(ctx gatewayctx.GatewayContext, patch UpstreamQualityAuditInput) {
+	if ctx == nil {
+		return
+	}
+	record, ok := GetUpstreamQualityAuditRecordContext(ctx)
+	if !ok {
+		SetUpstreamQualityAuditRecordContext(ctx, BuildUpstreamQualityAuditRecord(patch))
+		return
+	}
+	if patch.RequestID != "" {
+		record.RequestID = trimAuditValue(patch.RequestID, 128)
+	}
+	if patch.Route != "" {
+		record.Route = trimAuditValue(patch.Route, 160)
+	}
+	if patch.Operation != "" {
+		record.Operation = patch.Operation
+	}
+	if patch.RequestedModel != "" {
+		record.RequestedModel = trimAuditValue(patch.RequestedModel, 160)
+	}
+	if patch.MappedModel != "" {
+		record.MappedModel = trimAuditValue(patch.MappedModel, 160)
+	}
+	if patch.UpstreamModel != "" {
+		record.UpstreamModel = trimAuditValue(patch.UpstreamModel, 160)
+	}
+	if patch.ProviderName != "" {
+		record.ProviderName = trimAuditValue(patch.ProviderName, 80)
+	}
+	if patch.Endpoint != "" {
+		record.EndpointLabel, record.EndpointHostHash = auditEndpointLabels(patch.Endpoint)
+	}
+	if patch.ServiceTier != "" {
+		record.ServiceTier = trimAuditValue(patch.ServiceTier, 80)
+	}
+	if patch.FallbackUsed {
+		record.FallbackUsed = true
+	}
+	if patch.FallbackReason != "" {
+		record.FallbackReason = trimAuditValue(patch.FallbackReason, 240)
+	}
+	if patch.LatencyMs > 0 {
+		record.LatencyMs = patch.LatencyMs
+	}
+	if patch.Status != "" {
+		record.Status = trimAuditValue(patch.Status, 80)
+	}
+	if patch.ErrorCode != "" {
+		record.ErrorCode = trimAuditValue(patch.ErrorCode, 120)
+	}
+	if patch.TokenUsage != (UpstreamQualityUsage{}) {
+		record.TokenUsage = patch.TokenUsage
+	}
+	if patch.TextParams != (UpstreamQualityTextParams{}) {
+		record.TextParams = sanitizeAuditTextParams(patch.TextParams)
+	}
+	if patch.ImageParams != (UpstreamQualityImageParams{}) {
+		record.ImageParams = sanitizeAuditImageParams(patch.ImageParams)
+	}
+	if patch.Prompt != "" {
+		record.PromptHash = auditPromptHash(patch.Prompt)
+		record.PromptPreview = auditPromptPreview(patch.Prompt, 120)
+	}
+	if patch.PromptEnhanced {
+		record.PromptEnhanced = true
+	}
+	if !patch.CreatedAt.IsZero() {
+		record.CreatedAt = patch.CreatedAt
+	}
+	if record.RequestedModel != "" && record.UpstreamModel != "" && record.RequestedModel != record.UpstreamModel {
+		record.FallbackUsed = true
+	}
+	ctx.SetValue(UpstreamQualityAuditContextKey, record)
+}
+
+type UpstreamQualityPromptSample struct {
+	ID        string                   `json:"id"`
+	Category  string                   `json:"category"`
+	Operation UpstreamQualityOperation `json:"operation"`
+	Prompt    string                   `json:"prompt"`
+	Criteria  []string                 `json:"criteria"`
+}
+
+func UpstreamQualityPromptSamples() []UpstreamQualityPromptSample {
+	return []UpstreamQualityPromptSample{
+		{
+			ID:        "text-context-reasoning",
+			Category:  "text",
+			Operation: UpstreamQualityOperationTextCompletion,
+			Prompt:    "用户先描述一个电商活动目标，再要求 AI 输出可执行的活动方案、文案和风险提醒。",
+			Criteria:  []string{"keeps context", "actionable plan", "no fabricated data"},
+		},
+		{
+			ID:        "image-ecommerce-hero",
+			Category:  "image",
+			Operation: UpstreamQualityOperationImageGeneration,
+			Prompt:    "为一款高端保温杯生成电商主图，要求商业摄影质感、真实阴影、干净构图、无乱码文字。",
+			Criteria:  []string{"commercial lighting", "product fidelity", "no garbled text"},
+		},
+		{
+			ID:        "image-xiaohongshu-cover",
+			Category:  "image",
+			Operation: UpstreamQualityOperationImageGeneration,
+			Prompt:    "生成小红书风格护肤品封面图，要求高级感、清晰主体、适合社媒投放、不要水印。",
+			Criteria:  []string{"social cover composition", "premium visual", "no watermark"},
+		},
+		{
+			ID:        "image-restaurant-ad",
+			Category:  "image",
+			Operation: UpstreamQualityOperationImageGeneration,
+			Prompt:    "生成餐饮新品广告图，突出热气、食欲、真实食材和可商用海报构图。",
+			Criteria:  []string{"appetizing realism", "poster composition", "usable detail"},
+		},
+		{
+			ID:        "image-app-banner",
+			Category:  "image",
+			Operation: UpstreamQualityOperationImageGeneration,
+			Prompt:    "生成一张 AI 工作台 App banner，科技感但不花哨，强调统一输入和多能力工作流。",
+			Criteria:  []string{"clear product signal", "balanced composition", "professional polish"},
+		},
+	}
+}
+
+func auditPromptHash(prompt string) string {
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(prompt))
+	return hex.EncodeToString(sum[:])
+}
+
+var auditSecretPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+`),
+	regexp.MustCompile(`(?i)\b(authorization|api[_-]?key|access[_-]?token|refresh[_-]?token|session[_-]?token|client[_-]?secret|secret|password|cookie)\s*[:=]\s*[^,\s]+`),
+}
+
+func auditPromptPreview(prompt string, maxRunes int) string {
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" || maxRunes <= 0 {
+		return ""
+	}
+	prompt = strings.ReplaceAll(prompt, "\r", " ")
+	prompt = strings.ReplaceAll(prompt, "\n", " ")
+	for _, pattern := range auditSecretPatterns {
+		prompt = pattern.ReplaceAllStringFunc(prompt, func(match string) string {
+			if strings.HasPrefix(strings.ToLower(match), "bearer ") {
+				return "Bearer [REDACTED]"
+			}
+			if idx := strings.IndexAny(match, ":="); idx >= 0 {
+				return strings.TrimSpace(match[:idx+1]) + "[REDACTED]"
+			}
+			return "[REDACTED]"
+		})
+	}
+	return truncateAuditRunes(strings.Join(strings.Fields(prompt), " "), maxRunes)
+}
+
+func auditEndpointLabels(endpoint string) (label string, hostHash string) {
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" {
+		return "", ""
+	}
+	if strings.HasPrefix(endpoint, "/") {
+		return truncateAuditRunes(endpoint, 180), ""
+	}
+	parsed, err := url.Parse(endpoint)
+	if err == nil && parsed.Host != "" {
+		hostHash = shortAuditHash(strings.ToLower(parsed.Host))
+		path := parsed.EscapedPath()
+		if path == "" {
+			path = "/"
+		}
+		return truncateAuditRunes("host_sha256:"+hostHash+" path:"+path, 220), hostHash
+	}
+	hostHash = shortAuditHash(endpoint)
+	return "endpoint_sha256:" + hostHash, hostHash
+}
+
+func shortAuditHash(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])[:16]
+}
+
+func sanitizeAuditImageParams(params UpstreamQualityImageParams) UpstreamQualityImageParams {
+	params.Size = trimAuditValue(params.Size, 40)
+	params.Quality = trimAuditValue(params.Quality, 40)
+	params.Style = trimAuditValue(params.Style, 80)
+	params.Background = trimAuditValue(params.Background, 80)
+	params.OutputFormat = trimAuditValue(params.OutputFormat, 40)
+	if params.Count < 0 {
+		params.Count = 0
+	}
+	return params
+}
+
+func sanitizeAuditTextParams(params UpstreamQualityTextParams) UpstreamQualityTextParams {
+	params.ReasoningEffort = trimAuditValue(params.ReasoningEffort, 40)
+	params.ResponseFormat = trimAuditValue(params.ResponseFormat, 80)
+	return params
+}
+
+func trimAuditValue(value string, maxRunes int) string {
+	return truncateAuditRunes(strings.TrimSpace(value), maxRunes)
+}
+
+func truncateAuditRunes(value string, maxRunes int) string {
+	if maxRunes <= 0 {
+		return ""
+	}
+	runes := []rune(value)
+	if len(runes) <= maxRunes {
+		return value
+	}
+	return string(runes[:maxRunes]) + "..."
+}
