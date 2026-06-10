@@ -38,6 +38,9 @@ export interface ChatMessage {
   message_type: string
   role: string
   content: string
+  model?: string
+  intent?: string
+  status?: string
   task_id?: number
   asset_id?: number
   metadata?: Record<string, unknown>
@@ -96,6 +99,8 @@ export interface AppendMessageRequest {
   message_type: string
   role: string
   content: string
+  model: string
+  intent: string
   task_id?: number
   asset_id?: number
   metadata?: Record<string, unknown>

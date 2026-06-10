@@ -53,11 +53,20 @@ describe('WorkspaceComposer', () => {
   })
 
   it('emits submit when content is ready', async () => {
-    const wrapper = mountComposer({ modelValue: 'hello' })
+    const wrapper = mountComposer({ intent: 'chat', modelValue: 'hello' })
 
     await wrapper.get('form').trigger('submit.prevent')
 
     expect(wrapper.emitted('submit')).toHaveLength(1)
+  })
+
+  it('keeps submit disabled for image intent until image task backend is ready', async () => {
+    const wrapper = mountComposer({ intent: 'image', modelValue: 'make an image' })
+
+    await wrapper.get('form').trigger('submit.prevent')
+
+    expect(wrapper.get('[data-testid="workspace-send"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.emitted('submit')).toBeUndefined()
   })
 
   it('keeps submit disabled when the workspace backend is unavailable', async () => {

@@ -146,12 +146,16 @@ async function submitDraft() {
   if (!text && assets.previews.value.length === 0) return
   if (!activeChatModel.value || workspace.sending.value || assets.registering.value) return
 
-  await workspace.sendTextMessage({
+  const sent = await workspace.sendTextMessage({
     text,
     model: activeChatModel.value,
     intent: workspaceIntent.value,
     attachments: assets.getLocalAttachments()
   })
+  if (sent) {
+    draft.value = ''
+    assets.clearPreviews()
+  }
 }
 
 async function selectConversation(id: number) {
