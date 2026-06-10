@@ -281,3 +281,134 @@ func TestChatWorkspaceServiceAppendAssistantMessageRejectsUnsafeInputs(t *testin
 	})
 	require.ErrorIs(t, err, ErrWorkspaceInvalidMessage)
 }
+
+func TestChatWorkspaceServiceAppendMessageWithAssistantResponsePersistsUnavailableAssistant(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	responder := &recordingWorkspaceAssistantResponder{
+		response: WorkspaceAssistantResponse{
+			Content: WorkspaceAssistantUnavailableContent,
+			Model:   "gpt-5.5",
+			Intent:  WorkspaceIntentChat,
+			Metadata: map[string]any{
+				"status":             "unavailable",
+				"placeholder":        true,
+				"provider_called":    false,
+				"billing_touched":    false,
+				"asset_touched":      false,
+				"provider_connected": false,
+			},
+		},
+	}
+	svc := NewChatWorkspaceServiceWithResponder(repo, responder)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	userMessage, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "hello workspace",
+		Model:          "gpt-5.5",
+		Intent:         WorkspaceIntentChat,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, userMessage)
+	require.NotNil(t, assistantMessage)
+	require.Equal(t, 1, responder.calls)
+	require.Equal(t, int64(10), responder.lastInput.UserID)
+	require.Equal(t, conversation.ID, responder.lastInput.ConversationID)
+	require.Equal(t, userMessage.ID, responder.lastInput.UserMessage.ID)
+	require.Equal(t, WorkspaceRoleAssistant, assistantMessage.Role)
+	require.Equal(t, WorkspaceMessageTypeText, assistantMessage.MessageType)
+	require.Equal(t, WorkspaceMessageStatusCompleted, assistantMessage.Status)
+	require.Equal(t, WorkspaceAssistantUnavailableContent, assistantMessage.Content)
+	require.Equal(t, "unavailable", assistantMessage.Metadata["status"])
+	require.Equal(t, true, assistantMessage.Metadata["placeholder"])
+	require.Equal(t, false, assistantMessage.Metadata["provider_called"])
+	require.Equal(t, false, assistantMessage.Metadata["billing_touched"])
+	require.Equal(t, false, assistantMessage.Metadata["asset_touched"])
+
+	messages, err := svc.ListMessages(context.Background(), 10, conversation.ID)
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	require.Equal(t, WorkspaceRoleUser, messages[0].Role)
+	require.Equal(t, WorkspaceRoleAssistant, messages[1].Role)
+}
+
+func TestChatWorkspaceServiceAppendMessageWithAssistantResponseDoesNotRunResponderForRejectedInput(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	responder := &recordingWorkspaceAssistantResponder{}
+	svc := NewChatWorkspaceServiceWithResponder(repo, responder)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, _, err = svc.AppendMessageWithAssistantResponse(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "hello workspace",
+		Model:          "unknown-model",
+		Intent:         WorkspaceIntentChat,
+	})
+	require.ErrorIs(t, err, ErrWorkspaceInvalidModel)
+
+	_, _, err = svc.AppendMessageWithAssistantResponse(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "draw image",
+		Model:          "gpt-5.5",
+		Intent:         "image_generation",
+	})
+	require.ErrorIs(t, err, ErrWorkspaceCapabilityDisabled)
+
+	_, _, err = svc.AppendMessageWithAssistantResponse(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "hello workspace",
+		Model:          "gpt-5.5",
+		Intent:         "custom",
+	})
+	require.ErrorIs(t, err, ErrWorkspaceInvalidIntent)
+
+	require.Zero(t, responder.calls)
+	messages, err := svc.ListMessages(context.Background(), 10, conversation.ID)
+	require.NoError(t, err)
+	require.Empty(t, messages)
+}
+
+func TestWorkspaceUnavailableAssistantResponderDoesNotCallProviderOrBilling(t *testing.T) {
+	response, err := WorkspaceUnavailableAssistantResponder{}.GenerateAssistantResponse(context.Background(), WorkspaceAssistantResponseInput{
+		UserID:         10,
+		ConversationID: 1,
+		Content:        "hello workspace",
+		Model:          "gpt-5.5",
+		Intent:         WorkspaceIntentChat,
+	})
+	require.NoError(t, err)
+	require.Equal(t, WorkspaceAssistantUnavailableContent, response.Content)
+	require.Equal(t, false, response.Metadata["provider_connected"])
+	require.Equal(t, false, response.Metadata["provider_called"])
+	require.Equal(t, false, response.Metadata["billing_touched"])
+	require.Equal(t, false, response.Metadata["asset_touched"])
+}
+
+type recordingWorkspaceAssistantResponder struct {
+	calls     int
+	lastInput WorkspaceAssistantResponseInput
+	response  WorkspaceAssistantResponse
+	err       error
+}
+
+func (r *recordingWorkspaceAssistantResponder) GenerateAssistantResponse(_ context.Context, input WorkspaceAssistantResponseInput) (WorkspaceAssistantResponse, error) {
+	r.calls++
+	r.lastInput = input
+	if r.err != nil {
+		return WorkspaceAssistantResponse{}, r.err
+	}
+	if r.response.Content != "" {
+		return r.response, nil
+	}
+	return WorkspaceUnavailableAssistantResponder{}.GenerateAssistantResponse(context.Background(), input)
+}

@@ -129,7 +129,7 @@ func (h *ChatWorkspaceHandler) AppendMessageGateway(c gatewayctx.GatewayContext)
 		return
 	}
 
-	msg, err := h.workspaceService.AppendMessage(c.Request().Context(), subject.UserID, service.WorkspaceAppendMessageInput{
+	msg, _, err := h.workspaceService.AppendMessageWithAssistantResponse(c.Request().Context(), subject.UserID, service.WorkspaceAppendMessageInput{
 		ConversationID: conversationID,
 		MessageType:    req.MessageType,
 		Role:           req.Role,
