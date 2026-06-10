@@ -460,6 +460,219 @@ func TestBuildUpstreamQualityBenchmarkReportMarksMissingAuditRecord(t *testing.T
 	}
 }
 
+func TestBuildUpstreamImageQualityComparisonReportMergesReferencesScoresAndDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	samples := []UpstreamQualityBenchmarkSample{{
+		ID:                        "image-ecommerce-product-hero",
+		Type:                      "image",
+		Category:                  "ecommerce_product_hero",
+		Operation:                 UpstreamQualityOperationImageGeneration,
+		Prompt:                    "Premium product hero image.",
+		ExpectedQualityDimensions: commercialImageQualityDimensions(),
+		CreatedFor:                "manual_review",
+	}}
+	records := map[string]UpstreamQualityAuditRecord{
+		"image-ecommerce-product-hero": BuildUpstreamQualityAuditRecord(UpstreamQualityAuditInput{
+			Route:          "/api/v1/image-studio/generate",
+			Operation:      UpstreamQualityOperationImageGeneration,
+			RequestedModel: "gpt-image-2",
+			MappedModel:    "gpt-image-2",
+			UpstreamModel:  "gpt-image-2-compatible",
+			ProviderName:   "image-provider-main",
+			Endpoint:       "/v1/images/generations",
+			ImageParams: UpstreamQualityImageParams{
+				Size:  "1024x1536",
+				Count: 1,
+			},
+			Prompt:         "Authorization: Bearer sk-live-secret premium product hero",
+			PromptEnhanced: false,
+			FallbackReason: "mapped_provider_model",
+			LatencyMs:      3000,
+			Status:         "succeeded",
+		}),
+	}
+	report := BuildUpstreamImageQualityComparisonReport(
+		samples,
+		records,
+		map[string]UpstreamImageQualityComparisonReference{
+			"image-ecommerce-product-hero": {
+				Label:   "official product baseline",
+				ImageID: "official_image_001",
+			},
+		},
+		map[string]UpstreamImageQualityComparisonReference{
+			"image-ecommerce-product-hero": {
+				Label:   "relay output candidate",
+				ImageID: "site_image_001",
+			},
+		},
+		map[string]UpstreamImageQualityManualScores{
+			"image-ecommerce-product-hero": {
+				CompositionScore:       4,
+				CommercialScore:        2,
+				TextQualityScore:       2,
+				DetailScore:            2,
+				PromptFollowingScore:   3,
+				SubjectStabilityScore:  4,
+				BrandConsistencyScore:  3,
+				CommercialReadyScore:   2,
+				ReviewerNotes:          "Commercial feel is weak; Chinese text is unstable.",
+				NeedsRetry:             true,
+				NeedsProviderReview:    true,
+				NeedsPromptImprovement: true,
+			},
+		},
+	)
+
+	if report.TotalComparisons != 1 || report.MatchedAuditRecords != 1 || report.OfficialReferences != 1 || report.SiteOutputs != 1 {
+		t.Fatalf("unexpected comparison counters: %+v", report)
+	}
+	result := imageComparisonResultByID(report, "image-ecommerce-product-hero")
+	if !result.HasAuditRecord || !result.HasOfficialReference || !result.HasSiteOutput {
+		t.Fatalf("expected audit/reference/site output markers: %+v", result)
+	}
+	if result.ImageParams.Size != "1024x1536" || result.ImageParams.Quality != "" {
+		t.Fatalf("expected image params to be preserved for attribution: %+v", result.ImageParams)
+	}
+	for _, reason := range []UpstreamImageQualityComparisonReason{
+		UpstreamImageQualityReasonModelMappingDifference,
+		UpstreamImageQualityReasonFallbackOrDowngrade,
+		UpstreamImageQualityReasonMissingQuality,
+		UpstreamImageQualityReasonMissingStyle,
+		UpstreamImageQualityReasonMissingOutputFormat,
+		UpstreamImageQualityReasonPromptEnhancerMissing,
+		UpstreamImageQualityReasonPoorTextQuality,
+		UpstreamImageQualityReasonDistortedDetails,
+		UpstreamImageQualityReasonLowCommercialAppeal,
+		UpstreamImageQualityReasonNeedsRetrySelection,
+		UpstreamImageQualityReasonProviderReviewNeeded,
+	} {
+		if !imageComparisonHasReason(result, reason) {
+			t.Fatalf("expected attribution reason %s in %+v", reason, result.AttributionReasons)
+		}
+	}
+}
+
+func TestBuildUpstreamImageQualityComparisonReportDoesNotLeakSensitiveData(t *testing.T) {
+	t.Parallel()
+
+	samples := []UpstreamQualityBenchmarkSample{{
+		ID:                        "image-sensitive-comparison",
+		Type:                      "image",
+		Category:                  "ecommerce_product_hero",
+		Operation:                 UpstreamQualityOperationImageGeneration,
+		Prompt:                    "Synthetic non-sensitive image benchmark.",
+		ExpectedQualityDimensions: commercialImageQualityDimensions(),
+		CreatedFor:                "manual_review",
+	}}
+	records := map[string]UpstreamQualityAuditRecord{
+		"image-sensitive-comparison": BuildUpstreamQualityAuditRecord(UpstreamQualityAuditInput{
+			Route:          "/api/v1/image-studio/generate",
+			Operation:      UpstreamQualityOperationImageGeneration,
+			RequestedModel: "gpt-image-2",
+			UpstreamModel:  "gpt-image-2",
+			ProviderName:   "image-provider-main",
+			Endpoint:       "https://api.openai.com/v1/images/generations?api_key=must-not-appear",
+			ImageParams: UpstreamQualityImageParams{
+				Size:         "1024x1024",
+				Quality:      "high",
+				Style:        "commercial",
+				OutputFormat: "png",
+				Count:        1,
+			},
+			Prompt:         "Authorization: Bearer sk-live-secret cookie=sessionid password=hunter2 private customer product image prompt",
+			PromptEnhanced: true,
+			Status:         "succeeded",
+		}),
+	}
+	report := BuildUpstreamImageQualityComparisonReport(
+		samples,
+		records,
+		map[string]UpstreamImageQualityComparisonReference{
+			"image-sensitive-comparison": {
+				Label:   "official https://private.example.com/reference.png?token=official-secret",
+				ImageID: "https://private.example.com/reference.png?token=official-secret",
+			},
+		},
+		map[string]UpstreamImageQualityComparisonReference{
+			"image-sensitive-comparison": {
+				Label:   "site output https://cdn.example.com/output.png?signature=site-secret",
+				ImageID: "https://cdn.example.com/output.png?signature=site-secret",
+			},
+		},
+		map[string]UpstreamImageQualityManualScores{
+			"image-sensitive-comparison": {
+				ReviewerNotes: "Authorization: Bearer sk-reviewer-secret private launch prompt",
+			},
+		},
+	)
+	payload, err := json.Marshal(report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(payload)
+	for _, forbidden := range []string{
+		"sk-live-secret",
+		"sessionid",
+		"hunter2",
+		"api.openai.com",
+		"must-not-appear",
+		"private customer product image prompt",
+		"private.example.com",
+		"official-secret",
+		"cdn.example.com",
+		"site-secret",
+		"sk-reviewer-secret",
+		"private launch prompt",
+	} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("image quality comparison report leaked %q: %s", forbidden, body)
+		}
+	}
+	result := imageComparisonResultByID(report, "image-sensitive-comparison")
+	if !strings.HasPrefix(result.OfficialReferenceImageID, "image_ref_sha256:") ||
+		!strings.HasPrefix(result.SiteOutputImageID, "image_ref_sha256:") {
+		t.Fatalf("expected private image references to be hashed: %+v", result)
+	}
+}
+
+func TestBuildUpstreamImageQualityComparisonReportUsesOnlyImageSamples(t *testing.T) {
+	t.Parallel()
+
+	samples := []UpstreamQualityBenchmarkSample{
+		{
+			ID:                        "text-strict-json-output",
+			Type:                      "text",
+			Category:                  "strict_json_output",
+			Operation:                 UpstreamQualityOperationTextCompletion,
+			Prompt:                    "Return JSON.",
+			ExpectedQualityDimensions: []string{"format compliance"},
+			CreatedFor:                "regression",
+		},
+		{
+			ID:                        "image-no-audit-record",
+			Type:                      "image",
+			Category:                  "ecommerce_product_hero",
+			Operation:                 UpstreamQualityOperationImageGeneration,
+			Prompt:                    "Premium product hero image.",
+			ExpectedQualityDimensions: commercialImageQualityDimensions(),
+			CreatedFor:                "manual_review",
+		},
+	}
+	report := BuildUpstreamImageQualityComparisonReport(samples, nil, nil, nil, nil)
+	if report.TotalComparisons != 1 {
+		t.Fatalf("expected only image samples to be included: %+v", report)
+	}
+	result := imageComparisonResultByID(report, "image-no-audit-record")
+	if result.HasAuditRecord {
+		t.Fatalf("did not expect audit record: %+v", result)
+	}
+	if !imageComparisonResultHasFinding(result, "missing_audit_record") {
+		t.Fatalf("expected missing audit record finding: %+v", result.Diagnostics)
+	}
+}
+
 func newAuditTestRequest() *http.Request {
 	req, err := http.NewRequest(http.MethodPost, "/api/v1/image-studio/generate", nil)
 	if err != nil {
@@ -496,6 +709,33 @@ func benchmarkResultByID(report UpstreamQualityBenchmarkReport, sampleID string)
 }
 
 func benchmarkResultHasFinding(result UpstreamQualityBenchmarkSampleResult, code string) bool {
+	for _, finding := range result.Diagnostics {
+		if finding.Code == code {
+			return true
+		}
+	}
+	return false
+}
+
+func imageComparisonResultByID(report UpstreamImageQualityComparisonReport, sampleID string) UpstreamImageQualityComparisonResult {
+	for _, result := range report.Results {
+		if result.BenchmarkSampleID == sampleID {
+			return result
+		}
+	}
+	return UpstreamImageQualityComparisonResult{}
+}
+
+func imageComparisonHasReason(result UpstreamImageQualityComparisonResult, reason UpstreamImageQualityComparisonReason) bool {
+	for _, value := range result.AttributionReasons {
+		if value == reason {
+			return true
+		}
+	}
+	return false
+}
+
+func imageComparisonResultHasFinding(result UpstreamImageQualityComparisonResult, code string) bool {
 	for _, finding := range result.Diagnostics {
 		if finding.Code == code {
 			return true

@@ -497,6 +497,83 @@ type UpstreamQualityBenchmarkReport struct {
 	Diagnostics         UpstreamQualityDiagnosticReport        `json:"diagnostics"`
 }
 
+type UpstreamImageQualityComparisonReason string
+
+const (
+	UpstreamImageQualityReasonModelMappingDifference UpstreamImageQualityComparisonReason = "model_mapping_difference"
+	UpstreamImageQualityReasonFallbackOrDowngrade    UpstreamImageQualityComparisonReason = "fallback_or_downgrade"
+	UpstreamImageQualityReasonMissingSize            UpstreamImageQualityComparisonReason = "missing_size"
+	UpstreamImageQualityReasonMissingQuality         UpstreamImageQualityComparisonReason = "missing_quality"
+	UpstreamImageQualityReasonMissingStyle           UpstreamImageQualityComparisonReason = "missing_style"
+	UpstreamImageQualityReasonMissingOutputFormat    UpstreamImageQualityComparisonReason = "missing_output_format"
+	UpstreamImageQualityReasonPromptEnhancerMissing  UpstreamImageQualityComparisonReason = "prompt_enhancer_missing"
+	UpstreamImageQualityReasonPoorPromptFollowing    UpstreamImageQualityComparisonReason = "poor_prompt_following"
+	UpstreamImageQualityReasonPoorTextQuality        UpstreamImageQualityComparisonReason = "poor_text_quality"
+	UpstreamImageQualityReasonDistortedDetails       UpstreamImageQualityComparisonReason = "distorted_details"
+	UpstreamImageQualityReasonLowCommercialAppeal    UpstreamImageQualityComparisonReason = "low_commercial_appeal"
+	UpstreamImageQualityReasonNeedsRetrySelection    UpstreamImageQualityComparisonReason = "needs_retry_selection"
+	UpstreamImageQualityReasonProviderReviewNeeded   UpstreamImageQualityComparisonReason = "provider_or_params_review_needed"
+)
+
+type UpstreamImageQualityComparisonReference struct {
+	Label   string `json:"label,omitempty"`
+	ImageID string `json:"image_id,omitempty"`
+}
+
+type UpstreamImageQualityManualScores struct {
+	CompositionScore       int    `json:"composition_score,omitempty"`
+	CommercialScore        int    `json:"commercial_score,omitempty"`
+	TextQualityScore       int    `json:"text_quality_score,omitempty"`
+	DetailScore            int    `json:"detail_score,omitempty"`
+	PromptFollowingScore   int    `json:"prompt_following_score,omitempty"`
+	SubjectStabilityScore  int    `json:"subject_stability_score,omitempty"`
+	BrandConsistencyScore  int    `json:"brand_consistency_score,omitempty"`
+	CommercialReadyScore   int    `json:"commercial_ready_score,omitempty"`
+	TotalScore             int    `json:"total_score,omitempty"`
+	CommerciallyUsable     bool   `json:"commercially_usable,omitempty"`
+	ReviewerNotes          string `json:"reviewer_notes,omitempty"`
+	NeedsRetry             bool   `json:"needs_retry,omitempty"`
+	NeedsProviderReview    bool   `json:"needs_provider_review,omitempty"`
+	NeedsPromptImprovement bool   `json:"needs_prompt_improvement,omitempty"`
+}
+
+type UpstreamImageQualityComparisonResult struct {
+	BenchmarkSampleID        string                                 `json:"benchmark_sample_id"`
+	OfficialReferenceLabel   string                                 `json:"official_reference_label,omitempty"`
+	OfficialReferenceImageID string                                 `json:"official_reference_image_id,omitempty"`
+	SiteOutputLabel          string                                 `json:"site_output_label,omitempty"`
+	SiteOutputImageID        string                                 `json:"site_output_image_id,omitempty"`
+	RequestedModel           string                                 `json:"requested_model,omitempty"`
+	MappedModel              string                                 `json:"mapped_model,omitempty"`
+	UpstreamModel            string                                 `json:"upstream_model,omitempty"`
+	ProviderName             string                                 `json:"provider_name,omitempty"`
+	EndpointLabel            string                                 `json:"endpoint_label,omitempty"`
+	ImageParams              UpstreamQualityImageParams             `json:"image_params,omitempty"`
+	PromptHash               string                                 `json:"prompt_hash,omitempty"`
+	PromptPreview            string                                 `json:"prompt_preview_redacted,omitempty"`
+	PromptEnhanced           bool                                   `json:"prompt_enhancer_used,omitempty"`
+	FallbackUsed             bool                                   `json:"fallback_used,omitempty"`
+	FallbackReason           string                                 `json:"fallback_reason,omitempty"`
+	Diagnostics              []UpstreamQualityDiagnosticFinding     `json:"diagnostics,omitempty"`
+	ManualScores             UpstreamImageQualityManualScores       `json:"manual_scores,omitempty"`
+	AttributionReasons       []UpstreamImageQualityComparisonReason `json:"attribution_reasons,omitempty"`
+	HasAuditRecord           bool                                   `json:"has_audit_record"`
+	HasOfficialReference     bool                                   `json:"has_official_reference"`
+	HasSiteOutput            bool                                   `json:"has_site_output"`
+}
+
+type UpstreamImageQualityComparisonReport struct {
+	TotalComparisons       int                                    `json:"total_comparisons"`
+	MatchedAuditRecords    int                                    `json:"matched_audit_records"`
+	OfficialReferences     int                                    `json:"official_references"`
+	SiteOutputs            int                                    `json:"site_outputs"`
+	CommerciallyUsable     int                                    `json:"commercially_usable"`
+	NeedsRetry             int                                    `json:"needs_retry"`
+	NeedsProviderReview    int                                    `json:"needs_provider_review"`
+	NeedsPromptImprovement int                                    `json:"needs_prompt_improvement"`
+	Results                []UpstreamImageQualityComparisonResult `json:"results"`
+}
+
 func UpstreamQualityPromptSamples() []UpstreamQualityPromptSample {
 	return []UpstreamQualityPromptSample{
 		{
@@ -759,6 +836,217 @@ func BuildUpstreamQualityBenchmarkReport(
 	}
 	report.Diagnostics = BuildUpstreamQualityDiagnosticReport(diagnosticRecords)
 	return report
+}
+
+func BuildUpstreamImageQualityComparisonReport(
+	samples []UpstreamQualityBenchmarkSample,
+	records map[string]UpstreamQualityAuditRecord,
+	officialReferences map[string]UpstreamImageQualityComparisonReference,
+	siteOutputs map[string]UpstreamImageQualityComparisonReference,
+	manualScores map[string]UpstreamImageQualityManualScores,
+) UpstreamImageQualityComparisonReport {
+	report := UpstreamImageQualityComparisonReport{}
+	for _, sample := range samples {
+		if sample.Type != "image" {
+			continue
+		}
+		result := UpstreamImageQualityComparisonResult{
+			BenchmarkSampleID: trimAuditValue(sample.ID, 120),
+			PromptPreview:     auditPromptPreview(sample.Prompt, 120),
+		}
+		if officialReference, ok := officialReferences[sample.ID]; ok {
+			report.OfficialReferences++
+			result.HasOfficialReference = true
+			result.OfficialReferenceLabel = sanitizeComparisonLabel(officialReference.Label)
+			result.OfficialReferenceImageID = sanitizeComparisonImageID(officialReference.ImageID)
+		}
+		if siteOutput, ok := siteOutputs[sample.ID]; ok {
+			report.SiteOutputs++
+			result.HasSiteOutput = true
+			result.SiteOutputLabel = sanitizeComparisonLabel(siteOutput.Label)
+			result.SiteOutputImageID = sanitizeComparisonImageID(siteOutput.ImageID)
+		}
+		if record, ok := records[sample.ID]; ok {
+			report.MatchedAuditRecords++
+			result.HasAuditRecord = true
+			result.RequestedModel = record.RequestedModel
+			result.MappedModel = record.MappedModel
+			result.UpstreamModel = record.UpstreamModel
+			result.ProviderName = record.ProviderName
+			result.EndpointLabel = record.EndpointLabel
+			result.ImageParams = record.ImageParams
+			result.PromptHash = record.PromptHash
+			result.PromptEnhanced = record.PromptEnhanced
+			result.FallbackUsed = record.FallbackUsed
+			result.FallbackReason = record.FallbackReason
+			result.Diagnostics = BuildUpstreamQualityDiagnosticReport([]UpstreamQualityAuditRecord{record}).Findings
+		} else {
+			result.Diagnostics = []UpstreamQualityDiagnosticFinding{{
+				Code:           "missing_audit_record",
+				Severity:       UpstreamQualityDiagnosticSeverityMedium,
+				Operation:      sample.Operation,
+				Message:        "Image comparison sample has no matching audit record.",
+				Recommendation: "Attach a sanitized audit record before judging whether provider, parameters, fallback, or prompt pipeline caused quality gaps.",
+			}}
+		}
+		if scores, ok := manualScores[sample.ID]; ok {
+			result.ManualScores = normalizeImageQualityManualScores(scores)
+			if result.ManualScores.CommerciallyUsable {
+				report.CommerciallyUsable++
+			}
+			if result.ManualScores.NeedsRetry {
+				report.NeedsRetry++
+			}
+			if result.ManualScores.NeedsProviderReview {
+				report.NeedsProviderReview++
+			}
+			if result.ManualScores.NeedsPromptImprovement {
+				report.NeedsPromptImprovement++
+			}
+		}
+		result.AttributionReasons = imageQualityAttributionReasons(result)
+		report.Results = append(report.Results, result)
+	}
+	report.TotalComparisons = len(report.Results)
+	return report
+}
+
+func normalizeImageQualityManualScores(scores UpstreamImageQualityManualScores) UpstreamImageQualityManualScores {
+	scores.CompositionScore = clampQualityScore(scores.CompositionScore)
+	scores.CommercialScore = clampQualityScore(scores.CommercialScore)
+	scores.TextQualityScore = clampQualityScore(scores.TextQualityScore)
+	scores.DetailScore = clampQualityScore(scores.DetailScore)
+	scores.PromptFollowingScore = clampQualityScore(scores.PromptFollowingScore)
+	scores.SubjectStabilityScore = clampQualityScore(scores.SubjectStabilityScore)
+	scores.BrandConsistencyScore = clampQualityScore(scores.BrandConsistencyScore)
+	scores.CommercialReadyScore = clampQualityScore(scores.CommercialReadyScore)
+	if scores.TotalScore <= 0 {
+		scores.TotalScore = scores.CompositionScore +
+			scores.CommercialScore +
+			scores.TextQualityScore +
+			scores.DetailScore +
+			scores.PromptFollowingScore +
+			scores.SubjectStabilityScore +
+			scores.BrandConsistencyScore +
+			scores.CommercialReadyScore
+	}
+	scores.TotalScore = clampTotalQualityScore(scores.TotalScore)
+	scores.ReviewerNotes = sanitizeReviewerNotes(scores.ReviewerNotes)
+	return scores
+}
+
+func imageQualityAttributionReasons(result UpstreamImageQualityComparisonResult) []UpstreamImageQualityComparisonReason {
+	reasons := []UpstreamImageQualityComparisonReason{}
+	addReason := func(reason UpstreamImageQualityComparisonReason) {
+		for _, existing := range reasons {
+			if existing == reason {
+				return
+			}
+		}
+		reasons = append(reasons, reason)
+	}
+	if result.HasAuditRecord {
+		if result.RequestedModel != "" && result.UpstreamModel != "" && result.RequestedModel != result.UpstreamModel {
+			addReason(UpstreamImageQualityReasonModelMappingDifference)
+		}
+		if result.FallbackUsed {
+			addReason(UpstreamImageQualityReasonFallbackOrDowngrade)
+			addReason(UpstreamImageQualityReasonProviderReviewNeeded)
+		}
+		if strings.TrimSpace(result.ImageParams.Size) == "" {
+			addReason(UpstreamImageQualityReasonMissingSize)
+		}
+		if strings.TrimSpace(result.ImageParams.Quality) == "" {
+			addReason(UpstreamImageQualityReasonMissingQuality)
+			addReason(UpstreamImageQualityReasonProviderReviewNeeded)
+		}
+		if strings.TrimSpace(result.ImageParams.Style) == "" {
+			addReason(UpstreamImageQualityReasonMissingStyle)
+		}
+		if strings.TrimSpace(result.ImageParams.OutputFormat) == "" {
+			addReason(UpstreamImageQualityReasonMissingOutputFormat)
+		}
+		if !result.PromptEnhanced {
+			addReason(UpstreamImageQualityReasonPromptEnhancerMissing)
+		}
+	}
+	scores := result.ManualScores
+	if scores.PromptFollowingScore > 0 && scores.PromptFollowingScore <= 2 {
+		addReason(UpstreamImageQualityReasonPoorPromptFollowing)
+	}
+	if scores.TextQualityScore > 0 && scores.TextQualityScore <= 2 {
+		addReason(UpstreamImageQualityReasonPoorTextQuality)
+	}
+	if scores.DetailScore > 0 && scores.DetailScore <= 2 {
+		addReason(UpstreamImageQualityReasonDistortedDetails)
+	}
+	if scores.CommercialScore > 0 && scores.CommercialScore <= 2 {
+		addReason(UpstreamImageQualityReasonLowCommercialAppeal)
+	}
+	if scores.NeedsRetry || (scores.TotalScore > 0 && scores.TotalScore < 28) || (scores.CommercialReadyScore > 0 && scores.CommercialReadyScore <= 2) {
+		addReason(UpstreamImageQualityReasonNeedsRetrySelection)
+	}
+	if scores.NeedsProviderReview {
+		addReason(UpstreamImageQualityReasonProviderReviewNeeded)
+	}
+	if scores.NeedsPromptImprovement {
+		addReason(UpstreamImageQualityReasonPromptEnhancerMissing)
+	}
+	return reasons
+}
+
+func clampQualityScore(score int) int {
+	if score < 0 {
+		return 0
+	}
+	if score > 5 {
+		return 5
+	}
+	return score
+}
+
+func clampTotalQualityScore(score int) int {
+	if score < 0 {
+		return 0
+	}
+	if score > 40 {
+		return 40
+	}
+	return score
+}
+
+func sanitizeComparisonLabel(label string) string {
+	label = strings.TrimSpace(label)
+	lower := strings.ToLower(label)
+	if strings.Contains(lower, "://") || strings.Contains(lower, "token=") || strings.Contains(lower, "signature=") {
+		return "label_sha256:" + shortAuditHash(label)
+	}
+	return auditPromptPreview(label, 120)
+}
+
+func sanitizeComparisonImageID(imageID string) string {
+	imageID = strings.TrimSpace(imageID)
+	if imageID == "" {
+		return ""
+	}
+	lower := strings.ToLower(imageID)
+	if strings.Contains(lower, "://") || strings.Contains(lower, "token=") || strings.Contains(lower, "signature=") {
+		return "image_ref_sha256:" + shortAuditHash(imageID)
+	}
+	return trimAuditValue(imageID, 160)
+}
+
+func sanitizeReviewerNotes(notes string) string {
+	notes = strings.TrimSpace(notes)
+	if notes == "" {
+		return ""
+	}
+	for _, pattern := range auditSecretPatterns {
+		if pattern.MatchString(notes) {
+			return "reviewer_notes_sha256:" + shortAuditHash(notes)
+		}
+	}
+	return auditPromptPreview(notes, 180)
 }
 
 func commercialImageQualityDimensions() []string {
