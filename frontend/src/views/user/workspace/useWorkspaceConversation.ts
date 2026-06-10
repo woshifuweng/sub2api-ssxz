@@ -152,14 +152,15 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
         upsertConversation(conversation)
       }
 
-      const savedMessage = await appendMessage(conversationId, {
+      await appendMessage(conversationId, {
         message_type: CHAT_MESSAGE_TYPE_TEXT,
         role: 'user',
         content: text,
         model: input.model,
         intent: 'chat'
       })
-      messages.value = [...messages.value, mapChatMessageToWorkspaceMessage(savedMessage)]
+      const nextMessages = await listMessages(conversationId)
+      messages.value = nextMessages.map(mapChatMessageToWorkspaceMessage)
       await refreshConversationList()
       return true
     } catch {

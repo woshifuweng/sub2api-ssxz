@@ -173,6 +173,32 @@ describe('useWorkspaceConversation', () => {
       created_at: '2026-06-10T00:00:01Z',
       updated_at: '2026-06-10T00:00:01Z'
     })
+    api.listMessages.mockResolvedValue([
+      {
+        id: 41,
+        conversation_id: 31,
+        message_type: 'text',
+        role: 'user',
+        content: 'hello workspace',
+        model: 'gpt-5.5',
+        intent: 'chat',
+        status: 'completed',
+        created_at: '2026-06-10T00:00:01Z',
+        updated_at: '2026-06-10T00:00:01Z'
+      },
+      {
+        id: 42,
+        conversation_id: 31,
+        message_type: 'text',
+        role: 'assistant',
+        content: 'AI response provider is not connected yet.',
+        model: 'gpt-5.5',
+        intent: 'chat',
+        status: 'completed',
+        created_at: '2026-06-10T00:00:02Z',
+        updated_at: '2026-06-10T00:00:02Z'
+      }
+    ])
     api.listConversations.mockResolvedValue([
       {
         id: 31,
@@ -200,9 +226,59 @@ describe('useWorkspaceConversation', () => {
       model: 'gpt-5.5',
       intent: 'chat'
     })
+    expect(api.listMessages).toHaveBeenCalledWith(31)
     expect(workspace.activeConversationId.value).toBe(31)
-    expect(workspace.messages.value).toHaveLength(1)
-    expect(workspace.messages.value[0].content).toBe('hello workspace')
+    expect(workspace.messages.value).toMatchObject([
+      {
+        persistedId: 41,
+        role: 'user',
+        content: 'hello workspace'
+      },
+      {
+        persistedId: 42,
+        role: 'assistant',
+        content: 'AI response provider is not connected yet.'
+      }
+    ])
+    expect(api.createImageTask).not.toHaveBeenCalled()
+    expect(apiClient.post).not.toHaveBeenCalled()
+  })
+
+  it('keeps a safe error state if message refresh fails after send', async () => {
+    api.createConversation.mockResolvedValue({
+      id: 33,
+      title: 'sync fail',
+      status: 'active',
+      created_at: '2026-06-10T00:00:00Z',
+      updated_at: '2026-06-10T00:00:00Z'
+    })
+    api.appendMessage.mockResolvedValue({
+      id: 43,
+      conversation_id: 33,
+      message_type: 'text',
+      role: 'user',
+      content: 'sync fail',
+      model: 'gpt-5.5',
+      intent: 'chat',
+      status: 'completed',
+      created_at: '2026-06-10T00:00:01Z',
+      updated_at: '2026-06-10T00:00:01Z'
+    })
+    api.listMessages.mockRejectedValue(new Error('network'))
+    const workspace = useWorkspaceConversation({ backendEnabled: true })
+
+    const result = await workspace.sendTextMessage({
+      text: 'sync fail',
+      model: 'gpt-5.5',
+      intent: 'chat',
+      attachments: []
+    })
+
+    expect(result).toBe(false)
+    expect(api.appendMessage).toHaveBeenCalled()
+    expect(api.listMessages).toHaveBeenCalledWith(33)
+    expect(workspace.messages.value).toHaveLength(0)
+    expect(workspace.errorMessage.value).toBeTruthy()
     expect(api.createImageTask).not.toHaveBeenCalled()
     expect(apiClient.post).not.toHaveBeenCalled()
   })
@@ -227,6 +303,32 @@ describe('useWorkspaceConversation', () => {
       created_at: '2026-06-10T00:00:01Z',
       updated_at: '2026-06-10T00:00:01Z'
     })
+    api.listMessages.mockResolvedValue([
+      {
+        id: 42,
+        conversation_id: 32,
+        message_type: 'text',
+        role: 'user',
+        content: 'start from app',
+        model: 'gpt-5.5',
+        intent: 'chat',
+        status: 'completed',
+        created_at: '2026-06-10T00:00:01Z',
+        updated_at: '2026-06-10T00:00:01Z'
+      },
+      {
+        id: 43,
+        conversation_id: 32,
+        message_type: 'text',
+        role: 'assistant',
+        content: 'AI response provider is not connected yet.',
+        model: 'gpt-5.5',
+        intent: 'chat',
+        status: 'completed',
+        created_at: '2026-06-10T00:00:02Z',
+        updated_at: '2026-06-10T00:00:02Z'
+      }
+    ])
     api.listConversations.mockResolvedValue([])
     const workspace = useWorkspaceConversation({ backendEnabled: true })
 
@@ -242,10 +344,39 @@ describe('useWorkspaceConversation', () => {
       content: 'start from app',
       intent: 'chat'
     }))
+    expect(api.listMessages).toHaveBeenCalledWith(32)
+    expect(workspace.messages.value).toHaveLength(2)
   })
 
   it('appends to the active conversation without creating another one', async () => {
-    api.listMessages.mockResolvedValue([])
+    api.listMessages
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 51,
+          conversation_id: 44,
+          message_type: 'text',
+          role: 'user',
+          content: 'follow up',
+          model: 'gpt-5.5',
+          intent: 'chat',
+          status: 'completed',
+          created_at: '2026-06-10T00:00:02Z',
+          updated_at: '2026-06-10T00:00:02Z'
+        },
+        {
+          id: 52,
+          conversation_id: 44,
+          message_type: 'text',
+          role: 'assistant',
+          content: 'AI response provider is not connected yet.',
+          model: 'gpt-5.5',
+          intent: 'chat',
+          status: 'completed',
+          created_at: '2026-06-10T00:00:03Z',
+          updated_at: '2026-06-10T00:00:03Z'
+        }
+      ])
     api.appendMessage.mockResolvedValue({
       id: 51,
       conversation_id: 44,
@@ -275,6 +406,9 @@ describe('useWorkspaceConversation', () => {
       content: 'follow up',
       intent: 'chat'
     }))
+    expect(api.listMessages).toHaveBeenCalledTimes(2)
+    expect(api.listMessages).toHaveBeenLastCalledWith(44)
+    expect(workspace.messages.value).toHaveLength(2)
   })
 
   it('does not call backend APIs for image intent even when enabled', async () => {
