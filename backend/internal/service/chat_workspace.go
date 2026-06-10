@@ -71,6 +71,14 @@ type WorkspaceAppendMessageInput struct {
 	Metadata       map[string]any
 }
 
+type WorkspaceAppendAssistantMessageInput struct {
+	ConversationID int64
+	Content        string
+	Model          string
+	Intent         string
+	Metadata       map[string]any
+}
+
 type ChatWorkspaceRepository interface {
 	ListConversations(ctx context.Context, userID int64) ([]WorkspaceConversation, error)
 	CreateConversation(ctx context.Context, userID int64, title string) (*WorkspaceConversation, error)
@@ -153,6 +161,46 @@ func (s *ChatWorkspaceService) AppendMessage(ctx context.Context, userID int64, 
 	}
 
 	return s.repo.AppendMessage(ctx, userID, input, deriveWorkspaceTitle(input.Content))
+}
+
+func (s *ChatWorkspaceService) AppendAssistantMessage(ctx context.Context, userID int64, input WorkspaceAppendAssistantMessageInput) (*WorkspaceMessage, error) {
+	if s == nil || s.repo == nil || userID <= 0 || input.ConversationID <= 0 {
+		return nil, ErrWorkspaceConversationNotFound
+	}
+	if _, err := s.repo.GetConversation(ctx, userID, input.ConversationID); err != nil {
+		return nil, err
+	}
+
+	content := strings.TrimSpace(input.Content)
+	model := strings.TrimSpace(input.Model)
+	intent := normalizeWorkspaceIntent(input.Intent)
+
+	if content == "" || containsUnsafeInlinePayload(content) || metadataContainsUnsafeInlinePayload(input.Metadata) {
+		return nil, ErrWorkspaceInvalidMessage
+	}
+	if !isAllowedWorkspaceModel(model) {
+		return nil, ErrWorkspaceInvalidModel
+	}
+	if intent != WorkspaceIntentChat {
+		if isDisabledWorkspaceIntent(intent) {
+			return nil, ErrWorkspaceCapabilityDisabled
+		}
+		return nil, ErrWorkspaceInvalidIntent
+	}
+	if utf8.RuneCountInString(content) > workspaceMaxContentLength {
+		content = string([]rune(content)[:workspaceMaxContentLength])
+	}
+
+	return s.repo.AppendMessage(ctx, userID, WorkspaceAppendMessageInput{
+		ConversationID: input.ConversationID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleAssistant,
+		Content:        content,
+		Model:          model,
+		Intent:         intent,
+		Status:         WorkspaceMessageStatusCompleted,
+		Metadata:       input.Metadata,
+	}, "")
 }
 
 func sanitizeWorkspaceTitle(value string) string {
