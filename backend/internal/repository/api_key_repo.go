@@ -408,7 +408,7 @@ OFFSET $2 LIMIT $3
 	if err != nil {
 		return nil, nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var ids []int64
 	for rows.Next() {
@@ -565,7 +565,7 @@ WHERE deleted_at IS NULL
 	if err != nil {
 		return 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	if rows.Next() {
 		if err := rows.Scan(&count); err != nil {
 			return 0, err
@@ -598,7 +598,7 @@ WHERE deleted_at IS NULL
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var keys []string
 	for rows.Next() {
 		var key string
@@ -747,7 +747,7 @@ WHERE deleted_at IS NULL
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var (

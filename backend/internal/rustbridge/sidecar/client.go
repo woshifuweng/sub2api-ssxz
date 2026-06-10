@@ -124,7 +124,7 @@ func (c *Client) Health(ctx context.Context) (*HealthResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected rust sidecar status: %d", resp.StatusCode)
 	}

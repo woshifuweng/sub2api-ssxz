@@ -19,21 +19,21 @@ func TestClientHealthOverUnixSocket(t *testing.T) {
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(HealthResponse{
-			Status:                         "ok",
-			Service:                        "test-sidecar",
-			Version:                        "v0",
-			ActiveConnections:              2,
-			TotalConnections:               3,
-			ActiveUpgrades:                 1,
-			TotalUpgrades:                  4,
-			TotalRequests:                  5,
-			TotalRequestErrors:             1,
-			UpstreamUnavailableTotal:       2,
-			UpstreamHandshakeFailedTotal:   3,
-			UpstreamRequestFailedTotal:     4,
-			UpgradeErrorsTotal:             5,
-			RelayBytesDownstreamToUpstream: 6,
-			RelayBytesUpstreamToDownstream: 7,
+			Status:                          "ok",
+			Service:                         "test-sidecar",
+			Version:                         "v0",
+			ActiveConnections:               2,
+			TotalConnections:                3,
+			ActiveUpgrades:                  1,
+			TotalUpgrades:                   4,
+			TotalRequests:                   5,
+			TotalRequestErrors:              1,
+			UpstreamUnavailableTotal:        2,
+			UpstreamHandshakeFailedTotal:    3,
+			UpstreamRequestFailedTotal:      4,
+			UpgradeErrorsTotal:              5,
+			RelayBytesDownstreamToUpstream:  6,
+			RelayBytesUpstreamToDownstream:  7,
 			RelayFramesDownstreamToUpstream: 8,
 			RelayFramesUpstreamToDownstream: 9,
 			RelayCloseFramesTotal:           10,
@@ -46,10 +46,10 @@ func TestClientHealthOverUnixSocket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen unix: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	server := &http.Server{Handler: mux}
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 
 	go func() {
 		_ = server.Serve(ln)

@@ -118,7 +118,7 @@ func parseChatStudioRequest(c gatewayctx.GatewayContext) (*chatStudioRequest, er
 	if c == nil || c.Request() == nil {
 		return nil, fmt.Errorf("missing request")
 	}
-	defer c.Request().Body.Close()
+	defer func() { _ = c.Request().Body.Close() }()
 
 	var req chatStudioRequest
 	decoder := json.NewDecoder(io.LimitReader(c.Request().Body, 1<<20))
