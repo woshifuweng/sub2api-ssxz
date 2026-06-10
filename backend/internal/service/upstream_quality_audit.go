@@ -443,6 +443,60 @@ type UpstreamQualityPromptSample struct {
 	Criteria  []string                 `json:"criteria"`
 }
 
+type UpstreamQualityBenchmarkSample struct {
+	ID                        string                   `json:"id"`
+	Type                      string                   `json:"type"`
+	Category                  string                   `json:"category"`
+	Operation                 UpstreamQualityOperation `json:"operation"`
+	Prompt                    string                   `json:"prompt"`
+	ExpectedQualityDimensions []string                 `json:"expected_quality_dimensions"`
+	Notes                     string                   `json:"notes,omitempty"`
+	CreatedFor                string                   `json:"created_for"`
+}
+
+type UpstreamQualityManualScoreFields struct {
+	Composition        string `json:"composition,omitempty"`
+	CommercialAppeal   string `json:"commercial_appeal,omitempty"`
+	TextQuality        string `json:"text_quality,omitempty"`
+	DetailQuality      string `json:"detail_quality,omitempty"`
+	PromptAdherence    string `json:"prompt_adherence,omitempty"`
+	SubjectStability   string `json:"subject_stability,omitempty"`
+	CommerciallyUsable string `json:"commercially_usable,omitempty"`
+	ReviewerNotes      string `json:"reviewer_notes,omitempty"`
+}
+
+type UpstreamQualityBenchmarkSampleResult struct {
+	SampleID              string                             `json:"sample_id"`
+	Type                  string                             `json:"type"`
+	Category              string                             `json:"category"`
+	RequestedModel        string                             `json:"requested_model,omitempty"`
+	MappedModel           string                             `json:"mapped_model,omitempty"`
+	UpstreamModel         string                             `json:"upstream_model,omitempty"`
+	ProviderName          string                             `json:"provider_name,omitempty"`
+	EndpointLabel         string                             `json:"endpoint_label,omitempty"`
+	FallbackUsed          bool                               `json:"fallback_used,omitempty"`
+	FallbackReason        string                             `json:"fallback_reason,omitempty"`
+	LatencyMs             int64                              `json:"latency_ms,omitempty"`
+	TokenUsage            UpstreamQualityUsage               `json:"token_usage,omitempty"`
+	ImageParams           UpstreamQualityImageParams         `json:"image_params,omitempty"`
+	PromptHash            string                             `json:"prompt_hash,omitempty"`
+	PromptPreview         string                             `json:"prompt_preview_redacted,omitempty"`
+	PromptEnhanced        bool                               `json:"prompt_enhancer_used,omitempty"`
+	Diagnostics           []UpstreamQualityDiagnosticFinding `json:"diagnostics,omitempty"`
+	ManualScoreFields     UpstreamQualityManualScoreFields   `json:"manual_score_fields,omitempty"`
+	NeedsOfficialBaseline bool                               `json:"needs_official_baseline"`
+	HasAuditRecord        bool                               `json:"has_audit_record"`
+}
+
+type UpstreamQualityBenchmarkReport struct {
+	TotalSamples        int                                    `json:"total_samples"`
+	TextSamples         int                                    `json:"text_samples"`
+	ImageSamples        int                                    `json:"image_samples"`
+	MatchedAuditRecords int                                    `json:"matched_audit_records"`
+	Results             []UpstreamQualityBenchmarkSampleResult `json:"results"`
+	Diagnostics         UpstreamQualityDiagnosticReport        `json:"diagnostics"`
+}
+
 func UpstreamQualityPromptSamples() []UpstreamQualityPromptSample {
 	return []UpstreamQualityPromptSample{
 		{
@@ -480,6 +534,260 @@ func UpstreamQualityPromptSamples() []UpstreamQualityPromptSample {
 			Prompt:    "生成一张 AI 工作台 App banner，科技感但不花哨，强调统一输入和多能力工作流。",
 			Criteria:  []string{"clear product signal", "balanced composition", "professional polish"},
 		},
+	}
+}
+
+func UpstreamQualityBenchmarkSamples() []UpstreamQualityBenchmarkSample {
+	return []UpstreamQualityBenchmarkSample{
+		{
+			ID:                        "text-long-context-understanding",
+			Type:                      "text",
+			Category:                  "long_context_understanding",
+			Operation:                 UpstreamQualityOperationTextCompletion,
+			Prompt:                    "Read a long product meeting summary and extract decisions, risks, owners, and next actions in Chinese.",
+			ExpectedQualityDimensions: []string{"context retention", "decision extraction", "risk clarity", "actionability"},
+			Notes:                     "Use with the same long source text across official product and relay output.",
+			CreatedFor:                "benchmark",
+		},
+		{
+			ID:                        "text-complex-reasoning",
+			Type:                      "text",
+			Category:                  "complex_reasoning",
+			Operation:                 UpstreamQualityOperationTextCompletion,
+			Prompt:                    "Design a three-stage membership growth experiment with hypotheses, metrics, sample design, and rollback criteria.",
+			ExpectedQualityDimensions: []string{"causal reasoning", "metrics design", "risk handling", "specificity"},
+			CreatedFor:                "benchmark",
+		},
+		{
+			ID:                        "text-chinese-commerce-copy",
+			Type:                      "text",
+			Category:                  "chinese_commerce_copy",
+			Operation:                 UpstreamQualityOperationTextCompletion,
+			Prompt:                    "Write product-detail-page selling points, hero title, and short video voiceover for a premium thermos bottle.",
+			ExpectedQualityDimensions: []string{"commercial tone", "Chinese fluency", "non-exaggeration", "conversion clarity"},
+			CreatedFor:                "benchmark",
+		},
+		{
+			ID:                        "text-xiaohongshu-copy",
+			Type:                      "text",
+			Category:                  "xiaohongshu_copy",
+			Operation:                 UpstreamQualityOperationTextCompletion,
+			Prompt:                    "Write three Xiaohongshu titles and posts for a skincare essence, realistic tone, no exaggerated medical claims.",
+			ExpectedQualityDimensions: []string{"platform fit", "authentic tone", "safe claims", "hook quality"},
+			CreatedFor:                "benchmark",
+		},
+		{
+			ID:                        "text-code-explanation",
+			Type:                      "text",
+			Category:                  "code_explanation",
+			Operation:                 UpstreamQualityOperationTextCompletion,
+			Prompt:                    "Explain the execution order and possible bugs in a Go HTTP middleware chain.",
+			ExpectedQualityDimensions: []string{"technical accuracy", "bug spotting", "Go knowledge", "clarity"},
+			CreatedFor:                "benchmark",
+		},
+		{
+			ID:                        "text-table-organization",
+			Type:                      "text",
+			Category:                  "table_organization",
+			Operation:                 UpstreamQualityOperationTextCompletion,
+			Prompt:                    "Turn messy product requirements into a table with priority, impact, effort, owner, and acceptance criteria.",
+			ExpectedQualityDimensions: []string{"structure", "prioritization", "completeness", "format consistency"},
+			CreatedFor:                "benchmark",
+		},
+		{
+			ID:                        "text-multiturn-followup",
+			Type:                      "text",
+			Category:                  "multiturn_followup",
+			Operation:                 UpstreamQualityOperationTextCompletion,
+			Prompt:                    "First propose a launch plan, then answer a follow-up: what changes if the budget is cut in half?",
+			ExpectedQualityDimensions: []string{"context carryover", "adaptation", "tradeoff reasoning", "practicality"},
+			CreatedFor:                "benchmark",
+		},
+		{
+			ID:                        "text-strict-json-output",
+			Type:                      "text",
+			Category:                  "strict_json_output",
+			Operation:                 UpstreamQualityOperationTextCompletion,
+			Prompt:                    "Return only JSON with keys summary, risks, next_steps, and confidence. No markdown, no extra text.",
+			ExpectedQualityDimensions: []string{"format compliance", "JSON validity", "instruction following", "conciseness"},
+			CreatedFor:                "regression",
+		},
+		{
+			ID:                        "image-ecommerce-product-hero",
+			Type:                      "image",
+			Category:                  "ecommerce_product_hero",
+			Operation:                 UpstreamQualityOperationImageGeneration,
+			Prompt:                    "Premium thermos bottle e-commerce hero image, clean studio lighting, realistic shadow, no garbled text.",
+			ExpectedQualityDimensions: commercialImageQualityDimensions(),
+			CreatedFor:                "manual_review",
+		},
+		{
+			ID:                        "image-milk-tea-poster",
+			Type:                      "image",
+			Category:                  "milk_tea_commercial_poster",
+			Operation:                 UpstreamQualityOperationImageGeneration,
+			Prompt:                    "Summer mango pomelo milk tea commercial poster, appetizing product focus, clear Chinese headline area.",
+			ExpectedQualityDimensions: commercialImageQualityDimensions(),
+			CreatedFor:                "manual_review",
+		},
+		{
+			ID:                        "image-xiaohongshu-cover",
+			Type:                      "image",
+			Category:                  "xiaohongshu_cover",
+			Operation:                 UpstreamQualityOperationImageGeneration,
+			Prompt:                    "Skincare essence Xiaohongshu cover, premium clean layout, social media click appeal, no watermark.",
+			ExpectedQualityDimensions: commercialImageQualityDimensions(),
+			CreatedFor:                "manual_review",
+		},
+		{
+			ID:                        "image-chinese-promo-poster",
+			Type:                      "image",
+			Category:                  "chinese_promo_poster",
+			Operation:                 UpstreamQualityOperationImageGeneration,
+			Prompt:                    "Chinese 618 promotion poster for headphones, clear hierarchy, avoid garbled Chinese characters.",
+			ExpectedQualityDimensions: commercialImageQualityDimensions(),
+			CreatedFor:                "manual_review",
+		},
+		{
+			ID:                        "image-portrait-commercial",
+			Type:                      "image",
+			Category:                  "portrait_commercial",
+			Operation:                 UpstreamQualityOperationImageGeneration,
+			Prompt:                    "Young professional woman half-body portrait, natural light, commercial photography polish, realistic hands.",
+			ExpectedQualityDimensions: commercialImageQualityDimensions(),
+			CreatedFor:                "manual_review",
+		},
+		{
+			ID:                        "image-interior-design",
+			Type:                      "image",
+			Category:                  "interior_design",
+			Operation:                 UpstreamQualityOperationImageGeneration,
+			Prompt:                    "Modern cream-style living room interior design, realistic materials, correct spatial proportions.",
+			ExpectedQualityDimensions: commercialImageQualityDimensions(),
+			CreatedFor:                "manual_review",
+		},
+		{
+			ID:                        "image-restaurant-ad",
+			Type:                      "image",
+			Category:                  "restaurant_ad",
+			Operation:                 UpstreamQualityOperationImageGeneration,
+			Prompt:                    "Hot beef noodle restaurant ad image, appetizing steam, realistic ingredients, poster-ready composition.",
+			ExpectedQualityDimensions: commercialImageQualityDimensions(),
+			CreatedFor:                "manual_review",
+		},
+		{
+			ID:                        "image-app-banner",
+			Type:                      "image",
+			Category:                  "app_banner",
+			Operation:                 UpstreamQualityOperationImageGeneration,
+			Prompt:                    "AI workspace app banner, unified input, multi-capability workflow, professional technology style.",
+			ExpectedQualityDimensions: commercialImageQualityDimensions(),
+			CreatedFor:                "manual_review",
+		},
+		{
+			ID:                        "image-brand-style",
+			Type:                      "image",
+			Category:                  "brand_style",
+			Operation:                 UpstreamQualityOperationImageGeneration,
+			Prompt:                    "Minimal premium coffee brand visual system, packaging, cup, and storefront with unified style.",
+			ExpectedQualityDimensions: commercialImageQualityDimensions(),
+			CreatedFor:                "manual_review",
+		},
+		{
+			ID:                        "image-packaging-concept",
+			Type:                      "image",
+			Category:                  "packaging_concept",
+			Operation:                 UpstreamQualityOperationImageGeneration,
+			Prompt:                    "Bluetooth earbuds packaging concept, 3D product box display, strong brand feel, clean typography area.",
+			ExpectedQualityDimensions: commercialImageQualityDimensions(),
+			CreatedFor:                "manual_review",
+		},
+	}
+}
+
+func BuildUpstreamQualityBenchmarkReport(
+	samples []UpstreamQualityBenchmarkSample,
+	records map[string]UpstreamQualityAuditRecord,
+) UpstreamQualityBenchmarkReport {
+	report := UpstreamQualityBenchmarkReport{
+		TotalSamples: len(samples),
+	}
+	diagnosticRecords := make([]UpstreamQualityAuditRecord, 0, len(records))
+	for _, sample := range samples {
+		if sample.Type == "text" {
+			report.TextSamples++
+		}
+		if sample.Type == "image" {
+			report.ImageSamples++
+		}
+		result := UpstreamQualityBenchmarkSampleResult{
+			SampleID:              trimAuditValue(sample.ID, 120),
+			Type:                  trimAuditValue(sample.Type, 40),
+			Category:              trimAuditValue(sample.Category, 120),
+			ManualScoreFields:     manualScoreFieldsForSample(sample),
+			NeedsOfficialBaseline: true,
+		}
+		if record, ok := records[sample.ID]; ok {
+			report.MatchedAuditRecords++
+			result.HasAuditRecord = true
+			result.RequestedModel = record.RequestedModel
+			result.MappedModel = record.MappedModel
+			result.UpstreamModel = record.UpstreamModel
+			result.ProviderName = record.ProviderName
+			result.EndpointLabel = record.EndpointLabel
+			result.FallbackUsed = record.FallbackUsed
+			result.FallbackReason = record.FallbackReason
+			result.LatencyMs = record.LatencyMs
+			result.TokenUsage = record.TokenUsage
+			result.ImageParams = record.ImageParams
+			result.PromptHash = record.PromptHash
+			result.PromptPreview = auditPromptPreview(sample.Prompt, 120)
+			result.PromptEnhanced = record.PromptEnhanced
+			diagnostics := BuildUpstreamQualityDiagnosticReport([]UpstreamQualityAuditRecord{record})
+			result.Diagnostics = diagnostics.Findings
+			diagnosticRecords = append(diagnosticRecords, record)
+		} else {
+			result.Diagnostics = []UpstreamQualityDiagnosticFinding{{
+				Code:           "missing_audit_record",
+				Severity:       UpstreamQualityDiagnosticSeverityMedium,
+				Operation:      sample.Operation,
+				Message:        "Benchmark sample has no matching audit record.",
+				Recommendation: "Run this sample through the old text/image path or attach a synthetic audit record before comparing quality.",
+			}}
+		}
+		report.Results = append(report.Results, result)
+	}
+	report.Diagnostics = BuildUpstreamQualityDiagnosticReport(diagnosticRecords)
+	return report
+}
+
+func commercialImageQualityDimensions() []string {
+	return []string{
+		"composition",
+		"commercial appeal",
+		"text quality",
+		"detail quality",
+		"prompt adherence",
+		"person/product stability",
+		"commercial usability",
+	}
+}
+
+func manualScoreFieldsForSample(sample UpstreamQualityBenchmarkSample) UpstreamQualityManualScoreFields {
+	if sample.Type != "image" {
+		return UpstreamQualityManualScoreFields{
+			ReviewerNotes: "Review factuality, context retention, format compliance, and usefulness.",
+		}
+	}
+	return UpstreamQualityManualScoreFields{
+		Composition:        "1-5",
+		CommercialAppeal:   "1-5",
+		TextQuality:        "1-5",
+		DetailQuality:      "1-5",
+		PromptAdherence:    "1-5",
+		SubjectStability:   "1-5",
+		CommerciallyUsable: "yes/no",
+		ReviewerNotes:      "Compare official product output and relay output side by side.",
 	}
 }
 

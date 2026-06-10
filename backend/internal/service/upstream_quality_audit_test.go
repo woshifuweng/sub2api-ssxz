@@ -245,6 +245,221 @@ func TestBuildUpstreamQualityDiagnosticReportFlagsFailedAndMissingFields(t *test
 	}
 }
 
+func TestUpstreamQualityBenchmarkSamplesCoverRequiredCategories(t *testing.T) {
+	t.Parallel()
+
+	samples := UpstreamQualityBenchmarkSamples()
+	textCategories := map[string]bool{}
+	imageCategories := map[string]bool{}
+	for _, sample := range samples {
+		if strings.TrimSpace(sample.ID) == "" || strings.TrimSpace(sample.Prompt) == "" {
+			t.Fatalf("sample must include id and prompt: %+v", sample)
+		}
+		if sample.Type == "text" {
+			textCategories[sample.Category] = true
+		}
+		if sample.Type == "image" {
+			imageCategories[sample.Category] = true
+			for _, dimension := range []string{
+				"composition",
+				"commercial appeal",
+				"text quality",
+				"detail quality",
+				"prompt adherence",
+				"person/product stability",
+				"commercial usability",
+			} {
+				if !testContainsString(sample.ExpectedQualityDimensions, dimension) {
+					t.Fatalf("image sample %s missing dimension %q: %+v", sample.ID, dimension, sample.ExpectedQualityDimensions)
+				}
+			}
+		}
+	}
+
+	for _, category := range []string{
+		"long_context_understanding",
+		"complex_reasoning",
+		"chinese_commerce_copy",
+		"xiaohongshu_copy",
+		"code_explanation",
+		"table_organization",
+		"multiturn_followup",
+		"strict_json_output",
+	} {
+		if !textCategories[category] {
+			t.Fatalf("missing text benchmark category %s", category)
+		}
+	}
+	for _, category := range []string{
+		"ecommerce_product_hero",
+		"milk_tea_commercial_poster",
+		"xiaohongshu_cover",
+		"chinese_promo_poster",
+		"portrait_commercial",
+		"interior_design",
+		"restaurant_ad",
+		"app_banner",
+		"brand_style",
+		"packaging_concept",
+	} {
+		if !imageCategories[category] {
+			t.Fatalf("missing image benchmark category %s", category)
+		}
+	}
+}
+
+func TestBuildUpstreamQualityBenchmarkReportMergesSyntheticAuditRecords(t *testing.T) {
+	t.Parallel()
+
+	samples := []UpstreamQualityBenchmarkSample{
+		{
+			ID:                        "text-strict-json-output",
+			Type:                      "text",
+			Category:                  "strict_json_output",
+			Operation:                 UpstreamQualityOperationTextCompletion,
+			Prompt:                    "Return only JSON.",
+			ExpectedQualityDimensions: []string{"format compliance"},
+			CreatedFor:                "regression",
+		},
+		{
+			ID:                        "image-ecommerce-product-hero",
+			Type:                      "image",
+			Category:                  "ecommerce_product_hero",
+			Operation:                 UpstreamQualityOperationImageGeneration,
+			Prompt:                    "Premium product hero image.",
+			ExpectedQualityDimensions: commercialImageQualityDimensions(),
+			CreatedFor:                "manual_review",
+		},
+	}
+	temp := 0.2
+	records := map[string]UpstreamQualityAuditRecord{
+		"text-strict-json-output": BuildUpstreamQualityAuditRecord(UpstreamQualityAuditInput{
+			Route:          "/api/v1/chat-studio/complete",
+			Operation:      UpstreamQualityOperationTextCompletion,
+			RequestedModel: "gpt-5.5",
+			MappedModel:    "gpt-5.5",
+			UpstreamModel:  "gpt-5.5",
+			ProviderName:   "openai-compatible-main",
+			Endpoint:       "/v1/chat/completions",
+			TextParams: UpstreamQualityTextParams{
+				Temperature: &temp,
+			},
+			TokenUsage: UpstreamQualityUsage{
+				InputTokens:  120,
+				OutputTokens: 80,
+				TotalTokens:  200,
+			},
+			Prompt:         "Authorization: Bearer sk-live-secret return only JSON",
+			PromptEnhanced: true,
+			LatencyMs:      900,
+			Status:         "succeeded",
+		}),
+		"image-ecommerce-product-hero": BuildUpstreamQualityAuditRecord(UpstreamQualityAuditInput{
+			Route:          "/api/v1/image-studio/generate",
+			Operation:      UpstreamQualityOperationImageGeneration,
+			RequestedModel: "gpt-image-2",
+			MappedModel:    "gpt-image-2",
+			UpstreamModel:  "gpt-image-2-compatible",
+			ProviderName:   "image-provider-main",
+			Endpoint:       "/v1/images/generations",
+			ImageParams: UpstreamQualityImageParams{
+				Size:         "1024x1536",
+				Quality:      "high",
+				Style:        "commercial",
+				Background:   "studio",
+				OutputFormat: "png",
+				Count:        1,
+			},
+			Prompt:         "premium product hero",
+			PromptEnhanced: false,
+			LatencyMs:      3200,
+			Status:         "succeeded",
+		}),
+	}
+
+	report := BuildUpstreamQualityBenchmarkReport(samples, records)
+	if report.TotalSamples != 2 || report.TextSamples != 1 || report.ImageSamples != 1 || report.MatchedAuditRecords != 2 {
+		t.Fatalf("unexpected benchmark counters: %+v", report)
+	}
+	if len(report.Results) != 2 {
+		t.Fatalf("expected two sample results, got %d", len(report.Results))
+	}
+	textResult := benchmarkResultByID(report, "text-strict-json-output")
+	if textResult.RequestedModel != "gpt-5.5" || textResult.UpstreamModel != "gpt-5.5" {
+		t.Fatalf("text model fields not merged: %+v", textResult)
+	}
+	imageResult := benchmarkResultByID(report, "image-ecommerce-product-hero")
+	if imageResult.ImageParams.Size != "1024x1536" || imageResult.ImageParams.Quality != "high" || !imageResult.FallbackUsed {
+		t.Fatalf("image params/fallback not merged: %+v", imageResult)
+	}
+	if imageResult.ManualScoreFields.CommerciallyUsable == "" {
+		t.Fatalf("expected manual image score fields: %+v", imageResult.ManualScoreFields)
+	}
+	if !benchmarkResultHasFinding(imageResult, "model_fallback_or_mapping_mismatch") ||
+		!benchmarkResultHasFinding(imageResult, "prompt_enhancer_not_recorded") {
+		t.Fatalf("expected image diagnostic findings: %+v", imageResult.Diagnostics)
+	}
+}
+
+func TestBuildUpstreamQualityBenchmarkReportDoesNotLeakSensitiveData(t *testing.T) {
+	t.Parallel()
+
+	samples := []UpstreamQualityBenchmarkSample{{
+		ID:                        "text-sensitive-redaction",
+		Type:                      "text",
+		Category:                  "strict_json_output",
+		Operation:                 UpstreamQualityOperationTextCompletion,
+		Prompt:                    "Synthetic non-sensitive sample.",
+		ExpectedQualityDimensions: []string{"format compliance"},
+		CreatedFor:                "benchmark",
+	}}
+	records := map[string]UpstreamQualityAuditRecord{
+		"text-sensitive-redaction": BuildUpstreamQualityAuditRecord(UpstreamQualityAuditInput{
+			Route:          "/api/v1/chat-studio/complete",
+			Operation:      UpstreamQualityOperationTextCompletion,
+			RequestedModel: "gpt-5.5",
+			UpstreamModel:  "gpt-5.5",
+			ProviderName:   "openai",
+			Endpoint:       "https://api.openai.com/v1/chat/completions?api_key=must-not-appear",
+			Prompt:         "Authorization: Bearer sk-live-secret cookie=sessionid password=hunter2 private campaign strategy",
+			Status:         "succeeded",
+		}),
+	}
+	report := BuildUpstreamQualityBenchmarkReport(samples, records)
+	payload, err := json.Marshal(report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(payload)
+	for _, forbidden := range []string{"sk-live-secret", "sessionid", "hunter2", "api.openai.com", "must-not-appear", "private campaign strategy"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("benchmark report leaked %q: %s", forbidden, body)
+		}
+	}
+}
+
+func TestBuildUpstreamQualityBenchmarkReportMarksMissingAuditRecord(t *testing.T) {
+	t.Parallel()
+
+	samples := []UpstreamQualityBenchmarkSample{{
+		ID:                        "image-no-audit-record",
+		Type:                      "image",
+		Category:                  "ecommerce_product_hero",
+		Operation:                 UpstreamQualityOperationImageGeneration,
+		Prompt:                    "Premium product hero image.",
+		ExpectedQualityDimensions: commercialImageQualityDimensions(),
+		CreatedFor:                "manual_review",
+	}}
+	report := BuildUpstreamQualityBenchmarkReport(samples, nil)
+	result := benchmarkResultByID(report, "image-no-audit-record")
+	if result.HasAuditRecord {
+		t.Fatalf("expected no audit record: %+v", result)
+	}
+	if !benchmarkResultHasFinding(result, "missing_audit_record") {
+		t.Fatalf("expected missing audit finding: %+v", result.Diagnostics)
+	}
+}
+
 func newAuditTestRequest() *http.Request {
 	req, err := http.NewRequest(http.MethodPost, "/api/v1/image-studio/generate", nil)
 	if err != nil {
@@ -255,6 +470,33 @@ func newAuditTestRequest() *http.Request {
 
 func diagnosticReportHasFinding(report UpstreamQualityDiagnosticReport, code string) bool {
 	for _, finding := range report.Findings {
+		if finding.Code == code {
+			return true
+		}
+	}
+	return false
+}
+
+func testContainsString(values []string, expected string) bool {
+	for _, value := range values {
+		if value == expected {
+			return true
+		}
+	}
+	return false
+}
+
+func benchmarkResultByID(report UpstreamQualityBenchmarkReport, sampleID string) UpstreamQualityBenchmarkSampleResult {
+	for _, result := range report.Results {
+		if result.SampleID == sampleID {
+			return result
+		}
+	}
+	return UpstreamQualityBenchmarkSampleResult{}
+}
+
+func benchmarkResultHasFinding(result UpstreamQualityBenchmarkSampleResult, code string) bool {
+	for _, finding := range result.Diagnostics {
 		if finding.Code == code {
 			return true
 		}
