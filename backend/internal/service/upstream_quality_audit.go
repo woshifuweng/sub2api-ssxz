@@ -574,6 +574,60 @@ type UpstreamImageQualityComparisonReport struct {
 	Results                []UpstreamImageQualityComparisonResult `json:"results"`
 }
 
+type UpstreamPromptEnhancerType string
+
+const (
+	UpstreamPromptEnhancerTypeText  UpstreamPromptEnhancerType = "text"
+	UpstreamPromptEnhancerTypeImage UpstreamPromptEnhancerType = "image"
+)
+
+type UpstreamPromptEnhancementProfile string
+
+const (
+	UpstreamPromptEnhancementProfileCommercialImage UpstreamPromptEnhancementProfile = "commercial_image"
+	UpstreamPromptEnhancementProfileChinesePoster   UpstreamPromptEnhancementProfile = "chinese_poster"
+	UpstreamPromptEnhancementProfileStructuredText  UpstreamPromptEnhancementProfile = "structured_text"
+	UpstreamPromptEnhancementProfileReasoningText   UpstreamPromptEnhancementProfile = "reasoning_text"
+)
+
+type UpstreamPromptEnhancerInput struct {
+	InputPrompt        string                           `json:"input_prompt,omitempty"`
+	PromptType         UpstreamPromptEnhancerType       `json:"prompt_type,omitempty"`
+	Category           string                           `json:"category,omitempty"`
+	Language           string                           `json:"language,omitempty"`
+	TargetUseCase      string                           `json:"target_use_case,omitempty"`
+	EnhancementProfile UpstreamPromptEnhancementProfile `json:"enhancement_profile,omitempty"`
+	BenchmarkSampleID  string                           `json:"benchmark_sample_id,omitempty"`
+}
+
+type UpstreamPromptEnhancementResult struct {
+	PromptHash           string                           `json:"prompt_hash,omitempty"`
+	RedactedPreview      string                           `json:"redacted_preview,omitempty"`
+	PromptType           UpstreamPromptEnhancerType       `json:"prompt_type,omitempty"`
+	Category             string                           `json:"category,omitempty"`
+	Language             string                           `json:"language,omitempty"`
+	TargetUseCase        string                           `json:"target_use_case,omitempty"`
+	EnhancementProfile   UpstreamPromptEnhancementProfile `json:"enhancement_profile,omitempty"`
+	EnhancedPrompt       string                           `json:"enhanced_prompt,omitempty"`
+	NegativeGuidance     []string                         `json:"negative_guidance,omitempty"`
+	AvoidList            []string                         `json:"avoid_list,omitempty"`
+	QualityDimensions    []string                         `json:"quality_dimensions,omitempty"`
+	EnhancerVersion      string                           `json:"enhancer_version,omitempty"`
+	EnhancementReasons   []string                         `json:"enhancement_reasons,omitempty"`
+	RiskNotes            []string                         `json:"risk_notes,omitempty"`
+	ApplicableModels     []string                         `json:"applicable_models,omitempty"`
+	BenchmarkSampleID    string                           `json:"benchmark_sample_id,omitempty"`
+	SuggestedForProvider bool                             `json:"suggested_for_provider"`
+	Diagnostics          []string                         `json:"diagnostics,omitempty"`
+}
+
+type UpstreamPromptEnhancementReport struct {
+	TotalPrompts int                               `json:"total_prompts"`
+	TextPrompts  int                               `json:"text_prompts"`
+	ImagePrompts int                               `json:"image_prompts"`
+	Results      []UpstreamPromptEnhancementResult `json:"results"`
+}
+
 func UpstreamQualityPromptSamples() []UpstreamQualityPromptSample {
 	return []UpstreamQualityPromptSample{
 		{
@@ -911,6 +965,478 @@ func BuildUpstreamImageQualityComparisonReport(
 	return report
 }
 
+func BuildPromptEnhancementReport(inputs []UpstreamPromptEnhancerInput) UpstreamPromptEnhancementReport {
+	report := UpstreamPromptEnhancementReport{
+		TotalPrompts: len(inputs),
+	}
+	for _, input := range inputs {
+		result := BuildPromptEnhancement(input)
+		if result.PromptType == UpstreamPromptEnhancerTypeText {
+			report.TextPrompts++
+		}
+		if result.PromptType == UpstreamPromptEnhancerTypeImage {
+			report.ImagePrompts++
+		}
+		report.Results = append(report.Results, result)
+	}
+	return report
+}
+
+func BuildPromptEnhancement(input UpstreamPromptEnhancerInput) UpstreamPromptEnhancementResult {
+	promptType := normalizePromptEnhancerType(input.PromptType)
+	category := normalizePromptEnhancerCategory(input.Category)
+	profile := normalizePromptEnhancementProfile(input.EnhancementProfile, promptType, category)
+	language := trimAuditValue(input.Language, 40)
+	if language == "" {
+		language = "zh-CN"
+	}
+	targetUseCase := trimAuditValue(input.TargetUseCase, 120)
+	if targetUseCase == "" {
+		targetUseCase = "quality benchmark"
+	}
+	result := UpstreamPromptEnhancementResult{
+		PromptHash:           auditPromptHash(input.InputPrompt),
+		RedactedPreview:      safePromptEnhancerPreview(input.InputPrompt),
+		PromptType:           promptType,
+		Category:             category,
+		Language:             language,
+		TargetUseCase:        targetUseCase,
+		EnhancementProfile:   profile,
+		EnhancerVersion:      "offline-prompt-enhancer-v1",
+		BenchmarkSampleID:    trimAuditValue(input.BenchmarkSampleID, 120),
+		SuggestedForProvider: false,
+		ApplicableModels:     []string{"official product comparison", "OpenAI-compatible image/text models", "workspace provider adapter review"},
+		RiskNotes: []string{
+			"Offline design only; do not send to a real provider without manual review.",
+			"Compare against upstream quality audit fields before changing provider routing.",
+		},
+	}
+	if result.BenchmarkSampleID != "" {
+		result.Diagnostics = append(result.Diagnostics, "benchmark_sample_linked")
+	}
+	if strings.TrimSpace(input.InputPrompt) == "" {
+		result.Diagnostics = append(result.Diagnostics, "empty_input_prompt")
+	}
+	if promptEnhancerHasSensitiveContent(input.InputPrompt) {
+		result.Diagnostics = append(result.Diagnostics, "sensitive_input_redacted")
+	}
+	if promptType == UpstreamPromptEnhancerTypeImage {
+		applyImagePromptEnhancement(&result, input.InputPrompt)
+		return result
+	}
+	applyTextPromptEnhancement(&result, input.InputPrompt)
+	return result
+}
+
+func applyImagePromptEnhancement(result *UpstreamPromptEnhancementResult, inputPrompt string) {
+	templates := imagePromptEnhancerTemplates()
+	template, ok := templates[result.Category]
+	if !ok {
+		result.Category = "generic_commercial_ad"
+		template = templates[result.Category]
+		result.Diagnostics = append(result.Diagnostics, "unknown_category_template")
+	}
+	promptFragment := promptEnhancerInputFragment(inputPrompt)
+	result.QualityDimensions = append([]string{}, template.QualityDimensions...)
+	result.NegativeGuidance = append([]string{}, template.NegativeGuidance...)
+	result.AvoidList = append([]string{}, template.AvoidList...)
+	result.EnhancementReasons = append([]string{}, template.Reasons...)
+	result.EnhancedPrompt = strings.Join([]string{
+		"Create a commercially usable image for: " + promptFragment + ".",
+		"Subject: " + template.Subject + ".",
+		"Scene and background: " + template.Scene + ".",
+		"Composition: " + template.Composition + ".",
+		"Lighting: " + template.Lighting + ".",
+		"Camera and perspective: " + template.Camera + ".",
+		"Color and material direction: " + template.ColorMaterial + ".",
+		"Commercial polish: " + template.CommercialStyle + ".",
+		"Text requirements: " + template.TextRequirements + ".",
+		"Brand style: " + template.BrandStyle + ".",
+		"Avoid: " + strings.Join(template.AvoidList, ", ") + ".",
+	}, " ")
+	if result.EnhancementProfile == UpstreamPromptEnhancementProfileChinesePoster {
+		result.EnhancedPrompt += " Keep Chinese typography areas simple, legible, and easy to replace manually if the image model cannot render exact text."
+	}
+}
+
+func applyTextPromptEnhancement(result *UpstreamPromptEnhancementResult, inputPrompt string) {
+	templates := textPromptEnhancerTemplates()
+	template, ok := templates[result.Category]
+	if !ok {
+		result.Category = "chinese_commerce_copy"
+		template = templates[result.Category]
+		result.Diagnostics = append(result.Diagnostics, "unknown_category_template")
+	}
+	promptFragment := promptEnhancerInputFragment(inputPrompt)
+	result.QualityDimensions = append([]string{}, template.QualityDimensions...)
+	result.NegativeGuidance = append([]string{}, template.NegativeGuidance...)
+	result.AvoidList = append([]string{}, template.AvoidList...)
+	result.EnhancementReasons = append([]string{}, template.Reasons...)
+	result.EnhancedPrompt = strings.Join([]string{
+		"Task: " + promptFragment + ".",
+		"Role and standard: " + template.Role + ".",
+		"Context handling: " + template.ContextHandling + ".",
+		"Output structure: " + template.OutputStructure + ".",
+		"Quality bar: " + template.QualityBar + ".",
+		"Constraints: " + strings.Join(template.AvoidList, ", ") + ".",
+	}, " ")
+}
+
+type promptEnhancerImageTemplate struct {
+	Subject           string
+	Scene             string
+	Composition       string
+	Lighting          string
+	Camera            string
+	ColorMaterial     string
+	CommercialStyle   string
+	TextRequirements  string
+	BrandStyle        string
+	QualityDimensions []string
+	NegativeGuidance  []string
+	AvoidList         []string
+	Reasons           []string
+}
+
+type promptEnhancerTextTemplate struct {
+	Role              string
+	ContextHandling   string
+	OutputStructure   string
+	QualityBar        string
+	QualityDimensions []string
+	NegativeGuidance  []string
+	AvoidList         []string
+	Reasons           []string
+}
+
+func imagePromptEnhancerTemplates() map[string]promptEnhancerImageTemplate {
+	baseAvoid := []string{
+		"garbled text",
+		"wrong Chinese characters",
+		"deformed hands or product shape",
+		"low clarity",
+		"cheap stock-photo look",
+		"overly complex background",
+		"watermark",
+	}
+	baseDimensions := []string{
+		"subject clarity",
+		"scene",
+		"composition",
+		"lighting",
+		"camera perspective",
+		"color and material",
+		"commercial appeal",
+		"text quality",
+		"background",
+		"brand style",
+	}
+	baseReasons := []string{
+		"expand short user prompt into production art direction",
+		"make parameters reviewable against official product output",
+		"reduce low-commercial-quality image results",
+	}
+	return map[string]promptEnhancerImageTemplate{
+		"ecommerce_product_hero": {
+			Subject:           "single hero product with accurate shape, clean edges, and realistic scale",
+			Scene:             "premium studio set with uncluttered surface and product-focused negative space",
+			Composition:       "centered product hero, balanced whitespace, strong shadow anchor, e-commerce main image crop",
+			Lighting:          "softbox studio lighting, realistic reflections, crisp details",
+			Camera:            "front three-quarter product photography, medium focal length, no distortion",
+			ColorMaterial:     "true-to-material texture, controlled contrast, premium neutral palette",
+			CommercialStyle:   "high-end marketplace-ready commercial photography",
+			TextRequirements:  "no embedded text unless explicitly requested; leave clean copy area",
+			BrandStyle:        "minimal premium brand language with consistent product finish",
+			QualityDimensions: baseDimensions,
+			NegativeGuidance:  []string{"avoid fake labels", "avoid warped product geometry"},
+			AvoidList:         baseAvoid,
+			Reasons:           baseReasons,
+		},
+		"milk_tea_commercial_poster": {
+			Subject:           "appetizing milk tea cup with visible toppings, condensation, and fresh ingredients",
+			Scene:             "summer beverage poster setting with fruit cues and clean promotional layout",
+			Composition:       "large product focus, clear headline zone, secondary ingredient accents, poster hierarchy",
+			Lighting:          "bright commercial food lighting, glossy highlights, fresh color temperature",
+			Camera:            "slightly low front angle to make the drink look desirable and premium",
+			ColorMaterial:     "mango yellow, creamy white, natural fruit textures, clear cup material",
+			CommercialStyle:   "retail beverage campaign, polished and appetizing",
+			TextRequirements:  "reserve simple Chinese headline area; avoid auto-rendering complex copy",
+			BrandStyle:        "fresh, youthful, clean chain-store visual style",
+			QualityDimensions: baseDimensions,
+			NegativeGuidance:  []string{"avoid messy ingredients", "avoid plastic-looking drink"},
+			AvoidList:         baseAvoid,
+			Reasons:           baseReasons,
+		},
+		"restaurant_ad": {
+			Subject:           "hero food dish with realistic ingredients, steam, and appetizing texture",
+			Scene:             "restaurant advertising setup with tableware and controlled background depth",
+			Composition:       "dish in foreground, clear offer/copy zone, strong food focus, poster-ready crop",
+			Lighting:          "warm directional food photography light with natural highlights",
+			Camera:            "close three-quarter food photography angle, shallow depth of field",
+			ColorMaterial:     "rich food color, realistic oil, steam, ceramic or wood textures",
+			CommercialStyle:   "delivery-platform and storefront ad quality",
+			TextRequirements:  "leave headline area; do not hallucinate unreadable menu text",
+			BrandStyle:        "clean, appetizing, not over-saturated",
+			QualityDimensions: baseDimensions,
+			NegativeGuidance:  []string{"avoid unappetizing food texture", "avoid dirty table details"},
+			AvoidList:         baseAvoid,
+			Reasons:           baseReasons,
+		},
+		"xiaohongshu_cover": {
+			Subject:           "clear lifestyle or product subject with scroll-stopping social cover appeal",
+			Scene:             "clean editorial social media layout with premium props and soft background",
+			Composition:       "vertical cover composition, strong focal point, readable title zone",
+			Lighting:          "soft natural light, premium beauty/lifestyle finish",
+			Camera:            "editorial close-up with flattering perspective",
+			ColorMaterial:     "soft but not washed-out palette, refined material detail",
+			CommercialStyle:   "high-quality Xiaohongshu cover, click-worthy but credible",
+			TextRequirements:  "simple title area only; avoid dense generated Chinese text",
+			BrandStyle:        "premium social commerce, clean and aspirational",
+			QualityDimensions: baseDimensions,
+			NegativeGuidance:  []string{"avoid fake watermark", "avoid noisy collage"},
+			AvoidList:         baseAvoid,
+			Reasons:           baseReasons,
+		},
+		"chinese_promo_poster": {
+			Subject:           "promotional product or offer with clear product hierarchy",
+			Scene:             "Chinese retail campaign poster with clean headline and offer zones",
+			Composition:       "top headline zone, central product hero, bottom CTA area, simple layers",
+			Lighting:          "bright campaign lighting with crisp separation",
+			Camera:            "front-facing commercial ad perspective",
+			ColorMaterial:     "bold but controlled promotional colors, high contrast, clean edges",
+			CommercialStyle:   "e-commerce campaign poster suitable for manual typography polish",
+			TextRequirements:  "reserve editable Chinese text blocks; avoid rendering long Chinese copy inside the image",
+			BrandStyle:        "modern Chinese promotional design without clutter",
+			QualityDimensions: baseDimensions,
+			NegativeGuidance:  []string{"avoid unreadable Chinese typography", "avoid fake QR codes"},
+			AvoidList:         baseAvoid,
+			Reasons:           append(baseReasons, "make Chinese text risk explicit before commercial use"),
+		},
+		"portrait_commercial": {
+			Subject:           "realistic person with stable face, natural hands, and commercially usable styling",
+			Scene:             "clean portrait set with wardrobe and background matching the brand tone",
+			Composition:       "half-body or three-quarter portrait, clear face, balanced negative space",
+			Lighting:          "soft professional portrait lighting with natural skin texture",
+			Camera:            "85mm editorial portrait look, no wide-angle distortion",
+			ColorMaterial:     "natural skin tones, premium clothing fabric, controlled color palette",
+			CommercialStyle:   "brand campaign portrait, polished but believable",
+			TextRequirements:  "no generated text over face or body",
+			BrandStyle:        "credible, refined, modern",
+			QualityDimensions: baseDimensions,
+			NegativeGuidance:  []string{"avoid distorted hands", "avoid waxy skin", "avoid uncanny face"},
+			AvoidList:         baseAvoid,
+			Reasons:           baseReasons,
+		},
+		"interior_design": {
+			Subject:           "room layout with realistic furniture, materials, and spatial proportions",
+			Scene:             "interior design render with coherent style and practical layout",
+			Composition:       "wide room view, clear focal wall, balanced furniture placement",
+			Lighting:          "natural window light plus soft interior fill lighting",
+			Camera:            "architectural interior lens, straight verticals, realistic perspective",
+			ColorMaterial:     "accurate wood, fabric, stone, metal, and wall finishes",
+			CommercialStyle:   "portfolio-ready interior visualization",
+			TextRequirements:  "no text overlays",
+			BrandStyle:        "cohesive interior style with clean material palette",
+			QualityDimensions: baseDimensions,
+			NegativeGuidance:  []string{"avoid impossible furniture scale", "avoid warped room geometry"},
+			AvoidList:         baseAvoid,
+			Reasons:           baseReasons,
+		},
+		"app_banner": {
+			Subject:           "software product concept with clear interface/product signal",
+			Scene:             "professional SaaS or AI workspace banner environment",
+			Composition:       "wide banner crop, clear headline area, product visual as first-viewport signal",
+			Lighting:          "clean digital product lighting, high readability",
+			Camera:            "straight-on or slight perspective UI/product showcase",
+			ColorMaterial:     "modern UI colors, crisp panels, restrained contrast",
+			CommercialStyle:   "conversion-ready app landing banner",
+			TextRequirements:  "reserve text area; avoid tiny unreadable UI copy",
+			BrandStyle:        "professional technology product, not generic sci-fi",
+			QualityDimensions: baseDimensions,
+			NegativeGuidance:  []string{"avoid random dashboard noise", "avoid fake tiny text"},
+			AvoidList:         baseAvoid,
+			Reasons:           baseReasons,
+		},
+		"brand_style": {
+			Subject:           "brand system objects such as packaging, cup, signage, and social visual",
+			Scene:             "cohesive brand presentation with multiple touchpoints",
+			Composition:       "orderly brand board, consistent spacing, clear hierarchy",
+			Lighting:          "premium studio lighting with realistic shadows",
+			Camera:            "product and brand collateral presentation perspective",
+			ColorMaterial:     "consistent brand colors, print-ready material cues",
+			CommercialStyle:   "brand identity concept suitable for client review",
+			TextRequirements:  "use simple placeholder typography areas, not generated final text",
+			BrandStyle:        "cohesive, premium, memorable",
+			QualityDimensions: baseDimensions,
+			NegativeGuidance:  []string{"avoid inconsistent logos", "avoid unreadable brand names"},
+			AvoidList:         baseAvoid,
+			Reasons:           baseReasons,
+		},
+		"packaging_concept": {
+			Subject:           "packaging box, label, and product display with stable geometry",
+			Scene:             "studio packaging concept presentation",
+			Composition:       "front package hero with side detail, clean copy zones, product context",
+			Lighting:          "soft packaging photography light with crisp edges",
+			Camera:            "front three-quarter packaging view, accurate perspective",
+			ColorMaterial:     "paper, foil, plastic, or matte texture rendered realistically",
+			CommercialStyle:   "client-ready packaging concept visualization",
+			TextRequirements:  "avoid final small text; reserve editable label zones",
+			BrandStyle:        "premium and coherent packaging language",
+			QualityDimensions: baseDimensions,
+			NegativeGuidance:  []string{"avoid warped boxes", "avoid fake nutritional text"},
+			AvoidList:         baseAvoid,
+			Reasons:           baseReasons,
+		},
+		"generic_commercial_ad": {
+			Subject:           "clear commercial subject with product or service benefit visible",
+			Scene:             "clean ad setting matched to the use case",
+			Composition:       "strong focal subject, copy-safe negative space, campaign-ready crop",
+			Lighting:          "professional commercial lighting",
+			Camera:            "stable advertising perspective with no distortion",
+			ColorMaterial:     "controlled brand palette and realistic material cues",
+			CommercialStyle:   "usable advertising visual with polished details",
+			TextRequirements:  "reserve editable text areas and avoid generated dense copy",
+			BrandStyle:        "consistent, premium, and not generic",
+			QualityDimensions: baseDimensions,
+			NegativeGuidance:  []string{"avoid visual clutter", "avoid low-quality stock look"},
+			AvoidList:         baseAvoid,
+			Reasons:           baseReasons,
+		},
+	}
+}
+
+func textPromptEnhancerTemplates() map[string]promptEnhancerTextTemplate {
+	baseAvoid := []string{
+		"unsupported claims",
+		"fabricated facts",
+		"vague generic wording",
+		"hidden assumptions",
+		"format drift",
+	}
+	return map[string]promptEnhancerTextTemplate{
+		"chinese_commerce_copy": {
+			Role:              "act as a senior Chinese e-commerce copywriter with realistic conversion taste",
+			ContextHandling:   "extract product, audience, platform, tone, selling points, and compliance risks before writing",
+			OutputStructure:   "return hero title, selling bullets, short-video voiceover, and risk notes",
+			QualityBar:        "specific, credible, commercially sharp, and free of exaggerated medical or guaranteed claims",
+			QualityDimensions: []string{"commercial tone", "Chinese fluency", "conversion clarity", "claim safety"},
+			NegativeGuidance:  []string{"avoid exaggerated claims", "avoid generic luxury adjectives"},
+			AvoidList:         baseAvoid,
+			Reasons:           []string{"turn short commercial request into a complete copy brief", "make safety and platform fit explicit"},
+		},
+		"xiaohongshu_copy": {
+			Role:              "act as a Xiaohongshu content strategist who writes natural Chinese social commerce posts",
+			ContextHandling:   "identify hook, user scenario, believable personal tone, benefits, and boundaries",
+			OutputStructure:   "return title options, post body, topic tags, and claim safety notes",
+			QualityBar:        "authentic, specific, not over-promising, and easy to scan on mobile",
+			QualityDimensions: []string{"platform fit", "authentic tone", "hook quality", "safe claims"},
+			NegativeGuidance:  []string{"avoid fake personal experience", "avoid medical guarantees"},
+			AvoidList:         baseAvoid,
+			Reasons:           []string{"adapt generic copy into platform-native structure", "reduce fake or exaggerated social tone"},
+		},
+		"long_context_understanding": {
+			Role:              "act as a precise analyst who preserves context and distinguishes facts from assumptions",
+			ContextHandling:   "read all provided context, extract decisions, risks, owners, dependencies, and open questions",
+			OutputStructure:   "return sections for summary, decisions, risks, owners, next actions, and missing information",
+			QualityBar:        "faithful to source context, no invented owners or deadlines, actionable and concise",
+			QualityDimensions: []string{"context retention", "decision extraction", "risk clarity", "actionability"},
+			NegativeGuidance:  []string{"avoid inventing facts", "avoid collapsing unresolved questions into decisions"},
+			AvoidList:         baseAvoid,
+			Reasons:           []string{"make context retention testable", "separate source facts from model inference"},
+		},
+		"strict_json_output": {
+			Role:              "act as a strict JSON formatter and validator",
+			ContextHandling:   "infer only requested fields from provided context and use null when unavailable",
+			OutputStructure:   "return valid JSON only with the requested schema, no markdown and no prose",
+			QualityBar:        "parseable JSON, stable key order, correct types, no trailing commentary",
+			QualityDimensions: []string{"JSON validity", "schema compliance", "format stability", "instruction following"},
+			NegativeGuidance:  []string{"avoid markdown fences", "avoid extra explanations"},
+			AvoidList:         append(baseAvoid, "markdown fences", "extra prose"),
+			Reasons:           []string{"convert natural-language request into strict output contract", "reduce format drift"},
+		},
+		"table_organization": {
+			Role:              "act as a product operations analyst",
+			ContextHandling:   "cluster messy requirements by goal, dependency, risk, owner, and acceptance criteria",
+			OutputStructure:   "return a table with priority, impact, effort, owner, acceptance criteria, and notes",
+			QualityBar:        "clear priorities, comparable rows, no duplicate items, practical acceptance criteria",
+			QualityDimensions: []string{"structure", "prioritization", "completeness", "format consistency"},
+			NegativeGuidance:  []string{"avoid vague rows", "avoid missing acceptance criteria"},
+			AvoidList:         baseAvoid,
+			Reasons:           []string{"force messy requirements into comparable operating structure"},
+		},
+		"code_explanation": {
+			Role:              "act as a senior engineer explaining code behavior and risks",
+			ContextHandling:   "trace control flow, state changes, error handling, and edge cases from the provided code",
+			OutputStructure:   "return execution order, likely bugs, risk level, and minimal fix suggestions",
+			QualityBar:        "technically accurate, grounded in code, no invented APIs",
+			QualityDimensions: []string{"technical accuracy", "bug spotting", "clarity", "minimal fix quality"},
+			NegativeGuidance:  []string{"avoid broad refactors", "avoid guessing missing code"},
+			AvoidList:         baseAvoid,
+			Reasons:           []string{"make code explanation grounded and actionable"},
+		},
+		"multiturn_followup": {
+			Role:              "act as a planning assistant that preserves prior constraints across turns",
+			ContextHandling:   "carry forward previous assumptions, constraints, and tradeoffs before answering the follow-up",
+			OutputStructure:   "return updated answer, changed assumptions, unchanged constraints, and recommended next step",
+			QualityBar:        "does not forget prior context and clearly explains what changed",
+			QualityDimensions: []string{"context carryover", "adaptation", "tradeoff reasoning", "practicality"},
+			NegativeGuidance:  []string{"avoid restarting from scratch", "avoid ignoring prior constraints"},
+			AvoidList:         baseAvoid,
+			Reasons:           []string{"make multi-turn memory and adaptation measurable"},
+		},
+		"complex_reasoning": {
+			Role:              "act as a rigorous strategist who reasons through tradeoffs before recommendations",
+			ContextHandling:   "define assumptions, variables, constraints, failure modes, and measurable success criteria",
+			OutputStructure:   "return reasoning summary, recommendation, alternatives, risks, metrics, and rollback criteria",
+			QualityBar:        "specific, testable, logically coherent, and not hand-wavy",
+			QualityDimensions: []string{"causal reasoning", "metrics design", "risk handling", "specificity"},
+			NegativeGuidance:  []string{"avoid generic frameworks", "avoid unsupported confidence"},
+			AvoidList:         baseAvoid,
+			Reasons:           []string{"make complex reasoning output auditable against fixed benchmarks"},
+		},
+	}
+}
+
+func normalizePromptEnhancerType(value UpstreamPromptEnhancerType) UpstreamPromptEnhancerType {
+	switch strings.ToLower(strings.TrimSpace(string(value))) {
+	case string(UpstreamPromptEnhancerTypeImage):
+		return UpstreamPromptEnhancerTypeImage
+	default:
+		return UpstreamPromptEnhancerTypeText
+	}
+}
+
+func normalizePromptEnhancerCategory(category string) string {
+	category = strings.ToLower(strings.TrimSpace(category))
+	category = strings.ReplaceAll(category, " ", "_")
+	category = strings.ReplaceAll(category, "-", "_")
+	if category == "" {
+		return "generic_commercial_ad"
+	}
+	return trimAuditValue(category, 120)
+}
+
+func normalizePromptEnhancementProfile(
+	profile UpstreamPromptEnhancementProfile,
+	promptType UpstreamPromptEnhancerType,
+	category string,
+) UpstreamPromptEnhancementProfile {
+	value := UpstreamPromptEnhancementProfile(strings.TrimSpace(string(profile)))
+	if value != "" {
+		return value
+	}
+	if promptType == UpstreamPromptEnhancerTypeImage {
+		if category == "chinese_promo_poster" {
+			return UpstreamPromptEnhancementProfileChinesePoster
+		}
+		return UpstreamPromptEnhancementProfileCommercialImage
+	}
+	if category == "complex_reasoning" || category == "long_context_understanding" || category == "multiturn_followup" {
+		return UpstreamPromptEnhancementProfileReasoningText
+	}
+	return UpstreamPromptEnhancementProfileStructuredText
+}
+
 func normalizeImageQualityManualScores(scores UpstreamImageQualityManualScores) UpstreamImageQualityManualScores {
 	scores.CompositionScore = clampQualityScore(scores.CompositionScore)
 	scores.CommercialScore = clampQualityScore(scores.CommercialScore)
@@ -1091,6 +1617,33 @@ func auditPromptHash(prompt string) string {
 var auditSecretPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+`),
 	regexp.MustCompile(`(?i)\b(authorization|api[_-]?key|access[_-]?token|refresh[_-]?token|session[_-]?token|client[_-]?secret|secret|password|cookie)\s*[:=]\s*[^,\s]+`),
+}
+
+func promptEnhancerHasSensitiveContent(prompt string) bool {
+	for _, pattern := range auditSecretPatterns {
+		if pattern.MatchString(prompt) {
+			return true
+		}
+	}
+	return false
+}
+
+func safePromptEnhancerPreview(prompt string) string {
+	if promptEnhancerHasSensitiveContent(prompt) {
+		return "prompt_sha256:" + shortAuditHash(prompt)
+	}
+	return auditPromptPreview(prompt, 120)
+}
+
+func promptEnhancerInputFragment(prompt string) string {
+	if promptEnhancerHasSensitiveContent(prompt) {
+		return "[REDACTED_INPUT_PROMPT]"
+	}
+	preview := auditPromptPreview(prompt, 220)
+	if preview == "" {
+		return "[EMPTY_INPUT_PROMPT]"
+	}
+	return preview
 }
 
 func auditPromptPreview(prompt string, maxRunes int) string {

@@ -673,6 +673,152 @@ func TestBuildUpstreamImageQualityComparisonReportUsesOnlyImageSamples(t *testin
 	}
 }
 
+func TestBuildPromptEnhancementBuildsCommercialImagePrompt(t *testing.T) {
+	t.Parallel()
+
+	result := BuildPromptEnhancement(UpstreamPromptEnhancerInput{
+		InputPrompt:       "Premium thermos bottle hero image",
+		PromptType:        UpstreamPromptEnhancerTypeImage,
+		Category:          "ecommerce_product_hero",
+		Language:          "zh-CN",
+		TargetUseCase:     "e-commerce main image",
+		BenchmarkSampleID: "image-ecommerce-product-hero",
+	})
+
+	if result.PromptType != UpstreamPromptEnhancerTypeImage || result.Category != "ecommerce_product_hero" {
+		t.Fatalf("unexpected prompt enhancer classification: %+v", result)
+	}
+	for _, expected := range []string{
+		"Subject:",
+		"Scene and background:",
+		"Composition:",
+		"Lighting:",
+		"Camera and perspective:",
+		"Color and material direction:",
+		"Commercial polish:",
+		"Text requirements:",
+		"Brand style:",
+	} {
+		if !strings.Contains(result.EnhancedPrompt, expected) {
+			t.Fatalf("enhanced image prompt missing %q: %s", expected, result.EnhancedPrompt)
+		}
+	}
+	for _, expected := range []string{"garbled text", "wrong Chinese characters", "low clarity", "cheap stock-photo look"} {
+		if !testContainsString(result.AvoidList, expected) {
+			t.Fatalf("image avoid list missing %q: %+v", expected, result.AvoidList)
+		}
+	}
+	if !testContainsString(result.Diagnostics, "benchmark_sample_linked") {
+		t.Fatalf("expected benchmark linkage diagnostic: %+v", result.Diagnostics)
+	}
+	if result.SuggestedForProvider {
+		t.Fatalf("offline enhancer output must not be marked ready for provider without review")
+	}
+}
+
+func TestBuildPromptEnhancementChinesePosterCallsOutTextRisk(t *testing.T) {
+	t.Parallel()
+
+	result := BuildPromptEnhancement(UpstreamPromptEnhancerInput{
+		InputPrompt: "618 headphones promotion poster",
+		PromptType:  UpstreamPromptEnhancerTypeImage,
+		Category:    "chinese_promo_poster",
+	})
+
+	if result.EnhancementProfile != UpstreamPromptEnhancementProfileChinesePoster {
+		t.Fatalf("expected Chinese poster profile, got %+v", result.EnhancementProfile)
+	}
+	for _, expected := range []string{"Chinese typography", "avoid rendering long Chinese copy", "wrong Chinese characters"} {
+		if !strings.Contains(result.EnhancedPrompt, expected) && !testContainsString(result.AvoidList, expected) {
+			t.Fatalf("expected Chinese poster text-risk guidance %q in result: %+v", expected, result)
+		}
+	}
+}
+
+func TestBuildPromptEnhancementBuildsStructuredTextPrompt(t *testing.T) {
+	t.Parallel()
+
+	result := BuildPromptEnhancement(UpstreamPromptEnhancerInput{
+		InputPrompt:   "Return JSON with summary and risks",
+		PromptType:    UpstreamPromptEnhancerTypeText,
+		Category:      "strict_json_output",
+		TargetUseCase: "regression benchmark",
+	})
+
+	if result.PromptType != UpstreamPromptEnhancerTypeText || result.Category != "strict_json_output" {
+		t.Fatalf("unexpected text enhancer classification: %+v", result)
+	}
+	for _, expected := range []string{"valid JSON", "no markdown", "no prose", "schema"} {
+		if !strings.Contains(strings.ToLower(result.EnhancedPrompt), strings.ToLower(expected)) {
+			t.Fatalf("enhanced text prompt missing %q: %s", expected, result.EnhancedPrompt)
+		}
+	}
+	if !testContainsString(result.QualityDimensions, "JSON validity") {
+		t.Fatalf("expected JSON quality dimension: %+v", result.QualityDimensions)
+	}
+}
+
+func TestBuildPromptEnhancementReportLinksSamplesAndCountsTypes(t *testing.T) {
+	t.Parallel()
+
+	report := BuildPromptEnhancementReport([]UpstreamPromptEnhancerInput{
+		{
+			InputPrompt:       "Milk tea poster",
+			PromptType:        UpstreamPromptEnhancerTypeImage,
+			Category:          "milk_tea_commercial_poster",
+			BenchmarkSampleID: "image-milk-tea-poster",
+		},
+		{
+			InputPrompt:       "Explain middleware order",
+			PromptType:        UpstreamPromptEnhancerTypeText,
+			Category:          "code_explanation",
+			BenchmarkSampleID: "text-code-explanation",
+		},
+	})
+
+	if report.TotalPrompts != 2 || report.ImagePrompts != 1 || report.TextPrompts != 1 || len(report.Results) != 2 {
+		t.Fatalf("unexpected enhancement report counters: %+v", report)
+	}
+	for _, result := range report.Results {
+		if result.PromptHash == "" || result.RedactedPreview == "" || result.EnhancedPrompt == "" {
+			t.Fatalf("enhancement report result missing core fields: %+v", result)
+		}
+		if !testContainsString(result.Diagnostics, "benchmark_sample_linked") {
+			t.Fatalf("expected benchmark linkage diagnostic: %+v", result.Diagnostics)
+		}
+	}
+}
+
+func TestBuildPromptEnhancementDoesNotLeakSensitivePrompt(t *testing.T) {
+	t.Parallel()
+
+	report := BuildPromptEnhancementReport([]UpstreamPromptEnhancerInput{{
+		InputPrompt: "Authorization: Bearer sk-live-secret cookie=sessionid password=hunter2 private unreleased product strategy",
+		PromptType:  UpstreamPromptEnhancerTypeImage,
+		Category:    "generic_commercial_ad",
+	}})
+	payload, err := json.Marshal(report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(payload)
+	for _, forbidden := range []string{"sk-live-secret", "sessionid", "hunter2", "private unreleased product strategy"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("prompt enhancement report leaked %q: %s", forbidden, body)
+		}
+	}
+	result := report.Results[0]
+	if !strings.HasPrefix(result.RedactedPreview, "prompt_sha256:") {
+		t.Fatalf("expected sensitive prompt preview to be hashed: %+v", result)
+	}
+	if !strings.Contains(result.EnhancedPrompt, "[REDACTED_INPUT_PROMPT]") {
+		t.Fatalf("expected enhanced prompt to use redacted input marker: %s", result.EnhancedPrompt)
+	}
+	if !testContainsString(result.Diagnostics, "sensitive_input_redacted") {
+		t.Fatalf("expected sensitive input diagnostic: %+v", result.Diagnostics)
+	}
+}
+
 func newAuditTestRequest() *http.Request {
 	req, err := http.NewRequest(http.MethodPost, "/api/v1/image-studio/generate", nil)
 	if err != nil {
