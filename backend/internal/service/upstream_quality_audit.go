@@ -70,6 +70,35 @@ type UpstreamQualityAuditRecord struct {
 	CreatedAt        time.Time                  `json:"created_at,omitempty"`
 }
 
+type UpstreamQualityDiagnosticSeverity string
+
+const (
+	UpstreamQualityDiagnosticSeverityHigh   UpstreamQualityDiagnosticSeverity = "high"
+	UpstreamQualityDiagnosticSeverityMedium UpstreamQualityDiagnosticSeverity = "medium"
+	UpstreamQualityDiagnosticSeverityLow    UpstreamQualityDiagnosticSeverity = "low"
+)
+
+type UpstreamQualityDiagnosticFinding struct {
+	Code           string                            `json:"code"`
+	Severity       UpstreamQualityDiagnosticSeverity `json:"severity"`
+	Operation      UpstreamQualityOperation          `json:"operation,omitempty"`
+	RequestedModel string                            `json:"requested_model,omitempty"`
+	UpstreamModel  string                            `json:"upstream_model,omitempty"`
+	ProviderName   string                            `json:"provider_name,omitempty"`
+	Message        string                            `json:"message"`
+	Recommendation string                            `json:"recommendation"`
+}
+
+type UpstreamQualityDiagnosticReport struct {
+	TotalRecords                int                                `json:"total_records"`
+	TextRecords                 int                                `json:"text_records"`
+	ImageRecords                int                                `json:"image_records"`
+	FallbackRecords             int                                `json:"fallback_records"`
+	FailedRecords               int                                `json:"failed_records"`
+	MissingUpstreamModelRecords int                                `json:"missing_upstream_model_records"`
+	Findings                    []UpstreamQualityDiagnosticFinding `json:"findings"`
+}
+
 type UpstreamQualityAuditInput struct {
 	RequestID      string
 	Route          string
@@ -91,6 +120,183 @@ type UpstreamQualityAuditInput struct {
 	Prompt         string
 	PromptEnhanced bool
 	CreatedAt      time.Time
+}
+
+func BuildUpstreamQualityDiagnosticReport(records []UpstreamQualityAuditRecord) UpstreamQualityDiagnosticReport {
+	report := UpstreamQualityDiagnosticReport{
+		TotalRecords: len(records),
+	}
+	for _, record := range records {
+		if record.Operation == UpstreamQualityOperationTextCompletion {
+			report.TextRecords++
+		}
+		if record.Operation == UpstreamQualityOperationImageGeneration || record.Operation == UpstreamQualityOperationImageEdit {
+			report.ImageRecords++
+		}
+		if record.FallbackUsed {
+			report.FallbackRecords++
+			report.Findings = append(report.Findings, newUpstreamQualityFinding(
+				"model_fallback_or_mapping_mismatch",
+				UpstreamQualityDiagnosticSeverityHigh,
+				record,
+				"Requested model differs from the upstream model or fallback was explicitly recorded.",
+				"Compare requested_model, mapped_model, and upstream_model before judging output quality against official products.",
+			))
+		}
+		if strings.TrimSpace(record.RequestedModel) == "" {
+			report.Findings = append(report.Findings, newUpstreamQualityFinding(
+				"missing_requested_model",
+				UpstreamQualityDiagnosticSeverityHigh,
+				record,
+				"Requested model is missing from the audit record.",
+				"Record the user-requested model before provider routing so same-model quality comparisons are meaningful.",
+			))
+		}
+		if strings.TrimSpace(record.UpstreamModel) == "" {
+			report.MissingUpstreamModelRecords++
+			report.Findings = append(report.Findings, newUpstreamQualityFinding(
+				"missing_upstream_model",
+				UpstreamQualityDiagnosticSeverityMedium,
+				record,
+				"Actual upstream model is missing from the audit record.",
+				"Capture the mapped or provider-returned model to detect aliasing, downgrade, or provider fallback.",
+			))
+		}
+		if strings.TrimSpace(record.ProviderName) == "" {
+			report.Findings = append(report.Findings, newUpstreamQualityFinding(
+				"missing_provider",
+				UpstreamQualityDiagnosticSeverityMedium,
+				record,
+				"Provider label is missing from the audit record.",
+				"Record a non-secret provider label so quality differences can be grouped by upstream.",
+			))
+		}
+		if strings.TrimSpace(record.EndpointLabel) == "" && strings.TrimSpace(record.EndpointHostHash) == "" {
+			report.Findings = append(report.Findings, newUpstreamQualityFinding(
+				"missing_endpoint_label",
+				UpstreamQualityDiagnosticSeverityMedium,
+				record,
+				"Endpoint label or host hash is missing from the audit record.",
+				"Store a redacted endpoint label or host hash without logging the full provider URL.",
+			))
+		}
+		status := strings.ToLower(strings.TrimSpace(record.Status))
+		if status == "failed" || status == "error" || strings.HasPrefix(status, "failed_") {
+			report.FailedRecords++
+			report.Findings = append(report.Findings, newUpstreamQualityFinding(
+				"upstream_failed",
+				UpstreamQualityDiagnosticSeverityHigh,
+				record,
+				"Audit record indicates an upstream failure.",
+				"Group failures by provider, upstream model, endpoint label, and sanitized error_code before changing routing.",
+			))
+		}
+		if record.LatencyMs <= 0 && status == "succeeded" {
+			report.Findings = append(report.Findings, newUpstreamQualityFinding(
+				"missing_latency",
+				UpstreamQualityDiagnosticSeverityLow,
+				record,
+				"Succeeded record is missing latency.",
+				"Capture latency_ms to compare perceived quality against speed and timeout behavior.",
+			))
+		}
+		if record.Operation == UpstreamQualityOperationTextCompletion {
+			addTextQualityFindings(&report, record)
+		}
+		if record.Operation == UpstreamQualityOperationImageGeneration || record.Operation == UpstreamQualityOperationImageEdit {
+			addImageQualityFindings(&report, record)
+		}
+	}
+	return report
+}
+
+func addTextQualityFindings(report *UpstreamQualityDiagnosticReport, record UpstreamQualityAuditRecord) {
+	if record.TokenUsage == (UpstreamQualityUsage{}) && strings.ToLower(strings.TrimSpace(record.Status)) == "succeeded" {
+		report.Findings = append(report.Findings, newUpstreamQualityFinding(
+			"missing_text_usage",
+			UpstreamQualityDiagnosticSeverityLow,
+			record,
+			"Succeeded text record is missing token usage.",
+			"Capture input/output/total tokens so quality and cost can be reviewed together without frontend billing decisions.",
+		))
+	}
+	if record.TextParams.Temperature == nil && record.TextParams.TopP == nil && record.TextParams.MaxTokens == nil &&
+		record.TextParams.ReasoningEffort == "" && record.TextParams.ResponseFormat == "" {
+		report.Findings = append(report.Findings, newUpstreamQualityFinding(
+			"missing_text_params",
+			UpstreamQualityDiagnosticSeverityMedium,
+			record,
+			"Text generation parameters are missing from the audit record.",
+			"Record temperature, top_p, max_tokens, reasoning effort, and response format where available before comparing model quality.",
+		))
+	}
+}
+
+func addImageQualityFindings(report *UpstreamQualityDiagnosticReport, record UpstreamQualityAuditRecord) {
+	if strings.TrimSpace(record.ImageParams.Size) == "" {
+		report.Findings = append(report.Findings, newUpstreamQualityFinding(
+			"missing_image_size",
+			UpstreamQualityDiagnosticSeverityMedium,
+			record,
+			"Image size is missing from the audit record.",
+			"Record requested size because official-product quality comparisons depend heavily on size and aspect ratio.",
+		))
+	}
+	if strings.TrimSpace(record.ImageParams.Quality) == "" {
+		report.Findings = append(report.Findings, newUpstreamQualityFinding(
+			"missing_image_quality",
+			UpstreamQualityDiagnosticSeverityMedium,
+			record,
+			"Image quality parameter is missing from the audit record.",
+			"Record quality so low-detail outputs can be separated from provider/model quality problems.",
+		))
+	}
+	if strings.TrimSpace(record.ImageParams.OutputFormat) == "" {
+		report.Findings = append(report.Findings, newUpstreamQualityFinding(
+			"missing_image_output_format",
+			UpstreamQualityDiagnosticSeverityLow,
+			record,
+			"Image output format is missing from the audit record.",
+			"Record output_format to detect compression, conversion, or delivery differences.",
+		))
+	}
+	if record.ImageParams.Count <= 0 {
+		report.Findings = append(report.Findings, newUpstreamQualityFinding(
+			"missing_image_count",
+			UpstreamQualityDiagnosticSeverityLow,
+			record,
+			"Image count is missing from the audit record.",
+			"Record n/count so retry, multi-image, and manual selection quality workflows can be evaluated later.",
+		))
+	}
+	if !record.PromptEnhanced {
+		report.Findings = append(report.Findings, newUpstreamQualityFinding(
+			"prompt_enhancer_not_recorded",
+			UpstreamQualityDiagnosticSeverityMedium,
+			record,
+			"Image record does not indicate prompt enhancement.",
+			"Record whether a prompt builder/enhancer was used before judging commercial image quality.",
+		))
+	}
+}
+
+func newUpstreamQualityFinding(
+	code string,
+	severity UpstreamQualityDiagnosticSeverity,
+	record UpstreamQualityAuditRecord,
+	message string,
+	recommendation string,
+) UpstreamQualityDiagnosticFinding {
+	return UpstreamQualityDiagnosticFinding{
+		Code:           code,
+		Severity:       severity,
+		Operation:      record.Operation,
+		RequestedModel: record.RequestedModel,
+		UpstreamModel:  record.UpstreamModel,
+		ProviderName:   record.ProviderName,
+		Message:        message,
+		Recommendation: recommendation,
+	}
 }
 
 func BuildUpstreamQualityAuditRecord(input UpstreamQualityAuditInput) UpstreamQualityAuditRecord {

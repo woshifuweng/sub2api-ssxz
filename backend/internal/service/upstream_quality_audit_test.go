@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -156,10 +157,107 @@ func TestUpstreamQualityPromptSamplesCoverTextAndCommercialImages(t *testing.T) 
 	}
 }
 
+func TestBuildUpstreamQualityDiagnosticReportFlagsModelAndImageGaps(t *testing.T) {
+	t.Parallel()
+
+	report := BuildUpstreamQualityDiagnosticReport([]UpstreamQualityAuditRecord{
+		BuildUpstreamQualityAuditRecord(UpstreamQualityAuditInput{
+			Route:          "/api/v1/image-studio/generate",
+			Operation:      UpstreamQualityOperationImageGeneration,
+			RequestedModel: "gpt-image-official",
+			UpstreamModel:  "cheap-image-fallback",
+			ProviderName:   "image-provider",
+			Endpoint:       "/v1/images/generations",
+			ImageParams: UpstreamQualityImageParams{
+				Size: "1024x1024",
+			},
+			Prompt:         "commercial product poster",
+			PromptEnhanced: false,
+			Status:         "succeeded",
+		}),
+	})
+
+	if report.TotalRecords != 1 || report.ImageRecords != 1 || report.FallbackRecords != 1 {
+		t.Fatalf("unexpected report counters: %+v", report)
+	}
+	for _, code := range []string{
+		"model_fallback_or_mapping_mismatch",
+		"missing_image_quality",
+		"missing_image_output_format",
+		"missing_image_count",
+		"prompt_enhancer_not_recorded",
+	} {
+		if !diagnosticReportHasFinding(report, code) {
+			t.Fatalf("expected finding %s in %+v", code, report.Findings)
+		}
+	}
+}
+
+func TestBuildUpstreamQualityDiagnosticReportDoesNotLeakSensitivePrompt(t *testing.T) {
+	t.Parallel()
+
+	record := BuildUpstreamQualityAuditRecord(UpstreamQualityAuditInput{
+		Route:          "/api/v1/chat-studio/complete",
+		Operation:      UpstreamQualityOperationTextCompletion,
+		RequestedModel: "gpt-5.5",
+		UpstreamModel:  "gpt-5.5",
+		ProviderName:   "openai",
+		Endpoint:       "https://api.openai.com/v1/chat/completions?api_key=must-not-appear",
+		Prompt:         "Authorization: Bearer sk-live-secret cookie=sessionid password=hunter2 user asks for campaign plan",
+		Status:         "succeeded",
+	})
+	report := BuildUpstreamQualityDiagnosticReport([]UpstreamQualityAuditRecord{record})
+
+	payload, err := json.Marshal(report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(payload)
+	for _, forbidden := range []string{"sk-live-secret", "sessionid", "hunter2", "api.openai.com", "must-not-appear", "campaign plan"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("diagnostic report leaked %q: %s", forbidden, body)
+		}
+	}
+	if !diagnosticReportHasFinding(report, "missing_text_params") {
+		t.Fatalf("expected missing text params finding: %+v", report.Findings)
+	}
+}
+
+func TestBuildUpstreamQualityDiagnosticReportFlagsFailedAndMissingFields(t *testing.T) {
+	t.Parallel()
+
+	report := BuildUpstreamQualityDiagnosticReport([]UpstreamQualityAuditRecord{
+		BuildUpstreamQualityAuditRecord(UpstreamQualityAuditInput{
+			Route:     "/api/v1/chat-studio/complete",
+			Operation: UpstreamQualityOperationTextCompletion,
+			Status:    "failed",
+			ErrorCode: "provider_timeout",
+		}),
+	})
+
+	if report.FailedRecords != 1 || report.MissingUpstreamModelRecords != 1 {
+		t.Fatalf("unexpected counters: %+v", report)
+	}
+	for _, code := range []string{"missing_requested_model", "missing_upstream_model", "missing_provider", "missing_endpoint_label", "upstream_failed"} {
+		if !diagnosticReportHasFinding(report, code) {
+			t.Fatalf("expected finding %s in %+v", code, report.Findings)
+		}
+	}
+}
+
 func newAuditTestRequest() *http.Request {
 	req, err := http.NewRequest(http.MethodPost, "/api/v1/image-studio/generate", nil)
 	if err != nil {
 		panic(err)
 	}
 	return req
+}
+
+func diagnosticReportHasFinding(report UpstreamQualityDiagnosticReport, code string) bool {
+	for _, finding := range report.Findings {
+		if finding.Code == code {
+			return true
+		}
+	}
+	return false
 }
