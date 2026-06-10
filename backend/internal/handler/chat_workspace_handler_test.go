@@ -74,12 +74,18 @@ func TestChatWorkspaceHandlerCreatesConversationAndRestoresMessages(t *testing.T
 	appendRec := httptest.NewRecorder()
 	router.ServeHTTP(appendRec, appendReq)
 	require.Equal(t, http.StatusCreated, appendRec.Code)
+	require.Contains(t, appendRec.Body.String(), `"role":"user"`)
+	require.NotContains(t, appendRec.Body.String(), "AI response provider is not connected yet")
 
 	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/chat-workspace/conversations/1/messages", nil)
 	listRec := httptest.NewRecorder()
 	router.ServeHTTP(listRec, listReq)
 	require.Equal(t, http.StatusOK, listRec.Code)
 	require.Contains(t, listRec.Body.String(), "hello")
+	require.Contains(t, listRec.Body.String(), "AI response provider is not connected yet")
+	require.Contains(t, listRec.Body.String(), `"role":"assistant"`)
+	require.Contains(t, listRec.Body.String(), `"provider_called":false`)
+	require.Contains(t, listRec.Body.String(), `"billing_touched":false`)
 }
 
 func TestChatWorkspaceHandlerRejectsDisabledCapabilityWithoutLeakingInternals(t *testing.T) {
@@ -101,6 +107,12 @@ func TestChatWorkspaceHandlerRejectsDisabledCapabilityWithoutLeakingInternals(t 
 	require.Contains(t, appendRec.Body.String(), "Capability is not available")
 	require.NotContains(t, appendRec.Body.String(), "SQL")
 	require.NotContains(t, appendRec.Body.String(), "provider")
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/chat-workspace/conversations/1/messages", nil)
+	listRec := httptest.NewRecorder()
+	router.ServeHTTP(listRec, listReq)
+	require.Equal(t, http.StatusOK, listRec.Code)
+	require.NotContains(t, listRec.Body.String(), `"role":"assistant"`)
 }
 
 type handlerMemoryChatWorkspaceRepo struct {

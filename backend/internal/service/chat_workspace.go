@@ -19,6 +19,8 @@ const (
 
 	WorkspaceMessageStatusCompleted = "completed"
 
+	WorkspaceAssistantUnavailableContent = "AI response provider is not connected yet. 当前仅完成文本会话保存，AI 回复将在后续接入。"
+
 	workspaceMaxTitleLength   = 255
 	workspaceMaxContentLength = 12000
 )
@@ -79,6 +81,27 @@ type WorkspaceAppendAssistantMessageInput struct {
 	Metadata       map[string]any
 }
 
+type WorkspaceAssistantResponseInput struct {
+	UserID         int64
+	ConversationID int64
+	UserMessage    WorkspaceMessage
+	Content        string
+	Model          string
+	Intent         string
+	Metadata       map[string]any
+}
+
+type WorkspaceAssistantResponse struct {
+	Content  string
+	Model    string
+	Intent   string
+	Metadata map[string]any
+}
+
+type WorkspaceAssistantResponder interface {
+	GenerateAssistantResponse(ctx context.Context, input WorkspaceAssistantResponseInput) (WorkspaceAssistantResponse, error)
+}
+
 type ChatWorkspaceRepository interface {
 	ListConversations(ctx context.Context, userID int64) ([]WorkspaceConversation, error)
 	CreateConversation(ctx context.Context, userID int64, title string) (*WorkspaceConversation, error)
@@ -88,11 +111,19 @@ type ChatWorkspaceRepository interface {
 }
 
 type ChatWorkspaceService struct {
-	repo ChatWorkspaceRepository
+	repo      ChatWorkspaceRepository
+	responder WorkspaceAssistantResponder
 }
 
 func NewChatWorkspaceService(repo ChatWorkspaceRepository) *ChatWorkspaceService {
-	return &ChatWorkspaceService{repo: repo}
+	return NewChatWorkspaceServiceWithResponder(repo, nil)
+}
+
+func NewChatWorkspaceServiceWithResponder(repo ChatWorkspaceRepository, responder WorkspaceAssistantResponder) *ChatWorkspaceService {
+	if responder == nil {
+		responder = WorkspaceUnavailableAssistantResponder{}
+	}
+	return &ChatWorkspaceService{repo: repo, responder: responder}
 }
 
 func (s *ChatWorkspaceService) ListConversations(ctx context.Context, userID int64) ([]WorkspaceConversation, error) {
@@ -163,6 +194,42 @@ func (s *ChatWorkspaceService) AppendMessage(ctx context.Context, userID int64, 
 	return s.repo.AppendMessage(ctx, userID, input, deriveWorkspaceTitle(input.Content))
 }
 
+func (s *ChatWorkspaceService) AppendMessageWithAssistantResponse(ctx context.Context, userID int64, input WorkspaceAppendMessageInput) (*WorkspaceMessage, *WorkspaceMessage, error) {
+	userMessage, err := s.AppendMessage(ctx, userID, input)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	responder := s.responder
+	if responder == nil {
+		responder = WorkspaceUnavailableAssistantResponder{}
+	}
+	assistantResponse, err := responder.GenerateAssistantResponse(ctx, WorkspaceAssistantResponseInput{
+		UserID:         userID,
+		ConversationID: input.ConversationID,
+		UserMessage:    *userMessage,
+		Content:        userMessage.Content,
+		Model:          userMessage.Model,
+		Intent:         userMessage.Intent,
+		Metadata:       userMessage.Metadata,
+	})
+	if err != nil {
+		return userMessage, nil, err
+	}
+
+	assistantMessage, err := s.AppendAssistantMessage(ctx, userID, WorkspaceAppendAssistantMessageInput{
+		ConversationID: input.ConversationID,
+		Content:        assistantResponse.Content,
+		Model:          firstNonEmptyWorkspaceValue(assistantResponse.Model, userMessage.Model),
+		Intent:         firstNonEmptyWorkspaceValue(assistantResponse.Intent, userMessage.Intent),
+		Metadata:       assistantResponse.Metadata,
+	})
+	if err != nil {
+		return userMessage, nil, err
+	}
+	return userMessage, assistantMessage, nil
+}
+
 func (s *ChatWorkspaceService) AppendAssistantMessage(ctx context.Context, userID int64, input WorkspaceAppendAssistantMessageInput) (*WorkspaceMessage, error) {
 	if s == nil || s.repo == nil || userID <= 0 || input.ConversationID <= 0 {
 		return nil, ErrWorkspaceConversationNotFound
@@ -201,6 +268,24 @@ func (s *ChatWorkspaceService) AppendAssistantMessage(ctx context.Context, userI
 		Status:         WorkspaceMessageStatusCompleted,
 		Metadata:       input.Metadata,
 	}, "")
+}
+
+type WorkspaceUnavailableAssistantResponder struct{}
+
+func (WorkspaceUnavailableAssistantResponder) GenerateAssistantResponse(_ context.Context, input WorkspaceAssistantResponseInput) (WorkspaceAssistantResponse, error) {
+	return WorkspaceAssistantResponse{
+		Content: WorkspaceAssistantUnavailableContent,
+		Model:   strings.TrimSpace(input.Model),
+		Intent:  normalizeWorkspaceIntent(input.Intent),
+		Metadata: map[string]any{
+			"status":             "unavailable",
+			"placeholder":        true,
+			"provider_connected": false,
+			"provider_called":    false,
+			"billing_touched":    false,
+			"asset_touched":      false,
+		},
+	}, nil
 }
 
 func sanitizeWorkspaceTitle(value string) string {
@@ -247,6 +332,15 @@ func normalizeWorkspaceIntent(value string) string {
 		return WorkspaceIntentChat
 	}
 	return value
+}
+
+func firstNonEmptyWorkspaceValue(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func isAllowedWorkspaceModel(model string) bool {
