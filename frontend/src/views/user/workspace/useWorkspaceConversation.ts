@@ -1,9 +1,14 @@
 import { computed, ref } from 'vue'
 import {
   CHAT_MESSAGE_TYPE_TEXT,
+  appendMessage,
   chatWorkspaceBackendEnabled,
+  createConversation,
+  listConversations,
+  listMessages,
   type ChatAsset,
-  type ChatConversation
+  type ChatConversation,
+  type ChatMessage
 } from '@/api/chatWorkspace'
 
 export type WorkspaceIntent = 'home' | 'chat' | 'image'
@@ -11,6 +16,11 @@ export type WorkspaceMessageState = 'loading' | 'error'
 
 export const WORKSPACE_BACKEND_UNAVAILABLE_MESSAGE =
   '统一工作台后端正在接入，暂不可发送。当前仅展示工作台入口。'
+export const WORKSPACE_TEXT_ONLY_MESSAGE =
+  '统一工作台 v1 当前仅支持文本对话。图片和文件会在 asset/task 后端就绪后接入。'
+export const WORKSPACE_HISTORY_FAILED_MESSAGE = '工作台历史暂时无法加载。'
+export const WORKSPACE_MESSAGES_FAILED_MESSAGE = '该对话暂时无法加载。'
+export const WORKSPACE_SEND_FAILED_MESSAGE = '消息保存失败，请稍后重试。'
 
 export interface WorkspaceAttachment {
   id: string
@@ -58,17 +68,55 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
   )
 
   async function loadHistory() {
-    conversations.value = []
-    activeConversationId.value = null
-    loadingHistory.value = false
-    loadingMessages.value = false
     errorMessage.value = ''
+    if (!backendEnabled.value) {
+      conversations.value = []
+      activeConversationId.value = null
+      loadingHistory.value = false
+      loadingMessages.value = false
+      return
+    }
+
+    loadingHistory.value = true
+    try {
+      conversations.value = await listConversations()
+      if (
+        activeConversationId.value !== null &&
+        !conversations.value.some((item) => item.id === activeConversationId.value)
+      ) {
+        activeConversationId.value = null
+        messages.value = []
+      }
+    } catch {
+      conversations.value = []
+      activeConversationId.value = null
+      messages.value = []
+      errorMessage.value = WORKSPACE_HISTORY_FAILED_MESSAGE
+    } finally {
+      loadingHistory.value = false
+      loadingMessages.value = false
+    }
   }
 
-  async function selectConversation(_id: number) {
+  async function selectConversation(id: number) {
     if (!backendEnabled.value) {
       errorMessage.value = WORKSPACE_BACKEND_UNAVAILABLE_MESSAGE
       return
+    }
+    if (id <= 0 || loadingMessages.value) return
+
+    errorMessage.value = ''
+    loadingMessages.value = true
+    try {
+      const nextMessages = await listMessages(id)
+      activeConversationId.value = id
+      messages.value = nextMessages.map(mapChatMessageToWorkspaceMessage)
+    } catch {
+      activeConversationId.value = null
+      messages.value = []
+      errorMessage.value = WORKSPACE_MESSAGES_FAILED_MESSAGE
+    } finally {
+      loadingMessages.value = false
     }
   }
 
@@ -88,7 +136,53 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
       return false
     }
 
-    return false
+    if (!isTextChatIntent(input.intent) || input.attachments.length > 0) {
+      errorMessage.value = WORKSPACE_TEXT_ONLY_MESSAGE
+      return false
+    }
+
+    sending.value = true
+    errorMessage.value = ''
+    try {
+      let conversationId = activeConversationId.value
+      if (conversationId === null) {
+        const conversation = await createConversation({ title: deriveConversationTitle(text) })
+        conversationId = conversation.id
+        activeConversationId.value = conversation.id
+        upsertConversation(conversation)
+      }
+
+      const savedMessage = await appendMessage(conversationId, {
+        message_type: CHAT_MESSAGE_TYPE_TEXT,
+        role: 'user',
+        content: text,
+        model: input.model,
+        intent: 'chat'
+      })
+      messages.value = [...messages.value, mapChatMessageToWorkspaceMessage(savedMessage)]
+      await refreshConversationList()
+      return true
+    } catch {
+      errorMessage.value = WORKSPACE_SEND_FAILED_MESSAGE
+      return false
+    } finally {
+      sending.value = false
+    }
+  }
+
+  async function refreshConversationList() {
+    try {
+      conversations.value = await listConversations()
+    } catch {
+      // Sending already succeeded; keep the active conversation visible if sidebar refresh fails.
+    }
+  }
+
+  function upsertConversation(conversation: ChatConversation) {
+    const exists = conversations.value.some((item) => item.id === conversation.id)
+    conversations.value = exists
+      ? conversations.value.map((item) => (item.id === conversation.id ? conversation : item))
+      : [conversation, ...conversations.value]
   }
 
   return {
@@ -120,4 +214,26 @@ export function createLocalWorkspaceMessage(
     content,
     attachments
   }
+}
+
+function mapChatMessageToWorkspaceMessage(message: ChatMessage): WorkspaceMessage {
+  return {
+    id: `message-${message.id}`,
+    persistedId: message.id,
+    conversationId: message.conversation_id,
+    messageType: message.message_type,
+    role: message.role === 'assistant' ? 'assistant' : 'user',
+    content: message.content,
+    createdAt: message.created_at
+  }
+}
+
+function deriveConversationTitle(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return ''
+  return Array.from(trimmed).slice(0, 40).join('')
+}
+
+function isTextChatIntent(intent: WorkspaceIntent) {
+  return intent === 'home' || intent === 'chat'
 }

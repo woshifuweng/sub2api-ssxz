@@ -125,8 +125,10 @@ const placeholder = computed(() => placeholders[props.intent])
 const canSubmit = computed(() =>
   props.backendEnabled === true &&
   !props.sending &&
+  props.intent !== 'image' &&
   Boolean(props.selectedModel) &&
-  (props.modelValue.trim().length > 0 || props.assetPreviews.length > 0)
+  props.assetPreviews.length === 0 &&
+  props.modelValue.trim().length > 0
 )
 
 function handleInput(event: Event) {
