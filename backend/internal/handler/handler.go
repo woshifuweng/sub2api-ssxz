@@ -60,6 +60,7 @@ type Handlers struct {
 	AvailableChannel *AvailableChannelHandler
 	ImageStudio      *ImageStudioHandler
 	ChatStudio       *ChatStudioHandler
+	ChatWorkspace    *ChatWorkspaceHandler
 }
 
 // BuildInfo contains build-time information

@@ -108,6 +108,7 @@ func ProvideHandlers(
 	availableChannelHandler *AvailableChannelHandler,
 	imageStudioHandler *ImageStudioHandler,
 	chatStudioHandler *ChatStudioHandler,
+	chatWorkspaceHandler *ChatWorkspaceHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 	_ *adminTaskStateCacheSetup,
@@ -133,6 +134,7 @@ func ProvideHandlers(
 		AvailableChannel: availableChannelHandler,
 		ImageStudio:      imageStudioHandler,
 		ChatStudio:       chatStudioHandler,
+		ChatWorkspace:    chatWorkspaceHandler,
 	}
 }
 
@@ -165,6 +167,7 @@ var ProviderSet = wire.NewSet(
 	NewAvailableChannelHandler,
 	NewImageStudioHandler,
 	NewChatStudioHandler,
+	NewChatWorkspaceHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,

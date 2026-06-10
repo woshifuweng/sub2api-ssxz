@@ -1,0 +1,218 @@
+package service
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+)
+
+type memoryChatWorkspaceRepo struct {
+	nextConversationID int64
+	nextMessageID      int64
+	conversations      map[int64]*WorkspaceConversation
+	messages           map[int64][]WorkspaceMessage
+}
+
+func newMemoryChatWorkspaceRepo() *memoryChatWorkspaceRepo {
+	return &memoryChatWorkspaceRepo{
+		nextConversationID: 1,
+		nextMessageID:      1,
+		conversations:      make(map[int64]*WorkspaceConversation),
+		messages:           make(map[int64][]WorkspaceMessage),
+	}
+}
+
+func (r *memoryChatWorkspaceRepo) ListConversations(_ context.Context, userID int64) ([]WorkspaceConversation, error) {
+	out := make([]WorkspaceConversation, 0)
+	for _, conversation := range r.conversations {
+		if conversation.UserID == userID {
+			out = append(out, *conversation)
+		}
+	}
+	return out, nil
+}
+
+func (r *memoryChatWorkspaceRepo) CreateConversation(_ context.Context, userID int64, title string) (*WorkspaceConversation, error) {
+	now := time.Now().UTC()
+	conversation := &WorkspaceConversation{
+		ID:        r.nextConversationID,
+		UserID:    userID,
+		Title:     title,
+		Status:    "active",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	r.nextConversationID++
+	r.conversations[conversation.ID] = conversation
+	return conversation, nil
+}
+
+func (r *memoryChatWorkspaceRepo) GetConversation(_ context.Context, userID, conversationID int64) (*WorkspaceConversation, error) {
+	conversation := r.conversations[conversationID]
+	if conversation == nil || conversation.UserID != userID {
+		return nil, ErrWorkspaceConversationNotFound
+	}
+	cp := *conversation
+	return &cp, nil
+}
+
+func (r *memoryChatWorkspaceRepo) ListMessages(_ context.Context, userID, conversationID int64) ([]WorkspaceMessage, error) {
+	if _, err := r.GetConversation(context.Background(), userID, conversationID); err != nil {
+		return nil, err
+	}
+	items := r.messages[conversationID]
+	out := make([]WorkspaceMessage, len(items))
+	copy(out, items)
+	return out, nil
+}
+
+func (r *memoryChatWorkspaceRepo) AppendMessage(_ context.Context, userID int64, input WorkspaceAppendMessageInput, titleIfEmpty string) (*WorkspaceMessage, error) {
+	conversation, err := r.GetConversation(context.Background(), userID, input.ConversationID)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	msg := WorkspaceMessage{
+		ID:             r.nextMessageID,
+		ConversationID: input.ConversationID,
+		UserID:         userID,
+		MessageType:    input.MessageType,
+		Role:           input.Role,
+		Content:        input.Content,
+		Model:          input.Model,
+		Intent:         input.Intent,
+		Status:         input.Status,
+		Metadata:       input.Metadata,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	r.nextMessageID++
+	r.messages[input.ConversationID] = append(r.messages[input.ConversationID], msg)
+	conversation.LastMessageAt = &now
+	conversation.UpdatedAt = now
+	if conversation.Title == "" {
+		conversation.Title = titleIfEmpty
+		r.conversations[conversation.ID].Title = titleIfEmpty
+	}
+	r.conversations[conversation.ID].LastMessageAt = &now
+	r.conversations[conversation.ID].UpdatedAt = now
+	return &msg, nil
+}
+
+func TestChatWorkspaceServiceTextLoopPersistsAndScopesToUser(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	svc := NewChatWorkspaceService(repo)
+
+	own, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+	other, err := svc.CreateConversation(context.Background(), 20, WorkspaceCreateConversationInput{Title: "Other"})
+	require.NoError(t, err)
+
+	msg, err := svc.AppendMessage(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: own.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "hello workspace",
+		Model:          "gpt-5.5",
+		Intent:         WorkspaceIntentChat,
+	})
+	require.NoError(t, err)
+	require.Equal(t, own.ID, msg.ConversationID)
+	require.Equal(t, int64(10), msg.UserID)
+
+	messages, err := svc.ListMessages(context.Background(), 10, own.ID)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, "hello workspace", messages[0].Content)
+
+	conversations, err := svc.ListConversations(context.Background(), 10)
+	require.NoError(t, err)
+	require.Len(t, conversations, 1)
+	require.Equal(t, "hello workspace", conversations[0].Title)
+
+	_, err = svc.GetConversation(context.Background(), 10, other.ID)
+	require.ErrorIs(t, err, ErrWorkspaceConversationNotFound)
+
+	_, err = svc.AppendMessage(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: other.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "cross user",
+		Model:          "gpt-5.5",
+		Intent:         WorkspaceIntentChat,
+	})
+	require.ErrorIs(t, err, ErrWorkspaceConversationNotFound)
+}
+
+func TestChatWorkspaceServiceRejectsInvalidModelIntentAndDisabledCapabilities(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	svc := NewChatWorkspaceService(repo)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	base := WorkspaceAppendMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "hello",
+		Model:          "gpt-5.5",
+		Intent:         WorkspaceIntentChat,
+	}
+
+	invalidModel := base
+	invalidModel.Model = "unknown-model"
+	_, err = svc.AppendMessage(context.Background(), 10, invalidModel)
+	require.ErrorIs(t, err, ErrWorkspaceInvalidModel)
+
+	invalidIntent := base
+	invalidIntent.Intent = "vision"
+	_, err = svc.AppendMessage(context.Background(), 10, invalidIntent)
+	require.ErrorIs(t, err, ErrWorkspaceCapabilityDisabled)
+
+	unknownIntent := base
+	unknownIntent.Intent = "custom"
+	_, err = svc.AppendMessage(context.Background(), 10, unknownIntent)
+	require.ErrorIs(t, err, ErrWorkspaceInvalidIntent)
+}
+
+func TestChatWorkspaceServiceRejectsUnsafePayloadsAndNonTextMessages(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	svc := NewChatWorkspaceService(repo)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, err = svc.AppendMessage(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "data:image/png;base64,abc",
+		Model:          "gpt-5.5",
+		Intent:         WorkspaceIntentChat,
+	})
+	require.ErrorIs(t, err, ErrWorkspaceInvalidMessage)
+
+	_, err = svc.AppendMessage(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "hello",
+		Model:          "gpt-5.5",
+		Intent:         WorkspaceIntentChat,
+		Metadata: map[string]any{
+			"preview_url": "data:image/png;base64,abc",
+		},
+	})
+	require.ErrorIs(t, err, ErrWorkspaceInvalidMessage)
+
+	_, err = svc.AppendMessage(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    "attachment",
+		Role:           WorkspaceRoleUser,
+		Content:        "hello",
+		Model:          "gpt-5.5",
+		Intent:         WorkspaceIntentChat,
+	})
+	require.ErrorIs(t, err, ErrWorkspaceInvalidMessage)
+}

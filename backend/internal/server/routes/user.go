@@ -71,6 +71,15 @@ func ExecutableUserRoutes(h *handler.Handlers) []gatewayctx.RouteDef {
 	if h.ChatStudio != nil {
 		out = append(out, gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/chat-studio/complete", Handler: h.ChatStudio.CompleteGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}})
 	}
+	if h.ChatWorkspace != nil {
+		out = append(out,
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/chat-workspace/conversations", Handler: h.ChatWorkspace.ListConversationsGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
+			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/chat-workspace/conversations", Handler: h.ChatWorkspace.CreateConversationGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/chat-workspace/conversations/:id", Handler: h.ChatWorkspace.GetConversationGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/chat-workspace/conversations/:id/messages", Handler: h.ChatWorkspace.ListMessagesGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
+			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/chat-workspace/conversations/:id/messages", Handler: h.ChatWorkspace.AppendMessageGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
+		)
+	}
 	if h.Totp != nil {
 		out = append(out,
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/totp/status", Handler: h.Totp.GetStatusGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
@@ -178,6 +187,16 @@ func RegisterUserRoutes(
 			chatStudio := authenticated.Group("/chat-studio")
 			{
 				chatStudio.POST("/complete", h.ChatStudio.Complete)
+			}
+		}
+		if h.ChatWorkspace != nil {
+			chatWorkspace := authenticated.Group("/chat-workspace")
+			{
+				chatWorkspace.GET("/conversations", h.ChatWorkspace.ListConversations)
+				chatWorkspace.POST("/conversations", h.ChatWorkspace.CreateConversation)
+				chatWorkspace.GET("/conversations/:id", h.ChatWorkspace.GetConversation)
+				chatWorkspace.GET("/conversations/:id/messages", h.ChatWorkspace.ListMessages)
+				chatWorkspace.POST("/conversations/:id/messages", h.ChatWorkspace.AppendMessage)
 			}
 		}
 

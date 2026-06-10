@@ -748,6 +748,7 @@ var ProviderSet = wire.NewSet(
 	ProvideSoraMediaCleanupService,
 	NewSoraQuotaService,
 	NewSoraGenerationService,
+	NewChatWorkspaceService,
 	ProvideSoraSDKClient,
 	wire.Bind(new(SoraClient), new(*SoraSDKClient)),
 	NewSoraGatewayService,
