@@ -102,6 +102,20 @@ func (h *ChatStudioHandler) CompleteGateway(c gatewayctx.GatewayContext) {
 		response.ErrorContext(imageStudioResponder{ctx: c}, http.StatusBadRequest, err.Error())
 		return
 	}
+	service.SetUpstreamQualityAuditRecordContext(c, service.BuildUpstreamQualityAuditRecord(service.UpstreamQualityAuditInput{
+		Route:          "/api/v1/chat-studio/complete",
+		Operation:      service.UpstreamQualityOperationTextCompletion,
+		RequestedModel: req.Model,
+		ProviderName:   chatStudioProviderName(apiKey),
+		Endpoint:       EndpointChatCompletions,
+		TextParams: service.UpstreamQualityTextParams{
+			Temperature: req.Temperature,
+			MaxTokens:   req.MaxTokens,
+		},
+		Prompt:         chatStudioAuditPrompt(req),
+		PromptEnhanced: true,
+		Status:         "prepared",
+	}))
 
 	upstreamReq := cloneRequestForChatStudioGateway(c.Request(), EndpointChatCompletions, body, apiKey.Key)
 	c.SetRequest(upstreamReq)
@@ -374,4 +388,26 @@ func clampChatStudioTemperature(value float64) float64 {
 		return 2
 	}
 	return value
+}
+
+func chatStudioProviderName(apiKey *service.APIKey) string {
+	if apiKey == nil || apiKey.Group == nil {
+		return ""
+	}
+	return apiKey.Group.Platform
+}
+
+func chatStudioAuditPrompt(req *chatStudioRequest) string {
+	if req == nil {
+		return ""
+	}
+	parts := make([]string, 0, len(req.Messages))
+	for _, msg := range req.Messages {
+		content := strings.TrimSpace(msg.Content)
+		if content == "" {
+			continue
+		}
+		parts = append(parts, msg.Role+": "+content)
+	}
+	return strings.Join(parts, "\n")
 }
