@@ -216,3 +216,68 @@ func TestChatWorkspaceServiceRejectsUnsafePayloadsAndNonTextMessages(t *testing.
 	})
 	require.ErrorIs(t, err, ErrWorkspaceInvalidMessage)
 }
+
+func TestChatWorkspaceServiceAppendAssistantMessagePersistsUnderCurrentUser(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	svc := NewChatWorkspaceService(repo)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+	other, err := svc.CreateConversation(context.Background(), 20, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	msg, err := svc.AppendAssistantMessage(context.Background(), 10, WorkspaceAppendAssistantMessageInput{
+		ConversationID: conversation.ID,
+		Content:        "assistant reply",
+		Model:          "gpt-5.5",
+		Intent:         WorkspaceIntentChat,
+	})
+	require.NoError(t, err)
+	require.Equal(t, WorkspaceRoleAssistant, msg.Role)
+	require.Equal(t, WorkspaceMessageTypeText, msg.MessageType)
+	require.Equal(t, WorkspaceMessageStatusCompleted, msg.Status)
+	require.Equal(t, int64(10), msg.UserID)
+
+	messages, err := svc.ListMessages(context.Background(), 10, conversation.ID)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, "assistant reply", messages[0].Content)
+
+	_, err = svc.AppendAssistantMessage(context.Background(), 10, WorkspaceAppendAssistantMessageInput{
+		ConversationID: other.ID,
+		Content:        "cross user assistant reply",
+		Model:          "gpt-5.5",
+		Intent:         WorkspaceIntentChat,
+	})
+	require.ErrorIs(t, err, ErrWorkspaceConversationNotFound)
+}
+
+func TestChatWorkspaceServiceAppendAssistantMessageRejectsUnsafeInputs(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	svc := NewChatWorkspaceService(repo)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, err = svc.AppendAssistantMessage(context.Background(), 10, WorkspaceAppendAssistantMessageInput{
+		ConversationID: conversation.ID,
+		Content:        "assistant reply",
+		Model:          "unknown-model",
+		Intent:         WorkspaceIntentChat,
+	})
+	require.ErrorIs(t, err, ErrWorkspaceInvalidModel)
+
+	_, err = svc.AppendAssistantMessage(context.Background(), 10, WorkspaceAppendAssistantMessageInput{
+		ConversationID: conversation.ID,
+		Content:        "assistant reply",
+		Model:          "gpt-5.5",
+		Intent:         "image_generation",
+	})
+	require.ErrorIs(t, err, ErrWorkspaceCapabilityDisabled)
+
+	_, err = svc.AppendAssistantMessage(context.Background(), 10, WorkspaceAppendAssistantMessageInput{
+		ConversationID: conversation.ID,
+		Content:        "data:image/png;base64,abc",
+		Model:          "gpt-5.5",
+		Intent:         WorkspaceIntentChat,
+	})
+	require.ErrorIs(t, err, ErrWorkspaceInvalidMessage)
+}
