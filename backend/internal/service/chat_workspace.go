@@ -272,20 +272,8 @@ func (s *ChatWorkspaceService) AppendAssistantMessage(ctx context.Context, userI
 
 type WorkspaceUnavailableAssistantResponder struct{}
 
-func (WorkspaceUnavailableAssistantResponder) GenerateAssistantResponse(_ context.Context, input WorkspaceAssistantResponseInput) (WorkspaceAssistantResponse, error) {
-	return WorkspaceAssistantResponse{
-		Content: WorkspaceAssistantUnavailableContent,
-		Model:   strings.TrimSpace(input.Model),
-		Intent:  normalizeWorkspaceIntent(input.Intent),
-		Metadata: map[string]any{
-			"status":             "unavailable",
-			"placeholder":        true,
-			"provider_connected": false,
-			"provider_called":    false,
-			"billing_touched":    false,
-			"asset_touched":      false,
-		},
-	}, nil
+func (WorkspaceUnavailableAssistantResponder) GenerateAssistantResponse(ctx context.Context, input WorkspaceAssistantResponseInput) (WorkspaceAssistantResponse, error) {
+	return WorkspaceProviderAssistantResponder{Adapter: WorkspaceProviderUnavailableAdapter{}}.GenerateAssistantResponse(ctx, input)
 }
 
 func sanitizeWorkspaceTitle(value string) string {
