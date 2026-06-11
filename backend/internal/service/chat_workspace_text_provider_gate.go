@@ -110,8 +110,13 @@ func newWorkspaceTextProviderAdapterFromDecision(cfg *config.Config, decision Wo
 }
 
 func ProvideChatWorkspaceService(repo ChatWorkspaceRepository, cfg *config.Config) *ChatWorkspaceService {
-	adapter := NewWorkspaceTextProviderAdapterFromConfigWithExecutorProvider(cfg, nil)
+	adapter := NewWorkspaceTextProviderAdapterFromConfigWithExecutorProvider(cfg, workspaceOpenAICompatibleTextExecutorProviderFromConfig)
 	return NewChatWorkspaceServiceWithProviderAdapter(repo, adapter)
+}
+
+func workspaceOpenAICompatibleTextExecutorProviderFromConfig(cfg *config.Config, decision WorkspaceTextProviderGateDecision) WorkspaceTextProviderExecutor {
+	upstream := NewWorkspaceOpenAICompatibleHTTPUpstreamFromConfig(cfg, decision)
+	return NewWorkspaceOpenAICompatibleTextExecutorFromConfig(cfg, decision, upstream)
 }
 
 func isWorkspaceTextProviderNonProductionEnvironment(environment string) bool {

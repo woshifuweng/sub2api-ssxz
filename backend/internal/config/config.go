@@ -1044,18 +1044,26 @@ type WorkspaceConfig struct {
 }
 
 type WorkspaceTextProviderConfig struct {
-	Enabled                 bool     `mapstructure:"enabled"`
-	KillSwitch              bool     `mapstructure:"kill_switch"`
-	StagingOnly             bool     `mapstructure:"staging_only"`
-	Environment             string   `mapstructure:"environment"`
-	TestProviderLabel       string   `mapstructure:"test_provider_label"`
-	LowCostModelAllowlist   []string `mapstructure:"low_cost_model_allowlist"`
-	MaxRequestsPerTestRun   int      `mapstructure:"max_requests_per_test_run"`
-	BillingEligibilityKnown bool     `mapstructure:"billing_eligibility_known"`
-	BillingEligible         bool     `mapstructure:"billing_eligible"`
-	BillingPolicy           string   `mapstructure:"billing_policy"`
-	UsagePolicy             string   `mapstructure:"usage_policy"`
-	FailurePolicy           string   `mapstructure:"failure_policy"`
+	Enabled                 bool                            `mapstructure:"enabled"`
+	KillSwitch              bool                            `mapstructure:"kill_switch"`
+	StagingOnly             bool                            `mapstructure:"staging_only"`
+	Environment             string                          `mapstructure:"environment"`
+	TestProviderLabel       string                          `mapstructure:"test_provider_label"`
+	LowCostModelAllowlist   []string                        `mapstructure:"low_cost_model_allowlist"`
+	MaxRequestsPerTestRun   int                             `mapstructure:"max_requests_per_test_run"`
+	BillingEligibilityKnown bool                            `mapstructure:"billing_eligibility_known"`
+	BillingEligible         bool                            `mapstructure:"billing_eligible"`
+	BillingPolicy           string                          `mapstructure:"billing_policy"`
+	UsagePolicy             string                          `mapstructure:"usage_policy"`
+	FailurePolicy           string                          `mapstructure:"failure_policy"`
+	OpenAICompatible        WorkspaceOpenAICompatibleConfig `mapstructure:"openai_compatible"`
+}
+
+type WorkspaceOpenAICompatibleConfig struct {
+	BaseURL        string `mapstructure:"base_url"`
+	Model          string `mapstructure:"model"`
+	APIKey         string `mapstructure:"api_key"`
+	TimeoutSeconds int    `mapstructure:"timeout_seconds"`
 }
 
 type WorkspaceAvailableChannelsConfig struct {
@@ -1241,6 +1249,21 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	cfg.Workspace.TextProvider.BillingPolicy = strings.ToLower(strings.TrimSpace(cfg.Workspace.TextProvider.BillingPolicy))
 	cfg.Workspace.TextProvider.UsagePolicy = strings.ToLower(strings.TrimSpace(cfg.Workspace.TextProvider.UsagePolicy))
 	cfg.Workspace.TextProvider.FailurePolicy = strings.ToLower(strings.TrimSpace(cfg.Workspace.TextProvider.FailurePolicy))
+	cfg.Workspace.TextProvider.OpenAICompatible.BaseURL = firstNonEmptyConfigValue(
+		cfg.Workspace.TextProvider.OpenAICompatible.BaseURL,
+		os.Getenv("DEEPSEEK_BASE_URL"),
+	)
+	cfg.Workspace.TextProvider.OpenAICompatible.Model = firstNonEmptyConfigValue(
+		cfg.Workspace.TextProvider.OpenAICompatible.Model,
+		os.Getenv("DEEPSEEK_MODEL"),
+	)
+	cfg.Workspace.TextProvider.OpenAICompatible.APIKey = firstNonEmptyConfigValue(
+		cfg.Workspace.TextProvider.OpenAICompatible.APIKey,
+		os.Getenv("DEEPSEEK_API_KEY"),
+	)
+	cfg.Workspace.TextProvider.OpenAICompatible.BaseURL = strings.TrimSpace(cfg.Workspace.TextProvider.OpenAICompatible.BaseURL)
+	cfg.Workspace.TextProvider.OpenAICompatible.Model = strings.TrimSpace(cfg.Workspace.TextProvider.OpenAICompatible.Model)
+	cfg.Workspace.TextProvider.OpenAICompatible.APIKey = strings.TrimSpace(cfg.Workspace.TextProvider.OpenAICompatible.APIKey)
 	cfg.Process.Mode = strings.ToLower(strings.TrimSpace(cfg.Process.Mode))
 	if cfg.Process.Mode == "" {
 		cfg.Process.Mode = ProcessModeSingle
@@ -1379,6 +1402,10 @@ func setDefaults() {
 	viper.SetDefault("workspace.text_provider.billing_policy", "")
 	viper.SetDefault("workspace.text_provider.usage_policy", "")
 	viper.SetDefault("workspace.text_provider.failure_policy", "")
+	viper.SetDefault("workspace.text_provider.openai_compatible.base_url", "")
+	viper.SetDefault("workspace.text_provider.openai_compatible.model", "")
+	viper.SetDefault("workspace.text_provider.openai_compatible.api_key", "")
+	viper.SetDefault("workspace.text_provider.openai_compatible.timeout_seconds", 30)
 	viper.SetDefault("workspace.available_channels.staging_override_enabled", false)
 
 	// CORS
@@ -2727,6 +2754,15 @@ func normalizeStringSlice(values []string) []string {
 		normalized = append(normalized, trimmed)
 	}
 	return normalized
+}
+
+func firstNonEmptyConfigValue(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func isWeakJWTSecret(secret string) bool {
