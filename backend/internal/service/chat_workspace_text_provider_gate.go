@@ -78,14 +78,19 @@ func BuildWorkspaceTextProviderGateDecision(cfg *config.Config) WorkspaceTextPro
 
 func NewWorkspaceTextProviderAdapterFromConfig(cfg *config.Config, executor WorkspaceTextProviderExecutor) WorkspaceTextProviderAdapter {
 	decision := BuildWorkspaceTextProviderGateDecision(cfg)
+	billingPolicy, usagePolicy, failurePolicy := workspaceTextProviderExecutionPoliciesFromConfig(cfg)
 	return WorkspaceTextProviderAdapter{
-		FeatureGateEnabled: decision.Enabled,
-		Executor:           executor,
-		ProviderName:       firstNonEmptyWorkspaceValue(decision.TestProviderLabel, WorkspaceProviderNameTextAdapter),
-		EndpointLabel:      workspaceTextProviderEndpoint,
-		ServiceTier:        decision.Environment,
-		FailurePolicy:      WorkspaceProviderFailurePolicyFailClosed,
-		StagingQA:          NewWorkspaceTextProviderStagingQA(decision),
+		FeatureGateEnabled:      decision.Enabled,
+		Executor:                executor,
+		ProviderName:            firstNonEmptyWorkspaceValue(decision.TestProviderLabel, WorkspaceProviderNameTextAdapter),
+		EndpointLabel:           workspaceTextProviderEndpoint,
+		ServiceTier:             decision.Environment,
+		BillingEligibilityKnown: workspaceTextProviderBillingEligibilityKnown(cfg),
+		BillingEligible:         workspaceTextProviderBillingEligible(cfg),
+		BillingPolicy:           billingPolicy,
+		UsagePolicy:             usagePolicy,
+		FailurePolicy:           failurePolicy,
+		StagingQA:               NewWorkspaceTextProviderStagingQA(decision),
 	}
 }
 
@@ -115,4 +120,56 @@ func cloneWorkspaceStringSlice(values []string) []string {
 		}
 	}
 	return out
+}
+
+func workspaceTextProviderBillingEligibilityKnown(cfg *config.Config) bool {
+	return cfg != nil && cfg.Workspace.TextProvider.BillingEligibilityKnown
+}
+
+func workspaceTextProviderBillingEligible(cfg *config.Config) bool {
+	return cfg != nil && cfg.Workspace.TextProvider.BillingEligible
+}
+
+func workspaceTextProviderExecutionPoliciesFromConfig(cfg *config.Config) (WorkspaceProviderBillingPolicy, WorkspaceProviderUsagePolicy, WorkspaceProviderFailurePolicy) {
+	if cfg == nil {
+		return "", "", WorkspaceProviderFailurePolicyFailClosed
+	}
+	gate := cfg.Workspace.TextProvider
+	return workspaceProviderBillingPolicyFromConfig(gate.BillingPolicy),
+		workspaceProviderUsagePolicyFromConfig(gate.UsagePolicy),
+		workspaceProviderFailurePolicyFromConfig(gate.FailurePolicy)
+}
+
+func workspaceProviderBillingPolicyFromConfig(value string) WorkspaceProviderBillingPolicy {
+	switch policy := WorkspaceProviderBillingPolicy(strings.ToLower(strings.TrimSpace(value))); policy {
+	case WorkspaceProviderBillingPolicyPrecheckOnly,
+		WorkspaceProviderBillingPolicyRecordUsageAfterSuccess,
+		WorkspaceProviderBillingPolicyRecordUsageOnProviderUsage,
+		WorkspaceProviderBillingPolicyNoBilling:
+		return policy
+	default:
+		return ""
+	}
+}
+
+func workspaceProviderUsagePolicyFromConfig(value string) WorkspaceProviderUsagePolicy {
+	switch policy := WorkspaceProviderUsagePolicy(strings.ToLower(strings.TrimSpace(value))); policy {
+	case WorkspaceProviderUsagePolicyAuditOnly,
+		WorkspaceProviderUsagePolicyRecordAfterSuccess,
+		WorkspaceProviderUsagePolicyRecordProviderReported:
+		return policy
+	default:
+		return ""
+	}
+}
+
+func workspaceProviderFailurePolicyFromConfig(value string) WorkspaceProviderFailurePolicy {
+	switch policy := WorkspaceProviderFailurePolicy(strings.ToLower(strings.TrimSpace(value))); policy {
+	case WorkspaceProviderFailurePolicyNoChargeOnFailure,
+		WorkspaceProviderFailurePolicyReconcileRequired,
+		WorkspaceProviderFailurePolicyFailClosed:
+		return policy
+	default:
+		return WorkspaceProviderFailurePolicyFailClosed
+	}
 }

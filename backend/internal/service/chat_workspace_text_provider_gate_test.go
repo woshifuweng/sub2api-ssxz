@@ -114,6 +114,63 @@ func TestWorkspaceTextProviderGateWiringStillRequiresBillingSafeContract(t *test
 	require.Contains(t, assistantMessage.Metadata["execution_block_reasons"], "usage_policy_missing")
 }
 
+func TestWorkspaceTextProviderGateWiringAllowsFakeExecutorWithExplicitSafePolicies(t *testing.T) {
+	cfg := workspaceTextProviderGateConfig()
+	cfg.Workspace.TextProvider.BillingEligibilityKnown = true
+	cfg.Workspace.TextProvider.BillingEligible = true
+	cfg.Workspace.TextProvider.BillingPolicy = string(WorkspaceProviderBillingPolicyRecordUsageOnProviderUsage)
+	cfg.Workspace.TextProvider.UsagePolicy = string(WorkspaceProviderUsagePolicyRecordProviderReported)
+	cfg.Workspace.TextProvider.FailurePolicy = string(WorkspaceProviderFailurePolicyNoChargeOnFailure)
+	cfg.Workspace.TextProvider.LowCostModelAllowlist = []string{"gpt-5.5"}
+	repo := newMemoryChatWorkspaceRepo()
+	executor := &recordingWorkspaceTextProviderExecutor{
+		result: successfulWorkspaceTextProviderResult(),
+	}
+	adapter := NewWorkspaceTextProviderAdapterFromConfig(cfg, executor)
+	svc := NewChatWorkspaceServiceWithProviderAdapter(repo, adapter)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 10, validWorkspaceTextAppendInput(conversation.ID))
+	require.NoError(t, err)
+
+	require.Equal(t, 1, executor.calls)
+	require.NotEqual(t, WorkspaceAssistantUnavailableContent, assistantMessage.Content)
+	require.Equal(t, true, assistantMessage.Metadata["provider_called"])
+	require.Equal(t, "completed", assistantMessage.Metadata["status"])
+	require.Equal(t, "record_usage_on_provider_reported_usage", assistantMessage.Metadata["billing_policy"])
+	require.Equal(t, "record_provider_reported", assistantMessage.Metadata["usage_policy"])
+	require.Equal(t, "provider_failure_no_charge", assistantMessage.Metadata["failure_policy"])
+	require.Equal(t, "succeeded", assistantMessage.Metadata["audit_status"])
+}
+
+func TestWorkspaceTextProviderGateKillSwitchBlocksEvenWithExplicitSafePolicies(t *testing.T) {
+	cfg := workspaceTextProviderGateConfig()
+	cfg.Workspace.TextProvider.KillSwitch = true
+	cfg.Workspace.TextProvider.BillingEligibilityKnown = true
+	cfg.Workspace.TextProvider.BillingEligible = true
+	cfg.Workspace.TextProvider.BillingPolicy = string(WorkspaceProviderBillingPolicyRecordUsageOnProviderUsage)
+	cfg.Workspace.TextProvider.UsagePolicy = string(WorkspaceProviderUsagePolicyRecordProviderReported)
+	cfg.Workspace.TextProvider.FailurePolicy = string(WorkspaceProviderFailurePolicyNoChargeOnFailure)
+	cfg.Workspace.TextProvider.LowCostModelAllowlist = []string{"gpt-5.5"}
+	repo := newMemoryChatWorkspaceRepo()
+	executor := &recordingWorkspaceTextProviderExecutor{
+		result: successfulWorkspaceTextProviderResult(),
+	}
+	adapter := NewWorkspaceTextProviderAdapterFromConfig(cfg, executor)
+	svc := NewChatWorkspaceServiceWithProviderAdapter(repo, adapter)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 10, validWorkspaceTextAppendInput(conversation.ID))
+	require.NoError(t, err)
+
+	require.Zero(t, executor.calls)
+	require.Equal(t, WorkspaceAssistantUnavailableContent, assistantMessage.Content)
+	require.Equal(t, false, assistantMessage.Metadata["provider_called"])
+	require.Contains(t, assistantMessage.Metadata["execution_block_reasons"], "feature_gate_disabled")
+}
+
 func workspaceTextProviderGateConfig() *config.Config {
 	return &config.Config{
 		Log: config.LogConfig{Environment: "staging"},

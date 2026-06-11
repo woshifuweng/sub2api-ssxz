@@ -1044,13 +1044,18 @@ type WorkspaceConfig struct {
 }
 
 type WorkspaceTextProviderConfig struct {
-	Enabled               bool     `mapstructure:"enabled"`
-	KillSwitch            bool     `mapstructure:"kill_switch"`
-	StagingOnly           bool     `mapstructure:"staging_only"`
-	Environment           string   `mapstructure:"environment"`
-	TestProviderLabel     string   `mapstructure:"test_provider_label"`
-	LowCostModelAllowlist []string `mapstructure:"low_cost_model_allowlist"`
-	MaxRequestsPerTestRun int      `mapstructure:"max_requests_per_test_run"`
+	Enabled                 bool     `mapstructure:"enabled"`
+	KillSwitch              bool     `mapstructure:"kill_switch"`
+	StagingOnly             bool     `mapstructure:"staging_only"`
+	Environment             string   `mapstructure:"environment"`
+	TestProviderLabel       string   `mapstructure:"test_provider_label"`
+	LowCostModelAllowlist   []string `mapstructure:"low_cost_model_allowlist"`
+	MaxRequestsPerTestRun   int      `mapstructure:"max_requests_per_test_run"`
+	BillingEligibilityKnown bool     `mapstructure:"billing_eligibility_known"`
+	BillingEligible         bool     `mapstructure:"billing_eligible"`
+	BillingPolicy           string   `mapstructure:"billing_policy"`
+	UsagePolicy             string   `mapstructure:"usage_policy"`
+	FailurePolicy           string   `mapstructure:"failure_policy"`
 }
 
 type WorkspaceAvailableChannelsConfig struct {
@@ -1233,6 +1238,9 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	cfg.Workspace.TextProvider.Environment = strings.ToLower(strings.TrimSpace(cfg.Workspace.TextProvider.Environment))
 	cfg.Workspace.TextProvider.TestProviderLabel = strings.TrimSpace(cfg.Workspace.TextProvider.TestProviderLabel)
 	cfg.Workspace.TextProvider.LowCostModelAllowlist = normalizeStringSlice(cfg.Workspace.TextProvider.LowCostModelAllowlist)
+	cfg.Workspace.TextProvider.BillingPolicy = strings.ToLower(strings.TrimSpace(cfg.Workspace.TextProvider.BillingPolicy))
+	cfg.Workspace.TextProvider.UsagePolicy = strings.ToLower(strings.TrimSpace(cfg.Workspace.TextProvider.UsagePolicy))
+	cfg.Workspace.TextProvider.FailurePolicy = strings.ToLower(strings.TrimSpace(cfg.Workspace.TextProvider.FailurePolicy))
 	cfg.Process.Mode = strings.ToLower(strings.TrimSpace(cfg.Process.Mode))
 	if cfg.Process.Mode == "" {
 		cfg.Process.Mode = ProcessModeSingle
@@ -1366,6 +1374,11 @@ func setDefaults() {
 	viper.SetDefault("workspace.text_provider.test_provider_label", "")
 	viper.SetDefault("workspace.text_provider.low_cost_model_allowlist", []string{})
 	viper.SetDefault("workspace.text_provider.max_requests_per_test_run", 0)
+	viper.SetDefault("workspace.text_provider.billing_eligibility_known", false)
+	viper.SetDefault("workspace.text_provider.billing_eligible", false)
+	viper.SetDefault("workspace.text_provider.billing_policy", "")
+	viper.SetDefault("workspace.text_provider.usage_policy", "")
+	viper.SetDefault("workspace.text_provider.failure_policy", "")
 	viper.SetDefault("workspace.available_channels.staging_override_enabled", false)
 
 	// CORS
