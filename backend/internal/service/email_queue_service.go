@@ -34,6 +34,11 @@ type EmailQueueService struct {
 
 // NewEmailQueueService 创建邮件队列服务
 func NewEmailQueueService(emailService *EmailService, workers int) *EmailQueueService {
+	return NewEmailQueueServiceWithAutoStart(emailService, workers, true)
+}
+
+// NewEmailQueueServiceWithAutoStart creates EmailQueueService and optionally starts workers.
+func NewEmailQueueServiceWithAutoStart(emailService *EmailService, workers int, autoStart bool) *EmailQueueService {
 	if workers <= 0 {
 		workers = 3 // 默认3个工作协程
 	}
@@ -46,7 +51,9 @@ func NewEmailQueueService(emailService *EmailService, workers int) *EmailQueueSe
 	}
 
 	// 启动工作协程
-	service.start()
+	if autoStart {
+		service.start()
+	}
 
 	return service
 }

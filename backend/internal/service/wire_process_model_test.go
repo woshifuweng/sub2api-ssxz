@@ -87,6 +87,57 @@ func TestWorkerLocalBackgroundServicesEnabled(t *testing.T) {
 	}
 }
 
+func TestRuntimeAPIRoleDisablesBackgroundServices(t *testing.T) {
+	t.Setenv(appRuntimeRoleEnvVar, "api")
+
+	require.True(t, stagingAPIOnlyRuntimeEnabled())
+	require.False(t, runtimeBackgroundJobsEnabled())
+	require.False(t, runtimeSchedulersEnabled())
+	require.False(t, singletonBackgroundServicesEnabled())
+	require.False(t, singletonSchedulerServicesEnabled())
+	require.False(t, workerLocalBackgroundServicesEnabled())
+	require.False(t, requestPathCacheSyncEnabled())
+	require.False(t, coordinatorOrSingleProcess())
+}
+
+func TestStagingAPIOnlyEnvDisablesBackgroundServices(t *testing.T) {
+	t.Setenv(stagingAPIOnlyEnvVar, "true")
+
+	require.True(t, stagingAPIOnlyRuntimeEnabled())
+	require.False(t, runtimeBackgroundJobsEnabled())
+	require.False(t, runtimeSchedulersEnabled())
+	require.False(t, singletonBackgroundServicesEnabled())
+	require.False(t, singletonSchedulerServicesEnabled())
+	require.False(t, workerLocalBackgroundServicesEnabled())
+	require.False(t, requestPathCacheSyncEnabled())
+	require.False(t, coordinatorOrSingleProcess())
+}
+
+func TestBackgroundJobsDisabledEnvDisablesBackgroundServices(t *testing.T) {
+	t.Setenv(backgroundJobsEnvVar, "false")
+
+	require.False(t, stagingAPIOnlyRuntimeEnabled())
+	require.False(t, runtimeBackgroundJobsEnabled())
+	require.False(t, runtimeSchedulersEnabled())
+	require.False(t, singletonBackgroundServicesEnabled())
+	require.False(t, singletonSchedulerServicesEnabled())
+	require.False(t, workerLocalBackgroundServicesEnabled())
+	require.False(t, requestPathCacheSyncEnabled())
+	require.False(t, coordinatorOrSingleProcess())
+}
+
+func TestSchedulersDisabledEnvOnlyDisablesSchedulerServices(t *testing.T) {
+	t.Setenv(schedulersEnvVar, "false")
+
+	require.True(t, runtimeBackgroundJobsEnabled())
+	require.False(t, runtimeSchedulersEnabled())
+	require.True(t, singletonBackgroundServicesEnabled())
+	require.False(t, singletonSchedulerServicesEnabled())
+	require.True(t, workerLocalBackgroundServicesEnabled())
+	require.True(t, requestPathCacheSyncEnabled())
+	require.True(t, coordinatorOrSingleProcess())
+}
+
 func TestCoordinatorOrSingleProcess(t *testing.T) {
 	t.Setenv(processRoleEnvVar, "")
 	require.True(t, coordinatorOrSingleProcess())

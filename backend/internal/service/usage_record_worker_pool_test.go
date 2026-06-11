@@ -350,6 +350,25 @@ func TestNewUsageRecordWorkerPool_FromConfig(t *testing.T) {
 	require.Equal(t, 3, stats.MaxConcurrency)
 }
 
+func TestNewUsageRecordWorkerPool_DisablesAutoScaleWhenBackgroundJobsDisabled(t *testing.T) {
+	t.Setenv(backgroundJobsEnvVar, "false")
+
+	cfg := &config.Config{}
+	cfg.Gateway.UsageRecord.WorkerCount = 3
+	cfg.Gateway.UsageRecord.QueueSize = 16
+	cfg.Gateway.UsageRecord.TaskTimeoutSeconds = 2
+	cfg.Gateway.UsageRecord.OverflowPolicy = config.UsageRecordOverflowPolicyDrop
+	cfg.Gateway.UsageRecord.AutoScaleEnabled = true
+	cfg.Gateway.UsageRecord.AutoScaleMinWorkers = 3
+	cfg.Gateway.UsageRecord.AutoScaleMaxWorkers = 8
+
+	pool := NewUsageRecordWorkerPool(cfg)
+	t.Cleanup(pool.Stop)
+
+	require.False(t, pool.autoScaleEnabled)
+	require.Nil(t, pool.autoScaleCancel)
+}
+
 func TestUsageRecordWorkerPool_OptionsFromConfig_NilConfig(t *testing.T) {
 	opts := usageRecordPoolOptionsFromConfig(nil)
 	require.Equal(t, defaultUsageRecordWorkerCount, opts.WorkerCount)
