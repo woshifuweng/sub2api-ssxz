@@ -159,17 +159,17 @@ func WriteSSEEvent(ctx GatewayContext, event string, payload any) error {
 	}
 	var frame strings.Builder
 	if trimmedEvent := strings.TrimSpace(event); trimmedEvent != "" {
-		frame.WriteString("event: ")
-		frame.WriteString(trimmedEvent)
-		frame.WriteByte('\n')
+		_, _ = frame.WriteString("event: ")
+		_, _ = frame.WriteString(trimmedEvent)
+		_ = frame.WriteByte('\n')
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
-	frame.WriteString("data: ")
-	frame.Write(body)
-	frame.WriteString("\n\n")
+	_, _ = frame.WriteString("data: ")
+	_, _ = frame.Write(body)
+	_, _ = frame.WriteString("\n\n")
 	if _, err := ctx.WriteBytes(0, []byte(frame.String())); err != nil {
 		return err
 	}
