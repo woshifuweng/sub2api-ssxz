@@ -182,6 +182,92 @@ func TestAccountTestService_OpenAIChatWebTokenProviderErrorWithoutFallbackToken(
 	require.Contains(t, err.Error(), "exchange failed")
 }
 
+func TestAccountTestService_OpenAIAPIKeyDefaultUsesResponsesConnectionTest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, recorder := newSoraTestContext()
+
+	resp := newJSONResponse(http.StatusOK, "")
+	resp.Body = io.NopCloser(strings.NewReader(`data: {"type":"response.completed"}
+
+`))
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{resp}}
+	svc := &AccountTestService{httpUpstream: upstream}
+	account := &Account{
+		ID:          93,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "https://api.openai.com",
+		},
+	}
+
+	err := svc.testOpenAIAccountConnection(gatewayctx.FromGin(ctx), account, "gpt-5.4", "")
+	require.NoError(t, err)
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, "https://api.openai.com/responses", upstream.requests[0].URL.String())
+	require.Equal(t, "Bearer sk-test", upstream.requests[0].Header.Get("Authorization"))
+
+	var requestBody map[string]any
+	require.NoError(t, json.NewDecoder(upstream.requests[0].Body).Decode(&requestBody))
+	require.Equal(t, "gpt-5.4", requestBody["model"])
+	require.Contains(t, requestBody, "input")
+	require.Contains(t, requestBody, "instructions")
+	require.NotContains(t, requestBody, "messages")
+	require.Contains(t, recorder.Body.String(), "test_complete")
+}
+
+func TestAccountTestService_OpenAIAPIKeyPassthroughUsesChatCompletionsConnectionTest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, recorder := newSoraTestContext()
+
+	resp := newJSONResponse(http.StatusOK, "")
+	resp.Body = io.NopCloser(strings.NewReader(`data: {"choices":[{"delta":{"content":"pong"}}]}
+
+data: [DONE]
+
+`))
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{resp}}
+	svc := &AccountTestService{httpUpstream: upstream}
+	account := &Account{
+		ID:          94,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "https://api.deepseek.com",
+		},
+		Extra: map[string]any{
+			"openai_passthrough": true,
+		},
+	}
+
+	err := svc.testOpenAIAccountConnection(gatewayctx.FromGin(ctx), account, "deepseek-v4-flash", "hi")
+	require.NoError(t, err)
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, "https://api.deepseek.com/v1/chat/completions", upstream.requests[0].URL.String())
+	require.Equal(t, "Bearer sk-test", upstream.requests[0].Header.Get("Authorization"))
+
+	var requestBody map[string]any
+	require.NoError(t, json.NewDecoder(upstream.requests[0].Body).Decode(&requestBody))
+	require.Equal(t, "deepseek-v4-flash", requestBody["model"])
+	require.Equal(t, true, requestBody["stream"])
+	require.NotContains(t, requestBody, "input")
+	require.NotContains(t, requestBody, "instructions")
+
+	messages, ok := requestBody["messages"].([]any)
+	require.True(t, ok)
+	require.Len(t, messages, 1)
+	message, ok := messages[0].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "user", message["role"])
+	require.Equal(t, "hi", message["content"])
+	require.Contains(t, recorder.Body.String(), "pong")
+	require.Contains(t, recorder.Body.String(), "test_complete")
+}
+
 func TestAccountTestService_OpenAIImageModelUsesImagesAPI(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, recorder := newSoraTestContext()

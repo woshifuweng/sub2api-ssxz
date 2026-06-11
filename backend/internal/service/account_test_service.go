@@ -864,6 +864,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c gatewayctx.GatewayCon
 	var authToken string
 	var apiURL string
 	var isOAuth bool
+	var useChatCompletionsTest bool
 	var chatgptAccountID string
 	var err error
 
@@ -893,7 +894,12 @@ func (s *AccountTestService) testOpenAIAccountConnection(c gatewayctx.GatewayCon
 		if err != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
 		}
-		apiURL = strings.TrimSuffix(normalizedBaseURL, "/") + "/responses"
+		if account.IsOpenAIPassthroughEnabled() {
+			useChatCompletionsTest = true
+			apiURL = buildOpenAICompatibleChatCompletionsURL(normalizedBaseURL)
+		} else {
+			apiURL = strings.TrimSuffix(normalizedBaseURL, "/") + "/responses"
+		}
 	} else {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported account type: %s", account.Type))
 	}
@@ -905,8 +911,13 @@ func (s *AccountTestService) testOpenAIAccountConnection(c gatewayctx.GatewayCon
 	c.SetHeader("X-Accel-Buffering", "no")
 	_ = c.Flush()
 
-	// Create OpenAI Responses API payload
-	payload := createOpenAITestPayload(testModelID, isOAuth)
+	var payload map[string]any
+	if useChatCompletionsTest {
+		payload = createOpenAICompatibleChatCompletionsTestPayload(testModelID, prompt)
+	} else {
+		// Create OpenAI Responses API payload
+		payload = createOpenAITestPayload(testModelID, isOAuth)
+	}
 	payloadBytes, _ := json.Marshal(payload)
 
 	// Send test_start event
@@ -964,6 +975,10 @@ func (s *AccountTestService) testOpenAIAccountConnection(c gatewayctx.GatewayCon
 			}
 		}
 		return s.sendErrorAndEnd(c, fmt.Sprintf("API returned %d: %s", resp.StatusCode, string(body)))
+	}
+
+	if useChatCompletionsTest {
+		return s.processOpenAIChatCompletionsStream(c, resp.Body)
 	}
 
 	// Process SSE stream
@@ -2134,6 +2149,34 @@ func createOpenAITestPayload(modelID string, isOAuth bool) map[string]any {
 	return payload
 }
 
+func buildOpenAICompatibleChatCompletionsURL(baseURL string) string {
+	normalized := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if strings.HasSuffix(normalized, "/chat/completions") {
+		return normalized
+	}
+	if strings.HasSuffix(normalized, "/v1") {
+		return normalized + "/chat/completions"
+	}
+	return normalized + "/v1/chat/completions"
+}
+
+func createOpenAICompatibleChatCompletionsTestPayload(modelID string, prompt string) map[string]any {
+	textPrompt := strings.TrimSpace(prompt)
+	if textPrompt == "" {
+		textPrompt = "hi"
+	}
+	return map[string]any{
+		"model": modelID,
+		"messages": []map[string]string{
+			{
+				"role":    "user",
+				"content": textPrompt,
+			},
+		},
+		"stream": true,
+	}
+}
+
 // processClaudeStream processes the SSE stream from Claude API
 func (s *AccountTestService) processClaudeStream(c gatewayctx.GatewayContext, body io.Reader) error {
 	reader := bufio.NewReader(body)
@@ -2237,6 +2280,65 @@ func (s *AccountTestService) processOpenAIStream(c gatewayctx.GatewayContext, bo
 				}
 			}
 			return s.sendErrorAndEnd(c, errorMsg)
+		}
+	}
+}
+
+// processOpenAIChatCompletionsStream processes OpenAI-compatible chat/completions
+// SSE responses used by third-party API-key passthrough accounts.
+func (s *AccountTestService) processOpenAIChatCompletionsStream(c gatewayctx.GatewayContext, body io.Reader) error {
+	reader := bufio.NewReader(body)
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+				return nil
+			}
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Stream read error: %s", err.Error()))
+		}
+
+		line = strings.TrimSpace(line)
+		if line == "" || !sseDataPrefix.MatchString(line) {
+			continue
+		}
+
+		jsonStr := sseDataPrefix.ReplaceAllString(line, "")
+		if jsonStr == "[DONE]" {
+			s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+			return nil
+		}
+
+		var data map[string]any
+		if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
+			continue
+		}
+
+		if errData, ok := data["error"].(map[string]any); ok {
+			errorMsg := "Unknown error"
+			if msg, ok := errData["message"].(string); ok {
+				errorMsg = msg
+			}
+			return s.sendErrorAndEnd(c, errorMsg)
+		}
+
+		choices, ok := data["choices"].([]any)
+		if !ok || len(choices) == 0 {
+			continue
+		}
+		choice, ok := choices[0].(map[string]any)
+		if !ok {
+			continue
+		}
+		if delta, ok := choice["delta"].(map[string]any); ok {
+			if text, ok := delta["content"].(string); ok && text != "" {
+				s.sendEvent(c, TestEvent{Type: "content", Text: text})
+			}
+		}
+		if finishReason, ok := choice["finish_reason"].(string); ok && finishReason != "" {
+			s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+			return nil
 		}
 	}
 }
