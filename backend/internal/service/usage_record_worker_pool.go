@@ -108,6 +108,9 @@ type UsageRecordWorkerPool struct {
 // NewUsageRecordWorkerPool 从配置构建使用量记录池。
 func NewUsageRecordWorkerPool(cfg *config.Config) *UsageRecordWorkerPool {
 	opts := usageRecordPoolOptionsFromConfig(cfg)
+	if !runtimeBackgroundJobsEnabled() {
+		opts.AutoScaleEnabled = false
+	}
 	return NewUsageRecordWorkerPoolWithOptions(opts)
 }
 

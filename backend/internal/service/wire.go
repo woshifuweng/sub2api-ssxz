@@ -22,13 +22,64 @@ const (
 	processRoleEnvVar        = "SUB2API_PROCESS_ROLE"
 	processRoleWorker        = "worker"
 	processRoleCoordinator   = "coordinator"
+	appRuntimeRoleEnvVar     = "APP_RUNTIME_ROLE"
+	stagingAPIOnlyEnvVar     = "STAGING_API_ONLY"
+	backgroundJobsEnvVar     = "BACKGROUND_JOBS_ENABLED"
+	schedulersEnvVar         = "SCHEDULERS_ENABLED"
+	appRuntimeRoleAPI        = "api"
 )
 
 func currentProcessRole() string {
 	return strings.ToLower(strings.TrimSpace(os.Getenv(processRoleEnvVar)))
 }
 
+func envBoolValue(key string) (bool, bool) {
+	raw := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	switch raw {
+	case "1", "true", "yes", "y", "on", "enabled":
+		return true, true
+	case "0", "false", "no", "n", "off", "disabled":
+		return false, true
+	default:
+		return false, false
+	}
+}
+
+func stagingAPIOnlyRuntimeEnabled() bool {
+	role := strings.ToLower(strings.TrimSpace(os.Getenv(appRuntimeRoleEnvVar)))
+	if role == appRuntimeRoleAPI {
+		return true
+	}
+	enabled, ok := envBoolValue(stagingAPIOnlyEnvVar)
+	return ok && enabled
+}
+
+func runtimeBackgroundJobsEnabled() bool {
+	if stagingAPIOnlyRuntimeEnabled() {
+		return false
+	}
+	enabled, ok := envBoolValue(backgroundJobsEnvVar)
+	if ok {
+		return enabled
+	}
+	return true
+}
+
+func runtimeSchedulersEnabled() bool {
+	if !runtimeBackgroundJobsEnabled() {
+		return false
+	}
+	enabled, ok := envBoolValue(schedulersEnvVar)
+	if ok {
+		return enabled
+	}
+	return true
+}
+
 func singletonBackgroundServicesEnabled() bool {
+	if !runtimeBackgroundJobsEnabled() {
+		return false
+	}
 	switch currentProcessRole() {
 	case "", processRoleCoordinator:
 		return true
@@ -37,7 +88,14 @@ func singletonBackgroundServicesEnabled() bool {
 	}
 }
 
+func singletonSchedulerServicesEnabled() bool {
+	return runtimeSchedulersEnabled() && singletonBackgroundServicesEnabled()
+}
+
 func workerLocalBackgroundServicesEnabled() bool {
+	if !runtimeBackgroundJobsEnabled() {
+		return false
+	}
 	switch currentProcessRole() {
 	case "", processRoleWorker:
 		return true
@@ -47,6 +105,9 @@ func workerLocalBackgroundServicesEnabled() bool {
 }
 
 func requestPathCacheSyncEnabled() bool {
+	if !runtimeBackgroundJobsEnabled() {
+		return false
+	}
 	switch currentProcessRole() {
 	case "", processRoleWorker:
 		return true
@@ -56,6 +117,9 @@ func requestPathCacheSyncEnabled() bool {
 }
 
 func coordinatorOrSingleProcess() bool {
+	if !runtimeBackgroundJobsEnabled() {
+		return false
+	}
 	role := strings.ToLower(strings.TrimSpace(os.Getenv(processRoleEnvVar)))
 	switch role {
 	case "", processRoleCoordinator:
@@ -75,7 +139,7 @@ type BuildInfo struct {
 // ProvidePricingService creates and initializes PricingService
 func ProvidePricingService(cfg *config.Config, remoteClient PricingRemoteClient) (*PricingService, error) {
 	svc := NewPricingService(cfg, remoteClient)
-	if err := svc.InitializeWithBackground(singletonBackgroundServicesEnabled()); err != nil {
+	if err := svc.InitializeWithBackground(singletonSchedulerServicesEnabled()); err != nil {
 		// Pricing service initialization failure should not block startup, use fallback prices
 		println("[Service] Warning: Pricing service initialization failed:", err.Error())
 	}
@@ -93,7 +157,7 @@ func ProvideUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, b
 
 // ProvideEmailQueueService creates EmailQueueService with default worker count
 func ProvideEmailQueueService(emailService *EmailService) *EmailQueueService {
-	return NewEmailQueueService(emailService, 3)
+	return NewEmailQueueServiceWithAutoStart(emailService, 3, runtimeBackgroundJobsEnabled())
 }
 
 // ProvideTokenRefreshService creates and starts TokenRefreshService
@@ -123,7 +187,7 @@ func ProvideTokenRefreshService(
 	// 调用侧显式注入后台刷新策略，避免策略漂移
 	svc.SetRefreshPolicy(DefaultBackgroundRefreshPolicy())
 	svc.SetRateLimitService(rateLimitService)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		svc.Start()
 	}
 	return svc
@@ -204,7 +268,7 @@ func ProvideKiroTokenProvider(
 // ProvideDashboardAggregationService 创建并启动仪表盘聚合服务
 func ProvideDashboardAggregationService(repo DashboardAggregationRepository, timingWheel *TimingWheelService, cfg *config.Config) *DashboardAggregationService {
 	svc := NewDashboardAggregationService(repo, timingWheel, cfg)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		svc.Start()
 	}
 	return svc
@@ -213,7 +277,7 @@ func ProvideDashboardAggregationService(repo DashboardAggregationRepository, tim
 // ProvideUsageCleanupService 创建并启动使用记录清理任务服务
 func ProvideUsageCleanupService(repo UsageCleanupRepository, timingWheel *TimingWheelService, dashboardAgg *DashboardAggregationService, cfg *config.Config) *UsageCleanupService {
 	svc := NewUsageCleanupService(repo, timingWheel, dashboardAgg, cfg)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		svc.Start()
 	}
 	return svc
@@ -222,7 +286,7 @@ func ProvideUsageCleanupService(repo UsageCleanupRepository, timingWheel *Timing
 // ProvideAccountExpiryService creates and starts AccountExpiryService.
 func ProvideAccountExpiryService(accountRepo AccountRepository) *AccountExpiryService {
 	svc := NewAccountExpiryService(accountRepo, time.Minute)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		svc.Start()
 	}
 	return svc
@@ -231,7 +295,7 @@ func ProvideAccountExpiryService(accountRepo AccountRepository) *AccountExpirySe
 // ProvideSubscriptionExpiryService creates and starts SubscriptionExpiryService.
 func ProvideSubscriptionExpiryService(userSubRepo UserSubscriptionRepository) *SubscriptionExpiryService {
 	svc := NewSubscriptionExpiryService(userSubRepo, time.Minute)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		svc.Start()
 	}
 	return svc
@@ -243,7 +307,9 @@ func ProvideTimingWheelService() (*TimingWheelService, error) {
 	if err != nil {
 		return nil, err
 	}
-	svc.Start()
+	if runtimeSchedulersEnabled() {
+		svc.Start()
+	}
 	return svc, nil
 }
 
@@ -291,7 +357,7 @@ func ProvideSchedulerSnapshotService(
 	cfg *config.Config,
 ) *SchedulerSnapshotService {
 	svc := NewSchedulerSnapshotService(cache, outboxRepo, accountRepo, groupRepo, cfg)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		svc.Start()
 	}
 	return svc
@@ -350,7 +416,7 @@ func ProvideOpsMetricsCollector(
 	cfg *config.Config,
 ) *OpsMetricsCollector {
 	collector := NewOpsMetricsCollector(opsRepo, settingRepo, accountRepo, concurrencyService, db, redisClient, cfg)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		collector.Start()
 	}
 	return collector
@@ -365,7 +431,7 @@ func ProvideOpsAggregationService(
 	cfg *config.Config,
 ) *OpsAggregationService {
 	svc := NewOpsAggregationService(opsRepo, settingRepo, db, redisClient, cfg)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		svc.Start()
 	}
 	return svc
@@ -380,7 +446,7 @@ func ProvideOpsAlertEvaluatorService(
 	cfg *config.Config,
 ) *OpsAlertEvaluatorService {
 	svc := NewOpsAlertEvaluatorService(opsService, opsRepo, emailService, redisClient, cfg)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		svc.Start()
 	}
 	return svc
@@ -396,7 +462,7 @@ func ProvideOpsCleanupService(
 ) *OpsCleanupService {
 	_ = channelMonitorSvc
 	svc := NewOpsCleanupService(opsRepo, db, redisClient, cfg)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		svc.Start()
 	}
 	return svc
@@ -404,8 +470,10 @@ func ProvideOpsCleanupService(
 
 func ProvideOpsSystemLogSink(opsRepo OpsRepository) *OpsSystemLogSink {
 	sink := NewOpsSystemLogSink(opsRepo)
-	sink.Start()
-	logger.SetSink(sink)
+	if runtimeBackgroundJobsEnabled() {
+		sink.Start()
+		logger.SetSink(sink)
+	}
 	return sink
 }
 
@@ -437,7 +505,7 @@ func ProvideSoraSDKClient(
 // ProvideSoraMediaCleanupService 创建并启动 Sora 媒体清理服务
 func ProvideSoraMediaCleanupService(storage *SoraMediaStorage, cfg *config.Config) *SoraMediaCleanupService {
 	svc := NewSoraMediaCleanupService(storage, cfg)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		svc.Start()
 	}
 	return svc
@@ -478,7 +546,7 @@ func ProvideSystemOperationLockService(repo IdempotencyRepository, cfg *config.C
 
 func ProvideIdempotencyCleanupService(repo IdempotencyRepository, cfg *config.Config) *IdempotencyCleanupService {
 	svc := NewIdempotencyCleanupService(repo, cfg)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		svc.Start()
 	}
 	return svc
@@ -501,7 +569,7 @@ func ProvideScheduledTestRunnerService(
 	cfg *config.Config,
 ) *ScheduledTestRunnerService {
 	svc := NewScheduledTestRunnerService(planRepo, scheduledSvc, accountTestSvc, rateLimitSvc, cfg)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		svc.Start()
 	}
 	return svc
@@ -521,7 +589,7 @@ func ProvideBalanceNotifyService(emailService *EmailService, settingRepo Setting
 // ProvidePaymentOrderExpiryService creates and starts PaymentOrderExpiryService.
 func ProvidePaymentOrderExpiryService(paymentSvc *PaymentService) *PaymentOrderExpiryService {
 	svc := NewPaymentOrderExpiryService(paymentSvc, 60*time.Second)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		svc.Start()
 	}
 	return svc
@@ -536,7 +604,7 @@ func ProvideChannelMonitorService(repo ChannelMonitorRepository, encryptor Secre
 func ProvideChannelMonitorRunner(svc *ChannelMonitorService, settingService *SettingService) *ChannelMonitorRunner {
 	r := NewChannelMonitorRunner(svc, settingService)
 	svc.SetScheduler(r)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		r.Start()
 	}
 	return r
@@ -556,7 +624,7 @@ func ProvideProxyMaintenanceRunnerService(
 	cfg *config.Config,
 ) *ProxyMaintenanceRunnerService {
 	runner := NewProxyMaintenanceRunnerService(svc, cfg)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		runner.Start()
 	}
 	return runner
@@ -568,7 +636,7 @@ func ProvideAccountModelsRefreshService(
 	accountTestSvc *AccountTestService,
 ) *AccountModelsRefreshService {
 	svc := NewAccountModelsRefreshService(accountRepo, accountTestSvc, defaultAccountModelsRefreshInterval)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		svc.Start()
 	}
 	return svc
@@ -583,7 +651,7 @@ func ProvideOpsScheduledReportService(
 	cfg *config.Config,
 ) *OpsScheduledReportService {
 	svc := NewOpsScheduledReportService(opsService, userService, emailService, redisClient, cfg)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		svc.Start()
 	}
 	return svc
@@ -607,7 +675,7 @@ func ProvideBackupService(
 	dumper DBDumper,
 ) *BackupService {
 	svc := NewBackupService(settingRepo, cfg, encryptor, storeFactory, dumper)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		svc.Start()
 	}
 	return svc
@@ -630,7 +698,7 @@ func ProvideAccountImportService(
 	cfg *config.Config,
 ) *AccountImportService {
 	svc := NewAccountImportService(accountStore, batchRepo, proxyRepo, groupRepo, soraAccountRepo, schedulerSnapshot, cfg)
-	if singletonBackgroundServicesEnabled() {
+	if singletonSchedulerServicesEnabled() {
 		svc.Start()
 	}
 	return svc
