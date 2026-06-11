@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -392,6 +394,142 @@ func TestWorkspaceUnavailableAssistantResponderDoesNotCallProviderOrBilling(t *t
 	require.Equal(t, false, response.Metadata["provider_called"])
 	require.Equal(t, false, response.Metadata["billing_touched"])
 	require.Equal(t, false, response.Metadata["asset_touched"])
+	require.Equal(t, WorkspaceProviderNameDisabled, response.Metadata["provider_name"])
+	require.Equal(t, "workspace_provider_disabled", response.Metadata["audit_error_code"])
+	require.NotEmpty(t, response.Metadata["audit_prompt_hash"])
+}
+
+func TestWorkspaceProviderUnavailableAdapterBuildsSafeDiagnostics(t *testing.T) {
+	response, err := WorkspaceProviderUnavailableAdapter{}.GenerateWorkspaceResponse(context.Background(), WorkspaceProviderRequest{
+		UserID:         10,
+		ConversationID: 1,
+		UserMessageID:  2,
+		Content:        "hello Authorization: Bearer sk-secret access_token=abc cookie=session",
+		Model:          "gpt-5.5",
+		Intent:         WorkspaceIntentChat,
+		Capability:     WorkspaceProviderCapabilityText,
+		PromptEnhancement: &UpstreamPromptEnhancementResult{
+			PromptHash:           "prompt-hash",
+			EnhancerVersion:      "offline-prompt-enhancer-v1",
+			BenchmarkSampleID:    "text-strict-json-output",
+			SuggestedForProvider: false,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, WorkspaceAssistantUnavailableContent, response.Content)
+	require.Equal(t, WorkspaceProviderNameDisabled, response.Diagnostics.ProviderName)
+	require.Equal(t, "workspace provider adapter is disabled by default", response.Diagnostics.DisabledCapabilityReason)
+	require.True(t, response.Diagnostics.PromptEnhancerUsed)
+	require.NotNil(t, response.Diagnostics.AuditRecord)
+	require.Equal(t, "workspace_provider_disabled", response.Diagnostics.AuditRecord.ErrorCode)
+	require.Equal(t, "/workspace-provider-disabled", response.Diagnostics.AuditRecord.EndpointLabel)
+	require.Equal(t, "gpt-5.5", response.Diagnostics.AuditRecord.RequestedModel)
+	require.Equal(t, "gpt-5.5", response.Diagnostics.AuditRecord.MappedModel)
+	require.Empty(t, response.Diagnostics.AuditRecord.UpstreamModel)
+
+	encoded, err := json.Marshal(response)
+	require.NoError(t, err)
+	body := strings.ToLower(string(encoded))
+	require.NotContains(t, body, "sk-secret")
+	require.NotContains(t, body, "access_token=abc")
+	require.NotContains(t, body, "cookie=session")
+	require.NotContains(t, body, "authorization: bearer")
+	require.NotContains(t, body, "provider_key")
+	require.NotContains(t, body, "base_url")
+}
+
+func TestChatWorkspaceServiceProviderAdapterBoundaryPersistsFakeAssistantInTests(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	adapter := &recordingWorkspaceProviderAdapter{
+		response: WorkspaceProviderResponse{
+			Content: "fake adapter response for tests",
+			Model:   "gpt-5.5",
+			Intent:  WorkspaceIntentChat,
+			Metadata: map[string]any{
+				"provider_called": false,
+				"fake_adapter":    true,
+			},
+			Diagnostics: WorkspaceProviderDiagnostics{
+				RequestedModel:        "gpt-5.5",
+				MappedModel:           "gpt-5.5",
+				UpstreamModel:         "gpt-5.5-test-double",
+				ProviderName:          "workspace_fake_provider",
+				SupportedCapabilities: []WorkspaceProviderCapability{WorkspaceProviderCapabilityText},
+			},
+		},
+	}
+	svc := NewChatWorkspaceServiceWithProviderAdapter(repo, adapter)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	userMessage, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "hello workspace",
+		Model:          "gpt-5.5",
+		Intent:         WorkspaceIntentChat,
+		Metadata: map[string]any{
+			"prompt_enhancement": UpstreamPromptEnhancementResult{
+				PromptHash:        "hash",
+				BenchmarkSampleID: "text-code-explanation",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, userMessage)
+	require.NotNil(t, assistantMessage)
+	require.Equal(t, 1, adapter.calls)
+	require.Equal(t, int64(10), adapter.lastInput.UserID)
+	require.Equal(t, conversation.ID, adapter.lastInput.ConversationID)
+	require.Equal(t, userMessage.ID, adapter.lastInput.UserMessageID)
+	require.Equal(t, WorkspaceProviderCapabilityText, adapter.lastInput.Capability)
+	require.NotNil(t, adapter.lastInput.PromptEnhancement)
+	require.Equal(t, "text-code-explanation", adapter.lastInput.PromptEnhancement.BenchmarkSampleID)
+	require.Equal(t, WorkspaceRoleAssistant, assistantMessage.Role)
+	require.Equal(t, "fake adapter response for tests", assistantMessage.Content)
+	require.Equal(t, "workspace_fake_provider", assistantMessage.Metadata["provider_name"])
+	require.Equal(t, "gpt-5.5-test-double", assistantMessage.Metadata["upstream_model"])
+	require.Equal(t, false, assistantMessage.Metadata["provider_called"])
+}
+
+func TestChatWorkspaceServiceProviderAdapterNotCalledForRejectedInputs(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	adapter := &recordingWorkspaceProviderAdapter{}
+	svc := NewChatWorkspaceServiceWithProviderAdapter(repo, adapter)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, _, err = svc.AppendMessageWithAssistantResponse(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "hello workspace",
+		Model:          "unknown-model",
+		Intent:         WorkspaceIntentChat,
+	})
+	require.ErrorIs(t, err, ErrWorkspaceInvalidModel)
+
+	_, _, err = svc.AppendMessageWithAssistantResponse(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "draw an image",
+		Model:          "gpt-5.5",
+		Intent:         "image_generation",
+	})
+	require.ErrorIs(t, err, ErrWorkspaceCapabilityDisabled)
+
+	_, _, err = svc.AppendMessageWithAssistantResponse(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "hello workspace",
+		Model:          "gpt-5.5",
+		Intent:         "custom",
+	})
+	require.ErrorIs(t, err, ErrWorkspaceInvalidIntent)
+	require.Zero(t, adapter.calls)
 }
 
 type recordingWorkspaceAssistantResponder struct {
@@ -411,4 +549,23 @@ func (r *recordingWorkspaceAssistantResponder) GenerateAssistantResponse(_ conte
 		return r.response, nil
 	}
 	return WorkspaceUnavailableAssistantResponder{}.GenerateAssistantResponse(context.Background(), input)
+}
+
+type recordingWorkspaceProviderAdapter struct {
+	calls     int
+	lastInput WorkspaceProviderRequest
+	response  WorkspaceProviderResponse
+	err       error
+}
+
+func (r *recordingWorkspaceProviderAdapter) GenerateWorkspaceResponse(_ context.Context, input WorkspaceProviderRequest) (WorkspaceProviderResponse, error) {
+	r.calls++
+	r.lastInput = input
+	if r.err != nil {
+		return WorkspaceProviderResponse{}, r.err
+	}
+	if r.response.Content != "" {
+		return r.response, nil
+	}
+	return WorkspaceProviderUnavailableAdapter{}.GenerateWorkspaceResponse(context.Background(), input)
 }
