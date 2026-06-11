@@ -171,6 +171,11 @@ func TestLoadDefaultWorkspaceTextProviderGateConfig(t *testing.T) {
 	require.Empty(t, cfg.Workspace.TextProvider.TestProviderLabel)
 	require.Empty(t, cfg.Workspace.TextProvider.LowCostModelAllowlist)
 	require.Zero(t, cfg.Workspace.TextProvider.MaxRequestsPerTestRun)
+	require.False(t, cfg.Workspace.TextProvider.BillingEligibilityKnown)
+	require.False(t, cfg.Workspace.TextProvider.BillingEligible)
+	require.Empty(t, cfg.Workspace.TextProvider.BillingPolicy)
+	require.Empty(t, cfg.Workspace.TextProvider.UsagePolicy)
+	require.Empty(t, cfg.Workspace.TextProvider.FailurePolicy)
 	require.False(t, cfg.Workspace.AvailableChannels.StagingOverrideEnabled)
 }
 
@@ -182,6 +187,11 @@ func TestLoadWorkspaceTextProviderGateConfigFromEnv(t *testing.T) {
 	t.Setenv("WORKSPACE_TEXT_PROVIDER_ENVIRONMENT", "staging")
 	t.Setenv("WORKSPACE_TEXT_PROVIDER_TEST_PROVIDER_LABEL", "staging-low-cost-provider")
 	t.Setenv("WORKSPACE_TEXT_PROVIDER_MAX_REQUESTS_PER_TEST_RUN", "3")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_BILLING_ELIGIBILITY_KNOWN", "true")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_BILLING_ELIGIBLE", "true")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_BILLING_POLICY", " record_usage_on_provider_reported_usage ")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_USAGE_POLICY", " record_provider_reported ")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_FAILURE_POLICY", " provider_failure_no_charge ")
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -192,6 +202,11 @@ func TestLoadWorkspaceTextProviderGateConfigFromEnv(t *testing.T) {
 	require.Equal(t, "staging", cfg.Workspace.TextProvider.Environment)
 	require.Equal(t, "staging-low-cost-provider", cfg.Workspace.TextProvider.TestProviderLabel)
 	require.Equal(t, 3, cfg.Workspace.TextProvider.MaxRequestsPerTestRun)
+	require.True(t, cfg.Workspace.TextProvider.BillingEligibilityKnown)
+	require.True(t, cfg.Workspace.TextProvider.BillingEligible)
+	require.Equal(t, "record_usage_on_provider_reported_usage", cfg.Workspace.TextProvider.BillingPolicy)
+	require.Equal(t, "record_provider_reported", cfg.Workspace.TextProvider.UsagePolicy)
+	require.Equal(t, "provider_failure_no_charge", cfg.Workspace.TextProvider.FailurePolicy)
 }
 
 func TestLoadWorkspaceAvailableChannelsStagingOverrideFromEnv(t *testing.T) {
