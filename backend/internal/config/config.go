@@ -76,6 +76,7 @@ type Config struct {
 	Default                 DefaultConfig                 `mapstructure:"default"`
 	RateLimit               RateLimitConfig               `mapstructure:"rate_limit"`
 	Pricing                 PricingConfig                 `mapstructure:"pricing"`
+	Workspace               WorkspaceConfig               `mapstructure:"workspace"`
 	Gateway                 GatewayConfig                 `mapstructure:"gateway"`
 	APIKeyAuth              APIKeyAuthCacheConfig         `mapstructure:"api_key_auth_cache"`
 	SubscriptionCache       SubscriptionCacheConfig       `mapstructure:"subscription_cache"`
@@ -1037,6 +1038,20 @@ type DefaultConfig struct {
 	RateMultiplier  float64 `mapstructure:"rate_multiplier"`
 }
 
+type WorkspaceConfig struct {
+	TextProvider WorkspaceTextProviderConfig `mapstructure:"text_provider"`
+}
+
+type WorkspaceTextProviderConfig struct {
+	Enabled               bool     `mapstructure:"enabled"`
+	KillSwitch            bool     `mapstructure:"kill_switch"`
+	StagingOnly           bool     `mapstructure:"staging_only"`
+	Environment           string   `mapstructure:"environment"`
+	TestProviderLabel     string   `mapstructure:"test_provider_label"`
+	LowCostModelAllowlist []string `mapstructure:"low_cost_model_allowlist"`
+	MaxRequestsPerTestRun int      `mapstructure:"max_requests_per_test_run"`
+}
+
 type RateLimitConfig struct {
 	OverloadCooldownMinutes int `mapstructure:"overload_cooldown_minutes"`  // 529过载冷却时间(分钟)
 	OAuth401CooldownMinutes int `mapstructure:"oauth_401_cooldown_minutes"` // OAuth 401临时不可调度冷却(分钟)
@@ -1210,6 +1225,9 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	cfg.Log.Environment = strings.TrimSpace(cfg.Log.Environment)
 	cfg.Log.StacktraceLevel = strings.ToLower(strings.TrimSpace(cfg.Log.StacktraceLevel))
 	cfg.Log.Output.FilePath = strings.TrimSpace(cfg.Log.Output.FilePath)
+	cfg.Workspace.TextProvider.Environment = strings.ToLower(strings.TrimSpace(cfg.Workspace.TextProvider.Environment))
+	cfg.Workspace.TextProvider.TestProviderLabel = strings.TrimSpace(cfg.Workspace.TextProvider.TestProviderLabel)
+	cfg.Workspace.TextProvider.LowCostModelAllowlist = normalizeStringSlice(cfg.Workspace.TextProvider.LowCostModelAllowlist)
 	cfg.Process.Mode = strings.ToLower(strings.TrimSpace(cfg.Process.Mode))
 	if cfg.Process.Mode == "" {
 		cfg.Process.Mode = ProcessModeSingle
@@ -1334,6 +1352,15 @@ func setDefaults() {
 	viper.SetDefault("log.sampling.enabled", false)
 	viper.SetDefault("log.sampling.initial", 100)
 	viper.SetDefault("log.sampling.thereafter", 100)
+
+	// Workspace text provider gate. Defaults intentionally fail closed.
+	viper.SetDefault("workspace.text_provider.enabled", false)
+	viper.SetDefault("workspace.text_provider.kill_switch", true)
+	viper.SetDefault("workspace.text_provider.staging_only", true)
+	viper.SetDefault("workspace.text_provider.environment", "")
+	viper.SetDefault("workspace.text_provider.test_provider_label", "")
+	viper.SetDefault("workspace.text_provider.low_cost_model_allowlist", []string{})
+	viper.SetDefault("workspace.text_provider.max_requests_per_test_run", 0)
 
 	// CORS
 	viper.SetDefault("cors.allowed_origins", []string{})
