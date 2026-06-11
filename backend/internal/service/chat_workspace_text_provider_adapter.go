@@ -64,6 +64,7 @@ type WorkspaceTextProviderAdapter struct {
 	BillingPolicy           WorkspaceProviderBillingPolicy
 	UsagePolicy             WorkspaceProviderUsagePolicy
 	FailurePolicy           WorkspaceProviderFailurePolicy
+	StagingQA               *WorkspaceTextProviderStagingQA
 }
 
 func (a WorkspaceTextProviderAdapter) GenerateWorkspaceResponse(ctx context.Context, input WorkspaceProviderRequest) (WorkspaceProviderResponse, error) {
@@ -110,6 +111,12 @@ func (a WorkspaceTextProviderAdapter) GenerateWorkspaceResponse(ctx context.Cont
 		return workspaceTextProviderBlockedResponse(model, intent, diagnostics, contract), nil
 	}
 
+	stagingQADecision := reserveWorkspaceTextProviderStagingQA(a.StagingQA, model)
+	stagingQAMetadata := workspaceTextProviderStagingQAMetadata(stagingQADecision)
+	if !stagingQADecision.Allowed {
+		return workspaceTextProviderStagingQABlockedResponse(model, intent, diagnostics, contract, stagingQADecision), nil
+	}
+
 	result, err := a.Executor.ExecuteWorkspaceTextProvider(ctx, WorkspaceTextProviderExecutionInput{
 		RequestID:         a.RequestID,
 		UserID:            input.UserID,
@@ -128,10 +135,10 @@ func (a WorkspaceTextProviderAdapter) GenerateWorkspaceResponse(ctx context.Cont
 		OriginalMetadata:  input.Metadata,
 	})
 	if err != nil {
-		return workspaceTextProviderFailureResponse(input, model, intent, diagnostics, contract, "workspace_provider_error"), nil
+		return workspaceTextProviderFailureResponse(input, model, intent, diagnostics, contract, "workspace_provider_error", stagingQAMetadata), nil
 	}
 	if strings.TrimSpace(result.Content) == "" {
-		return workspaceTextProviderFailureResponse(input, model, intent, diagnostics, contract, "workspace_provider_empty_response"), nil
+		return workspaceTextProviderFailureResponse(input, model, intent, diagnostics, contract, "workspace_provider_empty_response", stagingQAMetadata), nil
 	}
 
 	successDiagnostics := diagnostics
@@ -162,6 +169,7 @@ func (a WorkspaceTextProviderAdapter) GenerateWorkspaceResponse(ctx context.Cont
 	successDiagnostics.AuditRecord = &auditRecord
 
 	metadata := workspaceTextProviderSuccessMetadata(result.Metadata, successDiagnostics, contract, endpointLabel, result)
+	mergeWorkspaceMetadata(metadata, stagingQAMetadata)
 	return WorkspaceProviderResponse{
 		Content:     strings.TrimSpace(result.Content),
 		Model:       firstNonEmptyWorkspaceValue(result.Model, model),
@@ -192,7 +200,29 @@ func workspaceTextProviderBlockedResponse(model, intent string, diagnostics Work
 	}
 }
 
-func workspaceTextProviderFailureResponse(input WorkspaceProviderRequest, model, intent string, diagnostics WorkspaceProviderDiagnostics, contract WorkspaceProviderExecutionContract, errorCode string) WorkspaceProviderResponse {
+func workspaceTextProviderStagingQABlockedResponse(model, intent string, diagnostics WorkspaceProviderDiagnostics, contract WorkspaceProviderExecutionContract, decision WorkspaceTextProviderStagingQADecision) WorkspaceProviderResponse {
+	diagnostics.DisabledCapabilityReason = "workspace text provider staging QA guard blocked execution"
+	auditRecord := contract.Audit.Record
+	diagnostics.AuditRecord = &auditRecord
+	metadata := workspaceProviderUnavailableMetadata(diagnostics)
+	metadata["provider_adapter"] = "text"
+	metadata["execution_decision"] = string(contract.Decision)
+	metadata["execution_block_reasons"] = workspaceExecutionReasonsAsStrings(contract.BlockReasons)
+	metadata["billing_policy"] = string(contract.BillingPolicy)
+	metadata["usage_policy"] = string(contract.UsagePolicy)
+	metadata["failure_policy"] = string(contract.FailurePolicy)
+	metadata["reconcile_needed"] = contract.Diagnostics.ReconcileNeeded
+	mergeWorkspaceMetadata(metadata, workspaceTextProviderStagingQAMetadata(decision))
+	return WorkspaceProviderResponse{
+		Content:     WorkspaceAssistantUnavailableContent,
+		Model:       model,
+		Intent:      intent,
+		Metadata:    metadata,
+		Diagnostics: diagnostics,
+	}
+}
+
+func workspaceTextProviderFailureResponse(input WorkspaceProviderRequest, model, intent string, diagnostics WorkspaceProviderDiagnostics, contract WorkspaceProviderExecutionContract, errorCode string, extraMetadata map[string]any) WorkspaceProviderResponse {
 	auditRecord := BuildUpstreamQualityAuditRecord(UpstreamQualityAuditInput{
 		RequestID:      contract.Diagnostics.RequestID,
 		Route:          workspaceProviderExecutionRoute,
@@ -234,6 +264,7 @@ func workspaceTextProviderFailureResponse(input WorkspaceProviderRequest, model,
 		"prompt_enhancer_used": diagnostics.PromptEnhancerUsed,
 		"safe_error":           "workspace text provider failed before a user-visible AI response was completed",
 	}
+	mergeWorkspaceMetadata(metadata, extraMetadata)
 	return WorkspaceProviderResponse{
 		Content:     WorkspaceAssistantUnavailableContent,
 		Model:       model,
