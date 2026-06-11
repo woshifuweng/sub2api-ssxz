@@ -121,7 +121,9 @@ func (u WorkspaceOpenAICompatibleHTTPUpstream) ExecuteWorkspaceOpenAICompatibleT
 		}
 		return workspaceOpenAICompatibleHTTPErrorResponse(req, u, workspaceOpenAICompatibleHTTPErrorUpstream, latencyMs), errWorkspaceOpenAICompatibleHTTPFailed
 	}
-	defer httpResp.Body.Close()
+	defer func() {
+		_ = httpResp.Body.Close()
+	}()
 
 	if httpResp.StatusCode < http.StatusOK || httpResp.StatusCode >= http.StatusMultipleChoices {
 		_, _ = io.Copy(io.Discard, io.LimitReader(httpResp.Body, 4096))
@@ -247,10 +249,8 @@ func normalizeWorkspaceOpenAICompatibleBaseURL(raw string, allowTestLocal bool) 
 	if parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return "", fmt.Errorf("unsafe base url")
 	}
-	if parsed.Scheme != "https" {
-		if !(allowTestLocal && parsed.Scheme == "http") {
-			return "", fmt.Errorf("unsupported base url scheme")
-		}
+	if parsed.Scheme != "https" && (!allowTestLocal || parsed.Scheme != "http") {
+		return "", fmt.Errorf("unsupported base url scheme")
 	}
 	if parsed.Host == "" {
 		return "", fmt.Errorf("missing base url host")
