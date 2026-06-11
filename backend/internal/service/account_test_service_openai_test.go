@@ -268,6 +268,44 @@ data: [DONE]
 	require.Contains(t, recorder.Body.String(), "test_complete")
 }
 
+func TestAccountTestService_OpenAIAPIKeyCustomBaseURLUsesChatCompletionsConnectionTest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, recorder := newSoraTestContext()
+
+	resp := newJSONResponse(http.StatusOK, "")
+	resp.Body = io.NopCloser(strings.NewReader(`data: {"choices":[{"delta":{"content":"custom base ok"}}]}
+
+data: [DONE]
+
+`))
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{resp}}
+	svc := &AccountTestService{httpUpstream: upstream}
+	account := &Account{
+		ID:          95,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "https://api.deepseek.com",
+		},
+	}
+
+	err := svc.testOpenAIAccountConnection(gatewayctx.FromGin(ctx), account, "deepseek-v4-flash", "hi")
+	require.NoError(t, err)
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, "https://api.deepseek.com/v1/chat/completions", upstream.requests[0].URL.String())
+
+	var requestBody map[string]any
+	require.NoError(t, json.NewDecoder(upstream.requests[0].Body).Decode(&requestBody))
+	require.Equal(t, "deepseek-v4-flash", requestBody["model"])
+	require.Equal(t, true, requestBody["stream"])
+	require.NotContains(t, requestBody, "input")
+	require.NotContains(t, requestBody, "instructions")
+	require.Contains(t, recorder.Body.String(), "custom base ok")
+	require.Contains(t, recorder.Body.String(), "test_complete")
+}
+
 func TestAccountTestService_OpenAIImageModelUsesImagesAPI(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, recorder := newSoraTestContext()

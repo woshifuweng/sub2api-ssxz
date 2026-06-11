@@ -894,7 +894,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c gatewayctx.GatewayCon
 		if err != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
 		}
-		if account.IsOpenAIPassthroughEnabled() {
+		if shouldUseOpenAICompatibleChatCompletionsTest(account, normalizedBaseURL) {
 			useChatCompletionsTest = true
 			apiURL = buildOpenAICompatibleChatCompletionsURL(normalizedBaseURL)
 		} else {
@@ -2158,6 +2158,18 @@ func buildOpenAICompatibleChatCompletionsURL(baseURL string) string {
 		return normalized + "/chat/completions"
 	}
 	return normalized + "/v1/chat/completions"
+}
+
+func shouldUseOpenAICompatibleChatCompletionsTest(account *Account, normalizedBaseURL string) bool {
+	if account.IsOpenAIPassthroughEnabled() {
+		return true
+	}
+	parsedURL, err := url.Parse(strings.TrimSpace(normalizedBaseURL))
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(parsedURL.Hostname())
+	return host != "" && host != "api.openai.com"
 }
 
 func createOpenAICompatibleChatCompletionsTestPayload(modelID string, prompt string) map[string]any {
