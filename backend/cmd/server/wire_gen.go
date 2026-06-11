@@ -262,7 +262,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	imageStudioHandler := handler.NewImageStudioHandler(apiKeyService, subscriptionService, openAIGatewayHandler, configConfig)
 	chatStudioHandler := handler.NewChatStudioHandler(apiKeyService, subscriptionService, openAIGatewayHandler, configConfig)
 	chatWorkspaceRepository := repository.NewChatWorkspaceRepository(db)
-	chatWorkspaceService := service.NewChatWorkspaceService(chatWorkspaceRepository)
+	chatWorkspaceService := service.ProvideChatWorkspaceService(chatWorkspaceRepository, configConfig)
 	chatWorkspaceHandler := handler.NewChatWorkspaceHandler(chatWorkspaceService)
 	idempotencyCache := repository.NewIdempotencyCache(redisClient)
 	idempotencyCoordinator := service.ProvideIdempotencyCoordinator(idempotencyRepository, idempotencyCache, configConfig)

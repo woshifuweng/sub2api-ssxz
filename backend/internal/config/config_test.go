@@ -158,6 +158,41 @@ func TestLoadDefaultOpenAIWSConfig(t *testing.T) {
 	}
 }
 
+func TestLoadDefaultWorkspaceTextProviderGateConfig(t *testing.T) {
+	resetViperWithJWTSecret(t)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	require.False(t, cfg.Workspace.TextProvider.Enabled)
+	require.True(t, cfg.Workspace.TextProvider.KillSwitch)
+	require.True(t, cfg.Workspace.TextProvider.StagingOnly)
+	require.Empty(t, cfg.Workspace.TextProvider.Environment)
+	require.Empty(t, cfg.Workspace.TextProvider.TestProviderLabel)
+	require.Empty(t, cfg.Workspace.TextProvider.LowCostModelAllowlist)
+	require.Zero(t, cfg.Workspace.TextProvider.MaxRequestsPerTestRun)
+}
+
+func TestLoadWorkspaceTextProviderGateConfigFromEnv(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_ENABLED", "true")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_KILL_SWITCH", "false")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_STAGING_ONLY", "true")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_ENVIRONMENT", "staging")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_TEST_PROVIDER_LABEL", "staging-low-cost-provider")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_MAX_REQUESTS_PER_TEST_RUN", "3")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	require.True(t, cfg.Workspace.TextProvider.Enabled)
+	require.False(t, cfg.Workspace.TextProvider.KillSwitch)
+	require.True(t, cfg.Workspace.TextProvider.StagingOnly)
+	require.Equal(t, "staging", cfg.Workspace.TextProvider.Environment)
+	require.Equal(t, "staging-low-cost-provider", cfg.Workspace.TextProvider.TestProviderLabel)
+	require.Equal(t, 3, cfg.Workspace.TextProvider.MaxRequestsPerTestRun)
+}
+
 func TestLoadOpenAIWSStickyTTLCompatibility(t *testing.T) {
 	resetViperWithJWTSecret(t)
 	t.Setenv("GATEWAY_OPENAI_WS_STICKY_RESPONSE_ID_TTL_SECONDS", "0")
