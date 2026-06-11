@@ -20,7 +20,10 @@ func (s *settingPublicRepoStub) Get(ctx context.Context, key string) (*Setting, 
 }
 
 func (s *settingPublicRepoStub) GetValue(ctx context.Context, key string) (string, error) {
-	panic("unexpected GetValue call")
+	if value, ok := s.values[key]; ok {
+		return value, nil
+	}
+	return "", ErrSettingNotFound
 }
 
 func (s *settingPublicRepoStub) Set(ctx context.Context, key, value string) error {
@@ -93,4 +96,69 @@ func TestSettingService_GetPublicSettings_AllowsHTTPEmbeddedURL(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, settings.PurchaseSubscriptionEnabled)
 	require.Equal(t, "http://pay.example.com/checkout", settings.PurchaseSubscriptionURL)
+}
+
+func TestSettingService_AvailableChannelsDefaultUsesStoredSetting(t *testing.T) {
+	repo := &settingPublicRepoStub{
+		values: map[string]string{
+			settingKeyAvailableChannelsEnabled: "false",
+		},
+	}
+	svc := NewSettingService(repo, &config.Config{})
+
+	runtime := svc.GetAvailableChannelsRuntime(context.Background())
+	require.False(t, runtime.Enabled)
+
+	settings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.False(t, settings.AvailableChannelsEnabled)
+}
+
+func TestSettingService_AvailableChannelsStagingOverrideRequiresNonProduction(t *testing.T) {
+	repo := &settingPublicRepoStub{
+		values: map[string]string{
+			settingKeyAvailableChannelsEnabled: "false",
+		},
+	}
+	svc := NewSettingService(repo, &config.Config{
+		Log: config.LogConfig{Environment: "production"},
+		Workspace: config.WorkspaceConfig{
+			AvailableChannels: config.WorkspaceAvailableChannelsConfig{
+				StagingOverrideEnabled: true,
+			},
+		},
+	})
+
+	runtime := svc.GetAvailableChannelsRuntime(context.Background())
+	require.False(t, runtime.Enabled)
+
+	settings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.False(t, settings.AvailableChannelsEnabled)
+}
+
+func TestSettingService_AvailableChannelsStagingOverrideEnablesRuntimeAndPublicSettings(t *testing.T) {
+	repo := &settingPublicRepoStub{
+		values: map[string]string{
+			settingKeyAvailableChannelsEnabled: "false",
+		},
+	}
+	svc := NewSettingService(repo, &config.Config{
+		Log: config.LogConfig{Environment: "production"},
+		Workspace: config.WorkspaceConfig{
+			TextProvider: config.WorkspaceTextProviderConfig{
+				Environment: "staging",
+			},
+			AvailableChannels: config.WorkspaceAvailableChannelsConfig{
+				StagingOverrideEnabled: true,
+			},
+		},
+	})
+
+	runtime := svc.GetAvailableChannelsRuntime(context.Background())
+	require.True(t, runtime.Enabled)
+
+	settings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.True(t, settings.AvailableChannelsEnabled)
 }
