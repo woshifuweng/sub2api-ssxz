@@ -634,14 +634,14 @@ func TestOpenAIResponsesWebSocket_UsesRustSidecarWhenEnabled(t *testing.T) {
 	sidecarSocket := filepath.Join(t.TempDir(), "rust-sidecar.sock")
 	ln, err := net.Listen("unix", sidecarSocket)
 	require.NoError(t, err)
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	requestLineCh := make(chan string, 1)
 	bypassHeaderCh := make(chan string, 1)
 	go func() {
 		conn, err := ln.Accept()
 		require.NoError(t, err)
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		reader := bufio.NewReader(conn)
 		line, err := reader.ReadString('\n')
