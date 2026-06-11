@@ -128,7 +128,7 @@ func splicePipeToConn(dst syscall.RawConn, pipeReader int, size int64) (int64, e
 }
 
 func drainPipeToConn(dst net.Conn, pipeReader int, size int64) (int64, error) {
-	bufPtr := relayBufferPool.Get().(*[]byte)
+	bufPtr := relayBufferFromPool()
 	defer relayBufferPool.Put(bufPtr)
 	buf := *bufPtr
 

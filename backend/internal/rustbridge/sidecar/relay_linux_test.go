@@ -98,7 +98,7 @@ func newRelayTCPPair(t *testing.T) (net.Conn, net.Conn) {
 	case serverConn := <-acceptCh:
 		return serverConn, clientConn
 	case err := <-acceptErr:
-		clientConn.Close()
+		_ = clientConn.Close()
 		t.Fatalf("accept tcp: %v", err)
 		return nil, nil
 	}
@@ -111,7 +111,7 @@ func newRelayUnixPair(t *testing.T) (net.Conn, net.Conn) {
 	if err != nil {
 		t.Fatalf("listen unix: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	acceptCh := make(chan net.Conn, 1)
 	acceptErr := make(chan error, 1)
@@ -132,7 +132,7 @@ func newRelayUnixPair(t *testing.T) (net.Conn, net.Conn) {
 	case serverConn := <-acceptCh:
 		return serverConn, clientConn
 	case err := <-acceptErr:
-		clientConn.Close()
+		_ = clientConn.Close()
 		t.Fatalf("accept unix: %v", err)
 		return nil, nil
 	}

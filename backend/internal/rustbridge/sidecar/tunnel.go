@@ -19,6 +19,15 @@ var relayBufferPool = sync.Pool{
 	},
 }
 
+func relayBufferFromPool() *[]byte {
+	bufPtr, ok := relayBufferPool.Get().(*[]byte)
+	if ok && bufPtr != nil {
+		return bufPtr
+	}
+	buf := make([]byte, 64*1024)
+	return &buf
+}
+
 func HasBypassHeader(req *http.Request) bool {
 	if req == nil {
 		return false
@@ -95,11 +104,11 @@ func TunnelUpgradedRequest(req *http.Request, hijacker http.Hijacker, socketPath
 	done := make(chan struct{}, 2)
 
 	go func() {
-		RelayCopyOneWay(sidecarConn, clientConn)
+		_, _ = RelayCopyOneWay(sidecarConn, clientConn)
 		done <- struct{}{}
 	}()
 	go func() {
-		RelayCopyOneWay(clientConn, sidecarConn)
+		_, _ = RelayCopyOneWay(clientConn, sidecarConn)
 		done <- struct{}{}
 	}()
 	go func() {
@@ -131,7 +140,7 @@ func relayCopyOneWay(dst net.Conn, src net.Conn) (int64, error) {
 }
 
 func relayCopyBuffered(dst net.Conn, src net.Conn) (int64, error) {
-	bufPtr := relayBufferPool.Get().(*[]byte)
+	bufPtr := relayBufferFromPool()
 	defer relayBufferPool.Put(bufPtr)
 	return io.CopyBuffer(dst, src, *bufPtr)
 }

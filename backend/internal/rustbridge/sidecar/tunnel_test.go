@@ -12,10 +12,10 @@ import (
 func TestRelayCopyOneWayBufferedFallbackForInMemoryConns(t *testing.T) {
 	srcRelay, srcPeer := net.Pipe()
 	dstRelay, dstPeer := net.Pipe()
-	defer srcRelay.Close()
-	defer srcPeer.Close()
-	defer dstRelay.Close()
-	defer dstPeer.Close()
+	defer func() { _ = srcRelay.Close() }()
+	defer func() { _ = srcPeer.Close() }()
+	defer func() { _ = dstRelay.Close() }()
+	defer func() { _ = dstPeer.Close() }()
 	setRelayTestDeadline(t, srcRelay, srcPeer, dstRelay, dstPeer)
 
 	payload := bytes.Repeat([]byte("buffered-fallback:"), 4096)
