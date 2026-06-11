@@ -63,14 +63,15 @@ type WorkspaceCreateConversationInput struct {
 }
 
 type WorkspaceAppendMessageInput struct {
-	ConversationID int64
-	MessageType    string
-	Role           string
-	Content        string
-	Model          string
-	Intent         string
-	Status         string
-	Metadata       map[string]any
+	ConversationID  int64
+	MessageType     string
+	Role            string
+	Content         string
+	Model           string
+	Intent          string
+	Status          string
+	Metadata        map[string]any
+	AllowedGroupIDs []int64
 }
 
 type WorkspaceAppendAssistantMessageInput struct {
@@ -82,13 +83,14 @@ type WorkspaceAppendAssistantMessageInput struct {
 }
 
 type WorkspaceAssistantResponseInput struct {
-	UserID         int64
-	ConversationID int64
-	UserMessage    WorkspaceMessage
-	Content        string
-	Model          string
-	Intent         string
-	Metadata       map[string]any
+	UserID          int64
+	AllowedGroupIDs []int64
+	ConversationID  int64
+	UserMessage     WorkspaceMessage
+	Content         string
+	Model           string
+	Intent          string
+	Metadata        map[string]any
 }
 
 type WorkspaceAssistantResponse struct {
@@ -205,13 +207,14 @@ func (s *ChatWorkspaceService) AppendMessageWithAssistantResponse(ctx context.Co
 		responder = WorkspaceUnavailableAssistantResponder{}
 	}
 	assistantResponse, err := responder.GenerateAssistantResponse(ctx, WorkspaceAssistantResponseInput{
-		UserID:         userID,
-		ConversationID: input.ConversationID,
-		UserMessage:    *userMessage,
-		Content:        userMessage.Content,
-		Model:          userMessage.Model,
-		Intent:         userMessage.Intent,
-		Metadata:       userMessage.Metadata,
+		UserID:          userID,
+		AllowedGroupIDs: cloneWorkspaceInt64Slice(input.AllowedGroupIDs),
+		ConversationID:  input.ConversationID,
+		UserMessage:     *userMessage,
+		Content:         userMessage.Content,
+		Model:           userMessage.Model,
+		Intent:          userMessage.Intent,
+		Metadata:        userMessage.Metadata,
 	})
 	if err != nil {
 		return userMessage, nil, err

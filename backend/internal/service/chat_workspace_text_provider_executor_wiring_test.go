@@ -170,6 +170,13 @@ func workspaceTextProviderExecutorWiringConfig() *config.Config {
 				BillingPolicy:           string(WorkspaceProviderBillingPolicyRecordUsageOnProviderUsage),
 				UsagePolicy:             string(WorkspaceProviderUsagePolicyRecordProviderReported),
 				FailurePolicy:           string(WorkspaceProviderFailurePolicyNoChargeOnFailure),
+				BetaAllowlist: config.WorkspaceTextProviderBetaConfig{
+					Enabled:               true,
+					AllowedUserIDs:        []int64{10},
+					AllowedGroupIDs:       []int64{20},
+					AllowedProviderLabels: []string{"deepseek-staging"},
+					AllowedModels:         []string{"deepseek-v4-flash"},
+				},
 			},
 		},
 	}

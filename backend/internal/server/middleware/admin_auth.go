@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -226,8 +226,9 @@ func validateAdminAPIKeyContext(
 	}
 
 	c.SetValue(string(ContextKeyUser), AuthSubject{
-		UserID:      admin.ID,
-		Concurrency: admin.Concurrency,
+		UserID:          admin.ID,
+		Concurrency:     admin.Concurrency,
+		AllowedGroupIDs: cloneAuthSubjectGroupIDs(admin.AllowedGroups),
 	})
 	c.SetValue(string(ContextKeyUserRole), admin.Role)
 	c.SetValue("auth_method", "admin_api_key")
@@ -287,8 +288,9 @@ func validateJWTForAdminContext(
 	}
 
 	c.SetValue(string(ContextKeyUser), AuthSubject{
-		UserID:      user.ID,
-		Concurrency: user.Concurrency,
+		UserID:          user.ID,
+		Concurrency:     user.Concurrency,
+		AllowedGroupIDs: cloneAuthSubjectGroupIDs(user.AllowedGroups),
 	})
 	c.SetValue(string(ContextKeyUserRole), user.Role)
 	c.SetValue("auth_method", "jwt")

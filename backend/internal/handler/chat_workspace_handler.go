@@ -147,13 +147,14 @@ func (h *ChatWorkspaceHandler) AppendMessageGateway(c gatewayctx.GatewayContext)
 	}
 
 	msg, _, err := h.workspaceService.AppendMessageWithAssistantResponse(c.Request().Context(), subject.UserID, service.WorkspaceAppendMessageInput{
-		ConversationID: conversationID,
-		MessageType:    req.MessageType,
-		Role:           req.Role,
-		Content:        req.Content,
-		Model:          req.Model,
-		Intent:         req.Intent,
-		Metadata:       req.Metadata,
+		ConversationID:  conversationID,
+		MessageType:     req.MessageType,
+		Role:            req.Role,
+		Content:         req.Content,
+		Model:           req.Model,
+		Intent:          req.Intent,
+		Metadata:        req.Metadata,
+		AllowedGroupIDs: subject.AllowedGroupIDs,
 	})
 	if err != nil {
 		writeChatWorkspaceError(c, err)

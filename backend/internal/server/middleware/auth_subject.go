@@ -6,10 +6,11 @@ import (
 )
 
 // AuthSubject is the minimal authenticated identity stored in gin context.
-// Decision: {UserID int64, Concurrency int}
+// Decision: {UserID int64, Concurrency int, AllowedGroupIDs []int64}
 type AuthSubject struct {
-	UserID      int64
-	Concurrency int
+	UserID          int64
+	Concurrency     int
+	AllowedGroupIDs []int64
 }
 
 func GetAuthSubjectFromContext(c *gin.Context) (AuthSubject, bool) {
@@ -42,4 +43,17 @@ func GetUserRoleFromGatewayContext(c gatewayctx.GatewayContext) (string, bool) {
 	}
 	role, ok := value.(string)
 	return role, ok
+}
+
+func cloneAuthSubjectGroupIDs(values []int64) []int64 {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]int64, 0, len(values))
+	for _, value := range values {
+		if value > 0 {
+			out = append(out, value)
+		}
+	}
+	return out
 }

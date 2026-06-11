@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1056,7 +1057,16 @@ type WorkspaceTextProviderConfig struct {
 	BillingPolicy           string                          `mapstructure:"billing_policy"`
 	UsagePolicy             string                          `mapstructure:"usage_policy"`
 	FailurePolicy           string                          `mapstructure:"failure_policy"`
+	BetaAllowlist           WorkspaceTextProviderBetaConfig `mapstructure:"beta_allowlist"`
 	OpenAICompatible        WorkspaceOpenAICompatibleConfig `mapstructure:"openai_compatible"`
+}
+
+type WorkspaceTextProviderBetaConfig struct {
+	Enabled               bool     `mapstructure:"enabled"`
+	AllowedUserIDs        []int64  `mapstructure:"allowed_user_ids"`
+	AllowedGroupIDs       []int64  `mapstructure:"allowed_group_ids"`
+	AllowedProviderLabels []string `mapstructure:"allowed_provider_labels"`
+	AllowedModels         []string `mapstructure:"allowed_models"`
 }
 
 type WorkspaceOpenAICompatibleConfig struct {
@@ -1246,6 +1256,22 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	cfg.Workspace.TextProvider.Environment = strings.ToLower(strings.TrimSpace(cfg.Workspace.TextProvider.Environment))
 	cfg.Workspace.TextProvider.TestProviderLabel = strings.TrimSpace(cfg.Workspace.TextProvider.TestProviderLabel)
 	cfg.Workspace.TextProvider.LowCostModelAllowlist = normalizeStringSlice(cfg.Workspace.TextProvider.LowCostModelAllowlist)
+	cfg.Workspace.TextProvider.BetaAllowlist.AllowedUserIDs = normalizePositiveInt64Slice(firstNonEmptyInt64Slice(
+		cfg.Workspace.TextProvider.BetaAllowlist.AllowedUserIDs,
+		parseEnvInt64List("WORKSPACE_TEXT_PROVIDER_BETA_ALLOWED_USER_IDS"),
+	))
+	cfg.Workspace.TextProvider.BetaAllowlist.AllowedGroupIDs = normalizePositiveInt64Slice(firstNonEmptyInt64Slice(
+		cfg.Workspace.TextProvider.BetaAllowlist.AllowedGroupIDs,
+		parseEnvInt64List("WORKSPACE_TEXT_PROVIDER_BETA_ALLOWED_GROUP_IDS"),
+	))
+	cfg.Workspace.TextProvider.BetaAllowlist.AllowedProviderLabels = normalizeStringSlice(firstNonEmptyStringSlice(
+		cfg.Workspace.TextProvider.BetaAllowlist.AllowedProviderLabels,
+		parseEnvStringList("WORKSPACE_TEXT_PROVIDER_BETA_ALLOWED_PROVIDER_LABELS"),
+	))
+	cfg.Workspace.TextProvider.BetaAllowlist.AllowedModels = normalizeStringSlice(firstNonEmptyStringSlice(
+		cfg.Workspace.TextProvider.BetaAllowlist.AllowedModels,
+		parseEnvStringList("WORKSPACE_TEXT_PROVIDER_BETA_ALLOWED_MODELS"),
+	))
 	cfg.Workspace.TextProvider.BillingPolicy = strings.ToLower(strings.TrimSpace(cfg.Workspace.TextProvider.BillingPolicy))
 	cfg.Workspace.TextProvider.UsagePolicy = strings.ToLower(strings.TrimSpace(cfg.Workspace.TextProvider.UsagePolicy))
 	cfg.Workspace.TextProvider.FailurePolicy = strings.ToLower(strings.TrimSpace(cfg.Workspace.TextProvider.FailurePolicy))
@@ -1402,6 +1428,11 @@ func setDefaults() {
 	viper.SetDefault("workspace.text_provider.billing_policy", "")
 	viper.SetDefault("workspace.text_provider.usage_policy", "")
 	viper.SetDefault("workspace.text_provider.failure_policy", "")
+	viper.SetDefault("workspace.text_provider.beta_allowlist.enabled", false)
+	viper.SetDefault("workspace.text_provider.beta_allowlist.allowed_user_ids", []int64{})
+	viper.SetDefault("workspace.text_provider.beta_allowlist.allowed_group_ids", []int64{})
+	viper.SetDefault("workspace.text_provider.beta_allowlist.allowed_provider_labels", []string{})
+	viper.SetDefault("workspace.text_provider.beta_allowlist.allowed_models", []string{})
 	viper.SetDefault("workspace.text_provider.openai_compatible.base_url", "")
 	viper.SetDefault("workspace.text_provider.openai_compatible.model", "")
 	viper.SetDefault("workspace.text_provider.openai_compatible.api_key", "")
@@ -2754,6 +2785,62 @@ func normalizeStringSlice(values []string) []string {
 		normalized = append(normalized, trimmed)
 	}
 	return normalized
+}
+
+func normalizePositiveInt64Slice(values []int64) []int64 {
+	if len(values) == 0 {
+		return values
+	}
+	normalized := make([]int64, 0, len(values))
+	for _, value := range values {
+		if value > 0 {
+			normalized = append(normalized, value)
+		}
+	}
+	return normalized
+}
+
+func parseEnvStringList(key string) []string {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return nil
+	}
+	values := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == ';' || r == '\n' || r == '\t'
+	})
+	return normalizeStringSlice(values)
+}
+
+func parseEnvInt64List(key string) []int64 {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return nil
+	}
+	parts := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == ';' || r == '\n' || r == '\t'
+	})
+	values := make([]int64, 0, len(parts))
+	for _, part := range parts {
+		value, err := strconv.ParseInt(strings.TrimSpace(part), 10, 64)
+		if err == nil && value > 0 {
+			values = append(values, value)
+		}
+	}
+	return values
+}
+
+func firstNonEmptyStringSlice(primary, fallback []string) []string {
+	if len(primary) > 0 {
+		return primary
+	}
+	return fallback
+}
+
+func firstNonEmptyInt64Slice(primary, fallback []int64) []int64 {
+	if len(primary) > 0 {
+		return primary
+	}
+	return fallback
 }
 
 func firstNonEmptyConfigValue(values ...string) string {

@@ -70,8 +70,9 @@ func ApplyAPIKeyAuthWithSubscriptionGoogleContext(apiKeyService *service.APIKeyS
 	if cfg != nil && cfg.RunMode == config.RunModeSimple {
 		c.SetValue(string(ContextKeyAPIKey), apiKey)
 		c.SetValue(string(ContextKeyUser), AuthSubject{
-			UserID:      apiKey.User.ID,
-			Concurrency: apiKey.User.Concurrency,
+			UserID:          apiKey.User.ID,
+			Concurrency:     apiKey.User.Concurrency,
+			AllowedGroupIDs: cloneAuthSubjectGroupIDs(apiKey.User.AllowedGroups),
 		})
 		c.SetValue(string(ContextKeyUserRole), apiKey.User.Role)
 		setGroupContextGateway(c, apiKey.Group)
@@ -116,8 +117,9 @@ func ApplyAPIKeyAuthWithSubscriptionGoogleContext(apiKeyService *service.APIKeyS
 
 	c.SetValue(string(ContextKeyAPIKey), apiKey)
 	c.SetValue(string(ContextKeyUser), AuthSubject{
-		UserID:      apiKey.User.ID,
-		Concurrency: apiKey.User.Concurrency,
+		UserID:          apiKey.User.ID,
+		Concurrency:     apiKey.User.Concurrency,
+		AllowedGroupIDs: cloneAuthSubjectGroupIDs(apiKey.User.AllowedGroups),
 	})
 	c.SetValue(string(ContextKeyUserRole), apiKey.User.Role)
 	setGroupContextGateway(c, apiKey.Group)
