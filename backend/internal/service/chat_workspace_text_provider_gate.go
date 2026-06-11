@@ -85,6 +85,7 @@ func NewWorkspaceTextProviderAdapterFromConfig(cfg *config.Config, executor Work
 		EndpointLabel:      workspaceTextProviderEndpoint,
 		ServiceTier:        decision.Environment,
 		FailurePolicy:      WorkspaceProviderFailurePolicyFailClosed,
+		StagingQA:          NewWorkspaceTextProviderStagingQA(decision),
 	}
 }
 
