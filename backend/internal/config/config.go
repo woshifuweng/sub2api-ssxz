@@ -1039,7 +1039,8 @@ type DefaultConfig struct {
 }
 
 type WorkspaceConfig struct {
-	TextProvider WorkspaceTextProviderConfig `mapstructure:"text_provider"`
+	TextProvider      WorkspaceTextProviderConfig      `mapstructure:"text_provider"`
+	AvailableChannels WorkspaceAvailableChannelsConfig `mapstructure:"available_channels"`
 }
 
 type WorkspaceTextProviderConfig struct {
@@ -1050,6 +1051,10 @@ type WorkspaceTextProviderConfig struct {
 	TestProviderLabel     string   `mapstructure:"test_provider_label"`
 	LowCostModelAllowlist []string `mapstructure:"low_cost_model_allowlist"`
 	MaxRequestsPerTestRun int      `mapstructure:"max_requests_per_test_run"`
+}
+
+type WorkspaceAvailableChannelsConfig struct {
+	StagingOverrideEnabled bool `mapstructure:"staging_override_enabled"`
 }
 
 type RateLimitConfig struct {
@@ -1361,6 +1366,7 @@ func setDefaults() {
 	viper.SetDefault("workspace.text_provider.test_provider_label", "")
 	viper.SetDefault("workspace.text_provider.low_cost_model_allowlist", []string{})
 	viper.SetDefault("workspace.text_provider.max_requests_per_test_run", 0)
+	viper.SetDefault("workspace.available_channels.staging_override_enabled", false)
 
 	// CORS
 	viper.SetDefault("cors.allowed_origins", []string{})

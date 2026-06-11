@@ -379,6 +379,10 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 	if value := strings.TrimSpace(settings[settingKeyOIDCConnectProviderName]); value != "" {
 		oidcProviderName = value
 	}
+	availableChannelsEnabled := settings[settingKeyAvailableChannelsEnabled] == "true"
+	if runtime, ok := s.getAvailableChannelsRuntimeOverride(); ok {
+		availableChannelsEnabled = runtime.Enabled
+	}
 
 	return &PublicSettings{
 		RegistrationEnabled:                  settings[SettingKeyRegistrationEnabled] == "true",
@@ -412,7 +416,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		OIDCOAuthProviderName:                oidcProviderName,
 		ChannelMonitorEnabled:                settings[settingKeyChannelMonitorEnabled] == "true",
 		ChannelMonitorDefaultIntervalSeconds: 60,
-		AvailableChannelsEnabled:             settings[settingKeyAvailableChannelsEnabled] == "true",
+		AvailableChannelsEnabled:             availableChannelsEnabled,
 		AffiliateEnabled:                     settings[SettingKeyAffiliateEnabled] == "true",
 		BackendModeEnabled:                   settings[SettingKeyBackendModeEnabled] == "true",
 	}, nil

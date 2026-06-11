@@ -171,6 +171,7 @@ func TestLoadDefaultWorkspaceTextProviderGateConfig(t *testing.T) {
 	require.Empty(t, cfg.Workspace.TextProvider.TestProviderLabel)
 	require.Empty(t, cfg.Workspace.TextProvider.LowCostModelAllowlist)
 	require.Zero(t, cfg.Workspace.TextProvider.MaxRequestsPerTestRun)
+	require.False(t, cfg.Workspace.AvailableChannels.StagingOverrideEnabled)
 }
 
 func TestLoadWorkspaceTextProviderGateConfigFromEnv(t *testing.T) {
@@ -191,6 +192,16 @@ func TestLoadWorkspaceTextProviderGateConfigFromEnv(t *testing.T) {
 	require.Equal(t, "staging", cfg.Workspace.TextProvider.Environment)
 	require.Equal(t, "staging-low-cost-provider", cfg.Workspace.TextProvider.TestProviderLabel)
 	require.Equal(t, 3, cfg.Workspace.TextProvider.MaxRequestsPerTestRun)
+}
+
+func TestLoadWorkspaceAvailableChannelsStagingOverrideFromEnv(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	t.Setenv("WORKSPACE_AVAILABLE_CHANNELS_STAGING_OVERRIDE_ENABLED", "true")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	require.True(t, cfg.Workspace.AvailableChannels.StagingOverrideEnabled)
 }
 
 func TestLoadOpenAIWSStickyTTLCompatibility(t *testing.T) {

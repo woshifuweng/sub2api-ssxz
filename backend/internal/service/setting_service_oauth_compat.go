@@ -67,6 +67,9 @@ func (s *SettingService) GetChannelMonitorRuntime(ctx context.Context) ChannelMo
 }
 
 func (s *SettingService) GetAvailableChannelsRuntime(ctx context.Context) AvailableChannelsRuntime {
+	if runtime, ok := s.getAvailableChannelsRuntimeOverride(); ok {
+		return runtime
+	}
 	if s == nil || s.settingRepo == nil {
 		return AvailableChannelsRuntime{}
 	}
@@ -75,6 +78,20 @@ func (s *SettingService) GetAvailableChannelsRuntime(ctx context.Context) Availa
 		return AvailableChannelsRuntime{}
 	}
 	return AvailableChannelsRuntime{Enabled: strings.TrimSpace(value) == "true"}
+}
+
+func (s *SettingService) getAvailableChannelsRuntimeOverride() (AvailableChannelsRuntime, bool) {
+	if s == nil || s.cfg == nil || !s.cfg.Workspace.AvailableChannels.StagingOverrideEnabled {
+		return AvailableChannelsRuntime{}, false
+	}
+	environment := strings.TrimSpace(s.cfg.Workspace.TextProvider.Environment)
+	if environment == "" {
+		environment = strings.TrimSpace(s.cfg.Log.Environment)
+	}
+	if !isWorkspaceTextProviderNonProductionEnvironment(environment) {
+		return AvailableChannelsRuntime{}, false
+	}
+	return AvailableChannelsRuntime{Enabled: true}, true
 }
 
 func parseWeChatCapabilityFlag(raw string, fallback bool) bool {
