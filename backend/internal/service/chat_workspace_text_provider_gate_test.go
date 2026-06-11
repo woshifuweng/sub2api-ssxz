@@ -90,6 +90,11 @@ func TestWorkspaceTextProviderGateAllowsOnlyExplicitStagingGuardrails(t *testing
 	require.Equal(t, "staging-low-cost-provider", decision.TestProviderLabel)
 	require.Equal(t, []string{"gpt-5.5-mini"}, decision.LowCostModelAllowlist)
 	require.Equal(t, 2, decision.MaxRequestsPerTestRun)
+	require.True(t, decision.BetaAllowlist.Enabled)
+	require.Equal(t, []int64{10}, decision.BetaAllowlist.AllowedUserIDs)
+	require.Equal(t, []int64{20}, decision.BetaAllowlist.AllowedGroupIDs)
+	require.Equal(t, []string{"staging-low-cost-provider"}, decision.BetaAllowlist.AllowedProviderLabels)
+	require.Equal(t, []string{"gpt-5.5-mini", "gpt-5.5"}, decision.BetaAllowlist.AllowedModels)
 }
 
 func TestWorkspaceTextProviderGateWiringStillRequiresBillingSafeContract(t *testing.T) {
@@ -142,6 +147,111 @@ func TestWorkspaceTextProviderGateWiringAllowsFakeExecutorWithExplicitSafePolici
 	require.Equal(t, "record_provider_reported", assistantMessage.Metadata["usage_policy"])
 	require.Equal(t, "provider_failure_no_charge", assistantMessage.Metadata["failure_policy"])
 	require.Equal(t, "succeeded", assistantMessage.Metadata["audit_status"])
+	require.Equal(t, true, assistantMessage.Metadata["beta_allowlist_allowed"])
+}
+
+func TestWorkspaceTextProviderBetaAllowlistDefaultFailsClosed(t *testing.T) {
+	cfg := workspaceTextProviderGateConfig()
+	cfg.Workspace.TextProvider.BetaAllowlist = config.WorkspaceTextProviderBetaConfig{}
+
+	decision := BuildWorkspaceTextProviderGateDecision(cfg)
+
+	require.False(t, decision.Enabled)
+	require.Contains(t, decision.Reasons, WorkspaceTextProviderGateReasonBetaAllowlistDisabled)
+	require.Contains(t, decision.Reasons, WorkspaceTextProviderGateReasonMissingBetaSubjects)
+	require.Contains(t, decision.Reasons, WorkspaceTextProviderGateReasonMissingBetaProviders)
+	require.Contains(t, decision.Reasons, WorkspaceTextProviderGateReasonMissingBetaModels)
+}
+
+func TestWorkspaceTextProviderBetaAllowlistBlocksUnlistedUserAndGroup(t *testing.T) {
+	cfg := workspaceTextProviderGateConfig()
+	cfg.Workspace.TextProvider.BillingEligibilityKnown = true
+	cfg.Workspace.TextProvider.BillingEligible = true
+	cfg.Workspace.TextProvider.BillingPolicy = string(WorkspaceProviderBillingPolicyRecordUsageOnProviderUsage)
+	cfg.Workspace.TextProvider.UsagePolicy = string(WorkspaceProviderUsagePolicyRecordProviderReported)
+	cfg.Workspace.TextProvider.FailurePolicy = string(WorkspaceProviderFailurePolicyNoChargeOnFailure)
+	cfg.Workspace.TextProvider.LowCostModelAllowlist = []string{"gpt-5.5"}
+	repo := newMemoryChatWorkspaceRepo()
+	executor := &recordingWorkspaceTextProviderExecutor{
+		result: successfulWorkspaceTextProviderResult(),
+	}
+	adapter := NewWorkspaceTextProviderAdapterFromConfig(cfg, executor)
+	svc := NewChatWorkspaceServiceWithProviderAdapter(repo, adapter)
+	conversation, err := svc.CreateConversation(context.Background(), 99, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 99, validWorkspaceTextAppendInput(conversation.ID))
+	require.NoError(t, err)
+
+	require.Zero(t, executor.calls)
+	require.Equal(t, WorkspaceAssistantUnavailableContent, assistantMessage.Content)
+	require.Equal(t, false, assistantMessage.Metadata["provider_called"])
+	require.Equal(t, false, assistantMessage.Metadata["beta_allowlist_allowed"])
+	require.Contains(t, assistantMessage.Metadata["beta_allowlist_block_reasons"], WorkspaceTextProviderBetaReasonSubjectNotAllowed)
+}
+
+func TestWorkspaceTextProviderBetaAllowlistBlocksUnlistedModel(t *testing.T) {
+	cfg := workspaceTextProviderSafeBetaConfig()
+	cfg.Workspace.TextProvider.BetaAllowlist.AllowedModels = []string{"deepseek-v4-flash"}
+	repo := newMemoryChatWorkspaceRepo()
+	executor := &recordingWorkspaceTextProviderExecutor{
+		result: successfulWorkspaceTextProviderResult(),
+	}
+	adapter := NewWorkspaceTextProviderAdapterFromConfig(cfg, executor)
+	svc := NewChatWorkspaceServiceWithProviderAdapter(repo, adapter)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 10, validWorkspaceTextAppendInput(conversation.ID))
+	require.NoError(t, err)
+
+	require.Zero(t, executor.calls)
+	require.Equal(t, false, assistantMessage.Metadata["provider_called"])
+	require.Contains(t, assistantMessage.Metadata["beta_allowlist_block_reasons"], WorkspaceTextProviderBetaReasonModelNotAllowed)
+}
+
+func TestWorkspaceTextProviderBetaAllowlistBlocksUnlistedProviderLabel(t *testing.T) {
+	cfg := workspaceTextProviderSafeBetaConfig()
+	cfg.Workspace.TextProvider.BetaAllowlist.AllowedProviderLabels = []string{"other-provider"}
+	repo := newMemoryChatWorkspaceRepo()
+	executor := &recordingWorkspaceTextProviderExecutor{
+		result: successfulWorkspaceTextProviderResult(),
+	}
+	adapter := NewWorkspaceTextProviderAdapterFromConfig(cfg, executor)
+	svc := NewChatWorkspaceServiceWithProviderAdapter(repo, adapter)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 10, validWorkspaceTextAppendInput(conversation.ID))
+	require.NoError(t, err)
+
+	require.Zero(t, executor.calls)
+	require.Equal(t, false, assistantMessage.Metadata["provider_called"])
+	require.Contains(t, assistantMessage.Metadata["beta_allowlist_block_reasons"], WorkspaceTextProviderBetaReasonProviderNotAllowed)
+}
+
+func TestWorkspaceTextProviderBetaAllowlistAllowsTrustedGroup(t *testing.T) {
+	cfg := workspaceTextProviderSafeBetaConfig()
+	cfg.Workspace.TextProvider.BetaAllowlist.AllowedUserIDs = nil
+	cfg.Workspace.TextProvider.BetaAllowlist.AllowedGroupIDs = []int64{20}
+	repo := newMemoryChatWorkspaceRepo()
+	executor := &recordingWorkspaceTextProviderExecutor{
+		result: successfulWorkspaceTextProviderResult(),
+	}
+	adapter := NewWorkspaceTextProviderAdapterFromConfig(cfg, executor)
+	svc := NewChatWorkspaceServiceWithProviderAdapter(repo, adapter)
+	conversation, err := svc.CreateConversation(context.Background(), 99, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+	input := validWorkspaceTextAppendInput(conversation.ID)
+	input.AllowedGroupIDs = []int64{20}
+
+	_, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 99, input)
+	require.NoError(t, err)
+
+	require.Equal(t, 1, executor.calls)
+	require.Equal(t, true, assistantMessage.Metadata["provider_called"])
+	require.Equal(t, true, assistantMessage.Metadata["beta_allowlist_allowed"])
+	require.Equal(t, "completed", assistantMessage.Metadata["status"])
 }
 
 func TestWorkspaceTextProviderGateKillSwitchBlocksEvenWithExplicitSafePolicies(t *testing.T) {
@@ -182,7 +292,25 @@ func workspaceTextProviderGateConfig() *config.Config {
 				TestProviderLabel:     "staging-low-cost-provider",
 				LowCostModelAllowlist: []string{"gpt-5.5-mini"},
 				MaxRequestsPerTestRun: 2,
+				BetaAllowlist: config.WorkspaceTextProviderBetaConfig{
+					Enabled:               true,
+					AllowedUserIDs:        []int64{10},
+					AllowedGroupIDs:       []int64{20},
+					AllowedProviderLabels: []string{"staging-low-cost-provider"},
+					AllowedModels:         []string{"gpt-5.5-mini", "gpt-5.5"},
+				},
 			},
 		},
 	}
+}
+
+func workspaceTextProviderSafeBetaConfig() *config.Config {
+	cfg := workspaceTextProviderGateConfig()
+	cfg.Workspace.TextProvider.BillingEligibilityKnown = true
+	cfg.Workspace.TextProvider.BillingEligible = true
+	cfg.Workspace.TextProvider.BillingPolicy = string(WorkspaceProviderBillingPolicyRecordUsageOnProviderUsage)
+	cfg.Workspace.TextProvider.UsagePolicy = string(WorkspaceProviderUsagePolicyRecordProviderReported)
+	cfg.Workspace.TextProvider.FailurePolicy = string(WorkspaceProviderFailurePolicyNoChargeOnFailure)
+	cfg.Workspace.TextProvider.LowCostModelAllowlist = []string{"gpt-5.5"}
+	return cfg
 }

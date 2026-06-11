@@ -36,6 +36,7 @@ type WorkspaceProviderDiagnostics struct {
 
 type WorkspaceProviderRequest struct {
 	UserID            int64
+	AllowedGroupIDs   []int64
 	ConversationID    int64
 	UserMessageID     int64
 	Content           string
@@ -107,6 +108,7 @@ func (r WorkspaceProviderAssistantResponder) GenerateAssistantResponse(ctx conte
 	}
 	response, err := adapter.GenerateWorkspaceResponse(ctx, WorkspaceProviderRequest{
 		UserID:            input.UserID,
+		AllowedGroupIDs:   cloneWorkspaceInt64Slice(input.AllowedGroupIDs),
 		ConversationID:    input.ConversationID,
 		UserMessageID:     input.UserMessage.ID,
 		Content:           input.Content,

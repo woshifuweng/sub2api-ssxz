@@ -176,6 +176,11 @@ func TestLoadDefaultWorkspaceTextProviderGateConfig(t *testing.T) {
 	require.Empty(t, cfg.Workspace.TextProvider.BillingPolicy)
 	require.Empty(t, cfg.Workspace.TextProvider.UsagePolicy)
 	require.Empty(t, cfg.Workspace.TextProvider.FailurePolicy)
+	require.False(t, cfg.Workspace.TextProvider.BetaAllowlist.Enabled)
+	require.Empty(t, cfg.Workspace.TextProvider.BetaAllowlist.AllowedUserIDs)
+	require.Empty(t, cfg.Workspace.TextProvider.BetaAllowlist.AllowedGroupIDs)
+	require.Empty(t, cfg.Workspace.TextProvider.BetaAllowlist.AllowedProviderLabels)
+	require.Empty(t, cfg.Workspace.TextProvider.BetaAllowlist.AllowedModels)
 	require.Empty(t, cfg.Workspace.TextProvider.OpenAICompatible.BaseURL)
 	require.Empty(t, cfg.Workspace.TextProvider.OpenAICompatible.Model)
 	require.Empty(t, cfg.Workspace.TextProvider.OpenAICompatible.APIKey)
@@ -196,6 +201,11 @@ func TestLoadWorkspaceTextProviderGateConfigFromEnv(t *testing.T) {
 	t.Setenv("WORKSPACE_TEXT_PROVIDER_BILLING_POLICY", " record_usage_on_provider_reported_usage ")
 	t.Setenv("WORKSPACE_TEXT_PROVIDER_USAGE_POLICY", " record_provider_reported ")
 	t.Setenv("WORKSPACE_TEXT_PROVIDER_FAILURE_POLICY", " provider_failure_no_charge ")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_BETA_ALLOWLIST_ENABLED", "true")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_BETA_ALLOWED_USER_IDS", "10, 20, bad, 0")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_BETA_ALLOWED_GROUP_IDS", "30; 40")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_BETA_ALLOWED_PROVIDER_LABELS", " deepseek-staging, staging-low-cost-provider ")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_BETA_ALLOWED_MODELS", " deepseek-v4-flash, gpt-5.5 ")
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -211,6 +221,11 @@ func TestLoadWorkspaceTextProviderGateConfigFromEnv(t *testing.T) {
 	require.Equal(t, "record_usage_on_provider_reported_usage", cfg.Workspace.TextProvider.BillingPolicy)
 	require.Equal(t, "record_provider_reported", cfg.Workspace.TextProvider.UsagePolicy)
 	require.Equal(t, "provider_failure_no_charge", cfg.Workspace.TextProvider.FailurePolicy)
+	require.True(t, cfg.Workspace.TextProvider.BetaAllowlist.Enabled)
+	require.Equal(t, []int64{10, 20}, cfg.Workspace.TextProvider.BetaAllowlist.AllowedUserIDs)
+	require.Equal(t, []int64{30, 40}, cfg.Workspace.TextProvider.BetaAllowlist.AllowedGroupIDs)
+	require.Equal(t, []string{"deepseek-staging", "staging-low-cost-provider"}, cfg.Workspace.TextProvider.BetaAllowlist.AllowedProviderLabels)
+	require.Equal(t, []string{"deepseek-v4-flash", "gpt-5.5"}, cfg.Workspace.TextProvider.BetaAllowlist.AllowedModels)
 }
 
 func TestLoadWorkspaceTextProviderOpenAICompatibleConfigFromEnv(t *testing.T) {
@@ -905,6 +920,16 @@ func TestNormalizeStringSlice(t *testing.T) {
 	}
 	if normalizeStringSlice(nil) != nil {
 		t.Fatalf("normalizeStringSlice(nil) expected nil slice")
+	}
+}
+
+func TestNormalizePositiveInt64Slice(t *testing.T) {
+	values := normalizePositiveInt64Slice([]int64{3, 0, -1, 7})
+	if len(values) != 2 || values[0] != 3 || values[1] != 7 {
+		t.Fatalf("normalizePositiveInt64Slice() unexpected result: %#v", values)
+	}
+	if normalizePositiveInt64Slice(nil) != nil {
+		t.Fatalf("normalizePositiveInt64Slice(nil) expected nil slice")
 	}
 }
 

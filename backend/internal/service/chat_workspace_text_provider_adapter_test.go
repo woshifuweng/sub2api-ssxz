@@ -265,7 +265,13 @@ func workspaceTextProviderAdapterWithOverrides(executor WorkspaceTextProviderExe
 		BillingPolicy:           WorkspaceProviderBillingPolicyRecordUsageOnProviderUsage,
 		UsagePolicy:             WorkspaceProviderUsagePolicyRecordProviderReported,
 		FailurePolicy:           WorkspaceProviderFailurePolicyFailClosed,
-		StagingQA:               NewWorkspaceTextProviderStagingQA(workspaceTextProviderAdapterGateDecisionForTest(100, "gpt-5.5")),
+		BetaAllowlist: WorkspaceTextProviderBetaAllowlist{
+			Enabled:               true,
+			AllowedUserIDs:        []int64{10},
+			AllowedProviderLabels: []string{"workspace_fake_text_provider"},
+			AllowedModels:         []string{"gpt-5.5"},
+		},
+		StagingQA: NewWorkspaceTextProviderStagingQA(workspaceTextProviderAdapterGateDecisionForTest(100, "gpt-5.5")),
 	}
 	if mutate != nil {
 		mutate(&adapter)
