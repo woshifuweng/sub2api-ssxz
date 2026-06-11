@@ -179,6 +179,26 @@ func TestChatWorkspaceServiceRejectsInvalidModelIntentAndDisabledCapabilities(t 
 	require.ErrorIs(t, err, ErrWorkspaceInvalidIntent)
 }
 
+func TestChatWorkspaceServiceAllowsDeepSeekStagingTextModel(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	svc := NewChatWorkspaceService(repo)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	msg, err := svc.AppendMessage(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "hello deepseek staging",
+		Model:          "deepseek-v4-flash",
+		Intent:         WorkspaceIntentChat,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "deepseek-v4-flash", msg.Model)
+	require.Equal(t, WorkspaceIntentChat, msg.Intent)
+	require.Equal(t, WorkspaceMessageStatusCompleted, msg.Status)
+}
+
 func TestChatWorkspaceServiceRejectsUnsafePayloadsAndNonTextMessages(t *testing.T) {
 	repo := newMemoryChatWorkspaceRepo()
 	svc := NewChatWorkspaceService(repo)

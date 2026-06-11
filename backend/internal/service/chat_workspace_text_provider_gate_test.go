@@ -38,6 +38,31 @@ func TestWorkspaceTextProviderGateBlocksKillSwitch(t *testing.T) {
 	require.Contains(t, decision.Reasons, WorkspaceTextProviderGateReasonKillSwitchActive)
 }
 
+func TestWorkspaceTextProviderGateKillSwitchBlocksDeepSeekStagingModel(t *testing.T) {
+	cfg := workspaceTextProviderGateConfig()
+	cfg.Workspace.TextProvider.KillSwitch = true
+	cfg.Workspace.TextProvider.TestProviderLabel = "deepseek-staging"
+	cfg.Workspace.TextProvider.LowCostModelAllowlist = []string{"deepseek-v4-flash"}
+	repo := newMemoryChatWorkspaceRepo()
+	executor := &recordingWorkspaceTextProviderExecutor{
+		result: successfulWorkspaceTextProviderResult(),
+	}
+	adapter := NewWorkspaceTextProviderAdapterFromConfig(cfg, executor)
+	svc := NewChatWorkspaceServiceWithProviderAdapter(repo, adapter)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	input := validWorkspaceTextAppendInput(conversation.ID)
+	input.Model = "deepseek-v4-flash"
+	_, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 10, input)
+	require.NoError(t, err)
+
+	require.Zero(t, executor.calls)
+	require.Equal(t, WorkspaceAssistantUnavailableContent, assistantMessage.Content)
+	require.Equal(t, false, assistantMessage.Metadata["provider_called"])
+	require.Contains(t, assistantMessage.Metadata["execution_block_reasons"], "feature_gate_disabled")
+}
+
 func TestWorkspaceTextProviderGateRequiresTestGuardrails(t *testing.T) {
 	cfg := workspaceTextProviderGateConfig()
 	cfg.Workspace.TextProvider.TestProviderLabel = ""

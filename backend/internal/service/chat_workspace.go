@@ -333,7 +333,7 @@ func firstNonEmptyWorkspaceValue(values ...string) string {
 
 func isAllowedWorkspaceModel(model string) bool {
 	switch strings.TrimSpace(model) {
-	case "gpt-5.5", "gpt-5.4", "gpt-5.2", "gpt-5.4-mini":
+	case "gpt-5.5", "gpt-5.4", "gpt-5.2", "gpt-5.4-mini", "deepseek-v4-flash":
 		return true
 	default:
 		return false
