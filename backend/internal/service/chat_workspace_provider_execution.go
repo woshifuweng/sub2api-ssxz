@@ -262,9 +262,10 @@ func workspaceProviderExecutionBlockReasons(
 	} else if !input.BillingEligible {
 		reasons = append(reasons, WorkspaceProviderExecutionBlockBillingIneligible)
 	}
-	if billingPolicy == "" {
+	switch billingPolicy {
+	case "":
 		reasons = append(reasons, WorkspaceProviderExecutionBlockBillingPolicy)
-	} else if billingPolicy == WorkspaceProviderBillingPolicyNoBilling {
+	case WorkspaceProviderBillingPolicyNoBilling:
 		reasons = append(reasons, WorkspaceProviderExecutionBlockNoFreeProviderCall)
 	}
 	if usagePolicy == "" || usagePolicy == WorkspaceProviderUsagePolicyAuditOnly {
