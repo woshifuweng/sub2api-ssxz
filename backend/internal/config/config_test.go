@@ -176,6 +176,10 @@ func TestLoadDefaultWorkspaceTextProviderGateConfig(t *testing.T) {
 	require.Empty(t, cfg.Workspace.TextProvider.BillingPolicy)
 	require.Empty(t, cfg.Workspace.TextProvider.UsagePolicy)
 	require.Empty(t, cfg.Workspace.TextProvider.FailurePolicy)
+	require.Empty(t, cfg.Workspace.TextProvider.OpenAICompatible.BaseURL)
+	require.Empty(t, cfg.Workspace.TextProvider.OpenAICompatible.Model)
+	require.Empty(t, cfg.Workspace.TextProvider.OpenAICompatible.APIKey)
+	require.Equal(t, 30, cfg.Workspace.TextProvider.OpenAICompatible.TimeoutSeconds)
 	require.False(t, cfg.Workspace.AvailableChannels.StagingOverrideEnabled)
 }
 
@@ -207,6 +211,36 @@ func TestLoadWorkspaceTextProviderGateConfigFromEnv(t *testing.T) {
 	require.Equal(t, "record_usage_on_provider_reported_usage", cfg.Workspace.TextProvider.BillingPolicy)
 	require.Equal(t, "record_provider_reported", cfg.Workspace.TextProvider.UsagePolicy)
 	require.Equal(t, "provider_failure_no_charge", cfg.Workspace.TextProvider.FailurePolicy)
+}
+
+func TestLoadWorkspaceTextProviderOpenAICompatibleConfigFromEnv(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_OPENAI_COMPATIBLE_BASE_URL", " https://api.provider.example ")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_OPENAI_COMPATIBLE_MODEL", " staging-model ")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_OPENAI_COMPATIBLE_API_KEY", " test-secret-value ")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_OPENAI_COMPATIBLE_TIMEOUT_SECONDS", "12")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	require.Equal(t, "https://api.provider.example", cfg.Workspace.TextProvider.OpenAICompatible.BaseURL)
+	require.Equal(t, "staging-model", cfg.Workspace.TextProvider.OpenAICompatible.Model)
+	require.Equal(t, "test-secret-value", cfg.Workspace.TextProvider.OpenAICompatible.APIKey)
+	require.Equal(t, 12, cfg.Workspace.TextProvider.OpenAICompatible.TimeoutSeconds)
+}
+
+func TestLoadWorkspaceTextProviderOpenAICompatibleDeepSeekFallback(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	t.Setenv("DEEPSEEK_BASE_URL", " https://api.deepseek.com ")
+	t.Setenv("DEEPSEEK_MODEL", " deepseek-v4-flash ")
+	t.Setenv("DEEPSEEK_API_KEY", " test-deepseek-secret ")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	require.Equal(t, "https://api.deepseek.com", cfg.Workspace.TextProvider.OpenAICompatible.BaseURL)
+	require.Equal(t, "deepseek-v4-flash", cfg.Workspace.TextProvider.OpenAICompatible.Model)
+	require.Equal(t, "test-deepseek-secret", cfg.Workspace.TextProvider.OpenAICompatible.APIKey)
 }
 
 func TestLoadWorkspaceAvailableChannelsStagingOverrideFromEnv(t *testing.T) {
