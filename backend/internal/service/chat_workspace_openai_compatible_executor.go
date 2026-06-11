@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/config"
 )
 
 const (
@@ -92,6 +94,19 @@ type WorkspaceOpenAICompatibleTextExecutor struct {
 	EndpointLabel string
 	ServiceTier   string
 	Now           func() time.Time
+}
+
+func NewWorkspaceOpenAICompatibleTextExecutorFromConfig(cfg *config.Config, decision WorkspaceTextProviderGateDecision, upstream WorkspaceOpenAICompatibleTextUpstream) WorkspaceTextProviderExecutor {
+	if cfg == nil || !decision.Enabled || upstream == nil {
+		return nil
+	}
+	return WorkspaceOpenAICompatibleTextExecutor{
+		Upstream:      upstream,
+		ProviderLabel: firstNonEmptyWorkspaceValue(decision.TestProviderLabel, WorkspaceOpenAICompatibleTextExecutorProviderName),
+		Platform:      "openai_compatible",
+		EndpointLabel: firstNonEmptyWorkspaceValue(decision.TestProviderLabel, workspaceOpenAICompatibleTextExecutorEndpointLabel),
+		ServiceTier:   decision.Environment,
+	}
 }
 
 func (e WorkspaceOpenAICompatibleTextExecutor) ExecuteWorkspaceTextProvider(ctx context.Context, input WorkspaceTextProviderExecutionInput) (WorkspaceTextProviderExecutionResult, error) {

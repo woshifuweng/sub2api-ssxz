@@ -27,6 +27,8 @@ type WorkspaceTextProviderGateDecision struct {
 	Reasons               []string
 }
 
+type WorkspaceTextProviderExecutorProvider func(cfg *config.Config, decision WorkspaceTextProviderGateDecision) WorkspaceTextProviderExecutor
+
 func BuildWorkspaceTextProviderGateDecision(cfg *config.Config) WorkspaceTextProviderGateDecision {
 	decision := WorkspaceTextProviderGateDecision{
 		KillSwitchActive: true,
@@ -78,6 +80,19 @@ func BuildWorkspaceTextProviderGateDecision(cfg *config.Config) WorkspaceTextPro
 
 func NewWorkspaceTextProviderAdapterFromConfig(cfg *config.Config, executor WorkspaceTextProviderExecutor) WorkspaceTextProviderAdapter {
 	decision := BuildWorkspaceTextProviderGateDecision(cfg)
+	return newWorkspaceTextProviderAdapterFromDecision(cfg, decision, executor)
+}
+
+func NewWorkspaceTextProviderAdapterFromConfigWithExecutorProvider(cfg *config.Config, provider WorkspaceTextProviderExecutorProvider) WorkspaceTextProviderAdapter {
+	decision := BuildWorkspaceTextProviderGateDecision(cfg)
+	var executor WorkspaceTextProviderExecutor
+	if decision.Enabled && provider != nil {
+		executor = provider(cfg, decision)
+	}
+	return newWorkspaceTextProviderAdapterFromDecision(cfg, decision, executor)
+}
+
+func newWorkspaceTextProviderAdapterFromDecision(cfg *config.Config, decision WorkspaceTextProviderGateDecision, executor WorkspaceTextProviderExecutor) WorkspaceTextProviderAdapter {
 	billingPolicy, usagePolicy, failurePolicy := workspaceTextProviderExecutionPoliciesFromConfig(cfg)
 	return WorkspaceTextProviderAdapter{
 		FeatureGateEnabled:      decision.Enabled,
@@ -95,7 +110,7 @@ func NewWorkspaceTextProviderAdapterFromConfig(cfg *config.Config, executor Work
 }
 
 func ProvideChatWorkspaceService(repo ChatWorkspaceRepository, cfg *config.Config) *ChatWorkspaceService {
-	adapter := NewWorkspaceTextProviderAdapterFromConfig(cfg, nil)
+	adapter := NewWorkspaceTextProviderAdapterFromConfigWithExecutorProvider(cfg, nil)
 	return NewChatWorkspaceServiceWithProviderAdapter(repo, adapter)
 }
 
