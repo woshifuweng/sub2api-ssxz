@@ -188,7 +188,12 @@ func TestWorkspaceImageResultNormalizerAcceptsSafeHTTPSURL(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, WorkspaceMessageStatusCompleted, result.Status)
-	require.Equal(t, "https://example.invalid/image.png", result.Metadata["assets"].([]any)[0].(map[string]any)["url"])
+	assets, ok := result.Metadata["assets"].([]any)
+	require.True(t, ok)
+	require.Len(t, assets, 1)
+	asset, ok := assets[0].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "https://example.invalid/image.png", asset["url"])
 }
 
 func TestWorkspaceImageProviderBoundaryNormalizerFailureIsSafe(t *testing.T) {
