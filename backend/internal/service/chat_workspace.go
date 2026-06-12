@@ -9,15 +9,19 @@ import (
 )
 
 const (
-	WorkspaceMessageTypeText = "text"
+	WorkspaceMessageTypeText  = "text"
+	WorkspaceMessageTypeImage = "image"
 
 	WorkspaceRoleUser      = "user"
 	WorkspaceRoleAssistant = "assistant"
 	WorkspaceRoleSystem    = "system"
 
-	WorkspaceIntentChat = "chat"
+	WorkspaceIntentChat            = "chat"
+	WorkspaceIntentImageGeneration = "image_generation"
 
+	WorkspaceMessageStatusPending   = "pending"
 	WorkspaceMessageStatusCompleted = "completed"
+	WorkspaceMessageStatusFailed    = "failed"
 
 	WorkspaceAssistantUnavailableContent = "AI response provider is not connected yet. 当前仅完成文本会话保存，AI 回复将在后续接入。"
 
@@ -76,9 +80,11 @@ type WorkspaceAppendMessageInput struct {
 
 type WorkspaceAppendAssistantMessageInput struct {
 	ConversationID int64
+	MessageType    string
 	Content        string
 	Model          string
 	Intent         string
+	Status         string
 	Metadata       map[string]any
 }
 
@@ -242,20 +248,28 @@ func (s *ChatWorkspaceService) AppendAssistantMessage(ctx context.Context, userI
 	}
 
 	content := strings.TrimSpace(input.Content)
+	messageType := normalizeWorkspaceMessageType(input.MessageType)
 	model := strings.TrimSpace(input.Model)
 	intent := normalizeWorkspaceIntent(input.Intent)
+	status := normalizeWorkspaceMessageStatus(input.Status)
 
-	if content == "" || containsUnsafeInlinePayload(content) || metadataContainsUnsafeInlinePayload(input.Metadata) {
+	if containsUnsafeInlinePayload(content) || metadataContainsUnsafeInlinePayload(input.Metadata) {
 		return nil, ErrWorkspaceInvalidMessage
 	}
 	if !isAllowedWorkspaceModel(model) {
 		return nil, ErrWorkspaceInvalidModel
 	}
-	if intent != WorkspaceIntentChat {
+	if !isAllowedWorkspaceMessageStatus(status) {
+		return nil, ErrWorkspaceInvalidMessage
+	}
+	if messageType == WorkspaceMessageTypeText && intent != WorkspaceIntentChat {
 		if isDisabledWorkspaceIntent(intent) {
 			return nil, ErrWorkspaceCapabilityDisabled
 		}
 		return nil, ErrWorkspaceInvalidIntent
+	}
+	if !isAllowedAssistantWorkspaceMessage(messageType, intent, status, content, input.Metadata) {
+		return nil, ErrWorkspaceInvalidMessage
 	}
 	if utf8.RuneCountInString(content) > workspaceMaxContentLength {
 		content = string([]rune(content)[:workspaceMaxContentLength])
@@ -263,12 +277,12 @@ func (s *ChatWorkspaceService) AppendAssistantMessage(ctx context.Context, userI
 
 	return s.repo.AppendMessage(ctx, userID, WorkspaceAppendMessageInput{
 		ConversationID: input.ConversationID,
-		MessageType:    WorkspaceMessageTypeText,
+		MessageType:    messageType,
 		Role:           WorkspaceRoleAssistant,
 		Content:        content,
 		Model:          model,
 		Intent:         intent,
-		Status:         WorkspaceMessageStatusCompleted,
+		Status:         status,
 		Metadata:       input.Metadata,
 	}, "")
 }
@@ -325,6 +339,23 @@ func normalizeWorkspaceIntent(value string) string {
 	return value
 }
 
+func normalizeWorkspaceMessageStatus(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return WorkspaceMessageStatusCompleted
+	}
+	return value
+}
+
+func isAllowedWorkspaceMessageStatus(value string) bool {
+	switch strings.TrimSpace(value) {
+	case WorkspaceMessageStatusPending, WorkspaceMessageStatusCompleted, WorkspaceMessageStatusFailed:
+		return true
+	default:
+		return false
+	}
+}
+
 func firstNonEmptyWorkspaceValue(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {
@@ -350,6 +381,53 @@ func isDisabledWorkspaceIntent(intent string) bool {
 	default:
 		return false
 	}
+}
+
+func isAllowedAssistantWorkspaceMessage(messageType, intent, status, content string, metadata map[string]any) bool {
+	switch messageType {
+	case WorkspaceMessageTypeText:
+		return content != "" && intent == WorkspaceIntentChat
+	case WorkspaceMessageTypeImage:
+		return intent == WorkspaceIntentImageGeneration && workspaceImageMetadataMatchesStatus(status, content, metadata)
+	default:
+		return false
+	}
+}
+
+func workspaceImageMetadataMatchesStatus(status, content string, metadata map[string]any) bool {
+	if metadata == nil {
+		return false
+	}
+	if strings.TrimSpace(workspaceMetadataString(metadata, "result_type")) != "image" {
+		return false
+	}
+	switch status {
+	case WorkspaceMessageStatusPending:
+		return true
+	case WorkspaceMessageStatusFailed:
+		return content != "" ||
+			strings.TrimSpace(workspaceMetadataString(metadata, "error_code")) != "" ||
+			strings.TrimSpace(workspaceMetadataString(metadata, "error_message")) != ""
+	default:
+		return workspaceImageMetadataHasAsset(metadata)
+	}
+}
+
+func workspaceImageMetadataHasAsset(metadata map[string]any) bool {
+	assets, ok := metadata["assets"].([]any)
+	if !ok || len(assets) == 0 {
+		return false
+	}
+	for _, asset := range assets {
+		item, ok := asset.(map[string]any)
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(workspaceMetadataString(item, "url")) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func containsUnsafeInlinePayload(value string) bool {

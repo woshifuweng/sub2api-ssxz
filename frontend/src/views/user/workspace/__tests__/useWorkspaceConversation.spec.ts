@@ -153,6 +153,108 @@ describe('useWorkspaceConversation', () => {
     ])
   })
 
+  it('maps persisted assistant image messages for history restore', async () => {
+    api.listMessages.mockResolvedValue([
+      {
+        id: 22,
+        conversation_id: 11,
+        message_type: 'image',
+        role: 'assistant',
+        content: 'Generated image is ready.',
+        model: 'gpt-5.5',
+        intent: 'image_generation',
+        status: 'completed',
+        metadata: {
+          capability: 'image_generation',
+          result_type: 'image',
+          status: 'completed',
+          enhanced_prompt_present: true,
+          assets: [
+            {
+              id: 'asset-1',
+              url: 'https://cdn.example.test/workspace/image-1.png',
+              mime_type: 'image/png',
+              width: 1024,
+              height: 1024,
+              provider: 'placeholder-provider',
+              model: 'placeholder-model'
+            }
+          ]
+        },
+        created_at: '2026-06-10T00:00:00Z',
+        updated_at: '2026-06-10T00:00:00Z'
+      }
+    ])
+    const workspace = useWorkspaceConversation({ backendEnabled: true })
+
+    await workspace.selectConversation(11)
+
+    expect(api.listMessages).toHaveBeenCalledWith(11)
+    expect(workspace.messages.value).toMatchObject([
+      {
+        persistedId: 22,
+        conversationId: 11,
+        messageType: 'image',
+        role: 'assistant',
+        content: 'Generated image is ready.',
+        attachments: [
+          {
+            id: 'asset-1',
+            name: 'asset-1',
+            url: 'https://cdn.example.test/workspace/image-1.png',
+            type: 'image'
+          }
+        ]
+      }
+    ])
+    expect(JSON.stringify(workspace.messages.value)).not.toContain('data:image')
+  })
+
+  it('maps failed assistant image messages without treating them as success', async () => {
+    api.listMessages.mockResolvedValue([
+      {
+        id: 23,
+        conversation_id: 11,
+        message_type: 'image',
+        role: 'assistant',
+        content: '',
+        model: 'gpt-5.5',
+        intent: 'image_generation',
+        status: 'failed',
+        metadata: {
+          capability: 'image_generation',
+          result_type: 'image',
+          status: 'failed',
+          error_code: 'provider_unavailable',
+          error_message: 'Image generation failed. Please try again.',
+          assets: [
+            {
+              id: 'unsafe',
+              url: 'data:image/png;base64,abc',
+              mime_type: 'image/png'
+            }
+          ]
+        },
+        created_at: '2026-06-10T00:00:00Z',
+        updated_at: '2026-06-10T00:00:00Z'
+      }
+    ])
+    const workspace = useWorkspaceConversation({ backendEnabled: true })
+
+    await workspace.selectConversation(11)
+
+    expect(workspace.messages.value).toMatchObject([
+      {
+        persistedId: 23,
+        messageType: 'image',
+        state: 'error',
+        content: 'Image generation failed. Please try again.'
+      }
+    ])
+    expect(workspace.messages.value[0].attachments).toBeUndefined()
+    expect(JSON.stringify(workspace.messages.value)).not.toContain('data:image')
+  })
+
   it('creates a conversation and appends a text chat message when enabled', async () => {
     api.createConversation.mockResolvedValue({
       id: 31,

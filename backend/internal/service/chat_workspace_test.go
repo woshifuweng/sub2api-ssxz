@@ -273,6 +273,116 @@ func TestChatWorkspaceServiceAppendAssistantMessagePersistsUnderCurrentUser(t *t
 	require.ErrorIs(t, err, ErrWorkspaceConversationNotFound)
 }
 
+func TestChatWorkspaceServiceAppendAssistantImageMessagePersistsMetadata(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	svc := NewChatWorkspaceService(repo)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	msg, err := svc.AppendAssistantMessage(context.Background(), 10, WorkspaceAppendAssistantMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeImage,
+		Content:        "Generated image is ready.",
+		Model:          "gpt-5.5",
+		Intent:         WorkspaceIntentImageGeneration,
+		Metadata: map[string]any{
+			"capability":              WorkspaceIntentImageGeneration,
+			"result_type":             "image",
+			"status":                  WorkspaceMessageStatusCompleted,
+			"enhanced_prompt_present": true,
+			"prompt_present":          true,
+			"provider_called":         false,
+			"assets": []any{
+				map[string]any{
+					"id":        "asset-1",
+					"url":       "https://cdn.example.test/workspace/image-1.png",
+					"mime_type": "image/png",
+					"width":     float64(1024),
+					"height":    float64(1024),
+					"provider":  "placeholder-provider",
+					"model":     "placeholder-model",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, WorkspaceMessageTypeImage, msg.MessageType)
+	require.Equal(t, WorkspaceRoleAssistant, msg.Role)
+	require.Equal(t, WorkspaceIntentImageGeneration, msg.Intent)
+	require.Equal(t, WorkspaceMessageStatusCompleted, msg.Status)
+	require.Equal(t, false, msg.Metadata["provider_called"])
+
+	messages, err := svc.ListMessages(context.Background(), 10, conversation.ID)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, WorkspaceMessageTypeImage, messages[0].MessageType)
+	require.Equal(t, WorkspaceIntentImageGeneration, messages[0].Intent)
+	require.Equal(t, "image", messages[0].Metadata["result_type"])
+
+	encoded, err := json.Marshal(messages[0])
+	require.NoError(t, err)
+	body := strings.ToLower(string(encoded))
+	require.NotContains(t, body, "authorization")
+	require.NotContains(t, body, "cookie")
+	require.NotContains(t, body, "api_key")
+	require.NotContains(t, body, "secret")
+}
+
+func TestChatWorkspaceServiceAppendAssistantImageMessageAllowsFailedState(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	svc := NewChatWorkspaceService(repo)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	msg, err := svc.AppendAssistantMessage(context.Background(), 10, WorkspaceAppendAssistantMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeImage,
+		Content:        "Image generation failed. Please try again.",
+		Model:          "gpt-5.5",
+		Intent:         WorkspaceIntentImageGeneration,
+		Status:         WorkspaceMessageStatusFailed,
+		Metadata: map[string]any{
+			"capability":    WorkspaceIntentImageGeneration,
+			"result_type":   "image",
+			"status":        WorkspaceMessageStatusFailed,
+			"error_code":    "provider_unavailable",
+			"error_message": "Image generation failed. Please try again.",
+			"assets": []any{
+				map[string]any{
+					"url": "https://cdn.example.test/workspace/failed-placeholder.png",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, WorkspaceMessageStatusFailed, msg.Status)
+	require.Equal(t, "provider_unavailable", msg.Metadata["error_code"])
+}
+
+func TestChatWorkspaceServiceAppendAssistantImageMessageRejectsUnsafeMetadata(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	svc := NewChatWorkspaceService(repo)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, err = svc.AppendAssistantMessage(context.Background(), 10, WorkspaceAppendAssistantMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeImage,
+		Content:        "Generated image is ready.",
+		Model:          "gpt-5.5",
+		Intent:         WorkspaceIntentImageGeneration,
+		Metadata: map[string]any{
+			"result_type": "image",
+			"assets": []any{
+				map[string]any{
+					"url": "data:image/png;base64,abc",
+				},
+			},
+		},
+	})
+	require.ErrorIs(t, err, ErrWorkspaceInvalidMessage)
+}
+
 func TestChatWorkspaceServiceAppendAssistantMessageRejectsUnsafeInputs(t *testing.T) {
 	repo := newMemoryChatWorkspaceRepo()
 	svc := NewChatWorkspaceService(repo)

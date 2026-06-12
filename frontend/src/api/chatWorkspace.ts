@@ -15,6 +15,7 @@ function assertChatWorkspaceBackendEnabled(action: string) {
 }
 
 export const CHAT_MESSAGE_TYPE_TEXT = 'text'
+export const CHAT_MESSAGE_TYPE_IMAGE = 'image'
 export const CHAT_MESSAGE_TYPE_ATTACHMENT = 'attachment'
 export const CHAT_MESSAGE_TYPE_IMAGE_TASK = 'image_task'
 export const CHAT_MESSAGE_TYPE_ERROR_CARD = 'error_card'
