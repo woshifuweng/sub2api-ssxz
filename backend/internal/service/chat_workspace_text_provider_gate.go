@@ -173,7 +173,7 @@ func newWorkspaceTextProviderAdapterFromDecision(cfg *config.Config, decision Wo
 func ProvideChatWorkspaceService(repo ChatWorkspaceRepository, cfg *config.Config) *ChatWorkspaceService {
 	adapter := NewWorkspaceTextProviderAdapterFromConfigWithExecutorProvider(cfg, workspaceOpenAICompatibleTextExecutorProviderFromConfig)
 	textResponder := WorkspaceProviderAssistantResponder{Adapter: adapter}
-	if workspaceImageExecutionFakeConfigured(cfg) {
+	if workspaceImageExecutionConfigured(cfg) {
 		return NewChatWorkspaceServiceWithResponder(repo, WorkspaceImageExecutionThenFallbackResponder{
 			ImageResponder: NewWorkspaceImageExecutionResponderFromConfig(cfg),
 			Fallback:       textResponder,

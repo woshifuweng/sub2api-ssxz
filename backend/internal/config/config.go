@@ -1042,6 +1042,7 @@ type DefaultConfig struct {
 type WorkspaceConfig struct {
 	TextProvider      WorkspaceTextProviderConfig      `mapstructure:"text_provider"`
 	ImageExecution    WorkspaceImageExecutionConfig    `mapstructure:"image_execution"`
+	ImageRealProvider WorkspaceImageRealProviderConfig `mapstructure:"image_real_provider"`
 	AvailableChannels WorkspaceAvailableChannelsConfig `mapstructure:"available_channels"`
 }
 
@@ -1089,6 +1090,18 @@ type WorkspaceImageExecutionConfig struct {
 	Enabled               bool     `mapstructure:"enabled"`
 	KillSwitch            bool     `mapstructure:"kill_switch"`
 	FakeProviderEnabled   bool     `mapstructure:"fake_provider_enabled"`
+	AllowedUserIDs        []int64  `mapstructure:"allowed_user_ids"`
+	AllowedModels         []string `mapstructure:"allowed_models"`
+	AllowedProviderLabels []string `mapstructure:"allowed_provider_labels"`
+	MaxRequestsPerTestRun int      `mapstructure:"max_requests_per_test_run"`
+}
+
+type WorkspaceImageRealProviderConfig struct {
+	Enabled               bool     `mapstructure:"enabled"`
+	KillSwitch            bool     `mapstructure:"kill_switch"`
+	StagingOnly           bool     `mapstructure:"staging_only"`
+	Environment           string   `mapstructure:"environment"`
+	ProviderLabel         string   `mapstructure:"provider_label"`
 	AllowedUserIDs        []int64  `mapstructure:"allowed_user_ids"`
 	AllowedModels         []string `mapstructure:"allowed_models"`
 	AllowedProviderLabels []string `mapstructure:"allowed_provider_labels"`
@@ -1341,6 +1354,30 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 		cfg.Workspace.ImageExecution.MaxRequestsPerTestRun,
 		parseEnvInt("WORKSPACE_IMAGE_EXECUTION_MAX_REQUESTS_PER_TEST_RUN"),
 	)
+	cfg.Workspace.ImageRealProvider.Environment = strings.TrimSpace(firstNonEmptyWorkspaceConfigString(
+		cfg.Workspace.ImageRealProvider.Environment,
+		os.Getenv("WORKSPACE_IMAGE_REAL_PROVIDER_ENVIRONMENT"),
+	))
+	cfg.Workspace.ImageRealProvider.ProviderLabel = strings.TrimSpace(firstNonEmptyWorkspaceConfigString(
+		cfg.Workspace.ImageRealProvider.ProviderLabel,
+		os.Getenv("WORKSPACE_IMAGE_REAL_PROVIDER_LABEL"),
+	))
+	cfg.Workspace.ImageRealProvider.AllowedUserIDs = normalizePositiveInt64Slice(firstNonEmptyInt64Slice(
+		cfg.Workspace.ImageRealProvider.AllowedUserIDs,
+		parseEnvInt64List("WORKSPACE_IMAGE_REAL_PROVIDER_ALLOWED_USER_IDS"),
+	))
+	cfg.Workspace.ImageRealProvider.AllowedModels = normalizeStringSlice(firstNonEmptyStringSlice(
+		cfg.Workspace.ImageRealProvider.AllowedModels,
+		parseEnvStringList("WORKSPACE_IMAGE_REAL_PROVIDER_ALLOWED_MODELS"),
+	))
+	cfg.Workspace.ImageRealProvider.AllowedProviderLabels = normalizeStringSlice(firstNonEmptyStringSlice(
+		cfg.Workspace.ImageRealProvider.AllowedProviderLabels,
+		parseEnvStringList("WORKSPACE_IMAGE_REAL_PROVIDER_ALLOWED_PROVIDER_LABELS"),
+	))
+	cfg.Workspace.ImageRealProvider.MaxRequestsPerTestRun = firstNonZeroConfigInt(
+		cfg.Workspace.ImageRealProvider.MaxRequestsPerTestRun,
+		parseEnvInt("WORKSPACE_IMAGE_REAL_PROVIDER_MAX_REQUESTS_PER_TEST_RUN"),
+	)
 	cfg.Process.Mode = strings.ToLower(strings.TrimSpace(cfg.Process.Mode))
 	if cfg.Process.Mode == "" {
 		cfg.Process.Mode = ProcessModeSingle
@@ -1499,6 +1536,15 @@ func setDefaults() {
 	viper.SetDefault("workspace.image_execution.allowed_models", []string{})
 	viper.SetDefault("workspace.image_execution.allowed_provider_labels", []string{})
 	viper.SetDefault("workspace.image_execution.max_requests_per_test_run", 0)
+	viper.SetDefault("workspace.image_real_provider.enabled", false)
+	viper.SetDefault("workspace.image_real_provider.kill_switch", true)
+	viper.SetDefault("workspace.image_real_provider.staging_only", true)
+	viper.SetDefault("workspace.image_real_provider.environment", "")
+	viper.SetDefault("workspace.image_real_provider.provider_label", "")
+	viper.SetDefault("workspace.image_real_provider.allowed_user_ids", []int64{})
+	viper.SetDefault("workspace.image_real_provider.allowed_models", []string{})
+	viper.SetDefault("workspace.image_real_provider.allowed_provider_labels", []string{})
+	viper.SetDefault("workspace.image_real_provider.max_requests_per_test_run", 0)
 	viper.SetDefault("workspace.available_channels.staging_override_enabled", false)
 
 	// CORS
@@ -2905,6 +2951,13 @@ func parseEnvInt(key string) int {
 
 func firstNonEmptyStringSlice(primary, fallback []string) []string {
 	if len(primary) > 0 {
+		return primary
+	}
+	return fallback
+}
+
+func firstNonEmptyWorkspaceConfigString(primary, fallback string) string {
+	if strings.TrimSpace(primary) != "" {
 		return primary
 	}
 	return fallback

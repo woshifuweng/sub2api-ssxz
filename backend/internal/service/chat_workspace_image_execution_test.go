@@ -26,6 +26,7 @@ func testWorkspaceImageExecutionGateConfig() WorkspaceImageExecutionGateConfig {
 	return WorkspaceImageExecutionGateConfig{
 		Enabled:               true,
 		KillSwitch:            false,
+		ProviderLabel:         WorkspaceImageProviderFakeLabel,
 		AllowedUserIDs:        []int64{10},
 		AllowedModels:         []string{WorkspaceImageProviderFakeModel},
 		AllowedProviderLabels: []string{WorkspaceImageProviderFakeLabel},
@@ -42,6 +43,21 @@ func testWorkspaceImageExecutionRuntimeConfig() *config.Config {
 	cfg.Workspace.ImageExecution.AllowedModels = []string{WorkspaceImageProviderFakeModel}
 	cfg.Workspace.ImageExecution.AllowedProviderLabels = []string{WorkspaceImageProviderFakeLabel}
 	cfg.Workspace.ImageExecution.MaxRequestsPerTestRun = 1
+	return cfg
+}
+
+func testWorkspaceImageRealProviderRuntimeConfig() *config.Config {
+	cfg := &config.Config{}
+	cfg.Log.Environment = "staging"
+	cfg.Workspace.ImageRealProvider.Enabled = true
+	cfg.Workspace.ImageRealProvider.KillSwitch = false
+	cfg.Workspace.ImageRealProvider.StagingOnly = true
+	cfg.Workspace.ImageRealProvider.Environment = "staging"
+	cfg.Workspace.ImageRealProvider.ProviderLabel = testWorkspaceOpenAICompatibleImageProviderLabel
+	cfg.Workspace.ImageRealProvider.AllowedUserIDs = []int64{10}
+	cfg.Workspace.ImageRealProvider.AllowedModels = []string{testWorkspaceOpenAICompatibleImageModel}
+	cfg.Workspace.ImageRealProvider.AllowedProviderLabels = []string{testWorkspaceOpenAICompatibleImageProviderLabel}
+	cfg.Workspace.ImageRealProvider.MaxRequestsPerTestRun = 1
 	return cfg
 }
 
@@ -113,6 +129,53 @@ func TestProvideChatWorkspaceServiceWiresFakeImageExecutionOnlyWhenConfigured(t 
 	require.Equal(t, true, assistantMessage.Metadata["provider_called"])
 	require.Equal(t, WorkspaceImageProviderFakeLabel, assistantMessage.Metadata["provider_label"])
 	require.Equal(t, WorkspaceImageProviderFakeModel, assistantMessage.Metadata["model"])
+}
+
+func TestProvideChatWorkspaceServiceWiresRealImageProviderOnlyWhenExplicitlyConfigured(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	svc := ProvideChatWorkspaceService(repo, testWorkspaceImageRealProviderRuntimeConfig())
+	conversation := testWorkspaceImageExecutionConversation(t, svc)
+
+	_, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "generate image of perfume ad",
+		Model:          testWorkspaceOpenAICompatibleImageModel,
+		Intent:         WorkspaceIntentChat,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, WorkspaceMessageTypeImage, assistantMessage.MessageType)
+	require.Equal(t, WorkspaceMessageStatusFailed, assistantMessage.Status)
+	require.Equal(t, workspaceImageExecutionErrorProviderUnavailable, assistantMessage.Metadata["error_code"])
+	require.Equal(t, false, assistantMessage.Metadata["provider_called"])
+	require.Equal(t, false, assistantMessage.Metadata["image_execution_fake_provider"])
+	require.Equal(t, false, assistantMessage.Metadata["image_task_touched"])
+	require.Equal(t, false, assistantMessage.Metadata["asset_upload_touched"])
+	require.Equal(t, false, assistantMessage.Metadata["billing_touched"])
+}
+
+func TestProvideChatWorkspaceServiceDoesNotWireRealImageProviderWhenKillSwitchEnabled(t *testing.T) {
+	cfg := testWorkspaceImageRealProviderRuntimeConfig()
+	cfg.Workspace.ImageRealProvider.KillSwitch = true
+	repo := newMemoryChatWorkspaceRepo()
+	svc := ProvideChatWorkspaceService(repo, cfg)
+	conversation := testWorkspaceImageExecutionConversation(t, svc)
+
+	_, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "generate image of perfume ad",
+		Model:          testWorkspaceOpenAICompatibleImageModel,
+		Intent:         WorkspaceIntentChat,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, WorkspaceMessageTypeText, assistantMessage.MessageType)
+	require.Equal(t, WorkspaceAssistantUnavailableContent, assistantMessage.Content)
+	require.Equal(t, false, assistantMessage.Metadata["provider_called"])
 }
 
 func TestProvideChatWorkspaceServiceFakeImageKillSwitchBlocksRuntime(t *testing.T) {
