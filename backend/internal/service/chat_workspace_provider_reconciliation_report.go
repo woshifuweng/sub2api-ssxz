@@ -52,6 +52,7 @@ type WorkspaceProviderReconciliationReport struct {
 	UsageTotalTokens        int64                                    `json:"usage_total_tokens,omitempty"`
 	LatencyMS               int64                                    `json:"latency_ms,omitempty"`
 	ErrorCode               string                                   `json:"error_code,omitempty"`
+	FallbackUsed            bool                                     `json:"fallback_used"`
 	BetaAllowlistAllowed    *bool                                    `json:"beta_allowlist_allowed,omitempty"`
 	BetaCounterAllowed      *bool                                    `json:"beta_counter_allowed,omitempty"`
 	BetaCounterBlockReasons []string                                 `json:"beta_counter_block_reasons,omitempty"`
@@ -83,6 +84,7 @@ func BuildWorkspaceProviderReconciliationReport(input WorkspaceProviderReconcili
 		AuditStatus:             workspaceMetadataString(metadata, "audit_status"),
 		LatencyMS:               workspaceMetadataInt64(metadata, "latency_ms"),
 		ErrorCode:               workspaceMetadataString(metadata, "error_code", "audit_error_code"),
+		FallbackUsed:            workspaceMetadataBoolDefault(metadata, "fallback_used", false),
 		BetaAllowlistAllowed:    workspaceMetadataBoolPointer(metadata, "beta_allowlist_allowed"),
 		BetaCounterAllowed:      workspaceMetadataBoolPointer(metadata, "beta_counter_allowed"),
 		BetaCounterBlockReasons: workspaceMetadataStringSlice(metadata, "beta_counter_block_reasons"),
