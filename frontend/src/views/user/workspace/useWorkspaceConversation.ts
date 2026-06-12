@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 import {
+  CHAT_MESSAGE_TYPE_IMAGE,
   CHAT_MESSAGE_TYPE_TEXT,
   appendMessage,
   chatWorkspaceBackendEnabled,
@@ -39,6 +40,7 @@ export interface WorkspaceMessage {
   content: string
   state?: WorkspaceMessageState
   attachments?: WorkspaceAttachment[]
+  metadata?: Record<string, unknown>
   createdAt?: string
 }
 
@@ -218,13 +220,18 @@ export function createLocalWorkspaceMessage(
 }
 
 function mapChatMessageToWorkspaceMessage(message: ChatMessage): WorkspaceMessage {
+  const attachments = mapWorkspaceImageAssets(message)
+  const state = mapWorkspaceMessageState(message)
   return {
     id: `message-${message.id}`,
     persistedId: message.id,
     conversationId: message.conversation_id,
     messageType: message.message_type,
     role: message.role === 'assistant' ? 'assistant' : 'user',
-    content: message.content,
+    content: message.content || mapWorkspaceImageErrorMessage(message),
+    state,
+    attachments,
+    metadata: sanitizeWorkspaceMessageMetadata(message, attachments),
     createdAt: message.created_at
   }
 }
@@ -237,4 +244,112 @@ function deriveConversationTitle(text: string) {
 
 function isTextChatIntent(intent: WorkspaceIntent) {
   return intent === 'home' || intent === 'chat'
+}
+
+function mapWorkspaceMessageState(message: ChatMessage): WorkspaceMessageState | undefined {
+  const status = metadataString(message.metadata, 'status') || message.status || ''
+  if (status === 'pending') return 'loading'
+  if (status === 'failed') return 'error'
+  return undefined
+}
+
+function mapWorkspaceImageErrorMessage(message: ChatMessage) {
+  if (message.message_type !== CHAT_MESSAGE_TYPE_IMAGE) return ''
+  return metadataString(message.metadata, 'error_message') || 'Image generation failed. Please try again.'
+}
+
+function mapWorkspaceImageAssets(message: ChatMessage): WorkspaceAttachment[] | undefined {
+  if (message.message_type !== CHAT_MESSAGE_TYPE_IMAGE) return undefined
+  const rawAssets = Array.isArray(message.metadata?.assets) ? message.metadata.assets : []
+  const attachments = rawAssets
+    .map((raw, index) => mapWorkspaceImageAsset(raw, index))
+    .filter((item): item is WorkspaceAttachment => item !== null)
+  return attachments.length > 0 ? attachments : undefined
+}
+
+function sanitizeWorkspaceMessageMetadata(
+  message: ChatMessage,
+  attachments: WorkspaceAttachment[] | undefined
+): Record<string, unknown> | undefined {
+  if (!message.metadata) return undefined
+  if (message.message_type !== CHAT_MESSAGE_TYPE_IMAGE) return message.metadata
+  const metadata: Record<string, unknown> = {}
+  for (const key of [
+    'capability',
+    'result_type',
+    'status',
+    'error_code',
+    'error_message',
+    'provider',
+    'model',
+    'latency_ms',
+    'usage',
+    'enhanced_prompt_present',
+    'prompt_present'
+  ]) {
+    if (message.metadata[key] !== undefined) metadata[key] = message.metadata[key]
+  }
+  if (attachments?.length) {
+    metadata.assets = attachments.map((item) => ({
+      id: item.id,
+      url: item.url,
+      mime_type: item.asset?.content_type,
+      provider: item.asset?.storage_provider,
+      model: message.model
+    }))
+  }
+  return metadata
+}
+
+function mapWorkspaceImageAsset(raw: unknown, index: number): WorkspaceAttachment | null {
+  if (!raw || typeof raw !== 'object') return null
+  const asset = raw as Record<string, unknown>
+  const url = stringValue(asset.url)
+  if (!isSafeRemoteImageURL(url)) return null
+  const mimeType = stringValue(asset.mime_type) || stringValue(asset.mimeType)
+  const name = stringValue(asset.name) || stringValue(asset.id) || `generated-image-${index + 1}`
+  return {
+    id: stringValue(asset.id) || `generated-image-${index + 1}`,
+    name,
+    url,
+    type: 'image',
+    asset: {
+      id: numberValue(asset.id) || 0,
+      asset_kind: 'image',
+      source_type: 'generated',
+      asset_role: 'result',
+      storage_provider: stringValue(asset.storage_provider),
+      storage_key: stringValue(asset.storage_key),
+      url,
+      preview_url: stringValue(asset.preview_url) || undefined,
+      original_name: name,
+      content_type: mimeType || 'image/png',
+      byte_size: numberValue(asset.byte_size) || 0,
+      status: 'completed',
+      created_at: '',
+      updated_at: ''
+    }
+  }
+}
+
+function isSafeRemoteImageURL(value: string) {
+  if (!value) return false
+  const lower = value.toLowerCase()
+  if (lower.startsWith('data:') || lower.startsWith('blob:') || lower.startsWith('javascript:')) {
+    return false
+  }
+  return lower.startsWith('https://') || lower.startsWith('http://') || lower.startsWith('/')
+}
+
+function metadataString(metadata: Record<string, unknown> | undefined, key: string) {
+  if (!metadata) return ''
+  return stringValue(metadata[key])
+}
+
+function stringValue(value: unknown) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function numberValue(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
