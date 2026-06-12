@@ -189,6 +189,13 @@ func TestLoadDefaultWorkspaceTextProviderGateConfig(t *testing.T) {
 	require.Empty(t, cfg.Workspace.TextProvider.OpenAICompatible.Model)
 	require.Empty(t, cfg.Workspace.TextProvider.OpenAICompatible.APIKey)
 	require.Equal(t, 30, cfg.Workspace.TextProvider.OpenAICompatible.TimeoutSeconds)
+	require.False(t, cfg.Workspace.ImageExecution.Enabled)
+	require.True(t, cfg.Workspace.ImageExecution.KillSwitch)
+	require.False(t, cfg.Workspace.ImageExecution.FakeProviderEnabled)
+	require.Empty(t, cfg.Workspace.ImageExecution.AllowedUserIDs)
+	require.Empty(t, cfg.Workspace.ImageExecution.AllowedModels)
+	require.Empty(t, cfg.Workspace.ImageExecution.AllowedProviderLabels)
+	require.Zero(t, cfg.Workspace.ImageExecution.MaxRequestsPerTestRun)
 	require.False(t, cfg.Workspace.AvailableChannels.StagingOverrideEnabled)
 }
 
@@ -238,6 +245,28 @@ func TestLoadWorkspaceTextProviderGateConfigFromEnv(t *testing.T) {
 	require.Equal(t, 3, cfg.Workspace.TextProvider.BetaRequestCaps.TestRunRequestCap)
 	require.Equal(t, 8, cfg.Workspace.TextProvider.BetaRequestCaps.ProviderRequestCap)
 	require.Equal(t, 6, cfg.Workspace.TextProvider.BetaRequestCaps.ModelRequestCap)
+}
+
+func TestLoadWorkspaceImageExecutionConfigFromEnv(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	t.Setenv("WORKSPACE_IMAGE_EXECUTION_ENABLED", "true")
+	t.Setenv("WORKSPACE_IMAGE_EXECUTION_KILL_SWITCH", "false")
+	t.Setenv("WORKSPACE_IMAGE_EXECUTION_FAKE_PROVIDER_ENABLED", "true")
+	t.Setenv("WORKSPACE_IMAGE_EXECUTION_ALLOWED_USER_IDS", "1,2")
+	t.Setenv("WORKSPACE_IMAGE_EXECUTION_ALLOWED_MODELS", " workspace-image-fake-model, other-image-model ")
+	t.Setenv("WORKSPACE_IMAGE_EXECUTION_ALLOWED_PROVIDER_LABELS", " workspace-image-fake ")
+	t.Setenv("WORKSPACE_IMAGE_EXECUTION_MAX_REQUESTS_PER_TEST_RUN", "3")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	require.True(t, cfg.Workspace.ImageExecution.Enabled)
+	require.False(t, cfg.Workspace.ImageExecution.KillSwitch)
+	require.True(t, cfg.Workspace.ImageExecution.FakeProviderEnabled)
+	require.Equal(t, []int64{1, 2}, cfg.Workspace.ImageExecution.AllowedUserIDs)
+	require.Equal(t, []string{"workspace-image-fake-model", "other-image-model"}, cfg.Workspace.ImageExecution.AllowedModels)
+	require.Equal(t, []string{"workspace-image-fake"}, cfg.Workspace.ImageExecution.AllowedProviderLabels)
+	require.Equal(t, 3, cfg.Workspace.ImageExecution.MaxRequestsPerTestRun)
 }
 
 func TestLoadWorkspaceTextProviderOpenAICompatibleConfigFromEnv(t *testing.T) {
