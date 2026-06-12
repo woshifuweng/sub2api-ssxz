@@ -198,10 +198,14 @@ func (s *ChatWorkspaceService) AppendMessage(ctx context.Context, userID int64, 
 	if utf8.RuneCountInString(input.Content) > workspaceMaxContentLength {
 		input.Content = string([]rune(input.Content)[:workspaceMaxContentLength])
 	}
-	input.Metadata = mergeWorkspaceCapabilityPlanMetadata(input.Metadata, NewWorkspaceCapabilityPlanner().Plan(WorkspaceCapabilityPlannerInput{
+	capabilityPlan := NewWorkspaceCapabilityPlanner().Plan(WorkspaceCapabilityPlannerInput{
 		Text:          input.Content,
 		SelectedModel: input.Model,
-	}))
+	})
+	modelCapabilityMetadata := ResolveWorkspaceModelCapabilities(input.Model, WorkspaceModelCapabilityHints{})
+	capabilityPlan = ApplyWorkspaceModelCapabilityMatch(capabilityPlan, modelCapabilityMetadata)
+	input.Metadata = mergeWorkspaceCapabilityPlanMetadata(input.Metadata, capabilityPlan)
+	input.Metadata = mergeWorkspaceModelCapabilityMetadata(input.Metadata, modelCapabilityMetadata, capabilityPlan)
 
 	return s.repo.AppendMessage(ctx, userID, input, deriveWorkspaceTitle(input.Content))
 }
