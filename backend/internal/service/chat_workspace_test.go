@@ -199,6 +199,68 @@ func TestChatWorkspaceServiceAllowsDeepSeekStagingTextModel(t *testing.T) {
 	require.Equal(t, WorkspaceMessageStatusCompleted, msg.Status)
 }
 
+func TestChatWorkspaceServicePersistsCapabilityPlanMetadataWithoutRouting(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	svc := NewChatWorkspaceService(repo)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	msg, err := svc.AppendMessage(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "\u5e2e\u6211\u751f\u6210\u4e00\u5f20\u9ad8\u7ea7\u611f\u4ea7\u54c1\u56fe",
+		Model:          "gpt-5.5",
+		Intent:         WorkspaceIntentChat,
+		Metadata: map[string]any{
+			"client_request_id": "safe-client-request",
+		},
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, WorkspaceMessageTypeText, msg.MessageType)
+	require.Equal(t, WorkspaceRoleUser, msg.Role)
+	require.Equal(t, WorkspaceIntentChat, msg.Intent)
+	require.Equal(t, "safe-client-request", msg.Metadata["client_request_id"])
+	require.Equal(t, "image_generation", msg.Metadata["planned_capability"])
+	require.Equal(t, WorkspaceCapabilityPlannerVersion, msg.Metadata["planner_version"])
+	require.Equal(t, workspaceCapabilityReasonZHImageGenerationKeyword, msg.Metadata["planner_reason"])
+	require.Equal(t, "gpt-5.5", msg.Metadata["selected_model"])
+	require.Equal(t, false, msg.Metadata["model_capability_matched"])
+	require.Equal(t, workspaceCapabilityBlockModelCapabilityUnavailable, msg.Metadata["planner_block_reason"])
+	require.NotContains(t, msg.Metadata, "assets")
+	require.NotContains(t, msg.Metadata, "provider_called")
+	require.NotContains(t, msg.Metadata, "image_task_id")
+
+	messages, err := svc.ListMessages(context.Background(), 10, conversation.ID)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, "image_generation", messages[0].Metadata["planned_capability"])
+	require.Equal(t, WorkspaceIntentChat, messages[0].Intent)
+}
+
+func TestChatWorkspaceServicePersistsTextCapabilityPlanMetadata(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	svc := NewChatWorkspaceService(repo)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	msg, err := svc.AppendMessage(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "\u5e2e\u6211\u603b\u7ed3\u4e00\u4e0b",
+		Model:          "gpt-5.5",
+		Intent:         WorkspaceIntentChat,
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, "text_chat", msg.Metadata["planned_capability"])
+	require.Equal(t, workspaceCapabilityReasonDefaultTextChat, msg.Metadata["planner_reason"])
+	require.Equal(t, true, msg.Metadata["model_capability_matched"])
+	require.NotContains(t, msg.Metadata, "planner_block_reason")
+}
+
 func TestChatWorkspaceServiceRejectsUnsafePayloadsAndNonTextMessages(t *testing.T) {
 	repo := newMemoryChatWorkspaceRepo()
 	svc := NewChatWorkspaceService(repo)
