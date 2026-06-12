@@ -227,7 +227,9 @@ func TestChatWorkspaceServicePersistsCapabilityPlanMetadataWithoutRouting(t *tes
 	require.Equal(t, workspaceCapabilityReasonZHImageGenerationKeyword, msg.Metadata["planner_reason"])
 	require.Equal(t, "gpt-5.5", msg.Metadata["selected_model"])
 	require.Equal(t, false, msg.Metadata["model_capability_matched"])
-	require.Equal(t, workspaceCapabilityBlockModelCapabilityUnavailable, msg.Metadata["planner_block_reason"])
+	require.Equal(t, []string{"text_chat", "vision"}, msg.Metadata["selected_model_capabilities"])
+	require.Equal(t, "selected_model_does_not_support_image_generation", msg.Metadata["planner_block_reason"])
+	require.Equal(t, "selected_model_does_not_support_image_generation", msg.Metadata["model_capability_mismatch_reason"])
 	require.NotContains(t, msg.Metadata, "assets")
 	require.NotContains(t, msg.Metadata, "provider_called")
 	require.NotContains(t, msg.Metadata, "image_task_id")
@@ -258,7 +260,33 @@ func TestChatWorkspaceServicePersistsTextCapabilityPlanMetadata(t *testing.T) {
 	require.Equal(t, "text_chat", msg.Metadata["planned_capability"])
 	require.Equal(t, workspaceCapabilityReasonDefaultTextChat, msg.Metadata["planner_reason"])
 	require.Equal(t, true, msg.Metadata["model_capability_matched"])
+	require.Equal(t, []string{"text_chat", "vision"}, msg.Metadata["selected_model_capabilities"])
 	require.NotContains(t, msg.Metadata, "planner_block_reason")
+}
+
+func TestChatWorkspaceServicePersistsModelCapabilityMismatchMetadata(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	svc := NewChatWorkspaceService(repo)
+	conversation, err := svc.CreateConversation(context.Background(), 10, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	msg, err := svc.AppendMessage(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "\u5e2e\u6211\u751f\u6210\u4e00\u5f20\u9ad8\u7ea7\u611f\u4ea7\u54c1\u56fe",
+		Model:          "deepseek-v4-flash",
+		Intent:         WorkspaceIntentChat,
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, "image_generation", msg.Metadata["planned_capability"])
+	require.Equal(t, "deepseek-v4-flash", msg.Metadata["selected_model"])
+	require.Equal(t, []string{"text_chat"}, msg.Metadata["selected_model_capabilities"])
+	require.Equal(t, false, msg.Metadata["model_capability_matched"])
+	require.Equal(t, "selected_model_does_not_support_image_generation", msg.Metadata["model_capability_mismatch_reason"])
+	require.NotContains(t, msg.Metadata, "provider_called")
+	require.NotContains(t, msg.Metadata, "image_task_id")
 }
 
 func TestChatWorkspaceServiceRejectsUnsafePayloadsAndNonTextMessages(t *testing.T) {
