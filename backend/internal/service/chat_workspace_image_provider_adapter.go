@@ -109,12 +109,16 @@ type WorkspaceImageProviderBoundary struct {
 	Normalizer WorkspaceImageResultNormalizer
 }
 
-func NewWorkspaceImageProviderBoundary(adapter WorkspaceImageProviderAdapter) WorkspaceImageProviderBoundary {
+func NewWorkspaceImageProviderBoundary(adapter WorkspaceImageProviderAdapter, routerConfig ...WorkspaceImageProviderRouterConfig) WorkspaceImageProviderBoundary {
 	if adapter == nil {
 		adapter = WorkspaceImageFakeProviderAdapter{}
 	}
+	var config WorkspaceImageProviderRouterConfig
+	if len(routerConfig) > 0 {
+		config = routerConfig[0]
+	}
 	return WorkspaceImageProviderBoundary{
-		Router:     NewWorkspaceImageProviderRouter(),
+		Router:     NewWorkspaceImageProviderRouter(config),
 		Adapter:    adapter,
 		Normalizer: NewWorkspaceImageResultNormalizer(),
 	}

@@ -85,6 +85,38 @@ func TestWorkspaceImageProviderBoundaryFakeSuccessNormalizesAssistantImageMetada
 	require.NotContains(t, body, "secret")
 }
 
+func TestWorkspaceImageProviderBoundaryConfiguredRouteUsesModelProviderMetadata(t *testing.T) {
+	input := testWorkspaceImageProviderBoundaryInput()
+	input.ModelCapabilityMetadata = ResolveWorkspaceModelCapabilities("gpt-image-1", WorkspaceModelCapabilityHints{
+		ProviderLabel: "workspace-openai-compatible-image-staging",
+		Provider:      WorkspaceOpenAICompatibleImageProviderKind,
+		Capabilities:  []WorkspaceModelCapability{WorkspaceModelCapabilityImageGeneration},
+	})
+	input.CapabilityPlan.SelectedModel = "gpt-image-1"
+	input.CapabilityPlan.ModelCapabilityMatched = true
+	input.ImageExperiencePlan.SelectedModel = "gpt-image-1"
+	adapter := &countingWorkspaceImageProviderAdapter{
+		result: WorkspaceImageProviderResult{
+			ProviderLabel: "workspace-openai-compatible-image-staging",
+			Model:         "gpt-image-1",
+			Assets: []WorkspaceImageProviderAsset{
+				{ID: "asset", URL: "https://example.invalid/image.png", MimeType: "image/png", Width: 1024, Height: 1024, Provider: "workspace-openai-compatible-image-staging", Model: "gpt-image-1"},
+			},
+			Usage: WorkspaceImageProviderUsage{ImageCount: 1, ImageSize: "1024x1024"},
+		},
+	}
+
+	result := NewWorkspaceImageProviderBoundary(adapter, WorkspaceImageProviderRouterConfig{
+		ProviderLabel: "workspace-openai-compatible-image-staging",
+		Provider:      WorkspaceOpenAICompatibleImageProviderKind,
+	}).GenerateAssistantImage(context.Background(), input)
+
+	require.Equal(t, 1, adapter.calls)
+	require.Equal(t, WorkspaceMessageStatusCompleted, result.Status)
+	require.Equal(t, "workspace-openai-compatible-image-staging", result.Metadata["provider_label"])
+	require.Equal(t, "gpt-image-1", result.Metadata["model"])
+}
+
 func TestWorkspaceImageProviderBoundaryTextChatDoesNotCallAdapter(t *testing.T) {
 	input := testWorkspaceImageProviderBoundaryInput()
 	input.CapabilityPlan.PlannedCapability = WorkspacePlannedCapabilityTextChat

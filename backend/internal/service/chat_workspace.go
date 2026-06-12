@@ -385,11 +385,12 @@ func firstNonEmptyWorkspaceValue(values ...string) string {
 }
 
 func isAllowedWorkspaceModel(model string) bool {
-	switch strings.TrimSpace(model) {
+	normalized := strings.TrimSpace(model)
+	switch normalized {
 	case "gpt-5.5", "gpt-5.4", "gpt-5.2", "gpt-5.4-mini", "deepseek-v4-flash", WorkspaceImageProviderFakeModel:
 		return true
 	default:
-		return false
+		return isWorkspaceImageGenerationModelName(strings.ToLower(normalized))
 	}
 }
 

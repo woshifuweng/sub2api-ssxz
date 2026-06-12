@@ -21,6 +21,7 @@ const (
 type WorkspaceImageExecutionGateConfig struct {
 	Enabled               bool
 	KillSwitch            bool
+	ProviderLabel         string
 	AllowedUserIDs        []int64
 	AllowedModels         []string
 	AllowedProviderLabels []string
@@ -38,7 +39,10 @@ type WorkspaceImageExecutionResponder struct {
 func NewWorkspaceImageExecutionResponder(config WorkspaceImageExecutionGateConfig, adapter WorkspaceImageProviderAdapter) *WorkspaceImageExecutionResponder {
 	return &WorkspaceImageExecutionResponder{
 		GateConfig: config,
-		Boundary:   NewWorkspaceImageProviderBoundary(adapter),
+		Boundary: NewWorkspaceImageProviderBoundary(adapter, WorkspaceImageProviderRouterConfig{
+			ProviderLabel: config.ProviderLabel,
+			Provider:      config.ProviderLabel,
+		}),
 	}
 }
 
@@ -64,11 +68,32 @@ func (r WorkspaceImageExecutionThenFallbackResponder) GenerateAssistantResponse(
 }
 
 func NewWorkspaceImageExecutionResponderFromConfig(cfg *config.Config) *WorkspaceImageExecutionResponder {
+	if workspaceImageExecutionRealProviderConfigured(cfg) {
+		return NewWorkspaceImageExecutionResponder(workspaceImageRealProviderGateConfigFromConfig(cfg), NewWorkspaceOpenAICompatibleImageProviderAdapter(nil))
+	}
 	return NewWorkspaceImageExecutionResponder(workspaceImageExecutionGateConfigFromConfig(cfg), WorkspaceImageFakeProviderAdapter{})
 }
 
 func workspaceImageExecutionFakeConfigured(cfg *config.Config) bool {
 	return cfg != nil && cfg.Workspace.ImageExecution.FakeProviderEnabled
+}
+
+func workspaceImageExecutionConfigured(cfg *config.Config) bool {
+	return workspaceImageExecutionFakeConfigured(cfg) || workspaceImageExecutionRealProviderConfigured(cfg)
+}
+
+func workspaceImageExecutionRealProviderConfigured(cfg *config.Config) bool {
+	if cfg == nil {
+		return false
+	}
+	realConfig := cfg.Workspace.ImageRealProvider
+	if !realConfig.Enabled || realConfig.KillSwitch {
+		return false
+	}
+	if realConfig.StagingOnly && !isWorkspaceTextProviderNonProductionEnvironment(firstNonEmptyWorkspaceValue(realConfig.Environment, cfg.Log.Environment)) {
+		return false
+	}
+	return strings.TrimSpace(realConfig.ProviderLabel) != ""
 }
 
 func workspaceImageExecutionGateConfigFromConfig(cfg *config.Config) WorkspaceImageExecutionGateConfig {
@@ -79,10 +104,27 @@ func workspaceImageExecutionGateConfigFromConfig(cfg *config.Config) WorkspaceIm
 	return WorkspaceImageExecutionGateConfig{
 		Enabled:               imageConfig.Enabled && imageConfig.FakeProviderEnabled,
 		KillSwitch:            imageConfig.KillSwitch,
+		ProviderLabel:         WorkspaceImageProviderFakeLabel,
 		AllowedUserIDs:        cloneWorkspaceInt64Slice(imageConfig.AllowedUserIDs),
 		AllowedModels:         cloneWorkspaceStringSlice(imageConfig.AllowedModels),
 		AllowedProviderLabels: cloneWorkspaceStringSlice(imageConfig.AllowedProviderLabels),
 		MaxRequestsPerTestRun: imageConfig.MaxRequestsPerTestRun,
+	}
+}
+
+func workspaceImageRealProviderGateConfigFromConfig(cfg *config.Config) WorkspaceImageExecutionGateConfig {
+	if cfg == nil {
+		return WorkspaceImageExecutionGateConfig{KillSwitch: true}
+	}
+	realConfig := cfg.Workspace.ImageRealProvider
+	return WorkspaceImageExecutionGateConfig{
+		Enabled:               realConfig.Enabled,
+		KillSwitch:            realConfig.KillSwitch,
+		ProviderLabel:         strings.TrimSpace(realConfig.ProviderLabel),
+		AllowedUserIDs:        cloneWorkspaceInt64Slice(realConfig.AllowedUserIDs),
+		AllowedModels:         cloneWorkspaceStringSlice(realConfig.AllowedModels),
+		AllowedProviderLabels: cloneWorkspaceStringSlice(realConfig.AllowedProviderLabels),
+		MaxRequestsPerTestRun: realConfig.MaxRequestsPerTestRun,
 	}
 }
 
@@ -131,7 +173,7 @@ func (r *WorkspaceImageExecutionResponder) checkGate(userID int64, model string)
 		return workspaceImageExecutionErrorNotAllowed
 	case !workspaceStringListContains(config.AllowedModels, model):
 		return workspaceImageExecutionErrorNotAllowed
-	case !workspaceStringListContains(config.AllowedProviderLabels, WorkspaceImageProviderFakeLabel):
+	case !workspaceStringListContains(config.AllowedProviderLabels, config.ProviderLabel):
 		return workspaceImageExecutionErrorNotAllowed
 	case config.MaxRequestsPerTestRun <= 0:
 		return workspaceImageExecutionErrorNotAllowed
@@ -174,7 +216,8 @@ func mergeWorkspaceImageExecutionMetadata(metadata map[string]any, providerCalle
 	}
 	out["provider_called"] = providerCalled
 	out["image_execution_gate_allowed"] = providerCalled
-	out["image_execution_fake_provider"] = true
+	out["image_execution_provider_boundary"] = true
+	out["image_execution_fake_provider"] = workspaceMetadataString(metadata, "provider_label") == WorkspaceImageProviderFakeLabel
 	out["image_task_touched"] = false
 	out["asset_upload_touched"] = false
 	out["billing_touched"] = false

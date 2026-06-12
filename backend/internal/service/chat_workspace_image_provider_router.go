@@ -4,7 +4,8 @@ const (
 	WorkspaceImageProviderFakeLabel = "workspace-image-fake"
 	WorkspaceImageProviderFakeModel = "workspace-image-fake-model"
 
-	workspaceImageProviderReasonFakeRoute = "fake_image_provider_route"
+	workspaceImageProviderReasonFakeRoute       = "fake_image_provider_route"
+	workspaceImageProviderReasonConfiguredRoute = "configured_image_provider_route"
 )
 
 type WorkspaceImageProviderRoute struct {
@@ -24,13 +25,24 @@ type WorkspaceImageProviderRouterInput struct {
 	ForceUnavailable        bool
 }
 
-type WorkspaceImageProviderRouter struct{}
-
-func NewWorkspaceImageProviderRouter() WorkspaceImageProviderRouter {
-	return WorkspaceImageProviderRouter{}
+type WorkspaceImageProviderRouterConfig struct {
+	ProviderLabel string
+	Provider      string
 }
 
-func (WorkspaceImageProviderRouter) Route(input WorkspaceImageProviderRouterInput) WorkspaceImageProviderRoute {
+type WorkspaceImageProviderRouter struct {
+	Config WorkspaceImageProviderRouterConfig
+}
+
+func NewWorkspaceImageProviderRouter(config ...WorkspaceImageProviderRouterConfig) WorkspaceImageProviderRouter {
+	router := WorkspaceImageProviderRouter{}
+	if len(config) > 0 {
+		router.Config = config[0]
+	}
+	return router
+}
+
+func (r WorkspaceImageProviderRouter) Route(input WorkspaceImageProviderRouterInput) WorkspaceImageProviderRoute {
 	if input.CapabilityPlan.PlannedCapability != WorkspacePlannedCapabilityImageGeneration {
 		return workspaceUnavailableImageProviderRoute("not_applicable")
 	}
@@ -43,12 +55,31 @@ func (WorkspaceImageProviderRouter) Route(input WorkspaceImageProviderRouterInpu
 	if input.ForceUnavailable {
 		return workspaceUnavailableImageProviderRoute("image_provider_unavailable")
 	}
+	if input.ModelCapabilityMetadata.ModelName == WorkspaceImageProviderFakeModel {
+		return WorkspaceImageProviderRoute{
+			ProviderLabel: WorkspaceImageProviderFakeLabel,
+			Provider:      WorkspaceImageProviderFakeLabel,
+			Model:         WorkspaceImageProviderFakeModel,
+			Capability:    WorkspacePlannedCapabilityImageGeneration,
+			Reason:        workspaceImageProviderReasonFakeRoute,
+			Available:     true,
+		}
+	}
+	providerLabel := firstNonEmptyWorkspaceValue(input.ModelCapabilityMetadata.ProviderLabel, r.Config.ProviderLabel)
+	if providerLabel == "" {
+		return workspaceUnavailableImageProviderRoute("image_provider_unavailable")
+	}
+	provider := firstNonEmptyWorkspaceValue(input.ModelCapabilityMetadata.Provider, r.Config.Provider)
+	model := firstNonEmptyWorkspaceValue(input.ModelCapabilityMetadata.ModelName, input.CapabilityPlan.SelectedModel)
+	if model == "" {
+		return workspaceUnavailableImageProviderRoute("image_provider_unavailable")
+	}
 	return WorkspaceImageProviderRoute{
-		ProviderLabel: WorkspaceImageProviderFakeLabel,
-		Provider:      WorkspaceImageProviderFakeLabel,
-		Model:         WorkspaceImageProviderFakeModel,
+		ProviderLabel: providerLabel,
+		Provider:      provider,
+		Model:         model,
 		Capability:    WorkspacePlannedCapabilityImageGeneration,
-		Reason:        workspaceImageProviderReasonFakeRoute,
+		Reason:        workspaceImageProviderReasonConfiguredRoute,
 		Available:     true,
 	}
 }

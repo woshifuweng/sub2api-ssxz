@@ -196,6 +196,15 @@ func TestLoadDefaultWorkspaceTextProviderGateConfig(t *testing.T) {
 	require.Empty(t, cfg.Workspace.ImageExecution.AllowedModels)
 	require.Empty(t, cfg.Workspace.ImageExecution.AllowedProviderLabels)
 	require.Zero(t, cfg.Workspace.ImageExecution.MaxRequestsPerTestRun)
+	require.False(t, cfg.Workspace.ImageRealProvider.Enabled)
+	require.True(t, cfg.Workspace.ImageRealProvider.KillSwitch)
+	require.True(t, cfg.Workspace.ImageRealProvider.StagingOnly)
+	require.Empty(t, cfg.Workspace.ImageRealProvider.Environment)
+	require.Empty(t, cfg.Workspace.ImageRealProvider.ProviderLabel)
+	require.Empty(t, cfg.Workspace.ImageRealProvider.AllowedUserIDs)
+	require.Empty(t, cfg.Workspace.ImageRealProvider.AllowedModels)
+	require.Empty(t, cfg.Workspace.ImageRealProvider.AllowedProviderLabels)
+	require.Zero(t, cfg.Workspace.ImageRealProvider.MaxRequestsPerTestRun)
 	require.False(t, cfg.Workspace.AvailableChannels.StagingOverrideEnabled)
 }
 
@@ -267,6 +276,32 @@ func TestLoadWorkspaceImageExecutionConfigFromEnv(t *testing.T) {
 	require.Equal(t, []string{"workspace-image-fake-model", "other-image-model"}, cfg.Workspace.ImageExecution.AllowedModels)
 	require.Equal(t, []string{"workspace-image-fake"}, cfg.Workspace.ImageExecution.AllowedProviderLabels)
 	require.Equal(t, 3, cfg.Workspace.ImageExecution.MaxRequestsPerTestRun)
+}
+
+func TestLoadWorkspaceImageRealProviderConfigFromEnv(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	t.Setenv("WORKSPACE_IMAGE_REAL_PROVIDER_ENABLED", "true")
+	t.Setenv("WORKSPACE_IMAGE_REAL_PROVIDER_KILL_SWITCH", "false")
+	t.Setenv("WORKSPACE_IMAGE_REAL_PROVIDER_STAGING_ONLY", "true")
+	t.Setenv("WORKSPACE_IMAGE_REAL_PROVIDER_ENVIRONMENT", "staging")
+	t.Setenv("WORKSPACE_IMAGE_REAL_PROVIDER_LABEL", " workspace-openai-compatible-image-staging ")
+	t.Setenv("WORKSPACE_IMAGE_REAL_PROVIDER_ALLOWED_USER_IDS", "1,2")
+	t.Setenv("WORKSPACE_IMAGE_REAL_PROVIDER_ALLOWED_MODELS", " gpt-image-1, image-model ")
+	t.Setenv("WORKSPACE_IMAGE_REAL_PROVIDER_ALLOWED_PROVIDER_LABELS", " workspace-openai-compatible-image-staging ")
+	t.Setenv("WORKSPACE_IMAGE_REAL_PROVIDER_MAX_REQUESTS_PER_TEST_RUN", "3")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	require.True(t, cfg.Workspace.ImageRealProvider.Enabled)
+	require.False(t, cfg.Workspace.ImageRealProvider.KillSwitch)
+	require.True(t, cfg.Workspace.ImageRealProvider.StagingOnly)
+	require.Equal(t, "staging", cfg.Workspace.ImageRealProvider.Environment)
+	require.Equal(t, "workspace-openai-compatible-image-staging", cfg.Workspace.ImageRealProvider.ProviderLabel)
+	require.Equal(t, []int64{1, 2}, cfg.Workspace.ImageRealProvider.AllowedUserIDs)
+	require.Equal(t, []string{"gpt-image-1", "image-model"}, cfg.Workspace.ImageRealProvider.AllowedModels)
+	require.Equal(t, []string{"workspace-openai-compatible-image-staging"}, cfg.Workspace.ImageRealProvider.AllowedProviderLabels)
+	require.Equal(t, 3, cfg.Workspace.ImageRealProvider.MaxRequestsPerTestRun)
 }
 
 func TestLoadWorkspaceTextProviderOpenAICompatibleConfigFromEnv(t *testing.T) {
