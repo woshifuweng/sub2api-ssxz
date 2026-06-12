@@ -204,8 +204,15 @@ func (s *ChatWorkspaceService) AppendMessage(ctx context.Context, userID int64, 
 	})
 	modelCapabilityMetadata := ResolveWorkspaceModelCapabilities(input.Model, WorkspaceModelCapabilityHints{})
 	capabilityPlan = ApplyWorkspaceModelCapabilityMatch(capabilityPlan, modelCapabilityMetadata)
+	imageExperiencePlan := BuildWorkspaceImageExperiencePlan(WorkspaceImageExperienceEnhancerInput{
+		Text:                    input.Content,
+		PlannedCapability:       capabilityPlan.PlannedCapability,
+		SelectedModel:           input.Model,
+		ModelCapabilityMetadata: modelCapabilityMetadata,
+	})
 	input.Metadata = mergeWorkspaceCapabilityPlanMetadata(input.Metadata, capabilityPlan)
 	input.Metadata = mergeWorkspaceModelCapabilityMetadata(input.Metadata, modelCapabilityMetadata, capabilityPlan)
+	input.Metadata = mergeWorkspaceImageExperiencePlanMetadata(input.Metadata, imageExperiencePlan)
 
 	return s.repo.AppendMessage(ctx, userID, input, deriveWorkspaceTitle(input.Content))
 }
