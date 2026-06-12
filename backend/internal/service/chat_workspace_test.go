@@ -230,9 +230,20 @@ func TestChatWorkspaceServicePersistsCapabilityPlanMetadataWithoutRouting(t *tes
 	require.Equal(t, []string{"text_chat", "vision"}, msg.Metadata["selected_model_capabilities"])
 	require.Equal(t, "selected_model_does_not_support_image_generation", msg.Metadata["planner_block_reason"])
 	require.Equal(t, "selected_model_does_not_support_image_generation", msg.Metadata["model_capability_mismatch_reason"])
+	require.Equal(t, true, msg.Metadata["image_experience_plan_present"])
+	require.Equal(t, WorkspaceImageExperienceEnhancerVersion, msg.Metadata["image_experience_enhancer_version"])
+	require.Equal(t, "product", msg.Metadata["image_subject_hint"])
+	require.Equal(t, "commercial product image", msg.Metadata["image_scene_hint"])
+	require.Equal(t, "commercial premium product photography", msg.Metadata["image_style_hint"])
+	require.Equal(t, "1:1", msg.Metadata["image_aspect_ratio"])
+	require.Equal(t, "commercial", msg.Metadata["image_quality_preset"])
+	require.Equal(t, true, msg.Metadata["enhanced_prompt_present"])
+	require.Equal(t, true, msg.Metadata["negative_prompt_present"])
 	require.NotContains(t, msg.Metadata, "assets")
 	require.NotContains(t, msg.Metadata, "provider_called")
 	require.NotContains(t, msg.Metadata, "image_task_id")
+	require.NotContains(t, msg.Metadata, "enhanced_prompt")
+	require.NotContains(t, msg.Metadata, "negative_prompt")
 
 	messages, err := svc.ListMessages(context.Background(), 10, conversation.ID)
 	require.NoError(t, err)
@@ -262,6 +273,7 @@ func TestChatWorkspaceServicePersistsTextCapabilityPlanMetadata(t *testing.T) {
 	require.Equal(t, true, msg.Metadata["model_capability_matched"])
 	require.Equal(t, []string{"text_chat", "vision"}, msg.Metadata["selected_model_capabilities"])
 	require.NotContains(t, msg.Metadata, "planner_block_reason")
+	require.NotContains(t, msg.Metadata, "image_experience_plan_present")
 }
 
 func TestChatWorkspaceServicePersistsModelCapabilityMismatchMetadata(t *testing.T) {
@@ -285,6 +297,8 @@ func TestChatWorkspaceServicePersistsModelCapabilityMismatchMetadata(t *testing.
 	require.Equal(t, []string{"text_chat"}, msg.Metadata["selected_model_capabilities"])
 	require.Equal(t, false, msg.Metadata["model_capability_matched"])
 	require.Equal(t, "selected_model_does_not_support_image_generation", msg.Metadata["model_capability_mismatch_reason"])
+	require.Equal(t, true, msg.Metadata["image_experience_plan_present"])
+	require.Equal(t, "1:1", msg.Metadata["image_aspect_ratio"])
 	require.NotContains(t, msg.Metadata, "provider_called")
 	require.NotContains(t, msg.Metadata, "image_task_id")
 }
