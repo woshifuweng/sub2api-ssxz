@@ -66,6 +66,7 @@ type WorkspaceTextProviderAdapter struct {
 	FailurePolicy           WorkspaceProviderFailurePolicy
 	StagingQA               *WorkspaceTextProviderStagingQA
 	BetaAllowlist           WorkspaceTextProviderBetaAllowlist
+	BetaCounter             *WorkspaceTextProviderBetaRequestCounter
 }
 
 func (a WorkspaceTextProviderAdapter) GenerateWorkspaceResponse(ctx context.Context, input WorkspaceProviderRequest) (WorkspaceProviderResponse, error) {
@@ -118,10 +119,17 @@ func (a WorkspaceTextProviderAdapter) GenerateWorkspaceResponse(ctx context.Cont
 		return workspaceTextProviderBetaAllowlistBlockedResponse(model, intent, diagnostics, contract, betaAllowlistDecision), nil
 	}
 
+	betaCounterDecision := reserveWorkspaceTextProviderBetaRequestCounter(a.BetaCounter, input.UserID, providerName, model)
+	betaCounterMetadata := workspaceTextProviderBetaRequestCounterMetadata(betaCounterDecision)
+	if !betaCounterDecision.Allowed {
+		return workspaceTextProviderBetaRequestCounterBlockedResponse(model, intent, diagnostics, contract, betaAllowlistMetadata, betaCounterDecision), nil
+	}
+
 	stagingQADecision := reserveWorkspaceTextProviderStagingQA(a.StagingQA, model)
 	stagingQAMetadata := workspaceTextProviderStagingQAMetadata(stagingQADecision)
 	if !stagingQADecision.Allowed {
-		return workspaceTextProviderStagingQABlockedResponse(model, intent, diagnostics, contract, stagingQADecision, betaAllowlistMetadata), nil
+		mergeWorkspaceMetadata(betaCounterMetadata, betaAllowlistMetadata)
+		return workspaceTextProviderStagingQABlockedResponse(model, intent, diagnostics, contract, stagingQADecision, betaCounterMetadata), nil
 	}
 
 	result, err := a.Executor.ExecuteWorkspaceTextProvider(ctx, WorkspaceTextProviderExecutionInput{
@@ -142,10 +150,12 @@ func (a WorkspaceTextProviderAdapter) GenerateWorkspaceResponse(ctx context.Cont
 		OriginalMetadata:  input.Metadata,
 	})
 	if err != nil {
+		mergeWorkspaceMetadata(stagingQAMetadata, betaCounterMetadata)
 		mergeWorkspaceMetadata(stagingQAMetadata, betaAllowlistMetadata)
 		return workspaceTextProviderFailureResponse(input, model, intent, diagnostics, contract, "workspace_provider_error", stagingQAMetadata), nil
 	}
 	if strings.TrimSpace(result.Content) == "" {
+		mergeWorkspaceMetadata(stagingQAMetadata, betaCounterMetadata)
 		mergeWorkspaceMetadata(stagingQAMetadata, betaAllowlistMetadata)
 		return workspaceTextProviderFailureResponse(input, model, intent, diagnostics, contract, "workspace_provider_empty_response", stagingQAMetadata), nil
 	}
@@ -179,6 +189,7 @@ func (a WorkspaceTextProviderAdapter) GenerateWorkspaceResponse(ctx context.Cont
 
 	metadata := workspaceTextProviderSuccessMetadata(result.Metadata, successDiagnostics, contract, endpointLabel, result)
 	mergeWorkspaceMetadata(metadata, betaAllowlistMetadata)
+	mergeWorkspaceMetadata(metadata, betaCounterMetadata)
 	mergeWorkspaceMetadata(metadata, stagingQAMetadata)
 	return WorkspaceProviderResponse{
 		Content:     strings.TrimSpace(result.Content),
@@ -223,6 +234,29 @@ func workspaceTextProviderBetaAllowlistBlockedResponse(model, intent string, dia
 	metadata["failure_policy"] = string(contract.FailurePolicy)
 	metadata["reconcile_needed"] = contract.Diagnostics.ReconcileNeeded
 	mergeWorkspaceMetadata(metadata, workspaceTextProviderBetaAllowlistMetadata(decision))
+	return WorkspaceProviderResponse{
+		Content:     WorkspaceAssistantUnavailableContent,
+		Model:       model,
+		Intent:      intent,
+		Metadata:    metadata,
+		Diagnostics: diagnostics,
+	}
+}
+
+func workspaceTextProviderBetaRequestCounterBlockedResponse(model, intent string, diagnostics WorkspaceProviderDiagnostics, contract WorkspaceProviderExecutionContract, extraMetadata map[string]any, decision WorkspaceTextProviderBetaRequestCounterDecision) WorkspaceProviderResponse {
+	diagnostics.DisabledCapabilityReason = "workspace text provider beta request counter blocked execution"
+	auditRecord := contract.Audit.Record
+	diagnostics.AuditRecord = &auditRecord
+	metadata := workspaceProviderUnavailableMetadata(diagnostics)
+	metadata["provider_adapter"] = "text"
+	metadata["execution_decision"] = string(contract.Decision)
+	metadata["execution_block_reasons"] = workspaceExecutionReasonsAsStrings(contract.BlockReasons)
+	metadata["billing_policy"] = string(contract.BillingPolicy)
+	metadata["usage_policy"] = string(contract.UsagePolicy)
+	metadata["failure_policy"] = string(contract.FailurePolicy)
+	metadata["reconcile_needed"] = contract.Diagnostics.ReconcileNeeded
+	mergeWorkspaceMetadata(metadata, extraMetadata)
+	mergeWorkspaceMetadata(metadata, workspaceTextProviderBetaRequestCounterMetadata(decision))
 	return WorkspaceProviderResponse{
 		Content:     WorkspaceAssistantUnavailableContent,
 		Model:       model,

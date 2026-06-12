@@ -33,6 +33,7 @@ type WorkspaceTextProviderGateDecision struct {
 	LowCostModelAllowlist []string
 	MaxRequestsPerTestRun int
 	BetaAllowlist         WorkspaceTextProviderBetaAllowlist
+	BetaRequestCaps       WorkspaceTextProviderBetaRequestCaps
 	Reasons               []string
 }
 
@@ -51,6 +52,13 @@ type WorkspaceTextProviderBetaAllowlistDecision struct {
 	GroupIDs      []int64
 	ProviderLabel string
 	Model         string
+}
+
+type WorkspaceTextProviderBetaRequestCaps struct {
+	DailyRequestCap    int
+	TestRunRequestCap  int
+	ProviderRequestCap int
+	ModelRequestCap    int
 }
 
 type WorkspaceTextProviderExecutorProvider func(cfg *config.Config, decision WorkspaceTextProviderGateDecision) WorkspaceTextProviderExecutor
@@ -87,6 +95,12 @@ func BuildWorkspaceTextProviderGateDecision(cfg *config.Config) WorkspaceTextPro
 			AllowedGroupIDs:       cloneWorkspaceInt64Slice(gate.BetaAllowlist.AllowedGroupIDs),
 			AllowedProviderLabels: cloneWorkspaceStringSlice(gate.BetaAllowlist.AllowedProviderLabels),
 			AllowedModels:         cloneWorkspaceStringSlice(gate.BetaAllowlist.AllowedModels),
+		},
+		BetaRequestCaps: WorkspaceTextProviderBetaRequestCaps{
+			DailyRequestCap:    gate.BetaRequestCaps.DailyRequestCap,
+			TestRunRequestCap:  gate.BetaRequestCaps.TestRunRequestCap,
+			ProviderRequestCap: gate.BetaRequestCaps.ProviderRequestCap,
+			ModelRequestCap:    gate.BetaRequestCaps.ModelRequestCap,
 		},
 	}
 	if !gate.Enabled {
@@ -152,6 +166,7 @@ func newWorkspaceTextProviderAdapterFromDecision(cfg *config.Config, decision Wo
 		FailurePolicy:           failurePolicy,
 		StagingQA:               NewWorkspaceTextProviderStagingQA(decision),
 		BetaAllowlist:           decision.BetaAllowlist,
+		BetaCounter:             NewWorkspaceTextProviderBetaRequestCounter(decision),
 	}
 }
 

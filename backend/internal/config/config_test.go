@@ -181,6 +181,10 @@ func TestLoadDefaultWorkspaceTextProviderGateConfig(t *testing.T) {
 	require.Empty(t, cfg.Workspace.TextProvider.BetaAllowlist.AllowedGroupIDs)
 	require.Empty(t, cfg.Workspace.TextProvider.BetaAllowlist.AllowedProviderLabels)
 	require.Empty(t, cfg.Workspace.TextProvider.BetaAllowlist.AllowedModels)
+	require.Zero(t, cfg.Workspace.TextProvider.BetaRequestCaps.DailyRequestCap)
+	require.Zero(t, cfg.Workspace.TextProvider.BetaRequestCaps.TestRunRequestCap)
+	require.Zero(t, cfg.Workspace.TextProvider.BetaRequestCaps.ProviderRequestCap)
+	require.Zero(t, cfg.Workspace.TextProvider.BetaRequestCaps.ModelRequestCap)
 	require.Empty(t, cfg.Workspace.TextProvider.OpenAICompatible.BaseURL)
 	require.Empty(t, cfg.Workspace.TextProvider.OpenAICompatible.Model)
 	require.Empty(t, cfg.Workspace.TextProvider.OpenAICompatible.APIKey)
@@ -206,6 +210,10 @@ func TestLoadWorkspaceTextProviderGateConfigFromEnv(t *testing.T) {
 	t.Setenv("WORKSPACE_TEXT_PROVIDER_BETA_ALLOWED_GROUP_IDS", "30; 40")
 	t.Setenv("WORKSPACE_TEXT_PROVIDER_BETA_ALLOWED_PROVIDER_LABELS", " deepseek-staging, staging-low-cost-provider ")
 	t.Setenv("WORKSPACE_TEXT_PROVIDER_BETA_ALLOWED_MODELS", " deepseek-v4-flash, gpt-5.5 ")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_BETA_DAILY_REQUEST_CAP", "10")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_BETA_TEST_RUN_REQUEST_CAP", "3")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_BETA_PROVIDER_REQUEST_CAP", "8")
+	t.Setenv("WORKSPACE_TEXT_PROVIDER_BETA_MODEL_REQUEST_CAP", "6")
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -226,6 +234,10 @@ func TestLoadWorkspaceTextProviderGateConfigFromEnv(t *testing.T) {
 	require.Equal(t, []int64{30, 40}, cfg.Workspace.TextProvider.BetaAllowlist.AllowedGroupIDs)
 	require.Equal(t, []string{"deepseek-staging", "staging-low-cost-provider"}, cfg.Workspace.TextProvider.BetaAllowlist.AllowedProviderLabels)
 	require.Equal(t, []string{"deepseek-v4-flash", "gpt-5.5"}, cfg.Workspace.TextProvider.BetaAllowlist.AllowedModels)
+	require.Equal(t, 10, cfg.Workspace.TextProvider.BetaRequestCaps.DailyRequestCap)
+	require.Equal(t, 3, cfg.Workspace.TextProvider.BetaRequestCaps.TestRunRequestCap)
+	require.Equal(t, 8, cfg.Workspace.TextProvider.BetaRequestCaps.ProviderRequestCap)
+	require.Equal(t, 6, cfg.Workspace.TextProvider.BetaRequestCaps.ModelRequestCap)
 }
 
 func TestLoadWorkspaceTextProviderOpenAICompatibleConfigFromEnv(t *testing.T) {
