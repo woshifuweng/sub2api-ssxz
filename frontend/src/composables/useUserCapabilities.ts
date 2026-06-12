@@ -28,6 +28,7 @@ function uniqueSorted(values: Array<string | undefined | null>) {
 
 function isImageModelName(model: string) {
   const normalized = model.toLowerCase()
+  if (normalized === 'workspace-image-fake-model') return false
   return normalized.includes('image') || normalized.includes('dall')
 }
 

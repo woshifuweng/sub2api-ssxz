@@ -1041,6 +1041,7 @@ type DefaultConfig struct {
 
 type WorkspaceConfig struct {
 	TextProvider      WorkspaceTextProviderConfig      `mapstructure:"text_provider"`
+	ImageExecution    WorkspaceImageExecutionConfig    `mapstructure:"image_execution"`
 	AvailableChannels WorkspaceAvailableChannelsConfig `mapstructure:"available_channels"`
 }
 
@@ -1082,6 +1083,16 @@ type WorkspaceOpenAICompatibleConfig struct {
 	Model          string `mapstructure:"model"`
 	APIKey         string `mapstructure:"api_key"`
 	TimeoutSeconds int    `mapstructure:"timeout_seconds"`
+}
+
+type WorkspaceImageExecutionConfig struct {
+	Enabled               bool     `mapstructure:"enabled"`
+	KillSwitch            bool     `mapstructure:"kill_switch"`
+	FakeProviderEnabled   bool     `mapstructure:"fake_provider_enabled"`
+	AllowedUserIDs        []int64  `mapstructure:"allowed_user_ids"`
+	AllowedModels         []string `mapstructure:"allowed_models"`
+	AllowedProviderLabels []string `mapstructure:"allowed_provider_labels"`
+	MaxRequestsPerTestRun int      `mapstructure:"max_requests_per_test_run"`
 }
 
 type WorkspaceAvailableChannelsConfig struct {
@@ -1314,6 +1325,22 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	cfg.Workspace.TextProvider.OpenAICompatible.BaseURL = strings.TrimSpace(cfg.Workspace.TextProvider.OpenAICompatible.BaseURL)
 	cfg.Workspace.TextProvider.OpenAICompatible.Model = strings.TrimSpace(cfg.Workspace.TextProvider.OpenAICompatible.Model)
 	cfg.Workspace.TextProvider.OpenAICompatible.APIKey = strings.TrimSpace(cfg.Workspace.TextProvider.OpenAICompatible.APIKey)
+	cfg.Workspace.ImageExecution.AllowedUserIDs = normalizePositiveInt64Slice(firstNonEmptyInt64Slice(
+		cfg.Workspace.ImageExecution.AllowedUserIDs,
+		parseEnvInt64List("WORKSPACE_IMAGE_EXECUTION_ALLOWED_USER_IDS"),
+	))
+	cfg.Workspace.ImageExecution.AllowedModels = normalizeStringSlice(firstNonEmptyStringSlice(
+		cfg.Workspace.ImageExecution.AllowedModels,
+		parseEnvStringList("WORKSPACE_IMAGE_EXECUTION_ALLOWED_MODELS"),
+	))
+	cfg.Workspace.ImageExecution.AllowedProviderLabels = normalizeStringSlice(firstNonEmptyStringSlice(
+		cfg.Workspace.ImageExecution.AllowedProviderLabels,
+		parseEnvStringList("WORKSPACE_IMAGE_EXECUTION_ALLOWED_PROVIDER_LABELS"),
+	))
+	cfg.Workspace.ImageExecution.MaxRequestsPerTestRun = firstNonZeroConfigInt(
+		cfg.Workspace.ImageExecution.MaxRequestsPerTestRun,
+		parseEnvInt("WORKSPACE_IMAGE_EXECUTION_MAX_REQUESTS_PER_TEST_RUN"),
+	)
 	cfg.Process.Mode = strings.ToLower(strings.TrimSpace(cfg.Process.Mode))
 	if cfg.Process.Mode == "" {
 		cfg.Process.Mode = ProcessModeSingle
@@ -1465,6 +1492,13 @@ func setDefaults() {
 	viper.SetDefault("workspace.text_provider.openai_compatible.model", "")
 	viper.SetDefault("workspace.text_provider.openai_compatible.api_key", "")
 	viper.SetDefault("workspace.text_provider.openai_compatible.timeout_seconds", 30)
+	viper.SetDefault("workspace.image_execution.enabled", false)
+	viper.SetDefault("workspace.image_execution.kill_switch", true)
+	viper.SetDefault("workspace.image_execution.fake_provider_enabled", false)
+	viper.SetDefault("workspace.image_execution.allowed_user_ids", []int64{})
+	viper.SetDefault("workspace.image_execution.allowed_models", []string{})
+	viper.SetDefault("workspace.image_execution.allowed_provider_labels", []string{})
+	viper.SetDefault("workspace.image_execution.max_requests_per_test_run", 0)
 	viper.SetDefault("workspace.available_channels.staging_override_enabled", false)
 
 	// CORS

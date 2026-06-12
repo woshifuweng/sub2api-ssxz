@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"sync"
+
+	"github.com/Wei-Shaw/sub2api/internal/config"
 )
 
 const (
@@ -42,6 +44,46 @@ func NewWorkspaceImageExecutionResponder(config WorkspaceImageExecutionGateConfi
 
 func NewChatWorkspaceServiceWithImageExecution(repo ChatWorkspaceRepository, config WorkspaceImageExecutionGateConfig, adapter WorkspaceImageProviderAdapter) *ChatWorkspaceService {
 	return NewChatWorkspaceServiceWithResponder(repo, NewWorkspaceImageExecutionResponder(config, adapter))
+}
+
+type WorkspaceImageExecutionThenFallbackResponder struct {
+	ImageResponder WorkspaceAssistantResponder
+	Fallback       WorkspaceAssistantResponder
+}
+
+func (r WorkspaceImageExecutionThenFallbackResponder) GenerateAssistantResponse(ctx context.Context, input WorkspaceAssistantResponseInput) (WorkspaceAssistantResponse, error) {
+	capabilityPlan := workspaceCapabilityPlanFromMetadata(input.Metadata, input.Model)
+	if capabilityPlan.PlannedCapability == WorkspacePlannedCapabilityImageGeneration && r.ImageResponder != nil {
+		return r.ImageResponder.GenerateAssistantResponse(ctx, input)
+	}
+	fallback := r.Fallback
+	if fallback == nil {
+		fallback = WorkspaceUnavailableAssistantResponder{}
+	}
+	return fallback.GenerateAssistantResponse(ctx, input)
+}
+
+func NewWorkspaceImageExecutionResponderFromConfig(cfg *config.Config) *WorkspaceImageExecutionResponder {
+	return NewWorkspaceImageExecutionResponder(workspaceImageExecutionGateConfigFromConfig(cfg), WorkspaceImageFakeProviderAdapter{})
+}
+
+func workspaceImageExecutionFakeConfigured(cfg *config.Config) bool {
+	return cfg != nil && cfg.Workspace.ImageExecution.FakeProviderEnabled
+}
+
+func workspaceImageExecutionGateConfigFromConfig(cfg *config.Config) WorkspaceImageExecutionGateConfig {
+	if cfg == nil {
+		return WorkspaceImageExecutionGateConfig{KillSwitch: true}
+	}
+	imageConfig := cfg.Workspace.ImageExecution
+	return WorkspaceImageExecutionGateConfig{
+		Enabled:               imageConfig.Enabled && imageConfig.FakeProviderEnabled,
+		KillSwitch:            imageConfig.KillSwitch,
+		AllowedUserIDs:        cloneWorkspaceInt64Slice(imageConfig.AllowedUserIDs),
+		AllowedModels:         cloneWorkspaceStringSlice(imageConfig.AllowedModels),
+		AllowedProviderLabels: cloneWorkspaceStringSlice(imageConfig.AllowedProviderLabels),
+		MaxRequestsPerTestRun: imageConfig.MaxRequestsPerTestRun,
+	}
 }
 
 func (r *WorkspaceImageExecutionResponder) GenerateAssistantResponse(ctx context.Context, input WorkspaceAssistantResponseInput) (WorkspaceAssistantResponse, error) {
