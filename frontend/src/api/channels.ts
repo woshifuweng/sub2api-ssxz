@@ -44,6 +44,11 @@ export interface UserSupportedModel {
   name: string
   platform: string
   pricing: UserSupportedModelPricing | null
+  capabilities?: string[]
+  provider_label?: string
+  capability_source?: string
+  fake?: boolean
+  test_only?: boolean
 }
 
 /**
