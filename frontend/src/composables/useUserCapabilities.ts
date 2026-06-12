@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { userChannelsAPI, userGroupsAPI } from '@/api'
 import type { Group } from '@/types'
-import type { UserAvailableChannel } from '@/api/channels'
+import type { UserAvailableChannel, UserSupportedModel } from '@/api/channels'
 
 export type ChatModelOption = {
   id: string
@@ -26,10 +26,21 @@ function uniqueSorted(values: Array<string | undefined | null>) {
   return [...seen.values()].sort((left, right) => left.localeCompare(right))
 }
 
+function isAllowedWorkspaceImageModel(model: UserSupportedModel) {
+  return model.fake === true &&
+    model.test_only === true &&
+    model.provider_label === 'workspace-image-fake' &&
+    (model.capabilities || []).includes('image_generation')
+}
+
 function isImageModelName(model: string) {
   const normalized = model.toLowerCase()
-  if (normalized === 'workspace-image-fake-model') return false
   return normalized.includes('image') || normalized.includes('dall')
+}
+
+function isSelectableWorkspaceModel(model: UserSupportedModel) {
+  if (isAllowedWorkspaceImageModel(model)) return true
+  return !isImageModelName(model.name)
 }
 
 function formatModelName(model: string) {
@@ -45,7 +56,7 @@ export function useUserCapabilities() {
     for (const channel of availableChannels.value) {
       for (const platform of channel.platforms || []) {
         for (const model of platform.supported_models || []) {
-          if (model.name) names.add(model.name)
+          if (model.name && isSelectableWorkspaceModel(model)) names.add(model.name)
         }
       }
     }
@@ -53,7 +64,7 @@ export function useUserCapabilities() {
   })
 
   const textModelNames = computed(() =>
-    uniqueSorted([...supportedModelNames.value].filter((model) => !isImageModelName(model)))
+    uniqueSorted([...supportedModelNames.value])
   )
 
   const chatModels = computed(() => textModelNames.value.map((model) => ({

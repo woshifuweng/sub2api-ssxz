@@ -93,9 +93,14 @@ type userPricingIntervalDTO struct {
 
 // userSupportedModel 用户可见的支持模型条目。
 type userSupportedModel struct {
-	Name     string                     `json:"name"`
-	Platform string                     `json:"platform"`
-	Pricing  *userSupportedModelPricing `json:"pricing"`
+	Name             string                     `json:"name"`
+	Platform         string                     `json:"platform"`
+	Pricing          *userSupportedModelPricing `json:"pricing"`
+	Capabilities     []string                   `json:"capabilities,omitempty"`
+	ProviderLabel    string                     `json:"provider_label,omitempty"`
+	CapabilitySource string                     `json:"capability_source,omitempty"`
+	Fake             bool                       `json:"fake,omitempty"`
+	TestOnly         bool                       `json:"test_only,omitempty"`
 }
 
 // userChannelPlatformSection 单渠道内某个平台的子视图：用户可见的分组 + 该平台
@@ -172,8 +177,66 @@ func (h *AvailableChannelHandler) ListGateway(c gatewayctx.GatewayContext) {
 			Platforms:   sections,
 		})
 	}
+	if fakeModel := h.settingService.GetWorkspaceImageFakeModelExposure(subject.UserID); fakeModel.Enabled {
+		out = appendWorkspaceImageFakeModelChannel(out, fakeModel)
+	}
 
 	response.SuccessContext(gatewayJSONResponder{ctx: c}, out)
+}
+
+func appendWorkspaceImageFakeModelChannel(
+	channels []userAvailableChannel,
+	fakeModel service.WorkspaceImageFakeModelExposure,
+) []userAvailableChannel {
+	if !fakeModel.Enabled {
+		return channels
+	}
+	platform := fakeModel.Platform
+	if platform == "" {
+		platform = fakeModel.ProviderLabel
+	}
+	if platform == "" {
+		platform = service.WorkspaceImageProviderFakeLabel
+	}
+	return append(channels, userAvailableChannel{
+		Name:        "Workspace Image Fake",
+		Description: "Staging-only fake image generation model for workspace validation.",
+		Platforms: []userChannelPlatformSection{{
+			Platform: platform,
+			Groups: []userAvailableGroup{{
+				ID:               0,
+				Name:             "Workspace Image Fake",
+				Platform:         platform,
+				SubscriptionType: "test",
+				RateMultiplier:   1,
+				IsExclusive:      true,
+			}},
+			SupportedModels: []userSupportedModel{{
+				Name:             fakeModel.Model,
+				Platform:         platform,
+				Pricing:          nil,
+				Capabilities:     workspaceCapabilityStringsForUserDTO(fakeModel.Capabilities),
+				ProviderLabel:    fakeModel.ProviderLabel,
+				CapabilitySource: fakeModel.CapabilitySource,
+				Fake:             fakeModel.Fake,
+				TestOnly:         fakeModel.TestOnly,
+			}},
+		}},
+	})
+}
+
+func workspaceCapabilityStringsForUserDTO(capabilities []service.WorkspaceModelCapability) []string {
+	if len(capabilities) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(capabilities))
+	for _, capability := range capabilities {
+		if capability == "" {
+			continue
+		}
+		out = append(out, string(capability))
+	}
+	return out
 }
 
 // buildPlatformSections 把一个渠道按 visibleGroups 的平台集合拆成有序的 section 列表：
