@@ -95,6 +95,10 @@ func TestWorkspaceTextProviderGateAllowsOnlyExplicitStagingGuardrails(t *testing
 	require.Equal(t, []int64{20}, decision.BetaAllowlist.AllowedGroupIDs)
 	require.Equal(t, []string{"staging-low-cost-provider"}, decision.BetaAllowlist.AllowedProviderLabels)
 	require.Equal(t, []string{"gpt-5.5-mini", "gpt-5.5"}, decision.BetaAllowlist.AllowedModels)
+	require.Equal(t, 10, decision.BetaRequestCaps.DailyRequestCap)
+	require.Equal(t, 3, decision.BetaRequestCaps.TestRunRequestCap)
+	require.Equal(t, 10, decision.BetaRequestCaps.ProviderRequestCap)
+	require.Equal(t, 10, decision.BetaRequestCaps.ModelRequestCap)
 }
 
 func TestWorkspaceTextProviderGateWiringStillRequiresBillingSafeContract(t *testing.T) {
@@ -298,6 +302,12 @@ func workspaceTextProviderGateConfig() *config.Config {
 					AllowedGroupIDs:       []int64{20},
 					AllowedProviderLabels: []string{"staging-low-cost-provider"},
 					AllowedModels:         []string{"gpt-5.5-mini", "gpt-5.5"},
+				},
+				BetaRequestCaps: config.WorkspaceTextProviderBetaRequestCapConfig{
+					DailyRequestCap:    10,
+					TestRunRequestCap:  3,
+					ProviderRequestCap: 10,
+					ModelRequestCap:    10,
 				},
 			},
 		},

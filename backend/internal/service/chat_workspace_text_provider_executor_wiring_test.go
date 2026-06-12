@@ -177,6 +177,12 @@ func workspaceTextProviderExecutorWiringConfig() *config.Config {
 					AllowedProviderLabels: []string{"deepseek-staging"},
 					AllowedModels:         []string{"deepseek-v4-flash"},
 				},
+				BetaRequestCaps: config.WorkspaceTextProviderBetaRequestCapConfig{
+					DailyRequestCap:    10,
+					TestRunRequestCap:  3,
+					ProviderRequestCap: 10,
+					ModelRequestCap:    10,
+				},
 			},
 		},
 	}

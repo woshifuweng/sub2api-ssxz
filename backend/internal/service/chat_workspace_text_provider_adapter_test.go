@@ -271,7 +271,8 @@ func workspaceTextProviderAdapterWithOverrides(executor WorkspaceTextProviderExe
 			AllowedProviderLabels: []string{"workspace_fake_text_provider"},
 			AllowedModels:         []string{"gpt-5.5"},
 		},
-		StagingQA: NewWorkspaceTextProviderStagingQA(workspaceTextProviderAdapterGateDecisionForTest(100, "gpt-5.5")),
+		BetaCounter: NewWorkspaceTextProviderBetaRequestCounter(workspaceTextProviderAdapterGateDecisionForTest(100, "gpt-5.5")),
+		StagingQA:   NewWorkspaceTextProviderStagingQA(workspaceTextProviderAdapterGateDecisionForTest(100, "gpt-5.5")),
 	}
 	if mutate != nil {
 		mutate(&adapter)
@@ -287,6 +288,12 @@ func workspaceTextProviderAdapterGateDecisionForTest(limit int, models ...string
 		TestProviderLabel:     "workspace_fake_text_provider",
 		LowCostModelAllowlist: models,
 		MaxRequestsPerTestRun: limit,
+		BetaRequestCaps: WorkspaceTextProviderBetaRequestCaps{
+			DailyRequestCap:    limit,
+			TestRunRequestCap:  limit,
+			ProviderRequestCap: limit,
+			ModelRequestCap:    limit,
+		},
 	}
 }
 

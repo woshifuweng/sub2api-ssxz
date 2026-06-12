@@ -1045,20 +1045,21 @@ type WorkspaceConfig struct {
 }
 
 type WorkspaceTextProviderConfig struct {
-	Enabled                 bool                            `mapstructure:"enabled"`
-	KillSwitch              bool                            `mapstructure:"kill_switch"`
-	StagingOnly             bool                            `mapstructure:"staging_only"`
-	Environment             string                          `mapstructure:"environment"`
-	TestProviderLabel       string                          `mapstructure:"test_provider_label"`
-	LowCostModelAllowlist   []string                        `mapstructure:"low_cost_model_allowlist"`
-	MaxRequestsPerTestRun   int                             `mapstructure:"max_requests_per_test_run"`
-	BillingEligibilityKnown bool                            `mapstructure:"billing_eligibility_known"`
-	BillingEligible         bool                            `mapstructure:"billing_eligible"`
-	BillingPolicy           string                          `mapstructure:"billing_policy"`
-	UsagePolicy             string                          `mapstructure:"usage_policy"`
-	FailurePolicy           string                          `mapstructure:"failure_policy"`
-	BetaAllowlist           WorkspaceTextProviderBetaConfig `mapstructure:"beta_allowlist"`
-	OpenAICompatible        WorkspaceOpenAICompatibleConfig `mapstructure:"openai_compatible"`
+	Enabled                 bool                                      `mapstructure:"enabled"`
+	KillSwitch              bool                                      `mapstructure:"kill_switch"`
+	StagingOnly             bool                                      `mapstructure:"staging_only"`
+	Environment             string                                    `mapstructure:"environment"`
+	TestProviderLabel       string                                    `mapstructure:"test_provider_label"`
+	LowCostModelAllowlist   []string                                  `mapstructure:"low_cost_model_allowlist"`
+	MaxRequestsPerTestRun   int                                       `mapstructure:"max_requests_per_test_run"`
+	BillingEligibilityKnown bool                                      `mapstructure:"billing_eligibility_known"`
+	BillingEligible         bool                                      `mapstructure:"billing_eligible"`
+	BillingPolicy           string                                    `mapstructure:"billing_policy"`
+	UsagePolicy             string                                    `mapstructure:"usage_policy"`
+	FailurePolicy           string                                    `mapstructure:"failure_policy"`
+	BetaAllowlist           WorkspaceTextProviderBetaConfig           `mapstructure:"beta_allowlist"`
+	BetaRequestCaps         WorkspaceTextProviderBetaRequestCapConfig `mapstructure:"beta_request_caps"`
+	OpenAICompatible        WorkspaceOpenAICompatibleConfig           `mapstructure:"openai_compatible"`
 }
 
 type WorkspaceTextProviderBetaConfig struct {
@@ -1067,6 +1068,13 @@ type WorkspaceTextProviderBetaConfig struct {
 	AllowedGroupIDs       []int64  `mapstructure:"allowed_group_ids"`
 	AllowedProviderLabels []string `mapstructure:"allowed_provider_labels"`
 	AllowedModels         []string `mapstructure:"allowed_models"`
+}
+
+type WorkspaceTextProviderBetaRequestCapConfig struct {
+	DailyRequestCap    int `mapstructure:"daily_request_cap"`
+	TestRunRequestCap  int `mapstructure:"test_run_request_cap"`
+	ProviderRequestCap int `mapstructure:"provider_request_cap"`
+	ModelRequestCap    int `mapstructure:"model_request_cap"`
 }
 
 type WorkspaceOpenAICompatibleConfig struct {
@@ -1272,6 +1280,22 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 		cfg.Workspace.TextProvider.BetaAllowlist.AllowedModels,
 		parseEnvStringList("WORKSPACE_TEXT_PROVIDER_BETA_ALLOWED_MODELS"),
 	))
+	cfg.Workspace.TextProvider.BetaRequestCaps.DailyRequestCap = firstNonZeroConfigInt(
+		cfg.Workspace.TextProvider.BetaRequestCaps.DailyRequestCap,
+		parseEnvInt("WORKSPACE_TEXT_PROVIDER_BETA_DAILY_REQUEST_CAP"),
+	)
+	cfg.Workspace.TextProvider.BetaRequestCaps.TestRunRequestCap = firstNonZeroConfigInt(
+		cfg.Workspace.TextProvider.BetaRequestCaps.TestRunRequestCap,
+		parseEnvInt("WORKSPACE_TEXT_PROVIDER_BETA_TEST_RUN_REQUEST_CAP"),
+	)
+	cfg.Workspace.TextProvider.BetaRequestCaps.ProviderRequestCap = firstNonZeroConfigInt(
+		cfg.Workspace.TextProvider.BetaRequestCaps.ProviderRequestCap,
+		parseEnvInt("WORKSPACE_TEXT_PROVIDER_BETA_PROVIDER_REQUEST_CAP"),
+	)
+	cfg.Workspace.TextProvider.BetaRequestCaps.ModelRequestCap = firstNonZeroConfigInt(
+		cfg.Workspace.TextProvider.BetaRequestCaps.ModelRequestCap,
+		parseEnvInt("WORKSPACE_TEXT_PROVIDER_BETA_MODEL_REQUEST_CAP"),
+	)
 	cfg.Workspace.TextProvider.BillingPolicy = strings.ToLower(strings.TrimSpace(cfg.Workspace.TextProvider.BillingPolicy))
 	cfg.Workspace.TextProvider.UsagePolicy = strings.ToLower(strings.TrimSpace(cfg.Workspace.TextProvider.UsagePolicy))
 	cfg.Workspace.TextProvider.FailurePolicy = strings.ToLower(strings.TrimSpace(cfg.Workspace.TextProvider.FailurePolicy))
@@ -1433,6 +1457,10 @@ func setDefaults() {
 	viper.SetDefault("workspace.text_provider.beta_allowlist.allowed_group_ids", []int64{})
 	viper.SetDefault("workspace.text_provider.beta_allowlist.allowed_provider_labels", []string{})
 	viper.SetDefault("workspace.text_provider.beta_allowlist.allowed_models", []string{})
+	viper.SetDefault("workspace.text_provider.beta_request_caps.daily_request_cap", 0)
+	viper.SetDefault("workspace.text_provider.beta_request_caps.test_run_request_cap", 0)
+	viper.SetDefault("workspace.text_provider.beta_request_caps.provider_request_cap", 0)
+	viper.SetDefault("workspace.text_provider.beta_request_caps.model_request_cap", 0)
 	viper.SetDefault("workspace.text_provider.openai_compatible.base_url", "")
 	viper.SetDefault("workspace.text_provider.openai_compatible.model", "")
 	viper.SetDefault("workspace.text_provider.openai_compatible.api_key", "")
@@ -2829,6 +2857,18 @@ func parseEnvInt64List(key string) []int64 {
 	return values
 }
 
+func parseEnvInt(key string) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return 0
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0
+	}
+	return value
+}
+
 func firstNonEmptyStringSlice(primary, fallback []string) []string {
 	if len(primary) > 0 {
 		return primary
@@ -2838,6 +2878,13 @@ func firstNonEmptyStringSlice(primary, fallback []string) []string {
 
 func firstNonEmptyInt64Slice(primary, fallback []int64) []int64 {
 	if len(primary) > 0 {
+		return primary
+	}
+	return fallback
+}
+
+func firstNonZeroConfigInt(primary, fallback int) int {
+	if primary != 0 {
 		return primary
 	}
 	return fallback
