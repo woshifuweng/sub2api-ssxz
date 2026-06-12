@@ -100,10 +100,12 @@ type WorkspaceAssistantResponseInput struct {
 }
 
 type WorkspaceAssistantResponse struct {
-	Content  string
-	Model    string
-	Intent   string
-	Metadata map[string]any
+	Content     string
+	MessageType string
+	Model       string
+	Intent      string
+	Status      string
+	Metadata    map[string]any
 }
 
 type WorkspaceAssistantResponder interface {
@@ -243,9 +245,11 @@ func (s *ChatWorkspaceService) AppendMessageWithAssistantResponse(ctx context.Co
 
 	assistantMessage, err := s.AppendAssistantMessage(ctx, userID, WorkspaceAppendAssistantMessageInput{
 		ConversationID: input.ConversationID,
+		MessageType:    assistantResponse.MessageType,
 		Content:        assistantResponse.Content,
 		Model:          firstNonEmptyWorkspaceValue(assistantResponse.Model, userMessage.Model),
 		Intent:         firstNonEmptyWorkspaceValue(assistantResponse.Intent, userMessage.Intent),
+		Status:         assistantResponse.Status,
 		Metadata:       assistantResponse.Metadata,
 	})
 	if err != nil {
@@ -382,7 +386,7 @@ func firstNonEmptyWorkspaceValue(values ...string) string {
 
 func isAllowedWorkspaceModel(model string) bool {
 	switch strings.TrimSpace(model) {
-	case "gpt-5.5", "gpt-5.4", "gpt-5.2", "gpt-5.4-mini", "deepseek-v4-flash":
+	case "gpt-5.5", "gpt-5.4", "gpt-5.2", "gpt-5.4-mini", "deepseek-v4-flash", WorkspaceImageProviderFakeModel:
 		return true
 	default:
 		return false
