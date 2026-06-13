@@ -62,6 +62,7 @@ describe('useUserCapabilities', () => {
                 pricing: null,
                 capabilities: ['image_generation'],
                 provider_label: 'workspace-image-fake',
+                model_catalog_source: 'fake_gate',
                 fake: true,
                 test_only: true
               }
@@ -93,6 +94,7 @@ describe('useUserCapabilities', () => {
                 pricing: null,
                 capabilities: ['image_generation'],
                 provider_label: 'workspace-openai-compatible-image-staging',
+                model_catalog_source: 'real_channel',
                 staging_only: true
               }
             ]
@@ -121,6 +123,35 @@ describe('useUserCapabilities', () => {
                 name: 'gpt-image-1',
                 platform: 'image-provider',
                 pricing: null
+              }
+            ]
+          }
+        ]
+      }
+    ])
+
+    const capabilities = useUserCapabilities()
+    await capabilities.loadCapabilities()
+
+    expect(capabilities.chatModels.value.map((model) => model.id)).not.toContain('gpt-image-1')
+  })
+
+  it('filters image generation models that are not sourced from real channels or fake gates', async () => {
+    mocks.getChannels.mockResolvedValue([
+      {
+        name: 'Image Channel',
+        description: '',
+        platforms: [
+          {
+            platform: 'image-provider',
+            groups: [],
+            supported_models: [
+              {
+                name: 'gpt-image-1',
+                platform: 'image-provider',
+                pricing: null,
+                capabilities: ['image_generation'],
+                model_catalog_source: 'env_gate'
               }
             ]
           }

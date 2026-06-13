@@ -15,6 +15,7 @@ const (
 	workspaceImageExecutionErrorRequestCapExceeded  = "image_execution_request_cap_exceeded"
 	workspaceImageExecutionErrorCapabilityMismatch  = "image_capability_mismatch"
 	workspaceImageExecutionErrorImagePlanMissing    = "image_plan_missing"
+	workspaceImageExecutionErrorModelCatalogSource  = "image_model_catalog_source_not_real_channel"
 	workspaceImageExecutionErrorProviderUnavailable = "image_provider_route_unavailable"
 )
 
@@ -139,6 +140,9 @@ func (r *WorkspaceImageExecutionResponder) GenerateAssistantResponse(ctx context
 	if code := r.checkGate(input.UserID, input.Model); code != "" {
 		return workspaceImageExecutionFailureResponse(r.Boundary.Normalizer, code, "Image generation is unavailable.")
 	}
+	if r.requiresRealChannelCatalogSource() && modelMetadata.ModelCatalogSource != WorkspaceModelCatalogSourceRealChannel {
+		return workspaceImageExecutionFailureResponse(r.Boundary.Normalizer, workspaceImageExecutionErrorModelCatalogSource, "Image generation is unavailable.")
+	}
 	if !capabilityPlan.ModelCapabilityMatched {
 		return workspaceImageExecutionFailureResponse(r.Boundary.Normalizer, workspaceImageExecutionErrorCapabilityMismatch, "Selected model does not support image generation.")
 	}
@@ -160,6 +164,14 @@ func (r *WorkspaceImageExecutionResponder) GenerateAssistantResponse(ctx context
 	}
 	result.Metadata = mergeWorkspaceImageExecutionMetadata(result.Metadata, result.Status == WorkspaceMessageStatusCompleted)
 	return workspaceImageAssistantResponse(result)
+}
+
+func (r *WorkspaceImageExecutionResponder) requiresRealChannelCatalogSource() bool {
+	if r == nil {
+		return false
+	}
+	providerLabel := strings.TrimSpace(r.GateConfig.ProviderLabel)
+	return providerLabel != "" && !strings.EqualFold(providerLabel, WorkspaceImageProviderFakeLabel)
 }
 
 func (r *WorkspaceImageExecutionResponder) checkGate(userID int64, model string) string {
@@ -242,13 +254,14 @@ func workspaceCapabilityPlanFromMetadata(metadata map[string]any, selectedModel 
 
 func workspaceModelCapabilityMetadataFromMetadata(metadata map[string]any, model string) WorkspaceModelCapabilityMetadata {
 	return WorkspaceModelCapabilityMetadata{
-		ModelName:        strings.TrimSpace(model),
-		ProviderLabel:    workspaceMetadataString(metadata, "model_provider_label"),
-		Provider:         workspaceMetadataString(metadata, "model_provider"),
-		Platform:         workspaceMetadataString(metadata, "model_platform"),
-		Capabilities:     workspaceModelCapabilitiesFromMetadata(metadata["selected_model_capabilities"]),
-		CapabilitySource: workspaceMetadataString(metadata, "model_capability_source"),
-		Confidence:       workspaceMetadataFloat(metadata, "model_capability_confidence"),
+		ModelName:          strings.TrimSpace(model),
+		ProviderLabel:      workspaceMetadataString(metadata, "model_provider_label"),
+		Provider:           workspaceMetadataString(metadata, "model_provider"),
+		Platform:           workspaceMetadataString(metadata, "model_platform"),
+		Capabilities:       workspaceModelCapabilitiesFromMetadata(metadata["selected_model_capabilities"]),
+		CapabilitySource:   workspaceMetadataString(metadata, "model_capability_source"),
+		ModelCatalogSource: workspaceMetadataString(metadata, "model_catalog_source"),
+		Confidence:         workspaceMetadataFloat(metadata, "model_capability_confidence"),
 	}
 }
 

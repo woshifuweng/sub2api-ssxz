@@ -28,13 +28,14 @@ type WorkspaceModelCapabilityHints struct {
 }
 
 type WorkspaceModelCapabilityMetadata struct {
-	ModelName        string
-	ProviderLabel    string
-	Provider         string
-	Platform         string
-	Capabilities     []WorkspaceModelCapability
-	CapabilitySource string
-	Confidence       float64
+	ModelName          string
+	ProviderLabel      string
+	Provider           string
+	Platform           string
+	Capabilities       []WorkspaceModelCapability
+	CapabilitySource   string
+	ModelCatalogSource string
+	Confidence         float64
 }
 
 func ResolveWorkspaceModelCapabilities(modelName string, hints WorkspaceModelCapabilityHints) WorkspaceModelCapabilityMetadata {
@@ -111,6 +112,9 @@ func mergeWorkspaceModelCapabilityMetadata(metadata map[string]any, modelMetadat
 	out["selected_model_capabilities"] = workspaceModelCapabilityStrings(modelMetadata.Capabilities)
 	out["model_capability_source"] = modelMetadata.CapabilitySource
 	out["model_capability_confidence"] = modelMetadata.Confidence
+	if modelMetadata.ModelCatalogSource != "" {
+		out["model_catalog_source"] = modelMetadata.ModelCatalogSource
+	}
 	if modelMetadata.ProviderLabel != "" {
 		out["model_provider_label"] = modelMetadata.ProviderLabel
 	}

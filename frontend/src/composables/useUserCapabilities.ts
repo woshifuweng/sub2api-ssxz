@@ -41,7 +41,12 @@ function isImageModelName(model: string) {
 }
 
 function isSelectableWorkspaceModel(model: UserSupportedModel) {
-  if ((model.capabilities || []).some((capability) => workspaceSelectableCapabilities.has(capability))) {
+  const capabilities = model.capabilities || []
+  if (capabilities.includes('image_generation')) {
+    return model.model_catalog_source === 'real_channel'
+      || (model.model_catalog_source === 'fake_gate' && model.fake === true && model.test_only === true)
+  }
+  if (capabilities.some((capability) => workspaceSelectableCapabilities.has(capability))) {
     return true
   }
   return !isImageModelName(model.name)
