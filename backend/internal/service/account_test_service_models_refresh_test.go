@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -69,6 +70,9 @@ func TestAccountTestService_FetchAndCacheAvailableModels_OpenAISuccess(t *testin
 			Credentials: map[string]any{
 				"api_key": "sk-test",
 			},
+			Extra: map[string]any{
+				"note": "kept",
+			},
 		},
 	}
 	upstream := &modelFetchHTTPUpstreamStub{
@@ -92,6 +96,18 @@ func TestAccountTestService_FetchAndCacheAvailableModels_OpenAISuccess(t *testin
 	require.NotEmpty(t, repo.updateExtra[AccountExtraModelsFetchedAtKey])
 	require.Equal(t, "openai_v1_models", repo.updateExtra[AccountExtraModelsSourceKey])
 	require.Equal(t, "", repo.updateExtra[AccountExtraModelsRefreshErrorKey])
+	require.Equal(t, "openai", repo.updateExtra[AccountExtraModelsDiscoveryProviderTypeKey])
+	require.Equal(t, "openai_v1_models", repo.updateExtra[AccountExtraModelsDiscoveryProtocolKey])
+	require.Equal(t, "api.openai.com", repo.updateExtra[AccountExtraModelsDiscoveryBaseURLHostKey])
+	require.Equal(t, 2, repo.updateExtra[AccountExtraModelsDiscoveryModelCountKey])
+	require.NotEmpty(t, repo.updateExtra[AccountExtraModelsDiscoveryAuditedAtKey])
+	require.Equal(t, "openai", result.Audit.ProviderType)
+	require.Equal(t, "openai_v1_models", result.Audit.Protocol)
+	require.Equal(t, "api.openai.com", result.Audit.BaseURLHost)
+	require.Equal(t, 2, result.Audit.ModelsReturnedCount)
+	require.True(t, result.Audit.ServerSideKeyPresent)
+	require.NotContains(t, fmt.Sprintf("%+v", result.Audit), "sk-test")
+	require.NotContains(t, fmt.Sprintf("%+v", result.Audit), "Authorization")
 	require.NotNil(t, upstream.req)
 	require.Equal(t, "https://api.openai.com/v1/models", upstream.req.URL.String())
 	require.Equal(t, "Bearer sk-test", upstream.req.Header.Get("Authorization"))
@@ -125,6 +141,13 @@ func TestAccountTestService_FetchAndCacheAvailableModels_PreservesOldModelsOnFai
 	require.Equal(t, []string{"gpt-5"}, result.Models)
 	require.Equal(t, int64(8), repo.updateExtraID)
 	require.Equal(t, truncateModelsRefreshError(err), repo.updateExtra[AccountExtraModelsRefreshErrorKey])
+	require.Equal(t, "openai", repo.updateExtra[AccountExtraModelsDiscoveryProviderTypeKey])
+	require.Equal(t, "openai_v1_models", repo.updateExtra[AccountExtraModelsDiscoveryProtocolKey])
+	require.Equal(t, "api.openai.com", repo.updateExtra[AccountExtraModelsDiscoveryBaseURLHostKey])
+	require.Equal(t, 1, repo.updateExtra[AccountExtraModelsDiscoveryModelCountKey])
+	require.Equal(t, "openai", result.Audit.ProviderType)
+	require.Equal(t, 1, result.Audit.ModelsReturnedCount)
+	require.NotEmpty(t, result.Audit.RefreshError)
 	require.Equal(t, []any{"gpt-5"}, repo.account.Extra[AccountExtraFetchedModelsKey])
 }
 
@@ -166,4 +189,62 @@ func TestAccountTestService_FetchAndCacheAvailableModels_OpenAIChatWebUsesTokenP
 	require.Equal(t, "Bearer fresh-chatweb-token", upstream.req.Header.Get("Authorization"))
 	require.Equal(t, "acc-live", upstream.req.Header.Get("chatgpt-account-id"))
 	require.Equal(t, "fresh-chatweb-token", repo.account.GetOpenAIAccessToken())
+}
+
+func TestAccountTestService_FetchAndCacheAvailableModels_DeepSeekCompatibleAudit(t *testing.T) {
+	repo := &modelsRefreshAccountRepoStub{
+		account: &Account{
+			ID:       10,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"api_key":  "sk-deepseek",
+				"base_url": "https://api.deepseek.com",
+			},
+		},
+	}
+	upstream := &modelFetchHTTPUpstreamStub{
+		resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(`{"data":[{"id":"deepseek-v4-pro"},{"id":"deepseek-v4-flash"},{"id":"deepseek-v4-pro"}]}`)),
+		},
+	}
+	svc := &AccountTestService{
+		accountRepo:  repo,
+		httpUpstream: upstream,
+	}
+
+	result, err := svc.FetchAndCacheAvailableModels(context.Background(), 10)
+	require.NoError(t, err)
+	require.Equal(t, []string{"deepseek-v4-flash", "deepseek-v4-pro"}, result.Models)
+	require.Equal(t, "deepseek", result.Audit.ProviderType)
+	require.Equal(t, "openai_v1_models", result.Audit.Protocol)
+	require.Equal(t, "api.deepseek.com", result.Audit.BaseURLHost)
+	require.Equal(t, 2, result.Audit.ModelsReturnedCount)
+	require.True(t, result.Audit.ServerSideKeyPresent)
+	require.Equal(t, "deepseek", repo.updateExtra[AccountExtraModelsDiscoveryProviderTypeKey])
+	require.Equal(t, "api.deepseek.com", repo.updateExtra[AccountExtraModelsDiscoveryBaseURLHostKey])
+	require.NotContains(t, fmt.Sprintf("%+v", result.Audit), "sk-deepseek")
+}
+
+func TestBuildAccountModelDiscoveryAudit_SanitizesSensitiveError(t *testing.T) {
+	audit := BuildAccountModelDiscoveryAudit(&Account{
+		ID:       11,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "sk-sensitive",
+			"base_url": "https://api.openai.com",
+		},
+	}, []string{"gpt-5"}, "openai_v1_models", time.Now(), "Authorization: Bearer sk-sensitive api_key=abc Cookie=x")
+
+	rendered := fmt.Sprintf("%+v", audit)
+	require.NotContains(t, rendered, "Authorization")
+	require.NotContains(t, rendered, "Bearer")
+	require.NotContains(t, rendered, "api_key")
+	require.NotContains(t, rendered, "Cookie")
+	require.NotContains(t, rendered, "sk-sensitive")
+	require.Contains(t, audit.RefreshError, "[redacted-header]")
+	require.Contains(t, audit.RefreshError, "[redacted-bearer]")
 }

@@ -71,6 +71,11 @@ var schedulerNeutralExtraKeys = map[string]struct{}{
 	"models_refresh_error":            {},
 	"models_refresh_interval_seconds": {},
 	"models_source":                   {},
+	"models_discovery_provider_type":  {},
+	"models_discovery_protocol":       {},
+	"models_discovery_base_url_host":  {},
+	"models_discovery_model_count":    {},
+	"models_discovery_audited_at":     {},
 	"session_window_utilization":      {},
 }
 

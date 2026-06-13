@@ -60,11 +60,12 @@ type TestEvent struct {
 
 // AccountModelsRefreshResult is returned after refreshing an account's fetched model cache.
 type AccountModelsRefreshResult struct {
-	AccountID    int64      `json:"account_id"`
-	Models       []string   `json:"models"`
-	FetchedAt    *time.Time `json:"fetched_at,omitempty"`
-	Source       string     `json:"source,omitempty"`
-	RefreshError string     `json:"refresh_error,omitempty"`
+	AccountID    int64                      `json:"account_id"`
+	Models       []string                   `json:"models"`
+	FetchedAt    *time.Time                 `json:"fetched_at,omitempty"`
+	Source       string                     `json:"source,omitempty"`
+	RefreshError string                     `json:"refresh_error,omitempty"`
+	Audit        AccountModelDiscoveryAudit `json:"audit"`
 }
 
 const (
@@ -489,34 +490,45 @@ func (s *AccountTestService) FetchAndCacheAvailableModels(ctx context.Context, a
 	if err != nil {
 		refreshErr := truncateModelsRefreshError(err)
 		if refreshErr != "" {
-			_ = s.accountRepo.UpdateExtra(refreshCtx, account.ID, map[string]any{
+			updates := map[string]any{
 				AccountExtraModelsRefreshErrorKey: refreshErr,
-			})
+			}
+			for key, value := range BuildAccountModelDiscoveryExtraUpdates(account, account.GetFetchedModelIDs(), time.Now().UTC(), account.GetExtraString(AccountExtraModelsSourceKey), refreshErr) {
+				updates[key] = value
+			}
+			_ = s.accountRepo.UpdateExtra(refreshCtx, account.ID, updates)
 			mergeAccountExtra(account, map[string]any{
 				AccountExtraModelsRefreshErrorKey: refreshErr,
 			})
 		}
+		audit := BuildAccountModelDiscoveryAudit(account, account.GetFetchedModelIDs(), account.GetExtraString(AccountExtraModelsSourceKey), time.Now().UTC(), refreshErr)
 		return &AccountModelsRefreshResult{
 			AccountID:    account.ID,
 			Models:       account.GetFetchedModelIDs(),
 			FetchedAt:    account.GetModelsFetchedAt(),
 			Source:       strings.TrimSpace(account.GetExtraString(AccountExtraModelsSourceKey)),
 			RefreshError: refreshErr,
+			Audit:        audit,
 		}, err
 	}
 
 	fetchedAt := time.Now().UTC()
 	updates := BuildFetchedModelsExtraUpdates(modelIDs, fetchedAt, source)
+	for key, value := range BuildAccountModelDiscoveryExtraUpdates(account, modelIDs, fetchedAt, source, "") {
+		updates[key] = value
+	}
 	if err := s.accountRepo.UpdateExtra(refreshCtx, account.ID, updates); err != nil {
 		return nil, err
 	}
 	mergeAccountExtra(account, updates)
 
+	audit := BuildAccountModelDiscoveryAudit(account, account.GetFetchedModelIDs(), source, fetchedAt, "")
 	return &AccountModelsRefreshResult{
 		AccountID: account.ID,
 		Models:    account.GetFetchedModelIDs(),
 		FetchedAt: account.GetModelsFetchedAt(),
 		Source:    strings.TrimSpace(account.GetExtraString(AccountExtraModelsSourceKey)),
+		Audit:     audit,
 	}, nil
 }
 
