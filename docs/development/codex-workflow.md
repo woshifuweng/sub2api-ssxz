@@ -95,4 +95,3 @@ Final reports should include:
 - whether provider calls, deployments, billing/ledger/payment, Nginx, or production were touched
 
 For reviews, lead with findings and file/line references. Keep summaries short.
-
