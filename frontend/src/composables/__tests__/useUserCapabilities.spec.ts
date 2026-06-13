@@ -77,7 +77,7 @@ describe('useUserCapabilities', () => {
     expect(capabilities.chatModels.value.map((model) => model.id)).toContain('workspace-image-fake-model')
   })
 
-  it('continues to filter ordinary image-like models unless explicitly allowed', async () => {
+  it('shows backend-authorized image generation models with capabilities', async () => {
     mocks.getChannels.mockResolvedValue([
       {
         name: 'Image Channel',
@@ -91,7 +91,36 @@ describe('useUserCapabilities', () => {
                 name: 'gpt-image-1',
                 platform: 'image-provider',
                 pricing: null,
-                capabilities: ['image_generation']
+                capabilities: ['image_generation'],
+                provider_label: 'workspace-openai-compatible-image-staging',
+                staging_only: true
+              }
+            ]
+          }
+        ]
+      }
+    ])
+
+    const capabilities = useUserCapabilities()
+    await capabilities.loadCapabilities()
+
+    expect(capabilities.chatModels.value.map((model) => model.id)).toContain('gpt-image-1')
+  })
+
+  it('filters image-like model names without backend capability metadata', async () => {
+    mocks.getChannels.mockResolvedValue([
+      {
+        name: 'Image Channel',
+        description: '',
+        platforms: [
+          {
+            platform: 'image-provider',
+            groups: [],
+            supported_models: [
+              {
+                name: 'gpt-image-1',
+                platform: 'image-provider',
+                pricing: null
               }
             ]
           }

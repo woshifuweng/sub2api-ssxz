@@ -26,12 +26,14 @@ function uniqueSorted(values: Array<string | undefined | null>) {
   return [...seen.values()].sort((left, right) => left.localeCompare(right))
 }
 
-function isAllowedWorkspaceImageModel(model: UserSupportedModel) {
-  return model.fake === true &&
-    model.test_only === true &&
-    model.provider_label === 'workspace-image-fake' &&
-    (model.capabilities || []).includes('image_generation')
-}
+const workspaceSelectableCapabilities = new Set([
+  'text_chat',
+  'vision',
+  'image_generation',
+  'image_edit',
+  'function_calling',
+  'tool'
+])
 
 function isImageModelName(model: string) {
   const normalized = model.toLowerCase()
@@ -39,7 +41,9 @@ function isImageModelName(model: string) {
 }
 
 function isSelectableWorkspaceModel(model: UserSupportedModel) {
-  if (isAllowedWorkspaceImageModel(model)) return true
+  if ((model.capabilities || []).some((capability) => workspaceSelectableCapabilities.has(capability))) {
+    return true
+  }
   return !isImageModelName(model.name)
 }
 

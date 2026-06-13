@@ -76,3 +76,79 @@ func TestWorkspaceImageFakeModelExposureAllowedUserReturnsMetadata(t *testing.T)
 	require.True(t, exposure.Fake)
 	require.True(t, exposure.TestOnly)
 }
+
+func testWorkspaceImageRealModelExposureConfig() *config.Config {
+	return &config.Config{
+		Log: config.LogConfig{Environment: "production"},
+		Workspace: config.WorkspaceConfig{
+			ImageRealProvider: config.WorkspaceImageRealProviderConfig{
+				Enabled:               true,
+				KillSwitch:            true,
+				StagingOnly:           true,
+				Environment:           "staging",
+				ProviderLabel:         "workspace-openai-compatible-image-staging",
+				AllowedUserIDs:        []int64{1},
+				AllowedModels:         []string{"gpt-image-1"},
+				AllowedProviderLabels: []string{"workspace-openai-compatible-image-staging"},
+				MaxRequestsPerTestRun: 1,
+			},
+		},
+	}
+}
+
+func TestWorkspaceImageRealModelExposureDefaultFailClosed(t *testing.T) {
+	exposure := workspaceImageRealModelExposureFromConfig(&config.Config{}, 1)
+	require.False(t, exposure.Enabled)
+}
+
+func TestWorkspaceImageRealModelExposureRequiresGateConfig(t *testing.T) {
+	for name, mutate := range map[string]func(*config.Config){
+		"provider_disabled": func(cfg *config.Config) {
+			cfg.Workspace.ImageRealProvider.Enabled = false
+		},
+		"user_not_allowed": func(cfg *config.Config) {
+			cfg.Workspace.ImageRealProvider.AllowedUserIDs = []int64{2}
+		},
+		"model_not_allowed": func(cfg *config.Config) {
+			cfg.Workspace.ImageRealProvider.AllowedModels = []string{"gpt-5.5"}
+		},
+		"provider_not_allowed": func(cfg *config.Config) {
+			cfg.Workspace.ImageRealProvider.AllowedProviderLabels = []string{"other-provider"}
+		},
+		"missing_cap": func(cfg *config.Config) {
+			cfg.Workspace.ImageRealProvider.MaxRequestsPerTestRun = 0
+		},
+		"production_environment": func(cfg *config.Config) {
+			cfg.Workspace.ImageRealProvider.Environment = ""
+			cfg.Log.Environment = "production"
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := testWorkspaceImageRealModelExposureConfig()
+			mutate(cfg)
+
+			exposure := workspaceImageRealModelExposureFromConfig(cfg, 1)
+			require.False(t, exposure.Enabled)
+		})
+	}
+}
+
+func TestWorkspaceImageRealModelExposureAllowedUserReturnsCapabilityMetadata(t *testing.T) {
+	cfg := testWorkspaceImageRealModelExposureConfig()
+	cfg.Workspace.ImageRealProvider.KillSwitch = true
+
+	exposure := workspaceImageRealModelExposureFromConfig(cfg, 1)
+
+	require.True(t, exposure.Enabled)
+	require.Len(t, exposure.Models, 1)
+	model := exposure.Models[0]
+	require.Equal(t, "gpt-image-1", model.Model)
+	require.Equal(t, "workspace-openai-compatible-image-staging", model.ProviderLabel)
+	require.Equal(t, WorkspaceImageRealModelProvider, model.Provider)
+	require.Equal(t, WorkspaceImageRealModelPlatform, model.Platform)
+	require.Equal(t, []WorkspaceModelCapability{WorkspaceModelCapabilityImageGeneration}, model.Capabilities)
+	require.Equal(t, WorkspaceImageRealModelExposureSource, model.CapabilitySource)
+	require.False(t, model.Fake)
+	require.False(t, model.TestOnly)
+	require.True(t, model.StagingOnly)
+}
