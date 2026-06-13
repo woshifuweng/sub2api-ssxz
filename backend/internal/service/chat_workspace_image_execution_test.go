@@ -148,12 +148,89 @@ func TestProvideChatWorkspaceServiceWiresRealImageProviderOnlyWhenExplicitlyConf
 	require.NoError(t, err)
 	require.Equal(t, WorkspaceMessageTypeImage, assistantMessage.MessageType)
 	require.Equal(t, WorkspaceMessageStatusFailed, assistantMessage.Status)
-	require.Equal(t, workspaceImageExecutionErrorProviderUnavailable, assistantMessage.Metadata["error_code"])
+	require.Equal(t, workspaceImageExecutionErrorModelCatalogSource, assistantMessage.Metadata["error_code"])
 	require.Equal(t, false, assistantMessage.Metadata["provider_called"])
 	require.Equal(t, false, assistantMessage.Metadata["image_execution_fake_provider"])
 	require.Equal(t, false, assistantMessage.Metadata["image_task_touched"])
 	require.Equal(t, false, assistantMessage.Metadata["asset_upload_touched"])
 	require.Equal(t, false, assistantMessage.Metadata["billing_touched"])
+}
+
+func TestWorkspaceImageExecutionRealProviderRequiresRealChannelCatalogSource(t *testing.T) {
+	adapter := &recordingWorkspaceImageExecutionAdapter{}
+	responder := NewWorkspaceImageExecutionResponder(
+		workspaceImageRealProviderGateConfigFromConfig(testWorkspaceImageRealProviderRuntimeConfig()),
+		adapter,
+	)
+	response, err := responder.GenerateAssistantResponse(context.Background(), WorkspaceAssistantResponseInput{
+		UserID:         10,
+		ConversationID: 1,
+		Content:        "generate image of perfume ad",
+		Model:          testWorkspaceOpenAICompatibleImageModel,
+		Intent:         WorkspaceIntentChat,
+		Metadata: map[string]any{
+			"planned_capability":            string(WorkspacePlannedCapabilityImageGeneration),
+			"model_capability_matched":      true,
+			"selected_model_capabilities":   []string{string(WorkspaceModelCapabilityImageGeneration)},
+			"model_catalog_source":          WorkspaceModelCatalogSourceEnvGate,
+			"image_experience_plan_present": true,
+			"enhanced_prompt_present":       true,
+			"negative_prompt_present":       true,
+			"image_aspect_ratio":            "1:1",
+			"image_quality_preset":          "commercial",
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 0, adapter.calls)
+	require.Equal(t, WorkspaceMessageStatusFailed, response.Status)
+	require.Equal(t, workspaceImageExecutionErrorModelCatalogSource, response.Metadata["error_code"])
+	require.Equal(t, false, response.Metadata["provider_called"])
+}
+
+func TestWorkspaceImageExecutionRealProviderAllowsRealChannelCatalogSource(t *testing.T) {
+	adapter := &recordingWorkspaceImageExecutionAdapter{result: WorkspaceImageProviderResult{
+		ProviderLabel: testWorkspaceOpenAICompatibleImageProviderLabel,
+		Model:         testWorkspaceOpenAICompatibleImageModel,
+		Capability:    WorkspacePlannedCapabilityImageGeneration,
+		Assets: []WorkspaceImageProviderAsset{{
+			ID:       "asset",
+			URL:      "https://example.invalid/image.png",
+			MimeType: "image/png",
+			Width:    1024,
+			Height:   1024,
+			Provider: testWorkspaceOpenAICompatibleImageProviderLabel,
+			Model:    testWorkspaceOpenAICompatibleImageModel,
+		}},
+		Usage: WorkspaceImageProviderUsage{ImageCount: 1, ImageSize: "1024x1024"},
+	}}
+	responder := NewWorkspaceImageExecutionResponder(
+		workspaceImageRealProviderGateConfigFromConfig(testWorkspaceImageRealProviderRuntimeConfig()),
+		adapter,
+	)
+	response, err := responder.GenerateAssistantResponse(context.Background(), WorkspaceAssistantResponseInput{
+		UserID:         10,
+		ConversationID: 1,
+		Content:        "generate image of perfume ad",
+		Model:          testWorkspaceOpenAICompatibleImageModel,
+		Intent:         WorkspaceIntentChat,
+		Metadata: map[string]any{
+			"planned_capability":            string(WorkspacePlannedCapabilityImageGeneration),
+			"model_capability_matched":      true,
+			"selected_model_capabilities":   []string{string(WorkspaceModelCapabilityImageGeneration)},
+			"model_catalog_source":          WorkspaceModelCatalogSourceRealChannel,
+			"image_experience_plan_present": true,
+			"enhanced_prompt_present":       true,
+			"negative_prompt_present":       true,
+			"image_aspect_ratio":            "1:1",
+			"image_quality_preset":          "commercial",
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, adapter.calls)
+	require.Equal(t, WorkspaceMessageStatusCompleted, response.Status)
+	require.Equal(t, true, response.Metadata["provider_called"])
 }
 
 func TestProvideChatWorkspaceServiceDoesNotWireRealImageProviderWhenKillSwitchEnabled(t *testing.T) {

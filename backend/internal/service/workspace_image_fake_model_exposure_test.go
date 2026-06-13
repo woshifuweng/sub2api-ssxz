@@ -73,6 +73,7 @@ func TestWorkspaceImageFakeModelExposureAllowedUserReturnsMetadata(t *testing.T)
 	require.Equal(t, WorkspaceImageProviderFakeLabel, exposure.ProviderLabel)
 	require.Equal(t, []WorkspaceModelCapability{WorkspaceModelCapabilityImageGeneration}, exposure.Capabilities)
 	require.Equal(t, WorkspaceImageFakeModelExposureSource, exposure.CapabilitySource)
+	require.Equal(t, WorkspaceModelCatalogSourceFakeGate, exposure.ModelCatalogSource)
 	require.True(t, exposure.Fake)
 	require.True(t, exposure.TestOnly)
 }
@@ -96,12 +97,13 @@ func testWorkspaceImageRealModelExposureConfig() *config.Config {
 	}
 }
 
-func TestWorkspaceImageRealModelExposureDefaultFailClosed(t *testing.T) {
-	exposure := workspaceImageRealModelExposureFromConfig(&config.Config{}, 1)
-	require.False(t, exposure.Enabled)
+func TestWorkspaceImageRealChannelModelExposureDefaultFailClosed(t *testing.T) {
+	exposure := workspaceImageRealChannelModelExposureFromConfig(&config.Config{}, 1, SupportedModel{Name: "gpt-image-1"})
+	require.Empty(t, exposure.Model)
 }
 
-func TestWorkspaceImageRealModelExposureRequiresGateConfig(t *testing.T) {
+func TestWorkspaceImageRealChannelModelExposureRequiresGateAndRealChannelModel(t *testing.T) {
+	price := 0.02
 	for name, mutate := range map[string]func(*config.Config){
 		"provider_disabled": func(cfg *config.Config) {
 			cfg.Workspace.ImageRealProvider.Enabled = false
@@ -127,28 +129,53 @@ func TestWorkspaceImageRealModelExposureRequiresGateConfig(t *testing.T) {
 			cfg := testWorkspaceImageRealModelExposureConfig()
 			mutate(cfg)
 
-			exposure := workspaceImageRealModelExposureFromConfig(cfg, 1)
-			require.False(t, exposure.Enabled)
+			exposure := workspaceImageRealChannelModelExposureFromConfig(cfg, 1, SupportedModel{
+				Name:     "gpt-image-1",
+				Platform: "openai",
+				Pricing: &ChannelModelPricing{
+					BillingMode:      BillingModeImage,
+					ImageOutputPrice: &price,
+				},
+			})
+			require.Empty(t, exposure.Model)
 		})
 	}
 }
 
-func TestWorkspaceImageRealModelExposureAllowedUserReturnsCapabilityMetadata(t *testing.T) {
+func TestWorkspaceImageRealChannelModelExposureRequiresPricing(t *testing.T) {
+	cfg := testWorkspaceImageRealModelExposureConfig()
+
+	exposure := workspaceImageRealChannelModelExposureFromConfig(cfg, 1, SupportedModel{
+		Name:     "gpt-image-1",
+		Platform: "openai",
+		Pricing:  nil,
+	})
+
+	require.Empty(t, exposure.Model)
+}
+
+func TestWorkspaceImageRealChannelModelExposureAllowedRealChannelModelReturnsCapabilityMetadata(t *testing.T) {
 	cfg := testWorkspaceImageRealModelExposureConfig()
 	cfg.Workspace.ImageRealProvider.KillSwitch = true
+	price := 0.02
 
-	exposure := workspaceImageRealModelExposureFromConfig(cfg, 1)
+	exposure := workspaceImageRealChannelModelExposureFromConfig(cfg, 1, SupportedModel{
+		Name:     "gpt-image-1",
+		Platform: "openai",
+		Pricing: &ChannelModelPricing{
+			BillingMode:      BillingModeImage,
+			ImageOutputPrice: &price,
+		},
+	})
 
-	require.True(t, exposure.Enabled)
-	require.Len(t, exposure.Models, 1)
-	model := exposure.Models[0]
-	require.Equal(t, "gpt-image-1", model.Model)
-	require.Equal(t, "workspace-openai-compatible-image-staging", model.ProviderLabel)
-	require.Equal(t, WorkspaceImageRealModelProvider, model.Provider)
-	require.Equal(t, WorkspaceImageRealModelPlatform, model.Platform)
-	require.Equal(t, []WorkspaceModelCapability{WorkspaceModelCapabilityImageGeneration}, model.Capabilities)
-	require.Equal(t, WorkspaceImageRealModelExposureSource, model.CapabilitySource)
-	require.False(t, model.Fake)
-	require.False(t, model.TestOnly)
-	require.True(t, model.StagingOnly)
+	require.Equal(t, "gpt-image-1", exposure.Model)
+	require.Equal(t, "workspace-openai-compatible-image-staging", exposure.ProviderLabel)
+	require.Equal(t, WorkspaceImageRealModelProvider, exposure.Provider)
+	require.Equal(t, "openai", exposure.Platform)
+	require.Equal(t, []WorkspaceModelCapability{WorkspaceModelCapabilityImageGeneration}, exposure.Capabilities)
+	require.Equal(t, WorkspaceImageRealModelCapabilitySource, exposure.CapabilitySource)
+	require.Equal(t, WorkspaceModelCatalogSourceRealChannel, exposure.ModelCatalogSource)
+	require.False(t, exposure.Fake)
+	require.False(t, exposure.TestOnly)
+	require.True(t, exposure.StagingOnly)
 }

@@ -48,6 +48,7 @@ export interface UserSupportedModel {
   provider_label?: string
   provider?: string
   capability_source?: string
+  model_catalog_source?: string
   fake?: boolean
   test_only?: boolean
   staging_only?: boolean

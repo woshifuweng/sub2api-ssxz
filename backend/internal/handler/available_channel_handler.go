@@ -93,16 +93,17 @@ type userPricingIntervalDTO struct {
 
 // userSupportedModel 用户可见的支持模型条目。
 type userSupportedModel struct {
-	Name             string                     `json:"name"`
-	Platform         string                     `json:"platform"`
-	Pricing          *userSupportedModelPricing `json:"pricing"`
-	Capabilities     []string                   `json:"capabilities,omitempty"`
-	ProviderLabel    string                     `json:"provider_label,omitempty"`
-	Provider         string                     `json:"provider,omitempty"`
-	CapabilitySource string                     `json:"capability_source,omitempty"`
-	Fake             bool                       `json:"fake,omitempty"`
-	TestOnly         bool                       `json:"test_only,omitempty"`
-	StagingOnly      bool                       `json:"staging_only,omitempty"`
+	Name               string                     `json:"name"`
+	Platform           string                     `json:"platform"`
+	Pricing            *userSupportedModelPricing `json:"pricing"`
+	Capabilities       []string                   `json:"capabilities,omitempty"`
+	ProviderLabel      string                     `json:"provider_label,omitempty"`
+	Provider           string                     `json:"provider,omitempty"`
+	CapabilitySource   string                     `json:"capability_source,omitempty"`
+	ModelCatalogSource string                     `json:"model_catalog_source,omitempty"`
+	Fake               bool                       `json:"fake,omitempty"`
+	TestOnly           bool                       `json:"test_only,omitempty"`
+	StagingOnly        bool                       `json:"staging_only,omitempty"`
 }
 
 // userChannelPlatformSection 单渠道内某个平台的子视图：用户可见的分组 + 该平台
@@ -169,7 +170,7 @@ func (h *AvailableChannelHandler) ListGateway(c gatewayctx.GatewayContext) {
 		if len(visibleGroups) == 0 {
 			continue
 		}
-		sections := buildPlatformSections(ch, visibleGroups)
+		sections := buildPlatformSections(ch, visibleGroups, h.settingService, subject.UserID)
 		if len(sections) == 0 {
 			continue
 		}
@@ -181,9 +182,6 @@ func (h *AvailableChannelHandler) ListGateway(c gatewayctx.GatewayContext) {
 	}
 	if fakeModel := h.settingService.GetWorkspaceImageFakeModelExposure(subject.UserID); fakeModel.Enabled {
 		out = appendWorkspaceImageFakeModelChannel(out, fakeModel)
-	}
-	if realModel := h.settingService.GetWorkspaceImageRealModelExposure(subject.UserID); realModel.Enabled {
-		out = appendWorkspaceImageRealModelChannel(out, realModel)
 	}
 
 	response.SuccessContext(gatewayJSONResponder{ctx: c}, out)
@@ -217,69 +215,17 @@ func appendWorkspaceImageFakeModelChannel(
 				IsExclusive:      true,
 			}},
 			SupportedModels: []userSupportedModel{{
-				Name:             fakeModel.Model,
-				Platform:         platform,
-				Pricing:          nil,
-				Capabilities:     workspaceCapabilityStringsForUserDTO(fakeModel.Capabilities),
-				ProviderLabel:    fakeModel.ProviderLabel,
-				Provider:         fakeModel.ProviderLabel,
-				CapabilitySource: fakeModel.CapabilitySource,
-				Fake:             fakeModel.Fake,
-				TestOnly:         fakeModel.TestOnly,
+				Name:               fakeModel.Model,
+				Platform:           platform,
+				Pricing:            nil,
+				Capabilities:       workspaceCapabilityStringsForUserDTO(fakeModel.Capabilities),
+				ProviderLabel:      fakeModel.ProviderLabel,
+				Provider:           fakeModel.ProviderLabel,
+				CapabilitySource:   fakeModel.CapabilitySource,
+				ModelCatalogSource: fakeModel.ModelCatalogSource,
+				Fake:               fakeModel.Fake,
+				TestOnly:           fakeModel.TestOnly,
 			}},
-		}},
-	})
-}
-
-func appendWorkspaceImageRealModelChannel(
-	channels []userAvailableChannel,
-	realModel service.WorkspaceImageRealModelExposure,
-) []userAvailableChannel {
-	if !realModel.Enabled || len(realModel.Models) == 0 {
-		return channels
-	}
-	supportedModels := make([]userSupportedModel, 0, len(realModel.Models))
-	platform := ""
-	for _, model := range realModel.Models {
-		if model.Model == "" {
-			continue
-		}
-		if platform == "" {
-			platform = model.Platform
-		}
-		supportedModels = append(supportedModels, userSupportedModel{
-			Name:             model.Model,
-			Platform:         model.Platform,
-			Pricing:          nil,
-			Capabilities:     workspaceCapabilityStringsForUserDTO(model.Capabilities),
-			ProviderLabel:    model.ProviderLabel,
-			Provider:         model.Provider,
-			CapabilitySource: model.CapabilitySource,
-			Fake:             model.Fake,
-			TestOnly:         model.TestOnly,
-			StagingOnly:      model.StagingOnly,
-		})
-	}
-	if len(supportedModels) == 0 {
-		return channels
-	}
-	if platform == "" {
-		platform = service.WorkspaceImageRealModelPlatform
-	}
-	return append(channels, userAvailableChannel{
-		Name:        "Workspace Image Providers",
-		Description: "Workspace image generation models available through explicit staging gates.",
-		Platforms: []userChannelPlatformSection{{
-			Platform: platform,
-			Groups: []userAvailableGroup{{
-				ID:               0,
-				Name:             "Workspace Image Beta",
-				Platform:         platform,
-				SubscriptionType: "test",
-				RateMultiplier:   1,
-				IsExclusive:      true,
-			}},
-			SupportedModels: supportedModels,
 		}},
 	})
 }
@@ -304,6 +250,8 @@ func workspaceCapabilityStringsForUserDTO(capabilities []service.WorkspaceModelC
 func buildPlatformSections(
 	ch service.AvailableChannel,
 	visibleGroups []userAvailableGroup,
+	settingService *service.SettingService,
+	userID int64,
 ) []userChannelPlatformSection {
 	groupsByPlatform := make(map[string][]userAvailableGroup, 4)
 	for _, g := range visibleGroups {
@@ -328,7 +276,7 @@ func buildPlatformSections(
 		sections = append(sections, userChannelPlatformSection{
 			Platform:        platform,
 			Groups:          groupsByPlatform[platform],
-			SupportedModels: toUserSupportedModels(ch.SupportedModels, platformSet),
+			SupportedModels: toUserSupportedModels(ch.SupportedModels, platformSet, settingService, userID),
 		})
 	}
 	return sections
@@ -362,6 +310,8 @@ func filterUserVisibleGroups(
 func toUserSupportedModels(
 	src []service.SupportedModel,
 	allowedPlatforms map[string]struct{},
+	settingService *service.SettingService,
+	userID int64,
 ) []userSupportedModel {
 	out := make([]userSupportedModel, 0, len(src))
 	for i := range src {
@@ -371,11 +321,23 @@ func toUserSupportedModels(
 				continue
 			}
 		}
-		out = append(out, userSupportedModel{
+		model := userSupportedModel{
 			Name:     m.Name,
 			Platform: m.Platform,
 			Pricing:  toUserPricing(m.Pricing),
-		})
+		}
+		if settingService != nil {
+			realMetadata := settingService.GetWorkspaceImageRealChannelModelExposure(userID, m)
+			if realMetadata.Model != "" {
+				model.Capabilities = workspaceCapabilityStringsForUserDTO(realMetadata.Capabilities)
+				model.ProviderLabel = realMetadata.ProviderLabel
+				model.Provider = realMetadata.Provider
+				model.CapabilitySource = realMetadata.CapabilitySource
+				model.ModelCatalogSource = realMetadata.ModelCatalogSource
+				model.StagingOnly = realMetadata.StagingOnly
+			}
+		}
+		out = append(out, model)
 	}
 	return out
 }

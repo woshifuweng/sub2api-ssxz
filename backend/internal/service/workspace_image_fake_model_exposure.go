@@ -10,37 +10,39 @@ const (
 	WorkspaceImageFakeModelExposureSource = "workspace_image_fake_execution_gate"
 	WorkspaceImageFakeModelPlatform       = WorkspaceImageProviderFakeLabel
 
-	WorkspaceImageRealModelExposureSource = "workspace_image_real_provider_gate"
-	WorkspaceImageRealModelPlatform       = "OpenAI-compatible Images"
-	WorkspaceImageRealModelProvider       = "openai-compatible-images"
+	WorkspaceImageRealModelCapabilitySource = "workspace_image_real_channel"
+	WorkspaceImageRealModelProvider         = "openai-compatible-images"
+
+	WorkspaceModelCatalogSourceRealChannel    = "real_channel"
+	WorkspaceModelCatalogSourceFakeGate       = "fake_gate"
+	WorkspaceModelCatalogSourceEnvGate        = "env_gate"
+	WorkspaceModelCatalogSourceStaticFallback = "static_fallback"
+	WorkspaceModelCatalogSourceUnknown        = "unknown"
 )
 
 type WorkspaceImageFakeModelExposure struct {
-	Enabled          bool
-	Model            string
-	ProviderLabel    string
-	Platform         string
-	Capabilities     []WorkspaceModelCapability
-	CapabilitySource string
-	Fake             bool
-	TestOnly         bool
+	Enabled            bool
+	Model              string
+	ProviderLabel      string
+	Platform           string
+	Capabilities       []WorkspaceModelCapability
+	CapabilitySource   string
+	ModelCatalogSource string
+	Fake               bool
+	TestOnly           bool
 }
 
 type WorkspaceImageAvailableModelExposure struct {
-	Model            string
-	ProviderLabel    string
-	Provider         string
-	Platform         string
-	Capabilities     []WorkspaceModelCapability
-	CapabilitySource string
-	Fake             bool
-	TestOnly         bool
-	StagingOnly      bool
-}
-
-type WorkspaceImageRealModelExposure struct {
-	Enabled bool
-	Models  []WorkspaceImageAvailableModelExposure
+	Model              string
+	ProviderLabel      string
+	Provider           string
+	Platform           string
+	Capabilities       []WorkspaceModelCapability
+	CapabilitySource   string
+	ModelCatalogSource string
+	Fake               bool
+	TestOnly           bool
+	StagingOnly        bool
 }
 
 func (s *SettingService) GetWorkspaceImageFakeModelExposure(userID int64) WorkspaceImageFakeModelExposure {
@@ -50,11 +52,11 @@ func (s *SettingService) GetWorkspaceImageFakeModelExposure(userID int64) Worksp
 	return workspaceImageFakeModelExposureFromConfig(s.cfg, userID)
 }
 
-func (s *SettingService) GetWorkspaceImageRealModelExposure(userID int64) WorkspaceImageRealModelExposure {
+func (s *SettingService) GetWorkspaceImageRealChannelModelExposure(userID int64, model SupportedModel) WorkspaceImageAvailableModelExposure {
 	if s == nil {
-		return WorkspaceImageRealModelExposure{}
+		return WorkspaceImageAvailableModelExposure{}
 	}
-	return workspaceImageRealModelExposureFromConfig(s.cfg, userID)
+	return workspaceImageRealChannelModelExposureFromConfig(s.cfg, userID, model)
 }
 
 func workspaceImageFakeModelExposureFromConfig(cfg *config.Config, userID int64) WorkspaceImageFakeModelExposure {
@@ -81,72 +83,78 @@ func workspaceImageFakeModelExposureFromConfig(cfg *config.Config, userID int64)
 		return WorkspaceImageFakeModelExposure{}
 	}
 	return WorkspaceImageFakeModelExposure{
-		Enabled:          true,
-		Model:            WorkspaceImageProviderFakeModel,
-		ProviderLabel:    WorkspaceImageProviderFakeLabel,
-		Platform:         WorkspaceImageFakeModelPlatform,
-		Capabilities:     []WorkspaceModelCapability{WorkspaceModelCapabilityImageGeneration},
-		CapabilitySource: WorkspaceImageFakeModelExposureSource,
-		Fake:             true,
-		TestOnly:         true,
+		Enabled:            true,
+		Model:              WorkspaceImageProviderFakeModel,
+		ProviderLabel:      WorkspaceImageProviderFakeLabel,
+		Platform:           WorkspaceImageFakeModelPlatform,
+		Capabilities:       []WorkspaceModelCapability{WorkspaceModelCapabilityImageGeneration},
+		CapabilitySource:   WorkspaceImageFakeModelExposureSource,
+		ModelCatalogSource: WorkspaceModelCatalogSourceFakeGate,
+		Fake:               true,
+		TestOnly:           true,
 	}
 }
 
-func workspaceImageRealModelExposureFromConfig(cfg *config.Config, userID int64) WorkspaceImageRealModelExposure {
+func workspaceImageRealChannelModelExposureFromConfig(cfg *config.Config, userID int64, model SupportedModel) WorkspaceImageAvailableModelExposure {
 	if cfg == nil || userID <= 0 {
-		return WorkspaceImageRealModelExposure{}
+		return WorkspaceImageAvailableModelExposure{}
 	}
 	realConfig := cfg.Workspace.ImageRealProvider
 	if !realConfig.Enabled {
-		return WorkspaceImageRealModelExposure{}
+		return WorkspaceImageAvailableModelExposure{}
 	}
 	if realConfig.MaxRequestsPerTestRun <= 0 {
-		return WorkspaceImageRealModelExposure{}
+		return WorkspaceImageAvailableModelExposure{}
 	}
 	if realConfig.ProviderLabel == "" {
-		return WorkspaceImageRealModelExposure{}
+		return WorkspaceImageAvailableModelExposure{}
 	}
 	if realConfig.StagingOnly && !workspaceImageRealExposureNonProduction(cfg) {
-		return WorkspaceImageRealModelExposure{}
+		return WorkspaceImageAvailableModelExposure{}
 	}
 	if !workspaceImageFakeExposureInt64Contains(realConfig.AllowedUserIDs, userID) {
-		return WorkspaceImageRealModelExposure{}
+		return WorkspaceImageAvailableModelExposure{}
 	}
 	if !workspaceImageFakeExposureStringContains(realConfig.AllowedProviderLabels, realConfig.ProviderLabel) {
-		return WorkspaceImageRealModelExposure{}
+		return WorkspaceImageAvailableModelExposure{}
 	}
+	if !workspaceImageFakeExposureStringContains(realConfig.AllowedModels, model.Name) {
+		return WorkspaceImageAvailableModelExposure{}
+	}
+	if !workspaceRealImageModelPricingConfigured(model.Pricing) {
+		return WorkspaceImageAvailableModelExposure{}
+	}
+	metadata := ResolveWorkspaceModelCapabilities(model.Name, WorkspaceModelCapabilityHints{
+		ProviderLabel: realConfig.ProviderLabel,
+		Provider:      WorkspaceImageRealModelProvider,
+		Platform:      model.Platform,
+	})
+	if !workspaceModelCapabilityListContains(metadata.Capabilities, WorkspaceModelCapabilityImageGeneration) {
+		return WorkspaceImageAvailableModelExposure{}
+	}
+	return WorkspaceImageAvailableModelExposure{
+		Model:              strings.TrimSpace(model.Name),
+		ProviderLabel:      realConfig.ProviderLabel,
+		Provider:           WorkspaceImageRealModelProvider,
+		Platform:           strings.TrimSpace(model.Platform),
+		Capabilities:       metadata.Capabilities,
+		CapabilitySource:   WorkspaceImageRealModelCapabilitySource,
+		ModelCatalogSource: WorkspaceModelCatalogSourceRealChannel,
+		StagingOnly:        realConfig.StagingOnly,
+	}
+}
 
-	models := make([]WorkspaceImageAvailableModelExposure, 0, len(realConfig.AllowedModels))
-	for _, allowedModel := range realConfig.AllowedModels {
-		allowedModel = strings.TrimSpace(allowedModel)
-		if allowedModel == "" {
-			continue
-		}
-		metadata := ResolveWorkspaceModelCapabilities(allowedModel, WorkspaceModelCapabilityHints{
-			ProviderLabel: realConfig.ProviderLabel,
-			Provider:      WorkspaceImageRealModelProvider,
-			Platform:      WorkspaceImageRealModelPlatform,
-		})
-		if !workspaceModelCapabilityListContains(metadata.Capabilities, WorkspaceModelCapabilityImageGeneration) {
-			continue
-		}
-		models = append(models, WorkspaceImageAvailableModelExposure{
-			Model:            allowedModel,
-			ProviderLabel:    realConfig.ProviderLabel,
-			Provider:         WorkspaceImageRealModelProvider,
-			Platform:         WorkspaceImageRealModelPlatform,
-			Capabilities:     metadata.Capabilities,
-			CapabilitySource: WorkspaceImageRealModelExposureSource,
-			StagingOnly:      realConfig.StagingOnly,
-		})
+func workspaceRealImageModelPricingConfigured(pricing *ChannelModelPricing) bool {
+	if pricing == nil {
+		return false
 	}
-	if len(models) == 0 {
-		return WorkspaceImageRealModelExposure{}
+	if pricing.BillingMode == BillingModeImage {
+		return true
 	}
-	return WorkspaceImageRealModelExposure{
-		Enabled: true,
-		Models:  models,
+	if pricing.ImageOutputPrice != nil || pricing.PerRequestPrice != nil {
+		return true
 	}
+	return len(pricing.Intervals) > 0
 }
 
 func workspaceImageFakeExposureNonProduction(cfg *config.Config) bool {
