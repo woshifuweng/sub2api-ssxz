@@ -259,7 +259,16 @@ For asset/task changes, ensure tests cover:
 - failure refund or no-charge behavior
 - idempotency
 
-## 7. Definition of done
+## 7. Codex workflow aids
+
+This repository includes lightweight Codex-only workflow aids:
+
+- `docs/development/codex-workflow.md`: project-specific guidance for discovery, planning, implementation, validation, and handoff.
+- `scripts/codex-preflight.ps1`: a read-only PowerShell context check. It prints branch/status, detected stack, likely verification commands, and nearby sensitive files. It must not modify files.
+
+Use these as helpers, not as permission to bypass the stricter security rules above. Do not install Claude Code hooks, auto-format hooks, auto-upgrade scripts, or background automation unless the user explicitly asks and the behavior is reviewed first.
+
+## 8. Definition of done
 
 A task is not done until:
 
