@@ -48,3 +48,40 @@ func TestAppendWorkspaceImageFakeModelChannelAddsSafeFakeMetadata(t *testing.T) 
 	require.NotContains(t, string(encoded), "cookie")
 	require.NotContains(t, string(encoded), "secret")
 }
+
+func TestAppendWorkspaceImageRealModelChannelAddsCapabilityMetadata(t *testing.T) {
+	out := appendWorkspaceImageRealModelChannel(nil, service.WorkspaceImageRealModelExposure{
+		Enabled: true,
+		Models: []service.WorkspaceImageAvailableModelExposure{{
+			Model:            "gpt-image-1",
+			ProviderLabel:    "workspace-openai-compatible-image-staging",
+			Provider:         service.WorkspaceImageRealModelProvider,
+			Platform:         service.WorkspaceImageRealModelPlatform,
+			Capabilities:     []service.WorkspaceModelCapability{service.WorkspaceModelCapabilityImageGeneration},
+			CapabilitySource: service.WorkspaceImageRealModelExposureSource,
+			StagingOnly:      true,
+		}},
+	})
+
+	require.Len(t, out, 1)
+	require.Equal(t, "Workspace Image Providers", out[0].Name)
+	require.Len(t, out[0].Platforms, 1)
+	require.Equal(t, service.WorkspaceImageRealModelPlatform, out[0].Platforms[0].Platform)
+	require.Len(t, out[0].Platforms[0].SupportedModels, 1)
+
+	model := out[0].Platforms[0].SupportedModels[0]
+	require.Equal(t, "gpt-image-1", model.Name)
+	require.Equal(t, "workspace-openai-compatible-image-staging", model.ProviderLabel)
+	require.Equal(t, service.WorkspaceImageRealModelProvider, model.Provider)
+	require.Equal(t, []string{"image_generation"}, model.Capabilities)
+	require.False(t, model.Fake)
+	require.False(t, model.TestOnly)
+	require.True(t, model.StagingOnly)
+
+	encoded, err := json.Marshal(out)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "Authorization")
+	require.NotContains(t, string(encoded), "token")
+	require.NotContains(t, string(encoded), "cookie")
+	require.NotContains(t, string(encoded), "secret")
+}

@@ -9,6 +9,10 @@ import (
 const (
 	WorkspaceImageFakeModelExposureSource = "workspace_image_fake_execution_gate"
 	WorkspaceImageFakeModelPlatform       = WorkspaceImageProviderFakeLabel
+
+	WorkspaceImageRealModelExposureSource = "workspace_image_real_provider_gate"
+	WorkspaceImageRealModelPlatform       = "OpenAI-compatible Images"
+	WorkspaceImageRealModelProvider       = "openai-compatible-images"
 )
 
 type WorkspaceImageFakeModelExposure struct {
@@ -22,11 +26,35 @@ type WorkspaceImageFakeModelExposure struct {
 	TestOnly         bool
 }
 
+type WorkspaceImageAvailableModelExposure struct {
+	Model            string
+	ProviderLabel    string
+	Provider         string
+	Platform         string
+	Capabilities     []WorkspaceModelCapability
+	CapabilitySource string
+	Fake             bool
+	TestOnly         bool
+	StagingOnly      bool
+}
+
+type WorkspaceImageRealModelExposure struct {
+	Enabled bool
+	Models  []WorkspaceImageAvailableModelExposure
+}
+
 func (s *SettingService) GetWorkspaceImageFakeModelExposure(userID int64) WorkspaceImageFakeModelExposure {
 	if s == nil {
 		return WorkspaceImageFakeModelExposure{}
 	}
 	return workspaceImageFakeModelExposureFromConfig(s.cfg, userID)
+}
+
+func (s *SettingService) GetWorkspaceImageRealModelExposure(userID int64) WorkspaceImageRealModelExposure {
+	if s == nil {
+		return WorkspaceImageRealModelExposure{}
+	}
+	return workspaceImageRealModelExposureFromConfig(s.cfg, userID)
 }
 
 func workspaceImageFakeModelExposureFromConfig(cfg *config.Config, userID int64) WorkspaceImageFakeModelExposure {
@@ -64,8 +92,73 @@ func workspaceImageFakeModelExposureFromConfig(cfg *config.Config, userID int64)
 	}
 }
 
+func workspaceImageRealModelExposureFromConfig(cfg *config.Config, userID int64) WorkspaceImageRealModelExposure {
+	if cfg == nil || userID <= 0 {
+		return WorkspaceImageRealModelExposure{}
+	}
+	realConfig := cfg.Workspace.ImageRealProvider
+	if !realConfig.Enabled {
+		return WorkspaceImageRealModelExposure{}
+	}
+	if realConfig.MaxRequestsPerTestRun <= 0 {
+		return WorkspaceImageRealModelExposure{}
+	}
+	if realConfig.ProviderLabel == "" {
+		return WorkspaceImageRealModelExposure{}
+	}
+	if realConfig.StagingOnly && !workspaceImageRealExposureNonProduction(cfg) {
+		return WorkspaceImageRealModelExposure{}
+	}
+	if !workspaceImageFakeExposureInt64Contains(realConfig.AllowedUserIDs, userID) {
+		return WorkspaceImageRealModelExposure{}
+	}
+	if !workspaceImageFakeExposureStringContains(realConfig.AllowedProviderLabels, realConfig.ProviderLabel) {
+		return WorkspaceImageRealModelExposure{}
+	}
+
+	models := make([]WorkspaceImageAvailableModelExposure, 0, len(realConfig.AllowedModels))
+	for _, allowedModel := range realConfig.AllowedModels {
+		allowedModel = strings.TrimSpace(allowedModel)
+		if allowedModel == "" {
+			continue
+		}
+		metadata := ResolveWorkspaceModelCapabilities(allowedModel, WorkspaceModelCapabilityHints{
+			ProviderLabel: realConfig.ProviderLabel,
+			Provider:      WorkspaceImageRealModelProvider,
+			Platform:      WorkspaceImageRealModelPlatform,
+		})
+		if !workspaceModelCapabilityListContains(metadata.Capabilities, WorkspaceModelCapabilityImageGeneration) {
+			continue
+		}
+		models = append(models, WorkspaceImageAvailableModelExposure{
+			Model:            allowedModel,
+			ProviderLabel:    realConfig.ProviderLabel,
+			Provider:         WorkspaceImageRealModelProvider,
+			Platform:         WorkspaceImageRealModelPlatform,
+			Capabilities:     metadata.Capabilities,
+			CapabilitySource: WorkspaceImageRealModelExposureSource,
+			StagingOnly:      realConfig.StagingOnly,
+		})
+	}
+	if len(models) == 0 {
+		return WorkspaceImageRealModelExposure{}
+	}
+	return WorkspaceImageRealModelExposure{
+		Enabled: true,
+		Models:  models,
+	}
+}
+
 func workspaceImageFakeExposureNonProduction(cfg *config.Config) bool {
 	environment := strings.TrimSpace(cfg.Workspace.TextProvider.Environment)
+	if environment == "" {
+		environment = strings.TrimSpace(cfg.Log.Environment)
+	}
+	return isWorkspaceTextProviderNonProductionEnvironment(environment)
+}
+
+func workspaceImageRealExposureNonProduction(cfg *config.Config) bool {
+	environment := strings.TrimSpace(cfg.Workspace.ImageRealProvider.Environment)
 	if environment == "" {
 		environment = strings.TrimSpace(cfg.Log.Environment)
 	}

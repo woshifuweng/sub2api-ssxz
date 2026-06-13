@@ -98,9 +98,11 @@ type userSupportedModel struct {
 	Pricing          *userSupportedModelPricing `json:"pricing"`
 	Capabilities     []string                   `json:"capabilities,omitempty"`
 	ProviderLabel    string                     `json:"provider_label,omitempty"`
+	Provider         string                     `json:"provider,omitempty"`
 	CapabilitySource string                     `json:"capability_source,omitempty"`
 	Fake             bool                       `json:"fake,omitempty"`
 	TestOnly         bool                       `json:"test_only,omitempty"`
+	StagingOnly      bool                       `json:"staging_only,omitempty"`
 }
 
 // userChannelPlatformSection 单渠道内某个平台的子视图：用户可见的分组 + 该平台
@@ -180,6 +182,9 @@ func (h *AvailableChannelHandler) ListGateway(c gatewayctx.GatewayContext) {
 	if fakeModel := h.settingService.GetWorkspaceImageFakeModelExposure(subject.UserID); fakeModel.Enabled {
 		out = appendWorkspaceImageFakeModelChannel(out, fakeModel)
 	}
+	if realModel := h.settingService.GetWorkspaceImageRealModelExposure(subject.UserID); realModel.Enabled {
+		out = appendWorkspaceImageRealModelChannel(out, realModel)
+	}
 
 	response.SuccessContext(gatewayJSONResponder{ctx: c}, out)
 }
@@ -217,10 +222,64 @@ func appendWorkspaceImageFakeModelChannel(
 				Pricing:          nil,
 				Capabilities:     workspaceCapabilityStringsForUserDTO(fakeModel.Capabilities),
 				ProviderLabel:    fakeModel.ProviderLabel,
+				Provider:         fakeModel.ProviderLabel,
 				CapabilitySource: fakeModel.CapabilitySource,
 				Fake:             fakeModel.Fake,
 				TestOnly:         fakeModel.TestOnly,
 			}},
+		}},
+	})
+}
+
+func appendWorkspaceImageRealModelChannel(
+	channels []userAvailableChannel,
+	realModel service.WorkspaceImageRealModelExposure,
+) []userAvailableChannel {
+	if !realModel.Enabled || len(realModel.Models) == 0 {
+		return channels
+	}
+	supportedModels := make([]userSupportedModel, 0, len(realModel.Models))
+	platform := ""
+	for _, model := range realModel.Models {
+		if model.Model == "" {
+			continue
+		}
+		if platform == "" {
+			platform = model.Platform
+		}
+		supportedModels = append(supportedModels, userSupportedModel{
+			Name:             model.Model,
+			Platform:         model.Platform,
+			Pricing:          nil,
+			Capabilities:     workspaceCapabilityStringsForUserDTO(model.Capabilities),
+			ProviderLabel:    model.ProviderLabel,
+			Provider:         model.Provider,
+			CapabilitySource: model.CapabilitySource,
+			Fake:             model.Fake,
+			TestOnly:         model.TestOnly,
+			StagingOnly:      model.StagingOnly,
+		})
+	}
+	if len(supportedModels) == 0 {
+		return channels
+	}
+	if platform == "" {
+		platform = service.WorkspaceImageRealModelPlatform
+	}
+	return append(channels, userAvailableChannel{
+		Name:        "Workspace Image Providers",
+		Description: "Workspace image generation models available through explicit staging gates.",
+		Platforms: []userChannelPlatformSection{{
+			Platform: platform,
+			Groups: []userAvailableGroup{{
+				ID:               0,
+				Name:             "Workspace Image Beta",
+				Platform:         platform,
+				SubscriptionType: "test",
+				RateMultiplier:   1,
+				IsExclusive:      true,
+			}},
+			SupportedModels: supportedModels,
 		}},
 	})
 }
