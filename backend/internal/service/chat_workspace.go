@@ -121,8 +121,9 @@ type ChatWorkspaceRepository interface {
 }
 
 type ChatWorkspaceService struct {
-	repo      ChatWorkspaceRepository
-	responder WorkspaceAssistantResponder
+	repo                         ChatWorkspaceRepository
+	responder                    WorkspaceAssistantResponder
+	selectedModelCatalogResolver WorkspaceSelectedModelCatalogResolver
 }
 
 func NewChatWorkspaceService(repo ChatWorkspaceRepository) *ChatWorkspaceService {
@@ -130,10 +131,14 @@ func NewChatWorkspaceService(repo ChatWorkspaceRepository) *ChatWorkspaceService
 }
 
 func NewChatWorkspaceServiceWithResponder(repo ChatWorkspaceRepository, responder WorkspaceAssistantResponder) *ChatWorkspaceService {
+	return NewChatWorkspaceServiceWithResponderAndModelCatalogResolver(repo, responder, nil)
+}
+
+func NewChatWorkspaceServiceWithResponderAndModelCatalogResolver(repo ChatWorkspaceRepository, responder WorkspaceAssistantResponder, resolver WorkspaceSelectedModelCatalogResolver) *ChatWorkspaceService {
 	if responder == nil {
 		responder = WorkspaceUnavailableAssistantResponder{}
 	}
-	return &ChatWorkspaceService{repo: repo, responder: responder}
+	return &ChatWorkspaceService{repo: repo, responder: responder, selectedModelCatalogResolver: resolver}
 }
 
 func (s *ChatWorkspaceService) ListConversations(ctx context.Context, userID int64) ([]WorkspaceConversation, error) {
@@ -205,6 +210,10 @@ func (s *ChatWorkspaceService) AppendMessage(ctx context.Context, userID int64, 
 		SelectedModel: input.Model,
 	})
 	modelCapabilityMetadata := ResolveWorkspaceModelCapabilities(input.Model, WorkspaceModelCapabilityHints{})
+	modelCatalogResolution := s.resolveSelectedModelFromCatalog(ctx, userID, input, capabilityPlan.PlannedCapability)
+	if modelCatalogResolution.Model != "" {
+		modelCapabilityMetadata = modelCatalogResolution.ModelCapabilityMetadata()
+	}
 	capabilityPlan = ApplyWorkspaceModelCapabilityMatch(capabilityPlan, modelCapabilityMetadata)
 	imageExperiencePlan := BuildWorkspaceImageExperiencePlan(WorkspaceImageExperienceEnhancerInput{
 		Text:                    input.Content,
@@ -214,9 +223,32 @@ func (s *ChatWorkspaceService) AppendMessage(ctx context.Context, userID int64, 
 	})
 	input.Metadata = mergeWorkspaceCapabilityPlanMetadata(input.Metadata, capabilityPlan)
 	input.Metadata = mergeWorkspaceModelCapabilityMetadata(input.Metadata, modelCapabilityMetadata, capabilityPlan)
+	if modelCatalogResolution.Model != "" {
+		input.Metadata = mergeWorkspaceSelectedModelCatalogMetadata(input.Metadata, modelCatalogResolution)
+	}
 	input.Metadata = mergeWorkspaceImageExperiencePlanMetadata(input.Metadata, imageExperiencePlan)
 
 	return s.repo.AppendMessage(ctx, userID, input, deriveWorkspaceTitle(input.Content))
+}
+
+func (s *ChatWorkspaceService) resolveSelectedModelFromCatalog(ctx context.Context, userID int64, input WorkspaceAppendMessageInput, planned WorkspacePlannedCapability) WorkspaceSelectedModelChannelCatalogResolution {
+	if s == nil || s.selectedModelCatalogResolver == nil {
+		return WorkspaceSelectedModelChannelCatalogResolution{}
+	}
+	resolution, err := s.selectedModelCatalogResolver.ResolveSelectedModel(ctx, WorkspaceSelectedModelChannelCatalogResolverInput{
+		UserID:            userID,
+		AllowedGroupIDs:   cloneWorkspaceInt64Slice(input.AllowedGroupIDs),
+		SelectedModel:     input.Model,
+		PlannedCapability: planned,
+	})
+	if err != nil {
+		return WorkspaceSelectedModelChannelCatalogResolution{
+			Model:              strings.TrimSpace(input.Model),
+			ModelCatalogSource: WorkspaceModelCatalogSourceUnknown,
+			BlockReason:        WorkspaceSelectedModelBlockReasonChannelCatalogMissing,
+		}
+	}
+	return resolution
 }
 
 func (s *ChatWorkspaceService) AppendMessageWithAssistantResponse(ctx context.Context, userID int64, input WorkspaceAppendMessageInput) (*WorkspaceMessage, *WorkspaceMessage, error) {

@@ -170,16 +170,20 @@ func newWorkspaceTextProviderAdapterFromDecision(cfg *config.Config, decision Wo
 	}
 }
 
-func ProvideChatWorkspaceService(repo ChatWorkspaceRepository, cfg *config.Config) *ChatWorkspaceService {
+func ProvideChatWorkspaceService(repo ChatWorkspaceRepository, cfg *config.Config, channelServices ...*ChannelService) *ChatWorkspaceService {
 	adapter := NewWorkspaceTextProviderAdapterFromConfigWithExecutorProvider(cfg, workspaceOpenAICompatibleTextExecutorProviderFromConfig)
 	textResponder := WorkspaceProviderAssistantResponder{Adapter: adapter}
+	var modelCatalogResolver WorkspaceSelectedModelCatalogResolver
+	if len(channelServices) > 0 && channelServices[0] != nil {
+		modelCatalogResolver = NewWorkspaceSelectedModelChannelCatalogResolver(cfg, channelServices[0])
+	}
 	if workspaceImageExecutionConfigured(cfg) {
-		return NewChatWorkspaceServiceWithResponder(repo, WorkspaceImageExecutionThenFallbackResponder{
+		return NewChatWorkspaceServiceWithResponderAndModelCatalogResolver(repo, WorkspaceImageExecutionThenFallbackResponder{
 			ImageResponder: NewWorkspaceImageExecutionResponderFromConfig(cfg),
 			Fallback:       textResponder,
-		})
+		}, modelCatalogResolver)
 	}
-	return NewChatWorkspaceServiceWithResponder(repo, textResponder)
+	return NewChatWorkspaceServiceWithResponderAndModelCatalogResolver(repo, textResponder, modelCatalogResolver)
 }
 
 func workspaceOpenAICompatibleTextExecutorProviderFromConfig(cfg *config.Config, decision WorkspaceTextProviderGateDecision) WorkspaceTextProviderExecutor {
