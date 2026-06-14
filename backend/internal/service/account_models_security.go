@@ -299,12 +299,12 @@ func accountModelDiscoveryProfile(account *Account) (providerType, protocol, bas
 
 func providerTypeFromOpenAIHost(host string) string {
 	host = strings.ToLower(strings.TrimSpace(host))
-	switch {
-	case host == "api.deepseek.com":
+	switch host {
+	case "api.deepseek.com":
 		return "deepseek"
-	case host == "api.openai.com":
+	case "api.openai.com":
 		return "openai"
-	case host == "":
+	case "":
 		return "openai_compatible"
 	default:
 		return "openai_compatible"
