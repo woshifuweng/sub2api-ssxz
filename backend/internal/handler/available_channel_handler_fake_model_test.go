@@ -121,6 +121,69 @@ func TestToUserSupportedModelsDoesNotCreateRealImageModelFromEnvGate(t *testing.
 	require.Contains(t, out[0].UsageSupport, "token")
 }
 
+func TestBuildPlatformSectionsDeepSeekOnlyDoesNotExposeSyntheticImageModels(t *testing.T) {
+	price := 0.01
+	settingService := service.NewSettingService(nil, testAvailableChannelRealImageCatalogConfig())
+
+	sections := buildPlatformSections(service.AvailableChannel{
+		Name: "DeepSeek Staging",
+		Groups: []service.AvailableGroupRef{
+			{ID: 10, Name: "default", Platform: "openai"},
+		},
+		SupportedModels: []service.SupportedModel{
+			{
+				Name:     "deepseek-v4-flash",
+				Platform: "openai",
+				Pricing: &service.ChannelModelPricing{
+					BillingMode: service.BillingModeToken,
+					InputPrice:  &price,
+					OutputPrice: &price,
+				},
+			},
+			{
+				Name:     "deepseek-chat",
+				Platform: "openai",
+				Pricing: &service.ChannelModelPricing{
+					BillingMode: service.BillingModeToken,
+					InputPrice:  &price,
+					OutputPrice: &price,
+				},
+			},
+		},
+	}, []userAvailableGroup{{ID: 10, Name: "default", Platform: "openai"}}, settingService, 1)
+
+	require.Len(t, sections, 1)
+	modelNames := availableChannelTestModelNames(sections[0].SupportedModels)
+	require.ElementsMatch(t, []string{"deepseek-v4-flash", "deepseek-chat"}, modelNames)
+	require.NotContains(t, modelNames, "gpt-image-1")
+	require.NotContains(t, modelNames, "gpt-image-2")
+	require.NotContains(t, modelNames, "claude-3-5-sonnet")
+	require.NotContains(t, modelNames, "gemini-2.5-pro")
+
+	for _, model := range sections[0].SupportedModels {
+		require.Equal(t, service.WorkspaceModelCatalogSourceRealChannel, model.ModelCatalogSource)
+		require.Contains(t, model.Capabilities, "text_chat")
+		require.NotContains(t, model.Capabilities, "image_generation")
+	}
+}
+
+func TestToUserSupportedModelsDoesNotCreateStaticImageModelFromCapabilityHelper(t *testing.T) {
+	metadata := service.ResolveWorkspaceModelCapabilities("gpt-image-1", service.WorkspaceModelCapabilityHints{})
+	require.Contains(t, metadata.Capabilities, service.WorkspaceModelCapabilityImageGeneration)
+
+	out := toUserSupportedModels([]service.SupportedModel{{
+		Name:     "deepseek-v4-flash",
+		Platform: "openai",
+		Pricing:  &service.ChannelModelPricing{BillingMode: service.BillingModeToken},
+	}}, map[string]struct{}{"openai": {}}, service.NewSettingService(nil, testAvailableChannelRealImageCatalogConfig()), 1)
+
+	require.Len(t, out, 1)
+	require.Equal(t, "deepseek-v4-flash", out[0].Name)
+	require.NotEqual(t, "gpt-image-1", out[0].Name)
+	require.NotContains(t, availableChannelTestModelNames(out), "gpt-image-1")
+	require.NotContains(t, out[0].Capabilities, "image_generation")
+}
+
 func TestToUserSupportedModelsRequiresRealImagePricing(t *testing.T) {
 	settingService := service.NewSettingService(nil, testAvailableChannelRealImageCatalogConfig())
 
@@ -153,4 +216,12 @@ func TestToUserSupportedModelsAddsRealChannelTextMetadata(t *testing.T) {
 	require.Contains(t, model.Capabilities, "vision")
 	require.Equal(t, service.WorkspaceSelectedModelPricingConfigured, model.PricingStatus)
 	require.Contains(t, model.UsageSupport, "token")
+}
+
+func availableChannelTestModelNames(models []userSupportedModel) []string {
+	names := make([]string, 0, len(models))
+	for _, model := range models {
+		names = append(names, model.Name)
+	}
+	return names
 }
