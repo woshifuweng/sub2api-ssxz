@@ -114,7 +114,7 @@ func TestWorkspaceOpenAICompatibleTextExecutorRejectsUnsafePlanBeforeUpstream(t 
 		{
 			name: "invalid model",
 			mutate: func(input *WorkspaceTextProviderExecutionInput) {
-				input.Model = "not-allowed"
+				input.Model = "not allowed"
 			},
 		},
 		{

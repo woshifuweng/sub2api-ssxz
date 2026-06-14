@@ -115,8 +115,10 @@ func TestToUserSupportedModelsDoesNotCreateRealImageModelFromEnvGate(t *testing.
 
 	require.Len(t, out, 1)
 	require.Equal(t, "gpt-5.5", out[0].Name)
-	require.Empty(t, out[0].Capabilities)
-	require.Empty(t, out[0].ModelCatalogSource)
+	require.Contains(t, out[0].Capabilities, "text_chat")
+	require.Equal(t, service.WorkspaceModelCatalogSourceRealChannel, out[0].ModelCatalogSource)
+	require.Equal(t, service.WorkspaceSelectedModelPricingConfigured, out[0].PricingStatus)
+	require.Contains(t, out[0].UsageSupport, "token")
 }
 
 func TestToUserSupportedModelsRequiresRealImagePricing(t *testing.T) {
@@ -131,4 +133,24 @@ func TestToUserSupportedModelsRequiresRealImagePricing(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, out[0].Capabilities)
 	require.Empty(t, out[0].ModelCatalogSource)
+	require.Equal(t, service.WorkspaceSelectedModelPricingMissing, out[0].PricingStatus)
+}
+
+func TestToUserSupportedModelsAddsRealChannelTextMetadata(t *testing.T) {
+	out := toUserSupportedModels([]service.SupportedModel{{
+		Name:     "claude-3-5-sonnet",
+		Platform: "anthropic",
+		Pricing:  &service.ChannelModelPricing{BillingMode: service.BillingModeToken},
+	}}, map[string]struct{}{"anthropic": {}}, nil, 1)
+
+	require.Len(t, out, 1)
+	model := out[0]
+	require.Equal(t, "claude-3-5-sonnet", model.Name)
+	require.Equal(t, "anthropic", model.Platform)
+	require.Equal(t, "anthropic", model.Provider)
+	require.Equal(t, service.WorkspaceModelCatalogSourceRealChannel, model.ModelCatalogSource)
+	require.Contains(t, model.Capabilities, "text_chat")
+	require.Contains(t, model.Capabilities, "vision")
+	require.Equal(t, service.WorkspaceSelectedModelPricingConfigured, model.PricingStatus)
+	require.Contains(t, model.UsageSupport, "token")
 }

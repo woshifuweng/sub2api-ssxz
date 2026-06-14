@@ -96,6 +96,8 @@ type userSupportedModel struct {
 	Name               string                     `json:"name"`
 	Platform           string                     `json:"platform"`
 	Pricing            *userSupportedModelPricing `json:"pricing"`
+	PricingStatus      string                     `json:"pricing_status,omitempty"`
+	UsageSupport       []string                   `json:"usage_support,omitempty"`
 	Capabilities       []string                   `json:"capabilities,omitempty"`
 	ProviderLabel      string                     `json:"provider_label,omitempty"`
 	Provider           string                     `json:"provider,omitempty"`
@@ -322,9 +324,20 @@ func toUserSupportedModels(
 			}
 		}
 		model := userSupportedModel{
-			Name:     m.Name,
+			Name:          m.Name,
+			Platform:      m.Platform,
+			Pricing:       toUserPricing(m.Pricing),
+			PricingStatus: userModelPricingStatus(m.Pricing),
+			UsageSupport:  userModelUsageSupport(m.Pricing),
+		}
+		metadata := service.ResolveWorkspaceModelCapabilities(m.Name, service.WorkspaceModelCapabilityHints{
 			Platform: m.Platform,
-			Pricing:  toUserPricing(m.Pricing),
+		})
+		if !workspaceUserDTOCapabilitiesContain(metadata.Capabilities, service.WorkspaceModelCapabilityImageGeneration) {
+			model.Capabilities = workspaceCapabilityStringsForUserDTO(metadata.Capabilities)
+			model.Provider = m.Platform
+			model.CapabilitySource = metadata.CapabilitySource
+			model.ModelCatalogSource = service.WorkspaceModelCatalogSourceRealChannel
 		}
 		if settingService != nil {
 			realMetadata := settingService.GetWorkspaceImageRealChannelModelExposure(userID, m)
@@ -340,6 +353,40 @@ func toUserSupportedModels(
 		out = append(out, model)
 	}
 	return out
+}
+
+func workspaceUserDTOCapabilitiesContain(capabilities []service.WorkspaceModelCapability, target service.WorkspaceModelCapability) bool {
+	for _, capability := range capabilities {
+		if capability == target {
+			return true
+		}
+	}
+	return false
+}
+
+func userModelPricingStatus(p *service.ChannelModelPricing) string {
+	if p == nil {
+		return service.WorkspaceSelectedModelPricingMissing
+	}
+	return service.WorkspaceSelectedModelPricingConfigured
+}
+
+func userModelUsageSupport(p *service.ChannelModelPricing) []string {
+	if p == nil {
+		return nil
+	}
+	switch p.BillingMode {
+	case service.BillingModeImage:
+		out := []string{"image_count"}
+		if len(p.Intervals) > 0 {
+			out = append(out, "image_size")
+		}
+		return out
+	case service.BillingModePerRequest:
+		return []string{"request"}
+	default:
+		return []string{"token"}
+	}
 }
 
 // toUserPricing 将 service 层定价转换为用户 DTO；入参为 nil 时返回 nil。

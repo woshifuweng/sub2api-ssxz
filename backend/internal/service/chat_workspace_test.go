@@ -164,7 +164,7 @@ func TestChatWorkspaceServiceRejectsInvalidModelIntentAndDisabledCapabilities(t 
 	}
 
 	invalidModel := base
-	invalidModel.Model = "unknown-model"
+	invalidModel.Model = "unknown model"
 	_, err = svc.AppendMessage(context.Background(), 10, invalidModel)
 	require.ErrorIs(t, err, ErrWorkspaceInvalidModel)
 
@@ -496,7 +496,7 @@ func TestChatWorkspaceServiceAppendAssistantMessageRejectsUnsafeInputs(t *testin
 	_, err = svc.AppendAssistantMessage(context.Background(), 10, WorkspaceAppendAssistantMessageInput{
 		ConversationID: conversation.ID,
 		Content:        "assistant reply",
-		Model:          "unknown-model",
+		Model:          "unknown model",
 		Intent:         WorkspaceIntentChat,
 	})
 	require.ErrorIs(t, err, ErrWorkspaceInvalidModel)
@@ -583,7 +583,7 @@ func TestChatWorkspaceServiceAppendMessageWithAssistantResponseDoesNotRunRespond
 		MessageType:    WorkspaceMessageTypeText,
 		Role:           WorkspaceRoleUser,
 		Content:        "hello workspace",
-		Model:          "unknown-model",
+		Model:          "unknown model",
 		Intent:         WorkspaceIntentChat,
 	})
 	require.ErrorIs(t, err, ErrWorkspaceInvalidModel)
@@ -739,7 +739,7 @@ func TestChatWorkspaceServiceProviderAdapterNotCalledForRejectedInputs(t *testin
 		MessageType:    WorkspaceMessageTypeText,
 		Role:           WorkspaceRoleUser,
 		Content:        "hello workspace",
-		Model:          "unknown-model",
+		Model:          "unknown model",
 		Intent:         WorkspaceIntentChat,
 	})
 	require.ErrorIs(t, err, ErrWorkspaceInvalidModel)

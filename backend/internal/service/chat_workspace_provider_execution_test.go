@@ -62,7 +62,7 @@ func TestWorkspaceProviderExecutionContractBlocksFeatureGateInvalidInputAndDisab
 		{
 			name: "invalid model",
 			mutate: func(input *WorkspaceProviderExecutionRequest) {
-				input.Model = "unknown-model"
+				input.Model = "unknown model"
 			},
 			reason: WorkspaceProviderExecutionBlockInvalidModel,
 		},

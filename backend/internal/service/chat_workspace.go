@@ -212,6 +212,9 @@ func (s *ChatWorkspaceService) AppendMessage(ctx context.Context, userID int64, 
 	modelCapabilityMetadata := ResolveWorkspaceModelCapabilities(input.Model, WorkspaceModelCapabilityHints{})
 	modelCatalogResolution := s.resolveSelectedModelFromCatalog(ctx, userID, input, capabilityPlan.PlannedCapability)
 	if modelCatalogResolution.Model != "" {
+		if workspaceSelectedModelResolutionBlocksMessage(modelCatalogResolution, capabilityPlan.PlannedCapability) {
+			return nil, ErrWorkspaceInvalidModel
+		}
 		modelCapabilityMetadata = modelCatalogResolution.ModelCapabilityMetadata()
 	}
 	capabilityPlan = ApplyWorkspaceModelCapabilityMatch(capabilityPlan, modelCapabilityMetadata)
@@ -418,12 +421,51 @@ func firstNonEmptyWorkspaceValue(values ...string) string {
 
 func isAllowedWorkspaceModel(model string) bool {
 	normalized := strings.TrimSpace(model)
-	switch normalized {
-	case "gpt-5.5", "gpt-5.4", "gpt-5.2", "gpt-5.4-mini", "deepseek-v4-flash", WorkspaceImageProviderFakeModel:
-		return true
-	default:
-		return isWorkspaceImageGenerationModelName(strings.ToLower(normalized))
+	if normalized == "" || utf8.RuneCountInString(normalized) > 128 {
+		return false
 	}
+	for _, r := range normalized {
+		if r >= 'a' && r <= 'z' {
+			continue
+		}
+		if r >= 'A' && r <= 'Z' {
+			continue
+		}
+		if r >= '0' && r <= '9' {
+			continue
+		}
+		switch r {
+		case '.', '-', '_', '/', ':':
+			continue
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func workspaceSelectedModelResolutionBlocksMessage(resolution WorkspaceSelectedModelChannelCatalogResolution, planned WorkspacePlannedCapability) bool {
+	if resolution.ModelCatalogSource == "" {
+		return false
+	}
+	if resolution.ModelCatalogSource == WorkspaceModelCatalogSourceFakeGate &&
+		resolution.Fake && resolution.TestOnly &&
+		planned == WorkspacePlannedCapabilityImageGeneration {
+		return false
+	}
+	if resolution.ModelCatalogSource != WorkspaceModelCatalogSourceRealChannel {
+		return true
+	}
+	if resolution.BlockReason != "" {
+		return true
+	}
+	if !resolution.UserAllowed || !resolution.GroupAllowed {
+		return true
+	}
+	if resolution.PricingStatus != "" && resolution.PricingStatus != WorkspaceSelectedModelPricingConfigured {
+		return true
+	}
+	return !resolution.CapabilityMatched
 }
 
 func isDisabledWorkspaceIntent(intent string) bool {

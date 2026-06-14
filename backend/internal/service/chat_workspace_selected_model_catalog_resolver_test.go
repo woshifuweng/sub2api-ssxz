@@ -217,6 +217,53 @@ func TestChatWorkspaceServiceUsesSelectedModelCatalogResolverMetadata(t *testing
 	require.NotContains(t, marshaledWorkspaceSelectedModelCatalogMetadata(t, msg.Metadata), "secret")
 }
 
+func TestChatWorkspaceServiceAcceptsRealChannelModelOutsideStaticNames(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	resolver := NewWorkspaceSelectedModelChannelCatalogResolver(testWorkspaceSelectedModelCatalogRealImageConfig(), testWorkspaceSelectedModelChannelLister{
+		channels: []AvailableChannel{testWorkspaceSelectedModelAvailableChannel("claude-3-5-sonnet", 10, true, WorkspaceModelCapabilityTextChat)},
+	})
+	svc := NewChatWorkspaceServiceWithResponderAndModelCatalogResolver(repo, nil, resolver)
+	conversation, err := svc.CreateConversation(context.Background(), 1, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	msg, err := svc.AppendMessage(context.Background(), 1, WorkspaceAppendMessageInput{
+		ConversationID:  conversation.ID,
+		MessageType:     WorkspaceMessageTypeText,
+		Role:            WorkspaceRoleUser,
+		Content:         "hello",
+		Model:           "claude-3-5-sonnet",
+		Intent:          WorkspaceIntentChat,
+		AllowedGroupIDs: []int64{10},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "claude-3-5-sonnet", msg.Model)
+	require.Equal(t, WorkspaceModelCatalogSourceRealChannel, msg.Metadata["model_catalog_source"])
+	require.Equal(t, WorkspaceSelectedModelPricingConfigured, msg.Metadata["pricing_status"])
+}
+
+func TestChatWorkspaceServiceRejectsModelMissingFromRuntimeCatalog(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	resolver := NewWorkspaceSelectedModelChannelCatalogResolver(testWorkspaceSelectedModelCatalogRealImageConfig(), testWorkspaceSelectedModelChannelLister{
+		channels: []AvailableChannel{testWorkspaceSelectedModelAvailableChannel("deepseek-v4-flash", 10, true, WorkspaceModelCapabilityTextChat)},
+	})
+	svc := NewChatWorkspaceServiceWithResponderAndModelCatalogResolver(repo, nil, resolver)
+	conversation, err := svc.CreateConversation(context.Background(), 1, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, err = svc.AppendMessage(context.Background(), 1, WorkspaceAppendMessageInput{
+		ConversationID:  conversation.ID,
+		MessageType:     WorkspaceMessageTypeText,
+		Role:            WorkspaceRoleUser,
+		Content:         "hello",
+		Model:           "env-only-model",
+		Intent:          WorkspaceIntentChat,
+		AllowedGroupIDs: []int64{10},
+	})
+
+	require.ErrorIs(t, err, ErrWorkspaceInvalidModel)
+}
+
 func testWorkspaceSelectedModelCatalogRealImageConfig() *config.Config {
 	return &config.Config{
 		Log: config.LogConfig{Environment: "staging"},
