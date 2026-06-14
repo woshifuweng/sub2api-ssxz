@@ -23,7 +23,7 @@
         @click.stop="select(model.id)"
       >
         <span>{{ model.name || model.id }}</span>
-        <small>{{ model.tier === 'standard' ? '轻量' : '高级' }}</small>
+        <small>{{ modelOptionMeta(model) }}</small>
       </button>
     </div>
   </div>
@@ -59,6 +59,21 @@ function toggle() {
 function select(modelId: string) {
   emit('update:selectedModel', modelId)
   open.value = false
+}
+
+function modelOptionMeta(model: ChatModelOption) {
+  const capability = model.capabilities?.includes('image_generation')
+    ? 'image'
+    : model.capabilities?.includes('vision')
+      ? 'vision'
+      : 'text'
+  const source = model.modelCatalogSource === 'real_channel'
+    ? 'real channel'
+    : model.modelCatalogSource === 'fake_gate'
+      ? 'fake test'
+      : 'catalog'
+  const provider = model.providerLabel || model.provider || model.platform || model.channelName || 'provider'
+  return `${provider} · ${capability} · ${source}`
 }
 
 function handlePointerDown(event: PointerEvent) {

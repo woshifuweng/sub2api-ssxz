@@ -33,7 +33,15 @@ describe('useUserCapabilities', () => {
             platform: 'openai',
             groups: [],
             supported_models: [
-              { name: 'gpt-5.5', platform: 'openai', pricing: null }
+              {
+                name: 'gpt-5.5',
+                platform: 'openai',
+                pricing: null,
+                capabilities: ['text_chat'],
+                provider: 'openai',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured'
+              }
             ]
           }
         ]
@@ -44,6 +52,12 @@ describe('useUserCapabilities', () => {
     await capabilities.loadCapabilities()
 
     expect(capabilities.chatModels.value.map((model) => model.id)).toContain('gpt-5.5')
+    expect(capabilities.chatModels.value[0]).toMatchObject({
+      provider: 'openai',
+      capabilities: ['text_chat'],
+      modelCatalogSource: 'real_channel',
+      pricingStatus: 'configured'
+    })
   })
 
   it('shows explicitly allowed fake image generation model', async () => {
@@ -76,6 +90,12 @@ describe('useUserCapabilities', () => {
     await capabilities.loadCapabilities()
 
     expect(capabilities.chatModels.value.map((model) => model.id)).toContain('workspace-image-fake-model')
+    expect(capabilities.chatModels.value[0]).toMatchObject({
+      providerLabel: 'workspace-image-fake',
+      modelCatalogSource: 'fake_gate',
+      fake: true,
+      testOnly: true
+    })
   })
 
   it('shows backend-authorized image generation models with capabilities', async () => {
@@ -107,6 +127,12 @@ describe('useUserCapabilities', () => {
     await capabilities.loadCapabilities()
 
     expect(capabilities.chatModels.value.map((model) => model.id)).toContain('gpt-image-1')
+    expect(capabilities.chatModels.value[0]).toMatchObject({
+      providerLabel: 'workspace-openai-compatible-image-staging',
+      capabilities: ['image_generation'],
+      modelCatalogSource: 'real_channel',
+      stagingOnly: true
+    })
   })
 
   it('filters image-like model names without backend capability metadata', async () => {
@@ -190,5 +216,16 @@ describe('useUserCapabilities', () => {
     await capabilities.loadCapabilities()
 
     expect(capabilities.chatModels.value.map((model) => model.id)).not.toContain('workspace-image-fake-model')
+  })
+
+  it('does not treat groups alone as send-ready chat capability', async () => {
+    mocks.getGroups.mockResolvedValue([{ id: 1, name: 'default', platform: 'openai' }])
+    mocks.getChannels.mockResolvedValue([])
+
+    const capabilities = useUserCapabilities()
+    await capabilities.loadCapabilities()
+
+    expect(capabilities.chatModels.value).toEqual([])
+    expect(capabilities.hasChat.value).toBe(false)
   })
 })

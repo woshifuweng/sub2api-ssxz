@@ -5,8 +5,8 @@ import { nextTick } from 'vue'
 const mocks = vi.hoisted(() => ({
   route: { __v_isRef: true, value: { meta: { appSection: 'image' } } },
   chatModels: { __v_isRef: true, value: [
-    { id: 'gpt-5.5', name: 'GPT-5.5', tier: 'premium' },
-    { id: 'gpt-5.4-mini', name: 'GPT-5.4-Mini', tier: 'standard' }
+    { id: 'gpt-5.5', name: 'GPT-5.5', tier: 'premium', capabilities: ['text_chat'], modelCatalogSource: 'real_channel' },
+    { id: 'gpt-5.4-mini', name: 'GPT-5.4-Mini', tier: 'standard', capabilities: ['text_chat'], modelCatalogSource: 'real_channel' }
   ] },
   defaultTextModel: { __v_isRef: true, value: 'gpt-5.5' },
   hasChat: { __v_isRef: true, value: true },
@@ -63,8 +63,8 @@ describe('AppWorkspaceView interactions', () => {
   beforeEach(() => {
     mocks.route.value = { meta: { appSection: 'image' } }
     mocks.chatModels.value = [
-      { id: 'gpt-5.5', name: 'GPT-5.5', tier: 'premium' },
-      { id: 'gpt-5.4-mini', name: 'GPT-5.4-Mini', tier: 'standard' }
+      { id: 'gpt-5.5', name: 'GPT-5.5', tier: 'premium', capabilities: ['text_chat'], modelCatalogSource: 'real_channel' },
+      { id: 'gpt-5.4-mini', name: 'GPT-5.4-Mini', tier: 'standard', capabilities: ['text_chat'], modelCatalogSource: 'real_channel' }
     ]
     mocks.defaultTextModel.value = 'gpt-5.5'
     mocks.hasChat.value = true

@@ -7,6 +7,17 @@ export type ChatModelOption = {
   id: string
   name: string
   tier: 'premium' | 'standard'
+  capabilities: string[]
+  provider?: string
+  providerLabel?: string
+  platform?: string
+  channelName?: string
+  modelCatalogSource?: string
+  pricingStatus?: string
+  usageSupport?: string[]
+  fake?: boolean
+  testOnly?: boolean
+  stagingOnly?: boolean
 }
 
 const availableGroups = ref<Group[]>([])
@@ -14,17 +25,6 @@ const availableChannels = ref<UserAvailableChannel[]>([])
 const loading = ref(false)
 const loaded = ref(false)
 const errorMessage = ref('')
-
-function uniqueSorted(values: Array<string | undefined | null>) {
-  const seen = new Map<string, string>()
-  for (const value of values) {
-    const name = String(value || '').trim()
-    if (!name) continue
-    const key = name.toLowerCase()
-    if (!seen.has(key)) seen.set(key, name)
-  }
-  return [...seen.values()].sort((left, right) => left.localeCompare(right))
-}
 
 const workspaceSelectableCapabilities = new Set([
   'text_chat',
@@ -59,31 +59,60 @@ function formatModelName(model: string) {
     .join('-')
 }
 
+function modelTier(model: UserSupportedModel): ChatModelOption['tier'] {
+  const name = model.name.toLowerCase()
+  if (name.includes('mini') || name.includes('flash')) return 'standard'
+  if (model.capabilities?.includes('image_generation')) return 'premium'
+  return 'premium'
+}
+
+function modelPriority(model: ChatModelOption) {
+  if (model.modelCatalogSource === 'real_channel' && model.pricingStatus === 'configured') return 0
+  if (model.modelCatalogSource === 'fake_gate' && model.fake && model.testOnly) return 1
+  if (model.modelCatalogSource === 'real_channel') return 2
+  return 3
+}
+
 export function useUserCapabilities() {
-  const supportedModelNames = computed(() => {
-    const names = new Set<string>()
+  const supportedModelOptions = computed(() => {
+    const models = new Map<string, ChatModelOption>()
     for (const channel of availableChannels.value) {
       for (const platform of channel.platforms || []) {
         for (const model of platform.supported_models || []) {
-          if (model.name && isSelectableWorkspaceModel(model)) names.add(model.name)
+          if (!model.name || !isSelectableWorkspaceModel(model)) continue
+          const option = {
+            id: model.name,
+            name: formatModelName(model.name),
+            tier: modelTier(model),
+            capabilities: model.capabilities || [],
+            provider: model.provider,
+            providerLabel: model.provider_label,
+            platform: model.platform || platform.platform,
+            channelName: channel.name,
+            modelCatalogSource: model.model_catalog_source,
+            pricingStatus: model.pricing_status,
+            usageSupport: model.usage_support || [],
+            fake: model.fake,
+            testOnly: model.test_only,
+            stagingOnly: model.staging_only
+          } satisfies ChatModelOption
+          const existing = models.get(option.id)
+          if (!existing || modelPriority(option) < modelPriority(existing)) {
+            models.set(option.id, option)
+          }
         }
       }
     }
-    return names
+    return [...models.values()].sort((left, right) => left.id.localeCompare(right.id))
   })
 
-  const textModelNames = computed(() =>
-    uniqueSorted([...supportedModelNames.value])
-  )
+  const chatModels = computed(() => supportedModelOptions.value)
 
-  const chatModels = computed(() => textModelNames.value.map((model) => ({
-    id: model,
-    name: formatModelName(model),
-    tier: model.toLowerCase().includes('mini') || model.toLowerCase().includes('flash') ? 'standard' : 'premium'
-  }) satisfies ChatModelOption))
-
-  const defaultTextModel = computed(() => textModelNames.value[0] || '')
-  const hasChat = computed(() => chatModels.value.length > 0 || availableGroups.value.some((group) => group.platform === 'openai'))
+  const defaultTextModel = computed(() => {
+    const textModel = chatModels.value.find((model) => model.capabilities.includes('text_chat'))
+    return textModel?.id || chatModels.value[0]?.id || ''
+  })
+  const hasChat = computed(() => chatModels.value.length > 0)
 
   async function loadCapabilities() {
     if (loading.value) return

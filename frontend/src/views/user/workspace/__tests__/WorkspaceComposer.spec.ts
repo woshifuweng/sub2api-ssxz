@@ -12,8 +12,8 @@ vi.mock('@/components/icons/Icon.vue', () => ({
 import WorkspaceComposer from '../WorkspaceComposer.vue'
 
 const models = [
-  { id: 'gpt-5.5', name: 'GPT-5.5', tier: 'premium' as const },
-  { id: 'gpt-5.4-mini', name: 'GPT-5.4-Mini', tier: 'standard' as const }
+  { id: 'gpt-5.5', name: 'GPT-5.5', tier: 'premium' as const, capabilities: ['text_chat'], modelCatalogSource: 'real_channel' },
+  { id: 'gpt-5.4-mini', name: 'GPT-5.4-Mini', tier: 'standard' as const, capabilities: ['text_chat'], modelCatalogSource: 'real_channel' }
 ]
 
 function mountComposer(overrides = {}) {
