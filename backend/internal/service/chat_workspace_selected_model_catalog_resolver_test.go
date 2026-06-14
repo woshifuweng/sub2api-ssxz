@@ -202,7 +202,7 @@ func TestChatWorkspaceServiceUsesSelectedModelCatalogResolverMetadata(t *testing
 		ConversationID:  conversation.ID,
 		MessageType:     WorkspaceMessageTypeText,
 		Role:            WorkspaceRoleUser,
-		Content:         "帮我生成一张高级感产品图",
+		Content:         "generate image of premium product",
 		Model:           "gpt-image-1",
 		Intent:          WorkspaceIntentChat,
 		AllowedGroupIDs: []int64{10},
@@ -242,6 +242,33 @@ func TestChatWorkspaceServiceAcceptsRealChannelModelOutsideStaticNames(t *testin
 	require.Equal(t, WorkspaceSelectedModelPricingConfigured, msg.Metadata["pricing_status"])
 }
 
+func TestChatWorkspaceServiceAcceptsDeepSeekOnlyRealChannelTextModel(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	resolver := NewWorkspaceSelectedModelChannelCatalogResolver(testWorkspaceSelectedModelCatalogRealImageConfig(), testWorkspaceSelectedModelChannelLister{
+		channels: []AvailableChannel{testWorkspaceSelectedModelDeepSeekChannel(10)},
+	})
+	svc := NewChatWorkspaceServiceWithResponderAndModelCatalogResolver(repo, nil, resolver)
+	conversation, err := svc.CreateConversation(context.Background(), 1, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	msg, err := svc.AppendMessage(context.Background(), 1, WorkspaceAppendMessageInput{
+		ConversationID:  conversation.ID,
+		MessageType:     WorkspaceMessageTypeText,
+		Role:            WorkspaceRoleUser,
+		Content:         "hello",
+		Model:           "deepseek-v4-flash",
+		Intent:          WorkspaceIntentChat,
+		AllowedGroupIDs: []int64{10},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "deepseek-v4-flash", msg.Model)
+	require.Equal(t, WorkspaceModelCatalogSourceRealChannel, msg.Metadata["model_catalog_source"])
+	require.Equal(t, WorkspaceSelectedModelPricingConfigured, msg.Metadata["pricing_status"])
+	require.Contains(t, msg.Metadata["selected_model_capabilities"], string(WorkspaceModelCapabilityTextChat))
+	require.NotContains(t, msg.Metadata["selected_model_capabilities"], string(WorkspaceModelCapabilityImageGeneration))
+}
+
 func TestChatWorkspaceServiceRejectsModelMissingFromRuntimeCatalog(t *testing.T) {
 	repo := newMemoryChatWorkspaceRepo()
 	resolver := NewWorkspaceSelectedModelChannelCatalogResolver(testWorkspaceSelectedModelCatalogRealImageConfig(), testWorkspaceSelectedModelChannelLister{
@@ -262,6 +289,46 @@ func TestChatWorkspaceServiceRejectsModelMissingFromRuntimeCatalog(t *testing.T)
 	})
 
 	require.ErrorIs(t, err, ErrWorkspaceInvalidModel)
+}
+
+func TestChatWorkspaceServiceRejectsEnvAllowedImageModelMissingFromDeepSeekOnlyCatalog(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	resolver := NewWorkspaceSelectedModelChannelCatalogResolver(testWorkspaceSelectedModelCatalogRealImageConfig(), testWorkspaceSelectedModelChannelLister{
+		channels: []AvailableChannel{testWorkspaceSelectedModelDeepSeekChannel(10)},
+	})
+	svc := NewChatWorkspaceServiceWithResponderAndModelCatalogResolver(repo, nil, resolver)
+	conversation, err := svc.CreateConversation(context.Background(), 1, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, err = svc.AppendMessage(context.Background(), 1, WorkspaceAppendMessageInput{
+		ConversationID:  conversation.ID,
+		MessageType:     WorkspaceMessageTypeText,
+		Role:            WorkspaceRoleUser,
+		Content:         "generate image of premium product",
+		Model:           "gpt-image-1",
+		Intent:          WorkspaceIntentChat,
+		AllowedGroupIDs: []int64{10},
+	})
+
+	require.ErrorIs(t, err, ErrWorkspaceInvalidModel)
+}
+
+func TestWorkspaceSelectedModelChannelCatalogResolverFakeModelBlocksRealProvider(t *testing.T) {
+	resolver := NewWorkspaceSelectedModelChannelCatalogResolver(testWorkspaceSelectedModelCatalogFakeConfig(), testWorkspaceSelectedModelChannelLister{})
+
+	resolution, err := resolver.ResolveSelectedModel(context.Background(), WorkspaceSelectedModelChannelCatalogResolverInput{
+		UserID:            1,
+		AllowedGroupIDs:   []int64{10},
+		SelectedModel:     WorkspaceImageProviderFakeModel,
+		PlannedCapability: WorkspacePlannedCapabilityImageGeneration,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, WorkspaceModelCatalogSourceFakeGate, resolution.ModelCatalogSource)
+	require.True(t, resolution.Fake)
+	require.True(t, resolution.TestOnly)
+	require.False(t, resolution.RealGateOnAllowed)
+	require.Equal(t, WorkspaceSelectedModelBlockReasonFakeOnly, resolution.BlockReason)
 }
 
 func testWorkspaceSelectedModelCatalogRealImageConfig() *config.Config {
@@ -297,6 +364,29 @@ func testWorkspaceSelectedModelCatalogFakeConfig() *config.Config {
 				MaxRequestsPerTestRun: 3,
 			},
 		},
+	}
+}
+
+func testWorkspaceSelectedModelDeepSeekChannel(groupID int64) AvailableChannel {
+	price := 0.01
+	return AvailableChannel{
+		ID:     101,
+		Name:   "DeepSeek Staging",
+		Status: StatusActive,
+		Groups: []AvailableGroupRef{
+			{ID: groupID, Name: "default", Platform: "openai"},
+		},
+		SupportedModels: []SupportedModel{{
+			Name:     "deepseek-v4-flash",
+			Platform: "openai",
+			Pricing: &ChannelModelPricing{
+				Platform:    "openai",
+				Models:      []string{"deepseek-v4-flash"},
+				BillingMode: BillingModeToken,
+				InputPrice:  &price,
+				OutputPrice: &price,
+			},
+		}},
 	}
 }
 
