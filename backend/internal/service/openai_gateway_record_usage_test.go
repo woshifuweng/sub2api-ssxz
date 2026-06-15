@@ -142,6 +142,7 @@ func newOpenAIRecordUsageServiceForTest(usageRepo UsageLogRepository, userRepo U
 		nil,
 		NewBillingService(cfg, nil),
 		nil,
+		nil,
 		&BillingCacheService{},
 		nil,
 		&DeferredService{},
@@ -161,6 +162,30 @@ func newOpenAIRecordUsageServiceWithBillingRepoForTest(usageRepo UsageLogReposit
 	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, rateRepo)
 	svc.usageBillingRepo = billingRepo
 	return svc
+}
+
+func attachOpenAIChannelPricingResolverForTest(svc *OpenAIGatewayService, groupID int64, model string, inputPrice, outputPrice float64) {
+	channelService := &ChannelService{}
+	channel := Channel{
+		ID:       7001,
+		Status:   StatusActive,
+		GroupIDs: []int64{groupID},
+		ModelPricing: []ChannelModelPricing{
+			{
+				ID:          8001,
+				ChannelID:   7001,
+				Platform:    PlatformOpenAI,
+				Models:      []string{model},
+				BillingMode: BillingModeToken,
+				InputPrice:  &inputPrice,
+				OutputPrice: &outputPrice,
+			},
+		},
+	}
+	channelService.cache.Store(populateChannelCache([]Channel{channel}, map[int64]string{
+		groupID: PlatformOpenAI,
+	}))
+	svc.modelPricingResolver = NewModelPricingResolver(channelService, svc.billingService)
 }
 
 func expectedOpenAICost(t *testing.T, svc *OpenAIGatewayService, model string, usage OpenAIUsage, multiplier float64) *CostBreakdown {
@@ -982,6 +1007,76 @@ func TestOpenAIGatewayServiceRecordUsage_BillsMappedRequestsUsingUpstreamModelFa
 	require.Equal(t, expectedCost.ActualCost, usageRepo.lastLog.ActualCost)
 	require.Equal(t, expectedCost.TotalCost, usageRepo.lastLog.TotalCost)
 	require.Equal(t, expectedCost.ActualCost, userRepo.lastAmount)
+}
+
+func TestOpenAIGatewayServiceRecordUsage_UsesChannelPricingForCompatibleChat(t *testing.T) {
+	groupID := int64(44)
+	model := "compatible-chat-model"
+	inputPrice := 0.00000028
+	outputPrice := 0.00000056
+	usage := OpenAIUsage{InputTokens: 13, OutputTokens: 23}
+	expected := (float64(usage.InputTokens) * inputPrice) + (float64(usage.OutputTokens) * outputPrice)
+
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	userRepo := &openAIRecordUsageUserRepoStub{}
+	subRepo := &openAIRecordUsageSubRepoStub{}
+	svc := newOpenAIRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, userRepo, subRepo, nil)
+	attachOpenAIChannelPricingResolverForTest(svc, groupID, model, inputPrice, outputPrice)
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID: "resp_channel_pricing_compatible_chat",
+			Model:     model,
+			Usage:     usage,
+			Duration:  time.Second,
+		},
+		APIKey:  &APIKey{ID: 10, GroupID: i64p(groupID), Group: &Group{ID: groupID, RateMultiplier: 1}},
+		User:    &User{ID: 20},
+		Account: &Account{ID: 30},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.InDelta(t, expected, billingRepo.lastCmd.BalanceCost, 1e-12)
+	require.InDelta(t, expected, usageRepo.lastLog.ActualCost, 1e-12)
+	require.InDelta(t, expected, usageRepo.lastLog.TotalCost, 1e-12)
+	require.Equal(t, model, billingRepo.lastCmd.Model)
+	require.Equal(t, groupID, *usageRepo.lastLog.GroupID)
+}
+
+func TestOpenAIGatewayServiceRecordUsage_DoesNotApplyMismatchedChannelPricing(t *testing.T) {
+	groupID := int64(45)
+	model := "gpt-5.1"
+	usage := OpenAIUsage{InputTokens: 20, OutputTokens: 10}
+
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	userRepo := &openAIRecordUsageUserRepoStub{}
+	subRepo := &openAIRecordUsageSubRepoStub{}
+	svc := newOpenAIRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, userRepo, subRepo, nil)
+	attachOpenAIChannelPricingResolverForTest(svc, groupID, "other-compatible-model", 0.99, 0.99)
+	expected := expectedOpenAICost(t, svc, model, usage, 1)
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID: "resp_channel_pricing_mismatch",
+			Model:     model,
+			Usage:     usage,
+			Duration:  time.Second,
+		},
+		APIKey:  &APIKey{ID: 10, GroupID: i64p(groupID), Group: &Group{ID: groupID, RateMultiplier: 1}},
+		User:    &User{ID: 20},
+		Account: &Account{ID: 30},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.InDelta(t, expected.ActualCost, billingRepo.lastCmd.BalanceCost, 1e-12)
+	require.InDelta(t, expected.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
+	require.NotEqual(t, 29.7, billingRepo.lastCmd.BalanceCost)
 }
 
 func TestOpenAIGatewayServiceRecordUsage_SubscriptionBillingSetsSubscriptionFields(t *testing.T) {

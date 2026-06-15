@@ -387,6 +387,17 @@ func (s *BillingService) CalculateCostWithServiceTier(model string, tokens Usage
 		return nil, err
 	}
 
+	return CalculateCostFromModelPricing(pricing, tokens, rateMultiplier, serviceTier)
+}
+
+// CalculateCostFromModelPricing calculates token costs from an already resolved
+// pricing record. Callers use this when the pricing source is a channel override
+// instead of the global model pricing catalog.
+func CalculateCostFromModelPricing(pricing *ModelPricing, tokens UsageTokens, rateMultiplier float64, serviceTier string) (*CostBreakdown, error) {
+	if pricing == nil {
+		return nil, fmt.Errorf("pricing is nil")
+	}
+
 	breakdown := &CostBreakdown{}
 	inputPricePerToken := pricing.InputPricePerToken
 	outputPricePerToken := pricing.OutputPricePerToken
@@ -405,7 +416,7 @@ func (s *BillingService) CalculateCostWithServiceTier(model string, tokens Usage
 	} else {
 		tierMultiplier = serviceTierCostMultiplier(serviceTier)
 	}
-	if s.shouldApplySessionLongContextPricing(tokens, pricing) {
+	if shouldApplySessionLongContextPricing(tokens, pricing) {
 		inputPricePerToken *= pricing.LongContextInputMultiplier
 		outputPricePerToken *= pricing.LongContextOutputMultiplier
 	}
@@ -477,6 +488,10 @@ func (s *BillingService) applyModelSpecificPricingPolicy(model string, pricing *
 }
 
 func (s *BillingService) shouldApplySessionLongContextPricing(tokens UsageTokens, pricing *ModelPricing) bool {
+	return shouldApplySessionLongContextPricing(tokens, pricing)
+}
+
+func shouldApplySessionLongContextPricing(tokens UsageTokens, pricing *ModelPricing) bool {
 	if pricing == nil || pricing.LongContextInputThreshold <= 0 {
 		return false
 	}

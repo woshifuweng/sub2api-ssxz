@@ -335,6 +335,7 @@ type OpenAIGatewayService struct {
 	schedulerSnapshot     *SchedulerSnapshotService
 	concurrencyService    *ConcurrencyService
 	billingService        *BillingService
+	modelPricingResolver  *ModelPricingResolver
 	rateLimitService      *RateLimitService
 	billingCacheService   *BillingCacheService
 	identityService       *IdentityService
@@ -389,6 +390,7 @@ func NewOpenAIGatewayService(
 	schedulerSnapshot *SchedulerSnapshotService,
 	concurrencyService *ConcurrencyService,
 	billingService *BillingService,
+	modelPricingResolver *ModelPricingResolver,
 	rateLimitService *RateLimitService,
 	billingCacheService *BillingCacheService,
 	httpUpstream HTTPUpstream,
@@ -396,20 +398,21 @@ func NewOpenAIGatewayService(
 	openAITokenProvider *OpenAITokenProvider,
 ) *OpenAIGatewayService {
 	svc := &OpenAIGatewayService{
-		accountRepo:         accountRepo,
-		groupRepo:           groupRepo,
-		usageLogRepo:        usageLogRepo,
-		usageBillingRepo:    usageBillingRepo,
-		userRepo:            userRepo,
-		userSubRepo:         userSubRepo,
-		cache:               cache,
-		cfg:                 cfg,
-		codexDetector:       NewOpenAICodexClientRestrictionDetector(cfg),
-		schedulerSnapshot:   schedulerSnapshot,
-		concurrencyService:  concurrencyService,
-		billingService:      billingService,
-		rateLimitService:    rateLimitService,
-		billingCacheService: billingCacheService,
+		accountRepo:          accountRepo,
+		groupRepo:            groupRepo,
+		usageLogRepo:         usageLogRepo,
+		usageBillingRepo:     usageBillingRepo,
+		userRepo:             userRepo,
+		userSubRepo:          userSubRepo,
+		cache:                cache,
+		cfg:                  cfg,
+		codexDetector:        NewOpenAICodexClientRestrictionDetector(cfg),
+		schedulerSnapshot:    schedulerSnapshot,
+		concurrencyService:   concurrencyService,
+		billingService:       billingService,
+		modelPricingResolver: modelPricingResolver,
+		rateLimitService:     rateLimitService,
+		billingCacheService:  billingCacheService,
 		userGroupRateResolver: newUserGroupRateResolver(
 			userGroupRateRepo,
 			nil,
@@ -6015,7 +6018,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		cost = s.billingService.CalculateImageCost(billingModel, result.ImageSize, result.ImageCount, groupConfig, multiplier)
 	} else {
 		var err error
-		cost, err = s.billingService.CalculateCostWithServiceTier(billingModel, tokens, multiplier, serviceTier)
+		cost, err = s.calculateOpenAITokenCost(ctx, billingModel, tokens, multiplier, serviceTier, apiKey)
 		if err != nil {
 			cost = &CostBreakdown{ActualCost: 0}
 		}
@@ -6113,6 +6116,22 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
 
 	return nil
+}
+
+func (s *OpenAIGatewayService) calculateOpenAITokenCost(ctx context.Context, model string, tokens UsageTokens, multiplier float64, serviceTier string, apiKey *APIKey) (*CostBreakdown, error) {
+	if s.modelPricingResolver != nil && apiKey != nil && apiKey.GroupID != nil {
+		resolved := s.modelPricingResolver.Resolve(ctx, PricingInput{
+			Model:   model,
+			GroupID: apiKey.GroupID,
+		})
+		if resolved != nil && resolved.Source == PricingSourceChannel && resolved.Mode == BillingModeToken {
+			pricing := s.modelPricingResolver.GetIntervalPricing(resolved, tokens.InputTokens+tokens.CacheReadTokens)
+			if pricing != nil {
+				return CalculateCostFromModelPricing(pricing, tokens, multiplier, serviceTier)
+			}
+		}
+	}
+	return s.billingService.CalculateCostWithServiceTier(model, tokens, multiplier, serviceTier)
 }
 
 // ParseCodexRateLimitHeaders extracts Codex usage limits from response headers.
