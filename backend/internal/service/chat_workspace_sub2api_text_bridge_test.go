@@ -74,6 +74,64 @@ func TestWorkspaceSub2APITextBridgeRunsForRealChannelDeepSeekTextModel(t *testin
 	require.Equal(t, "sub2api", assistantMessage.Metadata["provider_routing_managed_by"])
 	require.Equal(t, true, assistantMessage.Metadata["usage_recorded"])
 	require.Equal(t, true, assistantMessage.Metadata["billing_touched"])
+	_, userMessageBills := userMessage.Metadata["billing_touched"]
+	require.False(t, userMessageBills)
+}
+
+func TestWorkspaceSub2APITextBridgeMissingAPIKeyShowsClearMessage(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	resolver := NewWorkspaceSelectedModelChannelCatalogResolver(testWorkspaceSelectedModelCatalogRealImageConfig(), testWorkspaceSelectedModelChannelLister{
+		channels: []AvailableChannel{testWorkspaceSelectedModelDeepSeekChannel(10)},
+	})
+	bridge := &recordingWorkspaceSub2APITextBridge{err: ErrWorkspaceSub2APITextBridgeMissingAPIKey}
+	svc := NewChatWorkspaceServiceWithSub2APITextBridge(repo, bridge, resolver)
+	conversation, err := svc.CreateConversation(context.Background(), 1, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 1, WorkspaceAppendMessageInput{
+		ConversationID:  conversation.ID,
+		MessageType:     WorkspaceMessageTypeText,
+		Role:            WorkspaceRoleUser,
+		Content:         "hello",
+		Model:           "deepseek-v4-flash",
+		Intent:          WorkspaceIntentChat,
+		AllowedGroupIDs: []int64{10},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, bridge.calls)
+	require.Equal(t, WorkspaceSub2APITextBridgeMissingAPIKeyContent, assistantMessage.Content)
+	require.Equal(t, "sub2api_api_key_missing", assistantMessage.Metadata["bridge_block_reason"])
+	require.Equal(t, false, assistantMessage.Metadata["provider_called"])
+	require.Equal(t, false, assistantMessage.Metadata["billing_touched"])
+}
+
+func TestWorkspaceSub2APITextBridgeModelNotAllowedShowsClearMessage(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	resolver := NewWorkspaceSelectedModelChannelCatalogResolver(testWorkspaceSelectedModelCatalogRealImageConfig(), testWorkspaceSelectedModelChannelLister{
+		channels: []AvailableChannel{testWorkspaceSelectedModelDeepSeekChannel(10)},
+	})
+	bridge := &recordingWorkspaceSub2APITextBridge{err: ErrWorkspaceSub2APITextBridgeModelNotAllowed}
+	svc := NewChatWorkspaceServiceWithSub2APITextBridge(repo, bridge, resolver)
+	conversation, err := svc.CreateConversation(context.Background(), 1, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 1, WorkspaceAppendMessageInput{
+		ConversationID:  conversation.ID,
+		MessageType:     WorkspaceMessageTypeText,
+		Role:            WorkspaceRoleUser,
+		Content:         "hello",
+		Model:           "deepseek-v4-flash",
+		Intent:          WorkspaceIntentChat,
+		AllowedGroupIDs: []int64{10},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, bridge.calls)
+	require.Equal(t, WorkspaceSub2APITextBridgeModelNotAllowedContent, assistantMessage.Content)
+	require.Equal(t, "sub2api_api_key_model_not_allowed", assistantMessage.Metadata["bridge_block_reason"])
+	require.Equal(t, false, assistantMessage.Metadata["provider_called"])
+	require.Equal(t, false, assistantMessage.Metadata["billing_touched"])
 }
 
 func TestWorkspaceSub2APITextBridgeRejectsUnknownModelBeforeBridge(t *testing.T) {

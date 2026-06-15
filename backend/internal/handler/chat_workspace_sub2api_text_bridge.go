@@ -80,19 +80,25 @@ func (b *WorkspaceSub2APITextBridge) selectWorkspaceAPIKey(ctx context.Context, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to load API keys")
 	}
+	usableKeys := 0
 	for i := range keys {
 		key := &keys[i]
 		if key == nil || !key.IsActive() || strings.TrimSpace(key.Key) == "" {
 			continue
 		}
+		if key.Group == nil || key.Group.Platform != service.PlatformOpenAI {
+			continue
+		}
+		usableKeys++
 		if !key.AllowsModel(model) {
 			continue
 		}
-		if key.Group != nil && key.Group.Platform == service.PlatformOpenAI {
-			return key, nil
-		}
+		return key, nil
 	}
-	return nil, fmt.Errorf("no active Sub2API key allows %s", model)
+	if usableKeys == 0 {
+		return nil, service.ErrWorkspaceSub2APITextBridgeMissingAPIKey
+	}
+	return nil, service.ErrWorkspaceSub2APITextBridgeModelNotAllowed
 }
 
 func buildWorkspaceSub2APITextBridgeBody(model, content string) ([]byte, error) {

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -14,6 +15,14 @@ const (
 	WorkspaceSub2APITextBridgeBlockReasonNotRealChannel = "selected_model_not_real_channel"
 	WorkspaceSub2APITextBridgeBlockReasonNotTextChat    = "planned_capability_not_text_chat"
 	WorkspaceSub2APITextBridgeBlockReasonFakeModel      = "selected_model_fake_or_test_only"
+
+	WorkspaceSub2APITextBridgeMissingAPIKeyContent   = "当前账户没有可用 API Key，请先在开发者 API 中创建或启用 API Key 后再使用工作台。"
+	WorkspaceSub2APITextBridgeModelNotAllowedContent = "当前 API Key 不允许使用所选模型，请检查开发者 API Key 的模型权限。"
+)
+
+var (
+	ErrWorkspaceSub2APITextBridgeMissingAPIKey   = errors.New("workspace sub2api text bridge missing usable api key")
+	ErrWorkspaceSub2APITextBridgeModelNotAllowed = errors.New("workspace sub2api text bridge api key model not allowed")
 )
 
 type WorkspaceSub2APITextBridge interface {
@@ -154,6 +163,10 @@ func workspaceSub2APITextBridgeSuccessMetadata(input WorkspaceAssistantResponseI
 }
 
 func workspaceSub2APITextBridgeBlockedResponse(input WorkspaceAssistantResponseInput, reason string) WorkspaceAssistantResponse {
+	return workspaceSub2APITextBridgeBlockedResponseWithContent(input, reason, WorkspaceAssistantUnavailableContent)
+}
+
+func workspaceSub2APITextBridgeBlockedResponseWithContent(input WorkspaceAssistantResponseInput, reason, content string) WorkspaceAssistantResponse {
 	metadata := workspaceProviderUnavailableMetadata(WorkspaceProviderDiagnostics{
 		RequestedModel:           input.Model,
 		MappedModel:              input.Model,
@@ -167,7 +180,7 @@ func workspaceSub2APITextBridgeBlockedResponse(input WorkspaceAssistantResponseI
 	metadata["billing_touched"] = false
 	metadata["provider_routing_touched"] = false
 	return WorkspaceAssistantResponse{
-		Content:     WorkspaceAssistantUnavailableContent,
+		Content:     firstNonEmptyWorkspaceValue(content, WorkspaceAssistantUnavailableContent),
 		MessageType: WorkspaceMessageTypeText,
 		Model:       input.Model,
 		Intent:      WorkspaceIntentChat,
@@ -178,8 +191,15 @@ func workspaceSub2APITextBridgeBlockedResponse(input WorkspaceAssistantResponseI
 
 func workspaceSub2APITextBridgeFailedResponse(input WorkspaceAssistantResponseInput, err error) WorkspaceAssistantResponse {
 	reason := "sub2api_chat_completion_failed"
+	content := WorkspaceAssistantUnavailableContent
 	if err == nil {
 		reason = "sub2api_chat_completion_empty_response"
+	} else if errors.Is(err, ErrWorkspaceSub2APITextBridgeMissingAPIKey) {
+		reason = "sub2api_api_key_missing"
+		content = WorkspaceSub2APITextBridgeMissingAPIKeyContent
+	} else if errors.Is(err, ErrWorkspaceSub2APITextBridgeModelNotAllowed) {
+		reason = "sub2api_api_key_model_not_allowed"
+		content = WorkspaceSub2APITextBridgeModelNotAllowedContent
 	}
-	return workspaceSub2APITextBridgeBlockedResponse(input, reason)
+	return workspaceSub2APITextBridgeBlockedResponseWithContent(input, reason, content)
 }
