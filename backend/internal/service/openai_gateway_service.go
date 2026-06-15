@@ -12,6 +12,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -3247,10 +3248,16 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthroughContext(
 			if err != nil {
 				return nil, err
 			}
-			targetURL = buildOpenAIResponsesURL(validatedURL)
+			if shouldUseOpenAICompatibleChatCompletionsPassthroughContext(c, account) {
+				targetURL = buildOpenAIChatCompletionsURL(validatedURL)
+			} else {
+				targetURL = buildOpenAIResponsesURL(validatedURL)
+			}
 		}
 	}
-	targetURL = appendOpenAIResponsesRequestPathSuffix(targetURL, openAIResponsesRequestPathSuffixContext(c))
+	if !shouldUseOpenAICompatibleChatCompletionsPassthroughContext(c, account) {
+		targetURL = appendOpenAIResponsesRequestPathSuffix(targetURL, openAIResponsesRequestPathSuffixContext(c))
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(body))
 	if err != nil {
@@ -3429,6 +3436,66 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthroughContext(
 	}
 
 	return req, nil
+}
+
+func shouldUseOpenAICompatibleChatCompletionsPassthroughContext(c gatewayctx.GatewayContext, account *Account) bool {
+	if account == nil || !account.IsOpenAIApiKey() || !account.IsOpenAIPassthroughEnabled() {
+		return false
+	}
+	if !isOpenAIChatCompletionsRequestContext(c) {
+		return false
+	}
+	return isOpenAICompatibleNonOfficialBaseURL(account.GetOpenAIBaseURL())
+}
+
+func resolveOpenAICompatibleChatCompletionsPassthroughModel(account *Account, requestedModel string) string {
+	requestedModel = strings.TrimSpace(requestedModel)
+	if account == nil {
+		return requestedModel
+	}
+	mappedModel, matched := account.ResolveMappedModel(requestedModel)
+	if matched {
+		return mappedModel
+	}
+	return requestedModel
+}
+
+func isOpenAIChatCompletionsRequestContext(c gatewayctx.GatewayContext) bool {
+	if c == nil || c.Request() == nil || c.Request().URL == nil {
+		return false
+	}
+	path := strings.TrimSpace(c.Request().URL.Path)
+	return strings.Contains(path, "/v1/chat/completions") || strings.HasSuffix(path, "/chat/completions")
+}
+
+func isOpenAICompatibleNonOfficialBaseURL(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(strings.TrimSpace(u.Hostname()))
+	if host == "" {
+		return false
+	}
+	return !isOfficialOpenAIHost(host)
+}
+
+func isOfficialOpenAIHost(host string) bool {
+	host = strings.ToLower(strings.TrimSpace(host))
+	return host == "api.openai.com" || strings.HasSuffix(host, ".api.openai.com") ||
+		host == "chatgpt.com" || strings.HasSuffix(host, ".chatgpt.com")
+}
+
+func buildOpenAIChatCompletionsURL(baseURL string) string {
+	normalized := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	switch {
+	case strings.HasSuffix(normalized, "/v1/chat/completions"):
+		return normalized
+	case strings.HasSuffix(normalized, "/v1"):
+		return normalized + "/chat/completions"
+	default:
+		return normalized + "/v1/chat/completions"
+	}
 }
 
 func (s *OpenAIGatewayService) handleErrorResponsePassthrough(

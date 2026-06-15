@@ -16,9 +16,11 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/cespare/xxhash/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 // 编译期接口断言
@@ -1828,6 +1830,129 @@ func TestOpenAIBuildUpstreamRequestPreservesCompactPathForAPIKeyBaseURL(t *testi
 	req, err := svc.buildUpstreamRequest(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token", false, "", false)
 	require.NoError(t, err)
 	require.Equal(t, "https://example.com/v1/responses/compact", req.URL.String())
+}
+
+func TestOpenAIBuildUpstreamRequestOpenAICompatibleChatCompletionsPassthroughUsesChatEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name    string
+		baseURL string
+		wantURL string
+	}{
+		{
+			name:    "host only base url",
+			baseURL: "https://api.deepseek.com",
+			wantURL: "https://api.deepseek.com/v1/chat/completions",
+		},
+		{
+			name:    "versioned base url",
+			baseURL: "https://api.deepseek.com/v1",
+			wantURL: "https://api.deepseek.com/v1/chat/completions",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader([]byte(`{"model":"deepseek-v4-flash"}`)))
+
+			svc := &OpenAIGatewayService{cfg: &config.Config{
+				Security: config.SecurityConfig{
+					URLAllowlist: config.URLAllowlistConfig{Enabled: false},
+				},
+			}}
+			account := &Account{
+				Type:     AccountTypeAPIKey,
+				Platform: PlatformOpenAI,
+				Credentials: map[string]any{
+					"api_key":  "sk-test",
+					"base_url": tt.baseURL,
+				},
+				Extra: map[string]any{"openai_passthrough": true},
+			}
+
+			req, err := svc.buildUpstreamRequestOpenAIPassthrough(c.Request.Context(), c, account, []byte(`{"model":"deepseek-v4-flash"}`), "sk-test")
+			require.NoError(t, err)
+			require.Equal(t, tt.wantURL, req.URL.String())
+		})
+	}
+}
+
+func TestOpenAIBuildUpstreamRequestOfficialOpenAIPassthroughKeepsResponsesEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader([]byte(`{"model":"gpt-5.4"}`)))
+
+	svc := &OpenAIGatewayService{cfg: &config.Config{
+		Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{Enabled: false},
+		},
+	}}
+	account := &Account{
+		Type:     AccountTypeAPIKey,
+		Platform: PlatformOpenAI,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "https://api.openai.com",
+		},
+		Extra: map[string]any{"openai_passthrough": true},
+	}
+
+	req, err := svc.buildUpstreamRequestOpenAIPassthrough(c.Request.Context(), c, account, []byte(`{"model":"gpt-5.4"}`), "sk-test")
+	require.NoError(t, err)
+	require.Equal(t, "https://api.openai.com/v1/responses", req.URL.String())
+}
+
+func TestOpenAIForwardAsChatCompletions_OpenAICompatiblePassthroughKeepsChatBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(nil))
+
+	upstream := &httpUpstreamRecorder{
+		resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(`{
+				"id":"chatcmpl-test",
+				"object":"chat.completion",
+				"choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],
+				"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}
+			}`)),
+		},
+	}
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{
+			Security: config.SecurityConfig{
+				URLAllowlist: config.URLAllowlistConfig{Enabled: false},
+			},
+		},
+		httpUpstream: upstream,
+	}
+	account := &Account{
+		ID:       10,
+		Name:     "DeepSeek Staging",
+		Type:     AccountTypeAPIKey,
+		Platform: PlatformOpenAI,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "https://api.deepseek.com",
+		},
+		Extra: map[string]any{"openai_passthrough": true},
+	}
+	body := []byte(`{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"hi"}],"stream":false}`)
+
+	result, err := svc.ForwardAsChatCompletionsContext(c.Request.Context(), gatewayctx.FromGin(c), account, body, "", "gpt-5.4-mini")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, upstream.lastReq)
+	require.Equal(t, "https://api.deepseek.com/v1/chat/completions", upstream.lastReq.URL.String())
+	require.Equal(t, "deepseek-v4-flash", gjson.GetBytes(upstream.lastBody, "model").String())
+	require.Equal(t, "hi", gjson.GetBytes(upstream.lastBody, "messages.0.content").String())
+	require.False(t, gjson.GetBytes(upstream.lastBody, "input").Exists(), "chat-completions passthrough must not convert to responses input")
 }
 
 func TestShouldUseOpenAIStagedTransportBudget(t *testing.T) {

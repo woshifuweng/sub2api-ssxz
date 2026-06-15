@@ -17,6 +17,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/sjson"
 	"go.uber.org/zap"
 )
 
@@ -65,6 +66,21 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletionsContext(
 	// derive a stable seed from the final upstream model family.
 	mappedModel := resolveOpenAIForwardModel(account, originalModel, defaultMappedModel)
 	SetOpsUpstreamModelContext(c, mappedModel)
+
+	if shouldUseOpenAICompatibleChatCompletionsPassthroughContext(c, account) {
+		passthroughBody := body
+		passthroughModel := resolveOpenAICompatibleChatCompletionsPassthroughModel(account, originalModel)
+		if passthroughModel != "" && passthroughModel != originalModel {
+			patchedBody, patchErr := sjson.SetBytes(body, "model", passthroughModel)
+			if patchErr != nil {
+				return nil, fmt.Errorf("set chat completions passthrough model: %w", patchErr)
+			}
+			passthroughBody = patchedBody
+		}
+		SetOpsUpstreamModelContext(c, passthroughModel)
+		reasoningEffort := extractOpenAIReasoningEffortFromBody(passthroughBody, originalModel)
+		return s.forwardOpenAIPassthroughContext(ctx, c, account, passthroughBody, originalModel, reasoningEffort, clientStream, startTime)
+	}
 
 	promptCacheKey = strings.TrimSpace(promptCacheKey)
 	compatPromptCacheInjected := false
