@@ -78,6 +78,49 @@ func TestWorkspaceSub2APITextBridgeRunsForRealChannelDeepSeekTextModel(t *testin
 	require.False(t, userMessageBills)
 }
 
+func TestWorkspaceSub2APITextBridgeDoesNotClaimBillingWhenGatewayReportsMissingUsage(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	resolver := NewWorkspaceSelectedModelChannelCatalogResolver(testWorkspaceSelectedModelCatalogRealImageConfig(), testWorkspaceSelectedModelChannelLister{
+		channels: []AvailableChannel{testWorkspaceSelectedModelDeepSeekChannel(10)},
+	})
+	bridge := &recordingWorkspaceSub2APITextBridge{result: WorkspaceSub2APITextBridgeResult{
+		Content:        "STAGING_TEXT_OK",
+		Model:          "deepseek-v4-flash",
+		UpstreamModel:  "deepseek-v4-flash",
+		ProviderName:   WorkspaceSub2APITextBridgeName,
+		RequestID:      "req-missing-usage",
+		ProviderCalled: true,
+		UsageRecorded:  false,
+		BillingManaged: false,
+		AdditionalFields: map[string]any{
+			"usage_status":   "usage_missing",
+			"billing_status": "billing_not_recorded",
+		},
+	}}
+	svc := NewChatWorkspaceServiceWithSub2APITextBridge(repo, bridge, resolver)
+	conversation, err := svc.CreateConversation(context.Background(), 1, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 1, WorkspaceAppendMessageInput{
+		ConversationID:  conversation.ID,
+		MessageType:     WorkspaceMessageTypeText,
+		Role:            WorkspaceRoleUser,
+		Content:         "璇峰彧鍥炲锛歋TAGING_TEXT_OK",
+		Model:           "deepseek-v4-flash",
+		Intent:          WorkspaceIntentChat,
+		AllowedGroupIDs: []int64{10},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, bridge.calls)
+	require.Equal(t, "STAGING_TEXT_OK", assistantMessage.Content)
+	require.Equal(t, true, assistantMessage.Metadata["provider_called"])
+	require.Equal(t, false, assistantMessage.Metadata["usage_recorded"])
+	require.Equal(t, false, assistantMessage.Metadata["billing_touched"])
+	require.Equal(t, "usage_missing", assistantMessage.Metadata["usage_status"])
+	require.Equal(t, "billing_not_recorded", assistantMessage.Metadata["billing_status"])
+}
+
 func TestWorkspaceSub2APITextBridgeMissingAPIKeyShowsClearMessage(t *testing.T) {
 	repo := newMemoryChatWorkspaceRepo()
 	resolver := NewWorkspaceSelectedModelChannelCatalogResolver(testWorkspaceSelectedModelCatalogRealImageConfig(), testWorkspaceSelectedModelChannelLister{
