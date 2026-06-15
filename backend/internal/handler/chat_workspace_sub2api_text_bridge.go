@@ -122,6 +122,18 @@ func parseWorkspaceSub2APITextBridgeResult(body []byte, fallbackModel string) (s
 				Content string `json:"content"`
 			} `json:"message"`
 		} `json:"choices"`
+		Usage struct {
+			InputTokens        int `json:"input_tokens"`
+			OutputTokens       int `json:"output_tokens"`
+			PromptTokens       int `json:"prompt_tokens"`
+			CompletionTokens   int `json:"completion_tokens"`
+			InputTokensDetails struct {
+				CachedTokens int `json:"cached_tokens"`
+			} `json:"input_tokens_details"`
+			PromptTokensDetails struct {
+				CachedTokens int `json:"cached_tokens"`
+			} `json:"prompt_tokens_details"`
+		} `json:"usage"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return service.WorkspaceSub2APITextBridgeResult{}, fmt.Errorf("parse sub2api chat completion response: %w", err)
@@ -133,16 +145,40 @@ func parseWorkspaceSub2APITextBridgeResult(body []byte, fallbackModel string) (s
 	if content == "" {
 		return service.WorkspaceSub2APITextBridgeResult{}, fmt.Errorf("sub2api chat completion returned empty content")
 	}
+	billableUsagePresent := workspaceSub2APITextBridgeBillableUsagePresent(
+		payload.Usage.InputTokens,
+		payload.Usage.OutputTokens,
+		payload.Usage.PromptTokens,
+		payload.Usage.CompletionTokens,
+	)
+	additionalFields := map[string]any{}
+	if billableUsagePresent {
+		additionalFields["usage_status"] = "usage_payload_present"
+		additionalFields["billing_status"] = "sub2api_gateway_usage_path"
+	} else {
+		additionalFields["usage_status"] = "usage_missing"
+		additionalFields["billing_status"] = "billing_not_recorded"
+	}
 	return service.WorkspaceSub2APITextBridgeResult{
-		Content:        content,
-		Model:          firstNonEmptyHandlerValue(payload.Model, fallbackModel),
-		UpstreamModel:  firstNonEmptyHandlerValue(payload.Model, fallbackModel),
-		ProviderName:   service.WorkspaceSub2APITextBridgeName,
-		RequestID:      payload.ID,
-		UsageRecorded:  true,
-		BillingManaged: true,
-		ProviderCalled: true,
+		Content:          content,
+		Model:            firstNonEmptyHandlerValue(payload.Model, fallbackModel),
+		UpstreamModel:    firstNonEmptyHandlerValue(payload.Model, fallbackModel),
+		ProviderName:     service.WorkspaceSub2APITextBridgeName,
+		RequestID:        payload.ID,
+		UsageRecorded:    billableUsagePresent,
+		BillingManaged:   billableUsagePresent,
+		ProviderCalled:   true,
+		AdditionalFields: additionalFields,
 	}, nil
+}
+
+func workspaceSub2APITextBridgeBillableUsagePresent(values ...int) bool {
+	for _, value := range values {
+		if value > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 type workspaceSub2APIResponseRecorder struct {

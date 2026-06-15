@@ -27,6 +27,62 @@ import (
 var _ AccountRepository = (*stubOpenAIAccountRepo)(nil)
 var _ GatewayCache = (*stubGatewayCache)(nil)
 
+func TestExtractOpenAIUsageFromJSONBytesChatCompletionsUsage(t *testing.T) {
+	body := []byte(`{
+		"id": "chatcmpl-deepseek",
+		"object": "chat.completion",
+		"model": "deepseek-v4-flash",
+		"choices": [{"message": {"role": "assistant", "content": "STAGING_TEXT_OK"}}],
+		"usage": {
+			"prompt_tokens": 7,
+			"completion_tokens": 3,
+			"total_tokens": 10,
+			"prompt_tokens_details": {"cached_tokens": 2}
+		}
+	}`)
+
+	usage, ok := extractOpenAIUsageFromJSONBytes(body)
+
+	require.True(t, ok)
+	require.Equal(t, 7, usage.InputTokens)
+	require.Equal(t, 3, usage.OutputTokens)
+	require.Equal(t, 2, usage.CacheReadInputTokens)
+}
+
+func TestExtractOpenAIUsageFromJSONBytesResponsesUsageStillWorks(t *testing.T) {
+	body := []byte(`{
+		"id": "resp-openai",
+		"object": "response",
+		"model": "gpt-5.4-mini",
+		"usage": {
+			"input_tokens": 11,
+			"output_tokens": 5,
+			"input_tokens_details": {"cached_tokens": 4}
+		}
+	}`)
+
+	usage, ok := extractOpenAIUsageFromJSONBytes(body)
+
+	require.True(t, ok)
+	require.Equal(t, 11, usage.InputTokens)
+	require.Equal(t, 5, usage.OutputTokens)
+	require.Equal(t, 4, usage.CacheReadInputTokens)
+}
+
+func TestExtractOpenAIUsageFromJSONBytesMissingUsage(t *testing.T) {
+	body := []byte(`{
+		"id": "chatcmpl-no-usage",
+		"object": "chat.completion",
+		"model": "deepseek-v4-flash",
+		"choices": [{"message": {"role": "assistant", "content": "STAGING_TEXT_OK"}}]
+	}`)
+
+	usage, ok := extractOpenAIUsageFromJSONBytes(body)
+
+	require.False(t, ok)
+	require.Equal(t, OpenAIUsage{}, usage)
+}
+
 type stubOpenAIAccountRepo struct {
 	AccountRepository
 	accounts                []Account

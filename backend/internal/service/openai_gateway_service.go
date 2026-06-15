@@ -5214,17 +5214,33 @@ func extractOpenAIUsageFromJSONBytes(body []byte) (OpenAIUsage, bool) {
 	if len(body) == 0 || !gjson.ValidBytes(body) {
 		return OpenAIUsage{}, false
 	}
+	if !gjson.GetBytes(body, "usage").Exists() {
+		return OpenAIUsage{}, false
+	}
 	values := gjson.GetManyBytes(
 		body,
 		"usage.input_tokens",
 		"usage.output_tokens",
 		"usage.input_tokens_details.cached_tokens",
+		"usage.prompt_tokens",
+		"usage.completion_tokens",
+		"usage.prompt_tokens_details.cached_tokens",
 	)
-	return OpenAIUsage{
+	usage := OpenAIUsage{
 		InputTokens:          int(values[0].Int()),
 		OutputTokens:         int(values[1].Int()),
 		CacheReadInputTokens: int(values[2].Int()),
-	}, true
+	}
+	if usage.InputTokens == 0 && values[3].Exists() {
+		usage.InputTokens = int(values[3].Int())
+	}
+	if usage.OutputTokens == 0 && values[4].Exists() {
+		usage.OutputTokens = int(values[4].Int())
+	}
+	if usage.CacheReadInputTokens == 0 && values[5].Exists() {
+		usage.CacheReadInputTokens = int(values[5].Int())
+	}
+	return usage, true
 }
 
 func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, originalModel, mappedModel string) (*OpenAIUsage, error) {
