@@ -110,3 +110,29 @@ func TestResolveOpenAIForwardModel_PreventsClaudeModelFromFallingBackToGpt51(t *
 		t.Fatalf("normalizeCodexModel(%q) = %q, want %q", withDefault, got, "gpt-5.4")
 	}
 }
+
+func TestResolveOpenAICompatibleChatCompletionsPassthroughModel(t *testing.T) {
+	t.Run("preserves explicit DeepSeek request instead of group default", func(t *testing.T) {
+		account := &Account{Credentials: map[string]any{}}
+
+		got := resolveOpenAICompatibleChatCompletionsPassthroughModel(account, "deepseek-v4-flash")
+		if got != "deepseek-v4-flash" {
+			t.Fatalf("resolveOpenAICompatibleChatCompletionsPassthroughModel(...) = %q, want deepseek-v4-flash", got)
+		}
+	})
+
+	t.Run("applies account model mapping when configured", func(t *testing.T) {
+		account := &Account{
+			Credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"deepseek-v4-flash": "deepseek-chat",
+				},
+			},
+		}
+
+		got := resolveOpenAICompatibleChatCompletionsPassthroughModel(account, "deepseek-v4-flash")
+		if got != "deepseek-chat" {
+			t.Fatalf("resolveOpenAICompatibleChatCompletionsPassthroughModel(...) = %q, want deepseek-chat", got)
+		}
+	})
+}
