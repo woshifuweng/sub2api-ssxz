@@ -311,13 +311,18 @@ func TestWorkspaceSub2APITextBridgeWebSearchFailureReturnsExplicitUnavailableMes
 		result: WorkspaceToolResult{
 			Tool:      WorkspaceToolWebSearch,
 			Status:    WorkspaceToolStatusUnavailable,
-			ErrorCode: WorkspaceToolErrorProviderUnavailable,
+			ErrorCode: WorkspaceToolErrorUpstreamNon2xx,
 			Message:   "web search provider unavailable",
 			UsageLog: WorkspaceToolUsageLogPayload{
 				Tool:      WorkspaceToolWebSearch,
 				Provider:  "jina",
 				Status:    WorkspaceToolStatusUnavailable,
-				ErrorCode: WorkspaceToolErrorProviderUnavailable,
+				ErrorCode: WorkspaceToolErrorUpstreamNon2xx,
+			},
+			Metadata: map[string]any{
+				"http_status":          502,
+				"response_body_length": 14,
+				"body":                 "should-not-leak",
 			},
 		},
 		err: ErrWorkspaceToolUnavailable,
@@ -342,9 +347,13 @@ func TestWorkspaceSub2APITextBridgeWebSearchFailureReturnsExplicitUnavailableMes
 	require.Zero(t, bridge.calls)
 	require.Equal(t, workspaceWebSearchUnavailableContent, assistantMessage.Content)
 	require.Equal(t, false, assistantMessage.Metadata[workspaceWebSearchUsedKey])
-	require.Equal(t, WorkspaceToolErrorProviderUnavailable, assistantMessage.Metadata[workspaceWebSearchErrorCodeKey])
+	require.Equal(t, WorkspaceToolErrorUpstreamNon2xx, assistantMessage.Metadata[workspaceWebSearchErrorCodeKey])
 	require.Equal(t, false, assistantMessage.Metadata["provider_called"])
 	require.Equal(t, 0, assistantMessage.Metadata[workspaceWebSearchResultCountKey])
+	require.Equal(t, 502, assistantMessage.Metadata[workspaceWebSearchHTTPStatusKey])
+	require.Equal(t, 14, assistantMessage.Metadata[workspaceWebSearchResponseBodyLengthKey])
+	_, leaked := assistantMessage.Metadata["body"]
+	require.False(t, leaked)
 	citations, ok := assistantMessage.Metadata[workspaceWebSearchCitationsKey].([]map[string]any)
 	require.True(t, ok)
 	require.Len(t, citations, 0)
