@@ -206,6 +206,14 @@ func TestLoadDefaultWorkspaceTextProviderGateConfig(t *testing.T) {
 	require.Empty(t, cfg.Workspace.ImageRealProvider.AllowedProviderLabels)
 	require.Zero(t, cfg.Workspace.ImageRealProvider.MaxRequestsPerTestRun)
 	require.False(t, cfg.Workspace.AvailableChannels.StagingOverrideEnabled)
+	require.False(t, cfg.Workspace.WebSearch.Enabled)
+	require.True(t, cfg.Workspace.WebSearch.KillSwitch)
+	require.Equal(t, "jina", cfg.Workspace.WebSearch.Provider)
+	require.Empty(t, cfg.Workspace.WebSearch.AllowedUserIDs)
+	require.Equal(t, 5, cfg.Workspace.WebSearch.MaxResults)
+	require.Equal(t, 3, cfg.Workspace.WebSearch.MaxReadURLs)
+	require.Equal(t, 8000, cfg.Workspace.WebSearch.TimeoutMS)
+	require.Equal(t, 20, cfg.Workspace.WebSearch.DailyCapPerUser)
 }
 
 func TestLoadWorkspaceTextProviderGateConfigFromEnv(t *testing.T) {
@@ -302,6 +310,30 @@ func TestLoadWorkspaceImageRealProviderConfigFromEnv(t *testing.T) {
 	require.Equal(t, []string{"gpt-image-1", "image-model"}, cfg.Workspace.ImageRealProvider.AllowedModels)
 	require.Equal(t, []string{"workspace-openai-compatible-image-staging"}, cfg.Workspace.ImageRealProvider.AllowedProviderLabels)
 	require.Equal(t, 3, cfg.Workspace.ImageRealProvider.MaxRequestsPerTestRun)
+}
+
+func TestLoadWorkspaceWebSearchConfigFromEnv(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	t.Setenv("WORKSPACE_WEB_SEARCH_ENABLED", "true")
+	t.Setenv("WORKSPACE_WEB_SEARCH_KILL_SWITCH", "false")
+	t.Setenv("WORKSPACE_WEB_SEARCH_PROVIDER", " JINA ")
+	t.Setenv("WORKSPACE_WEB_SEARCH_ALLOWED_USER_IDS", "1,2")
+	t.Setenv("WORKSPACE_WEB_SEARCH_MAX_RESULTS", "8")
+	t.Setenv("WORKSPACE_WEB_SEARCH_MAX_READ_URLS", "4")
+	t.Setenv("WORKSPACE_WEB_SEARCH_TIMEOUT_MS", "9000")
+	t.Setenv("WORKSPACE_WEB_SEARCH_DAILY_CAP_PER_USER", "12")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	require.True(t, cfg.Workspace.WebSearch.Enabled)
+	require.False(t, cfg.Workspace.WebSearch.KillSwitch)
+	require.Equal(t, "jina", cfg.Workspace.WebSearch.Provider)
+	require.Equal(t, []int64{1, 2}, cfg.Workspace.WebSearch.AllowedUserIDs)
+	require.Equal(t, 8, cfg.Workspace.WebSearch.MaxResults)
+	require.Equal(t, 4, cfg.Workspace.WebSearch.MaxReadURLs)
+	require.Equal(t, 9000, cfg.Workspace.WebSearch.TimeoutMS)
+	require.Equal(t, 12, cfg.Workspace.WebSearch.DailyCapPerUser)
 }
 
 func TestLoadWorkspaceTextProviderOpenAICompatibleConfigFromEnv(t *testing.T) {

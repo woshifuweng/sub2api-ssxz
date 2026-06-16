@@ -127,10 +127,16 @@ type PublicSettings struct {
 	ChannelMonitorEnabled                bool
 	ChannelMonitorDefaultIntervalSeconds int
 	AvailableChannelsEnabled             bool
+	WebSearch                            PublicWorkspaceWebSearchSettings
 	AffiliateEnabled                     bool
 
 	BackendModeEnabled bool
 	Version            string
+}
+
+type PublicWorkspaceWebSearchSettings struct {
+	Available bool
+	Provider  string
 }
 
 // SoraS3Settings Sora S3 存储配置

@@ -137,9 +137,15 @@ type PublicSettings struct {
 	ChannelMonitorEnabled                bool             `json:"channel_monitor_enabled"`
 	ChannelMonitorDefaultIntervalSeconds int              `json:"channel_monitor_default_interval_seconds"`
 	AvailableChannelsEnabled             bool             `json:"available_channels_enabled"`
+	WebSearch                            WebSearchSetting `json:"web_search"`
 	AffiliateEnabled                     bool             `json:"affiliate_enabled"`
 	BackendModeEnabled                   bool             `json:"backend_mode_enabled"`
 	Version                              string           `json:"version"`
+}
+
+type WebSearchSetting struct {
+	Available bool   `json:"available"`
+	Provider  string `json:"provider,omitempty"`
 }
 
 // SoraS3Settings Sora S3 存储配置 DTO（响应用，不含敏感字段）
