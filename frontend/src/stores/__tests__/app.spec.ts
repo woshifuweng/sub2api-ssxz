@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAppStore } from '@/stores/app'
+import { getPublicSettings } from '@/api/auth'
 
 // Mock API 模块
 vi.mock('@/api/admin/system', () => ({
@@ -17,6 +18,7 @@ describe('useAppStore', () => {
     vi.useFakeTimers()
     // 清除 window.__APP_CONFIG__
     delete (window as any).__APP_CONFIG__
+    vi.mocked(getPublicSettings).mockReset()
   })
 
   afterEach(() => {
@@ -290,6 +292,61 @@ describe('useAppStore', () => {
 
       expect(store.publicSettingsLoaded).toBe(false)
       expect(store.cachedPublicSettings).toBeNull()
+    })
+  })
+
+  describe('public settings web search completeness', () => {
+    it('uses complete injected public settings without refetching', async () => {
+      const injected = {
+        site_name: 'Injected',
+        web_search: { available: true, provider: 'jina' }
+      }
+      const windowAny = window as any
+      windowAny.__APP_CONFIG__ = injected
+
+      const store = useAppStore()
+      const result = await store.fetchPublicSettings()
+
+      expect(result).toEqual(injected)
+      expect(store.cachedPublicSettings).toEqual(injected)
+      expect(getPublicSettings).not.toHaveBeenCalled()
+    })
+
+    it('refetches public settings when injected config is missing web_search', async () => {
+      const injected = {
+        site_name: 'Injected',
+        available_channels_enabled: true
+      }
+      const fetched = {
+        site_name: 'Injected',
+        available_channels_enabled: true,
+        web_search: { available: true, provider: 'jina' }
+      }
+      const windowAny = window as any
+      windowAny.__APP_CONFIG__ = injected
+      vi.mocked(getPublicSettings).mockResolvedValue(fetched as any)
+
+      const store = useAppStore()
+      const result = await store.fetchPublicSettings()
+
+      expect(getPublicSettings).toHaveBeenCalledTimes(1)
+      expect(result).toEqual(fetched)
+      expect(store.cachedPublicSettings?.web_search?.available).toBe(true)
+      expect(store.cachedPublicSettings?.web_search?.provider).toBe('jina')
+    })
+
+    it('stores web_search.available=false from the backend response', async () => {
+      vi.mocked(getPublicSettings).mockResolvedValue({
+        site_name: 'Fetched',
+        web_search: { available: false }
+      } as any)
+
+      const store = useAppStore()
+      const result = await store.fetchPublicSettings()
+
+      expect(getPublicSettings).toHaveBeenCalledTimes(1)
+      expect(result?.web_search?.available).toBe(false)
+      expect(store.cachedPublicSettings?.web_search?.available).toBe(false)
     })
   })
 })
