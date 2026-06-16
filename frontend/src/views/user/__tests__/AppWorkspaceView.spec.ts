@@ -1,6 +1,8 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
+import { useAppStore } from '@/stores/app'
 
 const mocks = vi.hoisted(() => ({
   route: { __v_isRef: true, value: { meta: { appSection: 'image' } } },
@@ -59,6 +61,23 @@ vi.mock('@/components/icons/Icon.vue', () => ({
 
 import AppWorkspaceView from '../AppWorkspaceView.vue'
 
+function mountWithAppStore() {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  const appStore = useAppStore()
+  appStore.cachedPublicSettings = {
+    web_search: {
+      available: false
+    }
+  } as any
+
+  return mount(AppWorkspaceView, {
+    global: {
+      plugins: [pinia]
+    }
+  })
+}
+
 describe('AppWorkspaceView interactions', () => {
   beforeEach(() => {
     mocks.route.value = { meta: { appSection: 'image' } }
@@ -80,7 +99,7 @@ describe('AppWorkspaceView interactions', () => {
   })
 
   it('mounts the shell without requesting chat-workspace endpoints', async () => {
-    const wrapper = mount(AppWorkspaceView)
+    const wrapper = mountWithAppStore()
     await flushPromises()
 
     expect(mocks.loadCapabilities).toHaveBeenCalledTimes(1)
@@ -92,7 +111,7 @@ describe('AppWorkspaceView interactions', () => {
   })
 
   it('opens the model menu and closes after selecting a model', async () => {
-    const wrapper = mount(AppWorkspaceView)
+    const wrapper = mountWithAppStore()
     await nextTick()
 
     const trigger = wrapper.get('.model-trigger')
@@ -110,7 +129,7 @@ describe('AppWorkspaceView interactions', () => {
   })
 
   it('keeps sending disabled and does not call chat-studio or chat-workspace APIs', async () => {
-    const wrapper = mount(AppWorkspaceView)
+    const wrapper = mountWithAppStore()
     await nextTick()
 
     await wrapper.get('textarea').setValue('hello')
@@ -125,29 +144,21 @@ describe('AppWorkspaceView interactions', () => {
     wrapper.unmount()
   })
 
-  it('keeps uploaded images as local previews without backend payloads', async () => {
-    const wrapper = mount(AppWorkspaceView)
+  it('shows unsupported attachment capabilities as unavailable', async () => {
+    const wrapper = mountWithAppStore()
     await nextTick()
 
     await wrapper.get('[data-testid="workspace-add-content"]').trigger('click')
-    const input = wrapper.get('input[type="file"]')
-    Object.defineProperty(input.element, 'files', {
-      value: [new File(['abc'], 'sample.png', { type: 'image/png' })],
-      configurable: true
-    })
-    await input.trigger('change')
-    await flushPromises()
-
-    expect(wrapper.find('[data-testid="workspace-asset-previews"]').exists()).toBe(true)
-    expect(mocks.createObjectURL).toHaveBeenCalled()
-    expect(JSON.stringify(mocks.apiClient.post.mock.calls)).not.toContain('data:image')
+    expect(wrapper.get('[data-testid="workspace-upload-image-disabled"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('暂未接入')
+    expect(mocks.createObjectURL).not.toHaveBeenCalled()
     expect(mocks.apiClient.post).not.toHaveBeenCalled()
 
     wrapper.unmount()
   })
 
   it('clears local shell state when starting a new chat without backend calls', async () => {
-    const wrapper = mount(AppWorkspaceView)
+    const wrapper = mountWithAppStore()
     await nextTick()
 
     await wrapper.get('textarea').setValue('hello')
