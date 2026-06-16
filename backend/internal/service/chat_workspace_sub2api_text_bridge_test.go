@@ -189,6 +189,118 @@ func TestWorkspaceSub2APITextBridgeInjectsWebSearchCitationsIntoBridgeAndMetadat
 	require.NotContains(t, strings.ToLower(string(data)), "authorization")
 }
 
+func TestWorkspaceSub2APITextBridgeUsesSavedUserMessageMetadataForWebSearchRequest(t *testing.T) {
+	bridge := &recordingWorkspaceSub2APITextBridge{}
+	webSearch := &recordingWorkspaceWebSearchService{
+		result: WorkspaceToolResult{
+			Tool:   WorkspaceToolWebSearch,
+			Status: WorkspaceToolStatusCompleted,
+			WebSearch: &WebSearchResult{
+				Summary: "Match schedule from FIFA and ESPN.",
+			},
+			Citations: []Citation{
+				{Index: 1, Title: "FIFA Schedule", Domain: "fifa.com", URL: "https://www.fifa.com/schedule", Snippet: "Opening match details.", RetrievedAt: time.Unix(0, 0).UTC()},
+			},
+			UsageLog: WorkspaceToolUsageLogPayload{
+				Tool:         WorkspaceToolWebSearch,
+				Provider:     "jina",
+				Status:       WorkspaceToolStatusCompleted,
+				ResultCount:  1,
+				ReadURLCount: 1,
+				LatencyMS:    15,
+				CreatedAt:    time.Unix(0, 0).UTC(),
+			},
+		},
+	}
+	responder := WorkspaceSub2APITextBridgeResponder{Bridge: bridge, WebSearch: webSearch}
+
+	assistantMessage, err := responder.GenerateAssistantResponse(context.Background(), WorkspaceAssistantResponseInput{
+		UserID:         1,
+		ConversationID: 16,
+		UserMessage: WorkspaceMessage{
+			ID:      65,
+			Content: "今天 2026 世界杯有哪些比赛？请给出来源。",
+			Model:   "deepseek-v4-flash",
+			Intent:  WorkspaceIntentChat,
+			Status:  WorkspaceMessageStatusCompleted,
+			Metadata: map[string]any{
+				workspaceWebSearchRequestedKey: true,
+				"model_catalog_source":         WorkspaceModelCatalogSourceRealChannel,
+				"planned_capability":           string(WorkspacePlannedCapabilityTextChat),
+				"pricing_status":               WorkspaceSelectedModelPricingConfigured,
+				"model_capability_matched":     true,
+			},
+			CreatedAt: time.Unix(0, 0).UTC(),
+		},
+		Content:  "今天 2026 世界杯有哪些比赛？请给出来源。",
+		Model:    "deepseek-v4-flash",
+		Intent:   WorkspaceIntentChat,
+		Metadata: map[string]any{},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, webSearch.calls)
+	require.Equal(t, 1, bridge.calls)
+	require.Len(t, bridge.lastInput.SystemMessages, 1)
+	require.Equal(t, true, assistantMessage.Metadata[workspaceWebSearchUsedKey])
+	require.Equal(t, 1, assistantMessage.Metadata[workspaceWebSearchResultCountKey])
+}
+
+func TestWorkspaceSub2APITextBridgeAcceptsStringTrueWebSearchRequest(t *testing.T) {
+	bridge := &recordingWorkspaceSub2APITextBridge{}
+	webSearch := &recordingWorkspaceWebSearchService{
+		result: WorkspaceToolResult{
+			Tool:   WorkspaceToolWebSearch,
+			Status: WorkspaceToolStatusCompleted,
+			WebSearch: &WebSearchResult{
+				Summary: "Match schedule from FIFA.",
+			},
+			Citations: []Citation{
+				{Index: 1, Title: "FIFA Schedule", Domain: "fifa.com", URL: "https://www.fifa.com/schedule", Snippet: "Opening match details.", RetrievedAt: time.Unix(0, 0).UTC()},
+			},
+			UsageLog: WorkspaceToolUsageLogPayload{
+				Tool:         WorkspaceToolWebSearch,
+				Provider:     "jina",
+				Status:       WorkspaceToolStatusCompleted,
+				ResultCount:  1,
+				ReadURLCount: 1,
+				LatencyMS:    15,
+				CreatedAt:    time.Unix(0, 0).UTC(),
+			},
+		},
+	}
+	responder := WorkspaceSub2APITextBridgeResponder{Bridge: bridge, WebSearch: webSearch}
+
+	assistantMessage, err := responder.GenerateAssistantResponse(context.Background(), WorkspaceAssistantResponseInput{
+		UserID:         1,
+		ConversationID: 16,
+		UserMessage: WorkspaceMessage{
+			ID:      65,
+			Content: "今天 2026 世界杯有哪些比赛？请给出来源。",
+			Model:   "deepseek-v4-flash",
+			Intent:  WorkspaceIntentChat,
+			Status:  WorkspaceMessageStatusCompleted,
+			Metadata: map[string]any{
+				workspaceWebSearchRequestedKey: "true",
+				"model_catalog_source":         WorkspaceModelCatalogSourceRealChannel,
+				"planned_capability":           string(WorkspacePlannedCapabilityTextChat),
+				"pricing_status":               WorkspaceSelectedModelPricingConfigured,
+				"model_capability_matched":     true,
+			},
+			CreatedAt: time.Unix(0, 0).UTC(),
+		},
+		Content:  "今天 2026 世界杯有哪些比赛？请给出来源。",
+		Model:    "deepseek-v4-flash",
+		Intent:   WorkspaceIntentChat,
+		Metadata: map[string]any{},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, webSearch.calls)
+	require.Equal(t, 1, bridge.calls)
+	require.Equal(t, true, assistantMessage.Metadata[workspaceWebSearchUsedKey])
+}
+
 func TestWorkspaceSub2APITextBridgeWebSearchFailureReturnsExplicitUnavailableMessage(t *testing.T) {
 	repo := newMemoryChatWorkspaceRepo()
 	resolver := NewWorkspaceSelectedModelChannelCatalogResolver(testWorkspaceSelectedModelCatalogRealImageConfig(), testWorkspaceSelectedModelChannelLister{
