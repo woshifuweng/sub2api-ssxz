@@ -1117,6 +1117,7 @@ type WorkspaceWebSearchConfig struct {
 	Enabled               bool    `mapstructure:"enabled"`
 	KillSwitch            bool    `mapstructure:"kill_switch"`
 	Provider              string  `mapstructure:"provider"`
+	APIKey                string  `mapstructure:"api_key"`
 	AllowedUserIDs        []int64 `mapstructure:"allowed_user_ids"`
 	MaxResults            int     `mapstructure:"max_results"`
 	MaxReadURLs           int     `mapstructure:"max_read_urls"`
@@ -1395,6 +1396,10 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	if cfg.Workspace.WebSearch.Provider == "" {
 		cfg.Workspace.WebSearch.Provider = "jina"
 	}
+	cfg.Workspace.WebSearch.APIKey = strings.TrimSpace(firstNonEmptyConfigValue(
+		cfg.Workspace.WebSearch.APIKey,
+		os.Getenv("JINA_API_KEY"),
+	))
 	cfg.Workspace.WebSearch.AllowedUserIDs = normalizePositiveInt64Slice(firstNonEmptyInt64Slice(
 		cfg.Workspace.WebSearch.AllowedUserIDs,
 		parseEnvInt64List("WORKSPACE_WEB_SEARCH_ALLOWED_USER_IDS"),
