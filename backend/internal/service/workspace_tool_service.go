@@ -30,6 +30,14 @@ const (
 	WorkspaceToolErrorCapExceeded         = "web_search_cap_exceeded"
 	WorkspaceToolErrorInvalidURL          = "web_search_invalid_url"
 	WorkspaceToolErrorProviderUnavailable = "web_search_provider_unavailable"
+	WorkspaceToolErrorRequestBuildFailed  = "request_build_failed"
+	WorkspaceToolErrorHTTPTransportFailed = "http_transport_failed"
+	WorkspaceToolErrorUpstreamNon2xx      = "upstream_non_2xx"
+	WorkspaceToolErrorResponseReadFailed  = "response_read_failed"
+	WorkspaceToolErrorBodyParseFailed     = "body_parse_failed"
+	WorkspaceToolErrorEmptySearchHits     = "empty_search_hits"
+	WorkspaceToolErrorTimeout             = "timeout"
+	WorkspaceToolErrorResponseTooLarge    = "response_too_large"
 )
 
 var ErrWorkspaceToolUnavailable = errors.New("workspace tool unavailable")
@@ -50,6 +58,7 @@ type WorkspaceToolResult struct {
 	WebSearch *WebSearchResult
 	Citations []Citation
 	UsageLog  WorkspaceToolUsageLogPayload
+	Metadata  map[string]any
 }
 
 type WebSearchRequest struct {
@@ -147,7 +156,7 @@ func (s *WorkspaceToolService) SearchWeb(ctx context.Context, req WorkspaceToolR
 
 	for _, rawURL := range req.WebSearch.ReadURLs {
 		if err := ValidateWorkspaceWebSearchURL(rawURL); err != nil {
-			return s.failureResult(req, start, WorkspaceToolErrorInvalidURL, err.Error()), ErrWorkspaceToolUnavailable
+			return s.failureResult(req, start, WorkspaceToolErrorInvalidURL, err.Error(), nil), ErrWorkspaceToolUnavailable
 		}
 	}
 
@@ -164,7 +173,8 @@ func (s *WorkspaceToolService) SearchWeb(ctx context.Context, req WorkspaceToolR
 
 	result, err := s.webSearch.Search(ctx, webReq)
 	if err != nil {
-		return s.failureResult(req, start, WorkspaceToolErrorProviderUnavailable, "web search provider unavailable"), err
+		code, metadata := classifyWorkspaceWebSearchProviderError(err)
+		return s.failureResult(req, start, code, "web search provider unavailable", metadata), err
 	}
 
 	usage := s.usageLog(req, start, WorkspaceToolStatusCompleted, "")
@@ -190,23 +200,23 @@ func (s *WorkspaceToolService) blockedResult(req WorkspaceToolRequest, start tim
 	}
 	switch {
 	case !s.cfg.Enabled:
-		return s.failureResult(req, start, WorkspaceToolErrorDisabled, "Web search is unavailable."), true
+		return s.failureResult(req, start, WorkspaceToolErrorDisabled, "Web search is unavailable.", nil), true
 	case s.cfg.KillSwitch:
-		return s.failureResult(req, start, WorkspaceToolErrorKillSwitch, "Web search is unavailable."), true
+		return s.failureResult(req, start, WorkspaceToolErrorKillSwitch, "Web search is unavailable.", nil), true
 	case !workspaceToolUserAllowed(req.UserID, s.cfg.AllowedUserIDs):
-		return s.failureResult(req, start, WorkspaceToolErrorUserNotAllowed, "Web search is not enabled for this account."), true
+		return s.failureResult(req, start, WorkspaceToolErrorUserNotAllowed, "Web search is not enabled for this account.", nil), true
 	case s.cfg.DailyCapPerUser <= 0 || req.UsageCountToday >= s.cfg.DailyCapPerUser:
-		return s.failureResult(req, start, WorkspaceToolErrorCapExceeded, "Web search daily limit reached."), true
+		return s.failureResult(req, start, WorkspaceToolErrorCapExceeded, "Web search daily limit reached.", nil), true
 	case s.webSearch == nil:
-		return s.failureResult(req, start, WorkspaceToolErrorProviderUnavailable, "Web search is unavailable."), true
+		return s.failureResult(req, start, WorkspaceToolErrorProviderUnavailable, "Web search is unavailable.", nil), true
 	default:
 		return WorkspaceToolResult{}, false
 	}
 }
 
-func (s *WorkspaceToolService) failureResult(req WorkspaceToolRequest, start time.Time, code, message string) WorkspaceToolResult {
+func (s *WorkspaceToolService) failureResult(req WorkspaceToolRequest, start time.Time, code, message string, metadata map[string]any) WorkspaceToolResult {
 	status := WorkspaceToolStatusBlocked
-	if code == WorkspaceToolErrorProviderUnavailable || code == WorkspaceToolErrorDisabled || code == WorkspaceToolErrorKillSwitch {
+	if isWorkspaceToolUnavailableCode(code) {
 		status = WorkspaceToolStatusUnavailable
 	}
 	return WorkspaceToolResult{
@@ -215,6 +225,26 @@ func (s *WorkspaceToolService) failureResult(req WorkspaceToolRequest, start tim
 		ErrorCode: code,
 		Message:   message,
 		UsageLog:  s.usageLog(req, start, status, code),
+		Metadata:  cloneWorkspaceToolMetadata(metadata),
+	}
+}
+
+func isWorkspaceToolUnavailableCode(code string) bool {
+	switch code {
+	case WorkspaceToolErrorProviderUnavailable,
+		WorkspaceToolErrorDisabled,
+		WorkspaceToolErrorKillSwitch,
+		WorkspaceToolErrorRequestBuildFailed,
+		WorkspaceToolErrorHTTPTransportFailed,
+		WorkspaceToolErrorUpstreamNon2xx,
+		WorkspaceToolErrorResponseReadFailed,
+		WorkspaceToolErrorBodyParseFailed,
+		WorkspaceToolErrorEmptySearchHits,
+		WorkspaceToolErrorTimeout,
+		WorkspaceToolErrorResponseTooLarge:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -232,6 +262,25 @@ func (s *WorkspaceToolService) usageLog(req WorkspaceToolRequest, start time.Tim
 		LatencyMS: time.Since(start).Milliseconds(),
 		CreatedAt: time.Now().UTC(),
 	}
+}
+
+func classifyWorkspaceWebSearchProviderError(err error) (string, map[string]any) {
+	var adapterErr *jinaAdapterError
+	if errors.As(err, &adapterErr) {
+		return adapterErr.Code, adapterErr.Metadata()
+	}
+	return WorkspaceToolErrorProviderUnavailable, nil
+}
+
+func cloneWorkspaceToolMetadata(metadata map[string]any) map[string]any {
+	if len(metadata) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(metadata))
+	for key, value := range metadata {
+		out[key] = value
+	}
+	return out
 }
 
 func workspaceToolUserAllowed(userID int64, allowed []int64) bool {

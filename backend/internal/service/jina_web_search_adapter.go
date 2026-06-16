@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -46,6 +48,51 @@ type JinaWebSearchAdapter struct {
 	maxContentLengthBytes int64
 	httpClient            jinaHTTPDoer
 	now                   func() time.Time
+}
+
+type jinaAdapterError struct {
+	Code               string
+	Message            string
+	HTTPStatus         int
+	ResponseBodyLength int
+	Err                error
+}
+
+func (e *jinaAdapterError) Error() string {
+	if e == nil {
+		return "jina adapter error"
+	}
+	if strings.TrimSpace(e.Message) != "" {
+		return e.Message
+	}
+	if e.Err != nil {
+		return e.Err.Error()
+	}
+	return "jina adapter error"
+}
+
+func (e *jinaAdapterError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+func (e *jinaAdapterError) Metadata() map[string]any {
+	if e == nil {
+		return nil
+	}
+	metadata := map[string]any{}
+	if e.HTTPStatus > 0 {
+		metadata["http_status"] = e.HTTPStatus
+	}
+	if e.ResponseBodyLength > 0 {
+		metadata["response_body_length"] = e.ResponseBodyLength
+	}
+	if len(metadata) == 0 {
+		return nil
+	}
+	return metadata
 }
 
 func ProvideWorkspaceWebSearchTool(cfg *config.Config) WebSearchTool {
@@ -91,11 +138,11 @@ func NewJinaWebSearchAdapter(cfg config.WorkspaceWebSearchConfig, client jinaHTT
 
 func (a *JinaWebSearchAdapter) Search(ctx context.Context, req WebSearchRequest) (WebSearchResult, error) {
 	if a == nil || a.httpClient == nil || a.apiKey == "" {
-		return WebSearchResult{}, fmt.Errorf("jina web search unavailable")
+		return WebSearchResult{}, &jinaAdapterError{Code: WorkspaceToolErrorProviderUnavailable, Message: "jina web search unavailable"}
 	}
 	query := strings.TrimSpace(req.Query)
 	if query == "" {
-		return WebSearchResult{}, fmt.Errorf("jina web search unavailable")
+		return WebSearchResult{}, &jinaAdapterError{Code: WorkspaceToolErrorProviderUnavailable, Message: "jina web search unavailable"}
 	}
 
 	timeout := time.Duration(req.TimeoutMS) * time.Millisecond
@@ -188,11 +235,14 @@ func (a *JinaWebSearchAdapter) searchHits(ctx context.Context, query string) ([]
 	endpoint := a.searchBaseURL + "/?q=" + url.QueryEscape(query)
 	body, err := a.doTextRequest(ctx, endpoint)
 	if err != nil {
-		return nil, fmt.Errorf("jina search unavailable")
+		return nil, err
 	}
-	hits := parseJinaSearchHits(body)
+	hits, parseCode := parseJinaSearchHits(body)
 	if len(hits) == 0 {
-		return nil, fmt.Errorf("jina search unavailable")
+		return nil, &jinaAdapterError{
+			Code:    parseCode,
+			Message: "jina search unavailable",
+		}
 	}
 	return hits, nil
 }
@@ -215,37 +265,74 @@ func (a *JinaWebSearchAdapter) readDocument(ctx context.Context, targetURL strin
 func (a *JinaWebSearchAdapter) doTextRequest(ctx context.Context, endpoint string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return "", fmt.Errorf("request build failed")
+		return "", &jinaAdapterError{
+			Code:    WorkspaceToolErrorRequestBuildFailed,
+			Message: "request build failed",
+			Err:     err,
+		}
 	}
 	req.Header.Set("Authorization", "Bearer "+a.apiKey)
 	req.Header.Set("User-Agent", "sub2api-workspace-web-search/1.0")
 
 	resp, err := a.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("request failed")
+		return "", classifyJinaHTTPError(err)
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("request failed")
+		limited := io.LimitReader(resp.Body, a.maxContentLengthBytes+1)
+		body, readErr := io.ReadAll(limited)
+		if readErr != nil {
+			return "", &jinaAdapterError{
+				Code:       WorkspaceToolErrorUpstreamNon2xx,
+				Message:    "request failed",
+				HTTPStatus: resp.StatusCode,
+			}
+		}
+		bodyLen := len(body)
+		if int64(bodyLen) > a.maxContentLengthBytes {
+			bodyLen = int(a.maxContentLengthBytes)
+		}
+		return "", &jinaAdapterError{
+			Code:               WorkspaceToolErrorUpstreamNon2xx,
+			Message:            "request failed",
+			HTTPStatus:         resp.StatusCode,
+			ResponseBodyLength: bodyLen,
+		}
 	}
 
 	limited := io.LimitReader(resp.Body, a.maxContentLengthBytes+1)
 	body, err := io.ReadAll(limited)
 	if err != nil {
-		return "", fmt.Errorf("response read failed")
+		if isJinaTimeoutError(err) || isJinaTimeoutError(ctx.Err()) {
+			return "", &jinaAdapterError{
+				Code:    WorkspaceToolErrorTimeout,
+				Message: "request failed",
+				Err:     err,
+			}
+		}
+		return "", &jinaAdapterError{
+			Code:    WorkspaceToolErrorResponseReadFailed,
+			Message: "response read failed",
+			Err:     err,
+		}
 	}
 	if int64(len(body)) > a.maxContentLengthBytes {
-		return "", fmt.Errorf("response too large")
+		return "", &jinaAdapterError{
+			Code:               WorkspaceToolErrorResponseTooLarge,
+			Message:            "response too large",
+			ResponseBodyLength: len(body),
+		}
 	}
 	return string(body), nil
 }
 
-func parseJinaSearchHits(body string) []jinaSearchHit {
+func parseJinaSearchHits(body string) ([]jinaSearchHit, string) {
 	body = strings.TrimSpace(body)
 	if body == "" {
-		return nil
+		return nil, WorkspaceToolErrorEmptySearchHits
 	}
 
 	type jinaResultEnvelope struct {
@@ -256,24 +343,55 @@ func parseJinaSearchHits(body string) []jinaSearchHit {
 	var envelope jinaResultEnvelope
 	if json.Unmarshal([]byte(body), &envelope) == nil {
 		if hits := normalizeJinaSearchMaps(envelope.Results); len(hits) > 0 {
-			return hits
+			return hits, ""
 		}
 		if hits := normalizeJinaSearchMaps(envelope.Data); len(hits) > 0 {
-			return hits
+			return hits, ""
 		}
 		if hits := normalizeJinaSearchMaps(envelope.Items); len(hits) > 0 {
-			return hits
+			return hits, ""
 		}
+		return nil, WorkspaceToolErrorEmptySearchHits
 	}
 
 	var rawList []map[string]any
 	if json.Unmarshal([]byte(body), &rawList) == nil {
 		if hits := normalizeJinaSearchMaps(rawList); len(hits) > 0 {
-			return hits
+			return hits, ""
 		}
+		return nil, WorkspaceToolErrorEmptySearchHits
 	}
 
-	return parseJinaSearchMarkdown(body)
+	if hits := parseJinaSearchMarkdown(body); len(hits) > 0 {
+		return hits, ""
+	}
+	return nil, WorkspaceToolErrorBodyParseFailed
+}
+
+func classifyJinaHTTPError(err error) error {
+	if isJinaTimeoutError(err) {
+		return &jinaAdapterError{
+			Code:    WorkspaceToolErrorTimeout,
+			Message: "request failed",
+			Err:     err,
+		}
+	}
+	return &jinaAdapterError{
+		Code:    WorkspaceToolErrorHTTPTransportFailed,
+		Message: "request failed",
+		Err:     err,
+	}
+}
+
+func isJinaTimeoutError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
 func normalizeJinaSearchMaps(items []map[string]any) []jinaSearchHit {

@@ -22,6 +22,7 @@ type fakeJinaHTTPDoer struct {
 type fakeJinaHTTPResponse struct {
 	status int
 	body   string
+	rc     io.ReadCloser
 }
 
 func (f *fakeJinaHTTPDoer) Do(req *http.Request) (*http.Response, error) {
@@ -38,12 +39,29 @@ func (f *fakeJinaHTTPDoer) Do(req *http.Request) (*http.Response, error) {
 	if status == 0 {
 		status = http.StatusOK
 	}
+	body := handler.rc
+	if body == nil {
+		body = io.NopCloser(strings.NewReader(handler.body))
+	}
 	return &http.Response{
 		StatusCode: status,
-		Body:       io.NopCloser(strings.NewReader(handler.body)),
+		Body:       body,
 		Header:     make(http.Header),
 	}, nil
 }
+
+type errReadCloser struct {
+	err error
+}
+
+func (r errReadCloser) Read(_ []byte) (int, error) { return 0, r.err }
+func (r errReadCloser) Close() error               { return nil }
+
+type timeoutNetError struct{}
+
+func (timeoutNetError) Error() string   { return "timeout" }
+func (timeoutNetError) Timeout() bool   { return true }
+func (timeoutNetError) Temporary() bool { return false }
 
 func TestProvideWorkspaceWebSearchToolRequiresAPIKey(t *testing.T) {
 	cfg := &config.Config{
@@ -174,5 +192,172 @@ func TestWorkspaceToolServiceWebSearchWithJinaFailureReturnsUnavailable(t *testi
 
 	require.Error(t, err)
 	require.Equal(t, WorkspaceToolStatusUnavailable, result.Status)
-	require.Equal(t, WorkspaceToolErrorProviderUnavailable, result.ErrorCode)
+	require.Equal(t, WorkspaceToolErrorHTTPTransportFailed, result.ErrorCode)
+}
+
+func TestJinaWebSearchAdapterRequestBuildFailureMapsSafeCode(t *testing.T) {
+	adapter := &JinaWebSearchAdapter{
+		apiKey:                "test-key",
+		searchBaseURL:         "://bad",
+		readerBaseURL:         defaultJinaReaderBaseURL,
+		maxContentLengthBytes: 1024,
+		httpClient:            &fakeJinaHTTPDoer{},
+		now:                   time.Now,
+	}
+
+	_, err := adapter.Search(context.Background(), WebSearchRequest{Query: "hello"})
+
+	var adapterErr *jinaAdapterError
+	require.ErrorAs(t, err, &adapterErr)
+	require.Equal(t, WorkspaceToolErrorRequestBuildFailed, adapterErr.Code)
+}
+
+func TestJinaWebSearchAdapterHTTPTransportFailureMapsSafeCode(t *testing.T) {
+	adapter := NewJinaWebSearchAdapter(config.WorkspaceWebSearchConfig{
+		APIKey:                "test-key",
+		MaxContentLengthBytes: 1024,
+	}, &fakeJinaHTTPDoer{err: fmt.Errorf("dial failed")})
+
+	_, err := adapter.Search(context.Background(), WebSearchRequest{Query: "hello"})
+
+	var adapterErr *jinaAdapterError
+	require.ErrorAs(t, err, &adapterErr)
+	require.Equal(t, WorkspaceToolErrorHTTPTransportFailed, adapterErr.Code)
+}
+
+func TestJinaWebSearchAdapterTimeoutMapsSafeCode(t *testing.T) {
+	adapter := NewJinaWebSearchAdapter(config.WorkspaceWebSearchConfig{
+		APIKey:                "test-key",
+		MaxContentLengthBytes: 1024,
+	}, &fakeJinaHTTPDoer{err: timeoutNetError{}})
+
+	_, err := adapter.Search(context.Background(), WebSearchRequest{Query: "hello"})
+
+	var adapterErr *jinaAdapterError
+	require.ErrorAs(t, err, &adapterErr)
+	require.Equal(t, WorkspaceToolErrorTimeout, adapterErr.Code)
+}
+
+func TestJinaWebSearchAdapterUpstreamNon2xxMapsSafeCode(t *testing.T) {
+	doer := &fakeJinaHTTPDoer{
+		handlers: map[string]fakeJinaHTTPResponse{
+			"https://s.jina.ai/?q=hello": {status: http.StatusBadGateway, body: "upstream error"},
+		},
+	}
+	adapter := NewJinaWebSearchAdapter(config.WorkspaceWebSearchConfig{
+		APIKey:                "test-key",
+		MaxContentLengthBytes: 1024,
+	}, doer)
+
+	_, err := adapter.Search(context.Background(), WebSearchRequest{Query: "hello"})
+
+	var adapterErr *jinaAdapterError
+	require.ErrorAs(t, err, &adapterErr)
+	require.Equal(t, WorkspaceToolErrorUpstreamNon2xx, adapterErr.Code)
+	require.Equal(t, http.StatusBadGateway, adapterErr.HTTPStatus)
+	require.Equal(t, len("upstream error"), adapterErr.ResponseBodyLength)
+}
+
+func TestJinaWebSearchAdapterResponseReadFailureMapsSafeCode(t *testing.T) {
+	doer := &fakeJinaHTTPDoer{
+		handlers: map[string]fakeJinaHTTPResponse{
+			"https://s.jina.ai/?q=hello": {rc: errReadCloser{err: io.ErrUnexpectedEOF}},
+		},
+	}
+	adapter := NewJinaWebSearchAdapter(config.WorkspaceWebSearchConfig{
+		APIKey:                "test-key",
+		MaxContentLengthBytes: 1024,
+	}, doer)
+
+	_, err := adapter.Search(context.Background(), WebSearchRequest{Query: "hello"})
+
+	var adapterErr *jinaAdapterError
+	require.ErrorAs(t, err, &adapterErr)
+	require.Equal(t, WorkspaceToolErrorResponseReadFailed, adapterErr.Code)
+}
+
+func TestJinaWebSearchAdapterInvalidBodyMapsBodyParseFailed(t *testing.T) {
+	doer := &fakeJinaHTTPDoer{
+		handlers: map[string]fakeJinaHTTPResponse{
+			"https://s.jina.ai/?q=hello": {body: "definitely-not-structured-search-output"},
+		},
+	}
+	adapter := NewJinaWebSearchAdapter(config.WorkspaceWebSearchConfig{
+		APIKey:                "test-key",
+		MaxContentLengthBytes: 1024,
+	}, doer)
+
+	_, err := adapter.Search(context.Background(), WebSearchRequest{Query: "hello"})
+
+	var adapterErr *jinaAdapterError
+	require.ErrorAs(t, err, &adapterErr)
+	require.Equal(t, WorkspaceToolErrorBodyParseFailed, adapterErr.Code)
+}
+
+func TestJinaWebSearchAdapterZeroHitsMapsEmptySearchHits(t *testing.T) {
+	doer := &fakeJinaHTTPDoer{
+		handlers: map[string]fakeJinaHTTPResponse{
+			"https://s.jina.ai/?q=hello": {body: `{"results":[]}`},
+		},
+	}
+	adapter := NewJinaWebSearchAdapter(config.WorkspaceWebSearchConfig{
+		APIKey:                "test-key",
+		MaxContentLengthBytes: 1024,
+	}, doer)
+
+	_, err := adapter.Search(context.Background(), WebSearchRequest{Query: "hello"})
+
+	var adapterErr *jinaAdapterError
+	require.ErrorAs(t, err, &adapterErr)
+	require.Equal(t, WorkspaceToolErrorEmptySearchHits, adapterErr.Code)
+}
+
+func TestJinaWebSearchAdapterOversizedSearchResponseMapsSafeCode(t *testing.T) {
+	doer := &fakeJinaHTTPDoer{
+		handlers: map[string]fakeJinaHTTPResponse{
+			"https://s.jina.ai/?q=hello": {body: strings.Repeat("x", 300)},
+		},
+	}
+	adapter := NewJinaWebSearchAdapter(config.WorkspaceWebSearchConfig{
+		APIKey:                "test-key",
+		MaxContentLengthBytes: 128,
+	}, doer)
+
+	_, err := adapter.Search(context.Background(), WebSearchRequest{Query: "hello"})
+
+	var adapterErr *jinaAdapterError
+	require.ErrorAs(t, err, &adapterErr)
+	require.Equal(t, WorkspaceToolErrorResponseTooLarge, adapterErr.Code)
+}
+
+func TestWorkspaceToolServiceSearchWebSurfacesSafeErrorMetadata(t *testing.T) {
+	doer := &fakeJinaHTTPDoer{
+		handlers: map[string]fakeJinaHTTPResponse{
+			"https://s.jina.ai/?q=hello": {status: http.StatusBadGateway, body: "upstream error"},
+		},
+	}
+	adapter := NewJinaWebSearchAdapter(config.WorkspaceWebSearchConfig{
+		APIKey:                "test-key",
+		MaxContentLengthBytes: 1024,
+	}, doer)
+	svc := NewWorkspaceToolService(webSearchTestConfig(config.WorkspaceWebSearchConfig{
+		Enabled:         true,
+		KillSwitch:      false,
+		Provider:        "jina",
+		APIKey:          "test-key",
+		AllowedUserIDs:  []int64{1},
+		DailyCapPerUser: 2,
+	}), adapter)
+
+	result, err := svc.SearchWeb(context.Background(), WorkspaceToolRequest{
+		UserID: 1,
+		WebSearch: WebSearchRequest{
+			Query: "hello",
+		},
+	})
+
+	require.Error(t, err)
+	require.Equal(t, WorkspaceToolErrorUpstreamNon2xx, result.ErrorCode)
+	require.Equal(t, http.StatusBadGateway, result.Metadata["http_status"])
+	require.Equal(t, len("upstream error"), result.Metadata["response_body_length"])
 }

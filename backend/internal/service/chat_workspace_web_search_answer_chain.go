@@ -16,6 +16,8 @@ const (
 	workspaceWebSearchCitationsKey          = "web_search_citations"
 	workspaceWebSearchResultCountKey        = "web_search_result_count"
 	workspaceWebSearchToolLogKey            = "web_search_tool_usage"
+	workspaceWebSearchHTTPStatusKey         = "web_search_http_status"
+	workspaceWebSearchResponseBodyLengthKey = "web_search_response_body_length"
 	workspaceWebSearchUnavailableContent    = "联网搜索暂不可用，请稍后重试。"
 	workspaceWebSearchUnavailableReason     = "web_search_unavailable"
 	workspaceWebSearchSnippetMaxChars       = 240
@@ -116,7 +118,7 @@ func workspaceWebSearchSuccessMetadata(result WorkspaceToolResult) map[string]an
 
 func workspaceWebSearchFailureMetadata(result WorkspaceToolResult) map[string]any {
 	provider := strings.TrimSpace(result.UsageLog.Provider)
-	return map[string]any{
+	metadata := map[string]any{
 		workspaceWebSearchRequestedKey:   true,
 		workspaceWebSearchUsedKey:        false,
 		workspaceWebSearchStatusKey:      firstNonEmptyWorkspaceValue(string(result.Status), string(WorkspaceToolStatusUnavailable)),
@@ -125,6 +127,15 @@ func workspaceWebSearchFailureMetadata(result WorkspaceToolResult) map[string]an
 		workspaceWebSearchCitationsKey:   []map[string]any{},
 		workspaceWebSearchResultCountKey: 0,
 	}
+	if result.Metadata != nil {
+		if status, ok := result.Metadata["http_status"]; ok {
+			metadata[workspaceWebSearchHTTPStatusKey] = status
+		}
+		if length, ok := result.Metadata["response_body_length"]; ok {
+			metadata[workspaceWebSearchResponseBodyLengthKey] = length
+		}
+	}
+	return metadata
 }
 
 func buildWorkspaceWebSearchSystemMessage(summary string, citations []Citation) string {
