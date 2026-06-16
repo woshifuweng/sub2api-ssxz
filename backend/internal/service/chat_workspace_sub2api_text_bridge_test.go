@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -37,6 +38,22 @@ func (b *recordingWorkspaceSub2APITextBridge) CompleteWorkspaceText(_ context.Co
 		BillingManaged: true,
 		ProviderCalled: true,
 	}, nil
+}
+
+type recordingWorkspaceWebSearchService struct {
+	calls   int
+	lastReq WorkspaceToolRequest
+	result  WorkspaceToolResult
+	err     error
+}
+
+func (s *recordingWorkspaceWebSearchService) SearchWeb(_ context.Context, req WorkspaceToolRequest) (WorkspaceToolResult, error) {
+	s.calls++
+	s.lastReq = req
+	if s.err != nil {
+		return s.result, s.err
+	}
+	return s.result, nil
 }
 
 func TestWorkspaceSub2APITextBridgeRunsForRealChannelDeepSeekTextModel(t *testing.T) {
@@ -76,6 +93,192 @@ func TestWorkspaceSub2APITextBridgeRunsForRealChannelDeepSeekTextModel(t *testin
 	require.Equal(t, true, assistantMessage.Metadata["billing_touched"])
 	_, userMessageBills := userMessage.Metadata["billing_touched"]
 	require.False(t, userMessageBills)
+}
+
+func TestWorkspaceSub2APITextBridgeDoesNotCallWebSearchWhenNotRequested(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	resolver := NewWorkspaceSelectedModelChannelCatalogResolver(testWorkspaceSelectedModelCatalogRealImageConfig(), testWorkspaceSelectedModelChannelLister{
+		channels: []AvailableChannel{testWorkspaceSelectedModelDeepSeekChannel(10)},
+	})
+	bridge := &recordingWorkspaceSub2APITextBridge{}
+	webSearch := &recordingWorkspaceWebSearchService{}
+	svc := NewChatWorkspaceServiceWithSub2APITextBridgeAndWebSearch(repo, bridge, webSearch, resolver)
+	conversation, err := svc.CreateConversation(context.Background(), 1, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 1, WorkspaceAppendMessageInput{
+		ConversationID:  conversation.ID,
+		MessageType:     WorkspaceMessageTypeText,
+		Role:            WorkspaceRoleUser,
+		Content:         "plain text only",
+		Model:           "deepseek-v4-flash",
+		Intent:          WorkspaceIntentChat,
+		AllowedGroupIDs: []int64{10},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 0, webSearch.calls)
+	require.Equal(t, 1, bridge.calls)
+	require.Empty(t, bridge.lastInput.SystemMessages)
+	require.NotContains(t, assistantMessage.Metadata, workspaceWebSearchCitationsKey)
+}
+
+func TestWorkspaceSub2APITextBridgeInjectsWebSearchCitationsIntoBridgeAndMetadata(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	resolver := NewWorkspaceSelectedModelChannelCatalogResolver(testWorkspaceSelectedModelCatalogRealImageConfig(), testWorkspaceSelectedModelChannelLister{
+		channels: []AvailableChannel{testWorkspaceSelectedModelDeepSeekChannel(10)},
+	})
+	bridge := &recordingWorkspaceSub2APITextBridge{}
+	webSearch := &recordingWorkspaceWebSearchService{
+		result: WorkspaceToolResult{
+			Tool:   WorkspaceToolWebSearch,
+			Status: WorkspaceToolStatusCompleted,
+			WebSearch: &WebSearchResult{
+				Summary: "Match schedule from FIFA and ESPN.",
+				Citations: []Citation{
+					{Index: 1, Title: "FIFA Schedule", Domain: "fifa.com", URL: "https://www.fifa.com/schedule", Snippet: "Opening match details.", RetrievedAt: time.Unix(0, 0).UTC()},
+					{Index: 2, Title: "ESPN Fixtures", Domain: "espn.com", URL: "https://www.espn.com/fixtures", Snippet: "Same-day fixtures and kickoff times.", RetrievedAt: time.Unix(0, 0).UTC()},
+				},
+			},
+			Citations: []Citation{
+				{Index: 1, Title: "FIFA Schedule", Domain: "fifa.com", URL: "https://www.fifa.com/schedule", Snippet: "Opening match details.", RetrievedAt: time.Unix(0, 0).UTC()},
+				{Index: 2, Title: "ESPN Fixtures", Domain: "espn.com", URL: "https://www.espn.com/fixtures", Snippet: "Same-day fixtures and kickoff times.", RetrievedAt: time.Unix(0, 0).UTC()},
+			},
+			UsageLog: WorkspaceToolUsageLogPayload{
+				Tool:         WorkspaceToolWebSearch,
+				Provider:     "jina",
+				Status:       WorkspaceToolStatusCompleted,
+				ResultCount:  2,
+				ReadURLCount: 2,
+				LatencyMS:    15,
+				CreatedAt:    time.Unix(0, 0).UTC(),
+			},
+		},
+	}
+	svc := NewChatWorkspaceServiceWithSub2APITextBridgeAndWebSearch(repo, bridge, webSearch, resolver)
+	conversation, err := svc.CreateConversation(context.Background(), 1, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 1, WorkspaceAppendMessageInput{
+		ConversationID:  conversation.ID,
+		MessageType:     WorkspaceMessageTypeText,
+		Role:            WorkspaceRoleUser,
+		Content:         "今天 2026 世界杯有哪些比赛？请给出来源。",
+		Model:           "deepseek-v4-flash",
+		Intent:          WorkspaceIntentChat,
+		Metadata:        map[string]any{workspaceWebSearchRequestedKey: true},
+		AllowedGroupIDs: []int64{10},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, webSearch.calls)
+	require.Equal(t, 1, bridge.calls)
+	require.Len(t, bridge.lastInput.SystemMessages, 1)
+	require.Contains(t, bridge.lastInput.SystemMessages[0], "[1] FIFA Schedule")
+	require.Contains(t, bridge.lastInput.SystemMessages[0], "cite them inline as [1], [2]")
+	require.Equal(t, true, assistantMessage.Metadata[workspaceWebSearchRequestedKey])
+	require.Equal(t, true, assistantMessage.Metadata[workspaceWebSearchUsedKey])
+	require.Equal(t, "jina", assistantMessage.Metadata[workspaceWebSearchProviderKey])
+	require.Equal(t, 2, assistantMessage.Metadata[workspaceWebSearchResultCountKey])
+	citations, ok := assistantMessage.Metadata[workspaceWebSearchCitationsKey].([]map[string]any)
+	require.True(t, ok)
+	require.Len(t, citations, 2)
+	require.Equal(t, "fifa.com", citations[0]["domain"])
+	data, err := json.Marshal(assistantMessage.Metadata)
+	require.NoError(t, err)
+	require.NotContains(t, strings.ToLower(string(data)), "authorization")
+}
+
+func TestWorkspaceSub2APITextBridgeWebSearchFailureReturnsExplicitUnavailableMessage(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	resolver := NewWorkspaceSelectedModelChannelCatalogResolver(testWorkspaceSelectedModelCatalogRealImageConfig(), testWorkspaceSelectedModelChannelLister{
+		channels: []AvailableChannel{testWorkspaceSelectedModelDeepSeekChannel(10)},
+	})
+	bridge := &recordingWorkspaceSub2APITextBridge{}
+	webSearch := &recordingWorkspaceWebSearchService{
+		result: WorkspaceToolResult{
+			Tool:      WorkspaceToolWebSearch,
+			Status:    WorkspaceToolStatusUnavailable,
+			ErrorCode: WorkspaceToolErrorProviderUnavailable,
+			Message:   "web search provider unavailable",
+			UsageLog: WorkspaceToolUsageLogPayload{
+				Tool:      WorkspaceToolWebSearch,
+				Provider:  "jina",
+				Status:    WorkspaceToolStatusUnavailable,
+				ErrorCode: WorkspaceToolErrorProviderUnavailable,
+			},
+		},
+		err: ErrWorkspaceToolUnavailable,
+	}
+	svc := NewChatWorkspaceServiceWithSub2APITextBridgeAndWebSearch(repo, bridge, webSearch, resolver)
+	conversation, err := svc.CreateConversation(context.Background(), 1, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 1, WorkspaceAppendMessageInput{
+		ConversationID:  conversation.ID,
+		MessageType:     WorkspaceMessageTypeText,
+		Role:            WorkspaceRoleUser,
+		Content:         "search for current fixtures",
+		Model:           "deepseek-v4-flash",
+		Intent:          WorkspaceIntentChat,
+		Metadata:        map[string]any{workspaceWebSearchRequestedKey: true},
+		AllowedGroupIDs: []int64{10},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, webSearch.calls)
+	require.Zero(t, bridge.calls)
+	require.Equal(t, workspaceWebSearchUnavailableContent, assistantMessage.Content)
+	require.Equal(t, false, assistantMessage.Metadata[workspaceWebSearchUsedKey])
+	require.Equal(t, WorkspaceToolErrorProviderUnavailable, assistantMessage.Metadata[workspaceWebSearchErrorCodeKey])
+	require.Equal(t, false, assistantMessage.Metadata["provider_called"])
+	require.Equal(t, 0, assistantMessage.Metadata[workspaceWebSearchResultCountKey])
+	citations, ok := assistantMessage.Metadata[workspaceWebSearchCitationsKey].([]map[string]any)
+	require.True(t, ok)
+	require.Len(t, citations, 0)
+}
+
+func TestWorkspaceSub2APITextBridgeWebSearchGateDisabledFailsClosed(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	resolver := NewWorkspaceSelectedModelChannelCatalogResolver(testWorkspaceSelectedModelCatalogRealImageConfig(), testWorkspaceSelectedModelChannelLister{
+		channels: []AvailableChannel{testWorkspaceSelectedModelDeepSeekChannel(10)},
+	})
+	bridge := &recordingWorkspaceSub2APITextBridge{}
+	webSearch := &recordingWorkspaceWebSearchService{
+		result: WorkspaceToolResult{
+			Tool:      WorkspaceToolWebSearch,
+			Status:    WorkspaceToolStatusUnavailable,
+			ErrorCode: WorkspaceToolErrorKillSwitch,
+			Message:   "Web search is unavailable.",
+			UsageLog: WorkspaceToolUsageLogPayload{
+				Tool:      WorkspaceToolWebSearch,
+				Provider:  "jina",
+				Status:    WorkspaceToolStatusUnavailable,
+				ErrorCode: WorkspaceToolErrorKillSwitch,
+			},
+		},
+		err: ErrWorkspaceToolUnavailable,
+	}
+	svc := NewChatWorkspaceServiceWithSub2APITextBridgeAndWebSearch(repo, bridge, webSearch, resolver)
+	conversation, err := svc.CreateConversation(context.Background(), 1, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 1, WorkspaceAppendMessageInput{
+		ConversationID:  conversation.ID,
+		MessageType:     WorkspaceMessageTypeText,
+		Role:            WorkspaceRoleUser,
+		Content:         "search under gate",
+		Model:           "deepseek-v4-flash",
+		Intent:          WorkspaceIntentChat,
+		Metadata:        map[string]any{workspaceWebSearchRequestedKey: true},
+		AllowedGroupIDs: []int64{10},
+	})
+
+	require.NoError(t, err)
+	require.Zero(t, bridge.calls)
+	require.Equal(t, workspaceWebSearchUnavailableContent, assistantMessage.Content)
+	require.Equal(t, WorkspaceToolErrorKillSwitch, assistantMessage.Metadata[workspaceWebSearchErrorCodeKey])
+	require.Equal(t, false, assistantMessage.Metadata[workspaceWebSearchUsedKey])
 }
 
 func TestWorkspaceSub2APITextBridgeDoesNotClaimBillingWhenGatewayReportsMissingUsage(t *testing.T) {

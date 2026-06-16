@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -71,4 +72,27 @@ func TestParseWorkspaceSub2APITextBridgeResultDoesNotClaimBillingWhenUsageIsZero
 	require.False(t, result.BillingManaged)
 	require.Equal(t, "usage_missing", result.AdditionalFields["usage_status"])
 	require.Equal(t, "billing_not_recorded", result.AdditionalFields["billing_status"])
+}
+
+func TestBuildWorkspaceSub2APITextBridgeBodyPrependsSystemMessages(t *testing.T) {
+	body, err := buildWorkspaceSub2APITextBridgeBody("deepseek-v4-flash", "请只回复：STAGING_TEXT_OK", []string{
+		"Use citations [1] and [2].",
+	})
+
+	require.NoError(t, err)
+
+	var payload struct {
+		Model    string `json:"model"`
+		Messages []struct {
+			Role    string `json:"role"`
+			Content string `json:"content"`
+		} `json:"messages"`
+	}
+	require.NoError(t, json.Unmarshal(body, &payload))
+	require.Equal(t, "deepseek-v4-flash", payload.Model)
+	require.Len(t, payload.Messages, 2)
+	require.Equal(t, "system", payload.Messages[0].Role)
+	require.Contains(t, payload.Messages[0].Content, "[1]")
+	require.Equal(t, "user", payload.Messages[1].Role)
+	require.Equal(t, "请只回复：STAGING_TEXT_OK", payload.Messages[1].Content)
 }

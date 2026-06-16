@@ -29,6 +29,10 @@ type WorkspaceSub2APITextBridge interface {
 	CompleteWorkspaceText(ctx context.Context, input WorkspaceSub2APITextBridgeInput) (WorkspaceSub2APITextBridgeResult, error)
 }
 
+type WorkspaceWebSearchService interface {
+	SearchWeb(ctx context.Context, req WorkspaceToolRequest) (WorkspaceToolResult, error)
+}
+
 type WorkspaceSub2APITextBridgeInput struct {
 	UserID          int64
 	AllowedGroupIDs []int64
@@ -36,6 +40,7 @@ type WorkspaceSub2APITextBridgeInput struct {
 	UserMessageID   int64
 	Content         string
 	Model           string
+	SystemMessages  []string
 	Metadata        map[string]any
 }
 
@@ -53,14 +58,22 @@ type WorkspaceSub2APITextBridgeResult struct {
 }
 
 type WorkspaceSub2APITextBridgeResponder struct {
-	Bridge WorkspaceSub2APITextBridge
+	Bridge    WorkspaceSub2APITextBridge
+	WebSearch WorkspaceWebSearchService
 }
 
 func NewChatWorkspaceServiceWithSub2APITextBridge(repo ChatWorkspaceRepository, bridge WorkspaceSub2APITextBridge, resolver WorkspaceSelectedModelCatalogResolver) *ChatWorkspaceService {
 	return NewChatWorkspaceServiceWithResponderAndModelCatalogResolver(repo, WorkspaceSub2APITextBridgeResponder{Bridge: bridge}, resolver)
 }
 
-func ProvideChatWorkspaceServiceWithSub2APITextBridge(repo ChatWorkspaceRepository, cfg *config.Config, channelLister WorkspaceSelectedModelCatalogChannelLister, bridge WorkspaceSub2APITextBridge) *ChatWorkspaceService {
+func NewChatWorkspaceServiceWithSub2APITextBridgeAndWebSearch(repo ChatWorkspaceRepository, bridge WorkspaceSub2APITextBridge, webSearch WorkspaceWebSearchService, resolver WorkspaceSelectedModelCatalogResolver) *ChatWorkspaceService {
+	return NewChatWorkspaceServiceWithResponderAndModelCatalogResolver(repo, WorkspaceSub2APITextBridgeResponder{
+		Bridge:    bridge,
+		WebSearch: webSearch,
+	}, resolver)
+}
+
+func ProvideChatWorkspaceServiceWithSub2APITextBridge(repo ChatWorkspaceRepository, cfg *config.Config, channelLister WorkspaceSelectedModelCatalogChannelLister, bridge WorkspaceSub2APITextBridge, webSearch WorkspaceWebSearchService) *ChatWorkspaceService {
 	var resolver WorkspaceSelectedModelCatalogResolver
 	if channelLister != nil {
 		resolver = NewWorkspaceSelectedModelChannelCatalogResolver(cfg, channelLister)
@@ -68,7 +81,7 @@ func ProvideChatWorkspaceServiceWithSub2APITextBridge(repo ChatWorkspaceReposito
 	if bridge == nil {
 		return NewChatWorkspaceServiceWithResponderAndModelCatalogResolver(repo, nil, resolver)
 	}
-	return NewChatWorkspaceServiceWithSub2APITextBridge(repo, bridge, resolver)
+	return NewChatWorkspaceServiceWithSub2APITextBridgeAndWebSearch(repo, bridge, webSearch, resolver)
 }
 
 func (r WorkspaceSub2APITextBridgeResponder) GenerateAssistantResponse(ctx context.Context, input WorkspaceAssistantResponseInput) (WorkspaceAssistantResponse, error) {
@@ -78,6 +91,20 @@ func (r WorkspaceSub2APITextBridgeResponder) GenerateAssistantResponse(ctx conte
 	if r.Bridge == nil {
 		return WorkspaceUnavailableAssistantResponder{}.GenerateAssistantResponse(ctx, input)
 	}
+
+	systemMessages, searchMetadata, blockedResponse, err := r.prepareWebSearch(ctx, input)
+	if err != nil {
+		return WorkspaceAssistantResponse{}, err
+	}
+	if blockedResponse != nil {
+		return *blockedResponse, nil
+	}
+	if len(searchMetadata) > 0 {
+		input.Metadata = workspaceCloneMetadata(input.Metadata)
+		mergeWorkspaceMetadata(input.Metadata, searchMetadata)
+		input.UserMessage.Metadata = workspaceCloneMetadata(input.UserMessage.Metadata)
+		mergeWorkspaceMetadata(input.UserMessage.Metadata, searchMetadata)
+	}
 	started := time.Now()
 	result, err := r.Bridge.CompleteWorkspaceText(ctx, WorkspaceSub2APITextBridgeInput{
 		UserID:          input.UserID,
@@ -86,6 +113,7 @@ func (r WorkspaceSub2APITextBridgeResponder) GenerateAssistantResponse(ctx conte
 		UserMessageID:   input.UserMessage.ID,
 		Content:         input.Content,
 		Model:           input.Model,
+		SystemMessages:  systemMessages,
 		Metadata:        input.Metadata,
 	})
 	if err != nil {
@@ -159,6 +187,7 @@ func workspaceSub2APITextBridgeSuccessMetadata(input WorkspaceAssistantResponseI
 		}
 		metadata[key] = value
 	}
+	mergeWorkspaceMetadata(metadata, workspaceAssistantWebSearchMetadata(input.Metadata))
 	return metadata
 }
 
@@ -179,6 +208,7 @@ func workspaceSub2APITextBridgeBlockedResponseWithContent(input WorkspaceAssista
 	metadata["provider_called"] = false
 	metadata["billing_touched"] = false
 	metadata["provider_routing_touched"] = false
+	mergeWorkspaceMetadata(metadata, workspaceAssistantWebSearchMetadata(input.Metadata))
 	return WorkspaceAssistantResponse{
 		Content:     firstNonEmptyWorkspaceValue(content, WorkspaceAssistantUnavailableContent),
 		MessageType: WorkspaceMessageTypeText,
@@ -187,6 +217,24 @@ func workspaceSub2APITextBridgeBlockedResponseWithContent(input WorkspaceAssista
 		Status:      WorkspaceMessageStatusCompleted,
 		Metadata:    metadata,
 	}
+}
+
+func workspaceAssistantWebSearchMetadata(metadata map[string]any) map[string]any {
+	if len(metadata) == 0 || !workspaceMetadataBool(metadata, workspaceWebSearchRequestedKey) {
+		return nil
+	}
+	out := map[string]any{
+		workspaceWebSearchRequestedKey:   metadata[workspaceWebSearchRequestedKey],
+		workspaceWebSearchUsedKey:        metadata[workspaceWebSearchUsedKey],
+		workspaceWebSearchStatusKey:      metadata[workspaceWebSearchStatusKey],
+		workspaceWebSearchProviderKey:    metadata[workspaceWebSearchProviderKey],
+		workspaceWebSearchErrorCodeKey:   metadata[workspaceWebSearchErrorCodeKey],
+		workspaceWebSearchSummaryKey:     metadata[workspaceWebSearchSummaryKey],
+		workspaceWebSearchCitationsKey:   metadata[workspaceWebSearchCitationsKey],
+		workspaceWebSearchResultCountKey: metadata[workspaceWebSearchResultCountKey],
+		workspaceWebSearchToolLogKey:     metadata[workspaceWebSearchToolLogKey],
+	}
+	return out
 }
 
 func workspaceSub2APITextBridgeFailedResponse(input WorkspaceAssistantResponseInput, err error) WorkspaceAssistantResponse {

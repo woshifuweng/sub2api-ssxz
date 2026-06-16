@@ -18,13 +18,13 @@ const models = [
   { id: 'gpt-5.4-mini', name: 'GPT-5.4-Mini', tier: 'standard' as const, capabilities: ['text_chat'], modelCatalogSource: 'real_channel' }
 ]
 
-function mountComposer(overrides = {}) {
+function mountComposer(overrides = {}, webSearchAvailable = false) {
   const pinia = createPinia()
   setActivePinia(pinia)
   const appStore = useAppStore()
   appStore.cachedPublicSettings = {
     web_search: {
-      available: false
+      available: webSearchAvailable
     }
   } as any
 
@@ -42,6 +42,7 @@ function mountComposer(overrides = {}) {
       sending: false,
       assetPreviews: [],
       rejectedFiles: [],
+      webSearchEnabled: false,
       ...overrides
     }
   })
@@ -66,6 +67,18 @@ describe('WorkspaceComposer', () => {
     expect(wrapper.get('[data-testid="workspace-capability-memory"]').attributes('disabled')).toBeDefined()
     expect(wrapper.get('[data-testid="workspace-capability-toolbox"]').attributes('disabled')).toBeDefined()
     expect(wrapper.text()).toContain('暂未接入')
+  })
+
+  it('shows a usable web search toggle only when the backend exposes it', async () => {
+    const wrapper = mountComposer({ modelValue: 'ready', webSearchEnabled: true }, true)
+
+    const button = wrapper.get('[data-testid="workspace-capability-web-search"]')
+    expect(button.attributes('disabled')).toBeUndefined()
+    expect(button.attributes('aria-pressed')).toBe('true')
+    expect(wrapper.text()).toContain('已启用')
+
+    await button.trigger('click')
+    expect(wrapper.emitted('toggle-web-search')).toHaveLength(1)
   })
 
   it('emits submit when content is ready', async () => {
