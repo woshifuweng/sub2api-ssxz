@@ -402,6 +402,60 @@ func TestWorkspaceSub2APITextBridgeWebSearchGateDisabledFailsClosed(t *testing.T
 	require.Equal(t, false, assistantMessage.Metadata[workspaceWebSearchUsedKey])
 }
 
+func TestWorkspaceSub2APITextBridgeLowRelevanceFailsClosedWithoutCallingBridge(t *testing.T) {
+	repo := newMemoryChatWorkspaceRepo()
+	resolver := NewWorkspaceSelectedModelChannelCatalogResolver(testWorkspaceSelectedModelCatalogRealImageConfig(), testWorkspaceSelectedModelChannelLister{
+		channels: []AvailableChannel{testWorkspaceSelectedModelDeepSeekChannel(10)},
+	})
+	bridge := &recordingWorkspaceSub2APITextBridge{}
+	webSearch := &recordingWorkspaceWebSearchService{
+		result: WorkspaceToolResult{
+			Tool:      WorkspaceToolWebSearch,
+			Status:    WorkspaceToolStatusLowRelevance,
+			ErrorCode: WorkspaceToolErrorLowRelevance,
+			Message:   "web search results are not relevant enough",
+			UsageLog: WorkspaceToolUsageLogPayload{
+				Tool:      WorkspaceToolWebSearch,
+				Provider:  "jina",
+				Status:    WorkspaceToolStatusLowRelevance,
+				ErrorCode: WorkspaceToolErrorLowRelevance,
+			},
+			Metadata: map[string]any{
+				"strategy":        workspaceWebSearchStrategySportsSchedule,
+				"attempts":        2,
+				"relevance_score": 18,
+				"relevance_band":  workspaceWebSearchRelevanceBandLow,
+			},
+		},
+		err: ErrWorkspaceToolUnavailable,
+	}
+	svc := NewChatWorkspaceServiceWithSub2APITextBridgeAndWebSearch(repo, bridge, webSearch, resolver)
+	conversation, err := svc.CreateConversation(context.Background(), 1, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 1, WorkspaceAppendMessageInput{
+		ConversationID:  conversation.ID,
+		MessageType:     WorkspaceMessageTypeText,
+		Role:            WorkspaceRoleUser,
+		Content:         "今天 2026 世界杯有哪些比赛？请给出来源。",
+		Model:           "deepseek-v4-flash",
+		Intent:          WorkspaceIntentChat,
+		Metadata:        map[string]any{workspaceWebSearchRequestedKey: true},
+		AllowedGroupIDs: []int64{10},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, webSearch.calls)
+	require.Zero(t, bridge.calls)
+	require.Equal(t, workspaceWebSearchLowRelevanceContent, assistantMessage.Content)
+	require.Equal(t, string(WorkspaceToolStatusLowRelevance), assistantMessage.Metadata[workspaceWebSearchStatusKey])
+	require.Equal(t, WorkspaceToolErrorLowRelevance, assistantMessage.Metadata[workspaceWebSearchErrorCodeKey])
+	require.Equal(t, workspaceWebSearchStrategySportsSchedule, assistantMessage.Metadata[workspaceWebSearchStrategyKey])
+	require.Equal(t, 2, assistantMessage.Metadata[workspaceWebSearchAttemptsKey])
+	require.Equal(t, workspaceWebSearchRelevanceBandLow, assistantMessage.Metadata[workspaceWebSearchRelevanceBandKey])
+	require.Equal(t, false, assistantMessage.Metadata["provider_called"])
+}
+
 func TestWorkspaceSub2APITextBridgeDoesNotClaimBillingWhenGatewayReportsMissingUsage(t *testing.T) {
 	repo := newMemoryChatWorkspaceRepo()
 	resolver := NewWorkspaceSelectedModelChannelCatalogResolver(testWorkspaceSelectedModelCatalogRealImageConfig(), testWorkspaceSelectedModelChannelLister{
