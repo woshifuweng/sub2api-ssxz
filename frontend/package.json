@@ -59,6 +59,7 @@
   },
   "pnpm": {
     "overrides": {
+      "form-data": "4.0.6",
       "js-cookie": "3.0.8",
       "lodash": "4.18.1",
       "lodash-es": "4.18.1"
