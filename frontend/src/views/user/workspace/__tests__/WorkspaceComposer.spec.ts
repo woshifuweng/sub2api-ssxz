@@ -37,6 +37,7 @@ function mountComposer(overrides = {}) {
       selectedModel: 'gpt-5.5',
       models,
       intent: 'image',
+      imageCapabilityAvailable: false,
       backendEnabled: true,
       sending: false,
       assetPreviews: [],
@@ -57,14 +58,13 @@ describe('WorkspaceComposer', () => {
     expect(wrapper.emitted('update:selectedModel')?.[0]).toEqual(['gpt-5.4-mini'])
   })
 
-  it('opens upload capabilities without disabled future buttons', async () => {
+  it('hides the image entry and keeps unsupported capabilities visibly unavailable in text beta', async () => {
     const wrapper = mountComposer({ modelValue: 'ready' })
 
-    await wrapper.get('[data-testid="workspace-add-content"]').trigger('click')
-
-    expect(wrapper.find('#workspace-asset-panel').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="workspace-upload-image-disabled"]').attributes('disabled')).toBeDefined()
-    expect(wrapper.get('[data-testid="workspace-capability-web-search"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-testid="workspace-add-content"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="workspace-capability-web-search"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="workspace-capability-memory"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="workspace-capability-toolbox"]').attributes('disabled')).toBeDefined()
     expect(wrapper.text()).toContain('暂未接入')
   })
 
@@ -76,13 +76,10 @@ describe('WorkspaceComposer', () => {
     expect(wrapper.emitted('submit')).toHaveLength(1)
   })
 
-  it('keeps submit disabled for image intent until image task backend is ready', async () => {
+  it('keeps image-route composer text-oriented when image capability is unavailable', () => {
     const wrapper = mountComposer({ intent: 'image', modelValue: 'make an image' })
 
-    await wrapper.get('form').trigger('submit.prevent')
-
-    expect(wrapper.get('[data-testid="workspace-send"]').attributes('disabled')).toBeDefined()
-    expect(wrapper.emitted('submit')).toBeUndefined()
+    expect(wrapper.find('textarea').attributes('placeholder')).toContain('直接输入问题')
   })
 
   it('keeps submit disabled when the workspace backend is unavailable', async () => {

@@ -98,14 +98,18 @@ describe('AppWorkspaceView interactions', () => {
     })
   })
 
-  it('mounts the shell without requesting chat-workspace endpoints', async () => {
+  it('mounts the shell with honest text-beta framing', async () => {
     const wrapper = mountWithAppStore()
     await flushPromises()
 
     expect(mocks.loadCapabilities).toHaveBeenCalledTimes(1)
     expect(mocks.apiClient.get).not.toHaveBeenCalled()
     expect(mocks.apiClient.post).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('统一工作台后端正在接入')
+    expect(wrapper.text()).toContain('GPT-5.5')
+    expect(wrapper.text()).toContain('文本对话')
+    expect(wrapper.text()).toContain('直接输入问题')
+    expect(wrapper.text()).not.toContain('上传参考图')
+    expect(wrapper.text()).not.toContain('生成、修改的画面')
 
     wrapper.unmount()
   })
@@ -128,7 +132,7 @@ describe('AppWorkspaceView interactions', () => {
     wrapper.unmount()
   })
 
-  it('keeps sending disabled and does not call chat-studio or chat-workspace APIs', async () => {
+  it('keeps sending disabled and does not call chat APIs when backend is unavailable', async () => {
     const wrapper = mountWithAppStore()
     await nextTick()
 
@@ -144,12 +148,11 @@ describe('AppWorkspaceView interactions', () => {
     wrapper.unmount()
   })
 
-  it('shows unsupported attachment capabilities as unavailable', async () => {
+  it('does not expose the image upload entry during text beta', async () => {
     const wrapper = mountWithAppStore()
     await nextTick()
 
-    await wrapper.get('[data-testid="workspace-add-content"]').trigger('click')
-    expect(wrapper.get('[data-testid="workspace-upload-image-disabled"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-testid="workspace-add-content"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('暂未接入')
     expect(mocks.createObjectURL).not.toHaveBeenCalled()
     expect(mocks.apiClient.post).not.toHaveBeenCalled()

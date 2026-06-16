@@ -25,9 +25,9 @@
     />
 
     <WorkspaceAssetPanel
-      v-if="assetPanelOpen"
+      v-if="assetPanelOpen && imageCapabilityAvailable"
       :rejected-files="rejectedFiles"
-      :image-upload-available="false"
+      :image-upload-available="imageCapabilityAvailable"
       @files="emit('files', $event)"
     />
 
@@ -39,6 +39,7 @@
       />
 
       <button
+        v-if="imageCapabilityAvailable"
         type="button"
         class="toolbar-tool"
         data-testid="workspace-add-content"
@@ -100,6 +101,7 @@ const props = defineProps<{
   selectedModel: string
   models: ChatModelOption[]
   intent: WorkspaceIntent
+  imageCapabilityAvailable?: boolean
   backendEnabled?: boolean
   sending: boolean
   assetPreviews: WorkspaceAssetPreview[]
@@ -118,8 +120,8 @@ const appStore = useAppStore()
 const assetPanelOpen = ref(false)
 
 const placeholders: Record<WorkspaceIntent, string> = {
-  home: '直接提问、上传文件或开始一个新任务',
-  chat: '输入问题，继续这段对话',
+  home: '直接输入问题，开始对话。',
+  chat: '直接输入问题，开始对话。',
   image: '描述你想生成或修改的图片，也可以先上传参考图'
 }
 
@@ -131,14 +133,13 @@ const capabilityTools = computed<Array<{
   available: boolean
 }>>(() => {
   const webSearchAvailable = appStore.cachedPublicSettings?.web_search?.available === true
-  return [
-    {
-      key: 'web-search',
-      label: '联网',
-      description: webSearchAvailable ? '联网检索已接入。' : '联网检索暂未接入，当前不会假装开启。',
-      icon: 'globe',
-      available: webSearchAvailable
-    },
+  const tools: Array<{
+    key: CapabilityToolKey
+    label: string
+    description: string
+    icon: IconName
+    available: boolean
+  }> = [
     {
       key: 'memory',
       label: '记忆',
@@ -154,13 +155,27 @@ const capabilityTools = computed<Array<{
       available: false
     }
   ]
+
+  if (webSearchAvailable) {
+    tools.push({
+      key: 'web-search',
+      label: '联网',
+      description: '联网检索已接入。',
+      icon: 'globe',
+      available: true
+    })
+  }
+
+  return tools
 })
 
-const placeholder = computed(() => placeholders[props.intent])
+const placeholder = computed(() =>
+  props.imageCapabilityAvailable ? placeholders[props.intent] : placeholders.chat
+)
 const canSubmit = computed(() =>
   props.backendEnabled === true &&
   !props.sending &&
-  props.intent !== 'image' &&
+  (props.intent !== 'image' || props.imageCapabilityAvailable === true) &&
   Boolean(props.selectedModel) &&
   props.assetPreviews.length === 0 &&
   props.modelValue.trim().length > 0

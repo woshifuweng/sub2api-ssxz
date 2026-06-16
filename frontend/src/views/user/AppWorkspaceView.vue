@@ -41,6 +41,7 @@
           :selected-model="activeChatModel"
           :models="chatModels"
           :intent="workspaceIntent"
+          :image-capability-available="imageCapabilityAvailable"
           :backend-enabled="workspace.backendEnabled.value"
           :sending="workspace.sending.value || assets.registering.value"
           :asset-previews="assets.previews.value"
@@ -97,21 +98,21 @@ const sectionKeys: readonly SectionKey[] = ['home', 'chat', 'image']
 const sectionContent: Record<SectionKey, SectionContent> = {
   home: {
     shellTitle: 'SSXZ AI',
-    shellSubtitle: '聊天、图片、上传都从同一个输入框开始',
+    shellSubtitle: '直接输入问题，开始对话。',
     eyebrow: '对话工作台',
-    icon: 'sparkles'
+    icon: 'chat'
   },
   chat: {
     shellTitle: 'SSXZ AI',
-    shellSubtitle: '围绕对话持续保存上下文和历史',
+    shellSubtitle: '当前开放文本对话 beta。',
     eyebrow: '对话工作台',
     icon: 'chat'
   },
   image: {
     shellTitle: 'SSXZ AI',
-    shellSubtitle: '图片需求也从对话输入区自然进入工作流',
-    eyebrow: '图片工作流',
-    icon: 'sparkles'
+    shellSubtitle: '当前开放文本对话 beta。',
+    eyebrow: '对话工作台',
+    icon: 'chat'
   }
 }
 
@@ -119,18 +120,43 @@ const activeSection = computed<SectionKey>(() => {
   const section = route.meta.appSection
   return isSectionKey(section) ? section : 'home'
 })
-const workspaceIntent = computed<WorkspaceIntent>(() => activeSection.value)
-const activeContent = computed(() => sectionContent[activeSection.value])
-const emptyStateCopy = computed(() => {
-  if (activeSection.value === 'image') return '上传参考图或描述你想生成、修改的画面，后续过程会沉淀在同一段对话里。'
-  if (activeSection.value === 'chat') return '输入问题后，这段对话会进入左侧历史，刷新页面也不会丢失。'
-  return '像 ChatGPT 一样直接开始，也可以先上传图片，让能力从输入区自然发生。'
-})
 const availableModelIds = computed(() => chatModels.value.map((model) => model.id))
 const activeChatModel = computed(() => {
   if (!hasChat.value) return ''
   if (selectedModelId.value && availableModelIds.value.includes(selectedModelId.value)) return selectedModelId.value
   return defaultTextModel.value || availableModelIds.value[0] || ''
+})
+const workspaceCapabilities = computed(() =>
+  new Set(chatModels.value.flatMap((model) => model.capabilities || []))
+)
+const imageCapabilityAvailable = computed(() =>
+  workspaceCapabilities.value.has('image_generation')
+  || workspaceCapabilities.value.has('image_edit')
+  || workspaceCapabilities.value.has('vision')
+)
+const textBetaMode = computed(() => hasChat.value && !imageCapabilityAvailable.value)
+const activeModelLabel = computed(() =>
+  chatModels.value.find((model) => model.id === activeChatModel.value)?.name || 'Deepseek-V4-Flash'
+)
+const workspaceIntent = computed<WorkspaceIntent>(() =>
+  textBetaMode.value ? 'chat' : activeSection.value
+)
+const activeContent = computed<SectionContent>(() => {
+  if (textBetaMode.value) {
+    return {
+      shellTitle: 'SSXZ AI',
+      shellSubtitle: `当前开放 ${activeModelLabel.value} 文本对话。`,
+      eyebrow: '文本对话 beta',
+      icon: 'chat'
+    }
+  }
+  return sectionContent[activeSection.value]
+})
+const emptyStateCopy = computed(() => {
+  if (textBetaMode.value) return `当前开放 ${activeModelLabel.value} 文本对话。直接输入问题，开始对话。`
+  if (activeSection.value === 'image') return '输入你想处理的图像需求。'
+  if (activeSection.value === 'chat') return '输入问题后，这段对话会进入左侧历史，刷新页面也不会丢失。'
+  return '直接输入问题，开始对话。'
 })
 
 function isSectionKey(value: unknown): value is SectionKey {
@@ -550,6 +576,26 @@ watch(chatModels, (models) => {
 :deep(.toolbar-tool:hover),
 :deep(.model-trigger:hover) {
   background: color-mix(in srgb, var(--ssxz-primary) 10%, transparent);
+}
+
+:deep(.toolbar-tool.is-unavailable),
+:deep(.toolbar-tool:disabled),
+:deep(.asset-option.is-unavailable) {
+  cursor: not-allowed;
+  opacity: 0.72;
+  background: color-mix(in srgb, var(--ssxz-surface-muted) 88%, transparent);
+  color: var(--ssxz-subtle);
+}
+
+:deep(.toolbar-tool.is-unavailable:hover),
+:deep(.toolbar-tool:disabled:hover),
+:deep(.asset-option.is-unavailable:hover) {
+  background: color-mix(in srgb, var(--ssxz-surface-muted) 88%, transparent);
+}
+
+:deep(.toolbar-tool small) {
+  color: var(--ssxz-subtle);
+  font-size: 0.68rem;
 }
 
 :deep(.send-button) {
