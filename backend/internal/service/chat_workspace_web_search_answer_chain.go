@@ -125,29 +125,29 @@ func buildWorkspaceWebSearchSystemMessage(summary string, citations []Citation) 
 		return ""
 	}
 	var builder strings.Builder
-	builder.WriteString("You have access to external web search results gathered server-side for this user request.\n")
-	builder.WriteString("Use only these results as external citations. If you rely on them, cite them inline as [1], [2], etc. Do not fabricate sources.\n")
+	_, _ = builder.WriteString("You have access to external web search results gathered server-side for this user request.\n")
+	_, _ = builder.WriteString("Use only these results as external citations. If you rely on them, cite them inline as [1], [2], etc. Do not fabricate sources.\n")
 	if trimmed := workspaceWebSearchTrim(summary, workspaceWebSearchSystemSummaryMaxRunes); trimmed != "" {
-		builder.WriteString("\nSearch summary:\n")
-		builder.WriteString(trimmed)
-		builder.WriteString("\n")
+		_, _ = builder.WriteString("\nSearch summary:\n")
+		_, _ = builder.WriteString(trimmed)
+		_, _ = builder.WriteString("\n")
 	}
-	builder.WriteString("\nSources:\n")
+	_, _ = builder.WriteString("\nSources:\n")
 	for _, citation := range citations {
 		if citation.Index <= 0 {
 			continue
 		}
-		builder.WriteString(fmt.Sprintf("[%d] %s\n", citation.Index, workspaceWebSearchTrim(citation.Title, 160)))
+		_, _ = builder.WriteString(fmt.Sprintf("[%d] %s\n", citation.Index, workspaceWebSearchTrim(citation.Title, 160)))
 		if domain := strings.TrimSpace(citation.Domain); domain != "" {
-			builder.WriteString("Domain: " + domain + "\n")
+			_, _ = builder.WriteString("Domain: " + domain + "\n")
 		}
 		if rawURL := strings.TrimSpace(citation.URL); rawURL != "" {
-			builder.WriteString("URL: " + rawURL + "\n")
+			_, _ = builder.WriteString("URL: " + rawURL + "\n")
 		}
 		if snippet := workspaceWebSearchTrim(citation.Snippet, workspaceWebSearchSnippetMaxChars); snippet != "" {
-			builder.WriteString("Snippet: " + snippet + "\n")
+			_, _ = builder.WriteString("Snippet: " + snippet + "\n")
 		}
-		builder.WriteString("\n")
+		_, _ = builder.WriteString("\n")
 	}
 	return strings.TrimSpace(builder.String())
 }
