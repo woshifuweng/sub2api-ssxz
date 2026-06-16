@@ -153,6 +153,12 @@ func TestWorkspaceSub2APITextBridgeInjectsWebSearchCitationsIntoBridgeAndMetadat
 				LatencyMS:    15,
 				CreatedAt:    time.Unix(0, 0).UTC(),
 			},
+			Metadata: map[string]any{
+				"strategy":        workspaceWebSearchStrategySportsSchedule,
+				"attempts":        2,
+				"relevance_score": 92,
+				"relevance_band":  workspaceWebSearchRelevanceBandHigh,
+			},
 		},
 	}
 	svc := NewChatWorkspaceServiceWithSub2APITextBridgeAndWebSearch(repo, bridge, webSearch, resolver)
@@ -184,6 +190,10 @@ func TestWorkspaceSub2APITextBridgeInjectsWebSearchCitationsIntoBridgeAndMetadat
 	require.True(t, ok)
 	require.Len(t, citations, 2)
 	require.Equal(t, "fifa.com", citations[0]["domain"])
+	require.Equal(t, workspaceWebSearchStrategySportsSchedule, assistantMessage.Metadata[workspaceWebSearchStrategyKey])
+	require.Equal(t, 2, assistantMessage.Metadata[workspaceWebSearchAttemptsKey])
+	require.Equal(t, 92, assistantMessage.Metadata[workspaceWebSearchRelevanceScoreKey])
+	require.Equal(t, workspaceWebSearchRelevanceBandHigh, assistantMessage.Metadata[workspaceWebSearchRelevanceBandKey])
 	data, err := json.Marshal(assistantMessage.Metadata)
 	require.NoError(t, err)
 	require.NotContains(t, strings.ToLower(string(data)), "authorization")
