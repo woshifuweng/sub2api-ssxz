@@ -18,8 +18,14 @@ const (
 	workspaceWebSearchToolLogKey            = "web_search_tool_usage"
 	workspaceWebSearchHTTPStatusKey         = "web_search_http_status"
 	workspaceWebSearchResponseBodyLengthKey = "web_search_response_body_length"
+	workspaceWebSearchStrategyKey           = "web_search_strategy"
+	workspaceWebSearchAttemptsKey           = "web_search_attempts"
+	workspaceWebSearchRelevanceScoreKey     = "web_search_relevance_score"
+	workspaceWebSearchRelevanceBandKey      = "web_search_relevance_band"
 	workspaceWebSearchUnavailableContent    = "联网搜索暂不可用，请稍后重试。"
 	workspaceWebSearchUnavailableReason     = "web_search_unavailable"
+	workspaceWebSearchLowRelevanceContent   = "联网搜索结果相关性不足，请稍后重试或补充更具体的关键词。"
+	workspaceWebSearchLowRelevanceReason    = "web_search_low_relevance"
 	workspaceWebSearchSnippetMaxChars       = 240
 	workspaceWebSearchSystemSummaryMaxRunes = 600
 )
@@ -62,10 +68,11 @@ func (r WorkspaceSub2APITextBridgeResponder) prepareWebSearch(ctx context.Contex
 	metadata := workspaceWebSearchSuccessMetadata(searchResult)
 	systemMessage := buildWorkspaceWebSearchSystemMessage(searchResult.WebSearch.Summary, searchResult.Citations)
 	if strings.TrimSpace(systemMessage) == "" {
-		return nil, metadata, workspaceWebSearchUnavailableResponse(input, workspaceWebSearchFailureMetadata(WorkspaceToolResult{
+		failureMetadata := workspaceWebSearchFailureMetadata(WorkspaceToolResult{
 			ErrorCode: WorkspaceToolErrorProviderUnavailable,
 			Message:   "web search is unavailable",
-		})), nil
+		})
+		return nil, metadata, workspaceWebSearchUnavailableResponse(input, failureMetadata), nil
 	}
 	return []string{systemMessage}, metadata, nil, nil
 }
@@ -78,7 +85,14 @@ func workspaceWebSearchRequested(input WorkspaceAssistantResponseInput) bool {
 }
 
 func workspaceWebSearchUnavailableResponse(input WorkspaceAssistantResponseInput, metadata map[string]any) *WorkspaceAssistantResponse {
-	response := workspaceSub2APITextBridgeBlockedResponseWithContent(input, workspaceWebSearchUnavailableReason, workspaceWebSearchUnavailableContent)
+	reason := workspaceWebSearchUnavailableReason
+	content := workspaceWebSearchUnavailableContent
+	if workspaceMetadataString(metadata, workspaceWebSearchErrorCodeKey) == WorkspaceToolErrorLowRelevance ||
+		workspaceMetadataString(metadata, workspaceWebSearchStatusKey) == string(WorkspaceToolStatusLowRelevance) {
+		reason = workspaceWebSearchLowRelevanceReason
+		content = workspaceWebSearchLowRelevanceContent
+	}
+	response := workspaceSub2APITextBridgeBlockedResponseWithContent(input, reason, content)
 	response.Metadata = workspaceCloneMetadata(response.Metadata)
 	mergeWorkspaceMetadata(response.Metadata, metadata)
 	response.Metadata["provider_called"] = false
@@ -86,7 +100,7 @@ func workspaceWebSearchUnavailableResponse(input WorkspaceAssistantResponseInput
 	response.Metadata["usage_recorded"] = false
 	response.Metadata["bridge_block_reason"] = firstNonEmptyWorkspaceValue(
 		workspaceMetadataString(metadata, workspaceWebSearchErrorCodeKey),
-		workspaceWebSearchUnavailableReason,
+		reason,
 	)
 	return &response
 }
@@ -96,7 +110,7 @@ func workspaceWebSearchSuccessMetadata(result WorkspaceToolResult) map[string]an
 	for _, citation := range result.Citations {
 		citations = append(citations, workspaceCitationMetadata(citation))
 	}
-	return map[string]any{
+	metadata := map[string]any{
 		workspaceWebSearchRequestedKey:   true,
 		workspaceWebSearchUsedKey:        true,
 		workspaceWebSearchStatusKey:      string(result.Status),
@@ -114,6 +128,8 @@ func workspaceWebSearchSuccessMetadata(result WorkspaceToolResult) map[string]an
 			"error_code":     strings.TrimSpace(result.UsageLog.ErrorCode),
 		},
 	}
+	appendWorkspaceWebSearchSafeMetadata(metadata, result.Metadata)
+	return metadata
 }
 
 func workspaceWebSearchFailureMetadata(result WorkspaceToolResult) map[string]any {
@@ -135,7 +151,26 @@ func workspaceWebSearchFailureMetadata(result WorkspaceToolResult) map[string]an
 			metadata[workspaceWebSearchResponseBodyLengthKey] = length
 		}
 	}
+	appendWorkspaceWebSearchSafeMetadata(metadata, result.Metadata)
 	return metadata
+}
+
+func appendWorkspaceWebSearchSafeMetadata(target map[string]any, source map[string]any) {
+	if len(target) == 0 || len(source) == 0 {
+		return
+	}
+	if strategy := workspaceMetadataString(source, "strategy"); strategy != "" {
+		target[workspaceWebSearchStrategyKey] = strategy
+	}
+	if attempts, ok := source["attempts"]; ok {
+		target[workspaceWebSearchAttemptsKey] = attempts
+	}
+	if score, ok := source["relevance_score"]; ok {
+		target[workspaceWebSearchRelevanceScoreKey] = score
+	}
+	if band := workspaceMetadataString(source, "relevance_band"); band != "" {
+		target[workspaceWebSearchRelevanceBandKey] = band
+	}
 }
 
 func buildWorkspaceWebSearchSystemMessage(summary string, citations []Citation) string {

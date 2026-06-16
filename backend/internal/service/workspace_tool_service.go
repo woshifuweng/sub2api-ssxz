@@ -19,10 +19,11 @@ type WorkspaceToolStatus string
 const (
 	WorkspaceToolWebSearch WorkspaceToolName = "web_search"
 
-	WorkspaceToolStatusCompleted   WorkspaceToolStatus = "completed"
-	WorkspaceToolStatusUnavailable WorkspaceToolStatus = "unavailable"
-	WorkspaceToolStatusBlocked     WorkspaceToolStatus = "blocked"
-	WorkspaceToolStatusFailed      WorkspaceToolStatus = "failed"
+	WorkspaceToolStatusCompleted    WorkspaceToolStatus = "completed"
+	WorkspaceToolStatusUnavailable  WorkspaceToolStatus = "unavailable"
+	WorkspaceToolStatusBlocked      WorkspaceToolStatus = "blocked"
+	WorkspaceToolStatusFailed       WorkspaceToolStatus = "failed"
+	WorkspaceToolStatusLowRelevance WorkspaceToolStatus = "low_relevance"
 
 	WorkspaceToolErrorDisabled            = "web_search_disabled"
 	WorkspaceToolErrorKillSwitch          = "web_search_kill_switch"
@@ -38,6 +39,7 @@ const (
 	WorkspaceToolErrorEmptySearchHits     = "empty_search_hits"
 	WorkspaceToolErrorTimeout             = "timeout"
 	WorkspaceToolErrorResponseTooLarge    = "response_too_large"
+	WorkspaceToolErrorLowRelevance        = "low_relevance"
 )
 
 var ErrWorkspaceToolUnavailable = errors.New("workspace tool unavailable")
@@ -171,22 +173,80 @@ func (s *WorkspaceToolService) SearchWeb(ctx context.Context, req WorkspaceToolR
 		webReq.TimeoutMS = s.cfg.TimeoutMS
 	}
 
-	result, err := s.webSearch.Search(ctx, webReq)
-	if err != nil {
-		code, metadata := classifyWorkspaceWebSearchProviderError(err)
-		return s.failureResult(req, start, code, "web search provider unavailable", metadata), err
+	plan := buildWorkspaceWebSearchPlan(webReq.Query, req.RequestedAt)
+	if len(plan.Attempts) == 0 {
+		plan.Attempts = []string{strings.TrimSpace(webReq.Query)}
+	}
+	maxAttempts := minInt(len(plan.Attempts), workspaceWebSearchMaxStrategyAttempts)
+	if maxAttempts <= 0 {
+		maxAttempts = 1
 	}
 
-	usage := s.usageLog(req, start, WorkspaceToolStatusCompleted, "")
-	usage.ResultCount = len(result.Citations)
-	usage.ReadURLCount = len(webReq.ReadURLs)
+	var lastProviderErr error
+	var lastFailure WorkspaceToolResult
+	bestRelevance := workspaceWebSearchRelevance{Band: workspaceWebSearchRelevanceBandLow}
+	var bestResult WebSearchResult
+	for i := 0; i < maxAttempts; i++ {
+		attemptReq := webReq
+		attemptReq.Query = plan.Attempts[i]
+		result, err := s.webSearch.Search(ctx, attemptReq)
+		if err != nil {
+			code, metadata := classifyWorkspaceWebSearchProviderError(err)
+			metadata = cloneWorkspaceToolMetadata(metadata)
+			if metadata == nil {
+				metadata = map[string]any{}
+			}
+			metadata["strategy"] = plan.Strategy
+			metadata["attempts"] = i + 1
+			lastProviderErr = err
+			lastFailure = s.failureResult(req, start, code, "web search provider unavailable", metadata)
+			break
+		}
+
+		filteredResult, relevance := applyWorkspaceWebSearchQualityGuard(plan, result)
+		if relevance.Score >= bestRelevance.Score {
+			bestRelevance = relevance
+			bestResult = filteredResult
+		}
+		if relevance.StrongCount > 0 && len(filteredResult.Citations) > 0 {
+			usage := s.usageLog(req, start, WorkspaceToolStatusCompleted, "")
+			usage.ResultCount = len(filteredResult.Citations)
+			usage.ReadURLCount = len(attemptReq.ReadURLs)
+			return WorkspaceToolResult{
+				Tool:      WorkspaceToolWebSearch,
+				Status:    WorkspaceToolStatusCompleted,
+				WebSearch: &filteredResult,
+				Citations: filteredResult.Citations,
+				UsageLog:  usage,
+				Metadata: map[string]any{
+					"strategy":        plan.Strategy,
+					"attempts":        i + 1,
+					"relevance_score": relevance.Score,
+					"relevance_band":  relevance.Band,
+				},
+			}, nil
+		}
+	}
+
+	if lastProviderErr != nil {
+		return lastFailure, lastProviderErr
+	}
+
 	return WorkspaceToolResult{
 		Tool:      WorkspaceToolWebSearch,
-		Status:    WorkspaceToolStatusCompleted,
-		WebSearch: &result,
-		Citations: result.Citations,
-		UsageLog:  usage,
-	}, nil
+		Status:    WorkspaceToolStatusLowRelevance,
+		ErrorCode: WorkspaceToolErrorLowRelevance,
+		Message:   "web search results are not relevant enough",
+		WebSearch: &bestResult,
+		Citations: []Citation{},
+		UsageLog:  s.usageLog(req, start, WorkspaceToolStatusLowRelevance, WorkspaceToolErrorLowRelevance),
+		Metadata: map[string]any{
+			"strategy":        plan.Strategy,
+			"attempts":        maxAttempts,
+			"relevance_score": bestRelevance.Score,
+			"relevance_band":  bestRelevance.Band,
+		},
+	}, ErrWorkspaceToolUnavailable
 }
 
 func (s *WorkspaceToolService) blockedResult(req WorkspaceToolRequest, start time.Time) (WorkspaceToolResult, bool) {
@@ -241,7 +301,8 @@ func isWorkspaceToolUnavailableCode(code string) bool {
 		WorkspaceToolErrorBodyParseFailed,
 		WorkspaceToolErrorEmptySearchHits,
 		WorkspaceToolErrorTimeout,
-		WorkspaceToolErrorResponseTooLarge:
+		WorkspaceToolErrorResponseTooLarge,
+		WorkspaceToolErrorLowRelevance:
 		return true
 	default:
 		return false
