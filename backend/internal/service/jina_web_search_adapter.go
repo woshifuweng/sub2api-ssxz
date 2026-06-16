@@ -224,7 +224,9 @@ func (a *JinaWebSearchAdapter) doTextRequest(ctx context.Context, endpoint strin
 	if err != nil {
 		return "", fmt.Errorf("request failed")
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", fmt.Errorf("request failed")
 	}
