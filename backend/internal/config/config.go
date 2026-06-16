@@ -1044,6 +1044,7 @@ type WorkspaceConfig struct {
 	ImageExecution    WorkspaceImageExecutionConfig    `mapstructure:"image_execution"`
 	ImageRealProvider WorkspaceImageRealProviderConfig `mapstructure:"image_real_provider"`
 	AvailableChannels WorkspaceAvailableChannelsConfig `mapstructure:"available_channels"`
+	WebSearch         WorkspaceWebSearchConfig         `mapstructure:"web_search"`
 }
 
 type WorkspaceTextProviderConfig struct {
@@ -1110,6 +1111,18 @@ type WorkspaceImageRealProviderConfig struct {
 
 type WorkspaceAvailableChannelsConfig struct {
 	StagingOverrideEnabled bool `mapstructure:"staging_override_enabled"`
+}
+
+type WorkspaceWebSearchConfig struct {
+	Enabled               bool    `mapstructure:"enabled"`
+	KillSwitch            bool    `mapstructure:"kill_switch"`
+	Provider              string  `mapstructure:"provider"`
+	AllowedUserIDs        []int64 `mapstructure:"allowed_user_ids"`
+	MaxResults            int     `mapstructure:"max_results"`
+	MaxReadURLs           int     `mapstructure:"max_read_urls"`
+	TimeoutMS             int     `mapstructure:"timeout_ms"`
+	DailyCapPerUser       int     `mapstructure:"daily_cap_per_user"`
+	MaxContentLengthBytes int64   `mapstructure:"max_content_length_bytes"`
 }
 
 type RateLimitConfig struct {
@@ -1378,6 +1391,45 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 		cfg.Workspace.ImageRealProvider.MaxRequestsPerTestRun,
 		parseEnvInt("WORKSPACE_IMAGE_REAL_PROVIDER_MAX_REQUESTS_PER_TEST_RUN"),
 	)
+	cfg.Workspace.WebSearch.Provider = strings.ToLower(strings.TrimSpace(cfg.Workspace.WebSearch.Provider))
+	if cfg.Workspace.WebSearch.Provider == "" {
+		cfg.Workspace.WebSearch.Provider = "jina"
+	}
+	cfg.Workspace.WebSearch.AllowedUserIDs = normalizePositiveInt64Slice(firstNonEmptyInt64Slice(
+		cfg.Workspace.WebSearch.AllowedUserIDs,
+		parseEnvInt64List("WORKSPACE_WEB_SEARCH_ALLOWED_USER_IDS"),
+	))
+	cfg.Workspace.WebSearch.MaxResults = firstNonZeroConfigInt(
+		cfg.Workspace.WebSearch.MaxResults,
+		parseEnvInt("WORKSPACE_WEB_SEARCH_MAX_RESULTS"),
+	)
+	cfg.Workspace.WebSearch.MaxReadURLs = firstNonZeroConfigInt(
+		cfg.Workspace.WebSearch.MaxReadURLs,
+		parseEnvInt("WORKSPACE_WEB_SEARCH_MAX_READ_URLS"),
+	)
+	cfg.Workspace.WebSearch.TimeoutMS = firstNonZeroConfigInt(
+		cfg.Workspace.WebSearch.TimeoutMS,
+		parseEnvInt("WORKSPACE_WEB_SEARCH_TIMEOUT_MS"),
+	)
+	cfg.Workspace.WebSearch.DailyCapPerUser = firstNonZeroConfigInt(
+		cfg.Workspace.WebSearch.DailyCapPerUser,
+		parseEnvInt("WORKSPACE_WEB_SEARCH_DAILY_CAP_PER_USER"),
+	)
+	if cfg.Workspace.WebSearch.MaxResults < 0 {
+		cfg.Workspace.WebSearch.MaxResults = 0
+	}
+	if cfg.Workspace.WebSearch.MaxReadURLs < 0 {
+		cfg.Workspace.WebSearch.MaxReadURLs = 0
+	}
+	if cfg.Workspace.WebSearch.TimeoutMS < 0 {
+		cfg.Workspace.WebSearch.TimeoutMS = 0
+	}
+	if cfg.Workspace.WebSearch.DailyCapPerUser < 0 {
+		cfg.Workspace.WebSearch.DailyCapPerUser = 0
+	}
+	if cfg.Workspace.WebSearch.MaxContentLengthBytes < 0 {
+		cfg.Workspace.WebSearch.MaxContentLengthBytes = 0
+	}
 	cfg.Process.Mode = strings.ToLower(strings.TrimSpace(cfg.Process.Mode))
 	if cfg.Process.Mode == "" {
 		cfg.Process.Mode = ProcessModeSingle
@@ -1546,6 +1598,15 @@ func setDefaults() {
 	viper.SetDefault("workspace.image_real_provider.allowed_provider_labels", []string{})
 	viper.SetDefault("workspace.image_real_provider.max_requests_per_test_run", 0)
 	viper.SetDefault("workspace.available_channels.staging_override_enabled", false)
+	viper.SetDefault("workspace.web_search.enabled", false)
+	viper.SetDefault("workspace.web_search.kill_switch", true)
+	viper.SetDefault("workspace.web_search.provider", "jina")
+	viper.SetDefault("workspace.web_search.allowed_user_ids", []int64{})
+	viper.SetDefault("workspace.web_search.max_results", 5)
+	viper.SetDefault("workspace.web_search.max_read_urls", 3)
+	viper.SetDefault("workspace.web_search.timeout_ms", 8000)
+	viper.SetDefault("workspace.web_search.daily_cap_per_user", 20)
+	viper.SetDefault("workspace.web_search.max_content_length_bytes", int64(1024*1024))
 
 	// CORS
 	viper.SetDefault("cors.allowed_origins", []string{})

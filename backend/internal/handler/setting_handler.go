@@ -71,8 +71,12 @@ func (h *SettingHandler) GetPublicSettingsGateway(c gatewayctx.GatewayContext) {
 		ChannelMonitorEnabled:                settings.ChannelMonitorEnabled,
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
 		AvailableChannelsEnabled:             settings.AvailableChannelsEnabled,
-		BackendModeEnabled:                   settings.BackendModeEnabled,
-		Version:                              h.version,
+		WebSearch: dto.WebSearchSetting{
+			Available: settings.WebSearch.Available,
+			Provider:  settings.WebSearch.Provider,
+		},
+		BackendModeEnabled: settings.BackendModeEnabled,
+		Version:            h.version,
 	})
 }
 

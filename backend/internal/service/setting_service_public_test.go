@@ -114,6 +114,24 @@ func TestSettingService_AvailableChannelsDefaultUsesStoredSetting(t *testing.T) 
 	require.False(t, settings.AvailableChannelsEnabled)
 }
 
+func TestSettingService_PublicSettingsExposeWebSearchUnavailableByDefault(t *testing.T) {
+	repo := &settingPublicRepoStub{values: map[string]string{}}
+	svc := NewSettingService(repo, &config.Config{
+		Workspace: config.WorkspaceConfig{
+			WebSearch: config.WorkspaceWebSearchConfig{
+				Provider:   "jina",
+				Enabled:    false,
+				KillSwitch: true,
+			},
+		},
+	})
+
+	settings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.False(t, settings.WebSearch.Available)
+	require.Equal(t, "jina", settings.WebSearch.Provider)
+}
+
 func TestSettingService_AvailableChannelsStagingOverrideRequiresNonProduction(t *testing.T) {
 	repo := &settingPublicRepoStub{
 		values: map[string]string{

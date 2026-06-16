@@ -383,6 +383,11 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 	if runtime, ok := s.getAvailableChannelsRuntimeOverride(); ok {
 		availableChannelsEnabled = runtime.Enabled
 	}
+	webSearchSettings := PublicWorkspaceWebSearchSettings{}
+	if s != nil && s.cfg != nil {
+		webSearchSettings.Provider = strings.TrimSpace(s.cfg.Workspace.WebSearch.Provider)
+		webSearchSettings.Available = s.cfg.Workspace.WebSearch.Enabled && !s.cfg.Workspace.WebSearch.KillSwitch
+	}
 
 	return &PublicSettings{
 		RegistrationEnabled:                  settings[SettingKeyRegistrationEnabled] == "true",
@@ -417,6 +422,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		ChannelMonitorEnabled:                settings[settingKeyChannelMonitorEnabled] == "true",
 		ChannelMonitorDefaultIntervalSeconds: 60,
 		AvailableChannelsEnabled:             availableChannelsEnabled,
+		WebSearch:                            webSearchSettings,
 		AffiliateEnabled:                     settings[SettingKeyAffiliateEnabled] == "true",
 		BackendModeEnabled:                   settings[SettingKeyBackendModeEnabled] == "true",
 	}, nil
