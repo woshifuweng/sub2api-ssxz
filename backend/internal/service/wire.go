@@ -860,6 +860,8 @@ var ProviderSet = wire.NewSet(
 	NewSubscriptionService,
 	wire.Bind(new(DefaultSubscriptionAssigner), new(*SubscriptionService)),
 	ProvideConcurrencyService,
+	ProvideWorkspaceWebSearchTool,
+	NewWorkspaceToolService,
 	ProvideUserMessageQueueService,
 	NewUsageRecordWorkerPool,
 	ProvideSchedulerSnapshotServiceWithAdmission,
