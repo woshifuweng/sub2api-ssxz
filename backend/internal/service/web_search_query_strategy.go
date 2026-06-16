@@ -251,7 +251,7 @@ func scoreWorkspaceCitation(plan workspaceWebSearchPlan, citation Citation) (int
 	score := 0
 	scheduleMatched := containsAnyWorkspaceAnchor(text, workspaceWebSearchScheduleAnchors)
 	eventMatched := containsAnyWorkspaceAnchor(text, workspaceWebSearchWorldCupAnchors)
-	genericDateOnly := workspaceCitationLooksGenericDateOnly(text, citation.Domain) && !(eventMatched && scheduleMatched)
+	genericDateOnly := workspaceCitationLooksGenericDateOnly(text, citation.Domain) && (!eventMatched || !scheduleMatched)
 	if strings.Contains(citation.Domain, "fifa.com") {
 		score += 40
 	} else if containsPreferredWorkspaceHost(citation.Domain) {
