@@ -23,7 +23,7 @@ const (
 )
 
 func (r WorkspaceSub2APITextBridgeResponder) prepareWebSearch(ctx context.Context, input WorkspaceAssistantResponseInput) ([]string, map[string]any, *WorkspaceAssistantResponse, error) {
-	if !workspaceMetadataBool(input.Metadata, workspaceWebSearchRequestedKey) {
+	if !workspaceWebSearchRequested(input) {
 		return nil, nil, nil, nil
 	}
 	if r.WebSearch == nil {
@@ -66,6 +66,13 @@ func (r WorkspaceSub2APITextBridgeResponder) prepareWebSearch(ctx context.Contex
 		})), nil
 	}
 	return []string{systemMessage}, metadata, nil, nil
+}
+
+func workspaceWebSearchRequested(input WorkspaceAssistantResponseInput) bool {
+	if workspaceMetadataBool(input.UserMessage.Metadata, workspaceWebSearchRequestedKey) {
+		return true
+	}
+	return workspaceMetadataBool(input.Metadata, workspaceWebSearchRequestedKey)
 }
 
 func workspaceWebSearchUnavailableResponse(input WorkspaceAssistantResponseInput, metadata map[string]any) *WorkspaceAssistantResponse {
