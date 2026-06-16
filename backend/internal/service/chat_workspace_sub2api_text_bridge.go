@@ -224,15 +224,21 @@ func workspaceAssistantWebSearchMetadata(metadata map[string]any) map[string]any
 		return nil
 	}
 	out := map[string]any{
-		workspaceWebSearchRequestedKey:   metadata[workspaceWebSearchRequestedKey],
-		workspaceWebSearchUsedKey:        metadata[workspaceWebSearchUsedKey],
-		workspaceWebSearchStatusKey:      metadata[workspaceWebSearchStatusKey],
-		workspaceWebSearchProviderKey:    metadata[workspaceWebSearchProviderKey],
-		workspaceWebSearchErrorCodeKey:   metadata[workspaceWebSearchErrorCodeKey],
-		workspaceWebSearchSummaryKey:     metadata[workspaceWebSearchSummaryKey],
-		workspaceWebSearchCitationsKey:   metadata[workspaceWebSearchCitationsKey],
-		workspaceWebSearchResultCountKey: metadata[workspaceWebSearchResultCountKey],
-		workspaceWebSearchToolLogKey:     metadata[workspaceWebSearchToolLogKey],
+		workspaceWebSearchRequestedKey:          metadata[workspaceWebSearchRequestedKey],
+		workspaceWebSearchUsedKey:               metadata[workspaceWebSearchUsedKey],
+		workspaceWebSearchStatusKey:             metadata[workspaceWebSearchStatusKey],
+		workspaceWebSearchProviderKey:           metadata[workspaceWebSearchProviderKey],
+		workspaceWebSearchErrorCodeKey:          metadata[workspaceWebSearchErrorCodeKey],
+		workspaceWebSearchSummaryKey:            metadata[workspaceWebSearchSummaryKey],
+		workspaceWebSearchCitationsKey:          metadata[workspaceWebSearchCitationsKey],
+		workspaceWebSearchResultCountKey:        metadata[workspaceWebSearchResultCountKey],
+		workspaceWebSearchToolLogKey:            metadata[workspaceWebSearchToolLogKey],
+		workspaceWebSearchStrategyKey:           metadata[workspaceWebSearchStrategyKey],
+		workspaceWebSearchAttemptsKey:           metadata[workspaceWebSearchAttemptsKey],
+		workspaceWebSearchRelevanceScoreKey:     metadata[workspaceWebSearchRelevanceScoreKey],
+		workspaceWebSearchRelevanceBandKey:      metadata[workspaceWebSearchRelevanceBandKey],
+		workspaceWebSearchHTTPStatusKey:         metadata[workspaceWebSearchHTTPStatusKey],
+		workspaceWebSearchResponseBodyLengthKey: metadata[workspaceWebSearchResponseBodyLengthKey],
 	}
 	return out
 }

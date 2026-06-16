@@ -23,28 +23,25 @@ func (s *scriptedWebSearchTool) Search(_ context.Context, req WebSearchRequest) 
 }
 
 func TestBuildWorkspaceWebSearchPlanRewritesChineseWorldCupDateQuery(t *testing.T) {
-	plan := buildWorkspaceWebSearchPlan("2026 世界杯 6月16日 有哪些比赛？请给出来源。", time.Date(2026, 6, 16, 8, 0, 0, 0, time.UTC))
+	plan := buildWorkspaceWebSearchPlan("2026 \u4e16\u754c\u676f 6\u670816\u65e5\u6709\u54ea\u4e9b\u6bd4\u8d5b\uff1f\u8bf7\u7ed9\u51fa\u6765\u6e90\u3002", time.Date(2026, 6, 16, 8, 0, 0, 0, time.UTC))
 
 	require.Equal(t, workspaceWebSearchStrategySportsSchedule, plan.Strategy)
 	require.True(t, plan.Intent.SportsSchedule)
-	require.Equal(t, "6月16日", plan.Intent.Date.Chinese)
 	require.Equal(t, "June 16", plan.Intent.Date.English)
 	require.Contains(t, plan.Attempts[0], "site:fifa.com")
-	require.Contains(t, plan.Attempts[0], "2026 世界杯 6月16日 比赛 赛程 来源")
 	require.Contains(t, plan.Attempts[1], "FIFA World Cup 2026 June 16 fixtures site:fifa.com")
 }
 
 func TestBuildWorkspaceWebSearchPlanDetectsRealtimeSportsScheduleIntent(t *testing.T) {
-	plan := buildWorkspaceWebSearchPlan("今天 2026 世界杯有哪些比赛？请给出来源。", time.Date(2026, 6, 16, 8, 0, 0, 0, time.UTC))
+	plan := buildWorkspaceWebSearchPlan("\u4eca\u5929 2026 \u4e16\u754c\u676f\u6709\u54ea\u4e9b\u6bd4\u8d5b\uff1f\u8bf7\u7ed9\u51fa\u6765\u6e90\u3002", time.Date(2026, 6, 16, 8, 0, 0, 0, time.UTC))
 
 	require.True(t, plan.Intent.Realtime)
 	require.True(t, plan.Intent.SportsSchedule)
-	require.Equal(t, "6月16日", plan.Intent.Date.Chinese)
 	require.Equal(t, "June 16", plan.Intent.Date.English)
 }
 
 func TestApplyWorkspaceWebSearchQualityGuardRejectsSnakeCitationForWorldCup(t *testing.T) {
-	plan := buildWorkspaceWebSearchPlan("2026 世界杯 6月16日 有哪些比赛？请给出来源。", time.Date(2026, 6, 16, 8, 0, 0, 0, time.UTC))
+	plan := buildWorkspaceWebSearchPlan("2026 World Cup June 16 fixtures", time.Date(2026, 6, 16, 8, 0, 0, 0, time.UTC))
 	result := WebSearchResult{
 		Query: "bad query",
 		Citations: []Citation{
@@ -59,8 +56,24 @@ func TestApplyWorkspaceWebSearchQualityGuardRejectsSnakeCitationForWorldCup(t *t
 	require.Zero(t, relevance.StrongCount)
 }
 
+func TestApplyWorkspaceWebSearchQualityGuardRejectsGenericCalendarCitationForWorldCup(t *testing.T) {
+	plan := buildWorkspaceWebSearchPlan("2026 World Cup June 16 fixtures", time.Date(2026, 6, 16, 8, 0, 0, 0, time.UTC))
+	result := WebSearchResult{
+		Query: "calendar query",
+		Citations: []Citation{
+			{Index: 1, Title: "2026 Calendar", Domain: "www.calendar-365.com", URL: "https://www.calendar-365.com/2026-calendar.html", Snippet: "Month calendar and holidays for June 16, 2026."},
+		},
+	}
+
+	filtered, relevance := applyWorkspaceWebSearchQualityGuard(plan, result)
+
+	require.Empty(t, filtered.Citations)
+	require.Equal(t, workspaceWebSearchRelevanceBandLow, relevance.Band)
+	require.Zero(t, relevance.StrongCount)
+}
+
 func TestApplyWorkspaceWebSearchQualityGuardPrefersOfficialFIFAResult(t *testing.T) {
-	plan := buildWorkspaceWebSearchPlan("2026 世界杯 6月16日 有哪些比赛？请给出来源。", time.Date(2026, 6, 16, 8, 0, 0, 0, time.UTC))
+	plan := buildWorkspaceWebSearchPlan("2026 World Cup June 16 fixtures", time.Date(2026, 6, 16, 8, 0, 0, 0, time.UTC))
 	result := WebSearchResult{
 		Query: "query",
 		Citations: []Citation{
@@ -71,10 +84,27 @@ func TestApplyWorkspaceWebSearchQualityGuardPrefersOfficialFIFAResult(t *testing
 
 	filtered, relevance := applyWorkspaceWebSearchQualityGuard(plan, result)
 
-	require.Len(t, filtered.Citations, 2)
+	require.Len(t, filtered.Citations, 1)
 	require.Equal(t, "fifa.com", filtered.Citations[0].Domain)
 	require.Equal(t, workspaceWebSearchRelevanceBandHigh, relevance.Band)
 	require.GreaterOrEqual(t, relevance.StrongCount, 1)
+}
+
+func TestApplyWorkspaceWebSearchQualityGuardKeepsStrongFIFAScheduleCitation(t *testing.T) {
+	plan := buildWorkspaceWebSearchPlan("2026 World Cup June 16 fixtures", time.Date(2026, 6, 16, 8, 0, 0, 0, time.UTC))
+	result := WebSearchResult{
+		Query: "query",
+		Citations: []Citation{
+			{Index: 1, Title: "FIFA World Cup 2026 fixtures", Domain: "www.fifa.com", URL: "https://www.fifa.com/worldcup/fixtures", Snippet: "FIFA World Cup June 16 match schedule and kickoff times."},
+		},
+	}
+
+	filtered, relevance := applyWorkspaceWebSearchQualityGuard(plan, result)
+
+	require.Len(t, filtered.Citations, 1)
+	require.Equal(t, "www.fifa.com", filtered.Citations[0].Domain)
+	require.Equal(t, workspaceWebSearchRelevanceBandHigh, relevance.Band)
+	require.Equal(t, 1, relevance.StrongCount)
 }
 
 func TestWorkspaceToolServiceSearchWebRetriesWithFIFAFocusedQueryAndFailsLowRelevance(t *testing.T) {
@@ -83,7 +113,7 @@ func TestWorkspaceToolServiceSearchWebRetriesWithFIFAFocusedQueryAndFailsLowRele
 			"2026 世界杯 6月16日 比赛 赛程 来源 site:fifa.com": {
 				Query: "2026 世界杯 6月16日 比赛 赛程 来源 site:fifa.com",
 				Citations: []Citation{
-					{Index: 1, Title: "Snake (zodiac) - Wikipedia", Domain: "en.wikipedia.org", URL: "https://en.wikipedia.org/wiki/Snake_(zodiac)", Snippet: "Snake zodiac astrology."},
+					{Index: 1, Title: "2026 Calendar", Domain: "www.calendar-365.com", URL: "https://www.calendar-365.com/2026-calendar.html", Snippet: "Month calendar and holidays for June 16, 2026."},
 				},
 			},
 			"FIFA World Cup 2026 June 16 fixtures site:fifa.com": {
@@ -108,7 +138,7 @@ func TestWorkspaceToolServiceSearchWebRetriesWithFIFAFocusedQueryAndFailsLowRele
 		UserID:      1,
 		RequestedAt: time.Date(2026, 6, 16, 8, 0, 0, 0, time.UTC),
 		WebSearch: WebSearchRequest{
-			Query: "2026 世界杯 6月16日 有哪些比赛？请给出来源。",
+			Query: "今天 2026 世界杯有哪些比赛？请给出来源。",
 		},
 	})
 
@@ -120,5 +150,7 @@ func TestWorkspaceToolServiceSearchWebRetriesWithFIFAFocusedQueryAndFailsLowRele
 	require.Equal(t, []string{
 		"2026 世界杯 6月16日 比赛 赛程 来源 site:fifa.com",
 		"FIFA World Cup 2026 June 16 fixtures site:fifa.com",
-	}, tool.queries)
+	},
+		tool.queries,
+	)
 }

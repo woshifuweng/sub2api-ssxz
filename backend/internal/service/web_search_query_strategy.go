@@ -19,12 +19,22 @@ const (
 )
 
 var (
-	workspaceWebSearchWorldCupAnchors = []string{"世界杯", "world cup", "fifa"}
-	workspaceWebSearchScheduleAnchors = []string{"比赛", "赛程", "赛果", "fixtures", "fixture", "schedule", "match", "matches", "kickoff"}
-	workspaceWebSearchRealtimeAnchors = []string{"今天", "今日", "today", "current", "latest", "现在"}
-	workspaceWebSearchSportsAnchors   = []string{"世界杯", "world cup", "fifa", "football", "soccer", "match", "fixture", "赛程", "比赛"}
-	workspaceWebSearchBadAnchors      = []string{"snake", "zodiac", "astrology"}
-	workspaceWebSearchPreferredHosts  = []string{"fifa.com", "espn.com", "reuters.com", "apnews.com", "skysports.com", "bbc.com", "theathletic.com"}
+	workspaceWebSearchWorldCupAnchors    = []string{"世界杯", "world cup", "fifa"}
+	workspaceWebSearchScheduleAnchors    = []string{"比赛", "赛程", "赛果", "fixtures", "fixture", "schedule", "match", "matches", "kickoff"}
+	workspaceWebSearchRealtimeAnchors    = []string{"今天", "今日", "today", "current", "latest", "现在"}
+	workspaceWebSearchSportsAnchors      = []string{"世界杯", "world cup", "fifa", "football", "soccer", "match", "fixture", "赛程", "比赛"}
+	workspaceWebSearchBadAnchors         = []string{"snake", "zodiac", "astrology"}
+	workspaceWebSearchGenericDateAnchors = []string{
+		"calendar",
+		"month calendar",
+		"holidays",
+		"holiday",
+		"weekday",
+		"thumbnail",
+		"image 1",
+		"calendar-365",
+	}
+	workspaceWebSearchPreferredHosts = []string{"fifa.com", "espn.com", "reuters.com", "apnews.com", "skysports.com", "bbc.com", "theathletic.com"}
 )
 
 type workspaceWebSearchPlan struct {
@@ -239,15 +249,18 @@ func scoreWorkspaceCitation(plan workspaceWebSearchPlan, citation Citation) (int
 		citation.Snippet,
 	}, " ")))
 	score := 0
+	scheduleMatched := containsAnyWorkspaceAnchor(text, workspaceWebSearchScheduleAnchors)
+	eventMatched := containsAnyWorkspaceAnchor(text, workspaceWebSearchWorldCupAnchors)
+	genericDateOnly := workspaceCitationLooksGenericDateOnly(text, citation.Domain) && !(eventMatched && scheduleMatched)
 	if strings.Contains(citation.Domain, "fifa.com") {
 		score += 40
 	} else if containsPreferredWorkspaceHost(citation.Domain) {
 		score += 20
 	}
-	if containsAnyWorkspaceAnchor(text, workspaceWebSearchWorldCupAnchors) {
+	if eventMatched {
 		score += 25
 	}
-	if containsAnyWorkspaceAnchor(text, workspaceWebSearchScheduleAnchors) {
+	if scheduleMatched {
 		score += 20
 	}
 	if plan.Intent.Year != "" && strings.Contains(text, plan.Intent.Year) {
@@ -268,12 +281,29 @@ func scoreWorkspaceCitation(plan workspaceWebSearchPlan, citation Citation) (int
 	if containsAnyWorkspaceAnchor(text, workspaceWebSearchBadAnchors) {
 		score -= 80
 	}
-	if plan.Intent.SportsSchedule && !containsAnyWorkspaceAnchor(text, workspaceWebSearchWorldCupAnchors) {
+	if genericDateOnly {
+		score -= 90
+	}
+	if plan.Intent.SportsSchedule && !eventMatched {
 		score -= 25
 	}
-	eventMatched := containsAnyWorkspaceAnchor(text, workspaceWebSearchWorldCupAnchors)
-	strong := score >= workspaceWebSearchStrongCitationScoreThreshold && eventMatched && (dateMatched || plan.Intent.Date == (workspaceWebSearchDate{}))
+	if plan.Intent.SportsSchedule && !scheduleMatched {
+		score -= 20
+	}
+	if plan.Intent.SportsSchedule && eventMatched && !scheduleMatched && !containsPreferredWorkspaceHost(citation.Domain) {
+		score -= 15
+	}
+	strong := score >= workspaceWebSearchStrongCitationScoreThreshold && eventMatched && scheduleMatched && (dateMatched || plan.Intent.Date == (workspaceWebSearchDate{}))
 	return score, strong
+}
+
+func workspaceCitationLooksGenericDateOnly(text, domain string) bool {
+	text = strings.ToLower(strings.TrimSpace(text))
+	domain = strings.ToLower(strings.TrimSpace(domain))
+	if strings.Contains(domain, "calendar-365.com") {
+		return true
+	}
+	return containsAnyWorkspaceAnchor(text, workspaceWebSearchGenericDateAnchors)
 }
 
 func detectWorkspaceQueryYear(lower string) string {
