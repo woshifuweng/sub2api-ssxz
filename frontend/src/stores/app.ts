@@ -345,6 +345,12 @@ export const useAppStore = defineStore('app', () => {
     publicSettingsLoaded.value = true
   }
 
+  function hasWebSearchConfig(
+    config: PublicSettings | null | undefined
+  ): config is PublicSettings & { web_search: NonNullable<PublicSettings['web_search']> } {
+    return !!config?.web_search && typeof config.web_search.available === 'boolean'
+  }
+
   /**
    * Fetch public settings (uses cache unless force=true)
    * @param force - Force refresh from API
@@ -353,52 +359,56 @@ export const useAppStore = defineStore('app', () => {
     // Check for injected config from server (eliminates flash)
     if (!publicSettingsLoaded.value && !force && window.__APP_CONFIG__) {
       applySettings(window.__APP_CONFIG__)
-      return window.__APP_CONFIG__
+      if (hasWebSearchConfig(window.__APP_CONFIG__)) {
+        return window.__APP_CONFIG__
+      }
     }
 
     // Return cached data if available and not forcing refresh
     if (publicSettingsLoaded.value && !force) {
-      if (cachedPublicSettings.value) {
+      if (hasWebSearchConfig(cachedPublicSettings.value)) {
         return { ...cachedPublicSettings.value }
       }
-      return {
-        registration_enabled: false,
-        email_verify_enabled: false,
-        registration_email_suffix_whitelist: [],
-        promo_code_enabled: true,
-        password_reset_enabled: false,
-        invitation_code_enabled: false,
-        turnstile_enabled: false,
-        turnstile_site_key: '',
-        site_name: siteName.value,
-        site_logo: siteLogo.value,
-        site_subtitle: '',
-        api_base_url: apiBaseUrl.value,
-        contact_info: contactInfo.value,
-        doc_url: docUrl.value,
-        home_content: '',
-        hide_ccs_import_button: false,
-        purchase_subscription_enabled: false,
-        purchase_subscription_url: '',
-        payment_enabled: false,
-        custom_menu_items: [],
-        linuxdo_oauth_enabled: false,
-        wechat_oauth_enabled: false,
-        wechat_oauth_open_enabled: false,
-        wechat_oauth_mp_enabled: false,
-        wechat_oauth_mobile_enabled: false,
-        oidc_oauth_enabled: false,
-        oidc_oauth_provider_name: '',
-        sora_client_enabled: false,
-        channel_monitor_enabled: false,
-        channel_monitor_default_interval_seconds: 60,
-        available_channels_enabled: false,
-        web_search: {
-          available: false
-        },
-        affiliate_enabled: false,
-        backend_mode_enabled: false,
-        version: siteVersion.value
+      if (!cachedPublicSettings.value) {
+        return {
+          registration_enabled: false,
+          email_verify_enabled: false,
+          registration_email_suffix_whitelist: [],
+          promo_code_enabled: true,
+          password_reset_enabled: false,
+          invitation_code_enabled: false,
+          turnstile_enabled: false,
+          turnstile_site_key: '',
+          site_name: siteName.value,
+          site_logo: siteLogo.value,
+          site_subtitle: '',
+          api_base_url: apiBaseUrl.value,
+          contact_info: contactInfo.value,
+          doc_url: docUrl.value,
+          home_content: '',
+          hide_ccs_import_button: false,
+          purchase_subscription_enabled: false,
+          purchase_subscription_url: '',
+          payment_enabled: false,
+          custom_menu_items: [],
+          linuxdo_oauth_enabled: false,
+          wechat_oauth_enabled: false,
+          wechat_oauth_open_enabled: false,
+          wechat_oauth_mp_enabled: false,
+          wechat_oauth_mobile_enabled: false,
+          oidc_oauth_enabled: false,
+          oidc_oauth_provider_name: '',
+          sora_client_enabled: false,
+          channel_monitor_enabled: false,
+          channel_monitor_default_interval_seconds: 60,
+          available_channels_enabled: false,
+          web_search: {
+            available: false
+          },
+          affiliate_enabled: false,
+          backend_mode_enabled: false,
+          version: siteVersion.value
+        }
       }
     }
 
