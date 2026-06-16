@@ -56,16 +56,23 @@
         v-for="tool in capabilityTools"
         :key="tool.key"
         type="button"
-        class="toolbar-tool is-unavailable"
+        class="toolbar-tool"
+        :class="{
+          'is-unavailable': !tool.available,
+          'is-active': tool.key === 'web-search' && tool.available && webSearchEnabled
+        }"
         :disabled="!tool.available"
         :title="tool.description"
         :aria-label="`${tool.label}：${tool.description}`"
         :aria-disabled="!tool.available"
+        :aria-pressed="tool.key === 'web-search' ? webSearchEnabled : undefined"
         :data-testid="`workspace-capability-${tool.key}`"
+        @click="handleCapabilityToolClick(tool.key, tool.available)"
       >
         <Icon :name="tool.icon" size="sm" />
         <span>{{ tool.label }}</span>
-        <small v-if="!tool.available">暂未接入</small>
+        <small v-if="tool.key === 'web-search' && tool.available && webSearchEnabled">已启用</small>
+        <small v-else-if="!tool.available">暂未接入</small>
       </button>
 
       <button
@@ -106,6 +113,7 @@ const props = defineProps<{
   sending: boolean
   assetPreviews: WorkspaceAssetPreview[]
   rejectedFiles: RejectedWorkspaceFile[]
+  webSearchEnabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -114,6 +122,7 @@ const emit = defineEmits<{
   (event: 'files', files: File[]): void
   (event: 'remove-asset', id: string): void
   (event: 'submit'): void
+  (event: 'toggle-web-search'): void
 }>()
 
 const appStore = useAppStore()
@@ -160,7 +169,7 @@ const capabilityTools = computed<Array<{
     tools.push({
       key: 'web-search',
       label: '联网',
-      description: '联网检索已接入。',
+      description: '联网检索已接入，可为本次回答补充实时来源。',
       icon: 'globe',
       available: true
     })
@@ -193,5 +202,10 @@ function handleKeydown(event: KeyboardEvent) {
 
 function handleSubmit() {
   if (canSubmit.value) emit('submit')
+}
+
+function handleCapabilityToolClick(key: CapabilityToolKey, available: boolean) {
+  if (!available) return
+  if (key === 'web-search') emit('toggle-web-search')
 }
 </script>

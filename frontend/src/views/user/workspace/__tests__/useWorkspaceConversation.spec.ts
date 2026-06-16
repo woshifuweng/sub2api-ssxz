@@ -450,6 +450,82 @@ describe('useWorkspaceConversation', () => {
     expect(workspace.messages.value).toHaveLength(2)
   })
 
+  it('passes web_search_requested metadata only when the user explicitly enables联网', async () => {
+    api.createConversation.mockResolvedValue({
+      id: 34,
+      title: 'search the web',
+      status: 'active',
+      created_at: '2026-06-10T00:00:00Z',
+      updated_at: '2026-06-10T00:00:00Z'
+    })
+    api.appendMessage.mockResolvedValue({
+      id: 44,
+      conversation_id: 34,
+      message_type: 'text',
+      role: 'user',
+      content: 'today world cup fixtures',
+      model: 'deepseek-v4-flash',
+      intent: 'chat',
+      status: 'completed',
+      created_at: '2026-06-10T00:00:01Z',
+      updated_at: '2026-06-10T00:00:01Z'
+    })
+    api.listMessages.mockResolvedValue([])
+    api.listConversations.mockResolvedValue([])
+    const workspace = useWorkspaceConversation({ backendEnabled: true })
+
+    await workspace.sendTextMessage({
+      text: 'today world cup fixtures',
+      model: 'deepseek-v4-flash',
+      intent: 'chat',
+      attachments: [],
+      webSearchRequested: true
+    })
+
+    expect(api.appendMessage).toHaveBeenCalledWith(34, expect.objectContaining({
+      metadata: {
+        web_search_requested: true
+      }
+    }))
+  })
+
+  it('keeps normal text sends unchanged when联网 is not requested', async () => {
+    api.createConversation.mockResolvedValue({
+      id: 35,
+      title: 'plain text',
+      status: 'active',
+      created_at: '2026-06-10T00:00:00Z',
+      updated_at: '2026-06-10T00:00:00Z'
+    })
+    api.appendMessage.mockResolvedValue({
+      id: 45,
+      conversation_id: 35,
+      message_type: 'text',
+      role: 'user',
+      content: 'plain text',
+      model: 'deepseek-v4-flash',
+      intent: 'chat',
+      status: 'completed',
+      created_at: '2026-06-10T00:00:01Z',
+      updated_at: '2026-06-10T00:00:01Z'
+    })
+    api.listMessages.mockResolvedValue([])
+    api.listConversations.mockResolvedValue([])
+    const workspace = useWorkspaceConversation({ backendEnabled: true })
+
+    await workspace.sendTextMessage({
+      text: 'plain text',
+      model: 'deepseek-v4-flash',
+      intent: 'chat',
+      attachments: []
+    })
+
+    expect(api.appendMessage).toHaveBeenCalledWith(35, expect.objectContaining({
+      intent: 'chat',
+      metadata: undefined
+    }))
+  })
+
   it('appends to the active conversation without creating another one', async () => {
     api.listMessages
       .mockResolvedValueOnce([])

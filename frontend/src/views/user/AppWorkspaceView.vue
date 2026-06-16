@@ -46,7 +46,9 @@
           :sending="workspace.sending.value || assets.registering.value"
           :asset-previews="assets.previews.value"
           :rejected-files="assets.rejectedFiles.value"
+          :web-search-enabled="webSearchRequested"
           @update:selected-model="selectedModelId = $event"
+          @toggle-web-search="toggleWebSearch"
           @files="handleFiles"
           @remove-asset="assets.removePreview"
           @submit="submitDraft"
@@ -62,6 +64,7 @@ import { useRoute } from 'vue-router'
 import Icon from '@/components/icons/Icon.vue'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import { useUserCapabilities } from '@/composables/useUserCapabilities'
+import { useAppStore } from '@/stores/app'
 import WorkspaceComposer from './workspace/WorkspaceComposer.vue'
 import WorkspaceMessageList from './workspace/WorkspaceMessageList.vue'
 import { useWorkspaceAssets } from './workspace/useWorkspaceAssets'
@@ -81,8 +84,10 @@ interface SectionContent {
 }
 
 const route = useRoute()
+const appStore = useAppStore()
 const draft = ref('')
 const selectedModelId = ref('')
+const webSearchRequested = ref(false)
 const workspace = useWorkspaceConversation()
 const assets = useWorkspaceAssets()
 const capabilities = useUserCapabilities()
@@ -134,6 +139,9 @@ const imageCapabilityAvailable = computed(() =>
   || workspaceCapabilities.value.has('image_edit')
   || workspaceCapabilities.value.has('vision')
 )
+const webSearchAvailable = computed(() =>
+  appStore.cachedPublicSettings?.web_search?.available === true
+)
 const textBetaMode = computed(() => hasChat.value && !imageCapabilityAvailable.value)
 const activeModelLabel = computed(() =>
   chatModels.value.find((model) => model.id === activeChatModel.value)?.name || 'Deepseek-V4-Flash'
@@ -176,24 +184,33 @@ async function submitDraft() {
     text,
     model: activeChatModel.value,
     intent: workspaceIntent.value,
-    attachments: assets.getLocalAttachments()
+    attachments: assets.getLocalAttachments(),
+    webSearchRequested: webSearchAvailable.value && webSearchRequested.value
   })
   if (sent) {
     draft.value = ''
     assets.clearPreviews()
+    webSearchRequested.value = false
   }
 }
 
 async function selectConversation(id: number) {
   draft.value = ''
   assets.clearPreviews()
+  webSearchRequested.value = false
   await workspace.selectConversation(id)
 }
 
 async function startNewChat() {
   draft.value = ''
   assets.clearPreviews()
+  webSearchRequested.value = false
   await workspace.startNewChat()
+}
+
+function toggleWebSearch() {
+  if (!webSearchAvailable.value) return
+  webSearchRequested.value = !webSearchRequested.value
 }
 
 onMounted(async () => {
@@ -210,6 +227,12 @@ watch(chatModels, (models) => {
   }
   if (!models.some((model) => model.id === selectedModelId.value)) {
     selectedModelId.value = defaultTextModel.value || models[0].id
+  }
+}, { immediate: true })
+
+watch(webSearchAvailable, (available) => {
+  if (!available) {
+    webSearchRequested.value = false
   }
 }, { immediate: true })
 </script>
@@ -591,6 +614,12 @@ watch(chatModels, (models) => {
 :deep(.toolbar-tool:disabled:hover),
 :deep(.asset-option.is-unavailable:hover) {
   background: color-mix(in srgb, var(--ssxz-surface-muted) 88%, transparent);
+}
+
+:deep(.toolbar-tool.is-active) {
+  border-color: color-mix(in srgb, var(--ssxz-primary) 50%, transparent);
+  background: color-mix(in srgb, var(--ssxz-primary) 12%, transparent);
+  color: var(--ssxz-primary);
 }
 
 :deep(.toolbar-tool small) {

@@ -49,7 +49,7 @@ func (b *WorkspaceSub2APITextBridge) CompleteWorkspaceText(ctx context.Context, 
 	if err != nil {
 		return service.WorkspaceSub2APITextBridgeResult{}, err
 	}
-	body, err := buildWorkspaceSub2APITextBridgeBody(model, input.Content)
+	body, err := buildWorkspaceSub2APITextBridgeBody(model, input.Content, input.SystemMessages)
 	if err != nil {
 		return service.WorkspaceSub2APITextBridgeResult{}, err
 	}
@@ -101,14 +101,26 @@ func (b *WorkspaceSub2APITextBridge) selectWorkspaceAPIKey(ctx context.Context, 
 	return nil, service.ErrWorkspaceSub2APITextBridgeModelNotAllowed
 }
 
-func buildWorkspaceSub2APITextBridgeBody(model, content string) ([]byte, error) {
+func buildWorkspaceSub2APITextBridgeBody(model, content string, systemMessages []string) ([]byte, error) {
+	messages := make([]map[string]string, 0, len(systemMessages)+1)
+	for _, message := range systemMessages {
+		message = strings.TrimSpace(message)
+		if message == "" {
+			continue
+		}
+		messages = append(messages, map[string]string{
+			"role":    "system",
+			"content": message,
+		})
+	}
+	messages = append(messages, map[string]string{
+		"role":    "user",
+		"content": strings.TrimSpace(content),
+	})
 	payload := map[string]any{
-		"model": strings.TrimSpace(model),
-		"messages": []map[string]string{{
-			"role":    "user",
-			"content": strings.TrimSpace(content),
-		}},
-		"stream": false,
+		"model":    strings.TrimSpace(model),
+		"messages": messages,
+		"stream":   false,
 	}
 	return json.Marshal(payload)
 }

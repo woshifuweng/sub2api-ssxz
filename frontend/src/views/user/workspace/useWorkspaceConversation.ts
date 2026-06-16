@@ -49,6 +49,7 @@ export interface SendTextMessageInput {
   model: string
   intent: WorkspaceIntent
   attachments: WorkspaceAttachment[]
+  webSearchRequested?: boolean
 }
 
 interface UseWorkspaceConversationOptions {
@@ -159,7 +160,8 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
         role: 'user',
         content: text,
         model: input.model,
-        intent: 'chat'
+        intent: 'chat',
+        metadata: input.webSearchRequested ? { web_search_requested: true } : undefined
       })
       const nextMessages = await listMessages(conversationId)
       messages.value = nextMessages.map(mapChatMessageToWorkspaceMessage)
