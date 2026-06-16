@@ -27,6 +27,7 @@
     <WorkspaceAssetPanel
       v-if="assetPanelOpen"
       :rejected-files="rejectedFiles"
+      :image-upload-available="false"
       @files="emit('files', $event)"
     />
 
@@ -51,15 +52,19 @@
       </button>
 
       <button
-        v-for="tool in informationalTools"
-        :key="tool.label"
+        v-for="tool in capabilityTools"
+        :key="tool.key"
         type="button"
-        class="toolbar-tool is-informational"
+        class="toolbar-tool is-unavailable"
+        :disabled="!tool.available"
         :title="tool.description"
-        :aria-label="`${tool.label}，${tool.description}`"
+        :aria-label="`${tool.label}：${tool.description}`"
+        :aria-disabled="!tool.available"
+        :data-testid="`workspace-capability-${tool.key}`"
       >
         <Icon :name="tool.icon" size="sm" />
         <span>{{ tool.label }}</span>
+        <small v-if="!tool.available">暂未接入</small>
       </button>
 
       <button
@@ -79,14 +84,16 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import Icon from '@/components/icons/Icon.vue'
 import type { ChatModelOption } from '@/composables/useUserCapabilities'
+import Icon from '@/components/icons/Icon.vue'
+import { useAppStore } from '@/stores/app'
 import WorkspaceAssetPanel from './WorkspaceAssetPanel.vue'
 import WorkspaceModelPicker from './WorkspaceModelPicker.vue'
 import type { RejectedWorkspaceFile, WorkspaceAssetPreview } from './useWorkspaceAssets'
 import type { WorkspaceIntent } from './useWorkspaceConversation'
 
 type IconName = InstanceType<typeof Icon>['$props']['name']
+type CapabilityToolKey = 'web-search' | 'memory' | 'toolbox'
 
 const props = defineProps<{
   modelValue: string
@@ -107,19 +114,47 @@ const emit = defineEmits<{
   (event: 'submit'): void
 }>()
 
+const appStore = useAppStore()
 const assetPanelOpen = ref(false)
 
 const placeholders: Record<WorkspaceIntent, string> = {
-  home: '直接提问、上传图片或开始一个新任务',
+  home: '直接提问、上传文件或开始一个新任务',
   chat: '输入问题，继续这段对话',
   image: '描述你想生成或修改的图片，也可以先上传参考图'
 }
 
-const informationalTools: Array<{ label: string; description: string; icon: IconName }> = [
-  { label: '联网', description: '联网检索会在后续版本接入，当前不会假装开启。', icon: 'globe' },
-  { label: '记忆', description: '长期记忆会在隐私策略完成后接入。', icon: 'brain' },
-  { label: '工具箱', description: '文档、表格、代码工具正在收敛到同一个输入区。', icon: 'grid' }
-]
+const capabilityTools = computed<Array<{
+  key: CapabilityToolKey
+  label: string
+  description: string
+  icon: IconName
+  available: boolean
+}>>(() => {
+  const webSearchAvailable = appStore.cachedPublicSettings?.web_search?.available === true
+  return [
+    {
+      key: 'web-search',
+      label: '联网',
+      description: webSearchAvailable ? '联网检索已接入。' : '联网检索暂未接入，当前不会假装开启。',
+      icon: 'globe',
+      available: webSearchAvailable
+    },
+    {
+      key: 'memory',
+      label: '记忆',
+      description: '长期记忆暂未接入。',
+      icon: 'brain',
+      available: false
+    },
+    {
+      key: 'toolbox',
+      label: '工具箱',
+      description: '文档、表格、代码工具暂未接入。',
+      icon: 'grid',
+      available: false
+    }
+  ]
+})
 
 const placeholder = computed(() => placeholders[props.intent])
 const canSubmit = computed(() =>

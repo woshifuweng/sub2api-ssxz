@@ -117,6 +117,10 @@ export interface PublicSettings {
   channel_monitor_enabled: boolean
   channel_monitor_default_interval_seconds: number
   available_channels_enabled: boolean
+  web_search?: {
+    available: boolean
+    provider?: string
+  }
   affiliate_enabled: boolean
   backend_mode_enabled: boolean
   version: string

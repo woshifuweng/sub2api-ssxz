@@ -1,5 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { useAppStore } from '@/stores/app'
 
 vi.mock('@/components/icons/Icon.vue', () => ({
   default: {
@@ -17,7 +19,19 @@ const models = [
 ]
 
 function mountComposer(overrides = {}) {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  const appStore = useAppStore()
+  appStore.cachedPublicSettings = {
+    web_search: {
+      available: false
+    }
+  } as any
+
   return mount(WorkspaceComposer, {
+    global: {
+      plugins: [pinia]
+    },
     props: {
       modelValue: '',
       selectedModel: 'gpt-5.5',
@@ -49,7 +63,9 @@ describe('WorkspaceComposer', () => {
     await wrapper.get('[data-testid="workspace-add-content"]').trigger('click')
 
     expect(wrapper.find('#workspace-asset-panel').exists()).toBe(true)
-    expect(wrapper.findAll('.asset-option[disabled]')).toHaveLength(0)
+    expect(wrapper.find('[data-testid="workspace-upload-image-disabled"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="workspace-capability-web-search"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('暂未接入')
   })
 
   it('emits submit when content is ready', async () => {
