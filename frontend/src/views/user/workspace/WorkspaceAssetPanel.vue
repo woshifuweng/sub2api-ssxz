@@ -54,7 +54,7 @@
     </button>
 
     <p class="asset-panel-note">
-      当前仅开放文本对话，附件与工具能力会在后续接入时按后端能力逐项开放。
+      当前仅开放文本对话 beta，图片上传与扩展附件能力暂未接入。
     </p>
     <p v-for="file in rejectedFiles" :key="file.name" class="asset-panel-error">
       {{ file.name }}：{{ file.reason }}
