@@ -23,7 +23,7 @@ import (
 const (
 	imageStudioModel           = "gpt-image-2"
 	imageStudioMaxUpload       = 32 << 20
-	imageStudioCaptureMaxBytes = 1 << 20
+	imageStudioCaptureMaxBytes = 64 << 20
 )
 
 type ImageStudioHandler struct {
@@ -31,6 +31,7 @@ type ImageStudioHandler struct {
 	subscriptionService *service.SubscriptionService
 	openAIGateway       *OpenAIGatewayHandler
 	genService          *service.SoraGenerationService
+	mediaStorage        *service.SoraMediaStorage
 	cfg                 *config.Config
 }
 
@@ -56,12 +57,14 @@ func NewImageStudioHandler(
 	openAIGateway *OpenAIGatewayHandler,
 	cfg *config.Config,
 	genService *service.SoraGenerationService,
+	mediaStorage *service.SoraMediaStorage,
 ) *ImageStudioHandler {
 	return &ImageStudioHandler{
 		apiKeyService:       apiKeyService,
 		subscriptionService: subscriptionService,
 		openAIGateway:       openAIGateway,
 		genService:          genService,
+		mediaStorage:        mediaStorage,
 		cfg:                 cfg,
 	}
 }
@@ -218,6 +221,16 @@ func (h *ImageStudioHandler) persistImageStudioWork(ctx context.Context, capture
 		return
 	}
 	urls := extractImageStudioResultURLs(capture.bytes())
+	storageType := service.SoraStorageTypeUpstream
+	var fileSizeBytes int64
+	if len(urls) == 0 && h.mediaStorage != nil && h.mediaStorage.Enabled() {
+		localPaths, totalSize, err := h.mediaStorage.StoreBase64Images(ctx, extractImageStudioResultBase64(capture.bytes()))
+		if err == nil && len(localPaths) > 0 {
+			urls = localPaths
+			storageType = service.SoraStorageTypeLocal
+			fileSizeBytes = totalSize
+		}
+	}
 	if len(urls) == 0 {
 		return
 	}
@@ -225,7 +238,7 @@ func (h *ImageStudioHandler) persistImageStudioWork(ctx context.Context, capture
 	if apiKeyID > 0 {
 		apiKeyIDPtr = &apiKeyID
 	}
-	_, _ = h.genService.CreateCompletedImageWork(ctx, userID, apiKeyIDPtr, imageStudioModel, prompt, urls, service.SoraStorageTypeUpstream, nil, 0)
+	_, _ = h.genService.CreateCompletedImageWork(ctx, userID, apiKeyIDPtr, imageStudioModel, prompt, urls, storageType, nil, fileSizeBytes)
 }
 
 func parseImageStudioRequest(c gatewayctx.GatewayContext) (*imageStudioRequest, error) {
@@ -492,4 +505,27 @@ func extractImageStudioResultURLs(body []byte) []string {
 		urls = append(urls, u)
 	}
 	return urls
+}
+
+func extractImageStudioResultBase64(body []byte) []string {
+	if len(body) == 0 {
+		return nil
+	}
+	var payload struct {
+		Data []struct {
+			B64JSON string `json:"b64_json"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil
+	}
+	images := make([]string, 0, len(payload.Data))
+	for _, item := range payload.Data {
+		raw := strings.TrimSpace(item.B64JSON)
+		if raw == "" {
+			continue
+		}
+		images = append(images, raw)
+	}
+	return images
 }

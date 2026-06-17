@@ -2,11 +2,16 @@ package handler
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 )
@@ -66,6 +71,20 @@ func TestExtractImageStudioResultURLs_InvalidJSON(t *testing.T) {
 	require.Nil(t, extractImageStudioResultURLs([]byte(`not-json`)))
 }
 
+func TestExtractImageStudioResultBase64(t *testing.T) {
+	body := []byte(`{
+		"data": [
+			{"b64_json": "Zmlyc3Q="},
+			{"url": "https://cdn.example.com/a.png"},
+			{"b64_json": " "},
+			{"b64_json": "c2Vjb25k"}
+		]
+	}`)
+
+	require.Equal(t, []string{"Zmlyc3Q=", "c2Vjb25k"}, extractImageStudioResultBase64(body))
+	require.Nil(t, extractImageStudioResultBase64([]byte(`not-json`)))
+}
+
 func TestImageStudioCaptureContextSuccessRequiresNonTruncated2xx(t *testing.T) {
 	capture := &imageStudioCaptureContext{}
 
@@ -104,13 +123,48 @@ func TestPersistImageStudioWork_CreatesCompletedImageRecordForURLResults(t *test
 	require.NotNil(t, gen.CompletedAt)
 }
 
-func TestPersistImageStudioWork_DoesNotPersistBase64OnlyResults(t *testing.T) {
+func TestPersistImageStudioWork_PersistsBase64OnlyResultsToLocalStorage(t *testing.T) {
+	tmpDir := t.TempDir()
+	repo := &imageStudioTestGenRepo{}
+	mediaStorage := service.NewSoraMediaStorage(&config.Config{
+		Sora: config.SoraConfig{
+			Storage: config.SoraStorageConfig{
+				Type:                   "local",
+				LocalPath:              tmpDir,
+				MaxConcurrentDownloads: 1,
+				MaxDownloadBytes:       1024,
+			},
+		},
+	})
+	handler := &ImageStudioHandler{
+		genService:   service.NewSoraGenerationService(repo, nil, nil),
+		mediaStorage: mediaStorage,
+	}
+	capture := &imageStudioCaptureContext{status: http.StatusOK}
+	capture.capture([]byte(fmt.Sprintf(`{"data":[{"b64_json":%q}]}`, base64.StdEncoding.EncodeToString([]byte("png-data")))))
+
+	handler.persistImageStudioWork(context.Background(), capture, 7, 42, "product prompt")
+
+	require.Len(t, repo.created, 1)
+	gen := repo.created[0]
+	require.Equal(t, service.SoraStorageTypeLocal, gen.StorageType)
+	require.True(t, strings.HasPrefix(gen.MediaURL, "/image/"))
+	require.True(t, strings.HasSuffix(gen.MediaURL, ".png"))
+	require.Equal(t, int64(len("png-data")), gen.FileSizeBytes)
+	localPath := filepath.Join(tmpDir, filepath.FromSlash(strings.TrimPrefix(gen.MediaURL, "/")))
+	require.FileExists(t, localPath)
+	content, err := os.ReadFile(localPath)
+	require.NoError(t, err)
+	require.Equal(t, []byte("png-data"), content)
+}
+
+func TestPersistImageStudioWork_DoesNotStoreBase64InRecordWhenLocalStorageDisabled(t *testing.T) {
 	repo := &imageStudioTestGenRepo{}
 	handler := &ImageStudioHandler{
 		genService: service.NewSoraGenerationService(repo, nil, nil),
 	}
 	capture := &imageStudioCaptureContext{status: http.StatusOK}
-	capture.capture([]byte(`{"data":[{"b64_json":"large-image-body"}]}`))
+	capture.capture([]byte(fmt.Sprintf(`{"data":[{"b64_json":%q}]}`, base64.StdEncoding.EncodeToString([]byte("png-data")))))
 
 	handler.persistImageStudioWork(context.Background(), capture, 7, 42, "product prompt")
 

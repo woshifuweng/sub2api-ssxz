@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -43,6 +44,68 @@ func TestSoraMediaStorage_StoreFromURLs(t *testing.T) {
 
 	localPath := filepath.Join(tmpDir, filepath.FromSlash(strings.TrimPrefix(urls[0], "/")))
 	require.FileExists(t, localPath)
+}
+
+func TestSoraMediaStorage_StoreBase64Images(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := &config.Config{
+		Sora: config.SoraConfig{
+			Storage: config.SoraStorageConfig{
+				Type:                   "local",
+				LocalPath:              tmpDir,
+				MaxConcurrentDownloads: 1,
+				MaxDownloadBytes:       1024,
+			},
+		},
+	}
+
+	storage := NewSoraMediaStorage(cfg)
+	paths, totalSize, err := storage.StoreBase64Images(context.Background(), []string{
+		base64.StdEncoding.EncodeToString([]byte("image-one")),
+		base64.StdEncoding.EncodeToString([]byte("image-two")),
+	})
+
+	require.NoError(t, err)
+	require.Len(t, paths, 2)
+	require.Equal(t, int64(len("image-one")+len("image-two")), totalSize)
+	for _, p := range paths {
+		require.True(t, strings.HasPrefix(p, "/image/"))
+		require.True(t, strings.HasSuffix(p, ".png"))
+		require.NotContains(t, p, "data:image")
+		require.FileExists(t, filepath.Join(tmpDir, filepath.FromSlash(strings.TrimPrefix(p, "/"))))
+	}
+}
+
+func TestSoraMediaStorage_StoreBase64ImagesRequiresLocalStorage(t *testing.T) {
+	storage := NewSoraMediaStorage(&config.Config{})
+
+	paths, totalSize, err := storage.StoreBase64Images(context.Background(), []string{
+		base64.StdEncoding.EncodeToString([]byte("image")),
+	})
+
+	require.Error(t, err)
+	require.Nil(t, paths)
+	require.Zero(t, totalSize)
+}
+
+func TestSoraMediaStorage_StoreBase64ImagesMaxBytes(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := &config.Config{
+		Sora: config.SoraConfig{
+			Storage: config.SoraStorageConfig{
+				Type:             "local",
+				LocalPath:        tmpDir,
+				MaxDownloadBytes: 1,
+			},
+		},
+	}
+
+	storage := NewSoraMediaStorage(cfg)
+	_, _, err := storage.StoreBase64Images(context.Background(), []string{
+		base64.StdEncoding.EncodeToString([]byte("too-large")),
+	})
+
+	require.Error(t, err)
 }
 
 func TestSoraMediaStorage_FallbackToUpstream(t *testing.T) {
