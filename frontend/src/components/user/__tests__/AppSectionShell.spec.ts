@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { routeState, mocks } = vi.hoisted(() => ({
   routeState: {
@@ -45,6 +45,23 @@ vi.mock('@/components/icons/Icon.vue', () => ({
 
 import AppSectionShell from '../AppSectionShell.vue'
 
+function mockDesktopMedia(matches: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }))
+  })
+}
+
 function mountShell() {
   return mount(AppSectionShell, {
     props: {
@@ -63,8 +80,15 @@ function mountShell() {
 }
 
 describe('AppSectionShell', () => {
-  it('keeps API Key available as a third-party client entrypoint', () => {
+  beforeEach(() => {
     routeState.path = '/app/chat'
+    mocks.push.mockReset()
+    mocks.logout.mockReset()
+    mocks.showSuccess.mockReset()
+    mockDesktopMedia(true)
+  })
+
+  it('keeps API Key available as a third-party client entrypoint', () => {
     const wrapper = mountShell()
 
     expect(wrapper.text()).toContain('新对话')
@@ -83,5 +107,15 @@ describe('AppSectionShell', () => {
     expect(navButtons[0].classes()).not.toContain('is-active')
     expect(navButtons[1].text()).toContain('AI 作图')
     expect(navButtons[1].classes()).toContain('is-active')
+  })
+  it('opens a real mobile navigation drawer instead of only toggling desktop collapse', async () => {
+    mockDesktopMedia(false)
+    const wrapper = mountShell()
+
+    expect(wrapper.classes()).not.toContain('ssxz-mobile-nav-open')
+    await wrapper.get('.ssxz-sidebar-toggle-desktop').trigger('click')
+
+    expect(wrapper.classes()).toContain('ssxz-mobile-nav-open')
+    expect(wrapper.find('.ssxz-mobile-sidebar-scrim').exists()).toBe(true)
   })
 })

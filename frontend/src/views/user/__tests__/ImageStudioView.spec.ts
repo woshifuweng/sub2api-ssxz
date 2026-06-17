@@ -98,6 +98,9 @@ describe('ImageStudioView workbench', () => {
     expect(text).toContain('最近作品')
     expect(text).not.toContain('商品图、海报和灵感图，一页完成')
     expect(text).not.toContain('Sora')
+    const resultActionButtons = wrapper.findAll('.result-actions .secondary-button')
+    expect(resultActionButtons[1].attributes('disabled')).toBeDefined()
+    expect(resultActionButtons[2].attributes('disabled')).toBeDefined()
 
     wrapper.unmount()
   })
@@ -175,6 +178,7 @@ describe('ImageStudioView workbench', () => {
     expect(String(form.get('selling_points'))).toContain('创作用途：商品主图')
     expect(String(form.get('selling_points'))).toContain('商用安全')
     expect(wrapper.find('img[alt="result-1"]').attributes('src')).toBe('https://cdn.example.com/result.png')
+    expect(wrapper.findAll('.result-actions .secondary-button')[2].attributes('disabled')).toBeUndefined()
     expect(authStore.refreshUser).toHaveBeenCalledTimes(1)
     expect(appStore.showSuccess).toHaveBeenCalledWith('图片生成完成')
 

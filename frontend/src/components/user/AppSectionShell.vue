@@ -1,8 +1,19 @@
 <template>
-  <div class="ssxz-app-shell" data-app-shell-boundary="section" :class="{ 'ssxz-sidebar-collapsed': sidebarCollapsed }">
+  <div
+    class="ssxz-app-shell"
+    data-app-shell-boundary="section"
+    :class="{ 'ssxz-sidebar-collapsed': sidebarCollapsed, 'ssxz-mobile-nav-open': mobileNavOpen }"
+  >
     <div class="ssxz-app-backdrop" aria-hidden="true" />
-    <aside class="ssxz-app-sidebar fixed inset-y-0 left-0 z-30 hidden w-60 border-r px-3 py-4 backdrop-blur-xl lg:block">
-      <RouterLink to="/app" class="ssxz-brand-link mb-6" title="返回工作台首页" aria-label="返回工作台首页">
+    <button
+      v-if="mobileNavOpen"
+      type="button"
+      class="ssxz-mobile-sidebar-scrim lg:hidden"
+      aria-label="关闭导航"
+      @click="closeMobileNav"
+    />
+    <aside class="ssxz-app-sidebar fixed inset-y-0 left-0 z-30 w-60 border-r px-3 py-4 backdrop-blur-xl">
+      <RouterLink to="/app" class="ssxz-brand-link mb-6" title="返回工作台首页" aria-label="返回工作台首页" @click="closeMobileNav">
         <span class="ssxz-brand-mark">S</span>
         <span class="ssxz-brand-copy ssxz-sidebar-text">
           <span class="ssxz-brand-title">SSXZ AI</span>
@@ -53,7 +64,7 @@
           :class="{ 'is-active': item.id === activeConversationId }"
           :title="item.title"
           :aria-label="item.title"
-          @click="emit('select-conversation', item.id)"
+          @click="handleHistorySelect(item.id)"
         >
           <Icon name="chat" size="sm" />
           <span class="ssxz-sidebar-text">{{ item.title || '未命名对话' }}</span>
@@ -86,10 +97,10 @@
           <button
             type="button"
             class="ssxz-btn-icon ssxz-sidebar-toggle-desktop"
-            :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
-            :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
-            :aria-expanded="!sidebarCollapsed"
-            @click="toggleSidebarCollapsed"
+            :aria-label="navToggleLabel"
+            :title="navToggleLabel"
+            :aria-expanded="navToggleExpanded"
+            @click="toggleShellNav"
           >
             <Icon name="menu" size="sm" />
           </button>
@@ -162,7 +173,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Icon from '@/components/icons/Icon.vue'
 import type { ChatConversation } from '@/api/chatWorkspace'
@@ -201,7 +212,10 @@ const userMenuOpen = ref(false)
 const activeUtility = ref<UtilityId | null>(null)
 const SIDEBAR_COLLAPSED_KEY = 'ssxz.app.sidebar.collapsed'
 const sidebarCollapsed = ref(readSidebarCollapsed())
+const mobileNavOpen = ref(false)
+const isDesktopViewport = ref(false)
 const isDark = ref(document.documentElement.classList.contains('dark'))
+let desktopMediaQuery: MediaQueryList | null = null
 
 const navItems: Array<{ label: string; to: string; icon: IconName }> = [
   { label: '新对话', to: '/app?new=1', icon: 'chat' },
@@ -234,6 +248,11 @@ const userLabel = computed(() => authStore.user?.username || authStore.user?.ema
 const userInitial = computed(() => userLabel.value.slice(0, 1).toUpperCase())
 const userBalance = computed(() => formatMoney(authStore.user?.balance || 0))
 const activeUtilityContent = computed(() => utilityItems.find((item) => item.id === activeUtility.value) ?? null)
+const navToggleLabel = computed(() => {
+  if (!isDesktopViewport.value) return mobileNavOpen.value ? '关闭导航' : '打开导航'
+  return sidebarCollapsed.value ? '展开侧边栏' : '收起侧边栏'
+})
+const navToggleExpanded = computed(() => !isDesktopViewport.value ? mobileNavOpen.value : !sidebarCollapsed.value)
 
 function isActive(path: string) {
   const normalizedPath = path.split('?')[0]
@@ -243,16 +262,23 @@ function isActive(path: string) {
 
 function toggleUtilityPanel(id: UtilityId) {
   activeUtility.value = activeUtility.value === id ? null : id
+  closeMobileNav()
 }
 
 function handlePrimaryNav(to: string) {
   activeUtility.value = null
+  closeMobileNav()
   if (to === '/app?new=1') {
     emit('new-chat')
     if (route.path !== '/app') router.push('/app')
     return
   }
   router.push(to)
+}
+
+function handleHistorySelect(id: number) {
+  emit('select-conversation', id)
+  closeMobileNav()
 }
 
 function formatMoney(value: number) {
@@ -278,6 +304,28 @@ function toggleSidebarCollapsed() {
   setSidebarCollapsed(!sidebarCollapsed.value)
 }
 
+function toggleShellNav() {
+  if (!isDesktopViewport.value) {
+    mobileNavOpen.value = !mobileNavOpen.value
+    return
+  }
+  toggleSidebarCollapsed()
+}
+
+function closeMobileNav() {
+  mobileNavOpen.value = false
+}
+
+function syncViewportMode() {
+  if (typeof window === 'undefined') return
+  if (typeof window.matchMedia !== 'function') {
+    isDesktopViewport.value = true
+    return
+  }
+  isDesktopViewport.value = window.matchMedia('(min-width: 1024px)').matches
+  if (isDesktopViewport.value) closeMobileNav()
+}
+
 async function logout() {
   await authStore.logout()
   userMenuOpen.value = false
@@ -299,11 +347,44 @@ function toggleTheme() {
 
 onMounted(() => {
   initTheme()
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    desktopMediaQuery = window.matchMedia('(min-width: 1024px)')
+    syncViewportMode()
+    desktopMediaQuery.addEventListener('change', syncViewportMode)
+  } else {
+    syncViewportMode()
+  }
+})
+
+onBeforeUnmount(() => {
+  desktopMediaQuery?.removeEventListener('change', syncViewportMode)
 })
 </script>
 
 <style scoped>
+.ssxz-app-sidebar {
+  display: none;
+}
+
+.ssxz-mobile-sidebar-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  border: 0;
+  background: rgb(2 6 23 / 0.58);
+  backdrop-filter: blur(2px);
+}
+
+.ssxz-mobile-nav-open .ssxz-app-sidebar {
+  display: block;
+  box-shadow: 18px 0 50px rgb(2 6 23 / 0.35);
+}
+
 @media (min-width: 1024px) {
+  .ssxz-app-sidebar {
+    display: block;
+  }
+
   .ssxz-app-content {
     margin-left: 15rem;
   }
