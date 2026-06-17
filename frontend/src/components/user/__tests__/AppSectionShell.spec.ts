@@ -102,6 +102,23 @@ describe('AppSectionShell', () => {
     expect(wrapper.text()).toContain('账户设置')
   })
 
+  it('switches utility menu entries to their own pages instead of rendering inline panels', async () => {
+    routeState.path = '/app/image'
+    const wrapper = mountShell()
+    const buttons = wrapper.findAll('.ssxz-secondary-nav .ssxz-nav-item')
+
+    await buttons.find((button) => button.text().includes('用量中心'))?.trigger('click')
+    expect(mocks.push).toHaveBeenLastCalledWith('/usage')
+
+    await buttons.find((button) => button.text().includes('API Key / 第三方接入'))?.trigger('click')
+    expect(mocks.push).toHaveBeenLastCalledWith('/keys')
+
+    await buttons.find((button) => button.text().includes('账户设置'))?.trigger('click')
+    expect(mocks.push).toHaveBeenLastCalledWith('/profile')
+    expect(wrapper.find('.ssxz-workspace-utility-center').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('打开 API Key / 第三方客户端接入')
+  })
+
   it('keeps the image entry active without highlighting new chat on /app/image', () => {
     routeState.path = '/app/image'
     const wrapper = mountShell()
