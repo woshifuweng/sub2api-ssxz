@@ -59,6 +59,7 @@ const backendModeAllowedPaths = [
   '/login',
   '/key-usage',
   '/setup',
+  '/app/image',
   '/sora',
   '/app/chat',
   '/usage',
@@ -91,7 +92,7 @@ function simulateGuard(
       if (authState.backendModeEnabled && !authState.isAdmin) {
         return null
       }
-      return authState.isAdmin ? '/admin/dashboard' : '/sora'
+      return authState.isAdmin ? '/admin/dashboard' : '/app/image'
     }
     if (authState.backendModeEnabled && !authState.isAuthenticated) {
       if (!backendModeAllowedPaths.some((path) => toPath === path || toPath.startsWith(path))) {
@@ -108,12 +109,12 @@ function simulateGuard(
 
   // 需要管理员但不是管理员
   if (requiresAdmin && !authState.isAdmin) {
-    return '/sora'
+    return '/app/image'
   }
 
   // 简易模式限制
   if (toMeta.requiresPayment && !(authState.paymentEnabled ?? true)) {
-    return authState.isAdmin ? '/admin/dashboard' : '/sora'
+    return authState.isAdmin ? '/admin/dashboard' : '/app/image'
   }
 
   if (authState.isSimpleMode) {
@@ -125,7 +126,7 @@ function simulateGuard(
       '/redeem',
     ]
     if (restrictedPaths.some((path) => toPath.startsWith(path))) {
-      return authState.isAdmin ? '/admin/dashboard' : '/sora'
+      return authState.isAdmin ? '/admin/dashboard' : '/app/image'
     }
   }
 
@@ -188,14 +189,14 @@ describe('路由守卫逻辑', () => {
       backendModeEnabled: false,
     }
 
-    it('访问 /login 重定向到 /sora', () => {
+    it('访问 /login 重定向到 /app/image', () => {
       const redirect = simulateGuard('/login', { requiresAuth: false }, authState)
-      expect(redirect).toBe('/sora')
+      expect(redirect).toBe('/app/image')
     })
 
-    it('访问 /register 重定向到 /sora', () => {
+    it('访问 /register 重定向到 /app/image', () => {
       const redirect = simulateGuard('/register', { requiresAuth: false }, authState)
-      expect(redirect).toBe('/sora')
+      expect(redirect).toBe('/app/image')
     })
 
     it('访问 /dashboard 允许通过', () => {
@@ -203,14 +204,14 @@ describe('路由守卫逻辑', () => {
       expect(redirect).toBeNull()
     })
 
-    it('访问管理页面被拒绝，重定向到 /sora', () => {
+    it('访问管理页面被拒绝，重定向到 /app/image', () => {
       const redirect = simulateGuard('/admin/dashboard', { requiresAdmin: true }, authState)
-      expect(redirect).toBe('/sora')
+      expect(redirect).toBe('/app/image')
     })
 
     it('访问 /admin/users 被拒绝', () => {
       const redirect = simulateGuard('/admin/users', { requiresAdmin: true }, authState)
-      expect(redirect).toBe('/sora')
+      expect(redirect).toBe('/app/image')
     })
 
     it('allows /orders when payment is disabled so the page can degrade safely', () => {
@@ -220,7 +221,7 @@ describe('路由守卫逻辑', () => {
 
     it('keeps payment flow pages guarded when payment is disabled', () => {
       const redirect = simulateGuard('/payment/qrcode', { requiresPayment: true }, { ...authState, paymentEnabled: false })
-      expect(redirect).toBe('/sora')
+      expect(redirect).toBe('/app/image')
     })
   })
 
@@ -253,7 +254,7 @@ describe('路由守卫逻辑', () => {
   // --- 简易模式 ---
 
   describe('简易模式受限路由', () => {
-    it('普通用户简易模式访问 /subscriptions 重定向到 /sora', () => {
+    it('普通用户简易模式访问 /subscriptions 重定向到 /app/image', () => {
       const authState: MockAuthState = {
         isAuthenticated: true,
         isAdmin: false,
@@ -261,10 +262,10 @@ describe('路由守卫逻辑', () => {
         backendModeEnabled: false,
       }
       const redirect = simulateGuard('/subscriptions', {}, authState)
-      expect(redirect).toBe('/sora')
+      expect(redirect).toBe('/app/image')
     })
 
-    it('普通用户简易模式访问 /redeem 重定向到 /sora', () => {
+    it('普通用户简易模式访问 /redeem 重定向到 /app/image', () => {
       const authState: MockAuthState = {
         isAuthenticated: true,
         isAdmin: false,
@@ -272,7 +273,7 @@ describe('路由守卫逻辑', () => {
         backendModeEnabled: false,
       }
       const redirect = simulateGuard('/redeem', {}, authState)
-      expect(redirect).toBe('/sora')
+      expect(redirect).toBe('/app/image')
     })
 
     it('管理员简易模式访问 /admin/groups 重定向到 /admin/dashboard', () => {
@@ -414,7 +415,7 @@ describe('路由守卫逻辑', () => {
       expect(redirect).toBe('/login')
     })
 
-    it('non-admin authenticated: /sora is allowed as the lightweight default entry', () => {
+    it('non-admin authenticated: /sora remains allowed as a legacy image entry', () => {
       const authState: MockAuthState = {
         isAuthenticated: true,
         isAdmin: false,
@@ -422,6 +423,17 @@ describe('路由守卫逻辑', () => {
         backendModeEnabled: true,
       }
       const redirect = simulateGuard('/sora', {}, authState)
+      expect(redirect).toBeNull()
+    })
+
+    it('non-admin authenticated: /app/image is allowed as the primary image generation entry', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: true,
+      }
+      const redirect = simulateGuard('/app/image', {}, authState)
       expect(redirect).toBeNull()
     })
 
