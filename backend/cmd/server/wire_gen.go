@@ -260,7 +260,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	handlerPaymentHandler := handler.NewPaymentHandler(paymentService, paymentConfigService, channelService)
 	paymentWebhookHandler := handler.NewPaymentWebhookHandler(paymentService, registry)
 	availableChannelHandler := handler.NewAvailableChannelHandler(channelService, apiKeyService, settingService)
-	imageStudioHandler := handler.NewImageStudioHandler(apiKeyService, subscriptionService, openAIGatewayHandler, configConfig, soraGenerationService)
+	imageStudioHandler := handler.NewImageStudioHandler(apiKeyService, subscriptionService, openAIGatewayHandler, configConfig, soraGenerationService, soraMediaStorage)
 	chatStudioHandler := handler.NewChatStudioHandler(apiKeyService, subscriptionService, openAIGatewayHandler, configConfig)
 	chatWorkspaceRepository := repository.NewChatWorkspaceRepository(db)
 	workspaceSub2APITextBridge := handler.NewWorkspaceSub2APITextBridge(apiKeyService, subscriptionService, openAIGatewayHandler, configConfig)

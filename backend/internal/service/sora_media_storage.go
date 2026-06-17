@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -157,6 +158,33 @@ func (s *SoraMediaStorage) StoreFromURLs(ctx context.Context, mediaType string, 
 	return results, nil
 }
 
+// StoreBase64Images decodes generated image payloads into local media files.
+// It intentionally returns no data URLs, so large image bodies are not stored in DB metadata.
+func (s *SoraMediaStorage) StoreBase64Images(ctx context.Context, images []string) ([]string, int64, error) {
+	if len(images) == 0 {
+		return nil, 0, nil
+	}
+	if s == nil || !s.Enabled() {
+		return nil, 0, errors.New("local image storage is not enabled")
+	}
+	if !s.ready {
+		if err := s.EnsureLocalDirs(); err != nil {
+			return nil, 0, err
+		}
+	}
+	results := make([]string, 0, len(images))
+	var total int64
+	for _, raw := range images {
+		relative, size, err := s.storeBase64Image(ctx, raw)
+		if err != nil {
+			return nil, 0, err
+		}
+		results = append(results, relative)
+		total += size
+	}
+	return results, total, nil
+}
+
 // TotalSizeByRelativePaths 统计本地存储路径总大小（仅统计 /image 和 /video 路径）。
 func (s *SoraMediaStorage) TotalSizeByRelativePaths(paths []string) (int64, error) {
 	if s == nil || len(paths) == 0 {
@@ -248,6 +276,55 @@ func (s *SoraMediaStorage) downloadAndStore(ctx context.Context, mediaType, rawU
 		return "", err
 	}
 	return "", errors.New("download retries exhausted")
+}
+
+func (s *SoraMediaStorage) storeBase64Image(ctx context.Context, raw string) (string, int64, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", 0, errors.New("empty image data")
+	}
+	if s.imageRoot == "" {
+		return "", 0, errors.New("storage root not configured")
+	}
+	release, err := s.acquire(ctx)
+	if err != nil {
+		return "", 0, err
+	}
+	defer release()
+
+	storageRoot, err := os.OpenRoot(s.imageRoot)
+	if err != nil {
+		return "", 0, err
+	}
+	defer func() { _ = storageRoot.Close() }()
+
+	datePath := time.Now().Format("2006/01/02")
+	datePathFS := filepath.FromSlash(datePath)
+	if err := storageRoot.MkdirAll(datePathFS, 0o755); err != nil {
+		return "", 0, err
+	}
+	filename := uuid.NewString() + ".png"
+	filePath := filepath.Join(datePathFS, filename)
+	out, err := storageRoot.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return "", 0, err
+	}
+	defer func() { _ = out.Close() }()
+
+	decoder := base64.NewDecoder(base64.StdEncoding, strings.NewReader(raw))
+	limited := io.LimitReader(decoder, s.maxDownloadBytes+1)
+	written, err := io.Copy(out, limited)
+	if err != nil {
+		removePartialDownload(storageRoot, filePath)
+		return "", 0, err
+	}
+	if s.maxDownloadBytes > 0 && written > s.maxDownloadBytes {
+		removePartialDownload(storageRoot, filePath)
+		return "", 0, fmt.Errorf("image size exceeds limit: %d", written)
+	}
+
+	relative := path.Join("/", "image", datePath, filename)
+	return relative, written, nil
 }
 
 func (s *SoraMediaStorage) downloadOnce(ctx context.Context, root, mediaType, rawURL string) (string, error) {
