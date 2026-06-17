@@ -541,8 +541,11 @@ export default {
 
   // API Keys
   keys: {
-    title: 'API 密钥',
-    description: '管理您的 API 密钥和访问令牌',
+    title: 'API Key / 第三方接入',
+    description: '创建自己的 API Key，用于 CC Switch、Cherry Studio、Chatbox 等第三方客户端。',
+    clientAccessTitle: '第三方客户端接入',
+    clientAccessDescription:
+      '熟练用户可以在这里创建和管理自己的 API Key，并复制 Base URL 接入 CC Switch、Cherry Studio、Chatbox 等客户端。创建后请及时保存完整 Key，列表中只展示脱敏值。',
     searchPlaceholder: '搜索名称或Key...',
     allGroups: '全部分组',
     allStatus: '全部状态',
@@ -569,7 +572,7 @@ export default {
     selectStatus: '选择状态',
     saving: '保存中...',
     noKeysYet: '暂无 API 密钥',
-    createFirstKey: '创建您的第一个 API 密钥以开始使用 API。',
+    createFirstKey: '创建您的第一个 API Key，用于站外第三方客户端接入。',
     keyCreatedSuccess: 'API 密钥创建成功',
     keyUpdatedSuccess: 'API 密钥更新成功',
     keyDeletedSuccess: 'API 密钥删除成功',
