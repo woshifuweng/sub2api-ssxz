@@ -234,6 +234,84 @@ func TestCreatePending_RepoError(t *testing.T) {
 	require.Contains(t, err.Error(), "create generation")
 }
 
+// ==================== CreateCompletedImageWork ====================
+
+func TestCreateCompletedImageWork_Success(t *testing.T) {
+	repo := newStubGenRepo()
+	svc := NewSoraGenerationService(repo, nil, nil)
+
+	apiKeyID := int64(42)
+	gen, err := svc.CreateCompletedImageWork(
+		context.Background(),
+		7,
+		&apiKeyID,
+		"gpt-image-2",
+		"commercial product image",
+		[]string{"https://cdn.example.com/a.png", " ", "https://cdn.example.com/b.png"},
+		SoraStorageTypeUpstream,
+		nil,
+		0,
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), gen.ID)
+	require.Equal(t, int64(7), gen.UserID)
+	require.NotNil(t, gen.APIKeyID)
+	require.Equal(t, int64(42), *gen.APIKeyID)
+	require.Equal(t, "gpt-image-2", gen.Model)
+	require.Equal(t, "commercial product image", gen.Prompt)
+	require.Equal(t, "image", gen.MediaType)
+	require.Equal(t, SoraGenStatusCompleted, gen.Status)
+	require.Equal(t, "https://cdn.example.com/a.png", gen.MediaURL)
+	require.Equal(t, []string{"https://cdn.example.com/a.png", "https://cdn.example.com/b.png"}, gen.MediaURLs)
+	require.Equal(t, SoraStorageTypeUpstream, gen.StorageType)
+	require.Zero(t, gen.FileSizeBytes)
+	require.NotNil(t, gen.CompletedAt)
+}
+
+func TestCreateCompletedImageWork_DefaultsToUpstreamStorage(t *testing.T) {
+	repo := newStubGenRepo()
+	svc := NewSoraGenerationService(repo, nil, nil)
+
+	gen, err := svc.CreateCompletedImageWork(
+		context.Background(),
+		7,
+		nil,
+		"gpt-image-2",
+		"prompt",
+		[]string{"https://cdn.example.com/a.png"},
+		"",
+		nil,
+		0,
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, SoraStorageTypeUpstream, gen.StorageType)
+}
+
+func TestCreateCompletedImageWork_RejectsEmptyURLs(t *testing.T) {
+	repo := newStubGenRepo()
+	svc := NewSoraGenerationService(repo, nil, nil)
+
+	gen, err := svc.CreateCompletedImageWork(context.Background(), 7, nil, "gpt-image-2", "prompt", []string{" ", ""}, "", nil, 0)
+
+	require.Error(t, err)
+	require.Nil(t, gen)
+	require.Contains(t, err.Error(), "at least one media url")
+}
+
+func TestCreateCompletedImageWork_RepoError(t *testing.T) {
+	repo := newStubGenRepo()
+	repo.createErr = fmt.Errorf("db write error")
+	svc := NewSoraGenerationService(repo, nil, nil)
+
+	gen, err := svc.CreateCompletedImageWork(context.Background(), 7, nil, "gpt-image-2", "prompt", []string{"https://cdn.example.com/a.png"}, "", nil, 0)
+
+	require.Error(t, err)
+	require.Nil(t, gen)
+	require.Contains(t, err.Error(), "create completed image work")
+}
+
 // ==================== MarkGenerating ====================
 
 func TestMarkGenerating_Success(t *testing.T) {

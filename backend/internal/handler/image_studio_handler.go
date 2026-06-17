@@ -21,14 +21,16 @@ import (
 )
 
 const (
-	imageStudioModel     = "gpt-image-2"
-	imageStudioMaxUpload = 32 << 20
+	imageStudioModel           = "gpt-image-2"
+	imageStudioMaxUpload       = 32 << 20
+	imageStudioCaptureMaxBytes = 1 << 20
 )
 
 type ImageStudioHandler struct {
 	apiKeyService       *service.APIKeyService
 	subscriptionService *service.SubscriptionService
 	openAIGateway       *OpenAIGatewayHandler
+	genService          *service.SoraGenerationService
 	cfg                 *config.Config
 }
 
@@ -53,11 +55,13 @@ func NewImageStudioHandler(
 	subscriptionService *service.SubscriptionService,
 	openAIGateway *OpenAIGatewayHandler,
 	cfg *config.Config,
+	genService *service.SoraGenerationService,
 ) *ImageStudioHandler {
 	return &ImageStudioHandler{
 		apiKeyService:       apiKeyService,
 		subscriptionService: subscriptionService,
 		openAIGateway:       openAIGateway,
+		genService:          genService,
 		cfg:                 cfg,
 	}
 }
@@ -140,7 +144,88 @@ func (h *ImageStudioHandler) GenerateGateway(c gatewayctx.GatewayContext) {
 		return
 	}
 
-	h.openAIGateway.ImagesGateway(c)
+	capture := newImageStudioCaptureContext(c)
+	h.openAIGateway.ImagesGateway(capture)
+	h.persistImageStudioWork(c.Request().Context(), capture, subject.UserID, apiKey.ID, prompt)
+}
+
+type imageStudioCaptureContext struct {
+	gatewayctx.GatewayContext
+	status    int
+	body      bytes.Buffer
+	truncated bool
+}
+
+func newImageStudioCaptureContext(ctx gatewayctx.GatewayContext) *imageStudioCaptureContext {
+	return &imageStudioCaptureContext{GatewayContext: ctx}
+}
+
+func (c *imageStudioCaptureContext) SetStatus(status int) {
+	if status > 0 {
+		c.status = status
+	}
+	c.GatewayContext.SetStatus(status)
+}
+
+func (c *imageStudioCaptureContext) WriteJSON(status int, payload any) {
+	if status > 0 {
+		c.status = status
+	}
+	if body, err := json.Marshal(payload); err == nil {
+		c.capture(body)
+	}
+	c.GatewayContext.WriteJSON(status, payload)
+}
+
+func (c *imageStudioCaptureContext) WriteBytes(status int, payload []byte) (int, error) {
+	if status > 0 {
+		c.status = status
+	}
+	c.capture(payload)
+	return c.GatewayContext.WriteBytes(status, payload)
+}
+
+func (c *imageStudioCaptureContext) capture(payload []byte) {
+	if c == nil || c.truncated || len(payload) == 0 {
+		return
+	}
+	remaining := imageStudioCaptureMaxBytes - c.body.Len()
+	if remaining <= 0 {
+		c.truncated = true
+		return
+	}
+	if len(payload) > remaining {
+		_, _ = c.body.Write(payload[:remaining])
+		c.truncated = true
+		return
+	}
+	_, _ = c.body.Write(payload)
+}
+
+func (c *imageStudioCaptureContext) success() bool {
+	return c != nil && c.status >= http.StatusOK && c.status < http.StatusMultipleChoices && !c.truncated
+}
+
+func (c *imageStudioCaptureContext) bytes() []byte {
+	if c == nil {
+		return nil
+	}
+	return c.body.Bytes()
+}
+
+func (h *ImageStudioHandler) persistImageStudioWork(ctx context.Context, capture *imageStudioCaptureContext, userID int64, apiKeyID int64, prompt string) {
+	if h == nil || h.genService == nil || !capture.success() {
+		return
+	}
+	urls := extractImageStudioResultURLs(capture.bytes())
+	if len(urls) == 0 {
+		return
+	}
+	var apiKeyIDPtr *int64
+	if apiKeyID > 0 {
+		apiKeyIDPtr = &apiKeyID
+	}
+	_, _ = h.genService.CreateCompletedImageWork(ctx, userID, apiKeyIDPtr, imageStudioModel, prompt, urls, service.SoraStorageTypeUpstream, nil, 0)
 }
 
 func parseImageStudioRequest(c gatewayctx.GatewayContext) (*imageStudioRequest, error) {
@@ -379,4 +464,32 @@ func imageStudioProviderName(apiKey *service.APIKey) string {
 		return ""
 	}
 	return apiKey.Group.Platform
+}
+
+func extractImageStudioResultURLs(body []byte) []string {
+	if len(body) == 0 {
+		return nil
+	}
+	var payload struct {
+		Data []struct {
+			URL string `json:"url"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil
+	}
+	urls := make([]string, 0, len(payload.Data))
+	seen := make(map[string]struct{}, len(payload.Data))
+	for _, item := range payload.Data {
+		u := strings.TrimSpace(item.URL)
+		if u == "" {
+			continue
+		}
+		if _, ok := seen[u]; ok {
+			continue
+		}
+		seen[u] = struct{}{}
+		urls = append(urls, u)
+	}
+	return urls
 }

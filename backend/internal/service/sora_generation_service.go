@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -84,6 +85,56 @@ func (s *SoraGenerationService) CreatePending(ctx context.Context, userID int64,
 		return nil, fmt.Errorf("create generation: %w", err)
 	}
 	logger.LegacyPrintf("service.sora_gen", "[SoraGen] 创建记录 id=%d user=%d model=%s", gen.ID, userID, model)
+	return gen, nil
+}
+
+// CreateCompletedImageWork creates a completed image work record for synchronous image tools.
+func (s *SoraGenerationService) CreateCompletedImageWork(
+	ctx context.Context,
+	userID int64,
+	apiKeyID *int64,
+	model string,
+	prompt string,
+	mediaURLs []string,
+	storageType string,
+	s3Keys []string,
+	fileSizeBytes int64,
+) (*SoraGeneration, error) {
+	if s == nil || s.genRepo == nil {
+		return nil, fmt.Errorf("generation service is not available")
+	}
+	urls := make([]string, 0, len(mediaURLs))
+	for _, raw := range mediaURLs {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		urls = append(urls, raw)
+	}
+	if len(urls) == 0 {
+		return nil, fmt.Errorf("image work requires at least one media url")
+	}
+	if storageType == "" {
+		storageType = SoraStorageTypeUpstream
+	}
+	now := time.Now()
+	gen := &SoraGeneration{
+		UserID:        userID,
+		APIKeyID:      apiKeyID,
+		Model:         model,
+		Prompt:        prompt,
+		MediaType:     "image",
+		Status:        SoraGenStatusCompleted,
+		MediaURL:      urls[0],
+		MediaURLs:     urls,
+		FileSizeBytes: fileSizeBytes,
+		StorageType:   storageType,
+		S3ObjectKeys:  s3Keys,
+		CompletedAt:   &now,
+	}
+	if err := s.genRepo.Create(ctx, gen); err != nil {
+		return nil, fmt.Errorf("create completed image work: %w", err)
+	}
 	return gen, nil
 }
 

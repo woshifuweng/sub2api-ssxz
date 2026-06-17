@@ -25,18 +25,23 @@ func NewSoraGenerationRepository(sqlDB *sql.DB) service.SoraGenerationRepository
 func (r *soraGenerationRepository) Create(ctx context.Context, gen *service.SoraGeneration) error {
 	mediaURLsJSON, _ := json.Marshal(gen.MediaURLs)
 	s3KeysJSON, _ := json.Marshal(gen.S3ObjectKeys)
+	var completedAt *time.Time
+	if gen.CompletedAt != nil {
+		completedAt = gen.CompletedAt
+	}
 
 	err := r.sql.QueryRowContext(ctx, `
 		INSERT INTO sora_generations (
 			user_id, api_key_id, model, prompt, media_type,
 			status, media_url, media_urls, file_size_bytes,
-			storage_type, s3_object_keys, upstream_task_id, error_message
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			storage_type, s3_object_keys, upstream_task_id, error_message,
+			completed_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING id, created_at
 	`,
 		gen.UserID, gen.APIKeyID, gen.Model, gen.Prompt, gen.MediaType,
 		gen.Status, gen.MediaURL, mediaURLsJSON, gen.FileSizeBytes,
-		gen.StorageType, s3KeysJSON, gen.UpstreamTaskID, gen.ErrorMessage,
+		gen.StorageType, s3KeysJSON, gen.UpstreamTaskID, gen.ErrorMessage, completedAt,
 	).Scan(&gen.ID, &gen.CreatedAt)
 	return err
 }
@@ -90,17 +95,22 @@ func (r *soraGenerationRepository) CreatePendingWithLimit(
 
 	mediaURLsJSON, _ := json.Marshal(gen.MediaURLs)
 	s3KeysJSON, _ := json.Marshal(gen.S3ObjectKeys)
+	var completedAt *time.Time
+	if gen.CompletedAt != nil {
+		completedAt = gen.CompletedAt
+	}
 	if err := tx.QueryRowContext(ctx, `
 		INSERT INTO sora_generations (
 			user_id, api_key_id, model, prompt, media_type,
 			status, media_url, media_urls, file_size_bytes,
-			storage_type, s3_object_keys, upstream_task_id, error_message
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			storage_type, s3_object_keys, upstream_task_id, error_message,
+			completed_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING id, created_at
 	`,
 		gen.UserID, gen.APIKeyID, gen.Model, gen.Prompt, gen.MediaType,
 		gen.Status, gen.MediaURL, mediaURLsJSON, gen.FileSizeBytes,
-		gen.StorageType, s3KeysJSON, gen.UpstreamTaskID, gen.ErrorMessage,
+		gen.StorageType, s3KeysJSON, gen.UpstreamTaskID, gen.ErrorMessage, completedAt,
 	).Scan(&gen.ID, &gen.CreatedAt); err != nil {
 		return err
 	}
