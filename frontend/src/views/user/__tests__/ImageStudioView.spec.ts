@@ -86,7 +86,8 @@ describe('ImageStudioView workbench', () => {
 
     expect(text).toContain('AI 作图')
     expect(text).toContain('图片生成工作台')
-    expect(text).toContain('先说清楚你要卖什么，再交给模型发挥')
+    expect(text).toContain('把想法整理成可交付的视觉作品')
+    expect(text).toContain('用途、比例、风格和参考图是创作方向，不是固定人设')
     expect(text).toContain('选择创作目标')
     expect(text).toContain('商品主图')
     expect(text).toContain('营销海报')

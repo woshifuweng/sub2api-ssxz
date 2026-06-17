@@ -1,17 +1,20 @@
 <template>
   <AppSectionShell
     title="AI 作图"
-    subtitle="从用途、画幅、参考素材和画面描述开始，整理成适合商业图片生成的任务。"
+    subtitle="把用途、画幅、参考素材和画面描述整理成图片生成任务，设置只做方向参考，不锁死模型发挥。"
     eyebrow="创意工作台"
     icon="sparkles"
   >
     <section class="image-hero">
       <div>
         <p class="hero-kicker">图片生成工作台</p>
-        <h2>先说清楚你要卖什么，再交给模型发挥</h2>
+        <h2>把想法整理成可交付的视觉作品</h2>
         <p>
-          用途、比例、风格和参考图只是帮你整理需求，不会把图片锁死在某个固定模板里。
+          先说清楚图片用途、主体和画面气质，系统会把这些信息组织成更完整的生成提示词。
         </p>
+        <div class="hero-note">
+          用途、比例、风格和参考图是创作方向，不是固定人设；自定义比例和风格会写入提示词，方便后续继续升级。
+        </div>
       </div>
       <div class="hero-side">
         <div class="hero-flow" aria-label="创作流程">
@@ -250,6 +253,7 @@
           <div class="canvas-sheet" :style="canvasSheetStyle">
             <img v-if="activeResult" :src="activeResult.src" :alt="`result-${activeResultIndex + 1}`" />
             <div v-else class="canvas-empty" :class="{ failed: errorMessage }">
+              <span class="canvas-empty-badge">{{ errorMessage ? '需要处理' : '等待创作' }}</span>
               <Icon :name="generating ? 'refresh' : errorMessage ? 'exclamationCircle' : 'sparkles'" size="lg" :class="{ 'animate-spin': generating }" />
               <h3>{{ emptyStateTitle }}</h3>
               <p>{{ emptyStateDescription }}</p>
@@ -802,13 +806,30 @@ function scrollPreviewIntoView() {
 }
 
 .image-hero {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 1rem;
   align-items: center;
   margin-bottom: 1rem;
+  overflow: hidden;
   padding: 1rem 1.1rem;
   border-radius: 1.25rem;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--ssxz-primary) 8%, var(--ssxz-surface)) 0%, var(--ssxz-surface) 52%),
+    var(--ssxz-surface);
+}
+
+.image-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto -12% -60% 38%;
+  height: 12rem;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, transparent 0 46%, color-mix(in srgb, var(--ssxz-primary) 12%, transparent) 46% 54%, transparent 54% 100%);
+  opacity: 0.55;
+  transform: rotate(-6deg);
 }
 
 .hero-kicker,
@@ -823,6 +844,17 @@ function scrollPreviewIntoView() {
   color: var(--ssxz-text-muted);
 }
 
+.hero-kicker {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ssxz-primary) 12%, transparent);
+  color: var(--ssxz-action);
+  font-size: 0.76rem;
+  font-weight: 850;
+  padding: 0.28rem 0.6rem;
+}
+
 .image-hero h2 {
   margin: 0.18rem 0;
   color: var(--ssxz-text-primary);
@@ -831,6 +863,19 @@ function scrollPreviewIntoView() {
 
 .image-hero p {
   margin: 0;
+  max-width: 48rem;
+  line-height: 1.7;
+}
+
+.hero-note {
+  margin-top: 0.75rem;
+  border-left: 3px solid var(--ssxz-action);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--ssxz-action-soft) 72%, transparent);
+  color: var(--ssxz-text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.65;
+  padding: 0.62rem 0.75rem;
 }
 
 .hero-side,
@@ -888,6 +933,7 @@ function scrollPreviewIntoView() {
   gap: 1rem;
   min-height: min(78vh, 860px);
   border-radius: 1.35rem;
+  background: color-mix(in srgb, var(--ssxz-surface) 82%, var(--ssxz-surface-muted));
   padding: 1rem;
 }
 
@@ -898,6 +944,7 @@ function scrollPreviewIntoView() {
   flex-direction: column;
   overflow: hidden;
   border-radius: 1.1rem;
+  background: color-mix(in srgb, var(--ssxz-surface-raised) 92%, transparent);
 }
 
 .console-scroll {
@@ -910,7 +957,9 @@ function scrollPreviewIntoView() {
 }
 
 .console-block + .console-block {
-  margin-top: 1rem;
+  margin-top: 1.1rem;
+  border-top: 1px solid color-mix(in srgb, var(--ssxz-border) 72%, transparent);
+  padding-top: 1.1rem;
 }
 
 .block-heading {
@@ -932,12 +981,12 @@ function scrollPreviewIntoView() {
 
 .step-dot {
   display: grid;
-  width: 1.6rem;
-  height: 1.6rem;
+  width: 1.7rem;
+  height: 1.7rem;
   flex: 0 0 auto;
   place-items: center;
   border-radius: 999px;
-  background: var(--ssxz-action-soft);
+  background: linear-gradient(135deg, var(--ssxz-action-soft), color-mix(in srgb, var(--ssxz-action) 12%, transparent));
   color: var(--ssxz-action);
   font-size: 0.8rem;
   font-weight: 800;
@@ -1007,7 +1056,8 @@ function scrollPreviewIntoView() {
 .format-card.selected,
 .style-chip.selected {
   border-color: var(--ssxz-border-strong);
-  background: var(--ssxz-active);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--ssxz-action-soft) 80%, var(--ssxz-surface)), var(--ssxz-active));
   box-shadow: 0 0 0 3px var(--ssxz-focus-ring), var(--ssxz-shadow);
 }
 
@@ -1104,6 +1154,14 @@ function scrollPreviewIntoView() {
   gap: 0.9rem;
   padding: 0.8rem;
   text-align: center;
+  border-style: dashed;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--ssxz-action-soft) 46%, var(--ssxz-surface-subtle)), var(--ssxz-surface-subtle));
+}
+
+.asset-drop:hover {
+  border-color: var(--ssxz-border-strong);
+  background: color-mix(in srgb, var(--ssxz-action-soft) 68%, var(--ssxz-surface-subtle));
 }
 
 .asset-drop.filled {
@@ -1167,7 +1225,8 @@ function scrollPreviewIntoView() {
 .console-action {
   flex: 0 0 auto;
   border-top: 1px solid var(--ssxz-border);
-  background: var(--ssxz-surface-elevated);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--ssxz-surface-elevated) 88%, transparent), var(--ssxz-surface-elevated));
   padding: 0.9rem 1rem 1rem;
 }
 
@@ -1195,7 +1254,7 @@ function scrollPreviewIntoView() {
   justify-content: center;
   gap: 0.45rem;
   border-radius: 0.95rem;
-  background: var(--ssxz-action);
+  background: linear-gradient(135deg, var(--ssxz-action), color-mix(in srgb, var(--ssxz-action) 76%, #0f766e));
   color: var(--ssxz-action-text);
   font-weight: 800;
 }
@@ -1216,6 +1275,8 @@ function scrollPreviewIntoView() {
   min-height: 0;
   flex-direction: column;
   border-radius: 1.1rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--ssxz-surface-raised) 94%, transparent), var(--ssxz-surface));
   padding: 1rem;
 }
 
@@ -1254,8 +1315,12 @@ function scrollPreviewIntoView() {
   place-items: center;
   overflow: hidden;
   background:
+    linear-gradient(45deg, color-mix(in srgb, var(--ssxz-border) 28%, transparent) 25%, transparent 25% 75%, color-mix(in srgb, var(--ssxz-border) 28%, transparent) 75%),
+    linear-gradient(45deg, color-mix(in srgb, var(--ssxz-border) 18%, transparent) 25%, transparent 25% 75%, color-mix(in srgb, var(--ssxz-border) 18%, transparent) 75%),
     radial-gradient(circle at 50% 20%, var(--ssxz-glow-subtle), transparent 42%),
     var(--ssxz-canvas);
+  background-position: 0 0, 12px 12px, center, center;
+  background-size: 24px 24px, 24px 24px, auto, auto;
 }
 
 .canvas-sheet img {
@@ -1271,6 +1336,16 @@ function scrollPreviewIntoView() {
   gap: 0.65rem;
   padding: 2rem;
   text-align: center;
+}
+
+.canvas-empty-badge {
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  background: var(--ssxz-surface-subtle);
+  color: var(--ssxz-text-muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  padding: 0.26rem 0.58rem;
 }
 
 .canvas-empty.failed {
@@ -1345,6 +1420,11 @@ function scrollPreviewIntoView() {
   color: var(--ssxz-text-primary);
   padding: 0.62rem 0.9rem;
   font-weight: 700;
+}
+
+.secondary-button:not(:disabled):hover {
+  border-color: var(--ssxz-border-strong);
+  background: color-mix(in srgb, var(--ssxz-action-soft) 58%, var(--ssxz-surface-subtle));
 }
 
 .secondary-button:disabled {
