@@ -12,6 +12,10 @@ describe('auth redirect resolution', () => {
     expect(resolveAuthRedirect('/app/chat')).toBe('/app/chat')
   })
 
+  it('keeps API Key as an allowed third-party client return target', () => {
+    expect(resolveAuthRedirect('/keys')).toBe('/keys')
+  })
+
   it('maps heavy or legacy workspace entrypoints back to Sora', () => {
     expect(resolveAuthRedirect('/dashboard')).toBe('/sora')
     expect(resolveAuthRedirect('/app')).toBe('/sora')
@@ -20,7 +24,6 @@ describe('auth redirect resolution', () => {
   })
 
   it('does not allow hidden or external return targets', () => {
-    expect(resolveAuthRedirect('/keys')).toBe('/sora')
     expect(resolveAuthRedirect('https://example.com/app')).toBe('/sora')
     expect(resolveAuthRedirect('//example.com/app')).toBe('/sora')
   })
