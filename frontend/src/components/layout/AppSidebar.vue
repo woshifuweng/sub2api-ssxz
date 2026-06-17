@@ -582,7 +582,7 @@ const purchaseEnabled = computed(() => (
 // User navigation items (for regular users)
 const userNavItems = computed((): NavItem[] => {
   const items: NavItem[] = [
-    { path: '/sora', label: t('nav.sora'), icon: SoraIcon },
+    { path: '/app/image', label: t('nav.sora'), icon: SoraIcon },
     { path: '/app/chat', label: '聊天', icon: ChatStudioIcon },
     { path: '/keys', label: 'API Key / 第三方接入', icon: KeyIcon },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },

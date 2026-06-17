@@ -29,7 +29,7 @@
 
               <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <RouterLink
-                  to="/sora"
+                  to="/app/image"
                   class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700"
                 >
                   <Icon name="sparkles" size="sm" />
@@ -209,7 +209,7 @@ const recentUsage = ref<UsageLog[]>([])
 
 const productEntries = [
   {
-    to: '/sora',
+    to: '/app/image',
     icon: 'sparkles' as const,
     badge: '主入口',
     title: '生成图片',
@@ -217,7 +217,7 @@ const productEntries = [
     action: '进入生图'
   },
   {
-    to: '/sora',
+    to: '/app/image',
     icon: 'download' as const,
     badge: '图片历史',
     title: '查看和下载',
@@ -255,14 +255,14 @@ const onboardingSteps = [
     index: '01',
     title: '先进入生图',
     description: '普通用户不需要理解接口和渠道。进入图片生成，写好提示词后直接生成图片。',
-    to: '/sora',
+    to: '/app/image',
     action: '去生图'
   },
   {
     index: '02',
     title: '再看历史和下载',
     description: '生成结果会进入图片历史。需要使用时预览、保存或下载，不用在聊天记录里翻找。',
-    to: '/sora',
+    to: '/app/image',
     action: '查看历史'
   },
   {

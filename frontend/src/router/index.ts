@@ -10,7 +10,7 @@ import { useAdminSettingsStore } from '@/stores/adminSettings'
 import { useNavigationLoadingState } from '@/composables/useNavigationLoading'
 import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { resolveDocumentTitle } from './title'
-import { resolveAuthRedirect, resolveRouteAuthRedirect } from '@/utils/authRedirect'
+import { DEFAULT_AUTH_REDIRECT, resolveAuthRedirect, resolveRouteAuthRedirect } from '@/utils/authRedirect'
 
 const redirectLegacyRoute = (path: string) => (to: RouteLocationGeneric) => ({
   path,
@@ -166,12 +166,11 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/app/image',
     name: 'AppImage',
-    component: () => import('@/views/user/AppWorkspaceView.vue'),
+    component: () => import('@/views/user/ImageStudioView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'AI Image Studio',
-      appSection: 'image'
+      title: 'Image Generation'
     }
   },
   {
@@ -634,6 +633,7 @@ const BACKEND_MODE_ALLOWED_PATHS = [
   '/login',
   '/key-usage',
   '/setup',
+  '/app/image',
   '/sora',
   '/app/chat',
   '/usage',
@@ -691,7 +691,7 @@ router.beforeEach((to, _from, next) => {
         next()
         return
       }
-      next(resolveRouteAuthRedirect(to.query, authStore.isAdmin ? '/admin/dashboard' : '/sora'))
+      next(resolveRouteAuthRedirect(to.query, authStore.isAdmin ? '/admin/dashboard' : DEFAULT_AUTH_REDIRECT))
       return
     }
     // Backend mode: block public pages for unauthenticated users (except login, key-usage, setup)
@@ -719,12 +719,12 @@ router.beforeEach((to, _from, next) => {
   // Check admin requirement
   if (requiresAdmin && !authStore.isAdmin) {
     // User is authenticated but not admin, redirect to user dashboard
-    next('/sora')
+    next(DEFAULT_AUTH_REDIRECT)
     return
   }
 
   if (to.meta.requiresPayment && !appStore.cachedPublicSettings?.payment_enabled) {
-    next(authStore.isAdmin ? '/admin/dashboard' : '/sora')
+    next(authStore.isAdmin ? '/admin/dashboard' : DEFAULT_AUTH_REDIRECT)
     return
   }
 
@@ -740,7 +740,7 @@ router.beforeEach((to, _from, next) => {
 
     if (restrictedPaths.some((path) => to.path.startsWith(path))) {
       // 简易模式下访问受限页面,重定向到仪表板
-      next(authStore.isAdmin ? '/admin/dashboard' : '/sora')
+      next(authStore.isAdmin ? '/admin/dashboard' : DEFAULT_AUTH_REDIRECT)
       return
     }
   }

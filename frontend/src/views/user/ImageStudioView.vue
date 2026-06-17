@@ -5,7 +5,7 @@
         <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-600 dark:bg-dark-800">
           <div class="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">AI 作图</h2>
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">图片生成</h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">余额约 {{ imageCredits }} 张</p>
             </div>
             <span class="rounded-md bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
