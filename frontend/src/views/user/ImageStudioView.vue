@@ -294,7 +294,7 @@
           <button type="button" class="secondary-button" :disabled="!activeResult" @click="downloadActiveResult">
             下载图片
           </button>
-          <button type="button" class="secondary-button" :disabled="generating" @click="generate">
+          <button type="button" class="secondary-button" :disabled="!activeResult || generating" @click="generate">
             重新生成
           </button>
         </div>
@@ -1435,10 +1435,35 @@ function scrollPreviewIntoView() {
 }
 
 @media (max-width: 640px) {
-  .goal-grid,
-  .format-grid,
   .recent-grid {
     grid-template-columns: 1fr;
+  }
+
+  .image-hero,
+  .image-workbench,
+  .canvas-panel,
+  .recent-works {
+    padding: 0.8rem;
+  }
+
+  .goal-grid,
+  .format-grid {
+    gap: 0.48rem;
+  }
+
+  .choice-card,
+  .format-card {
+    min-height: 3.7rem;
+    padding: 0.62rem;
+  }
+
+  .choice-card small,
+  .format-card span {
+    font-size: 0.72rem;
+  }
+
+  .asset-drop {
+    min-height: 8.6rem;
   }
 
   .canvas-summary,
