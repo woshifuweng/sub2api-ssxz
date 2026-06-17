@@ -1,6 +1,20 @@
 <template>
   <AppLayout>
-    <div class="space-y-4">
+    <div
+      v-if="!paymentEnabled"
+      class="mx-auto flex min-h-[50vh] max-w-xl flex-col items-center justify-center px-6 text-center"
+    >
+      <div class="rounded-xl border border-gray-200 bg-white p-8 shadow-sm dark:border-dark-700 dark:bg-dark-900">
+        <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-dark-800 dark:text-gray-300">
+          <Icon name="creditCard" size="lg" />
+        </div>
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('purchase.notEnabledTitle') }}</h2>
+        <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{{ t('purchase.notEnabledDesc') }}</p>
+        <button class="btn btn-primary mt-6" @click="router.push('/purchase')">{{ t('nav.buySubscription') }}</button>
+      </div>
+    </div>
+
+    <div v-else class="space-y-4">
       <!-- Filters -->
       <div class="card p-4">
         <div class="flex flex-wrap items-center gap-3">
@@ -41,47 +55,49 @@
       />
     </div>
 
-    <!-- Cancel Confirm Dialog -->
-    <BaseDialog :show="!!cancelTargetId" :title="t('payment.orders.cancel')" width="narrow" @close="cancelTargetId = null">
-      <p class="text-sm text-gray-600 dark:text-gray-300">{{ t('payment.confirmCancel') }}</p>
-      <template #footer>
-        <div class="flex justify-end gap-3">
-          <button class="btn btn-secondary" @click="cancelTargetId = null">{{ t('common.cancel') }}</button>
-          <button class="btn btn-danger" :disabled="actionLoading" @click="confirmCancel">{{ actionLoading ? t('common.processing') : t('payment.orders.cancel') }}</button>
-        </div>
-      </template>
-    </BaseDialog>
+    <template v-if="paymentEnabled">
+      <!-- Cancel Confirm Dialog -->
+      <BaseDialog :show="!!cancelTargetId" :title="t('payment.orders.cancel')" width="narrow" @close="cancelTargetId = null">
+        <p class="text-sm text-gray-600 dark:text-gray-300">{{ t('payment.confirmCancel') }}</p>
+        <template #footer>
+          <div class="flex justify-end gap-3">
+            <button class="btn btn-secondary" @click="cancelTargetId = null">{{ t('common.cancel') }}</button>
+            <button class="btn btn-danger" :disabled="actionLoading" @click="confirmCancel">{{ actionLoading ? t('common.processing') : t('payment.orders.cancel') }}</button>
+          </div>
+        </template>
+      </BaseDialog>
 
-    <!-- Refund Dialog -->
-    <BaseDialog :show="!!refundTarget" :title="t('payment.orders.requestRefund')" @close="refundTarget = null">
-      <div v-if="refundTarget" class="space-y-4">
-        <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-800">
-          <div class="flex justify-between text-sm">
-            <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderId') }}</span>
-            <span class="font-mono text-gray-900 dark:text-white">#{{ refundTarget.id }}</span>
+      <!-- Refund Dialog -->
+      <BaseDialog :show="!!refundTarget" :title="t('payment.orders.requestRefund')" @close="refundTarget = null">
+        <div v-if="refundTarget" class="space-y-4">
+          <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-800">
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderId') }}</span>
+              <span class="font-mono text-gray-900 dark:text-white">#{{ refundTarget.id }}</span>
+            </div>
+            <div class="mt-2 flex justify-between text-sm">
+              <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
+              <span class="text-gray-900 dark:text-white">${{ refundTarget.amount.toFixed(2) }}</span>
+            </div>
           </div>
-          <div class="mt-2 flex justify-between text-sm">
-            <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
-            <span class="text-gray-900 dark:text-white">${{ refundTarget.amount.toFixed(2) }}</span>
+          <div>
+            <label class="input-label">{{ t('payment.refundReason') }}</label>
+            <textarea v-model="refundReason" rows="3" class="input mt-1 w-full" :placeholder="t('payment.refundReasonPlaceholder')" />
           </div>
         </div>
-        <div>
-          <label class="input-label">{{ t('payment.refundReason') }}</label>
-          <textarea v-model="refundReason" rows="3" class="input mt-1 w-full" :placeholder="t('payment.refundReasonPlaceholder')" />
-        </div>
-      </div>
-      <template #footer>
-        <div class="flex justify-end gap-3">
-          <button class="btn btn-secondary" @click="refundTarget = null">{{ t('common.cancel') }}</button>
-          <button class="btn btn-primary" :disabled="actionLoading || !refundReason.trim()" @click="confirmRefund">{{ actionLoading ? t('common.processing') : t('payment.orders.requestRefund') }}</button>
-        </div>
-      </template>
-    </BaseDialog>
+        <template #footer>
+          <div class="flex justify-end gap-3">
+            <button class="btn btn-secondary" @click="refundTarget = null">{{ t('common.cancel') }}</button>
+            <button class="btn btn-primary" :disabled="actionLoading || !refundReason.trim()" @click="confirmRefund">{{ actionLoading ? t('common.processing') : t('payment.orders.requestRefund') }}</button>
+          </div>
+        </template>
+      </BaseDialog>
+    </template>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores'
@@ -99,6 +115,7 @@ const { t } = useI18n()
 const router = useRouter()
 const appStore = useAppStore()
 
+const paymentEnabled = computed(() => !!appStore.cachedPublicSettings?.payment_enabled)
 const loading = ref(false)
 const actionLoading = ref(false)
 const orders = ref<PaymentOrder[]>([])
@@ -118,6 +135,7 @@ const statusFilters = computed(() => [
 ])
 
 async function fetchOrders() {
+  if (!paymentEnabled.value) return
   loading.value = true
   try {
     const res = await paymentAPI.getMyOrders({
@@ -134,13 +152,26 @@ async function fetchOrders() {
   }
 }
 
-function handlePageChange(page: number) { pagination.page = page; fetchOrders() }
-function handlePageSizeChange(size: number) { pagination.page_size = size; pagination.page = 1; fetchOrders() }
+function handlePageChange(page: number) {
+  if (!paymentEnabled.value) return
+  pagination.page = page
+  fetchOrders()
+}
 
-function handleCancel(orderId: number) { cancelTargetId.value = orderId }
+function handlePageSizeChange(size: number) {
+  if (!paymentEnabled.value) return
+  pagination.page_size = size
+  pagination.page = 1
+  fetchOrders()
+}
+
+function handleCancel(orderId: number) {
+  if (!paymentEnabled.value) return
+  cancelTargetId.value = orderId
+}
 
 async function confirmCancel() {
-  if (!cancelTargetId.value) return
+  if (!paymentEnabled.value || !cancelTargetId.value) return
   actionLoading.value = true
   try {
     await paymentAPI.cancelOrder(cancelTargetId.value)
@@ -154,10 +185,14 @@ async function confirmCancel() {
   }
 }
 
-function openRefundDialog(order: PaymentOrder) { refundTarget.value = order; refundReason.value = '' }
+function openRefundDialog(order: PaymentOrder) {
+  if (!paymentEnabled.value) return
+  refundTarget.value = order
+  refundReason.value = ''
+}
 
 async function confirmRefund() {
-  if (!refundTarget.value || !refundReason.value.trim()) return
+  if (!paymentEnabled.value || !refundTarget.value || !refundReason.value.trim()) return
   actionLoading.value = true
   try {
     await paymentAPI.requestRefund(refundTarget.value.id, { reason: refundReason.value.trim() })
@@ -173,17 +208,26 @@ async function confirmRefund() {
 }
 
 function canRequestRefund(order: PaymentOrder): boolean {
+  if (!paymentEnabled.value) return false
   if (order.status !== 'COMPLETED') return false
   if (!order.provider_instance_id) return false
   return refundEligibleProviders.value.has(order.provider_instance_id)
 }
 
 async function loadRefundEligibility() {
+  if (!paymentEnabled.value) return
   try {
     const res = await paymentAPI.getRefundEligibleProviders()
     refundEligibleProviders.value = new Set(res.data.provider_instance_ids || [])
-  } catch { /* ignore — default to hiding refund button */ }
+  } catch { /* ignore - default to hiding refund button */ }
 }
 
-onMounted(() => { fetchOrders(); loadRefundEligibility() })
+let ordersBootstrapped = false
+
+watch(paymentEnabled, (enabled) => {
+  if (!enabled || ordersBootstrapped) return
+  ordersBootstrapped = true
+  fetchOrders()
+  loadRefundEligibility()
+}, { immediate: true })
 </script>
