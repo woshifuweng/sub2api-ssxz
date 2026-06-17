@@ -165,7 +165,7 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 
 type IconName = InstanceType<typeof Icon>['$props']['name']
-type UtilityId = 'developer' | 'account' | 'usage'
+type UtilityId = 'account' | 'usage'
 
 withDefaults(defineProps<{
   title: string
@@ -208,12 +208,6 @@ const utilityItems: Array<{ id: UtilityId; label: string; icon: IconName; descri
     label: '用量中心',
     icon: 'chartBar',
     description: '查看消耗与余额。当前仅展示已确认的账户余额，暂无用量记录时不会编造数据。'
-  },
-  {
-    id: 'developer',
-    label: '开发者 API',
-    icon: 'terminal',
-    description: '开发接入能力将在工作台内呈现；你也可以直接在对话里描述接入需求。'
   },
   {
     id: 'account',
