@@ -16,7 +16,7 @@ describe('auth redirect resolution', () => {
     expect(resolveAuthRedirect('/keys')).toBe('/keys')
   })
 
-  it('maps heavy or legacy workspace entrypoints back to Sora', () => {
+  it('maps heavy or legacy workspace entrypoints back to image generation', () => {
     expect(resolveAuthRedirect('/dashboard')).toBe('/sora')
     expect(resolveAuthRedirect('/app')).toBe('/sora')
     expect(resolveAuthRedirect('/app/image')).toBe('/sora')

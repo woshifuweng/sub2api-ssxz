@@ -363,7 +363,7 @@ export default {
     mySubscriptions: '我的订阅',
     buySubscription: '充值/订阅',
     docs: '文档',
-    sora: 'Sora 创作'
+    sora: '图片生成'
   },
 
   // Auth
@@ -5466,12 +5466,12 @@ export default {
     }
   },
 
-  // Sora 创作
+  // 图片生成（历史 /sora 路由）
   sora: {
-    title: 'Sora 创作',
-    description: '使用 Sora AI 生成视频与图片',
+    title: '图片生成',
+    description: '输入提示词生成图片，并在作品库中查看和下载成品',
     notEnabled: '功能未开放',
-    notEnabledDesc: '管理员尚未启用 Sora 创作功能，请联系管理员开通。',
+    notEnabledDesc: '管理员尚未启用图片生成功能，请联系管理员开通。',
     tabGenerate: '生成',
     tabLibrary: '作品库',
     noActiveGenerations: '暂无生成任务',
@@ -5523,9 +5523,9 @@ export default {
     referenceImage: '参考图',
     removeImage: '移除',
     imageTooLarge: '图片大小不能超过 20MB',
-    // Sora 暗色主题新增
-    welcomeTitle: '将你的想象力变成视频',
-    welcomeSubtitle: '输入一段描述，Sora 将为你创作逼真的视频或图片。尝试以下示例开始创作。',
+    // 图片生成暗色主题新增
+    welcomeTitle: '把想法变成图片',
+    welcomeSubtitle: '输入一段描述，系统将为你生成图片作品。尝试以下示例开始创作。',
     queueTasks: '个任务',
     queueWaiting: '队列中等待',
     waiting: '等待中',
@@ -5536,7 +5536,7 @@ export default {
     canDownload: '可下载',
     regenrate: '重新生成',
     regenerate: '重新生成',
-    creatorPlaceholder: '描述你想要生成的视频或图片...',
+    creatorPlaceholder: '描述你想要生成的图片...',
     videoModels: '视频模型',
     imageModels: '图片模型',
     noStorageConfigured: '存储未配置',

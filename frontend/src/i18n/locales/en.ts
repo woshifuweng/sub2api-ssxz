@@ -363,7 +363,7 @@ export default {
     mySubscriptions: 'My Subscriptions',
     buySubscription: 'Recharge / Subscription',
     docs: 'Docs',
-    sora: 'Sora Studio'
+    sora: 'Image Generation'
   },
 
   // Auth
@@ -5277,12 +5277,12 @@ export default {
     }
   },
 
-  // Sora Studio
+  // Image generation (legacy /sora route)
   sora: {
-    title: 'Sora Studio',
-    description: 'Generate videos and images with Sora AI',
+    title: 'Image Generation',
+    description: 'Create images from prompts, then browse and download them from your library',
     notEnabled: 'Feature Not Available',
-    notEnabledDesc: 'The Sora Studio feature has not been enabled by the administrator. Please contact your admin.',
+    notEnabledDesc: 'Image generation has not been enabled by the administrator. Please contact your admin.',
     tabGenerate: 'Generate',
     tabLibrary: 'Library',
     noActiveGenerations: 'No active generations',
@@ -5334,9 +5334,9 @@ export default {
     referenceImage: 'Reference Image',
     removeImage: 'Remove',
     imageTooLarge: 'Image size cannot exceed 20MB',
-    // Sora dark theme additions
-    welcomeTitle: 'Turn your imagination into video',
-    welcomeSubtitle: 'Enter a description and Sora will create realistic videos or images for you. Try the examples below to get started.',
+    // Image generation dark theme additions
+    welcomeTitle: 'Turn your ideas into images',
+    welcomeSubtitle: 'Enter a description and the system will create image results for you. Try the examples below to get started.',
     queueTasks: 'tasks',
     queueWaiting: 'Queued',
     waiting: 'Waiting',
@@ -5347,7 +5347,7 @@ export default {
     canDownload: 'to download',
     regenrate: 'Regenerate',
     regenerate: 'Regenerate',
-    creatorPlaceholder: 'Describe the video or image you want to create...',
+    creatorPlaceholder: 'Describe the image you want to create...',
     videoModels: 'Video Models',
     imageModels: 'Image Models',
     noStorageConfigured: 'No Storage',

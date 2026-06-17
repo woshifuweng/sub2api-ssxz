@@ -254,7 +254,7 @@ const onboardingSteps = [
   {
     index: '01',
     title: '先进入生图',
-    description: '普通用户不需要理解接口和渠道。打开 Sora 创作，写好提示词后直接生成图片。',
+    description: '普通用户不需要理解接口和渠道。进入图片生成，写好提示词后直接生成图片。',
     to: '/sora',
     action: '去生图'
   },
