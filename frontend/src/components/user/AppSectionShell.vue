@@ -195,7 +195,6 @@ const navItems: Array<{ label: string; to: string; icon: IconName }> = [
 ]
 
 const utilityItems: Array<{ label: string; to: string; icon: IconName }> = [
-  { label: '用量中心', to: '/usage', icon: 'chartBar' },
   { label: 'API Key / 第三方接入', to: '/keys', icon: 'key' },
   { label: '账户设置', to: '/profile', icon: 'userCircle' }
 ]
