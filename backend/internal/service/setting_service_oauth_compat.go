@@ -84,14 +84,28 @@ func (s *SettingService) getAvailableChannelsRuntimeOverride() (AvailableChannel
 	if s == nil || s.cfg == nil || !s.cfg.Workspace.AvailableChannels.StagingOverrideEnabled {
 		return AvailableChannelsRuntime{}, false
 	}
+	if !s.isNonProductionWorkspaceRuntime() {
+		return AvailableChannelsRuntime{}, false
+	}
+	return AvailableChannelsRuntime{Enabled: true}, true
+}
+
+func (s *SettingService) getSoraClientRuntimeOverride() (bool, bool) {
+	if s == nil || s.cfg == nil || !s.cfg.Workspace.SoraClient.StagingOverrideEnabled {
+		return false, false
+	}
+	if !s.isNonProductionWorkspaceRuntime() {
+		return false, false
+	}
+	return true, true
+}
+
+func (s *SettingService) isNonProductionWorkspaceRuntime() bool {
 	environment := strings.TrimSpace(s.cfg.Workspace.TextProvider.Environment)
 	if environment == "" {
 		environment = strings.TrimSpace(s.cfg.Log.Environment)
 	}
-	if !isWorkspaceTextProviderNonProductionEnvironment(environment) {
-		return AvailableChannelsRuntime{}, false
-	}
-	return AvailableChannelsRuntime{Enabled: true}, true
+	return isWorkspaceTextProviderNonProductionEnvironment(environment)
 }
 
 func parseWeChatCapabilityFlag(raw string, fallback bool) bool {

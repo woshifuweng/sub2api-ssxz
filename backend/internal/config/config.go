@@ -1044,6 +1044,7 @@ type WorkspaceConfig struct {
 	ImageExecution    WorkspaceImageExecutionConfig    `mapstructure:"image_execution"`
 	ImageRealProvider WorkspaceImageRealProviderConfig `mapstructure:"image_real_provider"`
 	AvailableChannels WorkspaceAvailableChannelsConfig `mapstructure:"available_channels"`
+	SoraClient        WorkspaceSoraClientConfig        `mapstructure:"sora_client"`
 	WebSearch         WorkspaceWebSearchConfig         `mapstructure:"web_search"`
 }
 
@@ -1110,6 +1111,10 @@ type WorkspaceImageRealProviderConfig struct {
 }
 
 type WorkspaceAvailableChannelsConfig struct {
+	StagingOverrideEnabled bool `mapstructure:"staging_override_enabled"`
+}
+
+type WorkspaceSoraClientConfig struct {
 	StagingOverrideEnabled bool `mapstructure:"staging_override_enabled"`
 }
 
@@ -1603,6 +1608,7 @@ func setDefaults() {
 	viper.SetDefault("workspace.image_real_provider.allowed_provider_labels", []string{})
 	viper.SetDefault("workspace.image_real_provider.max_requests_per_test_run", 0)
 	viper.SetDefault("workspace.available_channels.staging_override_enabled", false)
+	viper.SetDefault("workspace.sora_client.staging_override_enabled", false)
 	viper.SetDefault("workspace.web_search.enabled", false)
 	viper.SetDefault("workspace.web_search.kill_switch", true)
 	viper.SetDefault("workspace.web_search.provider", "jina")

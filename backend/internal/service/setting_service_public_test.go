@@ -180,3 +180,46 @@ func TestSettingService_AvailableChannelsStagingOverrideEnablesRuntimeAndPublicS
 	require.NoError(t, err)
 	require.True(t, settings.AvailableChannelsEnabled)
 }
+
+func TestSettingService_SoraClientStagingOverrideRequiresNonProduction(t *testing.T) {
+	repo := &settingPublicRepoStub{
+		values: map[string]string{
+			SettingKeySoraClientEnabled: "false",
+		},
+	}
+	svc := NewSettingService(repo, &config.Config{
+		Log: config.LogConfig{Environment: "production"},
+		Workspace: config.WorkspaceConfig{
+			SoraClient: config.WorkspaceSoraClientConfig{
+				StagingOverrideEnabled: true,
+			},
+		},
+	})
+
+	settings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.False(t, settings.SoraClientEnabled)
+}
+
+func TestSettingService_SoraClientStagingOverrideEnablesPublicSettings(t *testing.T) {
+	repo := &settingPublicRepoStub{
+		values: map[string]string{
+			SettingKeySoraClientEnabled: "false",
+		},
+	}
+	svc := NewSettingService(repo, &config.Config{
+		Log: config.LogConfig{Environment: "production"},
+		Workspace: config.WorkspaceConfig{
+			TextProvider: config.WorkspaceTextProviderConfig{
+				Environment: "staging",
+			},
+			SoraClient: config.WorkspaceSoraClientConfig{
+				StagingOverrideEnabled: true,
+			},
+		},
+	})
+
+	settings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.True(t, settings.SoraClientEnabled)
+}
