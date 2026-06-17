@@ -181,12 +181,55 @@
         </div>
       </section>
     </div>
+
+    <section class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-600 dark:bg-dark-800">
+      <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">最近作品</h2>
+          <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">生成成功后的图片会同步到这里，方便之后回来预览和下载。</p>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" :disabled="recentWorksLoading" @click="loadRecentWorks">
+          <Icon name="refresh" size="sm" :class="recentWorksLoading ? 'animate-spin' : ''" />
+          <span>刷新</span>
+        </button>
+      </div>
+
+      <div v-if="recentWorksLoading && !recentWorks.length" class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500 dark:border-dark-600 dark:bg-dark-900/40 dark:text-dark-400">
+        正在加载最近作品...
+      </div>
+      <div v-else-if="!recentWorks.length" class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center dark:border-dark-600 dark:bg-dark-900/40">
+        <Icon name="grid" size="lg" class="mx-auto text-gray-300 dark:text-dark-500" />
+        <p class="mt-3 text-sm text-gray-500 dark:text-dark-400">还没有历史作品。完成一次图片生成后，这里会展示最近结果。</p>
+      </div>
+      <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <article
+          v-for="(work, index) in recentWorks"
+          :key="work.id"
+          class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-dark-600 dark:bg-dark-900"
+        >
+          <div class="aspect-square bg-white dark:bg-dark-950">
+            <img :src="workImageSrc(work)" :alt="`work-${work.id}`" class="h-full w-full object-contain" />
+          </div>
+          <div class="space-y-2 border-t border-gray-200 px-3 py-3 dark:border-dark-600">
+            <div class="flex items-center justify-between gap-2">
+              <span class="truncate text-sm font-medium text-gray-700 dark:text-dark-100">图片作品</span>
+              <span class="shrink-0 text-xs text-gray-400">{{ formatWorkTime(work.created_at) }}</span>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm w-full justify-center" @click="downloadWork(work, index)">
+              <Icon name="download" size="sm" />
+              <span>下载</span>
+            </button>
+          </div>
+        </article>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import soraAPI, { type SoraGeneration } from '@/api/sora'
 import Icon from '@/components/icons/Icon.vue'
 
 type StudioTemplate = {
@@ -232,6 +275,8 @@ const style = ref('clean studio commercial photography')
 const generating = ref(false)
 const errorMessage = ref('')
 const results = ref<ResultImage[]>([])
+const recentWorks = ref<SoraGeneration[]>([])
+const recentWorksLoading = ref(false)
 
 const imageCredits = computed(() => {
   const balance = authStore.user?.balance ?? 0
@@ -240,6 +285,10 @@ const imageCredits = computed(() => {
 
 onBeforeUnmount(() => {
   if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+})
+
+onMounted(() => {
+  void loadRecentWorks()
 })
 
 function handleFileChange(event: Event) {
@@ -267,6 +316,7 @@ async function generate() {
     }
     results.value = [...nextResults, ...results.value]
     await authStore.refreshUser()
+    await loadRecentWorks()
   } catch (error) {
     console.error(error)
     errorMessage.value = error instanceof Error ? error.message : '生成失败，请稍后重试'
@@ -344,6 +394,47 @@ function downloadResult(item: ResultImage, index: number) {
   document.body.appendChild(link)
   link.click()
   link.remove()
+}
+
+async function loadRecentWorks() {
+  recentWorksLoading.value = true
+  try {
+    const response = await soraAPI.listGenerations({
+      status: 'completed',
+      media_type: 'image',
+      page: 1,
+      page_size: 8
+    })
+    const rows = Array.isArray(response.data) ? response.data : []
+    recentWorks.value = rows.filter((item) => workImageSrc(item) !== '')
+  } catch (error) {
+    console.error('Failed to load image works:', error)
+  } finally {
+    recentWorksLoading.value = false
+  }
+}
+
+function workImageSrc(work: SoraGeneration) {
+  if (work.media_url) return work.media_url
+  return work.media_urls?.find((url) => typeof url === 'string' && url.trim() !== '') || ''
+}
+
+function downloadWork(work: SoraGeneration, index: number) {
+  const src = workImageSrc(work)
+  if (!src) return
+  const link = document.createElement('a')
+  link.href = src
+  link.download = `image-work-${work.id || index + 1}.png`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
+
+function formatWorkTime(iso: string) {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleDateString()
 }
 
 async function copyPrompt() {

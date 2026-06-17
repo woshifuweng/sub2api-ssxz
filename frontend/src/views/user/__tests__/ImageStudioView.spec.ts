@@ -1,12 +1,15 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { authStore } = vi.hoisted(() => ({
+const { authStore, soraApi } = vi.hoisted(() => ({
   authStore: {
     user: {
       balance: 1,
     },
     refreshUser: vi.fn(),
+  },
+  soraApi: {
+    listGenerations: vi.fn(),
   },
 }))
 
@@ -22,6 +25,10 @@ vi.mock('@/components/icons/Icon.vue', () => ({
   },
 }))
 
+vi.mock('@/api/sora', () => ({
+  default: soraApi,
+}))
+
 import ImageStudioView from '../ImageStudioView.vue'
 
 function mountImageStudio() {
@@ -32,6 +39,12 @@ describe('ImageStudioView first-screen guidance', () => {
   beforeEach(() => {
     authStore.user.balance = 1
     authStore.refreshUser.mockReset()
+    soraApi.listGenerations.mockReset()
+    soraApi.listGenerations.mockResolvedValue({
+      data: [],
+      total: 0,
+      page: 1,
+    })
     vi.unstubAllGlobals()
   })
 
@@ -48,6 +61,46 @@ describe('ImageStudioView first-screen guidance', () => {
     expect(text).toContain('开始一次创作')
     expect(text).toContain('生成结果会出现在这里，方便预览和下载')
     expect(text).not.toContain('Sora')
+
+    wrapper.unmount()
+  })
+
+  it('loads recent image works from existing history', async () => {
+    soraApi.listGenerations.mockResolvedValue({
+      data: [
+        {
+          id: 11,
+          user_id: 7,
+          model: 'gpt-image-2',
+          prompt: 'product poster',
+          media_type: 'image',
+          status: 'completed',
+          storage_type: 'upstream',
+          media_url: 'https://cdn.example.com/work.png',
+          media_urls: ['https://cdn.example.com/work.png'],
+          s3_object_keys: [],
+          file_size_bytes: 0,
+          error_message: '',
+          created_at: '2026-06-18T00:00:00Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+    })
+
+    const wrapper = mountImageStudio()
+    await flushPromises()
+
+    expect(soraApi.listGenerations).toHaveBeenCalledWith({
+      status: 'completed',
+      media_type: 'image',
+      page: 1,
+      page_size: 8,
+    })
+    expect(wrapper.text()).toContain('最近作品')
+    expect(wrapper.text()).toContain('图片作品')
+    expect(wrapper.text()).not.toContain('gpt-image-2')
+    expect(wrapper.find('img[alt="work-11"]').attributes('src')).toBe('https://cdn.example.com/work.png')
 
     wrapper.unmount()
   })
