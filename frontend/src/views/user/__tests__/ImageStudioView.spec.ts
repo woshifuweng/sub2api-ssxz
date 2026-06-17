@@ -56,7 +56,16 @@ vi.mock('@/api/sora', () => ({
 import ImageStudioView from '../ImageStudioView.vue'
 
 function mountImageStudio() {
-  return mount(ImageStudioView)
+  return mount(ImageStudioView, {
+    global: {
+      stubs: {
+        RouterLink: {
+          props: ['to'],
+          template: '<a :href="to"><slot /></a>',
+        },
+      },
+    },
+  })
 }
 
 describe('ImageStudioView workbench', () => {
@@ -88,12 +97,16 @@ describe('ImageStudioView workbench', () => {
     expect(text).toContain('图片生成工作台')
     expect(text).toContain('把想法整理成可交付的视觉作品')
     expect(text).toContain('用途、比例、风格和参考图是创作方向，不是固定人设')
+    expect(text).toContain('先用对话整理想法')
+    expect(text).toContain('作图是主流程，对话可以帮你把随口需求整理成更清楚的画面描述')
     expect(text).toContain('选择创作目标')
     expect(text).toContain('商品主图')
     expect(text).toContain('营销海报')
     expect(text).toContain('社媒封面')
     expect(text).toContain('详情页配图')
     expect(text).toContain('自定义画幅')
+    expect(text).toContain('生成张数')
+    expect(text).toContain('多张结果会在右侧以缩略图切换')
     expect(text).toContain('上传商品图或风格参考图')
     expect(text).toContain('你的作品将在这里呈现')
     expect(text).toContain('最近作品')
@@ -153,11 +166,17 @@ describe('ImageStudioView workbench', () => {
           {
             url: 'https://cdn.example.com/result.png',
           },
+          {
+            url: 'https://cdn.example.com/result-2.png',
+          },
         ],
       },
     })
 
     const wrapper = mountImageStudio()
+    const countButtons = wrapper.findAll('.count-chip')
+    expect(countButtons).toHaveLength(3)
+    await countButtons[1].trigger('click')
     await wrapper.find('input[placeholder*="无线耳机"]').setValue('玫瑰花束')
     await wrapper.find('textarea').setValue('高级感电商广告图，黑色包装纸，红玫瑰主体')
     await wrapper.find('input[placeholder*="晨光办公桌"]').setValue('柔和棚拍')
@@ -174,11 +193,12 @@ describe('ImageStudioView workbench', () => {
     expect(form.get('template_id')).toBe('white')
     expect(form.get('product_name')).toBe('玫瑰花束')
     expect(form.get('size')).toBe('1024x1024')
-    expect(form.get('count')).toBe('1')
+    expect(form.get('count')).toBe('2')
     expect(String(form.get('selling_points'))).toContain('高级感电商广告图')
     expect(String(form.get('selling_points'))).toContain('创作用途：商品主图')
     expect(String(form.get('selling_points'))).toContain('商用安全')
     expect(wrapper.find('img[alt="result-1"]').attributes('src')).toBe('https://cdn.example.com/result.png')
+    expect(wrapper.findAll('.thumbnail-button')).toHaveLength(2)
     expect(wrapper.findAll('.result-actions .secondary-button')[2].attributes('disabled')).toBeUndefined()
     expect(authStore.refreshUser).toHaveBeenCalledTimes(1)
     expect(appStore.showSuccess).toHaveBeenCalledWith('图片生成完成')
