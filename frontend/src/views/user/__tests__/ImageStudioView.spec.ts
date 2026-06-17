@@ -1,20 +1,44 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { authStore, soraApi } = vi.hoisted(() => ({
+const { appStore, authStore, apiClient, soraApi } = vi.hoisted(() => ({
+  appStore: {
+    showError: vi.fn(),
+    showInfo: vi.fn(),
+    showSuccess: vi.fn(),
+  },
   authStore: {
     user: {
       balance: 1,
     },
     refreshUser: vi.fn(),
   },
+  apiClient: {
+    post: vi.fn(),
+  },
   soraApi: {
     listGenerations: vi.fn(),
   },
 }))
 
+vi.mock('@/stores/app', () => ({
+  useAppStore: () => appStore,
+}))
+
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => authStore,
+}))
+
+vi.mock('@/api/client', () => ({
+  apiClient,
+}))
+
+vi.mock('@/components/user/AppSectionShell.vue', () => ({
+  default: {
+    name: 'AppSectionShell',
+    props: ['title', 'subtitle', 'eyebrow', 'icon'],
+    template: '<main><header>{{ title }} {{ subtitle }} {{ eyebrow }}</header><slot /></main>',
+  },
 }))
 
 vi.mock('@/components/icons/Icon.vue', () => ({
@@ -35,10 +59,14 @@ function mountImageStudio() {
   return mount(ImageStudioView)
 }
 
-describe('ImageStudioView first-screen guidance', () => {
+describe('ImageStudioView workbench', () => {
   beforeEach(() => {
     authStore.user.balance = 1
     authStore.refreshUser.mockReset()
+    appStore.showError.mockReset()
+    appStore.showInfo.mockReset()
+    appStore.showSuccess.mockReset()
+    apiClient.post.mockReset()
     soraApi.listGenerations.mockReset()
     soraApi.listGenerations.mockResolvedValue({
       data: [],
@@ -46,20 +74,29 @@ describe('ImageStudioView first-screen guidance', () => {
       page: 1,
     })
     vi.unstubAllGlobals()
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0)
+      return 0
+    })
   })
 
-  it('frames the page as a general image generation workspace', () => {
+  it('restores the old-site style image workbench instead of the discarded console page', () => {
     const wrapper = mountImageStudio()
     const text = wrapper.text()
 
+    expect(text).toContain('AI 作图')
     expect(text).toContain('图片生成工作台')
-    expect(text).toContain('商品图、海报和灵感图，一页完成')
-    expect(text).toContain('上传参考图会进入改图流程')
-    expect(text).toContain('创作设置')
-    expect(text).toContain('参考图片')
-    expect(text).toContain('文生图模式')
-    expect(text).toContain('开始一次创作')
-    expect(text).toContain('生成结果会出现在这里，方便预览和下载')
+    expect(text).toContain('先说清楚你要卖什么，再交给模型发挥')
+    expect(text).toContain('选择创作目标')
+    expect(text).toContain('商品主图')
+    expect(text).toContain('营销海报')
+    expect(text).toContain('社媒封面')
+    expect(text).toContain('详情页配图')
+    expect(text).toContain('自定义画幅')
+    expect(text).toContain('上传商品图或风格参考图')
+    expect(text).toContain('你的作品将在这里呈现')
+    expect(text).toContain('最近作品')
+    expect(text).not.toContain('商品图、海报和灵感图，一页完成')
     expect(text).not.toContain('Sora')
 
     wrapper.unmount()
@@ -105,23 +142,60 @@ describe('ImageStudioView first-screen guidance', () => {
     wrapper.unmount()
   })
 
+  it('submits the restored workbench through the current image-studio API', async () => {
+    apiClient.post.mockResolvedValue({
+      data: {
+        data: [
+          {
+            url: 'https://cdn.example.com/result.png',
+          },
+        ],
+      },
+    })
+
+    const wrapper = mountImageStudio()
+    await wrapper.find('input[placeholder*="无线耳机"]').setValue('玫瑰花束')
+    await wrapper.find('textarea').setValue('高级感电商广告图，黑色包装纸，红玫瑰主体')
+    await wrapper.find('input[placeholder*="晨光办公桌"]').setValue('柔和棚拍')
+    await wrapper.find('button.generate-button').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.post).toHaveBeenCalledTimes(1)
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/image-studio/generate',
+      expect.any(FormData),
+      { timeout: 120000 },
+    )
+    const form = apiClient.post.mock.calls[0][1] as FormData
+    expect(form.get('template_id')).toBe('white')
+    expect(form.get('product_name')).toBe('玫瑰花束')
+    expect(form.get('size')).toBe('1024x1024')
+    expect(form.get('count')).toBe('1')
+    expect(String(form.get('selling_points'))).toContain('高级感电商广告图')
+    expect(String(form.get('selling_points'))).toContain('创作用途：商品主图')
+    expect(String(form.get('selling_points'))).toContain('商用安全')
+    expect(wrapper.find('img[alt="result-1"]').attributes('src')).toBe('https://cdn.example.com/result.png')
+    expect(authStore.refreshUser).toHaveBeenCalledTimes(1)
+    expect(appStore.showSuccess).toHaveBeenCalledWith('图片生成完成')
+
+    wrapper.unmount()
+  })
+
   it('keeps upstream errors generic instead of hard-coding a model name', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: false,
-        status: 400,
-        json: vi.fn().mockResolvedValue({
+    apiClient.post.mockRejectedValue({
+      response: {
+        data: {
           error: {
             message: 'account does not support OpenAI Images API',
           },
-        }),
-      }),
-    )
+        },
+      },
+    })
 
     const wrapper = mountImageStudio()
-    await wrapper.get('button.btn-primary').trigger('click')
+    await wrapper.find('input[placeholder*="无线耳机"]').setValue('护肤精华')
+    await wrapper.find('button.generate-button').trigger('click')
     await flushPromises()
 
     const text = wrapper.text()
