@@ -15,6 +15,12 @@
         <div class="hero-note">
           用途、比例、风格和参考图是创作方向，不是固定人设；自定义比例和风格会写入提示词，方便后续继续升级。
         </div>
+        <div class="hero-actions" aria-label="作图辅助入口">
+          <RouterLink to="/app/chat" class="hero-helper-link">
+            先用对话整理想法
+          </RouterLink>
+          <span>作图是主流程，对话可以帮你把随口需求整理成更清楚的画面描述。</span>
+        </div>
       </div>
       <div class="hero-side">
         <div class="hero-flow" aria-label="创作流程">
@@ -114,6 +120,26 @@
               <p :class="{ invalid: !isCustomRatioValid }">
                 自定义比例会写入提示词；真实输出尺寸按当前图片模型支持的最接近画幅生成。
               </p>
+            </div>
+
+            <div class="count-panel">
+              <div>
+                <span>生成张数</span>
+                <small>多张结果会在右侧以缩略图切换，方便对比和下载。</small>
+              </div>
+              <div class="count-list" role="group" aria-label="生成张数">
+                <button
+                  v-for="count in imageCountOptions"
+                  :key="count"
+                  type="button"
+                  class="count-chip"
+                  :class="{ selected: imageCount === count }"
+                  :aria-pressed="imageCount === count"
+                  @click="imageCount = count"
+                >
+                  {{ count }} 张
+                </button>
+              </div>
             </div>
           </section>
 
@@ -415,6 +441,7 @@ const styleToPrompt: Record<string, string> = {
 
 const customStyleOption = '自定义风格'
 const styleOptions = [...Object.keys(styleToPrompt), customStyleOption]
+const imageCountOptions = [1, 2, 3]
 const CREDIT_UNIT_USD = 0.2
 
 const goal = ref<GoalId>('product')
@@ -887,6 +914,40 @@ function scrollPreviewIntoView() {
   gap: 0.45rem;
 }
 
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 0.78rem;
+  color: var(--ssxz-text-muted);
+  font-size: 0.82rem;
+}
+
+.hero-helper-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  background: var(--ssxz-surface-subtle);
+  color: var(--ssxz-text-primary);
+  font-weight: 800;
+  padding: 0.42rem 0.72rem;
+}
+
+.hero-helper-link:hover {
+  border-color: var(--ssxz-border-strong);
+  background: color-mix(in srgb, var(--ssxz-action-soft) 66%, var(--ssxz-surface-subtle));
+}
+
+.hero-helper-link:focus-visible,
+.count-chip:focus-visible {
+  outline: none;
+  border-color: var(--ssxz-focus);
+  box-shadow: 0 0 0 3px var(--ssxz-focus-ring);
+}
+
 .hero-side {
   justify-content: flex-end;
   max-width: 28rem;
@@ -1142,6 +1203,58 @@ function scrollPreviewIntoView() {
 
 .sub-panel p.invalid {
   color: var(--ssxz-danger);
+}
+
+.count-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 1rem;
+  background: var(--ssxz-surface-subtle);
+  padding: 0.75rem;
+}
+
+.count-panel span,
+.count-panel small {
+  display: block;
+}
+
+.count-panel span {
+  color: var(--ssxz-text-secondary);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.count-panel small {
+  margin-top: 0.2rem;
+  color: var(--ssxz-text-muted);
+  font-size: 0.74rem;
+}
+
+.count-list {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.42rem;
+}
+
+.count-chip {
+  min-width: 3.1rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  background: var(--ssxz-surface);
+  color: var(--ssxz-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.4rem 0.58rem;
+}
+
+.count-chip.selected {
+  border-color: var(--ssxz-border-strong);
+  background: var(--ssxz-active);
+  color: var(--ssxz-action);
 }
 
 .asset-drop {
@@ -1529,6 +1642,11 @@ function scrollPreviewIntoView() {
   .goal-grid,
   .format-grid {
     gap: 0.48rem;
+  }
+
+  .count-panel {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .choice-card,

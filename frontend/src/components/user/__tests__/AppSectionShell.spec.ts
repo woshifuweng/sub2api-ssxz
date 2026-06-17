@@ -91,8 +91,9 @@ describe('AppSectionShell', () => {
   it('keeps API Key available as a third-party client entrypoint', () => {
     const wrapper = mountShell()
 
-    expect(wrapper.text()).toContain('图片工具站')
+    expect(wrapper.text()).toContain('AI 创作工作台')
     expect(wrapper.text()).toContain('SSXZ AI 工作台')
+    expect(wrapper.text()).not.toContain('图片工具站')
     expect(wrapper.text()).not.toContain('对话工作台')
     expect(wrapper.text()).toContain('新对话')
     expect(wrapper.text()).toContain('AI 作图')
