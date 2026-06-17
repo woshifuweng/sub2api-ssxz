@@ -383,6 +383,10 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 	if runtime, ok := s.getAvailableChannelsRuntimeOverride(); ok {
 		availableChannelsEnabled = runtime.Enabled
 	}
+	soraClientEnabled := settings[SettingKeySoraClientEnabled] == "true"
+	if enabled, ok := s.getSoraClientRuntimeOverride(); ok {
+		soraClientEnabled = enabled
+	}
 	webSearchSettings := PublicWorkspaceWebSearchSettings{}
 	if s != nil && s.cfg != nil {
 		webSearchSettings.Provider = strings.TrimSpace(s.cfg.Workspace.WebSearch.Provider)
@@ -410,7 +414,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		PurchaseSubscriptionEnabled:          settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
 		PurchaseSubscriptionURL:              sanitizePublicEmbeddedURL(settings[SettingKeyPurchaseSubscriptionURL]),
 		PaymentEnabled:                       settings[SettingPaymentEnabled] == "true",
-		SoraClientEnabled:                    settings[SettingKeySoraClientEnabled] == "true",
+		SoraClientEnabled:                    soraClientEnabled,
 		CustomMenuItems:                      settings[SettingKeyCustomMenuItems],
 		LinuxDoOAuthEnabled:                  linuxDoEnabled,
 		WeChatOAuthEnabled:                   weChatOAuth.Enabled,

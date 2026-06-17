@@ -378,6 +378,16 @@ func TestLoadWorkspaceAvailableChannelsStagingOverrideFromEnv(t *testing.T) {
 	require.True(t, cfg.Workspace.AvailableChannels.StagingOverrideEnabled)
 }
 
+func TestLoadWorkspaceSoraClientStagingOverrideFromEnv(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	t.Setenv("WORKSPACE_SORA_CLIENT_STAGING_OVERRIDE_ENABLED", "true")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	require.True(t, cfg.Workspace.SoraClient.StagingOverrideEnabled)
+}
+
 func TestLoadOpenAIWSStickyTTLCompatibility(t *testing.T) {
 	resetViperWithJWTSecret(t)
 	t.Setenv("GATEWAY_OPENAI_WS_STICKY_RESPONSE_ID_TTL_SECONDS", "0")
