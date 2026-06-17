@@ -541,8 +541,11 @@ export default {
 
   // API Keys
   keys: {
-    title: 'API Keys',
-    description: 'Manage your API keys and access tokens',
+    title: 'API Key / Third-party Clients',
+    description: 'Create your own API Key for CC Switch, Cherry Studio, Chatbox, and other third-party clients.',
+    clientAccessTitle: 'Third-party client access',
+    clientAccessDescription:
+      'Power users can create and manage API Keys here, then copy the Base URL into CC Switch, Cherry Studio, Chatbox, and other clients. Save the full key when it is created; the list only shows masked values later.',
     searchPlaceholder: 'Search name or key...',
     allGroups: 'All Groups',
     allStatus: 'All Status',
@@ -569,7 +572,7 @@ export default {
     selectStatus: 'Select status',
     saving: 'Saving...',
     noKeysYet: 'No API keys yet',
-    createFirstKey: 'Create your first API key to get started with the API.',
+    createFirstKey: 'Create your first API Key for third-party client access.',
     keyCreatedSuccess: 'API key created successfully',
     keyUpdatedSuccess: 'API key updated successfully',
     keyDeletedSuccess: 'API key deleted successfully',

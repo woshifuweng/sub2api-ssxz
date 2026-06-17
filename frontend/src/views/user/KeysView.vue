@@ -2,25 +2,31 @@
   <AppLayout>
     <TablePageLayout>
       <template #filters>
-        <div class="flex flex-wrap items-center gap-3">
-          <SearchInput
-            v-model="filterSearch"
-            :placeholder="t('keys.searchPlaceholder')"
-            class="w-full sm:w-64"
-            @search="onFilterChange"
-          />
-          <Select
-            :model-value="filterGroupId"
-            class="w-40"
-            :options="groupFilterOptions"
-            @update:model-value="onGroupFilterChange"
-          />
-          <Select
-            :model-value="filterStatus"
-            class="w-40"
-            :options="statusFilterOptions"
-            @update:model-value="onStatusFilterChange"
-          />
+        <div class="space-y-3">
+          <div class="rounded-xl border border-blue-100 bg-blue-50/80 p-4 text-sm text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-100">
+            <p class="font-semibold">{{ t('keys.clientAccessTitle') }}</p>
+            <p class="mt-1 leading-6">{{ t('keys.clientAccessDescription') }}</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-3">
+            <SearchInput
+              v-model="filterSearch"
+              :placeholder="t('keys.searchPlaceholder')"
+              class="w-full sm:w-64"
+              @search="onFilterChange"
+            />
+            <Select
+              :model-value="filterGroupId"
+              class="w-40"
+              :options="groupFilterOptions"
+              @update:model-value="onGroupFilterChange"
+            />
+            <Select
+              :model-value="filterStatus"
+              class="w-40"
+              :options="statusFilterOptions"
+              @update:model-value="onStatusFilterChange"
+            />
+          </div>
         </div>
       </template>
 
