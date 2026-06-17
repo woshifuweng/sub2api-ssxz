@@ -1,29 +1,54 @@
 <template>
   <div class="mx-auto flex max-w-7xl flex-col gap-6">
+    <section class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-600 dark:bg-dark-800">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <div class="inline-flex items-center gap-2 rounded-md bg-primary-50 px-3 py-1 text-sm font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+            <Icon name="sparkles" size="sm" />
+            <span>图片生成工作台</span>
+          </div>
+          <h1 class="mt-3 text-2xl font-bold tracking-normal text-gray-900 dark:text-white">商品图、海报和灵感图，一页完成</h1>
+          <p class="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-dark-300">
+            上传参考图会进入改图流程；不上传图片则按文字描述生成。模型、接口和扣费仍由后台统一处理，用户只需要把需求说清楚。
+          </p>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-center sm:min-w-[280px]">
+          <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-dark-600 dark:bg-dark-900/50">
+            <div class="text-lg font-semibold text-gray-900 dark:text-white">{{ imageCredits }}</div>
+            <div class="mt-1 text-xs text-gray-500 dark:text-dark-400">约可生成</div>
+          </div>
+          <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-dark-600 dark:bg-dark-900/50">
+            <div class="text-lg font-semibold text-gray-900 dark:text-white">{{ count }}</div>
+            <div class="mt-1 text-xs text-gray-500 dark:text-dark-400">本次张数</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <div class="grid gap-5 xl:grid-cols-[minmax(0,420px)_1fr]">
       <section class="space-y-5">
         <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-600 dark:bg-dark-800">
           <div class="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">图片生成</h2>
-              <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">余额约 {{ imageCredits }} 张</p>
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">创作设置</h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">当前按张扣费，预计消耗 {{ count }} 张</p>
             </div>
             <span class="rounded-md bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
-              按张扣费
+              {{ selectedFile ? '改图模式' : '文生图模式' }}
             </span>
           </div>
 
           <div class="space-y-4">
             <div>
-              <label class="input-label">商品图</label>
+              <label class="input-label">参考图片</label>
               <label
                 class="flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center transition hover:border-primary-400 hover:bg-primary-50/50 dark:border-dark-500 dark:bg-dark-700/60 dark:hover:border-primary-500"
               >
                 <Icon name="upload" size="lg" class="text-gray-400" />
                 <span class="text-sm font-medium text-gray-700 dark:text-dark-100">
-                  {{ selectedFile ? selectedFile.name : '上传图片后自动进入改图模式' }}
+                  {{ selectedFile ? selectedFile.name : '上传商品图、人物图或参考图' }}
                 </span>
-                <span class="text-xs text-gray-400">JPG / PNG / WEBP</span>
+                <span class="text-xs text-gray-400">JPG / PNG / WEBP，上传后自动进入改图模式</span>
                 <input class="hidden" type="file" accept="image/png,image/jpeg,image/webp" @change="handleFileChange" />
               </label>
               <div v-if="previewUrl" class="mt-3 overflow-hidden rounded-lg border border-gray-200 dark:border-dark-600">
@@ -128,8 +153,12 @@
           </div>
         </div>
 
-        <div v-if="!results.length" class="flex min-h-[440px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50 text-sm text-gray-400 dark:border-dark-600 dark:bg-dark-900/40">
-          生成后的图片会显示在这里
+        <div v-if="!results.length" class="flex min-h-[440px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50 px-6 text-center dark:border-dark-600 dark:bg-dark-900/40">
+          <Icon name="sparkles" size="xl" class="text-gray-300 dark:text-dark-500" />
+          <h3 class="mt-4 text-base font-semibold text-gray-800 dark:text-dark-100">开始一次创作</h3>
+          <p class="mt-2 max-w-md text-sm leading-6 text-gray-500 dark:text-dark-400">
+            选择作图类型和风格，填写商品名与卖点。生成结果会出现在这里，方便预览和下载。
+          </p>
         </div>
 
         <div v-else class="grid gap-4 md:grid-cols-2">
@@ -279,10 +308,10 @@ async function readImageResponse(response: Response) {
 
 function normalizeImageError(message: string) {
   if (/does not support OpenAI Images API|images api|image/i.test(message)) {
-    return '当前账号暂不支持图片生成/改图接口。请联系管理员开通支持 gpt-image-2 或 OpenAI Images API 的上游账号后再使用。'
+    return '当前账号暂不支持图片生成/改图接口。请联系管理员开通支持图片生成的模型或上游账号后再使用。'
   }
   if (/please create an active OpenAI API key/i.test(message)) {
-    return '当前没有可用于作图的 API Key。请先在后台创建包含 gpt-image-2 的可用 Key，或联系管理员分配图片分组。'
+    return '当前没有可用于作图的 API Key。请先在后台创建支持图片生成的可用 Key，或联系管理员分配图片分组。'
   }
   return message
 }
