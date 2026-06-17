@@ -97,7 +97,7 @@ describe('AppSectionShell', () => {
     expect(wrapper.text()).not.toContain('对话工作台')
     expect(wrapper.text()).toContain('新对话')
     expect(wrapper.text()).toContain('AI 作图')
-    expect(wrapper.text()).not.toContain('用量中心')
+    expect(wrapper.text()).toContain('用量中心')
     expect(wrapper.text()).toContain('API Key / 第三方接入')
     expect(wrapper.text()).toContain('账户设置')
   })
@@ -107,7 +107,8 @@ describe('AppSectionShell', () => {
     const wrapper = mountShell()
     const buttons = wrapper.findAll('.ssxz-secondary-nav .ssxz-nav-item')
 
-    expect(buttons.some((button) => button.text().includes('用量中心'))).toBe(false)
+    await buttons.find((button) => button.text().includes('用量中心'))?.trigger('click')
+    expect(mocks.push).toHaveBeenLastCalledWith('/app/usage')
 
     await buttons.find((button) => button.text().includes('API Key / 第三方接入'))?.trigger('click')
     expect(mocks.push).toHaveBeenLastCalledWith('/keys')

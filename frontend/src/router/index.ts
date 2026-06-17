@@ -174,6 +174,17 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/app/usage',
+    name: 'AppUsage',
+    component: () => import('@/views/user/AppUsageView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Usage Information',
+      appSection: 'usage'
+    }
+  },
+  {
     path: '/dashboard',
     name: 'Dashboard',
     component: () => import('@/views/user/DashboardView.vue'),
@@ -634,6 +645,7 @@ const BACKEND_MODE_ALLOWED_PATHS = [
   '/key-usage',
   '/setup',
   '/app/image',
+  '/app/usage',
   '/sora',
   '/app/chat',
   '/usage',
