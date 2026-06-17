@@ -23,6 +23,11 @@
         </div>
       </div>
       <div class="hero-side">
+        <div class="hero-route-card">
+          <span>对话辅助保留</span>
+          <strong>先聊清楚，再去作图</strong>
+          <small>适合整理卖点、标题、画面气质和提示词，不把站点做成纯作图。</small>
+        </div>
         <div class="hero-flow" aria-label="创作流程">
           <span>选用途</span>
           <span>定画幅</span>
@@ -283,6 +288,11 @@
               <Icon :name="generating ? 'refresh' : errorMessage ? 'exclamationCircle' : 'sparkles'" size="lg" :class="{ 'animate-spin': generating }" />
               <h3>{{ emptyStateTitle }}</h3>
               <p>{{ emptyStateDescription }}</p>
+              <div class="canvas-empty-guide" aria-label="创作提示">
+                <span>普通话说需求</span>
+                <span>对话辅助润色</span>
+                <span>生成后对比下载</span>
+              </div>
             </div>
           </div>
         </div>
@@ -953,6 +963,39 @@ function scrollPreviewIntoView() {
   max-width: 28rem;
 }
 
+.hero-route-card {
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--ssxz-action) 36%, var(--ssxz-border));
+  border-radius: 1rem;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--ssxz-action-soft) 72%, transparent), transparent 68%),
+    var(--ssxz-surface-subtle);
+  padding: 0.78rem 0.9rem;
+}
+
+.hero-route-card span,
+.hero-route-card small {
+  display: block;
+  color: var(--ssxz-text-muted);
+}
+
+.hero-route-card span {
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.hero-route-card strong {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--ssxz-text-primary);
+  font-size: 0.98rem;
+}
+
+.hero-route-card small {
+  margin-top: 0.32rem;
+  line-height: 1.55;
+}
+
 .hero-flow span,
 .generation-meta span,
 .canvas-tags span,
@@ -1474,6 +1517,24 @@ function scrollPreviewIntoView() {
   margin: 0;
   color: var(--ssxz-text-secondary);
   line-height: 1.65;
+}
+
+.canvas-empty-guide {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+}
+
+.canvas-empty-guide span {
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ssxz-surface-subtle) 82%, transparent);
+  color: var(--ssxz-text-muted);
+  font-size: 0.74rem;
+  font-weight: 750;
+  padding: 0.28rem 0.55rem;
 }
 
 .thumbnail-strip {
