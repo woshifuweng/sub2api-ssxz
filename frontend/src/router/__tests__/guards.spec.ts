@@ -52,6 +52,7 @@ interface MockAuthState {
   isAdmin: boolean
   isSimpleMode: boolean
   backendModeEnabled: boolean
+  paymentEnabled?: boolean
 }
 
 const backendModeAllowedPaths = [
@@ -111,6 +112,10 @@ function simulateGuard(
   }
 
   // 简易模式限制
+  if (toMeta.requiresPayment && !(authState.paymentEnabled ?? true)) {
+    return authState.isAdmin ? '/admin/dashboard' : '/sora'
+  }
+
   if (authState.isSimpleMode) {
     const restrictedPaths = [
       '/admin/groups',
@@ -205,6 +210,16 @@ describe('路由守卫逻辑', () => {
 
     it('访问 /admin/users 被拒绝', () => {
       const redirect = simulateGuard('/admin/users', { requiresAdmin: true }, authState)
+      expect(redirect).toBe('/sora')
+    })
+
+    it('allows /orders when payment is disabled so the page can degrade safely', () => {
+      const redirect = simulateGuard('/orders', {}, { ...authState, paymentEnabled: false })
+      expect(redirect).toBeNull()
+    })
+
+    it('keeps payment flow pages guarded when payment is disabled', () => {
+      const redirect = simulateGuard('/payment/qrcode', { requiresPayment: true }, { ...authState, paymentEnabled: false })
       expect(redirect).toBe('/sora')
     })
   })

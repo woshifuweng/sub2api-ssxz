@@ -586,19 +586,13 @@ const userNavItems = computed((): NavItem[] => {
     { path: '/app/chat', label: '聊天', icon: ChatStudioIcon },
     { path: '/keys', label: 'API Key / 第三方接入', icon: KeyIcon },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
-    ...(purchaseEnabled.value
-      ? [
-          {
-            path: '/purchase',
-            label: t('nav.buySubscription'),
-            icon: RechargeSubscriptionIcon,
-            hideInSimpleMode: true
-          }
-        ]
-      : []),
-    ...(paymentEnabled.value
-      ? [{ path: '/orders', label: '订单', icon: OrderListIcon, hideInSimpleMode: true }]
-      : []),
+    {
+      path: '/purchase',
+      label: t('nav.buySubscription'),
+      icon: RechargeSubscriptionIcon,
+      hideInSimpleMode: true
+    },
+    { path: '/orders', label: '订单', icon: OrderListIcon, hideInSimpleMode: true },
     { path: '/profile', label: t('nav.profile'), icon: UserIcon }
   ]
   return authStore.isSimpleMode ? items.filter(item => !item.hideInSimpleMode) : items
