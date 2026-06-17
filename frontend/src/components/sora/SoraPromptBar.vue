@@ -279,7 +279,7 @@ async function loadModels() {
 async function loadStorageStatus() {
   try {
     const status = await soraAPI.getStorageStatus()
-    hasStorage.value = status.s3_enabled && status.s3_healthy
+    hasStorage.value = (status.s3_enabled && status.s3_healthy) || status.local_enabled
   } catch {
     hasStorage.value = false
   }
