@@ -148,6 +148,11 @@
               <dd>暂无用量记录</dd>
             </div>
           </dl>
+          <div v-if="activeUtility === 'developer'" class="ssxz-utility-actions">
+            <RouterLink to="/keys" class="ssxz-utility-action">
+              打开 API Key / 第三方客户端接入
+            </RouterLink>
+          </div>
         </section>
 
         <slot />
@@ -165,7 +170,7 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 
 type IconName = InstanceType<typeof Icon>['$props']['name']
-type UtilityId = 'account' | 'usage'
+type UtilityId = 'account' | 'developer' | 'usage'
 
 withDefaults(defineProps<{
   title: string
@@ -208,6 +213,12 @@ const utilityItems: Array<{ id: UtilityId; label: string; icon: IconName; descri
     label: '用量中心',
     icon: 'chartBar',
     description: '查看消耗与余额。当前仅展示已确认的账户余额，暂无用量记录时不会编造数据。'
+  },
+  {
+    id: 'developer',
+    label: 'API Key / 第三方接入',
+    icon: 'key',
+    description: '熟练用户可以在这里创建自己的 API Key，并复制 Base URL 接入 CC Switch、Cherry Studio、Chatbox 等第三方客户端。'
   },
   {
     id: 'account',
@@ -568,6 +579,29 @@ onMounted(() => {
   font-size: 0.94rem;
   font-weight: 780;
   margin: 0.25rem 0 0;
+}
+
+.ssxz-utility-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.ssxz-utility-action {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--ssxz-primary) 38%, var(--ssxz-border));
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--ssxz-primary) 10%, transparent);
+  color: var(--ssxz-text);
+  font-size: 0.84rem;
+  font-weight: 760;
+  min-height: 2.35rem;
+  padding: 0.55rem 0.78rem;
+}
+
+.ssxz-utility-action:hover {
+  background: color-mix(in srgb, var(--ssxz-primary) 16%, transparent);
 }
 
 @media (max-width: 640px) {

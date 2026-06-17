@@ -58,11 +58,11 @@ function mountShell() {
 }
 
 describe('AppSectionShell', () => {
-  it('keeps the lightweight chat shell free of developer API entrypoints', () => {
+  it('keeps API Key available as a third-party client entrypoint', () => {
     const wrapper = mountShell()
 
     expect(wrapper.text()).toContain('用量中心')
+    expect(wrapper.text()).toContain('API Key / 第三方接入')
     expect(wrapper.text()).toContain('账户设置')
-    expect(wrapper.text()).not.toContain('开发者 API')
   })
 })

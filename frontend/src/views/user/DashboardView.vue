@@ -27,7 +27,7 @@
                 </p>
               </div>
 
-              <div class="grid gap-3 sm:grid-cols-3">
+              <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <RouterLink
                   to="/sora"
                   class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700"
@@ -48,6 +48,13 @@
                 >
                   <Icon name="chart" size="sm" />
                   查看用量
+                </RouterLink>
+                <RouterLink
+                  to="/keys"
+                  class="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
+                >
+                  <Icon name="key" size="sm" />
+                  第三方接入
                 </RouterLink>
               </div>
             </div>
@@ -104,11 +111,11 @@
               <h2 class="text-xl font-semibold text-gray-900 dark:text-white">轻量图片工具站</h2>
             </div>
             <p class="max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-              常用入口集中在生图、图片历史、下载、余额、用量和充值。复杂的渠道和 API 能力留在后台，不打扰普通用户。
+              常用入口集中在生图、图片历史、下载、余额、用量和充值。熟练用户也可以用 API Key 接入 CC Switch、Cherry Studio、Chatbox 等第三方客户端。
             </p>
           </div>
 
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
             <RouterLink
               v-for="entry in productEntries"
               :key="entry.to"
@@ -224,6 +231,14 @@ const productEntries = [
     title: '聊天写 prompt',
     description: '需要打磨描述、翻译风格词或扩写创意时，用聊天先把提示词写顺。',
     action: '打开聊天'
+  },
+  {
+    to: '/keys',
+    icon: 'key' as const,
+    badge: '第三方接入',
+    title: 'API Key',
+    description: '熟练用户可以创建自己的 API Key，把本站能力接入 CC Switch、Cherry Studio、Chatbox 等客户端。',
+    action: '管理 Key'
   },
   {
     to: '/purchase',

@@ -3,6 +3,7 @@ export const DEFAULT_AUTH_REDIRECT = '/sora'
 const CANONICAL_AUTH_REDIRECTS = new Set([
   '/sora',
   '/app/chat',
+  '/keys',
   '/usage',
   '/purchase',
   '/orders',
