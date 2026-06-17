@@ -17,7 +17,7 @@
         <span class="ssxz-brand-mark">S</span>
         <span class="ssxz-brand-copy ssxz-sidebar-text">
           <span class="ssxz-brand-title">SSXZ AI</span>
-          <span class="ssxz-brand-subtitle">对话工作台</span>
+          <span class="ssxz-brand-subtitle">图片工具站</span>
         </span>
       </RouterLink>
 
@@ -192,7 +192,7 @@ withDefaults(defineProps<{
   activeConversationId?: number | null
   historyLoading?: boolean
 }>(), {
-  eyebrow: 'SSXZ AI 对话工作台',
+  eyebrow: 'SSXZ AI 工作台',
   icon: 'sparkles',
   historyItems: () => [],
   activeConversationId: null,
@@ -362,6 +362,230 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.ssxz-app-shell {
+  --ssxz-bg: #f6f8f5;
+  --ssxz-surface: #fffdfa;
+  --ssxz-surface-raised: #ffffff;
+  --ssxz-surface-muted: #eef7f3;
+  --ssxz-surface-subtle: #f8faf6;
+  --ssxz-border: #dfe8e3;
+  --ssxz-border-strong: #1fb6a6;
+  --ssxz-text: #111827;
+  --ssxz-text-primary: #111827;
+  --ssxz-text-secondary: #34423d;
+  --ssxz-text-muted: #6b7b75;
+  --ssxz-body: #34423d;
+  --ssxz-subtle: #6b7b75;
+  --ssxz-primary: #0f9f93;
+  --ssxz-accent: #64d2b6;
+  --ssxz-action: #0f9f93;
+  --ssxz-action-soft: #e1f7ef;
+  --ssxz-action-text: #ffffff;
+  --ssxz-active: #eafaf4;
+  --ssxz-surface-elevated: #ffffff;
+  --ssxz-input: #fffefb;
+  --ssxz-focus: #0f9f93;
+  --ssxz-focus-ring: rgb(15 159 147 / 0.16);
+  --ssxz-danger: #dc2626;
+  --ssxz-disabled: #d7e2dc;
+  --ssxz-canvas: #f7f3ec;
+  --ssxz-glow-subtle: rgb(100 210 182 / 0.16);
+  --ssxz-shadow-sm: 0 8px 24px rgb(15 23 42 / 0.06);
+  --ssxz-shadow: 0 18px 52px rgb(15 23 42 / 0.08);
+  --ssxz-shadow-lg: 0 18px 46px rgb(15 159 147 / 0.22);
+  min-height: 100vh;
+  overflow-x: hidden;
+  background:
+    linear-gradient(90deg, rgb(15 159 147 / 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, rgb(15 159 147 / 0.028) 1px, transparent 1px),
+    radial-gradient(circle at 70% 18%, rgb(100 210 182 / 0.18), transparent 28rem),
+    linear-gradient(135deg, #fbfaf6 0%, var(--ssxz-bg) 48%, #eef6f2 100%);
+  background-size: 88px 88px, 88px 88px, auto, auto;
+  color: var(--ssxz-text);
+}
+
+.dark .ssxz-app-shell {
+  --ssxz-bg: #0f1110;
+  --ssxz-surface: #1c1d1b;
+  --ssxz-surface-raised: #202320;
+  --ssxz-surface-muted: #181b18;
+  --ssxz-surface-subtle: #171a18;
+  --ssxz-border: #303831;
+  --ssxz-border-strong: #2fd4bf;
+  --ssxz-text: #f7fbf8;
+  --ssxz-text-primary: #f7fbf8;
+  --ssxz-text-secondary: #d8e2dd;
+  --ssxz-text-muted: #93a49d;
+  --ssxz-body: #d8e2dd;
+  --ssxz-subtle: #93a49d;
+  --ssxz-primary: #25c7b5;
+  --ssxz-accent: #5ee0bd;
+  --ssxz-action: #25c7b5;
+  --ssxz-action-soft: #123630;
+  --ssxz-action-text: #061312;
+  --ssxz-active: #123c36;
+  --ssxz-surface-elevated: #232722;
+  --ssxz-input: #121512;
+  --ssxz-focus: #25c7b5;
+  --ssxz-focus-ring: rgb(37 199 181 / 0.18);
+  --ssxz-danger: #f87171;
+  --ssxz-disabled: #26302c;
+  --ssxz-canvas: #171a18;
+  --ssxz-glow-subtle: rgb(37 199 181 / 0.12);
+  --ssxz-shadow-sm: 0 8px 28px rgb(0 0 0 / 0.18);
+  --ssxz-shadow: 0 18px 58px rgb(0 0 0 / 0.25);
+  --ssxz-shadow-lg: 0 18px 52px rgb(37 199 181 / 0.18);
+  background:
+    linear-gradient(90deg, rgb(255 255 255 / 0.025) 1px, transparent 1px),
+    linear-gradient(180deg, rgb(255 255 255 / 0.022) 1px, transparent 1px),
+    radial-gradient(circle at 68% 20%, rgb(37 199 181 / 0.12), transparent 28rem),
+    linear-gradient(135deg, #141614 0%, var(--ssxz-bg) 52%, #111817 100%);
+  background-size: 88px 88px, 88px 88px, auto, auto;
+}
+
+.ssxz-app-backdrop {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 78% 18%, rgb(15 159 147 / 0.13), transparent 20rem),
+    radial-gradient(circle at 38% 58%, rgb(100 210 182 / 0.10), transparent 24rem);
+}
+
+.ssxz-app-sidebar {
+  border-color: var(--ssxz-border);
+  background: color-mix(in srgb, var(--ssxz-surface-raised) 88%, transparent);
+  box-shadow: var(--ssxz-shadow-sm);
+  color: var(--ssxz-body);
+}
+
+.ssxz-brand-link {
+  display: inline-flex;
+  min-height: 3rem;
+  width: 100%;
+  align-items: center;
+  gap: 0.72rem;
+  border-radius: 1rem;
+  color: var(--ssxz-text);
+  padding: 0.28rem;
+}
+
+.ssxz-brand-link:hover {
+  background: color-mix(in srgb, var(--ssxz-primary) 8%, transparent);
+}
+
+.ssxz-brand-mark {
+  display: grid;
+  width: 2.15rem;
+  height: 2.15rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, #111827, #0f9f93);
+  color: white;
+  font-weight: 900;
+}
+
+.dark .ssxz-brand-mark {
+  background: linear-gradient(135deg, #f8fafc, #25c7b5);
+  color: #071211;
+}
+
+.ssxz-brand-copy {
+  display: grid;
+  gap: 0.05rem;
+}
+
+.ssxz-brand-title {
+  font-size: 0.95rem;
+  font-weight: 850;
+}
+
+.ssxz-brand-subtitle {
+  color: var(--ssxz-subtle);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.ssxz-app-content {
+  position: relative;
+  z-index: 1;
+}
+
+.ssxz-app-header {
+  border-color: var(--ssxz-border);
+  background: color-mix(in srgb, var(--ssxz-surface-raised) 82%, transparent);
+}
+
+.ssxz-app-main {
+  margin-inline: auto;
+  width: min(100%, 96rem);
+  padding: 1rem;
+}
+
+.ssxz-page-heading {
+  margin-bottom: 1rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 1.25rem;
+  background: color-mix(in srgb, var(--ssxz-surface-raised) 90%, transparent);
+  box-shadow: var(--ssxz-shadow-sm);
+  padding: 1.1rem;
+}
+
+.ssxz-page-heading h2 {
+  color: var(--ssxz-text);
+}
+
+.ssxz-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ssxz-primary) 12%, transparent);
+  color: var(--ssxz-primary);
+  font-size: 0.76rem;
+  font-weight: 800;
+  padding: 0.28rem 0.58rem;
+}
+
+.ssxz-btn-icon {
+  display: inline-flex;
+  width: 2.2rem;
+  height: 2.2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--ssxz-body);
+}
+
+.ssxz-btn-icon:hover {
+  background: color-mix(in srgb, var(--ssxz-primary) 10%, transparent);
+  color: var(--ssxz-text);
+}
+
+.ssxz-user-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.6rem);
+  z-index: 30;
+  min-width: 12rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 1rem;
+  background: var(--ssxz-surface-raised);
+  box-shadow: var(--ssxz-shadow);
+  padding: 0.65rem;
+}
+
+.ssxz-menu-link {
+  width: 100%;
+  border-radius: 0.75rem;
+  padding: 0.55rem 0.35rem;
+  text-align: left;
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
 .ssxz-app-sidebar {
   display: none;
 }
