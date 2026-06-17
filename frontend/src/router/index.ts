@@ -363,7 +363,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Sora',
+      title: 'Image Generation',
       titleKey: 'sora.title',
       descriptionKey: 'sora.description'
     }
