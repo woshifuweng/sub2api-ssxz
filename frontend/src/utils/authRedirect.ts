@@ -1,19 +1,28 @@
-export const DEFAULT_AUTH_REDIRECT = '/app'
+export const DEFAULT_AUTH_REDIRECT = '/sora'
 
-const CANONICAL_APP_REDIRECTS = new Set([
-  '/app',
+const CANONICAL_AUTH_REDIRECTS = new Set([
+  '/sora',
   '/app/chat',
-  '/app/image'
+  '/usage',
+  '/purchase',
+  '/orders',
+  '/profile',
+  '/payment/qrcode',
+  '/payment/result',
+  '/payment/stripe',
+  '/payment/stripe-popup'
 ])
 
 const LEGACY_AUTH_REDIRECTS: Record<string, string> = {
-  '/dashboard': '/app',
+  '/dashboard': '/sora',
   '/home': '/',
   '/ai-chat': '/app/chat',
-  '/image-studio': '/app/image',
-  '/apps': '/app',
-  '/monitor': '/app',
-  '/sora': '/app/image'
+  '/image-studio': '/sora',
+  '/app': '/sora',
+  '/app/image': '/sora',
+  '/apps': '/sora',
+  '/monitor': '/sora',
+  '/sora': '/sora'
 }
 
 function firstQueryValue(value: unknown): string | undefined {
@@ -43,7 +52,7 @@ function normalizeInternalPath(rawPath: string, fallback: string): string {
   }
 
   const mappedPath = LEGACY_AUTH_REDIRECTS[pathname] || pathname
-  if (!CANONICAL_APP_REDIRECTS.has(mappedPath)) {
+  if (!CANONICAL_AUTH_REDIRECTS.has(mappedPath)) {
     return fallback
   }
 

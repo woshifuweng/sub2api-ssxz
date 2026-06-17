@@ -17,16 +17,16 @@
       </div>
     </div>
 
-    <!-- API Keys -->
+    <!-- Total Requests -->
     <div class="card p-4">
       <div class="flex items-center gap-3">
         <div class="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30">
-          <Icon name="key" size="md" class="text-blue-600 dark:text-blue-400" :stroke-width="2" />
+          <Icon name="chart" size="md" class="text-blue-600 dark:text-blue-400" :stroke-width="2" />
         </div>
         <div>
-          <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('dashboard.apiKeys') }}</p>
-          <p class="text-xl font-bold text-gray-900 dark:text-white">{{ stats?.total_api_keys || 0 }}</p>
-          <p class="text-xs text-green-600 dark:text-green-400">{{ stats?.active_api_keys || 0 }} {{ t('common.active') }}</p>
+          <p class="text-xs font-medium text-gray-500 dark:text-gray-400">累计请求</p>
+          <p class="text-xl font-bold text-gray-900 dark:text-white">{{ formatNumber(stats?.total_requests || 0) }}</p>
+          <p class="text-xs text-green-600 dark:text-green-400">今日 {{ formatNumber(stats?.today_requests || 0) }}</p>
         </div>
       </div>
     </div>

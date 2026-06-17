@@ -1,7 +1,5 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import { createPinia, setActivePinia } from 'pinia'
-import { useAppStore } from '@/stores/app'
 
 vi.mock('@/components/icons/Icon.vue', () => ({
   default: {
@@ -18,20 +16,8 @@ const models = [
   { id: 'gpt-5.4-mini', name: 'GPT-5.4-Mini', tier: 'standard' as const, capabilities: ['text_chat'], modelCatalogSource: 'real_channel' }
 ]
 
-function mountComposer(overrides = {}, webSearchAvailable = false) {
-  const pinia = createPinia()
-  setActivePinia(pinia)
-  const appStore = useAppStore()
-  appStore.cachedPublicSettings = {
-    web_search: {
-      available: webSearchAvailable
-    }
-  } as any
-
+function mountComposer(overrides = {}) {
   return mount(WorkspaceComposer, {
-    global: {
-      plugins: [pinia]
-    },
     props: {
       modelValue: '',
       selectedModel: 'gpt-5.5',
@@ -69,16 +55,11 @@ describe('WorkspaceComposer', () => {
     expect(wrapper.text()).toContain('暂未接入')
   })
 
-  it('shows a usable web search toggle only when the backend exposes it', async () => {
-    const wrapper = mountComposer({ modelValue: 'ready', webSearchEnabled: true }, true)
+  it('keeps the web search capability hidden in the lightweight user chat entry', () => {
+    const wrapper = mountComposer({ modelValue: 'ready', webSearchEnabled: true })
 
-    const button = wrapper.get('[data-testid="workspace-capability-web-search"]')
-    expect(button.attributes('disabled')).toBeUndefined()
-    expect(button.attributes('aria-pressed')).toBe('true')
-    expect(wrapper.text()).toContain('已启用')
-
-    await button.trigger('click')
-    expect(wrapper.emitted('toggle-web-search')).toHaveLength(1)
+    expect(wrapper.find('[data-testid="workspace-capability-web-search"]').exists()).toBe(false)
+    expect(wrapper.emitted('toggle-web-search')).toBeUndefined()
   })
 
   it('emits submit when content is ready', async () => {

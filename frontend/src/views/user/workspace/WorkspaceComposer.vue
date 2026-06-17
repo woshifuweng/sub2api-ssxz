@@ -94,7 +94,6 @@
 import { computed, ref } from 'vue'
 import type { ChatModelOption } from '@/composables/useUserCapabilities'
 import Icon from '@/components/icons/Icon.vue'
-import { useAppStore } from '@/stores/app'
 import WorkspaceAssetPanel from './WorkspaceAssetPanel.vue'
 import WorkspaceModelPicker from './WorkspaceModelPicker.vue'
 import type { RejectedWorkspaceFile, WorkspaceAssetPreview } from './useWorkspaceAssets'
@@ -125,7 +124,6 @@ const emit = defineEmits<{
   (event: 'toggle-web-search'): void
 }>()
 
-const appStore = useAppStore()
 const assetPanelOpen = ref(false)
 
 const placeholders: Record<WorkspaceIntent, string> = {
@@ -141,7 +139,6 @@ const capabilityTools = computed<Array<{
   icon: IconName
   available: boolean
 }>>(() => {
-  const webSearchAvailable = appStore.cachedPublicSettings?.web_search?.available === true
   const tools: Array<{
     key: CapabilityToolKey
     label: string
@@ -164,16 +161,6 @@ const capabilityTools = computed<Array<{
       available: false
     }
   ]
-
-  if (webSearchAvailable) {
-    tools.push({
-      key: 'web-search',
-      label: '联网',
-      description: '联网检索已接入，可为本次回答补充实时来源。',
-      icon: 'globe',
-      available: true
-    })
-  }
 
   return tools
 })
