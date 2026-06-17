@@ -204,7 +204,8 @@ const sidebarCollapsed = ref(readSidebarCollapsed())
 const isDark = ref(document.documentElement.classList.contains('dark'))
 
 const navItems: Array<{ label: string; to: string; icon: IconName }> = [
-  { label: '新对话', to: '/app?new=1', icon: 'chat' }
+  { label: '新对话', to: '/app?new=1', icon: 'chat' },
+  { label: 'AI 作图', to: '/app/image', icon: 'sparkles' }
 ]
 
 const utilityItems: Array<{ id: UtilityId; label: string; icon: IconName; description: string }> = [
@@ -236,7 +237,7 @@ const activeUtilityContent = computed(() => utilityItems.find((item) => item.id 
 
 function isActive(path: string) {
   const normalizedPath = path.split('?')[0]
-  if (normalizedPath === '/app') return route.path === '/app' || route.path === '/app/chat' || route.path === '/app/image'
+  if (normalizedPath === '/app') return route.path === '/app' || route.path === '/app/chat'
   return route.path === normalizedPath
 }
 

@@ -1,312 +1,642 @@
 <template>
-  <div class="mx-auto flex max-w-7xl flex-col gap-6">
-    <section class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-600 dark:bg-dark-800">
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div class="inline-flex items-center gap-2 rounded-md bg-primary-50 px-3 py-1 text-sm font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
-            <Icon name="sparkles" size="sm" />
-            <span>图片生成工作台</span>
-          </div>
-          <h1 class="mt-3 text-2xl font-bold tracking-normal text-gray-900 dark:text-white">商品图、海报和灵感图，一页完成</h1>
-          <p class="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-dark-300">
-            上传参考图会进入改图流程；不上传图片则按文字描述生成。模型、接口和扣费仍由后台统一处理，用户只需要把需求说清楚。
-          </p>
+  <AppSectionShell
+    title="AI 作图"
+    subtitle="从用途、画幅、参考素材和画面描述开始，整理成适合商业图片生成的任务。"
+    eyebrow="创意工作台"
+    icon="sparkles"
+  >
+    <section class="image-hero">
+      <div>
+        <p class="hero-kicker">图片生成工作台</p>
+        <h2>先说清楚你要卖什么，再交给模型发挥</h2>
+        <p>
+          用途、比例、风格和参考图只是帮你整理需求，不会把图片锁死在某个固定模板里。
+        </p>
+      </div>
+      <div class="hero-side">
+        <div class="hero-flow" aria-label="创作流程">
+          <span>选用途</span>
+          <span>定画幅</span>
+          <span>补描述</span>
+          <span>生成作品</span>
         </div>
-        <div class="grid grid-cols-2 gap-2 text-center sm:min-w-[280px]">
-          <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-dark-600 dark:bg-dark-900/50">
-            <div class="text-lg font-semibold text-gray-900 dark:text-white">{{ imageCredits }}</div>
-            <div class="mt-1 text-xs text-gray-500 dark:text-dark-400">约可生成</div>
-          </div>
-          <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-dark-600 dark:bg-dark-900/50">
-            <div class="text-lg font-semibold text-gray-900 dark:text-white">{{ count }}</div>
-            <div class="mt-1 text-xs text-gray-500 dark:text-dark-400">本次张数</div>
-          </div>
+        <div class="hero-balance">
+          <b>{{ imageCredits }}</b>
+          <span>约可生成</span>
         </div>
       </div>
     </section>
 
-    <div class="grid gap-5 xl:grid-cols-[minmax(0,420px)_1fr]">
-      <section class="space-y-5">
-        <div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-600 dark:bg-dark-800">
-          <div class="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">创作设置</h2>
-              <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">当前按张扣费，预计消耗 {{ count }} 张</p>
-            </div>
-            <span class="rounded-md bg-primary-50 px-2.5 py-1 text-xs font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
-              {{ selectedFile ? '改图模式' : '文生图模式' }}
-            </span>
-          </div>
-
-          <div class="space-y-4">
-            <div>
-              <label class="input-label">参考图片</label>
-              <label
-                class="flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center transition hover:border-primary-400 hover:bg-primary-50/50 dark:border-dark-500 dark:bg-dark-700/60 dark:hover:border-primary-500"
-              >
-                <Icon name="upload" size="lg" class="text-gray-400" />
-                <span class="text-sm font-medium text-gray-700 dark:text-dark-100">
-                  {{ selectedFile ? selectedFile.name : '上传商品图、人物图或参考图' }}
-                </span>
-                <span class="text-xs text-gray-400">JPG / PNG / WEBP，上传后自动进入改图模式</span>
-                <input class="hidden" type="file" accept="image/png,image/jpeg,image/webp" @change="handleFileChange" />
-              </label>
-              <div v-if="previewUrl" class="mt-3 overflow-hidden rounded-lg border border-gray-200 dark:border-dark-600">
-                <img :src="previewUrl" alt="preview" class="h-48 w-full object-contain bg-gray-50 dark:bg-dark-900" />
+    <section class="image-workbench" aria-label="AI 作图工作台">
+      <aside class="creation-console" aria-label="创作控制台">
+        <div class="console-scroll">
+          <section class="console-block">
+            <div class="block-heading">
+              <span class="step-dot">1</span>
+              <div>
+                <h3>选择创作目标</h3>
+                <p>先明确图片用在哪里，后面的选项只做创意方向参考。</p>
               </div>
             </div>
+            <div class="goal-grid">
+              <button
+                v-for="item in creationGoals"
+                :key="item.id"
+                type="button"
+                class="choice-card"
+                :class="{ selected: goal === item.id }"
+                @click="selectGoal(item.id)"
+              >
+                <span>{{ item.label }}</span>
+                <small>{{ item.hint }}</small>
+              </button>
+            </div>
+            <label v-if="goal === 'custom'" class="inline-field">
+              <span>自定义用途</span>
+              <input
+                v-model.trim="customGoal"
+                class="control-input"
+                placeholder="例如：公众号首图、课程封面、门店活动海报"
+              />
+            </label>
+          </section>
 
-            <div>
-              <label class="input-label">作图类型</label>
-              <div class="grid grid-cols-2 gap-2">
+          <section class="console-block">
+            <div class="block-heading">
+              <span class="step-dot">2</span>
+              <div>
+                <h3>选择画幅比例</h3>
+                <p>可选常用电商比例，也可以填自定义比例；当前模型会按最接近尺寸生成。</p>
+              </div>
+            </div>
+            <div class="format-grid">
+              <button
+                v-for="preset in canvasPresets"
+                :key="preset.id"
+                type="button"
+                class="format-card"
+                :class="{ selected: canvasId === preset.id }"
+                @click="canvasId = preset.id"
+              >
+                <b>{{ preset.ratio }}</b>
+                <span>{{ preset.label }}</span>
+              </button>
+              <button
+                type="button"
+                class="format-card"
+                :class="{ selected: canvasId === 'custom' }"
+                @click="canvasId = 'custom'"
+              >
+                <b>自定义</b>
+                <span>自定义画幅</span>
+              </button>
+            </div>
+
+            <div v-if="canvasId === 'custom'" class="sub-panel">
+              <div class="ratio-input-row">
+                <label class="inline-field">
+                  <span>宽</span>
+                  <input v-model.trim="customRatioWidth" class="control-input" inputmode="decimal" placeholder="例如：2 或 1080" />
+                </label>
+                <span class="ratio-separator">:</span>
+                <label class="inline-field">
+                  <span>高</span>
+                  <input v-model.trim="customRatioHeight" class="control-input" inputmode="decimal" placeholder="例如：3 或 1350" />
+                </label>
+              </div>
+              <label class="inline-field">
+                <span>画幅用途说明</span>
+                <input v-model.trim="customCanvasPurpose" class="control-input" placeholder="例如：朋友圈长图、店铺头图、课程封面" />
+              </label>
+              <p :class="{ invalid: !isCustomRatioValid }">
+                自定义比例会写入提示词；真实输出尺寸按当前图片模型支持的最接近画幅生成。
+              </p>
+            </div>
+          </section>
+
+          <section class="console-block">
+            <div class="block-heading">
+              <span class="step-dot">3</span>
+              <div>
+                <h3>上传参考素材</h3>
+                <p>先保留单张商品图或风格图，后续多图参考单独升级。</p>
+              </div>
+            </div>
+            <label class="asset-drop" :class="{ filled: Boolean(selectedFile) }">
+              <template v-if="!selectedFile">
+                <Icon name="upload" size="lg" />
+                <span>上传商品图或风格参考图</span>
+                <small>JPG / PNG / WEBP，上传后自动进入改图模式</small>
+              </template>
+              <template v-else>
+                <img v-if="previewUrl" :src="previewUrl" alt="参考素材预览" />
+                <span class="asset-copy">
+                  <strong class="asset-title" :title="selectedFile.name">{{ selectedFile.name }}</strong>
+                  <small>参考图 1 · {{ referenceMeta }}</small>
+                  <em>点击更换参考素材</em>
+                </span>
+              </template>
+              <input class="hidden" type="file" accept="image/png,image/jpeg,image/webp" @change="handleFileChange" />
+            </label>
+            <button v-if="selectedFile" type="button" class="secondary-button mt-2 w-full" @click="clearReference">
+              移除参考图
+            </button>
+          </section>
+
+          <section class="console-block">
+            <div class="block-heading">
+              <span class="step-dot">4</span>
+              <div>
+                <h3>描述主体与画面</h3>
+                <p>用普通话说需求，页面会整理成更完整的生成提示词。</p>
+              </div>
+            </div>
+            <label class="inline-field">
+              <span>商品 / 主体名称</span>
+              <input v-model.trim="productName" class="control-input" placeholder="例如：无线耳机、护肤精华、咖啡杯、运动水杯" />
+            </label>
+            <label class="inline-field">
+              <span>自有品牌名（可选）</span>
+              <input v-model.trim="brandName" class="control-input" placeholder="如需品牌露出，请填写自有品牌名；未提供时默认无品牌原创图。" />
+            </label>
+            <label class="inline-field">
+              <span>画面描述</span>
+              <textarea
+                v-model.trim="prompt"
+                class="control-textarea"
+                placeholder="例如：帮我做一张适合小红书卖护肤品的封面图，画面高级、清透、留出标题区域。"
+              />
+            </label>
+          </section>
+
+          <section class="console-block">
+            <div class="block-heading">
+              <span class="step-dot">5</span>
+              <div>
+                <h3>选择视觉方向</h3>
+                <p>风格是方向，不是死规则；不确定时用默认即可。</p>
+              </div>
+            </div>
+            <label class="inline-field">
+              <span>场景或氛围</span>
+              <input v-model.trim="scene" class="control-input" placeholder="例如：晨光办公桌、极简白棚、户外露营、浴室台面" />
+            </label>
+            <div class="style-area">
+              <span>风格偏好</span>
+              <div class="style-list">
                 <button
-                  v-for="template in templates"
-                  :key="template.id"
+                  v-for="styleOption in styleOptions"
+                  :key="styleOption"
                   type="button"
-                  class="rounded-lg border px-3 py-2 text-left text-sm transition"
-                  :class="templateId === template.id ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300' : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-200'"
-                  @click="templateId = template.id"
+                  class="style-chip"
+                  :class="{ selected: style === styleOption }"
+                  @click="style = styleOption"
                 >
-                  {{ template.label }}
+                  {{ styleOption }}
                 </button>
               </div>
             </div>
+            <label v-if="style === customStyleOption" class="inline-field">
+              <span>自定义风格描述</span>
+              <input v-model.trim="customStyle" class="control-input" placeholder="例如：复古杂志感、奢侈品广告风、科技蓝银质感" />
+            </label>
 
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="input-label">图片比例</label>
-                <select v-model="size" class="input">
-                  <option value="1024x1024">1:1</option>
-                  <option value="1024x1536">2:3</option>
-                  <option value="1536x1024">3:2</option>
-                </select>
+            <details class="advanced-panel">
+              <summary>高级补充</summary>
+              <div class="advanced-body">
+                <label class="inline-field">
+                  <span>补充关键词 / 负面要求</span>
+                  <input v-model.trim="keywords" class="control-input" placeholder="例如：高清细节、无水印、不要乱码文字、留白构图" />
+                </label>
               </div>
-              <div>
-                <label class="input-label">生成张数</label>
-                <select v-model.number="count" class="input">
-                  <option :value="1">1 张</option>
-                  <option :value="2">2 张</option>
-                  <option :value="4">4 张</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label class="input-label">商品名称</label>
-              <input v-model.trim="productName" class="input" type="text" placeholder="例如：保温杯、蓝牙耳机、护肤套装" />
-            </div>
-
-            <div>
-              <label class="input-label">核心卖点</label>
-              <textarea
-                v-model.trim="sellingPoints"
-                class="input min-h-24 resize-none"
-                placeholder="例如：轻便、防水、高级质感、适合礼赠"
-              />
-            </div>
-
-            <div>
-              <label class="input-label">风格</label>
-              <select v-model="style" class="input">
-                <option value="clean studio commercial photography">干净棚拍</option>
-                <option value="premium gray background commercial photography">高级灰</option>
-                <option value="warm home lifestyle scene">家居场景</option>
-                <option value="fresh social media product photography">小红书风</option>
-                <option value="holiday promotion product photography">节日促销</option>
-              </select>
-            </div>
-
-            <button
-              type="button"
-              class="btn btn-primary w-full justify-center"
-              :disabled="generating"
-              @click="generate"
-            >
-              <Icon v-if="!generating" name="sparkles" size="sm" />
-              <Icon v-else name="refresh" size="sm" class="animate-spin" />
-              <span>{{ generating ? '生成中' : `消耗约 ${count} 张，立即生成` }}</span>
-            </button>
-
-            <p v-if="errorMessage" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
-              {{ errorMessage }}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section class="min-h-[520px] rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-600 dark:bg-dark-800">
-        <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">生成结果</h2>
-          <div class="flex flex-wrap gap-2">
-            <button type="button" class="btn btn-secondary btn-sm" @click="copyPrompt">
-              <Icon name="copy" size="sm" />
-              <span>复制提示词</span>
-            </button>
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="generating" @click="generate">
-              <Icon name="refresh" size="sm" />
-              <span>重新生成</span>
-            </button>
-            <button v-if="results.length" type="button" class="btn btn-secondary btn-sm" @click="clearResults">
-              <Icon name="trash" size="sm" />
-              <span>清空</span>
-            </button>
-          </div>
+            </details>
+          </section>
         </div>
 
-        <div v-if="!results.length" class="flex min-h-[440px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50 px-6 text-center dark:border-dark-600 dark:bg-dark-900/40">
-          <Icon name="sparkles" size="xl" class="text-gray-300 dark:text-dark-500" />
-          <h3 class="mt-4 text-base font-semibold text-gray-800 dark:text-dark-100">开始一次创作</h3>
-          <p class="mt-2 max-w-md text-sm leading-6 text-gray-500 dark:text-dark-400">
-            选择作图类型和风格，填写商品名与卖点。生成结果会出现在这里，方便预览和下载。
+        <div class="console-action">
+          <div class="generation-meta">
+            <span>{{ selectedFile ? '改图模式' : '文生图模式' }}</span>
+            <span>{{ displayCanvasRatio }}</span>
+            <span>{{ imageCount }} 张</span>
+          </div>
+          <p class="safety-note">
+            AI 生成图片仅供参考，商用前请确认没有第三方品牌、Logo、版权素材或不真实商品信息。
+          </p>
+          <button type="button" class="generate-button" :disabled="isGenerateDisabled" @click="generate">
+            <Icon :name="generating ? 'refresh' : 'sparkles'" size="sm" :class="{ 'animate-spin': generating }" />
+            {{ generateLabel }}
+          </button>
+          <p v-if="errorMessage" class="error-note">
+            {{ errorMessage }}
           </p>
         </div>
+      </aside>
 
-        <div v-else class="grid gap-4 md:grid-cols-2">
-          <article
+      <section ref="previewStageRef" class="canvas-panel" aria-label="作品画布">
+        <header class="canvas-summary">
+          <div>
+            <p>当前任务</p>
+            <h3>{{ displayGoalLabel }}</h3>
+          </div>
+          <div class="canvas-tags">
+            <span>{{ displayCanvasRatio }}</span>
+            <span>{{ displayStyleLabel }}</span>
+            <span>{{ selectedFile ? '改图' : '生成' }}</span>
+            <span>{{ canvasStateLabel }}</span>
+          </div>
+        </header>
+
+        <div class="canvas-stage">
+          <div class="canvas-sheet" :style="canvasSheetStyle">
+            <img v-if="activeResult" :src="activeResult.src" :alt="`result-${activeResultIndex + 1}`" />
+            <div v-else class="canvas-empty" :class="{ failed: errorMessage }">
+              <Icon :name="generating ? 'refresh' : errorMessage ? 'exclamationCircle' : 'sparkles'" size="lg" :class="{ 'animate-spin': generating }" />
+              <h3>{{ emptyStateTitle }}</h3>
+              <p>{{ emptyStateDescription }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="results.length > 1" class="thumbnail-strip" aria-label="生成缩略图">
+          <button
             v-for="(item, index) in results"
             :key="item.id"
-            class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-dark-600 dark:bg-dark-900"
+            type="button"
+            class="thumbnail-button"
+            :class="{ selected: activeResultIndex === index }"
+            @click="activeResultIndex = index"
           >
-            <div class="aspect-square bg-white dark:bg-dark-950">
-              <img :src="item.src" :alt="`result-${index + 1}`" class="h-full w-full object-contain" />
-            </div>
-            <div class="flex items-center justify-between gap-2 border-t border-gray-200 px-3 py-2 dark:border-dark-600">
-              <span class="text-sm text-gray-500 dark:text-dark-400">图 {{ index + 1 }}</span>
-              <button type="button" class="btn btn-secondary btn-sm" @click="downloadResult(item, index)">
-                <Icon name="download" size="sm" />
-                <span>下载</span>
-              </button>
-            </div>
-          </article>
+            <img :src="item.src" :alt="`thumbnail-${index + 1}`" />
+          </button>
         </div>
-      </section>
-    </div>
 
-    <section class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-600 dark:bg-dark-800">
-      <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">最近作品</h2>
-          <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">生成成功后的图片会同步到这里，方便之后回来预览和下载。</p>
+        <footer class="canvas-foot">
+          <div>
+            <span>用途</span>
+            <b>{{ displayGoalLabel }}</b>
+          </div>
+          <div>
+            <span>比例</span>
+            <b>{{ displayCanvasRatio }}</b>
+          </div>
+          <div>
+            <span>状态</span>
+            <b>{{ canvasStateLabel }}</b>
+          </div>
+          <div>
+            <span>模型</span>
+            <b>后台配置</b>
+          </div>
+        </footer>
+
+        <div class="result-actions">
+          <button type="button" class="secondary-button" @click="copyPrompt">复制提示词</button>
+          <button type="button" class="secondary-button" :disabled="!activeResult" @click="downloadActiveResult">
+            下载图片
+          </button>
+          <button type="button" class="secondary-button" :disabled="generating" @click="generate">
+            重新生成
+          </button>
         </div>
-        <button type="button" class="btn btn-secondary btn-sm" :disabled="recentWorksLoading" @click="loadRecentWorks">
-          <Icon name="refresh" size="sm" :class="recentWorksLoading ? 'animate-spin' : ''" />
-          <span>刷新</span>
+
+        <details class="prompt-preview">
+          <summary>查看本次整理后的提示词</summary>
+          <pre>{{ fullPrompt }}</pre>
+        </details>
+      </section>
+    </section>
+
+    <section class="recent-works">
+      <div class="recent-heading">
+        <div>
+          <h2>最近作品</h2>
+          <p>生成成功后的图片会同步到这里，方便之后回来预览和下载。</p>
+        </div>
+        <button type="button" class="secondary-button" :disabled="recentWorksLoading" @click="loadRecentWorks">
+          <Icon name="refresh" size="sm" :class="{ 'animate-spin': recentWorksLoading }" />
+          刷新
         </button>
       </div>
 
-      <div v-if="recentWorksLoading && !recentWorks.length" class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500 dark:border-dark-600 dark:bg-dark-900/40 dark:text-dark-400">
+      <div v-if="recentWorksLoading && !recentWorks.length" class="recent-empty">
         正在加载最近作品...
       </div>
-      <div v-else-if="!recentWorks.length" class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center dark:border-dark-600 dark:bg-dark-900/40">
-        <Icon name="grid" size="lg" class="mx-auto text-gray-300 dark:text-dark-500" />
-        <p class="mt-3 text-sm text-gray-500 dark:text-dark-400">还没有历史作品。完成一次图片生成后，这里会展示最近结果。</p>
+      <div v-else-if="!recentWorks.length" class="recent-empty">
+        <Icon name="grid" size="lg" />
+        <p>还没有历史作品。完成一次图片生成后，这里会展示最近结果。</p>
       </div>
-      <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <article
-          v-for="(work, index) in recentWorks"
-          :key="work.id"
-          class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-dark-600 dark:bg-dark-900"
-        >
-          <div class="aspect-square bg-white dark:bg-dark-950">
-            <img :src="workImageSrc(work)" :alt="`work-${work.id}`" class="h-full w-full object-contain" />
+      <div v-else class="recent-grid">
+        <article v-for="(work, index) in recentWorks" :key="work.id" class="recent-card">
+          <div class="recent-thumb">
+            <img :src="workImageSrc(work)" :alt="`work-${work.id}`" />
           </div>
-          <div class="space-y-2 border-t border-gray-200 px-3 py-3 dark:border-dark-600">
-            <div class="flex items-center justify-between gap-2">
-              <span class="truncate text-sm font-medium text-gray-700 dark:text-dark-100">图片作品</span>
-              <span class="shrink-0 text-xs text-gray-400">{{ formatWorkTime(work.created_at) }}</span>
+          <div class="recent-card-body">
+            <div>
+              <span>图片作品</span>
+              <small>{{ formatWorkTime(work.created_at) }}</small>
             </div>
-            <button type="button" class="btn btn-secondary btn-sm w-full justify-center" @click="downloadWork(work, index)">
-              <Icon name="download" size="sm" />
-              <span>下载</span>
-            </button>
+            <button type="button" class="secondary-button" @click="downloadWork(work, index)">下载</button>
           </div>
         </article>
       </div>
     </section>
-  </div>
+  </AppSectionShell>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useAuthStore } from '@/stores/auth'
-import soraAPI, { type SoraGeneration } from '@/api/sora'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import axios from 'axios'
+import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { apiClient } from '@/api/client'
+import soraAPI, { type SoraGeneration } from '@/api/sora'
+import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
 
-type StudioTemplate = {
-  id: 'background' | 'white' | 'scene' | 'poster'
-  label: string
-}
+type GoalId = 'product' | 'poster' | 'social' | 'detail' | 'scene' | 'custom'
+type CanvasId = 'square' | 'social45' | 'detail34' | 'poster23' | 'scene32' | 'cover169' | 'short916' | 'banner219' | 'custom'
 
 type ResultImage = {
   id: string
   src: string
 }
 
-const CREDIT_UNIT_USD = 0.2
+type ImageStudioPayload = {
+  data?: Array<{ b64_json?: string; url?: string }>
+}
 
-const templates: StudioTemplate[] = [
-  {
-    id: 'background',
-    label: '主图换背景'
-  },
-  {
-    id: 'white',
-    label: '白底优化'
-  },
-  {
-    id: 'scene',
-    label: '电商场景图'
-  },
-  {
-    id: 'poster',
-    label: '小红书海报'
-  }
+const appStore = useAppStore()
+const authStore = useAuthStore()
+
+const creationGoals: Array<{ id: GoalId; label: string; hint: string }> = [
+  { id: 'product', label: '商品主图', hint: '突出主体与质感' },
+  { id: 'poster', label: '营销海报', hint: '活动与促销传播' },
+  { id: 'social', label: '社媒封面', hint: '小红书与内容发布' },
+  { id: 'detail', label: '详情页配图', hint: '细节和功能展示' },
+  { id: 'scene', label: '场景图', hint: '生活方式与氛围' },
+  { id: 'custom', label: '自定义创作', hint: '自定义用途和画幅' }
 ]
 
-const authStore = useAuthStore()
+const canvasPresets: Array<{ id: Exclude<CanvasId, 'custom'>; label: string; ratio: string; width: number; height: number }> = [
+  { id: 'square', label: '电商主图', ratio: '1:1', width: 1, height: 1 },
+  { id: 'social45', label: '社媒竖图', ratio: '4:5', width: 4, height: 5 },
+  { id: 'detail34', label: '详情配图', ratio: '3:4', width: 3, height: 4 },
+  { id: 'poster23', label: '竖版海报', ratio: '2:3', width: 2, height: 3 },
+  { id: 'scene32', label: '场景横图', ratio: '3:2', width: 3, height: 2 },
+  { id: 'cover169', label: '横版封面', ratio: '16:9', width: 16, height: 9 },
+  { id: 'short916', label: '短视频封面', ratio: '9:16', width: 9, height: 16 },
+  { id: 'banner219', label: 'Banner', ratio: '21:9', width: 21, height: 9 }
+]
+
+const canvasByGoal: Record<GoalId, Exclude<CanvasId, 'custom'>> = {
+  product: 'square',
+  poster: 'poster23',
+  social: 'social45',
+  detail: 'detail34',
+  scene: 'scene32',
+  custom: 'square'
+}
+
+const styleToPrompt: Record<string, string> = {
+  '现代极简': 'modern minimal commercial photography, clean composition, restrained palette',
+  '高级商业摄影': 'premium commercial photography, refined lighting, realistic texture, high-end composition',
+  '清透白底': 'clean white background, soft light, sharp product edges, ecommerce ready',
+  '生活方式场景': 'warm lifestyle scene, realistic environment, natural props, soft daylight',
+  '自然柔光': 'soft natural light, airy composition, gentle shadows, premium texture',
+  '低饱和质感': 'low saturation premium texture, muted color palette, editorial product photography',
+  '科技感': 'sleek technology advertising style, cool lighting, glass and metal texture',
+  '国潮质感': 'modern Chinese visual style, elegant cultural detail, premium commercial layout',
+  '奢华质感': 'luxury advertising style, elegant materials, dramatic yet clean lighting'
+}
+
+const customStyleOption = '自定义风格'
+const styleOptions = [...Object.keys(styleToPrompt), customStyleOption]
+const CREDIT_UNIT_USD = 0.2
+
+const goal = ref<GoalId>('product')
+const canvasId = ref<CanvasId>('square')
+const customGoal = ref('')
+const customRatioWidth = ref('')
+const customRatioHeight = ref('')
+const customCanvasPurpose = ref('')
+const productName = ref('')
+const brandName = ref('')
+const prompt = ref('')
+const scene = ref('')
+const style = ref('高级商业摄影')
+const customStyle = ref('')
+const keywords = ref('')
+const imageCount = ref(1)
 const selectedFile = ref<File | null>(null)
 const previewUrl = ref('')
-const templateId = ref<StudioTemplate['id']>('background')
-const size = ref('1024x1024')
-const count = ref(1)
-const productName = ref('')
-const sellingPoints = ref('')
-const style = ref('clean studio commercial photography')
 const generating = ref(false)
 const errorMessage = ref('')
 const results = ref<ResultImage[]>([])
+const activeResultIndex = ref(0)
 const recentWorks = ref<SoraGeneration[]>([])
 const recentWorksLoading = ref(false)
+const previewStageRef = ref<HTMLElement | null>(null)
 
+const selectedGoal = computed(() => creationGoals.find((item) => item.id === goal.value) || creationGoals[0])
+const selectedCanvas = computed(() => {
+  if (canvasId.value === 'custom') return customCanvas.value
+  return canvasPresets.find((item) => item.id === canvasId.value) || canvasPresets[0]
+})
+const customRatioValue = computed(() => {
+  const width = customRatioWidth.value.trim()
+  const height = customRatioHeight.value.trim()
+  return width && height ? `${width}:${height}` : ''
+})
+const isCustomRatioValid = computed(() => {
+  if (canvasId.value !== 'custom') return true
+  return isPositiveRatioPart(customRatioWidth.value) && isPositiveRatioPart(customRatioHeight.value)
+})
+const customCanvas = computed(() => {
+  const parsed = parseRatio(customRatioValue.value)
+  return {
+    id: 'custom' as const,
+    label: customCanvasPurpose.value || '自定义画幅',
+    ratio: parsed.label,
+    width: parsed.width,
+    height: parsed.height
+  }
+})
+const displayGoalLabel = computed(() => goal.value === 'custom' ? (customGoal.value || '自定义创作') : selectedGoal.value.label)
+const displayCanvasRatio = computed(() => canvasId.value === 'custom' ? (customRatioValue.value ? `自定义 ${customRatioValue.value}` : '自定义比例') : selectedCanvas.value.ratio)
+const displayStyleLabel = computed(() => style.value === customStyleOption ? (customStyle.value || '自定义风格') : style.value)
+const requestStyle = computed(() => {
+  if (style.value === customStyleOption) return customStyle.value || 'custom user-defined commercial visual style'
+  return styleToPrompt[style.value] || style.value
+})
+const requestSize = computed(() => {
+  if (selectedCanvas.value.width === selectedCanvas.value.height) return '1024x1024'
+  return selectedCanvas.value.width > selectedCanvas.value.height ? '1536x1024' : '1024x1536'
+})
+const hasDescription = computed(() => Boolean(productName.value.trim() || prompt.value.trim()))
+const isGenerateDisabled = computed(() => generating.value || !hasDescription.value || !isCustomRatioValid.value)
+const generateLabel = computed(() => {
+  if (generating.value) return '正在生成...'
+  if (!hasDescription.value) return '请先描述图片'
+  if (!isCustomRatioValid.value) return '请填写有效比例'
+  return `消耗约 ${imageCount.value} 张，生成图片`
+})
+const activeResult = computed(() => results.value[activeResultIndex.value] || null)
+const canvasStateLabel = computed(() => {
+  if (generating.value) return '生成中'
+  if (errorMessage.value) return '失败'
+  if (activeResult.value) return '已生成'
+  return '待生成'
+})
+const emptyStateTitle = computed(() => {
+  if (generating.value) return '正在生成作品'
+  if (errorMessage.value) return '生成失败'
+  return '你的作品将在这里呈现'
+})
+const emptyStateDescription = computed(() => {
+  if (generating.value) return '系统正在把左侧需求整理成图片生成任务，请稍等。'
+  if (errorMessage.value) return errorMessage.value
+  return '选择输出用途、上传参考素材并描述创意需求，生成后的作品可在这里预览和下载。'
+})
+const canvasSheetStyle = computed(() => ({
+  aspectRatio: `${selectedCanvas.value.width} / ${selectedCanvas.value.height}`
+}))
 const imageCredits = computed(() => {
   const balance = authStore.user?.balance ?? 0
   return Math.max(0, Math.floor(balance / CREDIT_UNIT_USD))
 })
+const referenceMeta = computed(() => {
+  if (!selectedFile.value) return '未上传'
+  const ext = selectedFile.value.name.split('.').pop()?.toUpperCase() || fileTypeLabel(selectedFile.value.type)
+  return `${ext} · ${formatFileSize(selectedFile.value.size)}`
+})
+const purposeInstruction = computed(() => {
+  switch (goal.value) {
+    case 'product':
+      return '适合电商商品主图，主体清晰，背景干净，突出材质、轮廓和卖点。'
+    case 'poster':
+      return '适合营销海报，保留标题和卖点区域，画面有传播感和商业视觉冲击。'
+    case 'social':
+      return '适合小红书、朋友圈、短视频封面，画面自然、真实、有生活方式氛围。'
+    case 'detail':
+      return '适合详情页配图，体现产品细节、功能、使用场景或质感模块。'
+    case 'scene':
+      return '适合场景图，强调环境、空间、氛围和真实使用感。'
+    default:
+      return '按用户自定义用途生成，不额外套固定用途模板。'
+  }
+})
+const commercialSafetyPrompt = computed(() => {
+  const brand = brandName.value.trim()
+  const brandLine = brand
+    ? `User-owned brand name: ${brand}. Only use this brand if it fits the composition; do not invent other brands.`
+    : 'No owned brand was provided. Create an unbranded original commercial image.'
+  return [
+    brandLine,
+    'Do not imitate real-world brand logos, product packaging, model names, certification marks, copyrighted product images, watermarks, QR codes, or stock-photo marks.',
+    'Avoid unreadable text. If text is needed, reserve clean blank layout areas instead of generating fake copy.'
+  ].join('\n')
+})
+const fullPrompt = computed(() => [
+  `创作用途：${displayGoalLabel.value}`,
+  `输出比例：${displayCanvasRatio.value}`,
+  productName.value ? `主体名称：${productName.value}` : '',
+  brandName.value ? `自有品牌名：${brandName.value}` : '品牌策略：未提供自有品牌时默认无品牌原创图',
+  prompt.value ? `画面描述：${prompt.value}` : '',
+  scene.value ? `场景氛围：${scene.value}` : '',
+  `视觉风格：${displayStyleLabel.value}`,
+  keywords.value ? `补充关键词：${keywords.value}` : '',
+  `用途增强：${purposeInstruction.value}`,
+  `商用安全：${commercialSafetyPrompt.value}`,
+  `生成要求：professional commercial photography, realistic lighting, sharp details, balanced composition.`
+].filter(Boolean).join('\n'))
 
-onBeforeUnmount(() => {
-  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+watch(goal, (next) => {
+  if (canvasId.value !== 'custom') {
+    canvasId.value = canvasByGoal[next]
+  }
+})
+
+watch(results, () => {
+  activeResultIndex.value = 0
 })
 
 onMounted(() => {
   void loadRecentWorks()
 })
 
+onBeforeUnmount(() => {
+  releasePreviewUrl()
+})
+
+function selectGoal(next: GoalId) {
+  goal.value = next
+}
+
+function parseRatio(value: string) {
+  const match = value.trim().match(/^(\d+(?:\.\d+)?)\s*[:/]\s*(\d+(?:\.\d+)?)$/)
+  if (!match) return { label: '自定义比例', width: 1, height: 1 }
+  const width = Number(match[1])
+  const height = Number(match[2])
+  if (!width || !height) return { label: '自定义比例', width: 1, height: 1 }
+  return { label: `${match[1]}:${match[2]}`, width, height }
+}
+
+function isPositiveRatioPart(value: string) {
+  if (!/^\d+(\.\d)?\d*$/.test(value.trim())) return false
+  return Number(value) > 0
+}
+
+function fileTypeLabel(mime: string) {
+  if (mime.includes('png')) return 'PNG'
+  if (mime.includes('jpeg') || mime.includes('jpg')) return 'JPG'
+  if (mime.includes('webp')) return 'WEBP'
+  return 'IMAGE'
+}
+
+function formatFileSize(bytes: number) {
+  if (!bytes) return '未知大小'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
 function handleFileChange(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
-  selectedFile.value = file || null
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    appStore.showError('请上传 JPG / PNG / WEBP 图片。')
+    input.value = ''
+    return
+  }
+
+  releasePreviewUrl()
+  selectedFile.value = file
+  previewUrl.value = URL.createObjectURL(file)
+  input.value = ''
+}
+
+function clearReference() {
+  selectedFile.value = null
+  releasePreviewUrl()
+}
+
+function releasePreviewUrl() {
   if (previewUrl.value) {
     URL.revokeObjectURL(previewUrl.value)
     previewUrl.value = ''
   }
-  if (file) {
-    previewUrl.value = URL.createObjectURL(file)
-  }
 }
 
 async function generate() {
+  if (isGenerateDisabled.value) {
+    appStore.showInfo(!hasDescription.value ? '请先填写主体或画面描述。' : '请填写有效的自定义比例。')
+    return
+  }
+
   generating.value = true
   errorMessage.value = ''
+  requestAnimationFrame(scrollPreviewIntoView)
 
   try {
     const response = await requestImageStudio()
@@ -314,12 +644,15 @@ async function generate() {
     if (!nextResults.length) {
       throw new Error('图片接口没有返回可展示的结果')
     }
-    results.value = [...nextResults, ...results.value]
+    results.value = nextResults
     await authStore.refreshUser()
     await loadRecentWorks()
+    appStore.showSuccess('图片生成完成')
+    requestAnimationFrame(scrollPreviewIntoView)
   } catch (error) {
     console.error(error)
-    errorMessage.value = error instanceof Error ? error.message : '生成失败，请稍后重试'
+    errorMessage.value = normalizeUnknownError(error)
+    appStore.showError(errorMessage.value)
   } finally {
     generating.value = false
   }
@@ -327,33 +660,38 @@ async function generate() {
 
 async function requestImageStudio() {
   const form = new FormData()
-  form.append('template_id', templateId.value)
-  form.append('product_name', productName.value)
-  form.append('selling_points', sellingPoints.value)
-  form.append('style', style.value)
-  form.append('size', size.value)
-  form.append('count', String(count.value))
+  form.append('template_id', mapGoalToTemplate(goal.value))
+  form.append('product_name', productName.value || displayGoalLabel.value)
+  form.append('selling_points', fullPrompt.value)
+  form.append('style', requestStyle.value)
+  form.append('size', requestSize.value)
+  form.append('count', String(imageCount.value))
   if (selectedFile.value) {
     form.append('image', selectedFile.value)
   }
 
-  const token = localStorage.getItem('auth_token')
-  const response = await fetch('/api/v1/image-studio/generate', {
-    method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    body: form
+  const response = await apiClient.post<ImageStudioPayload>('/image-studio/generate', form, {
+    timeout: 120000
   })
-  return readImageResponse(response)
+  return response.data
 }
 
-async function readImageResponse(response: Response) {
-  const payload = await response.json().catch(() => null)
-  if (!response.ok) {
-    const rawMessage = payload?.error?.message || payload?.message || payload?.detail || `生成失败 (${response.status})`
-    const message = normalizeImageError(rawMessage)
-    throw new Error(message)
+function mapGoalToTemplate(value: GoalId) {
+  if (value === 'product') return 'white'
+  if (value === 'poster' || value === 'social') return 'poster'
+  if (value === 'detail' || value === 'scene') return 'scene'
+  return 'background'
+}
+
+function normalizeUnknownError(error: unknown) {
+  if (axios.isAxiosError(error)) {
+    const payload = error.response?.data as any
+    const raw = payload?.error?.message || payload?.message || payload?.detail || error.message
+    return normalizeImageError(String(raw || '生成失败，请稍后重试'))
   }
-  return payload
+  const payload = (error as { response?: { data?: any } })?.response?.data
+  const maybeMessage = payload?.error?.message || payload?.message || payload?.detail || (error as { message?: string })?.message
+  return normalizeImageError(maybeMessage || '生成失败，请稍后重试')
 }
 
 function normalizeImageError(message: string) {
@@ -387,15 +725,6 @@ function extractImages(payload: any): ResultImage[] {
     .filter((item: ResultImage | null): item is ResultImage => item !== null)
 }
 
-function downloadResult(item: ResultImage, index: number) {
-  const link = document.createElement('a')
-  link.href = item.src
-  link.download = `image-studio-${index + 1}.png`
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-}
-
 async function loadRecentWorks() {
   recentWorksLoading.value = true
   try {
@@ -419,6 +748,20 @@ function workImageSrc(work: SoraGeneration) {
   return work.media_urls?.find((url) => typeof url === 'string' && url.trim() !== '') || ''
 }
 
+function downloadActiveResult() {
+  if (!activeResult.value) return
+  downloadResult(activeResult.value, activeResultIndex.value)
+}
+
+function downloadResult(item: ResultImage, index: number) {
+  const link = document.createElement('a')
+  link.href = item.src
+  link.download = `image-studio-${index + 1}.png`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
+
 function downloadWork(work: SoraGeneration, index: number) {
   const src = workImageSrc(work)
   if (!src) return
@@ -438,19 +781,676 @@ function formatWorkTime(iso: string) {
 }
 
 async function copyPrompt() {
-  const text = [
-    `作图类型：${templates.find((item) => item.id === templateId.value)?.label || templateId.value}`,
-    `商品名称：${productName.value || '未填写'}`,
-    `核心卖点：${sellingPoints.value || '未填写'}`,
-    `风格：${style.value}`,
-    `尺寸：${size.value}`,
-    `张数：${count.value}`,
-    selectedFile.value ? `参考图：${selectedFile.value.name}` : '参考图：无'
-  ].join('\n')
-  await navigator.clipboard.writeText(text)
+  await navigator.clipboard.writeText(fullPrompt.value)
+  appStore.showSuccess('提示词已复制')
 }
 
-function clearResults() {
-  results.value = []
+function scrollPreviewIntoView() {
+  previewStageRef.value?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
 }
 </script>
+
+<style scoped>
+.image-hero,
+.image-workbench,
+.creation-console,
+.canvas-panel,
+.recent-works {
+  border: 1px solid var(--ssxz-border);
+  background: var(--ssxz-surface);
+  box-shadow: var(--ssxz-shadow);
+}
+
+.image-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 1rem 1.1rem;
+  border-radius: 1.25rem;
+}
+
+.hero-kicker,
+.block-heading p,
+.canvas-summary p,
+.canvas-foot span,
+.safety-note,
+.asset-copy small,
+.asset-copy em,
+.prompt-preview,
+.recent-heading p {
+  color: var(--ssxz-text-muted);
+}
+
+.image-hero h2 {
+  margin: 0.18rem 0;
+  color: var(--ssxz-text-primary);
+  font-size: clamp(1.35rem, 2vw, 1.9rem);
+}
+
+.image-hero p {
+  margin: 0;
+}
+
+.hero-side,
+.hero-flow,
+.generation-meta,
+.canvas-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.hero-side {
+  justify-content: flex-end;
+  max-width: 28rem;
+}
+
+.hero-flow span,
+.generation-meta span,
+.canvas-tags span,
+.style-chip {
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  background: var(--ssxz-surface-subtle);
+  color: var(--ssxz-text-secondary);
+}
+
+.hero-flow span,
+.generation-meta span,
+.canvas-tags span {
+  padding: 0.38rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.hero-balance {
+  display: grid;
+  min-width: 5.8rem;
+  place-items: center;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 1rem;
+  background: var(--ssxz-surface-subtle);
+  padding: 0.65rem 0.8rem;
+  color: var(--ssxz-text-muted);
+  font-size: 0.74rem;
+}
+
+.hero-balance b {
+  color: var(--ssxz-text-primary);
+  font-size: 1.15rem;
+}
+
+.image-workbench {
+  display: grid;
+  grid-template-columns: minmax(360px, 440px) minmax(0, 1fr);
+  gap: 1rem;
+  min-height: min(78vh, 860px);
+  border-radius: 1.35rem;
+  padding: 1rem;
+}
+
+.creation-console {
+  display: flex;
+  min-height: 0;
+  max-height: min(78vh, 860px);
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 1.1rem;
+}
+
+.console-scroll {
+  flex: 1;
+  min-height: 0;
+  scrollbar-gutter: stable;
+  overflow-y: auto;
+  padding: 1rem;
+  padding-bottom: 2rem;
+}
+
+.console-block + .console-block {
+  margin-top: 1rem;
+}
+
+.block-heading {
+  display: flex;
+  gap: 0.7rem;
+  margin-bottom: 0.8rem;
+}
+
+.block-heading h3 {
+  margin: 0;
+  color: var(--ssxz-text-primary);
+  font-size: 0.98rem;
+}
+
+.block-heading p {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+}
+
+.step-dot {
+  display: grid;
+  width: 1.6rem;
+  height: 1.6rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--ssxz-action-soft);
+  color: var(--ssxz-action);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.goal-grid,
+.format-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.choice-card,
+.format-card,
+.asset-drop,
+.sub-panel,
+.advanced-panel,
+.canvas-sheet,
+.prompt-preview,
+.recent-empty,
+.recent-card {
+  border: 1px solid var(--ssxz-border);
+  border-radius: 1rem;
+  background: var(--ssxz-surface-subtle);
+}
+
+.choice-card,
+.format-card {
+  position: relative;
+  min-height: 4.4rem;
+  padding: 0.72rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.choice-card span,
+.format-card b,
+.asset-title,
+.canvas-summary h3,
+.canvas-foot b,
+.recent-heading h2,
+.recent-card-body span {
+  color: var(--ssxz-text-primary);
+}
+
+.choice-card span,
+.choice-card small,
+.format-card b,
+.format-card span {
+  display: block;
+}
+
+.choice-card small,
+.format-card span {
+  margin-top: 0.18rem;
+}
+
+.choice-card small,
+.format-card span,
+.sub-panel p,
+.recent-card-body small {
+  color: var(--ssxz-text-muted);
+}
+
+.choice-card.selected,
+.format-card.selected,
+.style-chip.selected {
+  border-color: var(--ssxz-border-strong);
+  background: var(--ssxz-active);
+  box-shadow: 0 0 0 3px var(--ssxz-focus-ring), var(--ssxz-shadow);
+}
+
+.choice-card:hover,
+.format-card:hover,
+.style-chip:hover {
+  border-color: var(--ssxz-border-strong);
+  transform: translateY(-1px);
+}
+
+.choice-card.selected::after,
+.format-card.selected::after {
+  content: "✓";
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  display: grid;
+  width: 1.35rem;
+  height: 1.35rem;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--ssxz-action);
+  color: var(--ssxz-action-text);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.inline-field {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.8rem;
+  color: var(--ssxz-text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.control-input,
+.control-textarea {
+  width: 100%;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 0.85rem;
+  background: var(--ssxz-input);
+  color: var(--ssxz-text-primary);
+  outline: none;
+}
+
+.control-input {
+  min-height: 2.65rem;
+  padding: 0 0.85rem;
+}
+
+.control-textarea {
+  min-height: 7rem;
+  resize: vertical;
+  padding: 0.8rem 0.85rem;
+}
+
+.control-input:focus,
+.control-textarea:focus {
+  border-color: var(--ssxz-focus);
+  box-shadow: 0 0 0 3px var(--ssxz-focus-ring);
+}
+
+.sub-panel,
+.advanced-body {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+}
+
+.ratio-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
+  gap: 0.55rem;
+}
+
+.ratio-separator {
+  padding-bottom: 0.75rem;
+  color: var(--ssxz-text-muted);
+  font-weight: 800;
+}
+
+.sub-panel p.invalid {
+  color: var(--ssxz-danger);
+}
+
+.asset-drop {
+  display: flex;
+  min-height: 10.5rem;
+  overflow: hidden;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  padding: 0.8rem;
+  text-align: center;
+}
+
+.asset-drop.filled {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.asset-drop > img {
+  width: 140px;
+  height: 122px;
+  flex: 0 0 auto;
+  border-radius: 0.85rem;
+  object-fit: cover;
+}
+
+.asset-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.asset-title {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.style-area {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.8rem;
+  color: var(--ssxz-text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.style-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.style-chip {
+  padding: 0.44rem 0.68rem;
+  font-weight: 700;
+}
+
+.advanced-panel {
+  margin-top: 0.9rem;
+  padding: 0.85rem;
+}
+
+.advanced-panel summary,
+.prompt-preview summary {
+  cursor: pointer;
+  color: var(--ssxz-text-secondary);
+  font-weight: 700;
+}
+
+.console-action {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--ssxz-border);
+  background: var(--ssxz-surface-elevated);
+  padding: 0.9rem 1rem 1rem;
+}
+
+.safety-note,
+.error-note {
+  margin: 0.65rem 0;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 0.9rem;
+  background: var(--ssxz-surface-subtle);
+  padding: 0.7rem 0.8rem;
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.error-note {
+  border-color: var(--ssxz-danger);
+  color: var(--ssxz-danger);
+}
+
+.generate-button {
+  display: inline-flex;
+  width: 100%;
+  height: 2.8rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: 0.95rem;
+  background: var(--ssxz-action);
+  color: var(--ssxz-action-text);
+  font-weight: 800;
+}
+
+.generate-button:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: var(--ssxz-shadow-lg);
+}
+
+.generate-button:disabled {
+  cursor: not-allowed;
+  background: var(--ssxz-disabled);
+  color: var(--ssxz-text-muted);
+}
+
+.canvas-panel {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  border-radius: 1.1rem;
+  padding: 1rem;
+}
+
+.canvas-summary,
+.canvas-foot,
+.recent-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.canvas-summary h3,
+.canvas-summary p,
+.recent-heading h2,
+.recent-heading p {
+  margin: 0;
+}
+
+.canvas-tags {
+  justify-content: flex-end;
+}
+
+.canvas-stage {
+  display: grid;
+  flex: 1;
+  min-height: 28rem;
+  place-items: center;
+  padding: 1.3rem;
+}
+
+.canvas-sheet {
+  display: grid;
+  width: min(100%, 760px);
+  max-height: 62vh;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 20%, var(--ssxz-glow-subtle), transparent 42%),
+    var(--ssxz-canvas);
+}
+
+.canvas-sheet img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.canvas-empty {
+  display: grid;
+  max-width: 24rem;
+  place-items: center;
+  gap: 0.65rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.canvas-empty.failed {
+  color: var(--ssxz-danger);
+}
+
+.canvas-empty h3 {
+  margin: 0;
+  color: var(--ssxz-text-primary);
+}
+
+.canvas-empty p {
+  margin: 0;
+  color: var(--ssxz-text-secondary);
+  line-height: 1.65;
+}
+
+.thumbnail-strip {
+  display: flex;
+  gap: 0.6rem;
+  overflow-x: auto;
+  padding: 0 1rem 0.85rem;
+}
+
+.thumbnail-button {
+  width: 4.6rem;
+  height: 4.6rem;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 0.9rem;
+  background: var(--ssxz-surface-subtle);
+}
+
+.thumbnail-button.selected {
+  border-color: var(--ssxz-action);
+}
+
+.thumbnail-button img,
+.recent-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.canvas-foot {
+  border-top: 1px solid var(--ssxz-border);
+  padding-top: 0.85rem;
+}
+
+.canvas-foot div {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 0.85rem;
+  background: var(--ssxz-surface-subtle);
+  color: var(--ssxz-text-primary);
+  padding: 0.62rem 0.9rem;
+  font-weight: 700;
+}
+
+.secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.prompt-preview {
+  margin-top: 1rem;
+  padding: 0.85rem;
+}
+
+.prompt-preview pre {
+  margin: 0.75rem 0 0;
+  max-height: 14rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--ssxz-text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.recent-works {
+  margin-top: 1rem;
+  border-radius: 1.25rem;
+  padding: 1rem;
+}
+
+.recent-empty {
+  display: grid;
+  min-height: 7rem;
+  place-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+.recent-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.recent-card {
+  overflow: hidden;
+}
+
+.recent-thumb {
+  aspect-ratio: 1 / 1;
+  background: var(--ssxz-canvas);
+}
+
+.recent-card-body {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.75rem;
+}
+
+.recent-card-body div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.hidden {
+  display: none;
+}
+
+@media (max-width: 1180px) {
+  .image-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .image-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .creation-console {
+    max-height: none;
+  }
+
+  .recent-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .goal-grid,
+  .format-grid,
+  .recent-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .canvas-summary,
+  .canvas-foot,
+  .recent-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .canvas-stage {
+    min-height: 20rem;
+    padding: 0.8rem 0;
+  }
+}
+</style>
