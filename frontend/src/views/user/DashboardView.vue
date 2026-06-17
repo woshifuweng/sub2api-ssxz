@@ -13,41 +13,41 @@
                 <div class="mb-3 flex flex-wrap items-center gap-2">
                   <span class="inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-950/40 dark:text-primary-300">
                     <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                    SSXZ AI 工作台
+                    SSXZ 图片创作站
                   </span>
                   <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-gray-300">
                     登录账号 {{ userEmail }}
                   </span>
                 </div>
                 <h1 class="text-2xl font-bold tracking-normal text-gray-900 dark:text-white md:text-3xl">
-                  先选场景，再开始使用 AI
+                  先生成图片，再查看和下载
                 </h1>
                 <p class="mt-3 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-400">
-                  普通用户可以直接聊天，电商用户进入文案和作图工具，开发者再去生成 API Key。网页里的聊天、文案和作图都会经过后台 Key、余额和日志，不需要客户理解接口。
+                  普通用户从生图开始：写提示词、生成图片、查看历史、下载成品。余额、用量和充值都在这里串起来，聊天只作为辅助写 prompt 的第二入口。
                 </p>
               </div>
 
               <div class="grid gap-3 sm:grid-cols-3">
                 <RouterLink
-                  to="/ai-chat"
+                  to="/sora"
                   class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700"
                 >
-                  <Icon name="chat" size="sm" />
-                  开始聊天
-                </RouterLink>
-                <RouterLink
-                  to="/ai-chat?mode=ecommerce"
-                  class="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
-                >
-                  <Icon name="clipboard" size="sm" />
-                  电商文案
-                </RouterLink>
-                <RouterLink
-                  to="/image-studio"
-                  class="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
-                >
                   <Icon name="sparkles" size="sm" />
-                  AI 作图
+                  开始生图
+                </RouterLink>
+                <RouterLink
+                  to="/app/chat"
+                  class="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
+                >
+                  <Icon name="chat" size="sm" />
+                  辅助写 prompt
+                </RouterLink>
+                <RouterLink
+                  to="/usage"
+                  class="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
+                >
+                  <Icon name="chart" size="sm" />
+                  查看用量
                 </RouterLink>
               </div>
             </div>
@@ -77,8 +77,8 @@
                   <p class="mt-1 text-xl font-bold text-gray-900 dark:text-white">{{ formatCompact(stats.today_requests || 0) }}</p>
                 </div>
                 <div class="rounded-xl bg-white p-3 dark:bg-dark-900">
-                  <p class="text-xs text-gray-500 dark:text-gray-400">可用 Key</p>
-                  <p class="mt-1 text-xl font-bold text-gray-900 dark:text-white">{{ stats.active_api_keys || 0 }}/{{ stats.total_api_keys || 0 }}</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">累计请求</p>
+                  <p class="mt-1 text-xl font-bold text-gray-900 dark:text-white">{{ formatCompact(stats.total_requests || 0) }}</p>
                 </div>
               </div>
 
@@ -86,11 +86,11 @@
                 <RouterLink to="/purchase" class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700">
                   购买套餐
                 </RouterLink>
-                <RouterLink to="/redeem" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-200">
-                  兑换额度
+                <RouterLink to="/usage" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-200">
+                  用量明细
                 </RouterLink>
-                <RouterLink to="/keys" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-200">
-                  API Key
+                <RouterLink to="/orders" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-200">
+                  我的订单
                 </RouterLink>
               </div>
             </div>
@@ -101,10 +101,10 @@
           <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p class="text-sm font-medium text-primary-600 dark:text-primary-400">开始使用</p>
-              <h2 class="text-xl font-semibold text-gray-900 dark:text-white">选择你要使用的 AI 服务</h2>
+              <h2 class="text-xl font-semibold text-gray-900 dark:text-white">轻量图片工具站</h2>
             </div>
             <p class="max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-              客户可以按自己的需求进入不同工作台。你作为管理员仍然在后台管理上游账号、模型、分组、余额和扣费。
+              常用入口集中在生图、图片历史、下载、余额、用量和充值。复杂的渠道和 API 能力留在后台，不打扰普通用户。
             </p>
           </div>
 
@@ -202,60 +202,60 @@ const recentUsage = ref<UsageLog[]>([])
 
 const productEntries = [
   {
-    to: '/ai-chat',
+    to: '/sora',
+    icon: 'sparkles' as const,
+    badge: '主入口',
+    title: '生成图片',
+    description: '输入提示词，选择模型和比例，直接生成商品图、场景图、海报图或灵感图。',
+    action: '进入生图'
+  },
+  {
+    to: '/sora',
+    icon: 'download' as const,
+    badge: '图片历史',
+    title: '查看和下载',
+    description: '回到历史记录查看生成结果，预览图片或视频，并下载需要保留的成品。',
+    action: '查看历史'
+  },
+  {
+    to: '/app/chat',
     icon: 'chat' as const,
-    badge: '普通聊天',
-    title: 'AI 聊天',
-    description: '像官网一样直接提问、写作、翻译、总结资料，适合普通客户日常使用。',
+    badge: '辅助入口',
+    title: '聊天写 prompt',
+    description: '需要打磨描述、翻译风格词或扩写创意时，用聊天先把提示词写顺。',
     action: '打开聊天'
   },
   {
-    to: '/ai-chat?mode=ecommerce',
-    icon: 'clipboard' as const,
-    badge: '电商工具',
-    title: '电商文案',
-    description: '按商品名、核心卖点、平台和风格生成标题、卖点、小红书、直播口播等内容。',
-    action: '写商品文案'
-  },
-  {
-    to: '/image-studio',
-    icon: 'sparkles' as const,
-    badge: '图片工作台',
-    title: 'AI 作图',
-    description: '用于商品图、白底图、场景图和海报图。需要账号分组里有支持图片接口的上游。',
-    action: '进入作图'
-  },
-  {
-    to: '/keys',
-    icon: 'key' as const,
-    badge: '开发者',
-    title: '第三方接入',
-    description: '生成 API Key 后，可接入 Cherry Studio、Codex、Claude Code、CC Switch 等工具。',
-    action: '管理密钥'
+    to: '/purchase',
+    icon: 'creditCard' as const,
+    badge: '余额',
+    title: '充值和订单',
+    description: '查看余额和消耗，余额不足时进入充值页，订单记录可以随时回查。',
+    action: '去充值'
   }
 ]
 
 const onboardingSteps = [
   {
     index: '01',
-    title: '普通客户先用网页',
-    description: '不需要创建 Key，也不需要懂接口。直接进入 AI 聊天或电商文案，后台会自动完成模型调用和扣费。',
-    to: '/ai-chat',
-    action: '去聊天'
+    title: '先进入生图',
+    description: '普通用户不需要理解接口和渠道。打开 Sora 创作，写好提示词后直接生成图片。',
+    to: '/sora',
+    action: '去生图'
   },
   {
     index: '02',
-    title: '电商客户走固定模板',
-    description: '商品名、卖点、平台、风格填好后再生成，结果会比在第三方软件里随便提问更稳定。',
-    to: '/ai-chat?mode=ecommerce',
-    action: '去电商模式'
+    title: '再看历史和下载',
+    description: '生成结果会进入图片历史。需要使用时预览、保存或下载，不用在聊天记录里翻找。',
+    to: '/sora',
+    action: '查看历史'
   },
   {
     index: '03',
-    title: '高级用户再接 API',
-    description: '需要 Cherry Studio、编程工具或自动化脚本时，再生成 API Key，并在用量记录里查看每次消耗。',
-    to: '/keys',
-    action: '去生成 Key'
+    title: '最后看余额和用量',
+    description: '费用仍由后台统一记录。用户只需要看余额、用量和订单，余额不足时充值。',
+    to: '/usage',
+    action: '查看用量'
   }
 ]
 

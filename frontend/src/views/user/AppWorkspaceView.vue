@@ -64,7 +64,6 @@ import { useRoute } from 'vue-router'
 import Icon from '@/components/icons/Icon.vue'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import { useUserCapabilities } from '@/composables/useUserCapabilities'
-import { useAppStore } from '@/stores/app'
 import WorkspaceComposer from './workspace/WorkspaceComposer.vue'
 import WorkspaceMessageList from './workspace/WorkspaceMessageList.vue'
 import { useWorkspaceAssets } from './workspace/useWorkspaceAssets'
@@ -84,7 +83,6 @@ interface SectionContent {
 }
 
 const route = useRoute()
-const appStore = useAppStore()
 const draft = ref('')
 const selectedModelId = ref('')
 const webSearchRequested = ref(false)
@@ -139,9 +137,7 @@ const imageCapabilityAvailable = computed(() =>
   || workspaceCapabilities.value.has('image_edit')
   || workspaceCapabilities.value.has('vision')
 )
-const webSearchAvailable = computed(() =>
-  appStore.cachedPublicSettings?.web_search?.available === true
-)
+const webSearchAvailable = computed(() => false)
 const textBetaMode = computed(() => hasChat.value && !imageCapabilityAvailable.value)
 const activeModelLabel = computed(() =>
   chatModels.value.find((model) => model.id === activeChatModel.value)?.name || 'Deepseek-V4-Flash'

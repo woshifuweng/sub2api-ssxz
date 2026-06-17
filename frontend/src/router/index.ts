@@ -631,7 +631,21 @@ let authInitialized = false
 const navigationLoading = useNavigationLoadingState()
 // 延迟初始化预加载，传入 router 实例
 let routePrefetch: ReturnType<typeof useRoutePrefetch> | null = null
-const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/setup', '/payment/result', '/payment/stripe', '/payment/stripe-popup']
+const BACKEND_MODE_ALLOWED_PATHS = [
+  '/login',
+  '/key-usage',
+  '/setup',
+  '/sora',
+  '/app/chat',
+  '/usage',
+  '/purchase',
+  '/orders',
+  '/profile',
+  '/payment/qrcode',
+  '/payment/result',
+  '/payment/stripe',
+  '/payment/stripe-popup'
+]
 
 router.beforeEach((to, _from, next) => {
   // 开始导航加载状态
@@ -678,7 +692,7 @@ router.beforeEach((to, _from, next) => {
         next()
         return
       }
-      next(resolveRouteAuthRedirect(to.query, authStore.isAdmin ? '/admin/dashboard' : '/app'))
+      next(resolveRouteAuthRedirect(to.query, authStore.isAdmin ? '/admin/dashboard' : '/sora'))
       return
     }
     // Backend mode: block public pages for unauthenticated users (except login, key-usage, setup)
@@ -706,12 +720,12 @@ router.beforeEach((to, _from, next) => {
   // Check admin requirement
   if (requiresAdmin && !authStore.isAdmin) {
     // User is authenticated but not admin, redirect to user dashboard
-    next('/dashboard')
+    next('/sora')
     return
   }
 
   if (to.meta.requiresPayment && !appStore.cachedPublicSettings?.payment_enabled) {
-    next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+    next(authStore.isAdmin ? '/admin/dashboard' : '/sora')
     return
   }
 
@@ -727,7 +741,7 @@ router.beforeEach((to, _from, next) => {
 
     if (restrictedPaths.some((path) => to.path.startsWith(path))) {
       // 简易模式下访问受限页面,重定向到仪表板
-      next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+      next(authStore.isAdmin ? '/admin/dashboard' : '/sora')
       return
     }
   }
