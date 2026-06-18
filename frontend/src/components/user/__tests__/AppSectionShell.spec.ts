@@ -111,10 +111,10 @@ describe('AppSectionShell', () => {
     expect(mocks.push).toHaveBeenLastCalledWith('/app/usage')
 
     await buttons.find((button) => button.text().includes('API Key / 第三方接入'))?.trigger('click')
-    expect(mocks.push).toHaveBeenLastCalledWith('/keys')
+    expect(mocks.push).toHaveBeenLastCalledWith('/app/keys')
 
     await buttons.find((button) => button.text().includes('账户设置'))?.trigger('click')
-    expect(mocks.push).toHaveBeenLastCalledWith('/profile')
+    expect(mocks.push).toHaveBeenLastCalledWith('/app/profile')
     expect(wrapper.find('.ssxz-workspace-utility-center').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('打开 API Key / 第三方客户端接入')
   })
