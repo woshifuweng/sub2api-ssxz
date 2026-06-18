@@ -25,6 +25,7 @@ describe('legacy user routes', () => {
     ['/app/purchase', 'AppPurchase', 'purchase'],
     ['/app/orders', 'AppOrders', 'orders'],
     ['/app/redeem', 'AppRedeem', 'redeem'],
+    ['/app/affiliate', 'AppAffiliate', 'affiliate'],
     ['/app/available-channels', 'AppAvailableChannels', 'available-channels'],
     ['/app/channel-status', 'AppChannelStatus', 'channel-status'],
     ['/app/keys', 'AppKeys', 'keys'],
@@ -43,6 +44,8 @@ describe('legacy user routes', () => {
   it.each([
     ['/app', '/app/image'],
     ['/dashboard', '/app/image'],
+    ['/ai-chat', '/app/chat'],
+    ['/image-studio', '/app/image'],
     ['/keys', '/app/keys'],
     ['/usage', '/app/usage'],
     ['/profile', '/app/profile'],
@@ -50,6 +53,7 @@ describe('legacy user routes', () => {
     ['/orders', '/app/orders'],
     ['/subscriptions', '/app/purchase'],
     ['/redeem', '/app/redeem'],
+    ['/affiliate', '/app/affiliate'],
     ['/available-channels', '/app/available-channels'],
     ['/monitor', '/app/channel-status'],
   ])('redirects %s into the workbench shell at %s', (sourcePath, targetPath) => {
