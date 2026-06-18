@@ -98,6 +98,8 @@ describe('AppSectionShell', () => {
     expect(wrapper.text()).toContain('新对话')
     expect(wrapper.text()).toContain('AI 作图')
     expect(wrapper.text()).toContain('用量中心')
+    expect(wrapper.text()).toContain('充值')
+    expect(wrapper.text()).toContain('订单记录')
     expect(wrapper.text()).toContain('API Key / 第三方接入')
     expect(wrapper.text()).toContain('账户设置')
   })
@@ -109,6 +111,12 @@ describe('AppSectionShell', () => {
 
     await buttons.find((button) => button.text().includes('用量中心'))?.trigger('click')
     expect(mocks.push).toHaveBeenLastCalledWith('/app/usage')
+
+    await buttons.find((button) => button.text().includes('充值'))?.trigger('click')
+    expect(mocks.push).toHaveBeenLastCalledWith('/app/purchase')
+
+    await buttons.find((button) => button.text().includes('订单记录'))?.trigger('click')
+    expect(mocks.push).toHaveBeenLastCalledWith('/app/orders')
 
     await buttons.find((button) => button.text().includes('API Key / 第三方接入'))?.trigger('click')
     expect(mocks.push).toHaveBeenLastCalledWith('/app/keys')
