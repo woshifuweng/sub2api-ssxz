@@ -45,6 +45,7 @@ describe('legacy user routes', () => {
     ['/profile', '/app/profile'],
     ['/purchase', '/app/purchase'],
     ['/orders', '/app/orders'],
+    ['/subscriptions', '/app/purchase'],
   ])('redirects %s into the workbench shell at %s', (sourcePath, targetPath) => {
     const route = router.getRoutes().find((record) => record.path === sourcePath)
     expect(route?.redirect).toBeTypeOf('function')

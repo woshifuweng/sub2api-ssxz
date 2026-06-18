@@ -26,6 +26,7 @@ const LEGACY_AUTH_REDIRECTS: Record<string, string> = {
   '/usage': '/app/usage',
   '/purchase': '/app/purchase',
   '/orders': '/app/orders',
+  '/subscriptions': '/app/purchase',
   '/profile': '/app/profile',
   '/apps': '/app/image',
   '/monitor': '/app/image',
