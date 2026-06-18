@@ -18,6 +18,7 @@ describe('auth redirect resolution', () => {
     expect(resolveAuthRedirect('/purchase')).toBe('/app/purchase')
     expect(resolveAuthRedirect('/orders')).toBe('/app/orders')
     expect(resolveAuthRedirect('/subscriptions')).toBe('/app/purchase')
+    expect(resolveAuthRedirect('/redeem')).toBe('/app/redeem')
     expect(resolveAuthRedirect('/profile')).toBe('/app/profile')
   })
 

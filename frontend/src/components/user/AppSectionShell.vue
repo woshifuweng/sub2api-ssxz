@@ -198,6 +198,7 @@ const utilityItems: Array<{ label: string; to: string; icon: IconName }> = [
   { label: '用量中心', to: '/app/usage', icon: 'chartBar' },
   { label: '充值', to: '/app/purchase', icon: 'creditCard' },
   { label: '订单记录', to: '/app/orders', icon: 'clipboard' },
+  { label: '兑换码', to: '/app/redeem', icon: 'gift' },
   { label: 'API Key / 第三方接入', to: '/app/keys', icon: 'key' },
   { label: '账户设置', to: '/app/profile', icon: 'userCircle' }
 ]

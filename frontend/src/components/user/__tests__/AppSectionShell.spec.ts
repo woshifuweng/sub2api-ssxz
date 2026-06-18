@@ -101,6 +101,7 @@ describe('AppSectionShell', () => {
     expect(wrapper.text()).toContain('用量中心')
     expect(wrapper.text()).toContain('充值')
     expect(wrapper.text()).toContain('订单记录')
+    expect(wrapper.text()).toContain('兑换码')
     expect(wrapper.text()).toContain('API Key / 第三方接入')
     expect(wrapper.text()).toContain('账户设置')
   })
@@ -125,6 +126,9 @@ describe('AppSectionShell', () => {
     await buttons.find((button) => button.text().includes('订单记录'))?.trigger('click')
     expect(mocks.push).toHaveBeenLastCalledWith('/app/orders')
 
+    await buttons.find((button) => button.text().includes('兑换码'))?.trigger('click')
+    expect(mocks.push).toHaveBeenLastCalledWith('/app/redeem')
+
     await buttons.find((button) => button.text().includes('API Key / 第三方接入'))?.trigger('click')
     expect(mocks.push).toHaveBeenLastCalledWith('/app/keys')
 
@@ -146,6 +150,7 @@ describe('AppSectionShell', () => {
       '/app/usage',
       '/app/purchase',
       '/app/orders',
+      '/app/redeem',
       '/app/keys',
       '/app/profile'
     ]

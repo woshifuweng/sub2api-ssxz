@@ -1,5 +1,5 @@
 <template>
-  <AppLayout>
+  <component :is="pageShell" v-bind="pageShellProps">
     <div class="mx-auto max-w-2xl space-y-6">
       <!-- Current Balance Card -->
       <div class="card overflow-hidden">
@@ -338,26 +338,39 @@
         </div>
       </div>
     </div>
-  </AppLayout>
+  </component>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 import { redeemAPI, authAPI, type RedeemHistoryItem } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateTime } from '@/utils/format'
 
 const { t } = useI18n()
+const route = useRoute()
 const authStore = useAuthStore()
 const appStore = useAppStore()
 const subscriptionStore = useSubscriptionStore()
 
 const user = computed(() => authStore.user)
+const useWorkbenchShell = computed(() => route.path === '/app/redeem')
+const pageShell = computed(() => useWorkbenchShell.value ? AppSectionShell : AppLayout)
+const pageShellProps = computed(() => useWorkbenchShell.value
+  ? {
+      title: '兑换码',
+      subtitle: '输入平台发放的兑换码，为账户增加余额、并发额度或订阅权益。',
+      eyebrow: '账户计费',
+      icon: 'gift'
+    }
+  : {})
 
 const redeemCode = ref('')
 const submitting = ref(false)
