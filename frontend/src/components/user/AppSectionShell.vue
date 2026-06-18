@@ -2,11 +2,11 @@
   <div
     class="ssxz-app-shell"
     data-app-shell-boundary="section"
-    :class="{ 'ssxz-sidebar-collapsed': sidebarCollapsed, 'ssxz-mobile-nav-open': mobileNavOpen }"
+    :class="{ 'ssxz-sidebar-collapsed': sidebarCollapsed, 'ssxz-mobile-nav-open': mobileNavActive }"
   >
     <div class="ssxz-app-backdrop" aria-hidden="true" />
     <button
-      v-if="mobileNavOpen"
+      v-if="mobileNavActive"
       type="button"
       class="ssxz-mobile-sidebar-scrim lg:hidden"
       aria-label="关闭导航"
@@ -147,7 +147,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Icon from '@/components/icons/Icon.vue'
 import type { ChatConversation } from '@/api/chatWorkspace'
@@ -211,6 +211,7 @@ const navToggleLabel = computed(() => {
   return sidebarCollapsed.value ? '展开侧边栏' : '收起侧边栏'
 })
 const navToggleExpanded = computed(() => !isDesktopViewport.value ? mobileNavOpen.value : !sidebarCollapsed.value)
+const mobileNavActive = computed(() => mobileNavOpen.value && !isDesktopViewport.value)
 
 function isActive(path: string) {
   const normalizedPath = path.split('?')[0]
@@ -277,6 +278,7 @@ function syncViewportMode() {
   if (typeof window === 'undefined') return
   if (typeof window.matchMedia !== 'function') {
     isDesktopViewport.value = true
+    closeMobileNav()
     return
   }
   isDesktopViewport.value = window.matchMedia('(min-width: 1024px)').matches
@@ -311,11 +313,15 @@ onMounted(() => {
   } else {
     syncViewportMode()
   }
+  window.addEventListener('resize', syncViewportMode)
 })
 
 onBeforeUnmount(() => {
   desktopMediaQuery?.removeEventListener('change', syncViewportMode)
+  window.removeEventListener('resize', syncViewportMode)
 })
+
+watch(() => route.fullPath || route.path, closeMobileNav)
 </script>
 
 <style scoped>
