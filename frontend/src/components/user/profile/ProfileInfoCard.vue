@@ -21,7 +21,7 @@
             <span
               :class="['badge', user?.status === 'active' ? 'badge-success' : 'badge-danger']"
             >
-              {{ user?.status }}
+              {{ user?.status === 'active' ? t('profile.statusActive') : t('profile.statusDisabled') }}
             </span>
           </div>
         </div>
