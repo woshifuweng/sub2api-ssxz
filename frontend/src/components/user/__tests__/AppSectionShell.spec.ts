@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
 
 const { routeState, mocks } = vi.hoisted(() => ({
   routeState: {
@@ -159,5 +160,35 @@ describe('AppSectionShell', () => {
 
     expect(wrapper.classes()).toContain('ssxz-mobile-nav-open')
     expect(wrapper.find('.ssxz-mobile-sidebar-scrim').exists()).toBe(true)
+  })
+
+  it('drops the mobile drawer state when the viewport becomes desktop', async () => {
+    mockDesktopMedia(false)
+    const wrapper = mountShell()
+
+    await wrapper.get('.ssxz-sidebar-toggle-desktop').trigger('click')
+    expect(wrapper.classes()).toContain('ssxz-mobile-nav-open')
+
+    mockDesktopMedia(true)
+    window.dispatchEvent(new Event('resize'))
+    await nextTick()
+
+    expect(wrapper.classes()).not.toContain('ssxz-mobile-nav-open')
+    expect(wrapper.find('.ssxz-mobile-sidebar-scrim').exists()).toBe(false)
+  })
+
+  it('closes the mobile drawer when a utility entry changes pages', async () => {
+    mockDesktopMedia(false)
+    const wrapper = mountShell()
+
+    await wrapper.get('.ssxz-sidebar-toggle-desktop').trigger('click')
+    expect(wrapper.classes()).toContain('ssxz-mobile-nav-open')
+
+    const buttons = wrapper.findAll('.ssxz-secondary-nav .ssxz-nav-item')
+    await buttons[0].trigger('click')
+
+    expect(mocks.push).toHaveBeenLastCalledWith('/app/usage')
+    expect(wrapper.classes()).not.toContain('ssxz-mobile-nav-open')
+    expect(wrapper.find('.ssxz-mobile-sidebar-scrim').exists()).toBe(false)
   })
 })
