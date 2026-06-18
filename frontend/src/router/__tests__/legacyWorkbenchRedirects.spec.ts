@@ -25,6 +25,8 @@ describe('legacy user routes', () => {
     ['/app/purchase', 'AppPurchase', 'purchase'],
     ['/app/orders', 'AppOrders', 'orders'],
     ['/app/redeem', 'AppRedeem', 'redeem'],
+    ['/app/available-channels', 'AppAvailableChannels', 'available-channels'],
+    ['/app/channel-status', 'AppChannelStatus', 'channel-status'],
     ['/app/keys', 'AppKeys', 'keys'],
     ['/app/profile', 'AppProfile', 'profile'],
   ])('keeps %s owned by the user workbench route %s', (path, name, appSection) => {
@@ -48,6 +50,8 @@ describe('legacy user routes', () => {
     ['/orders', '/app/orders'],
     ['/subscriptions', '/app/purchase'],
     ['/redeem', '/app/redeem'],
+    ['/available-channels', '/app/available-channels'],
+    ['/monitor', '/app/channel-status'],
   ])('redirects %s into the workbench shell at %s', (sourcePath, targetPath) => {
     const route = router.getRoutes().find((record) => record.path === sourcePath)
     expect(route?.redirect).toBeTypeOf('function')

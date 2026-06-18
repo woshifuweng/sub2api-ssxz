@@ -19,6 +19,8 @@ describe('auth redirect resolution', () => {
     expect(resolveAuthRedirect('/orders')).toBe('/app/orders')
     expect(resolveAuthRedirect('/subscriptions')).toBe('/app/purchase')
     expect(resolveAuthRedirect('/redeem')).toBe('/app/redeem')
+    expect(resolveAuthRedirect('/available-channels')).toBe('/app/available-channels')
+    expect(resolveAuthRedirect('/monitor')).toBe('/app/channel-status')
     expect(resolveAuthRedirect('/profile')).toBe('/app/profile')
   })
 
