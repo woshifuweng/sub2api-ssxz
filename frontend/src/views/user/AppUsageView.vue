@@ -16,7 +16,7 @@
             <strong>{{ balanceText }}</strong>
             <p>可用于站内聊天、图片生成和 API Key / 第三方接入调用。</p>
           </div>
-          <RouterLink to="/purchase" class="summary-action">充值</RouterLink>
+          <RouterLink to="/app/purchase" class="summary-action">充值</RouterLink>
         </article>
 
         <article class="usage-summary-card">
