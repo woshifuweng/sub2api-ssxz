@@ -190,7 +190,7 @@ const isDark = ref(document.documentElement.classList.contains('dark'))
 let desktopMediaQuery: MediaQueryList | null = null
 
 const navItems: Array<{ label: string; to: string; icon: IconName }> = [
-  { label: '新对话', to: '/app?new=1', icon: 'chat' },
+  { label: '新对话', to: '/app/chat', icon: 'chat' },
   { label: 'AI 作图', to: '/app/image', icon: 'sparkles' }
 ]
 
@@ -223,9 +223,9 @@ function handleRouteNav(to: string) {
 
 function handlePrimaryNav(to: string) {
   closeMobileNav()
-  if (to === '/app?new=1') {
+  if (to === '/app/chat') {
     emit('new-chat')
-    if (route.path !== '/app') router.push('/app')
+    if (route.path !== '/app/chat') router.push('/app/chat')
     return
   }
   router.push(to)
