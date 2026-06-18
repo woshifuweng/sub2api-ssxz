@@ -10,7 +10,7 @@
         </div>
         <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('purchase.notEnabledTitle') }}</h2>
         <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{{ t('purchase.notEnabledDesc') }}</p>
-        <button class="btn btn-primary mt-6" @click="router.push('/purchase')">{{ t('nav.buySubscription') }}</button>
+        <button class="btn btn-primary mt-6" @click="router.push('/app/purchase')">{{ t('nav.buySubscription') }}</button>
       </div>
     </div>
 
@@ -23,7 +23,7 @@
             <button @click="fetchOrders" :disabled="loading" class="btn btn-secondary" :title="t('common.refresh')">
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
             </button>
-            <button class="btn btn-primary" @click="router.push('/purchase')">{{ t('payment.result.backToRecharge') }}</button>
+            <button class="btn btn-primary" @click="router.push('/app/purchase')">{{ t('payment.result.backToRecharge') }}</button>
           </div>
         </div>
       </div>

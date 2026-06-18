@@ -90,13 +90,13 @@
               </div>
 
               <div class="mt-4 flex flex-wrap gap-2">
-                <RouterLink to="/purchase" class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700">
+                <RouterLink to="/app/purchase" class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700">
                   购买套餐
                 </RouterLink>
                 <RouterLink to="/usage" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-200">
                   用量明细
                 </RouterLink>
-                <RouterLink to="/orders" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-200">
+                <RouterLink to="/app/orders" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-200">
                   我的订单
                 </RouterLink>
               </div>
@@ -241,7 +241,7 @@ const productEntries = [
     action: '管理 Key'
   },
   {
-    to: '/purchase',
+    to: '/app/purchase',
     icon: 'creditCard' as const,
     badge: '余额',
     title: '充值和订单',

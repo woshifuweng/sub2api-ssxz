@@ -21,7 +21,7 @@
             </p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <RouterLink to="/purchase" class="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700">
+            <RouterLink to="/app/purchase" class="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700">
               <Icon name="creditCard" size="sm" />
               购买套餐
             </RouterLink>
@@ -69,7 +69,7 @@
           {{ t('userSubscriptions.noActiveSubscriptionsDesc') }}
         </p>
         <div class="mt-6 flex flex-wrap justify-center gap-2">
-          <RouterLink to="/purchase" class="btn btn-primary">
+          <RouterLink to="/app/purchase" class="btn btn-primary">
             <Icon name="creditCard" size="sm" class="mr-1.5" />
             购买套餐
           </RouterLink>

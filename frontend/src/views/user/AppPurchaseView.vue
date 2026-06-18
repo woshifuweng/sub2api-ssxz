@@ -41,6 +41,7 @@
         </p>
         <div class="purchase-actions">
           <RouterLink to="/app/usage" class="purchase-action primary">返回用量中心</RouterLink>
+          <RouterLink to="/app/orders" class="purchase-action">查看订单记录</RouterLink>
           <RouterLink to="/app/keys" class="purchase-action">查看 API Key / 第三方接入</RouterLink>
         </div>
       </section>

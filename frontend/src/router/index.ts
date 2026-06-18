@@ -196,6 +196,17 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/app/orders',
+    name: 'AppOrders',
+    component: () => import('@/views/user/AppOrdersView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Order Records',
+      appSection: 'orders'
+    }
+  },
+  {
     path: '/app/keys',
     name: 'AppKeys',
     component: () => import('@/views/user/KeysView.vue'),
@@ -333,14 +344,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/orders',
-    name: 'OrderList',
-    component: () => import('@/views/user/UserOrdersView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'My Orders',
-      titleKey: 'nav.myOrders'
-    }
+    redirect: redirectLegacyRoute('/app/orders')
   },
   {
     path: '/payment/qrcode',
@@ -680,6 +684,7 @@ const BACKEND_MODE_ALLOWED_PATHS = [
   '/app/image',
   '/app/usage',
   '/app/purchase',
+  '/app/orders',
   '/app/keys',
   '/app/profile',
   '/sora',
