@@ -134,6 +134,48 @@ describe('AppSectionShell', () => {
     expect(wrapper.text()).not.toContain('打开 API Key / 第三方客户端接入')
   })
 
+  it('keeps the whole workbench sidebar inside user-owned /app routes', async () => {
+    const wrapper = mountShell()
+    const buttons = [
+      ...wrapper.findAll('.ssxz-primary-nav .ssxz-nav-item'),
+      ...wrapper.findAll('.ssxz-secondary-nav .ssxz-nav-item')
+    ]
+    const expectedRoutes = [
+      '/app/chat',
+      '/app/image',
+      '/app/usage',
+      '/app/purchase',
+      '/app/orders',
+      '/app/keys',
+      '/app/profile'
+    ]
+
+    expect(buttons).toHaveLength(expectedRoutes.length)
+
+    for (const [index, button] of buttons.entries()) {
+      routeState.path = '/app/test-origin'
+      await button.trigger('click')
+      expect(mocks.push).toHaveBeenNthCalledWith(index + 1, expectedRoutes[index])
+    }
+
+    const destinations = mocks.push.mock.calls.map(([destination]) => destination)
+
+    expect(destinations).toEqual(expectedRoutes)
+    expect(destinations.every((destination) => destination.startsWith('/app/'))).toBe(true)
+    expect(destinations).not.toEqual(expect.arrayContaining([
+      '/usage',
+      '/purchase',
+      '/orders',
+      '/keys',
+      '/profile',
+      '/available-channels',
+      '/channel-status',
+      '/monitor'
+    ]))
+    expect(wrapper.text()).not.toContain('Available Channels')
+    expect(wrapper.text()).not.toContain('Channel Status')
+  })
+
   it('keeps the image entry active without highlighting new chat on /app/image', () => {
     routeState.path = '/app/image'
     const wrapper = mountShell()
