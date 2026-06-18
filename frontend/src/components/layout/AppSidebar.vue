@@ -69,7 +69,7 @@
             class="sidebar-link mb-1"
             :class="{ 'sidebar-link-active': isActive(item.path) }"
             :title="sidebarCollapsed ? item.label : undefined"
-            :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
+            :data-tour="item.path === '/app/keys' ? 'sidebar-my-keys' : undefined"
             @click="handleMenuItemClick(item.path)"
           >
             <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
@@ -91,7 +91,7 @@
             class="sidebar-link mb-1"
             :class="{ 'sidebar-link-active': isActive(item.path) }"
             :title="sidebarCollapsed ? item.label : undefined"
-            :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
+            :data-tour="item.path === '/app/keys' ? 'sidebar-my-keys' : undefined"
             @click="handleMenuItemClick(item.path)"
           >
             <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
@@ -584,16 +584,16 @@ const userNavItems = computed((): NavItem[] => {
   const items: NavItem[] = [
     { path: '/app/image', label: t('nav.sora'), icon: SoraIcon },
     { path: '/app/chat', label: '聊天', icon: ChatStudioIcon },
-    { path: '/keys', label: 'API Key / 第三方接入', icon: KeyIcon },
-    { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
+    { path: '/app/keys', label: 'API Key / 第三方接入', icon: KeyIcon },
+    { path: '/app/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
     {
-      path: '/purchase',
+      path: '/app/purchase',
       label: t('nav.buySubscription'),
       icon: RechargeSubscriptionIcon,
       hideInSimpleMode: true
     },
-    { path: '/orders', label: '订单', icon: OrderListIcon, hideInSimpleMode: true },
-    { path: '/profile', label: t('nav.profile'), icon: UserIcon }
+    { path: '/app/orders', label: '订单', icon: OrderListIcon, hideInSimpleMode: true },
+    { path: '/app/profile', label: t('nav.profile'), icon: UserIcon }
   ]
   return authStore.isSimpleMode ? items.filter(item => !item.hideInSimpleMode) : items
 })
@@ -601,10 +601,10 @@ const userNavItems = computed((): NavItem[] => {
 // Personal navigation items (for admin's "My Account" section, without Dashboard)
 const personalNavItems = computed((): NavItem[] => {
   const items: NavItem[] = [
-    { path: '/ai-chat', label: 'AI 聊天', icon: ChatStudioIcon },
-    { path: '/image-studio', label: 'AI 作图', icon: ImageStudioIcon },
-    { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
-    { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
+    { path: '/app/chat', label: 'AI 聊天', icon: ChatStudioIcon },
+    { path: '/app/image', label: 'AI 作图', icon: ImageStudioIcon },
+    { path: '/app/keys', label: t('nav.apiKeys'), icon: KeyIcon },
+    { path: '/app/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
     ...(availableChannelsEnabled.value
       ? [{ path: '/available-channels', label: 'Available Channels', icon: ChannelIcon, hideInSimpleMode: true }]
       : []),
@@ -613,12 +613,12 @@ const personalNavItems = computed((): NavItem[] => {
       : []),
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     ...(appStore.cachedPublicSettings?.sora_client_enabled
-      ? [{ path: '/sora', label: t('nav.sora'), icon: SoraIcon }]
+      ? [{ path: '/app/image', label: t('nav.sora'), icon: SoraIcon }]
       : []),
     ...(purchaseEnabled.value
       ? [
           {
-            path: '/purchase',
+            path: '/app/purchase',
             label: t('nav.buySubscription'),
             icon: RechargeSubscriptionIcon,
             hideInSimpleMode: true
@@ -626,10 +626,10 @@ const personalNavItems = computed((): NavItem[] => {
         ]
       : []),
     ...(paymentEnabled.value
-      ? [{ path: '/orders', label: 'My Orders', icon: OrderListIcon, hideInSimpleMode: true }]
+      ? [{ path: '/app/orders', label: 'My Orders', icon: OrderListIcon, hideInSimpleMode: true }]
       : []),
     { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
-    { path: '/profile', label: t('nav.profile'), icon: UserIcon },
+    { path: '/app/profile', label: t('nav.profile'), icon: UserIcon },
     ...customMenuItemsForUser.value.map((item): NavItem => ({
       path: `/custom/${item.id}`,
       label: item.label,
@@ -686,7 +686,7 @@ const adminNavItems = computed((): NavItem[] => {
   // 简单模式下，在系统设置前插入 API密钥
   if (authStore.isSimpleMode) {
     const filtered = baseItems.filter(item => !item.hideInSimpleMode)
-    filtered.push({ path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon })
+    filtered.push({ path: '/app/keys', label: t('nav.apiKeys'), icon: KeyIcon })
     filtered.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
     // Add admin custom menu items after settings
     for (const cm of customMenuItemsForAdmin.value) {
@@ -728,7 +728,7 @@ function handleMenuItemClick(itemPath: string) {
   const pathToSelector: Record<string, string> = {
     '/admin/groups': '#sidebar-group-manage',
     '/admin/accounts': '#sidebar-channel-manage',
-    '/keys': '[data-tour="sidebar-my-keys"]'
+    '/app/keys': '[data-tour="sidebar-my-keys"]'
   }
 
   const selector = pathToSelector[itemPath]

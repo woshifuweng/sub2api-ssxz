@@ -89,7 +89,7 @@ const pendingOAuthToken = ref('')
 const invitationCode = ref('')
 const isSubmitting = ref(false)
 const invitationError = ref('')
-const redirectTo = ref('/sora')
+const redirectTo = ref('/app/image')
 
 function parseFragmentParams(): URLSearchParams {
   const raw = typeof window !== 'undefined' ? window.location.hash : ''
@@ -98,11 +98,11 @@ function parseFragmentParams(): URLSearchParams {
 }
 
 function sanitizeRedirectPath(path: string | null | undefined): string {
-  if (!path) return '/sora'
-  if (!path.startsWith('/')) return '/sora'
-  if (path.startsWith('//')) return '/sora'
-  if (path.includes('://')) return '/sora'
-  if (path.includes('\n') || path.includes('\r')) return '/sora'
+  if (!path) return '/app/image'
+  if (!path.startsWith('/')) return '/app/image'
+  if (path.startsWith('//')) return '/app/image'
+  if (path.includes('://')) return '/app/image'
+  if (path.includes('\n') || path.includes('\r')) return '/app/image'
   return path
 }
 
@@ -141,7 +141,7 @@ onMounted(async () => {
   const refreshToken = params.get('refresh_token') || ''
   const expiresInStr = params.get('expires_in') || ''
   const redirect = sanitizeRedirectPath(
-    params.get('redirect') || (route.query.redirect as string | undefined) || '/sora'
+    params.get('redirect') || (route.query.redirect as string | undefined) || '/app/image'
   )
   const error = params.get('error')
   const errorDesc = params.get('error_description') || params.get('error_message') || ''

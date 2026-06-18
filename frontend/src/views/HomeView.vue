@@ -439,7 +439,7 @@ const githubUrl = 'https://github.com/DR-lin-eng/sub2api'
 // Auth state
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const isAdmin = computed(() => authStore.isAdmin)
-const dashboardPath = computed(() => isAdmin.value ? '/admin/dashboard' : '/sora')
+const dashboardPath = computed(() => isAdmin.value ? '/admin/dashboard' : '/app/image')
 const userInitial = computed(() => {
   const user = authStore.user
   if (!user || !user.email) return ''

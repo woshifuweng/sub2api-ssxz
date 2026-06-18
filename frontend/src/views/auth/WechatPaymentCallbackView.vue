@@ -77,11 +77,11 @@ function parseFragmentParams(): URLSearchParams {
 
 function normalizeRedirectPath(path: string | null | undefined): string {
   const value = (path || '').trim()
-  if (!value) return '/purchase'
-  if (!value.startsWith('/')) return '/purchase'
-  if (value.startsWith('//') || value.includes('://')) return '/purchase'
-  if (value === '/payment') return '/purchase'
-  if (value.startsWith('/payment?')) return '/purchase' + value.slice('/payment'.length)
+  if (!value) return '/app/purchase'
+  if (!value.startsWith('/')) return '/app/purchase'
+  if (value.startsWith('//') || value.includes('://')) return '/app/purchase'
+  if (value === '/payment') return '/app/purchase'
+  if (value.startsWith('/payment?')) return '/app/purchase' + value.slice('/payment'.length)
   return value
 }
 
@@ -92,7 +92,7 @@ function appendQueryParam(query: Record<string, string>, key: string, value: str
 }
 
 function goBackToPayment() {
-  void router.replace('/purchase')
+  void router.replace('/app/purchase')
 }
 
 onMounted(async () => {

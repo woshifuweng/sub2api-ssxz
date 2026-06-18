@@ -43,14 +43,14 @@
                   辅助写 prompt
                 </RouterLink>
                 <RouterLink
-                  to="/usage"
+                  to="/app/usage"
                   class="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
                 >
                   <Icon name="chart" size="sm" />
                   查看用量
                 </RouterLink>
                 <RouterLink
-                  to="/keys"
+                  to="/app/keys"
                   class="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
                 >
                   <Icon name="key" size="sm" />
@@ -65,7 +65,7 @@
                   <p class="text-sm font-semibold text-gray-900 dark:text-white">账户概览</p>
                   <p class="text-xs text-gray-500 dark:text-gray-400">费用以实际模型和后台费率为准</p>
                 </div>
-                <RouterLink to="/usage" class="text-xs font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400">
+                <RouterLink to="/app/usage" class="text-xs font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400">
                   查看明细
                 </RouterLink>
               </div>
@@ -93,7 +93,7 @@
                 <RouterLink to="/app/purchase" class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700">
                   购买套餐
                 </RouterLink>
-                <RouterLink to="/usage" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-200">
+                <RouterLink to="/app/usage" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-200">
                   用量明细
                 </RouterLink>
                 <RouterLink to="/app/orders" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-200">
@@ -233,7 +233,7 @@ const productEntries = [
     action: '打开聊天'
   },
   {
-    to: '/keys',
+    to: '/app/keys',
     icon: 'key' as const,
     badge: '第三方接入',
     title: 'API Key',
@@ -269,7 +269,7 @@ const onboardingSteps = [
     index: '03',
     title: '最后看余额和用量',
     description: '费用仍由后台统一记录。用户只需要看余额、用量和订单，余额不足时充值。',
-    to: '/usage',
+    to: '/app/usage',
     action: '查看用量'
   }
 ]
