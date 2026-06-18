@@ -63,6 +63,16 @@ Last updated: 2026-06-18
   - no fake charts
 - Mobile layout pass after route structure is stable.
 
+## Product Intelligence Backlog
+
+- Evaluate old chat/image product assets before building new prompt intelligence.
+- Review existing DeepSeek, web search, and query-quality work as possible assets, not fixed solutions.
+- Evaluate simple prompt templates and rule-based prompt expansion before adding model calls.
+- If model-assisted prompt writing is added, keep the output as image-generation prompt help, not generic Q&A.
+- If web reference is added for image prompts, make it optional, bounded, and clearly separated from ordinary chat web search.
+- Check external model/provider/API lifecycle, pricing, and limits against official sources on the decision date before selecting an upstream.
+- Measure cost, latency, failure modes, and billing impact before production rollout.
+
 ## Security Improvements
 
 - Login/register/invite-code rate limiting review.

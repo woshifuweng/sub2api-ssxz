@@ -78,16 +78,20 @@ Build SSXZ AI into a lightweight AI creation workspace for about 200-300 private
    - keep `/app/chat`
    - evaluate old `ChatStudioView` assets
    - assess prompt-assistance options without hard-wiring one model/provider
-3. Improve API Key / third-party access:
+3. Evaluate product intelligence before implementing it:
+   - review existing DeepSeek, web search, and prompt enhancement assets
+   - decide whether image prompt assistance should use rules, templates, chat models, web reference, or a staged combination
+   - verify cost, latency, failure behavior, and user value before implementation
+4. Improve API Key / third-party access:
    - user-friendly copy
    - clear Base URL/model guidance
    - key masking and safe one-time full-key display
-4. Improve user billing pages:
+5. Improve user billing pages:
    - balance
    - usage
    - recharge
    - orders/subscriptions
-5. Preserve and clarify admin operation pages:
+6. Preserve and clarify admin operation pages:
    - users
    - balances
    - orders/payment
@@ -96,7 +100,7 @@ Build SSXZ AI into a lightweight AI creation workspace for about 200-300 private
    - API keys
    - invite/redeem/promo codes
    - model/channel/account/pricing basics
-6. Add security hardening as separate PRs:
+7. Add security hardening as separate PRs:
    - rate limits
    - server-side captcha validation if captcha is used
    - unified auth error wording

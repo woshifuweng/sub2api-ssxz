@@ -6,6 +6,8 @@ This repository is an AI relay and unified chat workspace product. It handles us
 
 Before planning or editing, read `PROJECT_STATUS.md`, `ROADMAP.md`, and `BACKLOG.md`. They define the 2026-06-18 product direction: this Sub2API repository is the code trunk; the older site is only a product/UX/reference asset; the target is a lightweight AI creation workspace for about 200-300 private users, with admin/owner operations preserved. Do not treat this project as a pure developer API platform, a full enterprise AI gateway rewrite, or a Sora-specific product.
 
+Interpret user requests by product goal, not literal technology words. Mentions of DeepSeek, web search, `image2`, `gpt-image-2`, or Sora are not automatic architecture decisions. First check existing assets, product fit, cost/risk, and external dependency status where applicable.
+
 ## 1. Agent execution protocol
 
 Before making code changes, every coding agent must:

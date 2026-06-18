@@ -82,6 +82,15 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | Web search | Existing but frozen for main UX | Technical chain exists from prior PRs. Do not surface as ordinary-user main functionality during P0 structure work. |
 | Admin operations | Rich but broad | Strong asset from the Sub2API base. Needs product boundary, not deletion. |
 
+## Historical Product Decisions Preserved On 2026-06-18
+
+- The older site is not the code trunk and should not be copied wholesale. It is a product reference for user-side AI chat, AI image creation, navigation, prompt flow, result display, balance, and API access.
+- The SSXZ AI product should not become image-only. Chat, image generation, balance/usage, payment/order, and API Key / third-party access are all part of the private-user tool site.
+- Image generation should not be a plain fixed form only. Later product work should evaluate prompt assistance, templates, custom ratio/style, multi-reference-image input, thumbnails, history, regenerate, and download.
+- DeepSeek, web search, `image2`, `gpt-image-2`, and Sora-related code are historical assets or candidate implementation details, not fixed product strategy. Reuse requires effect review, cost/risk review, and external dependency checks where applicable.
+- Web search and answer-quality work are existing assets. They should not be accidentally removed, but they also should not be exposed in ordinary-user UX during P0 structure convergence.
+- OpenAI Sora must not be assumed as the long-term image-generation upstream. `/sora` and Sora-named internals may remain for compatibility while product copy uses neutral image-generation language.
+
 ## Only UI / Only Backend / Not Connected / Placeholder Areas
 
 | Area | Classification | Notes |
