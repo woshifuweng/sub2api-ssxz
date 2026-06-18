@@ -1,46 +1,39 @@
-# Unified Chat Workspace v1 Security and Launch Strategy
+# User Workspace Security and Launch Strategy
 
-## 1. Current project status
+## 1. Document status
 
-Current baseline from latest `main`:
+Reviewed on 2026-06-18.
 
-- Branch used for this documentation change: `docs/security-launch-docs`
-- Base branch: `main`
-- `main` HEAD at branch creation: `dd3b9ac67 Merge pull request #4 from woshifuweng/codex/ci-security-baseline-issue-3`
-- PR #4 commit included in `main`: `8bd896484 fix(ci): repair security baseline checks`
-- PR #2 remains untouched by this documentation branch.
-- No merge, deploy, Unified Chat Workspace frontend work, database migration, real payment, real billing, provider production logic, or production configuration change is included in this branch.
-
-This document is a launch boundary document. It does not implement the workspace. It defines what must be true before Unified Chat Workspace v1 is considered safe to merge and launch.
+This document is a security boundary document. It does not implement the workspace. It defines what must be true before the user workspace, image generation, assets, usage, and billing flows are considered safe to merge and launch.
 
 ## 2. Product direction
 
-The product should not be treated as only an API relay or only a chat page. It should be defined as:
+The product should not be treated as only an API relay, only a chat page, or only an image tool. It should be defined as:
 
-> A unified AI workspace with API relay capabilities, where conversation, model routing, assets, tasks, usage, ledger, and risk controls are first-class backend concepts.
+> A lightweight AI creation workspace with API relay capabilities, where chat, image generation, third-party API access, model routing, assets, tasks, usage, ledger, and risk controls are first-class product and backend concepts.
 
-The user-facing entry should be `/app`, similar to ChatGPT/Gemini/Claude-style unified input. Image generation, image understanding, file upload, and future tools should flow through the same conversation context instead of separate isolated pages.
+The user-facing workspace may use separate routes such as `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/app/profile`. These routes should share the authenticated user workspace boundary and must not jump into the admin/backend-looking shell. Image generation may have a dedicated page, but it must still use backend-controlled task, asset, usage, and billing rules.
 
 ## 3. Correct next sequence
 
 Recommended sequence:
 
-1. Keep the PR #4 CI/security baseline merged independently.
-2. Add or update `AGENTS.md` and `docs/security/launch-checklist.md` as a documentation-only change.
-3. Build Unified Chat Workspace v1 text-only closed loop.
-4. Add asset upload and image task flow.
-5. Add billing/ledger hardening, rate limits, and abuse monitoring.
-6. Only then enable web browsing, memory, toolbox, document analysis, public sharing, or advanced tools.
+1. Keep project status, roadmap, backlog, and agent rules aligned before implementation PRs.
+2. Converge ordinary-user routes into the intended user workspace shell.
+3. Verify text chat, image generation, API Key, usage, profile, payment/order, and admin boundaries independently.
+4. Verify asset, task, usage, and billing behavior before production release.
+5. Only then enable web browsing, memory, toolbox, document analysis, public sharing, or advanced tools.
 
 Do not combine these phases into one large PR.
 
 ## 4. Unified Chat Workspace v1 scope
 
-v1 should do:
+The user workspace should do:
 
-- `/app` as the main workspace route
-- `/app/chat` redirecting into `/app`
-- `/app/image` redirecting into `/app?intent=image_generation` or equivalent
+- `/app/chat` as the user-side chat route
+- `/app/image` as the user-side image-generation route
+- `/app/usage`, `/app/keys`, and `/app/profile` as user-side utility routes
+- consistent authenticated user workspace shell and ownership boundaries
 - real conversation creation
 - real message creation
 - real message list loading
@@ -51,10 +44,8 @@ v1 should do:
 - clear error UI for failed sends
 - disabled web/memory/toolbox buttons with explicit unavailable state
 
-v1 should not do:
+P0 should not do:
 
-- real image generation
-- real image editing
 - web browsing
 - memory
 - toolbox/tools
@@ -109,7 +100,7 @@ failed
 
 Core rule:
 
-> Image generation is an async task. Images are assets. Assets attach to messages or tasks. A separate image page is not the long-term product model.
+> Image generation can have a dedicated user-facing page. The backend model should still treat image generation as a task, generated images as assets, and billing/usage as backend-controlled records.
 
 ## 6. v1 security acceptance criteria
 
@@ -124,7 +115,7 @@ Add these checks to the v1 implementation plan:
 7. Disabled capabilities cannot be triggered through direct API calls.
 8. Backend errors are sanitized.
 9. Logs do not expose `Authorization`, `api_key`, `token`, `secret`, cookies, provider keys, stack traces, internal URLs, or SQL.
-10. `/app/chat` and `/app/image` do not bypass unified auth/session/conversation logic.
+10. `/app/chat` and `/app/image` do not bypass authenticated user workspace boundaries.
 11. Refresh does not lose persisted conversations/messages.
 12. Failed sends do not create inconsistent or orphaned message state.
 
