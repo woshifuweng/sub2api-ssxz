@@ -200,6 +200,17 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/app/redeem',
+    name: 'AppRedeem',
+    component: () => import('@/views/user/RedeemView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Redeem Code',
+      appSection: 'redeem'
+    }
+  },
+  {
     path: '/app/keys',
     name: 'AppKeys',
     component: () => import('@/views/user/KeysView.vue'),
@@ -243,15 +254,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/redeem',
-    name: 'Redeem',
-    component: () => import('@/views/user/RedeemView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Redeem Code',
-      titleKey: 'redeem.title',
-      descriptionKey: 'redeem.description'
-    }
+    redirect: redirectLegacyRoute('/app/redeem')
   },
   {
     path: '/affiliate',
@@ -630,6 +633,7 @@ const BACKEND_MODE_ALLOWED_PATHS = [
   '/app/usage',
   '/app/purchase',
   '/app/orders',
+  '/app/redeem',
   '/app/keys',
   '/app/profile',
   '/sora',
@@ -732,6 +736,7 @@ router.beforeEach((to, _from, next) => {
       '/admin/groups',
       '/admin/subscriptions',
       '/admin/redeem',
+      '/app/redeem',
       '/subscriptions',
       '/redeem'
     ]
