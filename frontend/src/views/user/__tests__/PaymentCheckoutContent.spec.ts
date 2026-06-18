@@ -155,10 +155,16 @@ describe('PaymentCheckoutContent', () => {
     await flushPromises()
 
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
+    const text = wrapper.text()
     expect(hrefs).toContain('/app/usage')
     expect(hrefs).toContain('/app/keys')
     expect(hrefs).not.toContain('/available-channels')
     expect(hrefs).not.toContain('/redeem')
+    expect(text).toContain('所有消费都会记录在用量明细中')
+    expect(text).not.toContain('模型 token')
+    expect(text).not.toContain('模型倍率')
+    expect(text).not.toContain('Images API')
+    expect(text).not.toContain('上游账号')
     expect(paymentAPI.getCheckoutInfo).toHaveBeenCalledTimes(1)
   })
 

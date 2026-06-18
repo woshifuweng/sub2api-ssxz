@@ -83,10 +83,15 @@ describe('AppOrdersView', () => {
     const wrapper = mountView()
     await flushPromises()
 
+    const text = wrapper.text()
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('订单记录')
-    expect(wrapper.text()).toContain('充值 / 订阅暂未开启')
-    expect(wrapper.text()).toContain('不会跳转到旧后台壳')
+    expect(text).toContain('订单记录')
+    expect(text).toContain('充值 / 订阅暂未开启')
+    expect(text).toContain('请稍后再试或联系管理员')
+    expect(text).not.toContain('新版工作台')
+    expect(text).not.toContain('真实订单接口')
+    expect(text).not.toContain('旧后台')
+    expect(text).not.toContain('旧版订单页')
     expect(paymentAPI.getMyOrders).not.toHaveBeenCalled()
   })
 
