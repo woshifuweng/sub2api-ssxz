@@ -17,6 +17,35 @@ vi.mock('@/composables/useClipboard', () => ({
 import UseKeyModal from '../UseKeyModal.vue'
 
 describe('UseKeyModal', () => {
+  it('shows third-party client guidance by default', () => {
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'openai'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('keys.useKeyModal.cliTabs.thirdParty')
+    expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.title')
+    expect(wrapper.text()).toContain('CC Switch')
+    expect(wrapper.text()).toContain('Cherry Studio')
+    expect(wrapper.text()).toContain('Chatbox')
+    expect(wrapper.text()).toContain('https://example.com/v1')
+    expect(wrapper.find('pre code').exists()).toBe(false)
+  })
+
   it('renders updated GPT-5.4 mini/nano names in OpenCode config', async () => {
     const wrapper = mount(UseKeyModal, {
       props: {
