@@ -2,16 +2,20 @@
 
 This repository is an AI relay and unified chat workspace product. It handles user conversations, model provider calls, image/file assets, usage records, balance/ledger records, and potentially payment/admin operations. Treat all changes as production-sensitive unless the task explicitly says otherwise.
 
+## 0. Required project context
+
+Before planning or editing, read `PROJECT_STATUS.md`, `ROADMAP.md`, and `BACKLOG.md`. They define the 2026-06-18 product direction: this Sub2API repository is the code trunk; the older site is only a product/UX/reference asset; the target is a lightweight AI creation workspace for about 200-300 private users, with admin/owner operations preserved. Do not treat this project as a pure developer API platform, a full enterprise AI gateway rewrite, or a Sora-specific product.
+
 ## 1. Agent execution protocol
 
 Before making code changes, every coding agent must:
 
-1. Inspect the current state:
+1. Inspect the working tree state:
    - `git status`
-   - current branch and target PR/issue
+   - branch and target PR/issue
    - relevant changed files and existing tests
-2. Read the relevant project instructions, skills, docs, or package-local README files before editing.
-3. Restate the intended scope in a short plan.
+2. Read the required root documents and any relevant package-local README files before editing.
+3. Restate the intended scope in a short plan and get user confirmation before code changes, unless the user has explicitly authorized autonomous execution for that exact scope.
 4. Keep the diff minimal and limited to the requested scope.
 5. Run the relevant tests and typechecks.
 6. Report:
@@ -21,7 +25,9 @@ Before making code changes, every coding agent must:
    - whether the working tree is clean
    - any security-sensitive behavior changed
 
-Do not continue into a new product phase unless the current PR/checks are complete or the user explicitly authorizes the transition.
+Do not continue into a new product phase unless the active PR/checks are complete or the user explicitly authorizes the transition.
+
+Every PR should solve one small closed loop. State the goal, likely files, intentionally untouched areas, risk, rollback, and validation plan.
 
 ## 2. Scope control
 
@@ -39,8 +45,12 @@ Unless explicitly requested, do not modify:
 - ledger semantics
 - public sharing/review logic
 - large UI redesigns
+- Nginx configuration
+- production deployment
 
 If a requested change appears to require one of the above areas, stop and explain the dependency before editing.
+
+UI polish must wait until P0 product structure is stable. Do not use cosmetic changes to hide route/shell ownership problems.
 
 ## 3. Security hard rules
 
@@ -90,7 +100,7 @@ All reads/writes for the following entities must be scoped to the authenticated 
 - uploaded files
 - API keys owned by a user
 
-Any endpoint that accepts an ID must verify that the resource belongs to the current user.
+Any endpoint that accepts an ID must verify that the resource belongs to the authenticated user.
 
 ### 3.4 Provider routing and SSRF prevention
 
@@ -198,26 +208,29 @@ Demo-only behavior must be clearly marked and excluded from production builds.
 
 Do not delete, weaken, skip, or invert tests to make CI pass. Fix production code or test mocks. If a test is genuinely obsolete, document why and update it with equivalent or stronger coverage.
 
-## 4. Unified Chat Workspace architecture rules
+## 4. Product structure rules
 
-The unified workspace should be modeled around these primitives:
+The ordinary-user side and the admin side must stay clearly separated.
 
-- `conversation`: user-visible thread/session
-- `message`: user/assistant/system message
-- `asset`: uploaded or generated file/image
-- `task`: async operation such as image generation, image editing, file parsing, or long-running model work
-- `usage`: measured provider/model usage
-- `ledger`: balance mutation and billing audit trail
+### 4.1 Ordinary-user workspace
 
-Important rules:
+Ordinary-user workspace routes are `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/app/profile`. These pages should keep the lightweight user workspace shell, sidebar, background, and card language. Do not make ordinary-user menu items jump into the admin/backend-looking shell.
 
-1. `/app` is the main workspace entry.
-2. Legacy routes such as `/app/chat` and `/app/image` should redirect into `/app` or `/app?intent=...` instead of maintaining isolated experiences.
-3. Image generation is a task, not a separate permanent product island.
-4. Generated images are output assets attached to assistant messages or tasks.
-5. Uploaded images are input assets attached to user messages.
-6. Refreshing the page must not lose conversations, messages, assets, or task state.
-7. Disabled capabilities such as web browsing, memory, and toolbox must not create fake backend behavior.
+Keep API Key / third-party access visible to ordinary users. It is required for CC Switch, Cherry Studio, Chatbox, and similar clients. Present it as "API Key / third-party access", not as a heavy developer platform.
+
+`/sora` is a compatibility route. Product copy should use neutral language such as image generation or AI image creation. Do not assume OpenAI Sora is the long-term image-generation upstream.
+
+Legacy routes such as `/keys`, `/usage`, `/profile`, `/sora`, and payment/order routes may remain for compatibility. Do not delete routes only to simplify navigation. Hide or redirect carefully, with rollback in mind.
+
+### 4.2 Admin and owner operations
+
+Admin routes live under `/admin/*`. Preserve owner/admin capabilities for users, balances, orders and payments, usage, image tasks/history, API keys, invite/redeem/promo codes, accounts, groups, channels, models, pricing, basic logs, and abnormal task handling.
+
+Do not weaken admin operations while simplifying the ordinary-user UX.
+
+### 4.3 Workspace primitives
+
+The product should continue to respect the backend primitives `conversation`, `message`, `asset`, `task`, `usage`, and `ledger`. Generated images and uploaded files should be assets with ownership checks. Disabled capabilities such as web browsing, memory, and toolbox must not create fake backend behavior.
 
 ## 5. API compatibility
 
