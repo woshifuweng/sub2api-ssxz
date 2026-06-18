@@ -129,6 +129,19 @@ describe('AppSectionShell', () => {
     expect(navButtons[1].text()).toContain('AI 作图')
     expect(navButtons[1].classes()).toContain('is-active')
   })
+
+  it('starts a new chat through /app/chat instead of the generic /app shell', async () => {
+    routeState.path = '/app/image'
+    const wrapper = mountShell()
+    const navButtons = wrapper.findAll('.ssxz-primary-nav .ssxz-nav-item')
+
+    await navButtons[0].trigger('click')
+
+    expect(wrapper.emitted('new-chat')).toHaveLength(1)
+    expect(mocks.push).toHaveBeenCalledWith('/app/chat')
+    expect(mocks.push).not.toHaveBeenCalledWith('/app')
+  })
+
   it('opens a real mobile navigation drawer instead of only toggling desktop collapse', async () => {
     mockDesktopMedia(false)
     const wrapper = mountShell()
