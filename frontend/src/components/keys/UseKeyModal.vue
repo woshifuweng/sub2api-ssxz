@@ -72,8 +72,71 @@
           </nav>
         </div>
 
+        <!-- Third-party client guide -->
+        <div v-if="isThirdPartyTab" class="space-y-4">
+          <div class="rounded-xl border border-primary-100 bg-primary-50/80 p-4 dark:border-primary-800/60 dark:bg-primary-900/20">
+            <div class="flex items-start gap-3">
+              <Icon name="infoCircle" size="md" class="mt-0.5 flex-shrink-0 text-primary-500" />
+              <div class="space-y-1">
+                <p class="text-sm font-semibold text-gray-900 dark:text-white">
+                  {{ t('keys.useKeyModal.thirdParty.title') }}
+                </p>
+                <p class="text-sm text-gray-600 dark:text-gray-300">
+                  {{ t('keys.useKeyModal.thirdParty.description') }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid gap-3 md:grid-cols-2">
+            <div
+              v-for="client in thirdPartyClients"
+              :key="client.title"
+              class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900/80"
+            >
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">
+                {{ client.title }}
+              </p>
+              <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                {{ client.description }}
+              </p>
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-900/70">
+            <p class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.thirdParty.connectionTitle') }}
+            </p>
+            <dl class="mt-3 space-y-2 text-sm">
+              <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <dt class="text-gray-500 dark:text-gray-400">Base URL</dt>
+                <dd class="break-all font-mono text-gray-900 dark:text-gray-100">{{ openAICompatibleBaseUrl }}</dd>
+              </div>
+              <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <dt class="text-gray-500 dark:text-gray-400">API Key</dt>
+                <dd class="text-gray-900 dark:text-gray-100">
+                  {{ t('keys.useKeyModal.thirdParty.apiKeyHint') }}
+                </dd>
+              </div>
+              <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.modelLabel') }}</dt>
+                <dd class="text-gray-900 dark:text-gray-100">
+                  {{ t('keys.useKeyModal.thirdParty.modelHint') }}
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          <div class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+            <Icon name="exclamationCircle" size="md" class="mt-0.5 flex-shrink-0 text-amber-500" />
+            <p class="text-sm text-amber-700 dark:text-amber-300">
+              {{ t('keys.useKeyModal.thirdParty.securityNote') }}
+            </p>
+          </div>
+        </div>
+
         <!-- Code Blocks (Stacked for multi-file platforms) -->
-        <div class="space-y-4">
+        <div v-else class="space-y-4">
           <div
             v-for="(file, index) in currentFiles"
             :key="index"
@@ -174,19 +237,19 @@ const { copyToClipboard: clipboardCopy } = useClipboard()
 
 const copiedIndex = ref<number | null>(null)
 const activeTab = ref<string>('unix')
-const activeClientTab = ref<string>('claude')
+const activeClientTab = ref<string>('third-party')
 
 // Reset tabs when platform changes
 const defaultClientTab = computed(() => {
   switch (props.platform) {
     case 'openai':
-      return 'codex'
+      return 'third-party'
     case 'gemini':
-      return 'gemini'
+      return 'third-party'
     case 'antigravity':
-      return 'claude'
+      return 'third-party'
     default:
-      return 'claude'
+      return 'third-party'
   }
 })
 
@@ -265,9 +328,15 @@ const SparkleIcon = {
 
 const clientTabs = computed((): TabConfig[] => {
   if (!props.platform) return []
+  const thirdPartyTab: TabConfig = {
+    id: 'third-party',
+    label: t('keys.useKeyModal.cliTabs.thirdParty'),
+    icon: TerminalIcon
+  }
   switch (props.platform) {
     case 'openai': {
       const tabs: TabConfig[] = [
+        thirdPartyTab,
         { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
         { id: 'codex-ws', label: t('keys.useKeyModal.cliTabs.codexCliWs'), icon: TerminalIcon },
       ]
@@ -279,17 +348,20 @@ const clientTabs = computed((): TabConfig[] => {
     }
     case 'gemini':
       return [
+        thirdPartyTab,
         { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: SparkleIcon },
         { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
       ]
     case 'antigravity':
       return [
+        thirdPartyTab,
         { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
         { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: SparkleIcon },
         { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
       ]
     default:
       return [
+        thirdPartyTab,
         { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
         { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
       ]
@@ -309,7 +381,8 @@ const openaiTabs: TabConfig[] = [
   { id: 'windows', label: 'Windows', icon: WindowsIcon }
 ]
 
-const showShellTabs = computed(() => activeClientTab.value !== 'opencode')
+const isThirdPartyTab = computed(() => activeClientTab.value === 'third-party')
+const showShellTabs = computed(() => activeClientTab.value !== 'opencode' && !isThirdPartyTab.value)
 
 const currentTabs = computed(() => {
   if (!showShellTabs.value) return []
@@ -320,6 +393,9 @@ const currentTabs = computed(() => {
 })
 
 const platformDescription = computed(() => {
+  if (isThirdPartyTab.value) {
+    return t('keys.useKeyModal.thirdParty.intro')
+  }
   switch (props.platform) {
     case 'openai':
       if (activeClientTab.value === 'claude') {
@@ -355,7 +431,32 @@ const platformNote = computed(() => {
   }
 })
 
-const showPlatformNote = computed(() => activeClientTab.value !== 'opencode')
+const showPlatformNote = computed(() => activeClientTab.value !== 'opencode' && !isThirdPartyTab.value)
+
+const openAICompatibleBaseUrl = computed(() => {
+  const baseUrl = props.baseUrl || window.location.origin
+  const trimmed = baseUrl.replace(/\/+$/, '')
+  return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
+})
+
+const thirdPartyClients = computed(() => [
+  {
+    title: 'CC Switch',
+    description: t('keys.useKeyModal.thirdParty.ccSwitch')
+  },
+  {
+    title: 'Cherry Studio',
+    description: t('keys.useKeyModal.thirdParty.cherryStudio')
+  },
+  {
+    title: 'Chatbox',
+    description: t('keys.useKeyModal.thirdParty.chatbox')
+  },
+  {
+    title: t('keys.useKeyModal.thirdParty.otherClientsTitle'),
+    description: t('keys.useKeyModal.thirdParty.otherClients')
+  }
+])
 
 const escapeHtml = (value: string) => value
   .replace(/&/g, '&amp;')

@@ -613,11 +613,28 @@ export default {
           '按 Win+R，输入 %userprofile%\\.codex 打开配置目录。如目录不存在，请先手动创建。'
       },
       cliTabs: {
+        thirdParty: '第三方客户端',
         claudeCode: 'Claude Code',
         geminiCli: 'Gemini CLI',
         codexCli: 'Codex CLI',
         codexCliWs: 'Codex CLI (WebSocket)',
         opencode: 'OpenCode'
+      },
+      thirdParty: {
+        intro: '优先用于 CC Switch、Cherry Studio、Chatbox 等第三方客户端。高级 CLI 配置仍可在后面的标签中查看。',
+        title: '第三方客户端接入',
+        description:
+          '在客户端里新增 OpenAI-compatible 或自定义 OpenAI 服务，把 Base URL 和 API Key 填进去即可使用本站已开放的模型。',
+        ccSwitch: '可使用“导入到 CCS”快速导入；如果自动导入不可用，也可以手动填写 Base URL 和 API Key。',
+        cherryStudio: '在服务商设置里选择 OpenAI-compatible / 自定义 OpenAI，填入 Base URL、API Key，再选择可用模型。',
+        chatbox: '在模型提供商里新增自定义 OpenAI API，填入 Base URL 和 API Key，用于聊天、图片等兼容能力。',
+        otherClientsTitle: '其他客户端',
+        otherClients: '凡是支持 OpenAI-compatible API 的客户端，通常都可以按 Base URL + API Key 的方式接入。',
+        connectionTitle: '通用连接信息',
+        apiKeyHint: '使用创建时保存的完整 Key；列表里只展示脱敏值，丢失请重置。',
+        modelLabel: '模型',
+        modelHint: '以后台开放给当前分组的模型为准。',
+        securityNote: '完整 API Key 只应保存在你信任的客户端里，不要发给他人，也不要截图外传。'
       },
       antigravity: {
         description: '为 Antigravity 分组配置 API 访问。请根据您使用的客户端选择对应的配置方式。',

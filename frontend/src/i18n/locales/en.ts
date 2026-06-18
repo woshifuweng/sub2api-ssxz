@@ -612,11 +612,28 @@ export default {
         noteWindows: 'Press Win+R and enter %userprofile%\\.codex to open the config directory. Create it manually if it does not exist.',
       },
       cliTabs: {
+        thirdParty: 'Third-party clients',
         claudeCode: 'Claude Code',
         geminiCli: 'Gemini CLI',
         codexCli: 'Codex CLI',
         codexCliWs: 'Codex CLI (WebSocket)',
         opencode: 'OpenCode',
+      },
+      thirdParty: {
+        intro: 'Use this key with CC Switch, Cherry Studio, Chatbox, and other third-party clients first. Advanced CLI configs are still available in the other tabs.',
+        title: 'Third-party client access',
+        description:
+          'Add an OpenAI-compatible or custom OpenAI service in your client, then enter the Base URL and API Key to use models enabled for this site.',
+        ccSwitch: 'Use "Import to CCS" for quick import. If automatic import is unavailable, manually enter the Base URL and API Key.',
+        cherryStudio: 'Choose OpenAI-compatible / custom OpenAI in provider settings, enter the Base URL and API Key, then select an available model.',
+        chatbox: 'Add a custom OpenAI API provider, enter the Base URL and API Key, and use compatible chat or image capabilities.',
+        otherClientsTitle: 'Other clients',
+        otherClients: 'Any client that supports OpenAI-compatible APIs can usually connect with Base URL + API Key.',
+        connectionTitle: 'Common connection info',
+        apiKeyHint: 'Use the full key saved when it was created. The list only shows a masked value; reset the key if it is lost.',
+        modelLabel: 'Model',
+        modelHint: 'Use models enabled for the current group in the admin configuration.',
+        securityNote: 'Only save the full API Key in clients you trust. Do not send it to others or share screenshots containing it.',
       },
       antigravity: {
         description: 'Configure API access for Antigravity group. Select the configuration method based on your client.',
