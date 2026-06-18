@@ -321,6 +321,12 @@ export default {
     now: 'Now',
     unknown: 'Unknown',
     minutes: 'min',
+    autoRefresh: {
+      title: 'Auto refresh',
+      countdown: 'Refresh in {seconds}s',
+      enable: 'Enable auto refresh',
+      seconds: '{n}s'
+    },
     time: {
       never: 'Never',
       justNow: 'Just now',
