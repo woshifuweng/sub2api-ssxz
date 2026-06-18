@@ -5776,6 +5776,101 @@ export default {
     }
   },
 
+  availableChannels: {
+    title: '可用模型 / 渠道',
+    description: '查看当前账号可用的模型、渠道和分组倍率信息。',
+    searchPlaceholder: '搜索渠道名称或模型...',
+    noPricing: '暂无价格信息',
+    noModels: '暂无可用模型',
+    empty: '暂无可用渠道',
+    exclusive: '专属',
+    exclusiveTooltip: '仅分配用户可见的专属分组',
+    public: '公开',
+    publicTooltip: '符合条件的用户均可见的公开分组',
+    columns: {
+      name: '渠道',
+      description: '说明',
+      platform: '平台',
+      groups: '分组',
+      supportedModels: '支持模型'
+    },
+    pricing: {
+      billingMode: '计费方式',
+      billingModeToken: '按 Token',
+      billingModePerRequest: '按次',
+      billingModeImage: '图片',
+      inputPrice: '输入',
+      outputPrice: '输出',
+      cacheWritePrice: '缓存写入',
+      cacheReadPrice: '缓存读取',
+      imageOutputPrice: '图片输出',
+      perRequestPrice: '单次请求',
+      intervals: '阶梯价格',
+      unitPerMillion: '/ 百万 Token',
+      unitPerRequest: '/ 次'
+    }
+  },
+
+  monitorCommon: {
+    latencyEmpty: '-',
+    dialogLatency: '模型延迟',
+    endpointPing: '端点延迟',
+    availabilityPrefix: '可用性',
+    extraModelsCount: '+ {n} 个模型',
+    history60pts: '最近 {n} 次检测',
+    nextUpdateIn: '{n}s 后更新',
+    maintenancePaused: '维护暂停',
+    past: '过去',
+    now: '现在',
+    relativeSecondsAgo: '{n} 秒前',
+    relativeMinutesAgo: '{n} 分钟前',
+    relativeHoursAgo: '{n} 小时前',
+    relativeDaysAgo: '{n} 天前',
+    status: {
+      unknown: '未知',
+      operational: '正常',
+      degraded: '降级',
+      failed: '失败',
+      error: '错误'
+    },
+    providers: {
+      openai: 'OpenAI',
+      anthropic: 'Anthropic',
+      gemini: 'Gemini'
+    }
+  },
+
+  channelStatus: {
+    title: '渠道状态',
+    description: '查看当前可用渠道的健康状态和最近监控结果。',
+    detailTitle: '渠道详情',
+    loadError: '加载渠道状态失败',
+    detailLoadError: '加载渠道详情失败',
+    closeDetail: '关闭',
+    windowTab: {
+      '7d': '7 天',
+      '15d': '15 天',
+      '30d': '30 天'
+    },
+    overall: {
+      operational: '正常',
+      degraded: '降级'
+    },
+    empty: {
+      title: '暂无渠道状态',
+      description: '当前账号还没有可展示的监控数据。'
+    },
+    detailColumns: {
+      model: '模型',
+      latestStatus: '最新状态',
+      latestLatency: '最新延迟',
+      availability7d: '7 天可用性',
+      availability15d: '15 天可用性',
+      availability30d: '30 天可用性',
+      avgLatency7d: '7 天平均延迟'
+    }
+  },
+
   // 图片生成（历史 /sora 路由）
   sora: {
     title: '图片生成',

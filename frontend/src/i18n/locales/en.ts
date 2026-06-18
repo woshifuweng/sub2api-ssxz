@@ -5587,6 +5587,101 @@ export default {
     }
   },
 
+  availableChannels: {
+    title: 'Available Models / Channels',
+    description: 'View the models, channels, and group multipliers available to your account.',
+    searchPlaceholder: 'Search channel name or model...',
+    noPricing: 'No pricing information',
+    noModels: 'No models available',
+    empty: 'No available channels',
+    exclusive: 'Exclusive',
+    exclusiveTooltip: 'Exclusive groups available only to assigned users',
+    public: 'Public',
+    publicTooltip: 'Public groups visible to all eligible users',
+    columns: {
+      name: 'Channel',
+      description: 'Description',
+      platform: 'Provider',
+      groups: 'Groups',
+      supportedModels: 'Supported Models'
+    },
+    pricing: {
+      billingMode: 'Billing',
+      billingModeToken: 'By tokens',
+      billingModePerRequest: 'Per request',
+      billingModeImage: 'Image',
+      inputPrice: 'Input',
+      outputPrice: 'Output',
+      cacheWritePrice: 'Cache write',
+      cacheReadPrice: 'Cache read',
+      imageOutputPrice: 'Image output',
+      perRequestPrice: 'Request',
+      intervals: 'Tiered pricing',
+      unitPerMillion: '/ 1M tokens',
+      unitPerRequest: '/ request'
+    }
+  },
+
+  monitorCommon: {
+    latencyEmpty: '-',
+    dialogLatency: 'Model latency',
+    endpointPing: 'Endpoint ping',
+    availabilityPrefix: 'Availability',
+    extraModelsCount: '+ {n} more models',
+    history60pts: 'Last {n} checks',
+    nextUpdateIn: 'Next update in {n}s',
+    maintenancePaused: 'Maintenance paused',
+    past: 'Past',
+    now: 'Now',
+    relativeSecondsAgo: '{n}s ago',
+    relativeMinutesAgo: '{n}m ago',
+    relativeHoursAgo: '{n}h ago',
+    relativeDaysAgo: '{n}d ago',
+    status: {
+      unknown: 'Unknown',
+      operational: 'Operational',
+      degraded: 'Degraded',
+      failed: 'Failed',
+      error: 'Error'
+    },
+    providers: {
+      openai: 'OpenAI',
+      anthropic: 'Anthropic',
+      gemini: 'Gemini'
+    }
+  },
+
+  channelStatus: {
+    title: 'Channel Status',
+    description: 'View channel health and recent monitoring results.',
+    detailTitle: 'Channel Details',
+    loadError: 'Failed to load channel status',
+    detailLoadError: 'Failed to load channel details',
+    closeDetail: 'Close',
+    windowTab: {
+      '7d': '7 days',
+      '15d': '15 days',
+      '30d': '30 days'
+    },
+    overall: {
+      operational: 'Operational',
+      degraded: 'Degraded'
+    },
+    empty: {
+      title: 'No channel status yet',
+      description: 'No monitoring data is available for this account.'
+    },
+    detailColumns: {
+      model: 'Model',
+      latestStatus: 'Latest status',
+      latestLatency: 'Latest latency',
+      availability7d: '7d availability',
+      availability15d: '15d availability',
+      availability30d: '30d availability',
+      avgLatency7d: '7d average latency'
+    }
+  },
+
   // Image generation (legacy /sora route)
   sora: {
     title: 'Image Generation',
