@@ -573,7 +573,6 @@ const ChevronDoubleRightIcon = {
 }
 
 const paymentEnabled = computed(() => !!appStore.cachedPublicSettings?.payment_enabled)
-const availableChannelsEnabled = computed(() => !!appStore.cachedPublicSettings?.available_channels_enabled)
 const channelMonitorEnabled = computed(() => !!appStore.cachedPublicSettings?.channel_monitor_enabled)
 const purchaseEnabled = computed(() => (
   paymentEnabled.value || !!appStore.cachedPublicSettings?.purchase_subscription_enabled
@@ -605,16 +604,6 @@ const personalNavItems = computed((): NavItem[] => {
     { path: '/app/image', label: 'AI 作图', icon: ImageStudioIcon },
     { path: '/app/keys', label: t('nav.apiKeys'), icon: KeyIcon },
     { path: '/app/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
-    ...(availableChannelsEnabled.value
-      ? [{ path: '/available-channels', label: 'Available Channels', icon: ChannelIcon, hideInSimpleMode: true }]
-      : []),
-    ...(channelMonitorEnabled.value
-      ? [{ path: '/monitor', label: 'Channel Status', icon: SignalIcon }]
-      : []),
-    { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
-    ...(appStore.cachedPublicSettings?.sora_client_enabled
-      ? [{ path: '/app/image', label: t('nav.sora'), icon: SoraIcon }]
-      : []),
     ...(purchaseEnabled.value
       ? [
           {
@@ -628,7 +617,6 @@ const personalNavItems = computed((): NavItem[] => {
     ...(paymentEnabled.value
       ? [{ path: '/app/orders', label: 'My Orders', icon: OrderListIcon, hideInSimpleMode: true }]
       : []),
-    { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
     { path: '/app/profile', label: t('nav.profile'), icon: UserIcon },
     ...customMenuItemsForUser.value.map((item): NavItem => ({
       path: `/custom/${item.id}`,
