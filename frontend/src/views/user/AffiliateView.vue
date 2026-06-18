@@ -1,5 +1,5 @@
 <template>
-  <AppLayout>
+  <component :is="pageShell" v-bind="pageShellProps">
     <div class="space-y-6">
       <div v-if="loading" class="flex justify-center py-12">
         <div class="h-8 w-8 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></div>
@@ -99,12 +99,14 @@
         </div>
       </template>
     </div>
-  </AppLayout>
+  </component>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import userAPI from '@/api/user'
 import type { UserAffiliateDetail } from '@/types'
@@ -116,7 +118,19 @@ import { extractApiErrorMessage } from '@/utils/apiError'
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
+const route = useRoute()
 const { copyToClipboard } = useClipboard()
+
+const useWorkbenchShell = computed(() => route.path === '/app/affiliate')
+const pageShell = computed(() => useWorkbenchShell.value ? AppSectionShell : AppLayout)
+const pageShellProps = computed(() => useWorkbenchShell.value
+  ? {
+      title: '邀请返利',
+      subtitle: '查看你的邀请码、返利额度和被邀请用户，必要时可把可用返利转入余额。',
+      eyebrow: '账户计费',
+      icon: 'gift'
+    }
+  : {})
 
 const loading = ref(true)
 const transferring = ref(false)

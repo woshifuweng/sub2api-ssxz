@@ -211,6 +211,17 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/app/affiliate',
+    name: 'AppAffiliate',
+    component: () => import('@/views/user/AffiliateView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Affiliate',
+      appSection: 'affiliate'
+    }
+  },
+  {
     path: '/app/available-channels',
     name: 'AppAvailableChannels',
     component: () => import('@/views/user/AvailableChannelsView.vue'),
@@ -283,13 +294,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/affiliate',
-    name: 'Affiliate',
-    component: () => import('@/views/user/AffiliateView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Affiliate'
-    }
+    redirect: redirectLegacyRoute('/app/affiliate')
   },
   {
     path: '/available-channels',
@@ -644,6 +649,7 @@ const BACKEND_MODE_ALLOWED_PATHS = [
   '/app/purchase',
   '/app/orders',
   '/app/redeem',
+  '/app/affiliate',
   '/app/available-channels',
   '/app/channel-status',
   '/app/keys',
