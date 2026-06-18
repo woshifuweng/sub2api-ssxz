@@ -21,6 +21,7 @@ import router from '../index'
 
 describe('legacy user routes', () => {
   it.each([
+    ['/app', '/app/image'],
     ['/keys', '/app/keys'],
     ['/usage', '/app/usage'],
     ['/profile', '/app/profile'],

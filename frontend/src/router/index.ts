@@ -143,14 +143,7 @@ const routes: RouteRecordRaw[] = [
   // ==================== User Routes ====================
   {
     path: '/app',
-    name: 'AppWorkspace',
-    component: () => import('@/views/user/AppWorkspaceView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'SSXZ AI Workbench',
-      appSection: 'home'
-    }
+    redirect: redirectLegacyRoute('/app/image')
   },
   {
     path: '/app/chat',

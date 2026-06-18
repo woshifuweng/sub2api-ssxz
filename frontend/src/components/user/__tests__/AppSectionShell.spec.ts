@@ -105,6 +105,12 @@ describe('AppSectionShell', () => {
     expect(wrapper.text()).toContain('账户设置')
   })
 
+  it('uses the image workbench as the brand home destination', () => {
+    const wrapper = mountShell()
+
+    expect(wrapper.get('.ssxz-brand-link').attributes('href')).toBe('/app/image')
+  })
+
   it('switches supported utility menu entries to their own pages instead of rendering inline panels', async () => {
     routeState.path = '/app/image'
     const wrapper = mountShell()
