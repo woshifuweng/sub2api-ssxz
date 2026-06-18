@@ -106,6 +106,11 @@ describe('ProfileView', () => {
 
     const text = wrapper.text()
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(true)
+    expect(text).toContain('管理你的登录信息和安全验证')
+    expect(text).toContain('基础资料')
+    expect(text).toContain('编辑个人资料')
+    expect(text).toContain('修改密码')
+    expect(text).toContain('账号安全')
     expect(text).toContain('账户状态')
     expect(text).toContain('正常')
     expect(text).not.toContain('并发限制')

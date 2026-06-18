@@ -1,6 +1,34 @@
 <template>
   <component :is="pageShell" v-bind="pageShellProps">
     <div :class="['keys-page-surface', { 'keys-page-surface--workbench': useWorkbenchShell }]">
+      <section v-if="useWorkbenchShell" class="keys-client-guide" aria-label="第三方客户端接入说明">
+        <div class="keys-guide-copy">
+          <span class="keys-guide-eyebrow">成熟用户入口</span>
+          <h3>把 SSXZ AI 接到你常用的客户端</h3>
+          <p>
+            API Key 用于 CC Switch、Cherry Studio、Chatbox 等第三方客户端。创建后请保存完整 Key，列表里只展示脱敏值。
+          </p>
+          <div class="keys-guide-base">
+            <span>Base URL</span>
+            <code>{{ apiBaseUrl }}</code>
+          </div>
+        </div>
+        <div class="keys-guide-cards" aria-label="支持的客户端示例">
+          <article>
+            <strong>CC Switch</strong>
+            <span>填入 Base URL 和 API Key 后切换模型使用。</span>
+          </article>
+          <article>
+            <strong>Cherry Studio</strong>
+            <span>选择 OpenAI-compatible 配置方式接入。</span>
+          </article>
+          <article>
+            <strong>Chatbox</strong>
+            <span>适合熟练用户在站外继续聊天或调用图片接口。</span>
+          </article>
+        </div>
+      </section>
+
       <TablePageLayout :class="{ 'keys-workbench-layout': useWorkbenchShell }">
       <template #filters>
         <div class="space-y-3">
@@ -1210,6 +1238,7 @@ const dropdownRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
 const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
 let abortController: AbortController | null = null
+const apiBaseUrl = computed(() => publicSettings.value?.api_base_url || window.location.origin)
 
 // Get the currently selected key for group change
 const selectedKeyForGroup = computed(() => {
@@ -1899,6 +1928,103 @@ onUnmounted(() => {
   max-width: 78rem;
 }
 
+.keys-client-guide {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(20rem, 0.75fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 1.35rem;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--ssxz-action-soft) 44%, transparent), transparent 42%),
+    color-mix(in srgb, var(--ssxz-surface-raised) 91%, transparent);
+  box-shadow: var(--ssxz-shadow-sm);
+  padding: 1rem;
+}
+
+.keys-guide-copy {
+  min-width: 0;
+}
+
+.keys-guide-eyebrow {
+  color: var(--ssxz-action);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.keys-guide-copy h3 {
+  margin: 0.32rem 0 0;
+  color: var(--ssxz-text-primary);
+  font-size: clamp(1.15rem, 2vw, 1.55rem);
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.keys-guide-copy p {
+  max-width: 45rem;
+  margin: 0.5rem 0 0;
+  color: var(--ssxz-text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.keys-guide-base {
+  display: flex;
+  min-width: 0;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ssxz-input) 88%, transparent);
+  padding: 0.48rem 0.7rem;
+}
+
+.keys-guide-base span {
+  flex: 0 0 auto;
+  color: var(--ssxz-text-muted);
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.keys-guide-base code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ssxz-text-primary);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.keys-guide-cards {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.keys-guide-cards article {
+  border: 1px solid var(--ssxz-border);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--ssxz-surface) 86%, transparent);
+  padding: 0.78rem;
+}
+
+.keys-guide-cards strong {
+  display: block;
+  color: var(--ssxz-text-primary);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.keys-guide-cards span {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--ssxz-text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
 .keys-page-surface--workbench :deep(.table-page-layout) {
   height: auto;
   gap: 1rem;
@@ -1965,6 +2091,16 @@ onUnmounted(() => {
 }
 
 @media (max-width: 767px) {
+  .keys-client-guide {
+    grid-template-columns: 1fr;
+    border-radius: 1rem;
+    padding: 0.85rem;
+  }
+
+  .keys-guide-base {
+    width: 100%;
+  }
+
   .keys-page-surface--workbench :deep(.layout-section-fixed) {
     border-radius: 1rem;
     padding: 0.85rem;

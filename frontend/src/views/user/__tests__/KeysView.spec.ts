@@ -275,6 +275,11 @@ describe('KeysView workbench surface', () => {
     expect(wrapper.find('.keys-page-surface--workbench').exists()).toBe(true)
     expect(wrapper.find('.keys-workbench-layout').exists()).toBe(true)
     expect(wrapper.text()).toContain('keys.clientAccessTitle')
+    expect(wrapper.text()).toContain('把 SSXZ AI 接到你常用的客户端')
+    expect(wrapper.text()).toContain('CC Switch')
+    expect(wrapper.text()).toContain('Cherry Studio')
+    expect(wrapper.text()).toContain('Chatbox')
+    expect(wrapper.text()).toContain('https://example.test')
   })
 
   it('keeps the legacy /keys surface on the legacy route', async () => {
