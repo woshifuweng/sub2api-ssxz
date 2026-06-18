@@ -40,14 +40,13 @@
       <nav class="ssxz-secondary-nav" aria-label="工作台入口">
         <button
           v-for="item in utilityItems"
-          :key="item.id"
+          :key="item.to"
           type="button"
           class="ssxz-nav-item ssxz-utility-item"
-          :class="{ 'is-active': activeUtility === item.id }"
+          :class="{ 'is-active': isActive(item.to) }"
           :title="item.label"
           :aria-label="item.label"
-          :aria-expanded="activeUtility === item.id"
-          @click="toggleUtilityPanel(item.id)"
+          @click="handleRouteNav(item.to)"
         >
           <Icon :name="item.icon" size="sm" />
           <span class="ssxz-sidebar-text">{{ item.label }}</span>
@@ -141,31 +140,6 @@
           </div>
         </section>
 
-        <section v-if="activeUtilityContent" class="ssxz-workspace-utility-center" aria-live="polite">
-          <div class="ssxz-utility-center-heading">
-            <Icon :name="activeUtilityContent.icon" size="sm" />
-            <div>
-              <h3>{{ activeUtilityContent.label }}</h3>
-              <p>{{ activeUtilityContent.description }}</p>
-            </div>
-          </div>
-          <dl v-if="activeUtility === 'usage'" class="ssxz-usage-details">
-            <div>
-              <dt>剩余余额</dt>
-              <dd>${{ userBalance }}</dd>
-            </div>
-            <div>
-              <dt>用量记录</dt>
-              <dd>暂无用量记录</dd>
-            </div>
-          </dl>
-          <div v-if="activeUtility === 'developer'" class="ssxz-utility-actions">
-            <RouterLink to="/keys" class="ssxz-utility-action">
-              打开 API Key / 第三方客户端接入
-            </RouterLink>
-          </div>
-        </section>
-
         <slot />
       </div>
     </main>
@@ -181,7 +155,6 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 
 type IconName = InstanceType<typeof Icon>['$props']['name']
-type UtilityId = 'account' | 'developer' | 'usage'
 
 withDefaults(defineProps<{
   title: string
@@ -209,7 +182,6 @@ const router = useRouter()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const userMenuOpen = ref(false)
-const activeUtility = ref<UtilityId | null>(null)
 const SIDEBAR_COLLAPSED_KEY = 'ssxz.app.sidebar.collapsed'
 const sidebarCollapsed = ref(readSidebarCollapsed())
 const mobileNavOpen = ref(false)
@@ -222,32 +194,16 @@ const navItems: Array<{ label: string; to: string; icon: IconName }> = [
   { label: 'AI 作图', to: '/app/image', icon: 'sparkles' }
 ]
 
-const utilityItems: Array<{ id: UtilityId; label: string; icon: IconName; description: string }> = [
-  {
-    id: 'usage',
-    label: '用量中心',
-    icon: 'chartBar',
-    description: '查看消耗与余额。当前仅展示已确认的账户余额，暂无用量记录时不会编造数据。'
-  },
-  {
-    id: 'developer',
-    label: 'API Key / 第三方接入',
-    icon: 'key',
-    description: '熟练用户可以在这里创建自己的 API Key，并复制 Base URL 接入 CC Switch、Cherry Studio、Chatbox 等第三方客户端。'
-  },
-  {
-    id: 'account',
-    label: '账户设置',
-    icon: 'userCircle',
-    description: '账户信息在右上角展开，可在此查看余额与退出登录。'
-  }
+const utilityItems: Array<{ label: string; to: string; icon: IconName }> = [
+  { label: '用量中心', to: '/app/usage', icon: 'chartBar' },
+  { label: 'API Key / 第三方接入', to: '/keys', icon: 'key' },
+  { label: '账户设置', to: '/profile', icon: 'userCircle' }
 ]
 
 
 const userLabel = computed(() => authStore.user?.username || authStore.user?.email?.split('@')[0] || '账户')
 const userInitial = computed(() => userLabel.value.slice(0, 1).toUpperCase())
 const userBalance = computed(() => formatMoney(authStore.user?.balance || 0))
-const activeUtilityContent = computed(() => utilityItems.find((item) => item.id === activeUtility.value) ?? null)
 const navToggleLabel = computed(() => {
   if (!isDesktopViewport.value) return mobileNavOpen.value ? '关闭导航' : '打开导航'
   return sidebarCollapsed.value ? '展开侧边栏' : '收起侧边栏'
@@ -260,13 +216,12 @@ function isActive(path: string) {
   return route.path === normalizedPath
 }
 
-function toggleUtilityPanel(id: UtilityId) {
-  activeUtility.value = activeUtility.value === id ? null : id
+function handleRouteNav(to: string) {
   closeMobileNav()
+  if (route.path !== to) router.push(to)
 }
 
 function handlePrimaryNav(to: string) {
-  activeUtility.value = null
   closeMobileNav()
   if (to === '/app?new=1') {
     emit('new-chat')
@@ -824,99 +779,9 @@ onBeforeUnmount(() => {
   font-size: 0.86rem;
 }
 
-.ssxz-workspace-utility-center {
-  display: grid;
-  gap: 0.9rem;
-  margin: 0 0 1rem;
-  border: 1px solid var(--ssxz-border);
-  border-radius: 1.15rem;
-  background: color-mix(in srgb, var(--ssxz-surface-raised) 86%, transparent);
-  box-shadow: var(--ssxz-shadow-sm);
-  padding: 1rem;
-}
-
-.ssxz-utility-center-heading {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-}
-
-.ssxz-utility-center-heading svg {
-  margin-top: 0.15rem;
-  color: var(--ssxz-primary);
-}
-
-.ssxz-utility-center-heading h3 {
-  color: var(--ssxz-text);
-  font-size: 0.98rem;
-  font-weight: 780;
-  margin: 0;
-}
-
-.ssxz-utility-center-heading p {
-  color: var(--ssxz-body);
-  font-size: 0.84rem;
-  line-height: 1.6;
-  margin: 0.2rem 0 0;
-}
-
-.ssxz-usage-details {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.7rem;
-  margin: 0;
-}
-
-.ssxz-usage-details div {
-  border: 1px solid var(--ssxz-border);
-  border-radius: 0.95rem;
-  background: color-mix(in srgb, var(--ssxz-surface-muted) 72%, transparent);
-  padding: 0.8rem;
-}
-
-.ssxz-usage-details dt {
-  color: var(--ssxz-subtle);
-  font-size: 0.75rem;
-  font-weight: 760;
-}
-
-.ssxz-usage-details dd {
-  color: var(--ssxz-text);
-  font-size: 0.94rem;
-  font-weight: 780;
-  margin: 0.25rem 0 0;
-}
-
-.ssxz-utility-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-}
-
-.ssxz-utility-action {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid color-mix(in srgb, var(--ssxz-primary) 38%, var(--ssxz-border));
-  border-radius: 0.85rem;
-  background: color-mix(in srgb, var(--ssxz-primary) 10%, transparent);
-  color: var(--ssxz-text);
-  font-size: 0.84rem;
-  font-weight: 760;
-  min-height: 2.35rem;
-  padding: 0.55rem 0.78rem;
-}
-
-.ssxz-utility-action:hover {
-  background: color-mix(in srgb, var(--ssxz-primary) 16%, transparent);
-}
-
 @media (max-width: 640px) {
   .ssxz-balance-pill {
     display: none;
-  }
-
-  .ssxz-usage-details {
-    grid-template-columns: 1fr;
   }
 }
 </style>
