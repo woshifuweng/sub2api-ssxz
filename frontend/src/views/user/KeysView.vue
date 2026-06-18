@@ -1,5 +1,5 @@
 <template>
-  <AppLayout>
+  <component :is="pageShell" v-bind="pageShellProps">
     <TablePageLayout>
       <template #filters>
         <div class="space-y-3">
@@ -1082,12 +1082,13 @@
         </div>
       </div>
     </Teleport>
-  </AppLayout>
+  </component>
 </template>
 
 <script setup lang="ts">
 	import { ref, computed, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
 	import { useI18n } from 'vue-i18n'
+	import { useRoute } from 'vue-router'
 	import { useAppStore } from '@/stores/app'
 	import { useOnboardingStore } from '@/stores/onboarding'
 	import { useClipboard } from '@/composables/useClipboard'
@@ -1096,6 +1097,7 @@ import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 const { t } = useI18n()
 import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import DataTable from '@/components/common/DataTable.vue'
 	import Pagination from '@/components/common/Pagination.vue'
@@ -1124,6 +1126,18 @@ const formatDateTimeLocal = (isoDate: string): string => {
 const appStore = useAppStore()
 const onboardingStore = useOnboardingStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
+const route = useRoute()
+const useWorkbenchShell = computed(() => route.path.startsWith('/app/'))
+const pageShell = computed(() => useWorkbenchShell.value ? AppSectionShell : AppLayout)
+const pageShellProps = computed(() => useWorkbenchShell.value
+  ? {
+      title: 'API Key / 第三方接入',
+      subtitle: '创建和管理自己的 API Key，用于 CC Switch、Cherry Studio、Chatbox 等第三方客户端。',
+      eyebrow: '第三方客户端',
+      icon: 'key'
+    }
+  : {}
+)
 
 const columns = computed<Column[]>(() => [
   { key: 'name', label: t('common.name'), sortable: true },

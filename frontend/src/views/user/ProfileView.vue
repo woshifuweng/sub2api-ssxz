@@ -1,5 +1,5 @@
 <template>
-  <AppLayout>
+  <component :is="pageShell" v-bind="pageShellProps">
     <div class="mx-auto max-w-4xl space-y-6">
       <div class="grid grid-cols-1 gap-6 sm:grid-cols-3">
         <StatCard :title="t('profile.accountBalance')" :value="formatCurrency(user?.balance || 0)" :icon="WalletIcon" icon-variant="success" />
@@ -17,13 +17,15 @@
       <ProfilePasswordForm />
       <ProfileTotpCard />
     </div>
-  </AppLayout>
+  </component>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, h, onMounted } from 'vue'; import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'; import { formatDate } from '@/utils/format'
 import { authAPI } from '@/api'; import AppLayout from '@/components/layout/AppLayout.vue'
+import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import ProfileInfoCard from '@/components/user/profile/ProfileInfoCard.vue'
 import ProfileEditForm from '@/components/user/profile/ProfileEditForm.vue'
@@ -32,6 +34,18 @@ import ProfileTotpCard from '@/components/user/profile/ProfileTotpCard.vue'
 import { Icon } from '@/components/icons'
 
 const { t } = useI18n(); const authStore = useAuthStore(); const user = computed(() => authStore.user)
+const route = useRoute()
+const useWorkbenchShell = computed(() => route.path.startsWith('/app/'))
+const pageShell = computed(() => useWorkbenchShell.value ? AppSectionShell : AppLayout)
+const pageShellProps = computed(() => useWorkbenchShell.value
+  ? {
+      title: '账户设置',
+      subtitle: '查看账户信息，更新资料、密码和安全验证设置。',
+      eyebrow: '我的账户',
+      icon: 'userCircle'
+    }
+  : {}
+)
 const contactInfo = ref('')
 
 const WalletIcon = { render: () => h('svg', { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' }, [h('path', { d: 'M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12' })]) }

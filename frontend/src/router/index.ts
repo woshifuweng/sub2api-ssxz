@@ -185,6 +185,28 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/app/keys',
+    name: 'AppKeys',
+    component: () => import('@/views/user/KeysView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'API Key / Third-party Access',
+      appSection: 'keys'
+    }
+  },
+  {
+    path: '/app/profile',
+    name: 'AppProfile',
+    component: () => import('@/views/user/ProfileView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Account Settings',
+      appSection: 'profile'
+    }
+  },
+  {
     path: '/dashboard',
     name: 'Dashboard',
     component: () => import('@/views/user/DashboardView.vue'),
@@ -646,6 +668,8 @@ const BACKEND_MODE_ALLOWED_PATHS = [
   '/setup',
   '/app/image',
   '/app/usage',
+  '/app/keys',
+  '/app/profile',
   '/sora',
   '/app/chat',
   '/usage',

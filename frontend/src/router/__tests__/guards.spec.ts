@@ -60,6 +60,9 @@ const backendModeAllowedPaths = [
   '/key-usage',
   '/setup',
   '/app/image',
+  '/app/usage',
+  '/app/keys',
+  '/app/profile',
   '/sora',
   '/app/chat',
   '/usage',
@@ -322,6 +325,18 @@ describe('路由守卫逻辑', () => {
       }
       const redirect = simulateGuard('/keys', {}, authState)
       expect(redirect).toBeNull()
+    })
+
+    it('allows workbench API Key and profile routes in simple mode', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isSimpleMode: true,
+        backendModeEnabled: false,
+      }
+
+      expect(simulateGuard('/app/keys', {}, authState)).toBeNull()
+      expect(simulateGuard('/app/profile', {}, authState)).toBeNull()
     })
   })
 
