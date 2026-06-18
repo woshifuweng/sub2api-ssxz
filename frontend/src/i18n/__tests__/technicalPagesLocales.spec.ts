@@ -25,6 +25,10 @@ describe('technical user page locale copy', () => {
     'availableChannels.pricing.inputPrice',
     'availableChannels.pricing.outputPrice',
     'availableChannels.pricing.unitPerMillion',
+    'common.autoRefresh.title',
+    'common.autoRefresh.countdown',
+    'common.autoRefresh.enable',
+    'common.autoRefresh.seconds',
     'channelStatus.windowTab.7d',
     'channelStatus.windowTab.15d',
     'channelStatus.windowTab.30d',
@@ -50,6 +54,7 @@ describe('technical user page locale copy', () => {
       expect(value, key).toEqual(expect.any(String))
       expect(value).not.toBe(key)
       expect(value).not.toContain('availableChannels.')
+      expect(value).not.toContain('common.autoRefresh.')
       expect(value).not.toContain('channelStatus.')
       expect(value).not.toContain('monitorCommon.')
     }

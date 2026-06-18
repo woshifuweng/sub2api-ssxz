@@ -321,6 +321,12 @@ export default {
     now: '现在',
     unknown: '未知',
     minutes: '分钟',
+    autoRefresh: {
+      title: '自动刷新',
+      countdown: '{seconds}s 后刷新',
+      enable: '启用自动刷新',
+      seconds: '{n}s'
+    },
     time: {
       never: '从未',
       justNow: '刚刚',
