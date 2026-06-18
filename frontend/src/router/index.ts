@@ -250,27 +250,11 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/keys',
-    name: 'Keys',
-    component: () => import('@/views/user/KeysView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'API Keys',
-      titleKey: 'keys.title',
-      descriptionKey: 'keys.description'
-    }
+    redirect: redirectLegacyRoute('/app/keys')
   },
   {
     path: '/usage',
-    name: 'Usage',
-    component: () => import('@/views/user/UsageView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Usage Records',
-      titleKey: 'usage.title',
-      descriptionKey: 'usage.description'
-    }
+    redirect: redirectLegacyRoute('/app/usage')
   },
   {
     path: '/redeem',
@@ -308,15 +292,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/profile',
-    name: 'Profile',
-    component: () => import('@/views/user/ProfileView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Profile',
-      titleKey: 'profile.title',
-      descriptionKey: 'profile.description'
-    }
+    redirect: redirectLegacyRoute('/app/profile')
   },
   {
     path: '/subscriptions',
@@ -332,15 +308,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/purchase',
-    name: 'PurchaseSubscription',
-    component: () => import('@/views/user/PurchaseRouteView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Purchase Subscription',
-      titleKey: 'purchase.title',
-      descriptionKey: 'purchase.description'
-    }
+    redirect: redirectLegacyRoute('/app/purchase')
   },
   {
     path: '/orders',
