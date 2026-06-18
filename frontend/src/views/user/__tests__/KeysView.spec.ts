@@ -104,7 +104,14 @@ vi.mock('@/components/common/DataTable.vue', () => ({
   default: {
     name: 'DataTable',
     props: ['columns', 'data', 'loading'],
-    template: '<div data-testid="data-table"><slot name="empty" /></div>'
+    template: `
+      <div data-testid="data-table">
+        <div v-for="row in data" :key="row.id" data-testid="data-row">
+          <slot name="cell-actions" :row="row" />
+        </div>
+        <slot v-if="!data.length" name="empty" />
+      </div>
+    `
   }
 }))
 
@@ -125,7 +132,16 @@ vi.mock('@/components/common/BaseDialog.vue', () => ({
 vi.mock('@/components/common/ConfirmDialog.vue', () => ({
   default: {
     name: 'ConfirmDialog',
-    template: '<div data-testid="confirm-dialog" />'
+    props: ['show', 'title', 'message', 'confirmText', 'cancelText', 'danger'],
+    emits: ['confirm', 'cancel'],
+    template: `
+      <div v-if="show" data-testid="confirm-dialog">
+        <h2>{{ title }}</h2>
+        <p>{{ message }}</p>
+        <button type="button" data-testid="confirm-cancel" @click="$emit('cancel')">{{ cancelText }}</button>
+        <button type="button" data-testid="confirm-submit" @click="$emit('confirm')">{{ confirmText }}</button>
+      </div>
+    `
   }
 }))
 
@@ -198,7 +214,6 @@ function mountView() {
         Select: true,
         Pagination: true,
         BaseDialog: true,
-        ConfirmDialog: true,
         EmptyState: true,
         UseKeyModal: true,
         GroupBadge: true,
@@ -207,6 +222,37 @@ function mountView() {
       }
     }
   })
+}
+
+function apiKeyFixture(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 1,
+    name: 'primary-key',
+    key: 'sk-test...0001',
+    status: 'active',
+    group_id: 1,
+    group_ids: [1],
+    groups: [],
+    group: null,
+    allowed_models: [],
+    ip_whitelist: [],
+    ip_blacklist: [],
+    quota: 0,
+    quota_used: 0,
+    rate_limit_5h: 0,
+    rate_limit_1d: 0,
+    rate_limit_7d: 0,
+    usage_5h: 0,
+    usage_1d: 0,
+    usage_7d: 0,
+    reset_5h_at: null,
+    reset_1d_at: null,
+    reset_7d_at: null,
+    expires_at: null,
+    last_used_at: null,
+    created_at: '2026-06-18T00:00:00Z',
+    ...overrides
+  }
 }
 
 describe('KeysView workbench surface', () => {
@@ -240,5 +286,80 @@ describe('KeysView workbench surface', () => {
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(false)
     expect(wrapper.find('.keys-page-surface--workbench').exists()).toBe(false)
     expect(wrapper.find('.keys-workbench-layout').exists()).toBe(false)
+  })
+
+  it('requires confirmation before disabling an active API key', async () => {
+    keysAPI.list.mockResolvedValue({
+      items: [apiKeyFixture()],
+      total: 1,
+      pages: 1
+    })
+    keysAPI.toggleStatus.mockResolvedValue(apiKeyFixture({ status: 'inactive' }))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const disableButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.disable'))
+    expect(disableButton).toBeTruthy()
+    await disableButton!.trigger('click')
+
+    expect(keysAPI.toggleStatus).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('keys.disableKeyTitle')
+    expect(wrapper.text()).toContain('keys.disableConfirmMessage')
+
+    await wrapper.get('[data-testid="confirm-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(keysAPI.toggleStatus).toHaveBeenCalledWith(1, 'inactive')
+  })
+
+  it('does not change API key status when the confirmation is cancelled', async () => {
+    keysAPI.list.mockResolvedValue({
+      items: [apiKeyFixture()],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const disableButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.disable'))
+    await disableButton!.trigger('click')
+    await wrapper.get('[data-testid="confirm-cancel"]').trigger('click')
+    await flushPromises()
+
+    expect(keysAPI.toggleStatus).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="confirm-dialog"]').exists()).toBe(false)
+  })
+
+  it('requires confirmation before enabling an inactive API key', async () => {
+    keysAPI.list.mockResolvedValue({
+      items: [apiKeyFixture({ status: 'inactive' })],
+      total: 1,
+      pages: 1
+    })
+    keysAPI.toggleStatus.mockResolvedValue(apiKeyFixture({ status: 'active' }))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const enableButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.enable'))
+    expect(enableButton).toBeTruthy()
+    await enableButton!.trigger('click')
+
+    expect(keysAPI.toggleStatus).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('keys.enableKeyTitle')
+    expect(wrapper.text()).toContain('keys.enableConfirmMessage')
+
+    await wrapper.get('[data-testid="confirm-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(keysAPI.toggleStatus).toHaveBeenCalledWith(1, 'active')
   })
 })

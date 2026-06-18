@@ -331,9 +331,11 @@
               </button>
               <!-- Toggle Status Button -->
               <button
-                @click="toggleKeyStatus(row)"
+                @click="confirmToggleKeyStatus(row)"
+                :disabled="statusUpdatingKeyId === row.id"
                 :class="[
                   'flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors',
+                  statusUpdatingKeyId === row.id ? 'cursor-not-allowed opacity-50' : '',
                   row.status === 'active'
                     ? 'text-gray-500 hover:bg-yellow-50 hover:text-yellow-600 dark:hover:bg-yellow-900/20 dark:hover:text-yellow-400'
                     : 'text-gray-500 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400'
@@ -939,6 +941,20 @@
       @cancel="showDeleteDialog = false"
     />
 
+    <!-- Status Change Confirmation Dialog -->
+    <ConfirmDialog
+      :show="showStatusDialog"
+      :title="pendingStatusAction?.status === 'active' ? t('keys.enableKeyTitle') : t('keys.disableKeyTitle')"
+      :message="pendingStatusAction?.status === 'active'
+        ? t('keys.enableConfirmMessage', { name: pendingStatusAction?.key.name })
+        : t('keys.disableConfirmMessage', { name: pendingStatusAction?.key.name })"
+      :confirm-text="pendingStatusAction?.status === 'active' ? t('keys.enable') : t('keys.disable')"
+      :cancel-text="t('common.cancel')"
+      :danger="pendingStatusAction?.status === 'inactive'"
+      @confirm="handleToggleKeyStatus"
+      @cancel="cancelToggleKeyStatus"
+    />
+
     <!-- Reset Quota Confirmation Dialog -->
     <ConfirmDialog
       :show="showResetQuotaDialog"
@@ -1178,13 +1194,16 @@ const filterGroupId = ref<string | number>('')
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
 const showDeleteDialog = ref(false)
+const showStatusDialog = ref(false)
 const showResetQuotaDialog = ref(false)
 const showResetRateLimitDialog = ref(false)
 const showUseKeyModal = ref(false)
 const showCcsClientSelect = ref(false)
 const pendingCcsRow = ref<ApiKey | null>(null)
+const pendingStatusAction = ref<{ key: ApiKey; status: 'active' | 'inactive' } | null>(null)
 const selectedKey = ref<ApiKey | null>(null)
 const copiedKeyId = ref<number | null>(null)
+const statusUpdatingKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
 const dropdownRef = ref<HTMLElement | null>(null)
@@ -1467,16 +1486,36 @@ const editKey = (key: ApiKey) => {
   showEditModal.value = true
 }
 
-const toggleKeyStatus = async (key: ApiKey) => {
-  const newStatus = key.status === 'active' ? 'inactive' : 'active'
+const confirmToggleKeyStatus = (key: ApiKey) => {
+  pendingStatusAction.value = {
+    key,
+    status: key.status === 'active' ? 'inactive' : 'active'
+  }
+  showStatusDialog.value = true
+}
+
+const cancelToggleKeyStatus = () => {
+  showStatusDialog.value = false
+  pendingStatusAction.value = null
+}
+
+const handleToggleKeyStatus = async () => {
+  const action = pendingStatusAction.value
+  if (!action) return
+
+  showStatusDialog.value = false
+  statusUpdatingKeyId.value = action.key.id
   try {
-    await keysAPI.toggleStatus(key.id, newStatus)
+    await keysAPI.toggleStatus(action.key.id, action.status)
     appStore.showSuccess(
-      newStatus === 'active' ? t('keys.keyEnabledSuccess') : t('keys.keyDisabledSuccess')
+      action.status === 'active' ? t('keys.keyEnabledSuccess') : t('keys.keyDisabledSuccess')
     )
     loadApiKeys()
   } catch (error) {
     appStore.showError(t('keys.failedToUpdateStatus'))
+  } finally {
+    statusUpdatingKeyId.value = null
+    pendingStatusAction.value = null
   }
 }
 
