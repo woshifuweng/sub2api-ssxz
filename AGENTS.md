@@ -8,6 +8,8 @@ Before planning or editing, read `PROJECT_STATUS.md`, `ROADMAP.md`, and `BACKLOG
 
 Interpret user requests by product goal, not literal technology words. Mentions of DeepSeek, web search, `image2`, `gpt-image-2`, or Sora are not automatic architecture decisions. First check existing assets, product fit, cost/risk, and external dependency status where applicable.
 
+The user usually describes needs from a product-owner and private-operator perspective, not with precise engineering terminology. Translate unclear requests into maintainable product, engineering, operations, and security plans before acting. If the literal wording conflicts with the product goal or codebase facts, explain the mismatch and propose the safer interpretation.
+
 ## 1. Agent execution protocol
 
 Before making code changes, every coding agent must:
