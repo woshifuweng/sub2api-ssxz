@@ -1,7 +1,7 @@
 <template>
   <AppSectionShell
     title="充值 / 订阅"
-    subtitle="在新版工作台里完成余额充值或订阅购买。这里复用现有支付链路，不创建新的账务逻辑。"
+    subtitle="为账户充值余额，或选择适合你的订阅套餐。"
     eyebrow="账户计费"
     icon="creditCard"
   >

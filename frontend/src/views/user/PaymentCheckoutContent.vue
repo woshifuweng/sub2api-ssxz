@@ -20,7 +20,7 @@
               先充值余额，或购买适合你的套餐
             </h1>
             <p class="mt-3 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-400">
-              普通聊天和电商文案通常按模型 token 扣费，AI 作图会按图片模型的规则扣费。网页工具、API Key、第三方软件接入都会统一记录到用量明细里。
+              余额可用于站内聊天、图片生成和 API Key / 第三方客户端调用，所有消费都会记录在用量明细中。
             </p>
           </div>
 
@@ -41,15 +41,15 @@
         <div class="mt-5 grid gap-3 md:grid-cols-3">
           <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-800/70">
             <p class="text-sm font-semibold text-gray-900 dark:text-white">余额充值</p>
-            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">适合普通聊天、电商文案、API 临时使用。用多少扣多少，余额不足时调用会失败。</p>
+            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">适合按需使用。充值后可用于聊天、图片生成和第三方客户端调用。</p>
           </div>
           <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-800/70">
             <p class="text-sm font-semibold text-gray-900 dark:text-white">套餐订阅</p>
-            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">适合长期客户。不同套餐可以绑定不同分组、模型倍率和每日/月度额度。</p>
+            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">适合长期使用。可用功能、额度和有效期以套餐说明为准。</p>
           </div>
           <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-800/70">
-            <p class="text-sm font-semibold text-gray-900 dark:text-white">图片扣费</p>
-            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">图片能力需要支持 Images API 的上游账号。开通后建议按张展示消耗，避免客户误解。</p>
+            <p class="text-sm font-semibold text-gray-900 dark:text-white">图片生成</p>
+            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">图片生成消耗会根据所选模型、规格和数量计算，实际记录可在用量中心查看。</p>
           </div>
         </div>
       </section>

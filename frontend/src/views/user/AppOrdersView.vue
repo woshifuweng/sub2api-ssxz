@@ -1,7 +1,7 @@
 <template>
   <AppSectionShell
     title="订单记录"
-    subtitle="查看自己的充值和订阅订单。这里复用现有订单数据，只做新版工作台展示，不发起支付、不取消订单、不处理退款。"
+    subtitle="查看自己的充值、订阅和支付状态，方便核对每笔订单。"
     eyebrow="账户计费"
     icon="creditCard"
   >
@@ -26,7 +26,7 @@
           <div>
             <span>订单数量</span>
             <strong>{{ orderCountText }}</strong>
-            <p>只展示真实订单接口返回的数据，没有订单时显示空状态。</p>
+            <p>这里汇总你的充值和订阅订单，暂无记录时会显示空状态。</p>
           </div>
         </article>
       </div>
@@ -35,7 +35,7 @@
         <header class="panel-heading">
           <div>
             <h3>订单明细</h3>
-            <p>用于核对充值、订阅和支付状态；支付操作后续会单独迁入新版工作台。</p>
+            <p>查看订单金额、支付方式和当前状态。</p>
           </div>
           <button type="button" class="refresh-button" :disabled="loading" @click="loadOrders">
             <Icon name="refresh" size="xs" />
@@ -46,8 +46,8 @@
         <div v-if="!paymentEnabled" class="orders-empty">
           <Icon name="creditCard" size="lg" />
           <strong>充值 / 订阅暂未开启</strong>
-          <span>管理员暂未开启支付能力。这里保留订单入口，但不会跳转到旧后台壳。</span>
-          <RouterLink to="/app/purchase" class="empty-action">查看充值入口</RouterLink>
+          <span>管理员暂未开启充值或订阅功能，请稍后再试或联系管理员。</span>
+          <RouterLink to="/app/purchase" class="empty-action">查看充值说明</RouterLink>
         </div>
 
         <div v-else-if="loading" class="orders-empty compact">
@@ -58,13 +58,13 @@
         <div v-else-if="loadError" class="orders-empty compact">
           <Icon name="exclamationTriangle" size="md" />
           <strong>{{ loadError }}</strong>
-          <span>可以稍后刷新；页面不会自动跳到旧版订单页。</span>
+          <span>请稍后重试，或联系管理员协助查询。</span>
         </div>
 
         <div v-else-if="orders.length === 0" class="orders-empty compact">
           <Icon name="inbox" size="md" />
           <strong>暂无订单记录</strong>
-          <span>充值或购买订阅后，真实订单会出现在这里。</span>
+          <span>完成充值或购买订阅后，订单会显示在这里。</span>
         </div>
 
         <div v-else class="orders-table-wrap">
