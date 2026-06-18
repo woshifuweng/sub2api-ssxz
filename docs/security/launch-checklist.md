@@ -75,12 +75,14 @@ Key SSRF blocklist targets:
 
 ## 4. Unified Chat Workspace v1
 
-Scope for v1:
+Scope for the ordinary-user workspace:
 
-- `/app` is the main workspace.
-- `/app/chat` and `/app/image` redirect into the unified workspace.
+- `/app/chat` is the user-side chat entry.
+- `/app/image` is the user-side image-generation entry.
+- `/app/usage`, `/app/keys`, and `/app/profile` are user-side utility entries.
+- These routes may be separate user-facing pages, but they must share the authenticated user workspace boundary and must not jump into the admin/backend-looking shell.
 - Text conversation lifecycle works end to end.
-- Real image generation is not required in v1 unless explicitly scoped.
+- Real image generation must be verified separately before production release.
 - Web browsing, memory, toolbox, documents, and complex file analysis remain disabled or clearly marked as unavailable.
 
 Security checks:
@@ -106,8 +108,8 @@ Acceptance tests:
 - [ ] User A cannot access User B's conversation by ID.
 - [ ] Invalid model is rejected server-side.
 - [ ] Invalid intent is rejected server-side.
-- [ ] `/app/chat` no longer opens an isolated legacy experience.
-- [ ] `/app/image` no longer opens an isolated legacy experience.
+- [ ] `/app/chat` stays inside the authenticated user workspace and does not bypass conversation ownership checks.
+- [ ] `/app/image` stays inside the authenticated user workspace and does not bypass task, asset, usage, or billing checks.
 
 ## 5. Image upload and generation
 
