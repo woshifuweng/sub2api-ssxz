@@ -271,13 +271,13 @@
       <section class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-dark-600 dark:bg-dark-800">
         <h2 class="text-sm font-semibold text-gray-900 dark:text-white">下一步可用</h2>
         <div class="mt-3 space-y-2 text-sm text-gray-600 dark:text-dark-300">
-          <router-link to="/image-studio" class="block rounded-lg bg-gray-50 px-3 py-2 hover:bg-primary-50 dark:bg-dark-700 dark:hover:bg-primary-900/30">
+          <router-link to="/app/image" class="block rounded-lg bg-gray-50 px-3 py-2 hover:bg-primary-50 dark:bg-dark-700 dark:hover:bg-primary-900/30">
             商品作图和上传改图
           </router-link>
-          <router-link to="/keys" class="block rounded-lg bg-gray-50 px-3 py-2 hover:bg-primary-50 dark:bg-dark-700 dark:hover:bg-primary-900/30">
+          <router-link to="/app/keys" class="block rounded-lg bg-gray-50 px-3 py-2 hover:bg-primary-50 dark:bg-dark-700 dark:hover:bg-primary-900/30">
             API Key 与第三方接入
           </router-link>
-          <router-link to="/usage" class="block rounded-lg bg-gray-50 px-3 py-2 hover:bg-primary-50 dark:bg-dark-700 dark:hover:bg-primary-900/30">
+          <router-link to="/app/usage" class="block rounded-lg bg-gray-50 px-3 py-2 hover:bg-primary-50 dark:bg-dark-700 dark:hover:bg-primary-900/30">
             查看扣费和使用记录
           </router-link>
         </div>

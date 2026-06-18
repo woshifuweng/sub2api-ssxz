@@ -12,8 +12,16 @@ describe('auth redirect resolution', () => {
     expect(resolveAuthRedirect('/app/chat')).toBe('/app/chat')
   })
 
-  it('keeps API Key as an allowed third-party client return target', () => {
-    expect(resolveAuthRedirect('/keys')).toBe('/keys')
+  it('maps legacy user return targets into the workbench shell', () => {
+    expect(resolveAuthRedirect('/keys')).toBe('/app/keys')
+    expect(resolveAuthRedirect('/usage')).toBe('/app/usage')
+    expect(resolveAuthRedirect('/purchase')).toBe('/app/purchase')
+    expect(resolveAuthRedirect('/orders')).toBe('/app/orders')
+    expect(resolveAuthRedirect('/profile')).toBe('/app/profile')
+  })
+
+  it('keeps API Key as an allowed third-party client workbench return target', () => {
+    expect(resolveAuthRedirect('/app/keys')).toBe('/app/keys')
   })
 
   it('maps heavy or legacy workspace entrypoints back to image generation', () => {

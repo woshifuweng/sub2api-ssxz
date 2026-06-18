@@ -712,7 +712,7 @@ async function handleRegister(): Promise<void> {
     appStore.showSuccess(t('auth.accountCreatedSuccess', { siteName: siteName.value }))
 
     // Redirect regular users to the lightweight image workspace.
-    await router.push('/sora')
+    await router.push('/app/image')
   } catch (error: unknown) {
     // Reset Turnstile on error
     if (turnstileRef.value) {
