@@ -61,6 +61,7 @@ const backendModeAllowedPaths = [
   '/setup',
   '/app/image',
   '/app/usage',
+  '/app/purchase',
   '/app/keys',
   '/app/profile',
   '/sora',
@@ -327,7 +328,7 @@ describe('路由守卫逻辑', () => {
       expect(redirect).toBeNull()
     })
 
-    it('allows workbench API Key and profile routes in simple mode', () => {
+    it('allows workbench utility routes in simple mode', () => {
       const authState: MockAuthState = {
         isAuthenticated: true,
         isAdmin: false,
@@ -335,6 +336,7 @@ describe('路由守卫逻辑', () => {
         backendModeEnabled: false,
       }
 
+      expect(simulateGuard('/app/purchase', {}, authState)).toBeNull()
       expect(simulateGuard('/app/keys', {}, authState)).toBeNull()
       expect(simulateGuard('/app/profile', {}, authState)).toBeNull()
     })
@@ -460,6 +462,17 @@ describe('路由守卫逻辑', () => {
         backendModeEnabled: true,
       }
       const redirect = simulateGuard('/app/chat', {}, authState)
+      expect(redirect).toBeNull()
+    })
+
+    it('non-admin authenticated: /app/purchase remains available as the workbench recharge entry', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: true,
+      }
+      const redirect = simulateGuard('/app/purchase', {}, authState)
       expect(redirect).toBeNull()
     })
 

@@ -185,6 +185,17 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/app/purchase',
+    name: 'AppPurchase',
+    component: () => import('@/views/user/AppPurchaseView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Recharge / Subscription',
+      appSection: 'purchase'
+    }
+  },
+  {
     path: '/app/keys',
     name: 'AppKeys',
     component: () => import('@/views/user/KeysView.vue'),
@@ -668,6 +679,7 @@ const BACKEND_MODE_ALLOWED_PATHS = [
   '/setup',
   '/app/image',
   '/app/usage',
+  '/app/purchase',
   '/app/keys',
   '/app/profile',
   '/sora',
