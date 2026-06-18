@@ -21,6 +21,23 @@ import router from '../index'
 
 describe('legacy user routes', () => {
   it.each([
+    ['/app/usage', 'AppUsage', 'usage'],
+    ['/app/purchase', 'AppPurchase', 'purchase'],
+    ['/app/orders', 'AppOrders', 'orders'],
+    ['/app/keys', 'AppKeys', 'keys'],
+    ['/app/profile', 'AppProfile', 'profile'],
+  ])('keeps %s owned by the user workbench route %s', (path, name, appSection) => {
+    const route = router.getRoutes().find((record) => record.path === path)
+
+    expect(route).toBeDefined()
+    expect(route?.name).toBe(name)
+    expect(route?.redirect).toBeUndefined()
+    expect(route?.meta.requiresAuth).toBe(true)
+    expect(route?.meta.requiresAdmin).toBe(false)
+    expect(route?.meta.appSection).toBe(appSection)
+  })
+
+  it.each([
     ['/app', '/app/image'],
     ['/keys', '/app/keys'],
     ['/usage', '/app/usage'],
