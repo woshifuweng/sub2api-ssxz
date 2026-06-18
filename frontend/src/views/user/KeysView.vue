@@ -1,6 +1,7 @@
 <template>
   <component :is="pageShell" v-bind="pageShellProps">
-    <TablePageLayout>
+    <div :class="['keys-page-surface', { 'keys-page-surface--workbench': useWorkbenchShell }]">
+      <TablePageLayout :class="{ 'keys-workbench-layout': useWorkbenchShell }">
       <template #filters>
         <div class="space-y-3">
           <div class="rounded-xl border border-blue-100 bg-blue-50/80 p-4 text-sm text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-100">
@@ -382,7 +383,8 @@
           @update:pageSize="handlePageSizeChange"
         />
       </template>
-    </TablePageLayout>
+      </TablePageLayout>
+    </div>
 
     <!-- Create/Edit Modal -->
     <BaseDialog
@@ -1847,3 +1849,95 @@ onUnmounted(() => {
   if (resetTimer) clearInterval(resetTimer)
 })
 </script>
+
+<style scoped>
+.keys-page-surface {
+  width: 100%;
+}
+
+.keys-page-surface--workbench {
+  margin-inline: auto;
+  max-width: 78rem;
+}
+
+.keys-page-surface--workbench :deep(.table-page-layout) {
+  height: auto;
+  gap: 1rem;
+}
+
+.keys-page-surface--workbench :deep(.layout-section-fixed) {
+  border: 1px solid var(--ssxz-border);
+  border-radius: 1.25rem;
+  background: color-mix(in srgb, var(--ssxz-surface-raised) 88%, transparent);
+  box-shadow: var(--ssxz-shadow-sm);
+  padding: 1rem;
+}
+
+.keys-page-surface--workbench :deep(.layout-section-fixed:first-child) {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.keys-page-surface--workbench :deep(.table-scroll-container) {
+  height: auto;
+  min-height: 22rem;
+  border-color: var(--ssxz-border);
+  border-radius: 1.25rem;
+  background: color-mix(in srgb, var(--ssxz-surface-raised) 90%, transparent);
+  box-shadow: var(--ssxz-shadow-sm);
+}
+
+.keys-page-surface--workbench :deep(.table-scroll-container .table-wrapper) {
+  max-height: none;
+}
+
+.keys-page-surface--workbench :deep(.table-scroll-container th) {
+  background: color-mix(in srgb, var(--ssxz-surface-muted) 72%, transparent);
+  color: var(--ssxz-subtle);
+  font-size: 0.78rem;
+  letter-spacing: 0;
+}
+
+.keys-page-surface--workbench :deep(.table-scroll-container td) {
+  border-color: color-mix(in srgb, var(--ssxz-border) 62%, transparent);
+  color: var(--ssxz-body);
+}
+
+.keys-page-surface--workbench :deep(.btn-primary) {
+  border-color: transparent;
+  background: var(--ssxz-action);
+  color: var(--ssxz-action-text);
+}
+
+.keys-page-surface--workbench :deep(.btn-secondary) {
+  border-color: var(--ssxz-border);
+  background: color-mix(in srgb, var(--ssxz-surface-raised) 86%, transparent);
+  color: var(--ssxz-body);
+}
+
+.keys-page-surface--workbench :deep(input),
+.keys-page-surface--workbench :deep(select) {
+  background: var(--ssxz-input);
+  color: var(--ssxz-text);
+}
+
+@media (max-width: 767px) {
+  .keys-page-surface--workbench :deep(.layout-section-fixed) {
+    border-radius: 1rem;
+    padding: 0.85rem;
+  }
+
+  .keys-page-surface--workbench :deep(.layout-section-fixed:first-child) {
+    padding: 0;
+  }
+
+  .keys-page-surface--workbench :deep(.table-scroll-container) {
+    min-height: 16rem;
+    border-radius: 1rem;
+  }
+}
+</style>
