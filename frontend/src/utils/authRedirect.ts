@@ -9,6 +9,8 @@ const CANONICAL_AUTH_REDIRECTS = new Set([
   '/app/purchase',
   '/app/orders',
   '/app/redeem',
+  '/app/available-channels',
+  '/app/channel-status',
   '/app/profile',
   '/payment/qrcode',
   '/payment/result',
@@ -29,9 +31,10 @@ const LEGACY_AUTH_REDIRECTS: Record<string, string> = {
   '/orders': '/app/orders',
   '/subscriptions': '/app/purchase',
   '/redeem': '/app/redeem',
+  '/available-channels': '/app/available-channels',
+  '/monitor': '/app/channel-status',
   '/profile': '/app/profile',
   '/apps': '/app/image',
-  '/monitor': '/app/image',
   '/sora': '/sora'
 }
 

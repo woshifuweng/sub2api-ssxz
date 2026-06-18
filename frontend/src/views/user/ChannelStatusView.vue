@@ -1,5 +1,5 @@
 <template>
-  <AppLayout>
+  <component :is="pageShell" v-bind="pageShellProps">
     <MonitorHero
       :overall-status="overallStatus"
       :interval-seconds="DEFAULT_INTERVAL_SECONDS"
@@ -25,12 +25,13 @@
       :title="detailTitle"
       @close="closeDetail"
     />
-  </AppLayout>
+  </component>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import {
@@ -40,6 +41,7 @@ import {
   type UserMonitorDetail,
 } from '@/api/channelMonitor'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import MonitorHero, {
   type MonitorWindow,
   type OverallStatus,
@@ -50,7 +52,19 @@ import { DEFAULT_INTERVAL_SECONDS, STATUS_OPERATIONAL } from '@/constants/channe
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
 
 const { t } = useI18n()
+const route = useRoute()
 const appStore = useAppStore()
+
+const useWorkbenchShell = computed(() => route.path === '/app/channel-status')
+const pageShell = computed(() => useWorkbenchShell.value ? AppSectionShell : AppLayout)
+const pageShellProps = computed(() => useWorkbenchShell.value
+  ? {
+      title: '渠道状态',
+      subtitle: '查看当前可用渠道的健康状态和最近监控结果。',
+      eyebrow: '技术信息',
+      icon: 'radio'
+    }
+  : {})
 
 // ── State ──
 const items = ref<UserMonitorView[]>([])

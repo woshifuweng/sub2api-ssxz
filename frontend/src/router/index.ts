@@ -211,6 +211,31 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/app/available-channels',
+    name: 'AppAvailableChannels',
+    component: () => import('@/views/user/AvailableChannelsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Available Channels',
+      titleKey: 'availableChannels.title',
+      descriptionKey: 'availableChannels.description',
+      appSection: 'available-channels'
+    }
+  },
+  {
+    path: '/app/channel-status',
+    name: 'AppChannelStatus',
+    component: () => import('@/views/user/ChannelStatusView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Channel Status',
+      titleKey: 'nav.channelStatus',
+      appSection: 'channel-status'
+    }
+  },
+  {
     path: '/app/keys',
     name: 'AppKeys',
     component: () => import('@/views/user/KeysView.vue'),
@@ -268,15 +293,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/available-channels',
-    name: 'UserAvailableChannels',
-    component: () => import('@/views/user/AvailableChannelsView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Available Channels',
-      titleKey: 'availableChannels.title',
-      descriptionKey: 'availableChannels.description'
-    }
+    redirect: redirectLegacyRoute('/app/available-channels')
   },
   {
     path: '/profile',
@@ -342,14 +359,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/monitor',
-    name: 'ChannelStatus',
-    component: () => import('@/views/user/ChannelStatusView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Channel Status',
-      titleKey: 'nav.channelStatus'
-    }
+    redirect: redirectLegacyRoute('/app/channel-status')
   },
   {
     path: '/sora',
@@ -634,6 +644,8 @@ const BACKEND_MODE_ALLOWED_PATHS = [
   '/app/purchase',
   '/app/orders',
   '/app/redeem',
+  '/app/available-channels',
+  '/app/channel-status',
   '/app/keys',
   '/app/profile',
   '/sora',
