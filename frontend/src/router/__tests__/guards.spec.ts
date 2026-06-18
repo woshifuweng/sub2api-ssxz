@@ -65,6 +65,7 @@ const backendModeAllowedPaths = [
   '/app/orders',
   '/app/keys',
   '/app/profile',
+  '/app/affiliate',
   '/sora',
   '/app/chat',
   '/usage',
@@ -346,6 +347,7 @@ describe('路由守卫逻辑', () => {
       expect(simulateGuard('/app/orders', {}, authState)).toBeNull()
       expect(simulateGuard('/app/keys', {}, authState)).toBeNull()
       expect(simulateGuard('/app/profile', {}, authState)).toBeNull()
+      expect(simulateGuard('/app/affiliate', {}, authState)).toBeNull()
     })
   })
 
@@ -491,6 +493,17 @@ describe('路由守卫逻辑', () => {
         backendModeEnabled: true,
       }
       const redirect = simulateGuard('/app/orders', {}, authState)
+      expect(redirect).toBeNull()
+    })
+
+    it('non-admin authenticated: /app/affiliate remains available as the workbench affiliate entry', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: true,
+      }
+      const redirect = simulateGuard('/app/affiliate', {}, authState)
       expect(redirect).toBeNull()
     })
 
