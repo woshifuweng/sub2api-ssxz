@@ -62,6 +62,7 @@ const backendModeAllowedPaths = [
   '/app/image',
   '/app/usage',
   '/app/purchase',
+  '/app/orders',
   '/app/keys',
   '/app/profile',
   '/sora',
@@ -223,6 +224,11 @@ describe('路由守卫逻辑', () => {
       expect(redirect).toBeNull()
     })
 
+    it('allows /app/orders when payment is disabled so the workbench page can degrade safely', () => {
+      const redirect = simulateGuard('/app/orders', {}, { ...authState, paymentEnabled: false })
+      expect(redirect).toBeNull()
+    })
+
     it('keeps payment flow pages guarded when payment is disabled', () => {
       const redirect = simulateGuard('/payment/qrcode', { requiresPayment: true }, { ...authState, paymentEnabled: false })
       expect(redirect).toBe('/app/image')
@@ -337,6 +343,7 @@ describe('路由守卫逻辑', () => {
       }
 
       expect(simulateGuard('/app/purchase', {}, authState)).toBeNull()
+      expect(simulateGuard('/app/orders', {}, authState)).toBeNull()
       expect(simulateGuard('/app/keys', {}, authState)).toBeNull()
       expect(simulateGuard('/app/profile', {}, authState)).toBeNull()
     })
@@ -473,6 +480,17 @@ describe('路由守卫逻辑', () => {
         backendModeEnabled: true,
       }
       const redirect = simulateGuard('/app/purchase', {}, authState)
+      expect(redirect).toBeNull()
+    })
+
+    it('non-admin authenticated: /app/orders remains available as the workbench order entry', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: true,
+      }
+      const redirect = simulateGuard('/app/orders', {}, authState)
       expect(redirect).toBeNull()
     })
 
