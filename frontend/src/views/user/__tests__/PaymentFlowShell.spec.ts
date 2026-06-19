@@ -75,6 +75,7 @@ vi.mock('qrcode', () => ({
 }))
 
 import PaymentQRCodeView from '../PaymentQRCodeView.vue'
+import PaymentResultView from '../PaymentResultView.vue'
 import StripePaymentView from '../StripePaymentView.vue'
 
 describe('payment flow shell ownership', () => {
@@ -107,6 +108,16 @@ describe('payment flow shell ownership', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="payment-flow-shell"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="legacy-app-layout"]').exists()).toBe(false)
+  })
+
+  it('renders the payment result page in the neutral payment shell', async () => {
+    routeMock.query = {}
+
+    const wrapper = mount(PaymentResultView)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="payment-flow-shell"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="legacy-app-layout"]').exists()).toBe(false)
   })
 })
