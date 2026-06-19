@@ -153,7 +153,8 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: false,
       title: 'AI Chat',
-      appSection: 'chat'
+      appSection: 'chat',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -163,7 +164,8 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Image Generation'
+      title: 'Image Generation',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -174,7 +176,8 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: false,
       title: 'Usage Information',
-      appSection: 'usage'
+      appSection: 'usage',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -185,7 +188,8 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: false,
       title: 'Recharge / Subscription',
-      appSection: 'purchase'
+      appSection: 'purchase',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -196,7 +200,8 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: false,
       title: 'Order Records',
-      appSection: 'orders'
+      appSection: 'orders',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -207,7 +212,8 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: false,
       title: 'Redeem Code',
-      appSection: 'redeem'
+      appSection: 'redeem',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -218,7 +224,8 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: false,
       title: 'Affiliate',
-      appSection: 'affiliate'
+      appSection: 'affiliate',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -231,7 +238,8 @@ const routes: RouteRecordRaw[] = [
       title: 'Available Channels',
       titleKey: 'availableChannels.title',
       descriptionKey: 'availableChannels.description',
-      appSection: 'available-channels'
+      appSection: 'available-channels',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -243,7 +251,8 @@ const routes: RouteRecordRaw[] = [
       requiresAdmin: false,
       title: 'Channel Status',
       titleKey: 'nav.channelStatus',
-      appSection: 'channel-status'
+      appSection: 'channel-status',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -254,7 +263,8 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: false,
       title: 'API Key / Third-party Access',
-      appSection: 'keys'
+      appSection: 'keys',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -265,7 +275,8 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: false,
       title: 'Account Settings',
-      appSection: 'profile'
+      appSection: 'profile',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {

@@ -42,6 +42,25 @@ describe('legacy user routes', () => {
   })
 
   it.each([
+    ['/app/chat', 'AI Chat'],
+    ['/app/image', 'Image Generation'],
+    ['/app/usage', 'Usage Information'],
+    ['/app/purchase', 'Recharge / Subscription'],
+    ['/app/orders', 'Order Records'],
+    ['/app/redeem', 'Redeem Code'],
+    ['/app/affiliate', 'Affiliate'],
+    ['/app/available-channels', 'Available Channels'],
+    ['/app/channel-status', 'Channel Status'],
+    ['/app/keys', 'API Key / Third-party Access'],
+    ['/app/profile', 'Account Settings'],
+  ])('uses SSXZ AI as the user workbench document title site name for %s', (path, title) => {
+    const route = router.resolve(path)
+
+    expect(route.meta.title).toBe(title)
+    expect(route.meta.titleSiteName).toBe('SSXZ AI')
+  })
+
+  it.each([
     ['/app', '/app/image'],
     ['/dashboard', '/app/image'],
     ['/ai-chat', '/app/chat'],
