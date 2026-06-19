@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { authStore, authAPI } = vi.hoisted(() => ({
+const { authStore, authAPI, routeState } = vi.hoisted(() => ({
   authStore: {
     user: {
       id: 8,
@@ -18,6 +18,9 @@ const { authStore, authAPI } = vi.hoisted(() => ({
   },
   authAPI: {
     getPublicSettings: vi.fn()
+  },
+  routeState: {
+    path: '/app/profile'
   }
 }))
 
@@ -42,7 +45,7 @@ vi.mock('vue-i18n', () => ({
 }))
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ path: '/app/profile' })
+  useRoute: () => routeState
 }))
 
 vi.mock('@/stores/auth', () => ({
@@ -98,7 +101,13 @@ vi.mock('@/components/icons', () => ({
 import ProfileView from '../ProfileView.vue'
 
 describe('ProfileView', () => {
-  it('presents account status instead of the technical concurrency limit', async () => {
+  beforeEach(() => {
+    routeState.path = '/app/profile'
+    authAPI.getPublicSettings.mockResolvedValue({})
+    vi.clearAllMocks()
+  })
+
+  it('keeps account settings inside the user workbench shell on /app/profile', async () => {
     authAPI.getPublicSettings.mockResolvedValue({})
 
     const wrapper = mount(ProfileView)
@@ -114,5 +123,15 @@ describe('ProfileView', () => {
     expect(text).toContain('账户状态')
     expect(text).toContain('正常')
     expect(text).not.toContain('并发限制')
+  })
+
+  it('keeps the legacy profile surface on /profile for compatibility', async () => {
+    routeState.path = '/profile'
+
+    const wrapper = mount(ProfileView)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="app-layout"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(false)
   })
 })
