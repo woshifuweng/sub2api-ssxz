@@ -1,6 +1,17 @@
 # BACKLOG
 
-Last updated: 2026-06-18
+Last updated: 2026-06-20
+
+## Validated On Staging
+
+- 2026-06-20: `/api/v1/image-studio/generate` completed one real staging image-generation request with `gpt-image-2`.
+- 2026-06-20: staging image-generation billing/usage recorded one costed usage row and reduced the test account balance by `0.008`.
+- 2026-06-20: staging image history stored one completed local image record.
+- 2026-06-20: staging image media URL returned HTTP 200 with `image/png`.
+- 2026-06-20: direct route checks showed `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, `/app/chat`, `/app/purchase`, and `/app/orders` rendering in the user workspace shell rather than the admin/backend shell.
+- 2026-06-20: invalid `/api/v1/image-studio/generate` multipart input returned HTTP 400, did not change balance, and did not create a new usage record.
+- 2026-06-20: code-path audit confirmed image upstream errors return before `RecordUsage`, and image history only persists for captured non-truncated 2xx responses.
+- 2026-06-20: service-level image gateway regression tests cover upstream 4xx, upstream 5xx failover, transport timeout/error, and partial-success response write failure returning no successful result.
 
 ## P0 Bugs And Structural Fixes
 
@@ -10,7 +21,13 @@ Last updated: 2026-06-18
 - Stale ordinary-user redirects to `/sora` should be replaced with the agreed user entry after route ownership is decided.
 - `/sora` should remain a compatibility route, not the main product route.
 - Technical pages such as Available Channels and Channel Status should not dominate ordinary-user navigation.
-- Image generation must be verified as a real end-to-end loop before production.
+- Image generation has one staging success path, but production still needs explicit approval and release-gate verification.
+- Image generation upstream failure behavior still needs full handler plus DB regression coverage:
+  - simulated upstream non-2xx does not create usage rows
+  - simulated timeout does not create usage rows
+  - simulated partial response does not create broken history
+  - clear user-facing error
+  - no incorrect billing on simulated upstream failure
 - Placeholder workspace controls must stay clearly disabled until their backend/product behavior exists.
 
 ## Chains That Need Verification
@@ -18,13 +35,14 @@ Last updated: 2026-06-18
 - Login/register to user workspace entry.
 - `/app/chat` text chat.
 - `/app/image` image generation:
-  - permission/group
-  - model/account
-  - request payload
-  - billing/usage
-  - history
-  - download
-  - failure refund/no-charge behavior
+  - permission/group: staging success path verified once
+  - model/account: staging success path verified once with `gpt-image-2` and account id `14`
+  - request payload: staging success path verified once
+  - billing/usage: staging success path verified once
+  - history: staging success path verified once
+  - download: HTTP media URL verified once; native browser download event still needs manual confirmation
+  - invalid form failure: staging no-charge behavior verified once
+  - upstream failure: code path audited; service-level regression tests added; full handler plus DB regression test still needed
 - `/app/usage` real balance, monthly trend, and detail data.
 - `/app/keys` create/copy/delete/reset behavior and key masking.
 - `/app/profile` profile/password/TOTP behavior.
@@ -44,6 +62,7 @@ Last updated: 2026-06-18
   - custom style
   - multiple reference images
   - thumbnail previews
+  - reference image preview reliability
   - results area
   - regenerate
   - image history
@@ -72,6 +91,7 @@ Last updated: 2026-06-18
 - If web reference is added for image prompts, make it optional, bounded, and clearly separated from ordinary chat web search.
 - Check external model/provider/API lifecycle, pricing, and limits against official sources on the decision date before selecting an upstream.
 - Measure cost, latency, failure modes, and billing impact before production rollout.
+- Make image model selection and provider strategy configurable instead of assuming one hard-coded model forever.
 
 ## Security Improvements
 
