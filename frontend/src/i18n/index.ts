@@ -75,7 +75,7 @@ export async function setLocale(locale: string): Promise<void> {
   const { useAppStore } = await import('@/stores/app')
   const route = router.currentRoute.value
   const appStore = useAppStore()
-  document.title = resolveDocumentTitle(route.meta.title, appStore.siteName, route.meta.titleKey as string)
+  document.title = resolveDocumentTitle(route.meta.title, appStore.siteName, route.meta.titleKey as string, route.meta.titleSiteName)
 }
 
 export function getLocale(): LocaleCode {

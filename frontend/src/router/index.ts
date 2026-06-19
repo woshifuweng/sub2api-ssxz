@@ -325,6 +325,7 @@ const routes: RouteRecordRaw[] = [
       requiresAdmin: false,
       title: 'Payment',
       titleKey: 'payment.qr.scanToPay',
+      titleSiteName: 'SSXZ AI',
       requiresPayment: true
     }
   },
@@ -336,7 +337,8 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: false,
       requiresAdmin: false,
       title: 'Payment Result',
-      titleKey: 'payment.result.success'
+      titleKey: 'payment.result.success',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -348,6 +350,7 @@ const routes: RouteRecordRaw[] = [
       requiresAdmin: false,
       title: 'Stripe Payment',
       titleKey: 'payment.stripePay',
+      titleSiteName: 'SSXZ AI',
       requiresPayment: false
     }
   },
@@ -359,6 +362,7 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: false,
       requiresAdmin: false,
       title: 'Payment',
+      titleSiteName: 'SSXZ AI',
       requiresPayment: false
     }
   },
@@ -691,10 +695,10 @@ router.beforeEach((to, _from, next) => {
       const siteName = appStore.siteName || 'Sub2API'
       document.title = `${menuItem.label} - ${siteName}`
     } else {
-      document.title = resolveDocumentTitle(to.meta.title, appStore.siteName, to.meta.titleKey as string)
+      document.title = resolveDocumentTitle(to.meta.title, appStore.siteName, to.meta.titleKey as string, to.meta.titleSiteName)
     }
   } else {
-    document.title = resolveDocumentTitle(to.meta.title, appStore.siteName, to.meta.titleKey as string)
+    document.title = resolveDocumentTitle(to.meta.title, appStore.siteName, to.meta.titleKey as string, to.meta.titleSiteName)
   }
 
   // Check if route requires authentication
