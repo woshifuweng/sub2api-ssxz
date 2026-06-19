@@ -337,7 +337,7 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: false,
       requiresAdmin: false,
       title: 'Payment Result',
-      titleKey: 'payment.result.success',
+      titleKey: 'payment.result.title',
       titleSiteName: 'SSXZ AI'
     }
   },

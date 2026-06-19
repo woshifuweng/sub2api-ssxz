@@ -12,6 +12,7 @@ describe('payment locale copy', () => {
       zh.payment.currentBalance,
       zh.payment.notAvailable,
       zh.payment.createOrder,
+      zh.payment.result.title,
       zh.payment.result.failed,
       zh.payment.qr.cancelled
     ].join(' ')
@@ -30,6 +31,7 @@ describe('payment locale copy', () => {
       en.payment.currentBalance,
       en.payment.notAvailable,
       en.payment.createOrder,
+      en.payment.result.title,
       en.payment.result.failed,
       en.payment.qr.cancelled
     ].join(' ')
