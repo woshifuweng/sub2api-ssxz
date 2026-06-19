@@ -69,7 +69,7 @@
         >
           <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
         </button>
-        <button @click="showCreateModal = true" class="btn btn-primary" data-tour="keys-create-btn">
+        <button @click="openCreateModal" class="btn btn-primary" data-tour="keys-create-btn">
           <Icon name="plus" size="md" class="mr-2" />
           {{ t('keys.createKey') }}
         </button>
@@ -397,7 +397,7 @@
               :title="t('keys.noKeysYet')"
               :description="t('keys.createFirstKey')"
               :action-text="t('keys.createKey')"
-              @action="showCreateModal = true"
+              @action="openCreateModal"
             />
           </template>
         </DataTable>
@@ -1349,6 +1349,41 @@ const formData = ref({
   expiration_date: ''
 })
 
+const getDefaultCreateGroupIds = (): number[] => {
+  const firstGroup = groups.value[0]
+  return firstGroup ? [firstGroup.id] : []
+}
+
+const resetFormData = (groupIds: number[] = []) => {
+  formData.value = {
+    name: '',
+    group_ids: groupIds,
+    enable_model_restriction: false,
+    allowed_models: [],
+    status: 'active',
+    use_custom_key: false,
+    custom_key: '',
+    enable_ip_restriction: false,
+    ip_whitelist: '',
+    ip_blacklist: '',
+    enable_quota: false,
+    quota: null,
+    enable_rate_limit: false,
+    rate_limit_5h: null,
+    rate_limit_1d: null,
+    rate_limit_7d: null,
+    enable_expiration: false,
+    expiration_preset: '30',
+    expiration_date: ''
+  }
+}
+
+const openCreateModal = () => {
+  selectedKey.value = null
+  resetFormData(getDefaultCreateGroupIds())
+  showCreateModal.value = true
+}
+
 // 自定义Key验证
 const customKeyError = computed(() => {
   if (!formData.value.use_custom_key || !formData.value.custom_key) {
@@ -1528,6 +1563,9 @@ const loadApiKeys = async () => {
 const loadGroups = async () => {
   try {
     groups.value = await userGroupsAPI.getAvailable()
+    if (showCreateModal.value && !showEditModal.value && formData.value.group_ids.length === 0) {
+      formData.value.group_ids = getDefaultCreateGroupIds()
+    }
   } catch (error) {
     console.error('Failed to load groups:', error)
   }
@@ -1793,27 +1831,7 @@ const closeModals = () => {
   showCreateModal.value = false
   showEditModal.value = false
   selectedKey.value = null
-  formData.value = {
-    name: '',
-    group_ids: [],
-    enable_model_restriction: false,
-    allowed_models: [],
-    status: 'active',
-    use_custom_key: false,
-    custom_key: '',
-    enable_ip_restriction: false,
-    ip_whitelist: '',
-    ip_blacklist: '',
-    enable_quota: false,
-    quota: null,
-    enable_rate_limit: false,
-    rate_limit_5h: null,
-    rate_limit_1d: null,
-    rate_limit_7d: null,
-    enable_expiration: false,
-    expiration_preset: '30',
-    expiration_date: ''
-  }
+  resetFormData()
 }
 
 // Show reset quota confirmation dialog
