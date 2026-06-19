@@ -12,6 +12,7 @@ Last updated: 2026-06-20
 - 2026-06-20: invalid `/api/v1/image-studio/generate` multipart input returned HTTP 400, did not change balance, and did not create a new usage record.
 - 2026-06-20: code-path audit confirmed image upstream errors return before `RecordUsage`, and image history only persists for captured non-truncated 2xx responses.
 - 2026-06-20: service-level image gateway regression tests cover upstream 4xx, upstream 5xx failover, transport timeout/error, and partial-success response write failure returning no successful result.
+- 2026-06-20: handler-level image gateway regression tests cover upstream failure without usage, billing, or balance-deduction calls, and failed/truncated image captures without image history creation.
 
 ## P0 Bugs And Structural Fixes
 
@@ -22,12 +23,12 @@ Last updated: 2026-06-20
 - `/sora` should remain a compatibility route, not the main product route.
 - Technical pages such as Available Channels and Channel Status should not dominate ordinary-user navigation.
 - Image generation has one staging success path, but production still needs explicit approval and release-gate verification.
-- Image generation upstream failure behavior still needs full handler plus DB regression coverage:
-  - simulated upstream non-2xx does not create usage rows
-  - simulated timeout does not create usage rows
-  - simulated partial response does not create broken history
+- Image generation upstream failure behavior still needs DB-backed regression coverage:
+  - simulated upstream non-2xx does not create persisted usage rows
+  - simulated timeout does not create persisted usage rows
+  - simulated partial response does not create persisted broken history
   - clear user-facing error
-  - no incorrect billing on simulated upstream failure
+  - no incorrect persisted billing on simulated upstream failure
 - Placeholder workspace controls must stay clearly disabled until their backend/product behavior exists.
 
 ## Chains That Need Verification
@@ -42,7 +43,7 @@ Last updated: 2026-06-20
   - history: staging success path verified once
   - download: HTTP media URL verified once; native browser download event still needs manual confirmation
   - invalid form failure: staging no-charge behavior verified once
-  - upstream failure: code path audited; service-level regression tests added; full handler plus DB regression test still needed
+  - upstream failure: code path audited; service-level and handler-level regression tests added; DB-backed regression test still needed
 - `/app/usage` real balance, monthly trend, and detail data.
 - `/app/keys` create/copy/delete/reset behavior and key masking.
 - `/app/profile` profile/password/TOTP behavior.
