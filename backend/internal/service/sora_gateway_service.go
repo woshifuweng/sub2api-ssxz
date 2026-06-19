@@ -1136,6 +1136,13 @@ func (s *SoraGatewayService) normalizeSoraMediaURLs(urls []string) []string {
 	return output
 }
 
+// NormalizeSoraMediaURLs converts local /image and /video paths into media proxy URLs.
+// It is used outside the gateway response path when stored local media is returned to
+// authenticated client APIs.
+func (s *SoraGatewayService) NormalizeSoraMediaURLs(urls []string) []string {
+	return s.normalizeSoraMediaURLs(urls)
+}
+
 // jsonMarshalRaw 序列化 JSON，不转义 &、<、> 等 HTML 字符，
 // 避免 URL 中的 & 被转义为 \u0026 导致客户端无法直接使用。
 func jsonMarshalRaw(v any) ([]byte, error) {

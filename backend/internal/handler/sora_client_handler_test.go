@@ -319,6 +319,29 @@ func TestParseMediaURLsFromBody_MediaURLNotString(t *testing.T) {
 	require.Nil(t, parseMediaURLsFromBody([]byte(`{"media_url":123}`)))
 }
 
+func TestResolveGenerationMediaURLs_LocalPathsUseSignedMediaProxy(t *testing.T) {
+	h := &SoraClientHandler{
+		soraGatewayService: service.NewSoraGatewayService(nil, nil, nil, &config.Config{
+			Gateway: config.GatewayConfig{
+				SoraMediaSigningKey:          "test-key",
+				SoraMediaSignedURLTTLSeconds: 600,
+			},
+		}),
+	}
+	gen := &service.SoraGeneration{
+		StorageType: service.SoraStorageTypeLocal,
+		MediaURL:    "/image/2026/06/20/work.png",
+		MediaURLs:   []string{"/image/2026/06/20/work.png"},
+	}
+
+	h.resolveGenerationMediaURLs(context.Background(), gen)
+
+	require.Contains(t, gen.MediaURL, "/sora/media-signed/image/2026/06/20/work.png")
+	require.Contains(t, gen.MediaURL, "expires=")
+	require.Contains(t, gen.MediaURL, "sig=")
+	require.Equal(t, []string{gen.MediaURL}, gen.MediaURLs)
+}
+
 // ==================== 纯函数测试: extractMediaURLsFromResult ====================
 
 func TestExtractMediaURLsFromResult_OAuthPath(t *testing.T) {

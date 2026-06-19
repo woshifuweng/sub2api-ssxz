@@ -543,7 +543,7 @@ func (h *SoraClientHandler) ListGenerationsGateway(c gatewayctx.GatewayContext) 
 
 	// 为 S3 记录动态生成预签名 URL
 	for _, gen := range gens {
-		_ = h.genService.ResolveMediaURLs(c.Request().Context(), gen)
+		h.resolveGenerationMediaURLs(c.Request().Context(), gen)
 	}
 
 	response.SuccessContext(soraClientGatewayResponder{ctx: c}, gin.H{
@@ -578,7 +578,7 @@ func (h *SoraClientHandler) GetGenerationGateway(c gatewayctx.GatewayContext) {
 		return
 	}
 
-	_ = h.genService.ResolveMediaURLs(c.Request().Context(), gen)
+	h.resolveGenerationMediaURLs(c.Request().Context(), gen)
 	response.SuccessContext(soraClientGatewayResponder{ctx: c}, gen)
 }
 
@@ -586,6 +586,28 @@ func (h *SoraClientHandler) GetGenerationGateway(c gatewayctx.GatewayContext) {
 // DELETE /api/v1/sora/generations/:id
 func (h *SoraClientHandler) DeleteGeneration(c *gin.Context) {
 	h.DeleteGenerationGateway(gatewayctx.FromGin(c))
+}
+
+func (h *SoraClientHandler) resolveGenerationMediaURLs(ctx context.Context, gen *service.SoraGeneration) {
+	if h == nil || gen == nil {
+		return
+	}
+	if h.genService != nil {
+		_ = h.genService.ResolveMediaURLs(ctx, gen)
+	}
+	if gen.StorageType != service.SoraStorageTypeLocal || h.soraGatewayService == nil {
+		return
+	}
+	urls := gen.MediaURLs
+	if len(urls) == 0 && strings.TrimSpace(gen.MediaURL) != "" {
+		urls = []string{gen.MediaURL}
+	}
+	normalized := h.soraGatewayService.NormalizeSoraMediaURLs(urls)
+	if len(normalized) == 0 {
+		return
+	}
+	gen.MediaURL = normalized[0]
+	gen.MediaURLs = normalized
 }
 
 func (h *SoraClientHandler) DeleteGenerationGateway(c gatewayctx.GatewayContext) {

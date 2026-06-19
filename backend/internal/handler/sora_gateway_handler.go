@@ -664,6 +664,90 @@ func (h *SoraGatewayHandler) MediaProxySigned(c *gin.Context) {
 	h.proxySoraMedia(c, true)
 }
 
+func (h *SoraGatewayHandler) MediaProxyGateway(c gatewayctx.GatewayContext) {
+	h.proxySoraMediaGateway(c, false)
+}
+
+func (h *SoraGatewayHandler) MediaProxySignedGateway(c gatewayctx.GatewayContext) {
+	h.proxySoraMediaGateway(c, true)
+}
+
+func (h *SoraGatewayHandler) proxySoraMediaGateway(c gatewayctx.GatewayContext, requireSignature bool) {
+	rawPath := c.PathParam("filepath")
+	if rawPath == "" {
+		c.SetStatus(http.StatusNotFound)
+		return
+	}
+	if !strings.HasPrefix(rawPath, "/") {
+		rawPath = "/" + rawPath
+	}
+	cleaned := path.Clean(rawPath)
+	if !strings.HasPrefix(cleaned, "/image/") && !strings.HasPrefix(cleaned, "/video/") {
+		c.SetStatus(http.StatusNotFound)
+		return
+	}
+
+	query := c.Request().URL.Query()
+	if requireSignature {
+		if h.soraMediaSigningKey == "" {
+			c.WriteJSON(http.StatusServiceUnavailable, gin.H{
+				"error": gin.H{
+					"type":    "api_error",
+					"message": "Sora media signing is not configured",
+				},
+			})
+			return
+		}
+		expiresStr := strings.TrimSpace(query.Get("expires"))
+		signature := strings.TrimSpace(query.Get("sig"))
+		expires, err := strconv.ParseInt(expiresStr, 10, 64)
+		if err != nil || expires <= time.Now().Unix() {
+			c.WriteJSON(http.StatusUnauthorized, gin.H{
+				"error": gin.H{
+					"type":    "authentication_error",
+					"message": "Sora media signature expired",
+				},
+			})
+			return
+		}
+		query.Del("sig")
+		query.Del("expires")
+		signingQuery := query.Encode()
+		if !service.VerifySoraMediaURL(cleaned, signingQuery, expires, signature, h.soraMediaSigningKey) {
+			c.WriteJSON(http.StatusUnauthorized, gin.H{
+				"error": gin.H{
+					"type":    "authentication_error",
+					"message": "Sora media signature invalid",
+				},
+			})
+			return
+		}
+	}
+	if strings.TrimSpace(h.soraMediaRoot) == "" {
+		c.WriteJSON(http.StatusServiceUnavailable, gin.H{
+			"error": gin.H{
+				"type":    "api_error",
+				"message": "Sora media root is not configured",
+			},
+		})
+		return
+	}
+
+	relative := strings.TrimPrefix(cleaned, "/")
+	localPath := filepath.Join(h.soraMediaRoot, filepath.FromSlash(relative))
+	if _, err := os.Stat(localPath); err != nil {
+		if os.IsNotExist(err) {
+			c.SetStatus(http.StatusNotFound)
+			return
+		}
+		c.SetStatus(http.StatusInternalServerError)
+		return
+	}
+	if err := c.ServeFile(localPath); err != nil {
+		c.SetStatus(http.StatusInternalServerError)
+	}
+}
+
 func (h *SoraGatewayHandler) proxySoraMedia(c *gin.Context, requireSignature bool) {
 	rawPath := c.Param("filepath")
 	if rawPath == "" {
