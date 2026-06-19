@@ -388,6 +388,20 @@ func TestLoadWorkspaceSoraClientStagingOverrideFromEnv(t *testing.T) {
 	require.True(t, cfg.Workspace.SoraClient.StagingOverrideEnabled)
 }
 
+func TestLoadGatewaySoraMediaConfigFromEnv(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	t.Setenv("GATEWAY_SORA_MEDIA_SIGNING_KEY", " test-signing-key ")
+	t.Setenv("GATEWAY_SORA_MEDIA_SIGNED_URL_TTL_SECONDS", "1800")
+	t.Setenv("GATEWAY_SORA_MEDIA_REQUIRE_API_KEY", "false")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	require.Equal(t, "test-signing-key", cfg.Gateway.SoraMediaSigningKey)
+	require.Equal(t, 1800, cfg.Gateway.SoraMediaSignedURLTTLSeconds)
+	require.False(t, cfg.Gateway.SoraMediaRequireAPIKey)
+}
+
 func TestLoadOpenAIWSStickyTTLCompatibility(t *testing.T) {
 	resetViperWithJWTSecret(t)
 	t.Setenv("GATEWAY_OPENAI_WS_STICKY_RESPONSE_ID_TTL_SECONDS", "0")
