@@ -128,7 +128,7 @@ func TestAPIContracts(t *testing.T) {
 						{
 							"id": 100,
 							"user_id": 1,
-							"key": "sk_custom_1234567890",
+							"key": "sk_custo...7890",
 							"name": "Key One",
 							"group_id": null,
 							"allowed_models": [],

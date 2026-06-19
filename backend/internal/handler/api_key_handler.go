@@ -212,7 +212,7 @@ func (h *APIKeyHandler) CreateGateway(c gatewayctx.GatewayContext) {
 		if err != nil {
 			return nil, err
 		}
-		return dto.APIKeyFromService(key), nil
+		return dto.APIKeyFromServiceWithPlaintextKey(key), nil
 	})
 }
 
