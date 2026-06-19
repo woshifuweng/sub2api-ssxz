@@ -1,9 +1,14 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { paymentAPI, subscriptionStore, authStore, appStore, routeMock, routerMock } = vi.hoisted(() => ({
+const { paymentAPI, paymentStore, subscriptionStore, authStore, appStore, routeMock, routerMock } = vi.hoisted(() => ({
   paymentAPI: {
     getCheckoutInfo: vi.fn()
+  },
+  paymentStore: {
+    createOrder: vi.fn(),
+    pollOrderStatus: vi.fn(),
+    clearCurrentOrder: vi.fn()
   },
   subscriptionStore: {
     activeSubscriptions: [],
@@ -46,11 +51,7 @@ vi.mock('@/stores/auth', () => ({
 }))
 
 vi.mock('@/stores/payment', () => ({
-  usePaymentStore: () => ({
-    createOrder: vi.fn(),
-    pollOrderStatus: vi.fn(),
-    clearCurrentOrder: vi.fn()
-  })
+  usePaymentStore: () => paymentStore
 }))
 
 vi.mock('@/stores/subscriptions', () => ({
@@ -146,6 +147,11 @@ describe('PaymentCheckoutContent', () => {
     routeMock.query = {}
     routerMock.resolve.mockClear()
     routerMock.replace.mockClear()
+    paymentStore.createOrder.mockReset()
+    paymentStore.pollOrderStatus.mockReset()
+    paymentStore.clearCurrentOrder.mockReset()
+    subscriptionStore.fetchActiveSubscriptions.mockReset()
+    subscriptionStore.fetchActiveSubscriptions.mockResolvedValue([])
     appStore.showError.mockClear()
     appStore.showWarning.mockClear()
   })
@@ -177,5 +183,33 @@ describe('PaymentCheckoutContent', () => {
     expect(hrefs).toContain('/available-channels')
     expect(hrefs).toContain('/redeem')
     expect(hrefs).toContain('/keys')
+  })
+
+  it('does not expose create-order actions when checkout has no payment methods or plans', async () => {
+    paymentAPI.getCheckoutInfo.mockResolvedValue({
+      data: {
+        ...checkoutInfo(),
+        methods: {},
+        plans: []
+      }
+    })
+
+    const wrapper = mountContent('workspace')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('payment.notAvailable')
+    expect(wrapper.text()).not.toContain('payment.createOrder')
+
+    const subscriptionTab = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('payment.tabSubscribe'))
+    expect(subscriptionTab).toBeTruthy()
+
+    await subscriptionTab?.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('payment.noPlans')
+    expect(wrapper.text()).not.toContain('payment.createOrder')
+    expect(paymentStore.createOrder).not.toHaveBeenCalled()
   })
 })
