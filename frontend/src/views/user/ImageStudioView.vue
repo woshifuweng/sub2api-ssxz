@@ -728,19 +728,27 @@ function normalizeUnknownError(error: unknown) {
   if (axios.isAxiosError(error)) {
     const payload = error.response?.data as any
     const raw = payload?.error?.message || payload?.message || payload?.detail || error.message
-    return normalizeImageError(String(raw || '生成失败，请稍后重试'))
+    return normalizeImageError(String(raw || '生成失败，请稍后重试'), error.response?.status)
   }
   const payload = (error as { response?: { data?: any } })?.response?.data
+  const status = (error as { response?: { status?: number } })?.response?.status
   const maybeMessage = payload?.error?.message || payload?.message || payload?.detail || (error as { message?: string })?.message
-  return normalizeImageError(maybeMessage || '生成失败，请稍后重试')
+  return normalizeImageError(maybeMessage || '生成失败，请稍后重试', status)
 }
 
-function normalizeImageError(message: string) {
+function normalizeImageError(message: string, status?: number) {
   if (/does not support OpenAI Images API|images api|image/i.test(message)) {
     return '当前账号暂不支持图片生成/改图接口。请联系管理员开通支持图片生成的模型或上游账号后再使用。'
   }
   if (/please create an active OpenAI API key/i.test(message)) {
     return '当前没有可用于作图的 API Key。请先在后台创建支持图片生成的可用 Key，或联系管理员分配图片分组。'
+  }
+  if (
+    (typeof status === 'number' && status >= 500)
+    || /Request failed with status code 5\d\d/i.test(message)
+    || /Network Error|timeout/i.test(message)
+  ) {
+    return '图片生成服务暂不可用，请稍后重试或联系管理员。'
   }
   return message
 }
