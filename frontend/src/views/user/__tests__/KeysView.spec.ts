@@ -392,6 +392,22 @@ describe('KeysView workbench surface', () => {
     expect(keysAPI.toggleStatus).toHaveBeenCalledWith(1, 'active')
   })
 
+  it('preselects the first available group when creating an API key', async () => {
+    userGroupsAPI.getAvailable.mockResolvedValue([groupFixture()])
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const createButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.createKey'))
+    expect(createButton).toBeTruthy()
+    await createButton!.trigger('click')
+    await flushPromises()
+
+    expect((wrapper.get('input[type="checkbox"]').element as HTMLInputElement).checked).toBe(true)
+  })
+
   it('reveals the full API key once after creation', async () => {
     const createdKey = 'sk-created-full-key-only-shown-once'
     userGroupsAPI.getAvailable.mockResolvedValue([groupFixture()])
@@ -414,11 +430,21 @@ describe('KeysView workbench surface', () => {
     await flushPromises()
 
     await wrapper.get('[data-tour="key-form-name"]').setValue('client-key')
-    await wrapper.get('input[type="checkbox"]').setValue(true)
     await wrapper.get('form#key-form').trigger('submit')
     await flushPromises()
 
-    expect(keysAPI.create).toHaveBeenCalled()
+    expect(keysAPI.create).toHaveBeenCalledWith(
+      'client-key',
+      1,
+      [1],
+      [],
+      undefined,
+      [],
+      [],
+      0,
+      undefined,
+      { rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0 }
+    )
     expect(wrapper.find('[data-testid="created-key-reveal"]').exists()).toBe(true)
     expect((wrapper.get('[data-testid="created-key-value"]').element as HTMLInputElement).value).toBe(createdKey)
     expect(wrapper.text()).toContain('Base URL')
