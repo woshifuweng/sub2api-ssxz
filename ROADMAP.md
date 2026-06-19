@@ -1,6 +1,6 @@
 # ROADMAP
 
-Last updated: 2026-06-18
+Last updated: 2026-06-20
 
 ## Product Goal
 
@@ -14,7 +14,7 @@ Build SSXZ AI into a lightweight AI creation workspace for about 200-300 private
 - Keep ordinary-user pages inside the user workspace shell.
 - Stop ordinary-user navigation from jumping into the older admin/backend-looking shell.
 - Preserve existing backend, billing, provider routing, payment, and database behavior.
-- Verify the real image-generation loop before production.
+- Keep the 2026-06-20 staging image-generation success as evidence, not as production approval.
 
 ### P0 Work Items
 
@@ -36,12 +36,14 @@ Build SSXZ AI into a lightweight AI creation workspace for about 200-300 private
 4. Remove stale default user redirects to `/sora` where they conflict with the product direction.
 5. Keep API Key / third-party access visible to ordinary users.
 6. Keep technical channel/status/provider pages out of ordinary-user primary navigation.
-7. Verify image generation end-to-end:
-   - model/account permission
-   - generation request
-   - billing/usage
-   - image history
-   - download
+7. Keep image generation release gates explicit:
+   - one staging success path was verified on 2026-06-20
+   - model/account permission must remain correct
+   - billing/usage must remain correct
+   - image history must remain visible
+   - download must work in a normal browser
+   - upstream failure must not fake success or mischarge users
+   - service-level upstream failure regression tests exist; full handler plus DB regression can be added before production
 8. Document P0 decisions before UI polish work resumes.
 
 ### P0 Non-Goals
@@ -144,11 +146,11 @@ Production deployment should wait until all gates below are satisfied:
 1. Ordinary-user navigation stays inside the intended user workspace shell.
 2. `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/app/profile` behave consistently after refresh.
 3. API Key / third-party access is visible and safe for ordinary users.
-4. Image generation has one verified real end-to-end path:
+4. Image generation keeps the validated staging path healthy:
    - generation succeeds
    - cost/usage is recorded correctly
    - image history is visible
-   - download works
+   - download works in a normal browser
    - failure does not mischarge users
 5. Payment/order flows are either verified or clearly disabled with honest user-facing states.
 6. Admin pages remain admin-only and usable for operations.

@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last updated: 2026-06-18
+Last updated: 2026-06-20
 
 ## Product Positioning
 
@@ -42,10 +42,10 @@ The admin side should preserve operation capabilities for the owner and operator
 | Page / route family | 2026-06-18 status | Notes |
 | --- | --- | --- |
 | `/app`, `/app/chat` | Connected, not final UX | Unified workspace/chat path exists. It is closer to a chat workspace than a finished lightweight user product. |
-| `/app/image` | Connected at entry level | Routes to `ImageStudioView`. Real generation, cost, history, and download need end-to-end verification before production use. |
-| `/app/usage` | Partial product path | New workbench-style usage page exists. It should remain in the user workspace shell. |
-| `/app/keys` | Partial product path | Intended to keep API Key / third-party access in the user workspace shell. |
-| `/app/profile` | Partial product path | Intended to keep account settings in the user workspace shell. |
+| `/app/image` | Staging generation path verified, UX partial | Routes to `ImageStudioView`. On 2026-06-20 staging generated one image through `gpt-image-2`, recorded usage, saved history, and served the PNG download. Product UX is still not final. |
+| `/app/usage` | Partial product path, real data visible on staging | New workbench-style usage page exists. It should remain in the user workspace shell. |
+| `/app/keys` | Partial product path, staging shell verified | Intended to keep API Key / third-party access in the user workspace shell. It must not jump to the admin/backend shell. |
+| `/app/profile` | Partial product path, staging shell verified | Intended to keep account settings in the user workspace shell. It must not jump to the admin/backend shell. |
 | `/keys` | Legacy user path | Functional API Key page using the older shell. Keep as compatibility, not as the main user entry. |
 | `/usage` | Legacy user path | Functional usage page using the older shell. Keep as compatibility, not as the main user entry. |
 | `/profile` | Legacy user path | Functional profile page using the older shell. Keep as compatibility, not as the main user entry. |
@@ -73,7 +73,7 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | Auth/login/register | Mostly complete | Login/register flows and backend handlers exist. Security hardening remains a separate backlog item. |
 | User workspace shell | Partial | `/app/*` exists, but not every user entry stays inside this shell. |
 | AI chat | Connected | `/app/chat` works through workspace logic; old `ChatStudioView` remains a product reference/asset. |
-| Image generation | Partial | `ImageStudioView`, `ImageStudioHandler`, OpenAI-compatible image gateway, and image/Sora-related storage exist. Full production path is not verified. |
+| Image generation | Staging closed-loop verified, production not approved | `ImageStudioView`, `ImageStudioHandler`, OpenAI-compatible image gateway, and image/Sora-related storage exist. On 2026-06-20 staging verified generation, usage cost, history, and HTTP image download with `gpt-image-2`. Production remains gated. |
 | API Key / third-party access | Mostly complete, UX partial | Backend and frontend exist. User-facing copy and shell alignment are still being corrected. |
 | Usage center | Backend complete enough, frontend partial | Usage APIs and older page exist; `/app/usage` is the desired new user-shell direction. |
 | Recharge/payment | Backend/admin rich, user-shell partial | Payment/order/subscription capabilities exist; user shell alignment remains incomplete. |
@@ -81,6 +81,20 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | Provider routing/channel management | Existing, admin-oriented | Keep for admin/owner operations. Do not let it dominate ordinary-user navigation. |
 | Web search | Existing but frozen for main UX | Technical chain exists from prior PRs. Do not surface as ordinary-user main functionality during P0 structure work. |
 | Admin operations | Rich but broad | Strong asset from the Sub2API base. Needs product boundary, not deletion. |
+
+## Staging P0 Validation Recorded On 2026-06-20
+
+| Area | Result | Evidence |
+| --- | --- | --- |
+| Image generation request | Verified on staging only | `/api/v1/image-studio/generate` returned HTTP 200 using `gpt-image-2`. |
+| Upstream account | Verified on staging only | Used staging account `OpenAI Image Staging`, account id `14`. No provider key was printed. |
+| Billing / usage | Verified on staging only | Balance changed from `49.39622358` to `49.38822358`. Usage record id `1551` stored model `gpt-image-2` and cost `0.008`. |
+| Image history | Verified on staging only | New generation id `2`, status `completed`, model `gpt-image-2`, media type `image`, storage type `local`, one media URL. |
+| Image download | HTTP path verified | Media URL returned HTTP 200, `image/png`, about `1.2 MB`. The Codex in-app browser could not verify the native download shelf event. |
+| Image invalid request handling | Verified on staging only | Invalid multipart request returned HTTP 400 with `invalid form data`; balance stayed `49.38822358`; latest usage id stayed `1551`. |
+| Image upstream failure guard | Code-path audited and service-regression tested | `/api/v1/image-studio/generate` delegates to the OpenAI Images gateway. The gateway submits `RecordUsage` only after `ForwardImagesContext` returns a successful result, and image history persists only for captured non-truncated 2xx responses. Service tests now cover upstream 4xx, upstream 5xx failover, transport timeout/error, and partial-success response write failure returning no successful image result. |
+| User workspace shell | Direct routes verified | `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, `/app/chat`, `/app/purchase`, and `/app/orders` rendered without the admin/backend shell during direct route checks. |
+| Production | Not touched | No production deployment or Nginx change was part of this validation. |
 
 ## Historical Product Decisions Preserved On 2026-06-18
 
@@ -96,8 +110,9 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | Area | Classification | Notes |
 | --- | --- | --- |
 | Workspace memory/toolbox/capability placeholders | Placeholder UI | Some disabled or "not connected" controls exist in workspace components. They must not imply working backend behavior. |
-| Image generation real upstream | Needs verification | Code paths exist, but upstream account/model/permission/cost loop must be verified before production. |
-| Image history/download in the new user journey | Needs verification | Storage/history/download pieces exist, but the full `/app/image` loop needs end-to-end validation. |
+| Image generation real upstream | Staging verified, production gated | One `gpt-image-2` OpenAI-compatible path works in staging. Production still requires explicit approval and final release checks. |
+| Image history/download in the new user journey | Staging HTTP path verified | Storage/history/download pieces work for the validated staging image. Native browser download UX still needs manual confirmation. |
+| Image failure handling | Partially verified | Invalid form input fails before upstream and does not change balance or usage. Code-path audit shows upstream errors do not reach `RecordUsage` and non-2xx responses do not persist image history. Service-level regression tests cover upstream non-2xx, transport timeout/error, and partial-success response write failure returning no successful result; full handler plus DB billing regression coverage is still a later hardening item. |
 | `/app/usage` charts and details | Partial | Should show real data when available and empty states otherwise. It must not invent data. |
 | Payment/order user workspace | Not fully connected to new shell | Existing pages use older product structure. |
 | API Key/Profile in `/app/*` shell | In progress | Keep as user-workspace pages, not admin-console pages. |
@@ -111,6 +126,7 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 5. Payment and order flows exist but have not been fully absorbed into the user workspace information architecture.
 6. Technical channel/status/provider pages should remain available when needed but should not be ordinary-user primary navigation.
 7. Several local PRs have fixed individual symptoms, but the deeper product structure problem is route/shell ownership.
+8. As of 2026-06-20, `ImageStudioHandler` uses the fixed model value `gpt-image-2`; future provider/model flexibility should be handled deliberately, not by hard-coding product strategy around one upstream.
 
 ## Risks And Limits
 
@@ -120,3 +136,4 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 - Do not assume any external model/provider lifecycle without an external dependency check against official sources checked on the decision date.
 - Do not remove API Key access. It is part of the user product for mature private users.
 - Do not weaken admin capabilities while simplifying ordinary-user UX.
+- Do not treat the 2026-06-20 staging image-generation success as production approval. Production release still requires explicit user approval and the release gates in `ROADMAP.md`.
