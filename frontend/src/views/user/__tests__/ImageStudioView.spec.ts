@@ -237,4 +237,31 @@ describe('ImageStudioView workbench', () => {
     consoleError.mockRestore()
     wrapper.unmount()
   })
+
+  it('hides technical HTTP failures from image generation users', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    apiClient.post.mockRejectedValue({
+      response: {
+        status: 502,
+        data: {
+          message: 'Request failed with status code 502',
+        },
+      },
+    })
+
+    const wrapper = mountImageStudio()
+    await wrapper.find('textarea').setValue('minimal skincare product cover')
+    await wrapper.find('button.generate-button').trigger('click')
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(text).toContain('图片生成服务暂不可用，请稍后重试或联系管理员。')
+    expect(text).not.toContain('Request failed with status code 502')
+    expect(appStore.showError).toHaveBeenCalledWith('图片生成服务暂不可用，请稍后重试或联系管理员。')
+    expect(authStore.refreshUser).not.toHaveBeenCalled()
+    expect(consoleError).toHaveBeenCalledTimes(1)
+
+    consoleError.mockRestore()
+    wrapper.unmount()
+  })
 })
