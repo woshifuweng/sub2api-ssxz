@@ -68,6 +68,28 @@ function mountImageStudio() {
   })
 }
 
+function stubFileReader(result: 'success' | 'error' = 'success') {
+  class MockFileReader {
+    result: string | ArrayBuffer | null = null
+    error: DOMException | null = result === 'error'
+      ? new DOMException('preview failed')
+      : null
+    onload: (() => void) | null = null
+    onerror: (() => void) | null = null
+
+    readAsDataURL(file: File) {
+      if (result === 'error') {
+        this.onerror?.()
+        return
+      }
+      this.result = `data:${file.type};base64,ZmFrZS1wcmV2aWV3`
+      this.onload?.()
+    }
+  }
+
+  vi.stubGlobal('FileReader', MockFileReader)
+}
+
 describe('ImageStudioView workbench', () => {
   beforeEach(() => {
     authStore.user.balance = 1
@@ -206,6 +228,98 @@ describe('ImageStudioView workbench', () => {
     expect(wrapper.findAll('.result-actions .secondary-button')[2].attributes('disabled')).toBeUndefined()
     expect(authStore.refreshUser).toHaveBeenCalledTimes(1)
     expect(appStore.showSuccess).toHaveBeenCalledWith('图片生成完成')
+
+    wrapper.unmount()
+  })
+
+  it('renders an uploaded reference image preview and submits the original file', async () => {
+    stubFileReader()
+    apiClient.post.mockResolvedValue({
+      data: {
+        data: [
+          {
+            url: 'https://cdn.example.com/result.png',
+          },
+        ],
+      },
+    })
+
+    const wrapper = mountImageStudio()
+    const file = new File(['fake-image'], 'reference.png', { type: 'image/png' })
+    const fileInput = wrapper.find('input[type="file"]')
+    Object.defineProperty(fileInput.element, 'files', {
+      value: [file],
+      configurable: true,
+    })
+
+    await fileInput.trigger('change')
+    await flushPromises()
+
+    const preview = wrapper.find('img[alt="参考素材预览"]')
+    expect(preview.exists()).toBe(true)
+    expect(preview.attributes('src')).toBe('data:image/png;base64,ZmFrZS1wcmV2aWV3')
+    expect(wrapper.text()).toContain('参考图 1')
+    expect(wrapper.text()).not.toContain('预览失败')
+
+    await wrapper.find('input[placeholder*="无线耳机"]').setValue('护肤品封面')
+    await wrapper.find('button.generate-button').trigger('click')
+    await flushPromises()
+
+    const form = apiClient.post.mock.calls[0][1] as FormData
+    expect(form.get('image')).toBe(file)
+
+    wrapper.unmount()
+  })
+
+  it('shows a clear reference preview failure instead of a broken image state', async () => {
+    stubFileReader('error')
+
+    const wrapper = mountImageStudio()
+    const file = new File(['fake-image'], 'reference.png', { type: 'image/png' })
+    const fileInput = wrapper.find('input[type="file"]')
+    Object.defineProperty(fileInput.element, 'files', {
+      value: [file],
+      configurable: true,
+    })
+
+    await fileInput.trigger('change')
+    await flushPromises()
+
+    expect(wrapper.find('img[alt="参考素材预览"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('参考图预览失败，请重新上传 JPG / PNG / WEBP 图片。')
+    expect(appStore.showError).toHaveBeenCalledWith('参考图预览失败，请重新上传 JPG / PNG / WEBP 图片。')
+
+    wrapper.unmount()
+  })
+
+  it('clears the previous reference preview when an unsupported file is selected', async () => {
+    stubFileReader()
+
+    const wrapper = mountImageStudio()
+    const fileInput = wrapper.find('input[type="file"]')
+    const validFile = new File(['fake-image'], 'reference.png', { type: 'image/png' })
+    Object.defineProperty(fileInput.element, 'files', {
+      value: [validFile],
+      configurable: true,
+    })
+
+    await fileInput.trigger('change')
+    await flushPromises()
+
+    expect(wrapper.find('img[alt="参考素材预览"]').exists()).toBe(true)
+
+    const invalidFile = new File(['not-an-image'], 'reference.txt', { type: 'text/plain' })
+    Object.defineProperty(fileInput.element, 'files', {
+      value: [invalidFile],
+      configurable: true,
+    })
+
+    await fileInput.trigger('change')
+    await flushPromises()
+
+    expect(wrapper.find('img[alt="参考素材预览"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('请上传 JPG / PNG / WEBP 图片。')
+    expect(appStore.showError).toHaveBeenCalledWith('请上传 JPG / PNG / WEBP 图片。')
 
     wrapper.unmount()
   })

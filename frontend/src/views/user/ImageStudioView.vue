@@ -163,7 +163,18 @@
                 <small>JPG / PNG / WEBP，上传后自动进入改图模式</small>
               </template>
               <template v-else>
-                <img v-if="previewUrl" :src="previewUrl" alt="参考素材预览" />
+                <span v-if="previewUrl && !previewImageFailed" class="asset-thumb">
+                  <img
+                    :src="previewUrl"
+                    alt="参考素材预览"
+                    @load="previewImageFailed = false"
+                    @error="handlePreviewImageError"
+                  />
+                </span>
+                <span v-else class="asset-thumb is-error" aria-live="polite">
+                  <Icon name="exclamationTriangle" size="sm" />
+                  <small>预览失败</small>
+                </span>
                 <span class="asset-copy">
                   <strong class="asset-title" :title="selectedFile.name">{{ selectedFile.name }}</strong>
                   <small>参考图 1 · {{ referenceMeta }}</small>
@@ -172,6 +183,7 @@
               </template>
               <input class="hidden" type="file" accept="image/png,image/jpeg,image/webp" @change="handleFileChange" />
             </label>
+            <p v-if="referencePreviewError" class="reference-upload-note error">{{ referencePreviewError }}</p>
             <button v-if="selectedFile" type="button" class="secondary-button mt-2 w-full" @click="clearReference">
               移除参考图
             </button>
@@ -470,6 +482,8 @@ const keywords = ref('')
 const imageCount = ref(1)
 const selectedFile = ref<File | null>(null)
 const previewUrl = ref('')
+const previewImageFailed = ref(false)
+const referencePreviewError = ref('')
 const generating = ref(false)
 const errorMessage = ref('')
 const results = ref<ResultImage[]>([])
@@ -477,6 +491,7 @@ const activeResultIndex = ref(0)
 const recentWorks = ref<SoraGeneration[]>([])
 const recentWorksLoading = ref(false)
 const previewStageRef = ref<HTMLElement | null>(null)
+let referenceReadSerial = 0
 
 const selectedGoal = computed(() => creationGoals.find((item) => item.id === goal.value) || creationGoals[0])
 const selectedCanvas = computed(() => {
@@ -641,32 +656,75 @@ function formatFileSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-function handleFileChange(event: Event) {
+async function handleFileChange(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
-  if (!file.type.startsWith('image/')) {
+  if (!isAllowedReferenceImage(file)) {
+    referenceReadSerial += 1
+    selectedFile.value = null
+    releasePreviewUrl()
+    previewImageFailed.value = false
     appStore.showError('请上传 JPG / PNG / WEBP 图片。')
+    referencePreviewError.value = '请上传 JPG / PNG / WEBP 图片。'
     input.value = ''
     return
   }
 
-  releasePreviewUrl()
-  selectedFile.value = file
-  previewUrl.value = URL.createObjectURL(file)
   input.value = ''
+  const serial = ++referenceReadSerial
+  referencePreviewError.value = ''
+  previewImageFailed.value = false
+
+  try {
+    const nextPreviewUrl = await readFileAsDataUrl(file)
+    if (serial !== referenceReadSerial) return
+    selectedFile.value = file
+    previewUrl.value = nextPreviewUrl
+  } catch {
+    if (serial !== referenceReadSerial) return
+    selectedFile.value = null
+    previewUrl.value = ''
+    previewImageFailed.value = true
+    referencePreviewError.value = '参考图预览失败，请重新上传 JPG / PNG / WEBP 图片。'
+    appStore.showError(referencePreviewError.value)
+  }
 }
 
 function clearReference() {
+  referenceReadSerial += 1
   selectedFile.value = null
   releasePreviewUrl()
+  referencePreviewError.value = ''
+  previewImageFailed.value = false
 }
 
 function releasePreviewUrl() {
-  if (previewUrl.value) {
-    URL.revokeObjectURL(previewUrl.value)
-    previewUrl.value = ''
-  }
+  previewUrl.value = ''
+}
+
+function isAllowedReferenceImage(file: File) {
+  return ['image/png', 'image/jpeg', 'image/webp'].includes(file.type)
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string' && reader.result.startsWith('data:image/')) {
+        resolve(reader.result)
+        return
+      }
+      reject(new Error('invalid preview data'))
+    }
+    reader.onerror = () => reject(reader.error || new Error('failed to read preview'))
+    reader.readAsDataURL(file)
+  })
+}
+
+function handlePreviewImageError() {
+  previewImageFailed.value = true
+  referencePreviewError.value = '参考图预览加载失败，请重新上传 JPG / PNG / WEBP 图片。'
 }
 
 async function generate() {
@@ -1333,12 +1391,29 @@ function scrollPreviewIntoView() {
   text-align: left;
 }
 
-.asset-drop > img {
+.asset-thumb {
+  display: grid;
   width: 140px;
   height: 122px;
   flex: 0 0 auto;
+  place-items: center;
   border-radius: 0.85rem;
+  overflow: hidden;
+  background: var(--ssxz-surface-subtle);
+}
+
+.asset-thumb > img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
+}
+
+.asset-thumb.is-error {
+  gap: 0.28rem;
+  border: 1px dashed var(--ssxz-border);
+  color: var(--ssxz-danger);
+  font-size: 0.74rem;
+  font-weight: 800;
 }
 
 .asset-copy {
@@ -1352,6 +1427,16 @@ function scrollPreviewIntoView() {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.reference-upload-note {
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.reference-upload-note.error {
+  color: var(--ssxz-danger);
 }
 
 .style-area {
