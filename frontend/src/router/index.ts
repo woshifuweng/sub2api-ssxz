@@ -390,7 +390,8 @@ const routes: RouteRecordRaw[] = [
       requiresAdmin: false,
       title: 'Image Generation',
       titleKey: 'sora.title',
-      descriptionKey: 'sora.description'
+      descriptionKey: 'sora.description',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
