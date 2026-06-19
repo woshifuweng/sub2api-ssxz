@@ -110,6 +110,7 @@ vi.mock('@/components/common/DataTable.vue', () => ({
     template: `
       <div data-testid="data-table">
         <div v-for="row in data" :key="row.id" data-testid="data-row">
+          <slot name="cell-key" :value="row.key" :row="row" />
           <slot name="cell-actions" :row="row" />
         </div>
         <slot v-if="!data.length" name="empty" />
@@ -344,6 +345,23 @@ describe('KeysView workbench surface', () => {
     expect(keysAPI.toggleStatus).toHaveBeenCalledWith(1, 'inactive')
   })
 
+  it('copies the masked list key value, not a hidden full key', async () => {
+    const maskedKey = 'sk-user-...1234'
+    keysAPI.list.mockResolvedValue({
+      items: [apiKeyFixture({ key: maskedKey })],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('button[title="keys.copyToClipboard"]').trigger('click')
+
+    expect(clipboardCopy).toHaveBeenCalledWith(maskedKey, 'keys.copied')
+    expect(clipboardCopy).not.toHaveBeenCalledWith(expect.stringContaining('secret'), expect.anything())
+  })
+
   it('does not change API key status when the confirmation is cancelled', async () => {
     keysAPI.list.mockResolvedValue({
       items: [apiKeyFixture()],
@@ -390,6 +408,54 @@ describe('KeysView workbench surface', () => {
     await flushPromises()
 
     expect(keysAPI.toggleStatus).toHaveBeenCalledWith(1, 'active')
+  })
+
+  it('requires confirmation before deleting an API key', async () => {
+    keysAPI.list.mockResolvedValue({
+      items: [apiKeyFixture()],
+      total: 1,
+      pages: 1
+    })
+    keysAPI.delete.mockResolvedValue({})
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const deleteButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.delete'))
+    expect(deleteButton).toBeTruthy()
+    await deleteButton!.trigger('click')
+
+    expect(keysAPI.delete).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('keys.deleteKey')
+    expect(wrapper.text()).toContain('keys.deleteConfirmMessage')
+
+    await wrapper.get('[data-testid="confirm-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(keysAPI.delete).toHaveBeenCalledWith(1)
+  })
+
+  it('does not delete an API key when the confirmation is cancelled', async () => {
+    keysAPI.list.mockResolvedValue({
+      items: [apiKeyFixture()],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const deleteButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.delete'))
+    await deleteButton!.trigger('click')
+    await wrapper.get('[data-testid="confirm-cancel"]').trigger('click')
+    await flushPromises()
+
+    expect(keysAPI.delete).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="confirm-dialog"]').exists()).toBe(false)
   })
 
   it('preselects the first available group when creating an API key', async () => {
