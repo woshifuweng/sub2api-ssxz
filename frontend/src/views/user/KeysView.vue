@@ -957,6 +957,64 @@
       </template>
     </BaseDialog>
 
+    <!-- Created Key One-Time Reveal Dialog -->
+    <BaseDialog
+      :show="!!createdKeyToReveal"
+      title="保存完整 API Key"
+      width="normal"
+      :close-on-escape="false"
+      :close-on-click-outside="false"
+      @close="acknowledgeCreatedKey"
+    >
+      <div v-if="createdKeyToReveal" class="space-y-4" data-testid="created-key-reveal">
+        <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+          <p class="font-semibold">请立即保存完整 Key</p>
+          <p class="mt-1 leading-6">
+            完整 API Key 只在创建后展示一次。关闭后列表只显示脱敏值，后续需要重新生成或重置。
+          </p>
+        </div>
+
+        <div>
+          <label class="input-label">API Key</label>
+          <div class="flex gap-2">
+            <input
+              :value="createdKeyToReveal.key"
+              readonly
+              class="input font-mono text-sm"
+              data-testid="created-key-value"
+            />
+            <button
+              type="button"
+              class="btn btn-secondary shrink-0"
+              data-testid="created-key-copy"
+              @click="copyCreatedKey"
+            >
+              {{ createdKeyCopied ? '已复制' : '复制完整 Key' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300">
+          <p class="font-medium text-gray-900 dark:text-white">第三方客户端接入信息</p>
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            <span class="text-gray-500 dark:text-gray-400">Base URL</span>
+            <code class="rounded-lg bg-white px-2 py-1 text-xs dark:bg-dark-900">{{ apiBaseUrl }}</code>
+          </div>
+          <p class="mt-2 leading-6">
+            可用于 CC Switch、Cherry Studio、Chatbox 等支持 OpenAI-compatible 接入的客户端。
+          </p>
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button type="button" class="btn btn-primary" data-testid="created-key-ack" @click="acknowledgeCreatedKey">
+            我已保存
+          </button>
+        </div>
+      </template>
+    </BaseDialog>
+
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog
       :show="showDeleteDialog"
@@ -1204,6 +1262,7 @@ const loading = ref(false)
 const submitting = ref(false)
 const now = ref(new Date())
 let resetTimer: ReturnType<typeof setInterval> | null = null
+let createdKeyCopyTimer: ReturnType<typeof setTimeout> | null = null
 const usageStats = ref<Record<string, BatchApiKeyUsageStats>>({})
 const userGroupRates = ref<Record<number, number>>({})
 
@@ -1231,6 +1290,8 @@ const pendingCcsRow = ref<ApiKey | null>(null)
 const pendingStatusAction = ref<{ key: ApiKey; status: 'active' | 'inactive' } | null>(null)
 const selectedKey = ref<ApiKey | null>(null)
 const copiedKeyId = ref<number | null>(null)
+const createdKeyToReveal = ref<ApiKey | null>(null)
+const createdKeyCopied = ref(false)
 const statusUpdatingKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
@@ -1385,6 +1446,30 @@ const copyToClipboard = async (text: string, keyId: number) => {
     setTimeout(() => {
       copiedKeyId.value = null
     }, 800)
+  }
+}
+
+const copyCreatedKey = async () => {
+  const key = createdKeyToReveal.value?.key
+  if (!key) return
+
+  const success = await clipboardCopy(key, '完整 API Key 已复制')
+  if (success) {
+    createdKeyCopied.value = true
+    if (createdKeyCopyTimer) clearTimeout(createdKeyCopyTimer)
+    createdKeyCopyTimer = setTimeout(() => {
+      createdKeyCopied.value = false
+      createdKeyCopyTimer = null
+    }, 1200)
+  }
+}
+
+const acknowledgeCreatedKey = () => {
+  createdKeyToReveal.value = null
+  createdKeyCopied.value = false
+  if (createdKeyCopyTimer) {
+    clearTimeout(createdKeyCopyTimer)
+    createdKeyCopyTimer = null
   }
 }
 
@@ -1652,7 +1737,7 @@ const handleSubmit = async () => {
       appStore.showSuccess(t('keys.keyUpdatedSuccess'))
     } else {
       const customKey = formData.value.use_custom_key ? formData.value.custom_key : undefined
-      await keysAPI.create(
+      const createdKey = await keysAPI.create(
         formData.value.name,
         formData.value.group_ids[0] ?? null,
         formData.value.group_ids,
@@ -1664,6 +1749,9 @@ const handleSubmit = async () => {
         expiresInDays,
         rateLimitData
       )
+      if (createdKey?.key) {
+        createdKeyToReveal.value = createdKey
+      }
       appStore.showSuccess(t('keys.keyCreatedSuccess'))
       // Only advance tour if active, on submit step, and creation succeeded
       if (onboardingStore.isCurrentStep('[data-tour="key-form-submit"]')) {
@@ -1915,6 +2003,7 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', closeGroupSelector)
   if (resetTimer) clearInterval(resetTimer)
+  if (createdKeyCopyTimer) clearTimeout(createdKeyCopyTimer)
 })
 </script>
 

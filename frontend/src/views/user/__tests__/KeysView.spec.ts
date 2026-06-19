@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { routeState, keysAPI, authAPI, usageAPI, userGroupsAPI, appStore, onboardingStore } = vi.hoisted(() => ({
+const { routeState, keysAPI, authAPI, usageAPI, userGroupsAPI, appStore, onboardingStore, clipboardCopy } = vi.hoisted(() => ({
   routeState: {
     path: '/app/keys'
   },
@@ -27,8 +27,11 @@ const { routeState, keysAPI, authAPI, usageAPI, userGroupsAPI, appStore, onboard
     showError: vi.fn()
   },
   onboardingStore: {
-    markKeysPageVisited: vi.fn()
-  }
+    markKeysPageVisited: vi.fn(),
+    isCurrentStep: vi.fn(),
+    nextStep: vi.fn()
+  },
+  clipboardCopy: vi.fn()
 }))
 
 vi.mock('vue-router', () => ({
@@ -63,7 +66,7 @@ vi.mock('@/stores/onboarding', () => ({
 
 vi.mock('@/composables/useClipboard', () => ({
   useClipboard: () => ({
-    copyToClipboard: vi.fn()
+    copyToClipboard: clipboardCopy
   })
 }))
 
@@ -125,7 +128,15 @@ vi.mock('@/components/common/Pagination.vue', () => ({
 vi.mock('@/components/common/BaseDialog.vue', () => ({
   default: {
     name: 'BaseDialog',
-    template: '<div data-testid="base-dialog"><slot /></div>'
+    props: ['show', 'title'],
+    emits: ['close'],
+    template: `
+      <div v-if="show" data-testid="base-dialog">
+        <h2>{{ title }}</h2>
+        <slot />
+        <slot name="footer" />
+      </div>
+    `
   }
 }))
 
@@ -213,7 +224,6 @@ function mountView() {
         SearchInput: true,
         Select: true,
         Pagination: true,
-        BaseDialog: true,
         EmptyState: true,
         UseKeyModal: true,
         GroupBadge: true,
@@ -255,6 +265,18 @@ function apiKeyFixture(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function groupFixture(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 1,
+    name: 'default',
+    description: '',
+    platform: null,
+    subscription_type: null,
+    rate_multiplier: 1,
+    ...overrides
+  }
+}
+
 describe('KeysView workbench surface', () => {
   beforeEach(() => {
     routeState.path = '/app/keys'
@@ -263,6 +285,8 @@ describe('KeysView workbench surface', () => {
     usageAPI.getDashboardApiKeysUsage.mockResolvedValue({})
     userGroupsAPI.getAvailable.mockResolvedValue([])
     userGroupsAPI.getUserGroupRates.mockResolvedValue({})
+    onboardingStore.isCurrentStep.mockReturnValue(false)
+    clipboardCopy.mockResolvedValue(true)
     vi.clearAllMocks()
   })
 
@@ -366,5 +390,41 @@ describe('KeysView workbench surface', () => {
     await flushPromises()
 
     expect(keysAPI.toggleStatus).toHaveBeenCalledWith(1, 'active')
+  })
+
+  it('reveals the full API key once after creation', async () => {
+    const createdKey = 'sk-created-full-key-only-shown-once'
+    userGroupsAPI.getAvailable.mockResolvedValue([groupFixture()])
+    keysAPI.create.mockResolvedValue(apiKeyFixture({
+      id: 2,
+      name: 'client-key',
+      key: createdKey,
+      group_id: 1,
+      group_ids: [1]
+    }))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const createButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.createKey'))
+    expect(createButton).toBeTruthy()
+    await createButton!.trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-tour="key-form-name"]').setValue('client-key')
+    await wrapper.get('input[type="checkbox"]').setValue(true)
+    await wrapper.get('form#key-form').trigger('submit')
+    await flushPromises()
+
+    expect(keysAPI.create).toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="created-key-reveal"]').exists()).toBe(true)
+    expect((wrapper.get('[data-testid="created-key-value"]').element as HTMLInputElement).value).toBe(createdKey)
+    expect(wrapper.text()).toContain('Base URL')
+    expect(wrapper.text()).toContain('https://example.test')
+
+    await wrapper.get('[data-testid="created-key-copy"]').trigger('click')
+    expect(clipboardCopy).toHaveBeenCalledWith(createdKey, '完整 API Key 已复制')
   })
 })
