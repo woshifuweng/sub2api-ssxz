@@ -128,6 +128,7 @@ function simulateGuard(
       '/admin/groups',
       '/admin/subscriptions',
       '/admin/redeem',
+      '/app/redeem',
       '/subscriptions',
       '/redeem',
     ]
@@ -265,25 +266,25 @@ describe('路由守卫逻辑', () => {
   // --- 简易模式 ---
 
   describe('简易模式受限路由', () => {
-    it('普通用户简易模式访问 /subscriptions 重定向到 /app/image', () => {
+    it('普通用户简易模式可访问 /app/purchase 作为工作台充值订阅入口', () => {
       const authState: MockAuthState = {
         isAuthenticated: true,
         isAdmin: false,
         isSimpleMode: true,
         backendModeEnabled: false,
       }
-      const redirect = simulateGuard('/subscriptions', {}, authState)
-      expect(redirect).toBe('/app/image')
+      const redirect = simulateGuard('/app/purchase', {}, authState)
+      expect(redirect).toBeNull()
     })
 
-    it('普通用户简易模式访问 /redeem 重定向到 /app/image', () => {
+    it('普通用户简易模式访问 /app/redeem 重定向到 /app/image', () => {
       const authState: MockAuthState = {
         isAuthenticated: true,
         isAdmin: false,
         isSimpleMode: true,
         backendModeEnabled: false,
       }
-      const redirect = simulateGuard('/redeem', {}, authState)
+      const redirect = simulateGuard('/app/redeem', {}, authState)
       expect(redirect).toBe('/app/image')
     })
 
