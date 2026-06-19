@@ -14,6 +14,7 @@ Last updated: 2026-06-20
 - 2026-06-20: service-level image gateway regression tests cover upstream 4xx, upstream 5xx failover, transport timeout/error, and partial-success response write failure returning no successful result.
 - 2026-06-20: handler-level image gateway regression tests cover upstream failure without usage, billing, or balance-deduction calls, and failed/truncated image captures without image history creation.
 - 2026-06-20: DB-backed handler regression test covers failed/truncated image gateway captures not creating persisted `sora_generations` rows, with a successful-capture control case.
+- 2026-06-20: DB-backed handler regression test covers image upstream 4xx and transport timeout not creating persisted usage rows, not creating usage-billing dedup rows, and not changing user balance.
 
 ## P0 Bugs And Structural Fixes
 
@@ -24,11 +25,7 @@ Last updated: 2026-06-20
 - `/sora` should remain a compatibility route, not the main product route.
 - Technical pages such as Available Channels and Channel Status should not dominate ordinary-user navigation.
 - Image generation has one staging success path, but production still needs explicit approval and release-gate verification.
-- Image generation upstream failure behavior still needs DB-backed usage/billing regression coverage:
-  - simulated upstream non-2xx does not create persisted usage rows
-  - simulated timeout does not create persisted usage rows
-  - clear user-facing error
-  - no incorrect persisted billing on simulated upstream failure
+- Image generation upstream failure behavior has DB-backed usage/billing regression coverage for simulated upstream 4xx and transport timeout. Keep this coverage when changing image gateway billing or error handling.
 - Placeholder workspace controls must stay clearly disabled until their backend/product behavior exists.
 
 ## Chains That Need Verification
@@ -43,7 +40,7 @@ Last updated: 2026-06-20
   - history: staging success path verified once
   - download: HTTP media URL verified once; native browser download event still needs manual confirmation
   - invalid form failure: staging no-charge behavior verified once
-  - upstream failure: code path audited; service-level and handler-level regression tests added; DB-backed image-history regression added; DB-backed usage/billing regression still needed
+  - upstream failure: code path audited; service-level and handler-level regression tests added; DB-backed image-history regression added; DB-backed usage/billing regression added
 - `/app/usage` real balance, monthly trend, and detail data.
 - `/app/keys` create/copy/delete/reset behavior and key masking.
 - `/app/profile` profile/password/TOTP behavior.
