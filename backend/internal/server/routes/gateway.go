@@ -620,6 +620,42 @@ func ExecutableGatewayRoutes(h *handler.Handlers) []gatewayctx.RouteDef {
 				"require_group_google",
 			},
 		},
+		{
+			Method: http.MethodGet,
+			Path:   "/sora/media/*filepath",
+			Handler: func(c gatewayctx.GatewayContext) {
+				if h.SoraGateway == nil {
+					c.SetStatus(http.StatusNotFound)
+					return
+				}
+				h.SoraGateway.MediaProxyGateway(c)
+			},
+			Middleware: []string{
+				"request_logger",
+				"cors",
+				"security_headers",
+				"client_request_id",
+				"standard_api_key_auth",
+				"require_group_anthropic",
+			},
+		},
+		{
+			Method: http.MethodGet,
+			Path:   "/sora/media-signed/*filepath",
+			Handler: func(c gatewayctx.GatewayContext) {
+				if h.SoraGateway == nil {
+					c.SetStatus(http.StatusNotFound)
+					return
+				}
+				h.SoraGateway.MediaProxySignedGateway(c)
+			},
+			Middleware: []string{
+				"request_logger",
+				"cors",
+				"security_headers",
+				"client_request_id",
+			},
+		},
 	}
 }
 

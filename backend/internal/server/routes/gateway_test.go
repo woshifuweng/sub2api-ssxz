@@ -100,3 +100,29 @@ func TestExecutableGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
 		require.True(t, found, "path=%s should be present in executable gateway routes", path)
 	}
 }
+
+func TestExecutableGatewayRoutesSoraMediaPathsAreRegistered(t *testing.T) {
+	routes := ExecutableGatewayRoutes(&handler.Handlers{
+		Gateway:       &handler.GatewayHandler{},
+		OpenAIGateway: &handler.OpenAIGatewayHandler{},
+		SoraGateway:   &handler.SoraGatewayHandler{},
+	})
+
+	expected := map[string]bool{
+		"/sora/media/*filepath":        false,
+		"/sora/media-signed/*filepath": false,
+	}
+
+	for _, route := range routes {
+		if route.Method != http.MethodGet {
+			continue
+		}
+		if _, ok := expected[route.Path]; ok {
+			expected[route.Path] = true
+		}
+	}
+
+	for path, found := range expected {
+		require.True(t, found, "path=%s should be present in executable gateway routes", path)
+	}
+}
