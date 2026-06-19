@@ -1016,6 +1016,7 @@ export default {
       payInNewWindowHint: 'If the payment page did not open automatically, click to continue.'
     },
     result: {
+      title: 'Payment Result',
       success: 'Payment successful',
       subscriptionSuccess: 'Subscription purchased',
       failed: 'Payment failed',

@@ -1021,6 +1021,7 @@ export default {
       payInNewWindowHint: '如果支付页面没有自动打开，请点击按钮继续。'
     },
     result: {
+      title: '支付结果',
       success: '支付成功',
       subscriptionSuccess: '订阅购买成功',
       failed: '支付失败',
