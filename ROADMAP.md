@@ -43,7 +43,7 @@ Build SSXZ AI into a lightweight AI creation workspace for about 200-300 private
    - image history must remain visible
    - download must work in a normal browser
    - upstream failure must not fake success or mischarge users
-   - service-level upstream failure regression tests exist; full handler plus DB regression can be added before production
+   - service-level and handler-level upstream failure regression tests exist; DB-backed billing/history regression can be added before production
 8. Document P0 decisions before UI polish work resumes.
 
 ### P0 Non-Goals
