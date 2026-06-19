@@ -69,13 +69,25 @@ func UserFromServiceAdmin(u *service.User) *AdminUser {
 }
 
 func APIKeyFromService(k *service.APIKey) *APIKey {
+	return apiKeyFromService(k, false)
+}
+
+func APIKeyFromServiceWithPlaintextKey(k *service.APIKey) *APIKey {
+	return apiKeyFromService(k, true)
+}
+
+func apiKeyFromService(k *service.APIKey, includePlaintextKey bool) *APIKey {
 	if k == nil {
 		return nil
+	}
+	key := maskAPIKey(k.Key)
+	if includePlaintextKey {
+		key = k.Key
 	}
 	out := &APIKey{
 		ID:            k.ID,
 		UserID:        k.UserID,
-		Key:           k.Key,
+		Key:           key,
 		Name:          k.Name,
 		GroupID:       k.GroupID,
 		GroupIDs:      append([]int64(nil), k.GroupIDs...),
@@ -123,6 +135,16 @@ func APIKeyFromService(k *service.APIKey) *APIKey {
 		out.Reset7dAt = &t
 	}
 	return out
+}
+
+func maskAPIKey(key string) string {
+	if key == "" {
+		return ""
+	}
+	if len(key) <= 12 {
+		return "[redacted]"
+	}
+	return key[:8] + "..." + key[len(key)-4:]
 }
 
 func GroupFromServiceShallow(g *service.Group) *Group {
