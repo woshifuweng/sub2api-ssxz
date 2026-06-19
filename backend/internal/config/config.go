@@ -1440,6 +1440,19 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	if cfg.Workspace.WebSearch.MaxContentLengthBytes < 0 {
 		cfg.Workspace.WebSearch.MaxContentLengthBytes = 0
 	}
+	cfg.Gateway.SoraMediaSigningKey = strings.TrimSpace(firstNonEmptyConfigValue(
+		cfg.Gateway.SoraMediaSigningKey,
+		os.Getenv("GATEWAY_SORA_MEDIA_SIGNING_KEY"),
+	))
+	cfg.Gateway.SoraMediaSignedURLTTLSeconds = firstNonZeroConfigInt(
+		cfg.Gateway.SoraMediaSignedURLTTLSeconds,
+		parseEnvInt("GATEWAY_SORA_MEDIA_SIGNED_URL_TTL_SECONDS"),
+	)
+	if raw := strings.TrimSpace(os.Getenv("GATEWAY_SORA_MEDIA_REQUIRE_API_KEY")); raw != "" {
+		if value, err := strconv.ParseBool(raw); err == nil {
+			cfg.Gateway.SoraMediaRequireAPIKey = value
+		}
+	}
 	cfg.Process.Mode = strings.ToLower(strings.TrimSpace(cfg.Process.Mode))
 	if cfg.Process.Mode == "" {
 		cfg.Process.Mode = ProcessModeSingle
