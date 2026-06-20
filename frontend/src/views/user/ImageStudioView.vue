@@ -41,6 +41,16 @@
         <div class="hero-model-card" aria-label="可用图片模型">
           <span>图片模型</span>
           <strong>{{ activeImageModelLabel }}</strong>
+          <select
+            v-if="imageModelOptions.length"
+            v-model="selectedImageModelId"
+            class="hero-model-select"
+            aria-label="选择图片模型"
+          >
+            <option v-for="model in imageModelOptions" :key="model.id" :value="model.id">
+              {{ model.name }}
+            </option>
+          </select>
           <small>{{ imageModelHint }}</small>
           <div v-if="imageModelPreview.length" class="hero-model-list">
             <span v-for="model in imageModelPreview" :key="model.id">{{ model.name }}</span>
@@ -537,6 +547,7 @@ const style = ref('高级商业摄影')
 const customStyle = ref('')
 const keywords = ref('')
 const imageCount = ref(1)
+const selectedImageModelId = ref('')
 const selectedFile = ref<File | null>(null)
 const previewUrl = ref('')
 const previewImageFailed = ref(false)
@@ -622,6 +633,10 @@ const imageModelOptions = computed(() => capabilities.imageModels.value)
 const imageModelPreview = computed(() => imageModelOptions.value.slice(0, 3))
 const hiddenImageModelCount = computed(() => Math.max(0, imageModelOptions.value.length - imageModelPreview.value.length))
 const activeImageModel = computed(() => {
+  if (selectedImageModelId.value) {
+    const selected = imageModelOptions.value.find((model) => model.id === selectedImageModelId.value)
+    if (selected) return selected
+  }
   const preferred = capabilities.defaultImageModel.value
   return imageModelOptions.value.find((model) => model.id === preferred) || imageModelOptions.value[0] || null
 })
@@ -686,6 +701,20 @@ watch(goal, (next) => {
 watch(results, () => {
   activeResultIndex.value = 0
 })
+
+watch(imageModelOptions, (models) => {
+  if (!models.length) {
+    selectedImageModelId.value = ''
+    return
+  }
+  if (selectedImageModelId.value && models.some((model) => model.id === selectedImageModelId.value)) {
+    return
+  }
+  const preferred = capabilities.defaultImageModel.value
+  selectedImageModelId.value = (preferred && models.some((model) => model.id === preferred))
+    ? preferred
+    : models[0].id
+}, { immediate: true })
 
 onMounted(() => {
   void loadRecentWorks()
@@ -842,6 +871,9 @@ async function requestImageStudio() {
   form.append('style', requestStyle.value)
   form.append('size', requestSize.value)
   form.append('count', String(imageCount.value))
+  if (activeImageModel.value?.id) {
+    form.append('model', activeImageModel.value.id)
+  }
   if (selectedFile.value) {
     form.append('image', selectedFile.value)
   }
@@ -1169,6 +1201,25 @@ function scrollPreviewIntoView() {
   margin-top: 0.18rem;
   color: var(--ssxz-text-primary);
   font-size: 0.98rem;
+}
+
+.hero-model-select {
+  width: 100%;
+  margin-top: 0.55rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 0.75rem;
+  background: var(--ssxz-surface);
+  color: var(--ssxz-text-primary);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 750;
+  padding: 0.48rem 0.58rem;
+}
+
+.hero-model-select:focus-visible {
+  outline: none;
+  border-color: var(--ssxz-focus);
+  box-shadow: 0 0 0 3px var(--ssxz-focus-ring);
 }
 
 .hero-route-card small,
