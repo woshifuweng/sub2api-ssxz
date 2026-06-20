@@ -33,6 +33,11 @@ const workspaceChatSelectableCapabilities = new Set([
   'tool'
 ])
 
+const workspaceImageSelectableCapabilities = new Set([
+  'image_generation',
+  'image_edit'
+])
+
 function isImageModelName(model: string) {
   const normalized = model.toLowerCase()
   return normalized.includes('image') || normalized.includes('dall')
@@ -47,6 +52,14 @@ function isSelectableWorkspaceModel(model: UserSupportedModel) {
     return true
   }
   return !isImageModelName(model.name)
+}
+
+function isSelectableImageModel(model: UserSupportedModel) {
+  const capabilities = model.capabilities || []
+  if (capabilities.some((capability) => workspaceImageSelectableCapabilities.has(capability))) {
+    return true
+  }
+  return model.model_catalog_source === 'real_channel' && isImageModelName(model.name)
 }
 
 function formatModelName(model: string) {
@@ -71,12 +84,12 @@ function modelPriority(model: ChatModelOption) {
 }
 
 export function useUserCapabilities() {
-  const supportedModelOptions = computed(() => {
+  function buildModelOptions(predicate: (model: UserSupportedModel) => boolean) {
     const models = new Map<string, ChatModelOption>()
     for (const channel of availableChannels.value) {
       for (const platform of channel.platforms || []) {
         for (const model of platform.supported_models || []) {
-          if (!model.name || !isSelectableWorkspaceModel(model)) continue
+          if (!model.name || !predicate(model)) continue
           const option = {
             id: model.name,
             name: formatModelName(model.name),
@@ -101,15 +114,25 @@ export function useUserCapabilities() {
       }
     }
     return [...models.values()].sort((left, right) => left.id.localeCompare(right.id))
+  }
+
+  const supportedModelOptions = computed(() => {
+    return buildModelOptions(isSelectableWorkspaceModel)
   })
 
   const chatModels = computed(() => supportedModelOptions.value)
+  const imageModels = computed(() => buildModelOptions(isSelectableImageModel))
 
   const defaultTextModel = computed(() => {
     const textModel = chatModels.value.find((model) => model.capabilities.includes('text_chat'))
     return textModel?.id || chatModels.value[0]?.id || ''
   })
+  const defaultImageModel = computed(() => {
+    const imageModel = imageModels.value.find((model) => model.capabilities.includes('image_generation'))
+    return imageModel?.id || imageModels.value[0]?.id || ''
+  })
   const hasChat = computed(() => chatModels.value.length > 0)
+  const hasImageGeneration = computed(() => imageModels.value.length > 0)
 
   async function loadCapabilities() {
     if (loading.value) return
@@ -135,9 +158,12 @@ export function useUserCapabilities() {
     availableChannels,
     availableGroups,
     chatModels,
+    defaultImageModel,
     defaultTextModel,
     errorMessage,
     hasChat,
+    hasImageGeneration,
+    imageModels,
     loaded,
     loading,
     loadCapabilities
