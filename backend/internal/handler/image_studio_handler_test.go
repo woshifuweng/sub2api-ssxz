@@ -1,10 +1,14 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,12 +16,32 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 type imageStudioTestGenRepo struct {
 	created []*service.SoraGeneration
+}
+
+func newImageStudioMultipartContext(t *testing.T, fields map[string]string) gatewayctx.GatewayContext {
+	t.Helper()
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	for name, value := range fields {
+		require.NoError(t, writer.WriteField(name, value))
+	}
+	require.NoError(t, writer.Close())
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/image-studio/generate", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = req
+	return gatewayctx.FromGin(ctx)
 }
 
 func (r *imageStudioTestGenRepo) Create(_ context.Context, gen *service.SoraGeneration) error {
@@ -107,7 +131,7 @@ func TestPersistImageStudioWork_CreatesCompletedImageRecordForURLResults(t *test
 	capture := &imageStudioCaptureContext{status: http.StatusOK}
 	capture.capture([]byte(`{"data":[{"url":"https://cdn.example.com/work.png"}]}`))
 
-	handler.persistImageStudioWork(context.Background(), capture, 7, 42, "product prompt")
+	handler.persistImageStudioWork(context.Background(), capture, 7, 42, imageStudioModel, "product prompt")
 
 	require.Len(t, repo.created, 1)
 	gen := repo.created[0]
@@ -121,6 +145,20 @@ func TestPersistImageStudioWork_CreatesCompletedImageRecordForURLResults(t *test
 	require.Equal(t, service.SoraStorageTypeUpstream, gen.StorageType)
 	require.Equal(t, "https://cdn.example.com/work.png", gen.MediaURL)
 	require.NotNil(t, gen.CompletedAt)
+}
+
+func TestPersistImageStudioWork_RecordsRequestedImageModel(t *testing.T) {
+	repo := &imageStudioTestGenRepo{}
+	handler := &ImageStudioHandler{
+		genService: service.NewSoraGenerationService(repo, nil, nil),
+	}
+	capture := &imageStudioCaptureContext{status: http.StatusOK}
+	capture.capture([]byte(`{"data":[{"url":"https://cdn.example.com/work.png"}]}`))
+
+	handler.persistImageStudioWork(context.Background(), capture, 7, 42, "gemini-2.5-flash-image", "product prompt")
+
+	require.Len(t, repo.created, 1)
+	require.Equal(t, "gemini-2.5-flash-image", repo.created[0].Model)
 }
 
 func TestPersistImageStudioWork_PersistsBase64OnlyResultsToLocalStorage(t *testing.T) {
@@ -143,7 +181,7 @@ func TestPersistImageStudioWork_PersistsBase64OnlyResultsToLocalStorage(t *testi
 	capture := &imageStudioCaptureContext{status: http.StatusOK}
 	capture.capture([]byte(fmt.Sprintf(`{"data":[{"b64_json":%q}]}`, base64.StdEncoding.EncodeToString([]byte("png-data")))))
 
-	handler.persistImageStudioWork(context.Background(), capture, 7, 42, "product prompt")
+	handler.persistImageStudioWork(context.Background(), capture, 7, 42, imageStudioModel, "product prompt")
 
 	require.Len(t, repo.created, 1)
 	gen := repo.created[0]
@@ -166,7 +204,65 @@ func TestPersistImageStudioWork_DoesNotStoreBase64InRecordWhenLocalStorageDisabl
 	capture := &imageStudioCaptureContext{status: http.StatusOK}
 	capture.capture([]byte(fmt.Sprintf(`{"data":[{"b64_json":%q}]}`, base64.StdEncoding.EncodeToString([]byte("png-data")))))
 
-	handler.persistImageStudioWork(context.Background(), capture, 7, 42, "product prompt")
+	handler.persistImageStudioWork(context.Background(), capture, 7, 42, imageStudioModel, "product prompt")
 
 	require.Empty(t, repo.created)
+}
+
+func TestParseImageStudioRequest_DefaultsModelWhenMissing(t *testing.T) {
+	ctx := newImageStudioMultipartContext(t, map[string]string{
+		"template_id": "background",
+	})
+
+	req, err := parseImageStudioRequest(ctx)
+
+	require.NoError(t, err)
+	require.Equal(t, imageStudioModel, req.Model)
+}
+
+func TestParseImageStudioRequest_UsesSubmittedModel(t *testing.T) {
+	ctx := newImageStudioMultipartContext(t, map[string]string{
+		"model": " gemini-2.5-flash-image ",
+	})
+
+	req, err := parseImageStudioRequest(ctx)
+
+	require.NoError(t, err)
+	require.Equal(t, "gemini-2.5-flash-image", req.Model)
+}
+
+func TestBuildImageStudioGatewayBody_UsesRequestedModel(t *testing.T) {
+	req := &imageStudioRequest{
+		Model: "gemini-2.5-flash-image",
+		Size:  "1024x1024",
+		Count: 1,
+	}
+
+	body, contentType, endpoint, err := buildImageStudioGatewayBody(req, "product prompt")
+
+	require.NoError(t, err)
+	require.Equal(t, "application/json", contentType)
+	require.Equal(t, "/v1/images/generations", endpoint)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(body, &payload))
+	require.Equal(t, "gemini-2.5-flash-image", payload["model"])
+}
+
+func TestBuildImageStudioGatewayBody_EditUsesRequestedModel(t *testing.T) {
+	req := &imageStudioRequest{
+		Model:    "gemini-2.5-flash-image",
+		Size:     "1024x1024",
+		Count:    1,
+		FileName: "reference.png",
+		FileType: "image/png",
+		FileData: []byte("png-data"),
+	}
+
+	body, contentType, endpoint, err := buildImageStudioGatewayBody(req, "product prompt")
+
+	require.NoError(t, err)
+	require.Contains(t, contentType, "multipart/form-data")
+	require.Equal(t, "/v1/images/edits", endpoint)
+	require.Contains(t, string(body), `name="model"`)
+	require.Contains(t, string(body), "gemini-2.5-flash-image")
 }

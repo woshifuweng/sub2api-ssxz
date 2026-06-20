@@ -226,7 +226,7 @@ func TestPersistImageStudioWork_DoesNotCreateHistoryForFailedOrTruncatedCapture(
 			}
 			tt.capture.capture([]byte(`{"data":[{"url":"https://cdn.example.com/work.png"}]}`))
 
-			handler.persistImageStudioWork(context.Background(), tt.capture, 7, 42, "product prompt")
+			handler.persistImageStudioWork(context.Background(), tt.capture, 7, 42, imageStudioModel, "product prompt")
 
 			require.Empty(t, repo.created)
 		})

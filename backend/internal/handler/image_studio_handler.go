@@ -41,6 +41,7 @@ type imageStudioResponder struct {
 
 type imageStudioRequest struct {
 	TemplateID    string
+	Model         string
 	ProductName   string
 	SellingPoints string
 	Style         string
@@ -107,7 +108,7 @@ func (h *ImageStudioHandler) GenerateGateway(c gatewayctx.GatewayContext) {
 		return
 	}
 
-	apiKey, err := h.selectImageStudioAPIKey(c.Request().Context(), subject.UserID)
+	apiKey, err := h.selectImageStudioAPIKey(c.Request().Context(), subject.UserID, req.Model)
 	if err != nil {
 		response.ErrorContext(imageStudioResponder{ctx: c}, http.StatusBadRequest, err.Error())
 		return
@@ -126,7 +127,7 @@ func (h *ImageStudioHandler) GenerateGateway(c gatewayctx.GatewayContext) {
 	service.SetUpstreamQualityAuditRecordContext(c, service.BuildUpstreamQualityAuditRecord(service.UpstreamQualityAuditInput{
 		Route:          "/api/v1/image-studio/generate",
 		Operation:      operation,
-		RequestedModel: imageStudioModel,
+		RequestedModel: req.Model,
 		ProviderName:   imageStudioProviderName(apiKey),
 		Endpoint:       endpoint,
 		ImageParams: service.UpstreamQualityImageParams{
@@ -149,7 +150,7 @@ func (h *ImageStudioHandler) GenerateGateway(c gatewayctx.GatewayContext) {
 
 	capture := newImageStudioCaptureContext(c)
 	h.openAIGateway.ImagesGateway(capture)
-	h.persistImageStudioWork(c.Request().Context(), capture, subject.UserID, apiKey.ID, prompt)
+	h.persistImageStudioWork(c.Request().Context(), capture, subject.UserID, apiKey.ID, req.Model, prompt)
 }
 
 type imageStudioCaptureContext struct {
@@ -216,10 +217,11 @@ func (c *imageStudioCaptureContext) bytes() []byte {
 	return c.body.Bytes()
 }
 
-func (h *ImageStudioHandler) persistImageStudioWork(ctx context.Context, capture *imageStudioCaptureContext, userID int64, apiKeyID int64, prompt string) {
+func (h *ImageStudioHandler) persistImageStudioWork(ctx context.Context, capture *imageStudioCaptureContext, userID int64, apiKeyID int64, model string, prompt string) {
 	if h == nil || h.genService == nil || !capture.success() {
 		return
 	}
+	model = normalizeImageStudioModel(model)
 	urls := extractImageStudioResultURLs(capture.bytes())
 	storageType := service.SoraStorageTypeUpstream
 	var fileSizeBytes int64
@@ -238,7 +240,7 @@ func (h *ImageStudioHandler) persistImageStudioWork(ctx context.Context, capture
 	if apiKeyID > 0 {
 		apiKeyIDPtr = &apiKeyID
 	}
-	_, _ = h.genService.CreateCompletedImageWork(ctx, userID, apiKeyIDPtr, imageStudioModel, prompt, urls, storageType, nil, fileSizeBytes)
+	_, _ = h.genService.CreateCompletedImageWork(ctx, userID, apiKeyIDPtr, model, prompt, urls, storageType, nil, fileSizeBytes)
 }
 
 func parseImageStudioRequest(c gatewayctx.GatewayContext) (*imageStudioRequest, error) {
@@ -263,6 +265,7 @@ func parseImageStudioRequest(c gatewayctx.GatewayContext) (*imageStudioRequest, 
 
 	out := &imageStudioRequest{
 		TemplateID:    normalizeImageStudioTemplate(formValue("template_id")),
+		Model:         normalizeImageStudioModel(formValue("model")),
 		ProductName:   truncateStudioText(formValue("product_name"), 120),
 		SellingPoints: truncateStudioText(formValue("selling_points"), 600),
 		Style:         truncateStudioText(formValue("style"), 180),
@@ -298,7 +301,8 @@ func parseImageStudioRequest(c gatewayctx.GatewayContext) (*imageStudioRequest, 
 	return out, nil
 }
 
-func (h *ImageStudioHandler) selectImageStudioAPIKey(ctx context.Context, userID int64) (*service.APIKey, error) {
+func (h *ImageStudioHandler) selectImageStudioAPIKey(ctx context.Context, userID int64, model string) (*service.APIKey, error) {
+	model = normalizeImageStudioModel(model)
 	keys, _, err := h.apiKeyService.List(ctx, userID, pagination.PaginationParams{Page: 1, PageSize: 100}, service.APIKeyListFilters{Status: service.StatusAPIKeyActive})
 	if err != nil {
 		return nil, fmt.Errorf("failed to load API keys")
@@ -308,14 +312,14 @@ func (h *ImageStudioHandler) selectImageStudioAPIKey(ctx context.Context, userID
 		if key == nil || !key.IsActive() || strings.TrimSpace(key.Key) == "" {
 			continue
 		}
-		if !key.AllowsModel(imageStudioModel) {
+		if !key.AllowsModel(model) {
 			continue
 		}
 		if key.Group != nil && key.Group.Platform == service.PlatformOpenAI {
 			return key, nil
 		}
 	}
-	return nil, fmt.Errorf("please create an active OpenAI API key before using image studio")
+	return nil, fmt.Errorf("please create an active OpenAI API key for the selected image model before using image studio")
 }
 
 func buildImageStudioGatewayBody(req *imageStudioRequest, prompt string) ([]byte, string, string, error) {
@@ -326,7 +330,7 @@ func buildImageStudioGatewayBody(req *imageStudioRequest, prompt string) ([]byte
 		var body bytes.Buffer
 		writer := multipart.NewWriter(&body)
 		fields := map[string]string{
-			"model":  imageStudioModel,
+			"model":  normalizeImageStudioModel(req.Model),
 			"prompt": prompt,
 			"size":   req.Size,
 			"n":      fmt.Sprintf("%d", req.Count),
@@ -355,7 +359,7 @@ func buildImageStudioGatewayBody(req *imageStudioRequest, prompt string) ([]byte
 	}
 
 	payload := map[string]any{
-		"model":  imageStudioModel,
+		"model":  normalizeImageStudioModel(req.Model),
 		"prompt": prompt,
 		"size":   req.Size,
 		"n":      req.Count,
@@ -365,6 +369,14 @@ func buildImageStudioGatewayBody(req *imageStudioRequest, prompt string) ([]byte
 		return nil, "", "", err
 	}
 	return body, "application/json", "/v1/images/generations", nil
+}
+
+func normalizeImageStudioModel(value string) string {
+	value = truncateStudioText(value, 120)
+	if value == "" {
+		return imageStudioModel
+	}
+	return value
 }
 
 func cloneRequestForImageStudioGateway(req *http.Request, endpoint string, body []byte, contentType string, apiKey string) *http.Request {

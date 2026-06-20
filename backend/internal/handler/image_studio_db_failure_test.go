@@ -56,7 +56,7 @@ func TestPersistImageStudioWork_SQLRepoPersistsOnlySuccessfulCaptures(t *testing
 			}
 			tt.capture.capture([]byte(tt.body))
 
-			handler.persistImageStudioWork(context.Background(), tt.capture, 7, 42, "product prompt")
+			handler.persistImageStudioWork(context.Background(), tt.capture, 7, 42, imageStudioModel, "product prompt")
 
 			var count int
 			require.NoError(t, db.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM sora_generations").Scan(&count))

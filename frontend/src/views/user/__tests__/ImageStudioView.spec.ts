@@ -206,6 +206,66 @@ describe('ImageStudioView workbench', () => {
     expect(text).toContain('Gpt-Image-2')
     expect(text).toContain('Gemini-2.5-Flash-Image')
     expect(text).not.toContain('Deepseek-V4-Flash')
+    const optionValues = wrapper.findAll('.hero-model-select option').map((option) => option.attributes('value'))
+    expect(optionValues).toContain('gpt-image-2')
+    expect(optionValues).toContain('gemini-2.5-flash-image')
+
+    wrapper.unmount()
+  })
+
+  it('submits the selected image model to the image-studio API', async () => {
+    userChannelsApi.getAvailable.mockResolvedValue([
+      {
+        name: 'Image Channel',
+        description: '',
+        platforms: [
+          {
+            platform: 'image-provider',
+            groups: [],
+            supported_models: [
+              {
+                name: 'gpt-image-2',
+                platform: 'image-provider',
+                pricing: null,
+                capabilities: ['image_generation'],
+                provider_label: 'workspace-openai-compatible-image-staging',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured',
+              },
+              {
+                name: 'gemini-2.5-flash-image',
+                platform: 'gemini',
+                pricing: null,
+                capabilities: ['image_generation'],
+                provider_label: 'gemini',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured',
+              },
+            ],
+          },
+        ],
+      },
+    ])
+    apiClient.post.mockResolvedValue({
+      data: {
+        data: [
+          {
+            url: 'https://cdn.example.com/result.png',
+          },
+        ],
+      },
+    })
+
+    const wrapper = mountImageStudio()
+    await flushPromises()
+
+    await wrapper.find('.hero-model-select').setValue('gemini-2.5-flash-image')
+    await wrapper.find('textarea').setValue('minimal skincare product cover')
+    await wrapper.find('button.generate-button').trigger('click')
+    await flushPromises()
+
+    const form = apiClient.post.mock.calls[0][1] as FormData
+    expect(form.get('model')).toBe('gemini-2.5-flash-image')
 
     wrapper.unmount()
   })
