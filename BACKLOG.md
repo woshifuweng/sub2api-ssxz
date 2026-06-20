@@ -8,6 +8,7 @@ Last updated: 2026-06-20
 - 2026-06-20: staging image-generation billing/usage recorded one costed usage row and reduced the test account balance by `0.008`.
 - 2026-06-20: staging image history stored one completed local image record.
 - 2026-06-20: staging image media URL returned HTTP 200 with `image/png`.
+- 2026-06-20: staging `/app/image` single reference image preview recovered after PR #142 allowed `blob:` in the default CSP `img-src` policy.
 - 2026-06-20: direct route checks showed `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, `/app/chat`, `/app/purchase`, and `/app/orders` rendering in the user workspace shell rather than the admin/backend shell.
 - 2026-06-20: invalid `/api/v1/image-studio/generate` multipart input returned HTTP 400, did not change balance, and did not create a new usage record.
 - 2026-06-20: code-path audit confirmed image upstream errors return before `RecordUsage`, and image history only persists for captured non-truncated 2xx responses.
@@ -60,7 +61,7 @@ Last updated: 2026-06-20
   - custom style
   - multiple reference images
   - thumbnail previews
-  - reference image preview reliability
+  - reference image workflow beyond the verified single-image preview
   - results area
   - regenerate
   - image history
