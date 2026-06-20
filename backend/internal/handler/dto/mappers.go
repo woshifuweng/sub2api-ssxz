@@ -76,6 +76,20 @@ func APIKeyFromServiceWithPlaintextKey(k *service.APIKey) *APIKey {
 	return apiKeyFromService(k, true)
 }
 
+func APIKeyForSafeReplay(k *APIKey) *APIKey {
+	if k == nil {
+		return nil
+	}
+	out := *k
+	out.Key = maskAPIKey(k.Key)
+	out.GroupIDs = append([]int64(nil), k.GroupIDs...)
+	out.AllowedModels = append([]string(nil), k.AllowedModels...)
+	out.IPWhitelist = append([]string(nil), k.IPWhitelist...)
+	out.IPBlacklist = append([]string(nil), k.IPBlacklist...)
+	out.Groups = append([]Group(nil), k.Groups...)
+	return &out
+}
+
 func apiKeyFromService(k *service.APIKey, includePlaintextKey bool) *APIKey {
 	if k == nil {
 		return nil

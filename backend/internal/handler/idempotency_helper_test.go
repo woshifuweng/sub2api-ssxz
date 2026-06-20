@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -281,5 +282,54 @@ func TestExecuteUserIdempotentJSONConcurrentRetrySingleSideEffectAndReplay(t *te
 	status3, headers3 := call()
 	require.Equal(t, http.StatusOK, status3)
 	require.Equal(t, "true", headers3.Get("X-Idempotency-Replayed"))
+	require.Equal(t, int32(1), executed.Load())
+}
+
+func TestExecuteUserIdempotentGatewayJSONWithStoredResponseReplaysSanitizedData(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := newUserMemoryIdempotencyRepoStub()
+	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(repo, nil, service.DefaultIdempotencyConfig()))
+	t.Cleanup(func() {
+		service.SetDefaultIdempotencyCoordinator(nil)
+	})
+
+	const secret = "sk-created-full-key-only-shown-once"
+	var executed atomic.Int32
+	router := gin.New()
+	router.Use(withUserSubject(4))
+	router.POST("/idempotent", func(c *gin.Context) {
+		executeUserIdempotentGatewayJSONWithStoredResponse(
+			gatewayctx.FromGin(c),
+			"user.test.scope",
+			map[string]any{"name": "client-key"},
+			time.Minute,
+			func(data any) any {
+				return gin.H{"key": "[redacted]"}
+			},
+			func(ctx context.Context) (any, error) {
+				executed.Add(1)
+				return gin.H{"key": secret}, nil
+			},
+		)
+	})
+
+	call := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/idempotent", bytes.NewBufferString(`{"name":"client-key"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Idempotency-Key", "same-user-key")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		return rec
+	}
+
+	first := call()
+	require.Equal(t, http.StatusOK, first.Code)
+	require.Contains(t, first.Body.String(), secret)
+
+	second := call()
+	require.Equal(t, http.StatusOK, second.Code)
+	require.Equal(t, "true", second.Header().Get("X-Idempotency-Replayed"))
+	require.NotContains(t, second.Body.String(), secret)
+	require.Contains(t, second.Body.String(), "[redacted]")
 	require.Equal(t, int32(1), executed.Load())
 }

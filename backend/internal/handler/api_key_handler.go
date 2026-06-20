@@ -207,13 +207,21 @@ func (h *APIKeyHandler) CreateGateway(c gatewayctx.GatewayContext) {
 		svcReq.RateLimit7d = *req.RateLimit7d
 	}
 
-	executeUserIdempotentGatewayJSON(c, "user.api_keys.create", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+	executeUserIdempotentGatewayJSONWithStoredResponse(c, "user.api_keys.create", req, service.DefaultWriteIdempotencyTTL(), sanitizeAPIKeyCreateStoredResponse, func(ctx context.Context) (any, error) {
 		key, err := h.apiKeyService.Create(ctx, subject.UserID, svcReq)
 		if err != nil {
 			return nil, err
 		}
 		return dto.APIKeyFromServiceWithPlaintextKey(key), nil
 	})
+}
+
+func sanitizeAPIKeyCreateStoredResponse(data any) any {
+	key, ok := data.(*dto.APIKey)
+	if !ok {
+		return data
+	}
+	return dto.APIKeyForSafeReplay(key)
 }
 
 // Update handles updating an API key
