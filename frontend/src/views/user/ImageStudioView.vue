@@ -38,6 +38,15 @@
           <b>{{ imageCredits }}</b>
           <span>约可生成</span>
         </div>
+        <div class="hero-model-card" aria-label="可用图片模型">
+          <span>图片模型</span>
+          <strong>{{ activeImageModelLabel }}</strong>
+          <small>{{ imageModelHint }}</small>
+          <div v-if="imageModelPreview.length" class="hero-model-list">
+            <span v-for="model in imageModelPreview" :key="model.id">{{ model.name }}</span>
+            <span v-if="hiddenImageModelCount > 0">+{{ hiddenImageModelCount }}</span>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -337,7 +346,7 @@
           </div>
           <div>
             <span>模型</span>
-            <b>后台配置</b>
+            <b>{{ activeImageModelLabel }}</b>
           </div>
         </footer>
 
@@ -448,6 +457,7 @@ import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { apiClient } from '@/api/client'
 import soraAPI, { type SoraGeneration } from '@/api/sora'
+import { useUserCapabilities } from '@/composables/useUserCapabilities'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 
@@ -465,6 +475,7 @@ type ImageStudioPayload = {
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
+const capabilities = useUserCapabilities()
 
 const creationGoals: Array<{ id: GoalId; label: string; hint: string }> = [
   { id: 'product', label: '商品主图', hint: '突出主体与质感' },
@@ -607,6 +618,19 @@ const imageCredits = computed(() => {
   const balance = authStore.user?.balance ?? 0
   return Math.max(0, Math.floor(balance / CREDIT_UNIT_USD))
 })
+const imageModelOptions = computed(() => capabilities.imageModels.value)
+const imageModelPreview = computed(() => imageModelOptions.value.slice(0, 3))
+const hiddenImageModelCount = computed(() => Math.max(0, imageModelOptions.value.length - imageModelPreview.value.length))
+const activeImageModel = computed(() => {
+  const preferred = capabilities.defaultImageModel.value
+  return imageModelOptions.value.find((model) => model.id === preferred) || imageModelOptions.value[0] || null
+})
+const activeImageModelLabel = computed(() => activeImageModel.value?.name || '后台配置')
+const imageModelHint = computed(() => {
+  if (capabilities.loading.value) return '正在读取账号可用的图片模型。'
+  if (activeImageModel.value) return '来自账号可用渠道；当前生成仍以后端配置为准。'
+  return '暂未读取到可展示的图片模型，请确认后台账号、分组和价格配置。'
+})
 const referenceMeta = computed(() => {
   if (!selectedFile.value) return '未上传'
   const ext = selectedFile.value.name.split('.').pop()?.toUpperCase() || fileTypeLabel(selectedFile.value.type)
@@ -665,6 +689,7 @@ watch(results, () => {
 
 onMounted(() => {
   void loadRecentWorks()
+  void capabilities.loadCapabilities()
 })
 
 onBeforeUnmount(() => {
@@ -1113,7 +1138,8 @@ function scrollPreviewIntoView() {
   max-width: 28rem;
 }
 
-.hero-route-card {
+.hero-route-card,
+.hero-model-card {
   width: 100%;
   border: 1px solid color-mix(in srgb, var(--ssxz-action) 36%, var(--ssxz-border));
   border-radius: 1rem;
@@ -1124,26 +1150,54 @@ function scrollPreviewIntoView() {
 }
 
 .hero-route-card span,
-.hero-route-card small {
+.hero-route-card small,
+.hero-model-card > span,
+.hero-model-card small {
   display: block;
   color: var(--ssxz-text-muted);
 }
 
-.hero-route-card span {
+.hero-route-card span,
+.hero-model-card > span {
   font-size: 0.72rem;
   font-weight: 850;
 }
 
-.hero-route-card strong {
+.hero-route-card strong,
+.hero-model-card strong {
   display: block;
   margin-top: 0.18rem;
   color: var(--ssxz-text-primary);
   font-size: 0.98rem;
 }
 
-.hero-route-card small {
+.hero-route-card small,
+.hero-model-card small {
   margin-top: 0.32rem;
   line-height: 1.55;
+}
+
+.hero-model-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+.hero-model-list span {
+  display: inline-flex;
+  max-width: 9rem;
+  overflow: hidden;
+  align-items: center;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  background: var(--ssxz-surface-subtle);
+  color: var(--ssxz-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 750;
+  padding: 0.28rem 0.5rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hero-flow span,

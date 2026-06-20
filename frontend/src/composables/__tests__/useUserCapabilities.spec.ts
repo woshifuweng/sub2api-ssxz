@@ -154,6 +154,79 @@ describe('useUserCapabilities', () => {
     expect(capabilities.chatModels.value.map((model) => model.id)).not.toContain('gpt-image-1')
   })
 
+  it('exposes backend-authorized image models through the image catalog', async () => {
+    mocks.getChannels.mockResolvedValue([
+      {
+        name: 'Image Channel',
+        description: '',
+        platforms: [
+          {
+            platform: 'image-provider',
+            groups: [],
+            supported_models: [
+              {
+                name: 'gpt-image-2',
+                platform: 'image-provider',
+                pricing: null,
+                capabilities: ['image_generation'],
+                provider_label: 'workspace-openai-compatible-image-staging',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured'
+              },
+              {
+                name: 'gpt-5.5',
+                platform: 'openai',
+                pricing: null,
+                capabilities: ['text_chat'],
+                provider: 'openai',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured'
+              }
+            ]
+          }
+        ]
+      }
+    ])
+
+    const capabilities = useUserCapabilities()
+    await capabilities.loadCapabilities()
+
+    expect(capabilities.chatModels.value.map((model) => model.id)).toContain('gpt-5.5')
+    expect(capabilities.chatModels.value.map((model) => model.id)).not.toContain('gpt-image-2')
+    expect(capabilities.imageModels.value.map((model) => model.id)).toEqual(['gpt-image-2'])
+    expect(capabilities.defaultImageModel.value).toBe('gpt-image-2')
+    expect(capabilities.hasImageGeneration.value).toBe(true)
+  })
+
+  it('uses real image-like model names as image catalog fallback', async () => {
+    mocks.getChannels.mockResolvedValue([
+      {
+        name: 'Image Channel',
+        description: '',
+        platforms: [
+          {
+            platform: 'image-provider',
+            groups: [],
+            supported_models: [
+              {
+                name: 'gpt-image-1',
+                platform: 'image-provider',
+                pricing: null,
+                model_catalog_source: 'real_channel'
+              }
+            ]
+          }
+        ]
+      }
+    ])
+
+    const capabilities = useUserCapabilities()
+    await capabilities.loadCapabilities()
+
+    expect(capabilities.imageModels.value.map((model) => model.id)).toEqual(['gpt-image-1'])
+    expect(capabilities.chatModels.value.map((model) => model.id)).not.toContain('gpt-image-1')
+  })
+
   it('filters image-like model names without backend capability metadata', async () => {
     mocks.getChannels.mockResolvedValue([
       {

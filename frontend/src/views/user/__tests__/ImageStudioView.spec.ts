@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appStore, authStore, apiClient, soraApi } = vi.hoisted(() => ({
+const { appStore, authStore, apiClient, soraApi, userChannelsApi, userGroupsApi } = vi.hoisted(() => ({
   appStore: {
     showError: vi.fn(),
     showInfo: vi.fn(),
@@ -18,6 +18,12 @@ const { appStore, authStore, apiClient, soraApi } = vi.hoisted(() => ({
   },
   soraApi: {
     listGenerations: vi.fn(),
+  },
+  userChannelsApi: {
+    getAvailable: vi.fn(),
+  },
+  userGroupsApi: {
+    getAvailable: vi.fn(),
   },
 }))
 
@@ -51,6 +57,11 @@ vi.mock('@/components/icons/Icon.vue', () => ({
 
 vi.mock('@/api/sora', () => ({
   default: soraApi,
+}))
+
+vi.mock('@/api', () => ({
+  userChannelsAPI: userChannelsApi,
+  userGroupsAPI: userGroupsApi,
 }))
 
 import ImageStudioView from '../ImageStudioView.vue'
@@ -94,11 +105,15 @@ describe('ImageStudioView workbench', () => {
     appStore.showSuccess.mockReset()
     apiClient.post.mockReset()
     soraApi.listGenerations.mockReset()
+    userChannelsApi.getAvailable.mockReset()
+    userGroupsApi.getAvailable.mockReset()
     soraApi.listGenerations.mockResolvedValue({
       data: [],
       total: 0,
       page: 1,
     })
+    userChannelsApi.getAvailable.mockResolvedValue([])
+    userGroupsApi.getAvailable.mockResolvedValue([])
     vi.unstubAllGlobals()
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
       callback(0)
@@ -136,6 +151,61 @@ describe('ImageStudioView workbench', () => {
     const resultActionButtons = wrapper.findAll('.result-actions .secondary-button')
     expect(resultActionButtons[1].attributes('disabled')).toBeDefined()
     expect(resultActionButtons[2].attributes('disabled')).toBeDefined()
+
+    wrapper.unmount()
+  })
+
+  it('shows image-capable models from the user catalog without making them chat models', async () => {
+    userChannelsApi.getAvailable.mockResolvedValue([
+      {
+        name: 'Image Channel',
+        description: '',
+        platforms: [
+          {
+            platform: 'image-provider',
+            groups: [],
+            supported_models: [
+              {
+                name: 'gpt-image-2',
+                platform: 'image-provider',
+                pricing: null,
+                capabilities: ['image_generation'],
+                provider_label: 'workspace-openai-compatible-image-staging',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured',
+              },
+              {
+                name: 'gemini-2.5-flash-image',
+                platform: 'gemini',
+                pricing: null,
+                capabilities: ['image_generation'],
+                provider_label: 'gemini',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured',
+              },
+              {
+                name: 'deepseek-v4-flash',
+                platform: 'openai',
+                pricing: null,
+                capabilities: ['text_chat'],
+                provider_label: 'openai',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured',
+              },
+            ],
+          },
+        ],
+      },
+    ])
+
+    const wrapper = mountImageStudio()
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(text).toContain('图片模型')
+    expect(text).toContain('Gpt-Image-2')
+    expect(text).toContain('Gemini-2.5-Flash-Image')
+    expect(text).not.toContain('Deepseek-V4-Flash')
 
     wrapper.unmount()
   })
