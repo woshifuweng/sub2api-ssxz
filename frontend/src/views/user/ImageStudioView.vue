@@ -379,9 +379,14 @@
       </div>
       <div v-else class="recent-grid">
         <article v-for="(work, index) in recentWorks" :key="work.id" class="recent-card">
-          <div class="recent-thumb">
+          <button
+            type="button"
+            class="recent-thumb recent-thumb-button"
+            :aria-label="`预览图片作品 ${work.id}`"
+            @click="openWorkPreview(work, index)"
+          >
             <img :src="workImageSrc(work)" :alt="`work-${work.id}`" />
-          </div>
+          </button>
           <div class="recent-card-body">
             <div>
               <span>图片作品</span>
@@ -392,6 +397,47 @@
         </article>
       </div>
     </section>
+
+    <div
+      v-if="previewWork"
+      class="recent-preview-backdrop"
+      role="presentation"
+      @click.self="closeWorkPreview"
+    >
+      <section
+        class="recent-preview-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="recent-preview-title"
+      >
+        <header class="recent-preview-header">
+          <div>
+            <p>作品预览</p>
+            <h2 id="recent-preview-title">图片作品</h2>
+          </div>
+          <button type="button" class="recent-preview-close" aria-label="关闭预览" @click="closeWorkPreview">
+            ×
+          </button>
+        </header>
+        <div class="recent-preview-stage">
+          <img :src="previewWork.src" :alt="`preview-work-${previewWork.work.id}`" />
+        </div>
+        <footer class="recent-preview-footer">
+          <div>
+            <span>生成时间</span>
+            <b>{{ formatWorkTime(previewWork.work.created_at) || '未知' }}</b>
+          </div>
+          <div>
+            <span>模型</span>
+            <b>{{ previewWork.work.model || '后台配置' }}</b>
+          </div>
+          <div class="recent-preview-actions">
+            <button type="button" class="secondary-button" @click="downloadPreviewWork">下载图片</button>
+            <button type="button" class="secondary-button" @click="closeWorkPreview">关闭</button>
+          </div>
+        </footer>
+      </section>
+    </div>
   </AppSectionShell>
 </template>
 
@@ -491,6 +537,7 @@ const activeResultIndex = ref(0)
 const recentWorks = ref<SoraGeneration[]>([])
 const recentWorksLoading = ref(false)
 const previewStageRef = ref<HTMLElement | null>(null)
+const previewWork = ref<{ work: SoraGeneration; index: number; src: string } | null>(null)
 let referenceReadSerial = 0
 
 const selectedGoal = computed(() => creationGoals.find((item) => item.id === goal.value) || creationGoals[0])
@@ -622,6 +669,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   releasePreviewUrl()
+  removeWorkPreviewKeydown()
 })
 
 function selectGoal(next: GoalId) {
@@ -882,6 +930,38 @@ function downloadWork(work: SoraGeneration, index: number) {
   document.body.appendChild(link)
   link.click()
   link.remove()
+}
+
+function openWorkPreview(work: SoraGeneration, index: number) {
+  const src = workImageSrc(work)
+  if (!src) return
+  removeWorkPreviewKeydown()
+  previewWork.value = { work, index, src }
+  addWorkPreviewKeydown()
+}
+
+function closeWorkPreview() {
+  previewWork.value = null
+  removeWorkPreviewKeydown()
+}
+
+function downloadPreviewWork() {
+  if (!previewWork.value) return
+  downloadWork(previewWork.value.work, previewWork.value.index)
+}
+
+function handleWorkPreviewKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    closeWorkPreview()
+  }
+}
+
+function addWorkPreviewKeydown() {
+  window.addEventListener('keydown', handleWorkPreviewKeydown)
+}
+
+function removeWorkPreviewKeydown() {
+  window.removeEventListener('keydown', handleWorkPreviewKeydown)
 }
 
 function formatWorkTime(iso: string) {
@@ -1750,6 +1830,23 @@ function scrollPreviewIntoView() {
   background: var(--ssxz-canvas);
 }
 
+.recent-thumb-button {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  color: inherit;
+  cursor: zoom-in;
+  font: inherit;
+}
+
+.recent-thumb-button:focus-visible {
+  outline: 3px solid var(--ssxz-focus);
+  outline-offset: -3px;
+}
+
 .recent-card-body {
   display: grid;
   gap: 0.65rem;
@@ -1761,6 +1858,109 @@ function scrollPreviewIntoView() {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+}
+
+.recent-preview-backdrop {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: rgb(0 0 0 / 0.72);
+}
+
+.recent-preview-dialog {
+  display: grid;
+  width: min(92vw, 72rem);
+  max-height: min(92vh, 58rem);
+  overflow: hidden;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 1.15rem;
+  background: var(--ssxz-surface);
+  box-shadow: var(--ssxz-shadow);
+}
+
+.recent-preview-header,
+.recent-preview-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+}
+
+.recent-preview-header {
+  border-bottom: 1px solid var(--ssxz-border);
+}
+
+.recent-preview-header p,
+.recent-preview-footer span {
+  margin: 0;
+  color: var(--ssxz-text-muted);
+  font-size: 0.78rem;
+}
+
+.recent-preview-header h2 {
+  margin: 0.1rem 0 0;
+  color: var(--ssxz-text-primary);
+  font-size: 1.1rem;
+}
+
+.recent-preview-close {
+  display: grid;
+  width: 2.35rem;
+  height: 2.35rem;
+  place-items: center;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  background: var(--ssxz-surface-subtle);
+  color: var(--ssxz-text-primary);
+  cursor: pointer;
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.recent-preview-close:hover,
+.recent-preview-close:focus-visible {
+  border-color: var(--ssxz-border-strong);
+  background: color-mix(in srgb, var(--ssxz-action-soft) 74%, var(--ssxz-surface-subtle));
+}
+
+.recent-preview-stage {
+  display: grid;
+  min-height: 18rem;
+  max-height: 72vh;
+  place-items: center;
+  overflow: auto;
+  background: var(--ssxz-canvas);
+  padding: 1rem;
+}
+
+.recent-preview-stage img {
+  display: block;
+  max-width: 100%;
+  max-height: 68vh;
+  border-radius: 0.85rem;
+  object-fit: contain;
+}
+
+.recent-preview-footer {
+  flex-wrap: wrap;
+  border-top: 1px solid var(--ssxz-border);
+}
+
+.recent-preview-footer b {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--ssxz-text-primary);
+}
+
+.recent-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-left: auto;
 }
 
 .hidden {
@@ -1788,6 +1988,16 @@ function scrollPreviewIntoView() {
 @media (max-width: 640px) {
   .recent-grid {
     grid-template-columns: 1fr;
+  }
+
+  .recent-preview-backdrop {
+    align-items: end;
+    padding: 0.75rem;
+  }
+
+  .recent-preview-header,
+  .recent-preview-footer {
+    align-items: flex-start;
   }
 
   .image-hero,

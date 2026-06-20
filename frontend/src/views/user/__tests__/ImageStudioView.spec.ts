@@ -180,6 +180,58 @@ describe('ImageStudioView workbench', () => {
     wrapper.unmount()
   })
 
+  it('opens a focused preview for recent image works', async () => {
+    soraApi.listGenerations.mockResolvedValue({
+      data: [
+        {
+          id: 12,
+          user_id: 7,
+          model: 'gpt-image-2',
+          prompt: 'skincare cover',
+          media_type: 'image',
+          status: 'completed',
+          storage_type: 'upstream',
+          media_url: 'https://cdn.example.com/preview.png',
+          media_urls: ['https://cdn.example.com/preview.png'],
+          s3_object_keys: [],
+          file_size_bytes: 0,
+          error_message: '',
+          created_at: '2026-06-20T00:00:00Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+    })
+
+    const wrapper = mountImageStudio()
+    await flushPromises()
+
+    await wrapper.find('.recent-thumb-button').trigger('click')
+
+    const dialog = wrapper.find('.recent-preview-dialog')
+    expect(dialog.exists()).toBe(true)
+    expect(dialog.attributes('role')).toBe('dialog')
+    expect(dialog.text()).toContain('图片作品')
+    expect(dialog.find('img[alt="preview-work-12"]').attributes('src')).toBe('https://cdn.example.com/preview.png')
+
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    await wrapper.find('.recent-preview-actions .secondary-button').trigger('click')
+    expect(click).toHaveBeenCalledTimes(1)
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    expect(wrapper.find('.recent-preview-dialog').exists()).toBe(false)
+
+    await wrapper.find('.recent-thumb-button').trigger('click')
+    expect(wrapper.find('.recent-preview-dialog').exists()).toBe(true)
+    await wrapper.find('.recent-preview-close').trigger('click')
+    expect(wrapper.find('.recent-preview-dialog').exists()).toBe(false)
+
+    click.mockRestore()
+    wrapper.unmount()
+  })
+
   it('submits the restored workbench through the current image-studio API', async () => {
     apiClient.post.mockResolvedValue({
       data: {
