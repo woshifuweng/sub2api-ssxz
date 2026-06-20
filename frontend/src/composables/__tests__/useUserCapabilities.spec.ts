@@ -60,7 +60,38 @@ describe('useUserCapabilities', () => {
     })
   })
 
-  it('shows explicitly allowed fake image generation model', async () => {
+  it('keeps text-capable multimodal models available in chat picker', async () => {
+    mocks.getChannels.mockResolvedValue([
+      {
+        name: 'Multimodal Channel',
+        description: '',
+        platforms: [
+          {
+            platform: 'openai',
+            groups: [],
+            supported_models: [
+              {
+                name: 'gpt-4o',
+                platform: 'openai',
+                pricing: null,
+                capabilities: ['text_chat', 'vision'],
+                provider: 'openai',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured'
+              }
+            ]
+          }
+        ]
+      }
+    ])
+
+    const capabilities = useUserCapabilities()
+    await capabilities.loadCapabilities()
+
+    expect(capabilities.chatModels.value.map((model) => model.id)).toContain('gpt-4o')
+  })
+
+  it('does not show explicitly allowed fake image generation model in chat picker', async () => {
     mocks.getChannels.mockResolvedValue([
       {
         name: 'Workspace Image Fake',
@@ -89,16 +120,10 @@ describe('useUserCapabilities', () => {
     const capabilities = useUserCapabilities()
     await capabilities.loadCapabilities()
 
-    expect(capabilities.chatModels.value.map((model) => model.id)).toContain('workspace-image-fake-model')
-    expect(capabilities.chatModels.value[0]).toMatchObject({
-      providerLabel: 'workspace-image-fake',
-      modelCatalogSource: 'fake_gate',
-      fake: true,
-      testOnly: true
-    })
+    expect(capabilities.chatModels.value.map((model) => model.id)).not.toContain('workspace-image-fake-model')
   })
 
-  it('shows backend-authorized image generation models with capabilities', async () => {
+  it('does not show backend-authorized image generation-only models in chat picker', async () => {
     mocks.getChannels.mockResolvedValue([
       {
         name: 'Image Channel',
@@ -126,13 +151,7 @@ describe('useUserCapabilities', () => {
     const capabilities = useUserCapabilities()
     await capabilities.loadCapabilities()
 
-    expect(capabilities.chatModels.value.map((model) => model.id)).toContain('gpt-image-1')
-    expect(capabilities.chatModels.value[0]).toMatchObject({
-      providerLabel: 'workspace-openai-compatible-image-staging',
-      capabilities: ['image_generation'],
-      modelCatalogSource: 'real_channel',
-      stagingOnly: true
-    })
+    expect(capabilities.chatModels.value.map((model) => model.id)).not.toContain('gpt-image-1')
   })
 
   it('filters image-like model names without backend capability metadata', async () => {
