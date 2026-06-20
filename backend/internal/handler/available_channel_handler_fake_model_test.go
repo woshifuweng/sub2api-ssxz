@@ -104,6 +104,33 @@ func TestToUserSupportedModelsAddsRealChannelImageMetadataOnlyForRealSupportedMo
 	require.NotContains(t, string(encoded), "secret")
 }
 
+func TestToUserSupportedModelsAddsGeminiImageMetadataForAllowedRealChannelModel(t *testing.T) {
+	price := 0.03
+	cfg := testAvailableChannelRealImageCatalogConfig()
+	cfg.Workspace.ImageRealProvider.AllowedModels = []string{"gemini-2.5-flash-image"}
+	settingService := service.NewSettingService(nil, cfg)
+
+	out := toUserSupportedModels([]service.SupportedModel{{
+		Name:     "gemini-2.5-flash-image",
+		Platform: "gemini",
+		Pricing: &service.ChannelModelPricing{
+			BillingMode:      service.BillingModeImage,
+			ImageOutputPrice: &price,
+		},
+	}}, map[string]struct{}{"gemini": {}}, settingService, 1)
+
+	require.Len(t, out, 1)
+	model := out[0]
+	require.Equal(t, "gemini-2.5-flash-image", model.Name)
+	require.Equal(t, "workspace-openai-compatible-image-staging", model.ProviderLabel)
+	require.Equal(t, service.WorkspaceImageRealModelProvider, model.Provider)
+	require.Equal(t, []string{"image_generation"}, model.Capabilities)
+	require.Equal(t, service.WorkspaceImageRealModelCapabilitySource, model.CapabilitySource)
+	require.Equal(t, service.WorkspaceModelCatalogSourceRealChannel, model.ModelCatalogSource)
+	require.Equal(t, service.WorkspaceSelectedModelPricingConfigured, model.PricingStatus)
+	require.Contains(t, model.UsageSupport, "image_count")
+}
+
 func TestToUserSupportedModelsDoesNotCreateRealImageModelFromEnvGate(t *testing.T) {
 	settingService := service.NewSettingService(nil, testAvailableChannelRealImageCatalogConfig())
 

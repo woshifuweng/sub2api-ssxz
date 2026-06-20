@@ -46,6 +46,18 @@ func TestWorkspaceModelCapabilityStaticRules(t *testing.T) {
 			notContains:  WorkspaceModelCapabilityTextChat,
 		},
 		{
+			name:         "gemini flash image model",
+			model:        "gemini-2.5-flash-image",
+			capabilities: []WorkspaceModelCapability{WorkspaceModelCapabilityImageGeneration},
+			notContains:  WorkspaceModelCapabilityTextChat,
+		},
+		{
+			name:         "gemini 3 image model",
+			model:        "gemini-3.1-flash-image-preview",
+			capabilities: []WorkspaceModelCapability{WorkspaceModelCapabilityImageGeneration},
+			notContains:  WorkspaceModelCapabilityTextChat,
+		},
+		{
 			name:         "unknown safe fallback",
 			model:        "unknown-frontier-model",
 			capabilities: []WorkspaceModelCapability{WorkspaceModelCapabilityTextChat},
