@@ -231,6 +231,7 @@ func isWorkspaceVisionTextModelName(model string) bool {
 func isWorkspaceImageGenerationModelName(model string) bool {
 	return strings.Contains(model, "workspace-image-fake") ||
 		strings.Contains(model, "gpt-image") ||
+		(strings.Contains(model, "gemini") && strings.Contains(model, "-image")) ||
 		strings.Contains(model, "dall-e") ||
 		strings.Contains(model, "imagen") ||
 		strings.Contains(model, "flux") ||
