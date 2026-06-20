@@ -68,26 +68,21 @@ function mountImageStudio() {
   })
 }
 
-function stubFileReader(result: 'success' | 'error' = 'success') {
-  class MockFileReader {
-    result: string | ArrayBuffer | null = null
-    error: DOMException | null = result === 'error'
-      ? new DOMException('preview failed')
-      : null
-    onload: (() => void) | null = null
-    onerror: (() => void) | null = null
-
-    readAsDataURL(file: File) {
-      if (result === 'error') {
-        this.onerror?.()
-        return
-      }
-      this.result = `data:${file.type};base64,ZmFrZS1wcmV2aWV3`
-      this.onload?.()
+function stubReferencePreviewUrl(result: 'success' | 'error' = 'success') {
+  const createObjectURL = vi.fn((file: File) => {
+    if (result === 'error') {
+      throw new Error('preview failed')
     }
-  }
+    return `blob:reference-preview-${file.name}`
+  })
+  const revokeObjectURL = vi.fn()
 
-  vi.stubGlobal('FileReader', MockFileReader)
+  vi.stubGlobal('URL', {
+    createObjectURL,
+    revokeObjectURL,
+  })
+
+  return { createObjectURL, revokeObjectURL }
 }
 
 describe('ImageStudioView workbench', () => {
@@ -233,7 +228,7 @@ describe('ImageStudioView workbench', () => {
   })
 
   it('renders an uploaded reference image preview and submits the original file', async () => {
-    stubFileReader()
+    const previewUrl = stubReferencePreviewUrl()
     apiClient.post.mockResolvedValue({
       data: {
         data: [
@@ -257,7 +252,8 @@ describe('ImageStudioView workbench', () => {
 
     const preview = wrapper.find('img[alt="参考素材预览"]')
     expect(preview.exists()).toBe(true)
-    expect(preview.attributes('src')).toBe('data:image/png;base64,ZmFrZS1wcmV2aWV3')
+    expect(preview.attributes('src')).toBe('blob:reference-preview-reference.png')
+    expect(previewUrl.createObjectURL).toHaveBeenCalledWith(file)
     expect(wrapper.text()).toContain('参考图 1')
     expect(wrapper.text()).not.toContain('预览失败')
 
@@ -269,10 +265,11 @@ describe('ImageStudioView workbench', () => {
     expect(form.get('image')).toBe(file)
 
     wrapper.unmount()
+    expect(previewUrl.revokeObjectURL).toHaveBeenCalledWith('blob:reference-preview-reference.png')
   })
 
   it('shows a clear reference preview failure instead of a broken image state', async () => {
-    stubFileReader('error')
+    stubReferencePreviewUrl('error')
 
     const wrapper = mountImageStudio()
     const file = new File(['fake-image'], 'reference.png', { type: 'image/png' })
@@ -293,7 +290,7 @@ describe('ImageStudioView workbench', () => {
   })
 
   it('clears the previous reference preview when an unsupported file is selected', async () => {
-    stubFileReader()
+    const previewUrl = stubReferencePreviewUrl()
 
     const wrapper = mountImageStudio()
     const fileInput = wrapper.find('input[type="file"]')
@@ -320,6 +317,7 @@ describe('ImageStudioView workbench', () => {
     expect(wrapper.find('img[alt="参考素材预览"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('请上传 JPG / PNG / WEBP 图片。')
     expect(appStore.showError).toHaveBeenCalledWith('请上传 JPG / PNG / WEBP 图片。')
+    expect(previewUrl.revokeObjectURL).toHaveBeenCalledWith('blob:reference-preview-reference.png')
 
     wrapper.unmount()
   })

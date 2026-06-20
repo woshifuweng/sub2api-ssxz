@@ -656,7 +656,7 @@ function formatFileSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-async function handleFileChange(event: Event) {
+function handleFileChange(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
@@ -675,10 +675,14 @@ async function handleFileChange(event: Event) {
   const serial = ++referenceReadSerial
   referencePreviewError.value = ''
   previewImageFailed.value = false
+  releasePreviewUrl()
 
   try {
-    const nextPreviewUrl = await readFileAsDataUrl(file)
-    if (serial !== referenceReadSerial) return
+    const nextPreviewUrl = createReferencePreviewUrl(file)
+    if (serial !== referenceReadSerial) {
+      revokeReferencePreviewUrl(nextPreviewUrl)
+      return
+    }
     selectedFile.value = file
     previewUrl.value = nextPreviewUrl
   } catch {
@@ -700,26 +704,26 @@ function clearReference() {
 }
 
 function releasePreviewUrl() {
+  const currentPreviewUrl = previewUrl.value
   previewUrl.value = ''
+  revokeReferencePreviewUrl(currentPreviewUrl)
 }
 
 function isAllowedReferenceImage(file: File) {
   return ['image/png', 'image/jpeg', 'image/webp'].includes(file.type)
 }
 
-function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      if (typeof reader.result === 'string' && reader.result.startsWith('data:image/')) {
-        resolve(reader.result)
-        return
-      }
-      reject(new Error('invalid preview data'))
-    }
-    reader.onerror = () => reject(reader.error || new Error('failed to read preview'))
-    reader.readAsDataURL(file)
-  })
+function createReferencePreviewUrl(file: File) {
+  if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    throw new Error('reference preview is unavailable')
+  }
+  return URL.createObjectURL(file)
+}
+
+function revokeReferencePreviewUrl(url: string) {
+  if (!url || !url.startsWith('blob:')) return
+  if (typeof URL === 'undefined' || typeof URL.revokeObjectURL !== 'function') return
+  URL.revokeObjectURL(url)
 }
 
 function handlePreviewImageError() {
