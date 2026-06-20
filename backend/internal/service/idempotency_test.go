@@ -304,6 +304,47 @@ func TestIdempotencyCoordinator_ReplaySucceededResult(t *testing.T) {
 	require.Equal(t, uint64(1), metrics.ReplayTotal)
 }
 
+func TestIdempotencyCoordinator_ReplayUsesStoredResponseData(t *testing.T) {
+	resetIdempotencyMetricsForTest()
+	repo := newInMemoryIdempotencyRepo()
+	coordinator := NewIdempotencyCoordinator(repo, newInMemoryIdempotencyCache(), DefaultIdempotencyConfig())
+
+	const secret = "sk-created-full-key-only-shown-once"
+	execCount := 0
+	exec := func(ctx context.Context) (any, error) {
+		execCount++
+		return map[string]any{"key": secret}, nil
+	}
+
+	opts := IdempotencyExecuteOptions{
+		Scope:          "test.scope",
+		Method:         "POST",
+		Route:          "/test",
+		ActorScope:     "user:1",
+		RequireKey:     true,
+		IdempotencyKey: "case-sensitive-response",
+		Payload:        map[string]any{"name": "client-key"},
+		StoredResponseData: func(data any) any {
+			return map[string]any{"key": "[redacted]"}
+		},
+	}
+
+	first, err := coordinator.Execute(context.Background(), opts, exec)
+	require.NoError(t, err)
+	require.False(t, first.Replayed)
+	firstData, ok := first.Data.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, secret, firstData["key"])
+
+	second, err := coordinator.Execute(context.Background(), opts, exec)
+	require.NoError(t, err)
+	require.True(t, second.Replayed)
+	require.Equal(t, 1, execCount, "second request should replay without executing business logic")
+	secondData, ok := second.Data.(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "[redacted]", secondData["key"])
+}
+
 func TestIdempotencyCoordinator_FastPathFromCache(t *testing.T) {
 	resetIdempotencyMetricsForTest()
 	cache := newInMemoryIdempotencyCache()
