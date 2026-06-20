@@ -40,6 +40,8 @@ describe('WorkspaceComposer', () => {
 
     await wrapper.get('[data-testid="workspace-model-trigger"]').trigger('click')
     expect(wrapper.find('[data-testid="workspace-model-menu"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('real channel')
+    expect(wrapper.text()).not.toContain('openai')
 
     await wrapper.findAll('[data-testid="workspace-model-option"]')[1].trigger('click')
     expect(wrapper.emitted('update:selectedModel')?.[0]).toEqual(['gpt-5.4-mini'])
