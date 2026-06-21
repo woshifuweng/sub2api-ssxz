@@ -22,6 +22,8 @@ export const WORKSPACE_TEXT_ONLY_MESSAGE =
 export const WORKSPACE_HISTORY_FAILED_MESSAGE = '工作台历史暂时无法加载。'
 export const WORKSPACE_MESSAGES_FAILED_MESSAGE = '该对话暂时无法加载。'
 export const WORKSPACE_SEND_FAILED_MESSAGE = '消息保存失败，请稍后重试。'
+export const WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE =
+  '消息已提交，但刷新会话失败，请刷新页面后查看。'
 
 export interface WorkspaceAttachment {
   id: string
@@ -163,7 +165,13 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
         intent: 'chat',
         metadata: input.webSearchRequested ? { web_search_requested: true } : undefined
       })
-      const nextMessages = await listMessages(conversationId)
+      let nextMessages: ChatMessage[]
+      try {
+        nextMessages = await listMessages(conversationId)
+      } catch {
+        errorMessage.value = WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE
+        return false
+      }
       messages.value = nextMessages.map(mapChatMessageToWorkspaceMessage)
       await refreshConversationList()
       return true

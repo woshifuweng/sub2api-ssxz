@@ -23,7 +23,7 @@ const (
 	WorkspaceMessageStatusCompleted = "completed"
 	WorkspaceMessageStatusFailed    = "failed"
 
-	WorkspaceAssistantUnavailableContent = "AI response provider is not connected yet. 当前仅完成文本会话保存，AI 回复将在后续接入。"
+	WorkspaceAssistantUnavailableContent = WorkspaceSub2APITextBridgeTemporarilyUnavailableContent
 
 	workspaceMaxTitleLength   = 255
 	workspaceMaxContentLength = 12000

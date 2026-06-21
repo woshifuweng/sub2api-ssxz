@@ -31,8 +31,12 @@ import { apiClient } from '@/api/client'
 import {
   WORKSPACE_TEXT_ONLY_MESSAGE,
   WORKSPACE_BACKEND_UNAVAILABLE_MESSAGE,
+  WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE,
   useWorkspaceConversation
 } from '../useWorkspaceConversation'
+
+const unavailableAssistantContent =
+  '当前模型暂不可用，请切换其他模型，或联系管理员检查模型、API Key、分组和上游账号配置。'
 
 describe('useWorkspaceConversation', () => {
   beforeEach(() => {
@@ -293,7 +297,7 @@ describe('useWorkspaceConversation', () => {
         conversation_id: 31,
         message_type: 'text',
         role: 'assistant',
-        content: 'AI response provider is not connected yet.',
+        content: unavailableAssistantContent,
         model: 'gpt-5.5',
         intent: 'chat',
         status: 'completed',
@@ -339,7 +343,7 @@ describe('useWorkspaceConversation', () => {
       {
         persistedId: 42,
         role: 'assistant',
-        content: 'AI response provider is not connected yet.'
+        content: unavailableAssistantContent
       }
     ])
     expect(api.createImageTask).not.toHaveBeenCalled()
@@ -380,7 +384,7 @@ describe('useWorkspaceConversation', () => {
     expect(api.appendMessage).toHaveBeenCalled()
     expect(api.listMessages).toHaveBeenCalledWith(33)
     expect(workspace.messages.value).toHaveLength(0)
-    expect(workspace.errorMessage.value).toBeTruthy()
+    expect(workspace.errorMessage.value).toBe(WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE)
     expect(api.createImageTask).not.toHaveBeenCalled()
     expect(apiClient.post).not.toHaveBeenCalled()
   })
@@ -423,7 +427,7 @@ describe('useWorkspaceConversation', () => {
         conversation_id: 32,
         message_type: 'text',
         role: 'assistant',
-        content: 'AI response provider is not connected yet.',
+        content: unavailableAssistantContent,
         model: 'gpt-5.5',
         intent: 'chat',
         status: 'completed',
@@ -547,7 +551,7 @@ describe('useWorkspaceConversation', () => {
           conversation_id: 44,
           message_type: 'text',
           role: 'assistant',
-          content: 'AI response provider is not connected yet.',
+          content: unavailableAssistantContent,
           model: 'gpt-5.5',
           intent: 'chat',
           status: 'completed',
