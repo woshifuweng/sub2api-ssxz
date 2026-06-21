@@ -90,6 +90,8 @@ Frontend disabled states, hidden buttons, route guards, or UI validation are onl
 
 Never rely on the frontend to decide whether a paid or privileged action is allowed.
 
+Captcha, turnstile, sliding challenge, OAuth login, or similar human-verification UX must not be treated as the primary login defense. Before selecting or changing any provider, check current official documentation, lifecycle, pricing, and server-side verification requirements. Any implementation must verify tokens on the backend, fail closed, prevent replay, and remain paired with rate limits and unified auth error wording.
+
 ### 3.3 User data isolation
 
 All reads/writes for the following entities must be scoped to the authenticated user unless the endpoint is explicitly admin-only and audited:

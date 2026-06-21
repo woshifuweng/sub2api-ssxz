@@ -105,7 +105,14 @@ Last updated: 2026-06-21
 ## Security Improvements
 
 - Login/register/invite-code rate limiting review.
-- Server-side captcha or human-verification enforcement if captcha is enabled.
+- Login/register/password-reset/invite-code human-verification review:
+  - verify current auth endpoints before adding a provider
+  - check current official docs and pricing for any captcha, turnstile, sliding challenge, or OAuth provider on the decision date
+  - treat captcha/sliding verification as an auxiliary friction layer, not the main defense
+  - require server-side token verification; never trust a frontend-only `captcha=true` state
+  - enforce one-time tokens, expiry, replay protection, and safe failure behavior
+  - pair verification with IP, account, invite-code, and IP-plus-account rate limits
+  - use unified error wording to avoid account enumeration
 - Unified auth error messages to reduce account enumeration.
 - Session/cookie security review:
   - HttpOnly
