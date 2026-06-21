@@ -213,6 +213,83 @@ describe('ImageStudioView workbench', () => {
     wrapper.unmount()
   })
 
+  it('defaults image generation to the verified gpt-image-2 model when available', async () => {
+    userChannelsApi.getAvailable.mockResolvedValue([
+      {
+        name: 'Image Channel',
+        description: '',
+        platforms: [
+          {
+            platform: 'image-provider',
+            groups: [],
+            supported_models: [
+              {
+                name: 'gemini-3.1-flash-image-preview',
+                platform: 'gemini',
+                pricing: null,
+                capabilities: ['image_generation'],
+                provider_label: 'gemini',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured',
+              },
+              {
+                name: 'gpt-image-2',
+                platform: 'image-provider',
+                pricing: null,
+                capabilities: ['image_generation'],
+                provider_label: 'workspace-openai-compatible-image-staging',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured',
+              },
+            ],
+          },
+        ],
+      },
+    ])
+
+    const wrapper = mountImageStudio()
+    await flushPromises()
+
+    const select = wrapper.find('.hero-model-select').element as HTMLSelectElement
+    expect(select.value).toBe('gpt-image-2')
+
+    wrapper.unmount()
+  })
+
+  it('falls back to the first image model when the verified model is unavailable', async () => {
+    userChannelsApi.getAvailable.mockResolvedValue([
+      {
+        name: 'Image Channel',
+        description: '',
+        platforms: [
+          {
+            platform: 'image-provider',
+            groups: [],
+            supported_models: [
+              {
+                name: 'gemini-3.1-flash-image-preview',
+                platform: 'gemini',
+                pricing: null,
+                capabilities: ['image_generation'],
+                provider_label: 'gemini',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured',
+              },
+            ],
+          },
+        ],
+      },
+    ])
+
+    const wrapper = mountImageStudio()
+    await flushPromises()
+
+    const select = wrapper.find('.hero-model-select').element as HTMLSelectElement
+    expect(select.value).toBe('gemini-3.1-flash-image-preview')
+
+    wrapper.unmount()
+  })
+
   it('submits the selected image model to the image-studio API', async () => {
     userChannelsApi.getAvailable.mockResolvedValue([
       {
