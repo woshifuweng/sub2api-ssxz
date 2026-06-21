@@ -60,6 +60,8 @@ vi.mock('@/components/icons/Icon.vue', () => ({
 }))
 
 import AppWorkspaceView from '../AppWorkspaceView.vue'
+import WorkspaceComposer from '../workspace/WorkspaceComposer.vue'
+import { WORKSPACE_TEXT_ONLY_MESSAGE } from '../workspace/useWorkspaceConversation'
 
 function mountWithAppStore() {
   const pinia = createPinia()
@@ -171,6 +173,38 @@ describe('AppWorkspaceView interactions', () => {
     expect(wrapper.find('[data-testid="workspace-add-content"]').exists()).toBe(false)
     expect(wrapper.find('textarea').attributes('placeholder')).toContain('直接输入问题')
     expect(mocks.createObjectURL).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('rejects unsupported file attempts in text beta without creating local previews', async () => {
+    const wrapper = mountWithAppStore()
+    await nextTick()
+    const file = new File(['image'], 'sample.png', { type: 'image/png' })
+
+    wrapper.findComponent(WorkspaceComposer).vm.$emit('unsupported-files', [file])
+    await nextTick()
+
+    expect(wrapper.text()).toContain(WORKSPACE_TEXT_ONLY_MESSAGE)
+    expect(wrapper.find('[data-testid="workspace-asset-previews"]').exists()).toBe(false)
+    expect(mocks.createObjectURL).not.toHaveBeenCalled()
+    expect(mocks.apiClient.post).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('does not register files if the image capability is unavailable', async () => {
+    const wrapper = mountWithAppStore()
+    await nextTick()
+    const file = new File(['image'], 'sample.png', { type: 'image/png' })
+
+    wrapper.findComponent(WorkspaceComposer).vm.$emit('files', [file])
+    await nextTick()
+
+    expect(wrapper.text()).toContain(WORKSPACE_TEXT_ONLY_MESSAGE)
+    expect(wrapper.find('[data-testid="workspace-asset-previews"]').exists()).toBe(false)
+    expect(mocks.createObjectURL).not.toHaveBeenCalled()
+    expect(mocks.apiClient.post).not.toHaveBeenCalled()
 
     wrapper.unmount()
   })
