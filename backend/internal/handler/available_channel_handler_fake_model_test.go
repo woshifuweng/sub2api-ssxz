@@ -28,6 +28,21 @@ func testAvailableChannelRealImageCatalogConfig() *config.Config {
 	}
 }
 
+func testAvailableChannelTextCatalogConfig() *config.Config {
+	return &config.Config{
+		Log: config.LogConfig{Environment: "staging"},
+		Workspace: config.WorkspaceConfig{
+			TextProvider: config.WorkspaceTextProviderConfig{
+				TestProviderLabel: "deepseek-staging",
+				BetaAllowlist: config.WorkspaceTextProviderBetaConfig{
+					Enabled:       true,
+					AllowedModels: []string{"deepseek-v4-flash"},
+				},
+			},
+		},
+	}
+}
+
 func TestAppendWorkspaceImageFakeModelChannelNoopWhenDisabled(t *testing.T) {
 	channels := []userAvailableChannel{{Name: "existing"}}
 
@@ -146,6 +161,31 @@ func TestToUserSupportedModelsDoesNotCreateRealImageModelFromEnvGate(t *testing.
 	require.Equal(t, service.WorkspaceModelCatalogSourceRealChannel, out[0].ModelCatalogSource)
 	require.Equal(t, service.WorkspaceSelectedModelPricingConfigured, out[0].PricingStatus)
 	require.Contains(t, out[0].UsageSupport, "token")
+}
+
+func TestToUserSupportedModelsOnlyMarksBetaAllowlistedTextModelsSelectable(t *testing.T) {
+	settingService := service.NewSettingService(nil, testAvailableChannelTextCatalogConfig())
+
+	out := toUserSupportedModels([]service.SupportedModel{
+		{
+			Name:     "deepseek-v4-flash",
+			Platform: "openai",
+			Pricing:  &service.ChannelModelPricing{BillingMode: service.BillingModeToken},
+		},
+		{
+			Name:     "gpt-5.5",
+			Platform: "openai",
+			Pricing:  &service.ChannelModelPricing{BillingMode: service.BillingModeToken},
+		},
+	}, map[string]struct{}{"openai": {}}, settingService, 1)
+
+	require.Len(t, out, 2)
+	require.Equal(t, "deepseek-v4-flash", out[0].Name)
+	require.Contains(t, out[0].Capabilities, "text_chat")
+	require.Equal(t, service.WorkspaceModelCatalogSourceRealChannel, out[0].ModelCatalogSource)
+	require.Equal(t, "gpt-5.5", out[1].Name)
+	require.NotContains(t, out[1].Capabilities, "text_chat")
+	require.Empty(t, out[1].ModelCatalogSource)
 }
 
 func TestBuildPlatformSectionsDeepSeekOnlyDoesNotExposeSyntheticImageModels(t *testing.T) {

@@ -334,10 +334,18 @@ func toUserSupportedModels(
 			Platform: m.Platform,
 		})
 		if !workspaceUserDTOCapabilitiesContain(metadata.Capabilities, service.WorkspaceModelCapabilityImageGeneration) {
-			model.Capabilities = workspaceCapabilityStringsForUserDTO(metadata.Capabilities)
-			model.Provider = m.Platform
-			model.CapabilitySource = metadata.CapabilitySource
-			model.ModelCatalogSource = service.WorkspaceModelCatalogSourceRealChannel
+			if settingService == nil {
+				model.Capabilities = workspaceCapabilityStringsForUserDTO(metadata.Capabilities)
+				model.Provider = m.Platform
+				model.CapabilitySource = metadata.CapabilitySource
+				model.ModelCatalogSource = service.WorkspaceModelCatalogSourceRealChannel
+			} else if textMetadata := settingService.GetWorkspaceTextRealChannelModelExposure(userID, m); textMetadata.Model != "" {
+				model.Capabilities = workspaceCapabilityStringsForUserDTO(textMetadata.Capabilities)
+				model.ProviderLabel = textMetadata.ProviderLabel
+				model.Provider = textMetadata.Provider
+				model.CapabilitySource = textMetadata.CapabilitySource
+				model.ModelCatalogSource = textMetadata.ModelCatalogSource
+			}
 		}
 		if settingService != nil {
 			realMetadata := settingService.GetWorkspaceImageRealChannelModelExposure(userID, m)
