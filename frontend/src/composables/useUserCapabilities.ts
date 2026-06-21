@@ -26,13 +26,6 @@ const loading = ref(false)
 const loaded = ref(false)
 const errorMessage = ref('')
 
-const workspaceChatSelectableCapabilities = new Set([
-  'text_chat',
-  'vision',
-  'function_calling',
-  'tool'
-])
-
 const workspaceImageSelectableCapabilities = new Set([
   'image_generation',
   'image_edit'
@@ -45,11 +38,8 @@ function isImageModelName(model: string) {
 
 function isSelectableWorkspaceModel(model: UserSupportedModel) {
   const capabilities = model.capabilities || []
-  if (capabilities.includes('image_generation') || capabilities.includes('image_edit')) {
-    return capabilities.some((capability) => workspaceChatSelectableCapabilities.has(capability))
-  }
-  if (capabilities.some((capability) => workspaceChatSelectableCapabilities.has(capability))) {
-    return true
+  if (capabilities.length > 0) {
+    return capabilities.includes('text_chat')
   }
   return !isImageModelName(model.name)
 }

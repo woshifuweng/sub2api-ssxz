@@ -91,6 +91,78 @@ describe('useUserCapabilities', () => {
     expect(capabilities.chatModels.value.map((model) => model.id)).toContain('gpt-4o')
   })
 
+  it('does not show vision-only models in chat picker', async () => {
+    mocks.getChannels.mockResolvedValue([
+      {
+        name: 'Vision Channel',
+        description: '',
+        platforms: [
+          {
+            platform: 'openai',
+            groups: [],
+            supported_models: [
+              {
+                name: 'vision-preview',
+                platform: 'openai',
+                pricing: null,
+                capabilities: ['vision'],
+                provider: 'openai',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured'
+              }
+            ]
+          }
+        ]
+      }
+    ])
+
+    const capabilities = useUserCapabilities()
+    await capabilities.loadCapabilities()
+
+    expect(capabilities.chatModels.value.map((model) => model.id)).not.toContain('vision-preview')
+  })
+
+  it('does not show function-only or tool-only models in chat picker', async () => {
+    mocks.getChannels.mockResolvedValue([
+      {
+        name: 'Tool Channel',
+        description: '',
+        platforms: [
+          {
+            platform: 'openai',
+            groups: [],
+            supported_models: [
+              {
+                name: 'tool-only-model',
+                platform: 'openai',
+                pricing: null,
+                capabilities: ['tool'],
+                provider: 'openai',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured'
+              },
+              {
+                name: 'function-only-model',
+                platform: 'openai',
+                pricing: null,
+                capabilities: ['function_calling'],
+                provider: 'openai',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured'
+              }
+            ]
+          }
+        ]
+      }
+    ])
+
+    const capabilities = useUserCapabilities()
+    await capabilities.loadCapabilities()
+
+    expect(capabilities.chatModels.value.map((model) => model.id)).not.toContain('tool-only-model')
+    expect(capabilities.chatModels.value.map((model) => model.id)).not.toContain('function-only-model')
+  })
+
   it('does not show explicitly allowed fake image generation model in chat picker', async () => {
     mocks.getChannels.mockResolvedValue([
       {
