@@ -665,7 +665,7 @@ func TestWorkspaceSub2APITextBridgeFailureDoesNotExposeSecretsOrMarkBilling(t *t
 
 	require.NoError(t, err)
 	require.Equal(t, 1, bridge.calls)
-	require.Equal(t, WorkspaceAssistantUnavailableContent, assistantMessage.Content)
+	require.Equal(t, WorkspaceSub2APITextBridgeTemporarilyUnavailableContent, assistantMessage.Content)
 	require.Equal(t, "sub2api_chat_completion_failed", assistantMessage.Metadata["bridge_block_reason"])
 	require.Equal(t, false, assistantMessage.Metadata["provider_called"])
 	require.Equal(t, false, assistantMessage.Metadata["billing_touched"])

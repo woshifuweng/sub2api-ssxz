@@ -513,7 +513,7 @@ describe('ImageStudioView workbench', () => {
     await fileInput.trigger('change')
     await flushPromises()
 
-    const preview = wrapper.find('img[alt="参考素材预览"]')
+    const preview = wrapper.find('.asset-thumb img')
     expect(preview.exists()).toBe(true)
     expect(preview.attributes('src')).toBe('blob:reference-preview-reference.png')
     expect(previewUrl.createObjectURL).toHaveBeenCalledWith(file)
@@ -529,6 +529,51 @@ describe('ImageStudioView workbench', () => {
 
     wrapper.unmount()
     expect(previewUrl.revokeObjectURL).toHaveBeenCalledWith('blob:reference-preview-reference.png')
+  })
+
+  it('accepts a dragged reference image through the same preview and submit path', async () => {
+    const previewUrl = stubReferencePreviewUrl()
+    apiClient.post.mockResolvedValue({
+      data: {
+        data: [
+          {
+            url: 'https://cdn.example.com/result.png',
+          },
+        ],
+      },
+    })
+
+    const wrapper = mountImageStudio()
+    const file = new File(['dragged-image'], 'dragged-reference.webp', { type: 'image/webp' })
+    const dropZone = wrapper.get('.asset-drop')
+
+    await dropZone.trigger('dragenter')
+    expect(dropZone.classes()).toContain('dragging')
+
+    ;(wrapper.vm as unknown as {
+      handleReferenceDrop: (event: DragEvent) => void
+    }).handleReferenceDrop({
+      dataTransfer: {
+        files: [file],
+      },
+    } as unknown as DragEvent)
+    await wrapper.vm.$nextTick()
+    await flushPromises()
+
+    expect(previewUrl.createObjectURL).toHaveBeenCalledWith(file)
+    const preview = wrapper.find('.asset-thumb img')
+    expect(preview.exists()).toBe(true)
+    expect(preview.attributes('src')).toBe('blob:reference-preview-dragged-reference.webp')
+
+    await wrapper.find('textarea').setValue('minimal skincare product cover')
+    await wrapper.find('button.generate-button').trigger('click')
+    await flushPromises()
+
+    const form = apiClient.post.mock.calls[0][1] as FormData
+    expect(form.get('image')).toBe(file)
+
+    wrapper.unmount()
+    expect(previewUrl.revokeObjectURL).toHaveBeenCalledWith('blob:reference-preview-dragged-reference.webp')
   })
 
   it('clears the reference image when browser preview loading fails', async () => {

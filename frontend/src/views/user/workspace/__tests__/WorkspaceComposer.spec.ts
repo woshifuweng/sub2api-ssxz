@@ -57,11 +57,26 @@ describe('WorkspaceComposer', () => {
     expect(wrapper.text()).toContain('暂未接入')
   })
 
-  it('keeps the web search capability hidden in the lightweight user chat entry', () => {
+  it('keeps the web search capability hidden when the backend says it is unavailable', () => {
     const wrapper = mountComposer({ modelValue: 'ready', webSearchEnabled: true })
 
     expect(wrapper.find('[data-testid="workspace-capability-web-search"]').exists()).toBe(false)
     expect(wrapper.emitted('toggle-web-search')).toBeUndefined()
+  })
+
+  it('shows and toggles web search when the backend says it is available', async () => {
+    const wrapper = mountComposer({
+      modelValue: 'ready',
+      webSearchAvailable: true,
+      webSearchEnabled: false
+    })
+
+    const toggle = wrapper.get('[data-testid="workspace-capability-web-search"]')
+    expect(toggle.attributes('disabled')).toBeUndefined()
+
+    await toggle.trigger('click')
+
+    expect(wrapper.emitted('toggle-web-search')).toHaveLength(1)
   })
 
   it('emits submit when content is ready', async () => {

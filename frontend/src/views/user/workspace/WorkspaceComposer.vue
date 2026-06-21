@@ -112,6 +112,7 @@ const props = defineProps<{
   sending: boolean
   assetPreviews: WorkspaceAssetPreview[]
   rejectedFiles: RejectedWorkspaceFile[]
+  webSearchAvailable?: boolean
   webSearchEnabled?: boolean
 }>()
 
@@ -147,6 +148,13 @@ const capabilityTools = computed<Array<{
     available: boolean
   }> = [
     {
+      key: 'web-search',
+      label: '联网',
+      description: '使用后端可用的联网搜索能力补充当前信息。',
+      icon: 'globe',
+      available: true
+    },
+    {
       key: 'memory',
       label: '记忆',
       description: '长期记忆暂未接入。',
@@ -162,7 +170,7 @@ const capabilityTools = computed<Array<{
     }
   ]
 
-  return tools
+  return props.webSearchAvailable === true ? tools : tools.filter((tool) => tool.key !== 'web-search')
 })
 
 const placeholder = computed(() =>
