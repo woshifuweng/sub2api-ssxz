@@ -176,6 +176,8 @@ func (r *ModelPricingResolver) applyRequestTierOverrides(chPricing *ChannelModel
 	resolved.RequestTiers = filterValidIntervals(chPricing.Intervals)
 	if chPricing.PerRequestPrice != nil {
 		resolved.DefaultPerRequestPrice = *chPricing.PerRequestPrice
+	} else if chPricing.ImageOutputPrice != nil {
+		resolved.DefaultPerRequestPrice = *chPricing.ImageOutputPrice
 	}
 }
 

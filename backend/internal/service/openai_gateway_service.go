@@ -6007,15 +6007,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	}
 	var cost *CostBreakdown
 	if result.ImageCount > 0 {
-		var groupConfig *ImagePriceConfig
-		if apiKey.Group != nil {
-			groupConfig = &ImagePriceConfig{
-				Price1K: apiKey.Group.ImagePrice1K,
-				Price2K: apiKey.Group.ImagePrice2K,
-				Price4K: apiKey.Group.ImagePrice4K,
-			}
-		}
-		cost = s.billingService.CalculateImageCost(billingModel, result.ImageSize, result.ImageCount, groupConfig, multiplier)
+		cost = s.calculateOpenAIImageCost(ctx, billingModel, result.ImageSize, result.ImageCount, multiplier, apiKey)
 	} else {
 		var err error
 		cost, err = s.calculateOpenAITokenCost(ctx, billingModel, tokens, multiplier, serviceTier, apiKey)
@@ -6116,6 +6108,46 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
 
 	return nil
+}
+
+func (s *OpenAIGatewayService) calculateOpenAIImageCost(ctx context.Context, model string, imageSize string, imageCount int, multiplier float64, apiKey *APIKey) *CostBreakdown {
+	if imageCount <= 0 {
+		return &CostBreakdown{}
+	}
+
+	if s.modelPricingResolver != nil && apiKey != nil && apiKey.GroupID != nil {
+		resolved := s.modelPricingResolver.Resolve(ctx, PricingInput{
+			Model:   model,
+			GroupID: apiKey.GroupID,
+		})
+		if resolved != nil && resolved.Source == PricingSourceChannel &&
+			(resolved.Mode == BillingModeImage || resolved.Mode == BillingModePerRequest) {
+			unitPrice := s.modelPricingResolver.GetRequestTierPrice(resolved, imageSize)
+			if unitPrice <= 0 {
+				unitPrice = resolved.DefaultPerRequestPrice
+			}
+			if unitPrice > 0 {
+				if multiplier <= 0 {
+					multiplier = 1.0
+				}
+				totalCost := unitPrice * float64(imageCount)
+				return &CostBreakdown{
+					TotalCost:  totalCost,
+					ActualCost: totalCost * multiplier,
+				}
+			}
+		}
+	}
+
+	var groupConfig *ImagePriceConfig
+	if apiKey != nil && apiKey.Group != nil {
+		groupConfig = &ImagePriceConfig{
+			Price1K: apiKey.Group.ImagePrice1K,
+			Price2K: apiKey.Group.ImagePrice2K,
+			Price4K: apiKey.Group.ImagePrice4K,
+		}
+	}
+	return s.billingService.CalculateImageCost(model, imageSize, imageCount, groupConfig, multiplier)
 }
 
 func (s *OpenAIGatewayService) calculateOpenAITokenCost(ctx context.Context, model string, tokens UsageTokens, multiplier float64, serviceTier string, apiKey *APIKey) (*CostBreakdown, error) {
