@@ -837,8 +837,12 @@ function revokeReferencePreviewUrl(url: string) {
 }
 
 function handlePreviewImageError() {
-  previewImageFailed.value = true
+  referenceReadSerial += 1
+  selectedFile.value = null
+  releasePreviewUrl()
+  previewImageFailed.value = false
   referencePreviewError.value = '参考图预览加载失败，请重新上传 JPG / PNG / WEBP 图片。'
+  appStore.showError(referencePreviewError.value)
 }
 
 async function generate() {
