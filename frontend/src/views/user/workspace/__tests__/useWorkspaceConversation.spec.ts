@@ -29,6 +29,9 @@ vi.mock('@/api/client', () => ({
 
 import { apiClient } from '@/api/client'
 import {
+  WORKSPACE_MODEL_UNAVAILABLE_MESSAGE,
+  WORKSPACE_PROVIDER_FAILED_MESSAGE,
+  WORKSPACE_SEND_FAILED_MESSAGE,
   WORKSPACE_TEXT_ONLY_MESSAGE,
   WORKSPACE_BACKEND_UNAVAILABLE_MESSAGE,
   WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE,
@@ -387,6 +390,115 @@ describe('useWorkspaceConversation', () => {
     expect(workspace.errorMessage.value).toBe(WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE)
     expect(api.createImageTask).not.toHaveBeenCalled()
     expect(apiClient.post).not.toHaveBeenCalled()
+  })
+
+  it('shows a model unavailable error when the workspace rejects the selected model', async () => {
+    api.createConversation.mockResolvedValue({
+      id: 36,
+      title: 'use model',
+      status: 'active',
+      created_at: '2026-06-10T00:00:00Z',
+      updated_at: '2026-06-10T00:00:00Z'
+    })
+    api.appendMessage.mockRejectedValue({
+      status: 400,
+      code: 'WORKSPACE_MODEL_UNAVAILABLE',
+      message: 'Model is not available for workspace chat'
+    })
+    api.listMessages.mockResolvedValue([])
+    api.listConversations.mockResolvedValue([])
+    const workspace = useWorkspaceConversation({ backendEnabled: true })
+
+    const result = await workspace.sendTextMessage({
+      text: 'use model',
+      model: 'gpt-5.5',
+      intent: 'chat',
+      attachments: []
+    })
+
+    expect(result).toBe(false)
+    expect(api.appendMessage).toHaveBeenCalled()
+    expect(api.listMessages).toHaveBeenCalledWith(36)
+    expect(workspace.errorMessage.value).toBe(WORKSPACE_MODEL_UNAVAILABLE_MESSAGE)
+    expect(workspace.errorMessage.value).not.toBe(WORKSPACE_SEND_FAILED_MESSAGE)
+  })
+
+  it('refreshes persisted messages when the AI response fails after the user message is submitted', async () => {
+    api.createConversation.mockResolvedValue({
+      id: 37,
+      title: 'provider fail',
+      status: 'active',
+      created_at: '2026-06-10T00:00:00Z',
+      updated_at: '2026-06-10T00:00:00Z'
+    })
+    api.appendMessage.mockRejectedValue({
+      status: 500,
+      code: 'WORKSPACE_SERVICE_UNAVAILABLE',
+      message: 'Workspace service unavailable'
+    })
+    api.listMessages.mockResolvedValue([
+      {
+        id: 47,
+        conversation_id: 37,
+        message_type: 'text',
+        role: 'user',
+        content: 'provider fail',
+        model: 'gemini-2.5-pro',
+        intent: 'chat',
+        status: 'completed',
+        created_at: '2026-06-10T00:00:01Z',
+        updated_at: '2026-06-10T00:00:01Z'
+      }
+    ])
+    api.listConversations.mockResolvedValue([])
+    const workspace = useWorkspaceConversation({ backendEnabled: true })
+
+    const result = await workspace.sendTextMessage({
+      text: 'provider fail',
+      model: 'gemini-2.5-pro',
+      intent: 'chat',
+      attachments: []
+    })
+
+    expect(result).toBe(false)
+    expect(api.listMessages).toHaveBeenCalledWith(37)
+    expect(workspace.messages.value).toMatchObject([
+      {
+        persistedId: 47,
+        role: 'user',
+        content: 'provider fail'
+      }
+    ])
+    expect(workspace.errorMessage.value).toBe(WORKSPACE_PROVIDER_FAILED_MESSAGE)
+  })
+
+  it('falls back to a generic send error when the failure cannot be classified or refreshed', async () => {
+    api.createConversation.mockResolvedValue({
+      id: 38,
+      title: 'unknown fail',
+      status: 'active',
+      created_at: '2026-06-10T00:00:00Z',
+      updated_at: '2026-06-10T00:00:00Z'
+    })
+    api.appendMessage.mockRejectedValue({
+      status: 500,
+      code: 'UNKNOWN',
+      message: 'unknown'
+    })
+    api.listMessages.mockRejectedValue(new Error('refresh failed'))
+    const workspace = useWorkspaceConversation({ backendEnabled: true })
+
+    const result = await workspace.sendTextMessage({
+      text: 'unknown fail',
+      model: 'deepseek-v4-flash',
+      intent: 'chat',
+      attachments: []
+    })
+
+    expect(result).toBe(false)
+    expect(api.listMessages).toHaveBeenCalledWith(38)
+    expect(workspace.messages.value).toHaveLength(0)
+    expect(workspace.errorMessage.value).toBe(WORKSPACE_SEND_FAILED_MESSAGE)
   })
 
   it('treats the /app home intent as text chat when enabled', async () => {
