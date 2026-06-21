@@ -531,6 +531,48 @@ describe('ImageStudioView workbench', () => {
     expect(previewUrl.revokeObjectURL).toHaveBeenCalledWith('blob:reference-preview-reference.png')
   })
 
+  it('clears the reference image when browser preview loading fails', async () => {
+    const previewUrl = stubReferencePreviewUrl()
+    apiClient.post.mockResolvedValue({
+      data: {
+        data: [
+          {
+            url: 'https://cdn.example.com/result.png',
+          },
+        ],
+      },
+    })
+
+    const wrapper = mountImageStudio()
+    const file = new File(['fake-image'], 'reference.png', { type: 'image/png' })
+    const fileInput = wrapper.find('input[type="file"]')
+    Object.defineProperty(fileInput.element, 'files', {
+      value: [file],
+      configurable: true,
+    })
+
+    await fileInput.trigger('change')
+    await flushPromises()
+    expect(wrapper.find('.asset-thumb img').exists()).toBe(true)
+
+    await wrapper.find('.asset-thumb img').trigger('error')
+    await flushPromises()
+
+    expect(wrapper.find('.asset-thumb img').exists()).toBe(false)
+    expect(wrapper.text()).toContain('参考图预览加载失败，请重新上传 JPG / PNG / WEBP 图片。')
+    expect(appStore.showError).toHaveBeenCalledWith('参考图预览加载失败，请重新上传 JPG / PNG / WEBP 图片。')
+    expect(previewUrl.revokeObjectURL).toHaveBeenCalledWith('blob:reference-preview-reference.png')
+
+    await wrapper.find('textarea').setValue('minimal skincare product cover')
+    await wrapper.find('button.generate-button').trigger('click')
+    await flushPromises()
+
+    const form = apiClient.post.mock.calls[0][1] as FormData
+    expect(form.get('image')).toBeNull()
+
+    wrapper.unmount()
+  })
+
   it('shows a clear reference preview failure instead of a broken image state', async () => {
     stubReferencePreviewUrl('error')
 
