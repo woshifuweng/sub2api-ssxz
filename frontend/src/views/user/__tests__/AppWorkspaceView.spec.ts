@@ -160,6 +160,21 @@ describe('AppWorkspaceView interactions', () => {
     wrapper.unmount()
   })
 
+  it('does not expose image upload in chat even when catalog models include vision capability', async () => {
+    mocks.chatModels.value = [
+      { id: 'gpt-5.5', name: 'GPT-5.5', tier: 'premium', capabilities: ['text_chat', 'vision'], modelCatalogSource: 'real_channel' }
+    ]
+
+    const wrapper = mountWithAppStore()
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="workspace-add-content"]').exists()).toBe(false)
+    expect(wrapper.find('textarea').attributes('placeholder')).toContain('直接输入问题')
+    expect(mocks.createObjectURL).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
   it('clears local shell state when starting a new chat without backend calls', async () => {
     const wrapper = mountWithAppStore()
     await nextTick()

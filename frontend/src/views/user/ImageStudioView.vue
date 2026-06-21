@@ -175,7 +175,14 @@
                 <p>先保留单张商品图或风格图，后续多图参考单独升级。</p>
               </div>
             </div>
-            <label class="asset-drop" :class="{ filled: Boolean(selectedFile) }">
+            <label
+              class="asset-drop"
+              :class="{ filled: Boolean(selectedFile), dragging: referenceDragging }"
+              @dragenter.prevent="handleReferenceDragEnter"
+              @dragover.prevent="handleReferenceDragEnter"
+              @dragleave.prevent="handleReferenceDragLeave"
+              @drop.prevent="handleReferenceDrop"
+            >
               <template v-if="!selectedFile">
                 <Icon name="upload" size="lg" />
                 <span>上传商品图或风格参考图</span>
@@ -556,6 +563,7 @@ const selectedImageModelId = ref('')
 const selectedFile = ref<File | null>(null)
 const previewUrl = ref('')
 const previewImageFailed = ref(false)
+const referenceDragging = ref(false)
 const referencePreviewError = ref('')
 const generating = ref(false)
 const errorMessage = ref('')
@@ -770,6 +778,29 @@ function handleFileChange(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
+  input.value = ''
+  handleReferenceFile(file)
+}
+
+function handleReferenceDragEnter() {
+  referenceDragging.value = true
+}
+
+function handleReferenceDragLeave(event: DragEvent) {
+  const currentTarget = event.currentTarget as HTMLElement | null
+  const relatedTarget = event.relatedTarget as Node | null
+  if (currentTarget && relatedTarget && currentTarget.contains(relatedTarget)) return
+  referenceDragging.value = false
+}
+
+function handleReferenceDrop(event: DragEvent) {
+  referenceDragging.value = false
+  const file = event.dataTransfer?.files?.[0]
+  if (!file) return
+  handleReferenceFile(file)
+}
+
+function handleReferenceFile(file: File) {
   if (!isAllowedReferenceImage(file)) {
     referenceReadSerial += 1
     selectedFile.value = null
@@ -777,11 +808,9 @@ function handleFileChange(event: Event) {
     previewImageFailed.value = false
     appStore.showError('请上传 JPG / PNG / WEBP 图片。')
     referencePreviewError.value = '请上传 JPG / PNG / WEBP 图片。'
-    input.value = ''
     return
   }
 
-  input.value = ''
   const serial = ++referenceReadSerial
   referencePreviewError.value = ''
   previewImageFailed.value = false
@@ -1585,6 +1614,12 @@ function scrollPreviewIntoView() {
 .asset-drop:hover {
   border-color: var(--ssxz-border-strong);
   background: color-mix(in srgb, var(--ssxz-action-soft) 68%, var(--ssxz-surface-subtle));
+}
+
+.asset-drop.dragging {
+  border-color: var(--ssxz-action);
+  background: color-mix(in srgb, var(--ssxz-action-soft) 78%, var(--ssxz-surface-subtle));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ssxz-action) 18%, transparent);
 }
 
 .asset-drop.filled {

@@ -20,6 +20,8 @@ const (
 	WorkspaceSub2APITextBridgeModelNotAllowedContent = "当前 API Key 不允许使用所选模型，请检查开发者 API Key 的模型权限。"
 )
 
+const WorkspaceSub2APITextBridgeTemporarilyUnavailableContent = "当前模型暂不可用，请切换其他模型，或联系管理员检查模型、API Key、分组和上游账号配置。"
+
 var (
 	ErrWorkspaceSub2APITextBridgeMissingAPIKey   = errors.New("workspace sub2api text bridge missing usable api key")
 	ErrWorkspaceSub2APITextBridgeModelNotAllowed = errors.New("workspace sub2api text bridge api key model not allowed")
@@ -245,7 +247,7 @@ func workspaceAssistantWebSearchMetadata(metadata map[string]any) map[string]any
 
 func workspaceSub2APITextBridgeFailedResponse(input WorkspaceAssistantResponseInput, err error) WorkspaceAssistantResponse {
 	reason := "sub2api_chat_completion_failed"
-	content := WorkspaceAssistantUnavailableContent
+	content := WorkspaceSub2APITextBridgeTemporarilyUnavailableContent
 	if err == nil {
 		reason = "sub2api_chat_completion_empty_response"
 	} else if errors.Is(err, ErrWorkspaceSub2APITextBridgeMissingAPIKey) {
