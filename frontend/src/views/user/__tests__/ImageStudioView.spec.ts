@@ -420,6 +420,7 @@ describe('ImageStudioView workbench', () => {
     expect(dialog.attributes('role')).toBe('dialog')
     expect(dialog.text()).toContain('图片作品')
     expect(dialog.find('img[alt="preview-work-12"]').attributes('src')).toBe('https://cdn.example.com/preview.png')
+    expect(wrapper.find('.recent-thumb-hint').text()).toBe('点击预览')
 
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
 
@@ -434,6 +435,9 @@ describe('ImageStudioView workbench', () => {
     expect(wrapper.find('.recent-preview-dialog').exists()).toBe(true)
     await wrapper.find('.recent-preview-close').trigger('click')
     expect(wrapper.find('.recent-preview-dialog').exists()).toBe(false)
+
+    await wrapper.find('.recent-card-actions .secondary-button').trigger('click')
+    expect(wrapper.find('.recent-preview-dialog').exists()).toBe(true)
 
     click.mockRestore()
     wrapper.unmount()

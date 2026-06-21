@@ -405,13 +405,17 @@
             @click="openWorkPreview(work, index)"
           >
             <img :src="workImageSrc(work)" :alt="`work-${work.id}`" />
+            <span class="recent-thumb-hint">点击预览</span>
           </button>
           <div class="recent-card-body">
             <div>
               <span>图片作品</span>
               <small>{{ formatWorkTime(work.created_at) }}</small>
             </div>
-            <button type="button" class="secondary-button" @click="downloadWork(work, index)">下载</button>
+            <div class="recent-card-actions">
+              <button type="button" class="secondary-button" @click="openWorkPreview(work, index)">预览</button>
+              <button type="button" class="secondary-button" @click="downloadWork(work, index)">下载</button>
+            </div>
           </div>
         </article>
       </div>
@@ -1940,6 +1944,7 @@ function scrollPreviewIntoView() {
 }
 
 .recent-thumb-button {
+  position: relative;
   display: block;
   width: 100%;
   overflow: hidden;
@@ -1949,6 +1954,28 @@ function scrollPreviewIntoView() {
   color: inherit;
   cursor: zoom-in;
   font: inherit;
+}
+
+.recent-thumb-hint {
+  position: absolute;
+  right: 0.7rem;
+  bottom: 0.7rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  padding: 0.28rem 0.55rem;
+  background: rgb(0 0 0 / 0.58);
+  color: white;
+  font-size: 0.74rem;
+  font-weight: 800;
+  opacity: 0;
+  transform: translateY(0.25rem);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.recent-thumb-button:hover .recent-thumb-hint,
+.recent-thumb-button:focus-visible .recent-thumb-hint {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .recent-thumb-button:focus-visible {
@@ -1966,6 +1993,12 @@ function scrollPreviewIntoView() {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.recent-card-body .recent-card-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
 }
 
