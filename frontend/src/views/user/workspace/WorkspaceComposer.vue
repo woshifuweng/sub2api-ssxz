@@ -1,5 +1,10 @@
 <template>
-  <form class="composer-card" @submit.prevent="handleSubmit">
+  <form
+    class="composer-card"
+    @submit.prevent="handleSubmit"
+    @dragover.prevent
+    @drop.prevent="handleDrop"
+  >
     <div v-if="assetPreviews.length" class="attachment-preview-list" data-testid="workspace-asset-previews">
       <article v-for="asset in assetPreviews" :key="asset.id" class="attachment-preview-card">
         <img :src="asset.url" :alt="asset.name" />
@@ -80,8 +85,8 @@
         type="submit"
         data-testid="workspace-send"
         :disabled="!canSubmit"
-        :title="backendEnabled ? '发送' : '统一工作台后端正在接入，暂不可发送'"
-        :aria-label="backendEnabled ? '发送' : '统一工作台后端正在接入，暂不可发送'"
+        :title="sendButtonTitle"
+        :aria-label="sendButtonTitle"
       >
         <Icon v-if="sending" name="sync" size="sm" />
         <Icon v-else name="arrowUp" size="sm" />
@@ -123,6 +128,7 @@ const emit = defineEmits<{
   (event: 'remove-asset', id: string): void
   (event: 'submit'): void
   (event: 'toggle-web-search'): void
+  (event: 'unsupported-files', files: File[]): void
 }>()
 
 const assetPanelOpen = ref(false)
@@ -184,6 +190,14 @@ const canSubmit = computed(() =>
   props.assetPreviews.length === 0 &&
   props.modelValue.trim().length > 0
 )
+const sendButtonTitle = computed(() => {
+  if (props.backendEnabled !== true) return '统一工作台后端正在接入，暂不可发送'
+  if (props.sending) return '正在发送'
+  if (props.assetPreviews.length > 0) return '当前对话页暂不支持发送图片或文件，请移除附件后发送文字'
+  if (!props.selectedModel) return '请选择可用模型'
+  if (!props.modelValue.trim()) return '请输入消息'
+  return '发送'
+})
 
 function handleInput(event: Event) {
   emit('update:modelValue', (event.target as HTMLTextAreaElement).value)
@@ -197,6 +211,18 @@ function handleKeydown(event: KeyboardEvent) {
 
 function handleSubmit() {
   if (canSubmit.value) emit('submit')
+}
+
+function handleDrop(event: DragEvent) {
+  const files = Array.from(event.dataTransfer?.files || [])
+  if (!files.length) return
+
+  if (props.imageCapabilityAvailable) {
+    emit('files', files)
+    return
+  }
+
+  emit('unsupported-files', files)
 }
 
 function handleCapabilityToolClick(key: CapabilityToolKey, available: boolean) {

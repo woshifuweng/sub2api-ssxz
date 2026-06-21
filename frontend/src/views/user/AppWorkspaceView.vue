@@ -51,6 +51,7 @@
           @update:selected-model="selectedModelId = $event"
           @toggle-web-search="toggleWebSearch"
           @files="handleFiles"
+          @unsupported-files="handleUnsupportedFiles"
           @remove-asset="assets.removePreview"
           @submit="submitDraft"
         />
@@ -70,6 +71,7 @@ import WorkspaceComposer from './workspace/WorkspaceComposer.vue'
 import WorkspaceMessageList from './workspace/WorkspaceMessageList.vue'
 import { useWorkspaceAssets } from './workspace/useWorkspaceAssets'
 import {
+  WORKSPACE_TEXT_ONLY_MESSAGE,
   useWorkspaceConversation,
   type WorkspaceIntent
 } from './workspace/useWorkspaceConversation'
@@ -164,13 +166,28 @@ function isSectionKey(value: unknown): value is SectionKey {
 }
 
 async function handleFiles(files: File[]) {
+  if (!imageCapabilityAvailable.value) {
+    assets.clearPreviews()
+    workspace.errorMessage.value = WORKSPACE_TEXT_ONLY_MESSAGE
+    return
+  }
+
   await assets.addFiles(files)
+}
+
+function handleUnsupportedFiles() {
+  assets.clearPreviews()
+  workspace.errorMessage.value = WORKSPACE_TEXT_ONLY_MESSAGE
 }
 
 async function submitDraft() {
   const text = draft.value.trim()
   if (!text && assets.previews.value.length === 0) return
   if (!activeChatModel.value || workspace.sending.value || assets.registering.value) return
+  if (assets.previews.value.length > 0 && !imageCapabilityAvailable.value) {
+    workspace.errorMessage.value = WORKSPACE_TEXT_ONLY_MESSAGE
+    return
+  }
 
   const sent = await workspace.sendTextMessage({
     text,

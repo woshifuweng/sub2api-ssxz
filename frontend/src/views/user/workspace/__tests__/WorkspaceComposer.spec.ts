@@ -101,4 +101,55 @@ describe('WorkspaceComposer', () => {
     expect(wrapper.get('[data-testid="workspace-send"]').attributes('disabled')).toBeDefined()
     expect(wrapper.emitted('submit')).toBeUndefined()
   })
+
+  it('rejects dropped files when image upload is unavailable', async () => {
+    const wrapper = mountComposer({ intent: 'chat', modelValue: 'hello' })
+    const file = new File(['image'], 'sample.png', { type: 'image/png' })
+
+    await wrapper.get('form').trigger('drop', {
+      dataTransfer: {
+        files: [file]
+      }
+    })
+
+    expect(wrapper.emitted('unsupported-files')?.[0]).toEqual([[file]])
+    expect(wrapper.emitted('files')).toBeUndefined()
+  })
+
+  it('accepts dropped files only when image upload is available', async () => {
+    const wrapper = mountComposer({
+      intent: 'image',
+      imageCapabilityAvailable: true,
+      modelValue: 'make an image'
+    })
+    const file = new File(['image'], 'sample.png', { type: 'image/png' })
+
+    await wrapper.get('form').trigger('drop', {
+      dataTransfer: {
+        files: [file]
+      }
+    })
+
+    expect(wrapper.emitted('files')?.[0]).toEqual([[file]])
+    expect(wrapper.emitted('unsupported-files')).toBeUndefined()
+  })
+
+  it('explains why sending is disabled when local attachments are present', () => {
+    const wrapper = mountComposer({
+      intent: 'chat',
+      modelValue: 'describe this',
+      assetPreviews: [
+        {
+          id: 'local-1',
+          name: 'sample.png',
+          url: 'blob:sample',
+          sizeLabel: '1 KB'
+        }
+      ]
+    })
+
+    const sendButton = wrapper.get('[data-testid="workspace-send"]')
+    expect(sendButton.attributes('disabled')).toBeDefined()
+    expect(sendButton.attributes('title')).toContain('暂不支持发送图片或文件')
+  })
 })

@@ -18,7 +18,7 @@ export type WorkspaceMessageState = 'loading' | 'error'
 export const WORKSPACE_BACKEND_UNAVAILABLE_MESSAGE =
   '统一工作台后端正在接入，暂不可发送。当前仅展示工作台入口。'
 export const WORKSPACE_TEXT_ONLY_MESSAGE =
-  '统一工作台 v1 当前仅支持文本对话。图片和文件会在 asset/task 后端就绪后接入。'
+  '当前对话页暂不支持发送图片或文件。请到 AI 作图页上传参考图，或先只发送文字。'
 export const WORKSPACE_HISTORY_FAILED_MESSAGE = '工作台历史暂时无法加载。'
 export const WORKSPACE_MESSAGES_FAILED_MESSAGE = '该对话暂时无法加载。'
 export const WORKSPACE_SEND_FAILED_MESSAGE = '消息保存失败，请稍后重试。'
