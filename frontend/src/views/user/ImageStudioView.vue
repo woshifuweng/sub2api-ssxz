@@ -532,6 +532,7 @@ const customStyleOption = '自定义风格'
 const styleOptions = [...Object.keys(styleToPrompt), customStyleOption]
 const imageCountOptions = [1, 2, 3]
 const CREDIT_UNIT_USD = 0.2
+const verifiedDefaultImageModelId = 'gpt-image-2'
 
 const goal = ref<GoalId>('product')
 const canvasId = ref<CanvasId>('square')
@@ -637,8 +638,8 @@ const activeImageModel = computed(() => {
     const selected = imageModelOptions.value.find((model) => model.id === selectedImageModelId.value)
     if (selected) return selected
   }
-  const preferred = capabilities.defaultImageModel.value
-  return imageModelOptions.value.find((model) => model.id === preferred) || imageModelOptions.value[0] || null
+  const preferred = resolvePreferredImageModelId(imageModelOptions.value, capabilities.defaultImageModel.value)
+  return imageModelOptions.value.find((model) => model.id === preferred) || null
 })
 const activeImageModelLabel = computed(() => activeImageModel.value?.name || '后台配置')
 const imageModelHint = computed(() => {
@@ -710,10 +711,7 @@ watch(imageModelOptions, (models) => {
   if (selectedImageModelId.value && models.some((model) => model.id === selectedImageModelId.value)) {
     return
   }
-  const preferred = capabilities.defaultImageModel.value
-  selectedImageModelId.value = (preferred && models.some((model) => model.id === preferred))
-    ? preferred
-    : models[0].id
+  selectedImageModelId.value = resolvePreferredImageModelId(models, capabilities.defaultImageModel.value)
 }, { immediate: true })
 
 onMounted(() => {
@@ -728,6 +726,12 @@ onBeforeUnmount(() => {
 
 function selectGoal(next: GoalId) {
   goal.value = next
+}
+
+function resolvePreferredImageModelId(models: Array<{ id: string }>, fallbackModelId = '') {
+  if (models.some((model) => model.id === verifiedDefaultImageModelId)) return verifiedDefaultImageModelId
+  if (fallbackModelId && models.some((model) => model.id === fallbackModelId)) return fallbackModelId
+  return models[0]?.id || ''
 }
 
 function parseRatio(value: string) {
