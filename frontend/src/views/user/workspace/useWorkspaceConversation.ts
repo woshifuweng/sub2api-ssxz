@@ -9,6 +9,7 @@ import {
   listMessages,
   type ChatAsset,
   type ChatConversation,
+  type ChatWorkspaceError,
   type ChatMessage
 } from '@/api/chatWorkspace'
 
@@ -21,7 +22,11 @@ export const WORKSPACE_TEXT_ONLY_MESSAGE =
   '当前对话页暂不支持发送图片或文件。请到 AI 作图页上传参考图，或先只发送文字。'
 export const WORKSPACE_HISTORY_FAILED_MESSAGE = '工作台历史暂时无法加载。'
 export const WORKSPACE_MESSAGES_FAILED_MESSAGE = '该对话暂时无法加载。'
-export const WORKSPACE_SEND_FAILED_MESSAGE = '消息保存失败，请稍后重试。'
+export const WORKSPACE_SEND_FAILED_MESSAGE = '发送失败，请稍后重试。'
+export const WORKSPACE_MODEL_UNAVAILABLE_MESSAGE =
+  '当前模型暂不可用，请切换模型或联系管理员检查模型、API Key、分组和上游账号配置。'
+export const WORKSPACE_PROVIDER_FAILED_MESSAGE =
+  '消息可能已提交，但 AI 回复失败，请稍后重试或切换模型。'
 export const WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE =
   '消息已提交，但刷新会话失败，请刷新页面后查看。'
 
@@ -148,8 +153,8 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
 
     sending.value = true
     errorMessage.value = ''
+    let conversationId = activeConversationId.value
     try {
-      let conversationId = activeConversationId.value
       if (conversationId === null) {
         const conversation = await createConversation({ title: deriveConversationTitle(text) })
         conversationId = conversation.id
@@ -175,8 +180,11 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
       messages.value = nextMessages.map(mapChatMessageToWorkspaceMessage)
       await refreshConversationList()
       return true
-    } catch {
-      errorMessage.value = WORKSPACE_SEND_FAILED_MESSAGE
+    } catch (error) {
+      errorMessage.value = workspaceSendFailureMessage(error)
+      if (conversationId !== null) {
+        await refreshMessagesAfterFailedSend(conversationId)
+      }
       return false
     } finally {
       sending.value = false
@@ -188,6 +196,16 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
       conversations.value = await listConversations()
     } catch {
       // Sending already succeeded; keep the active conversation visible if sidebar refresh fails.
+    }
+  }
+
+  async function refreshMessagesAfterFailedSend(conversationId: number) {
+    try {
+      const nextMessages = await listMessages(conversationId)
+      messages.value = nextMessages.map(mapChatMessageToWorkspaceMessage)
+      await refreshConversationList()
+    } catch {
+      // Keep the original send error; refresh is only a recovery attempt.
     }
   }
 
@@ -254,6 +272,27 @@ function deriveConversationTitle(text: string) {
 
 function isTextChatIntent(intent: WorkspaceIntent) {
   return intent === 'home' || intent === 'chat'
+}
+
+function workspaceSendFailureMessage(error: unknown) {
+  const code = chatWorkspaceErrorCode(error)
+  if (code === 'WORKSPACE_MODEL_UNAVAILABLE') {
+    return WORKSPACE_MODEL_UNAVAILABLE_MESSAGE
+  }
+  if (code === 'WORKSPACE_CAPABILITY_UNAVAILABLE') {
+    return WORKSPACE_TEXT_ONLY_MESSAGE
+  }
+  if (code === 'WORKSPACE_SERVICE_UNAVAILABLE') {
+    return WORKSPACE_PROVIDER_FAILED_MESSAGE
+  }
+  return WORKSPACE_SEND_FAILED_MESSAGE
+}
+
+function chatWorkspaceErrorCode(error: unknown) {
+  if (!error || typeof error !== 'object') return ''
+  const workspaceError = error as ChatWorkspaceError
+  const code = workspaceError.code ?? workspaceError.error
+  return typeof code === 'string' || typeof code === 'number' ? String(code).trim() : ''
 }
 
 function mapWorkspaceMessageState(message: ChatMessage): WorkspaceMessageState | undefined {
