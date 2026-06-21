@@ -1,6 +1,6 @@
 # ROADMAP
 
-Last updated: 2026-06-20
+Last updated: 2026-06-21
 
 ## Product Goal
 
@@ -14,11 +14,12 @@ Build SSXZ AI into a lightweight AI creation workspace for about 200-300 private
 - Keep ordinary-user pages inside the user workspace shell.
 - Stop ordinary-user navigation from jumping into the older admin/backend-looking shell.
 - Preserve existing backend, billing, provider routing, payment, and database behavior.
-- Keep the 2026-06-20 staging image-generation success as evidence, not as production approval.
+- Keep the 2026-06-20 staging image-generation success and the 2026-06-21 production smoke as evidence, not as full product acceptance.
 
 ### P0 Work Items
 
 1. Confirm user workspace route ownership:
+   - `/app/chat` is the canonical new-chat and brand-home route
    - `/app/chat`
    - `/app/image`
    - `/app/usage`
@@ -46,9 +47,26 @@ Build SSXZ AI into a lightweight AI creation workspace for about 200-300 private
    - service-level, handler-level, DB-backed image-history, and DB-backed usage/billing failure regression tests exist
 8. Document P0 decisions before UI polish work resumes.
 
+### P0 Exit Criteria
+
+P0 can exit only when these are true:
+
+1. Ordinary-user canonical routes are documented and behave consistently:
+   - `/app/chat`
+   - `/app/image`
+   - `/app/usage`
+   - `/app/keys`
+   - `/app/profile`
+2. The user workspace shell never sends ordinary users into the admin/backend shell for those routes.
+3. The brand/logo home action returns to `/app/chat`.
+4. Existing chat and image paths have smoke evidence after refresh.
+5. Image failure paths remain no-charge, and image success paths record usage/billing/history consistently.
+6. `/app/usage` reflects real usage/billing records or honest empty states.
+7. Production storage/log-path risks are resolved or explicitly accepted before full production image acceptance.
+
 ### P0 Non-Goals
 
-- No production deployment.
+- No further production deployment or production config change without explicit approval.
 - No database migration.
 - No payment or ledger redesign.
 - No provider routing redesign.
@@ -141,19 +159,20 @@ Build SSXZ AI into a lightweight AI creation workspace for about 200-300 private
 
 ## Production Release Gates
 
-Production deployment should wait until all gates below are satisfied:
+Production deployment is a separate release gate. A production deployment happened on 2026-06-21 after explicit approval, but future deployments and full production acceptance should use the gates below:
 
 1. Ordinary-user navigation stays inside the intended user workspace shell.
 2. `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/app/profile` behave consistently after refresh.
-3. API Key / third-party access is visible and safe for ordinary users.
-4. Image generation keeps the validated staging path healthy:
+3. The logo/brand home action returns to `/app/chat`.
+4. API Key / third-party access is visible and safe for ordinary users.
+5. Image generation keeps the validated staging path healthy:
    - generation succeeds
    - cost/usage is recorded correctly
    - image history is visible
    - download works in a normal browser
    - failure does not mischarge users
-5. Payment/order flows are either verified or clearly disabled with honest user-facing states.
-6. Admin pages remain admin-only and usable for operations.
-7. No provider keys, API keys, cookies, tokens, or Authorization values are printed or persisted in unsafe places.
-8. Frontend typecheck/build and relevant tests pass.
-9. The user explicitly approves production deployment.
+6. Payment/order flows are either verified or clearly disabled with honest user-facing states.
+7. Admin pages remain admin-only and usable for operations.
+8. No provider keys, API keys, cookies, tokens, or Authorization values are printed or persisted in unsafe places.
+9. Frontend typecheck/build and relevant tests pass.
+10. The user explicitly approves production deployment or production acceptance.
