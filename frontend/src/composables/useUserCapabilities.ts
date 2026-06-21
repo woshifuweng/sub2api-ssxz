@@ -38,10 +38,7 @@ function isImageModelName(model: string) {
 
 function isSelectableWorkspaceModel(model: UserSupportedModel) {
   const capabilities = model.capabilities || []
-  if (capabilities.length > 0) {
-    return capabilities.includes('text_chat')
-  }
-  return !isImageModelName(model.name)
+  return capabilities.includes('text_chat')
 }
 
 function isSelectableImageModel(model: UserSupportedModel) {

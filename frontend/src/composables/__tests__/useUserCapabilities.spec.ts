@@ -122,6 +122,35 @@ describe('useUserCapabilities', () => {
     expect(capabilities.chatModels.value.map((model) => model.id)).not.toContain('vision-preview')
   })
 
+  it('does not guess untagged text-looking models are executable chat models', async () => {
+    mocks.getChannels.mockResolvedValue([
+      {
+        name: 'Catalog Channel',
+        description: '',
+        platforms: [
+          {
+            platform: 'openai',
+            groups: [],
+            supported_models: [
+              {
+                name: 'gpt-5.5',
+                platform: 'openai',
+                pricing: null,
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured'
+              }
+            ]
+          }
+        ]
+      }
+    ])
+
+    const capabilities = useUserCapabilities()
+    await capabilities.loadCapabilities()
+
+    expect(capabilities.chatModels.value.map((model) => model.id)).not.toContain('gpt-5.5')
+  })
+
   it('does not show function-only or tool-only models in chat picker', async () => {
     mocks.getChannels.mockResolvedValue([
       {

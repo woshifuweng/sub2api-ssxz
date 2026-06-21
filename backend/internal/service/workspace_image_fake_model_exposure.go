@@ -45,6 +45,16 @@ type WorkspaceImageAvailableModelExposure struct {
 	StagingOnly        bool
 }
 
+type WorkspaceTextAvailableModelExposure struct {
+	Model              string
+	ProviderLabel      string
+	Provider           string
+	Platform           string
+	Capabilities       []WorkspaceModelCapability
+	CapabilitySource   string
+	ModelCatalogSource string
+}
+
 func (s *SettingService) GetWorkspaceImageFakeModelExposure(userID int64) WorkspaceImageFakeModelExposure {
 	if s == nil {
 		return WorkspaceImageFakeModelExposure{}
@@ -57,6 +67,13 @@ func (s *SettingService) GetWorkspaceImageRealChannelModelExposure(userID int64,
 		return WorkspaceImageAvailableModelExposure{}
 	}
 	return workspaceImageRealChannelModelExposureFromConfig(s.cfg, userID, model)
+}
+
+func (s *SettingService) GetWorkspaceTextRealChannelModelExposure(userID int64, model SupportedModel) WorkspaceTextAvailableModelExposure {
+	if s == nil {
+		return WorkspaceTextAvailableModelExposure{}
+	}
+	return workspaceTextRealChannelModelExposureFromConfig(s.cfg, userID, model)
 }
 
 func workspaceImageFakeModelExposureFromConfig(cfg *config.Config, userID int64) WorkspaceImageFakeModelExposure {
@@ -141,6 +158,36 @@ func workspaceImageRealChannelModelExposureFromConfig(cfg *config.Config, userID
 		CapabilitySource:   WorkspaceImageRealModelCapabilitySource,
 		ModelCatalogSource: WorkspaceModelCatalogSourceRealChannel,
 		StagingOnly:        realConfig.StagingOnly,
+	}
+}
+
+func workspaceTextRealChannelModelExposureFromConfig(cfg *config.Config, userID int64, model SupportedModel) WorkspaceTextAvailableModelExposure {
+	if cfg == nil || userID <= 0 {
+		return WorkspaceTextAvailableModelExposure{}
+	}
+	textConfig := cfg.Workspace.TextProvider
+	if textConfig.BetaAllowlist.Enabled && !workspaceImageFakeExposureStringContains(textConfig.BetaAllowlist.AllowedModels, model.Name) {
+		return WorkspaceTextAvailableModelExposure{}
+	}
+	metadata := ResolveWorkspaceModelCapabilities(model.Name, WorkspaceModelCapabilityHints{
+		ProviderLabel: textConfig.TestProviderLabel,
+		Provider:      strings.TrimSpace(model.Platform),
+		Platform:      strings.TrimSpace(model.Platform),
+	})
+	if !workspaceModelCapabilityListContains(metadata.Capabilities, WorkspaceModelCapabilityTextChat) {
+		return WorkspaceTextAvailableModelExposure{}
+	}
+	if workspaceModelCapabilityListContains(metadata.Capabilities, WorkspaceModelCapabilityImageGeneration) {
+		return WorkspaceTextAvailableModelExposure{}
+	}
+	return WorkspaceTextAvailableModelExposure{
+		Model:              strings.TrimSpace(model.Name),
+		ProviderLabel:      metadata.ProviderLabel,
+		Provider:           metadata.Provider,
+		Platform:           metadata.Platform,
+		Capabilities:       metadata.Capabilities,
+		CapabilitySource:   metadata.CapabilitySource,
+		ModelCatalogSource: WorkspaceModelCatalogSourceRealChannel,
 	}
 }
 
