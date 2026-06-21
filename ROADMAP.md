@@ -122,7 +122,8 @@ P0 can exit only when these are true:
    - model/channel/account/pricing basics
 7. Add security hardening as separate PRs:
    - rate limits
-   - server-side captcha validation if captcha is used
+   - server-side human-verification validation if captcha, turnstile, sliding challenge, or OAuth login is used
+   - external dependency checks against current official provider documentation before choosing a verification provider
    - unified auth error wording
    - API key log redaction
    - admin operation logs
