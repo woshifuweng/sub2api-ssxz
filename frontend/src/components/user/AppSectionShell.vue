@@ -13,7 +13,7 @@
       @click="closeMobileNav"
     />
     <aside class="ssxz-app-sidebar fixed inset-y-0 left-0 z-30 w-60 border-r px-3 py-4 backdrop-blur-xl">
-      <RouterLink to="/app/image" class="ssxz-brand-link mb-6" title="返回图片工作台" aria-label="返回图片工作台" @click="closeMobileNav">
+      <RouterLink to="/app/chat" class="ssxz-brand-link mb-6" title="返回新对话" aria-label="返回新对话" @click="closeMobileNav">
         <span class="ssxz-brand-mark">S</span>
         <span class="ssxz-brand-copy ssxz-sidebar-text">
           <span class="ssxz-brand-title">SSXZ AI</span>

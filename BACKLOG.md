@@ -1,6 +1,6 @@
 # BACKLOG
 
-Last updated: 2026-06-20
+Last updated: 2026-06-21
 
 ## Validated On Staging
 
@@ -16,6 +16,9 @@ Last updated: 2026-06-20
 - 2026-06-20: handler-level image gateway regression tests cover upstream failure without usage, billing, or balance-deduction calls, and failed/truncated image captures without image history creation.
 - 2026-06-20: DB-backed handler regression test covers failed/truncated image gateway captures not creating persisted `sora_generations` rows, with a successful-capture control case.
 - 2026-06-20: DB-backed handler regression test covers image upstream 4xx and transport timeout not creating persisted usage rows, not creating usage-billing dedup rows, and not changing user balance.
+- 2026-06-21: latest main at commit `e40205e09` was deployed to production after explicit user approval. Basic production smoke returned HTTP 200 for `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/api/v1/settings/public`; `/v1/models` returned expected HTTP 401 without an API key.
+- 2026-06-21: production deployment did not include Nginx changes or database migrations.
+- 2026-06-21: workbench logo/brand home action was corrected to `/app/chat` with `AppSectionShell` test coverage.
 
 ## P0 Bugs And Structural Fixes
 
@@ -25,7 +28,8 @@ Last updated: 2026-06-20
 - Stale ordinary-user redirects to `/sora` should be replaced with the agreed user entry after route ownership is decided.
 - `/sora` should remain a compatibility route, not the main product route.
 - Technical pages such as Available Channels and Channel Status should not dominate ordinary-user navigation.
-- Image generation has one staging success path, but production still needs explicit approval and release-gate verification.
+- Image generation has one staging success path and one production smoke deployment, but production real generation/storage/billing/history/download still need acceptance verification.
+- Production logs showed `/app` read-only log output and old `SoraStorage` local-path initialization risk. Resolve or explicitly accept storage/log-path configuration before full production image acceptance.
 - Image generation upstream failure behavior has DB-backed usage/billing regression coverage for simulated upstream 4xx and transport timeout. Keep this coverage when changing image gateway billing or error handling.
 - Placeholder workspace controls must stay clearly disabled until their backend/product behavior exists.
 
@@ -45,6 +49,12 @@ Last updated: 2026-06-20
 - `/app/usage` real balance, monthly trend, and detail data.
 - `/app/keys` create/copy/delete/reset behavior and key masking.
 - `/app/profile` profile/password/TOTP behavior.
+- Production acceptance for image generation:
+  - storage/log-path configuration
+  - one controlled real generation when upstream and price settings are ready
+  - no-charge behavior for failures
+  - usage/billing consistency
+  - history and download
 - Recharge/payment/order flow:
   - enabled/disabled states
   - user order list
@@ -139,4 +149,4 @@ Last updated: 2026-06-20
 - Provider routing redesign.
 - New external provider integration.
 - Broad internal rename of Sora-related code.
-- Production deployment.
+- Further production deployment or production config changes without explicit user approval.
