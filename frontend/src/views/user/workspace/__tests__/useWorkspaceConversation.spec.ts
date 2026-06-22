@@ -472,6 +472,82 @@ describe('useWorkspaceConversation', () => {
     expect(workspace.errorMessage.value).toBe(WORKSPACE_PROVIDER_FAILED_MESSAGE)
   })
 
+  it('classifies message-only provider placeholder failures as AI response failures', async () => {
+    api.createConversation.mockResolvedValue({
+      id: 39,
+      title: 'provider placeholder',
+      status: 'active',
+      created_at: '2026-06-10T00:00:00Z',
+      updated_at: '2026-06-10T00:00:00Z'
+    })
+    api.appendMessage.mockRejectedValue({
+      status: 500,
+      message: 'AI response provider is not connected yet. Text message was saved.'
+    })
+    api.listMessages.mockResolvedValue([
+      {
+        id: 49,
+        conversation_id: 39,
+        message_type: 'text',
+        role: 'user',
+        content: 'provider placeholder',
+        model: 'gpt-5.5',
+        intent: 'chat',
+        status: 'completed',
+        created_at: '2026-06-10T00:00:01Z',
+        updated_at: '2026-06-10T00:00:01Z'
+      }
+    ])
+    api.listConversations.mockResolvedValue([])
+    const workspace = useWorkspaceConversation({ backendEnabled: true })
+
+    const result = await workspace.sendTextMessage({
+      text: 'provider placeholder',
+      model: 'gpt-5.5',
+      intent: 'chat',
+      attachments: []
+    })
+
+    expect(result).toBe(false)
+    expect(api.listMessages).toHaveBeenCalledWith(39)
+    expect(workspace.messages.value).toMatchObject([
+      {
+        persistedId: 49,
+        role: 'user',
+        content: 'provider placeholder'
+      }
+    ])
+    expect(workspace.errorMessage.value).toBe(WORKSPACE_PROVIDER_FAILED_MESSAGE)
+  })
+
+  it('classifies message-only model availability failures as model unavailable', async () => {
+    api.createConversation.mockResolvedValue({
+      id: 40,
+      title: 'bad model',
+      status: 'active',
+      created_at: '2026-06-10T00:00:00Z',
+      updated_at: '2026-06-10T00:00:00Z'
+    })
+    api.appendMessage.mockRejectedValue({
+      status: 400,
+      message: 'Model is not available for workspace chat'
+    })
+    api.listMessages.mockResolvedValue([])
+    api.listConversations.mockResolvedValue([])
+    const workspace = useWorkspaceConversation({ backendEnabled: true })
+
+    const result = await workspace.sendTextMessage({
+      text: 'bad model',
+      model: 'image-only-model',
+      intent: 'chat',
+      attachments: []
+    })
+
+    expect(result).toBe(false)
+    expect(api.listMessages).toHaveBeenCalledWith(40)
+    expect(workspace.errorMessage.value).toBe(WORKSPACE_MODEL_UNAVAILABLE_MESSAGE)
+  })
+
   it('falls back to a generic send error when the failure cannot be classified or refreshed', async () => {
     api.createConversation.mockResolvedValue({
       id: 38,

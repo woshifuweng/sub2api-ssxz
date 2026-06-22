@@ -276,13 +276,28 @@ function isTextChatIntent(intent: WorkspaceIntent) {
 
 function workspaceSendFailureMessage(error: unknown) {
   const code = chatWorkspaceErrorCode(error)
-  if (code === 'WORKSPACE_MODEL_UNAVAILABLE') {
+  const message = chatWorkspaceErrorMessage(error).toLowerCase()
+  if (
+    code === 'WORKSPACE_MODEL_UNAVAILABLE' ||
+    message.includes('model is not available') ||
+    message.includes('model unavailable')
+  ) {
     return WORKSPACE_MODEL_UNAVAILABLE_MESSAGE
   }
-  if (code === 'WORKSPACE_CAPABILITY_UNAVAILABLE') {
+  if (
+    code === 'WORKSPACE_CAPABILITY_UNAVAILABLE' ||
+    message.includes('capability is not available') ||
+    message.includes('capability unavailable')
+  ) {
     return WORKSPACE_TEXT_ONLY_MESSAGE
   }
-  if (code === 'WORKSPACE_SERVICE_UNAVAILABLE') {
+  if (
+    code === 'WORKSPACE_SERVICE_UNAVAILABLE' ||
+    message.includes('workspace service unavailable') ||
+    message.includes('provider is not connected') ||
+    message.includes('provider unavailable') ||
+    message.includes('ai response provider is not connected')
+  ) {
     return WORKSPACE_PROVIDER_FAILED_MESSAGE
   }
   return WORKSPACE_SEND_FAILED_MESSAGE
@@ -293,6 +308,16 @@ function chatWorkspaceErrorCode(error: unknown) {
   const workspaceError = error as ChatWorkspaceError
   const code = workspaceError.code ?? workspaceError.error
   return typeof code === 'string' || typeof code === 'number' ? String(code).trim() : ''
+}
+
+function chatWorkspaceErrorMessage(error: unknown) {
+  if (typeof error === 'string') return error.trim()
+  if (error instanceof Error) return error.message.trim()
+  if (!error || typeof error !== 'object') return ''
+  const workspaceError = error as ChatWorkspaceError
+  return typeof workspaceError.message === 'string' || typeof workspaceError.message === 'number'
+    ? String(workspaceError.message).trim()
+    : ''
 }
 
 function mapWorkspaceMessageState(message: ChatMessage): WorkspaceMessageState | undefined {

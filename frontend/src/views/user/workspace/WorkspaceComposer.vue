@@ -4,6 +4,7 @@
     @submit.prevent="handleSubmit"
     @dragover.prevent
     @drop.prevent="handleDrop"
+    @paste="handlePaste"
   >
     <div v-if="assetPreviews.length" class="attachment-preview-list" data-testid="workspace-asset-previews">
       <article v-for="asset in assetPreviews" :key="asset.id" class="attachment-preview-card">
@@ -217,6 +218,19 @@ function handleDrop(event: DragEvent) {
   const files = Array.from(event.dataTransfer?.files || [])
   if (!files.length) return
 
+  if (props.imageCapabilityAvailable) {
+    emit('files', files)
+    return
+  }
+
+  emit('unsupported-files', files)
+}
+
+function handlePaste(event: ClipboardEvent) {
+  const files = Array.from(event.clipboardData?.files || [])
+  if (!files.length) return
+
+  event.preventDefault()
   if (props.imageCapabilityAvailable) {
     emit('files', files)
     return

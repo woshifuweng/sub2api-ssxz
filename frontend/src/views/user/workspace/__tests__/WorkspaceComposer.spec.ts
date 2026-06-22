@@ -114,6 +114,26 @@ describe('WorkspaceComposer', () => {
 
     expect(wrapper.emitted('unsupported-files')?.[0]).toEqual([[file]])
     expect(wrapper.emitted('files')).toBeUndefined()
+
+    await wrapper.get('form').trigger('submit.prevent')
+    expect(wrapper.emitted('submit')).toHaveLength(1)
+  })
+
+  it('rejects pasted files when image upload is unavailable without blocking text send', async () => {
+    const wrapper = mountComposer({ intent: 'chat', modelValue: 'hello' })
+    const file = new File(['image'], 'sample.png', { type: 'image/png' })
+
+    await wrapper.get('form').trigger('paste', {
+      clipboardData: {
+        files: [file]
+      }
+    })
+
+    expect(wrapper.emitted('unsupported-files')?.[0]).toEqual([[file]])
+    expect(wrapper.emitted('files')).toBeUndefined()
+
+    await wrapper.get('form').trigger('submit.prevent')
+    expect(wrapper.emitted('submit')).toHaveLength(1)
   })
 
   it('accepts dropped files only when image upload is available', async () => {
@@ -126,6 +146,24 @@ describe('WorkspaceComposer', () => {
 
     await wrapper.get('form').trigger('drop', {
       dataTransfer: {
+        files: [file]
+      }
+    })
+
+    expect(wrapper.emitted('files')?.[0]).toEqual([[file]])
+    expect(wrapper.emitted('unsupported-files')).toBeUndefined()
+  })
+
+  it('accepts pasted files only when image upload is available', async () => {
+    const wrapper = mountComposer({
+      intent: 'image',
+      imageCapabilityAvailable: true,
+      modelValue: 'make an image'
+    })
+    const file = new File(['image'], 'sample.png', { type: 'image/png' })
+
+    await wrapper.get('form').trigger('paste', {
+      clipboardData: {
         files: [file]
       }
     })
