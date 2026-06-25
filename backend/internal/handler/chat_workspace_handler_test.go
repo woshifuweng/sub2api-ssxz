@@ -135,6 +135,42 @@ func TestChatWorkspaceHandlerRejectsDisabledCapabilityWithoutLeakingInternals(t 
 	require.NotContains(t, listRec.Body.String(), `"role":"assistant"`)
 }
 
+func TestChatWorkspaceHandlerRejectsUserAssetMetadataWithoutLeakingInternals(t *testing.T) {
+	router, _ := newChatWorkspaceHandlerTestRouter(42)
+
+	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/chat-workspace/conversations", bytes.NewBufferString(`{}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRec := httptest.NewRecorder()
+	router.ServeHTTP(createRec, createReq)
+	require.Equal(t, http.StatusCreated, createRec.Code)
+
+	appendBody := `{"message_type":"text","role":"user","content":"describe this image","model":"gpt-5.5","intent":"chat","metadata":{"assets":[{"id":"asset-1","url":"https://cdn.example.test/user-upload.png"}]}}`
+	appendReq := httptest.NewRequest(http.MethodPost, "/api/v1/chat-workspace/conversations/1/messages", bytes.NewBufferString(appendBody))
+	appendReq.Header.Set("Content-Type", "application/json")
+	appendRec := httptest.NewRecorder()
+	router.ServeHTTP(appendRec, appendReq)
+
+	require.Equal(t, http.StatusBadRequest, appendRec.Code)
+	var errorEnvelope chatWorkspaceErrorEnvelope
+	require.NoError(t, json.Unmarshal(appendRec.Body.Bytes(), &errorEnvelope))
+	require.Equal(t, workspaceReasonInvalidMessage, errorEnvelope.Reason)
+	require.NotEmpty(t, errorEnvelope.Metadata["request_id"])
+	require.NotEmpty(t, errorEnvelope.Metadata["client_request_id"])
+	require.NotContains(t, appendRec.Body.String(), "SQL")
+	require.NotContains(t, appendRec.Body.String(), "provider")
+	require.NotContains(t, appendRec.Body.String(), "Authorization")
+	require.NotContains(t, appendRec.Body.String(), "api_key")
+	require.NotContains(t, appendRec.Body.String(), "token")
+	require.NotContains(t, appendRec.Body.String(), "secret")
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/chat-workspace/conversations/1/messages", nil)
+	listRec := httptest.NewRecorder()
+	router.ServeHTTP(listRec, listReq)
+	require.Equal(t, http.StatusOK, listRec.Code)
+	require.NotContains(t, listRec.Body.String(), "describe this image")
+	require.NotContains(t, listRec.Body.String(), "asset-1")
+}
+
 type chatWorkspaceErrorEnvelope struct {
 	Code     int               `json:"code"`
 	Message  string            `json:"message"`

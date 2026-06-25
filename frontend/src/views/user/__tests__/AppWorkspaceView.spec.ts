@@ -169,10 +169,17 @@ describe('AppWorkspaceView interactions', () => {
 
     const wrapper = mountWithAppStore()
     await nextTick()
+    const file = new File(['image'], 'vision-sample.png', { type: 'image/png' })
 
     expect(wrapper.find('[data-testid="workspace-add-content"]').exists()).toBe(false)
     expect(wrapper.find('textarea').attributes('placeholder')).toContain('直接输入问题')
+    wrapper.findComponent(WorkspaceComposer).vm.$emit('files', [file])
+    await nextTick()
+
+    expect(wrapper.text()).toContain(WORKSPACE_TEXT_ONLY_MESSAGE)
+    expect(wrapper.find('[data-testid="workspace-asset-previews"]').exists()).toBe(false)
     expect(mocks.createObjectURL).not.toHaveBeenCalled()
+    expect(mocks.apiClient.post).not.toHaveBeenCalled()
 
     wrapper.unmount()
   })
