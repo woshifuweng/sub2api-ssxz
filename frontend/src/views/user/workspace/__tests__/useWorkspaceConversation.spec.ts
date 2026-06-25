@@ -35,6 +35,7 @@ import {
   WORKSPACE_TEXT_ONLY_MESSAGE,
   WORKSPACE_BACKEND_UNAVAILABLE_MESSAGE,
   WORKSPACE_GENERATING_MESSAGE,
+  WORKSPACE_IMAGE_FAILED_MESSAGE,
   WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE,
   useWorkspaceConversation
 } from '../useWorkspaceConversation'
@@ -266,7 +267,7 @@ describe('useWorkspaceConversation', () => {
         persistedId: 23,
         messageType: 'image',
         state: 'failed',
-        content: 'Image generation failed. Please try again.'
+        content: WORKSPACE_IMAGE_FAILED_MESSAGE
       }
     ])
     expect(workspace.messages.value[0].attachments).toBeUndefined()
@@ -507,6 +508,7 @@ describe('useWorkspaceConversation', () => {
       }
     ])
     expect(workspace.errorMessage.value).toBe(WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE)
+    expect(workspace.errorMessage.value).toContain('不会按成功回复扣费')
     expect(api.createImageTask).not.toHaveBeenCalled()
     expect(apiClient.post).not.toHaveBeenCalled()
   })
@@ -539,6 +541,8 @@ describe('useWorkspaceConversation', () => {
     expect(api.appendMessage).toHaveBeenCalled()
     expect(api.listMessages).toHaveBeenCalledWith(36)
     expect(workspace.errorMessage.value).toBe(WORKSPACE_MODEL_UNAVAILABLE_MESSAGE)
+    expect(workspace.errorMessage.value).toContain('未调用模型')
+    expect(workspace.errorMessage.value).toContain('不会扣费')
     expect(workspace.errorMessage.value).not.toBe(WORKSPACE_SEND_FAILED_MESSAGE)
   })
 
@@ -570,6 +574,8 @@ describe('useWorkspaceConversation', () => {
     expect(api.appendMessage).toHaveBeenCalled()
     expect(api.listMessages).toHaveBeenCalledWith(36)
     expect(workspace.errorMessage.value).toBe(WORKSPACE_TEXT_ONLY_MESSAGE)
+    expect(workspace.errorMessage.value).toContain('图片不会上传')
+    expect(workspace.errorMessage.value).toContain('不会调用模型或扣费')
   })
 
   it('refreshes persisted messages when the AI response fails after the user message is submitted', async () => {
@@ -625,6 +631,8 @@ describe('useWorkspaceConversation', () => {
       }
     ])
     expect(workspace.errorMessage.value).toBe(WORKSPACE_PROVIDER_FAILED_MESSAGE)
+    expect(workspace.errorMessage.value).toContain('可以重试或切换模型')
+    expect(workspace.errorMessage.value).toContain('不会按成功回复扣费')
   })
 
   it('classifies message-only provider placeholder failures as AI response failures', async () => {
@@ -679,6 +687,8 @@ describe('useWorkspaceConversation', () => {
       }
     ])
     expect(workspace.errorMessage.value).toBe(WORKSPACE_PROVIDER_FAILED_MESSAGE)
+    expect(workspace.errorMessage.value).toContain('可以重试或切换模型')
+    expect(workspace.errorMessage.value).toContain('不会按成功回复扣费')
   })
 
   it('classifies message-only model availability failures as model unavailable', async () => {
@@ -707,6 +717,8 @@ describe('useWorkspaceConversation', () => {
     expect(result).toBe(false)
     expect(api.listMessages).toHaveBeenCalledWith(40)
     expect(workspace.errorMessage.value).toBe(WORKSPACE_MODEL_UNAVAILABLE_MESSAGE)
+    expect(workspace.errorMessage.value).toContain('未调用模型')
+    expect(workspace.errorMessage.value).toContain('不会扣费')
   })
 
   it('falls back to a generic send error when the failure cannot be classified or refreshed', async () => {
@@ -748,6 +760,7 @@ describe('useWorkspaceConversation', () => {
       }
     ])
     expect(workspace.errorMessage.value).toBe(WORKSPACE_SEND_FAILED_MESSAGE)
+    expect(workspace.errorMessage.value).toContain('不会按成功回复扣费')
   })
 
   it('treats the /app home intent as text chat when enabled', async () => {
@@ -966,6 +979,7 @@ describe('useWorkspaceConversation', () => {
 
     expect(result).toBe(false)
     expect(workspace.errorMessage.value).toBe(WORKSPACE_TEXT_ONLY_MESSAGE)
+    expect(workspace.errorMessage.value).toContain('不会调用模型或扣费')
     expect(api.createConversation).not.toHaveBeenCalled()
     expect(api.appendMessage).not.toHaveBeenCalled()
     expect(api.createImageTask).not.toHaveBeenCalled()
@@ -990,6 +1004,8 @@ describe('useWorkspaceConversation', () => {
 
     expect(result).toBe(false)
     expect(workspace.errorMessage.value).toBe(WORKSPACE_TEXT_ONLY_MESSAGE)
+    expect(workspace.errorMessage.value).toContain('图片不会上传')
+    expect(workspace.errorMessage.value).toContain('不会调用模型或扣费')
     expect(api.createConversation).not.toHaveBeenCalled()
     expect(api.appendMessage).not.toHaveBeenCalled()
   })

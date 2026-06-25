@@ -20,18 +20,22 @@ export type WorkspaceMessageState = 'sending' | 'generating' | 'success' | 'fail
 export const WORKSPACE_BACKEND_UNAVAILABLE_MESSAGE =
   '统一工作台后端正在接入，暂不可发送。当前仅展示工作台入口。'
 export const WORKSPACE_TEXT_ONLY_MESSAGE =
-  '当前对话页是文本 beta，暂不支持发送图片、文件、图片理解或多图分析。请到 AI 作图页生成图片，或先只发送文字。'
+  '当前对话页是文本 beta，暂不支持发送图片、文件、图片理解或多图分析。图片不会上传，也不会调用模型或扣费；请到 AI 作图页生成图片，或先只发送文字。'
 export const WORKSPACE_HISTORY_FAILED_MESSAGE = '工作台历史暂时无法加载。'
 export const WORKSPACE_MESSAGES_FAILED_MESSAGE = '该对话暂时无法加载。'
-export const WORKSPACE_SEND_FAILED_MESSAGE = '发送失败，请稍后重试。'
+export const WORKSPACE_SEND_FAILED_MESSAGE =
+  '发送失败，请稍后重试。若消息没有出现在历史记录中，本次不会按成功回复扣费。'
 export const WORKSPACE_MODEL_UNAVAILABLE_MESSAGE =
-  '当前模型暂不可用，请切换模型或联系管理员检查模型、API Key、分组和上游账号配置。'
+  '当前模型暂不可用，请切换可用模型或联系管理员检查模型、API Key、分组和上游账号配置。本次未调用模型，不会扣费。'
 export const WORKSPACE_PROVIDER_FAILED_MESSAGE =
-  '消息可能已提交，但 AI 回复失败，请稍后重试或切换模型。'
+  'AI 回复失败。若消息已出现在历史中，可以重试或切换模型；本次未完成 AI 回复，不会按成功回复扣费。'
 export const WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE =
-  '消息已提交，但刷新会话失败，请刷新页面后查看。'
+  '消息已提交，但刷新会话失败。请刷新页面确认历史记录；未看到 AI 回复前，不会按成功回复扣费。'
 
-export const WORKSPACE_GENERATING_MESSAGE = 'AI response is being generated...'
+export const WORKSPACE_SENDING_MESSAGE = '消息正在发送。'
+export const WORKSPACE_GENERATING_MESSAGE = 'AI 正在生成回复...'
+export const WORKSPACE_ASSISTANT_FAILED_MESSAGE = 'AI 回复失败，请重试。'
+export const WORKSPACE_IMAGE_FAILED_MESSAGE = '图片生成失败，请重试。'
 
 export interface WorkspaceAttachment {
   id: string
@@ -496,7 +500,13 @@ function mapWorkspaceMessageState(message: ChatMessage): WorkspaceMessageState |
 
 function mapWorkspaceImageErrorMessage(message: ChatMessage) {
   if (message.message_type !== CHAT_MESSAGE_TYPE_IMAGE) return ''
-  return metadataString(message.metadata, 'error_message') || 'Image generation failed. Please try again.'
+  const errorMessage = metadataString(message.metadata, 'error_message')
+  if (isDefaultWorkspaceImageFailure(errorMessage)) return WORKSPACE_IMAGE_FAILED_MESSAGE
+  return errorMessage || WORKSPACE_IMAGE_FAILED_MESSAGE
+}
+
+function isDefaultWorkspaceImageFailure(value: string) {
+  return value.toLowerCase() === 'image generation failed. please try again.'
 }
 
 function mapWorkspaceImageAssets(message: ChatMessage): WorkspaceAttachment[] | undefined {

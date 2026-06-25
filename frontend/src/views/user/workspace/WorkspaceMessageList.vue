@@ -1,6 +1,6 @@
 <template>
   <div class="message-list" aria-live="polite">
-    <p v-if="loading" class="workspace-loading">Loading conversation...</p>
+    <p v-if="loading" class="workspace-loading">正在加载会话...</p>
 
     <article
       v-for="message in messages"
@@ -42,7 +42,10 @@
 <script setup lang="ts">
 import Icon from '@/components/icons/Icon.vue'
 import {
+  WORKSPACE_ASSISTANT_FAILED_MESSAGE,
   WORKSPACE_GENERATING_MESSAGE,
+  WORKSPACE_IMAGE_FAILED_MESSAGE,
+  WORKSPACE_SENDING_MESSAGE,
   type WorkspaceMessage
 } from './useWorkspaceConversation'
 
@@ -52,21 +55,21 @@ defineProps<{
 }>()
 
 function fallbackText(message: WorkspaceMessage) {
-  if (message.state === 'sending') return 'Message is being sent.'
+  if (message.state === 'sending') return WORKSPACE_SENDING_MESSAGE
   if (message.state === 'generating') return WORKSPACE_GENERATING_MESSAGE
   if (message.state === 'failed' && message.messageType === 'image') {
-    return 'Image generation failed. Please try again.'
+    return WORKSPACE_IMAGE_FAILED_MESSAGE
   }
-  if (message.state === 'failed') return 'AI response failed. Please retry.'
-  if (message.messageType === 'image' && message.attachments?.length) return 'Generated image'
-  if (message.attachments?.length) return 'Image attached'
+  if (message.state === 'failed') return WORKSPACE_ASSISTANT_FAILED_MESSAGE
+  if (message.messageType === 'image' && message.attachments?.length) return '生成的图片'
+  if (message.attachments?.length) return '已附加图片'
   return ''
 }
 
 function stateLabel(message: WorkspaceMessage) {
-  if (message.state === 'sending') return 'Sending'
-  if (message.state === 'generating') return 'Generating'
-  if (message.state === 'failed') return 'Failed'
+  if (message.state === 'sending') return '发送中'
+  if (message.state === 'generating') return '生成中'
+  if (message.state === 'failed') return '失败'
   return ''
 }
 </script>
