@@ -31,6 +31,18 @@
         </article>
       </div>
 
+      <section class="usage-explainer" aria-label="扣费说明">
+        <div>
+          <strong>扣费说明</strong>
+          <p>这里以后台已记录的真实用量为准。余额变化由模型、用量和后台费率计算，前端不决定价格。</p>
+        </div>
+        <ul>
+          <li>成功调用会在明细中显示实际扣费。</li>
+          <li>失败或未产生真实用量的请求会显示为未扣费，或不产生扣费记录。</li>
+          <li>扣费为 $0.0000 表示本条记录未实际扣费。</li>
+        </ul>
+      </section>
+
       <section class="usage-panel">
         <header class="panel-heading">
           <div>
@@ -107,7 +119,10 @@
                 <td>{{ formatUsageKind(row) }}</td>
                 <td class="model-cell">{{ row.model || '-' }}</td>
                 <td>{{ formatUsageAmount(row) }}</td>
-                <td>{{ formatCost(row.actual_cost) }}</td>
+                <td>
+                  <span>{{ formatCost(row.actual_cost) }}</span>
+                  <small v-if="isNoCharge(row)" class="usage-cost-note">未扣费</small>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -266,6 +281,10 @@ function formatCost(value: number | null | undefined) {
   return formatCurrency(cost, cost > 0 && cost < 0.01 ? 6 : 4)
 }
 
+function isNoCharge(row: UsageLog) {
+  return Number(row.actual_cost || 0) <= 0
+}
+
 function formatCurrency(value: number, digits: number) {
   return `$${Number(value || 0).toFixed(digits)}`
 }
@@ -306,7 +325,8 @@ function toDateKey(date: Date) {
 }
 
 .usage-summary-card,
-.usage-panel {
+.usage-panel,
+.usage-explainer {
   border: 1px solid var(--ssxz-border);
   background: var(--ssxz-surface);
   box-shadow: var(--ssxz-shadow);
@@ -379,6 +399,40 @@ function toDateKey(date: Date) {
 .usage-panel {
   overflow: hidden;
   border-radius: 1.25rem;
+}
+
+.usage-explainer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 1.4fr);
+  gap: 1rem;
+  align-items: start;
+  border-radius: 1.25rem;
+  padding: 1rem;
+}
+
+.usage-explainer strong {
+  display: block;
+  color: var(--ssxz-text-primary);
+  font-size: 0.96rem;
+  font-weight: 850;
+}
+
+.usage-explainer p,
+.usage-explainer li {
+  color: var(--ssxz-text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.usage-explainer p {
+  margin: 0.28rem 0 0;
+}
+
+.usage-explainer ul {
+  display: grid;
+  gap: 0.28rem;
+  margin: 0;
+  padding-left: 1.05rem;
 }
 
 .panel-heading {
@@ -546,8 +600,20 @@ function toDateKey(date: Date) {
   font-weight: 800;
 }
 
+.usage-cost-note {
+  display: block;
+  margin-top: 0.16rem;
+  color: var(--ssxz-text-muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
 @media (max-width: 860px) {
   .usage-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .usage-explainer {
     grid-template-columns: 1fr;
   }
 

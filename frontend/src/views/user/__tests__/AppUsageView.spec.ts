@@ -94,9 +94,24 @@ describe('AppUsageView', () => {
           image_size: '1024x1024',
           actual_cost: 0.88,
           created_at: '2026-06-18T08:00:00Z'
+        },
+        {
+          id: 8,
+          request_id: 'req-no-charge',
+          api_key_id: 1,
+          model: 'deepseek-v4-flash',
+          inbound_endpoint: '/v1/chat/completions',
+          input_tokens: 12,
+          output_tokens: 0,
+          cache_creation_tokens: 0,
+          cache_read_tokens: 0,
+          image_count: 0,
+          image_size: null,
+          actual_cost: 0,
+          created_at: '2026-06-18T08:01:00Z'
         }
       ],
-      total: 1,
+      total: 2,
       pages: 1
     })
     usageAPI.getDashboardTrend.mockResolvedValue({
@@ -130,10 +145,17 @@ describe('AppUsageView', () => {
     expect(text).toContain('$1.2345')
     expect(text).toContain('每月用量')
     expect(text).toContain('真实数据')
+    expect(text).toContain('扣费说明')
+    expect(text).toContain('后台已记录的真实用量')
+    expect(text).toContain('前端不决定价格')
+    expect(text).toContain('失败或未产生真实用量')
     expect(text).toContain('用量明细')
     expect(text).toContain('图片生成')
     expect(text).toContain('gpt-image-2')
     expect(text).toContain('2 张 · 1024x1024')
+    expect(text).toContain('deepseek-v4-flash')
+    expect(text).toContain('$0.0000')
+    expect(text).toContain('未扣费')
     expect(usageAPI.query).toHaveBeenCalledWith(expect.objectContaining({
       page: 1,
       page_size: 8
