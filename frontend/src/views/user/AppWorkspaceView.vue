@@ -62,7 +62,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import Icon from '@/components/icons/Icon.vue'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import { useUserCapabilities } from '@/composables/useUserCapabilities'
@@ -87,6 +87,7 @@ interface SectionContent {
 }
 
 const route = useRoute()
+const router = useRouter()
 const appStore = useAppStore()
 const draft = ref('')
 const selectedModelId = ref('')
@@ -100,6 +101,7 @@ const {
   loadCapabilities
 } = capabilities
 const defaultTextModel = capabilities.defaultTextModel ?? ref('')
+const ACTIVE_CONVERSATION_QUERY_KEY = 'conversation_id'
 
 const sectionKeys: readonly SectionKey[] = ['home', 'chat', 'image']
 
@@ -203,6 +205,10 @@ async function submitDraft() {
     draft.value = ''
     assets.clearPreviews()
     webSearchRequested.value = false
+    const activeConversationId = workspace.activeConversationId.value
+    if (activeConversationId !== null) {
+      await replaceActiveConversationQuery(activeConversationId)
+    }
   }
 }
 
@@ -211,6 +217,9 @@ async function selectConversation(id: number) {
   assets.clearPreviews()
   webSearchRequested.value = false
   await workspace.selectConversation(id)
+  if (workspace.activeConversationId.value === id) {
+    await replaceActiveConversationQuery(id)
+  }
 }
 
 async function startNewChat() {
@@ -218,6 +227,7 @@ async function startNewChat() {
   assets.clearPreviews()
   webSearchRequested.value = false
   await workspace.startNewChat()
+  await replaceActiveConversationQuery(null)
 }
 
 function toggleWebSearch() {
@@ -225,11 +235,35 @@ function toggleWebSearch() {
   webSearchRequested.value = !webSearchRequested.value
 }
 
+function routeConversationId() {
+  const raw = route.query?.[ACTIVE_CONVERSATION_QUERY_KEY]
+  const value = Array.isArray(raw) ? raw[0] : raw
+  if (typeof value !== 'string' || value.trim() === '') return null
+  const id = Number(value)
+  return Number.isInteger(id) && id > 0 ? id : null
+}
+
+async function replaceActiveConversationQuery(id: number | null) {
+  const query = { ...(route.query ?? {}) }
+  if (id === null) {
+    delete query[ACTIVE_CONVERSATION_QUERY_KEY]
+  } else {
+    query[ACTIVE_CONVERSATION_QUERY_KEY] = String(id)
+  }
+  await router.replace({ query })
+}
+
 onMounted(async () => {
   await Promise.all([
     loadCapabilities(),
     workspace.loadHistory()
   ])
+  const conversationId = routeConversationId()
+  if (conversationId === null || !workspace.backendEnabled.value) return
+  await workspace.selectConversation(conversationId)
+  if (workspace.activeConversationId.value !== conversationId) {
+    await replaceActiveConversationQuery(null)
+  }
 })
 
 watch(chatModels, (models) => {

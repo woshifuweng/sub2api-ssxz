@@ -5,7 +5,13 @@ import { createPinia, setActivePinia } from 'pinia'
 import { useAppStore } from '@/stores/app'
 
 const mocks = vi.hoisted(() => ({
-  route: { __v_isRef: true, value: { meta: { appSection: 'image' } } },
+  route: { __v_isRef: true, value: { meta: { appSection: 'image' }, path: '/app/chat', query: {} as Record<string, string> } },
+  routerReplace: vi.fn(async (location: { query?: Record<string, string> }) => {
+    mocks.route.value = {
+      ...mocks.route.value,
+      query: location.query ?? {}
+    }
+  }),
   chatModels: { __v_isRef: true, value: [
     { id: 'gpt-5.5', name: 'GPT-5.5', tier: 'premium', capabilities: ['text_chat'], modelCatalogSource: 'real_channel' },
     { id: 'gpt-5.4-mini', name: 'GPT-5.4-Mini', tier: 'standard', capabilities: ['text_chat'], modelCatalogSource: 'real_channel' }
@@ -22,7 +28,10 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('vue-router', () => ({
-  useRoute: () => mocks.route.value
+  useRoute: () => mocks.route.value,
+  useRouter: () => ({
+    replace: mocks.routerReplace
+  })
 }))
 
 vi.mock('@/composables/useUserCapabilities', () => ({
@@ -82,7 +91,8 @@ function mountWithAppStore() {
 
 describe('AppWorkspaceView interactions', () => {
   beforeEach(() => {
-    mocks.route.value = { meta: { appSection: 'image' } }
+    mocks.route.value = { meta: { appSection: 'image' }, path: '/app/chat', query: {} }
+    mocks.routerReplace.mockClear()
     mocks.chatModels.value = [
       { id: 'gpt-5.5', name: 'GPT-5.5', tier: 'premium', capabilities: ['text_chat'], modelCatalogSource: 'real_channel' },
       { id: 'gpt-5.4-mini', name: 'GPT-5.4-Mini', tier: 'standard', capabilities: ['text_chat'], modelCatalogSource: 'real_channel' }
