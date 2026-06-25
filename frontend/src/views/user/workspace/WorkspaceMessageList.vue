@@ -13,6 +13,7 @@
         <Icon :name="message.role === 'assistant' ? 'sparkles' : 'userCircle'" size="sm" />
       </div>
       <div class="message-bubble">
+        <p v-if="stateLabel(message)" class="message-state">{{ stateLabel(message) }}</p>
         <div
           v-if="message.messageType === 'image'"
           class="message-image-card"
@@ -40,7 +41,10 @@
 
 <script setup lang="ts">
 import Icon from '@/components/icons/Icon.vue'
-import type { WorkspaceMessage } from './useWorkspaceConversation'
+import {
+  WORKSPACE_GENERATING_MESSAGE,
+  type WorkspaceMessage
+} from './useWorkspaceConversation'
 
 defineProps<{
   messages: WorkspaceMessage[]
@@ -48,10 +52,21 @@ defineProps<{
 }>()
 
 function fallbackText(message: WorkspaceMessage) {
-  if (message.state === 'loading') return 'Image generation is still running.'
-  if (message.state === 'error') return 'Image generation failed. Please try again.'
+  if (message.state === 'sending') return 'Message is being sent.'
+  if (message.state === 'generating') return WORKSPACE_GENERATING_MESSAGE
+  if (message.state === 'failed' && message.messageType === 'image') {
+    return 'Image generation failed. Please try again.'
+  }
+  if (message.state === 'failed') return 'AI response failed. Please retry.'
   if (message.messageType === 'image' && message.attachments?.length) return 'Generated image'
   if (message.attachments?.length) return 'Image attached'
+  return ''
+}
+
+function stateLabel(message: WorkspaceMessage) {
+  if (message.state === 'sending') return 'Sending'
+  if (message.state === 'generating') return 'Generating'
+  if (message.state === 'failed') return 'Failed'
   return ''
 }
 </script>

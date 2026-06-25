@@ -10,6 +10,7 @@ vi.mock('@/components/icons/Icon.vue', () => ({
 }))
 
 import WorkspaceMessageList from '../WorkspaceMessageList.vue'
+import { WORKSPACE_GENERATING_MESSAGE } from '../useWorkspaceConversation'
 
 describe('WorkspaceMessageList', () => {
   it('renders assistant image messages as image cards', () => {
@@ -52,13 +53,44 @@ describe('WorkspaceMessageList', () => {
             messageType: 'image',
             role: 'assistant',
             content: '',
-            state: 'error'
+            state: 'failed'
           }
         ]
       }
     })
 
-    expect(wrapper.find('.message-image-card').attributes('data-image-state')).toBe('error')
+    expect(wrapper.find('.message-image-card').attributes('data-image-state')).toBe('failed')
+    expect(wrapper.text()).toContain('Failed')
     expect(wrapper.text()).toContain('Image generation failed. Please try again.')
+  })
+
+  it('renders text request progress states in the message stream', () => {
+    const wrapper = mount(WorkspaceMessageList, {
+      props: {
+        loading: false,
+        messages: [
+          {
+            id: 'local-user-1',
+            messageType: 'text',
+            role: 'user',
+            content: 'hello',
+            state: 'sending'
+          },
+          {
+            id: 'local-assistant-1',
+            messageType: 'text',
+            role: 'assistant',
+            content: WORKSPACE_GENERATING_MESSAGE,
+            state: 'generating'
+          }
+        ]
+      }
+    })
+
+    expect(wrapper.find('[data-state="sending"]').exists()).toBe(true)
+    expect(wrapper.find('[data-state="generating"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Sending')
+    expect(wrapper.text()).toContain('Generating')
+    expect(wrapper.text()).toContain(WORKSPACE_GENERATING_MESSAGE)
   })
 })
