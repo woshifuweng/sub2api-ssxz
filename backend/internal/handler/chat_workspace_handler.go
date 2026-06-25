@@ -25,6 +25,7 @@ const (
 	workspaceReasonModelUnavailable      = "WORKSPACE_MODEL_UNAVAILABLE"
 	workspaceReasonIntentUnavailable     = "WORKSPACE_INTENT_UNAVAILABLE"
 	workspaceReasonCapabilityUnavailable = "WORKSPACE_CAPABILITY_UNAVAILABLE"
+	workspaceReasonAttachmentsDisabled   = "WORKSPACE_ATTACHMENTS_DISABLED"
 	workspaceReasonInvalidMessage        = "WORKSPACE_INVALID_MESSAGE"
 	workspaceReasonServiceUnavailable    = "WORKSPACE_SERVICE_UNAVAILABLE"
 )
@@ -187,6 +188,8 @@ func writeChatWorkspaceError(c gatewayctx.GatewayContext, err error) {
 		writeChatWorkspaceStatusWithError(c, http.StatusBadRequest, "Intent is not available for workspace chat", workspaceReasonIntentUnavailable, err)
 	case errors.Is(err, service.ErrWorkspaceCapabilityDisabled):
 		writeChatWorkspaceStatusWithError(c, http.StatusBadRequest, "Capability is not available in this workspace phase", workspaceReasonCapabilityUnavailable, err)
+	case errors.Is(err, service.ErrWorkspaceAttachmentsDisabled):
+		writeChatWorkspaceStatusWithError(c, http.StatusBadRequest, "Attachments are disabled in workspace text beta", workspaceReasonAttachmentsDisabled, err)
 	case errors.Is(err, service.ErrWorkspaceInvalidMessage):
 		writeChatWorkspaceStatusWithError(c, http.StatusBadRequest, "Message is invalid", workspaceReasonInvalidMessage, err)
 	default:

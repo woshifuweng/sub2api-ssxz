@@ -348,7 +348,7 @@ func TestChatWorkspaceServiceRejectsUnsafePayloadsAndNonTextMessages(t *testing.
 			},
 		},
 	})
-	require.ErrorIs(t, err, ErrWorkspaceInvalidMessage)
+	require.ErrorIs(t, err, ErrWorkspaceAttachmentsDisabled)
 
 	_, err = svc.AppendMessage(context.Background(), 10, WorkspaceAppendMessageInput{
 		ConversationID: conversation.ID,
