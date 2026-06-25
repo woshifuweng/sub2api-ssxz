@@ -10,7 +10,10 @@ vi.mock('@/components/icons/Icon.vue', () => ({
 }))
 
 import WorkspaceMessageList from '../WorkspaceMessageList.vue'
-import { WORKSPACE_GENERATING_MESSAGE } from '../useWorkspaceConversation'
+import {
+  WORKSPACE_GENERATING_MESSAGE,
+  WORKSPACE_IMAGE_FAILED_MESSAGE
+} from '../useWorkspaceConversation'
 
 describe('WorkspaceMessageList', () => {
   it('renders assistant image messages as image cards', () => {
@@ -60,8 +63,8 @@ describe('WorkspaceMessageList', () => {
     })
 
     expect(wrapper.find('.message-image-card').attributes('data-image-state')).toBe('failed')
-    expect(wrapper.text()).toContain('Failed')
-    expect(wrapper.text()).toContain('Image generation failed. Please try again.')
+    expect(wrapper.text()).toContain('失败')
+    expect(wrapper.text()).toContain(WORKSPACE_IMAGE_FAILED_MESSAGE)
   })
 
   it('renders text request progress states in the message stream', () => {
@@ -89,8 +92,8 @@ describe('WorkspaceMessageList', () => {
 
     expect(wrapper.find('[data-state="sending"]').exists()).toBe(true)
     expect(wrapper.find('[data-state="generating"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Sending')
-    expect(wrapper.text()).toContain('Generating')
+    expect(wrapper.text()).toContain('发送中')
+    expect(wrapper.text()).toContain('生成中')
     expect(wrapper.text()).toContain(WORKSPACE_GENERATING_MESSAGE)
   })
 })
