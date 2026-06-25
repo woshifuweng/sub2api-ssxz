@@ -334,6 +334,24 @@ func TestChatWorkspaceServiceRejectsUnsafePayloadsAndNonTextMessages(t *testing.
 
 	_, err = svc.AppendMessage(context.Background(), 10, WorkspaceAppendMessageInput{
 		ConversationID: conversation.ID,
+		MessageType:    WorkspaceMessageTypeText,
+		Role:           WorkspaceRoleUser,
+		Content:        "describe this image",
+		Model:          "gpt-5.5",
+		Intent:         WorkspaceIntentChat,
+		Metadata: map[string]any{
+			"assets": []any{
+				map[string]any{
+					"id":  "asset-1",
+					"url": "https://cdn.example.test/user-upload.png",
+				},
+			},
+		},
+	})
+	require.ErrorIs(t, err, ErrWorkspaceInvalidMessage)
+
+	_, err = svc.AppendMessage(context.Background(), 10, WorkspaceAppendMessageInput{
+		ConversationID: conversation.ID,
 		MessageType:    "attachment",
 		Role:           WorkspaceRoleUser,
 		Content:        "hello",

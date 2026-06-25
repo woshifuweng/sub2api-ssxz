@@ -190,7 +190,9 @@ func (s *ChatWorkspaceService) AppendMessage(ctx context.Context, userID int64, 
 	if input.MessageType != WorkspaceMessageTypeText || input.Role != WorkspaceRoleUser || input.Content == "" {
 		return nil, ErrWorkspaceInvalidMessage
 	}
-	if containsUnsafeInlinePayload(input.Content) || metadataContainsUnsafeInlinePayload(input.Metadata) {
+	if containsUnsafeInlinePayload(input.Content) ||
+		metadataContainsUnsafeInlinePayload(input.Metadata) ||
+		metadataContainsUserAssetPayload(input.Metadata) {
 		return nil, ErrWorkspaceInvalidMessage
 	}
 	if !isAllowedWorkspaceModel(input.Model) {
@@ -538,6 +540,38 @@ func metadataContainsUnsafeInlinePayload(metadata map[string]any) bool {
 		}
 	}
 	return false
+}
+
+func metadataContainsUserAssetPayload(metadata map[string]any) bool {
+	for key, value := range metadata {
+		if isWorkspaceUserAssetMetadataKey(key) {
+			return true
+		}
+		if nested, ok := value.(map[string]any); ok && metadataContainsUserAssetPayload(nested) {
+			return true
+		}
+		if items, ok := value.([]any); ok {
+			for _, item := range items {
+				if nested, ok := item.(map[string]any); ok && metadataContainsUserAssetPayload(nested) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func isWorkspaceUserAssetMetadataKey(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(key)) {
+	case "asset", "assets", "asset_id", "asset_ids", "assetid", "assetids",
+		"attachment", "attachments", "attachment_id", "attachment_ids",
+		"file", "files", "file_id", "file_ids",
+		"image", "images", "image_url", "image_urls", "imageurl", "imageurls",
+		"preview_url", "preview_urls", "url", "urls":
+		return true
+	default:
+		return false
+	}
 }
 
 func anyContainsUnsafeInlinePayload(value any) bool {
