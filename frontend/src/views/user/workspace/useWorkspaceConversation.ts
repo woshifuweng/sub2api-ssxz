@@ -14,7 +14,8 @@ import {
 } from '@/api/chatWorkspace'
 
 export type WorkspaceIntent = 'home' | 'chat' | 'image'
-export type WorkspaceMessageState = 'loading' | 'error'
+export type WorkspaceRequestPhase = 'idle' | 'sending' | 'generating' | 'success' | 'failed'
+export type WorkspaceMessageState = 'sending' | 'generating' | 'success' | 'failed'
 
 export const WORKSPACE_BACKEND_UNAVAILABLE_MESSAGE =
   '统一工作台后端正在接入，暂不可发送。当前仅展示工作台入口。'
@@ -29,6 +30,8 @@ export const WORKSPACE_PROVIDER_FAILED_MESSAGE =
   '消息可能已提交，但 AI 回复失败，请稍后重试或切换模型。'
 export const WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE =
   '消息已提交，但刷新会话失败，请刷新页面后查看。'
+
+export const WORKSPACE_GENERATING_MESSAGE = 'AI response is being generated...'
 
 export interface WorkspaceAttachment {
   id: string
@@ -71,6 +74,7 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
   const loadingHistory = ref(false)
   const loadingMessages = ref(false)
   const sending = ref(false)
+  const requestPhase = ref<WorkspaceRequestPhase>('idle')
   const errorMessage = ref('')
 
   const activeConversation = computed(() =>
@@ -84,6 +88,7 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
       activeConversationId.value = null
       loadingHistory.value = false
       loadingMessages.value = false
+      requestPhase.value = 'idle'
       return
     }
 
@@ -101,6 +106,7 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
       conversations.value = []
       activeConversationId.value = null
       messages.value = []
+      requestPhase.value = 'failed'
       errorMessage.value = WORKSPACE_HISTORY_FAILED_MESSAGE
     } finally {
       loadingHistory.value = false
@@ -110,6 +116,7 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
 
   async function selectConversation(id: number) {
     if (!backendEnabled.value) {
+      requestPhase.value = 'failed'
       errorMessage.value = WORKSPACE_BACKEND_UNAVAILABLE_MESSAGE
       return
     }
@@ -121,9 +128,11 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
       const nextMessages = await listMessages(id)
       activeConversationId.value = id
       messages.value = nextMessages.map(mapChatMessageToWorkspaceMessage)
+      requestPhase.value = 'idle'
     } catch {
       activeConversationId.value = null
       messages.value = []
+      requestPhase.value = 'failed'
       errorMessage.value = WORKSPACE_MESSAGES_FAILED_MESSAGE
     } finally {
       loadingMessages.value = false
@@ -134,6 +143,7 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
     activeConversationId.value = null
     messages.value = []
     errorMessage.value = ''
+    requestPhase.value = 'idle'
   }
 
   async function sendTextMessage(input: SendTextMessageInput) {
@@ -142,18 +152,22 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
     if (sending.value) return false
 
     if (!backendEnabled.value) {
+      requestPhase.value = 'failed'
       errorMessage.value = WORKSPACE_BACKEND_UNAVAILABLE_MESSAGE
       return false
     }
 
     if (!isTextChatIntent(input.intent) || input.attachments.length > 0) {
+      requestPhase.value = 'failed'
       errorMessage.value = WORKSPACE_TEXT_ONLY_MESSAGE
       return false
     }
 
     sending.value = true
+    requestPhase.value = 'sending'
     errorMessage.value = ''
     let conversationId = activeConversationId.value
+    let localRequestId = ''
     try {
       if (conversationId === null) {
         const conversation = await createConversation({ title: deriveConversationTitle(text) })
@@ -161,6 +175,10 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
         activeConversationId.value = conversation.id
         upsertConversation(conversation)
       }
+
+      localRequestId = createWorkspaceRequestId()
+      showLocalRequestProgress(localRequestId, conversationId, text, input.model)
+      requestPhase.value = 'generating'
 
       await appendMessage(conversationId, {
         message_type: CHAT_MESSAGE_TYPE_TEXT,
@@ -174,16 +192,34 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
       try {
         nextMessages = await listMessages(conversationId)
       } catch {
+        requestPhase.value = 'failed'
         errorMessage.value = WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE
+        if (localRequestId) {
+          markLocalRequestFailed(localRequestId, WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE, 'success')
+        }
         return false
       }
       messages.value = nextMessages.map(mapChatMessageToWorkspaceMessage)
+      requestPhase.value = 'success'
       await refreshConversationList()
       return true
     } catch (error) {
-      errorMessage.value = workspaceSendFailureMessage(error)
+      const failureMessage = workspaceSendFailureMessage(error)
+      requestPhase.value = 'failed'
+      errorMessage.value = failureMessage
       if (conversationId !== null) {
-        await refreshMessagesAfterFailedSend(conversationId)
+        const refreshedMessages = await refreshMessagesAfterFailedSend(conversationId)
+        if (refreshedMessages && shouldShowAssistantFailurePlaceholder(error, refreshedMessages)) {
+          appendLocalAssistantFailure(
+            conversationId,
+            localRequestId || createWorkspaceRequestId(),
+            failureMessage
+          )
+        } else if (!refreshedMessages && localRequestId) {
+          markLocalRequestFailed(localRequestId, failureMessage)
+        }
+      } else if (localRequestId) {
+        markLocalRequestFailed(localRequestId, failureMessage)
       }
       return false
     } finally {
@@ -199,14 +235,109 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
     }
   }
 
-  async function refreshMessagesAfterFailedSend(conversationId: number) {
+  async function refreshMessagesAfterFailedSend(conversationId: number): Promise<WorkspaceMessage[] | null> {
     try {
       const nextMessages = await listMessages(conversationId)
-      messages.value = nextMessages.map(mapChatMessageToWorkspaceMessage)
+      const workspaceMessages = nextMessages.map(mapChatMessageToWorkspaceMessage)
+      messages.value = workspaceMessages
       await refreshConversationList()
+      return workspaceMessages
     } catch {
       // Keep the original send error; refresh is only a recovery attempt.
+      return null
     }
+  }
+
+  function showLocalRequestProgress(
+    requestId: string,
+    conversationId: number,
+    text: string,
+    model: string
+  ) {
+    const createdAt = new Date().toISOString()
+    messages.value = [
+      ...messages.value,
+      {
+        id: `local-user-${requestId}`,
+        conversationId,
+        messageType: CHAT_MESSAGE_TYPE_TEXT,
+        role: 'user',
+        content: text,
+        state: 'sending',
+        metadata: {
+          local_request_id: requestId,
+          request_phase: 'sending',
+          model
+        },
+        createdAt
+      },
+      {
+        id: `local-assistant-${requestId}`,
+        conversationId,
+        messageType: CHAT_MESSAGE_TYPE_TEXT,
+        role: 'assistant',
+        content: WORKSPACE_GENERATING_MESSAGE,
+        state: 'generating',
+        metadata: {
+          local_request_id: requestId,
+          request_phase: 'generating',
+          model
+        },
+        createdAt
+      }
+    ]
+  }
+
+  function markLocalRequestFailed(
+    requestId: string,
+    failureMessage: string,
+    userState: WorkspaceMessageState = 'failed'
+  ) {
+    messages.value = messages.value.map((message) => {
+      if (message.id === `local-user-${requestId}`) {
+        return {
+          ...message,
+          state: userState,
+          metadata: {
+            ...message.metadata,
+            request_phase: userState
+          }
+        }
+      }
+      if (message.id !== `local-assistant-${requestId}`) return message
+      return {
+        ...message,
+        content: failureMessage,
+        state: 'failed' as const,
+        metadata: {
+          ...message.metadata,
+          request_phase: 'failed'
+        }
+      }
+    })
+  }
+
+  function appendLocalAssistantFailure(
+    conversationId: number,
+    requestId: string,
+    failureMessage: string
+  ) {
+    messages.value = [
+      ...messages.value,
+      {
+        id: `local-assistant-failed-${requestId}`,
+        conversationId,
+        messageType: CHAT_MESSAGE_TYPE_TEXT,
+        role: 'assistant',
+        content: failureMessage,
+        state: 'failed',
+        metadata: {
+          local_request_id: requestId,
+          request_phase: 'failed'
+        },
+        createdAt: new Date().toISOString()
+      }
+    ]
   }
 
   function upsertConversation(conversation: ChatConversation) {
@@ -225,6 +356,7 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
     loadingHistory,
     loadingMessages,
     messages,
+    requestPhase,
     sending,
     loadHistory,
     selectConversation,
@@ -272,6 +404,39 @@ function deriveConversationTitle(text: string) {
 
 function isTextChatIntent(intent: WorkspaceIntent) {
   return intent === 'home' || intent === 'chat'
+}
+
+function createWorkspaceRequestId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function shouldShowAssistantFailurePlaceholder(error: unknown, messages: WorkspaceMessage[]) {
+  if (!isAssistantResponseFailure(error)) return false
+  const lastUserIndex = findLastMessageIndex(messages, (message) => message.role === 'user')
+  if (lastUserIndex < 0) return false
+  return !messages.slice(lastUserIndex + 1).some((message) => message.role === 'assistant')
+}
+
+function isAssistantResponseFailure(error: unknown) {
+  const code = chatWorkspaceErrorCode(error)
+  const message = chatWorkspaceErrorMessage(error).toLowerCase()
+  return (
+    code === 'WORKSPACE_SERVICE_UNAVAILABLE' ||
+    message.includes('workspace service unavailable') ||
+    message.includes('provider is not connected') ||
+    message.includes('provider unavailable') ||
+    message.includes('ai response provider is not connected')
+  )
+}
+
+function findLastMessageIndex(
+  messages: WorkspaceMessage[],
+  predicate: (message: WorkspaceMessage) => boolean
+) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (predicate(messages[index])) return index
+  }
+  return -1
 }
 
 function workspaceSendFailureMessage(error: unknown) {
@@ -324,8 +489,8 @@ function chatWorkspaceErrorMessage(error: unknown) {
 
 function mapWorkspaceMessageState(message: ChatMessage): WorkspaceMessageState | undefined {
   const status = metadataString(message.metadata, 'status') || message.status || ''
-  if (status === 'pending') return 'loading'
-  if (status === 'failed') return 'error'
+  if (status === 'pending') return message.role === 'user' ? 'sending' : 'generating'
+  if (status === 'failed') return 'failed'
   return undefined
 }
 

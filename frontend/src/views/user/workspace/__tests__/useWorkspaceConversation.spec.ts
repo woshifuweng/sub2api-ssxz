@@ -34,12 +34,23 @@ import {
   WORKSPACE_SEND_FAILED_MESSAGE,
   WORKSPACE_TEXT_ONLY_MESSAGE,
   WORKSPACE_BACKEND_UNAVAILABLE_MESSAGE,
+  WORKSPACE_GENERATING_MESSAGE,
   WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE,
   useWorkspaceConversation
 } from '../useWorkspaceConversation'
 
 const unavailableAssistantContent =
   '当前模型暂不可用，请切换其他模型，或联系管理员检查模型、API Key、分组和上游账号配置。'
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (error: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
+}
 
 describe('useWorkspaceConversation', () => {
   beforeEach(() => {
@@ -254,7 +265,7 @@ describe('useWorkspaceConversation', () => {
       {
         persistedId: 23,
         messageType: 'image',
-        state: 'error',
+        state: 'failed',
         content: 'Image generation failed. Please try again.'
       }
     ])
@@ -353,6 +364,102 @@ describe('useWorkspaceConversation', () => {
     expect(apiClient.post).not.toHaveBeenCalled()
   })
 
+  it('shows local sending and generating states while a text request is in flight', async () => {
+    const append = deferred<unknown>()
+    api.listMessages
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 61,
+          conversation_id: 44,
+          message_type: 'text',
+          role: 'user',
+          content: 'follow up',
+          model: 'gpt-5.5',
+          intent: 'chat',
+          status: 'completed',
+          created_at: '2026-06-10T00:00:02Z',
+          updated_at: '2026-06-10T00:00:02Z'
+        },
+        {
+          id: 62,
+          conversation_id: 44,
+          message_type: 'text',
+          role: 'assistant',
+          content: 'assistant reply',
+          model: 'gpt-5.5',
+          intent: 'chat',
+          status: 'completed',
+          created_at: '2026-06-10T00:00:03Z',
+          updated_at: '2026-06-10T00:00:03Z'
+        }
+      ])
+    api.appendMessage.mockReturnValueOnce(append.promise)
+    api.listConversations.mockResolvedValue([])
+    const workspace = useWorkspaceConversation({ backendEnabled: true })
+
+    await workspace.selectConversation(44)
+    const pendingSend = workspace.sendTextMessage({
+      text: 'follow up',
+      model: 'gpt-5.5',
+      intent: 'chat',
+      attachments: []
+    })
+
+    expect(workspace.requestPhase.value).toBe('generating')
+    expect(workspace.sending.value).toBe(true)
+    expect(workspace.messages.value).toMatchObject([
+      {
+        role: 'user',
+        content: 'follow up',
+        state: 'sending',
+        metadata: {
+          request_phase: 'sending'
+        }
+      },
+      {
+        role: 'assistant',
+        content: WORKSPACE_GENERATING_MESSAGE,
+        state: 'generating',
+        metadata: {
+          request_phase: 'generating'
+        }
+      }
+    ])
+
+    append.resolve({
+      id: 61,
+      conversation_id: 44,
+      message_type: 'text',
+      role: 'user',
+      content: 'follow up',
+      model: 'gpt-5.5',
+      intent: 'chat',
+      status: 'completed',
+      created_at: '2026-06-10T00:00:02Z',
+      updated_at: '2026-06-10T00:00:02Z'
+    })
+    const result = await pendingSend
+
+    expect(result).toBe(true)
+    expect(workspace.requestPhase.value).toBe('success')
+    expect(workspace.sending.value).toBe(false)
+    expect(workspace.messages.value).toMatchObject([
+      {
+        persistedId: 61,
+        role: 'user',
+        content: 'follow up',
+        state: undefined
+      },
+      {
+        persistedId: 62,
+        role: 'assistant',
+        content: 'assistant reply',
+        state: undefined
+      }
+    ])
+  })
+
   it('keeps a safe error state if message refresh fails after send', async () => {
     api.createConversation.mockResolvedValue({
       id: 33,
@@ -386,7 +493,19 @@ describe('useWorkspaceConversation', () => {
     expect(result).toBe(false)
     expect(api.appendMessage).toHaveBeenCalled()
     expect(api.listMessages).toHaveBeenCalledWith(33)
-    expect(workspace.messages.value).toHaveLength(0)
+    expect(workspace.requestPhase.value).toBe('failed')
+    expect(workspace.messages.value).toMatchObject([
+      {
+        role: 'user',
+        content: 'sync fail',
+        state: 'success'
+      },
+      {
+        role: 'assistant',
+        content: WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE,
+        state: 'failed'
+      }
+    ])
     expect(workspace.errorMessage.value).toBe(WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE)
     expect(api.createImageTask).not.toHaveBeenCalled()
     expect(apiClient.post).not.toHaveBeenCalled()
@@ -492,11 +611,17 @@ describe('useWorkspaceConversation', () => {
 
     expect(result).toBe(false)
     expect(api.listMessages).toHaveBeenCalledWith(37)
+    expect(workspace.requestPhase.value).toBe('failed')
     expect(workspace.messages.value).toMatchObject([
       {
         persistedId: 47,
         role: 'user',
         content: 'provider fail'
+      },
+      {
+        role: 'assistant',
+        content: WORKSPACE_PROVIDER_FAILED_MESSAGE,
+        state: 'failed'
       }
     ])
     expect(workspace.errorMessage.value).toBe(WORKSPACE_PROVIDER_FAILED_MESSAGE)
@@ -540,11 +665,17 @@ describe('useWorkspaceConversation', () => {
 
     expect(result).toBe(false)
     expect(api.listMessages).toHaveBeenCalledWith(39)
+    expect(workspace.requestPhase.value).toBe('failed')
     expect(workspace.messages.value).toMatchObject([
       {
         persistedId: 49,
         role: 'user',
         content: 'provider placeholder'
+      },
+      {
+        role: 'assistant',
+        content: WORKSPACE_PROVIDER_FAILED_MESSAGE,
+        state: 'failed'
       }
     ])
     expect(workspace.errorMessage.value).toBe(WORKSPACE_PROVIDER_FAILED_MESSAGE)
@@ -603,7 +734,19 @@ describe('useWorkspaceConversation', () => {
 
     expect(result).toBe(false)
     expect(api.listMessages).toHaveBeenCalledWith(38)
-    expect(workspace.messages.value).toHaveLength(0)
+    expect(workspace.requestPhase.value).toBe('failed')
+    expect(workspace.messages.value).toMatchObject([
+      {
+        role: 'user',
+        content: 'unknown fail',
+        state: 'failed'
+      },
+      {
+        role: 'assistant',
+        content: WORKSPACE_SEND_FAILED_MESSAGE,
+        state: 'failed'
+      }
+    ])
     expect(workspace.errorMessage.value).toBe(WORKSPACE_SEND_FAILED_MESSAGE)
   })
 

@@ -381,8 +381,20 @@ watch(webSearchAvailable, (available) => {
   box-shadow: 0 16px 45px color-mix(in srgb, #0f172a 8%, transparent);
 }
 
-:deep(.message-row[data-state='error'] .message-bubble) {
+:deep(.message-row[data-state='failed'] .message-bubble) {
   border-color: color-mix(in srgb, #ef4444 34%, transparent);
+}
+
+:deep(.message-row[data-state='sending'] .message-bubble),
+:deep(.message-row[data-state='generating'] .message-bubble) {
+  border-color: color-mix(in srgb, var(--ssxz-primary) 28%, transparent);
+}
+
+:deep(.message-state) {
+  margin: 0 0 0.35rem;
+  color: var(--ssxz-subtle);
+  font-size: 0.74rem;
+  line-height: 1.3;
 }
 
 :deep(.message-bubble p) {
