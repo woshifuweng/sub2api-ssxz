@@ -109,7 +109,9 @@ describe('AppWorkspaceView interactions', () => {
     expect(mocks.apiClient.post).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('GPT-5.5')
     expect(wrapper.text()).toContain('文本对话')
-    expect(wrapper.text()).toContain('直接输入问题')
+    expect(wrapper.text()).toContain('图片理解')
+    expect(wrapper.text()).toContain('多图分析')
+    expect(wrapper.text()).toContain('AI 作图页')
     expect(wrapper.text()).not.toContain('上传参考图')
     expect(wrapper.text()).not.toContain('生成、修改的画面')
 
@@ -177,6 +179,8 @@ describe('AppWorkspaceView interactions', () => {
     await nextTick()
 
     expect(wrapper.text()).toContain(WORKSPACE_TEXT_ONLY_MESSAGE)
+    expect(wrapper.text()).toContain('图片理解')
+    expect(wrapper.text()).toContain('多图分析')
     expect(wrapper.find('[data-testid="workspace-asset-previews"]').exists()).toBe(false)
     expect(mocks.createObjectURL).not.toHaveBeenCalled()
     expect(mocks.apiClient.post).not.toHaveBeenCalled()
@@ -192,6 +196,27 @@ describe('AppWorkspaceView interactions', () => {
     wrapper.findComponent(WorkspaceComposer).vm.$emit('unsupported-files', [file])
     await nextTick()
 
+    expect(wrapper.text()).toContain(WORKSPACE_TEXT_ONLY_MESSAGE)
+    expect(wrapper.find('[data-testid="workspace-asset-previews"]').exists()).toBe(false)
+    expect(mocks.createObjectURL).not.toHaveBeenCalled()
+    expect(mocks.apiClient.post).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('rejects dragged image files in text beta without creating local previews', async () => {
+    const wrapper = mountWithAppStore()
+    await nextTick()
+    const file = new File(['image'], 'dragged-sample.png', { type: 'image/png' })
+    const dropEvent = new Event('drop', { bubbles: true, cancelable: true })
+    Object.defineProperty(dropEvent, 'dataTransfer', {
+      value: { files: [file] }
+    })
+
+    wrapper.get('form').element.dispatchEvent(dropEvent)
+    await nextTick()
+
+    expect(dropEvent.defaultPrevented).toBe(true)
     expect(wrapper.text()).toContain(WORKSPACE_TEXT_ONLY_MESSAGE)
     expect(wrapper.find('[data-testid="workspace-asset-previews"]').exists()).toBe(false)
     expect(mocks.createObjectURL).not.toHaveBeenCalled()
