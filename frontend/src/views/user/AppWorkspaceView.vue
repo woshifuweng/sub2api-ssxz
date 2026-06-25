@@ -140,6 +140,9 @@ const textBetaMode = computed(() => hasChat.value)
 const activeModelLabel = computed(() =>
   chatModels.value.find((model) => model.id === activeChatModel.value)?.name || 'Deepseek-V4-Flash'
 )
+const textBetaCapabilityCopy = computed(() =>
+  `当前开放 ${activeModelLabel.value} 文本对话。图片理解和多图分析暂未接入。`
+)
 const workspaceIntent = computed<WorkspaceIntent>(() =>
   textBetaMode.value ? 'chat' : activeSection.value
 )
@@ -147,7 +150,7 @@ const activeContent = computed<SectionContent>(() => {
   if (textBetaMode.value) {
     return {
       shellTitle: 'SSXZ AI',
-      shellSubtitle: `当前开放 ${activeModelLabel.value} 文本对话。`,
+      shellSubtitle: textBetaCapabilityCopy.value,
       eyebrow: '文本对话 beta',
       icon: 'chat'
     }
@@ -155,7 +158,7 @@ const activeContent = computed<SectionContent>(() => {
   return sectionContent[activeSection.value]
 })
 const emptyStateCopy = computed(() => {
-  if (textBetaMode.value) return `当前开放 ${activeModelLabel.value} 文本对话。直接输入问题，开始对话。`
+  if (textBetaMode.value) return `${textBetaCapabilityCopy.value} 需要图片生成请到 AI 作图页。`
   if (activeSection.value === 'image') return '输入你想处理的图像需求。'
   if (activeSection.value === 'chat') return '输入问题后，这段对话会进入左侧历史，刷新页面也不会丢失。'
   return '直接输入问题，开始对话。'
