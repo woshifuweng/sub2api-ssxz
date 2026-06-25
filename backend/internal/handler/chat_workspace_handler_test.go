@@ -153,9 +153,10 @@ func TestChatWorkspaceHandlerRejectsUserAssetMetadataWithoutLeakingInternals(t *
 	require.Equal(t, http.StatusBadRequest, appendRec.Code)
 	var errorEnvelope chatWorkspaceErrorEnvelope
 	require.NoError(t, json.Unmarshal(appendRec.Body.Bytes(), &errorEnvelope))
-	require.Equal(t, workspaceReasonInvalidMessage, errorEnvelope.Reason)
+	require.Equal(t, workspaceReasonAttachmentsDisabled, errorEnvelope.Reason)
 	require.NotEmpty(t, errorEnvelope.Metadata["request_id"])
 	require.NotEmpty(t, errorEnvelope.Metadata["client_request_id"])
+	require.Contains(t, appendRec.Body.String(), "Attachments are disabled")
 	require.NotContains(t, appendRec.Body.String(), "SQL")
 	require.NotContains(t, appendRec.Body.String(), "provider")
 	require.NotContains(t, appendRec.Body.String(), "Authorization")

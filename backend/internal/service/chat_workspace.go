@@ -34,6 +34,7 @@ var (
 	ErrWorkspaceInvalidModel         = errors.New("workspace model is not available")
 	ErrWorkspaceInvalidIntent        = errors.New("workspace intent is not available")
 	ErrWorkspaceInvalidMessage       = errors.New("workspace message is invalid")
+	ErrWorkspaceAttachmentsDisabled  = errors.New("workspace attachments are disabled")
 	ErrWorkspaceCapabilityDisabled   = errors.New("workspace capability is disabled")
 )
 
@@ -190,10 +191,11 @@ func (s *ChatWorkspaceService) AppendMessage(ctx context.Context, userID int64, 
 	if input.MessageType != WorkspaceMessageTypeText || input.Role != WorkspaceRoleUser || input.Content == "" {
 		return nil, ErrWorkspaceInvalidMessage
 	}
-	if containsUnsafeInlinePayload(input.Content) ||
-		metadataContainsUnsafeInlinePayload(input.Metadata) ||
-		metadataContainsUserAssetPayload(input.Metadata) {
+	if containsUnsafeInlinePayload(input.Content) || metadataContainsUnsafeInlinePayload(input.Metadata) {
 		return nil, ErrWorkspaceInvalidMessage
+	}
+	if metadataContainsUserAssetPayload(input.Metadata) {
+		return nil, ErrWorkspaceAttachmentsDisabled
 	}
 	if !isAllowedWorkspaceModel(input.Model) {
 		return nil, ErrWorkspaceInvalidModel

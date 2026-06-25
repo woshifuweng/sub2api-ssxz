@@ -423,6 +423,36 @@ describe('useWorkspaceConversation', () => {
     expect(workspace.errorMessage.value).not.toBe(WORKSPACE_SEND_FAILED_MESSAGE)
   })
 
+  it('shows the text-only guidance when the backend rejects attachment metadata', async () => {
+    api.createConversation.mockResolvedValue({
+      id: 36,
+      title: 'describe image',
+      status: 'active',
+      created_at: '2026-06-10T00:00:00Z',
+      updated_at: '2026-06-10T00:00:00Z'
+    })
+    api.appendMessage.mockRejectedValue({
+      status: 400,
+      code: 'WORKSPACE_ATTACHMENTS_DISABLED',
+      message: 'Attachments are disabled in workspace text beta'
+    })
+    api.listMessages.mockResolvedValue([])
+    api.listConversations.mockResolvedValue([])
+    const workspace = useWorkspaceConversation({ backendEnabled: true })
+
+    const result = await workspace.sendTextMessage({
+      text: 'describe image',
+      model: 'gpt-5.5',
+      intent: 'chat',
+      attachments: []
+    })
+
+    expect(result).toBe(false)
+    expect(api.appendMessage).toHaveBeenCalled()
+    expect(api.listMessages).toHaveBeenCalledWith(36)
+    expect(workspace.errorMessage.value).toBe(WORKSPACE_TEXT_ONLY_MESSAGE)
+  })
+
   it('refreshes persisted messages when the AI response fails after the user message is submitted', async () => {
     api.createConversation.mockResolvedValue({
       id: 37,

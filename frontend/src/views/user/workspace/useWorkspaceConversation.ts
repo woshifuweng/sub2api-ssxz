@@ -286,8 +286,10 @@ function workspaceSendFailureMessage(error: unknown) {
   }
   if (
     code === 'WORKSPACE_CAPABILITY_UNAVAILABLE' ||
+    code === 'WORKSPACE_ATTACHMENTS_DISABLED' ||
     message.includes('capability is not available') ||
-    message.includes('capability unavailable')
+    message.includes('capability unavailable') ||
+    message.includes('attachments are disabled')
   ) {
     return WORKSPACE_TEXT_ONLY_MESSAGE
   }
