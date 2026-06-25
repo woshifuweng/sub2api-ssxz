@@ -95,6 +95,44 @@ func TestWorkspaceSub2APITextBridgeRunsForRealChannelDeepSeekTextModel(t *testin
 	require.False(t, userMessageBills)
 }
 
+func TestProvideChatWorkspaceServiceWithSub2APITextBridgeKillSwitchBlocksBridge(t *testing.T) {
+	cfg := testWorkspaceSelectedModelCatalogRealImageConfig()
+	gateConfig := workspaceTextProviderSafeBetaConfig()
+	gateConfig.Workspace.TextProvider.KillSwitch = true
+	gateConfig.Workspace.TextProvider.TestProviderLabel = "deepseek-staging"
+	gateConfig.Workspace.TextProvider.LowCostModelAllowlist = []string{"deepseek-v4-flash"}
+	gateConfig.Workspace.TextProvider.BetaAllowlist.AllowedProviderLabels = []string{"deepseek-staging"}
+	gateConfig.Workspace.TextProvider.BetaAllowlist.AllowedModels = []string{"deepseek-v4-flash"}
+	cfg.Workspace.TextProvider = gateConfig.Workspace.TextProvider
+	repo := newMemoryChatWorkspaceRepo()
+	bridge := &recordingWorkspaceSub2APITextBridge{}
+	svc := ProvideChatWorkspaceServiceWithSub2APITextBridge(repo, cfg, testWorkspaceSelectedModelChannelLister{
+		channels: []AvailableChannel{testWorkspaceSelectedModelDeepSeekChannel(10)},
+	}, bridge, nil)
+	conversation, err := svc.CreateConversation(context.Background(), 1, WorkspaceCreateConversationInput{})
+	require.NoError(t, err)
+
+	_, assistantMessage, err := svc.AppendMessageWithAssistantResponse(context.Background(), 1, WorkspaceAppendMessageInput{
+		ConversationID:  conversation.ID,
+		MessageType:     WorkspaceMessageTypeText,
+		Role:            WorkspaceRoleUser,
+		Content:         "kill switch should stop provider bridge",
+		Model:           "deepseek-v4-flash",
+		Intent:          WorkspaceIntentChat,
+		AllowedGroupIDs: []int64{10},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, assistantMessage)
+	require.Zero(t, bridge.calls)
+	require.Equal(t, WorkspaceAssistantUnavailableContent, assistantMessage.Content)
+	require.Equal(t, WorkspaceTextProviderGateReasonKillSwitchActive, assistantMessage.Metadata["bridge_block_reason"])
+	require.Equal(t, false, assistantMessage.Metadata["provider_called"])
+	require.Equal(t, false, assistantMessage.Metadata["billing_touched"])
+	require.Equal(t, false, assistantMessage.Metadata["provider_routing_touched"])
+	require.Contains(t, assistantMessage.Metadata["execution_block_reasons"], WorkspaceTextProviderGateReasonKillSwitchActive)
+}
+
 func TestWorkspaceSub2APITextBridgeDoesNotCallWebSearchWhenNotRequested(t *testing.T) {
 	repo := newMemoryChatWorkspaceRepo()
 	resolver := NewWorkspaceSelectedModelChannelCatalogResolver(testWorkspaceSelectedModelCatalogRealImageConfig(), testWorkspaceSelectedModelChannelLister{

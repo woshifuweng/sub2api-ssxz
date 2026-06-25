@@ -15,6 +15,7 @@ const (
 	WorkspaceSub2APITextBridgeBlockReasonNotRealChannel = "selected_model_not_real_channel"
 	WorkspaceSub2APITextBridgeBlockReasonNotTextChat    = "planned_capability_not_text_chat"
 	WorkspaceSub2APITextBridgeBlockReasonFakeModel      = "selected_model_fake_or_test_only"
+	WorkspaceSub2APITextBridgeBlockReasonGateDisabled   = "text_provider_gate_disabled"
 
 	WorkspaceSub2APITextBridgeMissingAPIKeyContent   = "当前账户没有可用 API Key，请先在开发者 API 中创建或启用 API Key 后再使用工作台。"
 	WorkspaceSub2APITextBridgeModelNotAllowedContent = "当前 API Key 不允许使用所选模型，请检查开发者 API Key 的模型权限。"
@@ -60,8 +61,9 @@ type WorkspaceSub2APITextBridgeResult struct {
 }
 
 type WorkspaceSub2APITextBridgeResponder struct {
-	Bridge    WorkspaceSub2APITextBridge
-	WebSearch WorkspaceWebSearchService
+	Bridge           WorkspaceSub2APITextBridge
+	WebSearch        WorkspaceWebSearchService
+	TextProviderGate *WorkspaceTextProviderGateDecision
 }
 
 func NewChatWorkspaceServiceWithSub2APITextBridge(repo ChatWorkspaceRepository, bridge WorkspaceSub2APITextBridge, resolver WorkspaceSelectedModelCatalogResolver) *ChatWorkspaceService {
@@ -83,10 +85,18 @@ func ProvideChatWorkspaceServiceWithSub2APITextBridge(repo ChatWorkspaceReposito
 	if bridge == nil {
 		return NewChatWorkspaceServiceWithResponderAndModelCatalogResolver(repo, nil, resolver)
 	}
-	return NewChatWorkspaceServiceWithSub2APITextBridgeAndWebSearch(repo, bridge, webSearch, resolver)
+	textProviderGate := BuildWorkspaceTextProviderGateDecision(cfg)
+	return NewChatWorkspaceServiceWithResponderAndModelCatalogResolver(repo, WorkspaceSub2APITextBridgeResponder{
+		Bridge:           bridge,
+		WebSearch:        webSearch,
+		TextProviderGate: &textProviderGate,
+	}, resolver)
 }
 
 func (r WorkspaceSub2APITextBridgeResponder) GenerateAssistantResponse(ctx context.Context, input WorkspaceAssistantResponseInput) (WorkspaceAssistantResponse, error) {
+	if blockReason := workspaceSub2APITextBridgeGateBlockReason(r.TextProviderGate); blockReason != "" {
+		return workspaceSub2APITextBridgeGateBlockedResponse(input, *r.TextProviderGate, blockReason), nil
+	}
 	if blockReason := workspaceSub2APITextBridgeBlockReason(input); blockReason != "" {
 		return workspaceSub2APITextBridgeBlockedResponse(input, blockReason), nil
 	}
@@ -156,6 +166,34 @@ func workspaceSub2APITextBridgeBlockReason(input WorkspaceAssistantResponseInput
 		return WorkspaceSelectedModelBlockReasonCapabilityMismatch
 	}
 	return ""
+}
+
+func workspaceSub2APITextBridgeGateBlockReason(decision *WorkspaceTextProviderGateDecision) string {
+	if decision == nil || decision.Enabled {
+		return ""
+	}
+	if decision.KillSwitchActive {
+		return WorkspaceTextProviderGateReasonKillSwitchActive
+	}
+	for _, reason := range decision.Reasons {
+		if strings.TrimSpace(reason) != "" {
+			return strings.TrimSpace(reason)
+		}
+	}
+	return WorkspaceSub2APITextBridgeBlockReasonGateDisabled
+}
+
+func workspaceSub2APITextBridgeGateBlockedResponse(input WorkspaceAssistantResponseInput, decision WorkspaceTextProviderGateDecision, reason string) WorkspaceAssistantResponse {
+	response := workspaceSub2APITextBridgeBlockedResponseWithContent(input, reason, WorkspaceAssistantUnavailableContent)
+	if response.Metadata == nil {
+		response.Metadata = map[string]any{}
+	}
+	response.Metadata["text_provider_gate_enabled"] = decision.Enabled
+	response.Metadata["kill_switch_active"] = decision.KillSwitchActive
+	response.Metadata["text_provider_environment"] = decision.Environment
+	response.Metadata["execution_block_reasons"] = cloneWorkspaceStringSlice(decision.Reasons)
+	response.Metadata["provider_routing_touched"] = false
+	return response
 }
 
 func workspaceSub2APITextBridgeSuccessMetadata(input WorkspaceAssistantResponseInput, result WorkspaceSub2APITextBridgeResult) map[string]any {
