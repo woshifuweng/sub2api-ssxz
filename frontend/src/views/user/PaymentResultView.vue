@@ -109,7 +109,7 @@ import {
 } from '@/components/payment/paymentFlow'
 import { usePaymentStore } from '@/stores/payment'
 import { paymentAPI } from '@/api/payment'
-import type { PaymentOrder } from '@/types/payment'
+import type { PaymentOrder, PublicPaymentOrder } from '@/types/payment'
 import { normalizePaymentMethodForDisplay, paymentMethodI18nKey } from './paymentUx'
 
 const { t } = useI18n()
@@ -117,7 +117,9 @@ const route = useRoute()
 const router = useRouter()
 const paymentStore = usePaymentStore()
 
-const order = ref<PaymentOrder | null>(null)
+type PaymentResultOrder = PaymentOrder | PublicPaymentOrder
+
+const order = ref<PaymentResultOrder | null>(null)
 const loading = ref(true)
 
 interface ReturnInfo {
@@ -230,7 +232,7 @@ function restoreRecoverySnapshot(context: {
   return restored
 }
 
-async function resolveOrderFromResumeToken(resumeToken: string): Promise<PaymentOrder | null> {
+async function resolveOrderFromResumeToken(resumeToken: string): Promise<PublicPaymentOrder | null> {
   try {
     const result = await paymentAPI.resolveOrderPublicByResumeToken(resumeToken)
     return result.data
@@ -239,7 +241,7 @@ async function resolveOrderFromResumeToken(resumeToken: string): Promise<Payment
   }
 }
 
-async function resolveOrderFromOutTradeNo(outTradeNo: string): Promise<PaymentOrder | null> {
+async function resolveOrderFromOutTradeNo(outTradeNo: string): Promise<PublicPaymentOrder | null> {
   try {
     const result = await paymentAPI.verifyOrderPublic(outTradeNo)
     return result.data
@@ -267,7 +269,7 @@ function clearRecoverySnapshotForTerminalStatus(status: string | null | undefine
   }
 }
 
-function scheduleStatusRefresh(refreshOrder: (() => Promise<PaymentOrder | null>) | null): void {
+function scheduleStatusRefresh(refreshOrder: (() => Promise<PaymentResultOrder | null>) | null): void {
   clearStatusRefreshTimer()
   if (!refreshOrder || !isPending.value || refreshAttempts.value >= STATUS_REFRESH_MAX_ATTEMPTS) {
     return
@@ -353,7 +355,7 @@ onMounted(async () => {
     }
   }
 
-  const refreshOrder = async (): Promise<PaymentOrder | null> => {
+  const refreshOrder = async (): Promise<PaymentResultOrder | null> => {
     if (resumeToken) {
       const resolvedOrder = await resolveOrderFromResumeToken(resumeToken)
       if (resolvedOrder) {
