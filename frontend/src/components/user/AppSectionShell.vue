@@ -593,8 +593,11 @@ watch(() => route.fullPath || route.path, closeMobileNav)
 .ssxz-nav-item,
 .ssxz-theme-toggle {
   display: inline-flex;
+  box-sizing: border-box;
   min-height: 2.55rem;
+  min-width: 0;
   width: 100%;
+  max-width: 100%;
   align-items: center;
   gap: 0.65rem;
   border-radius: 0.75rem;
@@ -692,7 +695,10 @@ watch(() => route.fullPath || route.path, closeMobileNav)
   display: grid;
   gap: 0.5rem;
   margin-top: 1.4rem;
+  min-width: 0;
+  max-width: 100%;
   max-height: min(32rem, calc(100vh - 23rem));
+  overflow-x: hidden;
   overflow-y: auto;
   padding-right: 0.15rem;
 }
@@ -717,15 +723,22 @@ watch(() => route.fullPath || route.path, closeMobileNav)
 
 .ssxz-history-item {
   align-items: flex-start;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .ssxz-history-item .ssxz-sidebar-text {
   display: -webkit-box;
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-height: 1.35;
   text-align: left;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .ssxz-sidebar-bottom {
