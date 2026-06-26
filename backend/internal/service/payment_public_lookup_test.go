@@ -10,6 +10,7 @@ import (
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/enttest"
+	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/stretchr/testify/require"
 
@@ -200,6 +201,46 @@ func TestGetPublicOrderByResumeTokenRejectsInvalidSignedTokens(t *testing.T) {
 	require.Contains(t, err.Error(), "does not match")
 }
 
+func TestHandlePaymentNotificationDoesNotDoubleFulfillBalanceOrder(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentPublicLookupTestClient(t)
+	user := createPaymentPublicLookupUser(t, client, "webhook-replay@example.test")
+	order := createPaymentPublicLookupOrder(t, client, user, func(builder *dbent.PaymentOrderCreate) {
+		builder.SetRechargeCode("WEBHOOK_REPLAY_CODE")
+	})
+
+	userRepo := &paymentFulfillmentUserRepo{client: client}
+	redeemRepo := newPaymentFulfillmentRedeemRepo()
+	redeemService := NewRedeemService(redeemRepo, userRepo, nil, nil, nil, client, nil)
+	svc := &PaymentService{
+		entClient:     client,
+		registry:      payment.NewRegistry(),
+		redeemService: redeemService,
+	}
+	notification := &payment.PaymentNotification{
+		OrderID: order.OutTradeNo,
+		TradeNo: "provider-trade-1",
+		Amount:  order.PayAmount,
+		Status:  payment.NotificationStatusSuccess,
+	}
+
+	require.NoError(t, svc.HandlePaymentNotification(ctx, notification, payment.TypeAlipay))
+	require.NoError(t, svc.HandlePaymentNotification(ctx, notification, payment.TypeAlipay))
+
+	reloaded, err := client.PaymentOrder.Get(ctx, order.ID)
+	require.NoError(t, err)
+	require.Equal(t, OrderStatusCompleted, reloaded.Status)
+	require.Equal(t, 1, redeemRepo.createCalls)
+	require.Equal(t, 1, redeemRepo.useCalls)
+	require.Equal(t, 1, userRepo.balanceUpdateCalls)
+
+	dbUser, err := client.User.Get(ctx, user.ID)
+	require.NoError(t, err)
+	require.Equal(t, order.Amount, dbUser.Balance)
+	require.Equal(t, 1, countPaymentAuditLogs(t, client, order.ID, "ORDER_PAID"))
+	require.Equal(t, 1, countPaymentAuditLogs(t, client, order.ID, "RECHARGE_SUCCESS"))
+}
+
 type countingPaymentProvider struct {
 	providerKey string
 	types       []payment.PaymentType
@@ -234,4 +275,111 @@ func (p *countingPaymentProvider) VerifyNotification(context.Context, string, ma
 
 func (p *countingPaymentProvider) Refund(context.Context, payment.RefundRequest) (*payment.RefundResponse, error) {
 	return nil, fmt.Errorf("unexpected Refund call")
+}
+
+func countPaymentAuditLogs(t *testing.T, client *dbent.Client, orderID int64, action string) int {
+	t.Helper()
+
+	count, err := client.PaymentAuditLog.Query().
+		Where(paymentauditlog.OrderIDEQ(fmt.Sprintf("%d", orderID)), paymentauditlog.ActionEQ(action)).
+		Count(context.Background())
+	require.NoError(t, err)
+	return count
+}
+
+type paymentFulfillmentRedeemRepo struct {
+	RedeemCodeRepository
+
+	nextID      int64
+	byID        map[int64]*RedeemCode
+	byCode      map[string]*RedeemCode
+	createCalls int
+	useCalls    int
+}
+
+func newPaymentFulfillmentRedeemRepo() *paymentFulfillmentRedeemRepo {
+	return &paymentFulfillmentRedeemRepo{
+		nextID: 1,
+		byID:   make(map[int64]*RedeemCode),
+		byCode: make(map[string]*RedeemCode),
+	}
+}
+
+func (r *paymentFulfillmentRedeemRepo) Create(_ context.Context, code *RedeemCode) error {
+	if code == nil {
+		return nil
+	}
+	r.createCalls++
+	clone := *code
+	if clone.ID == 0 {
+		clone.ID = r.nextID
+		r.nextID++
+	}
+	code.ID = clone.ID
+	r.byID[clone.ID] = &clone
+	r.byCode[clone.Code] = &clone
+	return nil
+}
+
+func (r *paymentFulfillmentRedeemRepo) GetByID(_ context.Context, id int64) (*RedeemCode, error) {
+	code := r.byID[id]
+	if code == nil {
+		return nil, ErrRedeemCodeNotFound
+	}
+	clone := *code
+	return &clone, nil
+}
+
+func (r *paymentFulfillmentRedeemRepo) GetByCode(_ context.Context, code string) (*RedeemCode, error) {
+	found := r.byCode[code]
+	if found == nil {
+		return nil, ErrRedeemCodeNotFound
+	}
+	clone := *found
+	return &clone, nil
+}
+
+func (r *paymentFulfillmentRedeemRepo) Use(_ context.Context, id, userID int64) error {
+	code := r.byID[id]
+	if code == nil {
+		return ErrRedeemCodeNotFound
+	}
+	if code.Status != StatusUnused {
+		return ErrRedeemCodeUsed
+	}
+	r.useCalls++
+	now := time.Now()
+	code.Status = StatusUsed
+	code.UsedBy = &userID
+	code.UsedAt = &now
+	return nil
+}
+
+type paymentFulfillmentUserRepo struct {
+	UserRepository
+
+	client             *dbent.Client
+	balanceUpdateCalls int
+}
+
+func (r *paymentFulfillmentUserRepo) GetByID(ctx context.Context, id int64) (*User, error) {
+	user, err := r.client.User.Get(ctx, id)
+	if err != nil {
+		return nil, ErrUserNotFound
+	}
+	return &User{ID: user.ID, Email: user.Email, Balance: user.Balance}, nil
+}
+
+func (r *paymentFulfillmentUserRepo) UpdateBalance(ctx context.Context, id int64, amount float64) error {
+	client := r.client
+	if tx := dbent.TxFromContext(ctx); tx != nil {
+		client = tx.Client()
+	}
+	updated, err := client.User.UpdateOneID(id).AddBalance(amount).Save(ctx)
+	if err != nil {
+		return err
+	}
+	r.balanceUpdateCalls++
+	_ = updated
+	return nil
 }
