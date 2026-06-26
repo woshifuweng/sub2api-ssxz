@@ -17,11 +17,11 @@ const (
 	WorkspaceSub2APITextBridgeBlockReasonFakeModel      = "selected_model_fake_or_test_only"
 	WorkspaceSub2APITextBridgeBlockReasonGateDisabled   = "text_provider_gate_disabled"
 
-	WorkspaceSub2APITextBridgeMissingAPIKeyContent   = "当前账户没有可用 API Key，请先在开发者 API 中创建或启用 API Key 后再使用工作台。"
-	WorkspaceSub2APITextBridgeModelNotAllowedContent = "当前 API Key 不允许使用所选模型，请检查开发者 API Key 的模型权限。"
+	WorkspaceSub2APITextBridgeMissingAPIKeyContent   = "当前账户没有可用 API Key，请先在开发者 API 中创建或启用 API Key 后再使用工作台。本次未调用模型，不会按成功回复扣费。"
+	WorkspaceSub2APITextBridgeModelNotAllowedContent = "当前 API Key 不允许使用所选模型，请检查开发者 API Key 的模型权限。本次未调用模型，不会按成功回复扣费。"
 )
 
-const WorkspaceSub2APITextBridgeTemporarilyUnavailableContent = "当前模型暂不可用，请切换其他模型，或联系管理员检查模型、API Key、分组和上游账号配置。"
+const WorkspaceSub2APITextBridgeTemporarilyUnavailableContent = "当前模型暂不可用，请切换其他模型，或联系管理员检查模型、API Key、分组和上游账号配置。本次未调用模型，不会按成功回复扣费。"
 
 var (
 	ErrWorkspaceSub2APITextBridgeMissingAPIKey   = errors.New("workspace sub2api text bridge missing usable api key")
