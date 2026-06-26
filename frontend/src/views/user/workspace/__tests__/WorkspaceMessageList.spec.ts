@@ -11,6 +11,7 @@ vi.mock('@/components/icons/Icon.vue', () => ({
 
 import WorkspaceMessageList from '../WorkspaceMessageList.vue'
 import {
+  WORKSPACE_ASSISTANT_FAILED_MESSAGE,
   WORKSPACE_GENERATING_MESSAGE,
   WORKSPACE_IMAGE_FAILED_MESSAGE
 } from '../useWorkspaceConversation'
@@ -63,8 +64,38 @@ describe('WorkspaceMessageList', () => {
     })
 
     expect(wrapper.find('.message-image-card').attributes('data-image-state')).toBe('failed')
-    expect(wrapper.text()).toContain('失败')
+    expect(wrapper.text()).toContain('图片生成失败')
     expect(wrapper.text()).toContain(WORKSPACE_IMAGE_FAILED_MESSAGE)
+  })
+
+  it('renders failed text states with retry and no-charge guidance', () => {
+    const wrapper = mount(WorkspaceMessageList, {
+      props: {
+        loading: false,
+        messages: [
+          {
+            id: 'local-user-failed',
+            messageType: 'text',
+            role: 'user',
+            content: 'hello',
+            state: 'failed'
+          },
+          {
+            id: 'local-assistant-failed',
+            messageType: 'text',
+            role: 'assistant',
+            content: '',
+            state: 'failed'
+          }
+        ]
+      }
+    })
+
+    expect(wrapper.find('[data-state="failed"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('发送失败')
+    expect(wrapper.text()).toContain('回复失败')
+    expect(wrapper.text()).toContain(WORKSPACE_ASSISTANT_FAILED_MESSAGE)
+    expect(wrapper.text()).toContain('不会按成功回复扣费')
   })
 
   it('renders text request progress states in the message stream', () => {
