@@ -42,7 +42,9 @@ vi.mock('@/stores', () => ({
 vi.mock('@/api/payment', () => ({
   paymentAPI: {
     cancelOrder: vi.fn(),
-    getOrder: vi.fn()
+    getOrder: vi.fn(),
+    resolveOrderPublicByResumeToken: vi.fn(),
+    verifyOrderPublic: vi.fn()
   }
 }))
 
@@ -119,5 +121,17 @@ describe('payment flow shell ownership', () => {
 
     expect(wrapper.find('[data-testid="payment-flow-shell"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="legacy-app-layout"]').exists()).toBe(false)
+  })
+
+  it('shows an unavailable result state when no payment identifiers are present', async () => {
+    routeMock.query = {}
+
+    const wrapper = mount(PaymentResultView)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('payment.result.missingOrder')
+    expect(wrapper.text()).toContain('payment.result.missingOrderHint')
+    expect(wrapper.text()).not.toContain('payment.result.processing')
+    expect(wrapper.text()).not.toContain('payment.result.failed')
   })
 })
