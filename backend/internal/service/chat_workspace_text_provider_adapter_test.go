@@ -30,6 +30,7 @@ func TestWorkspaceTextProviderAdapterFeatureGateOffDoesNotCallExecutor(t *testin
 
 	require.Zero(t, executor.calls)
 	require.Equal(t, WorkspaceAssistantUnavailableContent, assistantMessage.Content)
+	require.Equal(t, WorkspaceMessageStatusFailed, assistantMessage.Status)
 	require.Equal(t, "unavailable", assistantMessage.Metadata["status"])
 	require.Equal(t, false, assistantMessage.Metadata["provider_called"])
 	require.Contains(t, assistantMessage.Metadata["execution_block_reasons"], "feature_gate_disabled")

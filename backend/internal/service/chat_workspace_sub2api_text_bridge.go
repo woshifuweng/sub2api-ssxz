@@ -254,7 +254,7 @@ func workspaceSub2APITextBridgeBlockedResponseWithContent(input WorkspaceAssista
 		MessageType: WorkspaceMessageTypeText,
 		Model:       input.Model,
 		Intent:      WorkspaceIntentChat,
-		Status:      WorkspaceMessageStatusCompleted,
+		Status:      WorkspaceMessageStatusFailed,
 		Metadata:    metadata,
 	}
 }

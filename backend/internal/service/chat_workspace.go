@@ -288,7 +288,7 @@ func (s *ChatWorkspaceService) AppendMessageWithAssistantResponse(ctx context.Co
 		Content:        assistantResponse.Content,
 		Model:          firstNonEmptyWorkspaceValue(assistantResponse.Model, userMessage.Model),
 		Intent:         firstNonEmptyWorkspaceValue(assistantResponse.Intent, userMessage.Intent),
-		Status:         assistantResponse.Status,
+		Status:         normalizeWorkspaceAssistantResponseStatus(assistantResponse.Status, assistantResponse.Metadata),
 		Metadata:       assistantResponse.Metadata,
 	})
 	if err != nil {
@@ -403,6 +403,23 @@ func normalizeWorkspaceMessageStatus(value string) string {
 		return WorkspaceMessageStatusCompleted
 	}
 	return value
+}
+
+func normalizeWorkspaceAssistantResponseStatus(value string, metadata map[string]any) string {
+	value = strings.TrimSpace(value)
+	if value != "" {
+		return value
+	}
+	switch strings.TrimSpace(workspaceMetadataString(metadata, "status")) {
+	case WorkspaceMessageStatusPending:
+		return WorkspaceMessageStatusPending
+	case WorkspaceMessageStatusCompleted:
+		return WorkspaceMessageStatusCompleted
+	case WorkspaceMessageStatusFailed, "unavailable":
+		return WorkspaceMessageStatusFailed
+	default:
+		return ""
+	}
 }
 
 func isAllowedWorkspaceMessageStatus(value string) bool {
