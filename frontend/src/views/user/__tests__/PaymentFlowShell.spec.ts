@@ -58,7 +58,8 @@ vi.mock('@/components/layout/AppLayout.vue', () => ({
 vi.mock('@/components/payment/PaymentFlowShell.vue', () => ({
   default: {
     name: 'PaymentFlowShell',
-    template: '<main data-testid="payment-flow-shell"><slot /></main>'
+    props: ['subtitle'],
+    template: '<main data-testid="payment-flow-shell"><span data-testid="payment-flow-subtitle">{{ subtitle }}</span><slot /></main>'
   }
 }))
 
@@ -133,5 +134,6 @@ describe('payment flow shell ownership', () => {
     expect(wrapper.text()).toContain('payment.result.missingOrderHint')
     expect(wrapper.text()).not.toContain('payment.result.processing')
     expect(wrapper.text()).not.toContain('payment.result.failed')
+    expect(wrapper.find('[data-testid="payment-flow-subtitle"]').text()).toBe('payment.result.missingOrder')
   })
 })

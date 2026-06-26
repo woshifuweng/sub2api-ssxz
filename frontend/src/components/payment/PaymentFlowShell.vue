@@ -5,7 +5,7 @@
         <span class="payment-flow-brand-mark">S</span>
         <span>
           <strong>SSXZ AI</strong>
-          <small>支付处理中</small>
+          <small>{{ subtitle }}</small>
         </span>
       </RouterLink>
       <RouterLink to="/app/purchase" class="payment-flow-return">
@@ -21,6 +21,12 @@
 
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
+
+withDefaults(defineProps<{
+  subtitle?: string
+}>(), {
+  subtitle: '支付处理中'
+})
 </script>
 
 <style scoped>

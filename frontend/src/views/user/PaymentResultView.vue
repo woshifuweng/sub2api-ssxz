@@ -1,5 +1,5 @@
 <template>
-  <PaymentFlowShell>
+  <PaymentFlowShell :subtitle="statusTitle">
     <div class="w-full max-w-md space-y-6">
       <!-- Loading -->
       <div v-if="loading" class="flex items-center justify-center py-20">
