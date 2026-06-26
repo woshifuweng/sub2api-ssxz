@@ -174,8 +174,8 @@ type UpdateAPIKeyRequest struct {
 	GroupIDs      *[]int64  `json:"group_ids"`
 	AllowedModels *[]string `json:"allowed_models"`
 	Status        *string   `json:"status"`
-	IPWhitelist   []string  `json:"ip_whitelist"` // IP 白名单（空数组清空）
-	IPBlacklist   []string  `json:"ip_blacklist"` // IP 黑名单（空数组清空）
+	IPWhitelist   *[]string `json:"ip_whitelist"` // nil = no change, empty array = clear
+	IPBlacklist   *[]string `json:"ip_blacklist"` // nil = no change, empty array = clear
 
 	// Quota fields
 	Quota           *float64   `json:"quota"`       // Quota limit in USD (nil = no change, 0 = unlimited)
@@ -565,15 +565,15 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 	}
 
 	// 验证 IP 白名单格式
-	if len(req.IPWhitelist) > 0 {
-		if invalid := ip.ValidateIPPatterns(req.IPWhitelist); len(invalid) > 0 {
+	if req.IPWhitelist != nil {
+		if invalid := ip.ValidateIPPatterns(*req.IPWhitelist); len(invalid) > 0 {
 			return nil, fmt.Errorf("%w: %v", ErrInvalidIPPattern, invalid)
 		}
 	}
 
 	// 验证 IP 黑名单格式
-	if len(req.IPBlacklist) > 0 {
-		if invalid := ip.ValidateIPPatterns(req.IPBlacklist); len(invalid) > 0 {
+	if req.IPBlacklist != nil {
+		if invalid := ip.ValidateIPPatterns(*req.IPBlacklist); len(invalid) > 0 {
 			return nil, fmt.Errorf("%w: %v", ErrInvalidIPPattern, invalid)
 		}
 	}
@@ -650,9 +650,13 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 		}
 	}
 
-	// 更新 IP 限制（空数组会清空设置）
-	apiKey.IPWhitelist = req.IPWhitelist
-	apiKey.IPBlacklist = req.IPBlacklist
+	// Update IP restrictions: nil keeps existing values, empty arrays clear them.
+	if req.IPWhitelist != nil {
+		apiKey.IPWhitelist = append([]string(nil), (*req.IPWhitelist)...)
+	}
+	if req.IPBlacklist != nil {
+		apiKey.IPBlacklist = append([]string(nil), (*req.IPBlacklist)...)
+	}
 
 	// Update rate limit configuration
 	if req.RateLimit5h != nil {
