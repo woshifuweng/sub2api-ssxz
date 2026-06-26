@@ -34,7 +34,8 @@ export const WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE =
 
 export const WORKSPACE_SENDING_MESSAGE = '消息正在发送。'
 export const WORKSPACE_GENERATING_MESSAGE = 'AI 正在生成回复...'
-export const WORKSPACE_ASSISTANT_FAILED_MESSAGE = 'AI 回复失败，请重试。'
+export const WORKSPACE_ASSISTANT_FAILED_MESSAGE =
+  'AI 回复失败，请重试或切换模型。本次未完成 AI 回复，不会按成功回复扣费。'
 export const WORKSPACE_IMAGE_FAILED_MESSAGE = '图片生成失败，请重试。'
 
 export interface WorkspaceAttachment {

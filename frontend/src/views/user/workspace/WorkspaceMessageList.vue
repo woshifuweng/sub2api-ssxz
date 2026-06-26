@@ -69,7 +69,9 @@ function fallbackText(message: WorkspaceMessage) {
 function stateLabel(message: WorkspaceMessage) {
   if (message.state === 'sending') return '发送中'
   if (message.state === 'generating') return '生成中'
-  if (message.state === 'failed') return '失败'
+  if (message.state === 'failed' && message.messageType === 'image') return '图片生成失败'
+  if (message.state === 'failed' && message.role === 'user') return '发送失败'
+  if (message.state === 'failed') return '回复失败'
   return ''
 }
 </script>
