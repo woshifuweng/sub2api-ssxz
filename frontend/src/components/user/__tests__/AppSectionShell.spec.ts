@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
+import { readFileSync } from 'node:fs'
 
 const { routeState, mocks } = vi.hoisted(() => ({
   routeState: {
@@ -46,6 +47,8 @@ vi.mock('@/components/icons/Icon.vue', () => ({
 
 import AppSectionShell from '../AppSectionShell.vue'
 
+const appSectionShellSource = readFileSync('src/components/user/AppSectionShell.vue', 'utf-8')
+
 function mockDesktopMedia(matches: boolean) {
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
@@ -63,11 +66,12 @@ function mockDesktopMedia(matches: boolean) {
   })
 }
 
-function mountShell() {
+function mountShell(props: Partial<InstanceType<typeof AppSectionShell>['$props']> = {}) {
   return mount(AppSectionShell, {
     props: {
       title: '聊天',
-      subtitle: '辅助写 prompt'
+      subtitle: '辅助写 prompt',
+      ...props
     },
     global: {
       stubs: {
@@ -110,6 +114,30 @@ describe('AppSectionShell', () => {
     const wrapper = mountShell()
 
     expect(wrapper.get('.ssxz-brand-link').attributes('href')).toBe('/app/chat')
+  })
+
+  it('keeps long history titles within the sidebar hit target', async () => {
+    const wrapper = mountShell({
+      historyItems: [
+        {
+          id: 42,
+          title: 'STAGING_173_NO_PROVIDER_FAILURE_ESC_20260626_210940_WITH_A_VERY_LONG_TITLE',
+          status: 'active',
+          created_at: '2026-06-26T00:00:00Z',
+          updated_at: '2026-06-26T00:00:00Z'
+        }
+      ],
+      activeConversationId: null,
+      historyLoading: false
+    })
+    const historyItem = wrapper.get('.ssxz-history-item')
+    const historyText = historyItem.get('.ssxz-sidebar-text')
+
+    await historyItem.trigger('click')
+
+    expect(wrapper.emitted('select-conversation')).toEqual([[42]])
+    expect(appSectionShellSource).toMatch(/\.ssxz-history-item\s*\{[\s\S]*min-width:\s*0;[\s\S]*max-width:\s*100%;[\s\S]*overflow:\s*hidden;/)
+    expect(appSectionShellSource).toMatch(/\.ssxz-history-item \.ssxz-sidebar-text\s*\{[\s\S]*min-width:\s*0;[\s\S]*max-width:\s*100%;/)
   })
 
   it('switches supported utility menu entries to their own pages instead of rendering inline panels', async () => {
