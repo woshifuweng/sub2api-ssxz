@@ -1022,6 +1022,8 @@ export default {
       failed: 'Payment failed',
       processing: 'Payment processing',
       processingHint: 'We are confirming the payment result. Please refresh the order status later.',
+      missingOrder: 'Payment result unavailable',
+      missingOrderHint: 'Order information is missing. Check your order records or return to recharge to start again.',
       backToRecharge: 'Back to recharge',
       viewOrders: 'View orders'
     },

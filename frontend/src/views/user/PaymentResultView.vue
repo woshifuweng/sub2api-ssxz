@@ -19,6 +19,13 @@
             class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900/30">
             <div class="h-10 w-10 animate-spin rounded-full border-4 border-yellow-500 border-t-transparent"></div>
           </div>
+          <div v-else-if="isMissingPaymentContext"
+            class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
+            <svg class="h-10 w-10 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M13 16h-1v-4h-1m1-4h.01M12 3a9 9 0 100 18 9 9 0 000-18z" />
+            </svg>
+          </div>
           <div v-else
             class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
             <svg class="h-10 w-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -30,6 +37,9 @@
           </h2>
           <p v-if="isPending" class="mt-2 text-sm text-gray-500 dark:text-gray-400">
             {{ t('payment.result.processingHint') }}
+          </p>
+          <p v-else-if="isMissingPaymentContext" class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            {{ t('payment.result.missingOrderHint') }}
           </p>
         </div>
         <!-- Order Info -->
@@ -121,6 +131,7 @@ type PaymentResultOrder = PaymentOrder | PublicPaymentOrder
 
 const order = ref<PaymentResultOrder | null>(null)
 const loading = ref(true)
+const hasPaymentLookupContext = ref(false)
 
 interface ReturnInfo {
   outTradeNo: string
@@ -158,7 +169,14 @@ const isPending = computed(() => {
   return isPendingStatus(order.value?.status)
 })
 
+const isMissingPaymentContext = computed(() => {
+  return !order.value && !returnInfo.value && !hasPaymentLookupContext.value
+})
+
 const statusTitle = computed(() => {
+  if (isMissingPaymentContext.value) {
+    return t('payment.result.missingOrder')
+  }
   if (isSuccess.value) {
     return t('payment.result.success')
   }
@@ -295,6 +313,13 @@ onMounted(async () => {
   let outTradeNo = readRouteQueryString('out_trade_no')
   let orderId = 0
   let resumeTokenLookupFailed = false
+  const hasLegacyFallbackContext = readRouteQueryString('trade_status').trim() !== ''
+  hasPaymentLookupContext.value = Boolean(
+    resumeToken ||
+    routeOrderId > 0 ||
+    outTradeNo ||
+    hasLegacyFallbackContext
+  )
 
   const restored = restoreRecoverySnapshot({
     resumeToken,
@@ -325,7 +350,6 @@ onMounted(async () => {
     orderId = routeOrderId
   }
 
-  const hasLegacyFallbackContext = readRouteQueryString('trade_status').trim() !== ''
   const shouldUsePublicOutTradeNo = outTradeNo !== '' && (hasLegacyFallbackContext || routeOrderId > 0 || orderId > 0)
 
   if (!order.value && orderId && (!resumeToken || routeOrderId > 0)) {

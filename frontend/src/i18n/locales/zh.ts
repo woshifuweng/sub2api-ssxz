@@ -1027,6 +1027,8 @@ export default {
       failed: '支付失败',
       processing: '支付处理中',
       processingHint: '我们正在确认支付结果，请稍后刷新订单状态。',
+      missingOrder: '无法确认支付结果',
+      missingOrderHint: '缺少订单信息，请返回订单记录查看最近订单，或回到充值页重新发起。',
       backToRecharge: '返回充值',
       viewOrders: '查看订单'
     },
