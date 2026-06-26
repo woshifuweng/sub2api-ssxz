@@ -195,6 +195,7 @@ func (a WorkspaceTextProviderAdapter) GenerateWorkspaceResponse(ctx context.Cont
 		Content:     strings.TrimSpace(result.Content),
 		Model:       firstNonEmptyWorkspaceValue(result.Model, model),
 		Intent:      intent,
+		Status:      WorkspaceMessageStatusCompleted,
 		Metadata:    metadata,
 		Diagnostics: successDiagnostics,
 	}, nil
@@ -216,6 +217,7 @@ func workspaceTextProviderBlockedResponse(model, intent string, diagnostics Work
 		Content:     WorkspaceAssistantUnavailableContent,
 		Model:       model,
 		Intent:      intent,
+		Status:      WorkspaceMessageStatusFailed,
 		Metadata:    metadata,
 		Diagnostics: diagnostics,
 	}
@@ -238,6 +240,7 @@ func workspaceTextProviderBetaAllowlistBlockedResponse(model, intent string, dia
 		Content:     WorkspaceAssistantUnavailableContent,
 		Model:       model,
 		Intent:      intent,
+		Status:      WorkspaceMessageStatusFailed,
 		Metadata:    metadata,
 		Diagnostics: diagnostics,
 	}
@@ -261,6 +264,7 @@ func workspaceTextProviderBetaRequestCounterBlockedResponse(model, intent string
 		Content:     WorkspaceAssistantUnavailableContent,
 		Model:       model,
 		Intent:      intent,
+		Status:      WorkspaceMessageStatusFailed,
 		Metadata:    metadata,
 		Diagnostics: diagnostics,
 	}
@@ -284,6 +288,7 @@ func workspaceTextProviderStagingQABlockedResponse(model, intent string, diagnos
 		Content:     WorkspaceAssistantUnavailableContent,
 		Model:       model,
 		Intent:      intent,
+		Status:      WorkspaceMessageStatusFailed,
 		Metadata:    metadata,
 		Diagnostics: diagnostics,
 	}
@@ -336,6 +341,7 @@ func workspaceTextProviderFailureResponse(input WorkspaceProviderRequest, model,
 		Content:     WorkspaceAssistantUnavailableContent,
 		Model:       model,
 		Intent:      intent,
+		Status:      WorkspaceMessageStatusFailed,
 		Metadata:    metadata,
 		Diagnostics: diagnostics,
 	}

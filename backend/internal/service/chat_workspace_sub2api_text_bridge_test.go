@@ -126,6 +126,7 @@ func TestProvideChatWorkspaceServiceWithSub2APITextBridgeKillSwitchBlocksBridge(
 	require.NotNil(t, assistantMessage)
 	require.Zero(t, bridge.calls)
 	require.Equal(t, WorkspaceAssistantUnavailableContent, assistantMessage.Content)
+	require.Equal(t, WorkspaceMessageStatusFailed, assistantMessage.Status)
 	require.Equal(t, WorkspaceTextProviderGateReasonKillSwitchActive, assistantMessage.Metadata["bridge_block_reason"])
 	require.Equal(t, false, assistantMessage.Metadata["provider_called"])
 	require.Equal(t, false, assistantMessage.Metadata["billing_touched"])

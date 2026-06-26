@@ -51,6 +51,7 @@ type WorkspaceProviderResponse struct {
 	Content     string
 	Model       string
 	Intent      string
+	Status      string
 	Metadata    map[string]any
 	Diagnostics WorkspaceProviderDiagnostics
 }
@@ -92,6 +93,7 @@ func (WorkspaceProviderUnavailableAdapter) GenerateWorkspaceResponse(_ context.C
 		Content:     WorkspaceAssistantUnavailableContent,
 		Model:       model,
 		Intent:      intent,
+		Status:      WorkspaceMessageStatusFailed,
 		Metadata:    workspaceProviderUnavailableMetadata(diagnostics),
 		Diagnostics: diagnostics,
 	}, nil
@@ -125,6 +127,7 @@ func (r WorkspaceProviderAssistantResponder) GenerateAssistantResponse(ctx conte
 		Content:  response.Content,
 		Model:    response.Model,
 		Intent:   response.Intent,
+		Status:   response.Status,
 		Metadata: mergeWorkspaceProviderMetadata(response.Metadata, response.Diagnostics),
 	}, nil
 }
