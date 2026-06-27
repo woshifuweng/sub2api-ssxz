@@ -19,6 +19,11 @@ Last updated: 2026-06-27
 - 2026-06-21: latest main at commit `e40205e09` was deployed to production after explicit user approval. Basic production smoke returned HTTP 200 for `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/api/v1/settings/public`; `/v1/models` returned expected HTTP 401 without an API key.
 - 2026-06-21: production deployment did not include Nginx changes or database migrations.
 - 2026-06-21: workbench logo/brand home action was corrected to `/app/chat` with `AppSectionShell` test coverage.
+- 2026-06-27: PR #184 was merged to main at `d5be5a624` and deployed to production after explicit user approval.
+- 2026-06-27: production public smoke returned HTTP 200 for `https://api.ssxzapi.com/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/api/v1/settings/public`.
+- 2026-06-27: production `sub2api.service` was active/running with binary SHA-256 `cc2a32fc401dd45d606d22404f91526eb5190067069fef4e61bac9bd976105fa`.
+- 2026-06-27: production read-only auth smoke confirmed ordinary users receive HTTP 403 for `/admin/users`, while admin users receive HTTP 200.
+- 2026-06-27: production ordinary account had no selectable image models and non-real image-capable model count was `0`, confirming the PR #184 real-channel filter guard. No real provider was called during this validation.
 
 ## P0 Bugs And Structural Fixes
 
@@ -32,6 +37,16 @@ Last updated: 2026-06-27
 - Production logs showed `/app` read-only log output and old `SoraStorage` local-path initialization risk. Resolve or explicitly accept storage/log-path configuration before full production image acceptance.
 - Image generation upstream failure behavior has DB-backed usage/billing regression coverage for simulated upstream 4xx and transport timeout. Keep this coverage when changing image gateway billing or error handling.
 - Placeholder workspace controls must stay clearly disabled until their backend/product behavior exists.
+
+## P1 Entry Queue
+
+- Start P1 in small PRs only. Do not reopen broad P0 structure work unless a regression appears.
+- First P1 candidates:
+  - image history/download/user journey audit and small UX fixes
+  - `/app/image` controlled production real-generation acceptance plan, only after explicit approval to call a real provider
+  - API Key / third-party access copy and safety polish
+  - usage/balance explanation improvements based on real data and honest empty states
+- Keep production deployment as a separate approval gate for every PR.
 
 ## Chains That Need Verification
 
