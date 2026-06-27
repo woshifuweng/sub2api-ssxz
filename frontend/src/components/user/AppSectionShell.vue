@@ -256,7 +256,9 @@ function setSidebarCollapsed(value: boolean) {
   sidebarCollapsed.value = value
   try {
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, value ? 'true' : 'false')
-  } catch {}
+  } catch {
+    // Private browsing or storage restrictions should not break navigation.
+  }
 }
 
 function toggleSidebarCollapsed() {
