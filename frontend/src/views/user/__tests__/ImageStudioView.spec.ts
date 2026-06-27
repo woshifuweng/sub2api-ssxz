@@ -453,6 +453,9 @@ describe('ImageStudioView workbench', () => {
           {
             url: 'https://cdn.example.com/result-2.png',
           },
+          {
+            url: 'https://cdn.example.com/result-3.png',
+          },
         ],
       },
     })
@@ -460,7 +463,7 @@ describe('ImageStudioView workbench', () => {
     const wrapper = mountImageStudio()
     const countButtons = wrapper.findAll('.count-chip')
     expect(countButtons).toHaveLength(3)
-    await countButtons[1].trigger('click')
+    await countButtons[2].trigger('click')
     await wrapper.find('input[placeholder*="无线耳机"]').setValue('玫瑰花束')
     await wrapper.find('textarea').setValue('高级感电商广告图，黑色包装纸，红玫瑰主体')
     await wrapper.find('input[placeholder*="晨光办公桌"]').setValue('柔和棚拍')
@@ -477,12 +480,12 @@ describe('ImageStudioView workbench', () => {
     expect(form.get('template_id')).toBe('white')
     expect(form.get('product_name')).toBe('玫瑰花束')
     expect(form.get('size')).toBe('1024x1024')
-    expect(form.get('count')).toBe('2')
+    expect(form.get('count')).toBe('3')
     expect(String(form.get('selling_points'))).toContain('高级感电商广告图')
     expect(String(form.get('selling_points'))).toContain('创作用途：商品主图')
     expect(String(form.get('selling_points'))).toContain('商用安全')
     expect(wrapper.find('img[alt="result-1"]').attributes('src')).toBe('https://cdn.example.com/result.png')
-    expect(wrapper.findAll('.thumbnail-button')).toHaveLength(2)
+    expect(wrapper.findAll('.thumbnail-button')).toHaveLength(3)
     expect(wrapper.findAll('.result-actions .secondary-button')[2].attributes('disabled')).toBeUndefined()
     expect(authStore.refreshUser).toHaveBeenCalledTimes(1)
     expect(appStore.showSuccess).toHaveBeenCalledWith('图片生成完成')
