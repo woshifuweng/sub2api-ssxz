@@ -27,8 +27,7 @@ describe('payment api public order lookup', () => {
       status: 'PENDING',
       order_type: 'balance',
       created_at: '2026-06-26T00:00:00Z',
-      expires_at: '2026-06-26T00:15:00Z',
-      refund_amount: 0
+      expires_at: '2026-06-26T00:15:00Z'
     }
     post.mockResolvedValue({ data: publicOrder })
 
@@ -46,5 +45,8 @@ describe('payment api public order lookup', () => {
     expect(byResumeToken.data).toEqual(publicOrder)
     expect('user_id' in byOutTradeNo.data).toBe(false)
     expect('user_id' in byResumeToken.data).toBe(false)
+    expect('refund_requested_by' in byOutTradeNo.data).toBe(false)
+    expect('refund_request_reason' in byOutTradeNo.data).toBe(false)
+    expect('plan_id' in byOutTradeNo.data).toBe(false)
   })
 })

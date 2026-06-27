@@ -108,12 +108,6 @@ export interface PublicPaymentOrder {
   expires_at: string
   paid_at?: string
   completed_at?: string
-  refund_amount: number
-  refund_reason?: string
-  refund_requested_at?: string
-  refund_requested_by?: string
-  refund_request_reason?: string
-  plan_id?: number
 }
 
 // ==================== Plans & Channels ====================
