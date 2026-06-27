@@ -301,6 +301,9 @@
           <p v-if="errorMessage" class="error-note">
             {{ errorMessage }}
           </p>
+          <p v-if="errorMessage" class="error-note recovery-note">
+            {{ failureRecoveryNote }}
+          </p>
         </div>
       </aside>
 
@@ -567,6 +570,7 @@ const referenceDragging = ref(false)
 const referencePreviewError = ref('')
 const generating = ref(false)
 const errorMessage = ref('')
+const failureRecoveryNote = '本次没有生成成功作品，不会保存到历史；未成功返回结果不会扣生成费用。可以调整提示词后重试，或联系管理员。'
 const results = ref<ResultImage[]>([])
 const activeResultIndex = ref(0)
 const recentWorks = ref<SoraGeneration[]>([])
@@ -1729,6 +1733,11 @@ function scrollPreviewIntoView() {
 .error-note {
   border-color: var(--ssxz-danger);
   color: var(--ssxz-danger);
+}
+
+.recovery-note {
+  border-color: var(--ssxz-border);
+  color: var(--ssxz-text-secondary);
 }
 
 .generate-button {
