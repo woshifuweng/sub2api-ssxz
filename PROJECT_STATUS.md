@@ -144,6 +144,17 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | Image model display | Alias clarity deployed without enabling production image generation | Staging displayed Gemini-named OpenAI-compatible image aliases with `OpenAI 兼容图片通道别名`. Production ordinary account still had no selectable image models because production did not expose `real_channel` image capabilities. |
 | Scope | Frontend display only | No Nginx change, database migration, payment/ledger change, provider-routing change, or real-provider call was part of the release. |
 
+## Staging Release Recorded On 2026-06-27 For PR #190
+
+| Area | Result | Evidence |
+| --- | --- | --- |
+| Deployment | Completed on staging only | PR #190 was merged to main at merge commit `5402cf556` and deployed only to `sub2api-staging.service`. |
+| Binary split | Staging and production are different binaries | Staging `/opt/sub2api/sub2api-staging` SHA-256 was `294cd98b2e5f1e8699733e26ffda5e50efa5856a5c183144512a8163cb0b92ec`; production `/opt/sub2api/sub2api` remained `7fb45509c5fb6d74a5cc8ab88530f78f4e34dd5a88b177fe31c178b3f034afa0`. |
+| Backup | Created before replacement | `/opt/sub2api/backups/staging-before-pr190-5402cf556-20260627-214306-sub2api-staging`. |
+| Staging smoke | Public routes responded | `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public` returned HTTP 200 on staging port `18080`. |
+| Production | Not deployed | Production service remained active on the prior PR #188 binary. The same public routes returned HTTP 200 on production port `8080`, but no production file replacement or service restart was part of #190 validation. |
+| Scope | Frontend lint/test cleanup only | #190 touched `AppSectionShell.vue` and its component test only. No Nginx change, database migration, payment/ledger change, provider-routing change, or real-provider call was part of the staging release. |
+
 ## Historical Product Decisions Preserved On 2026-06-18
 
 - The older site is not the code trunk and should not be copied wholesale. It is a product reference for user-side AI chat, AI image creation, navigation, prompt flow, result display, balance, and API access.

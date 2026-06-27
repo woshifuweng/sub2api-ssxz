@@ -17,6 +17,7 @@ The project can start P1 planning and small P1 PRs. P0/P0-Beta structural conver
 - PR #184 production validation confirmed ordinary users do not see non-real image-capable models
 - PR #186 was deployed to staging only and confirmed `/app/image` uses the server-side OpenAI-compatible image allowlist. The current staging allowlist includes Gemini-named aliases, which is a model-display/product-clarity decision rather than native Gemini provider execution evidence.
 - PR #188 was deployed to production after explicit approval and clarified OpenAI-compatible image alias labels without enabling production image generation.
+- PR #190 was deployed to staging only and restored the full frontend lint baseline for the user workspace shell surface. Production remained on the prior #188 binary.
 
 This does not mean production image generation is fully accepted. A controlled real-provider production image-generation acceptance remains separate and must verify creation, storage, usage/billing, history, and download before claiming the production image chain is complete.
 
@@ -26,9 +27,9 @@ Use this progress meter in every major status report. It is a product/operations
 
 | Stage | Current estimate | Meaning |
 | --- | ---: | --- |
-| P0 / P0-Beta convergence | 90% | Core shell, chat, failure/no-charge, fake-model, and production smoke risks are contained enough to continue P1. Remaining P0 risk is production image-generation acceptance and any regressions found during P1. |
-| P1 product/operations | 15% | P1 has started. The first completed P1 slice is image-model alias display clarity (#188). Major remaining P1 work is image history/download UX, production real-generation acceptance, API Key polish, usage/balance explanation, and admin/ops hardening. |
-| Distance to P2 | 85% of P1 remains | P2 should not begin as a main focus until the P1 user/business loops above have credible staging or production evidence. |
+| P0 / P0-Beta convergence | 91% | Core shell, chat, failure/no-charge, fake-model, frontend lint baseline, and production smoke risks are contained enough to continue P1. Remaining P0 risk is production image-generation acceptance and any regressions found during P1. |
+| P1 product/operations | 16% | P1 has started. Completed slices include image-model alias display clarity (#188) and user-shell lint baseline cleanup (#190). Major remaining P1 work is image history/download UX, production real-generation acceptance, API Key polish, usage/balance explanation, and admin/ops hardening. |
+| Distance to P2 | 84% of P1 remains | P2 should not begin as a main focus until the P1 user/business loops above have credible staging or production evidence. |
 | P2 visual polish/enhanced experience | 0% | P2 is intentionally not active. UI polish and advanced workflows wait until P1 is materially closed. |
 
 ## Decision Rules
