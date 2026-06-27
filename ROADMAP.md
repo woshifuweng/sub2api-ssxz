@@ -18,7 +18,9 @@ The project can start P1 planning and small P1 PRs. P0/P0-Beta structural conver
 - PR #186 was deployed to staging only and confirmed `/app/image` uses the server-side OpenAI-compatible image allowlist. The current staging allowlist includes Gemini-named aliases, which is a model-display/product-clarity decision rather than native Gemini provider execution evidence.
 - PR #188 was deployed to production after explicit approval and clarified OpenAI-compatible image alias labels without enabling production image generation.
 - PR #190 was deployed to staging only and restored the full frontend lint baseline for the user workspace shell surface. Production remained on the prior #188 binary.
-- PR #192 was deployed to staging only and made `/app/image` recent-history load failures visible while strengthening download href/filename test coverage. Production remained on the prior #188 binary.
+- PR #192 was deployed to staging, then current main `8324754` was deployed to production after explicit approval. This carried `/app/image` recent-history load-failure feedback and download href/filename coverage to the real site without enabling production image generation.
+- After the `8324754` production deployment, authenticated no-provider checks confirmed ordinary/admin login, readable ordinary image history, readable usage dashboard, and ordinary production image model count `0`.
+- PR #194 was deployed to staging only and verified that ordinary users can see production-shaped real-channel image catalog models, including `gpt-image-2`, with `provider=openai-compatible-images` and no non-real image models exposed. Production remains on `8324754` until a later explicit production deployment gate.
 
 This does not mean production image generation is fully accepted. A controlled real-provider production image-generation acceptance remains separate and must verify creation, storage, usage/billing, history, and download before claiming the production image chain is complete.
 
@@ -28,9 +30,9 @@ Use this progress meter in every major status report. It is a product/operations
 
 | Stage | Current estimate | Meaning |
 | --- | ---: | --- |
-| P0 / P0-Beta convergence | 91% | Core shell, chat, failure/no-charge, fake-model, frontend lint baseline, and production smoke risks are contained enough to continue P1. Remaining P0 risk is production image-generation acceptance and any regressions found during P1. |
-| P1 product/operations | 18% | P1 has started. Completed slices include image-model alias display clarity (#188), user-shell lint baseline cleanup (#190), and first image history/download feedback hardening (#192). Major remaining P1 work is production real-generation acceptance, API Key polish, usage/balance explanation, and admin/ops hardening. |
-| Distance to P2 | 82% of P1 remains | P2 should not begin as a main focus until the P1 user/business loops above have credible staging or production evidence. |
+| P0 / P0-Beta convergence | 94% | Core shell, chat, failure/no-charge, fake-model, frontend lint baseline, production smoke, and staging image-catalog exposure risks are contained enough to continue P1. Remaining P0 risk is controlled production image-generation acceptance and any regressions found during P1. |
+| P1 product/operations | 23% | P1 has started. Completed slices include image-model alias display clarity (#188), user-shell lint baseline cleanup (#190), first image history/download feedback hardening (#192), production deployment of that feedback slice, and staging verification of production-shaped image catalog exposure (#194). Major remaining P1 work is production real-generation acceptance, API Key polish, usage/balance explanation, and admin/ops hardening. |
+| Distance to P2 | 77% of P1 remains | P2 should not begin as a main focus until the P1 user/business loops above have credible staging or production evidence. |
 | P2 visual polish/enhanced experience | 0% | P2 is intentionally not active. UI polish and advanced workflows wait until P1 is materially closed. |
 
 ## Decision Rules
@@ -141,6 +143,7 @@ P0 can exit only when these are true:
    - regenerate flow
    - clear loading/error/empty states
    - model selector clarity for OpenAI-compatible image aliases, including whether Gemini-named allowlisted models should be visible as-is, relabeled, or hidden until the user-facing strategy is explicit. PR #188 deployed the first small slice by labeling Gemini-named OpenAI-compatible aliases as compatible image-route aliases.
+   - production-shaped image catalog exposure, with PR #194 verified on staging; production deployment and real-provider acceptance remain separate approval gates.
    - R2 reference: Picell AI / PicsetAI for e-commerce product visual framing, including platform/channel scenarios, product-image purposes, multi-result generation, and prompt organization around product, platform, use case, and style
    - R1 reference: `CookSleep/gpt_image_playground` for upload, drag-and-drop, clipboard paste, reference image, mask editing, streaming preview, gallery, large preview, download, and parameter comparison interactions
    - Do not adopt either reference as a replacement for SSXZ. Keep SSXZ auth, balance, billing, usage, assets, admin operations, and provider routing as the source of truth.

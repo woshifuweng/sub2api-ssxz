@@ -36,6 +36,10 @@ Last updated: 2026-06-27
 - 2026-06-27: after #190 staging deployment, route smoke returned HTTP 200 for `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public` on staging port `18080`; the same public routes returned HTTP 200 on production port `8080`. No real provider was called.
 - 2026-06-27: PR #192 was merged to main at `4adc65dba` and deployed to staging only. Staging `sub2api-staging.service` ran binary SHA-256 `7086880a79e22900e4d65ca4f1cc715f6968c77fa22ec92a5c85bced8dfbcd5e`; production remained on SHA-256 `7fb45509c5fb6d74a5cc8ab88530f78f4e34dd5a88b177fe31c178b3f034afa0`.
 - 2026-06-27: after #192 staging deployment, route smoke returned HTTP 200 for `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public` on staging port `18080`; the same public routes returned HTTP 200 on production port `8080`. #192 was frontend-only image history/download feedback hardening and did not call a real provider.
+- 2026-06-27: current main `832475454e7eac9feb55d66a2645ae0a470034a0` was deployed to production after explicit user approval. Production `/opt/sub2api/sub2api` ran SHA-256 `b5da079f49da94cfb57873de6d4fada5d170b87be310ab0633ecafc53f2d877b`; the previous production binary was backed up at `/opt/sub2api/backups/production-before-main-8324754-20260627-222309/sub2api`.
+- 2026-06-27: after the `8324754` production deployment, public smoke returned HTTP 200 for `https://api.ssxzapi.com/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public`. Authenticated no-provider checks confirmed ordinary/admin login, readable ordinary image history, readable usage dashboard, and ordinary production image model count `0`. No real provider was called.
+- 2026-06-27: PR #194 was merged to main at `c208d51a7` and deployed to staging only. Staging `sub2api-staging.service` ran binary SHA-256 `9018e284ee6a80d8fd717ddd49b1457e65fd278025b76377b5fa5b9855d66869`; production remained on SHA-256 `b5da079f49da94cfb57873de6d4fada5d170b87be310ab0633ecafc53f2d877b`.
+- 2026-06-27: after #194 staging deployment, public route smoke returned HTTP 200 for `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public` on staging port `18080`. Ordinary-user staging catalog exposed 4 `image_generation` models, including `gpt-image-2`, all with `provider=openai-compatible-images` and `model_catalog_source=real_channel`; non-real image model count was `0`. No real provider was called.
 
 ## P0 Bugs And Structural Fixes
 
@@ -45,7 +49,7 @@ Last updated: 2026-06-27
 - Stale ordinary-user redirects to `/sora` should be replaced with the agreed user entry after route ownership is decided.
 - `/sora` should remain a compatibility route, not the main product route.
 - Technical pages such as Available Channels and Channel Status should not dominate ordinary-user navigation.
-- Image generation has one staging success path and one production smoke deployment, but production real generation/storage/billing/history/download still need acceptance verification.
+- Image generation has one staging success path and production smoke deployments, but production real generation/storage/billing/history/download still need acceptance verification. #194 fixed image-model catalog exposure on staging; production remains on `8324754` until a later explicit production deployment gate.
 - Production logs showed `/app` read-only log output and old `SoraStorage` local-path initialization risk. Resolve or explicitly accept storage/log-path configuration before full production image acceptance.
 - Image generation upstream failure behavior has DB-backed usage/billing regression coverage for simulated upstream 4xx and transport timeout. Keep this coverage when changing image gateway billing or error handling.
 - Placeholder workspace controls must stay clearly disabled until their backend/product behavior exists.
@@ -55,7 +59,7 @@ Last updated: 2026-06-27
 - Start P1 in small PRs only. Do not reopen broad P0 structure work unless a regression appears.
 - First P1 candidates:
   - continue image history/download/user journey audit after the #192 first UX-hardening slice
-  - `/app/image` controlled production real-generation acceptance plan, only after explicit approval to call a real provider
+  - `/app/image` production image-model availability and controlled real-generation acceptance; #194 verified the catalog-exposure slice on staging, while production deployment and real-provider acceptance remain separate approval gates
   - follow-up `/app/image` model naming/display strategy only if operators decide to change production image-model policy; the first alias-display slice was completed by PR #188
   - API Key / third-party access copy and safety polish
   - usage/balance explanation improvements based on real data and honest empty states
@@ -63,9 +67,9 @@ Last updated: 2026-06-27
 
 ## Phase Progress Snapshot
 
-- P0 / P0-Beta convergence: about 91%. Remaining P0 risk is controlled production image-generation acceptance and any regression found while doing P1.
-- P1 product/operations: about 18%. Completed slices: image-model alias display clarity, user-shell lint baseline cleanup, and first image history/download feedback hardening. Remaining large P1 loops: production real-generation acceptance, API Key polish, usage/balance explanation, and admin/ops hardening.
-- Distance to P2: about 82% of P1 remains. Do not prioritize P2 visual polish until P1 loops have evidence.
+- P0 / P0-Beta convergence: about 94%. Remaining P0 risk is controlled production image-generation acceptance and any regression found while doing P1.
+- P1 product/operations: about 23%. Completed slices: image-model alias display clarity, user-shell lint baseline cleanup, first image history/download feedback hardening, production deployment of that feedback slice, and staging verification of production-shaped image catalog exposure. Remaining large P1 loops: production real-generation acceptance, API Key polish, usage/balance explanation, and admin/ops hardening.
+- Distance to P2: about 77% of P1 remains. Do not prioritize P2 visual polish until P1 loops have evidence.
 - P2: 0%. Keep as later polish/enhancement work.
 
 ## Chains That Need Verification
@@ -86,6 +90,7 @@ Last updated: 2026-06-27
 - `/app/profile` profile/password/TOTP behavior.
 - Production acceptance for image generation:
   - storage/log-path configuration
+  - production deployment of the #194 catalog-exposure behavior, when grouped into the next approved production gate
   - one controlled real generation when upstream and price settings are ready
   - no-charge behavior for failures
   - usage/billing consistency
