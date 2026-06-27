@@ -24,6 +24,9 @@ Last updated: 2026-06-27
 - 2026-06-27: production `sub2api.service` was active/running with binary SHA-256 `cc2a32fc401dd45d606d22404f91526eb5190067069fef4e61bac9bd976105fa`.
 - 2026-06-27: production read-only auth smoke confirmed ordinary users receive HTTP 403 for `/admin/users`, while admin users receive HTTP 200.
 - 2026-06-27: production ordinary account had no selectable image models and non-real image-capable model count was `0`, confirming the PR #184 real-channel filter guard. No real provider was called during this validation.
+- 2026-06-27: PR #186 was merged to main at `0089a688a` and deployed to staging only. Staging `sub2api-staging.service` ran binary SHA-256 `79c0dc575b6337551d903c2e823c6931af755ea0bc4f7ef7eb024388bcec5e76`; production remained on SHA-256 `cc2a32fc401dd45d606d22404f91526eb5190067069fef4e61bac9bd976105fa`.
+- 2026-06-27: after #186 staging deployment, route smoke returned HTTP 200 for `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/api/v1/settings/public` on both staging port `18080` and production port `8080`.
+- 2026-06-27: staging `/api/v1/channels/available` exposed `gpt-image-2` plus Gemini-named image aliases as real image models because they are explicitly included in `WORKSPACE_IMAGE_REAL_PROVIDER_ALLOWED_MODELS` under `provider=openai-compatible-images` and provider label `workspace-openai-compatible-image-staging`. This is a staging allowlist/model-label strategy issue, not evidence of native Gemini provider routing in `/app/image`.
 
 ## P0 Bugs And Structural Fixes
 
@@ -44,6 +47,7 @@ Last updated: 2026-06-27
 - First P1 candidates:
   - image history/download/user journey audit and small UX fixes
   - `/app/image` controlled production real-generation acceptance plan, only after explicit approval to call a real provider
+  - `/app/image` model naming/display strategy for OpenAI-compatible image aliases, especially Gemini-named models that are server-allowlisted but may confuse users
   - API Key / third-party access copy and safety polish
   - usage/balance explanation improvements based on real data and honest empty states
 - Keep production deployment as a separate approval gate for every PR.

@@ -121,6 +121,18 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | Scope | No sensitive backend scope changed | No database migration, Nginx change, payment/ledger change, provider-routing change, or real-provider call was part of the release. |
 | Remaining gate | Production image creation still not fully accepted | #184 did not call a real provider. A later controlled production image-generation acceptance still needs explicit approval before claiming production image creation, storage, billing, history, and download are fully accepted. |
 
+## Staging Release Recorded On 2026-06-27
+
+| Area | Result | Evidence |
+| --- | --- | --- |
+| Deployment | Completed on staging only | PR #186 was merged to main at merge commit `0089a688a` and deployed only to `sub2api-staging.service`. |
+| Binary split | Staging and production are different binaries | Staging `/opt/sub2api/sub2api-staging` SHA-256 was `79c0dc575b6337551d903c2e823c6931af755ea0bc4f7ef7eb024388bcec5e76`; production `/opt/sub2api/sub2api` remained `cc2a32fc401dd45d606d22404f91526eb5190067069fef4e61bac9bd976105fa`. |
+| Production | Not deployed | Production service remained active on the prior PR #184 binary. No production file replacement or service restart was part of #186 validation. |
+| Public smoke | Staging and production routes responded | Local server smoke returned HTTP 200 for `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/api/v1/settings/public` on both staging port `18080` and production port `8080`. |
+| Image model strategy finding | Staging image models are server allowlisted OpenAI-compatible image models | Staging `WORKSPACE_IMAGE_REAL_PROVIDER_ALLOWED_MODELS` explicitly allowed `gpt-image-1`, `gpt-image-2`, `gemini-2.5-flash-image`, `gemini-3.1-flash-image-preview`, and `gemini-3-pro-image-preview` under provider label `workspace-openai-compatible-image-staging`. The Gemini-named entries are exposed as `provider=openai-compatible-images` and `platform=openai`, not as a native Gemini provider leak. |
+| Scope | No real provider call | #186 validation used login, channel catalog, route smoke, and service/hash checks only. It did not call image generation or any upstream provider. |
+| Remaining gate | Model naming and production image acceptance still open | Decide whether Gemini-named OpenAI-compatible image aliases should remain visible in the user selector or be hidden/renamed for clarity. Production image creation, storage, usage/billing, history, and download remain unaccepted until explicitly tested. |
+
 ## Historical Product Decisions Preserved On 2026-06-18
 
 - The older site is not the code trunk and should not be copied wholesale. It is a product reference for user-side AI chat, AI image creation, navigation, prompt flow, result display, balance, and API access.
@@ -135,7 +147,7 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | Area | Classification | Notes |
 | --- | --- | --- |
 | Workspace memory/toolbox/capability placeholders | Placeholder UI | Some disabled or "not connected" controls exist in workspace components. They must not imply working backend behavior. |
-| Image generation real upstream | Staging verified, production authenticity guard deployed | One `gpt-image-2` OpenAI-compatible path works in staging. Production was deployed on 2026-06-21 after explicit approval and PR #184 was deployed on 2026-06-27 after explicit approval. Real production image generation, storage, billing, history, and download still require controlled acceptance checks. |
+| Image generation real upstream | Staging verified, production authenticity guard deployed | One `gpt-image-2` OpenAI-compatible path works in staging. Production was deployed on 2026-06-21 after explicit approval and PR #184 was deployed on 2026-06-27 after explicit approval. PR #186 was deployed to staging only and confirmed the current staging image selector is driven by the server-side OpenAI-compatible image allowlist, including Gemini-named aliases. Real production image generation, storage, billing, history, and download still require controlled acceptance checks. |
 | Image history/download in the new user journey | Staging HTTP path verified | Storage/history/download pieces work for the validated staging image. Native browser download UX still needs manual confirmation. |
 | Reference image upload preview | Staging verified | Single reference image preview recovered after allowing `blob:` in CSP. Multiple reference images remain a later workflow enhancement. |
 | Image failure handling | Regression covered for no-charge failure paths | Invalid form input fails before upstream and does not change balance or usage. Code-path audit shows upstream errors do not reach `RecordUsage` and non-2xx responses do not persist image history. Service-level regression tests cover upstream non-2xx, transport timeout/error, and partial-success response write failure returning no successful result. Handler-level regression tests cover upstream failure without usage/billing/deduct calls, failed/truncated captures without image history, DB-backed image-history persistence, and DB-backed usage/billing persistence staying clean for upstream 4xx and transport timeout. |
