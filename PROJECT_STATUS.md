@@ -155,6 +155,17 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | Production | Not deployed | Production service remained active on the prior PR #188 binary. The same public routes returned HTTP 200 on production port `8080`, but no production file replacement or service restart was part of #190 validation. |
 | Scope | Frontend lint/test cleanup only | #190 touched `AppSectionShell.vue` and its component test only. No Nginx change, database migration, payment/ledger change, provider-routing change, or real-provider call was part of the staging release. |
 
+## Staging Release Recorded On 2026-06-27 For PR #192
+
+| Area | Result | Evidence |
+| --- | --- | --- |
+| Deployment | Completed on staging only | PR #192 was merged to main at merge commit `4adc65dba` and deployed only to `sub2api-staging.service`. |
+| Binary split | Staging and production are different binaries | Staging `/opt/sub2api/sub2api-staging` SHA-256 was `7086880a79e22900e4d65ca4f1cc715f6968c77fa22ec92a5c85bced8dfbcd5e`; production `/opt/sub2api/sub2api` remained `7fb45509c5fb6d74a5cc8ab88530f78f4e34dd5a88b177fe31c178b3f034afa0`. |
+| Backup | Created before replacement | `/opt/sub2api/backups/staging-before-pr192-4adc65dba-20260627-220806-sub2api-staging`. |
+| Staging smoke | Public routes responded | `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public` returned HTTP 200 on staging port `18080`. |
+| Production | Not deployed | Production service remained active on the prior PR #188 binary. The same public routes returned HTTP 200 on production port `8080`, but no production file replacement or service restart was part of #192 validation. |
+| Scope | Frontend image-history/download feedback only | #192 touched `ImageStudioView.vue` and its component test only. It made recent image-history load failures visible and strengthened download href/filename assertions. No Nginx change, database migration, payment/ledger change, provider-routing change, or real-provider call was part of the staging release. |
+
 ## Historical Product Decisions Preserved On 2026-06-18
 
 - The older site is not the code trunk and should not be copied wholesale. It is a product reference for user-side AI chat, AI image creation, navigation, prompt flow, result display, balance, and API access.
@@ -170,7 +181,7 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | --- | --- | --- |
 | Workspace memory/toolbox/capability placeholders | Placeholder UI | Some disabled or "not connected" controls exist in workspace components. They must not imply working backend behavior. |
 | Image generation real upstream | Staging verified, production authenticity and alias-display guards deployed | One `gpt-image-2` OpenAI-compatible path works in staging. Production was deployed on 2026-06-21 after explicit approval, PR #184 was deployed on 2026-06-27 after explicit approval, and PR #188 was deployed on 2026-06-27 after explicit approval. PR #186 confirmed staging image selection is driven by the server-side OpenAI-compatible image allowlist, and PR #188 clarified Gemini-named aliases as OpenAI-compatible image-route aliases. Real production image generation, storage, billing, history, and download still require controlled acceptance checks. |
-| Image history/download in the new user journey | Staging HTTP path verified | Storage/history/download pieces work for the validated staging image. Native browser download UX still needs manual confirmation. |
+| Image history/download in the new user journey | Staging HTTP path verified; frontend feedback hardening deployed to staging | Storage/history/download pieces work for the validated staging image. PR #192 made recent-history load failures visible and added frontend regression coverage for generated download links and filenames. Native browser download UX still needs manual confirmation. |
 | Reference image upload preview | Staging verified | Single reference image preview recovered after allowing `blob:` in CSP. Multiple reference images remain a later workflow enhancement. |
 | Image failure handling | Regression covered for no-charge failure paths | Invalid form input fails before upstream and does not change balance or usage. Code-path audit shows upstream errors do not reach `RecordUsage` and non-2xx responses do not persist image history. Service-level regression tests cover upstream non-2xx, transport timeout/error, and partial-success response write failure returning no successful result. Handler-level regression tests cover upstream failure without usage/billing/deduct calls, failed/truncated captures without image history, DB-backed image-history persistence, and DB-backed usage/billing persistence staying clean for upstream 4xx and transport timeout. |
 | `/app/usage` charts and details | Partial | Should show real data when available and empty states otherwise. It must not invent data. |

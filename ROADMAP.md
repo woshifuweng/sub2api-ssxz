@@ -18,6 +18,7 @@ The project can start P1 planning and small P1 PRs. P0/P0-Beta structural conver
 - PR #186 was deployed to staging only and confirmed `/app/image` uses the server-side OpenAI-compatible image allowlist. The current staging allowlist includes Gemini-named aliases, which is a model-display/product-clarity decision rather than native Gemini provider execution evidence.
 - PR #188 was deployed to production after explicit approval and clarified OpenAI-compatible image alias labels without enabling production image generation.
 - PR #190 was deployed to staging only and restored the full frontend lint baseline for the user workspace shell surface. Production remained on the prior #188 binary.
+- PR #192 was deployed to staging only and made `/app/image` recent-history load failures visible while strengthening download href/filename test coverage. Production remained on the prior #188 binary.
 
 This does not mean production image generation is fully accepted. A controlled real-provider production image-generation acceptance remains separate and must verify creation, storage, usage/billing, history, and download before claiming the production image chain is complete.
 
@@ -28,8 +29,8 @@ Use this progress meter in every major status report. It is a product/operations
 | Stage | Current estimate | Meaning |
 | --- | ---: | --- |
 | P0 / P0-Beta convergence | 91% | Core shell, chat, failure/no-charge, fake-model, frontend lint baseline, and production smoke risks are contained enough to continue P1. Remaining P0 risk is production image-generation acceptance and any regressions found during P1. |
-| P1 product/operations | 16% | P1 has started. Completed slices include image-model alias display clarity (#188) and user-shell lint baseline cleanup (#190). Major remaining P1 work is image history/download UX, production real-generation acceptance, API Key polish, usage/balance explanation, and admin/ops hardening. |
-| Distance to P2 | 84% of P1 remains | P2 should not begin as a main focus until the P1 user/business loops above have credible staging or production evidence. |
+| P1 product/operations | 18% | P1 has started. Completed slices include image-model alias display clarity (#188), user-shell lint baseline cleanup (#190), and first image history/download feedback hardening (#192). Major remaining P1 work is production real-generation acceptance, API Key polish, usage/balance explanation, and admin/ops hardening. |
+| Distance to P2 | 82% of P1 remains | P2 should not begin as a main focus until the P1 user/business loops above have credible staging or production evidence. |
 | P2 visual polish/enhanced experience | 0% | P2 is intentionally not active. UI polish and advanced workflows wait until P1 is materially closed. |
 
 ## Decision Rules
@@ -136,6 +137,7 @@ P0 can exit only when these are true:
    - multiple reference images
    - thumbnail/results area
    - image history and download
+   - first small slice completed by PR #192: recent-history load failures are visible and download href/filename behavior has frontend regression coverage
    - regenerate flow
    - clear loading/error/empty states
    - model selector clarity for OpenAI-compatible image aliases, including whether Gemini-named allowlisted models should be visible as-is, relabeled, or hidden until the user-facing strategy is explicit. PR #188 deployed the first small slice by labeling Gemini-named OpenAI-compatible aliases as compatible image-route aliases.
