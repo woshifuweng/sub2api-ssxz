@@ -10,6 +10,34 @@ Interpret user requests by product goal, not literal technology words. Mentions 
 
 The user usually describes needs from a product-owner and private-operator perspective, not with precise engineering terminology. Translate unclear requests into maintainable product, engineering, operations, and security plans before acting. If the literal wording conflicts with the product goal or codebase facts, explain the mismatch and propose the safer interpretation.
 
+### Mature solution comparison principle
+
+SSXZ AI Workbench should not default to from-scratch implementation. Before planning any feature, UX, quality, or operations change, first check:
+
+1. Whether the current Sub2API / SSXZ codebase already has the required capability.
+2. Whether the older SSXZ site has reusable pages, interactions, flows, or copy.
+3. Whether mature open-source projects, components, SDKs, Codex skills, or common industry patterns provide a useful reference.
+
+Reference targets may include Open WebUI, LibreChat, LobeChat, Dify, New API, All API Hub, shadcn, Magic UI, 21st.dev, and relevant Codex skills. Use them for comparison and borrowing, not replacement. Do not migrate the product to an external system, introduce enterprise-scale architecture, or expand scope just because a reference product has a feature.
+
+Use these reuse levels, separate from project priority labels:
+
+- R0: directly reuse existing code or a mature component.
+- R1: borrow a module-level interaction, component, or logic pattern.
+- R2: reference only product structure or UX ideas.
+- R3: build custom only after confirming no suitable existing option fits.
+
+Before each new implementation PR or issue, answer:
+
+1. Is this P0, P0-Beta, P1, or P2?
+2. Does this repo already have the capability?
+3. Does the old site have reusable assets?
+4. Is there a mature open-source/component/skill reference?
+5. Which reuse level applies: R0, R1, R2, or R3?
+6. What is the smallest executable correction?
+
+Before using any external option, check product fit for a 200-300 private-user lightweight workspace, license, maintenance activity, dependency weight, SSXZ UI consistency, billing/permission/provider-routing/data-security impact, and whether it can map to the existing conversation / message / asset / usage / ledger model.
+
 ## 1. Agent execution protocol
 
 Before making code changes, every coding agent must:

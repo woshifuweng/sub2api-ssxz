@@ -1,10 +1,27 @@
 # ROADMAP
 
-Last updated: 2026-06-21
+Last updated: 2026-06-27
 
 ## Product Goal
 
 Build SSXZ AI into a lightweight AI creation workspace for about 200-300 private users, while preserving the Sub2API backend strengths: login, balance, usage, payment, API keys, admin operations, provider/account configuration, and security boundaries.
+
+## Decision Rules
+
+Before implementing new product, quality, UX, or operations work, apply the mature solution comparison principle:
+
+1. Check whether Sub2API / SSXZ already has the required capability.
+2. Check whether the older SSXZ site has reusable pages, interactions, flows, or copy.
+3. Check mature references such as Open WebUI, LibreChat, LobeChat, Dify, New API, All API Hub, shadcn, Magic UI, 21st.dev, relevant SDKs, and relevant Codex skills.
+4. Borrow only what fits. Do not replace the SSXZ AI Workbench trunk, migrate wholesale to an external project, mix unrelated UI systems, or expand scope because a reference product has a feature.
+5. Classify reuse separately from product priority:
+   - R0: directly reuse existing code or a mature component.
+   - R1: borrow a module-level interaction, component, or logic pattern.
+   - R2: reference only product structure or UX ideas.
+   - R3: build custom only after confirming no suitable option fits.
+6. External options must pass checks for license, maintenance activity, dependency weight, product fit for 200-300 private users, SSXZ UI consistency, billing/permissions/provider-routing/data-security impact, and compatibility with conversation / message / asset / usage / ledger.
+
+This rule helps delivery speed and quality. It does not change priority labels: P0, P0-Beta, P1, and P2 remain the project priority system.
 
 ## P0: Structure Convergence
 
