@@ -15,6 +15,7 @@ The project can start P1 planning and small P1 PRs. P0/P0-Beta structural conver
 - image failure/no-charge paths have regression coverage
 - production has been smoke-tested after the 2026-06-21 and 2026-06-27 explicit-approval deployments
 - PR #184 production validation confirmed ordinary users do not see non-real image-capable models
+- PR #186 was deployed to staging only and confirmed `/app/image` uses the server-side OpenAI-compatible image allowlist. The current staging allowlist includes Gemini-named aliases, which is a model-display/product-clarity decision rather than native Gemini provider execution evidence.
 
 This does not mean production image generation is fully accepted. A controlled real-provider production image-generation acceptance remains separate and must verify creation, storage, usage/billing, history, and download before claiming the production image chain is complete.
 
@@ -124,6 +125,7 @@ P0 can exit only when these are true:
    - image history and download
    - regenerate flow
    - clear loading/error/empty states
+   - model selector clarity for OpenAI-compatible image aliases, including whether Gemini-named allowlisted models should be visible as-is, relabeled, or hidden until the user-facing strategy is explicit
    - R2 reference: Picell AI / PicsetAI for e-commerce product visual framing, including platform/channel scenarios, product-image purposes, multi-result generation, and prompt organization around product, platform, use case, and style
    - R1 reference: `CookSleep/gpt_image_playground` for upload, drag-and-drop, clipboard paste, reference image, mask editing, streaming preview, gallery, large preview, download, and parameter comparison interactions
    - Do not adopt either reference as a replacement for SSXZ. Keep SSXZ auth, balance, billing, usage, assets, admin operations, and provider routing as the source of truth.
