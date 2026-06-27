@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"sort"
+	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
@@ -356,11 +357,42 @@ func toUserSupportedModels(
 				model.CapabilitySource = realMetadata.CapabilitySource
 				model.ModelCatalogSource = realMetadata.ModelCatalogSource
 				model.StagingOnly = realMetadata.StagingOnly
+			} else if workspaceImageStudioCatalogModelAllowed(m, metadata) {
+				model.Capabilities = workspaceCapabilityStringsForUserDTO(metadata.Capabilities)
+				model.Provider = service.WorkspaceImageRealModelProvider
+				model.CapabilitySource = metadata.CapabilitySource
+				model.ModelCatalogSource = service.WorkspaceModelCatalogSourceRealChannel
 			}
 		}
 		out = append(out, model)
 	}
 	return out
+}
+
+func workspaceImageStudioCatalogModelAllowed(model service.SupportedModel, metadata service.WorkspaceModelCapabilityMetadata) bool {
+	if model.Pricing == nil {
+		return false
+	}
+	if !strings.EqualFold(strings.TrimSpace(model.Platform), service.PlatformOpenAI) {
+		return false
+	}
+	if !workspaceUserDTOCapabilitiesContain(metadata.Capabilities, service.WorkspaceModelCapabilityImageGeneration) {
+		return false
+	}
+	return workspaceImageStudioPricingConfigured(model.Pricing)
+}
+
+func workspaceImageStudioPricingConfigured(pricing *service.ChannelModelPricing) bool {
+	if pricing == nil {
+		return false
+	}
+	if pricing.BillingMode == service.BillingModeImage {
+		return true
+	}
+	if pricing.ImageOutputPrice != nil || pricing.PerRequestPrice != nil {
+		return true
+	}
+	return len(pricing.Intervals) > 0
 }
 
 func workspaceUserDTOCapabilitiesContain(capabilities []service.WorkspaceModelCapability, target service.WorkspaceModelCapability) bool {

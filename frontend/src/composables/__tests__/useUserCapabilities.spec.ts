@@ -385,6 +385,65 @@ describe('useUserCapabilities', () => {
     expect(capabilities.hasImageGeneration.value).toBe(true)
   })
 
+  it('exposes production OpenAI-compatible image catalog entries without provider labels', async () => {
+    mocks.getChannels.mockResolvedValue([
+      {
+        name: 'OpenAI Image Channel',
+        description: '',
+        platforms: [
+          {
+            platform: 'openai',
+            groups: [],
+            supported_models: [
+              {
+                name: 'gpt-image-2',
+                platform: 'openai',
+                pricing: null,
+                capabilities: ['image_generation'],
+                provider: 'openai-compatible-images',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured'
+              },
+              {
+                name: 'gemini-2.5-flash-image',
+                platform: 'openai',
+                pricing: null,
+                capabilities: ['image_generation'],
+                provider: 'openai-compatible-images',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured'
+              },
+              {
+                name: 'deepseek-v4-flash',
+                platform: 'openai',
+                pricing: null,
+                capabilities: ['text_chat'],
+                provider: 'openai',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured'
+              }
+            ]
+          }
+        ]
+      }
+    ])
+
+    const capabilities = useUserCapabilities()
+    await capabilities.loadCapabilities()
+
+    expect(capabilities.chatModels.value.map((model) => model.id)).toEqual(['deepseek-v4-flash'])
+    expect(capabilities.imageModels.value.map((model) => model.id)).toEqual([
+      'gemini-2.5-flash-image',
+      'gpt-image-2'
+    ])
+    expect(capabilities.imageModels.value[0]).toMatchObject({
+      provider: 'openai-compatible-images',
+      modelCatalogSource: 'real_channel',
+      pricingStatus: 'configured'
+    })
+    expect(capabilities.hasImageGeneration.value).toBe(true)
+  })
+
   it('uses real image-like model names as image catalog fallback', async () => {
     mocks.getChannels.mockResolvedValue([
       {

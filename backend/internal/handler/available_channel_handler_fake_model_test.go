@@ -266,6 +266,52 @@ func TestToUserSupportedModelsRequiresRealImagePricing(t *testing.T) {
 	require.Equal(t, service.WorkspaceSelectedModelPricingMissing, out[0].PricingStatus)
 }
 
+func TestToUserSupportedModelsMarksImageStudioOpenAIImagePricedModel(t *testing.T) {
+	price := 0.01
+	settingService := service.NewSettingService(nil, &config.Config{})
+
+	out := toUserSupportedModels([]service.SupportedModel{{
+		Name:     "gpt-image-2",
+		Platform: service.PlatformOpenAI,
+		Pricing: &service.ChannelModelPricing{
+			BillingMode:      service.BillingModeImage,
+			ImageOutputPrice: &price,
+			PerRequestPrice:  &price,
+		},
+	}}, map[string]struct{}{service.PlatformOpenAI: {}}, settingService, 4)
+
+	require.Len(t, out, 1)
+	model := out[0]
+	require.Equal(t, "gpt-image-2", model.Name)
+	require.Equal(t, []string{"image_generation"}, model.Capabilities)
+	require.Equal(t, service.WorkspaceImageRealModelProvider, model.Provider)
+	require.Equal(t, service.WorkspaceModelCatalogSourceRealChannel, model.ModelCatalogSource)
+	require.Equal(t, service.WorkspaceSelectedModelPricingConfigured, model.PricingStatus)
+	require.Contains(t, model.UsageSupport, "image_count")
+}
+
+func TestToUserSupportedModelsDoesNotMarkNativeGeminiImageStudioModel(t *testing.T) {
+	price := 0.01
+	settingService := service.NewSettingService(nil, &config.Config{})
+
+	out := toUserSupportedModels([]service.SupportedModel{{
+		Name:     "gemini-2.5-flash-image",
+		Platform: service.PlatformGemini,
+		Pricing: &service.ChannelModelPricing{
+			BillingMode:      service.BillingModeImage,
+			ImageOutputPrice: &price,
+			PerRequestPrice:  &price,
+		},
+	}}, map[string]struct{}{service.PlatformGemini: {}}, settingService, 4)
+
+	require.Len(t, out, 1)
+	require.Equal(t, "gemini-2.5-flash-image", out[0].Name)
+	require.Empty(t, out[0].Capabilities)
+	require.Empty(t, out[0].Provider)
+	require.Empty(t, out[0].ModelCatalogSource)
+	require.Equal(t, service.WorkspaceSelectedModelPricingConfigured, out[0].PricingStatus)
+}
+
 func TestToUserSupportedModelsAddsRealChannelTextMetadata(t *testing.T) {
 	out := toUserSupportedModels([]service.SupportedModel{{
 		Name:     "claude-3-5-sonnet",
