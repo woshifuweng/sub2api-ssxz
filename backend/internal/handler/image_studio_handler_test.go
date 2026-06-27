@@ -231,11 +231,22 @@ func TestParseImageStudioRequest_UsesSubmittedModel(t *testing.T) {
 	require.Equal(t, "gemini-2.5-flash-image", req.Model)
 }
 
+func TestParseImageStudioRequest_AcceptsThreeImageCount(t *testing.T) {
+	ctx := newImageStudioMultipartContext(t, map[string]string{
+		"count": " 3 ",
+	})
+
+	req, err := parseImageStudioRequest(ctx)
+
+	require.NoError(t, err)
+	require.Equal(t, 3, req.Count)
+}
+
 func TestBuildImageStudioGatewayBody_UsesRequestedModel(t *testing.T) {
 	req := &imageStudioRequest{
 		Model: "gemini-2.5-flash-image",
 		Size:  "1024x1024",
-		Count: 1,
+		Count: 3,
 	}
 
 	body, contentType, endpoint, err := buildImageStudioGatewayBody(req, "product prompt")
@@ -246,6 +257,7 @@ func TestBuildImageStudioGatewayBody_UsesRequestedModel(t *testing.T) {
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal(body, &payload))
 	require.Equal(t, "gemini-2.5-flash-image", payload["model"])
+	require.Equal(t, float64(3), payload["n"])
 }
 
 func TestBuildImageStudioGatewayBody_EditUsesRequestedModel(t *testing.T) {
