@@ -136,6 +136,7 @@ describe('AppSectionShell', () => {
     await historyItem.trigger('click')
 
     expect(wrapper.emitted('select-conversation')).toEqual([[42]])
+    expect(historyText.text()).toContain('STAGING_173_NO_PROVIDER_FAILURE_ESC_20260626_210940_WITH_A_VERY_LONG_TITLE')
     expect(appSectionShellSource).toMatch(/\.ssxz-history-item\s*\{[\s\S]*min-width:\s*0;[\s\S]*max-width:\s*100%;[\s\S]*overflow:\s*hidden;/)
     expect(appSectionShellSource).toMatch(/\.ssxz-history-item \.ssxz-sidebar-text\s*\{[\s\S]*min-width:\s*0;[\s\S]*max-width:\s*100%;/)
   })
