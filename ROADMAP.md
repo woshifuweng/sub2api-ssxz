@@ -16,8 +16,20 @@ The project can start P1 planning and small P1 PRs. P0/P0-Beta structural conver
 - production has been smoke-tested after the 2026-06-21 and 2026-06-27 explicit-approval deployments
 - PR #184 production validation confirmed ordinary users do not see non-real image-capable models
 - PR #186 was deployed to staging only and confirmed `/app/image` uses the server-side OpenAI-compatible image allowlist. The current staging allowlist includes Gemini-named aliases, which is a model-display/product-clarity decision rather than native Gemini provider execution evidence.
+- PR #188 was deployed to production after explicit approval and clarified OpenAI-compatible image alias labels without enabling production image generation.
 
 This does not mean production image generation is fully accepted. A controlled real-provider production image-generation acceptance remains separate and must verify creation, storage, usage/billing, history, and download before claiming the production image chain is complete.
+
+## Progress Reporting Baseline
+
+Use this progress meter in every major status report. It is a product/operations estimate, not a code-line metric.
+
+| Stage | Current estimate | Meaning |
+| --- | ---: | --- |
+| P0 / P0-Beta convergence | 90% | Core shell, chat, failure/no-charge, fake-model, and production smoke risks are contained enough to continue P1. Remaining P0 risk is production image-generation acceptance and any regressions found during P1. |
+| P1 product/operations | 15% | P1 has started. The first completed P1 slice is image-model alias display clarity (#188). Major remaining P1 work is image history/download UX, production real-generation acceptance, API Key polish, usage/balance explanation, and admin/ops hardening. |
+| Distance to P2 | 85% of P1 remains | P2 should not begin as a main focus until the P1 user/business loops above have credible staging or production evidence. |
+| P2 visual polish/enhanced experience | 0% | P2 is intentionally not active. UI polish and advanced workflows wait until P1 is materially closed. |
 
 ## Decision Rules
 
@@ -125,7 +137,7 @@ P0 can exit only when these are true:
    - image history and download
    - regenerate flow
    - clear loading/error/empty states
-   - model selector clarity for OpenAI-compatible image aliases, including whether Gemini-named allowlisted models should be visible as-is, relabeled, or hidden until the user-facing strategy is explicit
+   - model selector clarity for OpenAI-compatible image aliases, including whether Gemini-named allowlisted models should be visible as-is, relabeled, or hidden until the user-facing strategy is explicit. PR #188 deployed the first small slice by labeling Gemini-named OpenAI-compatible aliases as compatible image-route aliases.
    - R2 reference: Picell AI / PicsetAI for e-commerce product visual framing, including platform/channel scenarios, product-image purposes, multi-result generation, and prompt organization around product, platform, use case, and style
    - R1 reference: `CookSleep/gpt_image_playground` for upload, drag-and-drop, clipboard paste, reference image, mask editing, streaming preview, gallery, large preview, download, and parameter comparison interactions
    - Do not adopt either reference as a replacement for SSXZ. Keep SSXZ auth, balance, billing, usage, assets, admin operations, and provider routing as the source of truth.
