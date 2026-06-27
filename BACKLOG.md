@@ -1,6 +1,6 @@
 # BACKLOG
 
-Last updated: 2026-06-21
+Last updated: 2026-06-27
 
 ## Validated On Staging
 
@@ -77,6 +77,11 @@ Last updated: 2026-06-21
   - image history
   - download
   - loading/error/empty states
+  - R2 product reference: Picell AI / PicsetAI for e-commerce product visual generation, including marketplace/channel context such as Taobao, JD, Amazon, TEMU, Xiaohongshu, social media, and ad placements
+  - R2 product reference: product visual purposes should include main product image, detail page image, social image, poster, and ad creative; the target is commercial product visuals, not toy image generation
+  - R2 product reference: consider a flow where AI first understands the product, target platform, use case, and style before forming the generation prompt
+  - R1 interaction reference: `CookSleep/gpt_image_playground` for multi-image upload, drag-and-drop, clipboard paste, reference/mask editing, streaming generation preview, history gallery, large preview, download, and parameter comparison
+  - Constraint: do not directly adopt local IndexedDB-only history, standalone provider configuration, or single-user playground assumptions; SSXZ must keep asset / usage / ledger / auth / admin ownership as the system of record
 - Chat page:
   - prompt assistance positioning
   - examples for common private-user tasks
@@ -101,6 +106,7 @@ Last updated: 2026-06-21
 - Check external model/provider/API lifecycle, pricing, and limits against official sources on the decision date before selecting an upstream.
 - Measure cost, latency, failure modes, and billing impact before production rollout.
 - Make image model selection and provider strategy configurable instead of assuming one hard-coded model forever.
+- Picell AI / PicsetAI and `CookSleep/gpt_image_playground` are backlog references only. They are R1/R2 inputs for future `/app/image` work and must not interrupt P0/P0-Beta gates for real generation, preview, failure feedback, no-charge safety, history/download, model authenticity, or request state closure.
 
 ## Security Improvements
 
