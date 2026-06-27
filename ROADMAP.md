@@ -111,6 +111,9 @@ P0 can exit only when these are true:
    - image history and download
    - regenerate flow
    - clear loading/error/empty states
+   - R2 reference: Picell AI / PicsetAI for e-commerce product visual framing, including platform/channel scenarios, product-image purposes, multi-result generation, and prompt organization around product, platform, use case, and style
+   - R1 reference: `CookSleep/gpt_image_playground` for upload, drag-and-drop, clipboard paste, reference image, mask editing, streaming preview, gallery, large preview, download, and parameter comparison interactions
+   - Do not adopt either reference as a replacement for SSXZ. Keep SSXZ auth, balance, billing, usage, assets, admin operations, and provider routing as the source of truth.
 2. Improve chat as prompt assistance and general conversation:
    - keep `/app/chat`
    - evaluate old `ChatStudioView` assets
