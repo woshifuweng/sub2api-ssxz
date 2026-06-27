@@ -42,11 +42,14 @@ function isSelectableWorkspaceModel(model: UserSupportedModel) {
 }
 
 function isSelectableImageModel(model: UserSupportedModel) {
+  if (model.model_catalog_source !== 'real_channel') {
+    return false
+  }
   const capabilities = model.capabilities || []
   if (capabilities.some((capability) => workspaceImageSelectableCapabilities.has(capability))) {
     return true
   }
-  return model.model_catalog_source === 'real_channel' && isImageModelName(model.name)
+  return isImageModelName(model.name)
 }
 
 function formatModelName(model: string) {
