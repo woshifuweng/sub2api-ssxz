@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last updated: 2026-06-21
+Last updated: 2026-06-27
 
 ## Product Positioning
 
@@ -73,7 +73,7 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | Auth/login/register | Mostly complete | Login/register flows and backend handlers exist. Security hardening remains a separate backlog item. |
 | User workspace shell | Partial | `/app/*` exists, but not every user entry stays inside this shell. |
 | AI chat | Connected | `/app/chat` works through workspace logic; old `ChatStudioView` remains a product reference/asset. |
-| Image generation | Staging closed-loop verified, production smoke deployed | `ImageStudioView`, `ImageStudioHandler`, OpenAI-compatible image gateway, and image/Sora-related storage exist. On 2026-06-20 staging verified generation, usage cost, history, and HTTP image download with `gpt-image-2`. On 2026-06-21 latest main was deployed to production after explicit approval, but production real image generation remains an acceptance gate. |
+| Image generation | P0/P0-Beta guard deployed; production real generation acceptance still open | `ImageStudioView`, `ImageStudioHandler`, OpenAI-compatible image gateway, and image/Sora-related storage exist. On 2026-06-20 staging verified generation, usage cost, history, and HTTP image download with `gpt-image-2`. On 2026-06-27 PR #184 was deployed to production after explicit approval and verified that ordinary users do not see non-real image-capable models. Production real image generation remains an acceptance gate because #184 validation did not call a real provider. |
 | API Key / third-party access | Mostly complete, UX partial | Backend and frontend exist. User-facing copy and shell alignment are still being corrected. |
 | Usage center | Backend complete enough, frontend partial | Usage APIs and older page exist; `/app/usage` is the desired new user-shell direction. |
 | Recharge/payment | Backend/admin rich, user-shell partial | Payment/order/subscription capabilities exist; user shell alignment remains incomplete. |
@@ -108,6 +108,19 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | Scope | No infrastructure change | No Nginx change and no database migration were part of the release. |
 | Remaining gate | Production image acceptance not complete | Production logs showed `/app` read-only log output and old `SoraStorage` local-path initialization risk. Resolve or explicitly accept storage/log-path configuration before treating production image generation as fully accepted. |
 
+## Production Release Recorded On 2026-06-27
+
+| Area | Result | Evidence |
+| --- | --- | --- |
+| Deployment | Completed after explicit user approval | PR #184 was merged to main at merge commit `d5be5a624`. Production was deployed from the same candidate already validated on staging. |
+| Binary | Running production binary recorded | Production `/opt/sub2api/sub2api` SHA-256 was `cc2a32fc401dd45d606d22404f91526eb5190067069fef4e61bac9bd976105fa`; `sub2api.service` was active/running with PID `130747` after deployment. |
+| Backup | Created before replacement | `/opt/sub2api/backups/production-before-pr184-d5be5a624-20260627-161358/sub2api`. |
+| Production smoke | Public routes responded | `https://api.ssxzapi.com/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/api/v1/settings/public` returned HTTP 200 after deployment. |
+| Ordinary/admin boundary | Read-only auth smoke passed | Ordinary and admin users could load their expected read-only workspace endpoints. Ordinary `/admin/users` returned HTTP 403 and admin `/admin/users` returned HTTP 200. |
+| Image model authenticity | Non-real image-capable models hidden | Production ordinary account had no selectable image models, and the non-real image-capable model count was `0`. This confirms the PR #184 guard, not production image generation success. |
+| Scope | No sensitive backend scope changed | No database migration, Nginx change, payment/ledger change, provider-routing change, or real-provider call was part of the release. |
+| Remaining gate | Production image creation still not fully accepted | #184 did not call a real provider. A later controlled production image-generation acceptance still needs explicit approval before claiming production image creation, storage, billing, history, and download are fully accepted. |
+
 ## Historical Product Decisions Preserved On 2026-06-18
 
 - The older site is not the code trunk and should not be copied wholesale. It is a product reference for user-side AI chat, AI image creation, navigation, prompt flow, result display, balance, and API access.
@@ -122,7 +135,7 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | Area | Classification | Notes |
 | --- | --- | --- |
 | Workspace memory/toolbox/capability placeholders | Placeholder UI | Some disabled or "not connected" controls exist in workspace components. They must not imply working backend behavior. |
-| Image generation real upstream | Staging verified, production smoke deployed | One `gpt-image-2` OpenAI-compatible path works in staging. Production was deployed on 2026-06-21 after explicit approval, but real production image generation, storage, billing, history, and download still require acceptance checks. |
+| Image generation real upstream | Staging verified, production authenticity guard deployed | One `gpt-image-2` OpenAI-compatible path works in staging. Production was deployed on 2026-06-21 after explicit approval and PR #184 was deployed on 2026-06-27 after explicit approval. Real production image generation, storage, billing, history, and download still require controlled acceptance checks. |
 | Image history/download in the new user journey | Staging HTTP path verified | Storage/history/download pieces work for the validated staging image. Native browser download UX still needs manual confirmation. |
 | Reference image upload preview | Staging verified | Single reference image preview recovered after allowing `blob:` in CSP. Multiple reference images remain a later workflow enhancement. |
 | Image failure handling | Regression covered for no-charge failure paths | Invalid form input fails before upstream and does not change balance or usage. Code-path audit shows upstream errors do not reach `RecordUsage` and non-2xx responses do not persist image history. Service-level regression tests cover upstream non-2xx, transport timeout/error, and partial-success response write failure returning no successful result. Handler-level regression tests cover upstream failure without usage/billing/deduct calls, failed/truncated captures without image history, DB-backed image-history persistence, and DB-backed usage/billing persistence staying clean for upstream 4xx and transport timeout. |

@@ -6,6 +6,18 @@ Last updated: 2026-06-27
 
 Build SSXZ AI into a lightweight AI creation workspace for about 200-300 private users, while preserving the Sub2API backend strengths: login, balance, usage, payment, API keys, admin operations, provider/account configuration, and security boundaries.
 
+## Current Phase As Of 2026-06-27
+
+The project can start P1 planning and small P1 PRs. P0/P0-Beta structural convergence has enough evidence to move forward:
+
+- ordinary-user workspace routes are established around `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/app/profile`
+- chat P0 fixes were validated on staging
+- image failure/no-charge paths have regression coverage
+- production has been smoke-tested after the 2026-06-21 and 2026-06-27 explicit-approval deployments
+- PR #184 production validation confirmed ordinary users do not see non-real image-capable models
+
+This does not mean production image generation is fully accepted. A controlled real-provider production image-generation acceptance remains separate and must verify creation, storage, usage/billing, history, and download before claiming the production image chain is complete.
+
 ## Decision Rules
 
 Before implementing new product, quality, UX, or operations work, apply the mature solution comparison principle:
@@ -31,7 +43,7 @@ This rule helps delivery speed and quality. It does not change priority labels: 
 - Keep ordinary-user pages inside the user workspace shell.
 - Stop ordinary-user navigation from jumping into the older admin/backend-looking shell.
 - Preserve existing backend, billing, provider routing, payment, and database behavior.
-- Keep the 2026-06-20 staging image-generation success and the 2026-06-21 production smoke as evidence, not as full product acceptance.
+- Keep the 2026-06-20 staging image-generation success, the 2026-06-21 production smoke, and the 2026-06-27 PR #184 production authenticity-guard smoke as evidence, not as full product acceptance.
 
 ### P0 Work Items
 
@@ -96,6 +108,7 @@ P0 can exit only when these are true:
 
 ### Goals
 
+- Start from small, isolated PRs now that P0/P0-Beta route, status, no-charge, and fake-model risks are sufficiently contained.
 - Make the ordinary-user product feel like a lightweight AI creation tool, not a technical relay console.
 - Preserve owner/admin ability to operate the private user base.
 - Improve image and chat workflows without weakening billing/security.
@@ -180,7 +193,7 @@ P0 can exit only when these are true:
 
 ## Production Release Gates
 
-Production deployment is a separate release gate. A production deployment happened on 2026-06-21 after explicit approval, but future deployments and full production acceptance should use the gates below:
+Production deployment is a separate release gate. Production deployments happened on 2026-06-21 and 2026-06-27 after explicit approval, but future deployments and full production acceptance should use the gates below:
 
 1. Ordinary-user navigation stays inside the intended user workspace shell.
 2. `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/app/profile` behave consistently after refresh.
