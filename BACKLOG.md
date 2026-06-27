@@ -34,6 +34,8 @@ Last updated: 2026-06-27
 
 - 2026-06-27: PR #190 was merged to main at `5402cf556` and deployed to staging only. Staging `sub2api-staging.service` ran binary SHA-256 `294cd98b2e5f1e8699733e26ffda5e50efa5856a5c183144512a8163cb0b92ec`; production remained on SHA-256 `7fb45509c5fb6d74a5cc8ab88530f78f4e34dd5a88b177fe31c178b3f034afa0`.
 - 2026-06-27: after #190 staging deployment, route smoke returned HTTP 200 for `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public` on staging port `18080`; the same public routes returned HTTP 200 on production port `8080`. No real provider was called.
+- 2026-06-27: PR #192 was merged to main at `4adc65dba` and deployed to staging only. Staging `sub2api-staging.service` ran binary SHA-256 `7086880a79e22900e4d65ca4f1cc715f6968c77fa22ec92a5c85bced8dfbcd5e`; production remained on SHA-256 `7fb45509c5fb6d74a5cc8ab88530f78f4e34dd5a88b177fe31c178b3f034afa0`.
+- 2026-06-27: after #192 staging deployment, route smoke returned HTTP 200 for `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public` on staging port `18080`; the same public routes returned HTTP 200 on production port `8080`. #192 was frontend-only image history/download feedback hardening and did not call a real provider.
 
 ## P0 Bugs And Structural Fixes
 
@@ -52,7 +54,7 @@ Last updated: 2026-06-27
 
 - Start P1 in small PRs only. Do not reopen broad P0 structure work unless a regression appears.
 - First P1 candidates:
-  - image history/download/user journey audit and small UX fixes
+  - continue image history/download/user journey audit after the #192 first UX-hardening slice
   - `/app/image` controlled production real-generation acceptance plan, only after explicit approval to call a real provider
   - follow-up `/app/image` model naming/display strategy only if operators decide to change production image-model policy; the first alias-display slice was completed by PR #188
   - API Key / third-party access copy and safety polish
@@ -62,8 +64,8 @@ Last updated: 2026-06-27
 ## Phase Progress Snapshot
 
 - P0 / P0-Beta convergence: about 91%. Remaining P0 risk is controlled production image-generation acceptance and any regression found while doing P1.
-- P1 product/operations: about 16%. Completed slices: image-model alias display clarity and user-shell lint baseline cleanup. Remaining large P1 loops: image history/download UX, production real-generation acceptance, API Key polish, usage/balance explanation, and admin/ops hardening.
-- Distance to P2: about 84% of P1 remains. Do not prioritize P2 visual polish until P1 loops have evidence.
+- P1 product/operations: about 18%. Completed slices: image-model alias display clarity, user-shell lint baseline cleanup, and first image history/download feedback hardening. Remaining large P1 loops: production real-generation acceptance, API Key polish, usage/balance explanation, and admin/ops hardening.
+- Distance to P2: about 82% of P1 remains. Do not prioritize P2 visual polish until P1 loops have evidence.
 - P2: 0%. Keep as later polish/enhancement work.
 
 ## Chains That Need Verification
@@ -76,7 +78,7 @@ Last updated: 2026-06-27
   - request payload: staging success path verified once
   - billing/usage: staging success path verified once
   - history: staging success path verified once
-  - download: HTTP media URL verified once; native browser download event still needs manual confirmation
+  - download: HTTP media URL verified once; PR #192 added frontend href/filename regression coverage; native browser download event still needs manual confirmation
   - invalid form failure: staging no-charge behavior verified once
   - upstream failure: code path audited; service-level and handler-level regression tests added; DB-backed image-history regression added; DB-backed usage/billing regression added
 - `/app/usage` real balance, monthly trend, and detail data.
