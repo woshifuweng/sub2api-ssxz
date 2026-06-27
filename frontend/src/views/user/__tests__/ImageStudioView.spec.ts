@@ -343,6 +343,44 @@ describe('ImageStudioView workbench', () => {
     wrapper.unmount()
   })
 
+  it('explains OpenAI-compatible image aliases in the model selector', async () => {
+    userChannelsApi.getAvailable.mockResolvedValue([
+      {
+        name: 'Image Channel',
+        description: '',
+        platforms: [
+          {
+            platform: 'openai',
+            groups: [],
+            supported_models: [
+              {
+                name: 'gemini-2.5-flash-image',
+                platform: 'openai',
+                pricing: null,
+                capabilities: ['image_generation'],
+                provider: 'openai-compatible-images',
+                provider_label: 'workspace-openai-compatible-image-staging',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured',
+              },
+            ],
+          },
+        ],
+      },
+    ])
+
+    const wrapper = mountImageStudio()
+    await flushPromises()
+
+    const option = wrapper.find('.hero-model-select option')
+    expect(option.attributes('value')).toBe('gemini-2.5-flash-image')
+    expect(option.text()).toContain('Gemini-2.5-Flash-Image')
+    expect(option.text()).toContain('OpenAI 兼容图片通道别名')
+    expect(wrapper.text()).toContain('模型名为兼容别名')
+
+    wrapper.unmount()
+  })
+
   it('submits the selected image model to the image-studio API', async () => {
     userChannelsApi.getAvailable.mockResolvedValue([
       {

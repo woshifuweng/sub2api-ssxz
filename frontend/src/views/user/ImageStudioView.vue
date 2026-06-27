@@ -48,7 +48,7 @@
             aria-label="选择图片模型"
           >
             <option v-for="model in imageModelOptions" :key="model.id" :value="model.id">
-              {{ model.name }}
+              {{ imageModelOptionLabel(model) }}
             </option>
           </select>
           <small>{{ imageModelHint }}</small>
@@ -481,7 +481,7 @@ import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { apiClient } from '@/api/client'
 import soraAPI, { type SoraGeneration } from '@/api/sora'
-import { useUserCapabilities } from '@/composables/useUserCapabilities'
+import { useUserCapabilities, type ChatModelOption } from '@/composables/useUserCapabilities'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 
@@ -658,9 +658,17 @@ const activeImageModel = computed(() => {
   return imageModelOptions.value.find((model) => model.id === preferred) || null
 })
 const activeImageModelLabel = computed(() => activeImageModel.value?.name || '后台配置')
+const activeImageModelRouteLabel = computed(() => imageModelRouteLabel(activeImageModel.value))
 const imageModelHint = computed(() => {
   if (capabilities.loading.value) return '正在读取账号可用的图片模型。'
-  if (activeImageModel.value) return '来自账号可用渠道；当前生成仍以后端配置为准。'
+  if (activeImageModel.value) {
+    const routeLabel = activeImageModelRouteLabel.value
+    if (routeLabel && isImageModelRouteAlias(activeImageModel.value)) {
+      return `${routeLabel}；模型名为兼容别名，实际执行以后端授权渠道为准。`
+    }
+    if (routeLabel) return `${routeLabel}；来自账号可用渠道，当前生成仍以后端配置为准。`
+    return '来自账号可用渠道；当前生成仍以后端配置为准。'
+  }
   return '暂未读取到可展示的图片模型，请确认后台账号、分组和价格配置。'
 })
 const referenceMeta = computed(() => {
@@ -748,6 +756,33 @@ function resolvePreferredImageModelId(models: Array<{ id: string }>, fallbackMod
   if (models.some((model) => model.id === verifiedDefaultImageModelId)) return verifiedDefaultImageModelId
   if (fallbackModelId && models.some((model) => model.id === fallbackModelId)) return fallbackModelId
   return models[0]?.id || ''
+}
+
+function imageModelOptionLabel(model: ChatModelOption) {
+  const routeLabel = imageModelRouteLabel(model)
+  if (!routeLabel) return model.name
+  const aliasSuffix = isImageModelRouteAlias(model) ? '别名' : ''
+  return `${model.name}（${routeLabel}${aliasSuffix}）`
+}
+
+function imageModelRouteLabel(model?: ChatModelOption | null) {
+  if (!model) return ''
+  if (isOpenAICompatibleImageRoute(model)) return 'OpenAI 兼容图片通道'
+  const platform = (model.platform || '').toLowerCase()
+  if (platform === 'image-provider') return '图片生成通道'
+  return ''
+}
+
+function isOpenAICompatibleImageRoute(model: ChatModelOption) {
+  const provider = (model.provider || '').toLowerCase()
+  const providerLabel = (model.providerLabel || '').toLowerCase()
+  return provider.includes('openai-compatible') || providerLabel.includes('openai-compatible')
+}
+
+function isImageModelRouteAlias(model: ChatModelOption) {
+  if (!isOpenAICompatibleImageRoute(model)) return false
+  const name = model.id.toLowerCase()
+  return !name.includes('gpt-image') && !name.includes('dall')
 }
 
 function parseRatio(value: string) {
