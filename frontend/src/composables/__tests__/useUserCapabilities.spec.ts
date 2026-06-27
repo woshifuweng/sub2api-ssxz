@@ -277,6 +277,15 @@ describe('useUserCapabilities', () => {
                 pricing_status: 'configured'
               },
               {
+                name: 'gemini-2.5-flash-image',
+                platform: 'gemini',
+                pricing: null,
+                capabilities: ['image_generation'],
+                provider_label: 'gemini',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured'
+              },
+              {
                 name: 'gpt-5.5',
                 platform: 'openai',
                 pricing: null,
@@ -297,8 +306,42 @@ describe('useUserCapabilities', () => {
     expect(capabilities.chatModels.value.map((model) => model.id)).toContain('gpt-5.5')
     expect(capabilities.chatModels.value.map((model) => model.id)).not.toContain('gpt-image-2')
     expect(capabilities.imageModels.value.map((model) => model.id)).toEqual(['gpt-image-2'])
+    expect(capabilities.imageModels.value.map((model) => model.id)).not.toContain('gemini-2.5-flash-image')
     expect(capabilities.defaultImageModel.value).toBe('gpt-image-2')
     expect(capabilities.hasImageGeneration.value).toBe(true)
+  })
+
+  it('hides real image models that the image-studio backend cannot execute yet', async () => {
+    mocks.getChannels.mockResolvedValue([
+      {
+        name: 'Gemini Image Channel',
+        description: '',
+        platforms: [
+          {
+            platform: 'gemini',
+            groups: [],
+            supported_models: [
+              {
+                name: 'gemini-3-pro-image-preview',
+                platform: 'gemini',
+                pricing: null,
+                capabilities: ['image_generation'],
+                provider_label: 'gemini',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured'
+              }
+            ]
+          }
+        ]
+      }
+    ])
+
+    const capabilities = useUserCapabilities()
+    await capabilities.loadCapabilities()
+
+    expect(capabilities.imageModels.value).toEqual([])
+    expect(capabilities.defaultImageModel.value).toBe('')
+    expect(capabilities.hasImageGeneration.value).toBe(false)
   })
 
   it('uses real image-like model names as image catalog fallback', async () => {

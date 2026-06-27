@@ -155,7 +155,7 @@ describe('ImageStudioView workbench', () => {
     wrapper.unmount()
   })
 
-  it('shows image-capable models from the user catalog without making them chat models', async () => {
+  it('shows image-studio executable models from the user catalog without making them chat models', async () => {
     userChannelsApi.getAvailable.mockResolvedValue([
       {
         name: 'Image Channel',
@@ -204,11 +204,11 @@ describe('ImageStudioView workbench', () => {
     const text = wrapper.text()
     expect(text).toContain('图片模型')
     expect(text).toContain('Gpt-Image-2')
-    expect(text).toContain('Gemini-2.5-Flash-Image')
+    expect(text).not.toContain('Gemini-2.5-Flash-Image')
     expect(text).not.toContain('Deepseek-V4-Flash')
     const optionValues = wrapper.findAll('.hero-model-select option').map((option) => option.attributes('value'))
     expect(optionValues).toContain('gpt-image-2')
-    expect(optionValues).toContain('gemini-2.5-flash-image')
+    expect(optionValues).not.toContain('gemini-2.5-flash-image')
 
     wrapper.unmount()
   })
@@ -309,7 +309,7 @@ describe('ImageStudioView workbench', () => {
     wrapper.unmount()
   })
 
-  it('falls back to the first image model when the verified model is unavailable', async () => {
+  it('falls back to the first executable image model when the verified model is unavailable', async () => {
     userChannelsApi.getAvailable.mockResolvedValue([
       {
         name: 'Image Channel',
@@ -320,11 +320,11 @@ describe('ImageStudioView workbench', () => {
             groups: [],
             supported_models: [
               {
-                name: 'gemini-3.1-flash-image-preview',
-                platform: 'gemini',
+                name: 'gpt-image-1',
+                platform: 'image-provider',
                 pricing: null,
                 capabilities: ['image_generation'],
-                provider_label: 'gemini',
+                provider_label: 'workspace-openai-compatible-image-staging',
                 model_catalog_source: 'real_channel',
                 pricing_status: 'configured',
               },
@@ -338,7 +338,7 @@ describe('ImageStudioView workbench', () => {
     await flushPromises()
 
     const select = wrapper.find('.hero-model-select').element as HTMLSelectElement
-    expect(select.value).toBe('gemini-3.1-flash-image-preview')
+    expect(select.value).toBe('gpt-image-1')
 
     wrapper.unmount()
   })
@@ -363,11 +363,11 @@ describe('ImageStudioView workbench', () => {
                 pricing_status: 'configured',
               },
               {
-                name: 'gemini-2.5-flash-image',
-                platform: 'gemini',
+                name: 'gpt-image-1',
+                platform: 'image-provider',
                 pricing: null,
                 capabilities: ['image_generation'],
-                provider_label: 'gemini',
+                provider_label: 'workspace-openai-compatible-image-staging',
                 model_catalog_source: 'real_channel',
                 pricing_status: 'configured',
               },
@@ -389,13 +389,13 @@ describe('ImageStudioView workbench', () => {
     const wrapper = mountImageStudio()
     await flushPromises()
 
-    await wrapper.find('.hero-model-select').setValue('gemini-2.5-flash-image')
+    await wrapper.find('.hero-model-select').setValue('gpt-image-1')
     await wrapper.find('textarea').setValue('minimal skincare product cover')
     await wrapper.find('button.generate-button').trigger('click')
     await flushPromises()
 
     const form = apiClient.post.mock.calls[0][1] as FormData
-    expect(form.get('model')).toBe('gemini-2.5-flash-image')
+    expect(form.get('model')).toBe('gpt-image-1')
 
     wrapper.unmount()
   })
