@@ -96,6 +96,19 @@ function stubReferencePreviewUrl(result: 'success' | 'error' = 'success') {
   return { createObjectURL, revokeObjectURL }
 }
 
+function recordAnchorDownloads() {
+  const anchors: HTMLAnchorElement[] = []
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+    anchors.push(this)
+  })
+
+  return {
+    anchors,
+    click,
+    restore: () => click.mockRestore(),
+  }
+}
+
 describe('ImageStudioView workbench', () => {
   beforeEach(() => {
     authStore.user.balance = 1
@@ -478,6 +491,48 @@ describe('ImageStudioView workbench', () => {
     wrapper.unmount()
   })
 
+  it('shows a recoverable recent works load failure without clearing generated history state', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    soraApi.listGenerations.mockRejectedValueOnce(new Error('network unavailable'))
+
+    const wrapper = mountImageStudio()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('最近作品加载失败，请稍后重试或联系管理员。已生成的作品不会因此被删除。')
+    expect(consoleError).toHaveBeenCalledTimes(1)
+
+    soraApi.listGenerations.mockResolvedValueOnce({
+      data: [
+        {
+          id: 13,
+          user_id: 7,
+          model: 'gpt-image-2',
+          prompt: 'restored product poster',
+          media_type: 'image',
+          status: 'completed',
+          storage_type: 'upstream',
+          media_url: 'https://cdn.example.com/recovered.png',
+          media_urls: ['https://cdn.example.com/recovered.png'],
+          s3_object_keys: [],
+          file_size_bytes: 0,
+          error_message: '',
+          created_at: '2026-06-21T00:00:00Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+    })
+
+    await wrapper.find('.recent-heading .secondary-button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('最近作品加载失败')
+    expect(wrapper.find('img[alt="work-13"]').attributes('src')).toBe('https://cdn.example.com/recovered.png')
+
+    consoleError.mockRestore()
+    wrapper.unmount()
+  })
+
   it('opens a focused preview for recent image works', async () => {
     soraApi.listGenerations.mockResolvedValue({
       data: [
@@ -513,10 +568,12 @@ describe('ImageStudioView workbench', () => {
     expect(dialog.find('img[alt="preview-work-12"]').attributes('src')).toBe('https://cdn.example.com/preview.png')
     expect(wrapper.find('.recent-thumb-hint').text()).toBe('点击预览')
 
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const download = recordAnchorDownloads()
 
     await wrapper.find('.recent-preview-actions .secondary-button').trigger('click')
-    expect(click).toHaveBeenCalledTimes(1)
+    expect(download.click).toHaveBeenCalledTimes(1)
+    expect(download.anchors[0].href).toBe('https://cdn.example.com/preview.png')
+    expect(download.anchors[0].download).toBe('image-work-12.png')
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     await flushPromises()
@@ -527,10 +584,16 @@ describe('ImageStudioView workbench', () => {
     await wrapper.find('.recent-preview-close').trigger('click')
     expect(wrapper.find('.recent-preview-dialog').exists()).toBe(false)
 
-    await wrapper.find('.recent-card-actions .secondary-button').trigger('click')
+    const cardActions = wrapper.findAll('.recent-card-actions .secondary-button')
+    await cardActions[0].trigger('click')
     expect(wrapper.find('.recent-preview-dialog').exists()).toBe(true)
+    await wrapper.find('.recent-preview-close').trigger('click')
+    await cardActions[1].trigger('click')
+    expect(download.click).toHaveBeenCalledTimes(2)
+    expect(download.anchors[1].href).toBe('https://cdn.example.com/preview.png')
+    expect(download.anchors[1].download).toBe('image-work-12.png')
 
-    click.mockRestore()
+    download.restore()
     wrapper.unmount()
   })
 
@@ -578,9 +641,15 @@ describe('ImageStudioView workbench', () => {
     expect(wrapper.find('img[alt="result-1"]').attributes('src')).toBe('https://cdn.example.com/result.png')
     expect(wrapper.findAll('.thumbnail-button')).toHaveLength(3)
     expect(wrapper.findAll('.result-actions .secondary-button')[2].attributes('disabled')).toBeUndefined()
+    const download = recordAnchorDownloads()
+    await wrapper.findAll('.result-actions .secondary-button')[1].trigger('click')
+    expect(download.click).toHaveBeenCalledTimes(1)
+    expect(download.anchors[0].href).toBe('https://cdn.example.com/result.png')
+    expect(download.anchors[0].download).toBe('image-studio-1.png')
     expect(authStore.refreshUser).toHaveBeenCalledTimes(1)
     expect(appStore.showSuccess).toHaveBeenCalledWith('图片生成完成')
 
+    download.restore()
     wrapper.unmount()
   })
 
