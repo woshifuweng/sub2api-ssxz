@@ -27,6 +27,10 @@ Last updated: 2026-06-27
 - 2026-06-27: PR #186 was merged to main at `0089a688a` and deployed to staging only. Staging `sub2api-staging.service` ran binary SHA-256 `79c0dc575b6337551d903c2e823c6931af755ea0bc4f7ef7eb024388bcec5e76`; production remained on SHA-256 `cc2a32fc401dd45d606d22404f91526eb5190067069fef4e61bac9bd976105fa`.
 - 2026-06-27: after #186 staging deployment, route smoke returned HTTP 200 for `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/api/v1/settings/public` on both staging port `18080` and production port `8080`.
 - 2026-06-27: staging `/api/v1/channels/available` exposed `gpt-image-2` plus Gemini-named image aliases as real image models because they are explicitly included in `WORKSPACE_IMAGE_REAL_PROVIDER_ALLOWED_MODELS` under `provider=openai-compatible-images` and provider label `workspace-openai-compatible-image-staging`. This is a staging allowlist/model-label strategy issue, not evidence of native Gemini provider routing in `/app/image`.
+- 2026-06-27: PR #188 was merged to main at `1c912f210`, deployed to staging, then deployed to production after explicit user approval.
+- 2026-06-27: #188 production and staging binaries both ran SHA-256 `7fb45509c5fb6d74a5cc8ab88530f78f4e34dd5a88b177fe31c178b3f034afa0`; production backup was `/opt/sub2api/backups/production-before-pr188-1c912f210-20260627-210008/sub2api`.
+- 2026-06-27: #188 public production smoke returned HTTP 200 for `https://api.ssxzapi.com/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/api/v1/settings/public`.
+- 2026-06-27: #188 staging UI displayed Gemini-named image aliases as `OpenAI 兼容图片通道别名`; production ordinary account still had no selectable image models because production catalog did not expose `real_channel` image capabilities. No real provider was called.
 
 ## P0 Bugs And Structural Fixes
 
@@ -47,10 +51,17 @@ Last updated: 2026-06-27
 - First P1 candidates:
   - image history/download/user journey audit and small UX fixes
   - `/app/image` controlled production real-generation acceptance plan, only after explicit approval to call a real provider
-  - `/app/image` model naming/display strategy for OpenAI-compatible image aliases, especially Gemini-named models that are server-allowlisted but may confuse users
+  - follow-up `/app/image` model naming/display strategy only if operators decide to change production image-model policy; the first alias-display slice was completed by PR #188
   - API Key / third-party access copy and safety polish
   - usage/balance explanation improvements based on real data and honest empty states
 - Keep production deployment as a separate approval gate for every PR.
+
+## Phase Progress Snapshot
+
+- P0 / P0-Beta convergence: about 90%. Remaining P0 risk is controlled production image-generation acceptance and any regression found while doing P1.
+- P1 product/operations: about 15%. Completed first slice: image-model alias display clarity. Remaining large P1 loops: image history/download UX, production real-generation acceptance, API Key polish, usage/balance explanation, and admin/ops hardening.
+- Distance to P2: about 85% of P1 remains. Do not prioritize P2 visual polish until P1 loops have evidence.
+- P2: 0%. Keep as later polish/enhancement work.
 
 ## Chains That Need Verification
 
