@@ -344,6 +344,47 @@ describe('useUserCapabilities', () => {
     expect(capabilities.hasImageGeneration.value).toBe(false)
   })
 
+  it('keeps backend-authorized OpenAI-compatible image aliases selectable', async () => {
+    mocks.getChannels.mockResolvedValue([
+      {
+        name: 'Image Channel',
+        description: '',
+        platforms: [
+          {
+            platform: 'openai',
+            groups: [],
+            supported_models: [
+              {
+                name: 'gemini-2.5-flash-image',
+                platform: 'openai',
+                pricing: null,
+                capabilities: ['image_generation'],
+                provider: 'openai-compatible-images',
+                provider_label: 'workspace-openai-compatible-image-staging',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured'
+              }
+            ]
+          }
+        ]
+      }
+    ])
+
+    const capabilities = useUserCapabilities()
+    await capabilities.loadCapabilities()
+
+    expect(capabilities.imageModels.value).toMatchObject([
+      {
+        id: 'gemini-2.5-flash-image',
+        provider: 'openai-compatible-images',
+        providerLabel: 'workspace-openai-compatible-image-staging',
+        modelCatalogSource: 'real_channel'
+      }
+    ])
+    expect(capabilities.defaultImageModel.value).toBe('gemini-2.5-flash-image')
+    expect(capabilities.hasImageGeneration.value).toBe(true)
+  })
+
   it('uses real image-like model names as image catalog fallback', async () => {
     mocks.getChannels.mockResolvedValue([
       {
