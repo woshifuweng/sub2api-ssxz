@@ -399,6 +399,9 @@
         </button>
       </div>
 
+      <p v-if="recentWorksError" class="recent-error" role="status">
+        {{ recentWorksError }}
+      </p>
       <div v-if="recentWorksLoading && !recentWorks.length" class="recent-empty">
         正在加载最近作品...
       </div>
@@ -575,6 +578,7 @@ const results = ref<ResultImage[]>([])
 const activeResultIndex = ref(0)
 const recentWorks = ref<SoraGeneration[]>([])
 const recentWorksLoading = ref(false)
+const recentWorksError = ref('')
 const previewStageRef = ref<HTMLElement | null>(null)
 const previewWork = ref<{ work: SoraGeneration; index: number; src: string } | null>(null)
 let referenceReadSerial = 0
@@ -1023,6 +1027,7 @@ function extractImages(payload: any): ResultImage[] {
 
 async function loadRecentWorks() {
   recentWorksLoading.value = true
+  recentWorksError.value = ''
   try {
     const response = await soraAPI.listGenerations({
       status: 'completed',
@@ -1034,6 +1039,7 @@ async function loadRecentWorks() {
     recentWorks.value = rows.filter((item) => workImageSrc(item) !== '')
   } catch (error) {
     console.error('Failed to load image works:', error)
+    recentWorksError.value = '最近作品加载失败，请稍后重试或联系管理员。已生成的作品不会因此被删除。'
   } finally {
     recentWorksLoading.value = false
   }
@@ -2008,6 +2014,17 @@ function scrollPreviewIntoView() {
   margin-top: 1rem;
   padding: 1rem;
   text-align: center;
+}
+
+.recent-error {
+  margin: 0.85rem 0 0;
+  border: 1px solid var(--ssxz-danger);
+  border-radius: 0.9rem;
+  background: var(--ssxz-surface-subtle);
+  color: var(--ssxz-danger);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  padding: 0.68rem 0.78rem;
 }
 
 .recent-grid {
