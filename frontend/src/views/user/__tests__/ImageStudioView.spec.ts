@@ -213,6 +213,59 @@ describe('ImageStudioView workbench', () => {
     wrapper.unmount()
   })
 
+  it('hides non-real image-capable models from the image selector', async () => {
+    userChannelsApi.getAvailable.mockResolvedValue([
+      {
+        name: 'Image Channel',
+        description: '',
+        platforms: [
+          {
+            platform: 'image-provider',
+            groups: [],
+            supported_models: [
+              {
+                name: 'gpt-image-2',
+                platform: 'image-provider',
+                pricing: null,
+                capabilities: ['image_generation'],
+                provider_label: 'workspace-openai-compatible-image-staging',
+                model_catalog_source: 'real_channel',
+                pricing_status: 'configured',
+              },
+              {
+                name: 'gpt-image-env',
+                platform: 'image-provider',
+                pricing: null,
+                capabilities: ['image_generation'],
+                model_catalog_source: 'env_gate',
+              },
+              {
+                name: 'workspace-image-fake-model',
+                platform: 'workspace-image-fake',
+                pricing: null,
+                capabilities: ['image_generation'],
+                provider_label: 'workspace-image-fake',
+                model_catalog_source: 'fake_gate',
+                fake: true,
+                test_only: true,
+              },
+            ],
+          },
+        ],
+      },
+    ])
+
+    const wrapper = mountImageStudio()
+    await flushPromises()
+
+    const optionValues = wrapper.findAll('.hero-model-select option').map((option) => option.attributes('value'))
+    expect(optionValues).toEqual(['gpt-image-2'])
+    expect(wrapper.text()).not.toContain('Gpt-Image-Env')
+    expect(wrapper.text()).not.toContain('Workspace-Image-Fake-Model')
+
+    wrapper.unmount()
+  })
+
   it('defaults image generation to the verified gpt-image-2 model when available', async () => {
     userChannelsApi.getAvailable.mockResolvedValue([
       {

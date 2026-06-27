@@ -192,7 +192,7 @@ describe('useUserCapabilities', () => {
     expect(capabilities.chatModels.value.map((model) => model.id)).not.toContain('function-only-model')
   })
 
-  it('does not show explicitly allowed fake image generation model in chat picker', async () => {
+  it('does not show explicitly allowed fake image generation model in user pickers', async () => {
     mocks.getChannels.mockResolvedValue([
       {
         name: 'Workspace Image Fake',
@@ -222,6 +222,8 @@ describe('useUserCapabilities', () => {
     await capabilities.loadCapabilities()
 
     expect(capabilities.chatModels.value.map((model) => model.id)).not.toContain('workspace-image-fake-model')
+    expect(capabilities.imageModels.value.map((model) => model.id)).not.toContain('workspace-image-fake-model')
+    expect(capabilities.hasImageGeneration.value).toBe(false)
   })
 
   it('does not show backend-authorized image generation-only models in chat picker', async () => {
@@ -353,9 +355,10 @@ describe('useUserCapabilities', () => {
     await capabilities.loadCapabilities()
 
     expect(capabilities.chatModels.value.map((model) => model.id)).not.toContain('gpt-image-1')
+    expect(capabilities.imageModels.value.map((model) => model.id)).not.toContain('gpt-image-1')
   })
 
-  it('filters image generation models that are not sourced from real channels or fake gates', async () => {
+  it('filters image generation models that are not sourced from real channels', async () => {
     mocks.getChannels.mockResolvedValue([
       {
         name: 'Image Channel',
@@ -366,11 +369,28 @@ describe('useUserCapabilities', () => {
             groups: [],
             supported_models: [
               {
-                name: 'gpt-image-1',
+                name: 'gpt-image-env',
                 platform: 'image-provider',
                 pricing: null,
                 capabilities: ['image_generation'],
                 model_catalog_source: 'env_gate'
+              },
+              {
+                name: 'gpt-image-static',
+                platform: 'image-provider',
+                pricing: null,
+                capabilities: ['image_generation'],
+                model_catalog_source: 'static_fallback'
+              },
+              {
+                name: 'workspace-image-fake-model',
+                platform: 'workspace-image-fake',
+                pricing: null,
+                capabilities: ['image_generation'],
+                provider_label: 'workspace-image-fake',
+                model_catalog_source: 'fake_gate',
+                fake: true,
+                test_only: true
               }
             ]
           }
@@ -381,7 +401,10 @@ describe('useUserCapabilities', () => {
     const capabilities = useUserCapabilities()
     await capabilities.loadCapabilities()
 
-    expect(capabilities.chatModels.value.map((model) => model.id)).not.toContain('gpt-image-1')
+    expect(capabilities.chatModels.value.map((model) => model.id)).not.toContain('gpt-image-env')
+    expect(capabilities.imageModels.value).toEqual([])
+    expect(capabilities.defaultImageModel.value).toBe('')
+    expect(capabilities.hasImageGeneration.value).toBe(false)
   })
 
   it('filters fake image model names without explicit fake metadata', async () => {
