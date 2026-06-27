@@ -32,6 +32,9 @@ Last updated: 2026-06-27
 - 2026-06-27: #188 public production smoke returned HTTP 200 for `https://api.ssxzapi.com/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/api/v1/settings/public`.
 - 2026-06-27: #188 staging UI displayed Gemini-named image aliases as `OpenAI 兼容图片通道别名`; production ordinary account still had no selectable image models because production catalog did not expose `real_channel` image capabilities. No real provider was called.
 
+- 2026-06-27: PR #190 was merged to main at `5402cf556` and deployed to staging only. Staging `sub2api-staging.service` ran binary SHA-256 `294cd98b2e5f1e8699733e26ffda5e50efa5856a5c183144512a8163cb0b92ec`; production remained on SHA-256 `7fb45509c5fb6d74a5cc8ab88530f78f4e34dd5a88b177fe31c178b3f034afa0`.
+- 2026-06-27: after #190 staging deployment, route smoke returned HTTP 200 for `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public` on staging port `18080`; the same public routes returned HTTP 200 on production port `8080`. No real provider was called.
+
 ## P0 Bugs And Structural Fixes
 
 - User-side menu entries must not jump into the old admin/backend-looking shell.
@@ -58,9 +61,9 @@ Last updated: 2026-06-27
 
 ## Phase Progress Snapshot
 
-- P0 / P0-Beta convergence: about 90%. Remaining P0 risk is controlled production image-generation acceptance and any regression found while doing P1.
-- P1 product/operations: about 15%. Completed first slice: image-model alias display clarity. Remaining large P1 loops: image history/download UX, production real-generation acceptance, API Key polish, usage/balance explanation, and admin/ops hardening.
-- Distance to P2: about 85% of P1 remains. Do not prioritize P2 visual polish until P1 loops have evidence.
+- P0 / P0-Beta convergence: about 91%. Remaining P0 risk is controlled production image-generation acceptance and any regression found while doing P1.
+- P1 product/operations: about 16%. Completed slices: image-model alias display clarity and user-shell lint baseline cleanup. Remaining large P1 loops: image history/download UX, production real-generation acceptance, API Key polish, usage/balance explanation, and admin/ops hardening.
+- Distance to P2: about 84% of P1 remains. Do not prioritize P2 visual polish until P1 loops have evidence.
 - P2: 0%. Keep as later polish/enhancement work.
 
 ## Chains That Need Verification
