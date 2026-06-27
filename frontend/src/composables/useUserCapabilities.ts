@@ -36,6 +36,18 @@ function isImageModelName(model: string) {
   return normalized.includes('image') || normalized.includes('dall')
 }
 
+function isImageStudioExecutableModel(model: UserSupportedModel) {
+  const platform = (model.platform || '').toLowerCase()
+  const provider = (model.provider || '').toLowerCase()
+  const providerLabel = (model.provider_label || '').toLowerCase()
+  return (
+    platform === 'image-provider'
+    || platform === 'openai'
+    || provider === 'openai'
+    || providerLabel.includes('openai')
+  )
+}
+
 function isSelectableWorkspaceModel(model: UserSupportedModel) {
   const capabilities = model.capabilities || []
   return capabilities.includes('text_chat')
@@ -43,6 +55,9 @@ function isSelectableWorkspaceModel(model: UserSupportedModel) {
 
 function isSelectableImageModel(model: UserSupportedModel) {
   if (model.model_catalog_source !== 'real_channel') {
+    return false
+  }
+  if (!isImageStudioExecutableModel(model)) {
     return false
   }
   const capabilities = model.capabilities || []
