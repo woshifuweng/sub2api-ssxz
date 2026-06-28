@@ -226,8 +226,9 @@ func (e *OpenAIWSClientCloseError) Reason() string {
 
 // OpenAIWSIngressHooks 定义入站 WS 每个 turn 的生命周期回调。
 type OpenAIWSIngressHooks struct {
-	BeforeTurn func(turn int) error
-	AfterTurn  func(turn int, result *OpenAIForwardResult, turnErr error)
+	BeforeTurn        func(turn int) error
+	BeforeTurnPayload func(turn int, payload []byte, model string) error
+	AfterTurn         func(turn int, result *OpenAIForwardResult, turnErr error)
 }
 
 type openAIWSIngressClientConn interface {
@@ -3426,6 +3427,11 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			}
 		}
 		skipBeforeTurn = false
+		if hooks != nil && hooks.BeforeTurnPayload != nil {
+			if err := hooks.BeforeTurnPayload(turn, currentPayload, currentOriginalModel); err != nil {
+				return err
+			}
+		}
 		currentPayloadSummary := ffi.ParseOpenAIWSRequestPayloadSummary(currentPayload)
 		currentPreviousResponseID := currentPayloadSummary.PreviousResponseID
 		expectedPrev := strings.TrimSpace(lastTurnResponseID)

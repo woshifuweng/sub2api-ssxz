@@ -1717,8 +1717,34 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocketGateway(transportCtx gatewayctx
 	currentUserRelease = wrapReleaseOnDone(ctx, userReleaseFunc)
 
 	subscription, _ := middleware2.GetSubscriptionFromGatewayContext(transportCtx)
-	if err := h.billingCacheService.CheckBillingEligibility(ctx, apiKey.User, apiKey, apiKey.Group, subscription); err != nil {
-		reqLog.Info("openai.websocket_billing_eligibility_check_failed", zap.Error(err))
+	checkWebSocketTokenBilling := func(payload []byte, model string) error {
+		reason := "billing check failed"
+		if h.checkOpenAITokenBillingEligibilityContext(
+			transportCtx,
+			reqLog,
+			apiKey,
+			subscription,
+			model,
+			payload,
+			false,
+			"openai.websocket",
+			func(_ gatewayctx.GatewayContext, _ int, _ string, message string, _ bool) {
+				message = strings.TrimSpace(message)
+				if message != "" {
+					reason = "billing check failed: " + message
+				}
+			},
+		) {
+			return nil
+		}
+		return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, reason, nil)
+	}
+	if err := checkWebSocketTokenBilling(firstMessage, reqModel); err != nil {
+		var closeErr *service.OpenAIWSClientCloseError
+		if errors.As(err, &closeErr) {
+			closeOpenAIClientWS(wsConn, closeErr.StatusCode(), closeErr.Reason())
+			return
+		}
 		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "billing check failed")
 		return
 	}
@@ -1828,6 +1854,12 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocketGateway(transportCtx gatewayctx
 			currentUserRelease = wrapReleaseOnDone(ctx, userReleaseFunc)
 			currentAccountRelease = wrapReleaseOnDone(ctx, accountReleaseFunc)
 			return nil
+		},
+		BeforeTurnPayload: func(turn int, payload []byte, model string) error {
+			if turn == 1 {
+				return nil
+			}
+			return checkWebSocketTokenBilling(payload, model)
 		},
 		AfterTurn: func(turn int, result *service.OpenAIForwardResult, turnErr error) {
 			releaseTurnSlots()

@@ -478,6 +478,38 @@ func TestRelay_OnTurnComplete_PerTerminalEvent(t *testing.T) {
 	require.Equal(t, 5, result.Usage.OutputTokens)
 }
 
+func TestRelay_BeforeClientFrameStopsFrameBeforeUpstreamWrite(t *testing.T) {
+	t.Parallel()
+
+	secondPayload := []byte(`{"type":"response.create","model":"gpt-5.1","input":[]}`)
+	clientConn := newPassthroughTestFrameConn([]passthroughTestFrame{
+		{msgType: coderws.MessageText, payload: secondPayload},
+	}, false)
+	upstreamConn := newPassthroughTestFrameConn(nil, false)
+
+	firstPayload := []byte(`{"type":"response.create","model":"gpt-5.1","input":[]}`)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	var checked int
+	_, relayExit := Relay(ctx, clientConn, upstreamConn, firstPayload, RelayOptions{
+		BeforeClientFrame: func(msgType coderws.MessageType, payload []byte) error {
+			checked++
+			require.Equal(t, coderws.MessageText, msgType)
+			require.JSONEq(t, string(secondPayload), string(payload))
+			return errors.New("billing check failed")
+		},
+	})
+	require.NotNil(t, relayExit)
+	require.Equal(t, "before_client_frame", relayExit.Stage)
+	require.Contains(t, relayExit.Err.Error(), "billing")
+	require.Equal(t, 1, checked)
+
+	writes := upstreamConn.Writes()
+	require.Len(t, writes, 1)
+	require.JSONEq(t, string(firstPayload), string(writes[0].payload))
+}
+
 func TestRelay_OnTurnComplete_ProvidesTurnMetrics(t *testing.T) {
 	t.Parallel()
 
