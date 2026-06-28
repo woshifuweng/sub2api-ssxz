@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -36,6 +37,101 @@ func (s *apiKeyUpdateRepoStub) Update(_ context.Context, key *APIKey) error {
 	out.GroupIDs = append([]int64(nil), key.GroupIDs...)
 	s.updated = &out
 	return nil
+}
+
+type apiKeyRateLimitInvalidatorStub struct {
+	invalidatedIDs []int64
+}
+
+func ptrTimeForAPIKeyUpdateTest() *time.Time {
+	t := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	return &t
+}
+
+func (s *apiKeyRateLimitInvalidatorStub) InvalidateAPIKeyRateLimit(_ context.Context, keyID int64) error {
+	s.invalidatedIDs = append(s.invalidatedIDs, keyID)
+	return nil
+}
+
+func TestAPIKeyService_Update_RejectsOwnerMismatch(t *testing.T) {
+	repo := &apiKeyUpdateRepoStub{
+		key: &APIKey{
+			ID:     100,
+			UserID: 7,
+			Key:    "sk-owner-key",
+			Name:   "restricted",
+			Status: StatusAPIKeyActive,
+		},
+	}
+	cache := &apiKeyCacheStub{}
+	svc := &APIKeyService{apiKeyRepo: repo, cache: cache}
+	status := StatusAPIKeyDisabled
+
+	_, err := svc.Update(context.Background(), 100, 8, UpdateAPIKeyRequest{Status: &status})
+
+	require.ErrorIs(t, err, ErrInsufficientPerms)
+	require.Nil(t, repo.updated)
+	require.Empty(t, cache.invalidated)
+	require.Empty(t, cache.deleteAuthKeys)
+}
+
+func TestAPIKeyService_Update_InvalidatesAuthCacheByKey(t *testing.T) {
+	repo := &apiKeyUpdateRepoStub{
+		key: &APIKey{
+			ID:     100,
+			UserID: 7,
+			Key:    "sk-owner-key",
+			Name:   "restricted",
+			Status: StatusAPIKeyActive,
+		},
+	}
+	cache := &apiKeyCacheStub{}
+	svc := &APIKeyService{apiKeyRepo: repo, cache: cache}
+	name := "renamed"
+
+	_, err := svc.Update(context.Background(), 100, 7, UpdateAPIKeyRequest{Name: &name})
+
+	require.NoError(t, err)
+	require.NotNil(t, repo.updated)
+	require.Equal(t, []string{svc.authCacheKey("sk-owner-key")}, cache.deleteAuthKeys)
+}
+
+func TestAPIKeyService_Update_ResetRateLimitUsageInvalidatesRateLimitCache(t *testing.T) {
+	repo := &apiKeyUpdateRepoStub{
+		key: &APIKey{
+			ID:             100,
+			UserID:         7,
+			Key:            "sk-owner-key",
+			Name:           "restricted",
+			Status:         StatusAPIKeyActive,
+			Usage5h:        1.25,
+			Usage1d:        2.5,
+			Usage7d:        3.75,
+			Window5hStart:  ptrTimeForAPIKeyUpdateTest(),
+			Window1dStart:  ptrTimeForAPIKeyUpdateTest(),
+			Window7dStart:  ptrTimeForAPIKeyUpdateTest(),
+		},
+	}
+	cache := &apiKeyCacheStub{}
+	invalidator := &apiKeyRateLimitInvalidatorStub{}
+	svc := &APIKeyService{
+		apiKeyRepo:            repo,
+		cache:                 cache,
+		rateLimitCacheInvalid: invalidator,
+	}
+	reset := true
+
+	got, err := svc.Update(context.Background(), 100, 7, UpdateAPIKeyRequest{ResetRateLimitUsage: &reset})
+
+	require.NoError(t, err)
+	require.Zero(t, got.Usage5h)
+	require.Zero(t, got.Usage1d)
+	require.Zero(t, got.Usage7d)
+	require.Nil(t, got.Window5hStart)
+	require.Nil(t, got.Window1dStart)
+	require.Nil(t, got.Window7dStart)
+	require.Equal(t, []string{svc.authCacheKey("sk-owner-key")}, cache.deleteAuthKeys)
+	require.Equal(t, []int64{100}, invalidator.invalidatedIDs)
 }
 
 func TestAPIKeyService_Update_PreservesIPRestrictionsWhenOmitted(t *testing.T) {

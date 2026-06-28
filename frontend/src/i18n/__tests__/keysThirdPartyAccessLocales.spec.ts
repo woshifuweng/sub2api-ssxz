@@ -65,4 +65,30 @@ describe('API Key third-party access locale copy', () => {
     expect(copy).toContain('admin model configuration')
     expect(copy).not.toContain('Developer API Platform')
   })
+
+  it('explains API Key quota resets without implying billing or balance changes', () => {
+    const zhCopy = [
+      zh.keys.quotaAmountHint,
+      zh.keys.resetQuotaConfirmMessage,
+      zh.keys.rateLimitHint,
+      zh.keys.resetRateLimitConfirmMessage
+    ].join(' ')
+
+    expect(zhCopy).toContain('自限额')
+    expect(zhCopy).toContain('不会删除历史用量')
+    expect(zhCopy).toContain('不会改账单')
+    expect(zhCopy).toContain('不会返还余额')
+
+    const enCopy = [
+      en.keys.quotaAmountHint,
+      en.keys.resetQuotaConfirmMessage,
+      en.keys.rateLimitHint,
+      en.keys.resetRateLimitConfirmMessage
+    ].join(' ')
+
+    expect(enCopy).toContain('self-limit')
+    expect(enCopy).toContain('does not delete usage history')
+    expect(enCopy).toContain('change bills')
+    expect(enCopy).toContain('refund balance')
+  })
 })
