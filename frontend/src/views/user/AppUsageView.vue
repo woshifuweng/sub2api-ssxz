@@ -1,22 +1,24 @@
 <template>
   <AppSectionShell
-    title="用量信息"
-    subtitle="查看账户余额、本月消耗和最近使用明细。没有真实用量数据时只显示空状态，不跳转到旧版用量页。"
-    eyebrow="账户计量"
+    :title="t('usage.workbench.title')"
+    :subtitle="t('usage.workbench.subtitle')"
+    :eyebrow="t('usage.workbench.eyebrow')"
     icon="chartBar"
   >
-    <section class="usage-workbench" aria-label="用量信息">
+    <section class="usage-workbench" :aria-label="t('usage.workbench.title')">
       <div class="usage-summary-grid">
         <article class="usage-summary-card">
           <div class="summary-icon">
             <Icon name="creditCard" size="sm" />
           </div>
           <div>
-            <span>账户余额</span>
+            <span>{{ t('usage.workbench.balanceTitle') }}</span>
             <strong>{{ balanceText }}</strong>
-            <p>可用于站内聊天、图片生成和 API Key / 第三方接入调用。</p>
+            <p>{{ t('usage.workbench.balanceDescription') }}</p>
           </div>
-          <RouterLink to="/app/purchase" class="summary-action">充值</RouterLink>
+          <RouterLink to="/app/purchase" class="summary-action">
+            {{ t('usage.workbench.recharge') }}
+          </RouterLink>
         </article>
 
         <article class="usage-summary-card">
@@ -24,35 +26,41 @@
             <Icon name="chartBar" size="sm" />
           </div>
           <div>
-            <span>本月消耗</span>
+            <span>{{ t('usage.workbench.monthlyCostTitle') }}</span>
             <strong>{{ monthlyCostText }}</strong>
             <p>{{ monthlyUsageNote }}</p>
           </div>
         </article>
       </div>
 
-      <section class="usage-explainer" aria-label="扣费说明">
+      <section class="usage-explainer" :aria-label="t('usage.workbench.billingExplanationTitle')">
         <div>
-          <strong>扣费说明</strong>
-          <p>这里以后台已记录的真实用量为准。余额变化由模型、用量和后台费率计算，前端不决定价格。</p>
+          <strong>{{ t('usage.workbench.billingExplanationTitle') }}</strong>
+          <p>{{ t('usage.workbench.billingExplanationDescription') }}</p>
         </div>
         <ul>
-          <li>成功调用会在明细中显示实际扣费。</li>
-          <li>失败或未产生真实用量的请求会显示为未扣费，或不产生扣费记录。</li>
-          <li>扣费为 $0.0000 表示本条记录未实际扣费。</li>
+          <li v-for="item in billingExplanationItems" :key="item">{{ item }}</li>
         </ul>
       </section>
 
       <section class="usage-panel">
         <header class="panel-heading">
           <div>
-            <h3>每月用量</h3>
-            <p>按现有用量趋势接口汇总展示，没有数据时不会补假柱子。</p>
+            <h3>{{ t('usage.workbench.monthlyUsageTitle') }}</h3>
+            <p>{{ t('usage.workbench.monthlyUsageDescription') }}</p>
           </div>
-          <span v-if="hasMonthlyUsage" class="panel-badge">真实数据</span>
+          <span v-if="hasMonthlyUsage" class="panel-badge">
+            {{ t('usage.workbench.realDataBadge') }}
+          </span>
         </header>
 
-        <div v-if="hasMonthlyUsage" class="usage-chart" aria-label="每月用量图表">
+        <div v-if="trendLoadError" class="usage-empty">
+          <Icon name="exclamationTriangle" size="lg" />
+          <strong>{{ t('usage.workbench.trendLoadError') }}</strong>
+          <span>{{ t('usage.workbench.trendLoadErrorHint') }}</span>
+        </div>
+
+        <div v-else-if="hasMonthlyUsage" class="usage-chart" :aria-label="t('usage.workbench.monthlyChartLabel')">
           <div
             v-for="item in monthlySeries"
             :key="item.key"
@@ -68,49 +76,49 @@
 
         <div v-else class="usage-empty">
           <Icon name="chartBar" size="lg" />
-          <strong>暂无月度用量数据</strong>
-          <span>后续产生聊天、图片生成或第三方客户端调用后，这里会展示趋势。</span>
+          <strong>{{ t('usage.workbench.noMonthlyUsageTitle') }}</strong>
+          <span>{{ t('usage.workbench.noMonthlyUsageDescription') }}</span>
         </div>
       </section>
 
       <section class="usage-panel">
         <header class="panel-heading">
           <div>
-            <h3>用量明细</h3>
-            <p>展示最近的真实调用记录，方便核对模型、类型、用量和扣费。</p>
+            <h3>{{ t('usage.workbench.usageDetailsTitle') }}</h3>
+            <p>{{ t('usage.workbench.usageDetailsDescription') }}</p>
           </div>
           <button type="button" class="refresh-button" :disabled="loading" @click="loadUsageOverview">
             <Icon name="refresh" size="xs" />
-            刷新
+            {{ t('usage.workbench.refresh') }}
           </button>
         </header>
 
         <div v-if="loading" class="usage-empty compact">
           <Icon name="sync" size="md" />
-          <strong>正在加载用量</strong>
+          <strong>{{ t('usage.workbench.loading') }}</strong>
         </div>
 
-        <div v-else-if="loadError" class="usage-empty compact">
+        <div v-else-if="detailsLoadError" class="usage-empty compact">
           <Icon name="exclamationTriangle" size="md" />
-          <strong>{{ loadError }}</strong>
-          <span>可以稍后刷新，不会自动跳到旧版页面。</span>
+          <strong>{{ t('usage.workbench.detailsLoadError') }}</strong>
+          <span>{{ t('usage.workbench.detailsLoadErrorHint') }}</span>
         </div>
 
         <div v-else-if="usageRows.length === 0" class="usage-empty compact">
           <Icon name="inbox" size="md" />
-          <strong>暂无用量明细</strong>
-          <span>真实调用产生后会在这里显示。</span>
+          <strong>{{ t('usage.workbench.noDetailsTitle') }}</strong>
+          <span>{{ t('usage.workbench.noDetailsDescription') }}</span>
         </div>
 
         <div v-else class="usage-table-wrap">
           <table class="usage-table">
             <thead>
               <tr>
-                <th>创建时间</th>
-                <th>类型</th>
-                <th>模型</th>
-                <th>用量</th>
-                <th>扣费</th>
+                <th>{{ t('usage.workbench.createdAt') }}</th>
+                <th>{{ t('usage.workbench.kind') }}</th>
+                <th>{{ t('usage.workbench.model') }}</th>
+                <th>{{ t('usage.workbench.amount') }}</th>
+                <th>{{ t('usage.workbench.fee') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -121,7 +129,9 @@
                 <td>{{ formatUsageAmount(row) }}</td>
                 <td>
                   <span>{{ formatCost(row.actual_cost) }}</span>
-                  <small v-if="isNoCharge(row)" class="usage-cost-note">未扣费</small>
+                  <small v-if="isNoCharge(row)" class="usage-cost-note">
+                    {{ t('usage.workbench.noCharge') }}
+                  </small>
                 </td>
               </tr>
             </tbody>
@@ -134,6 +144,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { usageAPI } from '@/api'
@@ -148,12 +159,15 @@ interface MonthlyUsage {
   cost: number
 }
 
+const { t } = useI18n()
 const authStore = useAuthStore()
 const usageRows = ref<UsageLog[]>([])
 const usageStats = ref<UsageStatsResponse | null>(null)
 const monthlySeries = ref<MonthlyUsage[]>([])
 const loading = ref(false)
-const loadError = ref('')
+const detailsLoadError = ref(false)
+const statsLoadError = ref(false)
+const trendLoadError = ref(false)
 
 const today = new Date()
 const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
@@ -164,12 +178,25 @@ const monthStartKey = toDateKey(monthStart)
 const trendStartKey = toDateKey(trendStart)
 
 const balanceText = computed(() => formatCurrency(authStore.user?.balance || 0, 2))
-const monthlyCostText = computed(() => formatCurrency(usageStats.value?.total_actual_cost || 0, 4))
+const billingExplanationItems = computed(() => [
+  t('usage.workbench.billingExplanationItems.successCharged'),
+  t('usage.workbench.billingExplanationItems.failureNoCharge'),
+  t('usage.workbench.billingExplanationItems.zeroCost')
+])
+const monthlyCostText = computed(() => {
+  if (statsLoadError.value) return t('usage.workbench.unavailable')
+  return formatCurrency(usageStats.value?.total_actual_cost || 0, 4)
+})
 const monthlyUsageNote = computed(() => {
+  if (statsLoadError.value) return t('usage.workbench.statsLoadError')
+
   const requests = usageStats.value?.total_requests || 0
   const tokens = usageStats.value?.total_tokens || 0
-  if (!requests && !tokens) return '本月暂未产生真实用量记录。'
-  return `本月 ${formatNumber(requests)} 次请求，${formatNumber(tokens)} tokens。`
+  if (!requests && !tokens) return t('usage.workbench.noRealUsageNote')
+  return t('usage.workbench.monthlyUsageSummary', {
+    requests: formatNumber(requests),
+    tokens: formatNumber(tokens)
+  })
 })
 const hasMonthlyUsage = computed(() => monthlySeries.value.some((item) => item.requests > 0 || item.tokens > 0 || item.cost > 0))
 const chartMax = computed(() => Math.max(1, ...monthlySeries.value.map((item) => chartMetric(item))))
@@ -180,7 +207,9 @@ onMounted(() => {
 
 async function loadUsageOverview() {
   loading.value = true
-  loadError.value = ''
+  detailsLoadError.value = false
+  statsLoadError.value = false
+  trendLoadError.value = false
 
   const [statsResult, logsResult, trendResult] = await Promise.allSettled([
     usageAPI.getStatsByDateRange(monthStartKey, todayKey),
@@ -199,22 +228,23 @@ async function loadUsageOverview() {
 
   if (statsResult.status === 'fulfilled') {
     usageStats.value = statsResult.value
+  } else {
+    usageStats.value = null
+    statsLoadError.value = true
   }
 
   if (logsResult.status === 'fulfilled') {
     usageRows.value = Array.isArray(logsResult.value.items) ? logsResult.value.items : []
   } else {
     usageRows.value = []
+    detailsLoadError.value = true
   }
 
   if (trendResult.status === 'fulfilled') {
     monthlySeries.value = buildMonthlySeries(trendResult.value.trend || [])
   } else {
     monthlySeries.value = []
-  }
-
-  if (logsResult.status === 'rejected') {
-    loadError.value = '用量明细暂时无法加载'
+    trendLoadError.value = true
   }
 
   loading.value = false
@@ -229,7 +259,7 @@ function buildMonthlySeries(points: TrendDataPoint[]): MonthlyUsage[] {
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
     const existing = buckets.get(key) || {
       key,
-      label: `${date.getMonth() + 1}月`,
+      label: t('usage.workbench.monthLabel', { month: date.getMonth() + 1 }),
       requests: 0,
       tokens: 0,
       cost: 0
@@ -256,24 +286,25 @@ function chartBarHeight(item: MonthlyUsage) {
 
 function formatMonthlyValue(item: MonthlyUsage) {
   if (item.cost > 0) return formatCurrency(item.cost, item.cost < 0.01 ? 6 : 4)
-  if (item.tokens > 0) return `${formatNumber(item.tokens)} tokens`
-  return `${formatNumber(item.requests)} 次`
+  if (item.tokens > 0) return t('usage.workbench.tokenAmount', { count: formatNumber(item.tokens) })
+  return t('usage.workbench.requestCount', { count: formatNumber(item.requests) })
 }
 
 function formatUsageKind(row: UsageLog) {
-  if (row.image_count > 0 || row.inbound_endpoint?.includes('/images/')) return '图片生成'
-  if (row.inbound_endpoint?.includes('/chat/')) return '对话'
-  if (row.api_key_id) return '第三方接入'
-  return '网页端'
+  if (row.image_count > 0 || row.inbound_endpoint?.includes('/images/')) return t('usage.workbench.usageKindImage')
+  if (row.inbound_endpoint?.includes('/chat/')) return t('usage.workbench.usageKindChat')
+  if (row.api_key_id) return t('usage.workbench.usageKindThirdParty')
+  return t('usage.workbench.usageKindWeb')
 }
 
 function formatUsageAmount(row: UsageLog) {
   if (row.image_count > 0) {
-    const size = row.image_size ? ` · ${row.image_size}` : ''
-    return `${formatNumber(row.image_count)} 张${size}`
+    const count = formatNumber(Number(row.image_count || 0))
+    if (row.image_size) return t('usage.workbench.imageAmountWithSize', { count, size: row.image_size })
+    return t('usage.workbench.imageAmount', { count })
   }
   const tokens = Number(row.input_tokens || 0) + Number(row.output_tokens || 0) + Number(row.cache_creation_tokens || 0) + Number(row.cache_read_tokens || 0)
-  return `${formatNumber(tokens)} tokens`
+  return t('usage.workbench.tokenAmount', { count: formatNumber(tokens) })
 }
 
 function formatCost(value: number | null | undefined) {

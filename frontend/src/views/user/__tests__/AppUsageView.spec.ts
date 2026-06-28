@@ -14,6 +14,64 @@ const { usageAPI, authStore } = vi.hoisted(() => ({
   }
 }))
 
+const messages: Record<string, string> = {
+  'usage.workbench.title': 'Usage information',
+  'usage.workbench.subtitle': 'Review account balance and recent usage.',
+  'usage.workbench.eyebrow': 'Account metering',
+  'usage.workbench.balanceTitle': 'Account balance',
+  'usage.workbench.balanceDescription': 'Available for in-app chat, image generation, and third-party client calls.',
+  'usage.workbench.recharge': 'Recharge',
+  'usage.workbench.monthlyCostTitle': 'Current-month spend',
+  'usage.workbench.unavailable': 'Unavailable',
+  'usage.workbench.noRealUsageNote': 'No real usage records this month.',
+  'usage.workbench.monthlyUsageSummary': 'This month: {requests} requests and {tokens} tokens.',
+  'usage.workbench.statsLoadError': 'Monthly usage stats are temporarily unavailable. Refresh to retry.',
+  'usage.workbench.billingExplanationTitle': 'Billing explanation',
+  'usage.workbench.billingExplanationDescription': 'Backend-recorded real usage is the source of truth. The frontend does not decide prices.',
+  'usage.workbench.billingExplanationItems.successCharged': 'Successful calls show the actual charge in usage details.',
+  'usage.workbench.billingExplanationItems.failureNoCharge': 'Failed requests show as no charge or do not create a charge record.',
+  'usage.workbench.billingExplanationItems.zeroCost': 'A $0.0000 fee means this record was not actually charged.',
+  'usage.workbench.monthlyUsageTitle': 'Monthly usage',
+  'usage.workbench.monthlyUsageDescription': 'Empty data is not filled with fake bars.',
+  'usage.workbench.realDataBadge': 'Real data',
+  'usage.workbench.monthlyChartLabel': 'Monthly usage chart',
+  'usage.workbench.noMonthlyUsageTitle': 'No monthly usage data yet',
+  'usage.workbench.noMonthlyUsageDescription': 'Real usage trends appear here.',
+  'usage.workbench.trendLoadError': 'Monthly trend is temporarily unavailable',
+  'usage.workbench.trendLoadErrorHint': 'API failures are not presented as an empty trend.',
+  'usage.workbench.usageDetailsTitle': 'Usage details',
+  'usage.workbench.usageDetailsDescription': 'Verify model, type, usage, and charge.',
+  'usage.workbench.refresh': 'Refresh',
+  'usage.workbench.loading': 'Loading usage',
+  'usage.workbench.detailsLoadError': 'Usage details are temporarily unavailable',
+  'usage.workbench.detailsLoadErrorHint': 'This page will not jump to the legacy usage page.',
+  'usage.workbench.noDetailsTitle': 'No usage details yet',
+  'usage.workbench.noDetailsDescription': 'Real calls will appear here.',
+  'usage.workbench.createdAt': 'Created at',
+  'usage.workbench.kind': 'Type',
+  'usage.workbench.model': 'Model',
+  'usage.workbench.amount': 'Usage',
+  'usage.workbench.fee': 'Fee',
+  'usage.workbench.noCharge': 'No charge',
+  'usage.workbench.usageKindImage': 'Image generation',
+  'usage.workbench.usageKindChat': 'Chat',
+  'usage.workbench.usageKindThirdParty': 'Third-party access',
+  'usage.workbench.usageKindWeb': 'Web app',
+  'usage.workbench.imageAmount': '{count} images',
+  'usage.workbench.imageAmountWithSize': '{count} images / {size}',
+  'usage.workbench.tokenAmount': '{count} tokens',
+  'usage.workbench.requestCount': '{count} requests',
+  'usage.workbench.monthLabel': 'Month {month}'
+}
+
+function translate(key: string, params?: Record<string, unknown>) {
+  let value = messages[key] ?? key
+  for (const [paramKey, paramValue] of Object.entries(params || {})) {
+    value = value.replaceAll(`{${paramKey}}`, String(paramValue))
+  }
+  return value
+}
+
 vi.mock('@/api', () => ({
   usageAPI
 }))
@@ -21,6 +79,16 @@ vi.mock('@/api', () => ({
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => authStore
 }))
+
+vi.mock('vue-i18n', async () => {
+  const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
+  return {
+    ...actual,
+    useI18n: () => ({
+      t: translate
+    })
+  }
+})
 
 vi.mock('@/components/user/AppSectionShell.vue', () => ({
   default: {
@@ -56,6 +124,19 @@ function mountView() {
         }
       }
     }
+  })
+}
+
+function mockZeroStats() {
+  usageAPI.getStatsByDateRange.mockResolvedValue({
+    total_requests: 0,
+    total_input_tokens: 0,
+    total_output_tokens: 0,
+    total_cache_tokens: 0,
+    total_tokens: 0,
+    total_cost: 0,
+    total_actual_cost: 0,
+    average_duration_ms: 0
   })
 }
 
@@ -138,24 +219,25 @@ describe('AppUsageView', () => {
 
     const text = wrapper.text()
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(true)
-    expect(text).toContain('用量信息')
-    expect(text).toContain('账户余额')
+    expect(text).toContain('Usage information')
+    expect(text).toContain('Account balance')
     expect(text).toContain('$8.53')
-    expect(text).toContain('本月消耗')
+    expect(text).toContain('Current-month spend')
     expect(text).toContain('$1.2345')
-    expect(text).toContain('每月用量')
-    expect(text).toContain('真实数据')
-    expect(text).toContain('扣费说明')
-    expect(text).toContain('后台已记录的真实用量')
-    expect(text).toContain('前端不决定价格')
-    expect(text).toContain('失败或未产生真实用量')
-    expect(text).toContain('用量明细')
-    expect(text).toContain('图片生成')
+    expect(text).toContain('This month: 3 requests and 200 tokens.')
+    expect(text).toContain('Monthly usage')
+    expect(text).toContain('Real data')
+    expect(text).toContain('Billing explanation')
+    expect(text).toContain('Backend-recorded real usage is the source of truth')
+    expect(text).toContain('The frontend does not decide prices')
+    expect(text).toContain('Failed requests show as no charge')
+    expect(text).toContain('Usage details')
+    expect(text).toContain('Image generation')
     expect(text).toContain('gpt-image-2')
-    expect(text).toContain('2 张 · 1024x1024')
+    expect(text).toContain('2 images / 1024x1024')
     expect(text).toContain('deepseek-v4-flash')
     expect(text).toContain('$0.0000')
-    expect(text).toContain('未扣费')
+    expect(text).toContain('No charge')
     expect(usageAPI.query).toHaveBeenCalledWith(expect.objectContaining({
       page: 1,
       page_size: 8
@@ -163,16 +245,7 @@ describe('AppUsageView', () => {
   })
 
   it('shows empty states without inventing usage rows when the existing APIs have no data', async () => {
-    usageAPI.getStatsByDateRange.mockResolvedValue({
-      total_requests: 0,
-      total_input_tokens: 0,
-      total_output_tokens: 0,
-      total_cache_tokens: 0,
-      total_tokens: 0,
-      total_cost: 0,
-      total_actual_cost: 0,
-      average_duration_ms: 0
-    })
+    mockZeroStats()
     usageAPI.query.mockResolvedValue({
       items: [],
       total: 0,
@@ -188,22 +261,16 @@ describe('AppUsageView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('暂无月度用量数据')
-    expect(wrapper.text()).toContain('暂无用量明细')
+    const text = wrapper.text()
+    expect(text).toContain('$0.0000')
+    expect(text).toContain('No real usage records this month.')
+    expect(text).toContain('No monthly usage data yet')
+    expect(text).toContain('No usage details yet')
     expect(wrapper.find('table').exists()).toBe(false)
   })
 
   it('keeps the workbench page in place when usage details cannot load', async () => {
-    usageAPI.getStatsByDateRange.mockResolvedValue({
-      total_requests: 0,
-      total_input_tokens: 0,
-      total_output_tokens: 0,
-      total_cache_tokens: 0,
-      total_tokens: 0,
-      total_cost: 0,
-      total_actual_cost: 0,
-      average_duration_ms: 0
-    })
+    mockZeroStats()
     usageAPI.query.mockRejectedValue(new Error('unavailable'))
     usageAPI.getDashboardTrend.mockResolvedValue({
       trend: [],
@@ -216,8 +283,52 @@ describe('AppUsageView', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('用量明细暂时无法加载')
-    expect(wrapper.text()).toContain('不会自动跳到旧版页面')
+    expect(wrapper.text()).toContain('Usage details are temporarily unavailable')
+    expect(wrapper.text()).toContain('This page will not jump to the legacy usage page')
     expect(wrapper.find('table').exists()).toBe(false)
+  })
+
+  it('does not present monthly stats failures as zero usage', async () => {
+    usageAPI.getStatsByDateRange.mockRejectedValue(new Error('stats unavailable'))
+    usageAPI.query.mockResolvedValue({
+      items: [],
+      total: 0,
+      pages: 0
+    })
+    usageAPI.getDashboardTrend.mockResolvedValue({
+      trend: [],
+      start_date: '2026-01-01',
+      end_date: '2026-06-18',
+      granularity: 'day'
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const text = wrapper.text()
+    const summaryCards = wrapper.findAll('.usage-summary-card')
+    expect(text).toContain('Unavailable')
+    expect(text).toContain('Monthly usage stats are temporarily unavailable')
+    expect(summaryCards[1].find('strong').text()).toBe('Unavailable')
+    expect(summaryCards[1].text()).not.toContain('$0.0000')
+    expect(summaryCards[1].text()).not.toContain('No real usage records this month.')
+  })
+
+  it('does not present monthly trend failures as empty trend data', async () => {
+    mockZeroStats()
+    usageAPI.query.mockResolvedValue({
+      items: [],
+      total: 0,
+      pages: 0
+    })
+    usageAPI.getDashboardTrend.mockRejectedValue(new Error('trend unavailable'))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(text).toContain('Monthly trend is temporarily unavailable')
+    expect(text).toContain('API failures are not presented as an empty trend')
+    expect(text).not.toContain('No monthly usage data yet')
   })
 })
