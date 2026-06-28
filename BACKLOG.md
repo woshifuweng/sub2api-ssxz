@@ -48,6 +48,8 @@ Last updated: 2026-06-28
 - 2026-06-28: PR #201 was merged to main at `0dbbaf03f` and deployed to staging only. Staging `/opt/sub2api/sub2api-staging` SHA-256 became `0cf888efbffbcb40bf5469eaeec3667034308fad58fb06e71542c46f9f3b1f17`, with backup `/opt/sub2api/backups/staging-before-main-0dbbaf03f165-20260628-145151-sub2api-staging`; production stayed on SHA-256 `b5da079f49da94cfb57873de6d4fada5d170b87be310ab0633ecafc53f2d877b`.
 - 2026-06-28: after the #201 staging deployment, route smoke returned HTTP 200 for `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public` on staging port `18080`; production port `8080` also returned HTTP 200 for the same routes as a split-health comparison.
 - 2026-06-28: #201 staging ordinary-user usage validation returned 20 `/api/v1/usage` rows with no internal `user_id`, `account_id`, `group_id`, `subscription_id`, `user_agent`, `upstream_endpoint`, `user`, `api_key`, `group`, or `subscription` fields. Ordinary `/api/v1/admin/usage` returned HTTP 403, while admin `/api/v1/admin/usage` returned HTTP 200 with operational fields retained. No real provider was called.
+- 2026-06-28: PR #203 was merged to main at `c068d6ad6` and deployed to staging only. Staging `/opt/sub2api/sub2api-staging` SHA-256 became `b5b7fb31939db5bf897303bd4d13ed7dbecb7e2d1c9fb5318efce7f4bde5df90`, with backup `/opt/sub2api/backups/staging-before-pr203-c068d6ad6-20260628-151908-sub2api-staging`; production stayed on SHA-256 `b5da079f49da94cfb57873de6d4fada5d170b87be310ab0633ecafc53f2d877b`.
+- 2026-06-28: after the #203 staging deployment, route smoke returned HTTP 200 for `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public`. Google/Gemini-compatible API-key auth smoke returned HTTP 401 for missing key, HTTP 400 for deprecated `api_key` query usage, and HTTP 401 for invalid `key` query usage. The staged code enforces IP restrictions, expired keys, and quota-exhausted keys on that path. No real provider was called.
 
 ## P0 Bugs And Structural Fixes
 
@@ -69,7 +71,7 @@ Last updated: 2026-06-28
   - continue image history/download/user journey audit after the #192 first UX-hardening slice
   - `/app/image` controlled production real-generation acceptance plan, only after explicit approval to call a real provider
   - follow-up `/app/image` model naming/display strategy only if operators decide to change production image-model policy; the first alias-display slice was completed by PR #188
-  - API Key / third-party access lifecycle/security verification after the #195/#199 copy and masked-value safety slices
+  - API Key / third-party access lifecycle/security verification after the #195/#199 copy and masked-value safety slices plus the #203 Google/Gemini-compatible auth-parity slice
   - continue usage/balance workflow verification after the #197 explanation-state clarity slice and #201 staging DTO/balance-refresh boundary check
   - profile/security settings behavior verification after the #198 TOTP status clarity slice
 - Keep production deployment as a separate approval gate for every PR.
@@ -77,8 +79,8 @@ Last updated: 2026-06-28
 ## Phase Progress Snapshot
 
 - P0 / P0-Beta convergence: about 95%. Remaining P0 risk is controlled production image-generation acceptance and any regression found while doing P1.
-- P1 product/operations: about 31%. Completed or staged slices: image-model alias display clarity, user-shell lint baseline cleanup, first image history/download feedback hardening, staging catalog exposure verification, API Key third-party access copy/safety polish, usage explanation-state clarity, profile TOTP failure clarity, masked API-key configuration guards, and `/app/usage` DTO/balance-refresh boundary verification. Remaining large P1 loops: controlled production real-generation acceptance, broader usage/balance workflow verification, API Key lifecycle/security verification, and admin/ops hardening.
-- Distance to P2: about 69% of P1 remains. Do not prioritize P2 visual polish until P1 loops have evidence.
+- P1 product/operations: about 32%. Completed or staged slices: image-model alias display clarity, user-shell lint baseline cleanup, first image history/download feedback hardening, staging catalog exposure verification, API Key third-party access copy/safety polish, usage explanation-state clarity, profile TOTP failure clarity, masked API-key configuration guards, `/app/usage` DTO/balance-refresh boundary verification, and Google/Gemini-compatible API-key auth restriction parity. Remaining large P1 loops: controlled production real-generation acceptance, broader usage/balance workflow verification, full API Key lifecycle/security verification, and admin/ops hardening.
+- Distance to P2: about 68% of P1 remains. Do not prioritize P2 visual polish until P1 loops have evidence.
 - P2: 0%. Keep as later polish/enhancement work.
 
 ## Chains That Need Verification
@@ -98,7 +100,9 @@ Last updated: 2026-06-28
   - PR #197 clarified failure/no-charge explanation states.
   - PR #201 staging validation confirmed ordinary-user DTO scrubbing, balance refresh wiring, stats/trend endpoint reachability, and ordinary/admin usage authorization split.
   - Broader production acceptance and recharge/order/account-balance workflow verification remain open.
-- `/app/keys` create/copy/delete/enable/disable behavior, one-time full-key display, masked-value handling, and third-party client guidance.
+- `/app/keys` create/copy/delete/enable/disable behavior, one-time full-key display, masked-value handling, and third-party client guidance:
+  - PR #203 staged backend Google/Gemini-compatible API-key auth restriction parity for IP restrictions, expired keys, and quota-exhausted keys.
+  - Full lifecycle behavior, frontend recovery states, one-time full-key handling, reset/revoke flow, log redaction, and third-party client documentation still need verification.
 - `/app/profile` profile/password/TOTP behavior and status failure clarity.
 - Production acceptance for image generation:
   - storage/log-path configuration
@@ -178,7 +182,9 @@ Last updated: 2026-06-28
   - SameSite
   - idle and maximum lifetime
   - logout invalidation
-- API Key storage, masking, logging, and reset flow review.
+- API Key storage, masking, logging, reset flow, and compatibility-path auth review:
+  - PR #203 staged Google/Gemini-compatible API-key auth restriction parity for IP restrictions, expired keys, and quota-exhausted keys.
+  - Storage, full-key exposure, log redaction, reset/revoke, and create/copy/delete/enable/disable lifecycle behavior remain open.
 - Admin sensitive operation logs:
   - balance adjustment
   - user disable
