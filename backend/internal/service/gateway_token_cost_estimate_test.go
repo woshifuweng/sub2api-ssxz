@@ -34,7 +34,8 @@ func TestGatewayServiceEstimateGatewayTokenRequestCost(t *testing.T) {
 
 	noLimitCost, err := svc.EstimateGatewayTokenRequestCost(context.Background(), parsedWithoutLimit, &APIKey{}, &User{ID: 1})
 	require.NoError(t, err)
-	require.Nil(t, noLimitCost)
+	require.NotNil(t, noLimitCost)
+	require.GreaterOrEqual(t, noLimitCost.ActualCost, unboundedTokenRequestMinimumSafetyCost)
 
 	geminiParsed, err := ParseGatewayRequest(
 		[]byte(`{"contents":[{"role":"user","parts":[{"text":"hello"}]}],"generationConfig":{"maxOutputTokens":200000}}`),

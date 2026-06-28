@@ -7879,8 +7879,9 @@ func (s *GatewayService) EstimateGatewayTokenRequestCostWithLongContext(ctx cont
 		return nil, nil
 	}
 	outputTokens := estimateGatewayRequestOutputTokens(parsed)
-	if outputTokens <= 0 {
-		return nil, nil
+	usesUnboundedSafetyBudget := outputTokens <= 0
+	if usesUnboundedSafetyBudget {
+		outputTokens = unboundedTokenRequestSafetyOutputTokens
 	}
 
 	multiplier := 0.0
@@ -7891,10 +7892,17 @@ func (s *GatewayService) EstimateGatewayTokenRequestCostWithLongContext(ctx cont
 		multiplier = s.getUserGroupRateMultiplier(ctx, user.ID, *apiKey.GroupID, apiKey.Group.RateMultiplier)
 	}
 
-	return s.billingService.CalculateCostWithLongContext(model, UsageTokens{
+	cost, err := s.billingService.CalculateCostWithLongContext(model, UsageTokens{
 		InputTokens:  estimateGatewayRequestInputTokens(parsed.Body),
 		OutputTokens: outputTokens,
 	}, multiplier, longContextThreshold, longContextMultiplier)
+	if err != nil {
+		return nil, err
+	}
+	if usesUnboundedSafetyBudget {
+		return applyUnboundedTokenRequestSafetyFloor(cost), nil
+	}
+	return cost, nil
 }
 
 func estimateGatewayRequestOutputTokens(parsed *ParsedRequest) int {
