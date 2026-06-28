@@ -77,6 +77,9 @@ var (
 			return 0
 		end
 		local newVal = tonumber(current) - tonumber(ARGV[1])
+		if newVal < 0 then
+			newVal = 0
+		end
 		redis.call('SET', KEYS[1], newVal)
 		redis.call('EXPIRE', KEYS[1], ARGV[2])
 		return 1

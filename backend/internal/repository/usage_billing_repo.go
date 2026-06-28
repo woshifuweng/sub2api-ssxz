@@ -174,7 +174,7 @@ func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, am
 		UPDATE users
 		SET balance = balance - $1,
 			updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL
+		WHERE id = $2 AND deleted_at IS NULL AND balance >= $1
 	`, amount, userID)
 	if err != nil {
 		return err
@@ -186,7 +186,18 @@ func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, am
 	if affected > 0 {
 		return nil
 	}
-	return service.ErrUserNotFound
+	var exists bool
+	if err := tx.QueryRowContext(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL
+		)
+	`, userID).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return service.ErrUserNotFound
+	}
+	return service.ErrInsufficientBalance
 }
 
 func incrementUsageBillingAPIKeyQuota(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount float64) (bool, error) {

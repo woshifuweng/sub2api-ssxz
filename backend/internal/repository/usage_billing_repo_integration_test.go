@@ -80,6 +80,52 @@ func TestUsageBillingRepositoryApply_DeduplicatesBalanceBilling(t *testing.T) {
 	require.Equal(t, 1, dedupCount)
 }
 
+func TestUsageBillingRepositoryApply_RejectsBalanceOverdraft(t *testing.T) {
+	ctx := context.Background()
+	client := testEntClient(t)
+	repo := NewUsageBillingRepository(client, integrationDB)
+
+	user := mustCreateUser(t, client, &service.User{
+		Email:        fmt.Sprintf("usage-billing-no-overdraft-user-%d@example.com", time.Now().UnixNano()),
+		PasswordHash: "hash",
+		Balance:      1,
+	})
+	apiKey := mustCreateApiKey(t, client, &service.APIKey{
+		UserID: user.ID,
+		Key:    "sk-usage-billing-no-overdraft-" + uuid.NewString(),
+		Name:   "billing-no-overdraft",
+		Quota:  10,
+	})
+	requestID := uuid.NewString()
+
+	result, err := repo.Apply(ctx, &service.UsageBillingCommand{
+		RequestID:           requestID,
+		APIKeyID:            apiKey.ID,
+		UserID:              user.ID,
+		BalanceCost:         1.25,
+		APIKeyQuotaCost:     1.25,
+		APIKeyRateLimitCost: 1.25,
+	})
+	require.ErrorIs(t, err, service.ErrInsufficientBalance)
+	require.Nil(t, result)
+
+	var balance float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT balance FROM users WHERE id = $1", user.ID).Scan(&balance))
+	require.InDelta(t, 1, balance, 0.000001)
+
+	var quotaUsed float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT quota_used FROM api_keys WHERE id = $1", apiKey.ID).Scan(&quotaUsed))
+	require.InDelta(t, 0, quotaUsed, 0.000001)
+
+	var usage5h float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT usage_5h FROM api_keys WHERE id = $1", apiKey.ID).Scan(&usage5h))
+	require.InDelta(t, 0, usage5h, 0.000001)
+
+	var dedupCount int
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM usage_billing_dedup WHERE request_id = $1 AND api_key_id = $2", requestID, apiKey.ID).Scan(&dedupCount))
+	require.Equal(t, 0, dedupCount)
+}
+
 func TestUsageBillingRepositoryApply_DeduplicatesSubscriptionBilling(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
