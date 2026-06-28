@@ -79,4 +79,38 @@ describe('UseKeyModal', () => {
     expect(codeBlock.text()).toContain('"name": "GPT-5.4 Mini"')
     expect(codeBlock.text()).toContain('"name": "GPT-5.4 Nano"')
   })
+
+  it('does not render CLI configs when only a masked API key is available', async () => {
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-user-...1234',
+        baseUrl: 'https://example.com/v1',
+        platform: 'openai'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    const codexTab = wrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.codexCli')
+    )
+
+    expect(codexTab).toBeDefined()
+    await codexTab!.trigger('click')
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="full-key-missing-warning"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('keys.useKeyModal.fullKeyMissingTitle')
+    expect(wrapper.find('pre code').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('sk-user-...1234')
+  })
 })

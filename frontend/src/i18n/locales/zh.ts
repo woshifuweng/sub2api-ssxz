@@ -570,7 +570,7 @@ export default {
       title: '保存完整 API Key',
       warningTitle: '请立即保存完整 Key',
       warningDescription:
-        '完整 API Key 只在创建后展示一次。关闭后列表只显示脱敏值，后续需要重新生成或重置。',
+        '完整 API Key 只在创建后展示一次。关闭后列表只显示脱敏值，丢失后请新建一个 API Key。',
       apiKeyLabel: 'API Key',
       copyFullKey: '复制完整 Key',
       copied: '已复制',
@@ -601,6 +601,7 @@ export default {
     copyToClipboard: '复制到剪贴板',
     copied: '已复制！',
     importToCcSwitch: '导入到 CCS',
+    fullKeyRequiredForImport: '列表里只显示脱敏值，无法自动导入。请使用创建时保存的完整 Key；如果丢失，请新建一个 API Key。',
     enable: '启用',
     disable: '禁用',
     nameLabel: '名称',
@@ -640,6 +641,9 @@ export default {
       noGroupTitle: '请先分配分组',
       noGroupDescription:
         '此 API 密钥尚未分配分组，请先在密钥列表中点击分组列进行分配，然后才能查看使用配置。',
+      fullKeyMissingTitle: '完整 API Key 不再可见',
+      fullKeyMissingDescription:
+        '列表中只保留脱敏值，不能生成可直接使用的 CLI 配置。请使用创建时保存的完整 Key；如果丢失，请新建一个 API Key。',
       openai: {
         description: '将以下配置文件添加到 Codex CLI 配置目录中。',
         configTomlHint: '请确保以下内容位于 config.toml 文件的开头部分',
@@ -666,7 +670,7 @@ export default {
         otherClientsTitle: '其他客户端',
         otherClients: '凡是支持 OpenAI-compatible API 的客户端，通常都可以按 Base URL + API Key 的方式接入。',
         connectionTitle: '通用连接信息',
-        apiKeyHint: '使用创建时保存的完整 Key；列表里只展示脱敏值，丢失请重置。',
+        apiKeyHint: '使用创建时保存的完整 Key；列表里只展示脱敏值，丢失请新建一个 API Key。',
         modelLabel: '模型',
         modelHint: '以后台开放给当前分组的模型为准。',
         securityNote: '完整 API Key 只应保存在你信任的客户端里，不要发给他人，也不要截图外传。'

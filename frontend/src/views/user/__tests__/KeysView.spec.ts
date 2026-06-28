@@ -182,7 +182,8 @@ vi.mock('@/components/common/SearchInput.vue', () => ({
 vi.mock('@/components/keys/UseKeyModal.vue', () => ({
   default: {
     name: 'UseKeyModal',
-    template: '<div data-testid="use-key-modal" />'
+    props: ['apiKey'],
+    template: '<div data-testid="use-key-modal" :data-api-key="apiKey" />'
   }
 }))
 
@@ -536,5 +537,60 @@ describe('KeysView workbench surface', () => {
     await wrapper.get('[data-testid="created-key-copy"]').trigger('click')
     await flushPromises()
     expect(clipboardCopy).toHaveBeenCalledWith(createdKey, 'keys.createdKeyReveal.fullKeyCopied')
+  })
+
+  it('does not pass a masked list key into the usage modal', async () => {
+    keysAPI.list.mockResolvedValue({
+      items: [
+        apiKeyFixture({
+          key: 'sk-user-...1234',
+          group: { platform: 'openai', allow_messages_dispatch: false }
+        })
+      ],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const useKeyButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.useKey'))
+    expect(useKeyButton).toBeTruthy()
+    await useKeyButton!.trigger('click')
+    await flushPromises()
+
+    const modal = wrapper.findComponent({ name: 'UseKeyModal' })
+    expect(modal.exists()).toBe(true)
+    expect(modal.attributes('apikey')).toBe('')
+  })
+
+  it('keeps CCS import disabled for masked list keys', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    keysAPI.list.mockResolvedValue({
+      items: [
+        apiKeyFixture({
+          key: 'sk-user-...1234',
+          group: { platform: 'openai', allow_messages_dispatch: false }
+        })
+      ],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const importButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.importToCcSwitch'))
+    expect(importButton).toBeTruthy()
+    expect(importButton!.attributes('disabled')).toBeDefined()
+
+    await importButton!.trigger('click')
+    expect(openSpy).not.toHaveBeenCalled()
+
+    openSpy.mockRestore()
   })
 })

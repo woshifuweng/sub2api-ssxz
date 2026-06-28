@@ -18,6 +18,9 @@ describe('API Key third-party access locale copy', () => {
       zh.keys.createdKeyReveal.warningDescription,
       zh.keys.createdKeyReveal.connectionDescription,
       zh.keys.createdKeyReveal.modelHint,
+      zh.keys.fullKeyRequiredForImport,
+      zh.keys.useKeyModal.fullKeyMissingDescription,
+      zh.keys.useKeyModal.thirdParty.apiKeyHint,
       zh.keys.createFirstKey
     ].join(' ')
 
@@ -27,6 +30,7 @@ describe('API Key third-party access locale copy', () => {
     expect(copy).toContain('Cherry Studio')
     expect(copy).toContain('Chatbox')
     expect(copy).toContain('脱敏值')
+    expect(copy).toContain('新建')
     expect(copy).toContain('后台开放配置')
     expect(copy).not.toContain('开发者 API 平台')
   })
@@ -45,6 +49,9 @@ describe('API Key third-party access locale copy', () => {
       en.keys.createdKeyReveal.warningDescription,
       en.keys.createdKeyReveal.connectionDescription,
       en.keys.createdKeyReveal.modelHint,
+      en.keys.fullKeyRequiredForImport,
+      en.keys.useKeyModal.fullKeyMissingDescription,
+      en.keys.useKeyModal.thirdParty.apiKeyHint,
       en.keys.createFirstKey
     ].join(' ')
 
@@ -54,6 +61,7 @@ describe('API Key third-party access locale copy', () => {
     expect(copy).toContain('Cherry Studio')
     expect(copy).toContain('Chatbox')
     expect(copy).toContain('masked')
+    expect(copy).toContain('create a new API Key')
     expect(copy).toContain('admin model configuration')
     expect(copy).not.toContain('Developer API Platform')
   })
