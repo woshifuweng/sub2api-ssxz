@@ -104,10 +104,17 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 		defer userReleaseFunc()
 	}
 
-	if err := h.billingCacheService.CheckBillingEligibility(c.Context(), apiKey.User, apiKey, apiKey.Group, subscription); err != nil {
-		reqLog.Info("openai_chat_completions.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message := billingErrorDetails(err)
-		h.handleStreamingAwareErrorContext(c, status, code, message, streamStarted)
+	if !h.checkOpenAITokenBillingEligibilityContext(
+		c,
+		reqLog,
+		apiKey,
+		subscription,
+		reqModel,
+		body,
+		streamStarted,
+		"openai_chat_completions",
+		h.handleStreamingAwareErrorContext,
+	) {
 		return
 	}
 

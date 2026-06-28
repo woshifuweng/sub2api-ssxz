@@ -345,6 +345,43 @@ func NewOpenAIGatewayHandler(
 	}
 }
 
+func (h *OpenAIGatewayHandler) checkOpenAITokenBillingEligibilityContext(
+	c gatewayctx.GatewayContext,
+	reqLog *zap.Logger,
+	apiKey *service.APIKey,
+	subscription *service.UserSubscription,
+	model string,
+	body []byte,
+	streamStarted bool,
+	logEvent string,
+	writeErr func(gatewayctx.GatewayContext, int, string, string, bool),
+) bool {
+	if h == nil || h.billingCacheService == nil {
+		return false
+	}
+	estimatedCost, estimateErr := h.gatewayService.EstimateOpenAITokenRequestCost(c.Context(), model, body, apiKey, apiKey.User)
+	if estimateErr != nil && reqLog != nil {
+		reqLog.Warn(logEvent+".token_cost_estimate_failed", zap.Error(estimateErr))
+	}
+
+	var err error
+	if estimatedCost != nil && estimatedCost.ActualCost > 0 {
+		err = h.billingCacheService.CheckBillingEligibilityForCost(c.Context(), apiKey.User, apiKey, apiKey.Group, subscription, estimatedCost.ActualCost)
+	} else {
+		err = h.billingCacheService.CheckBillingEligibility(c.Context(), apiKey.User, apiKey, apiKey.Group, subscription)
+	}
+	if err == nil {
+		return true
+	}
+
+	if reqLog != nil {
+		reqLog.Info(logEvent+".billing_eligibility_check_failed", zap.Error(err))
+	}
+	status, code, message := billingErrorDetails(err)
+	writeErr(c, status, code, message, streamStarted)
+	return false
+}
+
 // Responses handles OpenAI Responses API endpoint
 // POST /openai/v1/responses
 func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
@@ -488,10 +525,17 @@ func (h *OpenAIGatewayHandler) ResponsesGateway(transportCtx gatewayctx.GatewayC
 	}
 
 	// 2. Re-check billing eligibility after wait
-	if err := h.billingCacheService.CheckBillingEligibility(transportCtx.Context(), apiKey.User, apiKey, apiKey.Group, subscription); err != nil {
-		reqLog.Info("openai.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message := billingErrorDetails(err)
-		h.handleStreamingAwareErrorContext(transportCtx, status, code, message, streamStarted)
+	if !h.checkOpenAITokenBillingEligibilityContext(
+		transportCtx,
+		reqLog,
+		apiKey,
+		subscription,
+		reqModel,
+		body,
+		streamStarted,
+		"openai",
+		h.handleStreamingAwareErrorContext,
+	) {
 		return
 	}
 
@@ -995,10 +1039,17 @@ func (h *OpenAIGatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayCo
 		defer userReleaseFunc()
 	}
 
-	if err := h.billingCacheService.CheckBillingEligibility(transportCtx.Context(), apiKey.User, apiKey, apiKey.Group, subscription); err != nil {
-		reqLog.Info("openai_messages.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message := billingErrorDetails(err)
-		h.anthropicStreamingAwareErrorContext(transportCtx, status, code, message, streamStarted)
+	if !h.checkOpenAITokenBillingEligibilityContext(
+		transportCtx,
+		reqLog,
+		apiKey,
+		subscription,
+		reqModel,
+		body,
+		streamStarted,
+		"openai_messages",
+		h.anthropicStreamingAwareErrorContext,
+	) {
 		return
 	}
 
