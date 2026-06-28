@@ -274,6 +274,19 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | Scope | Backend token-cost billing safety release | No database migration, Nginx change, payment file change, provider-routing change, or real-provider call was part of the production release. |
 | Remaining gate | Spend-cap coverage is not complete | This production release does not close OpenAI WebSocket/realtime or other unbounded token-request reservation/spend-cap design. It also does not count as real-provider production image-generation acceptance. |
 
+## Staging And Production Release Recorded On 2026-06-29 For Main `db9d736be` / PR #217
+
+| Area | Result | Evidence |
+| --- | --- | --- |
+| Deployment | Completed on staging and production | PR #217 was merged to main at merge commit `db9d736be`, deployed first to `sub2api-staging.service`, then to `sub2api.service` after staging and CI passed. |
+| Binary | Production and staging aligned | Production `/opt/sub2api/sub2api` and staging `/opt/sub2api/sub2api-staging` both run SHA-256 `0b4324f5a12059b3a8d570966bf31a76b2f1ba90f1fd019a27aaf2b3dd3583bb`. |
+| Backups | Created before replacement | Staging backup: `/opt/sub2api/backups/staging-before-pr217-db9d736be-20260629-061832-sub2api-staging`. Production backup: `/opt/sub2api/backups/production-before-pr217-db9d736be-20260629-062530/sub2api`. |
+| Production smoke | Public routes responded | `https://api.ssxzapi.com/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public` returned HTTP 200; `/v1/models` without an API key returned HTTP 401. |
+| Runtime health | Services active | `sub2api.service` and `sub2api-staging.service` were active after restart, and the 5-minute production journal warning check returned no entries. |
+| Token-request billing gate | OpenAI Responses WebSocket bounded requests are checked before upstream provider use | PR #217 uses existing backend token-cost billing eligibility checks for bounded OpenAI Responses WebSocket requests before upstream account selection and before later client turns are written upstream. |
+| Scope | Backend billing safety release | No database migration, Nginx change, payment file change, provider-routing change, production config change, or real-provider call was part of the release. |
+| Remaining gate | Spend-cap coverage is not complete | This release closes bounded OpenAI Responses WebSocket token-cost pre-checks, but unbounded token requests and any broader reservation/spend-cap design remain open. It also does not count as real-provider production image-generation acceptance. |
+
 ## Historical Product Decisions Preserved On 2026-06-18
 
 - The older site is not the code trunk and should not be copied wholesale. It is a product reference for user-side AI chat, AI image creation, navigation, prompt flow, result display, balance, and API access.
