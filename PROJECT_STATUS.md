@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last updated: 2026-06-28
+Last updated: 2026-06-29
 
 ## Product Positioning
 
@@ -75,7 +75,7 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | AI chat | Connected | `/app/chat` works through workspace logic; old `ChatStudioView` remains a product reference/asset. |
 | Image generation | P0/P0-Beta guard deployed; production real generation acceptance still open | `ImageStudioView`, `ImageStudioHandler`, OpenAI-compatible image gateway, and image/Sora-related storage exist. On 2026-06-20 staging verified generation, usage cost, history, and HTTP image download with `gpt-image-2`. On 2026-06-27 PR #184 was deployed to production after explicit approval and verified that ordinary users do not see non-real image-capable models. PR #188 was also deployed to production after explicit approval and clarified OpenAI-compatible image alias labels without enabling production image generation. Production real image generation remains an acceptance gate because these production validations did not call a real provider. |
 | API Key / third-party access | Mostly complete, P1 polish and auth parity staged | Backend and frontend exist. PR #195 improved user-facing Base URL/model guidance, key masking explanation, and one-time full-key display copy. PR #199 added a frontend guard so masked API-key list values are not presented as usable config material. PR #203 aligned Google/Gemini-compatible API-key middleware with ordinary API-key restriction handling for IP restrictions, expired keys, and quota-exhausted keys, and was deployed to staging only. Create/copy/delete/enable/disable behavior and broader API-key lifecycle/security review remain separate verification items. |
-| Usage center | Backend complete enough, DTO and no-overdraft boundaries verified | Usage APIs and older page exist; `/app/usage` is the desired new user-shell direction. PR #197 clarified user-facing failure/no-charge states. PR #201 reduced the ordinary-user usage DTO, refreshed user balance on `/app/usage`, and passed staging ordinary/admin boundary checks. PR #208 prevents final balance billing from making the user balance negative and keeps insufficient-balance usage-billing attempts from leaving dedup/quota/rate side effects. PR #208 production deployment and route smoke are complete, while broader recharge/order/account-balance workflow verification remains open. |
+| Usage center | Backend complete enough, DTO and no-overdraft boundaries verified | Usage APIs and older page exist; `/app/usage` is the desired new user-shell direction. PR #197 clarified user-facing failure/no-charge states. PR #201 reduced the ordinary-user usage DTO, refreshed user balance on `/app/usage`, and passed staging ordinary/admin boundary checks. PR #208 prevents final balance billing from making the user balance negative and keeps insufficient-balance usage-billing attempts from leaving dedup/quota/rate side effects. PR #214 was deployed to staging only and adds estimated-cost pre-provider checks for bounded generic token requests on Claude/Anthropic-compatible gateway paths and Gemini v1beta. PR #208 production deployment and route smoke are complete. PR #214 production deployment, broader recharge/order/account-balance workflow verification, and WebSocket/unbounded token-request spend-cap design remain open. |
 | Recharge/payment | Backend/admin rich, user-shell partial | Payment/order/subscription capabilities exist; user shell alignment remains incomplete. |
 | Orders | Existing, user-shell partial | Order pages exist; not yet fully aligned to the new user workspace. |
 | Provider routing/channel management | Existing, admin-oriented | Keep for admin/owner operations. Do not let it dominate ordinary-user navigation. |
@@ -247,6 +247,19 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | Production smoke | Public routes responded | `https://api.ssxzapi.com/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public` returned HTTP 200; `/v1/models` without an API key returned HTTP 401. |
 | Staging split-health | Staging remained active | Staging `/opt/sub2api/sub2api-staging` stayed on SHA-256 `0e26ec8f4f75a90a4efa33887033447a920b76c052502dc3dda10af05f46647d`, and staging route smoke remained healthy. |
 | Scope | Backend billing safety release | No database migration, Nginx change, payment file change, provider-routing change, or real-provider call was part of the production release. |
+
+## Staging Release Recorded On 2026-06-29 For PR #214
+
+| Area | Result | Evidence |
+| --- | --- | --- |
+| Deployment | Completed on staging only | PR #214 was merged to main at merge commit `f74c8f9be` and deployed only to `sub2api-staging.service`. |
+| Binary split | Staging and production are different binaries | Staging `/opt/sub2api/sub2api-staging` SHA-256 is `f6a1da5da1f52b8260e7346dcf47c4da0c94fc47611be00ed686d40e9a4a1cfc`; production `/opt/sub2api/sub2api` stayed `1d9902d30fd3348127ce298576cfd3c89ad78a8d87ea8f3112938716b00e711a`. |
+| Backup | Created before replacement | `/opt/sub2api/backups/staging-before-pr214-f74c8f9be-20260629-052733-sub2api-staging`. |
+| Staging smoke | Public routes responded | `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public` returned HTTP 200 on staging; `/v1/models` without an API key returned HTTP 401. |
+| Token-request billing gate | Bounded token requests are checked before provider calls on more gateway paths | Generic Claude/Anthropic-compatible gateway requests and Gemini v1beta requests now estimate positive bounded token cost before provider dispatch and use cost-aware billing eligibility checks. Unbounded requests continue to use the existing zero-estimate eligibility path. |
+| Runtime health | Staging active after restart | `sub2api-staging.service` was active, `sub2api.service` remained active, and recent staging journal checks at warning level had no entries. |
+| Scope | Backend token-cost billing safety only | No database migration, Nginx change, payment file change, provider-routing change, production deployment, or real-provider call was part of the staging release. |
+| Remaining gate | Spend-cap coverage is not complete | OpenAI WebSocket/realtime and other unbounded token requests still need reservation or spend-cap design before this risk can be closed. |
 
 ## Historical Product Decisions Preserved On 2026-06-18
 

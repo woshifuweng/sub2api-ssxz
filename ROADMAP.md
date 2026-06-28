@@ -1,12 +1,12 @@
 # ROADMAP
 
-Last updated: 2026-06-28
+Last updated: 2026-06-29
 
 ## Product Goal
 
 Build SSXZ AI into a lightweight AI creation workspace for about 200-300 private users, while preserving the Sub2API backend strengths: login, balance, usage, payment, API keys, admin operations, provider/account configuration, and security boundaries.
 
-## Current Phase As Of 2026-06-28
+## Current Phase As Of 2026-06-29
 
 The project can start P1 planning and small P1 PRs. P0/P0-Beta structural convergence has enough evidence to move forward:
 
@@ -25,8 +25,9 @@ The project can start P1 planning and small P1 PRs. P0/P0-Beta structural conver
 - PR #201 was deployed to staging only and verified the `/app/usage` ordinary/admin data boundary: ordinary usage rows no longer expose internal user/account/provider fields, ordinary users get HTTP 403 on admin usage, admin usage still keeps operational fields, and `/app/usage` refreshes user balance through the auth store. Production was not deployed and no real provider was called.
 - PR #203 was deployed to staging only and aligned Google/Gemini-compatible API-key auth restrictions with the standard API-key middleware for IP restrictions, expired keys, and quota-exhausted keys. Production was not deployed and no real provider was called.
 - PR #208 was deployed to staging and then production after explicit approval. It prevents final balance billing from deducting ordinary usage below zero, and insufficient-balance usage-billing attempts roll back dedup, API-key quota, and rate-usage side effects. No real provider was called.
+- PR #214 was merged to main and deployed to staging only. It adds estimated-cost pre-provider billing eligibility checks for bounded generic token requests on Claude/Anthropic-compatible gateway paths and Gemini v1beta. Production was not deployed and no real provider was called.
 
-This does not mean production image generation is fully accepted. A controlled real-provider production image-generation acceptance remains separate and must verify creation, storage, usage/billing, history, and download before claiming the production image chain is complete.
+This does not mean production image generation or token-request spend-cap coverage is fully accepted. Controlled real-provider production image-generation acceptance remains separate and must verify creation, storage, usage/billing, history, and download before claiming the production image chain is complete. OpenAI WebSocket/realtime and other unbounded token requests still need a reservation or spend-cap design.
 
 ## Progress Reporting Baseline
 
@@ -34,9 +35,9 @@ Use this progress meter in every major status report. It is a product/operations
 
 | Stage | Current estimate | Meaning |
 | --- | ---: | --- |
-| P0 / P0-Beta convergence | 96% | Core shell, chat, failure/no-charge, fake-model, catalog authenticity, frontend lint baseline, usage DTO boundary, no-overdraft final billing, and production smoke risks are contained enough to continue P1. Remaining P0 risk is controlled production image-generation acceptance and any regressions found during P1. |
-| P1 product/operations | 36% | P1 has started. Completed or staged slices include image-model alias display clarity (#188), user-shell lint baseline cleanup (#190), first image history/download feedback hardening (#192), staging image catalog exposure verification (#194), API Key third-party access copy/safety polish (#195), usage explanation-state clarity (#197), profile TOTP failure clarity (#198), masked API-key configuration guards (#199), `/app/usage` DTO/balance-refresh boundary verification (#201), Google/Gemini-compatible API-key auth restriction parity (#203), and production-deployed usage-billing no-overdraft safety (#208). Major remaining P1 work is controlled production real-generation acceptance, broader usage/balance workflow verification, full API Key lifecycle/security verification, and admin/ops hardening. |
-| Distance to P2 | 64% of P1 remains | P2 should not begin as a main focus until the P1 user/business loops above have credible staging or production evidence. |
+| P0 / P0-Beta convergence | 98% | Core shell, chat, failure/no-charge, fake-model, catalog authenticity, frontend lint baseline, usage DTO boundary, no-overdraft final billing, bounded image cost gating, bounded OpenAI-compatible token cost gating, and bounded generic/Gemini token cost gating are contained enough to continue P1. Remaining P0/P0-Beta risks are controlled production image-generation acceptance, OpenAI WebSocket/realtime or other unbounded spend-cap design, and any regressions found during P1. |
+| P1 product/operations | 38% | P1 has started. Completed or staged slices include image-model alias display clarity (#188), user-shell lint baseline cleanup (#190), first image history/download feedback hardening (#192), staging image catalog exposure verification (#194), API Key third-party access copy/safety polish (#195), usage explanation-state clarity (#197), profile TOTP failure clarity (#198), masked API-key configuration guards (#199), `/app/usage` DTO/balance-refresh boundary verification (#201), Google/Gemini-compatible API-key auth restriction parity (#203), production-deployed usage-billing no-overdraft safety (#208), and staged generic/Gemini bounded token request cost gating (#214). Major remaining P1 work is controlled production real-generation acceptance, broader usage/balance workflow verification, full API Key lifecycle/security verification, and admin/ops hardening. |
+| Distance to P2 | 62% of P1 remains | P2 should not begin as a main focus until the P1 user/business loops above have credible staging or production evidence. |
 | P2 visual polish/enhanced experience | 0% | P2 is intentionally not active. UI polish and advanced workflows wait until P1 is materially closed. |
 
 ## Decision Rules
@@ -170,6 +171,8 @@ P0 can exit only when these are true:
    - usage
    - first data-boundary slice completed by PR #201: ordinary-user usage DTO scrubbing, `/app/usage` balance refresh, ordinary/admin usage authorization split, and staging route/API smoke
    - first backend no-overdraft slice completed by PR #208: final balance billing now rejects insufficient-balance usage attempts instead of making user balances negative, and rolls back usage-billing dedup/quota/rate side effects on insufficient balance
+   - bounded token-request billing-safety slices staged through PR #214: image requests, OpenAI-compatible bounded chat requests, generic Claude/Anthropic-compatible gateway requests, and Gemini v1beta requests perform estimated-cost eligibility checks before provider dispatch where a positive bounded output cap is available
+   - remaining spend-cap gap: OpenAI WebSocket/realtime and unbounded token requests still need a reservation or spend-cap design
    - recharge
    - orders/subscriptions
 6. Preserve and clarify admin operation pages:
