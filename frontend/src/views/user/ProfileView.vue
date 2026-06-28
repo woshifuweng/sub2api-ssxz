@@ -1,11 +1,11 @@
 <template>
   <component :is="pageShell" v-bind="pageShellProps">
     <div :class="['profile-workbench', { 'profile-workbench--app': useWorkbenchShell }]">
-      <section v-if="useWorkbenchShell" class="profile-intro" aria-label="账户设置说明">
+      <section v-if="useWorkbenchShell" class="profile-intro" :aria-label="t('profile.workbench.introAriaLabel')">
         <div>
-          <span>账号与安全</span>
-          <h3>管理你的登录信息和安全验证</h3>
-          <p>这里只处理你的个人资料、密码和二次验证。余额、用量、充值和 API Key 已经拆到左侧对应入口，避免普通用户误进后台控制台。</p>
+          <span>{{ t('profile.workbench.introKicker') }}</span>
+          <h3>{{ t('profile.workbench.introTitle') }}</h3>
+          <p>{{ t('profile.workbench.introDescription') }}</p>
         </div>
       </section>
 
@@ -17,8 +17,8 @@
 
       <section class="profile-panel">
         <div class="profile-panel-heading">
-          <span>基础资料</span>
-          <strong>账号信息</strong>
+          <span>{{ t('profile.workbench.basicInfoKicker') }}</span>
+          <strong>{{ t('profile.workbench.accountInfoTitle') }}</strong>
         </div>
         <ProfileInfoCard :user="user" />
       </section>
@@ -32,24 +32,24 @@
 
       <section class="profile-panel">
         <div class="profile-panel-heading">
-          <span>显示名称</span>
-          <strong>编辑个人资料</strong>
+          <span>{{ t('profile.workbench.displayNameKicker') }}</span>
+          <strong>{{ t('profile.workbench.editProfileTitle') }}</strong>
         </div>
         <ProfileEditForm :initial-username="user?.username || ''" />
       </section>
 
       <section class="profile-panel">
         <div class="profile-panel-heading">
-          <span>登录保护</span>
-          <strong>修改密码</strong>
+          <span>{{ t('profile.workbench.loginProtectionKicker') }}</span>
+          <strong>{{ t('profile.workbench.changePasswordTitle') }}</strong>
         </div>
         <ProfilePasswordForm />
       </section>
 
       <section class="profile-panel">
         <div class="profile-panel-heading">
-          <span>二次验证</span>
-          <strong>账号安全</strong>
+          <span>{{ t('profile.workbench.twoFactorKicker') }}</span>
+          <strong>{{ t('profile.workbench.securityTitle') }}</strong>
         </div>
         <ProfileTotpCard />
       </section>
@@ -76,9 +76,9 @@ const useWorkbenchShell = computed(() => route.path.startsWith('/app/'))
 const pageShell = computed(() => useWorkbenchShell.value ? AppSectionShell : AppLayout)
 const pageShellProps = computed(() => useWorkbenchShell.value
   ? {
-      title: '账户设置',
-      subtitle: '查看账户信息，更新资料、密码和安全验证设置。',
-      eyebrow: '我的账户',
+      title: t('profile.workbench.title'),
+      subtitle: t('profile.workbench.subtitle'),
+      eyebrow: t('profile.workbench.eyebrow'),
       icon: 'userCircle'
     }
   : {}
@@ -93,7 +93,7 @@ const WalletIcon = { render: () => h('svg', { fill: 'none', viewBox: '0 0 24 24'
 const StatusIcon = { render: () => h('svg', { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' }, [h('path', { d: 'M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z' })]) }
 const CalendarIcon = { render: () => h('svg', { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' }, [h('path', { d: 'M6.75 3v2.25M17.25 3v2.25' })]) }
 
-onMounted(async () => { try { const s = await authAPI.getPublicSettings(); contactInfo.value = s.contact_info || '' } catch (error) { console.error('Failed to load contact info:', error) } })
+onMounted(async () => { try { const s = await authAPI.getPublicSettings(); contactInfo.value = s.contact_info || '' } catch { contactInfo.value = '' } })
 const formatCurrency = (v: number) => `$${v.toFixed(2)}`
 </script>
 
