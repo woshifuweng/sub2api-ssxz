@@ -6110,6 +6110,21 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	return nil
 }
 
+func (s *OpenAIGatewayService) EstimateOpenAIImageCost(ctx context.Context, model string, imageSize string, imageCount int, apiKey *APIKey, user *User) *CostBreakdown {
+	multiplier := 0.0
+	if s.cfg != nil {
+		multiplier = s.cfg.Default.RateMultiplier
+	}
+	if apiKey != nil && apiKey.GroupID != nil && apiKey.Group != nil && user != nil {
+		resolver := s.userGroupRateResolver
+		if resolver == nil {
+			resolver = newUserGroupRateResolver(nil, nil, resolveUserGroupRateCacheTTL(s.cfg), nil, "service.openai_gateway")
+		}
+		multiplier = resolver.Resolve(ctx, user.ID, *apiKey.GroupID, apiKey.Group.RateMultiplier)
+	}
+	return s.calculateOpenAIImageCost(ctx, model, imageSize, imageCount, multiplier, apiKey)
+}
+
 func (s *OpenAIGatewayService) calculateOpenAIImageCost(ctx context.Context, model string, imageSize string, imageCount int, multiplier float64, apiKey *APIKey) *CostBreakdown {
 	if imageCount <= 0 {
 		return &CostBreakdown{}
