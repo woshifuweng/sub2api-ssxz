@@ -570,7 +570,7 @@ export default {
       title: 'Save the full API Key',
       warningTitle: 'Save the full key now',
       warningDescription:
-        'The full API Key is shown only once after creation. After closing this dialog, the list only shows a masked value and you will need to regenerate or reset it.',
+        'The full API Key is shown only once after creation. After closing this dialog, the list only shows a masked value. Create a new API Key if it is lost.',
       apiKeyLabel: 'API Key',
       copyFullKey: 'Copy full key',
       copied: 'Copied',
@@ -602,6 +602,7 @@ export default {
     copyToClipboard: 'Copy to clipboard',
     copied: 'Copied!',
     importToCcSwitch: 'Import to CCS',
+    fullKeyRequiredForImport: 'The list only shows a masked value, so automatic import is unavailable. Use the full key saved when it was created, or create a new API Key if it is lost.',
     enable: 'Enable',
     disable: 'Disable',
     nameLabel: 'Name',
@@ -641,6 +642,9 @@ export default {
       note: 'These environment variables will be active in the current terminal session. For permanent configuration, add them to ~/.bashrc, ~/.zshrc, or the appropriate configuration file.',
       noGroupTitle: 'Please assign a group first',
       noGroupDescription: 'This API key has not been assigned to a group. Please click the group column in the key list to assign one before viewing the configuration.',
+      fullKeyMissingTitle: 'The full API Key is no longer visible',
+      fullKeyMissingDescription:
+        'The list only keeps a masked value and cannot generate ready-to-use CLI configuration. Use the full key saved when it was created, or create a new API Key if it is lost.',
       openai: {
         description: 'Add the following configuration files to your Codex CLI config directory.',
         configTomlHint: 'Make sure the following content is at the beginning of the config.toml file',
@@ -666,7 +670,7 @@ export default {
         otherClientsTitle: 'Other clients',
         otherClients: 'Any client that supports OpenAI-compatible APIs can usually connect with Base URL + API Key.',
         connectionTitle: 'Common connection info',
-        apiKeyHint: 'Use the full key saved when it was created. The list only shows a masked value; reset the key if it is lost.',
+        apiKeyHint: 'Use the full key saved when it was created. The list only shows a masked value; create a new API Key if it is lost.',
         modelLabel: 'Model',
         modelHint: 'Use models enabled for the current group in the admin configuration.',
         securityNote: 'Only save the full API Key in clients you trust. Do not send it to others or share screenshots containing it.',

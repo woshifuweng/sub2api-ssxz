@@ -370,7 +370,18 @@
               <button
                 v-if="!publicSettings?.hide_ccs_import_button"
                 @click="importToCcswitch(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
+                :disabled="isMaskedApiKey(row.key)"
+                :title="
+                  isMaskedApiKey(row.key)
+                    ? t('keys.fullKeyRequiredForImport')
+                    : t('keys.importToCcSwitch')
+                "
+                :class="[
+                  'flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors',
+                  isMaskedApiKey(row.key)
+                    ? 'cursor-not-allowed opacity-50'
+                    : 'hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400'
+                ]"
               >
                 <Icon name="upload" size="sm" />
                 <span class="text-xs">{{ t('keys.importToCcSwitch') }}</span>
@@ -1108,7 +1119,7 @@
     <!-- Use Key Modal -->
     <UseKeyModal
       :show="showUseKeyModal"
-      :api-key="selectedKey?.key || ''"
+      :api-key="selectedKeyUsableApiKey"
       :base-url="publicSettings?.api_base_url || ''"
       :platform="selectedKey?.group?.platform || null"
       :allow-messages-dispatch="selectedKey?.group?.allow_messages_dispatch || false"
@@ -1515,6 +1526,16 @@ const maskKey = (key: string): string => {
   if (key.length <= 12) return key
   return `${key.slice(0, 8)}...${key.slice(-4)}`
 }
+
+const isMaskedApiKey = (key?: string | null): boolean => {
+  if (!key) return true
+  return key === '[redacted]' || key.includes('...')
+}
+
+const selectedKeyUsableApiKey = computed(() => {
+  const key = selectedKey.value?.key
+  return isMaskedApiKey(key) ? '' : (key ?? '')
+})
 
 const copyToClipboard = async (text: string, keyId: number) => {
   const success = await clipboardCopy(text, t('keys.copied'))
@@ -1950,6 +1971,11 @@ const resetRateLimitUsage = async () => {
 }
 
 const importToCcswitch = (row: ApiKey) => {
+  if (isMaskedApiKey(row.key)) {
+    appStore.showError(t('keys.fullKeyRequiredForImport'))
+    return
+  }
+
   const platform = row.group?.platform || 'anthropic'
 
   // For antigravity platform, show client selection dialog

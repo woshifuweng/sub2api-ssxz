@@ -136,6 +136,21 @@
         </div>
 
         <!-- Code Blocks (Stacked for multi-file platforms) -->
+        <div
+          v-else-if="!hasUsableApiKey"
+          class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
+          data-testid="full-key-missing-warning"
+        >
+          <Icon name="exclamationCircle" size="md" class="mt-0.5 flex-shrink-0 text-amber-500" />
+          <div>
+            <p class="text-sm font-semibold text-amber-900 dark:text-amber-100">
+              {{ t('keys.useKeyModal.fullKeyMissingTitle') }}
+            </p>
+            <p class="mt-1 text-sm leading-6 text-amber-700 dark:text-amber-300">
+              {{ t('keys.useKeyModal.fullKeyMissingDescription') }}
+            </p>
+          </div>
+        </div>
         <div v-else class="space-y-4">
           <div
             v-for="(file, index) in currentFiles"
@@ -383,6 +398,8 @@ const openaiTabs: TabConfig[] = [
 
 const isThirdPartyTab = computed(() => activeClientTab.value === 'third-party')
 const showShellTabs = computed(() => activeClientTab.value !== 'opencode' && !isThirdPartyTab.value)
+const isMaskedApiKey = (key: string) => key === '[redacted]' || key.includes('...')
+const hasUsableApiKey = computed(() => props.apiKey !== '' && !isMaskedApiKey(props.apiKey))
 
 const currentTabs = computed(() => {
   if (!showShellTabs.value) return []
@@ -431,7 +448,9 @@ const platformNote = computed(() => {
   }
 })
 
-const showPlatformNote = computed(() => activeClientTab.value !== 'opencode' && !isThirdPartyTab.value)
+const showPlatformNote = computed(() =>
+  hasUsableApiKey.value && activeClientTab.value !== 'opencode' && !isThirdPartyTab.value
+)
 
 const openAICompatibleBaseUrl = computed(() => {
   const baseUrl = props.baseUrl || window.location.origin
