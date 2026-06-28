@@ -228,6 +228,10 @@ func (h *GatewayHandler) GeminiV1BetaModelsGateway(transportCtx gatewayctx.Gatew
 
 	setOpsRequestContextGateway(transportCtx, modelName, stream, body)
 	setOpsEndpointContextGateway(transportCtx, "", int16(service.RequestTypeFromLegacy(stream, false)))
+	parsedReq, _ := service.ParseGatewayRequest(body, domain.PlatformGemini)
+	if parsedReq != nil {
+		parsedReq.Model = modelName
+	}
 
 	// Get subscription (may be nil)
 	subscription, _ := middleware.GetSubscriptionFromGatewayContext(transportCtx)
@@ -279,10 +283,20 @@ func (h *GatewayHandler) GeminiV1BetaModelsGateway(transportCtx gatewayctx.Gatew
 	}
 
 	// 2) billing eligibility check (after wait)
-	if err := h.billingCacheService.CheckBillingEligibility(transportCtx.Context(), apiKey.User, apiKey, apiKey.Group, subscription); err != nil {
-		reqLog.Info("gemini.billing_eligibility_check_failed", zap.Error(err))
-		status, _, message := billingErrorDetails(err)
-		googleErrorContext(transportCtx, status, message)
+	if !h.checkGatewayTokenBillingEligibilityContext(
+		transportCtx,
+		reqLog,
+		apiKey,
+		subscription,
+		parsedReq,
+		streamStarted,
+		"gemini",
+		200000,
+		2.0,
+		func(c gatewayctx.GatewayContext, status int, _ string, message string, _ bool) {
+			googleErrorContext(c, status, message)
+		},
+	) {
 		return
 	}
 
@@ -291,7 +305,6 @@ func (h *GatewayHandler) GeminiV1BetaModelsGateway(transportCtx gatewayctx.Gatew
 	sessionHash := extractGeminiCLISessionHashContext(transportCtx, body)
 	if sessionHash == "" {
 		// Fallback: 使用通用的会话哈希生成逻辑（适用于其他客户端）
-		parsedReq, _ := service.ParseGatewayRequest(body, domain.PlatformGemini)
 		if parsedReq != nil {
 			parsedReq.SessionContext = buildGatewaySessionContextContext(transportCtx, apiKey.ID)
 		}

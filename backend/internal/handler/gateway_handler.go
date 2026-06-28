@@ -109,6 +109,50 @@ func NewGatewayHandler(
 	}
 }
 
+func (h *GatewayHandler) checkGatewayTokenBillingEligibilityContext(
+	transportCtx gatewayctx.GatewayContext,
+	reqLog *zap.Logger,
+	apiKey *service.APIKey,
+	subscription *service.UserSubscription,
+	parsedReq *service.ParsedRequest,
+	streamStarted bool,
+	logEvent string,
+	longContextThreshold int,
+	longContextMultiplier float64,
+	writeErr func(gatewayctx.GatewayContext, int, string, string, bool),
+) bool {
+	if h == nil || h.billingCacheService == nil {
+		writeErr(transportCtx, http.StatusInternalServerError, "api_error", "Billing service is not configured", streamStarted)
+		return false
+	}
+
+	var estimatedCost *service.CostBreakdown
+	var estimateErr error
+	if h.gatewayService != nil {
+		estimatedCost, estimateErr = h.gatewayService.EstimateGatewayTokenRequestCostWithLongContext(transportCtx.Context(), parsedReq, apiKey, apiKey.User, longContextThreshold, longContextMultiplier)
+	}
+	if estimateErr != nil && reqLog != nil {
+		reqLog.Warn(logEvent+".token_cost_estimate_failed", zap.Error(estimateErr))
+	}
+
+	var err error
+	if estimatedCost != nil && estimatedCost.ActualCost > 0 {
+		err = h.billingCacheService.CheckBillingEligibilityForCost(transportCtx.Context(), apiKey.User, apiKey, apiKey.Group, subscription, estimatedCost.ActualCost)
+	} else {
+		err = h.billingCacheService.CheckBillingEligibility(transportCtx.Context(), apiKey.User, apiKey, apiKey.Group, subscription)
+	}
+	if err == nil {
+		return true
+	}
+
+	if reqLog != nil {
+		reqLog.Info(logEvent+".billing_eligibility_check_failed", zap.Error(err))
+	}
+	status, code, message := billingErrorDetails(err)
+	writeErr(transportCtx, status, code, message, streamStarted)
+	return false
+}
+
 // Messages handles Claude API compatible messages endpoint
 // POST /v1/messages
 func (h *GatewayHandler) Messages(c *gin.Context) {
@@ -233,10 +277,18 @@ func (h *GatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayContext)
 		defer userReleaseFunc()
 	}
 
-	if err := h.billingCacheService.CheckBillingEligibility(transportCtx.Context(), apiKey.User, apiKey, apiKey.Group, subscription); err != nil {
-		reqLog.Info("gateway.billing_eligibility_check_failed", zap.Error(err))
-		status, code, message := billingErrorDetails(err)
-		h.handleStreamingAwareErrorContext(transportCtx, status, code, message, streamStarted)
+	if !h.checkGatewayTokenBillingEligibilityContext(
+		transportCtx,
+		reqLog,
+		apiKey,
+		subscription,
+		parsedReq,
+		streamStarted,
+		"gateway",
+		0,
+		0,
+		h.handleStreamingAwareErrorContext,
+	) {
 		return
 	}
 
@@ -642,9 +694,18 @@ func (h *GatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayContext)
 							return
 						}
 						fallbackAPIKey := cloneAPIKeyWithGroup(apiKey, fallbackGroup)
-						if err := h.billingCacheService.CheckBillingEligibility(transportCtx.Context(), fallbackAPIKey.User, fallbackAPIKey, fallbackGroup, nil); err != nil {
-							status, code, message := billingErrorDetails(err)
-							h.handleStreamingAwareErrorContext(transportCtx, status, code, message, streamStarted)
+						if !h.checkGatewayTokenBillingEligibilityContext(
+							transportCtx,
+							reqLog,
+							fallbackAPIKey,
+							nil,
+							parsedReq,
+							streamStarted,
+							"gateway.fallback",
+							0,
+							0,
+							h.handleStreamingAwareErrorContext,
+						) {
 							return
 						}
 						ctx := context.WithValue(transportCtx.Context(), ctxkey.ForcePlatform, "")
