@@ -10,7 +10,8 @@ const { usageAPI, authStore } = vi.hoisted(() => ({
   authStore: {
     user: {
       balance: 8.53
-    }
+    },
+    refreshUser: vi.fn()
   }
 }))
 
@@ -145,6 +146,8 @@ describe('AppUsageView', () => {
     usageAPI.getStatsByDateRange.mockReset()
     usageAPI.query.mockReset()
     usageAPI.getDashboardTrend.mockReset()
+    authStore.refreshUser.mockReset()
+    authStore.refreshUser.mockResolvedValue(authStore.user)
     authStore.user.balance = 8.53
   })
 
@@ -242,6 +245,32 @@ describe('AppUsageView', () => {
       page: 1,
       page_size: 8
     }))
+    expect(authStore.refreshUser).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshes the authenticated user balance when the usage overview is refreshed', async () => {
+    mockZeroStats()
+    usageAPI.query.mockResolvedValue({
+      items: [],
+      total: 0,
+      pages: 0
+    })
+    usageAPI.getDashboardTrend.mockResolvedValue({
+      trend: [],
+      start_date: '2026-01-01',
+      end_date: '2026-06-18',
+      granularity: 'day'
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(authStore.refreshUser).toHaveBeenCalledTimes(1)
+
+    await wrapper.get('button.refresh-button').trigger('click')
+    await flushPromises()
+
+    expect(authStore.refreshUser).toHaveBeenCalledTimes(2)
   })
 
   it('shows empty states without inventing usage rows when the existing APIs have no data', async () => {

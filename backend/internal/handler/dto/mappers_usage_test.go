@@ -73,7 +73,7 @@ func TestRequestTypeStringPtrNil(t *testing.T) {
 	require.Nil(t, requestTypeStringPtr(nil))
 }
 
-func TestUsageLogFromService_IncludesServiceTierForUserAndAdmin(t *testing.T) {
+func TestUsageLogFromService_IncludesServiceTierAndKeepsUpstreamEndpointAdminOnly(t *testing.T) {
 	t.Parallel()
 
 	serviceTier := "priority"
@@ -95,8 +95,7 @@ func TestUsageLogFromService_IncludesServiceTierForUserAndAdmin(t *testing.T) {
 	require.Equal(t, serviceTier, *userDTO.ServiceTier)
 	require.NotNil(t, userDTO.InboundEndpoint)
 	require.Equal(t, inboundEndpoint, *userDTO.InboundEndpoint)
-	require.NotNil(t, userDTO.UpstreamEndpoint)
-	require.Equal(t, upstreamEndpoint, *userDTO.UpstreamEndpoint)
+	require.Nil(t, userDTO.UpstreamEndpoint)
 	require.NotNil(t, adminDTO.ServiceTier)
 	require.Equal(t, serviceTier, *adminDTO.ServiceTier)
 	require.NotNil(t, adminDTO.InboundEndpoint)
@@ -131,6 +130,64 @@ func TestUsageLogFromService_UsesRequestedModelAndKeepsUpstreamAdminOnly(t *test
 	adminJSON, err := json.Marshal(adminDTO)
 	require.NoError(t, err)
 	require.Contains(t, string(adminJSON), `"upstream_model":"claude-sonnet-4-20250514"`)
+}
+
+func TestUsageLogFromService_ScrubsRegularUserOnlyInternals(t *testing.T) {
+	t.Parallel()
+
+	userAgent := "Mozilla/5.0"
+	upstreamEndpoint := "/v1/responses"
+	log := &service.UsageLog{
+		ID:               42,
+		UserID:           12,
+		APIKeyID:         23,
+		AccountID:        34,
+		RequestID:        "req_scrub",
+		Model:            "gpt-5.4",
+		UpstreamEndpoint: &upstreamEndpoint,
+		UserAgent:        &userAgent,
+		User: &service.User{
+			ID:       12,
+			Username: "regular-user",
+		},
+		APIKey: &service.APIKey{
+			ID:   23,
+			Name: "regular-key",
+			Key:  "sk-test-secret-value",
+		},
+	}
+
+	userDTO := UsageLogFromService(log)
+	adminDTO := UsageLogFromServiceAdmin(log)
+
+	require.Equal(t, int64(23), userDTO.APIKeyID)
+	require.Zero(t, userDTO.UserID)
+	require.Zero(t, userDTO.AccountID)
+	require.Nil(t, userDTO.UpstreamEndpoint)
+	require.Nil(t, userDTO.UserAgent)
+	require.Nil(t, userDTO.User)
+	require.Nil(t, userDTO.APIKey)
+
+	userJSON, err := json.Marshal(userDTO)
+	require.NoError(t, err)
+	userPayload := string(userJSON)
+	require.Contains(t, userPayload, `"api_key_id":23`)
+	require.NotContains(t, userPayload, "user_id")
+	require.NotContains(t, userPayload, "account_id")
+	require.NotContains(t, userPayload, "upstream_endpoint")
+	require.NotContains(t, userPayload, "group_id")
+	require.NotContains(t, userPayload, "subscription_id")
+	require.NotContains(t, userPayload, "user_agent")
+	require.NotContains(t, userPayload, `"api_key"`)
+
+	adminJSON, err := json.Marshal(adminDTO)
+	require.NoError(t, err)
+	adminPayload := string(adminJSON)
+	require.Contains(t, adminPayload, `"user_id":12`)
+	require.Contains(t, adminPayload, `"account_id":34`)
+	require.Contains(t, adminPayload, `"upstream_endpoint":"/v1/responses"`)
+	require.Contains(t, adminPayload, `"user_agent":"Mozilla/5.0"`)
+	require.Contains(t, adminPayload, `"api_key"`)
 }
 
 func TestUsageLogFromService_FallsBackToLegacyModelWhenRequestedModelMissing(t *testing.T) {

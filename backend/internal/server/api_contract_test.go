@@ -405,15 +405,11 @@ func TestAPIContracts(t *testing.T) {
 					"items": [
 						{
 							"id": 1,
-							"user_id": 1,
 							"api_key_id": 100,
-							"account_id": 200,
-								"request_id": "req_123",
-								"model": "claude-3",
-								"request_type": "stream",
-								"openai_ws_mode": false,
-								"group_id": null,
-								"subscription_id": null,
+							"request_id": "req_123",
+							"model": "claude-3",
+							"request_type": "stream",
+							"openai_ws_mode": false,
 							"input_tokens": 10,
 							"output_tokens": 20,
 							"cache_creation_tokens": 1,
@@ -435,8 +431,7 @@ func TestAPIContracts(t *testing.T) {
 							"image_size": null,
 							"media_type": null,
 							"cache_ttl_overridden": false,
-							"created_at": "2025-01-02T03:04:05Z",
-							"user_agent": null
+							"created_at": "2025-01-02T03:04:05Z"
 						}
 					],
 					"total": 1,
