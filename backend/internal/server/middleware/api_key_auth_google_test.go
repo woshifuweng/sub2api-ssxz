@@ -431,6 +431,167 @@ func TestApiKeyAuthWithSubscriptionGoogle_DisabledKey(t *testing.T) {
 	require.Equal(t, "UNAUTHENTICATED", resp.Error.Status)
 }
 
+func TestApiKeyAuthWithSubscriptionGoogle_APIKeyRestrictions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	past := time.Now().Add(-time.Hour)
+
+	tests := []struct {
+		name        string
+		mutateKey   func(*service.APIKey)
+		remoteAddr  string
+		wantCode    int
+		wantMessage string
+		wantStatus  string
+	}{
+		{
+			name: "rejects disallowed client IP",
+			mutateKey: func(apiKey *service.APIKey) {
+				apiKey.IPWhitelist = []string{"1.2.3.4"}
+			},
+			remoteAddr:  "9.9.9.9:12345",
+			wantCode:    http.StatusForbidden,
+			wantMessage: "Access denied",
+			wantStatus:  "PERMISSION_DENIED",
+		},
+		{
+			name: "rejects explicit expired status",
+			mutateKey: func(apiKey *service.APIKey) {
+				apiKey.Status = service.StatusAPIKeyExpired
+			},
+			wantCode:    http.StatusForbidden,
+			wantMessage: "API key has expired",
+			wantStatus:  "PERMISSION_DENIED",
+		},
+		{
+			name: "rejects explicit quota exhausted status",
+			mutateKey: func(apiKey *service.APIKey) {
+				apiKey.Status = service.StatusAPIKeyQuotaExhausted
+			},
+			wantCode:    http.StatusTooManyRequests,
+			wantMessage: "API key quota exhausted",
+			wantStatus:  "RESOURCE_EXHAUSTED",
+		},
+		{
+			name: "rejects elapsed expiration time",
+			mutateKey: func(apiKey *service.APIKey) {
+				apiKey.ExpiresAt = &past
+			},
+			wantCode:    http.StatusForbidden,
+			wantMessage: "API key has expired",
+			wantStatus:  "PERMISSION_DENIED",
+		},
+		{
+			name: "rejects exhausted quota",
+			mutateKey: func(apiKey *service.APIKey) {
+				apiKey.Quota = 1
+				apiKey.QuotaUsed = 1
+			},
+			wantCode:    http.StatusTooManyRequests,
+			wantMessage: "API key quota exhausted",
+			wantStatus:  "RESOURCE_EXHAUSTED",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			user := &service.User{
+				ID:          123,
+				Status:      service.StatusActive,
+				Balance:     10,
+				Concurrency: 3,
+			}
+			apiKey := &service.APIKey{
+				ID:     1,
+				UserID: user.ID,
+				Key:    "restricted-google-key",
+				Status: service.StatusActive,
+				User:   user,
+			}
+			if tt.mutateKey != nil {
+				tt.mutateKey(apiKey)
+			}
+
+			apiKeyService := newTestAPIKeyService(fakeAPIKeyRepo{
+				getByKey: func(ctx context.Context, key string) (*service.APIKey, error) {
+					if key != apiKey.Key {
+						return nil, service.ErrAPIKeyNotFound
+					}
+					clone := *apiKey
+					return &clone, nil
+				},
+			})
+
+			r := gin.New()
+			require.NoError(t, r.SetTrustedProxies(nil))
+			r.Use(APIKeyAuthWithSubscriptionGoogle(apiKeyService, nil, &config.Config{RunMode: config.RunModeStandard}))
+			r.GET("/v1beta/test", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) })
+
+			req := httptest.NewRequest(http.MethodGet, "/v1beta/test", nil)
+			req.RemoteAddr = "1.2.3.4:12345"
+			if tt.remoteAddr != "" {
+				req.RemoteAddr = tt.remoteAddr
+			}
+			req.Header.Set("Authorization", "Bearer "+apiKey.Key)
+			req.Header.Set("X-Forwarded-For", "1.2.3.4")
+			req.Header.Set("X-Real-IP", "1.2.3.4")
+			req.Header.Set("CF-Connecting-IP", "1.2.3.4")
+
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+
+			require.Equal(t, tt.wantCode, rec.Code)
+			var resp googleErrorResponse
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+			require.Equal(t, tt.wantCode, resp.Error.Code)
+			require.Equal(t, tt.wantMessage, resp.Error.Message)
+			require.Equal(t, tt.wantStatus, resp.Error.Status)
+		})
+	}
+}
+
+func TestApiKeyAuthWithSubscriptionGoogle_AllowsMatchingAPIKeyIPRestriction(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	user := &service.User{
+		ID:          123,
+		Status:      service.StatusActive,
+		Balance:     10,
+		Concurrency: 3,
+	}
+	apiKey := &service.APIKey{
+		ID:          1,
+		UserID:      user.ID,
+		Key:         "restricted-google-key",
+		Status:      service.StatusActive,
+		User:        user,
+		IPWhitelist: []string{"1.2.3.4"},
+	}
+
+	apiKeyService := newTestAPIKeyService(fakeAPIKeyRepo{
+		getByKey: func(ctx context.Context, key string) (*service.APIKey, error) {
+			if key != apiKey.Key {
+				return nil, service.ErrAPIKeyNotFound
+			}
+			clone := *apiKey
+			return &clone, nil
+		},
+	})
+
+	r := gin.New()
+	require.NoError(t, r.SetTrustedProxies(nil))
+	r.Use(APIKeyAuthWithSubscriptionGoogle(apiKeyService, nil, &config.Config{RunMode: config.RunModeStandard}))
+	r.GET("/v1beta/test", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) })
+
+	req := httptest.NewRequest(http.MethodGet, "/v1beta/test", nil)
+	req.RemoteAddr = "1.2.3.4:12345"
+	req.Header.Set("x-goog-api-key", apiKey.Key)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+}
+
 func TestApiKeyAuthWithSubscriptionGoogle_InsufficientBalance(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

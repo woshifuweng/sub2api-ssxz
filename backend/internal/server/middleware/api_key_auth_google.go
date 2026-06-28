@@ -6,6 +6,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/googleapi"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -54,9 +55,18 @@ func ApplyAPIKeyAuthWithSubscriptionGoogleContext(apiKeyService *service.APIKeyS
 		return false
 	}
 
-	if !apiKey.IsActive() {
+	if !apiKey.IsActive() &&
+		apiKey.Status != service.StatusAPIKeyExpired &&
+		apiKey.Status != service.StatusAPIKeyQuotaExhausted {
 		abortWithGoogleErrorContext(c, 401, "API key is disabled")
 		return false
+	}
+	if len(apiKey.IPWhitelist) > 0 || len(apiKey.IPBlacklist) > 0 {
+		allowed, _ := ip.CheckIPRestrictionWithCompiledRules(ip.GetTrustedClientIPContext(c), apiKey.CompiledIPWhitelist, apiKey.CompiledIPBlacklist)
+		if !allowed {
+			abortWithGoogleErrorContext(c, 403, "Access denied")
+			return false
+		}
 	}
 	if apiKey.User == nil {
 		abortWithGoogleErrorContext(c, 401, "User associated with API key not found")
@@ -78,6 +88,23 @@ func ApplyAPIKeyAuthWithSubscriptionGoogleContext(apiKeyService *service.APIKeyS
 		setGroupContextGateway(c, apiKey.Group)
 		_ = apiKeyService.TouchLastUsed(c.Request().Context(), apiKey.ID)
 		return true
+	}
+
+	switch apiKey.Status {
+	case service.StatusAPIKeyQuotaExhausted:
+		abortWithGoogleErrorContext(c, 429, "API key quota exhausted")
+		return false
+	case service.StatusAPIKeyExpired:
+		abortWithGoogleErrorContext(c, 403, "API key has expired")
+		return false
+	}
+	if apiKey.IsExpired() {
+		abortWithGoogleErrorContext(c, 403, "API key has expired")
+		return false
+	}
+	if apiKey.IsQuotaExhausted() {
+		abortWithGoogleErrorContext(c, 429, "API key quota exhausted")
+		return false
 	}
 
 	isSubscriptionType := apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
