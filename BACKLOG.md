@@ -61,6 +61,9 @@ Last updated: 2026-06-29
 - 2026-06-29: PR #217 was merged to main at `db9d736be`, deployed to staging, then deployed to production after CI and staging smoke passed. Production and staging `/opt/sub2api/sub2api*` binaries both run SHA-256 `0b4324f5a12059b3a8d570966bf31a76b2f1ba90f1fd019a27aaf2b3dd3583bb`.
 - 2026-06-29: #217 staging backup is `/opt/sub2api/backups/staging-before-pr217-db9d736be-20260629-061832-sub2api-staging`; production backup is `/opt/sub2api/backups/production-before-pr217-db9d736be-20260629-062530/sub2api`.
 - 2026-06-29: after the #217 production deployment, public smoke returned HTTP 200 for `https://api.ssxzapi.com/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public`; `/v1/models` without an API key returned HTTP 401. No real provider was called, no database migration, no Nginx change, no payment file change, no provider-routing change, and no production config change was part of the release. Bounded OpenAI Responses WebSocket token-cost checks are now production-deployed; unbounded token-request spend-cap coverage remains open.
+- 2026-06-29: PR #219 was merged to main at `57eccdd3`, deployed to staging, then deployed to production after CI and staging smoke passed. Production and staging `/opt/sub2api/sub2api*` binaries both run SHA-256 `6b6a82785d1584a5ab5d917d0d786de018ff1879dd50342a19ed5f46ae604411`.
+- 2026-06-29: #219 staging backup is `/opt/sub2api/backups/staging-before-pr219-57eccdd3a-20260629-065352-sub2api-staging`; production backup is `/opt/sub2api/backups/production-before-pr219-57eccdd3a-20260629-065440/sub2api`.
+- 2026-06-29: after the #219 production deployment, public smoke returned HTTP 200 for `https://api.ssxzapi.com/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public`; `/v1/models` without an API key returned HTTP 401. No real provider was called, no database migration, no Nginx change, no payment file change, no provider-routing change, and no production config change was part of the release. No-cap token requests now get a conservative safety-budget eligibility check before provider dispatch; full reservation/pre-charge spend-cap design remains later hardening.
 
 ## P0 Bugs And Structural Fixes
 
@@ -83,15 +86,15 @@ Last updated: 2026-06-29
   - `/app/image` controlled production real-generation acceptance plan, only after explicit approval to call a real provider
   - follow-up `/app/image` model naming/display strategy only if operators decide to change production image-model policy; the first alias-display slice was completed by PR #188
   - API Key / third-party access lifecycle/security verification after the #195/#199 copy and masked-value safety slices plus the #203 Google/Gemini-compatible auth-parity slice
-  - continue usage/balance workflow verification after the #197 explanation-state clarity slice, #201 staging DTO/balance-refresh boundary check, #208 production-deployed no-overdraft billing-safety slice, and #214 production-deployed bounded generic/Gemini token request cost gate
+  - continue usage/balance workflow verification after the #197 explanation-state clarity slice, #201 staging DTO/balance-refresh boundary check, #208 production-deployed no-overdraft billing-safety slice, #214/#217 bounded token request cost gates, and #219 production-deployed no-cap token-request safety-budget gate
   - profile/security settings behavior verification after the #198 TOTP status clarity slice
 - Keep production deployment as a separate approval gate for every PR.
 
 ## Phase Progress Snapshot
 
-- P0 / P0-Beta convergence: about 98.5%. Remaining P0/P0-Beta risk is controlled production image-generation acceptance, unbounded token-request spend-cap design, and any regression found while doing P1.
-- P1 product/operations: about 40%. Completed or staged slices: image-model alias display clarity, user-shell lint baseline cleanup, first image history/download feedback hardening, staging catalog exposure verification, API Key third-party access copy/safety polish, usage explanation-state clarity, profile TOTP failure clarity, masked API-key configuration guards, `/app/usage` DTO/balance-refresh boundary verification, Google/Gemini-compatible API-key auth restriction parity, production-deployed usage-billing no-overdraft safety, production-deployed bounded generic/Gemini token request cost gating, and production-deployed bounded OpenAI Responses WebSocket token cost gating. Remaining large P1 loops: controlled production real-generation acceptance, broader usage/balance workflow verification, full API Key lifecycle/security verification, and admin/ops hardening.
-- Distance to P2: about 60% of P1 remains. Do not prioritize P2 visual polish until P1 loops have evidence.
+- P0 / P0-Beta convergence: about 99%. Remaining P0/P0-Beta risk is controlled production image-generation acceptance, full reservation/pre-charge spend-cap hardening, and any regression found while doing P1.
+- P1 product/operations: about 42%. Completed or staged slices: image-model alias display clarity, user-shell lint baseline cleanup, first image history/download feedback hardening, staging catalog exposure verification, API Key third-party access copy/safety polish, usage explanation-state clarity, profile TOTP failure clarity, masked API-key configuration guards, `/app/usage` DTO/balance-refresh boundary verification, Google/Gemini-compatible API-key auth restriction parity, production-deployed usage-billing no-overdraft safety, production-deployed bounded generic/Gemini token request cost gating, production-deployed bounded OpenAI Responses WebSocket token cost gating, and production-deployed no-cap token-request safety-budget gating. Remaining large P1 loops: controlled production real-generation acceptance, broader usage/balance workflow verification, full API Key lifecycle/security verification, and admin/ops hardening.
+- Distance to P2: about 58% of P1 remains. Do not prioritize P2 visual polish until P1 loops have evidence.
 - P2: 0%. Keep as later polish/enhancement work.
 
 ## Chains That Need Verification
@@ -112,7 +115,8 @@ Last updated: 2026-06-29
   - PR #201 staging validation confirmed ordinary-user DTO scrubbing, balance refresh wiring, stats/trend endpoint reachability, and ordinary/admin usage authorization split.
   - PR #208 deployed backend no-overdraft final balance billing to staging and production; regression coverage confirms insufficient-balance usage-billing rollback without a real provider call.
   - PR #214 deployed bounded generic/Gemini token request estimated-cost eligibility checks to staging and production.
-  - PR #217 deployed bounded OpenAI Responses WebSocket estimated-cost eligibility checks to staging and production; unbounded spend-cap coverage remains open.
+  - PR #217 deployed bounded OpenAI Responses WebSocket estimated-cost eligibility checks to staging and production.
+  - PR #219 deployed no-cap token-request safety-budget eligibility checks to staging and production; full reservation/pre-charge spend-cap design remains later hardening.
   - Broader recharge/order/account-balance workflow verification remains open.
 - `/app/keys` create/copy/delete/enable/disable behavior, one-time full-key display, masked-value handling, and third-party client guidance:
   - PR #203 staged backend Google/Gemini-compatible API-key auth restriction parity for IP restrictions, expired keys, and quota-exhausted keys.
