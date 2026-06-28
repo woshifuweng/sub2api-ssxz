@@ -113,3 +113,83 @@ func TestOpenAIChatCompletionsGateway_EstimatedCostOverBalanceDoesNotCallUpstrea
 	require.Equal(t, 0, billingRepo.calls)
 	require.Equal(t, 0, userRepo.deductCalls)
 }
+
+func TestOpenAITokenBillingEligibility_UnboundedRequestUsesSafetyBudget(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	groupID := int64(304)
+	user := &service.User{
+		ID:          704,
+		Status:      service.StatusActive,
+		Role:        "user",
+		Balance:     1,
+		Concurrency: 0,
+	}
+	group := &service.Group{
+		ID:             groupID,
+		Name:           "token-cost-gate",
+		Platform:       service.PlatformOpenAI,
+		Status:         service.StatusActive,
+		RateMultiplier: 1,
+	}
+	apiKey := &service.APIKey{
+		ID:      804,
+		UserID:  user.ID,
+		Key:     "test-token-cost-gate-unbounded-key",
+		Status:  service.StatusAPIKeyActive,
+		User:    user,
+		GroupID: &groupID,
+		Group:   group,
+	}
+
+	cfg := &config.Config{}
+	userRepo := &imageStudioGatewayUserRepo{user: user}
+	billingCacheService := service.NewBillingCacheService(nil, userRepo, nil, nil, cfg)
+	gatewayService := service.NewOpenAIGatewayService(
+		nil,
+		nil,
+		nil,
+		nil,
+		userRepo,
+		nil,
+		nil,
+		nil,
+		cfg,
+		nil,
+		nil,
+		service.NewBillingService(cfg, nil),
+		nil,
+		nil,
+		billingCacheService,
+		nil,
+		nil,
+		nil,
+	)
+	t.Cleanup(gatewayService.CloseOpenAIWSPool)
+	t.Cleanup(billingCacheService.Stop)
+	handler := &OpenAIGatewayHandler{
+		gatewayService:      gatewayService,
+		billingCacheService: billingCacheService,
+	}
+
+	body := []byte(`{"model":"gpt-5.1","messages":[{"role":"user","content":"hello"}]}`)
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+
+	ok := handler.checkOpenAITokenBillingEligibilityContext(
+		gatewayctx.FromGin(ctx),
+		nil,
+		apiKey,
+		nil,
+		"gpt-5.1",
+		body,
+		false,
+		"openai.test",
+		handler.handleStreamingAwareErrorContext,
+	)
+
+	require.False(t, ok)
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.Contains(t, rec.Body.String(), "insufficient balance")
+}

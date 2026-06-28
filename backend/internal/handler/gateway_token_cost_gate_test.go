@@ -90,6 +90,37 @@ func TestGatewayTokenBillingEligibility_EstimatedCostOverBalanceBlocksGenericReq
 	require.Contains(t, rec.Body.String(), "insufficient balance")
 }
 
+func TestGatewayTokenBillingEligibility_UnboundedRequestUsesSafetyBudget(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	handler, apiKey, cleanup := newGatewayTokenCostGateHandlerForTest(t)
+	t.Cleanup(cleanup)
+	body := []byte(`{"model":"claude-sonnet-4","messages":[{"role":"user","content":"hello"}]}`)
+	parsedReq, err := service.ParseGatewayRequest(body, domain.PlatformAnthropic)
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+
+	ok := handler.checkGatewayTokenBillingEligibilityContext(
+		gatewayctx.FromGin(ctx),
+		nil,
+		apiKey,
+		nil,
+		parsedReq,
+		false,
+		"gateway.test",
+		0,
+		0,
+		handler.handleStreamingAwareErrorContext,
+	)
+
+	require.False(t, ok)
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.Contains(t, rec.Body.String(), "insufficient balance")
+}
+
 func TestGatewayTokenBillingEligibility_EstimatedCostOverBalanceBlocksGeminiRequest(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

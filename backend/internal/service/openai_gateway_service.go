@@ -6127,8 +6127,9 @@ func (s *OpenAIGatewayService) EstimateOpenAIImageCost(ctx context.Context, mode
 
 func (s *OpenAIGatewayService) EstimateOpenAITokenRequestCost(ctx context.Context, model string, body []byte, apiKey *APIKey, user *User) (*CostBreakdown, error) {
 	outputTokens := estimateOpenAIRequestOutputTokenLimit(body)
-	if outputTokens <= 0 {
-		return nil, nil
+	usesUnboundedSafetyBudget := outputTokens <= 0
+	if usesUnboundedSafetyBudget {
+		outputTokens = unboundedTokenRequestSafetyOutputTokens
 	}
 
 	multiplier := 0.0
@@ -6143,10 +6144,17 @@ func (s *OpenAIGatewayService) EstimateOpenAITokenRequestCost(ctx context.Contex
 		multiplier = resolver.Resolve(ctx, user.ID, *apiKey.GroupID, apiKey.Group.RateMultiplier)
 	}
 
-	return s.calculateOpenAITokenCost(ctx, model, UsageTokens{
+	cost, err := s.calculateOpenAITokenCost(ctx, model, UsageTokens{
 		InputTokens:  estimateOpenAIRequestInputTokens(body),
 		OutputTokens: outputTokens,
 	}, multiplier, strings.TrimSpace(gjson.GetBytes(body, "service_tier").String()), apiKey)
+	if err != nil {
+		return nil, err
+	}
+	if usesUnboundedSafetyBudget {
+		return applyUnboundedTokenRequestSafetyFloor(cost), nil
+	}
+	return cost, nil
 }
 
 func estimateOpenAIRequestOutputTokenLimit(body []byte) int {
