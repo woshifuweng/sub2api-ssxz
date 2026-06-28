@@ -199,6 +199,107 @@ func TestOpenAIImagesGateway_UpstreamFailureDoesNotRecordUsageOrBilling(t *testi
 	require.Equal(t, 0, userRepo.deductCalls)
 }
 
+func TestOpenAIImagesGateway_EstimatedCostOverBalanceDoesNotCallUpstream(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	groupID := int64(302)
+	imagePrice2K := 2.0
+	user := &service.User{
+		ID:          702,
+		Status:      service.StatusActive,
+		Role:        "user",
+		Balance:     1,
+		Concurrency: 0,
+	}
+	group := &service.Group{
+		ID:             groupID,
+		Name:           "image-cost-gate",
+		Platform:       service.PlatformOpenAI,
+		Status:         service.StatusActive,
+		RateMultiplier: 1,
+		ImagePrice2K:   &imagePrice2K,
+	}
+	apiKey := &service.APIKey{
+		ID:      802,
+		UserID:  user.ID,
+		Key:     "test-image-cost-gate-key",
+		Status:  service.StatusAPIKeyActive,
+		User:    user,
+		GroupID: &groupID,
+		Group:   group,
+	}
+	account := service.Account{
+		ID:          902,
+		Name:        "image-upstream",
+		Platform:    service.PlatformOpenAI,
+		Type:        service.AccountTypeAPIKey,
+		Status:      service.StatusActive,
+		Schedulable: true,
+		Concurrency: 0,
+		Credentials: map[string]any{
+			"api_key":  "test-upstream-key",
+			"base_url": "https://api.example.test",
+		},
+	}
+
+	cfg := &config.Config{}
+	userRepo := &imageStudioGatewayUserRepo{user: user}
+	usageRepo := &imageStudioGatewayUsageRepo{}
+	billingRepo := &imageStudioGatewayBillingRepo{}
+	upstream := &imageStudioGatewayUpstream{
+		status: http.StatusOK,
+		body:   `{"data":[{"url":"https://cdn.example.test/image.png"}]}`,
+	}
+	billingCacheService := service.NewBillingCacheService(nil, userRepo, nil, nil, cfg)
+	gatewayService := service.NewOpenAIGatewayService(
+		&imageStudioGatewayAccountRepo{accounts: []service.Account{account}},
+		nil,
+		usageRepo,
+		billingRepo,
+		userRepo,
+		nil,
+		nil,
+		nil,
+		cfg,
+		nil,
+		nil,
+		service.NewBillingService(cfg, nil),
+		nil,
+		nil,
+		billingCacheService,
+		upstream,
+		nil,
+		nil,
+	)
+	t.Cleanup(gatewayService.CloseOpenAIWSPool)
+	handler := NewOpenAIGatewayHandler(
+		gatewayService,
+		service.NewConcurrencyService(nil),
+		billingCacheService,
+		&service.APIKeyService{},
+		nil,
+		nil,
+		cfg,
+	)
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader([]byte(`{"model":"gpt-image-2","prompt":"draw a cat"}`)))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Set(string(middleware.ContextKeyAPIKey), apiKey)
+	ctx.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: user.ID, Concurrency: user.Concurrency})
+	ctx.Set(string(middleware.ContextKeyUserRole), user.Role)
+
+	handler.ImagesGateway(gatewayctx.FromGin(ctx))
+
+	require.Equal(t, 0, upstream.calls)
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.Contains(t, rec.Body.String(), "insufficient balance")
+	require.Equal(t, 0, usageRepo.calls)
+	require.Equal(t, 0, billingRepo.calls)
+	require.Equal(t, 0, userRepo.deductCalls)
+}
+
 func TestPersistImageStudioWork_DoesNotCreateHistoryForFailedOrTruncatedCapture(t *testing.T) {
 	tests := []struct {
 		name    string

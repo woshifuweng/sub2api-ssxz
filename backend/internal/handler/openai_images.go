@@ -113,7 +113,12 @@ func (h *OpenAIGatewayHandler) ImagesGateway(c gatewayctx.GatewayContext) {
 		defer userReleaseFunc()
 	}
 
-	if err := h.billingCacheService.CheckBillingEligibility(c.Context(), apiKey.User, apiKey, apiKey.Group, subscription); err != nil {
+	estimatedCost := h.gatewayService.EstimateOpenAIImageCost(c.Context(), parsed.Model, parsed.SizeTier, parsed.N, apiKey, apiKey.User)
+	estimatedActualCost := 0.0
+	if estimatedCost != nil {
+		estimatedActualCost = estimatedCost.ActualCost
+	}
+	if err := h.billingCacheService.CheckBillingEligibilityForCost(c.Context(), apiKey.User, apiKey, apiKey.Group, subscription, estimatedActualCost); err != nil {
 		reqLog.Info("openai.images.billing_eligibility_check_failed", zap.Error(err))
 		status, code, message := billingErrorDetails(err)
 		h.handleStreamingAwareErrorContext(c, status, code, message, streamStarted)

@@ -501,7 +501,7 @@ func (s *BillingCacheService) InvalidateSubscription(ctx context.Context, userID
 // It loads usage from Redis cache (falling back to DB on cache miss),
 // resets expired windows in-memory and triggers async DB reset,
 // and returns an error if any window limit is exceeded.
-func (s *BillingCacheService) checkAPIKeyRateLimits(ctx context.Context, apiKey *APIKey) error {
+func (s *BillingCacheService) checkAPIKeyRateLimits(ctx context.Context, apiKey *APIKey, estimatedCost float64) error {
 	if s.cache == nil {
 		// No cache: fall back to reading from DB directly
 		if s.apiKeyRateLimitLoader == nil {
@@ -512,7 +512,7 @@ func (s *BillingCacheService) checkAPIKeyRateLimits(ctx context.Context, apiKey 
 			return nil // Don't block requests on DB errors
 		}
 		return s.evaluateRateLimits(ctx, apiKey, data.Usage5h, data.Usage1d, data.Usage7d,
-			data.Window5hStart, data.Window1dStart, data.Window7dStart)
+			data.Window5hStart, data.Window1dStart, data.Window7dStart, estimatedCost)
 	}
 
 	cacheData, err := s.cache.GetAPIKeyRateLimit(ctx, apiKey.ID)
@@ -557,11 +557,11 @@ func (s *BillingCacheService) checkAPIKeyRateLimits(ctx context.Context, apiKey 
 		t := time.Unix(cacheData.Window7d, 0)
 		w7d = &t
 	}
-	return s.evaluateRateLimits(ctx, apiKey, cacheData.Usage5h, cacheData.Usage1d, cacheData.Usage7d, w5h, w1d, w7d)
+	return s.evaluateRateLimits(ctx, apiKey, cacheData.Usage5h, cacheData.Usage1d, cacheData.Usage7d, w5h, w1d, w7d, estimatedCost)
 }
 
 // evaluateRateLimits checks usage against limits, triggering async resets for expired windows.
-func (s *BillingCacheService) evaluateRateLimits(ctx context.Context, apiKey *APIKey, usage5h, usage1d, usage7d float64, w5h, w1d, w7d *time.Time) error {
+func (s *BillingCacheService) evaluateRateLimits(ctx context.Context, apiKey *APIKey, usage5h, usage1d, usage7d float64, w5h, w1d, w7d *time.Time, estimatedCost float64) error {
 	needsReset := false
 
 	// Reset expired windows in-memory for check purposes
@@ -604,13 +604,13 @@ func (s *BillingCacheService) evaluateRateLimits(ctx context.Context, apiKey *AP
 	}
 
 	// Check limits
-	if apiKey.RateLimit5h > 0 && usage5h >= apiKey.RateLimit5h {
+	if billingLimitExceeded(usage5h, apiKey.RateLimit5h, estimatedCost) {
 		return ErrAPIKeyRateLimit5hExceeded
 	}
-	if apiKey.RateLimit1d > 0 && usage1d >= apiKey.RateLimit1d {
+	if billingLimitExceeded(usage1d, apiKey.RateLimit1d, estimatedCost) {
 		return ErrAPIKeyRateLimit1dExceeded
 	}
-	if apiKey.RateLimit7d > 0 && usage7d >= apiKey.RateLimit7d {
+	if billingLimitExceeded(usage7d, apiKey.RateLimit7d, estimatedCost) {
 		return ErrAPIKeyRateLimit7dExceeded
 	}
 	return nil
@@ -636,6 +636,12 @@ func (s *BillingCacheService) QueueUpdateAPIKeyRateLimitUsage(apiKeyID int64, co
 // 余额模式：检查缓存余额 > 0
 // 订阅模式：检查缓存用量未超过限额（Group限额从参数传入）
 func (s *BillingCacheService) CheckBillingEligibility(ctx context.Context, user *User, apiKey *APIKey, group *Group, subscription *UserSubscription) error {
+	return s.CheckBillingEligibilityForCost(ctx, user, apiKey, group, subscription, 0)
+}
+
+// CheckBillingEligibilityForCost checks whether a request with a known preflight cost can start.
+// It preserves the legacy zero-cost behavior for token paths whose final usage is not known yet.
+func (s *BillingCacheService) CheckBillingEligibilityForCost(ctx context.Context, user *User, apiKey *APIKey, group *Group, subscription *UserSubscription, estimatedCost float64) error {
 	// 简易模式：跳过所有计费检查
 	if s.cfg.RunMode == config.RunModeSimple {
 		return nil
@@ -648,18 +654,22 @@ func (s *BillingCacheService) CheckBillingEligibility(ctx context.Context, user 
 	isSubscriptionMode := group != nil && group.IsSubscriptionType() && subscription != nil
 
 	if isSubscriptionMode {
-		if err := s.checkSubscriptionEligibility(ctx, user.ID, group, subscription); err != nil {
+		if err := s.checkSubscriptionEligibility(ctx, user.ID, group, subscription, estimatedCost); err != nil {
 			return err
 		}
 	} else {
-		if err := s.checkBalanceEligibility(ctx, user.ID); err != nil {
+		if err := s.checkBalanceEligibility(ctx, user.ID, estimatedCost); err != nil {
 			return err
 		}
 	}
 
+	if apiKey != nil && estimatedCost > 0 && apiKey.Quota > 0 && apiKey.QuotaUsed+estimatedCost > apiKey.Quota {
+		return ErrAPIKeyQuotaExhausted
+	}
+
 	// Check API Key rate limits (applies to both billing modes)
 	if apiKey != nil && apiKey.HasRateLimits() {
-		if err := s.checkAPIKeyRateLimits(ctx, apiKey); err != nil {
+		if err := s.checkAPIKeyRateLimits(ctx, apiKey, estimatedCost); err != nil {
 			return err
 		}
 	}
@@ -668,7 +678,7 @@ func (s *BillingCacheService) CheckBillingEligibility(ctx context.Context, user 
 }
 
 // checkBalanceEligibility 检查余额模式资格
-func (s *BillingCacheService) checkBalanceEligibility(ctx context.Context, userID int64) error {
+func (s *BillingCacheService) checkBalanceEligibility(ctx context.Context, userID int64, estimatedCost float64) error {
 	balance, err := s.GetUserBalance(ctx, userID)
 	if err != nil {
 		if s.circuitBreaker != nil {
@@ -681,6 +691,12 @@ func (s *BillingCacheService) checkBalanceEligibility(ctx context.Context, userI
 		s.circuitBreaker.OnSuccess()
 	}
 
+	if estimatedCost > 0 {
+		if balance < estimatedCost {
+			return ErrInsufficientBalance
+		}
+		return nil
+	}
 	if balance <= 0 {
 		return ErrInsufficientBalance
 	}
@@ -689,7 +705,7 @@ func (s *BillingCacheService) checkBalanceEligibility(ctx context.Context, userI
 }
 
 // checkSubscriptionEligibility 检查订阅模式资格
-func (s *BillingCacheService) checkSubscriptionEligibility(ctx context.Context, userID int64, group *Group, subscription *UserSubscription) error {
+func (s *BillingCacheService) checkSubscriptionEligibility(ctx context.Context, userID int64, group *Group, subscription *UserSubscription, estimatedCost float64) error {
 	// 获取订阅缓存数据
 	subData, err := s.GetSubscriptionStatus(ctx, userID, group.ID)
 	if err != nil {
@@ -714,19 +730,29 @@ func (s *BillingCacheService) checkSubscriptionEligibility(ctx context.Context, 
 	}
 
 	// 检查限额（使用传入的Group限额配置）
-	if group.HasDailyLimit() && subData.DailyUsage >= *group.DailyLimitUSD {
+	if group.HasDailyLimit() && billingLimitExceeded(subData.DailyUsage, *group.DailyLimitUSD, estimatedCost) {
 		return ErrDailyLimitExceeded
 	}
 
-	if group.HasWeeklyLimit() && subData.WeeklyUsage >= *group.WeeklyLimitUSD {
+	if group.HasWeeklyLimit() && billingLimitExceeded(subData.WeeklyUsage, *group.WeeklyLimitUSD, estimatedCost) {
 		return ErrWeeklyLimitExceeded
 	}
 
-	if group.HasMonthlyLimit() && subData.MonthlyUsage >= *group.MonthlyLimitUSD {
+	if group.HasMonthlyLimit() && billingLimitExceeded(subData.MonthlyUsage, *group.MonthlyLimitUSD, estimatedCost) {
 		return ErrMonthlyLimitExceeded
 	}
 
 	return nil
+}
+
+func billingLimitExceeded(usage, limit, estimatedCost float64) bool {
+	if limit <= 0 {
+		return false
+	}
+	if estimatedCost > 0 {
+		return usage+estimatedCost > limit
+	}
+	return usage >= limit
 }
 
 type billingCircuitBreakerState int
