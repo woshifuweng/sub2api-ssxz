@@ -5,7 +5,7 @@ const { authStore, authAPI, routeState } = vi.hoisted(() => ({
   authStore: {
     user: {
       id: 8,
-      username: '测试用户',
+      username: 'Test User',
       email: 'user@example.test',
       role: 'user',
       balance: 49.4,
@@ -25,11 +25,26 @@ const { authStore, authAPI, routeState } = vi.hoisted(() => ({
 }))
 
 const messages: Record<string, string> = {
-  'profile.accountBalance': '账户余额',
-  'profile.accountStatus': '账户状态',
-  'profile.statusActive': '正常',
-  'profile.statusDisabled': '已停用',
-  'profile.memberSince': '注册时间'
+  'profile.accountBalance': 'Account balance',
+  'profile.accountStatus': 'Account status',
+  'profile.statusActive': 'Active',
+  'profile.statusDisabled': 'Disabled',
+  'profile.memberSince': 'Member since',
+  'profile.workbench.title': 'Account settings',
+  'profile.workbench.subtitle': 'Review account information and update profile, password, and security verification settings.',
+  'profile.workbench.eyebrow': 'My account',
+  'profile.workbench.introAriaLabel': 'Account settings explanation',
+  'profile.workbench.introKicker': 'Account and security',
+  'profile.workbench.introTitle': 'Manage your login information and security verification',
+  'profile.workbench.introDescription': 'This page only handles your profile, password, and two-factor verification.',
+  'profile.workbench.basicInfoKicker': 'Basic info',
+  'profile.workbench.accountInfoTitle': 'Account information',
+  'profile.workbench.displayNameKicker': 'Display name',
+  'profile.workbench.editProfileTitle': 'Edit profile',
+  'profile.workbench.loginProtectionKicker': 'Login protection',
+  'profile.workbench.changePasswordTitle': 'Change password',
+  'profile.workbench.twoFactorKicker': 'Two-factor verification',
+  'profile.workbench.securityTitle': 'Account security'
 }
 
 vi.mock('vue-i18n', () => ({
@@ -59,7 +74,15 @@ vi.mock('@/api', () => ({
 vi.mock('@/components/user/AppSectionShell.vue', () => ({
   default: {
     name: 'AppSectionShell',
-    template: '<main data-testid="app-section-shell"><slot /></main>'
+    props: ['title', 'subtitle', 'eyebrow', 'icon'],
+    template: `
+      <main data-testid="app-section-shell">
+        <span>{{ eyebrow }}</span>
+        <h1>{{ title }}</h1>
+        <p>{{ subtitle }}</p>
+        <slot />
+      </main>
+    `
   }
 }))
 
@@ -108,21 +131,21 @@ describe('ProfileView', () => {
   })
 
   it('keeps account settings inside the user workbench shell on /app/profile', async () => {
-    authAPI.getPublicSettings.mockResolvedValue({})
-
     const wrapper = mount(ProfileView)
     await flushPromises()
 
     const text = wrapper.text()
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(true)
-    expect(text).toContain('管理你的登录信息和安全验证')
-    expect(text).toContain('基础资料')
-    expect(text).toContain('编辑个人资料')
-    expect(text).toContain('修改密码')
-    expect(text).toContain('账号安全')
-    expect(text).toContain('账户状态')
-    expect(text).toContain('正常')
-    expect(text).not.toContain('并发限制')
+    expect(text).toContain('My account')
+    expect(text).toContain('Account settings')
+    expect(text).toContain('Manage your login information and security verification')
+    expect(text).toContain('Basic info')
+    expect(text).toContain('Edit profile')
+    expect(text).toContain('Change password')
+    expect(text).toContain('Account security')
+    expect(text).toContain('Account status')
+    expect(text).toContain('Active')
+    expect(text).not.toContain('Concurrency Limit')
   })
 
   it('keeps the legacy profile surface on /profile for compatibility', async () => {
@@ -133,5 +156,17 @@ describe('ProfileView', () => {
 
     expect(wrapper.find('[data-testid="app-layout"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(false)
+  })
+
+  it('silently omits optional support contact when public settings cannot load', async () => {
+    authAPI.getPublicSettings.mockRejectedValue(new Error('settings unavailable'))
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    const wrapper = mount(ProfileView)
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('common.contactSupport')
+    expect(consoleErrorSpy).not.toHaveBeenCalled()
+    consoleErrorSpy.mockRestore()
   })
 })
