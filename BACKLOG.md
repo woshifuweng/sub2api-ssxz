@@ -45,6 +45,9 @@ Last updated: 2026-06-28
 - 2026-06-28: main `261e3785b` was deployed to staging only. Staging `/opt/sub2api/sub2api-staging` SHA-256 became `8c501eaaa88af44c25eaf3928943d4c6cc804c05124ba34b2404e3788410294d`, with backup `/opt/sub2api/backups/staging-before-main-261e3785b-20260628-060446-sub2api-staging`.
 - 2026-06-28: after the `261e3785b` staging deployment, route smoke returned HTTP 200 for `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public` on staging port `18080`; production port `8080` also returned HTTP 200 for the same routes as a split-health comparison.
 - 2026-06-28: production was not deployed for `261e3785b`; production binary SHA-256 remained `b5da079f49da94cfb57873de6d4fada5d170b87be310ab0633ecafc53f2d877b`. No real provider was called.
+- 2026-06-28: PR #201 was merged to main at `0dbbaf03f` and deployed to staging only. Staging `/opt/sub2api/sub2api-staging` SHA-256 became `0cf888efbffbcb40bf5469eaeec3667034308fad58fb06e71542c46f9f3b1f17`, with backup `/opt/sub2api/backups/staging-before-main-0dbbaf03f165-20260628-145151-sub2api-staging`; production stayed on SHA-256 `b5da079f49da94cfb57873de6d4fada5d170b87be310ab0633ecafc53f2d877b`.
+- 2026-06-28: after the #201 staging deployment, route smoke returned HTTP 200 for `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public` on staging port `18080`; production port `8080` also returned HTTP 200 for the same routes as a split-health comparison.
+- 2026-06-28: #201 staging ordinary-user usage validation returned 20 `/api/v1/usage` rows with no internal `user_id`, `account_id`, `group_id`, `subscription_id`, `user_agent`, `upstream_endpoint`, `user`, `api_key`, `group`, or `subscription` fields. Ordinary `/api/v1/admin/usage` returned HTTP 403, while admin `/api/v1/admin/usage` returned HTTP 200 with operational fields retained. No real provider was called.
 
 ## P0 Bugs And Structural Fixes
 
@@ -67,15 +70,15 @@ Last updated: 2026-06-28
   - `/app/image` controlled production real-generation acceptance plan, only after explicit approval to call a real provider
   - follow-up `/app/image` model naming/display strategy only if operators decide to change production image-model policy; the first alias-display slice was completed by PR #188
   - API Key / third-party access lifecycle/security verification after the #195/#199 copy and masked-value safety slices
-  - usage/balance data verification after the #197 explanation-state clarity slice
+  - continue usage/balance workflow verification after the #197 explanation-state clarity slice and #201 staging DTO/balance-refresh boundary check
   - profile/security settings behavior verification after the #198 TOTP status clarity slice
 - Keep production deployment as a separate approval gate for every PR.
 
 ## Phase Progress Snapshot
 
-- P0 / P0-Beta convergence: about 94%. Remaining P0 risk is controlled production image-generation acceptance and any regression found while doing P1.
-- P1 product/operations: about 29%. Completed or staged slices: image-model alias display clarity, user-shell lint baseline cleanup, first image history/download feedback hardening, staging catalog exposure verification, API Key third-party access copy/safety polish, usage explanation-state clarity, profile TOTP failure clarity, and masked API-key configuration guards. Remaining large P1 loops: controlled production real-generation acceptance, deeper usage/balance verification, API Key lifecycle/security verification, and admin/ops hardening.
-- Distance to P2: about 71% of P1 remains. Do not prioritize P2 visual polish until P1 loops have evidence.
+- P0 / P0-Beta convergence: about 95%. Remaining P0 risk is controlled production image-generation acceptance and any regression found while doing P1.
+- P1 product/operations: about 31%. Completed or staged slices: image-model alias display clarity, user-shell lint baseline cleanup, first image history/download feedback hardening, staging catalog exposure verification, API Key third-party access copy/safety polish, usage explanation-state clarity, profile TOTP failure clarity, masked API-key configuration guards, and `/app/usage` DTO/balance-refresh boundary verification. Remaining large P1 loops: controlled production real-generation acceptance, broader usage/balance workflow verification, API Key lifecycle/security verification, and admin/ops hardening.
+- Distance to P2: about 69% of P1 remains. Do not prioritize P2 visual polish until P1 loops have evidence.
 - P2: 0%. Keep as later polish/enhancement work.
 
 ## Chains That Need Verification
@@ -91,7 +94,10 @@ Last updated: 2026-06-28
   - download: HTTP media URL verified once; PR #192 added frontend href/filename regression coverage; native browser download event still needs manual confirmation
   - invalid form failure: staging no-charge behavior verified once
   - upstream failure: code path audited; service-level and handler-level regression tests added; DB-backed image-history regression added; DB-backed usage/billing regression added
-- `/app/usage` real balance, monthly trend, detail data, and failure/no-charge explanation accuracy.
+- `/app/usage` real balance, monthly trend, detail data, and failure/no-charge explanation accuracy:
+  - PR #197 clarified failure/no-charge explanation states.
+  - PR #201 staging validation confirmed ordinary-user DTO scrubbing, balance refresh wiring, stats/trend endpoint reachability, and ordinary/admin usage authorization split.
+  - Broader production acceptance and recharge/order/account-balance workflow verification remain open.
 - `/app/keys` create/copy/delete/enable/disable behavior, one-time full-key display, masked-value handling, and third-party client guidance.
 - `/app/profile` profile/password/TOTP behavior and status failure clarity.
 - Production acceptance for image generation:

@@ -22,6 +22,7 @@ The project can start P1 planning and small P1 PRs. P0/P0-Beta structural conver
 - PR #194 was deployed to staging only and confirmed staging image-capable catalog exposure still comes from real channel data while non-real image-capable models stay hidden.
 - PR #195 was merged to main and completed the first `/app/keys` P1 copy/safety polish slice. It was later included in the 2026-06-28 staging-only deployment batch.
 - PR #197, PR #198, and PR #199 were merged to main and deployed to staging only as batch `261e3785b`. The batch covered `/app/usage` explanation states, `/app/profile` TOTP failure clarity, and `/app/keys` masked-key configuration guards. Staging route smoke passed; production was not deployed and no real provider was called.
+- PR #201 was deployed to staging only and verified the `/app/usage` ordinary/admin data boundary: ordinary usage rows no longer expose internal user/account/provider fields, ordinary users get HTTP 403 on admin usage, admin usage still keeps operational fields, and `/app/usage` refreshes user balance through the auth store. Production was not deployed and no real provider was called.
 
 This does not mean production image generation is fully accepted. A controlled real-provider production image-generation acceptance remains separate and must verify creation, storage, usage/billing, history, and download before claiming the production image chain is complete.
 
@@ -31,9 +32,9 @@ Use this progress meter in every major status report. It is a product/operations
 
 | Stage | Current estimate | Meaning |
 | --- | ---: | --- |
-| P0 / P0-Beta convergence | 94% | Core shell, chat, failure/no-charge, fake-model, catalog authenticity, frontend lint baseline, and production smoke risks are contained enough to continue P1. Remaining P0 risk is controlled production image-generation acceptance and any regressions found during P1. |
-| P1 product/operations | 29% | P1 has started. Completed or staged slices include image-model alias display clarity (#188), user-shell lint baseline cleanup (#190), first image history/download feedback hardening (#192), staging image catalog exposure verification (#194), API Key third-party access copy/safety polish (#195), usage explanation-state clarity (#197), profile TOTP failure clarity (#198), and masked API-key configuration guards (#199). Major remaining P1 work is controlled production real-generation acceptance, deeper usage/balance verification, API Key lifecycle/security verification, and admin/ops hardening. |
-| Distance to P2 | 71% of P1 remains | P2 should not begin as a main focus until the P1 user/business loops above have credible staging or production evidence. |
+| P0 / P0-Beta convergence | 95% | Core shell, chat, failure/no-charge, fake-model, catalog authenticity, frontend lint baseline, usage DTO boundary, and production smoke risks are contained enough to continue P1. Remaining P0 risk is controlled production image-generation acceptance and any regressions found during P1. |
+| P1 product/operations | 31% | P1 has started. Completed or staged slices include image-model alias display clarity (#188), user-shell lint baseline cleanup (#190), first image history/download feedback hardening (#192), staging image catalog exposure verification (#194), API Key third-party access copy/safety polish (#195), usage explanation-state clarity (#197), profile TOTP failure clarity (#198), masked API-key configuration guards (#199), and `/app/usage` DTO/balance-refresh boundary verification (#201). Major remaining P1 work is controlled production real-generation acceptance, broader usage/balance workflow verification, API Key lifecycle/security verification, and admin/ops hardening. |
+| Distance to P2 | 69% of P1 remains | P2 should not begin as a main focus until the P1 user/business loops above have credible staging or production evidence. |
 | P2 visual polish/enhanced experience | 0% | P2 is intentionally not active. UI polish and advanced workflows wait until P1 is materially closed. |
 
 ## Decision Rules
@@ -164,6 +165,7 @@ P0 can exit only when these are true:
 5. Improve user billing pages:
    - balance
    - usage
+   - first data-boundary slice completed by PR #201: ordinary-user usage DTO scrubbing, `/app/usage` balance refresh, ordinary/admin usage authorization split, and staging route/API smoke
    - recharge
    - orders/subscriptions
 6. Preserve and clarify admin operation pages:
