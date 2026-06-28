@@ -52,6 +52,8 @@ Last updated: 2026-06-28
 - 2026-06-28: after the #203 staging deployment, route smoke returned HTTP 200 for `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public`. Google/Gemini-compatible API-key auth smoke returned HTTP 401 for missing key, HTTP 400 for deprecated `api_key` query usage, and HTTP 401 for invalid `key` query usage. The staged code enforces IP restrictions, expired keys, and quota-exhausted keys on that path. No real provider was called.
 - 2026-06-28: PR #208 was merged to main at `e67a48169` and deployed to staging only. Staging `/opt/sub2api/sub2api-staging` SHA-256 became `0e26ec8f4f75a90a4efa33887033447a920b76c052502dc3dda10af05f46647d`, with backup `/opt/sub2api/backups/staging-before-pr208-e67a48169-20260628-205154-sub2api-staging`; production stayed on SHA-256 `b5da079f49da94cfb57873de6d4fada5d170b87be310ab0633ecafc53f2d877b`.
 - 2026-06-28: after the #208 staging deployment, route smoke returned HTTP 200 for `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public`; `/v1/models` without an API key returned HTTP 401. #208 prevents final balance billing from making user balances negative and keeps insufficient-balance usage-billing attempts from leaving dedup, API-key quota, or rate-usage side effects. No real provider was called.
+- 2026-06-28: current main `b1ed2663a` was deployed to production after explicit user approval. Runtime code change is PR #208; PR #209 was docs-only. Production `/opt/sub2api/sub2api` SHA-256 became `1d9902d30fd3348127ce298576cfd3c89ad78a8d87ea8f3112938716b00e711a`, with backup `/opt/sub2api/backups/production-before-main-b1ed2663a-20260628-210956-sub2api`; staging stayed on SHA-256 `0e26ec8f4f75a90a4efa33887033447a920b76c052502dc3dda10af05f46647d`.
+- 2026-06-28: after the production deployment, public smoke returned HTTP 200 for `https://api.ssxzapi.com/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public`; `/v1/models` without an API key returned HTTP 401. No real provider was called, and no database migration, Nginx change, payment file change, or provider-routing change was part of the release.
 
 ## P0 Bugs And Structural Fixes
 
@@ -74,14 +76,14 @@ Last updated: 2026-06-28
   - `/app/image` controlled production real-generation acceptance plan, only after explicit approval to call a real provider
   - follow-up `/app/image` model naming/display strategy only if operators decide to change production image-model policy; the first alias-display slice was completed by PR #188
   - API Key / third-party access lifecycle/security verification after the #195/#199 copy and masked-value safety slices plus the #203 Google/Gemini-compatible auth-parity slice
-  - continue usage/balance workflow verification after the #197 explanation-state clarity slice, #201 staging DTO/balance-refresh boundary check, and #208 staging no-overdraft billing-safety slice
+  - continue usage/balance workflow verification after the #197 explanation-state clarity slice, #201 staging DTO/balance-refresh boundary check, and #208 production-deployed no-overdraft billing-safety slice
   - profile/security settings behavior verification after the #198 TOTP status clarity slice
 - Keep production deployment as a separate approval gate for every PR.
 
 ## Phase Progress Snapshot
 
 - P0 / P0-Beta convergence: about 96%. Remaining P0 risk is controlled production image-generation acceptance and any regression found while doing P1.
-- P1 product/operations: about 36%. Completed or staged slices: image-model alias display clarity, user-shell lint baseline cleanup, first image history/download feedback hardening, staging catalog exposure verification, API Key third-party access copy/safety polish, usage explanation-state clarity, profile TOTP failure clarity, masked API-key configuration guards, `/app/usage` DTO/balance-refresh boundary verification, Google/Gemini-compatible API-key auth restriction parity, and usage-billing no-overdraft safety. Remaining large P1 loops: controlled production real-generation acceptance, broader usage/balance workflow verification, full API Key lifecycle/security verification, and admin/ops hardening.
+- P1 product/operations: about 36%. Completed or staged slices: image-model alias display clarity, user-shell lint baseline cleanup, first image history/download feedback hardening, staging catalog exposure verification, API Key third-party access copy/safety polish, usage explanation-state clarity, profile TOTP failure clarity, masked API-key configuration guards, `/app/usage` DTO/balance-refresh boundary verification, Google/Gemini-compatible API-key auth restriction parity, and production-deployed usage-billing no-overdraft safety. Remaining large P1 loops: controlled production real-generation acceptance, broader usage/balance workflow verification, full API Key lifecycle/security verification, and admin/ops hardening.
 - Distance to P2: about 64% of P1 remains. Do not prioritize P2 visual polish until P1 loops have evidence.
 - P2: 0%. Keep as later polish/enhancement work.
 
@@ -101,8 +103,8 @@ Last updated: 2026-06-28
 - `/app/usage` real balance, monthly trend, detail data, and failure/no-charge explanation accuracy:
   - PR #197 clarified failure/no-charge explanation states.
   - PR #201 staging validation confirmed ordinary-user DTO scrubbing, balance refresh wiring, stats/trend endpoint reachability, and ordinary/admin usage authorization split.
-  - PR #208 staging validation confirmed backend no-overdraft final balance billing and insufficient-balance usage-billing rollback coverage without a real provider call.
-  - Broader production acceptance and recharge/order/account-balance workflow verification remain open.
+  - PR #208 deployed backend no-overdraft final balance billing to staging and production; regression coverage confirms insufficient-balance usage-billing rollback without a real provider call.
+  - Broader recharge/order/account-balance workflow verification remains open.
 - `/app/keys` create/copy/delete/enable/disable behavior, one-time full-key display, masked-value handling, and third-party client guidance:
   - PR #203 staged backend Google/Gemini-compatible API-key auth restriction parity for IP restrictions, expired keys, and quota-exhausted keys.
   - Full lifecycle behavior, frontend recovery states, one-time full-key handling, reset/revoke flow, log redaction, and third-party client documentation still need verification.
