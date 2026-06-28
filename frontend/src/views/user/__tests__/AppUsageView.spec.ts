@@ -154,10 +154,10 @@ describe('AppUsageView', () => {
   it('renders usage data inside the new workbench page instead of the old usage UI', async () => {
     usageAPI.getStatsByDateRange.mockResolvedValue({
       total_requests: 3,
-      total_input_tokens: 120,
-      total_output_tokens: 80,
+      total_input_tokens: 57,
+      total_output_tokens: 0,
       total_cache_tokens: 0,
-      total_tokens: 200,
+      total_tokens: 57,
       total_cost: 1.2345,
       total_actual_cost: 1.2345,
       average_duration_ms: 1200
@@ -167,7 +167,6 @@ describe('AppUsageView', () => {
         {
           id: 7,
           request_id: 'req-image',
-          api_key_id: 1,
           model: 'gpt-image-2',
           inbound_endpoint: '/v1/images/generations',
           input_tokens: 0,
@@ -193,9 +192,23 @@ describe('AppUsageView', () => {
           image_size: null,
           actual_cost: 0,
           created_at: '2026-06-18T08:01:00Z'
+        },
+        {
+          id: 9,
+          request_id: 'req-chat',
+          model: 'gpt-5-mini',
+          inbound_endpoint: '/v1/chat/completions',
+          input_tokens: 45,
+          output_tokens: 0,
+          cache_creation_tokens: 0,
+          cache_read_tokens: 0,
+          image_count: 0,
+          image_size: null,
+          actual_cost: 0.3545,
+          created_at: '2026-06-18T08:02:00Z'
         }
       ],
-      total: 2,
+      total: 3,
       pages: 1
     })
     usageAPI.getDashboardTrend.mockResolvedValue({
@@ -203,11 +216,11 @@ describe('AppUsageView', () => {
         {
           date: '2026-06-18',
           requests: 3,
-          input_tokens: 120,
-          output_tokens: 80,
+          input_tokens: 57,
+          output_tokens: 0,
           cache_creation_tokens: 0,
           cache_read_tokens: 0,
-          total_tokens: 200,
+          total_tokens: 57,
           cost: 1.2345,
           actual_cost: 1.2345
         }
@@ -227,7 +240,7 @@ describe('AppUsageView', () => {
     expect(text).toContain('$8.53')
     expect(text).toContain('Current-month spend')
     expect(text).toContain('$1.2345')
-    expect(text).toContain('This month: 3 requests and 200 tokens.')
+    expect(text).toContain('This month: 3 requests and 57 tokens.')
     expect(text).toContain('Monthly usage')
     expect(text).toContain('Real data')
     expect(text).toContain('Billing explanation')
@@ -235,7 +248,10 @@ describe('AppUsageView', () => {
     expect(text).toContain('The frontend does not decide prices')
     expect(text).toContain('Failed requests show as no charge')
     expect(text).toContain('Usage details')
-    expect(text).toContain('Image generation')
+    const tableText = wrapper.get('table').text()
+    expect(tableText).toContain('Image generation')
+    expect(tableText).toContain('Third-party access')
+    expect(tableText).toContain('Chat')
     expect(text).toContain('gpt-image-2')
     expect(text).toContain('2 images / 1024x1024')
     expect(text).toContain('deepseek-v4-flash')
