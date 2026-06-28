@@ -6125,6 +6125,66 @@ func (s *OpenAIGatewayService) EstimateOpenAIImageCost(ctx context.Context, mode
 	return s.calculateOpenAIImageCost(ctx, model, imageSize, imageCount, multiplier, apiKey)
 }
 
+func (s *OpenAIGatewayService) EstimateOpenAITokenRequestCost(ctx context.Context, model string, body []byte, apiKey *APIKey, user *User) (*CostBreakdown, error) {
+	outputTokens := estimateOpenAIRequestOutputTokenLimit(body)
+	if outputTokens <= 0 {
+		return nil, nil
+	}
+
+	multiplier := 0.0
+	if s.cfg != nil {
+		multiplier = s.cfg.Default.RateMultiplier
+	}
+	if apiKey != nil && apiKey.GroupID != nil && apiKey.Group != nil && user != nil {
+		resolver := s.userGroupRateResolver
+		if resolver == nil {
+			resolver = newUserGroupRateResolver(nil, nil, resolveUserGroupRateCacheTTL(s.cfg), nil, "service.openai_gateway")
+		}
+		multiplier = resolver.Resolve(ctx, user.ID, *apiKey.GroupID, apiKey.Group.RateMultiplier)
+	}
+
+	return s.calculateOpenAITokenCost(ctx, model, UsageTokens{
+		InputTokens:  estimateOpenAIRequestInputTokens(body),
+		OutputTokens: outputTokens,
+	}, multiplier, strings.TrimSpace(gjson.GetBytes(body, "service_tier").String()), apiKey)
+}
+
+func estimateOpenAIRequestOutputTokenLimit(body []byte) int {
+	for _, path := range []string{
+		"max_completion_tokens",
+		"max_output_tokens",
+		"max_tokens",
+		"max_tokens_to_sample",
+		"output_config.max_tokens",
+	} {
+		result := gjson.GetBytes(body, path)
+		if !result.Exists() || result.Type != gjson.Number {
+			continue
+		}
+		value := result.Int()
+		if value <= 0 {
+			continue
+		}
+		maxInt := int64(int(^uint(0) >> 1))
+		if value > maxInt {
+			return int(maxInt)
+		}
+		return int(value)
+	}
+	return 0
+}
+
+func estimateOpenAIRequestInputTokens(body []byte) int {
+	if len(body) == 0 {
+		return 0
+	}
+	tokens := (len(body) + 3) / 4
+	if tokens < 1 {
+		return 1
+	}
+	return tokens
+}
+
 func (s *OpenAIGatewayService) calculateOpenAIImageCost(ctx context.Context, model string, imageSize string, imageCount int, multiplier float64, apiKey *APIKey) *CostBreakdown {
 	if imageCount <= 0 {
 		return &CostBreakdown{}
