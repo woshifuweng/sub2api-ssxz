@@ -1,30 +1,48 @@
 <template>
   <component :is="pageShell" v-bind="pageShellProps">
     <div :class="['keys-page-surface', { 'keys-page-surface--workbench': useWorkbenchShell }]">
-      <section v-if="useWorkbenchShell" class="keys-client-guide" aria-label="第三方客户端接入说明">
+      <section
+        v-if="useWorkbenchShell"
+        class="keys-client-guide"
+        :aria-label="t('keys.workbenchGuide.ariaLabel')"
+      >
         <div class="keys-guide-copy">
-          <span class="keys-guide-eyebrow">成熟用户入口</span>
-          <h3>把 SSXZ AI 接到你常用的客户端</h3>
+          <span class="keys-guide-eyebrow">{{ t('keys.workbenchGuide.eyebrow') }}</span>
+          <h3>{{ t('keys.workbenchGuide.title') }}</h3>
           <p>
-            API Key 用于 CC Switch、Cherry Studio、Chatbox 等第三方客户端。创建后请保存完整 Key，列表里只展示脱敏值。
+            {{ t('keys.workbenchGuide.description') }}
           </p>
           <div class="keys-guide-base">
-            <span>Base URL</span>
+            <span>{{ t('keys.workbenchGuide.baseUrlLabel') }}</span>
             <code>{{ apiBaseUrl }}</code>
+            <button
+              type="button"
+              class="keys-guide-copy-button"
+              data-testid="keys-guide-copy-base-url"
+              :title="
+                baseUrlCopied
+                  ? t('keys.workbenchGuide.baseUrlCopied')
+                  : t('keys.workbenchGuide.copyBaseUrl')
+              "
+              @click="copyBaseUrl"
+            >
+              <Icon v-if="baseUrlCopied" name="check" size="sm" :stroke-width="2" />
+              <Icon v-else name="clipboard" size="sm" />
+            </button>
           </div>
         </div>
-        <div class="keys-guide-cards" aria-label="支持的客户端示例">
+        <div class="keys-guide-cards" :aria-label="t('keys.workbenchGuide.clientsAriaLabel')">
           <article>
             <strong>CC Switch</strong>
-            <span>填入 Base URL 和 API Key 后切换模型使用。</span>
+            <span>{{ t('keys.workbenchGuide.ccSwitch') }}</span>
           </article>
           <article>
             <strong>Cherry Studio</strong>
-            <span>选择 OpenAI-compatible 配置方式接入。</span>
+            <span>{{ t('keys.workbenchGuide.cherryStudio') }}</span>
           </article>
           <article>
             <strong>Chatbox</strong>
-            <span>适合熟练用户在站外继续聊天或调用图片接口。</span>
+            <span>{{ t('keys.workbenchGuide.chatbox') }}</span>
           </article>
         </div>
       </section>
@@ -960,7 +978,7 @@
     <!-- Created Key One-Time Reveal Dialog -->
     <BaseDialog
       :show="!!createdKeyToReveal"
-      title="保存完整 API Key"
+      :title="t('keys.createdKeyReveal.title')"
       width="normal"
       :close-on-escape="false"
       :close-on-click-outside="false"
@@ -968,14 +986,14 @@
     >
       <div v-if="createdKeyToReveal" class="space-y-4" data-testid="created-key-reveal">
         <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
-          <p class="font-semibold">请立即保存完整 Key</p>
+          <p class="font-semibold">{{ t('keys.createdKeyReveal.warningTitle') }}</p>
           <p class="mt-1 leading-6">
-            完整 API Key 只在创建后展示一次。关闭后列表只显示脱敏值，后续需要重新生成或重置。
+            {{ t('keys.createdKeyReveal.warningDescription') }}
           </p>
         </div>
 
         <div>
-          <label class="input-label">API Key</label>
+          <label class="input-label">{{ t('keys.createdKeyReveal.apiKeyLabel') }}</label>
           <div class="flex gap-2">
             <input
               :value="createdKeyToReveal.key"
@@ -989,19 +1007,41 @@
               data-testid="created-key-copy"
               @click="copyCreatedKey"
             >
-              {{ createdKeyCopied ? '已复制' : '复制完整 Key' }}
+              {{
+                createdKeyCopied
+                  ? t('keys.createdKeyReveal.copied')
+                  : t('keys.createdKeyReveal.copyFullKey')
+              }}
             </button>
           </div>
         </div>
 
         <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300">
-          <p class="font-medium text-gray-900 dark:text-white">第三方客户端接入信息</p>
+          <p class="font-medium text-gray-900 dark:text-white">{{ t('keys.createdKeyReveal.connectionTitle') }}</p>
           <div class="mt-2 flex flex-wrap items-center gap-2">
-            <span class="text-gray-500 dark:text-gray-400">Base URL</span>
+            <span class="text-gray-500 dark:text-gray-400">{{ t('keys.workbenchGuide.baseUrlLabel') }}</span>
             <code class="rounded-lg bg-white px-2 py-1 text-xs dark:bg-dark-900">{{ apiBaseUrl }}</code>
+            <button
+              type="button"
+              class="rounded-lg p-1 text-gray-500 transition-colors hover:bg-white hover:text-gray-700 dark:hover:bg-dark-900 dark:hover:text-gray-200"
+              data-testid="created-key-base-url-copy"
+              :title="
+                baseUrlCopied
+                  ? t('keys.workbenchGuide.baseUrlCopied')
+                  : t('keys.workbenchGuide.copyBaseUrl')
+              "
+              @click="copyBaseUrl"
+            >
+              <Icon v-if="baseUrlCopied" name="check" size="sm" :stroke-width="2" />
+              <Icon v-else name="clipboard" size="sm" />
+            </button>
+          </div>
+          <div class="mt-2 flex flex-wrap items-start gap-2">
+            <span class="text-gray-500 dark:text-gray-400">{{ t('keys.createdKeyReveal.modelLabel') }}</span>
+            <span class="leading-6">{{ t('keys.createdKeyReveal.modelHint') }}</span>
           </div>
           <p class="mt-2 leading-6">
-            可用于 CC Switch、Cherry Studio、Chatbox 等支持 OpenAI-compatible 接入的客户端。
+            {{ t('keys.createdKeyReveal.connectionDescription') }}
           </p>
         </div>
       </div>
@@ -1009,7 +1049,7 @@
       <template #footer>
         <div class="flex justify-end gap-3">
           <button type="button" class="btn btn-primary" data-testid="created-key-ack" @click="acknowledgeCreatedKey">
-            我已保存
+            {{ t('keys.createdKeyReveal.acknowledge') }}
           </button>
         </div>
       </template>
@@ -1263,6 +1303,7 @@ const submitting = ref(false)
 const now = ref(new Date())
 let resetTimer: ReturnType<typeof setInterval> | null = null
 let createdKeyCopyTimer: ReturnType<typeof setTimeout> | null = null
+let baseUrlCopyTimer: ReturnType<typeof setTimeout> | null = null
 const usageStats = ref<Record<string, BatchApiKeyUsageStats>>({})
 const userGroupRates = ref<Record<number, number>>({})
 
@@ -1292,6 +1333,7 @@ const selectedKey = ref<ApiKey | null>(null)
 const copiedKeyId = ref<number | null>(null)
 const createdKeyToReveal = ref<ApiKey | null>(null)
 const createdKeyCopied = ref(false)
+const baseUrlCopied = ref(false)
 const statusUpdatingKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
@@ -1488,13 +1530,25 @@ const copyCreatedKey = async () => {
   const key = createdKeyToReveal.value?.key
   if (!key) return
 
-  const success = await clipboardCopy(key, '完整 API Key 已复制')
+  const success = await clipboardCopy(key, t('keys.createdKeyReveal.fullKeyCopied'))
   if (success) {
     createdKeyCopied.value = true
     if (createdKeyCopyTimer) clearTimeout(createdKeyCopyTimer)
     createdKeyCopyTimer = setTimeout(() => {
       createdKeyCopied.value = false
       createdKeyCopyTimer = null
+    }, 1200)
+  }
+}
+
+const copyBaseUrl = async () => {
+  const success = await clipboardCopy(apiBaseUrl.value, t('keys.workbenchGuide.baseUrlCopied'))
+  if (success) {
+    baseUrlCopied.value = true
+    if (baseUrlCopyTimer) clearTimeout(baseUrlCopyTimer)
+    baseUrlCopyTimer = setTimeout(() => {
+      baseUrlCopied.value = false
+      baseUrlCopyTimer = null
     }, 1200)
   }
 }
@@ -2022,6 +2076,7 @@ onUnmounted(() => {
   document.removeEventListener('click', closeGroupSelector)
   if (resetTimer) clearInterval(resetTimer)
   if (createdKeyCopyTimer) clearTimeout(createdKeyCopyTimer)
+  if (baseUrlCopyTimer) clearTimeout(baseUrlCopyTimer)
 })
 </script>
 
@@ -2089,7 +2144,7 @@ onUnmounted(() => {
   padding: 0.48rem 0.7rem;
 }
 
-.keys-guide-base span {
+.keys-guide-base > span {
   flex: 0 0 auto;
   color: var(--ssxz-text-muted);
   font-size: 0.76rem;
@@ -2103,6 +2158,25 @@ onUnmounted(() => {
   font-size: 0.78rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.keys-guide-copy-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  color: var(--ssxz-text-muted);
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.keys-guide-copy-button:hover {
+  background: var(--ssxz-surface);
+  color: var(--ssxz-text-primary);
 }
 
 .keys-guide-cards {

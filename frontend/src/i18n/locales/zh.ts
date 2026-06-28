@@ -552,6 +552,35 @@ export default {
     clientAccessTitle: '第三方客户端接入',
     clientAccessDescription:
       '熟练用户可以在这里创建和管理自己的 API Key，并复制 Base URL 接入 CC Switch、Cherry Studio、Chatbox 等客户端。创建后请及时保存完整 Key，列表中只展示脱敏值。',
+    workbenchGuide: {
+      ariaLabel: '第三方客户端接入说明',
+      eyebrow: '成熟用户入口',
+      title: '把 SSXZ AI 接到你常用的客户端',
+      description:
+        'API Key 用于 CC Switch、Cherry Studio、Chatbox 等第三方客户端。创建后请保存完整 Key，列表里只展示脱敏值。',
+      baseUrlLabel: 'Base URL',
+      copyBaseUrl: '复制 Base URL',
+      baseUrlCopied: 'Base URL 已复制',
+      clientsAriaLabel: '支持的客户端示例',
+      ccSwitch: '填入 Base URL 和 API Key 后切换模型使用。',
+      cherryStudio: '选择 OpenAI-compatible 配置方式接入。',
+      chatbox: '适合熟练用户在站外继续聊天或调用图片接口。'
+    },
+    createdKeyReveal: {
+      title: '保存完整 API Key',
+      warningTitle: '请立即保存完整 Key',
+      warningDescription:
+        '完整 API Key 只在创建后展示一次。关闭后列表只显示脱敏值，后续需要重新生成或重置。',
+      apiKeyLabel: 'API Key',
+      copyFullKey: '复制完整 Key',
+      copied: '已复制',
+      fullKeyCopied: '完整 API Key 已复制',
+      connectionTitle: '第三方客户端接入信息',
+      connectionDescription: '可用于 CC Switch、Cherry Studio、Chatbox 等支持 OpenAI-compatible 接入的客户端。',
+      modelLabel: '模型',
+      modelHint: '可用模型以当前 Key 所属分组和后台开放配置为准。',
+      acknowledge: '我已保存'
+    },
     searchPlaceholder: '搜索名称或Key...',
     allGroups: '全部分组',
     allStatus: '全部状态',

@@ -300,11 +300,19 @@ describe('KeysView workbench surface', () => {
     expect(wrapper.find('.keys-page-surface--workbench').exists()).toBe(true)
     expect(wrapper.find('.keys-workbench-layout').exists()).toBe(true)
     expect(wrapper.text()).toContain('keys.clientAccessTitle')
-    expect(wrapper.text()).toContain('把 SSXZ AI 接到你常用的客户端')
+    expect(wrapper.text()).toContain('keys.workbenchGuide.title')
     expect(wrapper.text()).toContain('CC Switch')
     expect(wrapper.text()).toContain('Cherry Studio')
     expect(wrapper.text()).toContain('Chatbox')
     expect(wrapper.text()).toContain('https://example.test')
+
+    await wrapper.get('[data-testid="keys-guide-copy-base-url"]').trigger('click')
+    await flushPromises()
+
+    expect(clipboardCopy).toHaveBeenCalledWith(
+      'https://example.test',
+      'keys.workbenchGuide.baseUrlCopied'
+    )
   })
 
   it('keeps the legacy /keys surface on the legacy route', async () => {
@@ -513,10 +521,20 @@ describe('KeysView workbench surface', () => {
     )
     expect(wrapper.find('[data-testid="created-key-reveal"]').exists()).toBe(true)
     expect((wrapper.get('[data-testid="created-key-value"]').element as HTMLInputElement).value).toBe(createdKey)
-    expect(wrapper.text()).toContain('Base URL')
+    expect(wrapper.text()).toContain('keys.createdKeyReveal.connectionTitle')
+    expect(wrapper.text()).toContain('keys.workbenchGuide.baseUrlLabel')
+    expect(wrapper.text()).toContain('keys.createdKeyReveal.modelHint')
     expect(wrapper.text()).toContain('https://example.test')
 
+    await wrapper.get('[data-testid="created-key-base-url-copy"]').trigger('click')
+    await flushPromises()
+    expect(clipboardCopy).toHaveBeenCalledWith(
+      'https://example.test',
+      'keys.workbenchGuide.baseUrlCopied'
+    )
+
     await wrapper.get('[data-testid="created-key-copy"]').trigger('click')
-    expect(clipboardCopy).toHaveBeenCalledWith(createdKey, '完整 API Key 已复制')
+    await flushPromises()
+    expect(clipboardCopy).toHaveBeenCalledWith(createdKey, 'keys.createdKeyReveal.fullKeyCopied')
   })
 })

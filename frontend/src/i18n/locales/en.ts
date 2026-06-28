@@ -552,6 +552,36 @@ export default {
     clientAccessTitle: 'Third-party client access',
     clientAccessDescription:
       'Power users can create and manage API Keys here, then copy the Base URL into CC Switch, Cherry Studio, Chatbox, and other clients. Save the full key when it is created; the list only shows masked values later.',
+    workbenchGuide: {
+      ariaLabel: 'Third-party client access guide',
+      eyebrow: 'Power user access',
+      title: 'Connect SSXZ AI to your preferred clients',
+      description:
+        'Use API Keys with CC Switch, Cherry Studio, Chatbox, and other third-party clients. Save the full key when it is created; the list only shows masked values later.',
+      baseUrlLabel: 'Base URL',
+      copyBaseUrl: 'Copy Base URL',
+      baseUrlCopied: 'Base URL copied',
+      clientsAriaLabel: 'Supported client examples',
+      ccSwitch: 'Enter the Base URL and API Key, then switch models from the client.',
+      cherryStudio: 'Choose OpenAI-compatible configuration in the provider settings.',
+      chatbox: 'For power users who want to continue chats or call image APIs outside the site.',
+    },
+    createdKeyReveal: {
+      title: 'Save the full API Key',
+      warningTitle: 'Save the full key now',
+      warningDescription:
+        'The full API Key is shown only once after creation. After closing this dialog, the list only shows a masked value and you will need to regenerate or reset it.',
+      apiKeyLabel: 'API Key',
+      copyFullKey: 'Copy full key',
+      copied: 'Copied',
+      fullKeyCopied: 'Full API Key copied',
+      connectionTitle: 'Third-party client connection info',
+      connectionDescription:
+        'Use this with CC Switch, Cherry Studio, Chatbox, and other OpenAI-compatible clients.',
+      modelLabel: 'Model',
+      modelHint: 'Available models follow this key group and the admin model configuration.',
+      acknowledge: 'I saved it',
+    },
     searchPlaceholder: 'Search name or key...',
     allGroups: 'All Groups',
     allStatus: 'All Status',
