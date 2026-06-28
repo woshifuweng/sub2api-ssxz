@@ -13,7 +13,7 @@ The project can start P1 planning and small P1 PRs. P0/P0-Beta structural conver
 - ordinary-user workspace routes are established around `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/app/profile`
 - chat P0 fixes were validated on staging
 - image failure/no-charge paths have regression coverage
-- production has been smoke-tested after the 2026-06-21 and 2026-06-27 explicit-approval deployments
+- production has been smoke-tested after the 2026-06-21, 2026-06-27, and 2026-06-28 explicit-approval deployments
 - PR #184 production validation confirmed ordinary users do not see non-real image-capable models
 - PR #186 was deployed to staging only and confirmed `/app/image` uses the server-side OpenAI-compatible image allowlist. The current staging allowlist includes Gemini-named aliases, which is a model-display/product-clarity decision rather than native Gemini provider execution evidence.
 - PR #188 was deployed to production after explicit approval and clarified OpenAI-compatible image alias labels without enabling production image generation.
@@ -24,7 +24,7 @@ The project can start P1 planning and small P1 PRs. P0/P0-Beta structural conver
 - PR #197, PR #198, and PR #199 were merged to main and deployed to staging only as batch `261e3785b`. The batch covered `/app/usage` explanation states, `/app/profile` TOTP failure clarity, and `/app/keys` masked-key configuration guards. Staging route smoke passed; production was not deployed and no real provider was called.
 - PR #201 was deployed to staging only and verified the `/app/usage` ordinary/admin data boundary: ordinary usage rows no longer expose internal user/account/provider fields, ordinary users get HTTP 403 on admin usage, admin usage still keeps operational fields, and `/app/usage` refreshes user balance through the auth store. Production was not deployed and no real provider was called.
 - PR #203 was deployed to staging only and aligned Google/Gemini-compatible API-key auth restrictions with the standard API-key middleware for IP restrictions, expired keys, and quota-exhausted keys. Production was not deployed and no real provider was called.
-- PR #208 was deployed to staging only and prevents final balance billing from deducting ordinary usage below zero. Insufficient-balance usage-billing attempts roll back dedup, API-key quota, and rate-usage side effects. Production was not deployed and no real provider was called.
+- PR #208 was deployed to staging and then production after explicit approval. It prevents final balance billing from deducting ordinary usage below zero, and insufficient-balance usage-billing attempts roll back dedup, API-key quota, and rate-usage side effects. No real provider was called.
 
 This does not mean production image generation is fully accepted. A controlled real-provider production image-generation acceptance remains separate and must verify creation, storage, usage/billing, history, and download before claiming the production image chain is complete.
 
@@ -35,7 +35,7 @@ Use this progress meter in every major status report. It is a product/operations
 | Stage | Current estimate | Meaning |
 | --- | ---: | --- |
 | P0 / P0-Beta convergence | 96% | Core shell, chat, failure/no-charge, fake-model, catalog authenticity, frontend lint baseline, usage DTO boundary, no-overdraft final billing, and production smoke risks are contained enough to continue P1. Remaining P0 risk is controlled production image-generation acceptance and any regressions found during P1. |
-| P1 product/operations | 36% | P1 has started. Completed or staged slices include image-model alias display clarity (#188), user-shell lint baseline cleanup (#190), first image history/download feedback hardening (#192), staging image catalog exposure verification (#194), API Key third-party access copy/safety polish (#195), usage explanation-state clarity (#197), profile TOTP failure clarity (#198), masked API-key configuration guards (#199), `/app/usage` DTO/balance-refresh boundary verification (#201), Google/Gemini-compatible API-key auth restriction parity (#203), and usage-billing no-overdraft safety (#208). Major remaining P1 work is controlled production real-generation acceptance, broader usage/balance workflow verification, full API Key lifecycle/security verification, and admin/ops hardening. |
+| P1 product/operations | 36% | P1 has started. Completed or staged slices include image-model alias display clarity (#188), user-shell lint baseline cleanup (#190), first image history/download feedback hardening (#192), staging image catalog exposure verification (#194), API Key third-party access copy/safety polish (#195), usage explanation-state clarity (#197), profile TOTP failure clarity (#198), masked API-key configuration guards (#199), `/app/usage` DTO/balance-refresh boundary verification (#201), Google/Gemini-compatible API-key auth restriction parity (#203), and production-deployed usage-billing no-overdraft safety (#208). Major remaining P1 work is controlled production real-generation acceptance, broader usage/balance workflow verification, full API Key lifecycle/security verification, and admin/ops hardening. |
 | Distance to P2 | 64% of P1 remains | P2 should not begin as a main focus until the P1 user/business loops above have credible staging or production evidence. |
 | P2 visual polish/enhanced experience | 0% | P2 is intentionally not active. UI polish and advanced workflows wait until P1 is materially closed. |
 
@@ -221,7 +221,7 @@ P0 can exit only when these are true:
 
 ## Production Release Gates
 
-Production deployment is a separate release gate. Production deployments happened on 2026-06-21 and 2026-06-27 after explicit approval, but future deployments and full production acceptance should use the gates below:
+Production deployment is a separate release gate. Production deployments happened on 2026-06-21, 2026-06-27, and 2026-06-28 after explicit approval, but future deployments and full production acceptance should use the gates below:
 
 1. Ordinary-user navigation stays inside the intended user workspace shell.
 2. `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/app/profile` behave consistently after refresh.
