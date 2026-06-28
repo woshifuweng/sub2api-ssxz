@@ -292,9 +292,9 @@ function formatMonthlyValue(item: MonthlyUsage) {
 }
 
 function formatUsageKind(row: UsageLog) {
+  if (row.api_key_id) return t('usage.workbench.usageKindThirdParty')
   if (row.image_count > 0 || row.inbound_endpoint?.includes('/images/')) return t('usage.workbench.usageKindImage')
   if (row.inbound_endpoint?.includes('/chat/')) return t('usage.workbench.usageKindChat')
-  if (row.api_key_id) return t('usage.workbench.usageKindThirdParty')
   return t('usage.workbench.usageKindWeb')
 }
 
