@@ -1,6 +1,6 @@
 # ROADMAP
 
-Last updated: 2026-06-27
+Last updated: 2026-06-28
 
 ## Product Goal
 
@@ -19,6 +19,8 @@ The project can start P1 planning and small P1 PRs. P0/P0-Beta structural conver
 - PR #188 was deployed to production after explicit approval and clarified OpenAI-compatible image alias labels without enabling production image generation.
 - PR #190 was deployed to staging only and restored the full frontend lint baseline for the user workspace shell surface. Production remained on the prior #188 binary.
 - PR #192 was deployed to staging only and made `/app/image` recent-history load failures visible while strengthening download href/filename test coverage. Production remained on the prior #188 binary.
+- PR #194 was deployed to staging only and confirmed staging image-capable catalog exposure still comes from real channel data while non-real image-capable models stay hidden.
+- PR #195 was merged to main only and completed the first `/app/keys` P1 copy/safety polish slice. It was not deployed to staging or production.
 
 This does not mean production image generation is fully accepted. A controlled real-provider production image-generation acceptance remains separate and must verify creation, storage, usage/billing, history, and download before claiming the production image chain is complete.
 
@@ -28,9 +30,9 @@ Use this progress meter in every major status report. It is a product/operations
 
 | Stage | Current estimate | Meaning |
 | --- | ---: | --- |
-| P0 / P0-Beta convergence | 91% | Core shell, chat, failure/no-charge, fake-model, frontend lint baseline, and production smoke risks are contained enough to continue P1. Remaining P0 risk is production image-generation acceptance and any regressions found during P1. |
-| P1 product/operations | 18% | P1 has started. Completed slices include image-model alias display clarity (#188), user-shell lint baseline cleanup (#190), and first image history/download feedback hardening (#192). Major remaining P1 work is production real-generation acceptance, API Key polish, usage/balance explanation, and admin/ops hardening. |
-| Distance to P2 | 82% of P1 remains | P2 should not begin as a main focus until the P1 user/business loops above have credible staging or production evidence. |
+| P0 / P0-Beta convergence | 94% | Core shell, chat, failure/no-charge, fake-model, catalog authenticity, frontend lint baseline, and production smoke risks are contained enough to continue P1. Remaining P0 risk is controlled production image-generation acceptance and any regressions found during P1. |
+| P1 product/operations | 24% | P1 has started. Completed slices include image-model alias display clarity (#188), user-shell lint baseline cleanup (#190), first image history/download feedback hardening (#192), staging image catalog exposure verification (#194), and first API Key third-party access copy/safety polish (#195). Major remaining P1 work is production real-generation acceptance, usage/balance explanation, API Key behavior/security verification, and admin/ops hardening. |
+| Distance to P2 | 76% of P1 remains | P2 should not begin as a main focus until the P1 user/business loops above have credible staging or production evidence. |
 | P2 visual polish/enhanced experience | 0% | P2 is intentionally not active. UI polish and advanced workflows wait until P1 is materially closed. |
 
 ## Decision Rules
@@ -156,6 +158,7 @@ P0 can exit only when these are true:
    - user-friendly copy
    - clear Base URL/model guidance
    - key masking and safe one-time full-key display
+   - first small slice completed by PR #195: Base URL copy action, touched i18n copy, one-time full-key explanation, and model availability guidance
 5. Improve user billing pages:
    - balance
    - usage

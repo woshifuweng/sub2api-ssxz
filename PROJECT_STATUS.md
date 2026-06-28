@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last updated: 2026-06-27
+Last updated: 2026-06-28
 
 ## Product Positioning
 
@@ -44,7 +44,7 @@ The admin side should preserve operation capabilities for the owner and operator
 | `/app`, `/app/chat` | Connected, canonical chat entry | Unified workspace/chat path exists. `/app/chat` is the ordinary-user new chat entry and brand-home destination. The UX is not final. |
 | `/app/image` | Staging generation path verified, UX partial | Routes to `ImageStudioView`. On 2026-06-20 staging generated one image through `gpt-image-2`, recorded usage, saved history, and served the PNG download. Product UX is still not final. |
 | `/app/usage` | Partial product path, real data visible on staging | New workbench-style usage page exists. It should remain in the user workspace shell. |
-| `/app/keys` | Partial product path, staging shell verified | Intended to keep API Key / third-party access in the user workspace shell. It must not jump to the admin/backend shell. |
+| `/app/keys` | P1 polish started, main not redeployed | Intended to keep API Key / third-party access in the user workspace shell. PR #195 moved touched third-party access copy into i18n, added Base URL copy affordances, and clarified one-time full-key visibility. It must not jump to the admin/backend shell. |
 | `/app/profile` | Partial product path, staging shell verified | Intended to keep account settings in the user workspace shell. It must not jump to the admin/backend shell. |
 | `/keys` | Legacy user path | Functional API Key page using the older shell. Keep as compatibility, not as the main user entry. |
 | `/usage` | Legacy user path | Functional usage page using the older shell. Keep as compatibility, not as the main user entry. |
@@ -74,7 +74,7 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | User workspace shell | Partial | `/app/*` exists, but not every user entry stays inside this shell. |
 | AI chat | Connected | `/app/chat` works through workspace logic; old `ChatStudioView` remains a product reference/asset. |
 | Image generation | P0/P0-Beta guard deployed; production real generation acceptance still open | `ImageStudioView`, `ImageStudioHandler`, OpenAI-compatible image gateway, and image/Sora-related storage exist. On 2026-06-20 staging verified generation, usage cost, history, and HTTP image download with `gpt-image-2`. On 2026-06-27 PR #184 was deployed to production after explicit approval and verified that ordinary users do not see non-real image-capable models. PR #188 was also deployed to production after explicit approval and clarified OpenAI-compatible image alias labels without enabling production image generation. Production real image generation remains an acceptance gate because these production validations did not call a real provider. |
-| API Key / third-party access | Mostly complete, UX partial | Backend and frontend exist. User-facing copy and shell alignment are still being corrected. |
+| API Key / third-party access | Mostly complete, P1 polish started | Backend and frontend exist. PR #195 improved user-facing Base URL/model guidance, key masking explanation, and one-time full-key display copy. Create/copy/delete/reset behavior and deeper API key security review remain separate verification items. |
 | Usage center | Backend complete enough, frontend partial | Usage APIs and older page exist; `/app/usage` is the desired new user-shell direction. |
 | Recharge/payment | Backend/admin rich, user-shell partial | Payment/order/subscription capabilities exist; user shell alignment remains incomplete. |
 | Orders | Existing, user-shell partial | Order pages exist; not yet fully aligned to the new user workspace. |
@@ -166,6 +166,27 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | Production | Not deployed | Production service remained active on the prior PR #188 binary. The same public routes returned HTTP 200 on production port `8080`, but no production file replacement or service restart was part of #192 validation. |
 | Scope | Frontend image-history/download feedback only | #192 touched `ImageStudioView.vue` and its component test only. It made recent image-history load failures visible and strengthened download href/filename assertions. No Nginx change, database migration, payment/ledger change, provider-routing change, or real-provider call was part of the staging release. |
 
+## Staging Release Recorded On 2026-06-27 For PR #194
+
+| Area | Result | Evidence |
+| --- | --- | --- |
+| Deployment | Completed on staging only | PR #194 was merged to main at merge commit `c208d51a7` and deployed only to `sub2api-staging.service`. |
+| Binary | Staging candidate recorded | Staging `/opt/sub2api/sub2api-staging` SHA-256 was `9018e284ee6a80d8fd717ddd49b1457e65fd278025b76377b5fa5b9855d66869`. |
+| Production | Not deployed for #194 | Production remained on the previously deployed `832475454` candidate; no production file replacement or service restart was part of #194 validation. |
+| Public smoke | Staging routes responded | `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public` returned HTTP 200 on staging. |
+| Image model catalog | Staging catalog exposed real image models | Ordinary-user `/api/v1/channels/available` on staging exposed four `image_generation` models including `gpt-image-2`, all under `provider=openai-compatible-images` with `model_catalog_source=real_channel`; non-real image-capable model count was `0`. |
+| Scope | Catalog/capability guard only | #194 touched channel catalog filtering and frontend capability tests. No database migration, Nginx change, payment/ledger change, provider-routing change, production deployment, or real-provider call was part of the release. |
+
+## Main Merge Recorded On 2026-06-28 For PR #195
+
+| Area | Result | Evidence |
+| --- | --- | --- |
+| Merge | Completed to main | PR #195 was merged at `6068b062f` with title `Polish API key third-party access copy (#195)`. |
+| Scope | Frontend-only `/app/keys` polish | The PR touched `KeysView.vue`, related component tests, and zh/en i18n locale tests. |
+| Product effect | API Key guidance clearer in code | The top `/app/keys` Base URL guide now has a copy action, touched copy is i18n-backed, and the one-time full-key reveal dialog clarifies masked list values and model availability source. |
+| Deployment | Not deployed | No staging or production deployment was done for #195 at the time of this status entry. |
+| Sensitive scope | Untouched | No backend, database, billing/ledger, payment, provider routing, Nginx, production deployment, or real-provider call was part of #195. |
+
 ## Historical Product Decisions Preserved On 2026-06-18
 
 - The older site is not the code trunk and should not be copied wholesale. It is a product reference for user-side AI chat, AI image creation, navigation, prompt flow, result display, balance, and API access.
@@ -186,7 +207,7 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | Image failure handling | Regression covered for no-charge failure paths | Invalid form input fails before upstream and does not change balance or usage. Code-path audit shows upstream errors do not reach `RecordUsage` and non-2xx responses do not persist image history. Service-level regression tests cover upstream non-2xx, transport timeout/error, and partial-success response write failure returning no successful result. Handler-level regression tests cover upstream failure without usage/billing/deduct calls, failed/truncated captures without image history, DB-backed image-history persistence, and DB-backed usage/billing persistence staying clean for upstream 4xx and transport timeout. |
 | `/app/usage` charts and details | Partial | Should show real data when available and empty states otherwise. It must not invent data. |
 | Payment/order user workspace | Not fully connected to new shell | Existing pages use older product structure. |
-| API Key/Profile in `/app/*` shell | In progress | Keep as user-workspace pages, not admin-console pages. |
+| API Key/Profile in `/app/*` shell | In progress | Keep as user-workspace pages, not admin-console pages. API Key copy and one-time full-key explanation have a first P1 polish slice merged in #195, but behavior/security verification remains open. |
 
 ## Largest Confusion Points
 
