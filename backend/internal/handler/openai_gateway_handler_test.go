@@ -773,6 +773,127 @@ func TestOpenAIResponsesWebSocket_PreviousResponseIDKindLoggedBeforeAcquireFailu
 	require.Contains(t, strings.ToLower(closeErr.Reason), "failed to acquire user concurrency slot")
 }
 
+func TestOpenAIResponsesWebSocket_EstimatedCostOverBalanceReturnsBeforeAccountSelection(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	groupID := int64(12)
+	user := &service.User{
+		ID:          712,
+		Status:      service.StatusActive,
+		Role:        "user",
+		Balance:     1,
+		Concurrency: 0,
+	}
+	group := &service.Group{
+		ID:             groupID,
+		Name:           "openai-ws-token-cost-gate",
+		Platform:       service.PlatformOpenAI,
+		Status:         service.StatusActive,
+		RateMultiplier: 1,
+	}
+	apiKey := &service.APIKey{
+		ID:      812,
+		UserID:  user.ID,
+		Key:     "test-openai-ws-token-cost-gate-key",
+		Status:  service.StatusAPIKeyActive,
+		User:    user,
+		GroupID: &groupID,
+		Group:   group,
+	}
+
+	cfg := &config.Config{}
+	userRepo := &imageStudioGatewayUserRepo{user: user}
+	accountRepo := &openAIWSCostGateAccountRepo{}
+	billingCacheService := service.NewBillingCacheService(nil, userRepo, nil, nil, cfg)
+	gatewayService := service.NewOpenAIGatewayService(
+		accountRepo,
+		nil,
+		nil,
+		nil,
+		userRepo,
+		nil,
+		nil,
+		nil,
+		cfg,
+		nil,
+		nil,
+		service.NewBillingService(cfg, nil),
+		nil,
+		nil,
+		billingCacheService,
+		nil,
+		nil,
+		nil,
+	)
+	t.Cleanup(gatewayService.CloseOpenAIWSPool)
+	handler := NewOpenAIGatewayHandler(
+		gatewayService,
+		service.NewConcurrencyService(nil),
+		billingCacheService,
+		&service.APIKeyService{},
+		nil,
+		nil,
+		cfg,
+	)
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(string(middleware.ContextKeyAPIKey), apiKey)
+		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: user.ID, Concurrency: user.Concurrency})
+		c.Set(string(middleware.ContextKeyUserRole), user.Role)
+		c.Next()
+	})
+	router.GET("/openai/v1/responses", handler.ResponsesWebSocket)
+	wsServer := httptest.NewServer(router)
+	defer wsServer.Close()
+
+	dialCtx, cancelDial := context.WithTimeout(context.Background(), 3*time.Second)
+	clientConn, _, err := coderws.Dial(dialCtx, "ws"+strings.TrimPrefix(wsServer.URL, "http")+"/openai/v1/responses", nil)
+	cancelDial()
+	require.NoError(t, err)
+	defer func() {
+		_ = clientConn.CloseNow()
+	}()
+
+	writeCtx, cancelWrite := context.WithTimeout(context.Background(), 3*time.Second)
+	err = clientConn.Write(writeCtx, coderws.MessageText, []byte(
+		`{"type":"response.create","model":"gpt-5.1","input":"hello","max_output_tokens":200000}`,
+	))
+	cancelWrite()
+	require.NoError(t, err)
+
+	readCtx, cancelRead := context.WithTimeout(context.Background(), 3*time.Second)
+	_, _, err = clientConn.Read(readCtx)
+	cancelRead()
+	require.Error(t, err)
+	var closeErr coderws.CloseError
+	require.ErrorAs(t, err, &closeErr)
+	require.Equal(t, coderws.StatusPolicyViolation, closeErr.Code)
+	require.Contains(t, strings.ToLower(closeErr.Reason), "billing")
+	require.Zero(t, accountRepo.calls, "billing failure must happen before upstream account selection")
+}
+
+type openAIWSCostGateAccountRepo struct {
+	service.AccountRepository
+
+	calls int
+}
+
+func (r *openAIWSCostGateAccountRepo) ListSchedulableByGroupIDAndPlatform(context.Context, int64, string) ([]service.Account, error) {
+	r.calls++
+	return nil, nil
+}
+
+func (r *openAIWSCostGateAccountRepo) ListSchedulableByPlatform(context.Context, string) ([]service.Account, error) {
+	r.calls++
+	return nil, nil
+}
+
+func (r *openAIWSCostGateAccountRepo) ListSchedulableUngroupedByPlatform(context.Context, string) ([]service.Account, error) {
+	r.calls++
+	return nil, nil
+}
+
 func TestSetOpenAIClientTransportHTTP(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

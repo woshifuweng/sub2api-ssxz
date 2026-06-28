@@ -155,6 +155,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	}
 
 	completedTurns := atomic.Int32{}
+	clientTurns := atomic.Int32{}
+	clientTurns.Store(1)
 	relayResult, relayExit := openaiwsv2.RunEntry(openaiwsv2.EntryInput{
 		Ctx:                ctx,
 		ClientConn:         &openAIWSClientFrameConn{conn: clientConn},
@@ -204,6 +206,14 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 				if hooks != nil && hooks.AfterTurn != nil {
 					hooks.AfterTurn(turnNo, turnResult, nil)
 				}
+			},
+			BeforeClientFrame: func(msgType coderws.MessageType, payload []byte) error {
+				if hooks == nil || hooks.BeforeTurnPayload == nil {
+					return nil
+				}
+				nextTurn := int(clientTurns.Add(1))
+				model := strings.TrimSpace(gjson.GetBytes(payload, "model").String())
+				return hooks.BeforeTurnPayload(nextTurn, payload, model)
 			},
 			OnTrace: func(event openaiwsv2.RelayTraceEvent) {
 				logOpenAIWSV2Passthrough(
