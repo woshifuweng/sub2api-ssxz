@@ -634,13 +634,27 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 	}
 }
 
+func scrubUsageLogForRegularUser(u *UsageLog) {
+	u.UserID = 0
+	u.AccountID = 0
+	u.UpstreamEndpoint = nil
+	u.GroupID = nil
+	u.SubscriptionID = nil
+	u.UserAgent = nil
+	u.User = nil
+	u.APIKey = nil
+	u.Group = nil
+	u.Subscription = nil
+}
+
 // UsageLogFromService converts a service UsageLog to DTO for regular users.
-// It excludes Account details and IP address - users should not see these.
+// It excludes provider/account internals and nested operational objects.
 func UsageLogFromService(l *service.UsageLog) *UsageLog {
 	if l == nil {
 		return nil
 	}
 	u := usageLogFromServiceUser(l)
+	scrubUsageLogForRegularUser(&u)
 	return &u
 }
 

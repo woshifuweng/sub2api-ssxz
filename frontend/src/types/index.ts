@@ -1134,9 +1134,9 @@ export type UsageRequestType = 'unknown' | 'sync' | 'stream' | 'ws_v2'
 
 export interface UsageLog {
   id: number
-  user_id: number
-  api_key_id: number
-  account_id: number | null
+  user_id?: number
+  api_key_id?: number
+  account_id?: number | null
   request_id: string
   model: string
   service_tier?: string | null
@@ -1144,8 +1144,8 @@ export interface UsageLog {
   inbound_endpoint?: string | null
   upstream_endpoint?: string | null
 
-  group_id: number | null
-  subscription_id: number | null
+  group_id?: number | null
+  subscription_id?: number | null
 
   input_tokens: number
   output_tokens: number
@@ -1174,7 +1174,7 @@ export interface UsageLog {
   image_size: string | null
 
   // User-Agent
-  user_agent: string | null
+  user_agent?: string | null
 
   // Cache TTL Override
   cache_ttl_overridden: boolean

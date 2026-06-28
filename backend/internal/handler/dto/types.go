@@ -343,9 +343,9 @@ type AdminRedeemCode struct {
 // UsageLog 是普通用户接口使用的 usage log DTO（不包含管理员字段）。
 type UsageLog struct {
 	ID        int64  `json:"id"`
-	UserID    int64  `json:"user_id"`
-	APIKeyID  int64  `json:"api_key_id"`
-	AccountID int64  `json:"account_id"`
+	UserID    int64  `json:"user_id,omitempty"`
+	APIKeyID  int64  `json:"api_key_id,omitempty"`
+	AccountID int64  `json:"account_id,omitempty"`
 	RequestID string `json:"request_id"`
 	Model     string `json:"model"`
 	// ServiceTier records the OpenAI service tier used for billing, e.g. "priority" / "flex".
@@ -358,8 +358,8 @@ type UsageLog struct {
 	// UpstreamEndpoint is the normalized upstream endpoint path, e.g. /v1/responses.
 	UpstreamEndpoint *string `json:"upstream_endpoint,omitempty"`
 
-	GroupID        *int64 `json:"group_id"`
-	SubscriptionID *int64 `json:"subscription_id"`
+	GroupID        *int64 `json:"group_id,omitempty"`
+	SubscriptionID *int64 `json:"subscription_id,omitempty"`
 
 	InputTokens         int `json:"input_tokens"`
 	OutputTokens        int `json:"output_tokens"`
@@ -390,7 +390,7 @@ type UsageLog struct {
 	MediaType  *string `json:"media_type"`
 
 	// User-Agent
-	UserAgent *string `json:"user_agent"`
+	UserAgent *string `json:"user_agent,omitempty"`
 
 	// Cache TTL Override 标记
 	CacheTTLOverridden bool `json:"cache_ttl_overridden"`

@@ -223,7 +223,8 @@ async function loadUsageOverview() {
       start_date: trendStartKey,
       end_date: todayKey,
       granularity: 'day'
-    })
+    }),
+    authStore.refreshUser()
   ])
 
   if (statsResult.status === 'fulfilled') {
