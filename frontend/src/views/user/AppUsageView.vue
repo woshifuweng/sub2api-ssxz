@@ -118,6 +118,7 @@
                 <th>{{ t('usage.workbench.kind') }}</th>
                 <th>{{ t('usage.workbench.model') }}</th>
                 <th>{{ t('usage.workbench.amount') }}</th>
+                <th>{{ t('usage.workbench.billingBasis') }}</th>
                 <th>{{ t('usage.workbench.fee') }}</th>
               </tr>
             </thead>
@@ -127,6 +128,10 @@
                 <td>{{ formatUsageKind(row) }}</td>
                 <td class="model-cell">{{ row.model || '-' }}</td>
                 <td>{{ formatUsageAmount(row) }}</td>
+                <td class="billing-cell">
+                  <span>{{ formatBillingType(row) }}</span>
+                  <small>{{ formatBillingBasis(row) }}</small>
+                </td>
                 <td>
                   <span>{{ formatCost(row.actual_cost) }}</span>
                   <small v-if="isNoCharge(row)" class="usage-cost-note">
@@ -306,6 +311,25 @@ function formatUsageAmount(row: UsageLog) {
   }
   const tokens = Number(row.input_tokens || 0) + Number(row.output_tokens || 0) + Number(row.cache_creation_tokens || 0) + Number(row.cache_read_tokens || 0)
   return t('usage.workbench.tokenAmount', { count: formatNumber(tokens) })
+}
+
+function formatBillingType(row: UsageLog) {
+  if (isNoCharge(row)) return t('usage.workbench.billingNoCharge')
+  if (Number(row.billing_type) === 1) return t('usage.workbench.billingSubscription')
+  return t('usage.workbench.billingBalance')
+}
+
+function formatBillingBasis(row: UsageLog) {
+  const standardCost = Number(row.total_cost || 0)
+  const actualCost = Number(row.actual_cost || 0)
+  if (isNoCharge(row)) return t('usage.workbench.noChargeBasis')
+  if (standardCost > 0 && Math.abs(standardCost - actualCost) > 0.000001) {
+    return t('usage.workbench.standardVsActual', {
+      standard: formatCost(standardCost),
+      actual: formatCost(actualCost)
+    })
+  }
+  return t('usage.workbench.actualChargeBasis', { amount: formatCost(actualCost) })
 }
 
 function formatCost(value: number | null | undefined) {
@@ -630,6 +654,23 @@ function toDateKey(date: Date) {
 .model-cell {
   color: var(--ssxz-text-primary);
   font-weight: 800;
+}
+
+.billing-cell {
+  display: grid;
+  min-width: 9rem;
+  gap: 0.18rem;
+}
+
+.billing-cell span {
+  color: var(--ssxz-text-primary);
+  font-weight: 800;
+}
+
+.billing-cell small {
+  color: var(--ssxz-text-muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
 }
 
 .usage-cost-note {
