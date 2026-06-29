@@ -1,7 +1,18 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { routeMock, routerMock } = vi.hoisted(() => ({
+const { paymentAPI, paymentStore, routeMock, routerMock } = vi.hoisted(() => ({
+  paymentAPI: {
+    cancelOrder: vi.fn(),
+    getOrder: vi.fn(),
+    resolveOrderPublicByResumeToken: vi.fn(),
+    verifyOrderPublic: vi.fn()
+  },
+  paymentStore: {
+    pollOrderStatus: vi.fn(),
+    fetchConfig: vi.fn(),
+    config: {}
+  },
   routeMock: {
     query: {}
   },
@@ -26,11 +37,7 @@ vi.mock('vue-router', () => ({
 }))
 
 vi.mock('@/stores/payment', () => ({
-  usePaymentStore: () => ({
-    pollOrderStatus: vi.fn(),
-    fetchConfig: vi.fn(),
-    config: {}
-  })
+  usePaymentStore: () => paymentStore
 }))
 
 vi.mock('@/stores', () => ({
@@ -40,12 +47,7 @@ vi.mock('@/stores', () => ({
 }))
 
 vi.mock('@/api/payment', () => ({
-  paymentAPI: {
-    cancelOrder: vi.fn(),
-    getOrder: vi.fn(),
-    resolveOrderPublicByResumeToken: vi.fn(),
-    verifyOrderPublic: vi.fn()
-  }
+  paymentAPI
 }))
 
 vi.mock('@/components/layout/AppLayout.vue', () => ({
@@ -85,6 +87,12 @@ describe('payment flow shell ownership', () => {
   beforeEach(() => {
     routeMock.query = {}
     routerMock.push.mockClear()
+    paymentStore.pollOrderStatus.mockReset()
+    paymentStore.fetchConfig.mockReset()
+    paymentAPI.cancelOrder.mockReset()
+    paymentAPI.getOrder.mockReset()
+    paymentAPI.resolveOrderPublicByResumeToken.mockReset()
+    paymentAPI.verifyOrderPublic.mockReset()
   })
 
   it('renders the QR payment page in the neutral payment shell instead of the legacy app layout', () => {
@@ -135,5 +143,53 @@ describe('payment flow shell ownership', () => {
     expect(wrapper.text()).not.toContain('payment.result.processing')
     expect(wrapper.text()).not.toContain('payment.result.failed')
     expect(wrapper.find('[data-testid="payment-flow-subtitle"]').text()).toBe('payment.result.missingOrder')
+  })
+
+  it('shows processing for a pending payment result instead of success', async () => {
+    routeMock.query = { order_id: '42' }
+    paymentStore.pollOrderStatus.mockResolvedValue({
+      id: 42,
+      out_trade_no: 'ORDER-42',
+      amount: 10,
+      pay_amount: 10,
+      fee_rate: 0,
+      payment_type: 'alipay',
+      order_type: 'balance',
+      status: 'PENDING',
+      created_at: '2026-06-18T08:00:00Z',
+      expires_at: '2026-06-18T08:30:00Z'
+    })
+
+    const wrapper = mount(PaymentResultView)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('payment.result.processing')
+    expect(wrapper.text()).toContain('payment.result.processingHint')
+    expect(wrapper.text()).not.toContain('payment.result.success')
+    expect(wrapper.text()).not.toContain('payment.result.failed')
+    wrapper.unmount()
+  })
+
+  it('shows failed for a failed payment result instead of success', async () => {
+    routeMock.query = { order_id: '43' }
+    paymentStore.pollOrderStatus.mockResolvedValue({
+      id: 43,
+      out_trade_no: 'ORDER-43',
+      amount: 10,
+      pay_amount: 10,
+      fee_rate: 0,
+      payment_type: 'alipay',
+      order_type: 'balance',
+      status: 'FAILED',
+      created_at: '2026-06-18T08:00:00Z',
+      expires_at: '2026-06-18T08:30:00Z'
+    })
+
+    const wrapper = mount(PaymentResultView)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('payment.result.failed')
+    expect(wrapper.text()).not.toContain('payment.result.success')
+    expect(wrapper.text()).not.toContain('payment.result.processing')
   })
 })

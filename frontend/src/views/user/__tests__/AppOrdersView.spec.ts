@@ -135,4 +135,43 @@ describe('AppOrdersView', () => {
     expect(text).toContain('ORDER-9')
     expect(paymentAPI.getMyOrders).toHaveBeenCalledWith({ page: 1, page_size: 10 })
   })
+
+  it('shows an empty state when the user has no orders', async () => {
+    appStore.cachedPublicSettings = { payment_enabled: true }
+    paymentAPI.getMyOrders.mockResolvedValue({
+      data: {
+        items: [],
+        total: 0,
+        page: 1,
+        page_size: 10,
+        pages: 0
+      }
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(text).toContain('暂无订单记录')
+    expect(text).toContain('完成充值或购买订阅后')
+    expect(text).not.toContain('真实订单接口')
+    expect(text).not.toContain('旧后台')
+    expect(paymentAPI.getMyOrders).toHaveBeenCalledWith({ page: 1, page_size: 10 })
+  })
+
+  it('shows a user-facing load error when orders cannot be loaded', async () => {
+    appStore.cachedPublicSettings = { payment_enabled: true }
+    paymentAPI.getMyOrders.mockRejectedValue(new Error('network down'))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(text).toContain('订单记录暂时无法加载')
+    expect(text).toContain('请稍后重试')
+    expect(text).not.toContain('network down')
+    expect(text).not.toContain('真实订单接口')
+    expect(text).not.toContain('旧后台')
+    expect(paymentAPI.getMyOrders).toHaveBeenCalledWith({ page: 1, page_size: 10 })
+  })
 })
