@@ -52,6 +52,13 @@ const messages: Record<string, string> = {
   'usage.workbench.kind': 'Type',
   'usage.workbench.model': 'Model',
   'usage.workbench.amount': 'Usage',
+  'usage.workbench.billingBasis': 'Billing',
+  'usage.workbench.billingBalance': 'Balance charge',
+  'usage.workbench.billingSubscription': 'Subscription quota',
+  'usage.workbench.billingNoCharge': 'No balance charged',
+  'usage.workbench.standardVsActual': 'Standard {standard}; charged {actual}',
+  'usage.workbench.actualChargeBasis': 'Charged {amount}',
+  'usage.workbench.noChargeBasis': 'No balance was deducted for this row.',
   'usage.workbench.fee': 'Fee',
   'usage.workbench.noCharge': 'No charge',
   'usage.workbench.usageKindImage': 'Image generation',
@@ -173,9 +180,11 @@ describe('AppUsageView', () => {
           output_tokens: 0,
           cache_creation_tokens: 0,
           cache_read_tokens: 0,
+          total_cost: 0.9,
           image_count: 2,
           image_size: '1024x1024',
           actual_cost: 0.88,
+          billing_type: 0,
           created_at: '2026-06-18T08:00:00Z'
         },
         {
@@ -188,9 +197,11 @@ describe('AppUsageView', () => {
           output_tokens: 0,
           cache_creation_tokens: 0,
           cache_read_tokens: 0,
+          total_cost: 0,
           image_count: 0,
           image_size: null,
           actual_cost: 0,
+          billing_type: 0,
           created_at: '2026-06-18T08:01:00Z'
         },
         {
@@ -202,9 +213,11 @@ describe('AppUsageView', () => {
           output_tokens: 0,
           cache_creation_tokens: 0,
           cache_read_tokens: 0,
+          total_cost: 0.3545,
           image_count: 0,
           image_size: null,
           actual_cost: 0.3545,
+          billing_type: 1,
           created_at: '2026-06-18T08:02:00Z'
         }
       ],
@@ -257,6 +270,13 @@ describe('AppUsageView', () => {
     expect(text).toContain('deepseek-v4-flash')
     expect(text).toContain('$0.0000')
     expect(text).toContain('No charge')
+    expect(tableText).toContain('Billing')
+    expect(tableText).toContain('Balance charge')
+    expect(tableText).toContain('Subscription quota')
+    expect(tableText).toContain('No balance charged')
+    expect(tableText).toContain('Standard $0.9000; charged $0.8800')
+    expect(tableText).toContain('Charged $0.3545')
+    expect(tableText).toContain('No balance was deducted for this row.')
     expect(usageAPI.query).toHaveBeenCalledWith(expect.objectContaining({
       page: 1,
       page_size: 8
