@@ -570,7 +570,7 @@ export default {
       title: 'Save the full API Key',
       warningTitle: 'Save the full key now',
       warningDescription:
-        'The full API Key is shown only once after creation. After closing this dialog, the list only shows a masked value. Create a new API Key if it is lost.',
+        'The full API Key is shown only once after creation. After closing this dialog, the list only shows a masked value. Create a new API Key if it is lost. To rotate it, create a new key, update clients, then delete the old key.',
       apiKeyLabel: 'API Key',
       copyFullKey: 'Copy full key',
       copied: 'Copied',

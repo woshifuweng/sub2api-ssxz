@@ -570,7 +570,7 @@ export default {
       title: '保存完整 API Key',
       warningTitle: '请立即保存完整 Key',
       warningDescription:
-        '完整 API Key 只在创建后展示一次。关闭后列表只显示脱敏值，丢失后请新建一个 API Key。',
+        '完整 API Key 只在创建后展示一次。关闭后列表只显示脱敏值，丢失后请新建一个 API Key。如需轮换，请先创建新 Key 并更新客户端，再删除旧 Key。',
       apiKeyLabel: 'API Key',
       copyFullKey: '复制完整 Key',
       copied: '已复制',
