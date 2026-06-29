@@ -352,6 +352,8 @@ describe('KeysView workbench surface', () => {
     await flushPromises()
 
     expect(keysAPI.toggleStatus).toHaveBeenCalledWith(1, 'inactive')
+    expect(keysAPI.list).toHaveBeenCalledTimes(2)
+    expect(appStore.showSuccess).toHaveBeenCalledWith('keys.keyDisabledSuccess')
   })
 
   it('does not copy the masked list key value', async () => {
@@ -434,6 +436,8 @@ describe('KeysView workbench surface', () => {
     await flushPromises()
 
     expect(keysAPI.toggleStatus).toHaveBeenCalledWith(1, 'active')
+    expect(keysAPI.list).toHaveBeenCalledTimes(2)
+    expect(appStore.showSuccess).toHaveBeenCalledWith('keys.keyEnabledSuccess')
   })
 
   it('requires confirmation before deleting an API key', async () => {
@@ -461,6 +465,9 @@ describe('KeysView workbench surface', () => {
     await flushPromises()
 
     expect(keysAPI.delete).toHaveBeenCalledWith(1)
+    expect(keysAPI.list).toHaveBeenCalledTimes(2)
+    expect(appStore.showSuccess).toHaveBeenCalledWith('keys.keyDeletedSuccess')
+    expect(wrapper.find('[data-testid="confirm-dialog"]').exists()).toBe(false)
   })
 
   it('does not delete an API key when the confirmation is cancelled', async () => {
@@ -529,6 +536,51 @@ describe('KeysView workbench surface', () => {
     expect(keysAPI.update).toHaveBeenCalledWith(9, { reset_quota: true })
     expect(keysAPI.list).toHaveBeenCalledTimes(2)
     expect(appStore.showSuccess).toHaveBeenCalledWith('keys.quotaResetSuccess')
+  })
+
+  it('refreshes API key data after resetting rate-limit usage', async () => {
+    const limitedKey = apiKeyFixture({
+      id: 10,
+      name: 'limited-key',
+      rate_limit_1d: 25,
+      usage_1d: 5
+    })
+    const refreshedKey = apiKeyFixture({
+      id: 10,
+      name: 'limited-key',
+      rate_limit_1d: 25,
+      usage_1d: 0
+    })
+    keysAPI.list
+      .mockResolvedValueOnce({ items: [limitedKey], total: 1, pages: 1 })
+      .mockResolvedValueOnce({ items: [refreshedKey], total: 1, pages: 1 })
+    keysAPI.update.mockResolvedValue(refreshedKey)
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const editButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.edit'))
+    expect(editButton).toBeTruthy()
+    await editButton!.trigger('click')
+    await flushPromises()
+
+    const resetRateLimitButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.resetRateLimitUsage'))
+    expect(resetRateLimitButton).toBeTruthy()
+    await resetRateLimitButton!.trigger('click')
+
+    expect(keysAPI.update).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('keys.resetRateLimitTitle')
+
+    await wrapper.get('[data-testid="confirm-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(keysAPI.update).toHaveBeenCalledWith(10, { reset_rate_limit_usage: true })
+    expect(keysAPI.list).toHaveBeenCalledTimes(2)
+    expect(appStore.showSuccess).toHaveBeenCalledWith('keys.rateLimitResetSuccess')
   })
 
   it('preselects the first available group when creating an API key', async () => {
