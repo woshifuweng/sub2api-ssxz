@@ -103,13 +103,25 @@
               </code>
               <button
                 @click="copyToClipboard(value, row.id)"
-                class="rounded-lg p-1 transition-colors hover:bg-gray-100 dark:hover:bg-dark-700"
-                :class="
+                :disabled="isMaskedApiKey(value)"
+                class="rounded-lg p-1 transition-colors"
+                :class="[
+                  isMaskedApiKey(value)
+                    ? 'cursor-not-allowed text-gray-300 opacity-60 dark:text-gray-600'
+                    : 'hover:bg-gray-100 dark:hover:bg-dark-700',
                   copiedKeyId === row.id
                     ? 'text-green-500'
-                    : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                    : !isMaskedApiKey(value)
+                      ? 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                      : ''
+                ]"
+                :title="
+                  isMaskedApiKey(value)
+                    ? t('keys.fullKeyRequiredForImport')
+                    : copiedKeyId === row.id
+                      ? t('keys.copied')
+                      : t('keys.copyToClipboard')
                 "
-                :title="copiedKeyId === row.id ? t('keys.copied') : t('keys.copyToClipboard')"
               >
                 <Icon
                   v-if="copiedKeyId === row.id"
@@ -1538,6 +1550,10 @@ const selectedKeyUsableApiKey = computed(() => {
 })
 
 const copyToClipboard = async (text: string, keyId: number) => {
+  if (isMaskedApiKey(text)) {
+    appStore.showError(t('keys.fullKeyRequiredForImport'))
+    return
+  }
   const success = await clipboardCopy(text, t('keys.copied'))
   if (success) {
     copiedKeyId.value = keyId

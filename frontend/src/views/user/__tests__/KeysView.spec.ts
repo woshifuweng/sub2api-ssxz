@@ -354,7 +354,7 @@ describe('KeysView workbench surface', () => {
     expect(keysAPI.toggleStatus).toHaveBeenCalledWith(1, 'inactive')
   })
 
-  it('copies the masked list key value, not a hidden full key', async () => {
+  it('does not copy the masked list key value', async () => {
     const maskedKey = 'sk-user-...1234'
     keysAPI.list.mockResolvedValue({
       items: [apiKeyFixture({ key: maskedKey })],
@@ -365,10 +365,27 @@ describe('KeysView workbench surface', () => {
     const wrapper = mountView()
     await flushPromises()
 
+    const copyButton = wrapper.get('button[title="keys.fullKeyRequiredForImport"]')
+    expect(copyButton.attributes('disabled')).toBeDefined()
+    await copyButton.trigger('click')
+
+    expect(clipboardCopy).not.toHaveBeenCalled()
+  })
+
+  it('copies a full list key when one is available', async () => {
+    const fullKey = 'sk-full-key-value-visible-once-1234'
+    keysAPI.list.mockResolvedValue({
+      items: [apiKeyFixture({ key: fullKey })],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
     await wrapper.get('button[title="keys.copyToClipboard"]').trigger('click')
 
-    expect(clipboardCopy).toHaveBeenCalledWith(maskedKey, 'keys.copied')
-    expect(clipboardCopy).not.toHaveBeenCalledWith(expect.stringContaining('secret'), expect.anything())
+    expect(clipboardCopy).toHaveBeenCalledWith(fullKey, 'keys.copied')
   })
 
   it('does not change API key status when the confirmation is cancelled', async () => {
