@@ -116,19 +116,19 @@ func ApplyAPIKeyAuthWithSubscriptionContext(apiKeyService *service.APIKeyService
 	if !skipBilling {
 		switch apiKey.Status {
 		case service.StatusAPIKeyQuotaExhausted:
-			abortWithErrorContext(c, 429, "API_KEY_QUOTA_EXHAUSTED", "API key 额度已用完")
+			abortWithErrorContext(c, 429, "API_KEY_QUOTA_EXHAUSTED", "API key quota exhausted")
 			return false
 		case service.StatusAPIKeyExpired:
-			abortWithErrorContext(c, 403, "API_KEY_EXPIRED", "API key 已过期")
+			abortWithErrorContext(c, 403, "API_KEY_EXPIRED", "API key has expired")
 			return false
 		}
 
 		if apiKey.IsExpired() {
-			abortWithErrorContext(c, 403, "API_KEY_EXPIRED", "API key 已过期")
+			abortWithErrorContext(c, 403, "API_KEY_EXPIRED", "API key has expired")
 			return false
 		}
 		if apiKey.IsQuotaExhausted() {
-			abortWithErrorContext(c, 429, "API_KEY_QUOTA_EXHAUSTED", "API key 额度已用完")
+			abortWithErrorContext(c, 429, "API_KEY_QUOTA_EXHAUSTED", "API key quota exhausted")
 			return false
 		}
 
