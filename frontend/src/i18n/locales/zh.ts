@@ -1119,6 +1119,8 @@ export default {
       failed: '支付失败',
       processing: '支付处理中',
       processingHint: '我们正在确认支付结果，请稍后刷新订单状态。',
+      settling: '已支付，正在入账',
+      settlingHint: '支付已经确认，系统正在更新余额或开通订阅。完成前请以订单状态为准。',
       missingOrder: '无法确认支付结果',
       missingOrderHint: '缺少订单信息，请返回订单记录查看最近订单，或回到充值页重新发起。',
       backToRecharge: '返回充值',

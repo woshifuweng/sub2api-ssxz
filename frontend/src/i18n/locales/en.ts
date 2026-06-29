@@ -1115,6 +1115,8 @@ export default {
       failed: 'Payment failed',
       processing: 'Payment processing',
       processingHint: 'We are confirming the payment result. Please refresh the order status later.',
+      settling: 'Paid, updating account',
+      settlingHint: 'Payment is confirmed. We are updating the balance or activating the subscription. Use the order status as the source of truth until it completes.',
       missingOrder: 'Payment result unavailable',
       missingOrderHint: 'Order information is missing. Check your order records or return to recharge to start again.',
       backToRecharge: 'Back to recharge',
