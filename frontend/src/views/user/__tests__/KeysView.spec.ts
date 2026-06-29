@@ -411,6 +411,31 @@ describe('KeysView workbench surface', () => {
     expect(wrapper.find('[data-testid="confirm-dialog"]').exists()).toBe(false)
   })
 
+  it('does not fake success or refresh data when disabling an API key fails', async () => {
+    keysAPI.list.mockResolvedValue({
+      items: [apiKeyFixture()],
+      total: 1,
+      pages: 1
+    })
+    keysAPI.toggleStatus.mockRejectedValue(new Error('network unavailable'))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const disableButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.disable'))
+    expect(disableButton).toBeTruthy()
+    await disableButton!.trigger('click')
+    await wrapper.get('[data-testid="confirm-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(keysAPI.toggleStatus).toHaveBeenCalledWith(1, 'inactive')
+    expect(keysAPI.list).toHaveBeenCalledTimes(1)
+    expect(appStore.showError).toHaveBeenCalledWith('keys.failedToUpdateStatus')
+    expect(appStore.showSuccess).not.toHaveBeenCalled()
+  })
+
   it('requires confirmation before enabling an inactive API key', async () => {
     keysAPI.list.mockResolvedValue({
       items: [apiKeyFixture({ status: 'inactive' })],
@@ -468,6 +493,32 @@ describe('KeysView workbench surface', () => {
     expect(keysAPI.list).toHaveBeenCalledTimes(2)
     expect(appStore.showSuccess).toHaveBeenCalledWith('keys.keyDeletedSuccess')
     expect(wrapper.find('[data-testid="confirm-dialog"]').exists()).toBe(false)
+  })
+
+  it('keeps the delete confirmation visible and does not refresh when deleting an API key fails', async () => {
+    keysAPI.list.mockResolvedValue({
+      items: [apiKeyFixture()],
+      total: 1,
+      pages: 1
+    })
+    keysAPI.delete.mockRejectedValue(new Error('cannot delete active key'))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const deleteButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.delete'))
+    expect(deleteButton).toBeTruthy()
+    await deleteButton!.trigger('click')
+    await wrapper.get('[data-testid="confirm-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(keysAPI.delete).toHaveBeenCalledWith(1)
+    expect(keysAPI.list).toHaveBeenCalledTimes(1)
+    expect(appStore.showError).toHaveBeenCalledWith('cannot delete active key')
+    expect(appStore.showSuccess).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="confirm-dialog"]').exists()).toBe(true)
   })
 
   it('does not delete an API key when the confirmation is cancelled', async () => {
