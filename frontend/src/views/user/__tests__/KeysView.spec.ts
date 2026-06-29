@@ -711,6 +711,77 @@ describe('KeysView workbench surface', () => {
     expect(wrapper.html()).not.toContain(createdKey)
   })
 
+  it('does not close the create dialog or reveal a key when API key creation fails', async () => {
+    userGroupsAPI.getAvailable.mockResolvedValue([groupFixture()])
+    keysAPI.create.mockRejectedValue({
+      response: {
+        data: {
+          detail: 'quota is not available for this group'
+        }
+      }
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const createButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.createKey'))
+    expect(createButton).toBeTruthy()
+    await createButton!.trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-tour="key-form-name"]').setValue('client-key')
+    await wrapper.get('form#key-form').trigger('submit')
+    await flushPromises()
+
+    expect(keysAPI.create).toHaveBeenCalledTimes(1)
+    expect(keysAPI.list).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-testid="base-dialog"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="created-key-reveal"]').exists()).toBe(false)
+    expect(appStore.showError).toHaveBeenCalledWith('quota is not available for this group')
+    expect(appStore.showSuccess).not.toHaveBeenCalled()
+    expect(onboardingStore.nextStep).not.toHaveBeenCalled()
+  })
+
+  it('does not close the edit dialog or refresh data when API key update fails', async () => {
+    keysAPI.list.mockResolvedValue({
+      items: [apiKeyFixture()],
+      total: 1,
+      pages: 1
+    })
+    keysAPI.update.mockRejectedValue({
+      response: {
+        data: {
+          detail: 'API key name is already used'
+        }
+      }
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const editButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.edit'))
+    expect(editButton).toBeTruthy()
+    await editButton!.trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-tour="key-form-name"]').setValue('renamed-key')
+    await wrapper.get('form#key-form').trigger('submit')
+    await flushPromises()
+
+    expect(keysAPI.update).toHaveBeenCalledWith(1, expect.objectContaining({
+      name: 'renamed-key'
+    }))
+    expect(keysAPI.list).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-testid="base-dialog"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="created-key-reveal"]').exists()).toBe(false)
+    expect(appStore.showError).toHaveBeenCalledWith('API key name is already used')
+    expect(appStore.showSuccess).not.toHaveBeenCalled()
+  })
+
   it('does not pass a masked list key into the usage modal', async () => {
     keysAPI.list.mockResolvedValue({
       items: [
