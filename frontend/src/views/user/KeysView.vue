@@ -1941,13 +1941,16 @@ const setExpirationDays = (days: number) => {
 // Reset quota used for an API key
 const resetQuotaUsed = async () => {
   if (!selectedKey.value) return
+  const keyId = selectedKey.value.id
   showResetQuotaDialog.value = false
   try {
-    await keysAPI.update(selectedKey.value.id, { reset_quota: true })
+    await keysAPI.update(keyId, { reset_quota: true })
     appStore.showSuccess(t('keys.quotaResetSuccess'))
-    // Update local state
-    if (selectedKey.value) {
-      selectedKey.value.quota_used = 0
+    // Refresh key data so backend-calculated status and quota fields stay authoritative.
+    await loadApiKeys()
+    const refreshedKey = apiKeys.value.find(k => k.id === keyId)
+    if (refreshedKey) {
+      selectedKey.value = refreshedKey
     }
   } catch (error: any) {
     const errorMsg = error.response?.data?.detail || t('keys.failedToResetQuota')

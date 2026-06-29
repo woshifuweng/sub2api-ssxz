@@ -484,6 +484,53 @@ describe('KeysView workbench surface', () => {
     expect(wrapper.find('[data-testid="confirm-dialog"]').exists()).toBe(false)
   })
 
+  it('refreshes API key data after resetting quota usage', async () => {
+    const exhaustedKey = apiKeyFixture({
+      id: 9,
+      name: 'quota-key',
+      status: 'quota_exhausted',
+      quota: 10,
+      quota_used: 12.5
+    })
+    const refreshedKey = apiKeyFixture({
+      id: 9,
+      name: 'quota-key',
+      status: 'active',
+      quota: 10,
+      quota_used: 0
+    })
+    keysAPI.list
+      .mockResolvedValueOnce({ items: [exhaustedKey], total: 1, pages: 1 })
+      .mockResolvedValueOnce({ items: [refreshedKey], total: 1, pages: 1 })
+    keysAPI.update.mockResolvedValue(refreshedKey)
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const editButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.edit'))
+    expect(editButton).toBeTruthy()
+    await editButton!.trigger('click')
+    await flushPromises()
+
+    const resetButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.reset'))
+    expect(resetButton).toBeTruthy()
+    await resetButton!.trigger('click')
+
+    expect(keysAPI.update).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('keys.resetQuotaTitle')
+
+    await wrapper.get('[data-testid="confirm-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(keysAPI.update).toHaveBeenCalledWith(9, { reset_quota: true })
+    expect(keysAPI.list).toHaveBeenCalledTimes(2)
+    expect(appStore.showSuccess).toHaveBeenCalledWith('keys.quotaResetSuccess')
+  })
+
   it('preselects the first available group when creating an API key', async () => {
     userGroupsAPI.getAvailable.mockResolvedValue([groupFixture()])
 

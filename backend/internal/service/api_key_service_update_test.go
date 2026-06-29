@@ -134,6 +134,35 @@ func TestAPIKeyService_Update_ResetRateLimitUsageInvalidatesRateLimitCache(t *te
 	require.Equal(t, []int64{100}, invalidator.invalidatedIDs)
 }
 
+func TestAPIKeyService_Update_ResetQuotaClearsUsageReactivatesAndInvalidatesAuthCache(t *testing.T) {
+	repo := &apiKeyUpdateRepoStub{
+		key: &APIKey{
+			ID:        100,
+			UserID:    7,
+			Key:       "sk-owner-key",
+			Name:      "restricted",
+			Status:    StatusAPIKeyQuotaExhausted,
+			Quota:     10,
+			QuotaUsed: 12.5,
+		},
+	}
+	cache := &apiKeyCacheStub{}
+	svc := &APIKeyService{apiKeyRepo: repo, cache: cache}
+	reset := true
+
+	got, err := svc.Update(context.Background(), 100, 7, UpdateAPIKeyRequest{ResetQuota: &reset})
+
+	require.NoError(t, err)
+	require.Zero(t, got.QuotaUsed)
+	require.Equal(t, 10.0, got.Quota)
+	require.Equal(t, StatusAPIKeyActive, got.Status)
+	require.NotNil(t, repo.updated)
+	require.Zero(t, repo.updated.QuotaUsed)
+	require.Equal(t, 10.0, repo.updated.Quota)
+	require.Equal(t, StatusAPIKeyActive, repo.updated.Status)
+	require.Equal(t, []string{svc.authCacheKey("sk-owner-key")}, cache.deleteAuthKeys)
+}
+
 func TestAPIKeyService_Update_PreservesIPRestrictionsWhenOmitted(t *testing.T) {
 	repo := &apiKeyUpdateRepoStub{
 		key: &APIKey{
