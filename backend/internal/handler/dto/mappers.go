@@ -82,6 +82,7 @@ func APIKeyForSafeReplay(k *APIKey) *APIKey {
 	}
 	out := *k
 	out.Key = maskAPIKey(k.Key)
+	out.Status = normalizeUserAPIKeyStatus(k.Status)
 	out.GroupIDs = append([]int64(nil), k.GroupIDs...)
 	out.AllowedModels = append([]string(nil), k.AllowedModels...)
 	out.IPWhitelist = append([]string(nil), k.IPWhitelist...)
@@ -106,7 +107,7 @@ func apiKeyFromService(k *service.APIKey, includePlaintextKey bool) *APIKey {
 		GroupID:       k.GroupID,
 		GroupIDs:      append([]int64(nil), k.GroupIDs...),
 		AllowedModels: append([]string{}, k.AllowedModels...),
-		Status:        k.Status,
+		Status:        normalizeUserAPIKeyStatus(k.Status),
 		IPWhitelist:   k.IPWhitelist,
 		IPBlacklist:   k.IPBlacklist,
 		LastUsedAt:    k.LastUsedAt,
@@ -149,6 +150,13 @@ func apiKeyFromService(k *service.APIKey, includePlaintextKey bool) *APIKey {
 		out.Reset7dAt = &t
 	}
 	return out
+}
+
+func normalizeUserAPIKeyStatus(status string) string {
+	if status == service.StatusAPIKeyDisabled {
+		return "inactive"
+	}
+	return status
 }
 
 func maskAPIKey(key string) string {
