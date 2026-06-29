@@ -265,35 +265,39 @@ func TestAPIKeyAuthStandardModeRejectsBillingRestrictions(t *testing.T) {
 	past := time.Now().Add(-time.Hour)
 
 	tests := []struct {
-		name       string
-		mutateKey  func(*service.APIKey)
-		mutateUser func(*service.User)
-		wantCode   int
-		wantBody   string
+		name        string
+		mutateKey   func(*service.APIKey)
+		mutateUser  func(*service.User)
+		wantCode    int
+		wantBody    string
+		wantMessage string
 	}{
 		{
 			name: "explicit expired status",
 			mutateKey: func(apiKey *service.APIKey) {
 				apiKey.Status = service.StatusAPIKeyExpired
 			},
-			wantCode: http.StatusForbidden,
-			wantBody: "API_KEY_EXPIRED",
+			wantCode:    http.StatusForbidden,
+			wantBody:    "API_KEY_EXPIRED",
+			wantMessage: "API key has expired",
 		},
 		{
 			name: "elapsed expiration time",
 			mutateKey: func(apiKey *service.APIKey) {
 				apiKey.ExpiresAt = &past
 			},
-			wantCode: http.StatusForbidden,
-			wantBody: "API_KEY_EXPIRED",
+			wantCode:    http.StatusForbidden,
+			wantBody:    "API_KEY_EXPIRED",
+			wantMessage: "API key has expired",
 		},
 		{
 			name: "explicit quota exhausted status",
 			mutateKey: func(apiKey *service.APIKey) {
 				apiKey.Status = service.StatusAPIKeyQuotaExhausted
 			},
-			wantCode: http.StatusTooManyRequests,
-			wantBody: "API_KEY_QUOTA_EXHAUSTED",
+			wantCode:    http.StatusTooManyRequests,
+			wantBody:    "API_KEY_QUOTA_EXHAUSTED",
+			wantMessage: "API key quota exhausted",
 		},
 		{
 			name: "exhausted quota",
@@ -301,16 +305,18 @@ func TestAPIKeyAuthStandardModeRejectsBillingRestrictions(t *testing.T) {
 				apiKey.Quota = 1
 				apiKey.QuotaUsed = 1
 			},
-			wantCode: http.StatusTooManyRequests,
-			wantBody: "API_KEY_QUOTA_EXHAUSTED",
+			wantCode:    http.StatusTooManyRequests,
+			wantBody:    "API_KEY_QUOTA_EXHAUSTED",
+			wantMessage: "API key quota exhausted",
 		},
 		{
 			name: "insufficient balance",
 			mutateUser: func(user *service.User) {
 				user.Balance = 0
 			},
-			wantCode: http.StatusForbidden,
-			wantBody: "INSUFFICIENT_BALANCE",
+			wantCode:    http.StatusForbidden,
+			wantBody:    "INSUFFICIENT_BALANCE",
+			wantMessage: "Insufficient account balance",
 		},
 	}
 
@@ -358,6 +364,7 @@ func TestAPIKeyAuthStandardModeRejectsBillingRestrictions(t *testing.T) {
 
 			require.Equal(t, tt.wantCode, w.Code)
 			require.Contains(t, w.Body.String(), tt.wantBody)
+			require.Contains(t, w.Body.String(), tt.wantMessage)
 		})
 	}
 }
