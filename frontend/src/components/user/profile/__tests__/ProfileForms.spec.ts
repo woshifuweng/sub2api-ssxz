@@ -131,4 +131,28 @@ describe('ProfilePasswordForm', () => {
     expect((wrapper.get('#confirm_password').element as HTMLInputElement).value).toBe('')
     expect(appStore.showSuccess).toHaveBeenCalledWith('profile.passwordChangeSuccess')
   })
+
+  it('shows backend password change failures without clearing password fields', async () => {
+    userAPI.changePassword.mockRejectedValue({
+      response: {
+        data: {
+          detail: 'current password is incorrect'
+        }
+      }
+    })
+    const wrapper = mount(ProfilePasswordForm)
+
+    await wrapper.get('#old_password').setValue('wrong-password')
+    await wrapper.get('#new_password').setValue('new-password')
+    await wrapper.get('#confirm_password').setValue('new-password')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(userAPI.changePassword).toHaveBeenCalledWith('wrong-password', 'new-password')
+    expect((wrapper.get('#old_password').element as HTMLInputElement).value).toBe('wrong-password')
+    expect((wrapper.get('#new_password').element as HTMLInputElement).value).toBe('new-password')
+    expect((wrapper.get('#confirm_password').element as HTMLInputElement).value).toBe('new-password')
+    expect(appStore.showError).toHaveBeenCalledWith('current password is incorrect')
+    expect(appStore.showSuccess).not.toHaveBeenCalled()
+  })
 })
