@@ -144,6 +144,8 @@ jobs:
       - name: Build frontend
         run: pnpm run build
         working-directory: frontend
+        env:
+          VITE_CHAT_WORKSPACE_BACKEND_ENABLED: 'true'
 
       - name: Upload frontend artifact
         uses: actions/upload-artifact@v7

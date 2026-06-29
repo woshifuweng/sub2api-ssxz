@@ -25,6 +25,9 @@ FROM ${NODE_IMAGE} AS frontend-builder
 
 WORKDIR /app/frontend
 
+ARG VITE_CHAT_WORKSPACE_BACKEND_ENABLED=true
+ENV VITE_CHAT_WORKSPACE_BACKEND_ENABLED=${VITE_CHAT_WORKSPACE_BACKEND_ENABLED}
+
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@9 --activate
 

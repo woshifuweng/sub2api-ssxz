@@ -110,6 +110,7 @@ jobs:
             DATE=${{ steps.build_time.outputs.date }}
             RELEASE_REPO=${{ github.repository }}
             REPO_URL=https://github.com/${{ github.repository }}
+            VITE_CHAT_WORKSPACE_BACKEND_ENABLED=true
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
