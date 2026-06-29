@@ -141,6 +141,31 @@ func TestExecutableAPIKeyRoutesRequireUserAuthMiddleware(t *testing.T) {
 	}
 }
 
+func TestExecutableProfileSecurityRoutesRequireUserAuthMiddleware(t *testing.T) {
+	routesByKey := collectRouteDefsByKey(ExecutableUserRoutes(&handler.Handlers{
+		User: &handler.UserHandler{},
+		Totp: &handler.TotpHandler{},
+	}))
+
+	for _, item := range []routeKey{
+		{method: http.MethodGet, path: "/api/v1/user/profile"},
+		{method: http.MethodPut, path: "/api/v1/user/password"},
+		{method: http.MethodPut, path: "/api/v1/user"},
+		{method: http.MethodGet, path: "/api/v1/user/totp/status"},
+		{method: http.MethodGet, path: "/api/v1/user/totp/verification-method"},
+		{method: http.MethodPost, path: "/api/v1/user/totp/send-code"},
+		{method: http.MethodPost, path: "/api/v1/user/totp/setup"},
+		{method: http.MethodPost, path: "/api/v1/user/totp/enable"},
+		{method: http.MethodPost, path: "/api/v1/user/totp/disable"},
+	} {
+		def, ok := routesByKey[item]
+		require.True(t, ok, "profile security route %s %s should be registered", item.method, item.path)
+		require.Contains(t, def.Middleware, "jwt_auth", "profile security route %s %s should require user auth", item.method, item.path)
+		require.Contains(t, def.Middleware, "backend_mode_user_guard", "profile security route %s %s should require backend-mode user guard", item.method, item.path)
+		require.NotContains(t, def.Middleware, "admin_auth", "profile security route %s %s should remain a user route", item.method, item.path)
+	}
+}
+
 type routeKey struct {
 	method string
 	path   string
