@@ -64,6 +64,8 @@ Last updated: 2026-06-29
 - 2026-06-29: PR #219 was merged to main at `57eccdd3`, deployed to staging, then deployed to production after CI and staging smoke passed. Production and staging `/opt/sub2api/sub2api*` binaries both run SHA-256 `6b6a82785d1584a5ab5d917d0d786de018ff1879dd50342a19ed5f46ae604411`.
 - 2026-06-29: #219 staging backup is `/opt/sub2api/backups/staging-before-pr219-57eccdd3a-20260629-065352-sub2api-staging`; production backup is `/opt/sub2api/backups/production-before-pr219-57eccdd3a-20260629-065440/sub2api`.
 - 2026-06-29: after the #219 production deployment, public smoke returned HTTP 200 for `https://api.ssxzapi.com/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public`; `/v1/models` without an API key returned HTTP 401. No real provider was called, no database migration, no Nginx change, no payment file change, no provider-routing change, and no production config change was part of the release. No-cap token requests now get a conservative safety-budget eligibility check before provider dispatch; full reservation/pre-charge spend-cap design remains later hardening.
+- 2026-06-29: PR #228 was merged to main at `87504f2096b0` and deployed to staging only from GHCR image `ghcr.io/woshifuweng/sub2api:87504f2096b0`. Staging `/opt/sub2api/sub2api-staging` runs SHA-256 `5a8da633aa7a165a4dc365370fffa4303ca1ba6087216f0e822948bec6ecd0b3`; production was not deployed.
+- 2026-06-29: after the #228 staging deployment, staging smoke returned HTTP 200 for `/health`, `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/app/profile`; `/v1/models` without an API key returned HTTP 401. Ordinary-user `/app/chat` loaded the real workspace with a usable text input, no backend-gate blocking copy, no image-upload file input, no `Gpt-Image-2`, and no `AI response provider is not connected yet`. No real provider was called, no database migration, no Nginx change, no payment file change, no provider-routing change, and no production config change was part of the release.
 
 ## P0 Bugs And Structural Fixes
 
@@ -92,7 +94,7 @@ Last updated: 2026-06-29
 
 ## Phase Progress Snapshot
 
-- P0 / P0-Beta convergence: about 99%. Remaining P0/P0-Beta risk is controlled production image-generation acceptance, full reservation/pre-charge spend-cap hardening, and any regression found while doing P1.
+- P0 / P0-Beta convergence: about 99%. Remaining P0/P0-Beta risk is controlled production image-generation acceptance, full reservation/pre-charge spend-cap hardening, production rollout of staging-only chat gate fixes when batched, and any regression found while doing P1.
 - P1 product/operations: about 42%. Completed or staged slices: image-model alias display clarity, user-shell lint baseline cleanup, first image history/download feedback hardening, staging catalog exposure verification, API Key third-party access copy/safety polish, usage explanation-state clarity, profile TOTP failure clarity, masked API-key configuration guards, `/app/usage` DTO/balance-refresh boundary verification, Google/Gemini-compatible API-key auth restriction parity, production-deployed usage-billing no-overdraft safety, production-deployed bounded generic/Gemini token request cost gating, production-deployed bounded OpenAI Responses WebSocket token cost gating, and production-deployed no-cap token-request safety-budget gating. Remaining large P1 loops: controlled production real-generation acceptance, broader usage/balance workflow verification, full API Key lifecycle/security verification, and admin/ops hardening.
 - Distance to P2: about 58% of P1 remains. Do not prioritize P2 visual polish until P1 loops have evidence.
 - P2: 0%. Keep as later polish/enhancement work.
@@ -101,6 +103,7 @@ Last updated: 2026-06-29
 
 - Login/register to user workspace entry.
 - `/app/chat` text chat.
+  - PR #228 staging validation confirmed production-style frontend builds no longer block the chat workspace backend gate on staging; production rollout remains a separate release gate.
 - `/app/image` image generation:
   - permission/group: staging success path verified once
   - model/account: staging success path verified once with `gpt-image-2` and account id `14`
