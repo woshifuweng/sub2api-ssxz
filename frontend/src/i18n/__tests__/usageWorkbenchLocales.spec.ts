@@ -8,6 +8,7 @@ describe('usage workbench locale copy', () => {
     const copy = [
       zh.usage.workbench.subtitle,
       zh.usage.workbench.balanceDescription,
+      zh.usage.workbench.balanceRefreshError,
       zh.usage.workbench.billingExplanationDescription,
       zh.usage.workbench.billingExplanationItems.failureNoCharge,
       zh.usage.workbench.billingBalance,
@@ -36,6 +37,7 @@ describe('usage workbench locale copy', () => {
     const copy = [
       en.usage.workbench.subtitle,
       en.usage.workbench.balanceDescription,
+      en.usage.workbench.balanceRefreshError,
       en.usage.workbench.billingExplanationDescription,
       en.usage.workbench.billingExplanationItems.failureNoCharge,
       en.usage.workbench.billingBalance,
@@ -49,6 +51,7 @@ describe('usage workbench locale copy', () => {
 
     expect(copy).toContain('real usage')
     expect(copy).toContain('third-party')
+    expect(copy).toContain('stale')
     expect(copy).toContain('frontend does not decide prices')
     expect(copy).toContain('no charge')
     expect(copy).toContain('Balance charge')

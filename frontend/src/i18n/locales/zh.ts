@@ -773,6 +773,7 @@ export default {
       eyebrow: '账户计量',
       balanceTitle: '账户余额',
       balanceDescription: '可用于站内聊天、图片生成和 API Key / 第三方接入调用。',
+      balanceRefreshError: '余额暂时无法刷新，当前显示可能是上次加载的余额，请稍后重试。',
       recharge: '充值',
       monthlyCostTitle: '本月消耗',
       unavailable: '暂不可用',

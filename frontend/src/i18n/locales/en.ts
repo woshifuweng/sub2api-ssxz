@@ -769,6 +769,7 @@ export default {
       eyebrow: 'Account metering',
       balanceTitle: 'Account balance',
       balanceDescription: 'Available for in-app chat, image generation, and API Key / third-party client calls.',
+      balanceRefreshError: 'Balance could not be refreshed. The value shown may be stale; please retry shortly.',
       recharge: 'Recharge',
       monthlyCostTitle: 'Current-month spend',
       unavailable: 'Unavailable',
