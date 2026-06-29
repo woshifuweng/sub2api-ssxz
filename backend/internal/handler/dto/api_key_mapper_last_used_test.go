@@ -83,6 +83,20 @@ func TestAPIKeyFromServiceWithPlaintextKey_ReturnsFullKeyForCreateOnly(t *testin
 	require.Equal(t, src.Key, out.Key)
 }
 
+func TestAPIKeyFromService_NormalizesDisabledStatusToInactive(t *testing.T) {
+	src := &service.APIKey{
+		ID:     1,
+		UserID: 2,
+		Key:    "sk-test-secret-value-123456",
+		Name:   "Disabled",
+		Status: service.StatusAPIKeyDisabled,
+	}
+
+	out := APIKeyFromService(src)
+	require.NotNil(t, out)
+	require.Equal(t, "inactive", out.Status)
+}
+
 func TestAPIKeyForSafeReplay_MasksPlaintextCreateKey(t *testing.T) {
 	src := &APIKey{
 		ID:            1,
@@ -112,4 +126,18 @@ func TestAPIKeyForSafeReplay_MasksPlaintextCreateKey(t *testing.T) {
 	require.Equal(t, []string{"gpt-image-2"}, src.AllowedModels)
 	require.Equal(t, []string{"203.0.113.10"}, src.IPWhitelist)
 	require.Equal(t, []string{"198.51.100.20"}, src.IPBlacklist)
+}
+
+func TestAPIKeyForSafeReplay_NormalizesDisabledStatusToInactive(t *testing.T) {
+	src := &APIKey{
+		ID:     1,
+		UserID: 2,
+		Key:    "sk-test-secret-value-123456",
+		Name:   "DisabledReplay",
+		Status: service.StatusAPIKeyDisabled,
+	}
+
+	out := APIKeyForSafeReplay(src)
+	require.NotNil(t, out)
+	require.Equal(t, "inactive", out.Status)
 }

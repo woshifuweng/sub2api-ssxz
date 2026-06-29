@@ -8,6 +8,7 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
 	"github.com/Wei-Shaw/sub2api/ent/group"
+	dbpredicate "github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/schema/mixins"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -324,7 +325,7 @@ func (r *apiKeyRepository) ListByUserID(ctx context.Context, userID int64, param
 		))
 	}
 	if filters.Status != "" {
-		q = q.Where(apikey.StatusEQ(filters.Status))
+		q = q.Where(apiKeyUserStatusPredicate(filters.Status))
 	}
 	if filters.GroupID != nil {
 		if *filters.GroupID == 0 {
@@ -362,6 +363,16 @@ func (r *apiKeyRepository) ListByUserID(ctx context.Context, userID int64, param
 	}
 
 	return outKeys, paginationResultFromTotal(int64(total), params), nil
+}
+
+func apiKeyUserStatusPredicate(status string) dbpredicate.APIKey {
+	if status == "inactive" {
+		return apikey.Or(
+			apikey.StatusEQ("inactive"),
+			apikey.StatusEQ(service.StatusAPIKeyDisabled),
+		)
+	}
+	return apikey.StatusEQ(status)
 }
 
 func (r *apiKeyRepository) VerifyOwnership(ctx context.Context, userID int64, apiKeyIDs []int64) ([]int64, error) {

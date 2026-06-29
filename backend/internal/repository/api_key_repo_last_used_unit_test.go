@@ -142,6 +142,53 @@ func TestAPIKeyRepository_UpdateLastUsedDBError(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestAPIKeyRepository_InactiveStatusPredicateIncludesDisabledKeys(t *testing.T) {
+	repo, _ := newAPIKeyRepoSQLite(t)
+	ctx := context.Background()
+	user := mustCreateAPIKeyRepoUser(t, ctx, repo.client, "inactive-filter@test.com")
+
+	active := &service.APIKey{
+		UserID: user.ID,
+		Key:    "sk-inactive-filter-active",
+		Name:   "Active",
+		Status: service.StatusActive,
+	}
+	require.NoError(t, repo.Create(ctx, active))
+
+	inactive := &service.APIKey{
+		UserID: user.ID,
+		Key:    "sk-inactive-filter-inactive",
+		Name:   "Inactive",
+		Status: "inactive",
+	}
+	require.NoError(t, repo.Create(ctx, inactive))
+
+	disabled := &service.APIKey{
+		UserID: user.ID,
+		Key:    "sk-inactive-filter-disabled",
+		Name:   "Disabled",
+		Status: service.StatusAPIKeyDisabled,
+	}
+	require.NoError(t, repo.Create(ctx, disabled))
+
+	keys, err := repo.activeQuery().
+		Where(
+			apikey.UserIDEQ(user.ID),
+			apiKeyUserStatusPredicate("inactive"),
+		).
+		All(ctx)
+	require.NoError(t, err)
+	require.Len(t, keys, 2)
+
+	statusesByName := map[string]string{}
+	for _, key := range keys {
+		statusesByName[key.Name] = key.Status
+	}
+	require.Equal(t, "inactive", statusesByName["Inactive"])
+	require.Equal(t, service.StatusAPIKeyDisabled, statusesByName["Disabled"])
+	require.NotContains(t, statusesByName, "Active")
+}
+
 func TestAPIKeyRepository_CreateDuplicateKey(t *testing.T) {
 	repo, client := newAPIKeyRepoSQLite(t)
 	ctx := context.Background()
