@@ -554,6 +554,11 @@ describe('KeysView workbench surface', () => {
     await wrapper.get('[data-testid="created-key-copy"]').trigger('click')
     await flushPromises()
     expect(clipboardCopy).toHaveBeenCalledWith(createdKey, 'keys.createdKeyReveal.fullKeyCopied')
+
+    await wrapper.get('[data-testid="created-key-ack"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="created-key-reveal"]').exists()).toBe(false)
+    expect(wrapper.html()).not.toContain(createdKey)
   })
 
   it('does not pass a masked list key into the usage modal', async () => {

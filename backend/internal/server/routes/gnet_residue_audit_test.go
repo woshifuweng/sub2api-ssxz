@@ -17,6 +17,7 @@ func TestCoreExecutableRouteParity(t *testing.T) {
 	h := &handler.Handlers{
 		Auth:             &handler.AuthHandler{},
 		User:             &handler.UserHandler{},
+		APIKey:           &handler.APIKeyHandler{},
 		AvailableChannel: &handler.AvailableChannelHandler{},
 		ChannelMonitor:   &handler.ChannelMonitorUserHandler{},
 		Payment:          &handler.PaymentHandler{},
@@ -120,6 +121,26 @@ func TestCoreExecutableRouteParity(t *testing.T) {
 	}
 }
 
+func TestExecutableAPIKeyRoutesRequireUserAuthMiddleware(t *testing.T) {
+	routesByKey := collectRouteDefsByKey(ExecutableUserRoutes(&handler.Handlers{
+		APIKey: &handler.APIKeyHandler{},
+	}))
+
+	for _, item := range []routeKey{
+		{method: http.MethodGet, path: "/api/v1/keys"},
+		{method: http.MethodGet, path: "/api/v1/keys/:id"},
+		{method: http.MethodPost, path: "/api/v1/keys"},
+		{method: http.MethodPut, path: "/api/v1/keys/:id"},
+		{method: http.MethodDelete, path: "/api/v1/keys/:id"},
+	} {
+		def, ok := routesByKey[item]
+		require.True(t, ok, "API Key route %s %s should be registered", item.method, item.path)
+		require.Contains(t, def.Middleware, "jwt_auth", "API Key route %s %s should require user auth", item.method, item.path)
+		require.Contains(t, def.Middleware, "backend_mode_user_guard", "API Key route %s %s should require backend-mode user guard", item.method, item.path)
+		require.NotContains(t, def.Middleware, "admin_auth", "API Key route %s %s should remain a user route", item.method, item.path)
+	}
+}
+
 type routeKey struct {
 	method string
 	path   string
@@ -129,6 +150,14 @@ func collectRouteKeys(defs []gatewayctx.RouteDef) []routeKey {
 	out := make([]routeKey, 0, len(defs))
 	for _, def := range defs {
 		out = append(out, routeKey{method: def.Method, path: def.Path})
+	}
+	return out
+}
+
+func collectRouteDefsByKey(defs []gatewayctx.RouteDef) map[routeKey]gatewayctx.RouteDef {
+	out := make(map[routeKey]gatewayctx.RouteDef, len(defs))
+	for _, def := range defs {
+		out[routeKey{method: def.Method, path: def.Path}] = def
 	}
 	return out
 }
