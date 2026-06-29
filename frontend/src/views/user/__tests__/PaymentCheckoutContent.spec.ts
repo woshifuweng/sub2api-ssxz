@@ -23,7 +23,8 @@ const { paymentAPI, paymentStore, subscriptionStore, authStore, appStore, routeM
   },
   appStore: {
     showError: vi.fn(),
-    showWarning: vi.fn()
+    showWarning: vi.fn(),
+    showInfo: vi.fn()
   },
   routeMock: {
     path: '/app/purchase',
@@ -31,7 +32,8 @@ const { paymentAPI, paymentStore, subscriptionStore, authStore, appStore, routeM
   },
   routerMock: {
     resolve: vi.fn((route: { path: string }) => ({ href: route.path })),
-    replace: vi.fn()
+    replace: vi.fn(),
+    push: vi.fn()
   }
 }))
 
@@ -77,7 +79,9 @@ vi.mock('@/components/icons/Icon.vue', () => ({
 vi.mock('@/components/payment/AmountInput.vue', () => ({
   default: {
     name: 'AmountInput',
-    template: '<input data-testid="amount-input" />'
+    props: ['modelValue'],
+    emits: ['update:modelValue'],
+    template: '<input data-testid="amount-input" :value="modelValue ?? \'\'" @input="$emit(\'update:modelValue\', Number($event.target.value))" />'
   }
 }))
 
@@ -119,6 +123,21 @@ function checkoutInfo() {
   }
 }
 
+function checkoutInfoWithAlipay() {
+  return {
+    ...checkoutInfo(),
+    methods: {
+      alipay: {
+        single_min: 1,
+        single_max: 1000,
+        daily_limit: 0,
+        fee_rate: 0,
+        available: true
+      }
+    }
+  }
+}
+
 function mountContent(variant?: 'legacy' | 'workspace') {
   return mount(PaymentCheckoutContent, {
     props: variant ? { variant } : undefined,
@@ -147,6 +166,7 @@ describe('PaymentCheckoutContent', () => {
     routeMock.query = {}
     routerMock.resolve.mockClear()
     routerMock.replace.mockClear()
+    routerMock.push.mockClear()
     paymentStore.createOrder.mockReset()
     paymentStore.pollOrderStatus.mockReset()
     paymentStore.clearCurrentOrder.mockReset()
@@ -154,6 +174,19 @@ describe('PaymentCheckoutContent', () => {
     subscriptionStore.fetchActiveSubscriptions.mockResolvedValue([])
     appStore.showError.mockClear()
     appStore.showWarning.mockClear()
+    appStore.showInfo.mockClear()
+    window.localStorage.clear()
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn()
+      })
+    })
   })
 
   it('uses app-shell links and hides technical shortcuts in workspace mode', async () => {
@@ -211,5 +244,38 @@ describe('PaymentCheckoutContent', () => {
     expect(wrapper.text()).toContain('payment.noPlans')
     expect(wrapper.text()).not.toContain('payment.createOrder')
     expect(paymentStore.createOrder).not.toHaveBeenCalled()
+  })
+
+  it('keeps the user in select state when create order fails', async () => {
+    paymentAPI.getCheckoutInfo.mockResolvedValue({
+      data: checkoutInfoWithAlipay()
+    })
+    paymentStore.createOrder.mockRejectedValue({
+      reason: 'PAYMENT_GATEWAY_ERROR',
+      message: 'payment gateway unavailable'
+    })
+
+    const wrapper = mountContent('workspace')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="amount-input"]').setValue('10')
+    await flushPromises()
+
+    const submit = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('payment.createOrder'))
+    expect(submit).toBeTruthy()
+
+    await submit?.trigger('click')
+    await flushPromises()
+
+    expect(paymentStore.createOrder).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 10,
+      order_type: 'balance',
+      payment_type: 'alipay'
+    }))
+    expect(appStore.showError).toHaveBeenCalledWith(expect.stringContaining('payment.errors.alipayDesktopUnavailable'))
+    expect(wrapper.find('[data-testid="payment-status-panel"]').exists()).toBe(false)
+    expect(window.localStorage.getItem('payment.recovery.current')).toBeNull()
   })
 })
