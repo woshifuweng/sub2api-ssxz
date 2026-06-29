@@ -67,6 +67,36 @@
       </div>
     </template>
 
+    <!-- Paid, waiting for backend fulfillment -->
+    <template v-else-if="settlingOrder">
+      <div class="card p-6">
+        <div class="flex flex-col items-center space-y-4 py-4">
+          <div class="flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
+            <div class="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
+          </div>
+          <p class="text-lg font-bold text-gray-900 dark:text-white">{{ t('payment.result.settling') }}</p>
+          <p class="text-center text-sm text-gray-500 dark:text-gray-400">{{ t('payment.result.settlingHint') }}</p>
+          <div class="w-full rounded-xl bg-gray-50 p-4 dark:bg-dark-800">
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderId') }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">#{{ settlingOrder.id }}</span>
+              </div>
+              <div v-if="settlingOrder.out_trade_no" class="flex justify-between">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderNo') }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ settlingOrder.out_trade_no }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.status') }}</span>
+                <OrderStatusBadge :status="settlingOrder.status" />
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary" @click="handleDone">{{ t('common.confirm') }}</button>
+        </div>
+      </div>
+    </template>
+
     <!-- ═══ Active States: QR or Popup waiting ═══ -->
 
     <!-- QR Code Mode -->
@@ -131,6 +161,7 @@ import { extractI18nErrorMessage } from '@/utils/apiError'
 import { getPaymentPopupFeatures } from '@/components/payment/providerConfig'
 import type { PaymentOrder } from '@/types/payment'
 import Icon from '@/components/icons/Icon.vue'
+import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
 import QRCode from 'qrcode'
 import alipayIcon from '@/assets/icons/alipay.svg'
 import wxpayIcon from '@/assets/icons/wxpay.svg'
@@ -157,6 +188,7 @@ const qrUrl = ref('')
 const remainingSeconds = ref(0)
 const cancelling = ref(false)
 const paidOrder = ref<PaymentOrder | null>(null)
+const settlingOrder = ref<PaymentOrder | null>(null)
 
 // Terminal outcome: null = still active, 'success' | 'cancelled' | 'expired'
 const outcome = ref<PaymentOutcome | null>(null)
@@ -197,8 +229,12 @@ const countdownDisplay = computed(() => {
   return m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0')
 })
 
-function isSuccessStatus(status: string | null | undefined): boolean {
-  return status === 'COMPLETED' || status === 'PAID' || status === 'RECHARGING'
+function isCompletedStatus(status: string | null | undefined): boolean {
+  return status === 'COMPLETED'
+}
+
+function isSettlingStatus(status: string | null | undefined): boolean {
+  return status === 'PAID' || status === 'RECHARGING'
 }
 
 function reopenPopup() {
@@ -229,11 +265,14 @@ async function pollStatus() {
   if (!props.orderId || outcome.value) return
   const order = await paymentStore.pollOrderStatus(props.orderId)
   if (!order) return
-  if (isSuccessStatus(order.status)) {
+  if (isCompletedStatus(order.status)) {
     cleanup()
     paidOrder.value = order
     setOutcome('success')
     emit('success')
+  } else if (isSettlingStatus(order.status)) {
+    settlingOrder.value = order
+    clearCountdownTimer()
   } else if (order.status === 'CANCELLED') {
     cleanup()
     setOutcome('cancelled')
@@ -268,9 +307,16 @@ async function handleCancel() {
 
 function handleDone() { cleanup(); emit('done') }
 
+function clearCountdownTimer() {
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+}
+
 function cleanup() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
-  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null }
+  clearCountdownTimer()
 }
 
 // Initialize on mount

@@ -19,6 +19,10 @@
             class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900/30">
             <div class="h-10 w-10 animate-spin rounded-full border-4 border-yellow-500 border-t-transparent"></div>
           </div>
+          <div v-else-if="isSettling"
+            class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
+            <div class="h-10 w-10 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
+          </div>
           <div v-else-if="isMissingPaymentContext"
             class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
             <svg class="h-10 w-10 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -37,6 +41,9 @@
           </h2>
           <p v-if="isPending" class="mt-2 text-sm text-gray-500 dark:text-gray-400">
             {{ t('payment.result.processingHint') }}
+          </p>
+          <p v-else-if="isSettling" class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            {{ t('payment.result.settlingHint') }}
           </p>
           <p v-else-if="isMissingPaymentContext" class="mt-2 text-sm text-gray-500 dark:text-gray-400">
             {{ t('payment.result.missingOrderHint') }}
@@ -141,7 +148,8 @@ interface ReturnInfo {
 }
 const returnInfo = ref<ReturnInfo | null>(null)
 
-const SUCCESS_STATUSES = new Set(['COMPLETED', 'PAID', 'RECHARGING'])
+const SUCCESS_STATUSES = new Set(['COMPLETED'])
+const SETTLING_STATUSES = new Set(['PAID', 'RECHARGING'])
 const PENDING_STATUSES = new Set(['PENDING', 'CREATED', 'WAITING', 'PROCESSING'])
 const STATUS_REFRESH_INTERVAL_MS = 2000
 const STATUS_REFRESH_MAX_ATTEMPTS = 15
@@ -169,6 +177,10 @@ const isPending = computed(() => {
   return isPendingStatus(order.value?.status)
 })
 
+const isSettling = computed(() => {
+  return isSettlingStatus(order.value?.status)
+})
+
 const isMissingPaymentContext = computed(() => {
   return !order.value && !returnInfo.value && !hasPaymentLookupContext.value
 })
@@ -179,6 +191,9 @@ const statusTitle = computed(() => {
   }
   if (isSuccess.value) {
     return t('payment.result.success')
+  }
+  if (isSettling.value) {
+    return t('payment.result.settling')
   }
   if (isPending.value) {
     return t('payment.result.processing')
@@ -200,6 +215,14 @@ function isSuccessStatus(status: string | null | undefined): boolean {
 
 function isPendingStatus(status: string | null | undefined): boolean {
   return PENDING_STATUSES.has(normalizeOrderStatus(status))
+}
+
+function isSettlingStatus(status: string | null | undefined): boolean {
+  return SETTLING_STATUSES.has(normalizeOrderStatus(status))
+}
+
+function isRefreshablePaymentStatus(status: string | null | undefined): boolean {
+  return isPendingStatus(status) || isSettlingStatus(status)
 }
 
 function readRouteQueryString(key: string): string {
@@ -282,14 +305,14 @@ function clearRecoverySnapshot(): void {
 
 function clearRecoverySnapshotForTerminalStatus(status: string | null | undefined): void {
   if (!status) return
-  if (!isPendingStatus(status)) {
+  if (!isRefreshablePaymentStatus(status)) {
     clearRecoverySnapshot()
   }
 }
 
 function scheduleStatusRefresh(refreshOrder: (() => Promise<PaymentResultOrder | null>) | null): void {
   clearStatusRefreshTimer()
-  if (!refreshOrder || !isPending.value || refreshAttempts.value >= STATUS_REFRESH_MAX_ATTEMPTS) {
+  if (!refreshOrder || !isRefreshablePaymentStatus(order.value?.status) || refreshAttempts.value >= STATUS_REFRESH_MAX_ATTEMPTS) {
     return
   }
 
@@ -301,7 +324,7 @@ function scheduleStatusRefresh(refreshOrder: (() => Promise<PaymentResultOrder |
       clearRecoverySnapshotForTerminalStatus(refreshedOrder.status)
     }
 
-    if (isPendingStatus(order.value?.status)) {
+    if (isRefreshablePaymentStatus(order.value?.status)) {
       scheduleStatusRefresh(refreshOrder)
     }
   }, STATUS_REFRESH_INTERVAL_MS)
@@ -402,7 +425,7 @@ onMounted(async () => {
     return null
   }
 
-  if (isPendingStatus(order.value?.status)) {
+  if (isRefreshablePaymentStatus(order.value?.status)) {
     scheduleStatusRefresh(refreshOrder)
   } else if (order.value) {
     clearRecoverySnapshotForTerminalStatus(order.value.status)

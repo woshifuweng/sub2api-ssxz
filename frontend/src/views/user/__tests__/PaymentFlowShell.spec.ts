@@ -170,6 +170,32 @@ describe('payment flow shell ownership', () => {
     wrapper.unmount()
   })
 
+  it('shows settling for a recharging payment result instead of success', async () => {
+    routeMock.query = { order_id: '44' }
+    paymentStore.pollOrderStatus.mockResolvedValue({
+      id: 44,
+      out_trade_no: 'ORDER-44',
+      amount: 10,
+      pay_amount: 10,
+      fee_rate: 0,
+      payment_type: 'alipay',
+      order_type: 'balance',
+      status: 'RECHARGING',
+      created_at: '2026-06-18T08:00:00Z',
+      expires_at: '2026-06-18T08:30:00Z'
+    })
+
+    const wrapper = mount(PaymentResultView)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('payment.result.settling')
+    expect(wrapper.text()).toContain('payment.result.settlingHint')
+    expect(wrapper.text()).not.toContain('payment.result.success')
+    expect(wrapper.text()).not.toContain('payment.result.failed')
+    expect(wrapper.find('[data-testid="payment-flow-subtitle"]').text()).toBe('payment.result.settling')
+    wrapper.unmount()
+  })
+
   it('shows failed for a failed payment result instead of success', async () => {
     routeMock.query = { order_id: '43' }
     paymentStore.pollOrderStatus.mockResolvedValue({
