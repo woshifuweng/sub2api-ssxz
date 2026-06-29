@@ -230,6 +230,268 @@ func TestAPIKeyAuthRejectsDisabledKey(t *testing.T) {
 	}
 }
 
+func TestAPIKeyAuthRejectsDeprecatedQueryKeys(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	called := false
+	apiKeyRepo := &stubApiKeyRepo{
+		getByKey: func(ctx context.Context, key string) (*service.APIKey, error) {
+			called = true
+			return nil, service.ErrAPIKeyNotFound
+		},
+	}
+
+	cfg := &config.Config{RunMode: config.RunModeStandard}
+	apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
+	router := newAuthTestRouter(apiKeyService, nil, cfg)
+
+	for _, path := range []string{"/t?key=legacy", "/t?api_key=legacy"} {
+		t.Run(path, func(t *testing.T) {
+			called = false
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			router.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusBadRequest, w.Code)
+			require.Contains(t, w.Body.String(), "api_key_in_query_deprecated")
+			require.False(t, called, "query API keys should be rejected before repository lookup")
+		})
+	}
+}
+
+func TestAPIKeyAuthStandardModeRejectsBillingRestrictions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	past := time.Now().Add(-time.Hour)
+
+	tests := []struct {
+		name       string
+		mutateKey  func(*service.APIKey)
+		mutateUser func(*service.User)
+		wantCode   int
+		wantBody   string
+	}{
+		{
+			name: "explicit expired status",
+			mutateKey: func(apiKey *service.APIKey) {
+				apiKey.Status = service.StatusAPIKeyExpired
+			},
+			wantCode: http.StatusForbidden,
+			wantBody: "API_KEY_EXPIRED",
+		},
+		{
+			name: "elapsed expiration time",
+			mutateKey: func(apiKey *service.APIKey) {
+				apiKey.ExpiresAt = &past
+			},
+			wantCode: http.StatusForbidden,
+			wantBody: "API_KEY_EXPIRED",
+		},
+		{
+			name: "explicit quota exhausted status",
+			mutateKey: func(apiKey *service.APIKey) {
+				apiKey.Status = service.StatusAPIKeyQuotaExhausted
+			},
+			wantCode: http.StatusTooManyRequests,
+			wantBody: "API_KEY_QUOTA_EXHAUSTED",
+		},
+		{
+			name: "exhausted quota",
+			mutateKey: func(apiKey *service.APIKey) {
+				apiKey.Quota = 1
+				apiKey.QuotaUsed = 1
+			},
+			wantCode: http.StatusTooManyRequests,
+			wantBody: "API_KEY_QUOTA_EXHAUSTED",
+		},
+		{
+			name: "insufficient balance",
+			mutateUser: func(user *service.User) {
+				user.Balance = 0
+			},
+			wantCode: http.StatusForbidden,
+			wantBody: "INSUFFICIENT_BALANCE",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			user := &service.User{
+				ID:          7,
+				Role:        service.RoleUser,
+				Status:      service.StatusActive,
+				Balance:     10,
+				Concurrency: 3,
+			}
+			if tt.mutateUser != nil {
+				tt.mutateUser(user)
+			}
+			apiKey := &service.APIKey{
+				ID:     100,
+				UserID: user.ID,
+				Key:    "restricted-test-key",
+				Status: service.StatusActive,
+				User:   user,
+			}
+			if tt.mutateKey != nil {
+				tt.mutateKey(apiKey)
+			}
+
+			apiKeyRepo := &stubApiKeyRepo{
+				getByKey: func(ctx context.Context, key string) (*service.APIKey, error) {
+					if key != apiKey.Key {
+						return nil, service.ErrAPIKeyNotFound
+					}
+					clone := *apiKey
+					return &clone, nil
+				},
+			}
+
+			cfg := &config.Config{RunMode: config.RunModeStandard}
+			apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
+			router := newAuthTestRouter(apiKeyService, nil, cfg)
+
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/t", nil)
+			req.Header.Set("x-api-key", apiKey.Key)
+			router.ServeHTTP(w, req)
+
+			require.Equal(t, tt.wantCode, w.Code)
+			require.Contains(t, w.Body.String(), tt.wantBody)
+		})
+	}
+}
+
+func TestAPIKeyAuthUsageEndpointSkipsBillingRestrictions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	past := time.Now().Add(-time.Hour)
+
+	tests := []struct {
+		name      string
+		mutateKey func(*service.APIKey)
+	}{
+		{
+			name: "explicit expired status",
+			mutateKey: func(apiKey *service.APIKey) {
+				apiKey.Status = service.StatusAPIKeyExpired
+			},
+		},
+		{
+			name: "elapsed expiration time",
+			mutateKey: func(apiKey *service.APIKey) {
+				apiKey.ExpiresAt = &past
+			},
+		},
+		{
+			name: "explicit quota exhausted status",
+			mutateKey: func(apiKey *service.APIKey) {
+				apiKey.Status = service.StatusAPIKeyQuotaExhausted
+			},
+		},
+		{
+			name: "exhausted quota",
+			mutateKey: func(apiKey *service.APIKey) {
+				apiKey.Quota = 1
+				apiKey.QuotaUsed = 1
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			user := &service.User{
+				ID:          7,
+				Role:        service.RoleUser,
+				Status:      service.StatusActive,
+				Balance:     10,
+				Concurrency: 3,
+			}
+			apiKey := &service.APIKey{
+				ID:     100,
+				UserID: user.ID,
+				Key:    "usage-visible-key",
+				Status: service.StatusActive,
+				User:   user,
+			}
+			tt.mutateKey(apiKey)
+
+			apiKeyRepo := &stubApiKeyRepo{
+				getByKey: func(ctx context.Context, key string) (*service.APIKey, error) {
+					if key != apiKey.Key {
+						return nil, service.ErrAPIKeyNotFound
+					}
+					clone := *apiKey
+					return &clone, nil
+				},
+			}
+
+			cfg := &config.Config{RunMode: config.RunModeStandard}
+			apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
+			router := gin.New()
+			router.Use(gin.HandlerFunc(NewAPIKeyAuthMiddleware(apiKeyService, nil, cfg)))
+			router.GET("/v1/usage", func(c *gin.Context) {
+				_, ok := c.Get(string(ContextKeyAPIKey))
+				require.True(t, ok)
+				c.JSON(http.StatusOK, gin.H{"ok": true})
+			})
+
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/v1/usage", nil)
+			req.Header.Set("x-api-key", apiKey.Key)
+			router.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusOK, w.Code)
+			require.Contains(t, w.Body.String(), `"ok":true`)
+		})
+	}
+}
+
+func TestAPIKeyAuthUsageEndpointStillRejectsDisabledKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	user := &service.User{
+		ID:          7,
+		Role:        service.RoleUser,
+		Status:      service.StatusActive,
+		Balance:     10,
+		Concurrency: 3,
+	}
+	apiKey := &service.APIKey{
+		ID:     100,
+		UserID: user.ID,
+		Key:    "disabled-usage-key",
+		Status: service.StatusDisabled,
+		User:   user,
+	}
+
+	apiKeyRepo := &stubApiKeyRepo{
+		getByKey: func(ctx context.Context, key string) (*service.APIKey, error) {
+			if key != apiKey.Key {
+				return nil, service.ErrAPIKeyNotFound
+			}
+			clone := *apiKey
+			return &clone, nil
+		},
+	}
+
+	cfg := &config.Config{RunMode: config.RunModeStandard}
+	apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
+	router := gin.New()
+	router.Use(gin.HandlerFunc(NewAPIKeyAuthMiddleware(apiKeyService, nil, cfg)))
+	router.GET("/v1/usage", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/usage", nil)
+	req.Header.Set("x-api-key", apiKey.Key)
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Contains(t, w.Body.String(), "API_KEY_DISABLED")
+}
+
 func TestAPIKeyAuthSetsGroupContext(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
