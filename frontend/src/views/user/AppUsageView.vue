@@ -14,7 +14,7 @@
           <div>
             <span>{{ t('usage.workbench.balanceTitle') }}</span>
             <strong>{{ balanceText }}</strong>
-            <p>{{ t('usage.workbench.balanceDescription') }}</p>
+            <p :class="{ 'is-warning': balanceRefreshError }">{{ balanceDescriptionText }}</p>
           </div>
           <RouterLink to="/app/purchase" class="summary-action">
             {{ t('usage.workbench.recharge') }}
@@ -173,6 +173,7 @@ const loading = ref(false)
 const detailsLoadError = ref(false)
 const statsLoadError = ref(false)
 const trendLoadError = ref(false)
+const balanceRefreshError = ref(false)
 
 const today = new Date()
 const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
@@ -183,6 +184,10 @@ const monthStartKey = toDateKey(monthStart)
 const trendStartKey = toDateKey(trendStart)
 
 const balanceText = computed(() => formatCurrency(authStore.user?.balance || 0, 2))
+const balanceDescriptionText = computed(() => {
+  if (balanceRefreshError.value) return t('usage.workbench.balanceRefreshError')
+  return t('usage.workbench.balanceDescription')
+})
 const billingExplanationItems = computed(() => [
   t('usage.workbench.billingExplanationItems.successCharged'),
   t('usage.workbench.billingExplanationItems.failureNoCharge'),
@@ -215,8 +220,9 @@ async function loadUsageOverview() {
   detailsLoadError.value = false
   statsLoadError.value = false
   trendLoadError.value = false
+  balanceRefreshError.value = false
 
-  const [statsResult, logsResult, trendResult] = await Promise.allSettled([
+  const [statsResult, logsResult, trendResult, userResult] = await Promise.allSettled([
     usageAPI.getStatsByDateRange(monthStartKey, todayKey),
     usageAPI.query({
       page: 1,
@@ -251,6 +257,10 @@ async function loadUsageOverview() {
   } else {
     monthlySeries.value = []
     trendLoadError.value = true
+  }
+
+  if (userResult?.status === 'rejected') {
+    balanceRefreshError.value = true
   }
 
   loading.value = false
@@ -432,6 +442,11 @@ function toDateKey(date: Date) {
   color: var(--ssxz-text-secondary);
   font-size: 0.82rem;
   line-height: 1.55;
+}
+
+.usage-summary-card p.is-warning {
+  color: var(--ssxz-warning, #b45309);
+  font-weight: 750;
 }
 
 .summary-action,

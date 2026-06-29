@@ -21,6 +21,7 @@ const messages: Record<string, string> = {
   'usage.workbench.eyebrow': 'Account metering',
   'usage.workbench.balanceTitle': 'Account balance',
   'usage.workbench.balanceDescription': 'Available for in-app chat, image generation, and third-party client calls.',
+  'usage.workbench.balanceRefreshError': 'Balance could not be refreshed. The value shown may be stale; please retry shortly.',
   'usage.workbench.recharge': 'Recharge',
   'usage.workbench.monthlyCostTitle': 'Current-month spend',
   'usage.workbench.unavailable': 'Unavailable',
@@ -307,6 +308,43 @@ describe('AppUsageView', () => {
     await flushPromises()
 
     expect(authStore.refreshUser).toHaveBeenCalledTimes(2)
+  })
+
+  it('marks the balance as stale when authenticated user refresh fails', async () => {
+    mockZeroStats()
+    usageAPI.query.mockResolvedValue({
+      items: [],
+      total: 0,
+      pages: 0
+    })
+    usageAPI.getDashboardTrend.mockResolvedValue({
+      trend: [],
+      start_date: '2026-01-01',
+      end_date: '2026-06-18',
+      granularity: 'day'
+    })
+    authStore.refreshUser
+      .mockRejectedValueOnce(new Error('session refresh failed'))
+      .mockResolvedValueOnce(authStore.user)
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    let balanceCard = wrapper.findAll('.usage-summary-card')[0]
+    expect(authStore.refreshUser).toHaveBeenCalledTimes(1)
+    expect(balanceCard.text()).toContain('$8.53')
+    expect(balanceCard.text()).toContain('Balance could not be refreshed')
+    expect(balanceCard.text()).not.toContain('Available for in-app chat')
+    expect(balanceCard.find('p.is-warning').exists()).toBe(true)
+
+    await wrapper.get('button.refresh-button').trigger('click')
+    await flushPromises()
+
+    balanceCard = wrapper.findAll('.usage-summary-card')[0]
+    expect(authStore.refreshUser).toHaveBeenCalledTimes(2)
+    expect(balanceCard.text()).toContain('Available for in-app chat')
+    expect(balanceCard.text()).not.toContain('Balance could not be refreshed')
+    expect(balanceCard.find('p.is-warning').exists()).toBe(false)
   })
 
   it('shows empty states without inventing usage rows when the existing APIs have no data', async () => {
