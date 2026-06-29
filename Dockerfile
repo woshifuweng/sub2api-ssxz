@@ -9,7 +9,7 @@
 # =============================================================================
 
 ARG NODE_IMAGE=node:24-bookworm-slim
-ARG GOLANG_IMAGE=golang:1.26.2-bookworm
+ARG GOLANG_IMAGE=golang:1.26.4-bookworm
 ARG RUST_IMAGE=rust:1-bookworm
 ARG BASE_IMAGE=debian:bookworm-slim
 ARG POSTGRES_IMAGE=postgres:18
