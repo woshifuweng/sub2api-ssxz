@@ -104,7 +104,7 @@ func (s *PaymentService) CancelOrder(ctx context.Context, orderID, userID int64)
 	return s.cancelCore(ctx, o, OrderStatusCancelled, fmt.Sprintf("user:%d", userID), "user cancelled order")
 }
 
-func (s *PaymentService) AdminCancelOrder(ctx context.Context, orderID int64) (string, error) {
+func (s *PaymentService) AdminCancelOrder(ctx context.Context, orderID int64, operator ...string) (string, error) {
 	o, err := s.entClient.PaymentOrder.Get(ctx, orderID)
 	if err != nil {
 		return "", infraerrors.NotFound("NOT_FOUND", "order not found")
@@ -112,7 +112,11 @@ func (s *PaymentService) AdminCancelOrder(ctx context.Context, orderID int64) (s
 	if o.Status != OrderStatusPending {
 		return "", infraerrors.BadRequest("INVALID_STATUS", "order cannot be cancelled in current status")
 	}
-	return s.cancelCore(ctx, o, OrderStatusCancelled, "admin", "admin cancelled order")
+	op := ""
+	if len(operator) > 0 {
+		op = operator[0]
+	}
+	return s.cancelCore(ctx, o, OrderStatusCancelled, normalizePaymentAdminOperator(op), "admin cancelled order")
 }
 
 func (s *PaymentService) cancelCore(ctx context.Context, o *dbent.PaymentOrder, fs, op, ad string) (string, error) {

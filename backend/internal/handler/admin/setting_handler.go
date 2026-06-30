@@ -978,6 +978,7 @@ func (h *SettingHandler) RegenerateAdminAPIKeyGateway(c gatewayctx.GatewayContex
 		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusUnauthorized, "Authorization required")
 		return
 	}
+	operator := adminAuditOperatorFromGateway(c)
 
 	adminTokenVersion := int64(0)
 	if h.userService != nil {
@@ -991,9 +992,11 @@ func (h *SettingHandler) RegenerateAdminAPIKeyGateway(c gatewayctx.GatewayContex
 
 	key, err := h.settingService.GenerateAdminAPIKey(c.Request().Context(), subject.UserID, adminTokenVersion)
 	if err != nil {
+		logAdminAudit("settings", "admin_api_key_regenerate failed operator=%s error_reason=%s", operator, adminAuditErrorReason(err))
 		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
+	logAdminAudit("settings", "admin_api_key_regenerate succeeded operator=%s", operator)
 
 	response.SuccessContext(gatewayJSONResponder{ctx: c}, map[string]any{
 		"key": key, // 完整 key 只在生成时返回一次
@@ -1007,10 +1010,13 @@ func (h *SettingHandler) DeleteAdminAPIKey(c *gin.Context) {
 }
 
 func (h *SettingHandler) DeleteAdminAPIKeyGateway(c gatewayctx.GatewayContext) {
+	operator := adminAuditOperatorFromGateway(c)
 	if err := h.settingService.DeleteAdminAPIKey(c.Request().Context()); err != nil {
+		logAdminAudit("settings", "admin_api_key_delete failed operator=%s error_reason=%s", operator, adminAuditErrorReason(err))
 		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
+	logAdminAudit("settings", "admin_api_key_delete succeeded operator=%s", operator)
 
 	response.SuccessContext(gatewayJSONResponder{ctx: c}, map[string]any{"message": "Admin API key deleted"})
 }

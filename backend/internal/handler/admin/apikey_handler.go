@@ -49,11 +49,18 @@ func (h *AdminAPIKeyHandler) UpdateGroupGateway(c gatewayctx.GatewayContext) {
 		return
 	}
 
+	operator := adminAuditOperatorFromGateway(c)
+	groupID := "nil"
+	if req.GroupID != nil {
+		groupID = strconv.FormatInt(*req.GroupID, 10)
+	}
 	result, err := h.adminService.AdminUpdateAPIKeyGroupID(c.Request().Context(), keyID, req.GroupID)
 	if err != nil {
+		logAdminAudit("apikey", "update_group failed operator=%s api_key_id=%d group_id=%s error_reason=%s", operator, keyID, groupID, adminAuditErrorReason(err))
 		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
+	logAdminAudit("apikey", "update_group succeeded operator=%s api_key_id=%d group_id=%s", operator, keyID, groupID)
 
 	resp := struct {
 		APIKey                 *dto.APIKey `json:"api_key"`

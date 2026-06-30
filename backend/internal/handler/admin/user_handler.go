@@ -309,11 +309,15 @@ func (h *UserHandler) UpdateBalanceGateway(c gatewayctx.GatewayContext) {
 		UserID: userID,
 		Body:   req,
 	}
+	operator := adminAuditOperatorFromGateway(c)
+	notes := appendAdminAuditOperatorNote(req.Notes, operator)
 	executeAdminIdempotentGatewayJSON(c, "admin.users.balance.update", idempotencyPayload, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
-		user, execErr := h.adminService.UpdateUserBalance(ctx, userID, req.Balance, req.Operation, req.Notes)
+		user, execErr := h.adminService.UpdateUserBalance(ctx, userID, req.Balance, req.Operation, notes)
 		if execErr != nil {
+			logAdminAudit("user", "balance_update failed operator=%s target_user_id=%d operation=%s amount=%.8f error_reason=%s", operator, userID, req.Operation, req.Balance, adminAuditErrorReason(execErr))
 			return nil, execErr
 		}
+		logAdminAudit("user", "balance_update succeeded operator=%s target_user_id=%d operation=%s amount=%.8f", operator, userID, req.Operation, req.Balance)
 		return dto.UserFromServiceAdmin(user), nil
 	})
 }
