@@ -305,13 +305,31 @@ describe('KeysView workbench surface', () => {
     expect(wrapper.text()).toContain('CC Switch')
     expect(wrapper.text()).toContain('Cherry Studio')
     expect(wrapper.text()).toContain('Chatbox')
-    expect(wrapper.text()).toContain('https://example.test')
+    expect(wrapper.text()).toContain('https://example.test/v1')
 
     await wrapper.get('[data-testid="keys-guide-copy-base-url"]').trigger('click')
     await flushPromises()
 
     expect(clipboardCopy).toHaveBeenCalledWith(
-      'https://example.test',
+      'https://example.test/v1',
+      'keys.workbenchGuide.baseUrlCopied'
+    )
+  })
+
+  it('does not duplicate v1 when the public API base URL already includes it', async () => {
+    authAPI.getPublicSettings.mockResolvedValue({ api_base_url: 'https://example.test/v1', site_name: 'SSXZ AI' })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('https://example.test/v1')
+    expect(wrapper.text()).not.toContain('/v1/v1')
+
+    await wrapper.get('[data-testid="keys-guide-copy-base-url"]').trigger('click')
+    await flushPromises()
+
+    expect(clipboardCopy).toHaveBeenCalledWith(
+      'https://example.test/v1',
       'keys.workbenchGuide.baseUrlCopied'
     )
   })
@@ -692,12 +710,12 @@ describe('KeysView workbench surface', () => {
     expect(wrapper.text()).toContain('keys.createdKeyReveal.connectionTitle')
     expect(wrapper.text()).toContain('keys.workbenchGuide.baseUrlLabel')
     expect(wrapper.text()).toContain('keys.createdKeyReveal.modelHint')
-    expect(wrapper.text()).toContain('https://example.test')
+    expect(wrapper.text()).toContain('https://example.test/v1')
 
     await wrapper.get('[data-testid="created-key-base-url-copy"]').trigger('click')
     await flushPromises()
     expect(clipboardCopy).toHaveBeenCalledWith(
-      'https://example.test',
+      'https://example.test/v1',
       'keys.workbenchGuide.baseUrlCopied'
     )
 

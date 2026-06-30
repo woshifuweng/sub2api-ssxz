@@ -14,7 +14,7 @@
           </p>
           <div class="keys-guide-base">
             <span>{{ t('keys.workbenchGuide.baseUrlLabel') }}</span>
-            <code>{{ apiBaseUrl }}</code>
+            <code>{{ openAICompatibleBaseUrl }}</code>
             <button
               type="button"
               class="keys-guide-copy-button"
@@ -1043,7 +1043,7 @@
           <p class="font-medium text-gray-900 dark:text-white">{{ t('keys.createdKeyReveal.connectionTitle') }}</p>
           <div class="mt-2 flex flex-wrap items-center gap-2">
             <span class="text-gray-500 dark:text-gray-400">{{ t('keys.workbenchGuide.baseUrlLabel') }}</span>
-            <code class="rounded-lg bg-white px-2 py-1 text-xs dark:bg-dark-900">{{ apiBaseUrl }}</code>
+            <code class="rounded-lg bg-white px-2 py-1 text-xs dark:bg-dark-900">{{ openAICompatibleBaseUrl }}</code>
             <button
               type="button"
               class="rounded-lg p-1 text-gray-500 transition-colors hover:bg-white hover:text-gray-700 dark:hover:bg-dark-900 dark:hover:text-gray-200"
@@ -1365,6 +1365,10 @@ const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | n
 const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
 let abortController: AbortController | null = null
 const apiBaseUrl = computed(() => publicSettings.value?.api_base_url || window.location.origin)
+const openAICompatibleBaseUrl = computed(() => {
+  const trimmed = apiBaseUrl.value.replace(/\/+$/, '')
+  return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
+})
 
 // Get the currently selected key for group change
 const selectedKeyForGroup = computed(() => {
@@ -1579,7 +1583,7 @@ const copyCreatedKey = async () => {
 }
 
 const copyBaseUrl = async () => {
-  const success = await clipboardCopy(apiBaseUrl.value, t('keys.workbenchGuide.baseUrlCopied'))
+  const success = await clipboardCopy(openAICompatibleBaseUrl.value, t('keys.workbenchGuide.baseUrlCopied'))
   if (success) {
     baseUrlCopied.value = true
     if (baseUrlCopyTimer) clearTimeout(baseUrlCopyTimer)
