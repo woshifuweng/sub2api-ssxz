@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"path"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -225,6 +226,18 @@ func (h *ImageStudioHandler) persistImageStudioWork(ctx context.Context, capture
 	urls := extractImageStudioResultURLs(capture.bytes())
 	storageType := service.SoraStorageTypeUpstream
 	var fileSizeBytes int64
+	if len(urls) > 0 && h.mediaStorage != nil && h.mediaStorage.Enabled() {
+		storedPaths, err := h.mediaStorage.StoreFromURLs(ctx, "image", urls)
+		if err == nil && imageStudioAllLocalImagePaths(storedPaths) {
+			urls = storedPaths
+			storageType = service.SoraStorageTypeLocal
+			if totalSize, sizeErr := h.mediaStorage.TotalSizeByRelativePaths(storedPaths); sizeErr == nil {
+				fileSizeBytes = totalSize
+			}
+		} else if err == nil && len(storedPaths) > 0 {
+			_ = h.mediaStorage.DeleteByRelativePaths(storedPaths)
+		}
+	}
 	if len(urls) == 0 && h.mediaStorage != nil && h.mediaStorage.Enabled() {
 		localPaths, totalSize, err := h.mediaStorage.StoreBase64Images(ctx, extractImageStudioResultBase64(capture.bytes()))
 		if err == nil && len(localPaths) > 0 {
@@ -241,6 +254,19 @@ func (h *ImageStudioHandler) persistImageStudioWork(ctx context.Context, capture
 		apiKeyIDPtr = &apiKeyID
 	}
 	_, _ = h.genService.CreateCompletedImageWork(ctx, userID, apiKeyIDPtr, model, prompt, urls, storageType, nil, fileSizeBytes)
+}
+
+func imageStudioAllLocalImagePaths(urls []string) bool {
+	if len(urls) == 0 {
+		return false
+	}
+	for _, raw := range urls {
+		cleaned := path.Clean(strings.TrimSpace(raw))
+		if !strings.HasPrefix(cleaned, "/image/") {
+			return false
+		}
+	}
+	return true
 }
 
 func parseImageStudioRequest(c gatewayctx.GatewayContext) (*imageStudioRequest, error) {

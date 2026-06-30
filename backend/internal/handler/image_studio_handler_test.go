@@ -147,6 +147,84 @@ func TestPersistImageStudioWork_CreatesCompletedImageRecordForURLResults(t *test
 	require.NotNil(t, gen.CompletedAt)
 }
 
+func TestPersistImageStudioWork_StoresURLResultsToLocalStorage(t *testing.T) {
+	tmpDir := t.TempDir()
+	imageBody := []byte("url-image-data")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(imageBody)
+	}))
+	defer server.Close()
+
+	repo := &imageStudioTestGenRepo{}
+	mediaStorage := service.NewSoraMediaStorage(&config.Config{
+		Sora: config.SoraConfig{
+			Storage: config.SoraStorageConfig{
+				Type:                   "local",
+				LocalPath:              tmpDir,
+				MaxConcurrentDownloads: 1,
+				MaxDownloadBytes:       1024,
+			},
+		},
+	})
+	handler := &ImageStudioHandler{
+		genService:   service.NewSoraGenerationService(repo, nil, nil),
+		mediaStorage: mediaStorage,
+	}
+	capture := &imageStudioCaptureContext{status: http.StatusOK}
+	capture.capture([]byte(fmt.Sprintf(`{"data":[{"url":%q}]}`, server.URL+"/work.png")))
+
+	handler.persistImageStudioWork(context.Background(), capture, 7, 42, imageStudioModel, "product prompt")
+
+	require.Len(t, repo.created, 1)
+	gen := repo.created[0]
+	require.Equal(t, service.SoraStorageTypeLocal, gen.StorageType)
+	require.True(t, strings.HasPrefix(gen.MediaURL, "/image/"))
+	require.True(t, strings.HasSuffix(gen.MediaURL, ".png"))
+	require.Equal(t, int64(len(imageBody)), gen.FileSizeBytes)
+	localPath := filepath.Join(tmpDir, filepath.FromSlash(strings.TrimPrefix(gen.MediaURL, "/")))
+	require.FileExists(t, localPath)
+	content, err := os.ReadFile(localPath)
+	require.NoError(t, err)
+	require.Equal(t, imageBody, content)
+}
+
+func TestPersistImageStudioWork_KeepsUpstreamStorageWhenURLStorageFallsBack(t *testing.T) {
+	tmpDir := t.TempDir()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	repo := &imageStudioTestGenRepo{}
+	mediaStorage := service.NewSoraMediaStorage(&config.Config{
+		Sora: config.SoraConfig{
+			Storage: config.SoraStorageConfig{
+				Type:               "local",
+				LocalPath:          tmpDir,
+				FallbackToUpstream: true,
+			},
+		},
+	})
+	handler := &ImageStudioHandler{
+		genService:   service.NewSoraGenerationService(repo, nil, nil),
+		mediaStorage: mediaStorage,
+	}
+	upstreamURL := server.URL + "/work.png"
+	capture := &imageStudioCaptureContext{status: http.StatusOK}
+	capture.capture([]byte(fmt.Sprintf(`{"data":[{"url":%q}]}`, upstreamURL)))
+
+	handler.persistImageStudioWork(context.Background(), capture, 7, 42, imageStudioModel, "product prompt")
+
+	require.Len(t, repo.created, 1)
+	gen := repo.created[0]
+	require.Equal(t, service.SoraStorageTypeUpstream, gen.StorageType)
+	require.Equal(t, upstreamURL, gen.MediaURL)
+	require.Equal(t, []string{upstreamURL}, gen.MediaURLs)
+	require.Zero(t, gen.FileSizeBytes)
+}
+
 func TestPersistImageStudioWork_RecordsRequestedImageModel(t *testing.T) {
 	repo := &imageStudioTestGenRepo{}
 	handler := &ImageStudioHandler{
