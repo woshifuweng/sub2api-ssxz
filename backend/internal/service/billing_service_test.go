@@ -373,6 +373,17 @@ func TestCalculateSoraVideoCost(t *testing.T) {
 	require.InDelta(t, 0.5, cost.TotalCost, 1e-10)
 }
 
+func TestCalculateSoraVideoCostForCount(t *testing.T) {
+	svc := newTestBillingService()
+
+	price := 0.5
+	cfg := &SoraPriceConfig{VideoPricePerRequest: &price}
+	cost := svc.CalculateSoraVideoCostForCount("sora-video", 3, cfg, 2.0)
+
+	require.InDelta(t, 1.5, cost.TotalCost, 1e-10)
+	require.InDelta(t, 3.0, cost.ActualCost, 1e-10)
+}
+
 func TestCalculateSoraVideoCost_HDModel(t *testing.T) {
 	svc := newTestBillingService()
 

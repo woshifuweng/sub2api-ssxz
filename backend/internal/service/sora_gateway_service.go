@@ -318,6 +318,7 @@ func (s *SoraGatewayService) ForwardContext(ctx context.Context, c gatewayctx.Ga
 	taskID := ""
 	var err error
 	videoCount := parseSoraVideoCount(reqBody)
+	resultVideoCount := 0
 	switch modelCfg.Type {
 	case "image":
 		taskID, err = s.soraClient.CreateImageTask(reqCtx, account, SoraImageRequest{
@@ -336,6 +337,7 @@ func (s *SoraGatewayService) ForwardContext(ctx context.Context, c gatewayctx.Ga
 				Size:        modelCfg.Size,
 				MediaID:     mediaID,
 			})
+			resultVideoCount = 1
 		} else {
 			taskID, err = s.soraClient.CreateVideoTask(reqCtx, account, SoraVideoRequest{
 				Prompt:        prompt,
@@ -348,6 +350,7 @@ func (s *SoraGatewayService) ForwardContext(ctx context.Context, c gatewayctx.Ga
 				RemixTargetID: remixTargetID,
 				CameoIDs:      extractSoraCameoIDs(reqBody),
 			})
+			resultVideoCount = videoCount
 		}
 	default:
 		err = fmt.Errorf("unsupported model type: %s", modelCfg.Type)
@@ -441,6 +444,7 @@ func (s *SoraGatewayService) ForwardContext(ctx context.Context, c gatewayctx.Ga
 		MediaURL:      firstMediaURL(finalURLs),
 		ImageCount:    imageCount,
 		ImageSize:     imageSize,
+		VideoCount:    resultVideoCount,
 	}, nil
 }
 
