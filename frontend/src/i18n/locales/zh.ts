@@ -673,6 +673,7 @@ export default {
         apiKeyHint: '使用创建时保存的完整 Key；列表里只展示脱敏值，丢失请新建一个 API Key。',
         modelLabel: '模型',
         modelHint: '以后台开放给当前分组的模型为准。',
+        modelsEndpointLabel: '模型列表验证',
         securityNote: '完整 API Key 只应保存在你信任的客户端里，不要发给他人，也不要截图外传。'
       },
       antigravity: {

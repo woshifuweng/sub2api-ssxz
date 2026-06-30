@@ -124,6 +124,10 @@
                   {{ t('keys.useKeyModal.thirdParty.modelHint') }}
                 </dd>
               </div>
+              <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.modelsEndpointLabel') }}</dt>
+                <dd class="break-all font-mono text-gray-900 dark:text-gray-100">{{ modelsEndpointUrl }}</dd>
+              </div>
             </dl>
           </div>
 
@@ -457,6 +461,8 @@ const openAICompatibleBaseUrl = computed(() => {
   const trimmed = baseUrl.replace(/\/+$/, '')
   return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
 })
+
+const modelsEndpointUrl = computed(() => `${openAICompatibleBaseUrl.value}/models`)
 
 const thirdPartyClients = computed(() => [
   {

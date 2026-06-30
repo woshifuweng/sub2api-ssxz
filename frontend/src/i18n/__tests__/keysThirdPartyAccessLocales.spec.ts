@@ -21,6 +21,7 @@ describe('API Key third-party access locale copy', () => {
       zh.keys.fullKeyRequiredForImport,
       zh.keys.useKeyModal.fullKeyMissingDescription,
       zh.keys.useKeyModal.thirdParty.apiKeyHint,
+      zh.keys.useKeyModal.thirdParty.modelsEndpointLabel,
       zh.keys.createFirstKey
     ].join(' ')
 
@@ -52,6 +53,7 @@ describe('API Key third-party access locale copy', () => {
       en.keys.fullKeyRequiredForImport,
       en.keys.useKeyModal.fullKeyMissingDescription,
       en.keys.useKeyModal.thirdParty.apiKeyHint,
+      en.keys.useKeyModal.thirdParty.modelsEndpointLabel,
       en.keys.createFirstKey
     ].join(' ')
 
@@ -63,6 +65,7 @@ describe('API Key third-party access locale copy', () => {
     expect(copy).toContain('masked')
     expect(copy).toContain('create a new API Key')
     expect(copy).toContain('admin model configuration')
+    expect(copy).toContain('Model list check')
     expect(copy).not.toContain('Developer API Platform')
   })
 
