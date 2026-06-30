@@ -91,4 +91,11 @@ describe('API Key third-party access locale copy', () => {
     expect(enCopy).toContain('change bills')
     expect(enCopy).toContain('refund balance')
   })
+
+  it('does not ask users to paste full API keys into list search', () => {
+    expect(zh.keys.searchPlaceholder).toBe('搜索名称...')
+    expect(zh.keys.searchPlaceholder).not.toContain('Key')
+    expect(en.keys.searchPlaceholder).toBe('Search name...')
+    expect(en.keys.searchPlaceholder.toLowerCase()).not.toContain('key')
+  })
 })

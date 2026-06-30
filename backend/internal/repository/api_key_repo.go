@@ -319,10 +319,7 @@ func (r *apiKeyRepository) ListByUserID(ctx context.Context, userID int64, param
 
 	// Apply filters
 	if filters.Search != "" {
-		q = q.Where(apikey.Or(
-			apikey.NameContainsFold(filters.Search),
-			apikey.KeyContainsFold(filters.Search),
-		))
+		q = q.Where(apiKeyUserListSearchPredicate(filters.Search))
 	}
 	if filters.Status != "" {
 		q = q.Where(apiKeyUserStatusPredicate(filters.Status))
@@ -373,6 +370,10 @@ func apiKeyUserStatusPredicate(status string) dbpredicate.APIKey {
 		)
 	}
 	return apikey.StatusEQ(status)
+}
+
+func apiKeyUserListSearchPredicate(search string) dbpredicate.APIKey {
+	return apikey.NameContainsFold(search)
 }
 
 func (r *apiKeyRepository) VerifyOwnership(ctx context.Context, userID int64, apiKeyIDs []int64) ([]int64, error) {

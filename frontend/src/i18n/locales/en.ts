@@ -582,7 +582,7 @@ export default {
       modelHint: 'Available models follow this key group and the admin model configuration.',
       acknowledge: 'I saved it',
     },
-    searchPlaceholder: 'Search name or key...',
+    searchPlaceholder: 'Search name...',
     allGroups: 'All Groups',
     allStatus: 'All Status',
     createKey: 'Create API Key',
