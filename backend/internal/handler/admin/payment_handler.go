@@ -111,11 +111,14 @@ func (h *PaymentHandler) CancelOrderGateway(c gatewayctx.GatewayContext) {
 	if !ok {
 		return
 	}
-	msg, err := h.paymentService.AdminCancelOrder(c.Request().Context(), orderID)
+	operator := adminAuditOperatorFromGateway(c)
+	msg, err := h.paymentService.AdminCancelOrder(c.Request().Context(), orderID, operator)
 	if err != nil {
+		logAdminAudit("payment", "cancel_order failed operator=%s order_id=%d error_reason=%s", operator, orderID, adminAuditErrorReason(err))
 		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
+	logAdminAudit("payment", "cancel_order succeeded operator=%s order_id=%d result=%s", operator, orderID, msg)
 	response.SuccessContext(gatewayJSONResponder{ctx: c}, gin.H{"message": msg})
 }
 
@@ -130,10 +133,13 @@ func (h *PaymentHandler) RetryFulfillmentGateway(c gatewayctx.GatewayContext) {
 	if !ok {
 		return
 	}
-	if err := h.paymentService.RetryFulfillment(c.Request().Context(), orderID); err != nil {
+	operator := adminAuditOperatorFromGateway(c)
+	if err := h.paymentService.RetryFulfillment(c.Request().Context(), orderID, operator); err != nil {
+		logAdminAudit("payment", "retry_fulfillment failed operator=%s order_id=%d error_reason=%s", operator, orderID, adminAuditErrorReason(err))
 		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
+	logAdminAudit("payment", "retry_fulfillment succeeded operator=%s order_id=%d", operator, orderID)
 	response.SuccessContext(gatewayJSONResponder{ctx: c}, gin.H{"message": "fulfillment retried"})
 }
 
@@ -183,21 +189,27 @@ func (h *PaymentHandler) ProcessRefundGateway(c gatewayctx.GatewayContext) {
 		return
 	}
 
+	operator := adminAuditOperatorFromGateway(c)
 	plan, earlyResult, err := h.paymentService.PrepareRefund(c.Request().Context(), orderID, req.Amount, req.Reason, req.Force, req.DeductBalance)
 	if err != nil {
+		logAdminAudit("payment", "refund_prepare failed operator=%s order_id=%d amount=%.2f force=%t deduct_balance=%t error_reason=%s", operator, orderID, req.Amount, req.Force, req.DeductBalance, adminAuditErrorReason(err))
 		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 	if earlyResult != nil {
+		logAdminAudit("payment", "refund_prepare returned operator=%s order_id=%d amount=%.2f require_force=%t", operator, orderID, req.Amount, earlyResult.RequireForce)
 		response.SuccessContext(gatewayJSONResponder{ctx: c}, earlyResult)
 		return
 	}
 
+	plan.AdminOperator = operator
 	result, err := h.paymentService.ExecuteRefund(c.Request().Context(), plan)
 	if err != nil {
+		logAdminAudit("payment", "refund failed operator=%s order_id=%d amount=%.2f force=%t deduct_balance=%t error_reason=%s", operator, orderID, req.Amount, req.Force, req.DeductBalance, adminAuditErrorReason(err))
 		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
+	logAdminAudit("payment", "refund succeeded operator=%s order_id=%d amount=%.2f force=%t deduct_balance=%t", operator, orderID, req.Amount, req.Force, req.DeductBalance)
 	response.SuccessContext(gatewayJSONResponder{ctx: c}, result)
 }
 
