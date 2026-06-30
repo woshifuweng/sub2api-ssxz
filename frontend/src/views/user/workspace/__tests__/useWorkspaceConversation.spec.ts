@@ -53,6 +53,12 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
+function expectIdempotencyOptions() {
+  return expect.objectContaining({
+    idempotencyKey: expect.any(String)
+  })
+}
+
 describe('useWorkspaceConversation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -346,7 +352,7 @@ describe('useWorkspaceConversation', () => {
       content: 'hello workspace',
       model: 'gpt-5.5',
       intent: 'chat'
-    })
+    }, expectIdempotencyOptions())
     expect(api.listMessages).toHaveBeenCalledWith(31)
     expect(workspace.activeConversationId.value).toBe(31)
     expect(workspace.messages.value).toMatchObject([
@@ -461,6 +467,62 @@ describe('useWorkspaceConversation', () => {
     ])
   })
 
+  it('ignores duplicate text sends while a request is already in flight', async () => {
+    const append = deferred<unknown>()
+    api.listMessages
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 63,
+          conversation_id: 44,
+          message_type: 'text',
+          role: 'user',
+          content: 'double click',
+          model: 'gpt-5.5',
+          intent: 'chat',
+          status: 'completed',
+          created_at: '2026-06-10T00:00:02Z',
+          updated_at: '2026-06-10T00:00:02Z'
+        }
+      ])
+    api.appendMessage.mockReturnValueOnce(append.promise)
+    api.listConversations.mockResolvedValue([])
+    const workspace = useWorkspaceConversation({ backendEnabled: true })
+
+    await workspace.selectConversation(44)
+    const pendingSend = workspace.sendTextMessage({
+      text: 'double click',
+      model: 'gpt-5.5',
+      intent: 'chat',
+      attachments: []
+    })
+    const duplicateSend = await workspace.sendTextMessage({
+      text: 'double click',
+      model: 'gpt-5.5',
+      intent: 'chat',
+      attachments: []
+    })
+
+    expect(duplicateSend).toBe(false)
+    expect(api.appendMessage).toHaveBeenCalledTimes(1)
+
+    append.resolve({
+      id: 63,
+      conversation_id: 44,
+      message_type: 'text',
+      role: 'user',
+      content: 'double click',
+      model: 'gpt-5.5',
+      intent: 'chat',
+      status: 'completed',
+      created_at: '2026-06-10T00:00:02Z',
+      updated_at: '2026-06-10T00:00:02Z'
+    })
+    await pendingSend
+
+    expect(api.appendMessage).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps a safe error state if message refresh fails after send', async () => {
     api.createConversation.mockResolvedValue({
       id: 33,
@@ -544,6 +606,95 @@ describe('useWorkspaceConversation', () => {
     expect(workspace.errorMessage.value).toContain('未调用模型')
     expect(workspace.errorMessage.value).toContain('不会扣费')
     expect(workspace.errorMessage.value).not.toBe(WORKSPACE_SEND_FAILED_MESSAGE)
+  })
+
+  it('retries a failed text send with a fresh idempotency key when no user message was persisted', async () => {
+    api.createConversation.mockResolvedValue({
+      id: 36,
+      title: 'retry model',
+      status: 'active',
+      created_at: '2026-06-10T00:00:00Z',
+      updated_at: '2026-06-10T00:00:00Z'
+    })
+    api.appendMessage
+      .mockRejectedValueOnce({
+        status: 400,
+        code: 'WORKSPACE_MODEL_UNAVAILABLE',
+        message: 'Model is not available for workspace chat'
+      })
+      .mockResolvedValueOnce({
+        id: 55,
+        conversation_id: 36,
+        message_type: 'text',
+        role: 'user',
+        content: 'retry this',
+        model: 'gpt-5.5',
+        intent: 'chat',
+        status: 'completed',
+        created_at: '2026-06-10T00:00:02Z',
+        updated_at: '2026-06-10T00:00:02Z'
+      })
+    api.listMessages
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 55,
+          conversation_id: 36,
+          message_type: 'text',
+          role: 'user',
+          content: 'retry this',
+          model: 'gpt-5.5',
+          intent: 'chat',
+          status: 'completed',
+          created_at: '2026-06-10T00:00:02Z',
+          updated_at: '2026-06-10T00:00:02Z'
+        },
+        {
+          id: 56,
+          conversation_id: 36,
+          message_type: 'text',
+          role: 'assistant',
+          content: 'retry succeeded',
+          model: 'gpt-5.5',
+          intent: 'chat',
+          status: 'completed',
+          created_at: '2026-06-10T00:00:03Z',
+          updated_at: '2026-06-10T00:00:03Z'
+        }
+      ])
+    api.listConversations.mockResolvedValue([])
+    const workspace = useWorkspaceConversation({ backendEnabled: true })
+
+    const failed = await workspace.sendTextMessage({
+      text: 'retry this',
+      model: 'gpt-5.5',
+      intent: 'chat',
+      attachments: []
+    })
+    const firstKey = api.appendMessage.mock.calls[0][2]?.idempotencyKey
+    const retried = await workspace.retryLastFailedSend()
+    const secondKey = api.appendMessage.mock.calls[1][2]?.idempotencyKey
+
+    expect(failed).toBe(false)
+    expect(retried).toBe(true)
+    expect(api.createConversation).toHaveBeenCalledTimes(1)
+    expect(api.appendMessage).toHaveBeenCalledTimes(2)
+    expect(firstKey).toEqual(expect.any(String))
+    expect(secondKey).toEqual(expect.any(String))
+    expect(secondKey).not.toBe(firstKey)
+    expect(workspace.canRetryLastFailedSend.value).toBe(false)
+    expect(workspace.messages.value).toMatchObject([
+      {
+        persistedId: 55,
+        role: 'user',
+        content: 'retry this'
+      },
+      {
+        persistedId: 56,
+        role: 'assistant',
+        content: 'retry succeeded'
+      }
+    ])
   })
 
   it('shows the text-only guidance when the backend rejects attachment metadata', async () => {
@@ -823,7 +974,7 @@ describe('useWorkspaceConversation', () => {
     expect(api.appendMessage).toHaveBeenCalledWith(32, expect.objectContaining({
       content: 'start from app',
       intent: 'chat'
-    }))
+    }), expectIdempotencyOptions())
     expect(api.listMessages).toHaveBeenCalledWith(32)
     expect(workspace.messages.value).toHaveLength(2)
   })
@@ -864,7 +1015,7 @@ describe('useWorkspaceConversation', () => {
       metadata: {
         web_search_requested: true
       }
-    }))
+    }), expectIdempotencyOptions())
   })
 
   it('keeps normal text sends unchanged when联网 is not requested', async () => {
@@ -901,7 +1052,7 @@ describe('useWorkspaceConversation', () => {
     expect(api.appendMessage).toHaveBeenCalledWith(35, expect.objectContaining({
       intent: 'chat',
       metadata: undefined
-    }))
+    }), expectIdempotencyOptions())
   })
 
   it('appends to the active conversation without creating another one', async () => {
@@ -961,7 +1112,7 @@ describe('useWorkspaceConversation', () => {
     expect(api.appendMessage).toHaveBeenCalledWith(44, expect.objectContaining({
       content: 'follow up',
       intent: 'chat'
-    }))
+    }), expectIdempotencyOptions())
     expect(api.listMessages).toHaveBeenCalledTimes(2)
     expect(api.listMessages).toHaveBeenLastCalledWith(44)
     expect(workspace.messages.value).toHaveLength(2)

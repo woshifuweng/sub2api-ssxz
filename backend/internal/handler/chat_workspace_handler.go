@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -45,6 +46,11 @@ type appendWorkspaceMessageRequest struct {
 	Model       string         `json:"model"`
 	Intent      string         `json:"intent"`
 	Metadata    map[string]any `json:"metadata"`
+}
+
+type appendWorkspaceMessageIdempotencyPayload struct {
+	ConversationID int64                         `json:"conversation_id"`
+	Message        appendWorkspaceMessageRequest `json:"message"`
 }
 
 func NewChatWorkspaceHandler(workspaceService *service.ChatWorkspaceService) *ChatWorkspaceHandler {
@@ -147,21 +153,67 @@ func (h *ChatWorkspaceHandler) AppendMessageGateway(c gatewayctx.GatewayContext)
 		return
 	}
 
-	msg, _, err := h.workspaceService.AppendMessageWithAssistantResponse(c.Request().Context(), subject.UserID, service.WorkspaceAppendMessageInput{
-		ConversationID:  conversationID,
-		MessageType:     req.MessageType,
-		Role:            req.Role,
-		Content:         req.Content,
-		Model:           req.Model,
-		Intent:          req.Intent,
-		Metadata:        req.Metadata,
-		AllowedGroupIDs: subject.AllowedGroupIDs,
-	})
-	if err != nil {
-		writeChatWorkspaceError(c, err)
+	execute := func(ctx context.Context) (any, error) {
+		msg, _, err := h.workspaceService.AppendMessageWithAssistantResponse(ctx, subject.UserID, service.WorkspaceAppendMessageInput{
+			ConversationID:  conversationID,
+			MessageType:     req.MessageType,
+			Role:            req.Role,
+			Content:         req.Content,
+			Model:           req.Model,
+			Intent:          req.Intent,
+			Metadata:        req.Metadata,
+			AllowedGroupIDs: subject.AllowedGroupIDs,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return msg, nil
+	}
+
+	coordinator := service.DefaultIdempotencyCoordinator()
+	if coordinator == nil {
+		msg, err := execute(c.Request().Context())
+		if err != nil {
+			writeChatWorkspaceError(c, err)
+			return
+		}
+		response.CreatedContext(gatewayJSONResponder{ctx: c}, msg)
 		return
 	}
-	response.CreatedContext(gatewayJSONResponder{ctx: c}, msg)
+
+	result, err := coordinator.Execute(c.Request().Context(), service.IdempotencyExecuteOptions{
+		Scope:          chatWorkspaceAppendIdempotencyScope(subject.UserID, conversationID),
+		ActorScope:     "user:" + strconv.FormatInt(subject.UserID, 10),
+		Method:         c.Request().Method,
+		Route:          c.Path(),
+		IdempotencyKey: c.HeaderValue("Idempotency-Key"),
+		Payload: appendWorkspaceMessageIdempotencyPayload{
+			ConversationID: conversationID,
+			Message:        req,
+		},
+		RequireKey: true,
+		TTL:        service.DefaultWriteIdempotencyTTL(),
+	}, execute)
+	if err != nil {
+		if isChatWorkspaceDomainError(err) {
+			writeChatWorkspaceError(c, err)
+			return
+		}
+		writeChatWorkspaceIdempotencyError(c, err)
+		return
+	}
+	if result == nil {
+		writeChatWorkspaceStatus(c, http.StatusInternalServerError, "Workspace service unavailable", workspaceReasonServiceUnavailable)
+		return
+	}
+	if result.Replayed {
+		c.SetHeader("X-Idempotency-Replayed", "true")
+	}
+	response.CreatedContext(gatewayJSONResponder{ctx: c}, result.Data)
+}
+
+func chatWorkspaceAppendIdempotencyScope(userID, conversationID int64) string {
+	return "user.chat_workspace.messages.append." + strconv.FormatInt(userID, 10) + "." + strconv.FormatInt(conversationID, 10)
 }
 
 func (h *ChatWorkspaceHandler) authenticatedConversationID(c gatewayctx.GatewayContext) (middleware2.AuthSubject, int64, bool) {
@@ -195,6 +247,22 @@ func writeChatWorkspaceError(c gatewayctx.GatewayContext, err error) {
 	default:
 		writeChatWorkspaceStatusWithError(c, http.StatusInternalServerError, "Workspace service unavailable", workspaceReasonServiceUnavailable, err)
 	}
+}
+
+func isChatWorkspaceDomainError(err error) bool {
+	return errors.Is(err, service.ErrWorkspaceConversationNotFound) ||
+		errors.Is(err, service.ErrWorkspaceInvalidModel) ||
+		errors.Is(err, service.ErrWorkspaceInvalidIntent) ||
+		errors.Is(err, service.ErrWorkspaceCapabilityDisabled) ||
+		errors.Is(err, service.ErrWorkspaceAttachmentsDisabled) ||
+		errors.Is(err, service.ErrWorkspaceInvalidMessage)
+}
+
+func writeChatWorkspaceIdempotencyError(c gatewayctx.GatewayContext, err error) {
+	if retryAfter := service.RetryAfterSecondsFromError(err); retryAfter > 0 {
+		c.SetHeader("Retry-After", strconv.Itoa(retryAfter))
+	}
+	response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 }
 
 func writeChatWorkspaceStatus(c gatewayctx.GatewayContext, status int, message, reason string) {

@@ -81,10 +81,12 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
   const sending = ref(false)
   const requestPhase = ref<WorkspaceRequestPhase>('idle')
   const errorMessage = ref('')
+  const lastFailedTextMessage = ref<SendTextMessageInput | null>(null)
 
   const activeConversation = computed(() =>
     conversations.value.find((item) => item.id === activeConversationId.value) || null
   )
+  const canRetryLastFailedSend = computed(() => lastFailedTextMessage.value !== null && !sending.value)
 
   async function loadHistory() {
     errorMessage.value = ''
@@ -128,6 +130,7 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
     if (id <= 0 || loadingMessages.value) return
 
     errorMessage.value = ''
+    lastFailedTextMessage.value = null
     loadingMessages.value = true
     try {
       const nextMessages = await listMessages(id)
@@ -148,6 +151,7 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
     activeConversationId.value = null
     messages.value = []
     errorMessage.value = ''
+    lastFailedTextMessage.value = null
     requestPhase.value = 'idle'
   }
 
@@ -159,20 +163,24 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
     if (!backendEnabled.value) {
       requestPhase.value = 'failed'
       errorMessage.value = WORKSPACE_BACKEND_UNAVAILABLE_MESSAGE
+      lastFailedTextMessage.value = null
       return false
     }
 
     if (!isTextChatIntent(input.intent) || input.attachments.length > 0) {
       requestPhase.value = 'failed'
       errorMessage.value = WORKSPACE_TEXT_ONLY_MESSAGE
+      lastFailedTextMessage.value = null
       return false
     }
 
     sending.value = true
     requestPhase.value = 'sending'
     errorMessage.value = ''
+    lastFailedTextMessage.value = null
     let conversationId = activeConversationId.value
     let localRequestId = ''
+    const retryInput = cloneSendTextMessageInput(input, text)
     try {
       if (conversationId === null) {
         const conversation = await createConversation({ title: deriveConversationTitle(text) })
@@ -192,6 +200,8 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
         model: input.model,
         intent: 'chat',
         metadata: input.webSearchRequested ? { web_search_requested: true } : undefined
+      }, {
+        idempotencyKey: localRequestId
       })
       let nextMessages: ChatMessage[]
       try {
@@ -199,6 +209,7 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
       } catch {
         requestPhase.value = 'failed'
         errorMessage.value = WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE
+        lastFailedTextMessage.value = null
         if (localRequestId) {
           markLocalRequestFailed(localRequestId, WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE, 'success')
         }
@@ -206,14 +217,18 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
       }
       messages.value = nextMessages.map(mapChatMessageToWorkspaceMessage)
       requestPhase.value = 'success'
+      lastFailedTextMessage.value = null
       await refreshConversationList()
       return true
     } catch (error) {
       const failureMessage = workspaceSendFailureMessage(error)
       requestPhase.value = 'failed'
       errorMessage.value = failureMessage
+      let canRetryWithoutDuplicateUserMessage = conversationId === null
       if (conversationId !== null) {
         const refreshedMessages = await refreshMessagesAfterFailedSend(conversationId)
+        canRetryWithoutDuplicateUserMessage =
+          refreshedMessages !== null && !hasPersistedMatchingUserMessage(refreshedMessages, text)
         if (refreshedMessages && shouldShowAssistantFailurePlaceholder(error, refreshedMessages)) {
           appendLocalAssistantFailure(
             conversationId,
@@ -226,10 +241,17 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
       } else if (localRequestId) {
         markLocalRequestFailed(localRequestId, failureMessage)
       }
+      lastFailedTextMessage.value = canRetryWithoutDuplicateUserMessage ? retryInput : null
       return false
     } finally {
       sending.value = false
     }
+  }
+
+  async function retryLastFailedSend() {
+    const retryInput = lastFailedTextMessage.value
+    if (!retryInput || sending.value) return false
+    return sendTextMessage(retryInput)
   }
 
   async function refreshConversationList() {
@@ -356,6 +378,7 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
     activeConversation,
     activeConversationId,
     backendEnabled,
+    canRetryLastFailedSend,
     conversations,
     errorMessage,
     loadingHistory,
@@ -364,6 +387,7 @@ export function useWorkspaceConversation(options: UseWorkspaceConversationOption
     requestPhase,
     sending,
     loadHistory,
+    retryLastFailedSend,
     selectConversation,
     sendTextMessage,
     startNewChat
@@ -411,8 +435,26 @@ function isTextChatIntent(intent: WorkspaceIntent) {
   return intent === 'home' || intent === 'chat'
 }
 
+function cloneSendTextMessageInput(input: SendTextMessageInput, text: string): SendTextMessageInput {
+  return {
+    text,
+    model: input.model,
+    intent: input.intent,
+    attachments: [...input.attachments],
+    webSearchRequested: input.webSearchRequested
+  }
+}
+
 function createWorkspaceRequestId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function hasPersistedMatchingUserMessage(messages: WorkspaceMessage[], text: string) {
+  return messages.some((message) =>
+    message.persistedId !== undefined &&
+    message.role === 'user' &&
+    message.content.trim() === text
+  )
 }
 
 function shouldShowAssistantFailurePlaceholder(error: unknown, messages: WorkspaceMessage[]) {

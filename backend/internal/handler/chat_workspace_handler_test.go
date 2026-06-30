@@ -172,6 +172,65 @@ func TestChatWorkspaceHandlerRejectsUserAssetMetadataWithoutLeakingInternals(t *
 	require.NotContains(t, listRec.Body.String(), "asset-1")
 }
 
+func TestChatWorkspaceHandlerAppendMessageIdempotencyReplayDoesNotDuplicateMessages(t *testing.T) {
+	repo := newHandlerMemoryChatWorkspaceRepo()
+	responder := &countingWorkspaceAssistantResponder{}
+	svc := service.NewChatWorkspaceServiceWithResponder(repo, responder)
+	h := NewChatWorkspaceHandler(svc)
+	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(newUserMemoryIdempotencyRepoStub(), nil, service.DefaultIdempotencyConfig()))
+	t.Cleanup(func() {
+		service.SetDefaultIdempotencyCoordinator(nil)
+	})
+
+	router := gin.New()
+	router.Use(middleware.RequestLogger(), middleware.ClientRequestID())
+	router.Use(func(c *gin.Context) {
+		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 42})
+		c.Next()
+	})
+	group := router.Group("/api/v1/chat-workspace")
+	group.POST("/conversations", h.CreateConversation)
+	group.GET("/conversations/:id/messages", h.ListMessages)
+	group.POST("/conversations/:id/messages", h.AppendMessage)
+
+	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/chat-workspace/conversations", bytes.NewBufferString(`{}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRec := httptest.NewRecorder()
+	router.ServeHTTP(createRec, createReq)
+	require.Equal(t, http.StatusCreated, createRec.Code)
+
+	appendBody := `{"message_type":"text","role":"user","content":"hello idempotent","model":"gpt-5.5","intent":"chat"}`
+	callAppend := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/chat-workspace/conversations/1/messages", bytes.NewBufferString(appendBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Idempotency-Key", "chat-message-once")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		return rec
+	}
+
+	first := callAppend()
+	second := callAppend()
+
+	require.Equal(t, http.StatusCreated, first.Code)
+	require.Equal(t, http.StatusCreated, second.Code)
+	require.Equal(t, "true", second.Header().Get("X-Idempotency-Replayed"))
+	require.Equal(t, 1, responder.calls)
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/chat-workspace/conversations/1/messages", nil)
+	listRec := httptest.NewRecorder()
+	router.ServeHTTP(listRec, listReq)
+	require.Equal(t, http.StatusOK, listRec.Code)
+	var listEnvelope struct {
+		Code int                        `json:"code"`
+		Data []service.WorkspaceMessage `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(listRec.Body.Bytes(), &listEnvelope))
+	require.Len(t, listEnvelope.Data, 2)
+	require.Equal(t, service.WorkspaceRoleUser, listEnvelope.Data[0].Role)
+	require.Equal(t, service.WorkspaceRoleAssistant, listEnvelope.Data[1].Role)
+}
+
 type chatWorkspaceErrorEnvelope struct {
 	Code     int               `json:"code"`
 	Message  string            `json:"message"`
@@ -273,3 +332,21 @@ func (r *handlerMemoryChatWorkspaceRepo) AppendMessage(_ context.Context, userID
 }
 
 var _ service.ChatWorkspaceRepository = (*handlerMemoryChatWorkspaceRepo)(nil)
+
+type countingWorkspaceAssistantResponder struct {
+	calls int
+}
+
+func (r *countingWorkspaceAssistantResponder) GenerateAssistantResponse(_ context.Context, input service.WorkspaceAssistantResponseInput) (service.WorkspaceAssistantResponse, error) {
+	r.calls++
+	return service.WorkspaceAssistantResponse{
+		Content:     "assistant reply",
+		MessageType: service.WorkspaceMessageTypeText,
+		Model:       input.Model,
+		Intent:      input.Intent,
+		Status:      service.WorkspaceMessageStatusCompleted,
+		Metadata: map[string]any{
+			"provider_called": false,
+		},
+	}, nil
+}
