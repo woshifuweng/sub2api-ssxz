@@ -167,6 +167,13 @@ func TestPersistImageStudioWork_StoresURLResultsToLocalStorage(t *testing.T) {
 				MaxDownloadBytes:       1024,
 			},
 		},
+		Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{
+				Enabled:           true,
+				AllowInsecureHTTP: true,
+				AllowPrivateHosts: true,
+			},
+		},
 	})
 	handler := &ImageStudioHandler{
 		genService:   service.NewSoraGenerationService(repo, nil, nil),
@@ -204,6 +211,13 @@ func TestPersistImageStudioWork_KeepsUpstreamStorageWhenURLStorageFallsBack(t *t
 				Type:               "local",
 				LocalPath:          tmpDir,
 				FallbackToUpstream: true,
+			},
+		},
+		Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{
+				Enabled:           true,
+				AllowInsecureHTTP: true,
+				AllowPrivateHosts: true,
 			},
 		},
 	})

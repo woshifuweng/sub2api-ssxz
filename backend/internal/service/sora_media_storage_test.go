@@ -33,6 +33,13 @@ func TestSoraMediaStorage_StoreFromURLs(t *testing.T) {
 				MaxConcurrentDownloads: 1,
 			},
 		},
+		Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{
+				Enabled:           true,
+				AllowInsecureHTTP: true,
+				AllowPrivateHosts: true,
+			},
+		},
 	}
 
 	storage := NewSoraMediaStorage(cfg)
@@ -44,6 +51,61 @@ func TestSoraMediaStorage_StoreFromURLs(t *testing.T) {
 
 	localPath := filepath.Join(tmpDir, filepath.FromSlash(strings.TrimPrefix(urls[0], "/")))
 	require.FileExists(t, localPath)
+}
+
+func TestSoraMediaStorage_StoreFromURLsBlocksPrivateHostsByDefault(t *testing.T) {
+	tmpDir := t.TempDir()
+	storage := NewSoraMediaStorage(&config.Config{
+		Sora: config.SoraConfig{
+			Storage: config.SoraStorageConfig{
+				Type:      "local",
+				LocalPath: tmpDir,
+			},
+		},
+	})
+
+	urls, err := storage.StoreFromURLs(context.Background(), "image", []string{"https://127.0.0.1/img.png"})
+
+	require.Error(t, err)
+	require.Nil(t, urls)
+	require.Contains(t, err.Error(), "host is not allowed")
+}
+
+func TestSoraMediaStorage_StoreFromURLsDoesNotFallbackBlockedPrivateHost(t *testing.T) {
+	tmpDir := t.TempDir()
+	storage := NewSoraMediaStorage(&config.Config{
+		Sora: config.SoraConfig{
+			Storage: config.SoraStorageConfig{
+				Type:               "local",
+				LocalPath:          tmpDir,
+				FallbackToUpstream: true,
+			},
+		},
+	})
+
+	urls, err := storage.StoreFromURLs(context.Background(), "image", []string{"https://127.0.0.1/img.png"})
+
+	require.Error(t, err)
+	require.Nil(t, urls)
+	require.Contains(t, err.Error(), "host is not allowed")
+}
+
+func TestSoraMediaStorage_StoreFromURLsBlocksMetadataHost(t *testing.T) {
+	tmpDir := t.TempDir()
+	storage := NewSoraMediaStorage(&config.Config{
+		Sora: config.SoraConfig{
+			Storage: config.SoraStorageConfig{
+				Type:      "local",
+				LocalPath: tmpDir,
+			},
+		},
+	})
+
+	urls, err := storage.StoreFromURLs(context.Background(), "image", []string{"https://metadata.google.internal/computeMetadata/v1/instance"})
+
+	require.Error(t, err)
+	require.Nil(t, urls)
+	require.Contains(t, err.Error(), "host is not allowed")
 }
 
 func TestSoraMediaStorage_StoreBase64Images(t *testing.T) {
@@ -123,6 +185,13 @@ func TestSoraMediaStorage_FallbackToUpstream(t *testing.T) {
 				FallbackToUpstream: true,
 			},
 		},
+		Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{
+				Enabled:           true,
+				AllowInsecureHTTP: true,
+				AllowPrivateHosts: true,
+			},
+		},
 	}
 
 	storage := NewSoraMediaStorage(cfg)
@@ -147,6 +216,13 @@ func TestSoraMediaStorage_MaxDownloadBytes(t *testing.T) {
 				Type:             "local",
 				LocalPath:        tmpDir,
 				MaxDownloadBytes: 1,
+			},
+		},
+		Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{
+				Enabled:           true,
+				AllowInsecureHTTP: true,
+				AllowPrivateHosts: true,
 			},
 		},
 	}

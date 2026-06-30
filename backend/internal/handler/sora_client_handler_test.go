@@ -1870,6 +1870,13 @@ func TestStoreMediaWithDegradation_LocalStorageSuccess(t *testing.T) {
 				MaxDownloadBytes:       10 * 1024 * 1024,
 			},
 		},
+		Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{
+				Enabled:           true,
+				AllowInsecureHTTP: true,
+				AllowPrivateHosts: true,
+			},
+		},
 	}
 	mediaStorage := service.NewSoraMediaStorage(cfg)
 	h := &SoraClientHandler{mediaStorage: mediaStorage}
@@ -1899,6 +1906,13 @@ func TestStoreMediaWithDegradation_S3FailsFallbackToLocal(t *testing.T) {
 				LocalPath:              tmpDir,
 				DownloadTimeoutSeconds: 5,
 				MaxDownloadBytes:       10 * 1024 * 1024,
+			},
+		},
+		Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{
+				Enabled:           true,
+				AllowInsecureHTTP: true,
+				AllowPrivateHosts: true,
 			},
 		},
 	}

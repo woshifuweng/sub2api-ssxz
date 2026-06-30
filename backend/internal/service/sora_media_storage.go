@@ -17,12 +17,16 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
+	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 	"github.com/google/uuid"
 )
 
 const (
 	soraStorageDefaultRoot = "/app/data/sora"
 )
+
+var errSoraMediaURLNotAllowed = errors.New("media url host is not allowed")
 
 // SoraMediaStorage 负责下载并落地 Sora 媒体
 type SoraMediaStorage struct {
@@ -147,6 +151,9 @@ func (s *SoraMediaStorage) StoreFromURLs(ctx context.Context, mediaType string, 
 	for _, raw := range urls {
 		relative, err := s.downloadAndStore(ctx, mediaType, raw)
 		if err != nil {
+			if errors.Is(err, errSoraMediaURLNotAllowed) {
+				return nil, err
+			}
 			if s.fallbackToUpstream {
 				results = append(results, raw)
 				continue
@@ -266,6 +273,9 @@ func (s *SoraMediaStorage) downloadAndStore(ctx context.Context, mediaType, rawU
 		if err == nil {
 			return relative, nil
 		}
+		if errors.Is(err, errSoraMediaURLNotAllowed) {
+			return "", err
+		}
 		if s.debug {
 			log.Printf("[SoraStorage] 下载失败(%d/%d): %s err=%v", attempt, retries, sanitizeMediaLogURL(rawURL), err)
 		}
@@ -328,11 +338,18 @@ func (s *SoraMediaStorage) storeBase64Image(ctx context.Context, raw string) (st
 }
 
 func (s *SoraMediaStorage) downloadOnce(ctx context.Context, root, mediaType, rawURL string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	downloadURL, err := s.validateDownloadURL(rawURL)
 	if err != nil {
 		return "", err
 	}
-	client := &http.Client{Timeout: s.downloadTimeout}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL, nil)
+	if err != nil {
+		return "", err
+	}
+	client, err := s.downloadClient()
+	if err != nil {
+		return "", err
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
@@ -344,7 +361,7 @@ func (s *SoraMediaStorage) downloadOnce(ctx context.Context, root, mediaType, ra
 		return "", fmt.Errorf("download failed: %d %s", resp.StatusCode, string(body))
 	}
 
-	ext := normalizeSoraFileExt(fileExtFromURL(rawURL))
+	ext := normalizeSoraFileExt(fileExtFromURL(downloadURL))
 	if ext == "" {
 		ext = normalizeSoraFileExt(fileExtFromContentType(resp.Header.Get("Content-Type")))
 	}
@@ -390,6 +407,62 @@ func (s *SoraMediaStorage) downloadOnce(ctx context.Context, root, mediaType, ra
 		log.Printf("[SoraStorage] 已落地 %s -> %s", sanitizeMediaLogURL(rawURL), relative)
 	}
 	return relative, nil
+}
+
+func (s *SoraMediaStorage) validateDownloadURL(rawURL string) (string, error) {
+	allowInsecureHTTP, allowPrivateHosts := s.mediaDownloadURLPolicy()
+	normalized, err := urlvalidator.ValidateHTTPURL(rawURL, allowInsecureHTTP, urlvalidator.ValidationOptions{
+		AllowPrivate: allowPrivateHosts,
+	})
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", errSoraMediaURLNotAllowed, err)
+	}
+	if allowPrivateHosts {
+		return normalized, nil
+	}
+
+	parsed, err := url.Parse(normalized)
+	if err != nil {
+		return "", err
+	}
+	host := strings.ToLower(strings.TrimSpace(parsed.Hostname()))
+	if host == "" {
+		return "", errors.New("invalid host")
+	}
+	if soraMediaDownloadHostBlocked(host) {
+		return "", fmt.Errorf("%w: %s", errSoraMediaURLNotAllowed, host)
+	}
+	return normalized, nil
+}
+
+func (s *SoraMediaStorage) downloadClient() (*http.Client, error) {
+	_, allowPrivateHosts := s.mediaDownloadURLPolicy()
+	return httpclient.GetClient(httpclient.Options{
+		Timeout:            s.downloadTimeout,
+		ValidateResolvedIP: true,
+		AllowPrivateHosts:  allowPrivateHosts,
+	})
+}
+
+func (s *SoraMediaStorage) mediaDownloadURLPolicy() (allowInsecureHTTP bool, allowPrivateHosts bool) {
+	if s == nil || s.cfg == nil || !s.cfg.Security.URLAllowlist.Enabled {
+		return false, false
+	}
+	return s.cfg.Security.URLAllowlist.AllowInsecureHTTP, s.cfg.Security.URLAllowlist.AllowPrivateHosts
+}
+
+func soraMediaDownloadHostBlocked(host string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(host))
+	if normalized == "" {
+		return true
+	}
+	if strings.HasSuffix(normalized, ".localhost") || strings.HasSuffix(normalized, ".metadata.google.internal") {
+		return true
+	}
+	if _, blocked := soraBlockedHostnames[normalized]; blocked {
+		return true
+	}
+	return false
 }
 
 func (s *SoraMediaStorage) acquire(ctx context.Context) (func(), error) {
