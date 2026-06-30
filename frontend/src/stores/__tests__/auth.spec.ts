@@ -211,6 +211,32 @@ describe('useAuthStore', () => {
 
       expect(store.isAuthenticated).toBe(true)
     })
+
+    it('does not log an error when restored session refresh fails because auth expired', async () => {
+      localStorage.setItem('auth_token', 'expired-token')
+      localStorage.setItem('auth_user', JSON.stringify(fakeUser))
+      localStorage.setItem('refresh_token', 'expired-refresh')
+
+      mockGetCurrentUser.mockRejectedValue({
+        status: 401,
+        code: 'TOKEN_REFRESH_FAILED',
+        message: 'Session expired. Please log in again.',
+      })
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+      const store = useAuthStore()
+      store.checkAuth()
+
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(consoleError).not.toHaveBeenCalled()
+      expect(store.token).toBeNull()
+      expect(store.user).toBeNull()
+      expect(localStorage.getItem('auth_token')).toBeNull()
+
+      consoleError.mockRestore()
+    })
   })
 
   // --- isAdmin ---

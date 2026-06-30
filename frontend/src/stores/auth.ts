@@ -15,6 +15,44 @@ const TOKEN_EXPIRES_AT_KEY = 'token_expires_at' // 存储过期时间戳而非�
 const AUTO_REFRESH_INTERVAL = 60 * 1000 // 60 seconds for user data refresh
 const TOKEN_REFRESH_BUFFER = 120 * 1000 // 120 seconds before expiry to refresh token
 
+const EXPECTED_SESSION_RESTORE_AUTH_ERROR_CODES = new Set([
+  'TOKEN_REFRESH_FAILED',
+  'TOKEN_EXPIRED',
+  'INVALID_TOKEN',
+  'TOKEN_REVOKED',
+  'UNAUTHORIZED',
+])
+
+function isExpectedSessionRestoreAuthError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+
+  const candidate = error as {
+    status?: unknown
+    code?: unknown
+    error?: unknown
+    response?: {
+      status?: unknown
+      data?: {
+        code?: unknown
+        error?: unknown
+      }
+    }
+  }
+
+  const status =
+    typeof candidate.status === 'number'
+      ? candidate.status
+      : typeof candidate.response?.status === 'number'
+        ? candidate.response.status
+        : undefined
+  if (status === 401) return true
+
+  const code = [candidate.code, candidate.error, candidate.response?.data?.code, candidate.response?.data?.error]
+    .find((value): value is string => typeof value === 'string')
+
+  return !!code && EXPECTED_SESSION_RESTORE_AUTH_ERROR_CODES.has(code)
+}
+
 export const useAuthStore = defineStore('auth', () => {
   // ==================== State ====================
 
@@ -60,7 +98,9 @@ export const useAuthStore = defineStore('auth', () => {
 
         // Immediately refresh user data from backend (async, don't block)
         refreshUser().catch((error) => {
-          console.error('Failed to refresh user on init:', error)
+          if (!isExpectedSessionRestoreAuthError(error)) {
+            console.error('Failed to refresh user on init:', error)
+          }
         })
 
         // Start auto-refresh interval for user data
