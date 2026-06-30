@@ -1115,7 +1115,12 @@ func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, 
 
 		// 订阅信息可能不在 context 中（/v1/usage 路径跳过了中间件的计费检查）
 		subscription, ok := middleware2.GetSubscriptionFromContext(c)
-		if ok {
+		if !ok {
+			resp["isValid"] = false
+			resp["status"] = "subscription_not_found"
+			resp["remaining"] = float64(0)
+			resp["message"] = "No active subscription found for this group"
+		} else {
 			remaining := h.calculateSubscriptionRemaining(apiKey.Group, subscription)
 			resp["remaining"] = remaining
 			resp["subscription"] = gin.H{
