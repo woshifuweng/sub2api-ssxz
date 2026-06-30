@@ -835,7 +835,7 @@ func (h *GatewayHandler) ModelsGateway(c gatewayctx.GatewayContext) {
 	if platform == service.PlatformKiro {
 		c.WriteJSON(http.StatusOK, gin.H{
 			"object": "list",
-			"data":   kiro.DefaultModels,
+			"data":   filterClaudeModelsForAPIKey(apiKey, kiro.DefaultModels),
 		})
 		return
 	}
