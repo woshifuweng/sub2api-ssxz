@@ -1134,6 +1134,7 @@
       :api-key="selectedKeyUsableApiKey"
       :base-url="publicSettings?.api_base_url || ''"
       :platform="selectedKey?.group?.platform || null"
+      :allowed-models="selectedKey?.allowed_models || []"
       :allow-messages-dispatch="selectedKey?.group?.allow_messages_dispatch || false"
       @close="closeUseKeyModal"
     />
