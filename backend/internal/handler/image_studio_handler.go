@@ -3,6 +3,8 @@ package handler
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -26,6 +28,29 @@ const (
 	imageStudioMaxUpload       = 32 << 20
 	imageStudioCaptureMaxBytes = 64 << 20
 )
+
+type imageStudioIdempotencyPayload struct {
+	TemplateID     string `json:"template_id"`
+	Model          string `json:"model"`
+	ProductName    string `json:"product_name"`
+	SellingPoints  string `json:"selling_points"`
+	Style          string `json:"style"`
+	Size           string `json:"size"`
+	Count          int    `json:"count"`
+	Endpoint       string `json:"endpoint"`
+	FileName       string `json:"file_name,omitempty"`
+	FileType       string `json:"file_type,omitempty"`
+	FileSize       int    `json:"file_size,omitempty"`
+	FileSHA256     string `json:"file_sha256,omitempty"`
+	PromptSHA256   string `json:"prompt_sha256"`
+	GatewayBodySum string `json:"gateway_body_sha256"`
+}
+
+type imageStudioIdempotencyResponse struct {
+	Status      int    `json:"status"`
+	ContentType string `json:"content_type,omitempty"`
+	Body        string `json:"body"`
+}
 
 type ImageStudioHandler struct {
 	apiKeyService       *service.APIKeyService
@@ -149,9 +174,48 @@ func (h *ImageStudioHandler) GenerateGateway(c gatewayctx.GatewayContext) {
 		return
 	}
 
-	capture := newImageStudioCaptureContext(c)
-	h.openAIGateway.ImagesGateway(capture)
-	h.persistImageStudioWork(c.Request().Context(), capture, subject.UserID, apiKey.ID, req.Model, prompt)
+	coordinator := service.DefaultIdempotencyCoordinator()
+	if coordinator == nil {
+		response.ErrorContext(imageStudioResponder{ctx: c}, http.StatusServiceUnavailable, "Image request protection is not available")
+		return
+	}
+
+	payload := buildImageStudioIdempotencyPayload(req, prompt, endpoint, body)
+	result, err := coordinator.Execute(c.Request().Context(), service.IdempotencyExecuteOptions{
+		Scope:          imageStudioIdempotencyScope(subject.UserID),
+		ActorScope:     fmt.Sprintf("user:%d", subject.UserID),
+		Method:         c.Request().Method,
+		Route:          c.Path(),
+		IdempotencyKey: c.HeaderValue("Idempotency-Key"),
+		Payload:        payload,
+		RequireKey:     true,
+		TTL:            service.DefaultWriteIdempotencyTTL(),
+	}, func(ctx context.Context) (any, error) {
+		capture := newImageStudioCaptureContext(c)
+		h.openAIGateway.ImagesGateway(capture)
+		idempotentResponse := imageStudioIdempotencyResponse{
+			Status:      capture.status,
+			ContentType: strings.TrimSpace(c.Header().Get("Content-Type")),
+			Body:        string(capture.bytes()),
+		}
+		h.persistImageStudioWork(ctx, capture, subject.UserID, apiKey.ID, req.Model, prompt)
+		if !capture.success() {
+			return idempotentResponse, fmt.Errorf("image studio generation failed")
+		}
+		return idempotentResponse, nil
+	})
+	if err != nil {
+		if !c.ResponseWritten() {
+			response.ErrorFromContext(imageStudioResponder{ctx: c}, err)
+		}
+		return
+	}
+	if result != nil && result.Replayed {
+		c.SetHeader("X-Idempotency-Replayed", "true")
+		if replay, ok := parseImageStudioIdempotencyResponse(result.Data); ok {
+			writeImageStudioIdempotencyReplay(c, replay)
+		}
+	}
 }
 
 type imageStudioCaptureContext struct {
@@ -318,8 +382,12 @@ func parseImageStudioRequest(c gatewayctx.GatewayContext) (*imageStudioRequest, 
 			if len(data) > imageStudioMaxUpload {
 				return nil, fmt.Errorf("image is too large")
 			}
+			detectedType, ok := detectAllowedImageStudioFileType(data)
+			if !ok {
+				return nil, fmt.Errorf("unsupported image file type")
+			}
 			out.FileName = sanitizeStudioFileName(fileHeader.Filename)
-			out.FileType = strings.TrimSpace(fileHeader.Header.Get("Content-Type"))
+			out.FileType = detectedType
 			out.FileData = data
 		}
 	}
@@ -517,6 +585,96 @@ func imageStudioProviderName(apiKey *service.APIKey) string {
 		return ""
 	}
 	return apiKey.Group.Platform
+}
+
+func imageStudioIdempotencyScope(userID int64) string {
+	return fmt.Sprintf("user:%d:image_studio_generate", userID)
+}
+
+func buildImageStudioIdempotencyPayload(req *imageStudioRequest, prompt string, endpoint string, gatewayBody []byte) imageStudioIdempotencyPayload {
+	payload := imageStudioIdempotencyPayload{
+		Endpoint:       endpoint,
+		PromptSHA256:   sha256Hex([]byte(prompt)),
+		GatewayBodySum: sha256Hex(gatewayBody),
+	}
+	if req == nil {
+		return payload
+	}
+	payload.TemplateID = req.TemplateID
+	payload.Model = req.Model
+	payload.ProductName = req.ProductName
+	payload.SellingPoints = req.SellingPoints
+	payload.Style = req.Style
+	payload.Size = req.Size
+	payload.Count = req.Count
+	payload.FileName = req.FileName
+	payload.FileType = req.FileType
+	payload.FileSize = len(req.FileData)
+	payload.FileSHA256 = sha256Hex(req.FileData)
+	return payload
+}
+
+func parseImageStudioIdempotencyResponse(data any) (imageStudioIdempotencyResponse, bool) {
+	switch value := data.(type) {
+	case imageStudioIdempotencyResponse:
+		return value, true
+	case *imageStudioIdempotencyResponse:
+		if value == nil {
+			return imageStudioIdempotencyResponse{}, false
+		}
+		return *value, true
+	case map[string]any:
+		out := imageStudioIdempotencyResponse{}
+		if status, ok := value["status"].(float64); ok {
+			out.Status = int(status)
+		}
+		if contentType, ok := value["content_type"].(string); ok {
+			out.ContentType = contentType
+		}
+		if body, ok := value["body"].(string); ok {
+			out.Body = body
+		}
+		return out, out.Status > 0
+	default:
+		return imageStudioIdempotencyResponse{}, false
+	}
+}
+
+func writeImageStudioIdempotencyReplay(c gatewayctx.GatewayContext, replay imageStudioIdempotencyResponse) {
+	if c == nil {
+		return
+	}
+	status := replay.Status
+	if status <= 0 {
+		status = http.StatusOK
+	}
+	if strings.TrimSpace(replay.ContentType) != "" {
+		c.SetHeader("Content-Type", replay.ContentType)
+	} else {
+		c.SetHeader("Content-Type", "application/json")
+	}
+	_, _ = c.WriteBytes(status, []byte(replay.Body))
+}
+
+func detectAllowedImageStudioFileType(data []byte) (string, bool) {
+	if len(data) == 0 {
+		return "", false
+	}
+	detected := strings.ToLower(strings.TrimSpace(http.DetectContentType(data)))
+	switch detected {
+	case "image/png", "image/jpeg", "image/webp":
+		return detected, true
+	default:
+		return "", false
+	}
+}
+
+func sha256Hex(data []byte) string {
+	if len(data) == 0 {
+		return ""
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 func extractImageStudioResultURLs(body []byte) []string {

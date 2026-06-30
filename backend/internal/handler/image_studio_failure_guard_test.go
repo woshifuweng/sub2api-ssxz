@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -298,6 +299,131 @@ func TestOpenAIImagesGateway_EstimatedCostOverBalanceDoesNotCallUpstream(t *test
 	require.Equal(t, 0, usageRepo.calls)
 	require.Equal(t, 0, billingRepo.calls)
 	require.Equal(t, 0, userRepo.deductCalls)
+}
+
+func TestImageStudioGenerateGateway_IdempotencyReplayDoesNotCallUpstreamOrDuplicateHistory(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	groupID := int64(303)
+	user := &service.User{
+		ID:          703,
+		Status:      service.StatusActive,
+		Role:        "user",
+		Balance:     10,
+		Concurrency: 0,
+	}
+	group := &service.Group{
+		ID:       groupID,
+		Name:     "image-idempotency",
+		Platform: service.PlatformOpenAI,
+		Status:   service.StatusActive,
+	}
+	apiKey := &service.APIKey{
+		ID:      803,
+		UserID:  user.ID,
+		Key:     "test-image-idempotency-key",
+		Status:  service.StatusAPIKeyActive,
+		User:    user,
+		GroupID: &groupID,
+		Group:   group,
+	}
+	account := service.Account{
+		ID:          903,
+		Name:        "image-upstream",
+		Platform:    service.PlatformOpenAI,
+		Type:        service.AccountTypeAPIKey,
+		Status:      service.StatusActive,
+		Schedulable: true,
+		Concurrency: 0,
+		Credentials: map[string]any{
+			"api_key":  "test-upstream-key",
+			"base_url": "https://api.example.test",
+		},
+	}
+
+	cfg := &config.Config{}
+	userRepo := &imageStudioGatewayUserRepo{user: user}
+	usageRepo := &imageStudioGatewayUsageRepo{}
+	billingRepo := &imageStudioGatewayBillingRepo{}
+	genRepo := &imageStudioTestGenRepo{}
+	upstream := &imageStudioGatewayUpstream{
+		status: http.StatusOK,
+		body:   `{"data":[{"url":"https://cdn.example.test/image.png"}]}`,
+	}
+	billingCacheService := service.NewBillingCacheService(nil, userRepo, nil, nil, cfg)
+	gatewayService := service.NewOpenAIGatewayService(
+		&imageStudioGatewayAccountRepo{accounts: []service.Account{account}},
+		nil,
+		usageRepo,
+		billingRepo,
+		userRepo,
+		nil,
+		nil,
+		nil,
+		cfg,
+		nil,
+		nil,
+		service.NewBillingService(cfg, nil),
+		nil,
+		nil,
+		billingCacheService,
+		upstream,
+		nil,
+		nil,
+	)
+	t.Cleanup(gatewayService.CloseOpenAIWSPool)
+
+	apiKeyService := service.NewAPIKeyService(&imageStudioAPIKeyRepo{key: apiKey}, nil, nil, nil, nil, nil, cfg)
+	handler := NewImageStudioHandler(
+		apiKeyService,
+		nil,
+		NewOpenAIGatewayHandler(
+			gatewayService,
+			service.NewConcurrencyService(nil),
+			billingCacheService,
+			apiKeyService,
+			nil,
+			nil,
+			cfg,
+		),
+		cfg,
+		service.NewSoraGenerationService(genRepo, nil, nil),
+		nil,
+	)
+	idempotencyConfig := service.DefaultIdempotencyConfig()
+	idempotencyConfig.ObserveOnly = false
+	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(newUserMemoryIdempotencyRepoStub(), nil, idempotencyConfig))
+	t.Cleanup(func() {
+		service.SetDefaultIdempotencyCoordinator(nil)
+	})
+
+	router := gin.New()
+	router.Use(withUserSubject(user.ID))
+	router.POST("/api/v1/image-studio/generate", handler.Generate)
+	callGenerate := func() *httptest.ResponseRecorder {
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+		require.NoError(t, writer.WriteField("product_name", "skincare cream"))
+		require.NoError(t, writer.WriteField("selling_points", "clean ecommerce product image"))
+		require.NoError(t, writer.WriteField("model", imageStudioModel))
+		require.NoError(t, writer.Close())
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/image-studio/generate", &body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req.Header.Set("Idempotency-Key", "image-generate-once")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		return rec
+	}
+
+	first := callGenerate()
+	second := callGenerate()
+
+	require.Equal(t, http.StatusOK, first.Code)
+	require.Equal(t, http.StatusOK, second.Code)
+	require.Equal(t, "true", second.Header().Get("X-Idempotency-Replayed"))
+	require.Equal(t, first.Body.String(), second.Body.String())
+	require.Equal(t, 1, upstream.calls)
+	require.Len(t, genRepo.created, 1)
 }
 
 func TestPersistImageStudioWork_DoesNotCreateHistoryForFailedOrTruncatedCapture(t *testing.T) {
