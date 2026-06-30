@@ -22,7 +22,7 @@ describe('UseKeyModal', () => {
       props: {
         show: true,
         apiKey: 'sk-test',
-        baseUrl: 'https://example.com/v1',
+        baseUrl: 'https://example.com',
         platform: 'openai'
       },
       global: {
@@ -43,7 +43,33 @@ describe('UseKeyModal', () => {
     expect(wrapper.text()).toContain('Cherry Studio')
     expect(wrapper.text()).toContain('Chatbox')
     expect(wrapper.text()).toContain('https://example.com/v1')
+    expect(wrapper.text()).toContain('https://example.com/v1/models')
     expect(wrapper.find('pre code').exists()).toBe(false)
+  })
+
+  it('does not duplicate v1 in third-party connection guidance', () => {
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'openai'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('https://example.com/v1')
+    expect(wrapper.text()).toContain('https://example.com/v1/models')
+    expect(wrapper.text()).not.toContain('/v1/v1')
   })
 
   it('renders updated GPT-5.4 mini/nano names in OpenCode config', async () => {

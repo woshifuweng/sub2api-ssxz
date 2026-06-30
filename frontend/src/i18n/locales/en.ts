@@ -673,6 +673,7 @@ export default {
         apiKeyHint: 'Use the full key saved when it was created. The list only shows a masked value; create a new API Key if it is lost.',
         modelLabel: 'Model',
         modelHint: 'Use models enabled for the current group in the admin configuration.',
+        modelsEndpointLabel: 'Model list check',
         securityNote: 'Only save the full API Key in clients you trust. Do not send it to others or share screenshots containing it.',
       },
       antigravity: {
