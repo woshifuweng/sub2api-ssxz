@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -42,6 +44,67 @@ func newImageStudioMultipartContext(t *testing.T, fields map[string]string) gate
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = req
 	return gatewayctx.FromGin(ctx)
+}
+
+func newImageStudioMultipartContextWithFile(
+	t *testing.T,
+	fields map[string]string,
+	fileName string,
+	contentType string,
+	fileBody []byte,
+) gatewayctx.GatewayContext {
+	t.Helper()
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	for name, value := range fields {
+		require.NoError(t, writer.WriteField(name, value))
+	}
+	header := make(textproto.MIMEHeader)
+	header.Set("Content-Disposition", fmt.Sprintf(`form-data; name="image"; filename="%s"`, fileName))
+	header.Set("Content-Type", contentType)
+	part, err := writer.CreatePart(header)
+	require.NoError(t, err)
+	_, err = part.Write(fileBody)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/image-studio/generate", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = req
+	return gatewayctx.FromGin(ctx)
+}
+
+type imageStudioAPIKeyRepo struct {
+	service.APIKeyRepository
+
+	key *service.APIKey
+}
+
+func (r *imageStudioAPIKeyRepo) ListByUserID(
+	context.Context,
+	int64,
+	pagination.PaginationParams,
+	service.APIKeyListFilters,
+) ([]service.APIKey, *pagination.PaginationResult, error) {
+	if r == nil || r.key == nil {
+		return nil, nil, nil
+	}
+	return []service.APIKey{*r.key}, nil, nil
+}
+
+func (r *imageStudioAPIKeyRepo) GetByKeyForAuth(_ context.Context, key string) (*service.APIKey, error) {
+	if r == nil || r.key == nil || key != r.key.Key {
+		return nil, service.ErrAPIKeyNotFound
+	}
+	cp := *r.key
+	return &cp, nil
+}
+
+func (r *imageStudioAPIKeyRepo) UpdateLastUsed(context.Context, int64, time.Time) error {
+	return nil
 }
 
 func (r *imageStudioTestGenRepo) Create(_ context.Context, gen *service.SoraGeneration) error {
@@ -334,6 +397,17 @@ func TestParseImageStudioRequest_AcceptsThreeImageCount(t *testing.T) {
 	require.Equal(t, 3, req.Count)
 }
 
+func TestParseImageStudioRequest_RejectsSpoofedImageContent(t *testing.T) {
+	ctx := newImageStudioMultipartContextWithFile(t, map[string]string{
+		"model": imageStudioModel,
+	}, "fake.png", "image/png", []byte("not-an-image"))
+
+	req, err := parseImageStudioRequest(ctx)
+
+	require.Nil(t, req)
+	require.ErrorContains(t, err, "unsupported image file type")
+}
+
 func TestBuildImageStudioGatewayBody_UsesRequestedModel(t *testing.T) {
 	req := &imageStudioRequest{
 		Model: "gemini-2.5-flash-image",
@@ -370,3 +444,5 @@ func TestBuildImageStudioGatewayBody_EditUsesRequestedModel(t *testing.T) {
 	require.Contains(t, string(body), `name="model"`)
 	require.Contains(t, string(body), "gemini-2.5-flash-image")
 }
+
+var _ service.APIKeyRepository = (*imageStudioAPIKeyRepo)(nil)

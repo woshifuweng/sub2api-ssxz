@@ -573,6 +573,7 @@ const referenceDragging = ref(false)
 const referencePreviewError = ref('')
 const generating = ref(false)
 const errorMessage = ref('')
+const noImageModelMessage = '当前没有可用的图片生成模型。请确认后台账号、分组和价格配置后再使用图片生成。'
 const failureRecoveryNote = '本次没有生成成功作品，不会保存到历史；未成功返回结果不会扣生成费用。可以调整提示词后重试，或联系管理员。'
 const results = ref<ResultImage[]>([])
 const activeResultIndex = ref(0)
@@ -619,9 +620,11 @@ const requestSize = computed(() => {
   return selectedCanvas.value.width > selectedCanvas.value.height ? '1536x1024' : '1024x1536'
 })
 const hasDescription = computed(() => Boolean(productName.value.trim() || prompt.value.trim()))
-const isGenerateDisabled = computed(() => generating.value || !hasDescription.value || !isCustomRatioValid.value)
+const imageGenerationUnavailable = computed(() => capabilities.loaded.value && !activeImageModel.value)
+const isGenerateDisabled = computed(() => generating.value || !hasDescription.value || !isCustomRatioValid.value || imageGenerationUnavailable.value)
 const generateLabel = computed(() => {
   if (generating.value) return '正在生成...'
+  if (imageGenerationUnavailable.value) return '图片生成暂不可用'
   if (!hasDescription.value) return '请先描述图片'
   if (!isCustomRatioValid.value) return '请填写有效比例'
   return `消耗约 ${imageCount.value} 张，生成图片`
@@ -919,7 +922,7 @@ function handlePreviewImageError() {
 
 async function generate() {
   if (isGenerateDisabled.value) {
-    appStore.showInfo(!hasDescription.value ? '请先填写主体或画面描述。' : '请填写有效的自定义比例。')
+    appStore.showInfo(generateDisabledMessage())
     return
   }
 
@@ -963,9 +966,23 @@ async function requestImageStudio() {
   }
 
   const response = await apiClient.post<ImageStudioPayload>('/image-studio/generate', form, {
-    timeout: 120000
+    timeout: 120000,
+    headers: {
+      'Idempotency-Key': createImageStudioIdempotencyKey()
+    }
   })
   return response.data
+}
+
+function generateDisabledMessage() {
+  if (!hasDescription.value) return '请先填写主体或画面描述。'
+  if (!isCustomRatioValid.value) return '请填写有效的自定义比例。'
+  if (imageGenerationUnavailable.value) return noImageModelMessage
+  return '当前请求正在处理中，请等待本次生成完成后再试。'
+}
+
+function createImageStudioIdempotencyKey() {
+  return `image-studio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 function mapGoalToTemplate(value: GoalId) {

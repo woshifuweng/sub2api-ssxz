@@ -109,6 +109,32 @@ function recordAnchorDownloads() {
   }
 }
 
+function stubExecutableImageModel(model = 'gpt-image-2') {
+  userChannelsApi.getAvailable.mockResolvedValue([
+    {
+      name: 'Image Channel',
+      description: '',
+      platforms: [
+        {
+          platform: 'image-provider',
+          groups: [],
+          supported_models: [
+            {
+              name: model,
+              platform: 'image-provider',
+              pricing: null,
+              capabilities: ['image_generation'],
+              provider_label: 'workspace-openai-compatible-image-staging',
+              model_catalog_source: 'real_channel',
+              pricing_status: 'configured',
+            },
+          ],
+        },
+      ],
+    },
+  ])
+}
+
 describe('ImageStudioView workbench', () => {
   beforeEach(() => {
     authStore.user.balance = 1
@@ -446,7 +472,55 @@ describe('ImageStudioView workbench', () => {
     await flushPromises()
 
     const form = apiClient.post.mock.calls[0][1] as FormData
+    const config = apiClient.post.mock.calls[0][2] as { headers?: Record<string, string> }
     expect(form.get('model')).toBe('gpt-image-1')
+    expect(config.headers?.['Idempotency-Key']).toMatch(/^image-studio-/)
+
+    wrapper.unmount()
+  })
+
+  it('disables generation when the account has no executable image model', async () => {
+    userChannelsApi.getAvailable.mockResolvedValue([])
+
+    const wrapper = mountImageStudio()
+    await flushPromises()
+    await wrapper.find('textarea').setValue('minimal skincare product cover')
+
+    const generateButton = wrapper.find('button.generate-button')
+    expect(generateButton.attributes('disabled')).toBeDefined()
+    expect(generateButton.text()).toContain('图片生成暂不可用')
+    expect(apiClient.post).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('does not submit duplicate image generation while the current request is pending', async () => {
+    stubExecutableImageModel()
+    let resolvePost: (value: unknown) => void = () => {}
+    apiClient.post.mockReturnValue(new Promise((resolve) => {
+      resolvePost = resolve
+    }))
+
+    const wrapper = mountImageStudio()
+    await flushPromises()
+    await wrapper.find('textarea').setValue('minimal skincare product cover')
+    const generateButton = wrapper.find('button.generate-button')
+
+    await generateButton.trigger('click')
+    await generateButton.trigger('click')
+
+    expect(apiClient.post).toHaveBeenCalledTimes(1)
+
+    resolvePost({
+      data: {
+        data: [
+          {
+            url: 'https://cdn.example.com/result.png',
+          },
+        ],
+      },
+    })
+    await flushPromises()
 
     wrapper.unmount()
   })
@@ -598,6 +672,7 @@ describe('ImageStudioView workbench', () => {
   })
 
   it('submits the restored workbench through the current image-studio API', async () => {
+    stubExecutableImageModel()
     apiClient.post.mockResolvedValue({
       data: {
         data: [
@@ -615,6 +690,7 @@ describe('ImageStudioView workbench', () => {
     })
 
     const wrapper = mountImageStudio()
+    await flushPromises()
     const countButtons = wrapper.findAll('.count-chip')
     expect(countButtons).toHaveLength(3)
     await countButtons[2].trigger('click')
@@ -628,7 +704,12 @@ describe('ImageStudioView workbench', () => {
     expect(apiClient.post).toHaveBeenCalledWith(
       '/image-studio/generate',
       expect.any(FormData),
-      { timeout: 120000 },
+      {
+        timeout: 120000,
+        headers: {
+          'Idempotency-Key': expect.stringMatching(/^image-studio-/),
+        },
+      },
     )
     const form = apiClient.post.mock.calls[0][1] as FormData
     expect(form.get('template_id')).toBe('white')
@@ -654,6 +735,7 @@ describe('ImageStudioView workbench', () => {
   })
 
   it('renders an uploaded reference image preview and submits the original file', async () => {
+    stubExecutableImageModel()
     const previewUrl = stubReferencePreviewUrl()
     apiClient.post.mockResolvedValue({
       data: {
@@ -695,6 +777,7 @@ describe('ImageStudioView workbench', () => {
   })
 
   it('accepts a dragged reference image through the same preview and submit path', async () => {
+    stubExecutableImageModel()
     const previewUrl = stubReferencePreviewUrl()
     apiClient.post.mockResolvedValue({
       data: {
@@ -740,6 +823,7 @@ describe('ImageStudioView workbench', () => {
   })
 
   it('clears the reference image when browser preview loading fails', async () => {
+    stubExecutableImageModel()
     const previewUrl = stubReferencePreviewUrl()
     apiClient.post.mockResolvedValue({
       data: {
@@ -836,6 +920,7 @@ describe('ImageStudioView workbench', () => {
   })
 
   it('keeps upstream errors generic instead of hard-coding a model name', async () => {
+    stubExecutableImageModel()
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     apiClient.post.mockRejectedValue({
       response: {
@@ -848,6 +933,7 @@ describe('ImageStudioView workbench', () => {
     })
 
     const wrapper = mountImageStudio()
+    await flushPromises()
     await wrapper.find('input[placeholder*="无线耳机"]').setValue('护肤精华')
     await wrapper.find('button.generate-button').trigger('click')
     await flushPromises()
@@ -868,6 +954,7 @@ describe('ImageStudioView workbench', () => {
   })
 
   it('hides technical HTTP failures from image generation users', async () => {
+    stubExecutableImageModel()
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     apiClient.post.mockRejectedValue({
       response: {
@@ -879,6 +966,7 @@ describe('ImageStudioView workbench', () => {
     })
 
     const wrapper = mountImageStudio()
+    await flushPromises()
     await wrapper.find('textarea').setValue('minimal skincare product cover')
     await wrapper.find('button.generate-button').trigger('click')
     await flushPromises()
