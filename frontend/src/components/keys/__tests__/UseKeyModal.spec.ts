@@ -106,6 +106,77 @@ describe('UseKeyModal', () => {
     expect(codeBlock.text()).toContain('"name": "GPT-5.4 Nano"')
   })
 
+  it('uses the first allowed model in Codex CLI configs when the key is model-restricted', async () => {
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'openai',
+        allowedModels: ['gpt-4.1', 'gpt-4o-mini']
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    const codexTab = wrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.codexCli')
+    )
+
+    expect(codexTab).toBeDefined()
+    await codexTab!.trigger('click')
+    await nextTick()
+
+    const codeBlock = wrapper.find('pre code')
+    expect(codeBlock.exists()).toBe(true)
+    expect(codeBlock.text()).toContain('model = "gpt-4.1"')
+    expect(codeBlock.text()).toContain('review_model = "gpt-4.1"')
+    expect(codeBlock.text()).not.toContain('model = "gpt-5.5"')
+  })
+
+  it('uses the first allowed model in Gemini CLI configs when the key is model-restricted', async () => {
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-test',
+        baseUrl: 'https://example.com/v1beta',
+        platform: 'gemini',
+        allowedModels: ['gemini-2.5-pro', 'gemini-2.5-flash']
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    const geminiTab = wrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.geminiCli')
+    )
+
+    expect(geminiTab).toBeDefined()
+    await geminiTab!.trigger('click')
+    await nextTick()
+
+    const codeBlock = wrapper.find('pre code')
+    expect(codeBlock.exists()).toBe(true)
+    expect(codeBlock.text()).toContain('GEMINI_MODEL="gemini-2.5-pro"')
+    expect(codeBlock.text()).not.toContain('GEMINI_MODEL="gemini-2.0-flash"')
+  })
+
   it('does not render CLI configs when only a masked API key is available', async () => {
     const wrapper = mount(UseKeyModal, {
       props: {

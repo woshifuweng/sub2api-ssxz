@@ -228,6 +228,7 @@ interface Props {
   apiKey: string
   baseUrl: string
   platform: GroupPlatform | null
+  allowedModels?: string[]
   allowMessagesDispatch?: boolean
 }
 
@@ -404,6 +405,13 @@ const isThirdPartyTab = computed(() => activeClientTab.value === 'third-party')
 const showShellTabs = computed(() => activeClientTab.value !== 'opencode' && !isThirdPartyTab.value)
 const isMaskedApiKey = (key: string) => key === '[redacted]' || key.includes('...')
 const hasUsableApiKey = computed(() => props.apiKey !== '' && !isMaskedApiKey(props.apiKey))
+const firstAllowedModel = computed(() =>
+  props.allowedModels
+    ?.map((model) => model.trim())
+    .find(Boolean) || ''
+)
+const openAIExampleModel = computed(() => firstAllowedModel.value || 'gpt-5.5')
+const geminiExampleModel = computed(() => firstAllowedModel.value || 'gemini-2.0-flash')
 
 const currentTabs = computed(() => {
   if (!showShellTabs.value) return []
@@ -611,7 +619,7 @@ $env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
 }
 
 function generateGeminiCliContent(baseUrl: string, apiKey: string): FileConfig {
-  const model = 'gemini-2.0-flash'
+  const model = geminiExampleModel.value
   const modelComment = t('keys.useKeyModal.gemini.modelComment')
   let path: string
   let content: string
@@ -658,11 +666,12 @@ ${keyword('$env:')}${variable('GEMINI_MODEL')}${operator('=')}${string(`"${model
 function generateOpenAIFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
+  const model = openAIExampleModel.value
 
   // config.toml content
   const configContent = `model_provider = "OpenAI"
-model = "gpt-5.5"
-review_model = "gpt-5.5"
+model = "${model}"
+review_model = "${model}"
 model_reasoning_effort = "xhigh"
 disable_response_storage = true
 network_access = "enabled"
@@ -700,11 +709,12 @@ responses_websockets_v2 = true`
 function generateOpenAIWsFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
+  const model = openAIExampleModel.value
 
   // config.toml content with WebSocket v2
   const configContent = `model_provider = "OpenAI"
-model = "gpt-5.5"
-review_model = "gpt-5.5"
+model = "${model}"
+review_model = "${model}"
 model_reasoning_effort = "xhigh"
 disable_response_storage = true
 network_access = "enabled"

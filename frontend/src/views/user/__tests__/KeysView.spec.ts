@@ -182,8 +182,8 @@ vi.mock('@/components/common/SearchInput.vue', () => ({
 vi.mock('@/components/keys/UseKeyModal.vue', () => ({
   default: {
     name: 'UseKeyModal',
-    props: ['apiKey'],
-    template: '<div data-testid="use-key-modal" :data-api-key="apiKey" />'
+    props: ['apiKey', 'allowedModels'],
+    template: '<div data-testid="use-key-modal" :data-api-key="apiKey" :data-allowed-models="allowedModels?.join(\',\')" />'
   }
 }))
 
@@ -825,6 +825,35 @@ describe('KeysView workbench surface', () => {
     const modal = wrapper.findComponent({ name: 'UseKeyModal' })
     expect(modal.exists()).toBe(true)
     expect(modal.attributes('apikey')).toBe('')
+  })
+
+  it('passes the current key model allowlist into the usage modal', async () => {
+    keysAPI.list.mockResolvedValue({
+      items: [
+        apiKeyFixture({
+          key: 'sk-full-key-value-visible-once-1234',
+          allowed_models: ['gpt-4.1', 'gpt-4o-mini'],
+          group: { platform: 'openai', allow_messages_dispatch: false }
+        })
+      ],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const useKeyButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.useKey'))
+    expect(useKeyButton).toBeTruthy()
+    await useKeyButton!.trigger('click')
+    await flushPromises()
+
+    const modal = wrapper.findComponent({ name: 'UseKeyModal' })
+    expect(modal.exists()).toBe(true)
+    expect(modal.attributes('apikey')).toBe('sk-full-key-value-visible-once-1234')
+    expect(modal.attributes('allowedmodels')).toBe('gpt-4.1,gpt-4o-mini')
   })
 
   it('keeps CCS import disabled for masked list keys', async () => {
