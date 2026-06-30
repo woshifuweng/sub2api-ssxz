@@ -28,9 +28,18 @@
         />
       </div>
 
-      <p v-if="workspace.errorMessage.value" class="workspace-error" role="alert">
-        {{ workspace.errorMessage.value }}
-      </p>
+      <div v-if="workspace.errorMessage.value" class="workspace-error" role="alert">
+        <span>{{ workspace.errorMessage.value }}</span>
+        <button
+          v-if="workspace.canRetryLastFailedSend.value"
+          type="button"
+          class="workspace-error-retry"
+          :disabled="workspace.sending.value || assets.registering.value"
+          @click="retryLastFailedSend"
+        >
+          重试
+        </button>
+      </div>
       <p v-else-if="!workspace.backendEnabled.value" class="workspace-notice" role="status">
         统一工作台后端正在接入，暂不可发送。当前仅展示工作台入口。
       </p>
@@ -202,13 +211,24 @@ async function submitDraft() {
     webSearchRequested: webSearchAvailable.value && webSearchRequested.value
   })
   if (sent) {
-    draft.value = ''
-    assets.clearPreviews()
-    webSearchRequested.value = false
-    const activeConversationId = workspace.activeConversationId.value
-    if (activeConversationId !== null) {
-      await replaceActiveConversationQuery(activeConversationId)
-    }
+    await finishSuccessfulSend()
+  }
+}
+
+async function retryLastFailedSend() {
+  const sent = await workspace.retryLastFailedSend()
+  if (sent) {
+    await finishSuccessfulSend()
+  }
+}
+
+async function finishSuccessfulSend() {
+  draft.value = ''
+  assets.clearPreviews()
+  webSearchRequested.value = false
+  const activeConversationId = workspace.activeConversationId.value
+  if (activeConversationId !== null) {
+    await replaceActiveConversationQuery(activeConversationId)
   }
 }
 
@@ -339,6 +359,26 @@ watch(webSearchAvailable, (available) => {
   background: color-mix(in srgb, #ef4444 9%, var(--ssxz-surface));
   color: #b91c1c;
   padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.workspace-error-retry {
+  border: 1px solid color-mix(in srgb, #b91c1c 42%, transparent);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #b91c1c;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0.25rem 0.6rem;
+}
+
+.workspace-error-retry:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .workspace-notice {

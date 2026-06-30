@@ -107,6 +107,10 @@ export interface AppendMessageRequest {
   metadata?: Record<string, unknown>
 }
 
+export interface AppendMessageOptions {
+  idempotencyKey?: string
+}
+
 export interface RegisterAssetRequest {
   conversation_id?: number
   message_id?: number
@@ -172,12 +176,21 @@ export async function listMessages(conversationId: number): Promise<ChatMessage[
 
 export async function appendMessage(
   conversationId: number,
-  payload: AppendMessageRequest
+  payload: AppendMessageRequest,
+  options: AppendMessageOptions = {}
 ): Promise<ChatMessage> {
   assertChatWorkspaceBackendEnabled('appendMessage')
+  const config = options.idempotencyKey
+    ? {
+        headers: {
+          'Idempotency-Key': options.idempotencyKey
+        }
+      }
+    : undefined
   const { data } = await apiClient.post<ChatMessage>(
     `/chat-workspace/conversations/${conversationId}/messages`,
-    payload
+    payload,
+    config
   )
   return data
 }
