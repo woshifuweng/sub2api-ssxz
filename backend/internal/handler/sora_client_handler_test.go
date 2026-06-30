@@ -20,6 +20,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/Wei-Shaw/sub2api/internal/testutil"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -1038,12 +1039,12 @@ func (r *stubUserRepoForHandler) AddGroupToAllowedGroups(context.Context, int64,
 // ==================== NewSoraClientHandler ====================
 
 func TestNewSoraClientHandler(t *testing.T) {
-	h := NewSoraClientHandler(nil, nil, nil, nil, nil, nil, nil)
+	h := NewSoraClientHandler(nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	require.NotNil(t, h)
 }
 
 func TestNewSoraClientHandler_WithAPIKeyService(t *testing.T) {
-	h := NewSoraClientHandler(nil, nil, nil, nil, nil, nil, nil)
+	h := NewSoraClientHandler(nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	require.NotNil(t, h)
 	require.Nil(t, h.apiKeyService)
 }
@@ -1082,8 +1083,18 @@ func (r *stubAPIKeyRepoForHandler) GetByKeyForAuth(context.Context, string) (*se
 }
 func (r *stubAPIKeyRepoForHandler) Update(context.Context, *service.APIKey) error { return nil }
 func (r *stubAPIKeyRepoForHandler) Delete(context.Context, int64) error           { return nil }
-func (r *stubAPIKeyRepoForHandler) ListByUserID(_ context.Context, _ int64, _ pagination.PaginationParams, _ service.APIKeyListFilters) ([]service.APIKey, *pagination.PaginationResult, error) {
-	return nil, nil, nil
+func (r *stubAPIKeyRepoForHandler) ListByUserID(_ context.Context, userID int64, _ pagination.PaginationParams, filters service.APIKeyListFilters) ([]service.APIKey, *pagination.PaginationResult, error) {
+	keys := make([]service.APIKey, 0, len(r.keys))
+	for _, key := range r.keys {
+		if key == nil || key.UserID != userID {
+			continue
+		}
+		if filters.Status != "" && key.Status != filters.Status {
+			continue
+		}
+		keys = append(keys, *key)
+	}
+	return keys, &pagination.PaginationResult{Total: int64(len(keys)), Page: 1, PageSize: len(keys)}, nil
 }
 func (r *stubAPIKeyRepoForHandler) VerifyOwnership(context.Context, int64, []int64) ([]int64, error) {
 	return nil, nil
@@ -1374,6 +1385,232 @@ func TestGenerate_WithContextAPIKeyID_FallbackPath(t *testing.T) {
 	// 应使用 context 中的 api_key_id=99
 	require.NotNil(t, repo.mustGet(t, 1).APIKeyID)
 	require.Equal(t, int64(99), *repo.mustGet(t, 1).APIKeyID)
+}
+
+func TestGenerate_BlocksInsufficientBalanceBeforePendingTask(t *testing.T) {
+	repo := newStubSoraGenRepo()
+	genService := service.NewSoraGenerationService(repo, nil, nil)
+
+	videoPrice := 0.5
+	groupID := int64(5)
+	group := &service.Group{
+		ID:                       groupID,
+		Platform:                 service.PlatformSora,
+		Status:                   service.StatusActive,
+		RateMultiplier:           1,
+		Hydrated:                 true,
+		SoraVideoPricePerRequest: &videoPrice,
+	}
+	user := &service.User{ID: 1, Status: service.StatusActive, Balance: 0.75}
+	apiKeyRepo := newStubAPIKeyRepoForHandler()
+	apiKeyRepo.keys[42] = &service.APIKey{
+		ID:      42,
+		UserID:  user.ID,
+		Status:  service.StatusAPIKeyActive,
+		GroupID: &groupID,
+		User:    user,
+		Group:   group,
+		Key:     "sk-test",
+	}
+	apiKeyService := newTestAPIKeyService(apiKeyRepo)
+
+	cfg := &config.Config{}
+	account := &service.Account{
+		ID:            7,
+		Platform:      service.PlatformSora,
+		Status:        service.StatusActive,
+		Schedulable:   true,
+		Concurrency:   1,
+		Priority:      1,
+		GroupIDs:      []int64{groupID},
+		AccountGroups: []service.AccountGroup{{AccountID: 7, GroupID: groupID}},
+	}
+	accountRepo := &stubAccountRepoForHandler{accounts: []service.Account{*account}}
+	userRepo := &stubSoraBillingUserRepo{user: user}
+	billingCacheService := service.NewBillingCacheService(nil, userRepo, nil, nil, cfg)
+	t.Cleanup(func() { billingCacheService.Stop() })
+	gatewayService := service.NewGatewayService(
+		accountRepo,
+		&stubGroupRepo{group: group},
+		&stubUsageLogRepo{},
+		nil,
+		userRepo,
+		nil,
+		nil,
+		testutil.StubGatewayCache{},
+		cfg,
+		nil,
+		nil,
+		service.NewBillingService(cfg, nil),
+		nil,
+		billingCacheService,
+		nil,
+		nil,
+		service.NewDeferredService(accountRepo, nil, 0),
+		nil,
+		testutil.StubSessionLimitCache{},
+		nil,
+		nil,
+		nil,
+	)
+
+	h := &SoraClientHandler{
+		genService:          genService,
+		gatewayService:      gatewayService,
+		billingCacheService: billingCacheService,
+		apiKeyService:       apiKeyService,
+	}
+	c, rec := makeGinContext("POST", "/api/v1/sora/generate",
+		`{"model":"sora2-landscape-10s","prompt":"test","video_count":3,"api_key_id":42}`, user.ID)
+
+	h.Generate(c)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.Empty(t, repo.gens)
+}
+
+func TestGenerate_BlocksUnavailableSoraEntryBeforePendingTask(t *testing.T) {
+	repo := newStubSoraGenRepo()
+	genService := service.NewSoraGenerationService(repo, nil, nil)
+	cfg := &config.Config{}
+	userRepo := &stubSoraBillingUserRepo{user: &service.User{ID: 1, Status: service.StatusActive, Balance: 10}}
+	billingCacheService := service.NewBillingCacheService(nil, userRepo, nil, nil, cfg)
+	t.Cleanup(func() { billingCacheService.Stop() })
+
+	h := &SoraClientHandler{
+		genService:          genService,
+		gatewayService:      newMinimalGatewayService(&stubAccountRepoForHandler{}),
+		billingCacheService: billingCacheService,
+		apiKeyService:       newTestAPIKeyService(newStubAPIKeyRepoForHandler()),
+	}
+	c, rec := makeGinContext("POST", "/api/v1/sora/generate",
+		`{"model":"sora2-landscape-10s","prompt":"test"}`, 1)
+
+	h.Generate(c)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.Empty(t, repo.gens)
+	require.Contains(t, rec.Body.String(), "Sora generation is not available")
+}
+
+func TestProcessGenerationWithUsage_RecordsSoraClientUsageAfterCompletion(t *testing.T) {
+	repo := newStubSoraGenRepo()
+	repo.gens[1] = &service.SoraGeneration{
+		ID:        1,
+		UserID:    1,
+		Model:     "sora2-landscape-10s",
+		Prompt:    "test",
+		MediaType: "video",
+		Status:    service.SoraGenStatusPending,
+	}
+	genService := service.NewSoraGenerationService(repo, nil, nil)
+
+	videoPrice := 0.5
+	groupID := int64(5)
+	group := &service.Group{
+		ID:                       groupID,
+		Platform:                 service.PlatformSora,
+		Status:                   service.StatusActive,
+		RateMultiplier:           1,
+		Hydrated:                 true,
+		SoraVideoPricePerRequest: &videoPrice,
+	}
+	user := &service.User{ID: 1, Status: service.StatusActive, Balance: 10}
+	apiKey := &service.APIKey{
+		ID:      42,
+		UserID:  user.ID,
+		Status:  service.StatusAPIKeyActive,
+		GroupID: &groupID,
+		User:    user,
+		Group:   group,
+		Key:     "sk-test",
+	}
+	apiKeyRepo := newStubAPIKeyRepoForHandler()
+	apiKeyRepo.keys[apiKey.ID] = apiKey
+	apiKeyService := newTestAPIKeyService(apiKeyRepo)
+
+	cfg := &config.Config{}
+	account := service.Account{
+		ID:            7,
+		Platform:      service.PlatformSora,
+		Status:        service.StatusActive,
+		Schedulable:   true,
+		Concurrency:   1,
+		Priority:      1,
+		GroupIDs:      []int64{groupID},
+		AccountGroups: []service.AccountGroup{{AccountID: 7, GroupID: groupID}},
+	}
+	accountRepo := &stubAccountRepoForHandler{accounts: []service.Account{account}}
+	userRepo := newStubUserRepoForHandler()
+	userRepo.users[user.ID] = user
+	usageLogRepo := &recordingSoraClientUsageLogRepo{}
+	billingCacheService := service.NewBillingCacheService(nil, userRepo, nil, nil, cfg)
+	t.Cleanup(func() { billingCacheService.Stop() })
+	gatewayService := service.NewGatewayService(
+		accountRepo,
+		&stubGroupRepo{group: group},
+		usageLogRepo,
+		nil,
+		userRepo,
+		nil,
+		nil,
+		testutil.StubGatewayCache{},
+		cfg,
+		nil,
+		nil,
+		service.NewBillingService(cfg, nil),
+		nil,
+		billingCacheService,
+		nil,
+		nil,
+		service.NewDeferredService(accountRepo, nil, 0),
+		nil,
+		testutil.StubSessionLimitCache{},
+		nil,
+		nil,
+		nil,
+	)
+	soraGatewayService := newMinimalSoraGatewayService(&stubSoraClientForHandler{
+		videoStatus: &service.SoraVideoTaskStatus{
+			Status: "completed",
+			URLs:   []string{"https://example.com/video.mp4"},
+		},
+	})
+	body := buildAsyncRequestBody("sora2-landscape-10s", "test", "", 2)
+	h := &SoraClientHandler{
+		genService:         genService,
+		gatewayService:     gatewayService,
+		soraGatewayService: soraGatewayService,
+		apiKeyService:      apiKeyService,
+	}
+
+	h.processGenerationWithUsage(1, user.ID, &groupID, "sora2-landscape-10s", "test", "video", "", 2, &soraClientUsageContext{
+		APIKey:             apiKey,
+		User:               user,
+		RequestPayloadHash: service.HashUsageRequestPayload(body),
+		InboundEndpoint:    "/api/v1/sora/generate",
+		UpstreamEndpoint:   "/sora/v1/chat/completions",
+	})
+
+	gen := repo.mustGet(t, 1)
+	require.Equal(t, service.SoraGenStatusCompleted, gen.Status)
+	require.Equal(t, "https://example.com/video.mp4", gen.MediaURL)
+	require.Len(t, usageLogRepo.logs, 1)
+	log := usageLogRepo.logs[0]
+	require.Equal(t, user.ID, log.UserID)
+	require.Equal(t, apiKey.ID, log.APIKeyID)
+	require.Equal(t, account.ID, log.AccountID)
+	require.Equal(t, "sora2-landscape-10s", log.Model)
+	require.NotNil(t, log.GroupID)
+	require.Equal(t, groupID, *log.GroupID)
+	require.NotNil(t, log.MediaType)
+	require.Equal(t, "video", *log.MediaType)
+	require.NotNil(t, log.InboundEndpoint)
+	require.Equal(t, "/api/v1/sora/generate", *log.InboundEndpoint)
+	require.NotNil(t, log.UpstreamEndpoint)
+	require.Equal(t, "/sora/v1/chat/completions", *log.UpstreamEndpoint)
+	require.InDelta(t, 1.0, log.TotalCost, 1e-12)
+	require.InDelta(t, 1.0, log.ActualCost, 1e-12)
 }
 
 func TestGenerate_APIKeyID_Zero_IgnoredInJSON(t *testing.T) {
@@ -2172,14 +2409,14 @@ func (r *stubAccountRepoForHandler) List(context.Context, pagination.PaginationP
 func (r *stubAccountRepoForHandler) ListWithFilters(context.Context, pagination.PaginationParams, string, string, string, string, string, string, string, int64) ([]service.Account, *pagination.PaginationResult, error) {
 	return nil, nil, nil
 }
-func (r *stubAccountRepoForHandler) ListByGroup(context.Context, int64) ([]service.Account, error) {
-	return nil, nil
+func (r *stubAccountRepoForHandler) ListByGroup(_ context.Context, groupID int64) ([]service.Account, error) {
+	return r.listByGroup(groupID), nil
 }
 func (r *stubAccountRepoForHandler) ListActive(context.Context) ([]service.Account, error) {
 	return nil, nil
 }
-func (r *stubAccountRepoForHandler) ListByPlatform(context.Context, string) ([]service.Account, error) {
-	return nil, nil
+func (r *stubAccountRepoForHandler) ListByPlatform(_ context.Context, platform string) ([]service.Account, error) {
+	return r.listByPlatform(platform), nil
 }
 func (r *stubAccountRepoForHandler) UpdateLastUsed(context.Context, int64) error { return nil }
 func (r *stubAccountRepoForHandler) BatchUpdateLastUsed(context.Context, map[int64]time.Time) error {
@@ -2255,6 +2492,53 @@ func (r *stubAccountRepoForHandler) ResetQuotaUsed(context.Context, int64) error
 }
 
 // ==================== Stub: SoraClient (用于 SoraGatewayService) ====================
+
+func (r *stubAccountRepoForHandler) listByGroup(groupID int64) []service.Account {
+	var result []service.Account
+	for _, acc := range r.accounts {
+		if accountBelongsToGroupForHandler(acc, groupID) {
+			result = append(result, acc)
+		}
+	}
+	return result
+}
+
+func (r *stubAccountRepoForHandler) listByPlatform(platform string) []service.Account {
+	var result []service.Account
+	for _, acc := range r.accounts {
+		if acc.Platform == platform {
+			result = append(result, acc)
+		}
+	}
+	return result
+}
+
+func accountBelongsToGroupForHandler(acc service.Account, groupID int64) bool {
+	for _, id := range acc.GroupIDs {
+		if id == groupID {
+			return true
+		}
+	}
+	for _, ag := range acc.AccountGroups {
+		if ag.GroupID == groupID {
+			return true
+		}
+	}
+	return false
+}
+
+type recordingSoraClientUsageLogRepo struct {
+	stubUsageLogRepo
+	logs []*service.UsageLog
+}
+
+func (r *recordingSoraClientUsageLogRepo) Create(_ context.Context, log *service.UsageLog) (bool, error) {
+	if log != nil {
+		clone := *log
+		r.logs = append(r.logs, &clone)
+	}
+	return true, nil
+}
 
 var _ service.SoraClient = (*stubSoraClientForHandler)(nil)
 
@@ -3005,7 +3289,7 @@ func TestGenerate_CheckQuotaNonQuotaError(t *testing.T) {
 	userRepo := newStubUserRepoForHandler()
 	quotaService := service.NewSoraQuotaService(userRepo, nil, nil)
 
-	h := NewSoraClientHandler(genService, quotaService, nil, nil, nil, nil, nil)
+	h := NewSoraClientHandler(genService, quotaService, nil, nil, nil, nil, nil, nil, nil)
 
 	body := `{"model":"sora2-landscape-10s","prompt":"test"}`
 	c, rec := makeGinContext("POST", "/api/v1/sora/generate", body, 1)
@@ -3034,7 +3318,7 @@ func TestGenerate_CreatePendingConcurrencyLimit(t *testing.T) {
 		limitErr:        service.ErrSoraGenerationConcurrencyLimit,
 	}
 	genService := service.NewSoraGenerationService(repo, nil, nil)
-	h := NewSoraClientHandler(genService, nil, nil, nil, nil, nil, nil)
+	h := NewSoraClientHandler(genService, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	body := `{"model":"sora2-landscape-10s","prompt":"test"}`
 	c, rec := makeGinContext("POST", "/api/v1/sora/generate", body, 1)

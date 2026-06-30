@@ -30,13 +30,15 @@ const (
 
 // SoraClientHandler 处理 Sora 客户端 API 请求。
 type SoraClientHandler struct {
-	genService         *service.SoraGenerationService
-	quotaService       *service.SoraQuotaService
-	s3Storage          *service.SoraS3Storage
-	soraGatewayService *service.SoraGatewayService
-	gatewayService     *service.GatewayService
-	mediaStorage       *service.SoraMediaStorage
-	apiKeyService      *service.APIKeyService
+	genService          *service.SoraGenerationService
+	quotaService        *service.SoraQuotaService
+	s3Storage           *service.SoraS3Storage
+	soraGatewayService  *service.SoraGatewayService
+	gatewayService      *service.GatewayService
+	mediaStorage        *service.SoraMediaStorage
+	apiKeyService       *service.APIKeyService
+	billingCacheService *service.BillingCacheService
+	subscriptionService *service.SubscriptionService
 
 	// 上游模型缓存
 	modelCacheMu       sync.RWMutex
@@ -72,15 +74,19 @@ func NewSoraClientHandler(
 	gatewayService *service.GatewayService,
 	mediaStorage *service.SoraMediaStorage,
 	apiKeyService *service.APIKeyService,
+	billingCacheService *service.BillingCacheService,
+	subscriptionService *service.SubscriptionService,
 ) *SoraClientHandler {
 	return &SoraClientHandler{
-		genService:         genService,
-		quotaService:       quotaService,
-		s3Storage:          s3Storage,
-		soraGatewayService: soraGatewayService,
-		gatewayService:     gatewayService,
-		mediaStorage:       mediaStorage,
-		apiKeyService:      apiKeyService,
+		genService:          genService,
+		quotaService:        quotaService,
+		s3Storage:           s3Storage,
+		soraGatewayService:  soraGatewayService,
+		gatewayService:      gatewayService,
+		mediaStorage:        mediaStorage,
+		apiKeyService:       apiKeyService,
+		billingCacheService: billingCacheService,
+		subscriptionService: subscriptionService,
 	}
 }
 
@@ -96,6 +102,29 @@ type GenerateRequest struct {
 
 // Generate 异步生成 — 创建 pending 记录后立即返回。
 // POST /api/v1/sora/generate
+type soraClientUsageContext struct {
+	APIKey             *service.APIKey
+	User               *service.User
+	Subscription       *service.UserSubscription
+	RequestPayloadHash string
+	InboundEndpoint    string
+	UpstreamEndpoint   string
+	UserAgent          string
+	IPAddress          string
+}
+
+type soraClientRequestError struct {
+	status  int
+	message string
+}
+
+func (e *soraClientRequestError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.message
+}
+
 func (h *SoraClientHandler) Generate(c *gin.Context) {
 	h.GenerateGateway(gatewayctx.FromGin(c))
 }
@@ -145,8 +174,30 @@ func (h *SoraClientHandler) GenerateGateway(c gatewayctx.GatewayContext) {
 	// 获取 API Key ID 和 Group ID
 	var apiKeyID *int64
 	var groupID *int64
+	var usageCtx *soraClientUsageContext
 
-	if req.APIKeyID != nil && h.apiKeyService != nil {
+	if h.billingCacheService == nil && h.gatewayService != nil && h.apiKeyService != nil {
+		response.ErrorContext(soraClientGatewayResponder{ctx: c}, http.StatusServiceUnavailable, "Sora generation billing service is not available")
+		return
+	}
+
+	if h.billingCacheService != nil {
+		var err error
+		usageCtx, err = h.prepareSoraClientUsageContext(c, userID, &req)
+		if err != nil {
+			status := http.StatusBadRequest
+			message := err.Error()
+			var requestErr *soraClientRequestError
+			if errors.As(err, &requestErr) {
+				status = requestErr.status
+				message = requestErr.message
+			}
+			response.ErrorContext(soraClientGatewayResponder{ctx: c}, status, message)
+			return
+		}
+		apiKeyID = &usageCtx.APIKey.ID
+		groupID = usageCtx.APIKey.GroupID
+	} else if req.APIKeyID != nil && h.apiKeyService != nil {
 		// 前端传递了 api_key_id，需要校验
 		apiKey, err := h.apiKeyService.GetByID(c.Request().Context(), *req.APIKeyID)
 		if err != nil {
@@ -181,7 +232,11 @@ func (h *SoraClientHandler) GenerateGateway(c gatewayctx.GatewayContext) {
 	}
 
 	// 启动后台异步生成 goroutine
-	go h.processGeneration(gen.ID, userID, groupID, req.Model, req.Prompt, req.MediaType, req.ImageInput, req.VideoCount)
+	if usageCtx != nil {
+		go h.processGenerationWithUsage(gen.ID, userID, groupID, req.Model, req.Prompt, req.MediaType, req.ImageInput, req.VideoCount, usageCtx)
+	} else {
+		go h.processGeneration(gen.ID, userID, groupID, req.Model, req.Prompt, req.MediaType, req.ImageInput, req.VideoCount)
+	}
 
 	response.SuccessContext(soraClientGatewayResponder{ctx: c}, gin.H{
 		"generation_id": gen.ID,
@@ -191,7 +246,128 @@ func (h *SoraClientHandler) GenerateGateway(c gatewayctx.GatewayContext) {
 
 // processGeneration 后台异步执行 Sora 生成任务。
 // 流程：选择账号 → Forward → 提取媒体 URL → 三层降级存储（S3 → 本地 → 上游）→ 更新记录。
+func (h *SoraClientHandler) prepareSoraClientUsageContext(c gatewayctx.GatewayContext, userID int64, req *GenerateRequest) (*soraClientUsageContext, error) {
+	if h.apiKeyService == nil {
+		return nil, &soraClientRequestError{status: http.StatusServiceUnavailable, message: "Sora generation requires API key service"}
+	}
+	if h.gatewayService == nil {
+		return nil, &soraClientRequestError{status: http.StatusServiceUnavailable, message: "Sora generation requires gateway service"}
+	}
+	if req == nil {
+		return nil, &soraClientRequestError{status: http.StatusBadRequest, message: "missing request"}
+	}
+
+	apiKey, err := h.selectSoraClientAPIKey(c, userID, req)
+	if err != nil {
+		return nil, err
+	}
+	user := apiKey.User
+	if user == nil {
+		user = &service.User{ID: userID}
+		apiKey.User = user
+	}
+	if user.ID == 0 {
+		user.ID = userID
+	}
+	if user.ID != userID || apiKey.UserID != userID {
+		return nil, &soraClientRequestError{status: http.StatusForbidden, message: "API key does not belong to the current user"}
+	}
+	if apiKey.Group == nil || apiKey.GroupID == nil || apiKey.Group.Platform != service.PlatformSora {
+		return nil, &soraClientRequestError{status: http.StatusBadRequest, message: "Please create an active Sora API key before using this image generation entry"}
+	}
+	if !apiKey.AllowsModel(req.Model) {
+		return nil, &soraClientRequestError{status: http.StatusForbidden, message: "API key is not allowed to use the selected model"}
+	}
+
+	subscription, err := h.resolveSoraClientSubscription(c.Request().Context(), user.ID, apiKey.Group)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := c.Request().Context()
+	body := buildAsyncRequestBody(req.Model, req.Prompt, req.ImageInput, normalizeVideoCount(req.MediaType, req.VideoCount))
+	account, err := h.gatewayService.SelectAccountForModel(ctx, apiKey.GroupID, "", req.Model)
+	if err != nil {
+		return nil, &soraClientRequestError{status: http.StatusServiceUnavailable, message: "No available Sora account: " + err.Error()}
+	}
+	estimatedCost, err := h.gatewayService.EstimateSoraRequestCost(ctx, req.Model, body, apiKey, user, account)
+	if err != nil {
+		return nil, &soraClientRequestError{status: http.StatusBadRequest, message: "Failed to parse Sora request for billing"}
+	}
+	estimatedAmount := 0.0
+	if estimatedCost != nil {
+		estimatedAmount = estimatedCost.ActualCost
+	}
+	if err := h.billingCacheService.CheckBillingEligibilityForCost(ctx, user, apiKey, apiKey.Group, subscription, estimatedAmount); err != nil {
+		status, _, message := billingErrorDetails(err)
+		return nil, &soraClientRequestError{status: status, message: message}
+	}
+
+	return &soraClientUsageContext{
+		APIKey:             apiKey,
+		User:               user,
+		Subscription:       subscription,
+		RequestPayloadHash: service.HashUsageRequestPayload(body),
+		InboundEndpoint:    NormalizeInboundEndpoint(c.Path()),
+		UpstreamEndpoint:   "/sora/v1/chat/completions",
+		UserAgent:          c.HeaderValue("User-Agent"),
+		IPAddress:          c.ClientIP(),
+	}, nil
+}
+
+func (h *SoraClientHandler) selectSoraClientAPIKey(c gatewayctx.GatewayContext, userID int64, req *GenerateRequest) (*service.APIKey, error) {
+	if req.APIKeyID != nil {
+		apiKey, err := h.apiKeyService.GetByID(c.Request().Context(), *req.APIKeyID)
+		if err != nil {
+			return nil, &soraClientRequestError{status: http.StatusBadRequest, message: "API key not found"}
+		}
+		if apiKey.UserID != userID {
+			return nil, &soraClientRequestError{status: http.StatusForbidden, message: "API key does not belong to the current user"}
+		}
+		if apiKey.Status != service.StatusAPIKeyActive {
+			return nil, &soraClientRequestError{status: http.StatusForbidden, message: "API key is not active"}
+		}
+		return apiKey, nil
+	}
+
+	if id, ok := c.Value("api_key_id"); ok {
+		if v, ok := id.(int64); ok && v > 0 {
+			apiKey, err := h.apiKeyService.GetByID(c.Request().Context(), v)
+			if err != nil {
+				return nil, &soraClientRequestError{status: http.StatusBadRequest, message: "API key not found"}
+			}
+			if apiKey.UserID != userID {
+				return nil, &soraClientRequestError{status: http.StatusForbidden, message: "API key does not belong to the current user"}
+			}
+			if apiKey.Status != service.StatusAPIKeyActive {
+				return nil, &soraClientRequestError{status: http.StatusForbidden, message: "API key is not active"}
+			}
+			return apiKey, nil
+		}
+	}
+
+	return nil, &soraClientRequestError{status: http.StatusForbidden, message: "Sora generation is not available from this entry"}
+}
+
+func (h *SoraClientHandler) resolveSoraClientSubscription(ctx context.Context, userID int64, group *service.Group) (*service.UserSubscription, error) {
+	if group == nil || !group.IsSubscriptionType() {
+		return nil, nil
+	}
+	if h.subscriptionService == nil {
+		return nil, &soraClientRequestError{status: http.StatusForbidden, message: "No active subscription found for this group"}
+	}
+	subscription, err := h.subscriptionService.GetActiveSubscription(ctx, userID, group.ID)
+	if err != nil {
+		return nil, &soraClientRequestError{status: http.StatusForbidden, message: "No active subscription found for this group"}
+	}
+	return subscription, nil
+}
+
 func (h *SoraClientHandler) processGeneration(genID int64, userID int64, groupID *int64, model, prompt, mediaType, imageInput string, videoCount int) {
+	h.processGenerationWithUsage(genID, userID, groupID, model, prompt, mediaType, imageInput, videoCount, nil)
+}
+
+func (h *SoraClientHandler) processGenerationWithUsage(genID int64, userID int64, groupID *int64, model, prompt, mediaType, imageInput string, videoCount int, usageCtx *soraClientUsageContext) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
@@ -356,7 +532,38 @@ func (h *SoraClientHandler) processGeneration(genID int64, userID int64, groupID
 		return
 	}
 
+	h.recordSoraClientUsage(ctx, usageCtx, result, account)
+
 	logger.LegacyPrintf("handler.sora_client", "[SoraClient] 生成完成 id=%d storage=%s size=%d", genID, storageType, fileSize)
+}
+
+func (h *SoraClientHandler) recordSoraClientUsage(ctx context.Context, usageCtx *soraClientUsageContext, result *service.ForwardResult, account *service.Account) {
+	if h == nil || h.gatewayService == nil || usageCtx == nil || usageCtx.APIKey == nil || usageCtx.User == nil || result == nil || account == nil {
+		return
+	}
+	if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
+		Result:             result,
+		APIKey:             usageCtx.APIKey,
+		User:               usageCtx.User,
+		Account:            account,
+		Subscription:       usageCtx.Subscription,
+		InboundEndpoint:    usageCtx.InboundEndpoint,
+		UpstreamEndpoint:   usageCtx.UpstreamEndpoint,
+		UserAgent:          usageCtx.UserAgent,
+		IPAddress:          usageCtx.IPAddress,
+		RequestPayloadHash: usageCtx.RequestPayloadHash,
+		APIKeyService:      h.apiKeyService,
+	}); err != nil {
+		logger.LegacyPrintf(
+			"handler.sora_client",
+			"[SoraClient] RecordUsage failed user=%d api_key=%d account=%d model=%s err=%v",
+			usageCtx.User.ID,
+			usageCtx.APIKey.ID,
+			account.ID,
+			result.Model,
+			err,
+		)
+	}
 }
 
 // storeMediaWithDegradation 实现三层降级存储链：S3 → 本地 → 上游。
