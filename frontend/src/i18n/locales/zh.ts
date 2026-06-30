@@ -581,7 +581,7 @@ export default {
       modelHint: '可用模型以当前 Key 所属分组和后台开放配置为准。',
       acknowledge: '我已保存'
     },
-    searchPlaceholder: '搜索名称或Key...',
+    searchPlaceholder: '搜索名称...',
     allGroups: '全部分组',
     allStatus: '全部状态',
     createKey: '创建密钥',
