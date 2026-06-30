@@ -520,6 +520,7 @@ type ForwardResult struct {
 	// 图片生成计费字段（图片生成模型使用）
 	ImageCount int    // 生成的图片数量
 	ImageSize  string // 图片尺寸 "1K", "2K", "4K"
+	VideoCount int    // Sora 视频生成数量
 
 	// Sora 媒体字段
 	MediaType string // image / video / prompt
@@ -7865,6 +7866,76 @@ func (s *GatewayService) getUserGroupRateMultiplier(ctx context.Context, userID,
 	return resolver.Resolve(ctx, userID, groupID, groupDefaultMultiplier)
 }
 
+func (s *GatewayService) EstimateSoraRequestCost(ctx context.Context, requestedModel string, body []byte, apiKey *APIKey, user *User, account *Account) (*CostBreakdown, error) {
+	if s == nil || s.billingService == nil || len(body) == 0 {
+		return nil, nil
+	}
+
+	var reqBody map[string]any
+	if err := json.Unmarshal(body, &reqBody); err != nil {
+		return nil, err
+	}
+
+	modelID := strings.TrimSpace(requestedModel)
+	if modelID == "" {
+		modelID, _ = reqBody["model"].(string)
+		modelID = strings.TrimSpace(modelID)
+	}
+	if modelID == "" {
+		return nil, nil
+	}
+	if account != nil {
+		modelID = strings.TrimSpace(account.GetMappedModel(modelID))
+	}
+
+	modelCfg, ok := GetSoraModelConfig(modelID)
+	if !ok {
+		return nil, nil
+	}
+	if modelCfg.Type == "prompt_enhance" {
+		return &CostBreakdown{}, nil
+	}
+
+	multiplier := 0.0
+	if s.cfg != nil {
+		multiplier = s.cfg.Default.RateMultiplier
+	}
+	if apiKey != nil && apiKey.GroupID != nil && apiKey.Group != nil && user != nil {
+		multiplier = s.getUserGroupRateMultiplier(ctx, user.ID, *apiKey.GroupID, apiKey.Group.RateMultiplier)
+	}
+
+	var soraConfig *SoraPriceConfig
+	if apiKey != nil {
+		soraConfig = soraPriceConfigFromGroup(apiKey.Group)
+	}
+
+	switch modelCfg.Type {
+	case "image":
+		return s.billingService.CalculateSoraImageCost(soraImageSizeFromModel(modelID), 1, soraConfig, multiplier), nil
+	case "video":
+		videoCount := parseSoraVideoCount(reqBody)
+		prompt, _, _, remixTargetID := extractSoraInput(reqBody)
+		if strings.TrimSpace(remixTargetID) == "" && isSoraStoryboardPrompt(prompt) {
+			videoCount = 1
+		}
+		return s.billingService.CalculateSoraVideoCostForCount(modelID, videoCount, soraConfig, multiplier), nil
+	default:
+		return nil, nil
+	}
+}
+
+func soraPriceConfigFromGroup(group *Group) *SoraPriceConfig {
+	if group == nil {
+		return nil
+	}
+	return &SoraPriceConfig{
+		ImagePrice360:          group.SoraImagePrice360,
+		ImagePrice540:          group.SoraImagePrice540,
+		VideoPricePerRequest:   group.SoraVideoPricePerRequest,
+		VideoPricePerRequestHD: group.SoraVideoPricePerRequestHD,
+	}
+}
+
 func (s *GatewayService) EstimateGatewayTokenRequestCost(ctx context.Context, parsed *ParsedRequest, apiKey *APIKey, user *User) (*CostBreakdown, error) {
 	return s.EstimateGatewayTokenRequestCostWithLongContext(ctx, parsed, apiKey, user, 0, 0)
 }
@@ -8282,19 +8353,11 @@ func (s *GatewayService) RecordUsage(ctx context.Context, input *RecordUsageInpu
 
 	// 根据请求类型选择计费方式
 	if result.MediaType == "image" || result.MediaType == "video" {
-		var soraConfig *SoraPriceConfig
-		if apiKey.Group != nil {
-			soraConfig = &SoraPriceConfig{
-				ImagePrice360:          apiKey.Group.SoraImagePrice360,
-				ImagePrice540:          apiKey.Group.SoraImagePrice540,
-				VideoPricePerRequest:   apiKey.Group.SoraVideoPricePerRequest,
-				VideoPricePerRequestHD: apiKey.Group.SoraVideoPricePerRequestHD,
-			}
-		}
+		soraConfig := soraPriceConfigFromGroup(apiKey.Group)
 		if result.MediaType == "image" {
 			cost = s.billingService.CalculateSoraImageCost(result.ImageSize, result.ImageCount, soraConfig, multiplier)
 		} else {
-			cost = s.billingService.CalculateSoraVideoCost(billingModel, soraConfig, multiplier)
+			cost = s.billingService.CalculateSoraVideoCostForCount(billingModel, result.VideoCount, soraConfig, multiplier)
 		}
 	} else if result.MediaType == "prompt" {
 		cost = &CostBreakdown{}

@@ -431,6 +431,42 @@ func TestGatewayServiceRecordUsage_BillingErrorSkipsUsageLogWrite(t *testing.T) 
 	require.Equal(t, 0, usageRepo.calls)
 }
 
+func TestGatewayServiceRecordUsage_SoraVideoCostUsesVideoCount(t *testing.T) {
+	usageRepo := &openAIRecordUsageBestEffortLogRepoStub{}
+	userRepo := &openAIRecordUsageUserRepoStub{}
+	svc := newGatewayRecordUsageServiceForTest(usageRepo, userRepo, &openAIRecordUsageSubRepoStub{})
+
+	groupID := int64(10)
+	price := 0.5
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:  "sora_video_count_billing",
+			Model:      "sora2-landscape-10s",
+			MediaType:  "video",
+			VideoCount: 3,
+			Duration:   time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      501,
+			GroupID: &groupID,
+			Group: &Group{
+				ID:                       groupID,
+				RateMultiplier:           1,
+				SoraVideoPricePerRequest: &price,
+			},
+		},
+		User:    &User{ID: 601},
+		Account: &Account{ID: 701},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, userRepo.deductCalls)
+	require.InDelta(t, 1.5, userRepo.lastAmount, 1e-12)
+	require.NotNil(t, usageRepo.lastLog)
+	require.InDelta(t, 1.5, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, 1.5, usageRepo.lastLog.ActualCost, 1e-12)
+}
+
 func TestGatewayServiceRecordUsage_ReasoningEffortPersisted(t *testing.T) {
 	usageRepo := &openAIRecordUsageBestEffortLogRepoStub{}
 	svc := newGatewayRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})

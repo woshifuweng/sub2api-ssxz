@@ -276,6 +276,31 @@ func (h *SoraGatewayHandler) ChatCompletions(c *gin.Context) {
 		tlsFingerprintEnabled := h.soraTLSEnabled
 
 		accountReleaseFunc := selection.ReleaseFunc
+		releaseSelectedAccount := func() {
+			if accountReleaseFunc != nil {
+				accountReleaseFunc()
+				accountReleaseFunc = nil
+			}
+		}
+		estimatedCost, estimateErr := h.gatewayService.EstimateSoraRequestCost(transportCtx.Context(), reqModel, body, selectedAPIKey, selectedAPIKey.User, account)
+		if estimateErr != nil {
+			releaseSelectedAccount()
+			reqLog.Warn("sora.preflight_cost_estimate_failed", zap.Error(estimateErr))
+			h.handleStreamingAwareErrorContext(transportCtx, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body", streamStarted)
+			return
+		}
+		if estimatedCost != nil && estimatedCost.ActualCost > 0 {
+			if err := h.billingCacheService.CheckBillingEligibilityForCost(transportCtx.Context(), selectedAPIKey.User, selectedAPIKey, selectedAPIKey.Group, subscription, estimatedCost.ActualCost); err != nil {
+				releaseSelectedAccount()
+				reqLog.Info("sora.preflight_billing_eligibility_check_failed",
+					zap.Float64("estimated_cost", estimatedCost.ActualCost),
+					zap.Error(err),
+				)
+				status, code, message := billingErrorDetails(err)
+				h.handleStreamingAwareErrorContext(transportCtx, status, code, message, streamStarted)
+				return
+			}
+		}
 		if !selection.Acquired {
 			if selection.WaitPlan == nil {
 				h.handleStreamingAwareErrorContext(transportCtx, http.StatusServiceUnavailable, "api_error", "No available accounts", streamStarted)

@@ -721,6 +721,19 @@ func (s *BillingService) CalculateSoraImageCost(imageSize string, imageCount int
 
 // CalculateSoraVideoCost 计算 Sora 视频按次费用
 func (s *BillingService) CalculateSoraVideoCost(model string, groupConfig *SoraPriceConfig, rateMultiplier float64) *CostBreakdown {
+	return s.CalculateSoraVideoCostForCount(model, 1, groupConfig, rateMultiplier)
+}
+
+// CalculateSoraVideoCostForCount calculates Sora video cost for the number of
+// videos actually requested from upstream.
+func (s *BillingService) CalculateSoraVideoCostForCount(model string, videoCount int, groupConfig *SoraPriceConfig, rateMultiplier float64) *CostBreakdown {
+	if videoCount <= 0 {
+		videoCount = 1
+	}
+	if videoCount > 3 {
+		videoCount = 3
+	}
+
 	unitPrice := 0.0
 	if groupConfig != nil {
 		modelLower := strings.ToLower(model)
@@ -734,7 +747,7 @@ func (s *BillingService) CalculateSoraVideoCost(model string, groupConfig *SoraP
 		}
 	}
 
-	totalCost := unitPrice
+	totalCost := unitPrice * float64(videoCount)
 	if rateMultiplier <= 0 {
 		rateMultiplier = 1.0
 	}

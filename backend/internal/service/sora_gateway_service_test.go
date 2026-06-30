@@ -208,6 +208,7 @@ func TestSoraGatewayService_ForwardVideoCount(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, 3, client.videoReq.VideoCount)
+	require.Equal(t, 3, result.VideoCount)
 }
 
 func TestSoraGatewayService_ForwardCharacterOnly(t *testing.T) {

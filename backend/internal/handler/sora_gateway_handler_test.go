@@ -30,7 +30,8 @@ var _ service.GroupRepository = (*stubGroupRepo)(nil)
 var _ service.UsageLogRepository = (*stubUsageLogRepo)(nil)
 
 type stubSoraClient struct {
-	imageURLs []string
+	imageURLs      []string
+	videoTaskCalls int
 }
 
 func (s *stubSoraClient) Enabled() bool { return true }
@@ -41,6 +42,7 @@ func (s *stubSoraClient) CreateImageTask(ctx context.Context, account *service.A
 	return "task-image", nil
 }
 func (s *stubSoraClient) CreateVideoTask(ctx context.Context, account *service.Account, req service.SoraVideoRequest) (string, error) {
+	s.videoTaskCalls++
 	return "task-video", nil
 }
 func (s *stubSoraClient) CreateStoryboardTask(ctx context.Context, account *service.Account, req service.SoraStoryboardRequest) (string, error) {
@@ -134,7 +136,7 @@ func (r *stubAccountRepo) ListWithFilters(ctx context.Context, params pagination
 	return nil, nil, nil
 }
 func (r *stubAccountRepo) ListByGroup(ctx context.Context, groupID int64) ([]service.Account, error) {
-	return nil, nil
+	return r.listSchedulable(), nil
 }
 func (r *stubAccountRepo) ListActive(ctx context.Context) ([]service.Account, error) { return nil, nil }
 func (r *stubAccountRepo) ListByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
@@ -406,6 +408,18 @@ func (s *stubUsageLogRepo) GetDailyStatsAggregated(ctx context.Context, userID i
 	return nil, nil
 }
 
+type stubSoraBillingUserRepo struct {
+	service.UserRepository
+	user *service.User
+}
+
+func (r *stubSoraBillingUserRepo) GetByID(ctx context.Context, id int64) (*service.User, error) {
+	if r.user != nil && r.user.ID == id {
+		return r.user, nil
+	}
+	return nil, service.ErrUserNotFound
+}
+
 func TestSoraGatewayHandler_ChatCompletions(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
@@ -497,6 +511,103 @@ func TestSoraGatewayHandler_ChatCompletions(t *testing.T) {
 }
 
 // TestSoraHandler_StreamForcing 验证 sora handler 的 stream 强制逻辑
+func TestSoraGatewayHandler_ChatCompletions_BlocksInsufficientBalanceBeforeVideoProviderCall(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	videoPrice := 0.5
+	cfg := &config.Config{
+		Gateway: config.GatewayConfig{
+			SoraStreamMode:     "force",
+			MaxAccountSwitches: 1,
+			Scheduling: config.GatewaySchedulingConfig{
+				LoadBatchEnabled: false,
+			},
+		},
+		Concurrency: config.ConcurrencyConfig{PingInterval: 0},
+		Sora: config.SoraConfig{
+			Client: config.SoraClientConfig{
+				BaseURL:             "https://sora.test",
+				PollIntervalSeconds: 1,
+				MaxPollAttempts:     1,
+			},
+		},
+	}
+
+	account := &service.Account{ID: 1, Platform: service.PlatformSora, Status: service.StatusActive, Schedulable: true, Concurrency: 1, Priority: 1}
+	accountRepo := &stubAccountRepo{accounts: map[int64]*service.Account{account.ID: account}}
+	group := &service.Group{
+		ID:                       1,
+		Platform:                 service.PlatformSora,
+		Status:                   service.StatusActive,
+		RateMultiplier:           1,
+		Hydrated:                 true,
+		SoraVideoPricePerRequest: &videoPrice,
+	}
+	groupRepo := &stubGroupRepo{group: group}
+	user := &service.User{ID: 1, Concurrency: 1, Status: service.StatusActive, Balance: 0.75}
+
+	usageLogRepo := &stubUsageLogRepo{}
+	deferredService := service.NewDeferredService(accountRepo, nil, 0)
+	billingService := service.NewBillingService(cfg, nil)
+	concurrencyService := service.NewConcurrencyService(testutil.StubConcurrencyCache{})
+	billingCacheService := service.NewBillingCacheService(nil, &stubSoraBillingUserRepo{user: user}, nil, nil, cfg)
+	t.Cleanup(func() {
+		billingCacheService.Stop()
+	})
+
+	gatewayService := service.NewGatewayService(
+		accountRepo,
+		groupRepo,
+		usageLogRepo,
+		nil,
+		nil,
+		nil,
+		nil,
+		testutil.StubGatewayCache{},
+		cfg,
+		nil,
+		concurrencyService,
+		billingService,
+		nil,
+		billingCacheService,
+		nil,
+		nil,
+		deferredService,
+		nil,
+		testutil.StubSessionLimitCache{},
+		nil, // rpmCache
+		nil, // digestStore
+		nil, // settingService
+	)
+
+	soraClient := &stubSoraClient{imageURLs: []string{"https://example.com/v.mp4"}}
+	soraGatewayService := service.NewSoraGatewayService(soraClient, nil, nil, cfg)
+	handler := NewSoraGatewayHandler(gatewayService, soraGatewayService, concurrencyService, billingCacheService, nil, cfg)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := `{"model":"sora2-landscape-10s","messages":[{"role":"user","content":"cat running"}],"video_count":3}`
+	c.Request = httptest.NewRequest(http.MethodPost, "/sora/v1/chat/completions", strings.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	apiKey := &service.APIKey{
+		ID:      1,
+		UserID:  1,
+		Status:  service.StatusActive,
+		GroupID: &group.ID,
+		User:    user,
+		Group:   group,
+	}
+	c.Set(string(middleware.ContextKeyAPIKey), apiKey)
+	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: apiKey.UserID, Concurrency: apiKey.User.Concurrency})
+
+	handler.ChatCompletions(c)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.Contains(t, rec.Body.String(), "insufficient balance")
+	require.Equal(t, 0, soraClient.videoTaskCalls)
+}
+
 func TestSoraHandler_StreamForcing(t *testing.T) {
 	// 测试 1：stream=false 时 sjson 强制修改为 true
 	body := []byte(`{"model":"sora","messages":[{"role":"user","content":"test"}],"stream":false}`)
