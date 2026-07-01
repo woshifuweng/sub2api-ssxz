@@ -711,8 +711,8 @@ async function handleRegister(): Promise<void> {
     // Show success toast
     appStore.showSuccess(t('auth.accountCreatedSuccess', { siteName: siteName.value }))
 
-    // Redirect regular users to the lightweight image workspace.
-    await router.push('/app/image')
+    // Redirect regular users to the operating dashboard.
+    await router.push('/app/dashboard')
   } catch (error: unknown) {
     // Reset Turnstile on error
     if (turnstileRef.value) {

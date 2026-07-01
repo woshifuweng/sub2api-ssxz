@@ -246,6 +246,60 @@ describe('PaymentCheckoutContent', () => {
     expect(paymentStore.createOrder).not.toHaveBeenCalled()
   })
 
+  it('keeps RMB payment and USD credit units explicit before creating a recharge order', async () => {
+    paymentAPI.getCheckoutInfo.mockResolvedValue({
+      data: {
+        ...checkoutInfoWithAlipay(),
+        balance_recharge_multiplier: 1
+      }
+    })
+
+    const wrapper = mountContent('workspace')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="amount-input"]').setValue('50')
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(text).toContain('当前余额 $49.40 额度')
+    expect(text).toContain('账户余额和到账额度使用 $ 额度计量，充值支付使用人民币 ¥')
+    expect(text).toContain('支付金额使用人民币 ¥；到账后进入账户的可消费额度使用 $ 计量。')
+    expect(text).toContain('¥50.00')
+    expect(text).toContain('$50.00 额度')
+    expect(text).toContain('支付 ¥50.00，到账 $50.00 额度。')
+  })
+
+  it('does not show a zero-yuan create-order action before amount selection', async () => {
+    paymentAPI.getCheckoutInfo.mockResolvedValue({
+      data: checkoutInfoWithAlipay()
+    })
+
+    const wrapper = mountContent('workspace')
+    await flushPromises()
+
+    const submit = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('请选择充值金额'))
+    expect(submit).toBeTruthy()
+    expect(submit?.attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).not.toContain('payment.createOrder ¥0.00')
+  })
+
+  it('translates the legacy checkout help text into Chinese for workspace recharge clarity', async () => {
+    paymentAPI.getCheckoutInfo.mockResolvedValue({
+      data: {
+        ...checkoutInfoWithAlipay(),
+        help_text: 'Recharge adds account balance. Usage and fee records follow backend ledger data.'
+      }
+    })
+
+    const wrapper = mountContent('workspace')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('充值会增加账户额度，用量和扣费记录以后端账本为准。')
+    expect(wrapper.text()).not.toContain('Recharge adds account balance')
+  })
+
   it('keeps the user in select state when create order fails', async () => {
     paymentAPI.getCheckoutInfo.mockResolvedValue({
       data: checkoutInfoWithAlipay()

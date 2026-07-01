@@ -1365,11 +1365,40 @@ const dropdownRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
 const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
 let abortController: AbortController | null = null
-const apiBaseUrl = computed(() => publicSettings.value?.api_base_url || window.location.origin)
+const apiBaseUrl = computed(() => resolveUserFacingApiBaseUrl(publicSettings.value?.api_base_url))
 const openAICompatibleBaseUrl = computed(() => {
   const trimmed = apiBaseUrl.value.replace(/\/+$/, '')
   return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
 })
+
+function resolveUserFacingApiBaseUrl(configuredUrl?: string | null) {
+  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : ''
+  const trimmed = configuredUrl?.trim()
+  const shouldUseConfigured =
+    trimmed
+    && !isLocalhostBaseUrl(trimmed)
+    && !isPrivateLoopbackBaseUrl(trimmed)
+
+  return shouldUseConfigured ? trimmed : currentOrigin
+}
+
+function isLocalhostBaseUrl(value: string) {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase()
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]'
+  } catch {
+    return /(^|\/\/)(localhost|127\.0\.0\.1)(?::|\/|$)/i.test(value)
+  }
+}
+
+function isPrivateLoopbackBaseUrl(value: string) {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase()
+    return hostname.startsWith('127.') || hostname === '0.0.0.0'
+  } catch {
+    return false
+  }
+}
 
 // Get the currently selected key for group change
 const selectedKeyForGroup = computed(() => {

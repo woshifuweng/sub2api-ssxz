@@ -13,34 +13,27 @@
                 <div class="mb-3 flex flex-wrap items-center gap-2">
                   <span class="inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-950/40 dark:text-primary-300">
                     <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                    SSXZ 图片创作站
+                    SSXZ 中转运营平台
                   </span>
                   <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-gray-300">
                     登录账号 {{ userEmail }}
                   </span>
                 </div>
                 <h1 class="text-2xl font-bold tracking-normal text-gray-900 dark:text-white md:text-3xl">
-                  先生成图片，再查看和下载
+                  先管理 API Key，再查看用量和余额
                 </h1>
                 <p class="mt-3 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-400">
-                  普通用户从生图开始：写提示词、生成图片、查看历史、下载成品。余额、用量和充值都在这里串起来，聊天只作为辅助写 prompt 的第二入口。
+                  这里是普通用户的默认入口：创建 API Key、接入第三方客户端、查看余额用量、充值和回查订单。聊天和图片只保留为轻量测试入口。
                 </p>
               </div>
 
               <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <RouterLink
-                  to="/app/image"
+                  to="/app/keys"
                   class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700"
                 >
-                  <Icon name="sparkles" size="sm" />
-                  开始生图
-                </RouterLink>
-                <RouterLink
-                  to="/app/chat"
-                  class="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
-                >
-                  <Icon name="chat" size="sm" />
-                  辅助写 prompt
+                  <Icon name="key" size="sm" />
+                  创建 API Key
                 </RouterLink>
                 <RouterLink
                   to="/app/usage"
@@ -50,11 +43,18 @@
                   查看用量
                 </RouterLink>
                 <RouterLink
-                  to="/app/keys"
+                  to="/app/channel-status"
                   class="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
                 >
-                  <Icon name="key" size="sm" />
-                  第三方接入
+                  <Icon name="server" size="sm" />
+                  通道状态
+                </RouterLink>
+                <RouterLink
+                  to="/app/purchase"
+                  class="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
+                >
+                  <Icon name="creditCard" size="sm" />
+                  充值
                 </RouterLink>
               </div>
             </div>
@@ -108,10 +108,10 @@
           <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p class="text-sm font-medium text-primary-600 dark:text-primary-400">开始使用</p>
-              <h2 class="text-xl font-semibold text-gray-900 dark:text-white">轻量图片工具站</h2>
+              <h2 class="text-xl font-semibold text-gray-900 dark:text-white">中转站核心入口</h2>
             </div>
             <p class="max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-              常用入口集中在生图、图片历史、下载、余额、用量和充值。熟练用户也可以用 API Key 接入 CC Switch、Cherry Studio、Chatbox 等第三方客户端。
+              常用入口集中在 API Key、用量、余额、充值、订单和通道状态。熟练用户可以用本站 Key 接入 CC Switch、Cherry Studio、Chatbox 等第三方客户端。
             </p>
           </div>
 
@@ -209,68 +209,68 @@ const recentUsage = ref<UsageLog[]>([])
 
 const productEntries = [
   {
-    to: '/app/image',
-    icon: 'sparkles' as const,
-    badge: '主入口',
-    title: '生成图片',
-    description: '输入提示词，选择模型和比例，直接生成商品图、场景图、海报图或灵感图。',
-    action: '进入生图'
-  },
-  {
-    to: '/app/image',
-    icon: 'download' as const,
-    badge: '图片历史',
-    title: '查看和下载',
-    description: '回到历史记录查看生成结果，预览图片或视频，并下载需要保留的成品。',
-    action: '查看历史'
-  },
-  {
-    to: '/app/chat',
-    icon: 'chat' as const,
-    badge: '辅助入口',
-    title: '聊天写 prompt',
-    description: '需要打磨描述、翻译风格词或扩写创意时，用聊天先把提示词写顺。',
-    action: '打开聊天'
-  },
-  {
     to: '/app/keys',
     icon: 'key' as const,
-    badge: '第三方接入',
-    title: 'API Key',
-    description: '熟练用户可以创建自己的 API Key，把本站能力接入 CC Switch、Cherry Studio、Chatbox 等客户端。',
+    badge: '主入口',
+    title: 'API 密钥',
+    description: '创建和管理自己的 API Key，用于 Cherry Studio、Chatbox、CC Switch 等第三方客户端。',
     action: '管理 Key'
+  },
+  {
+    to: '/app/usage',
+    icon: 'chart' as const,
+    badge: '用量',
+    title: '使用记录',
+    description: '查看最近请求、模型消耗和余额变化，确认每次调用是否成功计费。',
+    action: '查看明细'
+  },
+  {
+    to: '/app/channel-status',
+    icon: 'server' as const,
+    badge: '通道',
+    title: '通道状态',
+    description: '查看当前可用通道和模型状态，遇到失败时先判断是额度、模型还是上游问题。',
+    action: '查看状态'
   },
   {
     to: '/app/purchase',
     icon: 'creditCard' as const,
     badge: '余额',
     title: '充值和订单',
-    description: '查看余额和消耗，余额不足时进入充值页，订单记录可以随时回查。',
+    description: '查看余额、充值入口和订单记录，余额不足时先充值再继续调用。',
     action: '去充值'
+  },
+  {
+    to: '/app/chat',
+    icon: 'chat' as const,
+    badge: '轻量测试',
+    title: '模型测试入口',
+    description: '需要快速验证模型是否可用时再进入聊天。它不是本阶段默认商业主线。',
+    action: '打开测试'
   }
 ]
 
 const onboardingSteps = [
   {
     index: '01',
-    title: '先进入生图',
-    description: '普通用户不需要理解接口和渠道。进入图片生成，写好提示词后直接生成图片。',
-    to: '/app/image',
-    action: '去生图'
+    title: '先创建 API Key',
+    description: '把 Key 配到 Cherry Studio、Chatbox、CC Switch 等客户端，优先跑通真实调用链路。',
+    to: '/app/keys',
+    action: '管理 Key'
   },
   {
     index: '02',
-    title: '再看历史和下载',
-    description: '生成结果会进入图片历史。需要使用时预览、保存或下载，不用在聊天记录里翻找。',
-    to: '/app/image',
-    action: '查看历史'
+    title: '再查看用量和余额',
+    description: '每次调用后回到使用记录确认模型、消耗、余额变化和失败不扣费是否清楚。',
+    to: '/app/usage',
+    action: '查看用量'
   },
   {
     index: '03',
-    title: '最后看余额和用量',
-    description: '费用仍由后台统一记录。用户只需要看余额、用量和订单，余额不足时充值。',
-    to: '/app/usage',
-    action: '查看用量'
+    title: '最后处理充值和订单',
+    description: '余额不足时进入充值页，付款后回查订单和余额到账情况。',
+    to: '/app/purchase',
+    action: '去充值'
   }
 ]
 

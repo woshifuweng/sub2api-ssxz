@@ -147,43 +147,47 @@ describe('AppSidebar', () => {
     const destinations = hrefs(wrapper)
 
     expect(destinations).toEqual(expect.arrayContaining([
-      '/app/chat',
-      '/app/image',
+      '/app/dashboard',
       '/app/keys',
       '/app/usage',
+      '/app/channel-status',
       '/app/purchase',
       '/app/orders',
-      '/app/profile'
+      '/app/redeem',
+      '/app/profile',
+      '/app/chat',
+      '/app/image'
     ]))
     expect(destinations.filter((destination) => destination === '/app/image')).toHaveLength(1)
     expect(destinations).not.toEqual(expect.arrayContaining([
       '/available-channels',
       '/monitor',
-      '/subscriptions',
-      '/redeem'
+      '/subscriptions'
     ]))
   })
 
-  it('keeps regular user navigation out of technical channel/status pages', () => {
+  it('keeps regular user navigation focused on the operating platform first', () => {
     authState.isAdmin = false
 
     const wrapper = mountSidebar()
     const destinations = hrefs(wrapper)
 
     expect(destinations).toEqual([
-      '/app/image',
-      '/app/chat',
+      '/app/dashboard',
       '/app/keys',
       '/app/usage',
+      '/app/channel-status',
       '/app/purchase',
       '/app/orders',
-      '/app/profile'
+      '/app/redeem',
+      '/app/profile',
+      '/app/chat',
+      '/app/image'
     ])
     expect(destinations).not.toEqual(expect.arrayContaining([
       '/available-channels',
       '/monitor',
-      '/subscriptions',
-      '/redeem'
+      '/subscriptions'
     ]))
   })
 })

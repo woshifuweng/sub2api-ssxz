@@ -122,8 +122,11 @@
             >
               {{ siteName }}
             </h1>
-            <p class="mb-8 text-lg text-gray-600 dark:text-dark-300 md:text-xl">
-              {{ siteSubtitle }}
+            <p class="mb-3 text-lg text-gray-600 dark:text-dark-300 md:text-xl">
+              私域 AI 中转站 · API Key · 多模型 · 余额用量 · 第三方客户端接入
+            </p>
+            <p class="mx-auto mb-8 max-w-2xl text-sm leading-6 text-gray-500 dark:text-dark-300 lg:mx-0">
+              统一管理 API Key、多模型调用、余额用量和第三方客户端接入。可用模型和计费规则以后端配置为准。
             </p>
 
             <!-- CTA Button -->
@@ -282,7 +285,7 @@
           </div>
         </div>
 
-        <!-- Supported Providers -->
+        <!-- Model Availability -->
         <div class="mb-8 text-center">
           <h2 class="mb-3 text-2xl font-bold text-gray-900 dark:text-white">
             {{ t('home.providers.title') }}
@@ -293,7 +296,7 @@
         </div>
 
         <div class="mb-16 flex flex-wrap items-center justify-center gap-4">
-          <!-- Claude - Supported -->
+          <!-- Claude - Backend configured -->
           <div
             class="flex items-center gap-2 rounded-xl border border-primary-200 bg-white/60 px-5 py-3 ring-1 ring-primary-500/20 backdrop-blur-sm dark:border-primary-800 dark:bg-dark-800/60"
           >
@@ -308,7 +311,7 @@
               >{{ t('home.providers.supported') }}</span
             >
           </div>
-          <!-- GPT - Supported -->
+          <!-- GPT - Backend configured -->
           <div
             class="flex items-center gap-2 rounded-xl border border-primary-200 bg-white/60 px-5 py-3 ring-1 ring-primary-500/20 backdrop-blur-sm dark:border-primary-800 dark:bg-dark-800/60"
           >
@@ -323,7 +326,7 @@
               >{{ t('home.providers.supported') }}</span
             >
           </div>
-          <!-- Gemini - Supported -->
+          <!-- Gemini - Backend configured -->
           <div
             class="flex items-center gap-2 rounded-xl border border-primary-200 bg-white/60 px-5 py-3 ring-1 ring-primary-500/20 backdrop-blur-sm dark:border-primary-800 dark:bg-dark-800/60"
           >
@@ -338,7 +341,7 @@
               >{{ t('home.providers.supported') }}</span
             >
           </div>
-          <!-- Antigravity - Supported -->
+          <!-- Antigravity - Backend configured -->
           <div
             class="flex items-center gap-2 rounded-xl border border-primary-200 bg-white/60 px-5 py-3 ring-1 ring-primary-500/20 backdrop-blur-sm dark:border-primary-800 dark:bg-dark-800/60"
           >
@@ -353,7 +356,7 @@
               >{{ t('home.providers.supported') }}</span
             >
           </div>
-          <!-- More - Coming Soon -->
+          <!-- More - Backend configured -->
           <div
             class="flex items-center gap-2 rounded-xl border border-gray-200/50 bg-white/40 px-5 py-3 opacity-60 backdrop-blur-sm dark:border-dark-700/50 dark:bg-dark-800/40"
           >
@@ -365,7 +368,7 @@
             <span class="text-sm font-medium text-gray-700 dark:text-dark-200">{{ t('home.providers.more') }}</span>
             <span
               class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-dark-700 dark:text-dark-400"
-              >{{ t('home.providers.soon') }}</span
+              >{{ t('home.providers.backendConfigured') }}</span
             >
           </div>
         </div>
@@ -421,7 +424,6 @@ const appStore = useAppStore()
 // Site settings - directly from appStore (already initialized from injected config)
 const siteName = computed(() => appStore.cachedPublicSettings?.site_name || appStore.siteName || 'Sub2API')
 const siteLogo = computed(() => appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '')
-const siteSubtitle = computed(() => appStore.cachedPublicSettings?.site_subtitle || 'AI API Gateway Platform')
 const docUrl = computed(() => appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '')
 const homeContent = computed(() => appStore.cachedPublicSettings?.home_content || '')
 const homeContentUrl = computed(() => sanitizeUrl(homeContent.value))
@@ -439,7 +441,7 @@ const githubUrl = 'https://github.com/DR-lin-eng/sub2api'
 // Auth state
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const isAdmin = computed(() => authStore.isAdmin)
-const dashboardPath = computed(() => isAdmin.value ? '/admin/dashboard' : '/app/image')
+const dashboardPath = computed(() => isAdmin.value ? '/admin/dashboard' : '/app/dashboard')
 const userInitial = computed(() => {
   const user = authStore.user
   if (!user || !user.email) return ''

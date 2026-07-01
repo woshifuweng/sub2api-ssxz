@@ -59,10 +59,13 @@ const backendModeAllowedPaths = [
   '/login',
   '/key-usage',
   '/setup',
+  '/app/dashboard',
   '/app/image',
   '/app/usage',
   '/app/purchase',
   '/app/orders',
+  '/app/redeem',
+  '/app/channel-status',
   '/app/keys',
   '/app/profile',
   '/app/affiliate',
@@ -98,7 +101,7 @@ function simulateGuard(
       if (authState.backendModeEnabled && !authState.isAdmin) {
         return null
       }
-      return authState.isAdmin ? '/admin/dashboard' : '/app/image'
+      return authState.isAdmin ? '/admin/dashboard' : '/app/dashboard'
     }
     if (authState.backendModeEnabled && !authState.isAuthenticated) {
       if (!backendModeAllowedPaths.some((path) => toPath === path || toPath.startsWith(path))) {
@@ -115,12 +118,12 @@ function simulateGuard(
 
   // 需要管理员但不是管理员
   if (requiresAdmin && !authState.isAdmin) {
-    return '/app/image'
+    return '/app/dashboard'
   }
 
   // 简易模式限制
   if (toMeta.requiresPayment && !(authState.paymentEnabled ?? true)) {
-    return authState.isAdmin ? '/admin/dashboard' : '/app/image'
+    return authState.isAdmin ? '/admin/dashboard' : '/app/dashboard'
   }
 
   if (authState.isSimpleMode) {
@@ -133,7 +136,7 @@ function simulateGuard(
       '/redeem',
     ]
     if (restrictedPaths.some((path) => toPath.startsWith(path))) {
-      return authState.isAdmin ? '/admin/dashboard' : '/app/image'
+      return authState.isAdmin ? '/admin/dashboard' : '/app/dashboard'
     }
   }
 
@@ -196,14 +199,14 @@ describe('路由守卫逻辑', () => {
       backendModeEnabled: false,
     }
 
-    it('访问 /login 重定向到 /app/image', () => {
+    it('访问 /login 重定向到 /app/dashboard', () => {
       const redirect = simulateGuard('/login', { requiresAuth: false }, authState)
-      expect(redirect).toBe('/app/image')
+      expect(redirect).toBe('/app/dashboard')
     })
 
-    it('访问 /register 重定向到 /app/image', () => {
+    it('访问 /register 重定向到 /app/dashboard', () => {
       const redirect = simulateGuard('/register', { requiresAuth: false }, authState)
-      expect(redirect).toBe('/app/image')
+      expect(redirect).toBe('/app/dashboard')
     })
 
     it('访问 /dashboard 允许通过', () => {
@@ -211,14 +214,14 @@ describe('路由守卫逻辑', () => {
       expect(redirect).toBeNull()
     })
 
-    it('访问管理页面被拒绝，重定向到 /app/image', () => {
+    it('访问管理页面被拒绝，重定向到 /app/dashboard', () => {
       const redirect = simulateGuard('/admin/dashboard', { requiresAdmin: true }, authState)
-      expect(redirect).toBe('/app/image')
+      expect(redirect).toBe('/app/dashboard')
     })
 
     it('访问 /admin/users 被拒绝', () => {
       const redirect = simulateGuard('/admin/users', { requiresAdmin: true }, authState)
-      expect(redirect).toBe('/app/image')
+      expect(redirect).toBe('/app/dashboard')
     })
 
     it('allows /orders when payment is disabled so the page can degrade safely', () => {
@@ -233,7 +236,7 @@ describe('路由守卫逻辑', () => {
 
     it('keeps payment flow pages guarded when payment is disabled', () => {
       const redirect = simulateGuard('/payment/qrcode', { requiresPayment: true }, { ...authState, paymentEnabled: false })
-      expect(redirect).toBe('/app/image')
+      expect(redirect).toBe('/app/dashboard')
     })
   })
 
@@ -277,7 +280,7 @@ describe('路由守卫逻辑', () => {
       expect(redirect).toBeNull()
     })
 
-    it('普通用户简易模式访问 /app/redeem 重定向到 /app/image', () => {
+    it('普通用户简易模式访问 /app/redeem 重定向到 /app/dashboard', () => {
       const authState: MockAuthState = {
         isAuthenticated: true,
         isAdmin: false,
@@ -285,7 +288,7 @@ describe('路由守卫逻辑', () => {
         backendModeEnabled: false,
       }
       const redirect = simulateGuard('/app/redeem', {}, authState)
-      expect(redirect).toBe('/app/image')
+      expect(redirect).toBe('/app/dashboard')
     })
 
     it('管理员简易模式访问 /admin/groups 重定向到 /admin/dashboard', () => {
@@ -431,7 +434,7 @@ describe('路由守卫逻辑', () => {
       expect(redirect).toBe('/admin/dashboard')
     })
 
-    it('non-admin authenticated: /dashboard redirects to /login', () => {
+    it('non-admin authenticated: /dashboard remains blocked in backend mode before legacy redirect resolution', () => {
       const authState: MockAuthState = {
         isAuthenticated: true,
         isAdmin: false,
@@ -453,7 +456,18 @@ describe('路由守卫逻辑', () => {
       expect(redirect).toBeNull()
     })
 
-    it('non-admin authenticated: /app/image is allowed as the primary image generation entry', () => {
+    it('non-admin authenticated: /app/dashboard is allowed as the primary operating entry', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: true,
+      }
+      const redirect = simulateGuard('/app/dashboard', {}, authState)
+      expect(redirect).toBeNull()
+    })
+
+    it('non-admin authenticated: /app/image remains allowed as the secondary image beta entry', () => {
       const authState: MockAuthState = {
         isAuthenticated: true,
         isAdmin: false,

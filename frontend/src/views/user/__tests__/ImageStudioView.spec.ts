@@ -160,16 +160,16 @@ describe('ImageStudioView workbench', () => {
     })
   })
 
-  it('restores the old-site style image workbench instead of the discarded console page', () => {
+  it('frames image generation as a lightweight beta entry instead of a primary product', () => {
     const wrapper = mountImageStudio()
     const text = wrapper.text()
 
-    expect(text).toContain('AI 作图')
-    expect(text).toContain('图片生成工作台')
-    expect(text).toContain('把想法整理成可交付的视觉作品')
-    expect(text).toContain('用途、比例、风格和参考图是创作方向，不是固定人设')
-    expect(text).toContain('先用对话整理想法')
-    expect(text).toContain('作图是主流程，对话可以帮你把随口需求整理成更清楚的画面描述')
+    expect(text).toContain('图片内测入口')
+    expect(text).toContain('先验证图片生成链路，再逐步完善体验')
+    expect(text).toContain('不承诺正式图片产品能力')
+    expect(text).toContain('真实生成质量、可用模型和扣费以后端配置和实际返回为准')
+    expect(text).toContain('先用模型测试整理想法')
+    expect(text).toContain('图片入口当前是内测能力')
     expect(text).toContain('对话辅助保留')
     expect(text).toContain('先聊清楚，再去作图')
     expect(text).toContain('选择创作目标')
@@ -181,7 +181,7 @@ describe('ImageStudioView workbench', () => {
     expect(text).toContain('生成张数')
     expect(text).toContain('多张结果会在右侧以缩略图切换')
     expect(text).toContain('上传商品图或风格参考图')
-    expect(text).toContain('你的作品将在这里呈现')
+    expect(text).toContain('内测结果将在这里呈现')
     expect(text).toContain('普通话说需求')
     expect(text).toContain('对话辅助润色')
     expect(text).toContain('最近作品')

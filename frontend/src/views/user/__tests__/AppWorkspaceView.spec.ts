@@ -121,7 +121,7 @@ describe('AppWorkspaceView interactions', () => {
     expect(wrapper.text()).toContain('文本对话')
     expect(wrapper.text()).toContain('图片理解')
     expect(wrapper.text()).toContain('多图分析')
-    expect(wrapper.text()).toContain('AI 作图页')
+    expect(wrapper.text()).toContain('图片内测入口')
     expect(wrapper.text()).not.toContain('上传参考图')
     expect(wrapper.text()).not.toContain('生成、修改的画面')
 

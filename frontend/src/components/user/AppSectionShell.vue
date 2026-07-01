@@ -13,36 +13,20 @@
       @click="closeMobileNav"
     />
     <aside class="ssxz-app-sidebar fixed inset-y-0 left-0 z-30 w-60 border-r px-3 py-4 backdrop-blur-xl">
-      <RouterLink to="/app/chat" class="ssxz-brand-link mb-6" title="返回新对话" aria-label="返回新对话" @click="closeMobileNav">
+      <RouterLink to="/app/dashboard" class="ssxz-brand-link mb-6" title="返回仪表盘" aria-label="返回仪表盘" @click="closeMobileNav">
         <span class="ssxz-brand-mark">S</span>
         <span class="ssxz-brand-copy ssxz-sidebar-text">
           <span class="ssxz-brand-title">SSXZ AI</span>
-          <span class="ssxz-brand-subtitle">AI 创作工作台</span>
+          <span class="ssxz-brand-subtitle">中转运营平台</span>
         </span>
       </RouterLink>
 
       <nav class="ssxz-primary-nav" aria-label="主导航">
         <button
-          v-for="item in navItems"
+          v-for="item in mainNavItems"
           :key="item.to"
           type="button"
-          class="ssxz-nav-item ssxz-new-chat"
-          :class="{ 'is-active': isActive(item.to) }"
-          :title="item.label"
-          :aria-label="item.label"
-          @click="handlePrimaryNav(item.to)"
-        >
-          <Icon :name="item.icon" size="sm" />
-          <span class="ssxz-sidebar-text">{{ item.label }}</span>
-        </button>
-      </nav>
-
-      <nav class="ssxz-secondary-nav" aria-label="工作台入口">
-        <button
-          v-for="item in utilityItems"
-          :key="item.to"
-          type="button"
-          class="ssxz-nav-item ssxz-utility-item"
+          class="ssxz-nav-item"
           :class="{ 'is-active': isActive(item.to) }"
           :title="item.label"
           :aria-label="item.label"
@@ -53,7 +37,24 @@
         </button>
       </nav>
 
-      <section class="ssxz-history" aria-label="历史会话">
+      <nav class="ssxz-secondary-nav" aria-label="轻量体验入口">
+        <div class="ssxz-section-label ssxz-sidebar-text">轻量体验入口</div>
+        <button
+          v-for="item in experienceItems"
+          :key="item.to"
+          type="button"
+          class="ssxz-nav-item ssxz-utility-item"
+          :class="{ 'is-active': isActive(item.to) }"
+          :title="item.label"
+          :aria-label="item.label"
+          @click="handleExperienceNav(item.to)"
+        >
+          <Icon :name="item.icon" size="sm" />
+          <span class="ssxz-sidebar-text">{{ item.label }}</span>
+        </button>
+      </nav>
+
+      <section v-if="showHistorySection" class="ssxz-history" aria-label="历史会话">
         <div class="ssxz-section-label ssxz-sidebar-text">历史会话</div>
         <button
           v-for="item in historyItems"
@@ -156,7 +157,7 @@ import { useAuthStore } from '@/stores/auth'
 
 type IconName = InstanceType<typeof Icon>['$props']['name']
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   title: string
   subtitle: string
   eyebrow?: string
@@ -165,7 +166,7 @@ withDefaults(defineProps<{
   activeConversationId?: number | null
   historyLoading?: boolean
 }>(), {
-  eyebrow: 'SSXZ AI 工作台',
+  eyebrow: 'SSXZ AI',
   icon: 'sparkles',
   historyItems: () => [],
   activeConversationId: null,
@@ -189,18 +190,23 @@ const isDesktopViewport = ref(false)
 const isDark = ref(document.documentElement.classList.contains('dark'))
 let desktopMediaQuery: MediaQueryList | null = null
 
-const navItems: Array<{ label: string; to: string; icon: IconName }> = [
-  { label: '新对话', to: '/app/chat', icon: 'chat' },
-  { label: 'AI 作图', to: '/app/image', icon: 'sparkles' }
-]
-
-const utilityItems: Array<{ label: string; to: string; icon: IconName }> = [
-  { label: '用量中心', to: '/app/usage', icon: 'chartBar' },
+const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName }>>(() => [
+  { label: '仪表盘', to: '/app/dashboard', icon: 'home' },
+  { label: 'API 密钥', to: '/app/keys', icon: 'key' },
+  { label: '使用记录', to: '/app/usage', icon: 'chartBar' },
+  { label: '通道状态', to: '/app/channel-status', icon: 'server' },
   { label: '充值', to: '/app/purchase', icon: 'creditCard' },
-  { label: '订单记录', to: '/app/orders', icon: 'clipboard' },
+  { label: '订单', to: '/app/orders', icon: 'clipboard' },
   { label: '兑换码', to: '/app/redeem', icon: 'gift' },
-  { label: 'API Key / 第三方接入', to: '/app/keys', icon: 'key' },
-  { label: '账户设置', to: '/app/profile', icon: 'userCircle' }
+  { label: '个人资料', to: '/app/profile', icon: 'userCircle' },
+  ...(authStore.isAdmin
+    ? [{ label: '后台入口', to: '/admin/dashboard', icon: 'shield' as IconName }]
+    : [])
+])
+
+const experienceItems: Array<{ label: string; to: string; icon: IconName }> = [
+  { label: '模型测试', to: '/app/chat', icon: 'chat' },
+  { label: '图片内测', to: '/app/image', icon: 'sparkles' }
 ]
 
 
@@ -213,10 +219,13 @@ const navToggleLabel = computed(() => {
 })
 const navToggleExpanded = computed(() => !isDesktopViewport.value ? mobileNavOpen.value : !sidebarCollapsed.value)
 const mobileNavActive = computed(() => mobileNavOpen.value && !isDesktopViewport.value)
+const showHistorySection = computed(() => (
+  route.path === '/app/chat' || props.historyLoading || props.historyItems.length > 0
+))
 
 function isActive(path: string) {
   const normalizedPath = path.split('?')[0]
-  if (normalizedPath === '/app') return route.path === '/app' || route.path === '/app/chat'
+  if (normalizedPath === '/app') return route.path === '/app' || route.path === '/app/dashboard'
   return route.path === normalizedPath
 }
 
@@ -225,7 +234,7 @@ function handleRouteNav(to: string) {
   if (route.path !== to) router.push(to)
 }
 
-function handlePrimaryNav(to: string) {
+function handleExperienceNav(to: string) {
   closeMobileNav()
   if (to === '/app/chat') {
     emit('new-chat')

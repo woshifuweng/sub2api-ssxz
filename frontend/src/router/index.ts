@@ -53,7 +53,12 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/home',
-    redirect: '/'
+    name: 'PublicHome',
+    component: () => import('@/views/HomeView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Home'
+    }
   },
   {
     path: '/login',
@@ -143,7 +148,19 @@ const routes: RouteRecordRaw[] = [
   // ==================== User Routes ====================
   {
     path: '/app',
-    redirect: redirectLegacyRoute('/app/image')
+    redirect: redirectLegacyRoute('/app/dashboard')
+  },
+  {
+    path: '/app/dashboard',
+    name: 'AppDashboard',
+    component: () => import('@/views/user/DashboardView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Dashboard',
+      appSection: 'dashboard',
+      titleSiteName: 'SSXZ AI'
+    }
   },
   {
     path: '/app/chat',
@@ -152,7 +169,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'AI Chat',
+        title: 'Model Test',
       appSection: 'chat',
       titleSiteName: 'SSXZ AI'
     }
@@ -164,7 +181,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Image Generation',
+        title: 'Image Beta',
       titleSiteName: 'SSXZ AI'
     }
   },
@@ -281,7 +298,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/dashboard',
-    redirect: redirectLegacyRoute('/app/image')
+    redirect: redirectLegacyRoute('/app/dashboard')
   },
   {
     path: '/ai-chat',
@@ -660,6 +677,7 @@ const BACKEND_MODE_ALLOWED_PATHS = [
   '/login',
   '/key-usage',
   '/setup',
+  '/app/dashboard',
   '/app/image',
   '/app/usage',
   '/app/purchase',

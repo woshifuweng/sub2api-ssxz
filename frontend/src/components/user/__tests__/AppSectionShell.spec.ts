@@ -96,24 +96,26 @@ describe('AppSectionShell', () => {
   it('keeps API Key available as a third-party client entrypoint', () => {
     const wrapper = mountShell()
 
-    expect(wrapper.text()).toContain('AI 创作工作台')
-    expect(wrapper.text()).toContain('SSXZ AI 工作台')
+    expect(wrapper.text()).toContain('中转运营平台')
+    expect(wrapper.text()).toContain('SSXZ AI')
     expect(wrapper.text()).not.toContain('图片工具站')
     expect(wrapper.text()).not.toContain('对话工作台')
-    expect(wrapper.text()).toContain('新对话')
-    expect(wrapper.text()).toContain('AI 作图')
-    expect(wrapper.text()).toContain('用量中心')
+    expect(wrapper.text()).toContain('仪表盘')
+    expect(wrapper.text()).toContain('API 密钥')
+    expect(wrapper.text()).toContain('使用记录')
+    expect(wrapper.text()).toContain('通道状态')
     expect(wrapper.text()).toContain('充值')
-    expect(wrapper.text()).toContain('订单记录')
+    expect(wrapper.text()).toContain('订单')
     expect(wrapper.text()).toContain('兑换码')
-    expect(wrapper.text()).toContain('API Key / 第三方接入')
-    expect(wrapper.text()).toContain('账户设置')
+    expect(wrapper.text()).toContain('个人资料')
+    expect(wrapper.text()).toContain('模型测试')
+    expect(wrapper.text()).toContain('图片内测')
   })
 
-  it('uses new chat as the brand home destination', () => {
+  it('uses dashboard as the brand home destination', () => {
     const wrapper = mountShell()
 
-    expect(wrapper.get('.ssxz-brand-link').attributes('href')).toBe('/app/chat')
+    expect(wrapper.get('.ssxz-brand-link').attributes('href')).toBe('/app/dashboard')
   })
 
   it('keeps long history titles within the sidebar hit target', async () => {
@@ -144,24 +146,24 @@ describe('AppSectionShell', () => {
   it('switches supported utility menu entries to their own pages instead of rendering inline panels', async () => {
     routeState.path = '/app/image'
     const wrapper = mountShell()
-    const buttons = wrapper.findAll('.ssxz-secondary-nav .ssxz-nav-item')
+    const buttons = wrapper.findAll('.ssxz-primary-nav .ssxz-nav-item')
 
-    await buttons.find((button) => button.text().includes('用量中心'))?.trigger('click')
+    await buttons.find((button) => button.text().includes('使用记录'))?.trigger('click')
     expect(mocks.push).toHaveBeenLastCalledWith('/app/usage')
 
     await buttons.find((button) => button.text().includes('充值'))?.trigger('click')
     expect(mocks.push).toHaveBeenLastCalledWith('/app/purchase')
 
-    await buttons.find((button) => button.text().includes('订单记录'))?.trigger('click')
+    await buttons.find((button) => button.text() === '订单')?.trigger('click')
     expect(mocks.push).toHaveBeenLastCalledWith('/app/orders')
 
     await buttons.find((button) => button.text().includes('兑换码'))?.trigger('click')
     expect(mocks.push).toHaveBeenLastCalledWith('/app/redeem')
 
-    await buttons.find((button) => button.text().includes('API Key / 第三方接入'))?.trigger('click')
+    await buttons.find((button) => button.text().includes('API 密钥'))?.trigger('click')
     expect(mocks.push).toHaveBeenLastCalledWith('/app/keys')
 
-    await buttons.find((button) => button.text().includes('账户设置'))?.trigger('click')
+    await buttons.find((button) => button.text().includes('个人资料'))?.trigger('click')
     expect(mocks.push).toHaveBeenLastCalledWith('/app/profile')
     expect(wrapper.find('.ssxz-workspace-utility-center').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('打开 API Key / 第三方客户端接入')
@@ -174,14 +176,16 @@ describe('AppSectionShell', () => {
       ...wrapper.findAll('.ssxz-secondary-nav .ssxz-nav-item')
     ]
     const expectedRoutes = [
-      '/app/chat',
-      '/app/image',
+      '/app/dashboard',
+      '/app/keys',
       '/app/usage',
+      '/app/channel-status',
       '/app/purchase',
       '/app/orders',
       '/app/redeem',
-      '/app/keys',
-      '/app/profile'
+      '/app/profile',
+      '/app/chat',
+      '/app/image'
     ]
 
     expect(buttons).toHaveLength(expectedRoutes.length)
@@ -203,7 +207,6 @@ describe('AppSectionShell', () => {
       '/keys',
       '/profile',
       '/available-channels',
-      '/channel-status',
       '/monitor'
     ]))
     expect(wrapper.text()).not.toContain('Available Channels')
@@ -213,18 +216,18 @@ describe('AppSectionShell', () => {
   it('keeps the image entry active without highlighting new chat on /app/image', () => {
     routeState.path = '/app/image'
     const wrapper = mountShell()
-    const navButtons = wrapper.findAll('.ssxz-primary-nav .ssxz-nav-item')
+    const navButtons = wrapper.findAll('.ssxz-secondary-nav .ssxz-nav-item')
 
-    expect(navButtons[0].text()).toContain('新对话')
+    expect(navButtons[0].text()).toContain('模型测试')
     expect(navButtons[0].classes()).not.toContain('is-active')
-    expect(navButtons[1].text()).toContain('AI 作图')
+    expect(navButtons[1].text()).toContain('图片内测')
     expect(navButtons[1].classes()).toContain('is-active')
   })
 
   it('starts a new chat through /app/chat instead of the generic /app shell', async () => {
     routeState.path = '/app/image'
     const wrapper = mountShell()
-    const navButtons = wrapper.findAll('.ssxz-primary-nav .ssxz-nav-item')
+    const navButtons = wrapper.findAll('.ssxz-secondary-nav .ssxz-nav-item')
 
     await navButtons[0].trigger('click')
 
@@ -266,10 +269,10 @@ describe('AppSectionShell', () => {
     await wrapper.get('.ssxz-sidebar-toggle-desktop').trigger('click')
     expect(wrapper.classes()).toContain('ssxz-mobile-nav-open')
 
-    const buttons = wrapper.findAll('.ssxz-secondary-nav .ssxz-nav-item')
+    const buttons = wrapper.findAll('.ssxz-primary-nav .ssxz-nav-item')
     await buttons[0].trigger('click')
 
-    expect(mocks.push).toHaveBeenLastCalledWith('/app/usage')
+    expect(mocks.push).toHaveBeenLastCalledWith('/app/dashboard')
     expect(wrapper.classes()).not.toContain('ssxz-mobile-nav-open')
     expect(wrapper.find('.ssxz-mobile-sidebar-scrim').exists()).toBe(false)
   })
