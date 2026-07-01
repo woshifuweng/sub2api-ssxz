@@ -8204,7 +8204,17 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 	}
 
 	cmd := buildUsageBillingCommand(requestID, usageLog, p)
-	if cmd == nil || cmd.RequestID == "" || repo == nil {
+	if cmd == nil || cmd.RequestID == "" {
+		if usageBillingParamsRequireIdempotentRepository(p) {
+			return false, ErrBillingServiceUnavailable.WithCause(fmt.Errorf("usage billing command is incomplete"))
+		}
+		postUsageBilling(ctx, p, deps)
+		return true, nil
+	}
+	if repo == nil {
+		if usageBillingCommandRequiresRepository(cmd) {
+			return false, ErrBillingServiceUnavailable.WithCause(fmt.Errorf("usage billing repository is not configured"))
+		}
 		postUsageBilling(ctx, p, deps)
 		return true, nil
 	}
@@ -8230,6 +8240,35 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 
 	finalizePostUsageBilling(p, deps)
 	return true, nil
+}
+
+func usageBillingParamsRequireIdempotentRepository(p *postUsageBillingParams) bool {
+	if p == nil || p.Cost == nil {
+		return false
+	}
+	if p.IsSubscriptionBill && p.Cost.TotalCost > 0 {
+		return true
+	}
+	if !p.IsSubscriptionBill && p.Cost.ActualCost > 0 {
+		return true
+	}
+	if p.Cost.ActualCost > 0 && p.APIKey != nil && p.APIKeyService != nil {
+		if p.APIKey.Quota > 0 || p.APIKey.HasRateLimits() {
+			return true
+		}
+	}
+	return p.Cost.TotalCost > 0 && p.Account != nil && p.Account.IsAPIKeyOrBedrock() && p.Account.HasAnyQuotaLimit()
+}
+
+func usageBillingCommandRequiresRepository(cmd *UsageBillingCommand) bool {
+	if cmd == nil {
+		return false
+	}
+	return cmd.SubscriptionCost > 0 ||
+		cmd.BalanceCost > 0 ||
+		cmd.APIKeyQuotaCost > 0 ||
+		cmd.APIKeyRateLimitCost > 0 ||
+		cmd.AccountQuotaCost > 0
 }
 
 func finalizePostUsageBilling(p *postUsageBillingParams, deps *billingDeps) {
