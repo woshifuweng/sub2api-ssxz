@@ -581,18 +581,21 @@ const purchaseEnabled = computed(() => (
 // User navigation items (for regular users)
 const userNavItems = computed((): NavItem[] => {
   const items: NavItem[] = [
-    { path: '/app/image', label: t('nav.sora'), icon: SoraIcon },
-    { path: '/app/chat', label: '聊天', icon: ChatStudioIcon },
-    { path: '/app/keys', label: 'API Key / 第三方接入', icon: KeyIcon },
-    { path: '/app/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
+    { path: '/app/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
+    { path: '/app/keys', label: 'API 密钥', icon: KeyIcon },
+    { path: '/app/usage', label: '使用记录', icon: ChartIcon, hideInSimpleMode: true },
+    { path: '/app/channel-status', label: '通道状态', icon: SignalIcon, hideInSimpleMode: true },
     {
       path: '/app/purchase',
-      label: t('nav.buySubscription'),
+      label: '充值',
       icon: RechargeSubscriptionIcon,
       hideInSimpleMode: true
     },
     { path: '/app/orders', label: '订单', icon: OrderListIcon, hideInSimpleMode: true },
-    { path: '/app/profile', label: t('nav.profile'), icon: UserIcon }
+    { path: '/app/redeem', label: '兑换码', icon: TicketIcon, hideInSimpleMode: true },
+    { path: '/app/profile', label: '个人资料', icon: UserIcon },
+    { path: '/app/chat', label: '模型测试', icon: ChatStudioIcon },
+    { path: '/app/image', label: '图片内测', icon: SoraIcon }
   ]
   return authStore.isSimpleMode ? items.filter(item => !item.hideInSimpleMode) : items
 })
@@ -600,24 +603,25 @@ const userNavItems = computed((): NavItem[] => {
 // Personal navigation items (for admin's "My Account" section, without Dashboard)
 const personalNavItems = computed((): NavItem[] => {
   const items: NavItem[] = [
-    { path: '/app/chat', label: 'AI 聊天', icon: ChatStudioIcon },
-    { path: '/app/image', label: 'AI 作图', icon: ImageStudioIcon },
-    { path: '/app/keys', label: t('nav.apiKeys'), icon: KeyIcon },
-    { path: '/app/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
+    { path: '/app/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
+    { path: '/app/keys', label: 'API 密钥', icon: KeyIcon },
+    { path: '/app/usage', label: '使用记录', icon: ChartIcon, hideInSimpleMode: true },
+    { path: '/app/channel-status', label: '通道状态', icon: SignalIcon, hideInSimpleMode: true },
     ...(purchaseEnabled.value
       ? [
           {
             path: '/app/purchase',
-            label: t('nav.buySubscription'),
+            label: '充值',
             icon: RechargeSubscriptionIcon,
             hideInSimpleMode: true
           }
         ]
       : []),
-    ...(paymentEnabled.value
-      ? [{ path: '/app/orders', label: 'My Orders', icon: OrderListIcon, hideInSimpleMode: true }]
-      : []),
-    { path: '/app/profile', label: t('nav.profile'), icon: UserIcon },
+    { path: '/app/orders', label: '订单', icon: OrderListIcon, hideInSimpleMode: true },
+    { path: '/app/redeem', label: '兑换码', icon: TicketIcon, hideInSimpleMode: true },
+    { path: '/app/profile', label: '个人资料', icon: UserIcon },
+    { path: '/app/chat', label: '模型测试', icon: ChatStudioIcon },
+    { path: '/app/image', label: '图片内测', icon: ImageStudioIcon },
     ...customMenuItemsForUser.value.map((item): NavItem => ({
       path: `/custom/${item.id}`,
       label: item.label,

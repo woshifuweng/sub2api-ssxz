@@ -9,7 +9,9 @@ const { usageAPI, authStore } = vi.hoisted(() => ({
   },
   authStore: {
     user: {
-      balance: 8.53
+      balance: 8.53,
+      username: 'real-user',
+      email: 'real@example.com'
     },
     refreshUser: vi.fn()
   }
@@ -36,6 +38,7 @@ const messages: Record<string, string> = {
   'usage.workbench.monthlyUsageTitle': 'Monthly usage',
   'usage.workbench.monthlyUsageDescription': 'Empty data is not filled with fake bars.',
   'usage.workbench.realDataBadge': 'Real data',
+  'usage.workbench.demoDataBadge': 'Demo data',
   'usage.workbench.monthlyChartLabel': 'Monthly usage chart',
   'usage.workbench.noMonthlyUsageTitle': 'No monthly usage data yet',
   'usage.workbench.noMonthlyUsageDescription': 'Real usage trends appear here.',
@@ -51,7 +54,9 @@ const messages: Record<string, string> = {
   'usage.workbench.noDetailsDescription': 'Real calls will appear here.',
   'usage.workbench.createdAt': 'Created at',
   'usage.workbench.kind': 'Type',
+  'usage.workbench.endpoint': 'Endpoint',
   'usage.workbench.model': 'Model',
+  'usage.workbench.source': 'Source',
   'usage.workbench.amount': 'Usage',
   'usage.workbench.billingBasis': 'Billing',
   'usage.workbench.billingBalance': 'Balance charge',
@@ -62,6 +67,7 @@ const messages: Record<string, string> = {
   'usage.workbench.noChargeBasis': 'No balance was deducted for this row.',
   'usage.workbench.fee': 'Fee',
   'usage.workbench.noCharge': 'No charge',
+  'usage.workbench.zeroTokenCharged': 'Image / fixed-fee item or no token detail',
   'usage.workbench.usageKindImage': 'Image generation',
   'usage.workbench.usageKindChat': 'Chat',
   'usage.workbench.usageKindThirdParty': 'Third-party access',
@@ -157,6 +163,8 @@ describe('AppUsageView', () => {
     authStore.refreshUser.mockReset()
     authStore.refreshUser.mockResolvedValue(authStore.user)
     authStore.user.balance = 8.53
+    authStore.user.username = 'real-user'
+    authStore.user.email = 'real@example.com'
   })
 
   it('renders usage data inside the new workbench page instead of the old usage UI', async () => {
@@ -266,8 +274,13 @@ describe('AppUsageView', () => {
     expect(tableText).toContain('Image generation')
     expect(tableText).toContain('Third-party access')
     expect(tableText).toContain('Chat')
+    expect(tableText).toContain('Endpoint')
+    expect(tableText).toContain('Source')
+    expect(tableText).toContain('/v1/images/generations')
+    expect(tableText).toContain('/v1/chat/completions')
     expect(text).toContain('gpt-image-2')
     expect(text).toContain('2 images / 1024x1024')
+    expect(tableText).toContain('Image / fixed-fee item or no token detail')
     expect(text).toContain('deepseek-v4-flash')
     expect(text).toContain('$0.0000')
     expect(text).toContain('No charge')
@@ -283,6 +296,50 @@ describe('AppUsageView', () => {
       page_size: 8
     }))
     expect(authStore.refreshUser).toHaveBeenCalledTimes(1)
+  })
+
+  it('marks local mock usage as demo data instead of real data', async () => {
+    authStore.user.username = 'demo-user'
+    authStore.user.email = 'user@example.local'
+    usageAPI.getStatsByDateRange.mockResolvedValue({
+      total_requests: 1,
+      total_input_tokens: 0,
+      total_output_tokens: 0,
+      total_cache_tokens: 0,
+      total_tokens: 0,
+      total_cost: 0.25,
+      total_actual_cost: 0.25,
+      average_duration_ms: 0
+    })
+    usageAPI.query.mockResolvedValue({
+      items: [],
+      total: 0,
+      pages: 0
+    })
+    usageAPI.getDashboardTrend.mockResolvedValue({
+      trend: [
+        {
+          date: '2026-06-18',
+          requests: 1,
+          input_tokens: 0,
+          output_tokens: 0,
+          cache_creation_tokens: 0,
+          cache_read_tokens: 0,
+          total_tokens: 0,
+          cost: 0.25,
+          actual_cost: 0.25
+        }
+      ],
+      start_date: '2026-01-01',
+      end_date: '2026-06-18',
+      granularity: 'day'
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Demo data')
+    expect(wrapper.text()).not.toContain('Real data')
   })
 
   it('refreshes the authenticated user balance when the usage overview is refreshed', async () => {

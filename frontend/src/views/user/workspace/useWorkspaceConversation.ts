@@ -18,9 +18,9 @@ export type WorkspaceRequestPhase = 'idle' | 'sending' | 'generating' | 'success
 export type WorkspaceMessageState = 'sending' | 'generating' | 'success' | 'failed'
 
 export const WORKSPACE_BACKEND_UNAVAILABLE_MESSAGE =
-  '统一工作台后端正在接入，暂不可发送。当前仅展示工作台入口。'
+  '模型测试后端正在接入，暂不可发送。当前仅展示轻量测试入口。'
 export const WORKSPACE_TEXT_ONLY_MESSAGE =
-  '当前对话页是文本 beta，暂不支持发送图片、文件、图片理解或多图分析。图片不会上传，也不会调用模型或扣费；请到 AI 作图页生成图片，或先只发送文字。'
+  '当前对话页是文本 beta，暂不支持发送图片、文件、图片理解或多图分析。图片不会上传，也不会调用模型或扣费；请到图片内测入口查看图片能力，或先只发送文字。'
 export const WORKSPACE_HISTORY_FAILED_MESSAGE = '工作台历史暂时无法加载。'
 export const WORKSPACE_MESSAGES_FAILED_MESSAGE = '该对话暂时无法加载。'
 export const WORKSPACE_SEND_FAILED_MESSAGE =

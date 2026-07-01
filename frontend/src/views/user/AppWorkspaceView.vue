@@ -17,7 +17,7 @@
           class="empty-state"
           aria-label="开始对话"
         >
-          <h1>欢迎使用 SSXZ AI 工作台</h1>
+          <h1>{{ emptyStateTitle }}</h1>
           <p>{{ emptyStateCopy }}</p>
         </section>
 
@@ -41,10 +41,10 @@
         </button>
       </div>
       <p v-else-if="!workspace.backendEnabled.value" class="workspace-notice" role="status">
-        统一工作台后端正在接入，暂不可发送。当前仅展示工作台入口。
+        模型测试后端正在接入，暂不可发送。当前仅展示轻量测试入口。
       </p>
 
-      <section class="composer-zone" aria-label="统一输入框">
+      <section class="composer-zone" aria-label="模型测试输入框">
         <WorkspaceComposer
           v-model="draft"
           :selected-model="activeChatModel"
@@ -116,21 +116,21 @@ const sectionKeys: readonly SectionKey[] = ['home', 'chat', 'image']
 
 const sectionContent: Record<SectionKey, SectionContent> = {
   home: {
-    shellTitle: 'SSXZ AI',
-    shellSubtitle: '直接输入问题，开始对话。',
-    eyebrow: '对话工作台',
+    shellTitle: '模型测试入口',
+    shellSubtitle: '用于轻量验证文本模型和 API 可用性，不作为默认首页或主产品入口。',
+    eyebrow: '轻量体验入口',
     icon: 'chat'
   },
   chat: {
-    shellTitle: 'SSXZ AI',
-    shellSubtitle: '当前开放文本对话 beta。',
-    eyebrow: '对话工作台',
+    shellTitle: '模型测试入口',
+    shellSubtitle: '当前只做轻量文本模型测试，真实能力以后端模型和分组配置为准。',
+    eyebrow: '轻量体验入口',
     icon: 'chat'
   },
   image: {
-    shellTitle: 'SSXZ AI',
-    shellSubtitle: '当前开放文本对话 beta。',
-    eyebrow: '对话工作台',
+    shellTitle: '模型测试入口',
+    shellSubtitle: '当前只做轻量文本模型测试，图片能力请到图片内测入口查看。',
+    eyebrow: '轻量体验入口',
     icon: 'chat'
   }
 }
@@ -160,16 +160,17 @@ const workspaceIntent = computed<WorkspaceIntent>(() =>
 const activeContent = computed<SectionContent>(() => {
   if (textBetaMode.value) {
     return {
-      shellTitle: 'SSXZ AI',
-      shellSubtitle: textBetaCapabilityCopy.value,
-      eyebrow: '文本对话 beta',
+      shellTitle: '模型测试入口',
+      shellSubtitle: `${textBetaCapabilityCopy.value} 这里仅用于验证模型/API 可用性。`,
+      eyebrow: '轻量体验入口',
       icon: 'chat'
     }
   }
   return sectionContent[activeSection.value]
 })
+const emptyStateTitle = computed(() => '模型测试入口')
 const emptyStateCopy = computed(() => {
-  if (textBetaMode.value) return `${textBetaCapabilityCopy.value} 需要图片生成请到 AI 作图页。`
+  if (textBetaMode.value) return `${textBetaCapabilityCopy.value} 需要图片能力请到图片内测入口；这里仅保留轻量模型测试能力。`
   if (activeSection.value === 'image') return '输入你想处理的图像需求。'
   if (activeSection.value === 'chat') return '输入问题后，这段对话会进入左侧历史，刷新页面也不会丢失。'
   return '直接输入问题，开始对话。'

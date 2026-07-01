@@ -1,6 +1,7 @@
-export const DEFAULT_AUTH_REDIRECT = '/app/image'
+export const DEFAULT_AUTH_REDIRECT = '/app/dashboard'
 
 const CANONICAL_AUTH_REDIRECTS = new Set([
+  '/app/dashboard',
   '/app/image',
   '/sora',
   '/app/chat',
@@ -19,11 +20,12 @@ const CANONICAL_AUTH_REDIRECTS = new Set([
 ])
 
 const LEGACY_AUTH_REDIRECTS: Record<string, string> = {
-  '/dashboard': '/app/image',
-  '/home': '/',
+  '/dashboard': '/app/dashboard',
+  '/home': '/app/dashboard',
   '/ai-chat': '/app/chat',
   '/image-studio': '/app/image',
-  '/app': '/app/image',
+  '/app': '/app/dashboard',
+  '/app/dashboard': '/app/dashboard',
   '/app/image': '/app/image',
   '/keys': '/app/keys',
   '/usage': '/app/usage',
@@ -34,7 +36,7 @@ const LEGACY_AUTH_REDIRECTS: Record<string, string> = {
   '/available-channels': '/app/available-channels',
   '/monitor': '/app/channel-status',
   '/profile': '/app/profile',
-  '/apps': '/app/image',
+  '/apps': '/app/dashboard',
   '/sora': '/sora'
 }
 

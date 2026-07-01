@@ -13,7 +13,7 @@
                 购买与扣费
               </span>
               <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-gray-300">
-                当前余额 ${{ user?.balance?.toFixed(2) || '0.00' }}
+                当前余额 ${{ user?.balance?.toFixed(2) || '0.00' }} 额度
               </span>
             </div>
             <h1 class="text-2xl font-bold tracking-normal text-gray-900 dark:text-white">
@@ -21,6 +21,7 @@
             </h1>
             <p class="mt-3 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-400">
               余额可用于站内聊天、图片生成和 API Key / 第三方客户端调用，所有消费都会记录在用量明细中。
+              账户余额和到账额度使用 $ 额度计量，充值支付使用人民币 ¥，两者不是同一种货币单位。
             </p>
           </div>
 
@@ -83,7 +84,7 @@
           <div class="card p-5">
             <p class="text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
             <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
-            <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: {{ user?.balance?.toFixed(2) || '0.00' }}</p>
+            <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: ${{ user?.balance?.toFixed(2) || '0.00' }} 额度</p>
           </div>
           <div v-if="enabledMethods.length === 0" class="card py-16 text-center">
             <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
@@ -107,6 +108,9 @@
           </div>
           <div v-if="validAmount > 0" class="card p-6">
             <div class="space-y-2 text-sm">
+              <p class="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
+                支付金额使用人民币 ¥；到账后进入账户的可消费额度使用 $ 计量。
+              </p>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.paymentAmount') }}</span>
                 <span class="text-gray-900 dark:text-white">¥{{ validAmount.toFixed(2) }}</span>
@@ -119,12 +123,15 @@
                 <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
                 <span class="text-lg font-bold text-primary-600 dark:text-primary-400">¥{{ totalAmount.toFixed(2) }}</span>
               </div>
-              <div v-if="balanceRechargeMultiplier !== 1" class="flex justify-between" :class="{ 'border-t border-gray-200 pt-2 dark:border-dark-600': feeRate <= 0 }">
+              <div class="flex justify-between" :class="{ 'border-t border-gray-200 pt-2 dark:border-dark-600': feeRate <= 0 }">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.creditedBalance') }}</span>
-                <span class="text-gray-900 dark:text-white">${{ creditedAmount.toFixed(2) }}</span>
+                <span class="text-gray-900 dark:text-white">${{ creditedAmount.toFixed(2) }} 额度</span>
               </div>
-              <p v-if="balanceRechargeMultiplier !== 1" class="border-t border-gray-200 pt-2 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400">
-                {{ t('payment.rechargeRatePreview', { usd: balanceRechargeMultiplier.toFixed(2) }) }}
+              <p class="border-t border-gray-200 pt-2 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400">
+                支付 ¥{{ totalAmount.toFixed(2) }}，到账 ${{ creditedAmount.toFixed(2) }} 额度。
+                <span v-if="balanceRechargeMultiplier !== 1">
+                  {{ t('payment.rechargeRatePreview', { usd: balanceRechargeMultiplier.toFixed(2) }) }}
+                </span>
               </p>
             </div>
           </div>
@@ -133,7 +140,7 @@
               <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
               {{ t('common.processing') }}
             </span>
-            <span v-else>{{ t('payment.createOrder') }} ¥{{ totalAmount.toFixed(2) }}</span>
+            <span v-else>{{ rechargeSubmitLabel }}</span>
           </button>
           </template>
         </template>
@@ -254,12 +261,12 @@
           </template>
         </template>
       </template>
-      <div v-if="(checkout.help_text || checkout.help_image_url) && paymentPhase === 'select' && !selectedPlan" class="card p-4">
+      <div v-if="(checkoutHelpText || checkout.help_image_url) && paymentPhase === 'select' && !selectedPlan" class="card p-4">
         <div class="flex flex-col items-center gap-3">
           <img v-if="checkout.help_image_url" :src="checkout.help_image_url" alt=""
             class="h-40 max-w-full cursor-pointer rounded-lg object-contain transition-opacity hover:opacity-80"
             @click="previewImage = checkout.help_image_url" />
-          <p v-if="checkout.help_text" class="text-center text-sm text-gray-500 dark:text-gray-400">{{ checkout.help_text }}</p>
+          <p v-if="checkoutHelpText" class="text-center text-sm text-gray-500 dark:text-gray-400">{{ checkoutHelpText }}</p>
         </div>
       </div>
     </template>
@@ -586,6 +593,13 @@ const balanceRechargeMultiplier = computed(() => {
   return multiplier > 0 ? multiplier : 1
 })
 const creditedAmount = computed(() => Math.round((validAmount.value * balanceRechargeMultiplier.value) * 100) / 100)
+const checkoutHelpText = computed(() => {
+  const text = checkout.value.help_text?.trim() || ''
+  if (text === 'Recharge adds account balance. Usage and fee records follow backend ledger data.') {
+    return '充值会增加账户额度，用量和扣费记录以后端账本为准。'
+  }
+  return text
+})
 
 // Adaptive grid: center single card, 2-col for 2 plans, 3-col for 3+
 const planGridClass = computed(() => {
@@ -664,6 +678,10 @@ const canSubmit = computed(() =>
     && amountFitsMethod(validAmount.value, selectedMethod.value)
     && selectedLimit.value?.available !== false
 )
+const rechargeSubmitLabel = computed(() => {
+  if (validAmount.value <= 0) return '请选择充值金额'
+  return `${t('payment.createOrder')} ¥${totalAmount.value.toFixed(2)}`
+})
 
 // Subscription-specific: method options based on plan price
 const subMethodOptions = computed<PaymentMethodOption[]>(() => {

@@ -49,9 +49,7 @@
             <h3>{{ t('usage.workbench.monthlyUsageTitle') }}</h3>
             <p>{{ t('usage.workbench.monthlyUsageDescription') }}</p>
           </div>
-          <span v-if="hasMonthlyUsage" class="panel-badge">
-            {{ t('usage.workbench.realDataBadge') }}
-          </span>
+          <span v-if="hasMonthlyUsage" class="panel-badge">{{ usageDataBadge }}</span>
         </header>
 
         <div v-if="trendLoadError" class="usage-empty">
@@ -116,7 +114,9 @@
               <tr>
                 <th>{{ t('usage.workbench.createdAt') }}</th>
                 <th>{{ t('usage.workbench.kind') }}</th>
+                <th>{{ t('usage.workbench.endpoint') }}</th>
                 <th>{{ t('usage.workbench.model') }}</th>
+                <th>{{ t('usage.workbench.source') }}</th>
                 <th>{{ t('usage.workbench.amount') }}</th>
                 <th>{{ t('usage.workbench.billingBasis') }}</th>
                 <th>{{ t('usage.workbench.fee') }}</th>
@@ -126,7 +126,9 @@
               <tr v-for="row in usageRows" :key="row.id || row.request_id">
                 <td>{{ formatDateTime(row.created_at) }}</td>
                 <td>{{ formatUsageKind(row) }}</td>
+                <td><code>{{ resolveEndpoint(row) }}</code></td>
                 <td class="model-cell">{{ row.model || '-' }}</td>
+                <td>{{ formatSource(row) }}</td>
                 <td>{{ formatUsageAmount(row) }}</td>
                 <td class="billing-cell">
                   <span>{{ formatBillingType(row) }}</span>
@@ -136,6 +138,9 @@
                   <span>{{ formatCost(row.actual_cost) }}</span>
                   <small v-if="isNoCharge(row)" class="usage-cost-note">
                     {{ t('usage.workbench.noCharge') }}
+                  </small>
+                  <small v-else-if="isZeroTokenCharged(row)" class="usage-cost-note">
+                    {{ t('usage.workbench.zeroTokenCharged') }}
                   </small>
                 </td>
               </tr>
@@ -209,6 +214,14 @@ const monthlyUsageNote = computed(() => {
   })
 })
 const hasMonthlyUsage = computed(() => monthlySeries.value.some((item) => item.requests > 0 || item.tokens > 0 || item.cost > 0))
+const isDemoUser = computed(() => {
+  const username = authStore.user?.username?.toLowerCase?.() || ''
+  const email = authStore.user?.email?.toLowerCase?.() || ''
+  return username.includes('demo') || email.endsWith('@example.local')
+})
+const usageDataBadge = computed(() =>
+  isDemoUser.value ? t('usage.workbench.demoDataBadge') : t('usage.workbench.realDataBadge')
+)
 const chartMax = computed(() => Math.max(1, ...monthlySeries.value.map((item) => chartMetric(item))))
 
 onMounted(() => {
@@ -307,10 +320,19 @@ function formatMonthlyValue(item: MonthlyUsage) {
 }
 
 function formatUsageKind(row: UsageLog) {
+  const endpoint = resolveEndpoint(row)
+  if (row.image_count > 0 || endpoint.includes('/images/')) return t('usage.workbench.usageKindImage')
+  if (endpoint.includes('/chat/')) return t('usage.workbench.usageKindChat')
   if (row.api_key_id) return t('usage.workbench.usageKindThirdParty')
-  if (row.image_count > 0 || row.inbound_endpoint?.includes('/images/')) return t('usage.workbench.usageKindImage')
-  if (row.inbound_endpoint?.includes('/chat/')) return t('usage.workbench.usageKindChat')
   return t('usage.workbench.usageKindWeb')
+}
+
+function resolveEndpoint(row: UsageLog) {
+  return row.inbound_endpoint || '-'
+}
+
+function formatSource(row: UsageLog) {
+  return row.api_key_id ? t('usage.workbench.usageKindThirdParty') : t('usage.workbench.usageKindWeb')
 }
 
 function formatUsageAmount(row: UsageLog) {
@@ -349,6 +371,14 @@ function formatCost(value: number | null | undefined) {
 
 function isNoCharge(row: UsageLog) {
   return Number(row.actual_cost || 0) <= 0
+}
+
+function isZeroTokenCharged(row: UsageLog) {
+  const tokenTotal = Number(row.input_tokens || 0)
+    + Number(row.output_tokens || 0)
+    + Number(row.cache_creation_tokens || 0)
+    + Number(row.cache_read_tokens || 0)
+  return tokenTotal <= 0 && Number(row.actual_cost || 0) > 0
 }
 
 function formatCurrency(value: number, digits: number) {

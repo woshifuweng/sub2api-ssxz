@@ -1,25 +1,25 @@
 <template>
   <AppSectionShell
-    title="AI 作图"
-    subtitle="把用途、画幅、参考素材和画面描述整理成图片生成任务，设置只做方向参考，不锁死模型发挥。"
-    eyebrow="创意工作台"
+    title="图片内测入口"
+    subtitle="用于小范围验证图片生成链路、预览和下载能力；是否可用以后端账号、模型、分组和价格配置为准。"
+    eyebrow="轻量体验入口"
     icon="sparkles"
   >
     <section class="image-hero">
       <div>
-        <p class="hero-kicker">图片生成工作台</p>
-        <h2>把想法整理成可交付的视觉作品</h2>
+        <p class="hero-kicker">图片内测入口</p>
+        <h2>先验证图片生成链路，再逐步完善体验</h2>
         <p>
-          先说清楚图片用途、主体和画面气质，系统会把这些信息组织成更完整的生成提示词。
+          这里用于内测图片生成、历史预览和下载，不承诺正式图片产品能力。
         </p>
         <div class="hero-note">
-          用途、比例、风格和参考图是创作方向，不是固定人设；自定义比例和风格会写入提示词，方便后续继续升级。
+          用途、比例、风格和参考图只做方向参考；真实生成质量、可用模型和扣费以后端配置和实际返回为准。
         </div>
         <div class="hero-actions" aria-label="作图辅助入口">
           <RouterLink to="/app/chat" class="hero-helper-link">
-            先用对话整理想法
+            先用模型测试整理想法
           </RouterLink>
-          <span>作图是主流程，对话可以帮你把随口需求整理成更清楚的画面描述。</span>
+          <span>图片入口当前是内测能力，对话只辅助整理提示词，不代表正式作图主流程。</span>
         </div>
       </div>
       <div class="hero-side">
@@ -32,7 +32,7 @@
           <span>选用途</span>
           <span>定画幅</span>
           <span>补描述</span>
-          <span>生成作品</span>
+          <span>内测生成</span>
         </div>
         <div class="hero-balance">
           <b>{{ imageCredits }}</b>
@@ -60,7 +60,7 @@
       </div>
     </section>
 
-    <section class="image-workbench" aria-label="AI 作图工作台">
+    <section class="image-workbench" aria-label="图片内测入口">
       <aside class="creation-console" aria-label="创作控制台">
         <div class="console-scroll">
           <section class="console-block">
@@ -627,7 +627,7 @@ const generateLabel = computed(() => {
   if (imageGenerationUnavailable.value) return '图片生成暂不可用'
   if (!hasDescription.value) return '请先描述图片'
   if (!isCustomRatioValid.value) return '请填写有效比例'
-  return `消耗约 ${imageCount.value} 张，生成图片`
+  return `消耗约 ${imageCount.value} 张，内测生成`
 })
 const activeResult = computed(() => results.value[activeResultIndex.value] || null)
 const canvasStateLabel = computed(() => {
@@ -637,14 +637,14 @@ const canvasStateLabel = computed(() => {
   return '待生成'
 })
 const emptyStateTitle = computed(() => {
-  if (generating.value) return '正在生成作品'
+  if (generating.value) return '正在内测生成'
   if (errorMessage.value) return '生成失败'
-  return '你的作品将在这里呈现'
+  return '内测结果将在这里呈现'
 })
 const emptyStateDescription = computed(() => {
   if (generating.value) return '系统正在把左侧需求整理成图片生成任务，请稍等。'
   if (errorMessage.value) return errorMessage.value
-  return '选择输出用途、上传参考素材并描述创意需求，生成后的作品可在这里预览和下载。'
+  return '选择输出用途、上传参考素材并描述需求，生成后的结果可在这里预览和下载；当前仍以内测能力为准。'
 })
 const canvasSheetStyle = computed(() => ({
   aspectRatio: `${selectedCanvas.value.width} / ${selectedCanvas.value.height}`

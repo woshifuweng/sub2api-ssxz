@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_AUTH_REDIRECT, resolveAuthRedirect, resolveRouteAuthRedirect } from '../authRedirect'
 
 describe('auth redirect resolution', () => {
-  it('defaults regular users to the lightweight image workspace', () => {
-    expect(DEFAULT_AUTH_REDIRECT).toBe('/app/image')
-    expect(resolveAuthRedirect(undefined)).toBe('/app/image')
-    expect(resolveRouteAuthRedirect({})).toBe('/app/image')
+  it('defaults regular users to the operating dashboard', () => {
+    expect(DEFAULT_AUTH_REDIRECT).toBe('/app/dashboard')
+    expect(resolveAuthRedirect(undefined)).toBe('/app/dashboard')
+    expect(resolveRouteAuthRedirect({})).toBe('/app/dashboard')
   })
 
   it('keeps the chat helper route as an allowed return target', () => {
@@ -28,9 +28,15 @@ describe('auth redirect resolution', () => {
     expect(resolveAuthRedirect('/app/keys')).toBe('/app/keys')
   })
 
-  it('maps heavy or legacy workspace entrypoints back to image generation', () => {
-    expect(resolveAuthRedirect('/dashboard')).toBe('/app/image')
-    expect(resolveAuthRedirect('/app')).toBe('/app/image')
+  it('maps generic workspace entrypoints to the operating dashboard', () => {
+    expect(resolveAuthRedirect('/dashboard')).toBe('/app/dashboard')
+    expect(resolveAuthRedirect('/app')).toBe('/app/dashboard')
+    expect(resolveAuthRedirect('/app/dashboard')).toBe('/app/dashboard')
+    expect(resolveAuthRedirect('/home')).toBe('/app/dashboard')
+    expect(resolveAuthRedirect('/apps')).toBe('/app/dashboard')
+  })
+
+  it('keeps image-specific legacy entrypoints on the image beta page', () => {
     expect(resolveAuthRedirect('/app/image')).toBe('/app/image')
     expect(resolveAuthRedirect('/image-studio')).toBe('/app/image')
   })
@@ -40,7 +46,7 @@ describe('auth redirect resolution', () => {
   })
 
   it('does not allow hidden or external return targets', () => {
-    expect(resolveAuthRedirect('https://example.com/app')).toBe('/app/image')
-    expect(resolveAuthRedirect('//example.com/app')).toBe('/app/image')
+    expect(resolveAuthRedirect('https://example.com/app')).toBe('/app/dashboard')
+    expect(resolveAuthRedirect('//example.com/app')).toBe('/app/dashboard')
   })
 })

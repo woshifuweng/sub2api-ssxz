@@ -21,6 +21,7 @@ import router from '../index'
 
 describe('legacy user routes', () => {
   it.each([
+    ['/app/dashboard', 'AppDashboard', 'dashboard'],
     ['/app/usage', 'AppUsage', 'usage'],
     ['/app/purchase', 'AppPurchase', 'purchase'],
     ['/app/orders', 'AppOrders', 'orders'],
@@ -42,8 +43,9 @@ describe('legacy user routes', () => {
   })
 
   it.each([
-    ['/app/chat', 'AI Chat'],
-    ['/app/image', 'Image Generation'],
+    ['/app/dashboard', 'Dashboard'],
+    ['/app/chat', 'Model Test'],
+    ['/app/image', 'Image Beta'],
     ['/app/usage', 'Usage Information'],
     ['/app/purchase', 'Recharge / Subscription'],
     ['/app/orders', 'Order Records'],
@@ -69,8 +71,8 @@ describe('legacy user routes', () => {
   })
 
   it.each([
-    ['/app', '/app/image'],
-    ['/dashboard', '/app/image'],
+    ['/app', '/app/dashboard'],
+    ['/dashboard', '/app/dashboard'],
     ['/ai-chat', '/app/chat'],
     ['/image-studio', '/app/image'],
     ['/keys', '/app/keys'],
