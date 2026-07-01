@@ -90,14 +90,15 @@ export default {
       }
     },
     providers: {
-      title: 'Supported AI Models',
-      description: 'One API, Multiple Choices',
-      supported: 'Supported',
+      title: 'Model availability follows backend configuration',
+      description: 'One API with multiple options. Actual availability depends on backend configuration and account groups.',
+      supported: 'Backend configured',
       soon: 'Soon',
       claude: 'Claude',
       gemini: 'Gemini',
       antigravity: 'Antigravity',
-      more: 'More'
+      more: 'More',
+      backendConfigured: 'Backend configured'
     },
     // CTA section
     cta: {

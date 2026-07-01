@@ -90,14 +90,15 @@ export default {
       }
     },
     providers: {
-      title: '已支持的 AI 模型',
-      description: '一个 API，多种选择',
-      supported: '已支持',
+      title: '模型能力以后台配置为准',
+      description: '一个 API，多种选择，实际可用模型以后端配置和账户分组为准。',
+      supported: '后台配置',
       soon: '即将推出',
       claude: 'Claude',
       gemini: 'Gemini',
       antigravity: 'Antigravity',
-      more: '更多'
+      more: '更多',
+      backendConfigured: '后台配置'
     },
     // CTA 区块
     cta: {
