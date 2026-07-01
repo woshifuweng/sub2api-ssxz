@@ -546,20 +546,71 @@ func TestLoadDefaultSecurityToggles(t *testing.T) {
 		t.Fatalf("Load() error: %v", err)
 	}
 
-	if cfg.Security.URLAllowlist.Enabled {
-		t.Fatalf("URLAllowlist.Enabled = true, want false")
+	if !cfg.Security.URLAllowlist.Enabled {
+		t.Fatalf("URLAllowlist.Enabled = false, want true")
 	}
-	if !cfg.Security.URLAllowlist.AllowInsecureHTTP {
-		t.Fatalf("URLAllowlist.AllowInsecureHTTP = false, want true")
+	if cfg.Security.URLAllowlist.AllowInsecureHTTP {
+		t.Fatalf("URLAllowlist.AllowInsecureHTTP = true, want false")
 	}
-	if !cfg.Security.URLAllowlist.AllowPrivateHosts {
-		t.Fatalf("URLAllowlist.AllowPrivateHosts = false, want true")
+	if cfg.Security.URLAllowlist.AllowPrivateHosts {
+		t.Fatalf("URLAllowlist.AllowPrivateHosts = true, want false")
 	}
-	if cfg.Security.URLAllowlist.EnforceUpstreamHosts {
-		t.Fatalf("URLAllowlist.EnforceUpstreamHosts = true, want false")
+	if !cfg.Security.URLAllowlist.EnforceUpstreamHosts {
+		t.Fatalf("URLAllowlist.EnforceUpstreamHosts = false, want true")
 	}
 	if !cfg.Security.ResponseHeaders.Enabled {
 		t.Fatalf("ResponseHeaders.Enabled = false, want true")
+	}
+}
+
+func TestValidateURLAllowlistSecurityGate(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		mutate  func(*Config)
+		wantErr string
+	}{
+		{
+			name: "disabled",
+			mutate: func(cfg *Config) {
+				cfg.Security.URLAllowlist.Enabled = false
+			},
+			wantErr: "security.url_allowlist.enabled",
+		},
+		{
+			name: "unenforced upstream hosts",
+			mutate: func(cfg *Config) {
+				cfg.Security.URLAllowlist.EnforceUpstreamHosts = false
+			},
+			wantErr: "security.url_allowlist.enforce_upstream_hosts",
+		},
+		{
+			name: "private hosts allowed",
+			mutate: func(cfg *Config) {
+				cfg.Security.URLAllowlist.AllowPrivateHosts = true
+			},
+			wantErr: "security.url_allowlist.allow_private_hosts",
+		},
+		{
+			name: "insecure http allowed",
+			mutate: func(cfg *Config) {
+				cfg.Security.URLAllowlist.AllowInsecureHTTP = true
+			},
+			wantErr: "security.url_allowlist.allow_insecure_http",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			candidate := *cfg
+			tt.mutate(&candidate)
+			err := candidate.Validate()
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tt.wantErr)
+		})
 	}
 }
 

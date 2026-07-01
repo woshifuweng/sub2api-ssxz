@@ -283,6 +283,14 @@ func (s *AccountImportService) Import(ctx context.Context, payload AccountImport
 		}
 
 		account := importedAccountToService(spec, proxyID)
+		if account.Credentials == nil {
+			account.Credentials = map[string]any{}
+		}
+		if err := NormalizeAccountCredentialsBaseURL(account.Platform, account.Type, account.Credentials); err != nil {
+			result.AccountFailed++
+			result.Errors = append(result.Errors, AccountImportItemError{Kind: "account", Name: spec.Name, Message: err.Error()})
+			continue
+		}
 		account.GroupIDs = effectiveGroupIDs
 		account.Proxy = proxyRef
 		account.SetSyncMetadata(AccountSyncStateSyncing, 25, "Queued for background sync", batchID, nil)

@@ -1584,17 +1584,11 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 		}
 	}
 
-	// Sora apikey 账号的 base_url 必填校验
-	if input.Platform == PlatformSora && input.Type == AccountTypeAPIKey {
-		baseURL, _ := input.Credentials["base_url"].(string)
-		normalizedBaseURL, err := NormalizeSoraAPIKeyBaseURL(baseURL)
-		if err != nil {
-			return nil, fmt.Errorf("sora apikey 账号 base_url 无效: %w", err)
-		}
-		if input.Credentials == nil {
-			input.Credentials = map[string]any{}
-		}
-		input.Credentials["base_url"] = normalizedBaseURL
+	if input.Credentials == nil {
+		input.Credentials = map[string]any{}
+	}
+	if err := NormalizeAccountCredentialsBaseURL(input.Platform, input.Type, input.Credentials); err != nil {
+		return nil, fmt.Errorf("account base_url invalid: %w", err)
 	}
 
 	account := &Account{
@@ -1757,17 +1751,11 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		account.AutoPauseOnExpired = *input.AutoPauseOnExpired
 	}
 
-	// Sora apikey 账号的 base_url 必填校验
-	if account.Platform == PlatformSora && account.Type == AccountTypeAPIKey {
-		baseURL, _ := account.Credentials["base_url"].(string)
-		normalizedBaseURL, err := NormalizeSoraAPIKeyBaseURL(baseURL)
-		if err != nil {
-			return nil, fmt.Errorf("sora apikey 账号 base_url 无效: %w", err)
-		}
-		if account.Credentials == nil {
-			account.Credentials = map[string]any{}
-		}
-		account.Credentials["base_url"] = normalizedBaseURL
+	if account.Credentials == nil {
+		account.Credentials = map[string]any{}
+	}
+	if err := NormalizeAccountCredentialsBaseURL(account.Platform, account.Type, account.Credentials); err != nil {
+		return nil, fmt.Errorf("account base_url invalid: %w", err)
 	}
 
 	// 先验证分组是否存在（在任何写操作之前）
