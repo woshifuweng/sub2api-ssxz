@@ -72,4 +72,10 @@ func TestValidateHTTPURL(t *testing.T) {
 	if _, err := ValidateHTTPURL("https://localhost", false, ValidationOptions{AllowPrivate: false}); err == nil {
 		t.Fatalf("expected localhost to be blocked when allow_private_hosts is false")
 	}
+	if _, err := ValidateHTTPURL("https://metadata.google.internal", false, ValidationOptions{AllowPrivate: false}); err == nil {
+		t.Fatalf("expected metadata host to be blocked when allow_private_hosts is false")
+	}
+	if _, err := ValidateHTTPURL("file:///etc/passwd", false, ValidationOptions{AllowPrivate: false}); err == nil {
+		t.Fatalf("expected file scheme to be blocked")
+	}
 }

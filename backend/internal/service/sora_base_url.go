@@ -23,7 +23,7 @@ func NormalizeSoraAPIKeyBaseURL(raw string) (string, error) {
 	}
 
 	scheme := strings.ToLower(strings.TrimSpace(parsed.Scheme))
-	if scheme != "http" && scheme != "https" {
+	if scheme != "https" {
 		return "", fmt.Errorf("invalid url scheme: %s", parsed.Scheme)
 	}
 	if parsed.User != nil {

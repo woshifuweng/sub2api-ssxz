@@ -738,7 +738,11 @@ func (s *OpenAIGatewayService) probeOpenAIAccountHealth(ctx context.Context, acc
 		if strings.TrimSpace(baseURL) == "" {
 			baseURL = "https://api.openai.com"
 		}
-		apiURL = strings.TrimSuffix(strings.TrimSpace(baseURL), "/") + "/v1/responses"
+		validatedURL, err := s.validateUpstreamBaseURL(baseURL)
+		if err != nil {
+			return
+		}
+		apiURL = buildOpenAIResponsesURL(validatedURL)
 	}
 	payload := createOpenAIHealthPrefetchPayload(modelID, isOAuth)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(payload))
