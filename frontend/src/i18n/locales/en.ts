@@ -5814,6 +5814,8 @@ export default {
   channelStatus: {
     title: 'Channel Status',
     description: 'View channel health and recent monitoring results.',
+    eyebrow: 'Technical Info',
+    disclaimer: 'Data comes from backend channel monitoring. Availability and latency are recent monitoring samples, not an SLA or 100% uptime guarantee. Actual model access, groups, and billing still follow backend configuration.',
     detailTitle: 'Channel Details',
     loadError: 'Failed to load channel status',
     detailLoadError: 'Failed to load channel details',
@@ -5825,11 +5827,13 @@ export default {
     },
     overall: {
       operational: 'Operational',
-      degraded: 'Degraded'
+      degraded: 'Degraded',
+      unknown: 'No data'
     },
     empty: {
       title: 'No channel status yet',
-      description: 'No monitoring data is available for this account.'
+      description: 'No monitoring data is available for this account yet. This does not mean all channels are healthy; use actual request results, usage records, and admin configuration as the source of truth.',
+      disabledDescription: 'Channel status monitoring is currently disabled by the administrator. You can still use assigned API keys and models; actual availability follows request results and backend configuration.'
     },
     detailColumns: {
       model: 'Model',

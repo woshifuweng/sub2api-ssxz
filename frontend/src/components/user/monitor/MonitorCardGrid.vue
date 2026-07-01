@@ -28,7 +28,7 @@
     <EmptyState
       v-else-if="items.length === 0"
       :title="t('channelStatus.empty.title')"
-      :description="t('channelStatus.empty.description')"
+      :description="emptyDescription || t('channelStatus.empty.description')"
     />
 
     <div
@@ -60,6 +60,7 @@ const props = defineProps<{
   countdownSeconds: number
   loading: boolean
   detailCache: Record<number, UserMonitorDetail>
+  emptyDescription?: string
 }>()
 
 const emit = defineEmits<{

@@ -66,14 +66,16 @@ vi.mock('@/components/user/AppSectionShell.vue', () => ({
 vi.mock('@/components/user/monitor/MonitorHero.vue', () => ({
   default: {
     name: 'MonitorHero',
-    template: '<section data-testid="monitor-hero" />'
+    props: ['overallStatus'],
+    template: '<section data-testid="monitor-hero" :data-overall-status="overallStatus" />'
   }
 }))
 
 vi.mock('@/components/user/monitor/MonitorCardGrid.vue', () => ({
   default: {
     name: 'MonitorCardGrid',
-    template: '<section data-testid="monitor-grid" />'
+    props: ['emptyDescription'],
+    template: '<section data-testid="monitor-grid">{{ emptyDescription }}</section>'
   }
 }))
 
@@ -95,6 +97,7 @@ describe('ChannelStatusView', () => {
     autoRefreshState.start.mockReset()
     autoRefreshState.stop.mockReset()
     autoRefreshState.setEnabled.mockReset()
+    appStore.cachedPublicSettings.channel_monitor_enabled = true
     channelMonitorAPI.list.mockResolvedValue({ items: [] })
   })
 
@@ -104,8 +107,27 @@ describe('ChannelStatusView', () => {
 
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="app-layout"]').exists()).toBe(false)
-    expect(wrapper.text()).toContain('渠道状态')
+    expect(wrapper.text()).toContain('channelStatus.title')
+    expect(wrapper.text()).toContain('channelStatus.disclaimer')
     expect(channelMonitorAPI.list).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not mark an empty monitor list as operational', async () => {
+    const wrapper = mount(ChannelStatusView)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="monitor-hero"]').attributes('data-overall-status')).toBe('unknown')
+    expect(wrapper.text()).toContain('channelStatus.empty.description')
+  })
+
+  it('explains when channel monitoring is disabled', async () => {
+    appStore.cachedPublicSettings.channel_monitor_enabled = false
+
+    const wrapper = mount(ChannelStatusView)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('channelStatus.empty.disabledDescription')
+    expect(autoRefreshState.setEnabled).not.toHaveBeenCalled()
   })
 
   it('keeps the legacy layout when used outside the app workbench', async () => {
