@@ -6001,6 +6001,8 @@ export default {
   channelStatus: {
     title: '渠道状态',
     description: '查看当前可用渠道的健康状态和最近监控结果。',
+    eyebrow: '技术信息',
+    disclaimer: '数据来自后台渠道监控，可用率和延迟为最近监控样本，不代表服务等级承诺或 100% 可用保证。实际可用模型、分组和计费仍以后端配置为准。',
     detailTitle: '渠道详情',
     loadError: '加载渠道状态失败',
     detailLoadError: '加载渠道详情失败',
@@ -6012,11 +6014,13 @@ export default {
     },
     overall: {
       operational: '正常',
-      degraded: '降级'
+      degraded: '降级',
+      unknown: '暂无数据'
     },
     empty: {
       title: '暂无渠道状态',
-      description: '当前账号还没有可展示的监控数据。'
+      description: '当前账号还没有可展示的监控数据。这不代表全部渠道正常，请以实际请求结果、使用记录和管理员配置为准。',
+      disabledDescription: '管理员当前未启用渠道状态监控。你仍可以使用已分配的 API Key 和模型，实际可用性以请求结果和后台配置为准。'
     },
     detailColumns: {
       model: '模型',

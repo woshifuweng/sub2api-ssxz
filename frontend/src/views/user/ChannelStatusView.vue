@@ -10,12 +10,17 @@
       @refresh="manualReload"
     />
 
+    <p class="mb-4 text-xs leading-5 text-gray-500 dark:text-gray-400">
+      {{ t('channelStatus.disclaimer') }}
+    </p>
+
     <MonitorCardGrid
       :items="items"
       :window="currentWindow"
       :countdown-seconds="countdown"
       :loading="loading"
       :detail-cache="detailCache"
+      :empty-description="emptyDescription"
       @card-click="openDetail"
     />
 
@@ -59,9 +64,9 @@ const useWorkbenchShell = computed(() => route.path === '/app/channel-status')
 const pageShell = computed(() => useWorkbenchShell.value ? AppSectionShell : AppLayout)
 const pageShellProps = computed(() => useWorkbenchShell.value
   ? {
-      title: '渠道状态',
-      subtitle: '查看当前可用渠道的健康状态和最近监控结果。',
-      eyebrow: '技术信息',
+      title: t('channelStatus.title'),
+      subtitle: t('channelStatus.description'),
+      eyebrow: t('channelStatus.eyebrow'),
       icon: 'radio'
     }
   : {})
@@ -87,12 +92,19 @@ const countdown = autoRefresh.countdown
 
 // ── Computed ──
 const overallStatus = computed<OverallStatus>(() => {
-  if (items.value.length === 0) return 'operational'
+  if (items.value.length === 0) return 'unknown'
   for (const it of items.value) {
     if (it.primary_status === 'failed' || it.primary_status === 'error') return 'degraded'
     if (it.primary_status !== STATUS_OPERATIONAL) return 'degraded'
   }
   return 'operational'
+})
+
+const emptyDescription = computed(() => {
+  if (appStore.cachedPublicSettings?.channel_monitor_enabled === false) {
+    return t('channelStatus.empty.disabledDescription')
+  }
+  return t('channelStatus.empty.description')
 })
 
 const detailTitle = computed(() => {
