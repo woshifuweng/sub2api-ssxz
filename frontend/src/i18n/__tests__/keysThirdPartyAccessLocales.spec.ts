@@ -12,6 +12,12 @@ describe('API Key third-party access locale copy', () => {
       zh.keys.clientAccessDescription,
       zh.keys.workbenchGuide.title,
       zh.keys.workbenchGuide.description,
+      zh.keys.workbenchGuide.stepCreateTitle,
+      zh.keys.workbenchGuide.stepCreateDescription,
+      zh.keys.workbenchGuide.stepCopyTitle,
+      zh.keys.workbenchGuide.stepCopyDescription,
+      zh.keys.workbenchGuide.stepConfigureTitle,
+      zh.keys.workbenchGuide.stepConfigureDescription,
       zh.keys.workbenchGuide.ccSwitch,
       zh.keys.workbenchGuide.cherryStudio,
       zh.keys.workbenchGuide.chatbox,
@@ -22,6 +28,12 @@ describe('API Key third-party access locale copy', () => {
       zh.keys.useKeyModal.fullKeyMissingDescription,
       zh.keys.useKeyModal.thirdParty.apiKeyHint,
       zh.keys.useKeyModal.thirdParty.modelsEndpointLabel,
+      zh.keys.useKeyModal.thirdParty.ccSwitchFields.baseUrl,
+      zh.keys.useKeyModal.thirdParty.ccSwitchFields.apiKey,
+      zh.keys.useKeyModal.thirdParty.cherryStudioFields.provider,
+      zh.keys.useKeyModal.thirdParty.cherryStudioFields.apiKey,
+      zh.keys.useKeyModal.thirdParty.chatboxFields.apiHost,
+      zh.keys.useKeyModal.thirdParty.chatboxFields.apiKey,
       zh.keys.createFirstKey
     ].join(' ')
 
@@ -33,6 +45,8 @@ describe('API Key third-party access locale copy', () => {
     expect(copy).toContain('脱敏值')
     expect(copy).toContain('新建')
     expect(copy).toContain('后台开放配置')
+    expect(copy).toContain('服务商类型')
+    expect(copy).toContain('API Host')
     expect(copy).not.toContain('开发者 API 平台')
   })
 
@@ -44,6 +58,12 @@ describe('API Key third-party access locale copy', () => {
       en.keys.clientAccessDescription,
       en.keys.workbenchGuide.title,
       en.keys.workbenchGuide.description,
+      en.keys.workbenchGuide.stepCreateTitle,
+      en.keys.workbenchGuide.stepCreateDescription,
+      en.keys.workbenchGuide.stepCopyTitle,
+      en.keys.workbenchGuide.stepCopyDescription,
+      en.keys.workbenchGuide.stepConfigureTitle,
+      en.keys.workbenchGuide.stepConfigureDescription,
       en.keys.workbenchGuide.ccSwitch,
       en.keys.workbenchGuide.cherryStudio,
       en.keys.workbenchGuide.chatbox,
@@ -54,6 +74,12 @@ describe('API Key third-party access locale copy', () => {
       en.keys.useKeyModal.fullKeyMissingDescription,
       en.keys.useKeyModal.thirdParty.apiKeyHint,
       en.keys.useKeyModal.thirdParty.modelsEndpointLabel,
+      en.keys.useKeyModal.thirdParty.ccSwitchFields.baseUrl,
+      en.keys.useKeyModal.thirdParty.ccSwitchFields.apiKey,
+      en.keys.useKeyModal.thirdParty.cherryStudioFields.provider,
+      en.keys.useKeyModal.thirdParty.cherryStudioFields.apiKey,
+      en.keys.useKeyModal.thirdParty.chatboxFields.apiHost,
+      en.keys.useKeyModal.thirdParty.chatboxFields.apiKey,
       en.keys.createFirstKey
     ].join(' ')
 
@@ -66,6 +92,8 @@ describe('API Key third-party access locale copy', () => {
     expect(copy).toContain('create a new API Key')
     expect(copy).toContain('admin model configuration')
     expect(copy).toContain('Model list check')
+    expect(copy).toContain('Provider type')
+    expect(copy).toContain('API Host')
     expect(copy).not.toContain('Developer API Platform')
   })
 

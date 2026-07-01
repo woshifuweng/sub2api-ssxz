@@ -562,6 +562,14 @@ export default {
       baseUrlLabel: 'Base URL',
       copyBaseUrl: 'Copy Base URL',
       baseUrlCopied: 'Base URL copied',
+      stepsAriaLabel: 'Third-party client connection steps',
+      stepCreateTitle: 'Create an API Key',
+      stepCreateDescription: 'Choose an available group and create a key. The full key is shown only once after creation.',
+      stepCopyTitle: 'Copy the Base URL and full key',
+      stepCopyDescription: 'The Base URL is this site origin plus /v1. Use the full key saved when it was created.',
+      stepConfigureTitle: 'Choose OpenAI-compatible in the client',
+      stepConfigureDescription:
+        'Enter the Base URL and API Key in CC Switch, Cherry Studio, Chatbox, or another compatible client, then select an available model.',
       clientsAriaLabel: 'Supported client examples',
       ccSwitch: 'Enter the Base URL and API Key, then switch models from the client.',
       cherryStudio: 'Choose OpenAI-compatible configuration in the provider settings.',
@@ -676,6 +684,28 @@ export default {
         modelHint: 'Use models enabled for the current group in the admin configuration.',
         modelsEndpointLabel: 'Model list check',
         securityNote: 'Only save the full API Key in clients you trust. Do not send it to others or share screenshots containing it.',
+        ccSwitchFields: {
+          baseUrl: 'Service URL / Base URL: enter the Base URL above',
+          apiKey: 'API Key: enter the full key saved when it was created',
+          model: 'Model: choose an available model from the client model list',
+        },
+        cherryStudioFields: {
+          provider: 'Provider type: choose OpenAI-compatible / custom OpenAI',
+          baseUrl: 'Base URL: enter the Base URL above',
+          apiKey: 'API Key: enter the full key saved when it was created',
+          model: 'Model: refresh or manually select a model available to this group',
+        },
+        chatboxFields: {
+          provider: 'Model provider: add a custom OpenAI API provider',
+          apiHost: 'API Host: enter the Base URL above',
+          apiKey: 'API Key: enter the full key saved when it was created',
+          model: 'Model: use /models first to verify available models',
+        },
+        otherClientFields: {
+          baseUrl: 'Base URL / API Host: enter the Base URL above',
+          apiKey: 'API Key / Token: enter the full key saved when it was created',
+          model: 'Model: use models enabled for the current group',
+        },
       },
       antigravity: {
         description: 'Configure API access for Antigravity group. Select the configuration method based on your client.',

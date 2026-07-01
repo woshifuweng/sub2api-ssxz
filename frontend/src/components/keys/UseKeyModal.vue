@@ -100,6 +100,11 @@
               <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
                 {{ client.description }}
               </p>
+              <ul class="mt-3 space-y-1.5 text-xs text-gray-500 dark:text-gray-400">
+                <li v-for="field in client.fields" :key="field" class="leading-5">
+                  {{ field }}
+                </li>
+              </ul>
             </div>
           </div>
 
@@ -475,19 +480,41 @@ const modelsEndpointUrl = computed(() => `${openAICompatibleBaseUrl.value}/model
 const thirdPartyClients = computed(() => [
   {
     title: 'CC Switch',
-    description: t('keys.useKeyModal.thirdParty.ccSwitch')
+    description: t('keys.useKeyModal.thirdParty.ccSwitch'),
+    fields: [
+      t('keys.useKeyModal.thirdParty.ccSwitchFields.baseUrl'),
+      t('keys.useKeyModal.thirdParty.ccSwitchFields.apiKey'),
+      t('keys.useKeyModal.thirdParty.ccSwitchFields.model')
+    ]
   },
   {
     title: 'Cherry Studio',
-    description: t('keys.useKeyModal.thirdParty.cherryStudio')
+    description: t('keys.useKeyModal.thirdParty.cherryStudio'),
+    fields: [
+      t('keys.useKeyModal.thirdParty.cherryStudioFields.provider'),
+      t('keys.useKeyModal.thirdParty.cherryStudioFields.baseUrl'),
+      t('keys.useKeyModal.thirdParty.cherryStudioFields.apiKey'),
+      t('keys.useKeyModal.thirdParty.cherryStudioFields.model')
+    ]
   },
   {
     title: 'Chatbox',
-    description: t('keys.useKeyModal.thirdParty.chatbox')
+    description: t('keys.useKeyModal.thirdParty.chatbox'),
+    fields: [
+      t('keys.useKeyModal.thirdParty.chatboxFields.provider'),
+      t('keys.useKeyModal.thirdParty.chatboxFields.apiHost'),
+      t('keys.useKeyModal.thirdParty.chatboxFields.apiKey'),
+      t('keys.useKeyModal.thirdParty.chatboxFields.model')
+    ]
   },
   {
     title: t('keys.useKeyModal.thirdParty.otherClientsTitle'),
-    description: t('keys.useKeyModal.thirdParty.otherClients')
+    description: t('keys.useKeyModal.thirdParty.otherClients'),
+    fields: [
+      t('keys.useKeyModal.thirdParty.otherClientFields.baseUrl'),
+      t('keys.useKeyModal.thirdParty.otherClientFields.apiKey'),
+      t('keys.useKeyModal.thirdParty.otherClientFields.model')
+    ]
   }
 ])
 

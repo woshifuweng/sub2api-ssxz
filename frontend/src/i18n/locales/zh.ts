@@ -562,6 +562,13 @@ export default {
       baseUrlLabel: 'Base URL',
       copyBaseUrl: '复制 Base URL',
       baseUrlCopied: 'Base URL 已复制',
+      stepsAriaLabel: '第三方客户端接入步骤',
+      stepCreateTitle: '创建一个 API Key',
+      stepCreateDescription: '先选择可用分组并创建 Key。完整 Key 只在创建后展示一次。',
+      stepCopyTitle: '复制 Base URL 和完整 Key',
+      stepCopyDescription: 'Base URL 使用本站地址加 /v1；完整 Key 请使用创建时保存的值。',
+      stepConfigureTitle: '在客户端选择 OpenAI-compatible',
+      stepConfigureDescription: '在 CC Switch、Cherry Studio、Chatbox 等客户端填入 Base URL、API Key，再选择可用模型。',
       clientsAriaLabel: '支持的客户端示例',
       ccSwitch: '填入 Base URL 和 API Key 后切换模型使用。',
       cherryStudio: '选择 OpenAI-compatible 配置方式接入。',
@@ -675,7 +682,29 @@ export default {
         modelLabel: '模型',
         modelHint: '以后台开放给当前分组的模型为准。',
         modelsEndpointLabel: '模型列表验证',
-        securityNote: '完整 API Key 只应保存在你信任的客户端里，不要发给他人，也不要截图外传。'
+        securityNote: '完整 API Key 只应保存在你信任的客户端里，不要发给他人，也不要截图外传。',
+        ccSwitchFields: {
+          baseUrl: '服务地址 / Base URL：填写上方 Base URL',
+          apiKey: 'API Key：填写创建时保存的完整 Key',
+          model: '模型：在客户端模型列表里选择可用模型'
+        },
+        cherryStudioFields: {
+          provider: '服务商类型：选择 OpenAI-compatible / 自定义 OpenAI',
+          baseUrl: 'Base URL：填写上方 Base URL',
+          apiKey: 'API Key：填写创建时保存的完整 Key',
+          model: '模型：刷新或手动选择当前分组可用模型'
+        },
+        chatboxFields: {
+          provider: '模型提供商：新增自定义 OpenAI API',
+          apiHost: 'API Host：填写上方 Base URL',
+          apiKey: 'API Key：填写创建时保存的完整 Key',
+          model: '模型：可先用 /models 验证可用模型'
+        },
+        otherClientFields: {
+          baseUrl: 'Base URL / API Host：填写上方 Base URL',
+          apiKey: 'API Key / Token：填写创建时保存的完整 Key',
+          model: '模型：以后端开放给当前分组的模型为准'
+        }
       },
       antigravity: {
         description: '为 Antigravity 分组配置 API 访问。请根据您使用的客户端选择对应的配置方式。',

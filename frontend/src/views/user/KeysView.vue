@@ -30,6 +30,29 @@
               <Icon v-else name="clipboard" size="sm" />
             </button>
           </div>
+          <ol class="keys-guide-steps" :aria-label="t('keys.workbenchGuide.stepsAriaLabel')">
+            <li>
+              <span>1</span>
+              <div>
+                <strong>{{ t('keys.workbenchGuide.stepCreateTitle') }}</strong>
+                <p>{{ t('keys.workbenchGuide.stepCreateDescription') }}</p>
+              </div>
+            </li>
+            <li>
+              <span>2</span>
+              <div>
+                <strong>{{ t('keys.workbenchGuide.stepCopyTitle') }}</strong>
+                <p>{{ t('keys.workbenchGuide.stepCopyDescription') }}</p>
+              </div>
+            </li>
+            <li>
+              <span>3</span>
+              <div>
+                <strong>{{ t('keys.workbenchGuide.stepConfigureTitle') }}</strong>
+                <p>{{ t('keys.workbenchGuide.stepConfigureDescription') }}</p>
+              </div>
+            </li>
+          </ol>
         </div>
         <div class="keys-guide-cards" :aria-label="t('keys.workbenchGuide.clientsAriaLabel')">
           <article>
@@ -2256,6 +2279,47 @@ onUnmounted(() => {
 .keys-guide-copy-button:hover {
   background: var(--ssxz-surface);
   color: var(--ssxz-text-primary);
+}
+
+.keys-guide-steps {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.keys-guide-steps li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+.keys-guide-steps li > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: var(--ssxz-action-soft);
+  color: var(--ssxz-action);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.keys-guide-steps strong {
+  display: block;
+  color: var(--ssxz-text-primary);
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.keys-guide-steps p {
+  margin-top: 0.12rem;
+  font-size: 0.78rem;
+  line-height: 1.55;
 }
 
 .keys-guide-cards {
