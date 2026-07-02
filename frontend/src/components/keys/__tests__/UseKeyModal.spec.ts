@@ -169,9 +169,55 @@ describe('UseKeyModal', () => {
 
     const codeBlock = wrapper.find('pre code')
     expect(codeBlock.exists()).toBe(true)
+    expect(codeBlock.text()).toContain('model_provider = "ssxz"')
     expect(codeBlock.text()).toContain('model = "gpt-4.1"')
-    expect(codeBlock.text()).toContain('review_model = "gpt-4.1"')
+    expect(codeBlock.text()).toContain('model_reasoning_effort = "medium"')
+    expect(codeBlock.text()).toContain('[model_providers.ssxz]')
+    expect(codeBlock.text()).toContain('name = "SSXZ API"')
+    expect(codeBlock.text()).toContain('base_url = "https://example.com/v1"')
+    expect(codeBlock.text()).toContain('wire_api = "responses"')
+    expect(codeBlock.text()).toContain('requires_openai_auth = true')
+    expect(codeBlock.text()).not.toContain('[model_providers.OpenAI]')
+    expect(codeBlock.text()).not.toContain('[model_providers.custom]')
     expect(codeBlock.text()).not.toContain('model = "gpt-5.5"')
+  })
+
+  it('uses the SSXZ provider name in Codex WebSocket configs', async () => {
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'openai',
+        allowedModels: ['gpt-5.5']
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    const codexWsTab = wrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.codexCliWs')
+    )
+
+    expect(codexWsTab).toBeDefined()
+    await codexWsTab!.trigger('click')
+    await nextTick()
+
+    const codeBlock = wrapper.find('pre code')
+    expect(codeBlock.exists()).toBe(true)
+    expect(codeBlock.text()).toContain('model_provider = "ssxz"')
+    expect(codeBlock.text()).toContain('[model_providers.ssxz]')
+    expect(codeBlock.text()).toContain('name = "SSXZ API"')
+    expect(codeBlock.text()).toContain('supports_websockets = true')
+    expect(codeBlock.text()).not.toContain('[model_providers.OpenAI]')
   })
 
   it('uses the first allowed model in Gemini CLI configs when the key is model-restricted', async () => {

@@ -26,6 +26,7 @@ describe('API Key third-party access locale copy', () => {
       zh.keys.createdKeyReveal.modelHint,
       zh.keys.fullKeyRequiredForImport,
       zh.keys.useKeyModal.fullKeyMissingDescription,
+      zh.keys.useKeyModal.openai.configTomlHint,
       zh.keys.useKeyModal.statusWarning.inactiveDescription,
       zh.keys.useKeyModal.statusWarning.expiredDescription,
       zh.keys.useKeyModal.statusWarning.quotaExhaustedDescription,
@@ -57,6 +58,9 @@ describe('API Key third-party access locale copy', () => {
     expect(copy).toContain('账户余额')
     expect(copy).toContain('额度')
     expect(copy).toContain('provider 地址')
+    expect(copy).toContain('custom provider')
+    expect(copy).toContain('base_url')
+    expect(copy).toContain('Codex / CC Switch')
     expect(copy).toContain('服务商类型')
     expect(copy).toContain('API Host')
     expect(copy).toContain('Authorization: Bearer')
@@ -87,6 +91,7 @@ describe('API Key third-party access locale copy', () => {
       en.keys.createdKeyReveal.modelHint,
       en.keys.fullKeyRequiredForImport,
       en.keys.useKeyModal.fullKeyMissingDescription,
+      en.keys.useKeyModal.openai.configTomlHint,
       en.keys.useKeyModal.statusWarning.inactiveDescription,
       en.keys.useKeyModal.statusWarning.expiredDescription,
       en.keys.useKeyModal.statusWarning.quotaExhaustedDescription,
@@ -118,6 +123,9 @@ describe('API Key third-party access locale copy', () => {
     expect(copy).toContain('account balance')
     expect(copy).toContain('quota')
     expect(copy).toContain('upstream provider URL')
+    expect(copy).toContain('custom provider')
+    expect(copy).toContain('base_url')
+    expect(copy).toContain('Codex / CC Switch')
     expect(copy).toContain('Model list check')
     expect(copy).toContain('Provider type')
     expect(copy).toContain('API Host')

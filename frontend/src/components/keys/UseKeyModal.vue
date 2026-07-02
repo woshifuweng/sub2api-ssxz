@@ -749,24 +749,16 @@ function generateOpenAIFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const model = openAIExampleModel.value
 
   // config.toml content
-  const configContent = `model_provider = "OpenAI"
+  const configContent = `model_provider = "ssxz"
 model = "${model}"
-review_model = "${model}"
-model_reasoning_effort = "xhigh"
+model_reasoning_effort = "medium"
 disable_response_storage = true
-network_access = "enabled"
-windows_wsl_setup_acknowledged = true
-model_context_window = 1000000
-model_auto_compact_token_limit = 900000
 
-[model_providers.OpenAI]
-name = "OpenAI"
+[model_providers.ssxz]
+name = "SSXZ API"
 base_url = "${baseUrl}"
 wire_api = "responses"
-requires_openai_auth = true
-
-[features]
-responses_websockets_v2 = true`
+requires_openai_auth = true`
 
   // auth.json content
   const authContent = `{
@@ -792,18 +784,13 @@ function generateOpenAIWsFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const model = openAIExampleModel.value
 
   // config.toml content with WebSocket v2
-  const configContent = `model_provider = "OpenAI"
+  const configContent = `model_provider = "ssxz"
 model = "${model}"
-review_model = "${model}"
-model_reasoning_effort = "xhigh"
+model_reasoning_effort = "medium"
 disable_response_storage = true
-network_access = "enabled"
-windows_wsl_setup_acknowledged = true
-model_context_window = 1000000
-model_auto_compact_token_limit = 900000
 
-[model_providers.OpenAI]
-name = "OpenAI"
+[model_providers.ssxz]
+name = "SSXZ API"
 base_url = "${baseUrl}"
 wire_api = "responses"
 supports_websockets = true

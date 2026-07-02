@@ -666,7 +666,8 @@ export default {
       },
       openai: {
         description: 'Add the following configuration files to your Codex CLI config directory.',
-        configTomlHint: 'Make sure the following content is at the beginning of the config.toml file',
+        configTomlHint:
+          'Make sure the following content is at the beginning of config.toml. Do not keep a custom provider block without base_url. After saving, fully quit Codex / CC Switch and reopen.',
         note: 'Make sure the config directory exists. macOS/Linux users can run mkdir -p ~/.codex to create it.',
         noteWindows: 'Press Win+R and enter %userprofile%\\.codex to open the config directory. Create it manually if it does not exist.',
       },
