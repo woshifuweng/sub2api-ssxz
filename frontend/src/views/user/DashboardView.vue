@@ -5,6 +5,31 @@
         <LoadingSpinner />
       </div>
 
+      <section
+        v-else-if="statsLoadError"
+        data-testid="dashboard-load-error"
+        class="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center shadow-sm dark:border-amber-500/30 dark:bg-amber-500/10"
+      >
+        <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-white text-amber-600 shadow-sm dark:bg-dark-900 dark:text-amber-300">
+          <Icon name="exclamationTriangle" size="lg" />
+        </div>
+        <h1 class="text-xl font-bold tracking-normal text-gray-900 dark:text-white">
+          仪表盘数据暂时无法加载
+        </h1>
+        <p class="mx-auto mt-2 max-w-2xl text-sm leading-6 text-gray-600 dark:text-gray-400">
+          当前没有展示假数据。请稍后重试；API Key、用量、充值和通道状态仍可从左侧菜单进入。
+        </p>
+        <button
+          type="button"
+          data-testid="dashboard-retry"
+          class="mt-5 inline-flex items-center justify-center rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+          :disabled="loading"
+          @click="loadStats"
+        >
+          重试
+        </button>
+      </section>
+
       <template v-else-if="stats">
         <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-900">
           <div class="grid gap-6 p-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)] lg:p-6">
@@ -201,6 +226,7 @@ const userEmail = computed(() => user.value?.email || '当前用户')
 
 const stats = ref<UserStatsType | null>(null)
 const loading = ref(false)
+const statsLoadError = ref(false)
 const loadingUsage = ref(false)
 const loadingCharts = ref(false)
 const trendData = ref<TrendDataPoint[]>([])
@@ -293,10 +319,13 @@ const formatCompact = (value: number) =>
 
 const loadStats = async () => {
   loading.value = true
+  statsLoadError.value = false
   try {
     await authStore.refreshUser()
     stats.value = await usageAPI.getDashboardStats()
   } catch (error) {
+    stats.value = null
+    statsLoadError.value = true
     console.error('Failed to load dashboard stats:', error)
   } finally {
     loading.value = false
