@@ -396,6 +396,7 @@
               <!-- Use Key Button -->
               <button
                 @click="openUseKeyModal(row)"
+                :title="t('keys.connectionGuideTitle')"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400"
               >
                 <Icon name="terminal" size="sm" />
@@ -1159,6 +1160,7 @@
       :platform="selectedKey?.group?.platform || null"
       :allowed-models="selectedKey?.allowed_models || []"
       :allow-messages-dispatch="selectedKey?.group?.allow_messages_dispatch || false"
+      :key-status="selectedKey?.status"
       @close="closeUseKeyModal"
     />
 

@@ -640,7 +640,8 @@ export default {
     total: '近30天',
     quota: '额度',
     lastUsedAt: '上次使用时间',
-    useKey: '使用密钥',
+    useKey: '接入教程',
+    connectionGuideTitle: '查看第三方客户端接入教程',
     useKeyModal: {
       title: '使用 API 密钥',
       description: '将以下环境变量添加到您的终端配置文件或直接在终端中运行。',
@@ -653,6 +654,14 @@ export default {
       fullKeyMissingTitle: '完整 API Key 不再可见',
       fullKeyMissingDescription:
         '列表中只保留脱敏值，不能生成可直接使用的 CLI 配置。请使用创建时保存的完整 Key；如果丢失，请新建一个 API Key。',
+      statusWarning: {
+        inactiveTitle: '这个 API Key 当前已禁用',
+        inactiveDescription: '第三方客户端会停止工作。需要继续使用时，请先启用这个 Key，或者新建一个 Key 并更新客户端配置。',
+        expiredTitle: '这个 API Key 当前已过期',
+        expiredDescription: '第三方客户端会认证失败。请编辑有效期或新建一个 Key，然后把客户端里的旧 Key 替换掉。',
+        quotaExhaustedTitle: '这个 API Key 的额度已用完',
+        quotaExhaustedDescription: '第三方客户端会被后端拒绝继续调用。请提高 Key 额度、重置用量，或新建一个受控额度的 Key。'
+      },
       openai: {
         description: '将以下配置文件添加到 Codex CLI 配置目录中。',
         configTomlHint: '请确保以下内容位于 config.toml 文件的开头部分',
@@ -683,6 +692,11 @@ export default {
         modelLabel: '模型',
         modelHint: '以后台开放给当前分组的模型为准。',
         modelsEndpointLabel: '模型列表验证',
+        connectionChecklistTitle: '连接前检查',
+        connectionChecklistBaseUrl: 'Base URL 必须填写本站地址加 /v1，不要填后台上游 provider 地址。',
+        connectionChecklistFullKey: 'API Key 必须使用创建弹窗里保存的完整值，列表中的脱敏值不能用于连接。',
+        connectionChecklistModels: '客户端模型列表为空时，先检查 /v1/models 是否能返回当前分组可用模型。',
+        connectionChecklistBalance: '如果请求失败，再检查 Key 状态、分组权限、账户余额、额度和使用记录。',
         securityNote:
           '请优先使用 Authorization: Bearer 或 x-api-key 请求头保存密钥。除非客户端只支持 URL 参数，不要把 API Key 放在链接里；浏览器、代理或服务器日志可能记录完整 URL。完整 API Key 只应保存在你信任的客户端里，不要发给他人，也不要截图外传。',
         ccSwitchFields: {

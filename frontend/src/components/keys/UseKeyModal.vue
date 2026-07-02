@@ -21,6 +21,22 @@
         </div>
       </div>
 
+      <div
+        v-if="keyStatusWarning"
+        class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
+        data-testid="key-status-warning"
+      >
+        <Icon name="exclamationCircle" size="md" class="mt-0.5 flex-shrink-0 text-amber-500" />
+        <div>
+          <p class="text-sm font-semibold text-amber-900 dark:text-amber-100">
+            {{ t(keyStatusWarning.titleKey) }}
+          </p>
+          <p class="mt-1 text-sm leading-6 text-amber-700 dark:text-amber-300">
+            {{ t(keyStatusWarning.descriptionKey) }}
+          </p>
+        </div>
+      </div>
+
       <!-- Platform-specific content -->
       <template v-else>
         <!-- Description -->
@@ -136,6 +152,21 @@
             </dl>
           </div>
 
+          <div
+            class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900/80"
+            data-testid="third-party-connection-checklist"
+          >
+            <p class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.thirdParty.connectionChecklistTitle') }}
+            </p>
+            <ul class="mt-3 space-y-2 text-sm text-gray-600 dark:text-gray-300">
+              <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistBaseUrl') }}</li>
+              <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistFullKey') }}</li>
+              <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistModels') }}</li>
+              <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistBalance') }}</li>
+            </ul>
+          </div>
+
           <div class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
             <Icon name="exclamationCircle" size="md" class="mt-0.5 flex-shrink-0 text-amber-500" />
             <p class="text-sm text-amber-700 dark:text-amber-300">
@@ -235,6 +266,7 @@ interface Props {
   platform: GroupPlatform | null
   allowedModels?: string[]
   allowMessagesDispatch?: boolean
+  keyStatus?: 'active' | 'inactive' | 'quota_exhausted' | 'expired'
 }
 
 interface Emits {
@@ -410,6 +442,27 @@ const isThirdPartyTab = computed(() => activeClientTab.value === 'third-party')
 const showShellTabs = computed(() => activeClientTab.value !== 'opencode' && !isThirdPartyTab.value)
 const isMaskedApiKey = (key: string) => key === '[redacted]' || key.includes('...')
 const hasUsableApiKey = computed(() => props.apiKey !== '' && !isMaskedApiKey(props.apiKey))
+const keyStatusWarning = computed(() => {
+  switch (props.keyStatus) {
+    case 'inactive':
+      return {
+        titleKey: 'keys.useKeyModal.statusWarning.inactiveTitle',
+        descriptionKey: 'keys.useKeyModal.statusWarning.inactiveDescription'
+      }
+    case 'expired':
+      return {
+        titleKey: 'keys.useKeyModal.statusWarning.expiredTitle',
+        descriptionKey: 'keys.useKeyModal.statusWarning.expiredDescription'
+      }
+    case 'quota_exhausted':
+      return {
+        titleKey: 'keys.useKeyModal.statusWarning.quotaExhaustedTitle',
+        descriptionKey: 'keys.useKeyModal.statusWarning.quotaExhaustedDescription'
+      }
+    default:
+      return null
+  }
+})
 const firstAllowedModel = computed(() =>
   props.allowedModels
     ?.map((model) => model.trim())
