@@ -44,8 +44,13 @@ export const paymentAPI = {
   },
 
   /** Create a new payment order */
-  createOrder(data: CreateOrderRequest) {
-    return apiClient.post<CreateOrderResult>('/payment/orders', data)
+  createOrder(data: CreateOrderRequest, options?: { idempotencyKey?: string }) {
+    const idempotencyKey = options?.idempotencyKey?.trim()
+    return apiClient.post<CreateOrderResult>(
+      '/payment/orders',
+      data,
+      idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : undefined
+    )
   },
 
   /** Get current user's orders */

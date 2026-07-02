@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { PublicPaymentOrder } from '@/types/payment'
+import type { CreateOrderResult, PublicPaymentOrder } from '@/types/payment'
 
 const get = vi.fn()
 const post = vi.fn()
@@ -48,5 +48,30 @@ describe('payment api public order lookup', () => {
     expect('refund_requested_by' in byOutTradeNo.data).toBe(false)
     expect('refund_request_reason' in byOutTradeNo.data).toBe(false)
     expect('plan_id' in byOutTradeNo.data).toBe(false)
+  })
+
+  it('sends Idempotency-Key when creating a payment order with a key', async () => {
+    const result: CreateOrderResult = {
+      order_id: 7,
+      amount: 10,
+      pay_amount: 10,
+      fee_rate: 0,
+      status: 'PENDING',
+      payment_type: 'alipay',
+      expires_at: '2026-06-26T00:15:00Z'
+    }
+    post.mockResolvedValue({ data: result })
+
+    const { paymentAPI } = await import('../payment')
+    await paymentAPI.createOrder(
+      { amount: 10, payment_type: 'alipay', order_type: 'balance' },
+      { idempotencyKey: 'payment-order-once' }
+    )
+
+    expect(post).toHaveBeenCalledWith(
+      '/payment/orders',
+      { amount: 10, payment_type: 'alipay', order_type: 'balance' },
+      { headers: { 'Idempotency-Key': 'payment-order-once' } }
+    )
   })
 })
