@@ -110,6 +110,7 @@ const emptyDescription = computed(() => {
 const detailTitle = computed(() => {
   return detailTarget.value?.name || t('channelStatus.detailTitle')
 })
+const channelMonitorDisabled = computed(() => appStore.cachedPublicSettings?.channel_monitor_enabled === false)
 
 // ── Loaders ──
 async function reload(silent = false) {
@@ -180,16 +181,24 @@ watch(items, () => {
 watch(
   () => appStore.cachedPublicSettings?.channel_monitor_enabled,
   (enabled) => {
-    if (enabled === false) autoRefresh.stop()
-    else if (autoRefresh.enabled.value) autoRefresh.start()
+    if (enabled === false) {
+      if (abortController) abortController.abort()
+      items.value = []
+      autoRefresh.stop()
+      return
+    }
+    if (autoRefresh.enabled.value) autoRefresh.start()
   },
 )
 
 onMounted(() => {
-  void reload(false)
-  if (appStore.cachedPublicSettings?.channel_monitor_enabled !== false) {
-    autoRefresh.setEnabled(true)
+  if (channelMonitorDisabled.value) {
+    items.value = []
+    autoRefresh.stop()
+    return
   }
+  void reload(false)
+  autoRefresh.setEnabled(true)
 })
 
 onBeforeUnmount(() => {

@@ -74,15 +74,37 @@ vi.mock('@/components/user/monitor/MonitorHero.vue', () => ({
 vi.mock('@/components/user/monitor/MonitorCardGrid.vue', () => ({
   default: {
     name: 'MonitorCardGrid',
-    props: ['emptyDescription'],
-    template: '<section data-testid="monitor-grid">{{ emptyDescription }}</section>'
+    props: ['items', 'emptyDescription', 'window', 'loading'],
+    emits: ['cardClick'],
+    template: `
+      <section data-testid="monitor-grid" :data-window="window" :data-loading="String(loading)" :data-count="items.length">
+        <p v-if="items.length === 0">{{ emptyDescription }}</p>
+        <button
+          v-for="item in items"
+          :key="item.id"
+          type="button"
+          data-testid="monitor-card"
+          @click="$emit('cardClick', item)"
+        >
+          <span>{{ item.name }}</span>
+          <span>{{ item.group_name }}</span>
+          <span>{{ item.primary_model }}</span>
+          <span>{{ item.primary_status }}</span>
+          <span>{{ item.primary_latency_ms }}</span>
+          <span>{{ item.primary_ping_latency_ms }}</span>
+          <span>{{ item.availability_7d }}</span>
+          <span v-for="extra in item.extra_models" :key="extra.model">{{ extra.model }}:{{ extra.status }}</span>
+        </button>
+      </section>
+    `
   }
 }))
 
 vi.mock('@/components/user/MonitorDetailDialog.vue', () => ({
   default: {
     name: 'MonitorDetailDialog',
-    template: '<section data-testid="monitor-detail" />'
+    props: ['show', 'monitorId', 'title'],
+    template: '<section data-testid="monitor-detail" :data-show="String(show)" :data-monitor-id="monitorId || \'\'">{{ title }}</section>'
   }
 }))
 
@@ -128,6 +150,7 @@ describe('ChannelStatusView', () => {
 
     expect(wrapper.text()).toContain('channelStatus.empty.disabledDescription')
     expect(autoRefreshState.setEnabled).not.toHaveBeenCalled()
+    expect(channelMonitorAPI.list).not.toHaveBeenCalled()
   })
 
   it('keeps the legacy layout when used outside the app workbench', async () => {
@@ -138,5 +161,58 @@ describe('ChannelStatusView', () => {
 
     expect(wrapper.find('[data-testid="app-layout"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(false)
+  })
+
+  it('renders monitor evidence and opens the detail dialog for investigation', async () => {
+    channelMonitorAPI.list.mockResolvedValue({
+      items: [
+        {
+          id: 12,
+          name: 'OpenAI primary channel',
+          provider: 'openai',
+          group_name: 'Pro group',
+          primary_model: 'gpt-4o-mini',
+          primary_status: 'failed',
+          primary_latency_ms: 1842,
+          primary_ping_latency_ms: 92,
+          availability_7d: 98.75,
+          extra_models: [
+            {
+              model: 'gpt-4.1',
+              status: 'operational',
+              latency_ms: 990
+            }
+          ],
+          timeline: [
+            {
+              status: 'failed',
+              latency_ms: 1842,
+              ping_latency_ms: 92,
+              checked_at: '2026-07-02T08:00:00Z'
+            }
+          ]
+        }
+      ]
+    })
+
+    const wrapper = mount(ChannelStatusView)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="monitor-hero"]').attributes('data-overall-status')).toBe('degraded')
+    expect(wrapper.find('[data-testid="monitor-grid"]').attributes('data-count')).toBe('1')
+    expect(wrapper.text()).toContain('OpenAI primary channel')
+    expect(wrapper.text()).toContain('Pro group')
+    expect(wrapper.text()).toContain('gpt-4o-mini')
+    expect(wrapper.text()).toContain('failed')
+    expect(wrapper.text()).toContain('1842')
+    expect(wrapper.text()).toContain('98.75')
+    expect(wrapper.text()).toContain('gpt-4.1:operational')
+
+    await wrapper.find('[data-testid="monitor-card"]').trigger('click')
+
+    const detail = wrapper.find('[data-testid="monitor-detail"]')
+    expect(detail.attributes('data-show')).toBe('true')
+    expect(detail.attributes('data-monitor-id')).toBe('12')
+    expect(detail.text()).toContain('OpenAI primary channel')
   })
 })
