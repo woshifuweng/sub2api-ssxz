@@ -182,8 +182,8 @@ vi.mock('@/components/common/SearchInput.vue', () => ({
 vi.mock('@/components/keys/UseKeyModal.vue', () => ({
   default: {
     name: 'UseKeyModal',
-    props: ['apiKey', 'allowedModels'],
-    template: '<div data-testid="use-key-modal" :data-api-key="apiKey" :data-allowed-models="allowedModels?.join(\',\')" />'
+    props: ['apiKey', 'allowedModels', 'baseUrl'],
+    template: '<div data-testid="use-key-modal" :data-api-key="apiKey" :data-allowed-models="allowedModels?.join(\',\')" :data-base-url="baseUrl" />'
   }
 }))
 
@@ -857,6 +857,74 @@ describe('KeysView workbench surface', () => {
     expect(modal.exists()).toBe(true)
     expect(modal.attributes('apikey')).toBe('sk-full-key-value-visible-once-1234')
     expect(modal.attributes('allowedmodels')).toBe('gpt-4.1,gpt-4o-mini')
+  })
+
+  it('passes the user-facing Base URL to the usage modal instead of a loopback configured URL', async () => {
+    authAPI.getPublicSettings.mockResolvedValue({
+      api_base_url: 'http://127.0.0.1:8080',
+      site_name: 'SSXZ AI'
+    })
+    keysAPI.list.mockResolvedValue({
+      items: [
+        apiKeyFixture({
+          key: 'sk-full-key-value-visible-once-1234',
+          group: { platform: 'openai', allow_messages_dispatch: false }
+        })
+      ],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const useKeyButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.useKey'))
+    expect(useKeyButton).toBeTruthy()
+    await useKeyButton!.trigger('click')
+    await flushPromises()
+
+    const modal = wrapper.findComponent({ name: 'UseKeyModal' })
+    expect(modal.exists()).toBe(true)
+    expect(modal.attributes('baseurl')).toBe(window.location.origin)
+    expect(modal.attributes('baseurl')).not.toContain('127.0.0.1')
+  })
+
+  it('uses the user-facing Base URL for CCS import when settings contain a loopback URL', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    authAPI.getPublicSettings.mockResolvedValue({
+      api_base_url: 'http://127.0.0.1:8080',
+      site_name: 'SSXZ AI'
+    })
+    keysAPI.list.mockResolvedValue({
+      items: [
+        apiKeyFixture({
+          key: 'sk-full-key-value-visible-once-1234',
+          group: { platform: 'openai', allow_messages_dispatch: false }
+        })
+      ],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const importButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.importToCcSwitch'))
+    expect(importButton).toBeTruthy()
+    await importButton!.trigger('click')
+
+    expect(openSpy).toHaveBeenCalledTimes(1)
+    const deeplink = String(openSpy.mock.calls[0]?.[0])
+    const params = new URLSearchParams(deeplink.split('?')[1])
+    expect(params.get('homepage')).toBe(window.location.origin)
+    expect(params.get('endpoint')).toBe(window.location.origin)
+    expect(deeplink).not.toContain('127.0.0.1')
+
+    openSpy.mockRestore()
   })
 
   it('keeps CCS import disabled for masked list keys', async () => {
