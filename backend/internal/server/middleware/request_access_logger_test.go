@@ -180,6 +180,48 @@ func TestLogger_AccessLogIncludesCoreFields(t *testing.T) {
 	}
 }
 
+func TestLogger_AccessLogDoesNotIncludeAPIKeyQuerySecrets(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	sink := initMiddlewareTestLogger(t)
+
+	r := gin.New()
+	r.Use(Logger())
+	r.GET("/v1beta/models", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1beta/models?key=sk-secret-query&api_key=legacy-secret", nil)
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d", w.Code)
+	}
+
+	for _, event := range sink.list() {
+		if event == nil || event.Message != "http request completed" {
+			continue
+		}
+		if got := event.Fields["path"]; got != "/v1beta/models" {
+			t.Fatalf("path should not include query secrets, got=%q", got)
+		}
+		for name, value := range event.Fields {
+			text, ok := value.(string)
+			if !ok {
+				continue
+			}
+			if strings.Contains(text, "sk-secret-query") ||
+				strings.Contains(text, "legacy-secret") ||
+				strings.Contains(text, "key=") ||
+				strings.Contains(text, "api_key=") {
+				t.Fatalf("access log field %q leaked query secret: %q", name, text)
+			}
+		}
+		return
+	}
+
+	t.Fatalf("access log event not found")
+}
+
 func TestLogger_HealthPathSkipped(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	sink := initMiddlewareTestLogger(t)

@@ -28,6 +28,7 @@ describe('API Key third-party access locale copy', () => {
       zh.keys.useKeyModal.fullKeyMissingDescription,
       zh.keys.useKeyModal.thirdParty.apiKeyHint,
       zh.keys.useKeyModal.thirdParty.modelsEndpointLabel,
+      zh.keys.useKeyModal.thirdParty.securityNote,
       zh.keys.useKeyModal.thirdParty.ccSwitchFields.baseUrl,
       zh.keys.useKeyModal.thirdParty.ccSwitchFields.apiKey,
       zh.keys.useKeyModal.thirdParty.cherryStudioFields.provider,
@@ -47,6 +48,9 @@ describe('API Key third-party access locale copy', () => {
     expect(copy).toContain('后台开放配置')
     expect(copy).toContain('服务商类型')
     expect(copy).toContain('API Host')
+    expect(copy).toContain('Authorization: Bearer')
+    expect(copy).toContain('x-api-key')
+    expect(copy).toContain('URL 参数')
     expect(copy).not.toContain('开发者 API 平台')
   })
 
@@ -74,6 +78,7 @@ describe('API Key third-party access locale copy', () => {
       en.keys.useKeyModal.fullKeyMissingDescription,
       en.keys.useKeyModal.thirdParty.apiKeyHint,
       en.keys.useKeyModal.thirdParty.modelsEndpointLabel,
+      en.keys.useKeyModal.thirdParty.securityNote,
       en.keys.useKeyModal.thirdParty.ccSwitchFields.baseUrl,
       en.keys.useKeyModal.thirdParty.ccSwitchFields.apiKey,
       en.keys.useKeyModal.thirdParty.cherryStudioFields.provider,
@@ -94,6 +99,9 @@ describe('API Key third-party access locale copy', () => {
     expect(copy).toContain('Model list check')
     expect(copy).toContain('Provider type')
     expect(copy).toContain('API Host')
+    expect(copy).toContain('Authorization: Bearer')
+    expect(copy).toContain('x-api-key')
+    expect(copy).toContain('query keys')
     expect(copy).not.toContain('Developer API Platform')
   })
 
