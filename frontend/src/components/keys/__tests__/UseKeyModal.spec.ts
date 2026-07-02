@@ -45,6 +45,7 @@ describe('UseKeyModal', () => {
     expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.ccSwitchFields.baseUrl')
     expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.cherryStudioFields.provider')
     expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.chatboxFields.apiHost')
+    expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.securityNote')
     expect(wrapper.text()).toContain('https://example.com/v1')
     expect(wrapper.text()).toContain('https://example.com/v1/models')
     expect(wrapper.find('pre code').exists()).toBe(false)
