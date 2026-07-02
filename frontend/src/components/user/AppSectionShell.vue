@@ -190,11 +190,15 @@ const isDesktopViewport = ref(false)
 const isDark = ref(document.documentElement.classList.contains('dark'))
 let desktopMediaQuery: MediaQueryList | null = null
 
+const channelMonitorEnabled = computed(() => !!appStore.cachedPublicSettings?.channel_monitor_enabled)
+
 const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName }>>(() => [
   { label: '仪表盘', to: '/app/dashboard', icon: 'home' },
   { label: 'API 密钥', to: '/app/keys', icon: 'key' },
   { label: '使用记录', to: '/app/usage', icon: 'chartBar' },
-  { label: '通道状态', to: '/app/channel-status', icon: 'server' },
+  ...(channelMonitorEnabled.value
+    ? [{ label: '通道状态', to: '/app/channel-status', icon: 'server' as IconName }]
+    : []),
   { label: '充值', to: '/app/purchase', icon: 'creditCard' },
   { label: '订单', to: '/app/orders', icon: 'clipboard' },
   { label: '兑换码', to: '/app/redeem', icon: 'gift' },
