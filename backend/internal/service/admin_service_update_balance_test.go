@@ -79,6 +79,94 @@ func TestAdminService_UpdateUserBalance_InvalidatesAuthCache(t *testing.T) {
 	require.Len(t, redeemRepo.created, 1)
 }
 
+func TestAdminService_UpdateUserBalance_RecordsAdminBalanceAdjustment(t *testing.T) {
+	tests := []struct {
+		name            string
+		startBalance    float64
+		operation       string
+		amount          float64
+		expectedBalance float64
+		expectedDiff    float64
+	}{
+		{
+			name:            "add",
+			startBalance:    10,
+			operation:       "add",
+			amount:          5,
+			expectedBalance: 15,
+			expectedDiff:    5,
+		},
+		{
+			name:            "subtract",
+			startBalance:    10,
+			operation:       "subtract",
+			amount:          4,
+			expectedBalance: 6,
+			expectedDiff:    -4,
+		},
+		{
+			name:            "set",
+			startBalance:    10,
+			operation:       "set",
+			amount:          7,
+			expectedBalance: 7,
+			expectedDiff:    -3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			baseRepo := &userRepoStub{user: &User{ID: 7, Balance: tt.startBalance}}
+			repo := &balanceUserRepoStub{userRepoStub: baseRepo}
+			redeemRepo := &balanceRedeemRepoStub{redeemRepoStub: &redeemRepoStub{}}
+			invalidator := &authCacheInvalidatorStub{}
+			svc := &adminServiceImpl{
+				userRepo:             repo,
+				redeemCodeRepo:       redeemRepo,
+				authCacheInvalidator: invalidator,
+			}
+
+			user, err := svc.UpdateUserBalance(context.Background(), 7, tt.amount, tt.operation, "operator=admin:99")
+
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedBalance, user.Balance)
+			require.Equal(t, []int64{7}, invalidator.userIDs)
+			require.Len(t, repo.updated, 1)
+			require.Equal(t, tt.expectedBalance, repo.updated[0].Balance)
+			require.Len(t, redeemRepo.created, 1)
+			adjustment := redeemRepo.created[0]
+			require.NotEmpty(t, adjustment.Code)
+			require.Equal(t, AdjustmentTypeAdminBalance, adjustment.Type)
+			require.Equal(t, tt.expectedDiff, adjustment.Value)
+			require.Equal(t, StatusUsed, adjustment.Status)
+			require.NotNil(t, adjustment.UsedBy)
+			require.Equal(t, int64(7), *adjustment.UsedBy)
+			require.Equal(t, "operator=admin:99", adjustment.Notes)
+			require.NotNil(t, adjustment.UsedAt)
+		})
+	}
+}
+
+func TestAdminService_UpdateUserBalance_RejectsNegativeResultWithoutPersistence(t *testing.T) {
+	baseRepo := &userRepoStub{user: &User{ID: 7, Balance: 10}}
+	repo := &balanceUserRepoStub{userRepoStub: baseRepo}
+	redeemRepo := &balanceRedeemRepoStub{redeemRepoStub: &redeemRepoStub{}}
+	invalidator := &authCacheInvalidatorStub{}
+	svc := &adminServiceImpl{
+		userRepo:             repo,
+		redeemCodeRepo:       redeemRepo,
+		authCacheInvalidator: invalidator,
+	}
+
+	_, err := svc.UpdateUserBalance(context.Background(), 7, 15, "subtract", "operator=admin:99")
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "balance cannot be negative")
+	require.Empty(t, repo.updated)
+	require.Empty(t, redeemRepo.created)
+	require.Empty(t, invalidator.userIDs)
+}
+
 func TestAdminService_UpdateUserBalance_NoChangeNoInvalidate(t *testing.T) {
 	baseRepo := &userRepoStub{user: &User{ID: 7, Balance: 10}}
 	repo := &balanceUserRepoStub{userRepoStub: baseRepo}
