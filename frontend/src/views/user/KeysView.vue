@@ -1155,7 +1155,7 @@
     <UseKeyModal
       :show="showUseKeyModal"
       :api-key="selectedKeyUsableApiKey"
-      :base-url="publicSettings?.api_base_url || ''"
+      :base-url="apiBaseUrl"
       :platform="selectedKey?.group?.platform || null"
       :allowed-models="selectedKey?.allowed_models || []"
       :allow-messages-dispatch="selectedKey?.group?.allow_messages_dispatch || false"
@@ -2066,7 +2066,7 @@ const importToCcswitch = (row: ApiKey) => {
 }
 
 const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
-  const baseUrl = publicSettings.value?.api_base_url || window.location.origin
+  const baseUrl = apiBaseUrl.value
   const platform = row.group?.platform || 'anthropic'
 
   // Determine app name and endpoint based on platform and client type
