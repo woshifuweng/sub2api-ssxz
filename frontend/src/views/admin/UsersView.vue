@@ -527,6 +527,24 @@
                 {{ t('admin.users.apiKeys') }}
               </button>
 
+              <!-- View Usage -->
+              <button
+                @click="handleViewUsage(user); closeActionMenu()"
+                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+              >
+                <Icon name="eye" size="sm" class="text-gray-400" :stroke-width="2" />
+                {{ t('common.view') }} {{ t('admin.usage.title') }}
+              </button>
+
+              <!-- View Orders -->
+              <button
+                @click="handleViewOrders(user); closeActionMenu()"
+                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+              >
+                <Icon name="eye" size="sm" class="text-gray-400" :stroke-width="2" />
+                {{ t('payment.result.viewOrders') }}
+              </button>
+
               <!-- Allowed Groups -->
               <button
                 @click="handleAllowedGroups(user); closeActionMenu()"
@@ -599,12 +617,14 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { formatDateTime } from '@/utils/format'
 import Icon from '@/components/icons/Icon.vue'
 
 const { t } = useI18n()
+const router = useRouter()
 import { adminAPI } from '@/api/admin'
 import type { AdminUser, AdminGroup, UserAttributeDefinition } from '@/types'
 import type { BatchUserUsageStats } from '@/api/admin/dashboard'
@@ -1258,6 +1278,20 @@ const handleToggleStatus = async (user: AdminUser) => {
 const handleViewApiKeys = (user: AdminUser) => {
   viewingUser.value = user
   showApiKeysModal.value = true
+}
+
+const handleViewUsage = (user: AdminUser) => {
+  void router.push({
+    path: '/admin/usage',
+    query: { user_id: String(user.id) }
+  })
+}
+
+const handleViewOrders = (user: AdminUser) => {
+  void router.push({
+    path: '/admin/orders',
+    query: { user_id: String(user.id) }
+  })
 }
 
 const closeApiKeysModal = () => {

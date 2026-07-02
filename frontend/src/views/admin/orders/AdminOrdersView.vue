@@ -16,6 +16,12 @@
             </button>
           </div>
         </div>
+        <div v-if="userIdFilter" class="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-primary-50 px-3 py-2 text-sm text-primary-700 dark:bg-primary-900/20 dark:text-primary-300">
+          <span>当前仅查看用户 #{{ userIdFilter }} 的订单</span>
+          <button type="button" class="rounded-md px-2 py-1 text-xs font-medium hover:bg-primary-100 dark:hover:bg-primary-900/40" @click="clearUserFilter">
+            {{ t('common.reset') }}
+          </button>
+        </div>
       </div>
 
       <!-- Table -->
@@ -71,6 +77,14 @@
           <div v-if="selectedOrder.paid_at"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.paidAt') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ formatDateTime(selectedOrder.paid_at) }}</p></div>
           <div v-if="selectedOrder.refund_amount"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.refundAmount') }}</p><p class="text-sm font-medium text-red-600 dark:text-red-400">{{ selectedOrder.order_type === 'balance' ? '$' : '¥' }}{{ selectedOrder.refund_amount.toFixed(2) }}</p></div>
           <div v-if="selectedOrder.refund_reason" class="col-span-2"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.refundReason') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ selectedOrder.refund_reason }}</p></div>
+          <div class="col-span-2 flex flex-wrap gap-2 border-t border-gray-200 pt-3 dark:border-dark-600">
+            <button type="button" class="btn btn-secondary btn-sm" @click="goToUserUsage(selectedOrder.user_id)">
+              {{ t('common.view') }} {{ t('admin.usage.title') }}
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" @click="goToUserOrders(selectedOrder.user_id)">
+              {{ t('payment.result.viewOrders') }}
+            </button>
+          </div>
           <!-- Refund request info -->
           <div v-if="selectedOrder.refund_requested_at" class="col-span-2 border-t border-gray-200 pt-3 dark:border-dark-600">
             <p class="mb-2 text-xs font-medium text-purple-600 dark:text-purple-400">{{ t('payment.admin.refundRequestInfo') }}</p>
@@ -112,8 +126,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { adminPaymentAPI } from '@/api/admin/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
@@ -138,6 +153,8 @@ interface AuditLog {
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const route = useRoute()
+const router = useRouter()
 
 const ordersLoading = ref(false)
 const orders = ref<PaymentOrder[]>([])
@@ -149,6 +166,18 @@ const showDetailDialog = ref(false)
 const showRefundDialog = ref(false)
 const refundSubmitting = ref(false)
 const orderAuditLogs = ref<AuditLog[]>([])
+
+const getSingleQueryValue = (value: string | null | Array<string | null> | undefined): string | undefined => {
+  if (Array.isArray(value)) return value.find((item): item is string => typeof item === 'string' && item.length > 0)
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+const userIdFilter = computed(() => {
+  const raw = getSingleQueryValue(route.query.user_id)
+  if (!raw) return undefined
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+})
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 function debounceLoadOrders() {
@@ -163,6 +192,7 @@ async function loadOrders() {
       page: orderPagination.page, page_size: orderPagination.page_size,
       keyword: orderSearch.value || undefined, status: orderFilters.status || undefined,
       payment_type: orderFilters.payment_type || undefined, order_type: orderFilters.order_type || undefined,
+      user_id: userIdFilter.value,
     })
     orders.value = res.data.items || []
     orderPagination.total = res.data.total || 0
@@ -173,6 +203,25 @@ async function loadOrders() {
 
 function handleOrderPageChange(page: number) { orderPagination.page = page; loadOrders() }
 function handleOrderPageSizeChange(size: number) { orderPagination.page_size = size; orderPagination.page = 1; loadOrders() }
+
+function clearUserFilter() {
+  const { user_id: _userId, ...query } = route.query
+  void router.push({ path: '/admin/orders', query })
+}
+
+function goToUserUsage(userId: number) {
+  void router.push({
+    path: '/admin/usage',
+    query: { user_id: String(userId) }
+  })
+}
+
+function goToUserOrders(userId: number) {
+  void router.push({
+    path: '/admin/orders',
+    query: { user_id: String(userId) }
+  })
+}
 
 const statusFilterOptions = computed(() => [
   { value: '', label: t('payment.admin.allStatuses') },
@@ -237,4 +286,9 @@ async function handleRefund(data: { amount: number; reason: string; deduct_balan
 function formatDateTime(dateStr: string): string { return formatOrderDateTime(dateStr) }
 
 onMounted(() => loadOrders())
+
+watch(userIdFilter, () => {
+  orderPagination.page = 1
+  loadOrders()
+})
 </script>
