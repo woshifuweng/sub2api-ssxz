@@ -976,7 +976,7 @@ export default {
     codeRule3: 'Contact support if you have issues redeeming a code',
     codeRule4: 'Balance and concurrency updates are immediate',
     recentActivity: 'Recent Activity',
-    historyWillAppear: 'Your redemption history will appear here',
+    historyWillAppear: 'Successful balance, concurrency, or subscription redemptions will appear here.',
     balanceAddedRedeem: 'Balance Added (Redeem)',
     balanceAddedAdmin: 'Balance Added (Admin)',
     balanceDeductedAdmin: 'Balance Deducted (Admin)',

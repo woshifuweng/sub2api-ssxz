@@ -979,7 +979,7 @@ export default {
     codeRule3: '如有兑换问题，请联系客服',
     codeRule4: '余额和并发数即时更新',
     recentActivity: '最近活动',
-    historyWillAppear: '您的兑换历史将显示在这里',
+    historyWillAppear: '兑换成功后，余额、并发或订阅变动会显示在这里。',
     balanceAddedRedeem: '余额充值（兑换）',
     balanceAddedAdmin: '余额充值（管理员）',
     balanceDeductedAdmin: '余额扣除（管理员）',

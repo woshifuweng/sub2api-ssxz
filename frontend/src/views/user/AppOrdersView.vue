@@ -80,6 +80,10 @@
           <Icon name="inbox" size="md" />
           <strong>暂无订单记录</strong>
           <span>完成充值或购买订阅后，订单会显示在这里。</span>
+          <div class="empty-actions">
+            <RouterLink to="/app/purchase" class="empty-action">去充值</RouterLink>
+            <RouterLink to="/app/redeem" class="empty-action secondary">使用兑换码</RouterLink>
+          </div>
         </div>
 
         <div v-else class="orders-table-wrap">
@@ -473,6 +477,18 @@ function formatPaymentType(type: string) {
   font-weight: 850;
   padding: 0 0.9rem;
   text-decoration: none;
+}
+
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.55rem;
+}
+
+.empty-action.secondary {
+  background: color-mix(in srgb, var(--ssxz-action) 12%, transparent);
+  color: var(--ssxz-action);
 }
 
 .orders-panel {

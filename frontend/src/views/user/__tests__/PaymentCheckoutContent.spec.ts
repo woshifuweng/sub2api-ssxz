@@ -207,15 +207,19 @@ describe('PaymentCheckoutContent', () => {
     expect(paymentAPI.getCheckoutInfo).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps legacy shortcuts for the legacy purchase route', async () => {
+  it('uses app-shell shortcuts for the legacy purchase content', async () => {
     const wrapper = mountContent()
     await flushPromises()
 
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
-    expect(hrefs).toContain('/usage')
-    expect(hrefs).toContain('/available-channels')
-    expect(hrefs).toContain('/redeem')
-    expect(hrefs).toContain('/keys')
+    expect(hrefs).toContain('/app/usage')
+    expect(hrefs).toContain('/app/channel-status')
+    expect(hrefs).toContain('/app/redeem')
+    expect(hrefs).toContain('/app/keys')
+    expect(hrefs).not.toContain('/usage')
+    expect(hrefs).not.toContain('/available-channels')
+    expect(hrefs).not.toContain('/redeem')
+    expect(hrefs).not.toContain('/keys')
   })
 
   it('does not expose create-order actions when checkout has no payment methods or plans', async () => {
