@@ -26,8 +26,15 @@ describe('API Key third-party access locale copy', () => {
       zh.keys.createdKeyReveal.modelHint,
       zh.keys.fullKeyRequiredForImport,
       zh.keys.useKeyModal.fullKeyMissingDescription,
+      zh.keys.useKeyModal.statusWarning.inactiveDescription,
+      zh.keys.useKeyModal.statusWarning.expiredDescription,
+      zh.keys.useKeyModal.statusWarning.quotaExhaustedDescription,
       zh.keys.useKeyModal.thirdParty.apiKeyHint,
       zh.keys.useKeyModal.thirdParty.modelsEndpointLabel,
+      zh.keys.useKeyModal.thirdParty.connectionChecklistBaseUrl,
+      zh.keys.useKeyModal.thirdParty.connectionChecklistFullKey,
+      zh.keys.useKeyModal.thirdParty.connectionChecklistModels,
+      zh.keys.useKeyModal.thirdParty.connectionChecklistBalance,
       zh.keys.useKeyModal.thirdParty.securityNote,
       zh.keys.useKeyModal.thirdParty.ccSwitchFields.baseUrl,
       zh.keys.useKeyModal.thirdParty.ccSwitchFields.apiKey,
@@ -46,6 +53,10 @@ describe('API Key third-party access locale copy', () => {
     expect(copy).toContain('脱敏值')
     expect(copy).toContain('新建')
     expect(copy).toContain('后台开放配置')
+    expect(copy).toContain('状态')
+    expect(copy).toContain('账户余额')
+    expect(copy).toContain('额度')
+    expect(copy).toContain('provider 地址')
     expect(copy).toContain('服务商类型')
     expect(copy).toContain('API Host')
     expect(copy).toContain('Authorization: Bearer')
@@ -76,8 +87,15 @@ describe('API Key third-party access locale copy', () => {
       en.keys.createdKeyReveal.modelHint,
       en.keys.fullKeyRequiredForImport,
       en.keys.useKeyModal.fullKeyMissingDescription,
+      en.keys.useKeyModal.statusWarning.inactiveDescription,
+      en.keys.useKeyModal.statusWarning.expiredDescription,
+      en.keys.useKeyModal.statusWarning.quotaExhaustedDescription,
       en.keys.useKeyModal.thirdParty.apiKeyHint,
       en.keys.useKeyModal.thirdParty.modelsEndpointLabel,
+      en.keys.useKeyModal.thirdParty.connectionChecklistBaseUrl,
+      en.keys.useKeyModal.thirdParty.connectionChecklistFullKey,
+      en.keys.useKeyModal.thirdParty.connectionChecklistModels,
+      en.keys.useKeyModal.thirdParty.connectionChecklistBalance,
       en.keys.useKeyModal.thirdParty.securityNote,
       en.keys.useKeyModal.thirdParty.ccSwitchFields.baseUrl,
       en.keys.useKeyModal.thirdParty.ccSwitchFields.apiKey,
@@ -96,6 +114,10 @@ describe('API Key third-party access locale copy', () => {
     expect(copy).toContain('masked')
     expect(copy).toContain('create a new API Key')
     expect(copy).toContain('admin model configuration')
+    expect(copy).toContain('status')
+    expect(copy).toContain('account balance')
+    expect(copy).toContain('quota')
+    expect(copy).toContain('upstream provider URL')
     expect(copy).toContain('Model list check')
     expect(copy).toContain('Provider type')
     expect(copy).toContain('API Host')

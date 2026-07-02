@@ -45,10 +45,38 @@ describe('UseKeyModal', () => {
     expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.ccSwitchFields.baseUrl')
     expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.cherryStudioFields.provider')
     expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.chatboxFields.apiHost')
+    expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.connectionChecklistTitle')
+    expect(wrapper.find('[data-testid="third-party-connection-checklist"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.securityNote')
     expect(wrapper.text()).toContain('https://example.com/v1')
     expect(wrapper.text()).toContain('https://example.com/v1/models')
     expect(wrapper.find('pre code').exists()).toBe(false)
+  })
+
+  it('warns when the key cannot currently be used by clients', () => {
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-test',
+        baseUrl: 'https://example.com',
+        platform: 'openai',
+        keyStatus: 'quota_exhausted'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    expect(wrapper.find('[data-testid="key-status-warning"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('keys.useKeyModal.statusWarning.quotaExhaustedTitle')
+    expect(wrapper.text()).toContain('keys.useKeyModal.statusWarning.quotaExhaustedDescription')
   })
 
   it('does not duplicate v1 in third-party connection guidance', () => {

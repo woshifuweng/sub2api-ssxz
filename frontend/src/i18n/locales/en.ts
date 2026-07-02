@@ -642,7 +642,8 @@ export default {
     total: 'Last 30d',
     quota: 'Quota',
     lastUsedAt: 'Last Used',
-    useKey: 'Use Key',
+    useKey: 'Connection guide',
+    connectionGuideTitle: 'View third-party client connection guide',
     useKeyModal: {
       title: 'Use API Key',
       description:
@@ -655,6 +656,14 @@ export default {
       fullKeyMissingTitle: 'The full API Key is no longer visible',
       fullKeyMissingDescription:
         'The list only keeps a masked value and cannot generate ready-to-use CLI configuration. Use the full key saved when it was created, or create a new API Key if it is lost.',
+      statusWarning: {
+        inactiveTitle: 'This API Key is currently disabled',
+        inactiveDescription: 'Third-party clients using this key will stop working. Enable this key first, or create a new key and update the client configuration.',
+        expiredTitle: 'This API Key is currently expired',
+        expiredDescription: 'Third-party clients will fail authentication. Edit the expiration date or create a new key, then replace the old key in your clients.',
+        quotaExhaustedTitle: 'This API Key quota is exhausted',
+        quotaExhaustedDescription: 'The backend will reject more calls from third-party clients. Increase the key quota, reset usage, or create a new key with a controlled quota.',
+      },
       openai: {
         description: 'Add the following configuration files to your Codex CLI config directory.',
         configTomlHint: 'Make sure the following content is at the beginning of the config.toml file',
@@ -684,6 +693,11 @@ export default {
         modelLabel: 'Model',
         modelHint: 'Use models enabled for the current group in the admin configuration.',
         modelsEndpointLabel: 'Model list check',
+        connectionChecklistTitle: 'Before connecting',
+        connectionChecklistBaseUrl: 'Base URL must be this site plus /v1, not an upstream provider URL.',
+        connectionChecklistFullKey: 'API Key must be the full value saved from the creation dialog; the masked list value cannot connect.',
+        connectionChecklistModels: 'If the client model list is empty, check whether /v1/models returns models for the current group.',
+        connectionChecklistBalance: 'If requests fail, check key status, group permission, account balance, quota, and usage records.',
         securityNote:
           'Prefer Authorization: Bearer or x-api-key headers. Do not put API keys in URLs unless a client only supports query keys; browsers, proxies, or server logs may record full URLs. Only save the full API Key in clients you trust. Do not send it to others or share screenshots containing it.',
         ccSwitchFields: {
