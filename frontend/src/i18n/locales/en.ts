@@ -260,6 +260,7 @@ export default {
     cancel: 'Cancel',
     delete: 'Delete',
     edit: 'Edit',
+    view: 'View',
     create: 'Create',
     update: 'Update',
     confirm: 'Confirm',
