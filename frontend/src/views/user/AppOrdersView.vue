@@ -37,10 +37,25 @@
             <h3>订单明细</h3>
             <p>查看订单金额、支付方式和当前状态。</p>
           </div>
-          <button type="button" class="refresh-button" :disabled="loading" @click="loadOrders">
-            <Icon name="refresh" size="xs" />
-            刷新
-          </button>
+          <div class="orders-toolbar">
+            <label class="status-filter-label" for="app-order-status-filter">状态</label>
+            <select
+              id="app-order-status-filter"
+              v-model="currentFilter"
+              class="status-filter"
+              data-testid="status-filter"
+              :disabled="loading"
+              @change="handleFilterChange"
+            >
+              <option v-for="option in statusFilters" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+            <button type="button" class="refresh-button" :disabled="loading" @click="loadOrders">
+              <Icon name="refresh" size="xs" />
+              刷新
+            </button>
+          </div>
         </header>
 
         <div v-if="!paymentEnabled" class="orders-empty">
@@ -77,6 +92,7 @@
                 <th>支付方式</th>
                 <th>状态</th>
                 <th>订单号</th>
+                <th>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -87,21 +103,133 @@
                 <td>{{ formatPaymentType(order.payment_type) }}</td>
                 <td><OrderStatusBadge :status="order.status" /></td>
                 <td class="order-no">{{ order.out_trade_no || `#${order.id}` }}</td>
+                <td>
+                  <div class="order-actions">
+                    <button
+                      v-if="order.status === 'PENDING'"
+                      type="button"
+                      class="text-action warning"
+                      :data-testid="`cancel-order-${order.id}`"
+                      @click="openCancelDialog(order.id)"
+                    >
+                      取消订单
+                    </button>
+                    <button
+                      v-if="canRequestRefund(order)"
+                      type="button"
+                      class="text-action"
+                      :data-testid="`request-refund-${order.id}`"
+                      @click="openRefundDialog(order)"
+                    >
+                      申请退款
+                    </button>
+                    <span v-if="order.status !== 'PENDING' && !canRequestRefund(order)" class="muted-action">
+                      -
+                    </span>
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
+
+        <footer v-if="paymentEnabled && totalOrders > 0" class="pagination-row">
+          <span>第 {{ pagination.page }} / {{ totalPages }} 页，共 {{ totalOrders }} 条</span>
+          <div>
+            <button
+              type="button"
+              class="page-button"
+              data-testid="prev-page"
+              :disabled="loading || pagination.page <= 1"
+              @click="handlePageChange(pagination.page - 1)"
+            >
+              上一页
+            </button>
+            <button
+              type="button"
+              class="page-button"
+              data-testid="next-page"
+              :disabled="loading || pagination.page >= totalPages"
+              @click="handlePageChange(pagination.page + 1)"
+            >
+              下一页
+            </button>
+          </div>
+        </footer>
       </section>
     </section>
+
+    <template v-if="paymentEnabled">
+      <BaseDialog :show="cancelTargetId !== null" title="确认取消订单" width="narrow" @close="cancelTargetId = null">
+        <p class="dialog-copy">取消后该订单不会继续等待支付。如仍需充值，请重新创建订单。</p>
+        <template #footer>
+          <div class="dialog-actions">
+            <button type="button" class="secondary-button" :disabled="actionLoading" @click="cancelTargetId = null">
+              关闭
+            </button>
+            <button
+              type="button"
+              class="danger-button"
+              data-testid="confirm-cancel-order"
+              :disabled="actionLoading"
+              @click="confirmCancel"
+            >
+              {{ actionLoading ? '处理中' : '确认取消' }}
+            </button>
+          </div>
+        </template>
+      </BaseDialog>
+
+      <BaseDialog :show="refundTarget !== null" title="申请退款" @close="refundTarget = null">
+        <div class="refund-dialog" v-if="refundTarget">
+          <dl class="refund-summary">
+            <div>
+              <dt>订单号</dt>
+              <dd>{{ refundTarget.out_trade_no || `#${refundTarget.id}` }}</dd>
+            </div>
+            <div>
+              <dt>金额</dt>
+              <dd>{{ formatOrderAmount(refundTarget) }}</dd>
+            </div>
+          </dl>
+          <label class="refund-label" for="app-refund-reason">退款原因</label>
+          <textarea
+            id="app-refund-reason"
+            v-model="refundReason"
+            class="refund-textarea"
+            data-testid="refund-reason"
+            rows="3"
+            placeholder="请填写退款原因，方便管理员处理。"
+          />
+        </div>
+        <template #footer>
+          <div class="dialog-actions">
+            <button type="button" class="secondary-button" :disabled="actionLoading" @click="refundTarget = null">
+              关闭
+            </button>
+            <button
+              type="button"
+              class="primary-button"
+              data-testid="confirm-refund-request"
+              :disabled="actionLoading || !refundReason.trim()"
+              @click="confirmRefund"
+            >
+              {{ actionLoading ? '处理中' : '提交申请' }}
+            </button>
+          </div>
+        </template>
+      </BaseDialog>
+    </template>
   </AppSectionShell>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import { paymentAPI } from '@/api/payment'
 import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
@@ -111,13 +239,28 @@ const appStore = useAppStore()
 const authStore = useAuthStore()
 
 const loading = ref(false)
+const actionLoading = ref(false)
 const loadError = ref('')
 const orders = ref<PaymentOrder[]>([])
 const totalOrders = ref(0)
+const currentFilter = ref('')
+const refundEligibleProviders = ref<Set<string>>(new Set())
+const cancelTargetId = ref<number | null>(null)
+const refundTarget = ref<PaymentOrder | null>(null)
+const refundReason = ref('')
+const pagination = reactive({ page: 1, page_size: 10, total: 0 })
 
 const paymentEnabled = computed(() => !!appStore.cachedPublicSettings?.payment_enabled)
 const balanceText = computed(() => `$${Number(authStore.user?.balance || 0).toFixed(2)}`)
 const orderCountText = computed(() => String(totalOrders.value || orders.value.length))
+const totalPages = computed(() => Math.max(1, Math.ceil(totalOrders.value / pagination.page_size)))
+const statusFilters = [
+  { value: '', label: '全部状态' },
+  { value: 'PENDING', label: '待支付' },
+  { value: 'COMPLETED', label: '已完成' },
+  { value: 'FAILED', label: '失败' },
+  { value: 'REFUNDED', label: '已退款' }
+]
 
 let ordersBootstrapped = false
 
@@ -125,6 +268,7 @@ watch(paymentEnabled, (enabled) => {
   if (!enabled || ordersBootstrapped) return
   ordersBootstrapped = true
   void loadOrders()
+  void loadRefundEligibility()
 }, { immediate: true })
 
 async function loadOrders() {
@@ -132,16 +276,92 @@ async function loadOrders() {
   loading.value = true
   loadError.value = ''
   try {
-    const response = await paymentAPI.getMyOrders({ page: 1, page_size: 10 })
+    const params: { page: number; page_size: number; status?: string } = {
+      page: pagination.page,
+      page_size: pagination.page_size
+    }
+    if (currentFilter.value) params.status = currentFilter.value
+    const response = await paymentAPI.getMyOrders(params)
     orders.value = Array.isArray(response.data.items) ? response.data.items : []
     totalOrders.value = Number(response.data.total || orders.value.length || 0)
+    pagination.total = totalOrders.value
   } catch {
     orders.value = []
     totalOrders.value = 0
+    pagination.total = 0
     loadError.value = '订单记录暂时无法加载'
   } finally {
     loading.value = false
   }
+}
+
+async function loadRefundEligibility() {
+  if (!paymentEnabled.value) return
+  try {
+    const response = await paymentAPI.getRefundEligibleProviders()
+    refundEligibleProviders.value = new Set(response.data.provider_instance_ids || [])
+  } catch {
+    refundEligibleProviders.value = new Set()
+  }
+}
+
+function handleFilterChange() {
+  pagination.page = 1
+  void loadOrders()
+}
+
+function handlePageChange(page: number) {
+  if (!paymentEnabled.value) return
+  if (page < 1 || page > totalPages.value) return
+  pagination.page = page
+  void loadOrders()
+}
+
+function openCancelDialog(orderId: number) {
+  cancelTargetId.value = orderId
+}
+
+async function confirmCancel() {
+  if (!paymentEnabled.value || cancelTargetId.value === null) return
+  actionLoading.value = true
+  try {
+    await paymentAPI.cancelOrder(cancelTargetId.value)
+    appStore.showSuccess('订单已取消')
+    cancelTargetId.value = null
+    await loadOrders()
+  } catch {
+    appStore.showError('取消订单失败，请稍后重试')
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+function openRefundDialog(order: PaymentOrder) {
+  refundTarget.value = order
+  refundReason.value = ''
+}
+
+async function confirmRefund() {
+  if (!paymentEnabled.value || !refundTarget.value || !refundReason.value.trim()) return
+  actionLoading.value = true
+  try {
+    await paymentAPI.requestRefund(refundTarget.value.id, { reason: refundReason.value.trim() })
+    appStore.showSuccess('退款申请已提交')
+    refundTarget.value = null
+    refundReason.value = ''
+    await loadOrders()
+  } catch {
+    appStore.showError('退款申请提交失败，请稍后重试')
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+function canRequestRefund(order: PaymentOrder) {
+  if (!paymentEnabled.value) return false
+  if (order.status !== 'COMPLETED') return false
+  if (!order.provider_instance_id) return false
+  return refundEligibleProviders.value.has(order.provider_instance_id)
 }
 
 function formatDateTime(value: string) {
@@ -163,8 +383,12 @@ function formatOrderType(type: PaymentOrder['order_type']) {
 }
 
 function formatOrderAmount(order: PaymentOrder) {
-  const amount = Number(order.pay_amount || order.amount || 0)
-  return `¥${amount.toFixed(2)}`
+  const payAmount = Number(order.pay_amount || order.amount || 0)
+  const accountAmount = Number(order.amount || 0)
+  if (order.order_type === 'balance') {
+    return `支付 ¥${payAmount.toFixed(2)}，到账 $${accountAmount.toFixed(2)} 额度`
+  }
+  return `支付 ¥${payAmount.toFixed(2)}`
 }
 
 function formatPaymentType(type: string) {
@@ -279,6 +503,31 @@ function formatPaymentType(type: string) {
   line-height: 1.55;
 }
 
+.orders-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.status-filter-label {
+  color: var(--ssxz-text-muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.status-filter {
+  min-height: 2.25rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 0.7rem;
+  background: var(--ssxz-surface-subtle);
+  color: var(--ssxz-text-secondary);
+  font-size: 0.82rem;
+  font-weight: 750;
+  padding: 0 0.65rem;
+}
+
 .refresh-button {
   display: inline-flex;
   min-height: 2.25rem;
@@ -336,7 +585,7 @@ function formatPaymentType(type: string) {
 
 .orders-table {
   width: 100%;
-  min-width: 48rem;
+  min-width: 58rem;
   border-collapse: collapse;
 }
 
@@ -366,6 +615,151 @@ function formatPaymentType(type: string) {
   text-overflow: ellipsis;
 }
 
+.order-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.text-action {
+  border: 0;
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--ssxz-action-soft) 74%, transparent);
+  color: var(--ssxz-action);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 850;
+  padding: 0.35rem 0.5rem;
+}
+
+.text-action.warning {
+  background: color-mix(in srgb, #f59e0b 16%, transparent);
+  color: #b45309;
+}
+
+.muted-action {
+  color: var(--ssxz-text-muted);
+}
+
+.pagination-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  color: var(--ssxz-text-secondary);
+  font-size: 0.82rem;
+}
+
+.pagination-row > div {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.page-button,
+.secondary-button,
+.danger-button,
+.primary-button {
+  min-height: 2.25rem;
+  border-radius: 0.7rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 850;
+  padding: 0 0.8rem;
+}
+
+.page-button,
+.secondary-button {
+  border: 1px solid var(--ssxz-border);
+  background: var(--ssxz-surface-subtle);
+  color: var(--ssxz-text-secondary);
+}
+
+.danger-button {
+  border: 1px solid color-mix(in srgb, #dc2626 32%, transparent);
+  background: color-mix(in srgb, #dc2626 12%, var(--ssxz-surface));
+  color: #b91c1c;
+}
+
+.primary-button {
+  border: 1px solid transparent;
+  background: var(--ssxz-action);
+  color: var(--ssxz-action-text);
+}
+
+.page-button:disabled,
+.secondary-button:disabled,
+.danger-button:disabled,
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.dialog-copy {
+  margin: 0;
+  color: var(--ssxz-text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.refund-dialog {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.refund-summary {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  border-radius: 0.85rem;
+  background: var(--ssxz-surface-subtle);
+  padding: 0.85rem;
+}
+
+.refund-summary div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.refund-summary dt {
+  color: var(--ssxz-text-muted);
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.refund-summary dd {
+  margin: 0;
+  color: var(--ssxz-text-primary);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.refund-label {
+  color: var(--ssxz-text-primary);
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+.refund-textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 0.8rem;
+  background: var(--ssxz-surface);
+  color: var(--ssxz-text-primary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  padding: 0.75rem;
+}
+
 @media (max-width: 860px) {
   .orders-summary-grid {
     grid-template-columns: 1fr;
@@ -381,6 +775,10 @@ function formatPaymentType(type: string) {
 
   .panel-heading {
     display: grid;
+  }
+
+  .orders-toolbar {
+    justify-content: flex-start;
   }
 }
 </style>
