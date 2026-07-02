@@ -349,13 +349,13 @@ const isWorkspaceVariant = computed(() => props.variant === 'workspace')
 const quickLinks = computed(() => {
   const items: QuickLink[] = [
     {
-      to: isWorkspaceVariant.value ? '/app/usage' : '/usage',
+      to: '/app/usage',
       icon: 'chart',
       title: '用量明细',
       description: '查看每次消费'
     },
     {
-      to: isWorkspaceVariant.value ? '/app/keys' : '/keys',
+      to: '/app/keys',
       icon: 'key',
       title: 'API Key',
       description: '第三方接入'
@@ -365,13 +365,13 @@ const quickLinks = computed(() => {
   if (!isWorkspaceVariant.value) {
     items.splice(1, 0,
       {
-        to: '/available-channels',
+        to: '/app/channel-status',
         icon: 'server',
-        title: '可用模型',
-        description: '查看价格和能力'
+        title: '通道状态',
+        description: '查看可用率和状态'
       },
       {
-        to: '/redeem',
+        to: '/app/redeem',
         icon: 'gift',
         title: '兑换额度',
         description: '使用兑换码'
