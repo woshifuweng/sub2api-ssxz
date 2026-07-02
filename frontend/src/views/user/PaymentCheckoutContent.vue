@@ -309,7 +309,7 @@ import { useAppStore } from '@/stores'
 import { paymentAPI } from '@/api/payment'
 import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
 import { isMobileDevice } from '@/utils/device'
-import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types/payment'
+import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderRequest, CreateOrderResult, OrderType } from '@/types/payment'
 import AmountInput from '@/components/payment/AmountInput.vue'
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
 import { METHOD_ORDER, getPaymentPopupFeatures } from '@/components/payment/providerConfig'
@@ -409,6 +409,7 @@ const selectedPlan = ref<SubscriptionPlan | null>(null)
 const previewImage = ref('')
 
 const paymentPhase = ref<'select' | 'paying'>('select')
+const pendingCreateOrderIdempotency = ref<{ fingerprint: string; key: string } | null>(null)
 
 interface CreateOrderOptions {
   openid?: string
@@ -446,6 +447,52 @@ function emptyPaymentState(): PaymentRecoverySnapshot {
 
 function getWeixinJSBridge(): WeixinJSBridgeLike | undefined {
   return (window as Window & { WeixinJSBridge?: WeixinJSBridgeLike }).WeixinJSBridge
+}
+
+function normalizeIdempotencyValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(normalizeIdempotencyValue)
+  }
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+      const item = (value as Record<string, unknown>)[key]
+      if (item !== undefined) {
+        out[key] = normalizeIdempotencyValue(item)
+      }
+    }
+    return out
+  }
+  return value
+}
+
+function createOrderFingerprint(payload: CreateOrderRequest): string {
+  return JSON.stringify(normalizeIdempotencyValue(payload))
+}
+
+function generateCreateOrderIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `payment-order-${crypto.randomUUID()}`
+  }
+  return `payment-order-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function getCreateOrderIdempotencyKey(payload: CreateOrderRequest): string {
+  const fingerprint = createOrderFingerprint(payload)
+  if (!pendingCreateOrderIdempotency.value || pendingCreateOrderIdempotency.value.fingerprint !== fingerprint) {
+    pendingCreateOrderIdempotency.value = {
+      fingerprint,
+      key: generateCreateOrderIdempotencyKey(),
+    }
+  }
+  return pendingCreateOrderIdempotency.value.key
+}
+
+function clearCreateOrderIdempotencyKey(payload: CreateOrderRequest) {
+  const fingerprint = createOrderFingerprint(payload)
+  if (pendingCreateOrderIdempotency.value?.fingerprint === fingerprint) {
+    pendingCreateOrderIdempotency.value = null
+  }
 }
 
 function waitForWeixinJSBridge(timeoutMs = 4000): Promise<WeixinJSBridgeLike | null> {
@@ -800,7 +847,9 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       payload.wechat_resume_token = options.wechatResumeToken
     }
 
-    const result = await paymentStore.createOrder(payload) as CreateOrderResult & { resume_token?: string }
+    const idempotencyKey = getCreateOrderIdempotencyKey(payload)
+    const result = await paymentStore.createOrder(payload, { idempotencyKey }) as CreateOrderResult & { resume_token?: string }
+    clearCreateOrderIdempotencyKey(payload)
     const openWindow = (url: string) => {
       const win = window.open(url, 'paymentPopup', getPaymentPopupFeatures())
       if (!win || win.closed) {
@@ -1000,7 +1049,9 @@ async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackCo
       isMobile: false,
       isWechatBrowser: false,
     })
-    const result = await paymentStore.createOrder(payload) as CreateOrderResult & { resume_token?: string }
+    const idempotencyKey = getCreateOrderIdempotencyKey(payload)
+    const result = await paymentStore.createOrder(payload, { idempotencyKey }) as CreateOrderResult & { resume_token?: string }
+    clearCreateOrderIdempotencyKey(payload)
     const stripeMethod = visibleMethod === 'stripe'
       ? ''
       : visibleMethod === 'wxpay' ? 'wechat_pay' : 'alipay'

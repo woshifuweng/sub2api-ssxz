@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -21,18 +22,25 @@ import (
 
 // PaymentHandler handles user-facing payment requests.
 type PaymentHandler struct {
-	channelService *service.ChannelService
-	paymentService *service.PaymentService
-	configService  *service.PaymentConfigService
+	channelService                  *service.ChannelService
+	paymentService                  *service.PaymentService
+	configService                   *service.PaymentConfigService
+	createOrderFn                   func(context.Context, service.CreateOrderRequest) (*service.CreateOrderResponse, error)
+	parseWeChatPaymentResumeTokenFn func(string) (*service.WeChatPaymentResumeClaims, error)
 }
 
 // NewPaymentHandler creates a new PaymentHandler.
 func NewPaymentHandler(paymentService *service.PaymentService, configService *service.PaymentConfigService, channelService *service.ChannelService) *PaymentHandler {
-	return &PaymentHandler{
+	h := &PaymentHandler{
 		channelService: channelService,
 		paymentService: paymentService,
 		configService:  configService,
 	}
+	if paymentService != nil {
+		h.createOrderFn = paymentService.CreateOrder
+		h.parseWeChatPaymentResumeTokenFn = paymentService.ParseWeChatPaymentResumeToken
+	}
+	return h
 }
 
 // GetPaymentConfig returns the payment system configuration.
@@ -261,7 +269,7 @@ func (h *PaymentHandler) CreateOrderGateway(c gatewayctx.GatewayContext) {
 		return
 	}
 	if strings.TrimSpace(req.WechatResumeToken) != "" {
-		claims, err := h.paymentService.ParseWeChatPaymentResumeToken(req.WechatResumeToken)
+		claims, err := h.parseWeChatPaymentResumeToken(req.WechatResumeToken)
 		if err != nil {
 			response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 			return
@@ -276,7 +284,8 @@ func (h *PaymentHandler) CreateOrderGateway(c gatewayctx.GatewayContext) {
 	if req.IsMobile != nil {
 		mobile = *req.IsMobile
 	}
-	result, err := h.paymentService.CreateOrder(c.Request().Context(), service.CreateOrderRequest{
+
+	svcReq := service.CreateOrderRequest{
 		UserID:          subject.UserID,
 		Amount:          req.Amount,
 		PaymentType:     req.PaymentType,
@@ -290,12 +299,29 @@ func (h *PaymentHandler) CreateOrderGateway(c gatewayctx.GatewayContext) {
 		PaymentSource:   req.PaymentSource,
 		OrderType:       req.OrderType,
 		PlanID:          req.PlanID,
-	})
-	if err != nil {
-		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
-		return
 	}
-	response.SuccessContext(gatewayJSONResponder{ctx: c}, result)
+
+	executeUserIdempotentGatewayJSONWithStoredResponse(c, paymentCreateOrderIdempotencyScope(subject.UserID), req, service.DefaultWriteIdempotencyTTL(), nil, func(ctx context.Context) (any, error) {
+		return h.createPaymentOrder(ctx, svcReq)
+	})
+}
+
+func paymentCreateOrderIdempotencyScope(userID int64) string {
+	return "user.payment.orders.create." + strconv.FormatInt(userID, 10)
+}
+
+func (h *PaymentHandler) createPaymentOrder(ctx context.Context, req service.CreateOrderRequest) (*service.CreateOrderResponse, error) {
+	if h.createOrderFn != nil {
+		return h.createOrderFn(ctx, req)
+	}
+	return h.paymentService.CreateOrder(ctx, req)
+}
+
+func (h *PaymentHandler) parseWeChatPaymentResumeToken(token string) (*service.WeChatPaymentResumeClaims, error) {
+	if h.parseWeChatPaymentResumeTokenFn != nil {
+		return h.parseWeChatPaymentResumeTokenFn(token)
+	}
+	return h.paymentService.ParseWeChatPaymentResumeToken(token)
 }
 
 func applyWeChatPaymentResumeClaims(req *CreateOrderRequest, claims *service.WeChatPaymentResumeClaims) error {

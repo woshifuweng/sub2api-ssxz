@@ -323,13 +323,49 @@ describe('PaymentCheckoutContent', () => {
     await submit?.trigger('click')
     await flushPromises()
 
-    expect(paymentStore.createOrder).toHaveBeenCalledWith(expect.objectContaining({
-      amount: 10,
-      order_type: 'balance',
-      payment_type: 'alipay'
-    }))
+    expect(paymentStore.createOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: 10,
+        order_type: 'balance',
+        payment_type: 'alipay'
+      }),
+      expect.objectContaining({
+        idempotencyKey: expect.stringMatching(/^payment-order-/)
+      })
+    )
     expect(appStore.showError).toHaveBeenCalledWith(expect.stringContaining('payment.errors.alipayDesktopUnavailable'))
     expect(wrapper.find('[data-testid="payment-status-panel"]').exists()).toBe(false)
     expect(window.localStorage.getItem('payment.recovery.current')).toBeNull()
+  })
+
+  it('reuses the same payment order idempotency key when the same failed submit is retried', async () => {
+    paymentAPI.getCheckoutInfo.mockResolvedValue({
+      data: checkoutInfoWithAlipay()
+    })
+    paymentStore.createOrder.mockRejectedValue({
+      reason: 'PAYMENT_GATEWAY_ERROR',
+      message: 'payment gateway unavailable'
+    })
+
+    const wrapper = mountContent('workspace')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="amount-input"]').setValue('10')
+    await flushPromises()
+
+    const submit = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('payment.createOrder'))
+    expect(submit).toBeTruthy()
+
+    await submit?.trigger('click')
+    await flushPromises()
+    await submit?.trigger('click')
+    await flushPromises()
+
+    const firstOptions = paymentStore.createOrder.mock.calls[0][1]
+    const secondOptions = paymentStore.createOrder.mock.calls[1][1]
+    expect(firstOptions.idempotencyKey).toMatch(/^payment-order-/)
+    expect(secondOptions.idempotencyKey).toBe(firstOptions.idempotencyKey)
   })
 })
