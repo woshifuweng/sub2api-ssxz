@@ -942,6 +942,7 @@ export default {
   redeem: {
     title: '兑换码',
     description: '输入兑换码以充值余额或增加并发数',
+    accountBilling: '账户计费',
     currentBalance: '当前余额',
     concurrency: '并发数',
     requests: '请求',
@@ -975,9 +976,22 @@ export default {
     subscriptionDays: '{days} 天',
     days: '天',
     codeRedeemSuccess: '兑换成功！',
+    balanceRedeemResult: '已到账 ${amount} 额度。',
+    balanceRefreshHint: '页面余额已刷新，最终余额以后端账户为准。',
+    concurrencyRedeemResult: '已增加 {amount} 个并发请求额度。',
+    subscriptionRedeemResult: '已获得 {groupName} 访问权限。',
+    historyLoadFailed: '兑换历史加载失败，请重试。',
+    retryHistory: '重新加载',
     failedToRedeem: '兑换失败，请检查兑换码后重试。',
     subscriptionRefreshFailed: '兑换成功，但订阅状态刷新失败。',
-    pleaseEnterCode: '请输入兑换码'
+    pleaseEnterCode: '请输入兑换码',
+    errors: {
+      REDEEM_CODE_NOT_FOUND: '兑换码不存在或已失效，请检查后重试。',
+      REDEEM_CODE_USED: '该兑换码已被使用。',
+      REDEEM_RATE_LIMITED: '失败次数过多，请稍后再试。',
+      REDEEM_CODE_LOCKED: '该兑换码正在处理中，请稍后重试。',
+      REDEEM_CODE_INVALID: '该兑换码无效，请联系客服。'
+    }
   },
 
   // Payment

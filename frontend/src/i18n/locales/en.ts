@@ -939,6 +939,7 @@ export default {
   redeem: {
     title: 'Redeem Code',
     description: 'Enter your redeem code to add balance or increase concurrency',
+    accountBilling: 'Account billing',
     currentBalance: 'Current Balance',
     concurrency: 'Concurrency',
     requests: 'requests',
@@ -972,9 +973,22 @@ export default {
     subscriptionDays: '{days} days',
     days: ' days',
     codeRedeemSuccess: 'Code redeemed successfully!',
+    balanceRedeemResult: 'Credited ${amount} balance.',
+    balanceRefreshHint: 'Displayed balance was refreshed from the backend account.',
+    concurrencyRedeemResult: 'Added {amount} concurrent request quota.',
+    subscriptionRedeemResult: 'Granted access to {groupName}.',
+    historyLoadFailed: 'Failed to load redeem history. Please retry.',
+    retryHistory: 'Reload',
     failedToRedeem: 'Failed to redeem code. Please check the code and try again.',
     subscriptionRefreshFailed: 'Redeemed successfully, but failed to refresh subscription status.',
-    pleaseEnterCode: 'Please enter a redeem code'
+    pleaseEnterCode: 'Please enter a redeem code',
+    errors: {
+      REDEEM_CODE_NOT_FOUND: 'Redeem code does not exist or has expired. Please check and retry.',
+      REDEEM_CODE_USED: 'This redeem code has already been used.',
+      REDEEM_RATE_LIMITED: 'Too many failed attempts. Please wait and try again.',
+      REDEEM_CODE_LOCKED: 'This redeem code is being processed. Please try again shortly.',
+      REDEEM_CODE_INVALID: 'This redeem code is invalid. Please contact support.'
+    }
   },
 
   // Payment
