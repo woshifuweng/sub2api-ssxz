@@ -190,4 +190,26 @@ describe('AppSidebar', () => {
       '/subscriptions'
     ]))
   })
+
+  it('hides the user channel status entry when monitoring is disabled', () => {
+    authState.isAdmin = false
+    appState.cachedPublicSettings.channel_monitor_enabled = false
+
+    const wrapper = mountSidebar()
+    const destinations = hrefs(wrapper)
+
+    expect(destinations).not.toContain('/app/channel-status')
+    expect(wrapper.text()).not.toContain('通道状态')
+    expect(destinations).toEqual([
+      '/app/dashboard',
+      '/app/keys',
+      '/app/usage',
+      '/app/purchase',
+      '/app/orders',
+      '/app/redeem',
+      '/app/profile',
+      '/app/chat',
+      '/app/image'
+    ])
+  })
 })

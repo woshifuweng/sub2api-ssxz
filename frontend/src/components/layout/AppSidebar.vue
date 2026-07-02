@@ -584,7 +584,9 @@ const userNavItems = computed((): NavItem[] => {
     { path: '/app/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
     { path: '/app/keys', label: 'API 密钥', icon: KeyIcon },
     { path: '/app/usage', label: '使用记录', icon: ChartIcon, hideInSimpleMode: true },
-    { path: '/app/channel-status', label: '通道状态', icon: SignalIcon, hideInSimpleMode: true },
+    ...(channelMonitorEnabled.value
+      ? [{ path: '/app/channel-status', label: '通道状态', icon: SignalIcon, hideInSimpleMode: true }]
+      : []),
     {
       path: '/app/purchase',
       label: '充值',
@@ -606,7 +608,9 @@ const personalNavItems = computed((): NavItem[] => {
     { path: '/app/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
     { path: '/app/keys', label: 'API 密钥', icon: KeyIcon },
     { path: '/app/usage', label: '使用记录', icon: ChartIcon, hideInSimpleMode: true },
-    { path: '/app/channel-status', label: '通道状态', icon: SignalIcon, hideInSimpleMode: true },
+    ...(channelMonitorEnabled.value
+      ? [{ path: '/app/channel-status', label: '通道状态', icon: SignalIcon, hideInSimpleMode: true }]
+      : []),
     ...(purchaseEnabled.value
       ? [
           {

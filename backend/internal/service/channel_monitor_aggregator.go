@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 )
 
 // 渠道监控聚合层：把 latest + availability 拼成 admin/user 视图所需的 summary / detail。
@@ -55,11 +56,12 @@ func (s *ChannelMonitorService) BatchMonitorStatusSummary(
 //	1 次批量 latest（含 ping_latency_ms）；
 //	1 次批量 7d availability；
 //	1 次批量 timeline（主模型最近 N 条）。
-func (s *ChannelMonitorService) ListUserView(ctx context.Context) ([]*UserMonitorView, error) {
+func (s *ChannelMonitorService) ListUserView(ctx context.Context, visibleGroupNames map[string]struct{}) ([]*UserMonitorView, error) {
 	monitors, err := s.repo.ListEnabled(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list enabled monitors: %w", err)
 	}
+	monitors = filterMonitorsForVisibleGroups(monitors, visibleGroupNames)
 	if len(monitors) == 0 {
 		return []*UserMonitorView{}, nil
 	}
@@ -129,12 +131,12 @@ func pickLatest(rows []*ChannelMonitorLatest, model string) *ChannelMonitorLates
 
 // GetUserDetail 用户只读视图：单个监控详情（每个模型 7d/15d/30d 可用率与平均延迟）。
 // 不暴露 api_key。
-func (s *ChannelMonitorService) GetUserDetail(ctx context.Context, id int64) (*UserMonitorDetail, error) {
+func (s *ChannelMonitorService) GetUserDetail(ctx context.Context, id int64, visibleGroupNames map[string]struct{}) (*UserMonitorDetail, error) {
 	m, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if !m.Enabled {
+	if !m.Enabled || !monitorVisibleToGroupNames(m, visibleGroupNames) {
 		return nil, ErrChannelMonitorNotFound
 	}
 
@@ -155,6 +157,31 @@ func (s *ChannelMonitorService) GetUserDetail(ctx context.Context, id int64) (*U
 		GroupName: m.GroupName,
 		Models:    models,
 	}, nil
+}
+
+func filterMonitorsForVisibleGroups(monitors []*ChannelMonitor, visibleGroupNames map[string]struct{}) []*ChannelMonitor {
+	if len(monitors) == 0 || len(visibleGroupNames) == 0 {
+		return []*ChannelMonitor{}
+	}
+	out := make([]*ChannelMonitor, 0, len(monitors))
+	for _, monitor := range monitors {
+		if monitorVisibleToGroupNames(monitor, visibleGroupNames) {
+			out = append(out, monitor)
+		}
+	}
+	return out
+}
+
+func monitorVisibleToGroupNames(monitor *ChannelMonitor, visibleGroupNames map[string]struct{}) bool {
+	if monitor == nil || len(visibleGroupNames) == 0 {
+		return false
+	}
+	groupName := strings.TrimSpace(monitor.GroupName)
+	if groupName == "" {
+		return false
+	}
+	_, ok := visibleGroupNames[groupName]
+	return ok
 }
 
 // collectAvailabilityWindows 一次性查询 7/15/30 天三个窗口，按模型组织。

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { readFileSync } from 'node:fs'
 
-const { routeState, mocks } = vi.hoisted(() => ({
+const { routeState, mocks, appState } = vi.hoisted(() => ({
   routeState: {
     path: '/app/chat'
   },
@@ -11,6 +11,11 @@ const { routeState, mocks } = vi.hoisted(() => ({
     push: vi.fn(),
     logout: vi.fn(),
     showSuccess: vi.fn()
+  },
+  appState: {
+    cachedPublicSettings: {
+      channel_monitor_enabled: true
+    }
   }
 }))
 
@@ -21,6 +26,7 @@ vi.mock('vue-router', () => ({
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
+    cachedPublicSettings: appState.cachedPublicSettings,
     showSuccess: mocks.showSuccess
   })
 }))
@@ -90,6 +96,7 @@ describe('AppSectionShell', () => {
     mocks.push.mockReset()
     mocks.logout.mockReset()
     mocks.showSuccess.mockReset()
+    appState.cachedPublicSettings.channel_monitor_enabled = true
     mockDesktopMedia(true)
   })
 
@@ -211,6 +218,36 @@ describe('AppSectionShell', () => {
     ]))
     expect(wrapper.text()).not.toContain('Available Channels')
     expect(wrapper.text()).not.toContain('Channel Status')
+  })
+
+  it('hides channel status when monitoring is disabled', async () => {
+    appState.cachedPublicSettings.channel_monitor_enabled = false
+
+    const wrapper = mountShell()
+    const buttons = [
+      ...wrapper.findAll('.ssxz-primary-nav .ssxz-nav-item'),
+      ...wrapper.findAll('.ssxz-secondary-nav .ssxz-nav-item')
+    ]
+    const expectedRoutes = [
+      '/app/dashboard',
+      '/app/keys',
+      '/app/usage',
+      '/app/purchase',
+      '/app/orders',
+      '/app/redeem',
+      '/app/profile',
+      '/app/chat',
+      '/app/image'
+    ]
+
+    expect(wrapper.text()).not.toContain('通道状态')
+    expect(buttons).toHaveLength(expectedRoutes.length)
+
+    for (const [index, button] of buttons.entries()) {
+      routeState.path = '/app/test-origin'
+      await button.trigger('click')
+      expect(mocks.push).toHaveBeenNthCalledWith(index + 1, expectedRoutes[index])
+    }
   })
 
   it('keeps the image entry active without highlighting new chat on /app/image', () => {

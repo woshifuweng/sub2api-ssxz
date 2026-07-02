@@ -5831,7 +5831,7 @@ export default {
     title: 'Channel Status',
     description: 'View channel health and recent monitoring results.',
     eyebrow: 'Technical Info',
-    disclaimer: 'Data comes from backend channel monitoring. Availability and latency are recent monitoring samples, not an SLA or 100% uptime guarantee. Actual model access, groups, and billing still follow backend configuration.',
+    disclaimer: 'Data comes from backend channel monitoring. Only monitors for groups visible to the current account are shown. Availability and latency are recent monitoring samples, not an SLA or 100% uptime guarantee. Actual model access, groups, and billing still follow backend configuration.',
     detailTitle: 'Channel Details',
     loadError: 'Failed to load channel status',
     detailLoadError: 'Failed to load channel details',

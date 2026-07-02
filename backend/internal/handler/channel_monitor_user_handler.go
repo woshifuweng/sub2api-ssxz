@@ -1,21 +1,30 @@
 package handler
 
 import (
+	"context"
+	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
+type channelMonitorGroupAccess interface {
+	GetAvailableGroups(ctx context.Context, userID int64) ([]service.Group, error)
+}
+
 // ChannelMonitorUserHandler 渠道监控用户只读 handler。
 type ChannelMonitorUserHandler struct {
 	monitorService *service.ChannelMonitorService
+	apiKeyService  channelMonitorGroupAccess
 	settingService *service.SettingService
 }
 
@@ -23,10 +32,12 @@ type ChannelMonitorUserHandler struct {
 // settingService 用于每次请求前读取功能开关；关闭时 List/GetStatus 直接返回空/404。
 func NewChannelMonitorUserHandler(
 	monitorService *service.ChannelMonitorService,
+	apiKeyService *service.APIKeyService,
 	settingService *service.SettingService,
 ) *ChannelMonitorUserHandler {
 	return &ChannelMonitorUserHandler{
 		monitorService: monitorService,
+		apiKeyService:  apiKeyService,
 		settingService: settingService,
 	}
 }
@@ -154,7 +165,11 @@ func (h *ChannelMonitorUserHandler) ListGateway(c gatewayctx.GatewayContext) {
 		response.SuccessContext(gatewayJSONResponder{ctx: c}, gin.H{"items": []channelMonitorUserListItem{}})
 		return
 	}
-	views, err := h.monitorService.ListUserView(c.Request().Context())
+	visibleGroupNames, ok := h.visibleGroupNamesGateway(c)
+	if !ok {
+		return
+	}
+	views, err := h.monitorService.ListUserView(c.Request().Context(), visibleGroupNames)
 	if err != nil {
 		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
@@ -181,12 +196,43 @@ func (h *ChannelMonitorUserHandler) GetStatusGateway(c gatewayctx.GatewayContext
 	if !ok {
 		return
 	}
-	detail, err := h.monitorService.GetUserDetail(c.Request().Context(), id)
+	visibleGroupNames, ok := h.visibleGroupNamesGateway(c)
+	if !ok {
+		return
+	}
+	detail, err := h.monitorService.GetUserDetail(c.Request().Context(), id, visibleGroupNames)
 	if err != nil {
 		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 	response.SuccessContext(gatewayJSONResponder{ctx: c}, userMonitorDetailToResponse(detail))
+}
+
+func (h *ChannelMonitorUserHandler) visibleGroupNamesGateway(c gatewayctx.GatewayContext) (map[string]struct{}, bool) {
+	subject, ok := middleware.GetAuthSubjectFromGatewayContext(c)
+	if !ok {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
+		return nil, false
+	}
+	if h.apiKeyService == nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, service.ErrChannelMonitorNotFound)
+		return nil, false
+	}
+
+	groups, err := h.apiKeyService.GetAvailableGroups(c.Request().Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return nil, false
+	}
+	names := make(map[string]struct{}, len(groups))
+	for _, group := range groups {
+		name := strings.TrimSpace(group.Name)
+		if name == "" {
+			continue
+		}
+		names[name] = struct{}{}
+	}
+	return names, true
 }
 
 func parseChannelMonitorIDGateway(c gatewayctx.GatewayContext) (int64, bool) {
