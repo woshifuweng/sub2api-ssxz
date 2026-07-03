@@ -696,13 +696,16 @@ export default {
         modelsEndpointLabel: 'Model list check',
         connectionChecklistTitle: 'Before connecting',
         connectionChecklistBaseUrl: 'Base URL must be this site plus /v1, not an upstream provider URL.',
+        connectionChecklistEndpoint: 'If a client asks for both homepage and API request URL, homepage can be this site, but API request URL must be the Base URL above.',
         connectionChecklistFullKey: 'API Key must be the full value saved from the creation dialog; the masked list value cannot connect.',
         connectionChecklistModels: 'If the client model list is empty, check whether /v1/models returns models for the current group.',
         connectionChecklistBalance: 'If requests fail, check key status, group permission, account balance, quota, and usage records.',
+        connectionChecklistRestart: 'After changing CC Switch / Codex configuration, fully quit and reopen the client. A page refresh may still use old config.',
         securityNote:
           'Prefer Authorization: Bearer or x-api-key headers. Do not put API keys in URLs unless a client only supports query keys; browsers, proxies, or server logs may record full URLs. Only save the full API Key in clients you trust. Do not send it to others or share screenshots containing it.',
         ccSwitchFields: {
           baseUrl: 'Service URL / Base URL: enter the Base URL above',
+          apiEndpoint: 'API request URL: enter the Base URL above; homepage is not a substitute for the API request URL',
           apiKey: 'API Key: enter the full key saved when it was created',
           model: 'Model: choose an available model from the client model list',
         },
