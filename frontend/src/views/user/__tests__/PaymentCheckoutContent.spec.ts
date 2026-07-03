@@ -300,7 +300,7 @@ describe('PaymentCheckoutContent', () => {
     const wrapper = mountContent('workspace')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('充值会增加账户额度，用量和扣费记录以后端账本为准。')
+    expect(wrapper.text()).toContain('充值会增加账户额度，用量和扣费记录以系统记录为准。')
     expect(wrapper.text()).not.toContain('Recharge adds account balance')
   })
 

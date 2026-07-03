@@ -287,7 +287,7 @@ const onboardingSteps = [
   {
     index: '02',
     title: '再查看用量和余额',
-    description: '每次调用后回到使用记录确认模型、消耗、余额变化和失败不扣费是否清楚。',
+    description: '每次调用后回到使用记录查看模型、用量、余额变化和扣费结果。',
     to: '/app/usage',
     action: '查看用量'
   },
