@@ -1095,6 +1095,15 @@
 
       <template #footer>
         <div class="flex justify-end gap-3">
+          <button
+            v-if="createdKeyToReveal && !publicSettings?.hide_ccs_import_button"
+            type="button"
+            class="btn btn-secondary"
+            data-testid="created-key-ccs-import"
+            @click="importToCcswitch(createdKeyToReveal)"
+          >
+            {{ t('keys.importToCcSwitch') }}
+          </button>
           <button type="button" class="btn btn-primary" data-testid="created-key-ack" @click="acknowledgeCreatedKey">
             {{ t('keys.createdKeyReveal.acknowledge') }}
           </button>
