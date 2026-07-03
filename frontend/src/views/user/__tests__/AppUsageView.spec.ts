@@ -65,6 +65,15 @@ const messages: Record<string, string> = {
   'usage.workbench.standardVsActual': 'Standard {standard}; charged {actual}',
   'usage.workbench.actualChargeBasis': 'Charged {amount}',
   'usage.workbench.noChargeBasis': 'No balance was deducted for this row.',
+  'usage.workbench.performance': 'Latency',
+  'usage.workbench.performanceHealthy': 'Normal',
+  'usage.workbench.performanceUnknown': 'No record',
+  'usage.workbench.performanceSlowFirstToken': 'Slow first token',
+  'usage.workbench.performanceSlowTotal': 'Long total duration',
+  'usage.workbench.performanceNoRecord': 'No backend latency detail yet',
+  'usage.workbench.performanceSummary': 'TTFT {firstToken}; total {duration}',
+  'usage.workbench.performanceSlowFirstTokenHint': 'First token is over 5 seconds; check upstream account, model, or channel first.',
+  'usage.workbench.performanceSlowTotalHint': 'First token is normal but total duration is long. This is often caused by web search, tool calls, large context, or long model reasoning.',
   'usage.workbench.fee': 'Fee',
   'usage.workbench.noCharge': 'No charge',
   'usage.workbench.zeroTokenCharged': 'Image / fixed-fee item or no token detail',
@@ -194,6 +203,8 @@ describe('AppUsageView', () => {
           image_size: '1024x1024',
           actual_cost: 0.88,
           billing_type: 0,
+          duration_ms: 207544,
+          first_token_ms: 507,
           created_at: '2026-06-18T08:00:00Z'
         },
         {
@@ -211,6 +222,8 @@ describe('AppUsageView', () => {
           image_size: null,
           actual_cost: 0,
           billing_type: 0,
+          duration_ms: 6400,
+          first_token_ms: 6200,
           created_at: '2026-06-18T08:01:00Z'
         },
         {
@@ -227,6 +240,8 @@ describe('AppUsageView', () => {
           image_size: null,
           actual_cost: 0.3545,
           billing_type: 1,
+          duration_ms: 987,
+          first_token_ms: 123,
           created_at: '2026-06-18T08:02:00Z'
         }
       ],
@@ -291,6 +306,15 @@ describe('AppUsageView', () => {
     expect(tableText).toContain('Standard $0.9000; charged $0.8800')
     expect(tableText).toContain('Charged $0.3545')
     expect(tableText).toContain('No balance was deducted for this row.')
+    expect(tableText).toContain('Latency')
+    expect(tableText).toContain('Long total duration')
+    expect(tableText).toContain('TTFT 507 ms; total 3m 28s')
+    expect(tableText).toContain('web search, tool calls, large context, or long model reasoning')
+    expect(tableText).toContain('Slow first token')
+    expect(tableText).toContain('TTFT 6.2 s; total 6.4 s')
+    expect(tableText).toContain('check upstream account, model, or channel first')
+    expect(tableText).toContain('Normal')
+    expect(tableText).toContain('TTFT 123 ms; total 987 ms')
     expect(usageAPI.query).toHaveBeenCalledWith(expect.objectContaining({
       page: 1,
       page_size: 8

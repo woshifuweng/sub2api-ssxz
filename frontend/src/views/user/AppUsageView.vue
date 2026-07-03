@@ -119,6 +119,7 @@
                 <th>{{ t('usage.workbench.source') }}</th>
                 <th>{{ t('usage.workbench.amount') }}</th>
                 <th>{{ t('usage.workbench.billingBasis') }}</th>
+                <th>{{ t('usage.workbench.performance') }}</th>
                 <th>{{ t('usage.workbench.fee') }}</th>
               </tr>
             </thead>
@@ -133,6 +134,15 @@
                 <td class="billing-cell">
                   <span>{{ formatBillingType(row) }}</span>
                   <small>{{ formatBillingBasis(row) }}</small>
+                </td>
+                <td class="performance-cell">
+                  <span class="performance-badge" :class="performanceBadgeClass(row)">
+                    {{ formatPerformanceStatus(row) }}
+                  </span>
+                  <small>{{ formatPerformanceSummary(row) }}</small>
+                  <small v-if="formatPerformanceHint(row)" class="performance-hint">
+                    {{ formatPerformanceHint(row) }}
+                  </small>
                 </td>
                 <td>
                   <span>{{ formatCost(row.actual_cost) }}</span>
@@ -362,6 +372,63 @@ function formatBillingBasis(row: UsageLog) {
     })
   }
   return t('usage.workbench.actualChargeBasis', { amount: formatCost(actualCost) })
+}
+
+function formatPerformanceStatus(row: UsageLog) {
+  if (!hasLatencyRecord(row)) return t('usage.workbench.performanceUnknown')
+  if (isSlowFirstToken(row)) return t('usage.workbench.performanceSlowFirstToken')
+  if (isSlowTotalDuration(row)) return t('usage.workbench.performanceSlowTotal')
+  return t('usage.workbench.performanceHealthy')
+}
+
+function formatPerformanceSummary(row: UsageLog) {
+  if (!hasLatencyRecord(row)) return t('usage.workbench.performanceNoRecord')
+  return t('usage.workbench.performanceSummary', {
+    firstToken: formatLatency(row.first_token_ms),
+    duration: formatLatency(row.duration_ms)
+  })
+}
+
+function formatPerformanceHint(row: UsageLog) {
+  if (isSlowFirstToken(row)) return t('usage.workbench.performanceSlowFirstTokenHint')
+  if (isSlowTotalDuration(row)) return t('usage.workbench.performanceSlowTotalHint')
+  return ''
+}
+
+function performanceBadgeClass(row: UsageLog) {
+  if (!hasLatencyRecord(row)) return 'is-muted'
+  if (isSlowFirstToken(row) || isSlowTotalDuration(row)) return 'is-warning'
+  return 'is-normal'
+}
+
+function hasLatencyRecord(row: UsageLog) {
+  return isFiniteLatency(row.duration_ms) || isFiniteLatency(row.first_token_ms)
+}
+
+function isSlowFirstToken(row: UsageLog) {
+  return isFiniteLatency(row.first_token_ms) && Number(row.first_token_ms) > 5000
+}
+
+function isSlowTotalDuration(row: UsageLog) {
+  return isFiniteLatency(row.duration_ms) && Number(row.duration_ms) >= 60000
+}
+
+function isFiniteLatency(value: number | null | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
+function formatLatency(value: number | null | undefined) {
+  if (!isFiniteLatency(value)) return '-'
+  const ms = Number(value)
+  if (ms < 1000) return `${Math.round(ms)} ms`
+  if (ms < 60000) {
+    const digits = ms < 10000 ? 1 : 0
+    return `${(ms / 1000).toFixed(digits)} s`
+  }
+  const minutes = Math.floor(ms / 60000)
+  const seconds = Math.round((ms % 60000) / 1000)
+  if (seconds <= 0) return `${minutes}m`
+  return `${minutes}m ${seconds}s`
 }
 
 function formatCost(value: number | null | undefined) {
@@ -672,7 +739,7 @@ function toDateKey(date: Date) {
 
 .usage-table {
   width: 100%;
-  min-width: 46rem;
+  min-width: 58rem;
   border-collapse: collapse;
   color: var(--ssxz-text-secondary);
   font-size: 0.86rem;
@@ -701,7 +768,8 @@ function toDateKey(date: Date) {
   font-weight: 800;
 }
 
-.billing-cell {
+.billing-cell,
+.performance-cell {
   display: grid;
   min-width: 9rem;
   gap: 0.18rem;
@@ -716,6 +784,39 @@ function toDateKey(date: Date) {
   color: var(--ssxz-text-muted);
   font-size: 0.74rem;
   line-height: 1.35;
+}
+
+.performance-badge {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 0.14rem 0.48rem;
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.performance-badge.is-normal {
+  background: color-mix(in srgb, var(--ssxz-success, #16a34a) 14%, transparent);
+  color: var(--ssxz-success, #15803d);
+}
+
+.performance-badge.is-warning {
+  background: color-mix(in srgb, var(--ssxz-warning, #d97706) 18%, transparent);
+  color: var(--ssxz-warning, #b45309);
+}
+
+.performance-badge.is-muted {
+  background: color-mix(in srgb, var(--ssxz-surface-muted) 84%, transparent);
+  color: var(--ssxz-text-muted);
+}
+
+.performance-cell small {
+  color: var(--ssxz-text-muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.performance-hint {
+  max-width: 15rem;
 }
 
 .usage-cost-note {
