@@ -68,12 +68,12 @@ const messages: Record<string, string> = {
   'usage.workbench.performance': 'Latency',
   'usage.workbench.performanceHealthy': 'Normal',
   'usage.workbench.performanceUnknown': 'No record',
-  'usage.workbench.performanceSlowFirstToken': 'Slow first token',
-  'usage.workbench.performanceSlowTotal': 'Long total duration',
-  'usage.workbench.performanceNoRecord': 'No backend latency detail yet',
-  'usage.workbench.performanceSummary': 'TTFT {firstToken}; total {duration}',
-  'usage.workbench.performanceSlowFirstTokenHint': 'First token is over 5 seconds; check upstream account, model, or channel first.',
-  'usage.workbench.performanceSlowTotalHint': 'First token is normal but total duration is long. This is often caused by web search, tool calls, large context, or long model reasoning.',
+  'usage.workbench.performanceSlowFirstToken': 'Slow to start',
+  'usage.workbench.performanceSlowTotal': 'Longer processing',
+  'usage.workbench.performanceNoRecord': 'No displayable timing yet',
+  'usage.workbench.performanceSummary': 'Started in {firstToken}; completed in {duration}',
+  'usage.workbench.performanceSlowFirstTokenHint': 'This request was slower to start. For faster replies, choose a lightweight model or lower reasoning effort.',
+  'usage.workbench.performanceSlowTotalHint': 'This request handled more complex work, so it took longer. For faster replies, choose a lightweight model, lower reasoning effort, or reduce one-shot input size.',
   'usage.workbench.fee': 'Fee',
   'usage.workbench.noCharge': 'No charge',
   'usage.workbench.zeroTokenCharged': 'Image / fixed-fee item or no token detail',
@@ -307,14 +307,18 @@ describe('AppUsageView', () => {
     expect(tableText).toContain('Charged $0.3545')
     expect(tableText).toContain('No balance was deducted for this row.')
     expect(tableText).toContain('Latency')
-    expect(tableText).toContain('Long total duration')
-    expect(tableText).toContain('TTFT 507 ms; total 3m 28s')
-    expect(tableText).toContain('web search, tool calls, large context, or long model reasoning')
-    expect(tableText).toContain('Slow first token')
-    expect(tableText).toContain('TTFT 6.2 s; total 6.4 s')
-    expect(tableText).toContain('check upstream account, model, or channel first')
+    expect(tableText).toContain('Longer processing')
+    expect(tableText).toContain('Started in 507 ms; completed in 3m 28s')
+    expect(tableText).toContain('handled more complex work')
+    expect(tableText).toContain('lightweight model, lower reasoning effort')
+    expect(tableText).toContain('Slow to start')
+    expect(tableText).toContain('Started in 6.2 s; completed in 6.4 s')
+    expect(tableText).toContain('For faster replies')
     expect(tableText).toContain('Normal')
-    expect(tableText).toContain('TTFT 123 ms; total 987 ms')
+    expect(tableText).toContain('Started in 123 ms; completed in 987 ms')
+    expect(tableText).not.toContain('upstream account')
+    expect(tableText).not.toContain('web search')
+    expect(tableText).not.toContain('tool calls')
     expect(usageAPI.query).toHaveBeenCalledWith(expect.objectContaining({
       page: 1,
       page_size: 8
