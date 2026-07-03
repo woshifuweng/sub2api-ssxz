@@ -701,6 +701,20 @@ export default {
         connectionChecklistModels: 'If the client model list is empty, check whether /v1/models returns models for the current group.',
         connectionChecklistBalance: 'If requests fail, check key status, group permission, account balance, quota, and usage records.',
         connectionChecklistRestart: 'After changing CC Switch / Codex configuration, fully quit and reopen the client. A page refresh may still use old config.',
+        troubleshootingTitle: 'Common error checks',
+        troubleshooting401:
+          '401 usually means the API Key was entered incorrectly, a masked value was copied, the auth field is wrong, or the client did not send the key in Authorization / API Key.',
+        troubleshooting403:
+          '403 usually means insufficient balance, disabled or expired key, missing group permission, IP restriction mismatch, or an account policy blocking the selected model.',
+        troubleshooting429:
+          '429 usually means key quota, rate limit, plan window, or upstream throttling. Reduce concurrency first, then check quota and usage windows.',
+        troubleshooting503:
+          '503 usually means the upstream account/provider is temporarily unavailable. If admin testing works but the client still returns 503, check model name, Base URL, and fully restart the client.',
+        troubleshootingModelsCode: 'No models',
+        troubleshootingModels:
+          'If the model list is empty, open /v1/models first to check whether the current key and group can return models, then refresh the client model list.',
+        troubleshootingUsageHint:
+          'After a successful request, use /app/usage to filter by API Key and time, then verify model, endpoint, tokens, cost, and request time.',
         securityNote:
           'Prefer Authorization: Bearer or x-api-key headers. Do not put API keys in URLs unless a client only supports query keys; browsers, proxies, or server logs may record full URLs. Only save the full API Key in clients you trust. Do not send it to others or share screenshots containing it.',
         ccSwitchFields: {
