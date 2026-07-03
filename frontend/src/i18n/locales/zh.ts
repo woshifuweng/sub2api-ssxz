@@ -906,8 +906,8 @@ export default {
       performanceSlowTotal: '处理较久',
       performanceNoRecord: '暂无可展示耗时',
       performanceSummary: '开始响应 {firstToken}；完成耗时 {duration}',
-      performanceSlowFirstTokenHint: '本次开始响应较慢。想更快可以选择轻量模型，或降低推理强度。',
-      performanceSlowTotalHint: '本次处理内容较复杂，耗时较长。想更快可以选择轻量模型、降低推理强度，或减少一次性输入内容。',
+      performanceSlowFirstTokenHint: '本次请求启动较慢，通常和模型档位、推理强度、联网或工具步骤有关。想更快可换轻量模型或降低推理强度。',
+      performanceSlowTotalHint: '本次任务处理链路较长，可能包含联网、检索、工具步骤或较复杂推理。想更快可换轻量模型、降低推理强度，或缩短一次性输入。',
       fee: '扣费',
       noCharge: '未扣费',
       zeroTokenCharged: '图片/固定计费或无 token 明细',
@@ -6046,10 +6046,10 @@ export default {
 
   monitorCommon: {
     latencyEmpty: '-',
-    dialogLatency: '模型延迟',
-    endpointPing: '端点延迟',
-    availabilityPrefix: '可用性',
-    windowAvailabilityLabel: '{window} 可用性',
+    dialogLatency: '模型响应速度',
+    endpointPing: '线路连通',
+    availabilityPrefix: '近期可用率',
+    windowAvailabilityLabel: '{window} 可用率',
     extraModelsCount: '+ {n} 个模型',
     history60pts: '最近 {n} 次检测',
     nextUpdateIn: '{n}s 后更新',
@@ -6076,9 +6076,9 @@ export default {
 
   channelStatus: {
     title: '渠道状态',
-    description: '查看当前可用渠道的健康状态和最近监控结果。',
-    eyebrow: '技术信息',
-    disclaimer: '数据来自后台渠道监控，仅展示当前账号可见分组对应的监控视图。可用率和延迟为最近监控样本，不代表服务等级承诺或 100% 可用保证。实际可用模型、分组和计费仍以后端配置为准。',
+    description: '查看当前可用通道的近期状态、响应速度和可用趋势。',
+    eyebrow: '服务状态',
+    disclaimer: '状态来自近期自动检测，仅显示当前套餐/分组可见通道。可用率和速度用于参考，不是 100% 承诺；实际可用模型、余额和扣费以后端配置及请求结果为准。',
     detailTitle: '渠道详情',
     loadError: '加载渠道状态失败',
     detailLoadError: '加载渠道详情失败',

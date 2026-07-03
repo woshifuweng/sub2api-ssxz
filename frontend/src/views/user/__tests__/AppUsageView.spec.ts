@@ -72,8 +72,8 @@ const messages: Record<string, string> = {
   'usage.workbench.performanceSlowTotal': 'Longer processing',
   'usage.workbench.performanceNoRecord': 'No displayable timing yet',
   'usage.workbench.performanceSummary': 'Started in {firstToken}; completed in {duration}',
-  'usage.workbench.performanceSlowFirstTokenHint': 'This request was slower to start. For faster replies, choose a lightweight model or lower reasoning effort.',
-  'usage.workbench.performanceSlowTotalHint': 'This request handled more complex work, so it took longer. For faster replies, choose a lightweight model, lower reasoning effort, or reduce one-shot input size.',
+  'usage.workbench.performanceSlowFirstTokenHint': 'This request was slower to start, usually because of model tier, reasoning effort, web access, or tool steps. For faster replies, use a lighter model or lower reasoning effort.',
+  'usage.workbench.performanceSlowTotalHint': 'This task had a longer processing path and may include web lookup, retrieval, tool steps, or deeper reasoning. For faster replies, use a lighter model, lower reasoning effort, or shorten one-shot input.',
   'usage.workbench.fee': 'Fee',
   'usage.workbench.noCharge': 'No charge',
   'usage.workbench.zeroTokenCharged': 'Image / fixed-fee item or no token detail',
@@ -309,11 +309,11 @@ describe('AppUsageView', () => {
     expect(tableText).toContain('Latency')
     expect(tableText).toContain('Longer processing')
     expect(tableText).toContain('Started in 507 ms; completed in 3m 28s')
-    expect(tableText).toContain('handled more complex work')
-    expect(tableText).toContain('lightweight model, lower reasoning effort')
+    expect(tableText).toContain('longer processing path')
+    expect(tableText).toContain('lighter model, lower reasoning effort')
     expect(tableText).toContain('Slow to start')
     expect(tableText).toContain('Started in 6.2 s; completed in 6.4 s')
-    expect(tableText).toContain('For faster replies')
+    expect(tableText).toContain('web access, or tool steps')
     expect(tableText).toContain('Normal')
     expect(tableText).toContain('Started in 123 ms; completed in 987 ms')
     expect(tableText).not.toContain('upstream account')
