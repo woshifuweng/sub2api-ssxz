@@ -305,6 +305,7 @@ describe('KeysView workbench surface', () => {
     expect(wrapper.text()).toContain('keys.workbenchGuide.stepCreateTitle')
     expect(wrapper.text()).toContain('keys.workbenchGuide.stepCopyTitle')
     expect(wrapper.text()).toContain('keys.workbenchGuide.stepConfigureTitle')
+    expect(wrapper.text()).toContain('keys.workbenchGuide.ccsImportNote')
     expect(wrapper.text()).toContain('CC Switch')
     expect(wrapper.text()).toContain('Cherry Studio')
     expect(wrapper.text()).toContain('Chatbox')

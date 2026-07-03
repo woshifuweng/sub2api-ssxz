@@ -53,6 +53,9 @@
               </div>
             </li>
           </ol>
+          <p class="keys-guide-note">
+            {{ t('keys.workbenchGuide.ccsImportNote') }}
+          </p>
         </div>
         <div class="keys-guide-cards" :aria-label="t('keys.workbenchGuide.clientsAriaLabel')">
           <article>
@@ -2341,6 +2344,17 @@ onUnmounted(() => {
   margin-top: 0.12rem;
   font-size: 0.78rem;
   line-height: 1.55;
+}
+
+.keys-guide-note {
+  margin-top: 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(20, 184, 166, 0.24);
+  background: rgba(20, 184, 166, 0.08);
+  padding: 0.75rem 0.9rem;
+  color: var(--ssxz-text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.65;
 }
 
 .keys-guide-cards {

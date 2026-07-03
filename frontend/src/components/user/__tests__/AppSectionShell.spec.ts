@@ -14,7 +14,8 @@ const { routeState, mocks, appState } = vi.hoisted(() => ({
   },
   appState: {
     cachedPublicSettings: {
-      channel_monitor_enabled: true
+      channel_monitor_enabled: true,
+      affiliate_enabled: false
     }
   }
 }))
@@ -97,6 +98,7 @@ describe('AppSectionShell', () => {
     mocks.logout.mockReset()
     mocks.showSuccess.mockReset()
     appState.cachedPublicSettings.channel_monitor_enabled = true
+    appState.cachedPublicSettings.affiliate_enabled = false
     mockDesktopMedia(true)
   })
 
@@ -218,6 +220,24 @@ describe('AppSectionShell', () => {
     ]))
     expect(wrapper.text()).not.toContain('Available Channels')
     expect(wrapper.text()).not.toContain('Channel Status')
+  })
+
+  it('shows the existing affiliate entry only when affiliate is enabled', async () => {
+    appState.cachedPublicSettings.affiliate_enabled = true
+
+    const wrapper = mountShell()
+    const buttons = [
+      ...wrapper.findAll('.ssxz-primary-nav .ssxz-nav-item'),
+      ...wrapper.findAll('.ssxz-secondary-nav .ssxz-nav-item')
+    ]
+
+    expect(wrapper.text()).toContain('推广返利')
+
+    const affiliateButton = buttons.find((button) => button.text().includes('推广返利'))
+    expect(affiliateButton).toBeTruthy()
+    await affiliateButton?.trigger('click')
+
+    expect(mocks.push).toHaveBeenLastCalledWith('/app/affiliate')
   })
 
   it('hides channel status when monitoring is disabled', async () => {
