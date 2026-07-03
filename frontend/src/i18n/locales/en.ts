@@ -901,8 +901,8 @@ export default {
       performanceSlowTotal: 'Longer processing',
       performanceNoRecord: 'No displayable timing yet',
       performanceSummary: 'Started in {firstToken}; completed in {duration}',
-      performanceSlowFirstTokenHint: 'This request was slower to start. For faster replies, choose a lightweight model or lower reasoning effort.',
-      performanceSlowTotalHint: 'This request handled more complex work, so it took longer. For faster replies, choose a lightweight model, lower reasoning effort, or reduce one-shot input size.',
+      performanceSlowFirstTokenHint: 'This request was slower to start, usually because of model tier, reasoning effort, web access, or tool steps. For faster replies, use a lighter model or lower reasoning effort.',
+      performanceSlowTotalHint: 'This task had a longer processing path and may include web lookup, retrieval, tool steps, or deeper reasoning. For faster replies, use a lighter model, lower reasoning effort, or shorten one-shot input.',
       fee: 'Fee',
       noCharge: 'No charge',
       zeroTokenCharged: 'Image / fixed-fee item or no token detail',
@@ -5857,10 +5857,10 @@ export default {
 
   monitorCommon: {
     latencyEmpty: '-',
-    dialogLatency: 'Model latency',
-    endpointPing: 'Endpoint ping',
-    availabilityPrefix: 'Availability',
-    windowAvailabilityLabel: 'Availability {window}',
+    dialogLatency: 'Model response speed',
+    endpointPing: 'Route connectivity',
+    availabilityPrefix: 'Recent availability',
+    windowAvailabilityLabel: '{window} availability',
     extraModelsCount: '+ {n} more models',
     history60pts: 'Last {n} checks',
     nextUpdateIn: 'Next update in {n}s',
@@ -5887,9 +5887,9 @@ export default {
 
   channelStatus: {
     title: 'Channel Status',
-    description: 'View channel health and recent monitoring results.',
-    eyebrow: 'Technical Info',
-    disclaimer: 'Data comes from backend channel monitoring. Only monitors for groups visible to the current account are shown. Availability and latency are recent monitoring samples, not an SLA or 100% uptime guarantee. Actual model access, groups, and billing still follow backend configuration.',
+    description: 'View recent channel status, response speed, and availability trends.',
+    eyebrow: 'Service status',
+    disclaimer: 'Status comes from recent automated checks and only shows channels visible to the current plan/group. Availability and speed are reference signals, not a 100% guarantee; actual model access, balance, and billing still follow backend configuration and request results.',
     detailTitle: 'Channel Details',
     loadError: 'Failed to load channel status',
     detailLoadError: 'Failed to load channel details',
