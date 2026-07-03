@@ -695,13 +695,16 @@ export default {
         modelsEndpointLabel: '模型列表验证',
         connectionChecklistTitle: '连接前检查',
         connectionChecklistBaseUrl: 'Base URL 必须填写本站地址加 /v1，不要填后台上游 provider 地址。',
+        connectionChecklistEndpoint: '如果客户端同时有“官网链接”和“API 请求地址”，官网链接可填本站主页，API 请求地址必须填上方 Base URL。',
         connectionChecklistFullKey: 'API Key 必须使用创建弹窗里保存的完整值，列表中的脱敏值不能用于连接。',
         connectionChecklistModels: '客户端模型列表为空时，先检查 /v1/models 是否能返回当前分组可用模型。',
         connectionChecklistBalance: '如果请求失败，再检查 Key 状态、分组权限、账户余额、额度和使用记录。',
+        connectionChecklistRestart: '修改 CC Switch / Codex 配置后，请完全退出客户端再重新打开；只刷新页面可能仍读取旧配置。',
         securityNote:
           '请优先使用 Authorization: Bearer 或 x-api-key 请求头保存密钥。除非客户端只支持 URL 参数，不要把 API Key 放在链接里；浏览器、代理或服务器日志可能记录完整 URL。完整 API Key 只应保存在你信任的客户端里，不要发给他人，也不要截图外传。',
         ccSwitchFields: {
           baseUrl: '服务地址 / Base URL：填写上方 Base URL',
+          apiEndpoint: 'API 请求地址：填写上方 Base URL；官网链接不要替代 API 请求地址',
           apiKey: 'API Key：填写创建时保存的完整 Key',
           model: '模型：在客户端模型列表里选择可用模型'
         },

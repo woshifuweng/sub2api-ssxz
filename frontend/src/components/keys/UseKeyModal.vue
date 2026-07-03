@@ -161,9 +161,11 @@
             </p>
             <ul class="mt-3 space-y-2 text-sm text-gray-600 dark:text-gray-300">
               <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistBaseUrl') }}</li>
+              <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistEndpoint') }}</li>
               <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistFullKey') }}</li>
               <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistModels') }}</li>
               <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistBalance') }}</li>
+              <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistRestart') }}</li>
             </ul>
           </div>
 
@@ -536,6 +538,7 @@ const thirdPartyClients = computed(() => [
     description: t('keys.useKeyModal.thirdParty.ccSwitch'),
     fields: [
       t('keys.useKeyModal.thirdParty.ccSwitchFields.baseUrl'),
+      t('keys.useKeyModal.thirdParty.ccSwitchFields.apiEndpoint'),
       t('keys.useKeyModal.thirdParty.ccSwitchFields.apiKey'),
       t('keys.useKeyModal.thirdParty.ccSwitchFields.model')
     ]
