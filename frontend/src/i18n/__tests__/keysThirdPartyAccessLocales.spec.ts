@@ -18,6 +18,7 @@ describe('API Key third-party access locale copy', () => {
       zh.keys.workbenchGuide.stepCopyDescription,
       zh.keys.workbenchGuide.stepConfigureTitle,
       zh.keys.workbenchGuide.stepConfigureDescription,
+      zh.keys.workbenchGuide.ccsImportNote,
       zh.keys.workbenchGuide.ccSwitch,
       zh.keys.workbenchGuide.cherryStudio,
       zh.keys.workbenchGuide.chatbox,
@@ -53,11 +54,12 @@ describe('API Key third-party access locale copy', () => {
     expect(copy).toContain('Chatbox')
     expect(copy).toContain('脱敏值')
     expect(copy).toContain('新建')
+    expect(copy).toContain('一键导入')
     expect(copy).toContain('后台开放配置')
     expect(copy).toContain('状态')
     expect(copy).toContain('账户余额')
     expect(copy).toContain('额度')
-    expect(copy).toContain('provider 地址')
+    expect(copy).toContain('其它服务商地址')
     expect(copy).toContain('custom provider')
     expect(copy).toContain('base_url')
     expect(copy).toContain('Codex / CC Switch')
@@ -83,6 +85,7 @@ describe('API Key third-party access locale copy', () => {
       en.keys.workbenchGuide.stepCopyDescription,
       en.keys.workbenchGuide.stepConfigureTitle,
       en.keys.workbenchGuide.stepConfigureDescription,
+      en.keys.workbenchGuide.ccsImportNote,
       en.keys.workbenchGuide.ccSwitch,
       en.keys.workbenchGuide.cherryStudio,
       en.keys.workbenchGuide.chatbox,
@@ -118,11 +121,12 @@ describe('API Key third-party access locale copy', () => {
     expect(copy).toContain('Chatbox')
     expect(copy).toContain('masked')
     expect(copy).toContain('create a new API Key')
+    expect(copy).toContain('One-click CC Switch import')
     expect(copy).toContain('admin model configuration')
     expect(copy).toContain('status')
     expect(copy).toContain('account balance')
     expect(copy).toContain('quota')
-    expect(copy).toContain('upstream provider URL')
+    expect(copy).toContain('another service address')
     expect(copy).toContain('custom provider')
     expect(copy).toContain('base_url')
     expect(copy).toContain('Codex / CC Switch')

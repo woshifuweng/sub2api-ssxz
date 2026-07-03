@@ -574,6 +574,7 @@ const ChevronDoubleRightIcon = {
 
 const paymentEnabled = computed(() => !!appStore.cachedPublicSettings?.payment_enabled)
 const channelMonitorEnabled = computed(() => !!appStore.cachedPublicSettings?.channel_monitor_enabled)
+const affiliateEnabled = computed(() => !!appStore.cachedPublicSettings?.affiliate_enabled)
 const purchaseEnabled = computed(() => (
   paymentEnabled.value || !!appStore.cachedPublicSettings?.purchase_subscription_enabled
 ))
@@ -595,6 +596,9 @@ const userNavItems = computed((): NavItem[] => {
     },
     { path: '/app/orders', label: '订单', icon: OrderListIcon, hideInSimpleMode: true },
     { path: '/app/redeem', label: '兑换码', icon: TicketIcon, hideInSimpleMode: true },
+    ...(affiliateEnabled.value
+      ? [{ path: '/app/affiliate', label: '推广返利', icon: GiftIcon, hideInSimpleMode: true }]
+      : []),
     { path: '/app/profile', label: '个人资料', icon: UserIcon },
     { path: '/app/chat', label: '模型测试', icon: ChatStudioIcon },
     { path: '/app/image', label: '图片内测', icon: SoraIcon }
@@ -623,6 +627,9 @@ const personalNavItems = computed((): NavItem[] => {
       : []),
     { path: '/app/orders', label: '订单', icon: OrderListIcon, hideInSimpleMode: true },
     { path: '/app/redeem', label: '兑换码', icon: TicketIcon, hideInSimpleMode: true },
+    ...(affiliateEnabled.value
+      ? [{ path: '/app/affiliate', label: '推广返利', icon: GiftIcon, hideInSimpleMode: true }]
+      : []),
     { path: '/app/profile', label: '个人资料', icon: UserIcon },
     { path: '/app/chat', label: '模型测试', icon: ChatStudioIcon },
     { path: '/app/image', label: '图片内测', icon: ImageStudioIcon },

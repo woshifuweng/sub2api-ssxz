@@ -191,6 +191,7 @@ const isDark = ref(document.documentElement.classList.contains('dark'))
 let desktopMediaQuery: MediaQueryList | null = null
 
 const channelMonitorEnabled = computed(() => !!appStore.cachedPublicSettings?.channel_monitor_enabled)
+const affiliateEnabled = computed(() => !!appStore.cachedPublicSettings?.affiliate_enabled)
 
 const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName }>>(() => [
   { label: '仪表盘', to: '/app/dashboard', icon: 'home' },
@@ -202,6 +203,9 @@ const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName 
   { label: '充值', to: '/app/purchase', icon: 'creditCard' },
   { label: '订单', to: '/app/orders', icon: 'clipboard' },
   { label: '兑换码', to: '/app/redeem', icon: 'gift' },
+  ...(affiliateEnabled.value
+    ? [{ label: '推广返利', to: '/app/affiliate', icon: 'gift' as IconName }]
+    : []),
   { label: '个人资料', to: '/app/profile', icon: 'userCircle' },
   ...(authStore.isAdmin
     ? [{ label: '后台入口', to: '/admin/dashboard', icon: 'shield' as IconName }]

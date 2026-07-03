@@ -571,6 +571,8 @@ export default {
       stepConfigureTitle: 'Choose OpenAI-compatible in the client',
       stepConfigureDescription:
         'Enter the Base URL and API Key in CC Switch, Cherry Studio, Chatbox, or another compatible client, then select an available model.',
+      ccsImportNote:
+        'One-click CC Switch import is enabled only while the full key is available. Older keys in the list are masked; create a new API Key if you did not save the full key.',
       clientsAriaLabel: 'Supported client examples',
       ccSwitch: 'Enter the Base URL and API Key, then switch models from the client.',
       cherryStudio: 'Choose OpenAI-compatible configuration in the provider settings.',

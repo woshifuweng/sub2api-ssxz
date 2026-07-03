@@ -570,6 +570,7 @@ export default {
       stepCopyDescription: 'Base URL 使用本站地址加 /v1；完整 Key 请使用创建时保存的值。',
       stepConfigureTitle: '在客户端选择 OpenAI-compatible',
       stepConfigureDescription: '在 CC Switch、Cherry Studio、Chatbox 等客户端填入 Base URL、API Key，再选择可用模型。',
+      ccsImportNote: '一键导入 CC Switch 只在完整 Key 可用时启用。列表中的旧 Key 已脱敏，如果没有保存完整 Key，请新建一个 API Key 后再导入。',
       clientsAriaLabel: '支持的客户端示例',
       ccSwitch: '填入 Base URL 和 API Key 后切换模型使用。',
       cherryStudio: '选择 OpenAI-compatible 配置方式接入。',

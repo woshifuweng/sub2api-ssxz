@@ -18,6 +18,7 @@ const { routeState, appState, authState, adminSettingsState, onboardingState } =
       purchase_subscription_enabled: true,
       available_channels_enabled: true,
       channel_monitor_enabled: true,
+      affiliate_enabled: false,
       sora_client_enabled: true,
       custom_menu_items: []
     },
@@ -132,6 +133,7 @@ describe('AppSidebar', () => {
       purchase_subscription_enabled: true,
       available_channels_enabled: true,
       channel_monitor_enabled: true,
+      affiliate_enabled: false,
       sora_client_enabled: true,
       custom_menu_items: []
     }
@@ -207,6 +209,29 @@ describe('AppSidebar', () => {
       '/app/purchase',
       '/app/orders',
       '/app/redeem',
+      '/app/profile',
+      '/app/chat',
+      '/app/image'
+    ])
+  })
+
+  it('shows the existing affiliate route for regular users when enabled', () => {
+    authState.isAdmin = false
+    appState.cachedPublicSettings.affiliate_enabled = true
+
+    const wrapper = mountSidebar()
+    const destinations = hrefs(wrapper)
+
+    expect(wrapper.text()).toContain('推广返利')
+    expect(destinations).toEqual([
+      '/app/dashboard',
+      '/app/keys',
+      '/app/usage',
+      '/app/channel-status',
+      '/app/purchase',
+      '/app/orders',
+      '/app/redeem',
+      '/app/affiliate',
       '/app/profile',
       '/app/chat',
       '/app/image'
