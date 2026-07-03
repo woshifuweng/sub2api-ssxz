@@ -360,6 +360,7 @@ export default {
     redeemCodes: 'Redeem Codes',
     ops: 'Ops',
     promoCodes: 'Promo Codes',
+    affiliates: 'Affiliates',
     settings: 'Settings',
     myAccount: 'My Account',
     lightMode: 'Light Mode',

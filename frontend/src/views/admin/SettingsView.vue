@@ -1330,6 +1330,97 @@
             </div>
           </div>
         </div>
+
+        <!-- Affiliate Settings -->
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">推广返利</h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              控制用户推广入口和默认返利规则。实际返佣入账以后端账本为准。
+            </p>
+          </div>
+          <div class="space-y-6 p-6">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <label class="font-medium text-gray-900 dark:text-white">启用推广返利</label>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                  开启后，普通用户可在侧边栏看到推广返利入口。
+                </p>
+              </div>
+              <Toggle v-model="form.affiliate_enabled" />
+            </div>
+
+            <div
+              v-if="form.affiliate_enabled"
+              class="grid grid-cols-1 gap-6 border-t border-gray-100 pt-4 md:grid-cols-2 dark:border-dark-700"
+            >
+              <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  默认返利比例（%）
+                </label>
+                <input
+                  v-model.number="form.affiliate_rebate_rate"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  class="input"
+                />
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  没有设置专属比例的推广用户使用这个默认比例。
+                </p>
+              </div>
+
+              <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  返利冻结小时
+                </label>
+                <input
+                  v-model.number="form.affiliate_rebate_freeze_hours"
+                  type="number"
+                  min="0"
+                  step="1"
+                  class="input"
+                />
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  0 表示不冻结，具体结算仍以后端策略为准。
+                </p>
+              </div>
+
+              <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  返利有效天数
+                </label>
+                <input
+                  v-model.number="form.affiliate_rebate_duration_days"
+                  type="number"
+                  min="0"
+                  step="1"
+                  class="input"
+                />
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  0 表示不限制邀请关系有效期。
+                </p>
+              </div>
+
+              <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  单个被邀请人返利上限
+                </label>
+                <input
+                  v-model.number="form.affiliate_rebate_per_invitee_cap"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  class="input"
+                />
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  0 表示不设置单人上限。
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
         </div><!-- /Tab: Users -->
 
         <!-- Tab: Gateway — Claude Code, Scheduling -->
@@ -2238,6 +2329,11 @@ const form = reactive<SettingsForm>({
   default_balance: 0,
   default_concurrency: 1,
   default_subscriptions: [],
+  affiliate_enabled: false,
+  affiliate_rebate_rate: 10,
+  affiliate_rebate_freeze_hours: 0,
+  affiliate_rebate_duration_days: 0,
+  affiliate_rebate_per_invitee_cap: 0,
   site_name: 'Sub2API',
   site_logo: '',
   site_subtitle: 'Subscription to API Conversion Platform',
@@ -2614,6 +2710,11 @@ async function saveSettings() {
       default_balance: form.default_balance,
       default_concurrency: form.default_concurrency,
       default_subscriptions: normalizedDefaultSubscriptions,
+      affiliate_enabled: form.affiliate_enabled,
+      affiliate_rebate_rate: form.affiliate_rebate_rate,
+      affiliate_rebate_freeze_hours: form.affiliate_rebate_freeze_hours,
+      affiliate_rebate_duration_days: form.affiliate_rebate_duration_days,
+      affiliate_rebate_per_invitee_cap: form.affiliate_rebate_per_invitee_cap,
       site_name: form.site_name,
       site_logo: form.site_logo,
       site_subtitle: form.site_subtitle,
