@@ -672,6 +672,7 @@ describe('KeysView workbench surface', () => {
   })
 
   it('reveals the full API key once after creation', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
     const createdKey = 'sk-created-full-key-only-shown-once'
     userGroupsAPI.getAvailable.mockResolvedValue([groupFixture()])
     keysAPI.create.mockResolvedValue(apiKeyFixture({
@@ -727,10 +728,22 @@ describe('KeysView workbench surface', () => {
     await flushPromises()
     expect(clipboardCopy).toHaveBeenCalledWith(createdKey, 'keys.createdKeyReveal.fullKeyCopied')
 
+    await wrapper.get('[data-testid="created-key-ccs-import"]').trigger('click')
+    await flushPromises()
+    expect(openSpy).toHaveBeenCalledTimes(1)
+    const deeplink = String(openSpy.mock.calls[0]?.[0])
+    const params = new URLSearchParams(deeplink.split('?')[1])
+    expect(deeplink).toMatch(/^ccswitch:\/\/v1\/import\?/)
+    expect(params.get('apiKey')).toBe(createdKey)
+    expect(params.get('homepage')).toBe('https://example.test')
+    expect(params.get('endpoint')).toBe('https://example.test')
+
     await wrapper.get('[data-testid="created-key-ack"]').trigger('click')
     await flushPromises()
     expect(wrapper.find('[data-testid="created-key-reveal"]').exists()).toBe(false)
     expect(wrapper.html()).not.toContain(createdKey)
+
+    openSpy.mockRestore()
   })
 
   it('ignores duplicate create submits while the first request is pending', async () => {
