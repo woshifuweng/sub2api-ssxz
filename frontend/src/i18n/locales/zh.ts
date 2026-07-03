@@ -700,6 +700,20 @@ export default {
         connectionChecklistModels: '客户端模型列表为空时，先检查 /v1/models 是否能返回当前分组可用模型。',
         connectionChecklistBalance: '如果请求失败，再检查 Key 状态、分组权限、账户余额、额度和使用记录。',
         connectionChecklistRestart: '修改 CC Switch / Codex 配置后，请完全退出客户端再重新打开；只刷新页面可能仍读取旧配置。',
+        troubleshootingTitle: '常见错误排查',
+        troubleshooting401:
+          '401 通常是 API Key 填错、复制了脱敏值、鉴权字段填错，或客户端没有把 Key 放到 Authorization / API Key 字段。',
+        troubleshooting403:
+          '403 通常是余额不足、Key 被禁用或过期、分组没有权限、IP 限制不匹配，或账户策略不允许当前模型。',
+        troubleshooting429:
+          '429 通常是 Key 额度、频率限制、套餐窗口或上游限流。先降低并发，检查额度与用量窗口。',
+        troubleshooting503:
+          '503 通常是上游账号/provider 暂不可用。后台测试可用但客户端仍 503 时，优先检查模型名、Base URL，并完全重启客户端。',
+        troubleshootingModelsCode: '模型为空',
+        troubleshootingModels:
+          '模型列表为空时，先打开 /v1/models 检查当前 Key 和分组是否能返回模型，再回到客户端刷新模型列表。',
+        troubleshootingUsageHint:
+          '请求成功后，可到 /app/usage 按 API Key 和时间筛选，核对模型、endpoint、token、费用和请求时间。',
         securityNote:
           '请优先使用 Authorization: Bearer 或 x-api-key 请求头保存密钥。除非客户端只支持 URL 参数，不要把 API Key 放在链接里；浏览器、代理或服务器日志可能记录完整 URL。完整 API Key 只应保存在你信任的客户端里，不要发给他人，也不要截图外传。',
         ccSwitchFields: {

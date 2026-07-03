@@ -169,6 +169,30 @@
             </ul>
           </div>
 
+          <div
+            class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900/80"
+            data-testid="third-party-troubleshooting"
+          >
+            <p class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.thirdParty.troubleshootingTitle') }}
+            </p>
+            <dl class="mt-3 space-y-2 text-sm text-gray-600 dark:text-gray-300">
+              <div
+                v-for="item in troubleshootingItems"
+                :key="item.code"
+                class="grid gap-1 sm:grid-cols-[5rem_1fr]"
+              >
+                <dt class="font-mono font-semibold text-gray-900 dark:text-gray-100">
+                  {{ item.code }}
+                </dt>
+                <dd>{{ item.description }}</dd>
+              </div>
+            </dl>
+            <p class="mt-3 text-xs leading-5 text-gray-500 dark:text-gray-400">
+              {{ t('keys.useKeyModal.thirdParty.troubleshootingUsageHint') }}
+            </p>
+          </div>
+
           <div class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
             <Icon name="exclamationCircle" size="md" class="mt-0.5 flex-shrink-0 text-amber-500" />
             <p class="text-sm text-amber-700 dark:text-amber-300">
@@ -531,6 +555,29 @@ const openAICompatibleBaseUrl = computed(() => {
 })
 
 const modelsEndpointUrl = computed(() => `${openAICompatibleBaseUrl.value}/models`)
+
+const troubleshootingItems = computed(() => [
+  {
+    code: '401',
+    description: t('keys.useKeyModal.thirdParty.troubleshooting401')
+  },
+  {
+    code: '403',
+    description: t('keys.useKeyModal.thirdParty.troubleshooting403')
+  },
+  {
+    code: '429',
+    description: t('keys.useKeyModal.thirdParty.troubleshooting429')
+  },
+  {
+    code: '503',
+    description: t('keys.useKeyModal.thirdParty.troubleshooting503')
+  },
+  {
+    code: t('keys.useKeyModal.thirdParty.troubleshootingModelsCode'),
+    description: t('keys.useKeyModal.thirdParty.troubleshootingModels')
+  }
+])
 
 const thirdPartyClients = computed(() => [
   {
