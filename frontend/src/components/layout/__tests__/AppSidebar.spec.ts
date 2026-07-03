@@ -65,6 +65,7 @@ vi.mock('vue-i18n', () => ({
       'nav.proxies': 'IP Management',
       'nav.redeemCodes': 'Redeem Codes',
       'nav.promoCodes': 'Promo Codes',
+      'nav.affiliates': 'Affiliates',
       'nav.settings': 'Settings',
       'nav.lightMode': 'Light Mode',
       'nav.darkMode': 'Dark Mode',
@@ -236,5 +237,13 @@ describe('AppSidebar', () => {
       '/app/chat',
       '/app/image'
     ])
+  })
+
+  it('shows admin affiliate management for admins', () => {
+    const wrapper = mountSidebar()
+    const destinations = hrefs(wrapper)
+
+    expect(destinations).toContain('/admin/affiliates')
+    expect(wrapper.text()).toContain('Affiliates')
   })
 })

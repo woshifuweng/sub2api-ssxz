@@ -95,6 +95,11 @@ describe('admin SettingsView', () => {
       default_balance: 0,
       default_concurrency: 1,
       default_subscriptions: [],
+      affiliate_enabled: true,
+      affiliate_rebate_rate: 10,
+      affiliate_rebate_freeze_hours: 0,
+      affiliate_rebate_duration_days: 0,
+      affiliate_rebate_per_invitee_cap: 0,
       site_name: 'Sub2API',
       site_logo: '',
       site_subtitle: '',
@@ -196,5 +201,6 @@ describe('admin SettingsView', () => {
     expect(wrapper.text()).toContain('Alpha')
     expect(wrapper.text()).toContain('alpha')
     expect(wrapper.text()).toContain('admin.settings.tlsFingerprint.title')
+    expect(wrapper.text()).toContain('推广返利')
   })
 })
