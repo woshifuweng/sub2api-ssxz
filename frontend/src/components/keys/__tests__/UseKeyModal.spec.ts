@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
+import enLocale from '@/i18n/locales/en'
+import zhLocale from '@/i18n/locales/zh'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -39,11 +41,17 @@ describe('UseKeyModal', () => {
 
     expect(wrapper.text()).toContain('keys.useKeyModal.cliTabs.thirdParty')
     expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.title')
-    expect(wrapper.text()).toContain('CC Switch')
+    expect(wrapper.find('[data-testid="third-party-quick-start"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.quickStartTitle')
+    expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.quickStartBaseUrl')
+    expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.quickStartApiKeyHint')
+    expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.quickStartSpeedHint')
+    expect(wrapper.find('[data-testid="cc-switch-setup-card"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.ccSwitchQuickTitle')
+    expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.ccSwitchQuickRequestUrl')
+    expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.ccSwitchQuickRestart')
     expect(wrapper.text()).toContain('Cherry Studio')
     expect(wrapper.text()).toContain('Chatbox')
-    expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.ccSwitchFields.baseUrl')
-    expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.ccSwitchFields.apiEndpoint')
     expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.cherryStudioFields.provider')
     expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.chatboxFields.apiHost')
     expect(wrapper.text()).toContain('keys.useKeyModal.thirdParty.connectionChecklistTitle')
@@ -59,6 +67,21 @@ describe('UseKeyModal', () => {
     expect(wrapper.text()).toContain('https://example.com/v1')
     expect(wrapper.text()).toContain('https://example.com/v1/models')
     expect(wrapper.find('pre code').exists()).toBe(false)
+  })
+
+  it('keeps third-party troubleshooting copy customer-safe', () => {
+    const enCopy = JSON.stringify(enLocale.keys.useKeyModal.thirdParty)
+    const zhCopy = JSON.stringify(zhLocale.keys.useKeyModal.thirdParty)
+
+    expect(enCopy).toContain('lighter model')
+    expect(enCopy).toContain('current line is busy')
+    expect(enCopy).not.toContain('upstream account')
+    expect(enCopy).not.toContain('upstream provider')
+
+    expect(zhCopy).toContain('轻量模型')
+    expect(zhCopy).toContain('当前线路繁忙')
+    expect(zhCopy).not.toContain('上游账号')
+    expect(zhCopy).not.toContain('上游 provider')
   })
 
   it('warns when the key cannot currently be used by clients', () => {
