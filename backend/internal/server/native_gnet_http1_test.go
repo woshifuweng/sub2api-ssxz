@@ -2605,7 +2605,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAuthLoginUnauthorizedRateLimitEnve
 	userSvc := &service.UserService{}
 	registerHTTPServerExecutableRuntimeConfig(httpServer, buildExecutableRuntimeConfig(
 		cfg,
-		&handler.Handlers{Auth: handler.NewAuthHandler(cfg, authSvc, userSvc, settingSvc, nil, nil, nil)},
+		&handler.Handlers{Auth: handler.NewAuthHandler(cfg, authSvc, userSvc, settingSvc, nil, nil, nil, nil)},
 		nil, nil, settingSvc, authSvc, userSvc, nil, nil,
 	))
 	runtime := newNativeGnetHTTPRuntime(cfg, httpServer)

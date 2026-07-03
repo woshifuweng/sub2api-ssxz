@@ -212,10 +212,20 @@ func TestHandlePaymentNotificationDoesNotDoubleFulfillBalanceOrder(t *testing.T)
 	userRepo := &paymentFulfillmentUserRepo{client: client}
 	redeemRepo := newPaymentFulfillmentRedeemRepo()
 	redeemService := NewRedeemService(redeemRepo, userRepo, nil, nil, nil, client, nil)
+	affiliateRepo := &paymentFulfillmentAffiliateRepo{
+		inviterID:     user.ID + 100,
+		inviteeUserID: user.ID,
+	}
+	affiliateSettings := NewSettingService(&paymentFulfillmentSettingRepo{values: map[string]string{
+		SettingKeyAffiliateEnabled:    "true",
+		SettingKeyAffiliateRebateRate: "20",
+	}}, nil)
+	affiliateService := NewAffiliateService(affiliateRepo, affiliateSettings, nil, nil)
 	svc := &PaymentService{
 		entClient:     client,
 		registry:      payment.NewRegistry(),
 		redeemService: redeemService,
+		affiliateSvc:  affiliateService,
 	}
 	notification := &payment.PaymentNotification{
 		OrderID: order.OutTradeNo,
@@ -233,12 +243,15 @@ func TestHandlePaymentNotificationDoesNotDoubleFulfillBalanceOrder(t *testing.T)
 	require.Equal(t, 1, redeemRepo.createCalls)
 	require.Equal(t, 1, redeemRepo.useCalls)
 	require.Equal(t, 1, userRepo.balanceUpdateCalls)
+	require.Equal(t, 1, affiliateRepo.accrueCalls)
+	require.Equal(t, float64(2), affiliateRepo.lastAccruedAmount)
 
 	dbUser, err := client.User.Get(ctx, user.ID)
 	require.NoError(t, err)
 	require.Equal(t, order.Amount, dbUser.Balance)
 	require.Equal(t, 1, countPaymentAuditLogs(t, client, order.ID, "ORDER_PAID"))
 	require.Equal(t, 1, countPaymentAuditLogs(t, client, order.ID, "RECHARGE_SUCCESS"))
+	require.Equal(t, 1, countPaymentAuditLogs(t, client, order.ID, "AFFILIATE_REBATE_SUCCESS"))
 }
 
 type countingPaymentProvider struct {
@@ -382,4 +395,126 @@ func (r *paymentFulfillmentUserRepo) UpdateBalance(ctx context.Context, id int64
 	r.balanceUpdateCalls++
 	_ = updated
 	return nil
+}
+
+type paymentFulfillmentSettingRepo struct {
+	values map[string]string
+}
+
+func (r *paymentFulfillmentSettingRepo) Get(context.Context, string) (*Setting, error) {
+	return nil, ErrSettingNotFound
+}
+
+func (r *paymentFulfillmentSettingRepo) GetValue(_ context.Context, key string) (string, error) {
+	if r != nil && r.values != nil {
+		if value, ok := r.values[key]; ok {
+			return value, nil
+		}
+	}
+	return "", ErrSettingNotFound
+}
+
+func (r *paymentFulfillmentSettingRepo) Set(context.Context, string, string) error {
+	return nil
+}
+
+func (r *paymentFulfillmentSettingRepo) GetMultiple(_ context.Context, keys []string) (map[string]string, error) {
+	out := make(map[string]string, len(keys))
+	for _, key := range keys {
+		if r != nil && r.values != nil {
+			if value, ok := r.values[key]; ok {
+				out[key] = value
+			}
+		}
+	}
+	return out, nil
+}
+
+func (r *paymentFulfillmentSettingRepo) SetMultiple(context.Context, map[string]string) error {
+	return nil
+}
+
+func (r *paymentFulfillmentSettingRepo) GetAll(context.Context) (map[string]string, error) {
+	out := make(map[string]string)
+	if r != nil {
+		for key, value := range r.values {
+			out[key] = value
+		}
+	}
+	return out, nil
+}
+
+func (r *paymentFulfillmentSettingRepo) Delete(context.Context, string) error {
+	return nil
+}
+
+type paymentFulfillmentAffiliateRepo struct {
+	inviterID         int64
+	inviteeUserID     int64
+	accrueCalls       int
+	lastAccruedAmount float64
+}
+
+func (r *paymentFulfillmentAffiliateRepo) EnsureUserAffiliate(_ context.Context, userID int64) (*AffiliateSummary, error) {
+	summary := &AffiliateSummary{
+		UserID:    userID,
+		AffCode:   "AFFTEST",
+		CreatedAt: time.Now(),
+	}
+	if userID == r.inviteeUserID {
+		summary.InviterID = &r.inviterID
+	}
+	return summary, nil
+}
+
+func (r *paymentFulfillmentAffiliateRepo) GetAffiliateByCode(context.Context, string) (*AffiliateSummary, error) {
+	return &AffiliateSummary{UserID: r.inviterID, AffCode: "AFFTEST", CreatedAt: time.Now()}, nil
+}
+
+func (r *paymentFulfillmentAffiliateRepo) BindInviter(context.Context, int64, int64) (bool, error) {
+	return true, nil
+}
+
+func (r *paymentFulfillmentAffiliateRepo) AccrueQuota(_ context.Context, inviterID, inviteeUserID int64, amount float64, _ int) (bool, error) {
+	r.accrueCalls++
+	r.inviterID = inviterID
+	r.inviteeUserID = inviteeUserID
+	r.lastAccruedAmount = amount
+	return true, nil
+}
+
+func (r *paymentFulfillmentAffiliateRepo) GetAccruedRebateFromInvitee(context.Context, int64, int64) (float64, error) {
+	return 0, nil
+}
+
+func (r *paymentFulfillmentAffiliateRepo) ThawFrozenQuota(context.Context, int64) (float64, error) {
+	return 0, nil
+}
+
+func (r *paymentFulfillmentAffiliateRepo) TransferQuotaToBalance(context.Context, int64) (float64, float64, error) {
+	return 0, 0, nil
+}
+
+func (r *paymentFulfillmentAffiliateRepo) ListInvitees(context.Context, int64, int) ([]AffiliateInvitee, error) {
+	return nil, nil
+}
+
+func (r *paymentFulfillmentAffiliateRepo) UpdateUserAffCode(context.Context, int64, string) error {
+	return nil
+}
+
+func (r *paymentFulfillmentAffiliateRepo) ResetUserAffCode(context.Context, int64) (string, error) {
+	return "AFFTEST", nil
+}
+
+func (r *paymentFulfillmentAffiliateRepo) SetUserRebateRate(context.Context, int64, *float64) error {
+	return nil
+}
+
+func (r *paymentFulfillmentAffiliateRepo) BatchSetUserRebateRate(context.Context, []int64, *float64) error {
+	return nil
+}
+
+func (r *paymentFulfillmentAffiliateRepo) ListUsersWithCustomSettings(context.Context, AffiliateAdminFilter) ([]AffiliateAdminEntry, int64, error) {
+	return nil, 0, nil
 }

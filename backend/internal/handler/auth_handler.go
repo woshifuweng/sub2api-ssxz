@@ -24,11 +24,12 @@ type AuthHandler struct {
 	settingSvc    *service.SettingService
 	promoService  *service.PromoService
 	redeemService *service.RedeemService
+	affiliateSvc  *service.AffiliateService
 	totpService   *service.TotpService
 }
 
 // NewAuthHandler creates a new AuthHandler
-func NewAuthHandler(cfg *config.Config, authService *service.AuthService, userService *service.UserService, settingService *service.SettingService, promoService *service.PromoService, redeemService *service.RedeemService, totpService *service.TotpService) *AuthHandler {
+func NewAuthHandler(cfg *config.Config, authService *service.AuthService, userService *service.UserService, settingService *service.SettingService, promoService *service.PromoService, redeemService *service.RedeemService, affiliateService *service.AffiliateService, totpService *service.TotpService) *AuthHandler {
 	return &AuthHandler{
 		cfg:           cfg,
 		authService:   authService,
@@ -36,6 +37,7 @@ func NewAuthHandler(cfg *config.Config, authService *service.AuthService, userSe
 		settingSvc:    settingService,
 		promoService:  promoService,
 		redeemService: redeemService,
+		affiliateSvc:  affiliateService,
 		totpService:   totpService,
 	}
 }
@@ -48,6 +50,7 @@ type RegisterRequest struct {
 	TurnstileToken string `json:"turnstile_token"`
 	PromoCode      string `json:"promo_code"`      // 注册优惠码
 	InvitationCode string `json:"invitation_code"` // 邀请码
+	AffiliateCode  string `json:"affiliate_code"`  // 推广返佣码
 }
 
 // SendVerifyCodeRequest 发送验证码请求
@@ -155,6 +158,11 @@ func (h *AuthHandler) RegisterGateway(c gatewayctx.GatewayContext) {
 	if err != nil {
 		response.ErrorFromContext(authJSONResponder{ctx: c}, err)
 		return
+	}
+	if h.affiliateSvc != nil && strings.TrimSpace(req.AffiliateCode) != "" {
+		if bindErr := h.affiliateSvc.BindInviterByCode(c.Request().Context(), user.ID, req.AffiliateCode); bindErr != nil {
+			slog.Warn("affiliate inviter binding failed during registration", "userID", user.ID, "error", bindErr)
+		}
 	}
 
 	h.respondWithTokenPairGateway(c, user)

@@ -8,49 +8,49 @@
       <template v-else-if="detail">
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div class="card p-5">
-            <p class="text-sm text-gray-500">Rebate Rate</p>
+            <p class="text-sm text-gray-500">当前返利比例</p>
             <p class="mt-2 text-2xl font-semibold text-primary-600">{{ formattedRate }}%</p>
           </div>
           <div class="card p-5">
-            <p class="text-sm text-gray-500">Invited Users</p>
+            <p class="text-sm text-gray-500">邀请人数</p>
             <p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ detail.aff_count }}</p>
           </div>
           <div class="card p-5">
-            <p class="text-sm text-gray-500">Available Quota</p>
+            <p class="text-sm text-gray-500">可结算额度</p>
             <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ formatCurrency(detail.aff_quota) }}</p>
           </div>
           <div class="card p-5">
-            <p class="text-sm text-gray-500">Total Quota</p>
+            <p class="text-sm text-gray-500">累计返利</p>
             <p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ formatCurrency(detail.aff_history_quota) }}</p>
             <p v-if="detail.aff_frozen_quota > 0" class="mt-1 text-xs text-amber-600">
-              Frozen: {{ formatCurrency(detail.aff_frozen_quota) }}
+              待确认：{{ formatCurrency(detail.aff_frozen_quota) }}
             </p>
           </div>
         </div>
 
         <div class="card p-6">
-          <h2 class="text-base font-semibold text-gray-900 dark:text-white">Affiliate</h2>
-          <p class="mt-1 text-sm text-gray-500">Share your code or invite link with new users.</p>
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">推广邀请</h2>
+          <p class="mt-1 text-sm text-gray-500">分享推广码或链接，新用户注册并完成充值后会按当前规则产生可结算额度。</p>
 
           <div class="mt-5 grid gap-4 md:grid-cols-2">
             <div class="space-y-2">
-              <p class="text-sm font-medium text-gray-700 dark:text-gray-300">Your Code</p>
+              <p class="text-sm font-medium text-gray-700 dark:text-gray-300">推广码</p>
               <div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900">
                 <code class="flex-1 truncate text-sm font-semibold text-gray-900 dark:text-white">{{ detail.aff_code }}</code>
-                <button class="btn btn-secondary btn-sm" @click="copyValue(detail.aff_code, 'Affiliate code copied')">
+                <button class="btn btn-secondary btn-sm" @click="copyValue(detail.aff_code, '推广码已复制')">
                   <Icon name="copy" size="sm" />
-                  <span>Copy</span>
+                  <span>复制</span>
                 </button>
               </div>
             </div>
 
             <div class="space-y-2">
-              <p class="text-sm font-medium text-gray-700 dark:text-gray-300">Invite Link</p>
+              <p class="text-sm font-medium text-gray-700 dark:text-gray-300">推广链接</p>
               <div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900">
                 <code class="flex-1 truncate text-sm text-gray-700 dark:text-gray-300">{{ inviteLink }}</code>
-                <button class="btn btn-secondary btn-sm" @click="copyValue(inviteLink, 'Invite link copied')">
+                <button class="btn btn-secondary btn-sm" @click="copyValue(inviteLink, '推广链接已复制')">
                   <Icon name="copy" size="sm" />
-                  <span>Copy</span>
+                  <span>复制</span>
                 </button>
               </div>
             </div>
@@ -60,30 +60,30 @@
         <div class="card p-6">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 class="text-base font-semibold text-gray-900 dark:text-white">Transfer Quota</h3>
-              <p class="mt-1 text-sm text-gray-500">Move available affiliate quota into your balance.</p>
+              <h3 class="text-base font-semibold text-gray-900 dark:text-white">结算到余额</h3>
+              <p class="mt-1 text-sm text-gray-500">将可结算额度转入账户余额，到账后可用于正常调用。</p>
             </div>
             <button class="btn btn-primary" :disabled="transferring || detail.aff_quota <= 0" @click="transferQuota">
               <Icon v-if="transferring" name="refresh" size="sm" class="animate-spin" />
               <Icon v-else name="dollar" size="sm" />
-              <span>{{ transferring ? 'Transferring...' : 'Transfer to Balance' }}</span>
+              <span>{{ transferring ? '结算中...' : '转入余额' }}</span>
             </button>
           </div>
         </div>
 
         <div class="card p-6">
-          <h3 class="text-base font-semibold text-gray-900 dark:text-white">Invitees</h3>
+          <h3 class="text-base font-semibold text-gray-900 dark:text-white">邀请记录</h3>
           <div v-if="detail.invitees.length === 0" class="mt-4 rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-dark-700">
-            No invited users yet.
+            暂无邀请记录。
           </div>
           <div v-else class="mt-4 overflow-x-auto">
             <table class="w-full min-w-[560px] text-left text-sm">
               <thead>
                 <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700">
-                  <th class="px-3 py-2 font-medium">Email</th>
-                  <th class="px-3 py-2 font-medium">Username</th>
-                  <th class="px-3 py-2 text-right font-medium">Rebate</th>
-                  <th class="px-3 py-2 font-medium">Joined</th>
+                  <th class="px-3 py-2 font-medium">用户</th>
+                  <th class="px-3 py-2 font-medium">名称</th>
+                  <th class="px-3 py-2 text-right font-medium">产生返利</th>
+                  <th class="px-3 py-2 font-medium">注册时间</th>
                 </tr>
               </thead>
               <tbody>
@@ -125,9 +125,9 @@ const useWorkbenchShell = computed(() => route.path === '/app/affiliate')
 const pageShell = computed(() => useWorkbenchShell.value ? AppSectionShell : AppLayout)
 const pageShellProps = computed(() => useWorkbenchShell.value
   ? {
-      title: '邀请返利',
-      subtitle: '查看你的邀请码、返利额度和被邀请用户，必要时可把可用返利转入余额。',
-      eyebrow: '账户计费',
+      title: '推广返利',
+      subtitle: '查看推广码、邀请记录和可结算额度。实际结算以后端记录和当前策略为准。',
+      eyebrow: '账户运营',
       icon: 'gift'
     }
   : {})
@@ -153,7 +153,7 @@ async function loadAffiliateDetail(silent = false): Promise<void> {
   try {
     detail.value = await userAPI.getAffiliateDetail()
   } catch (error) {
-    appStore.showError(extractApiErrorMessage(error, 'Failed to load affiliate data'))
+    appStore.showError(extractApiErrorMessage(error, '推广数据加载失败，请稍后重试'))
   } finally {
     if (!silent) loading.value = false
   }
@@ -169,13 +169,13 @@ async function transferQuota(): Promise<void> {
   transferring.value = true
   try {
     const resp = await userAPI.transferAffiliateQuota()
-    appStore.showSuccess(`Transferred ${formatCurrency(resp.transferred_quota)} to balance`)
+    appStore.showSuccess(`已转入余额：${formatCurrency(resp.transferred_quota)}`)
     await Promise.all([
       loadAffiliateDetail(true),
       authStore.refreshUser().catch(() => undefined),
     ])
   } catch (error) {
-    appStore.showError(extractApiErrorMessage(error, 'Failed to transfer affiliate quota'))
+    appStore.showError(extractApiErrorMessage(error, '结算失败，请稍后重试'))
   } finally {
     transferring.value = false
   }
