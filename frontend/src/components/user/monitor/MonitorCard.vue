@@ -117,7 +117,7 @@ const providerTintClass = computed(() =>
 
 const availabilityLabel = computed(() => {
   const win = t(`channelStatus.windowTab.${props.window}`)
-  return `${t('monitorCommon.availabilityPrefix')} · ${win}`
+  return t('monitorCommon.windowAvailabilityLabel', { window: win })
 })
 
 const extraModelsCountLabel = computed(() => {
