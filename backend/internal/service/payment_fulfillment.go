@@ -295,7 +295,41 @@ func (s *PaymentService) markCompleted(ctx context.Context, o *dbent.PaymentOrde
 		"creditedAmount": o.Amount,
 		"payAmount":      o.PayAmount,
 	})
+	if auditAction == "RECHARGE_SUCCESS" {
+		s.accrueAffiliateRebate(ctx, o)
+	}
 	return nil
+}
+
+func (s *PaymentService) accrueAffiliateRebate(ctx context.Context, o *dbent.PaymentOrder) {
+	if s == nil || s.affiliateSvc == nil || o == nil {
+		return
+	}
+	if s.hasAuditLog(ctx, o.ID, "AFFILIATE_REBATE_SUCCESS") || s.hasAuditLog(ctx, o.ID, "AFFILIATE_REBATE_SKIPPED") {
+		return
+	}
+	rebate, err := s.affiliateSvc.AccrueInviteRebate(ctx, o.UserID, o.Amount)
+	if err != nil {
+		slog.Warn("affiliate rebate accrual failed", "orderID", o.ID, "userID", o.UserID, "error", err)
+		s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_FAILED", "system", map[string]any{
+			"userID":     o.UserID,
+			"baseAmount": o.Amount,
+			"reason":     err.Error(),
+		})
+		return
+	}
+	if rebate <= 0 {
+		s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_SKIPPED", "system", map[string]any{
+			"userID":     o.UserID,
+			"baseAmount": o.Amount,
+		})
+		return
+	}
+	s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_SUCCESS", "system", map[string]any{
+		"userID":     o.UserID,
+		"baseAmount": o.Amount,
+		"rebate":     rebate,
+	})
 }
 
 func (s *PaymentService) ExecuteSubscriptionFulfillment(ctx context.Context, oid int64) error {

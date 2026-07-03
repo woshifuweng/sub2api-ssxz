@@ -233,7 +233,7 @@ func newAuthHandlerBackendHarness(t *testing.T) *authHandlerBackendHarness {
 	totpSvc := service.NewTotpService(userRepo, nil, totpCache, settingSvc, nil, nil)
 
 	return &authHandlerBackendHarness{
-		handler:   NewAuthHandler(cfg, authSvc, userSvc, settingSvc, nil, nil, totpSvc),
+		handler:   NewAuthHandler(cfg, authSvc, userSvc, settingSvc, nil, nil, nil, totpSvc),
 		totpCache: totpCache,
 		users: map[string]*service.User{
 			"admin":       admin,
