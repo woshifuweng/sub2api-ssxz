@@ -104,6 +104,47 @@
             </div>
           </div>
 
+          <div
+            class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900/80"
+            data-testid="third-party-quick-start"
+          >
+            <p class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.thirdParty.quickStartTitle') }}
+            </p>
+            <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+              {{ t('keys.useKeyModal.thirdParty.quickStartDescription') }}
+            </p>
+            <dl class="mt-3 grid gap-2 text-sm sm:grid-cols-[8rem_1fr]">
+              <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.quickStartBaseUrl') }}</dt>
+              <dd class="break-all font-mono text-gray-900 dark:text-gray-100">{{ openAICompatibleBaseUrl }}</dd>
+              <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.quickStartApiKey') }}</dt>
+              <dd class="text-gray-900 dark:text-gray-100">{{ t('keys.useKeyModal.thirdParty.quickStartApiKeyHint') }}</dd>
+              <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.quickStartModel') }}</dt>
+              <dd class="text-gray-900 dark:text-gray-100">{{ t('keys.useKeyModal.thirdParty.quickStartModelHint') }}</dd>
+              <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.quickStartSpeed') }}</dt>
+              <dd class="text-gray-900 dark:text-gray-100">{{ t('keys.useKeyModal.thirdParty.quickStartSpeedHint') }}</dd>
+            </dl>
+          </div>
+
+          <div
+            class="rounded-xl border border-primary-100 bg-primary-50/70 p-4 dark:border-primary-800/50 dark:bg-primary-900/20"
+            data-testid="cc-switch-setup-card"
+          >
+            <p class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.thirdParty.ccSwitchQuickTitle') }}
+            </p>
+            <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+              {{ t('keys.useKeyModal.thirdParty.ccSwitchQuickDescription') }}
+            </p>
+            <ol class="mt-3 space-y-1.5 text-sm text-gray-700 dark:text-gray-300">
+              <li>{{ t('keys.useKeyModal.thirdParty.ccSwitchQuickOfficialSite') }}</li>
+              <li>{{ t('keys.useKeyModal.thirdParty.ccSwitchQuickRequestUrl') }}</li>
+              <li>{{ t('keys.useKeyModal.thirdParty.ccSwitchQuickApiKey') }}</li>
+              <li>{{ t('keys.useKeyModal.thirdParty.ccSwitchQuickModel') }}</li>
+              <li>{{ t('keys.useKeyModal.thirdParty.ccSwitchQuickRestart') }}</li>
+            </ol>
+          </div>
+
           <div class="grid gap-3 md:grid-cols-2">
             <div
               v-for="client in thirdPartyClients"
@@ -580,16 +621,6 @@ const troubleshootingItems = computed(() => [
 ])
 
 const thirdPartyClients = computed(() => [
-  {
-    title: 'CC Switch',
-    description: t('keys.useKeyModal.thirdParty.ccSwitch'),
-    fields: [
-      t('keys.useKeyModal.thirdParty.ccSwitchFields.baseUrl'),
-      t('keys.useKeyModal.thirdParty.ccSwitchFields.apiEndpoint'),
-      t('keys.useKeyModal.thirdParty.ccSwitchFields.apiKey'),
-      t('keys.useKeyModal.thirdParty.ccSwitchFields.model')
-    ]
-  },
   {
     title: 'Cherry Studio',
     description: t('keys.useKeyModal.thirdParty.cherryStudio'),
