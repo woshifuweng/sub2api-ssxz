@@ -27,14 +27,14 @@ const messages: Record<string, string> = {
   'usage.workbench.recharge': 'Recharge',
   'usage.workbench.monthlyCostTitle': 'Current-month spend',
   'usage.workbench.unavailable': 'Unavailable',
-  'usage.workbench.noRealUsageNote': 'No real usage records this month.',
-  'usage.workbench.monthlyUsageSummary': 'This month: {requests} requests and {tokens} tokens.',
+  'usage.workbench.noRealUsageNote': 'No usage records this month.',
+  'usage.workbench.monthlyUsageSummary': 'This month: {requests} requests and {tokens} usage units.',
   'usage.workbench.statsLoadError': 'Monthly usage stats are temporarily unavailable. Refresh to retry.',
   'usage.workbench.billingExplanationTitle': 'Billing explanation',
-  'usage.workbench.billingExplanationDescription': 'Backend-recorded real usage is the source of truth. The frontend does not decide prices.',
-  'usage.workbench.billingExplanationItems.successCharged': 'Successful calls show the actual charge in usage details.',
-  'usage.workbench.billingExplanationItems.failureNoCharge': 'Failed requests show as no charge or do not create a charge record.',
-  'usage.workbench.billingExplanationItems.zeroCost': 'A $0.0000 fee means this record was not actually charged.',
+  'usage.workbench.billingExplanationDescription': 'Usage records show the final charge result. Completed calls display the charged amount; failed or unfinished requests are not shown as charged.',
+  'usage.workbench.billingExplanationItems.successCharged': 'Completed calls show the final charge in usage details.',
+  'usage.workbench.billingExplanationItems.failureNoCharge': 'Failed or unfinished requests show as no charge, or do not create a charge record.',
+  'usage.workbench.billingExplanationItems.zeroCost': 'A $0.0000 fee means no balance was deducted for this row.',
   'usage.workbench.monthlyUsageTitle': 'Monthly usage',
   'usage.workbench.monthlyUsageDescription': 'Empty data is not filled with fake bars.',
   'usage.workbench.realDataBadge': 'Real data',
@@ -62,21 +62,21 @@ const messages: Record<string, string> = {
   'usage.workbench.billingBalance': 'Balance charge',
   'usage.workbench.billingSubscription': 'Subscription quota',
   'usage.workbench.billingNoCharge': 'No balance charged',
-  'usage.workbench.standardVsActual': 'Standard {standard}; charged {actual}',
-  'usage.workbench.actualChargeBasis': 'Charged {amount}',
+  'usage.workbench.standardVsActual': 'Actual charge {actual}',
+  'usage.workbench.actualChargeBasis': 'Actual charge {amount}',
   'usage.workbench.noChargeBasis': 'No balance was deducted for this row.',
-  'usage.workbench.performance': 'Latency',
+  'usage.workbench.performance': 'Processing time',
   'usage.workbench.performanceHealthy': 'Normal',
   'usage.workbench.performanceUnknown': 'No record',
-  'usage.workbench.performanceSlowFirstToken': 'Slow to start',
+  'usage.workbench.performanceSlowFirstToken': 'Slightly slower start',
   'usage.workbench.performanceSlowTotal': 'Longer processing',
   'usage.workbench.performanceNoRecord': 'No displayable timing yet',
-  'usage.workbench.performanceSummary': 'Started in {firstToken}; completed in {duration}',
-  'usage.workbench.performanceSlowFirstTokenHint': 'This request was slower to start, usually because of model tier, reasoning effort, web access, or tool steps. For faster replies, use a lighter model or lower reasoning effort.',
-  'usage.workbench.performanceSlowTotalHint': 'This task had a longer processing path and may include web lookup, retrieval, tool steps, or deeper reasoning. For faster replies, use a lighter model, lower reasoning effort, or shorten one-shot input.',
+  'usage.workbench.performanceSummary': 'Started in {firstToken}; total time {duration}',
+  'usage.workbench.performanceSlowFirstTokenHint': 'This task was slightly slower to start, usually because of model tier, task complexity, or extra processing steps. For faster replies, use a lighter model or lower reasoning effort.',
+  'usage.workbench.performanceSlowTotalHint': 'This task took longer, usually because it did more checking or used more steps. For faster replies, use a lighter model, lower reasoning effort, or shorten one-shot input.',
   'usage.workbench.fee': 'Fee',
   'usage.workbench.noCharge': 'No charge',
-  'usage.workbench.zeroTokenCharged': 'Image / fixed-fee item or no token detail',
+  'usage.workbench.zeroTokenCharged': 'Image / fixed-fee item',
   'usage.workbench.usageKindImage': 'Image generation',
   'usage.workbench.usageKindChat': 'Chat',
   'usage.workbench.usageKindThirdParty': 'Third-party access',
@@ -277,13 +277,13 @@ describe('AppUsageView', () => {
     expect(text).toContain('$8.53')
     expect(text).toContain('Current-month spend')
     expect(text).toContain('$1.2345')
-    expect(text).toContain('This month: 3 requests and 57 tokens.')
+    expect(text).toContain('This month: 3 requests and 57 usage units.')
     expect(text).toContain('Monthly usage')
     expect(text).toContain('Real data')
     expect(text).toContain('Billing explanation')
-    expect(text).toContain('Backend-recorded real usage is the source of truth')
-    expect(text).toContain('The frontend does not decide prices')
-    expect(text).toContain('Failed requests show as no charge')
+    expect(text).toContain('Usage records show the final charge result')
+    expect(text).toContain('Completed calls display the charged amount')
+    expect(text).toContain('Failed or unfinished requests show as no charge')
     expect(text).toContain('Usage details')
     const tableText = wrapper.get('table').text()
     expect(tableText).toContain('Image generation')
@@ -295,7 +295,7 @@ describe('AppUsageView', () => {
     expect(tableText).toContain('/v1/chat/completions')
     expect(text).toContain('gpt-image-2')
     expect(text).toContain('2 images / 1024x1024')
-    expect(tableText).toContain('Image / fixed-fee item or no token detail')
+    expect(tableText).toContain('Image / fixed-fee item')
     expect(text).toContain('deepseek-v4-flash')
     expect(text).toContain('$0.0000')
     expect(text).toContain('No charge')
@@ -303,19 +303,19 @@ describe('AppUsageView', () => {
     expect(tableText).toContain('Balance charge')
     expect(tableText).toContain('Subscription quota')
     expect(tableText).toContain('No balance charged')
-    expect(tableText).toContain('Standard $0.9000; charged $0.8800')
-    expect(tableText).toContain('Charged $0.3545')
+    expect(tableText).toContain('Actual charge $0.8800')
+    expect(tableText).toContain('Actual charge $0.3545')
     expect(tableText).toContain('No balance was deducted for this row.')
-    expect(tableText).toContain('Latency')
+    expect(tableText).toContain('Processing time')
     expect(tableText).toContain('Longer processing')
-    expect(tableText).toContain('Started in 507 ms; completed in 3m 28s')
-    expect(tableText).toContain('longer processing path')
+    expect(tableText).toContain('Started in 507 ms; total time 3m 28s')
+    expect(tableText).toContain('did more checking or used more steps')
     expect(tableText).toContain('lighter model, lower reasoning effort')
-    expect(tableText).toContain('Slow to start')
-    expect(tableText).toContain('Started in 6.2 s; completed in 6.4 s')
-    expect(tableText).toContain('web access, or tool steps')
+    expect(tableText).toContain('Slightly slower start')
+    expect(tableText).toContain('Started in 6.2 s; total time 6.4 s')
+    expect(tableText).toContain('task complexity, or extra processing steps')
     expect(tableText).toContain('Normal')
-    expect(tableText).toContain('Started in 123 ms; completed in 987 ms')
+    expect(tableText).toContain('Started in 123 ms; total time 987 ms')
     expect(tableText).not.toContain('upstream account')
     expect(tableText).not.toContain('web search')
     expect(tableText).not.toContain('tool calls')
@@ -451,7 +451,7 @@ describe('AppUsageView', () => {
 
     const text = wrapper.text()
     expect(text).toContain('$0.0000')
-    expect(text).toContain('No real usage records this month.')
+    expect(text).toContain('No usage records this month.')
     expect(text).toContain('No monthly usage data yet')
     expect(text).toContain('No usage details yet')
     expect(wrapper.find('table').exists()).toBe(false)
@@ -499,7 +499,7 @@ describe('AppUsageView', () => {
     expect(text).toContain('Monthly usage stats are temporarily unavailable')
     expect(summaryCards[1].find('strong').text()).toBe('Unavailable')
     expect(summaryCards[1].text()).not.toContain('$0.0000')
-    expect(summaryCards[1].text()).not.toContain('No real usage records this month.')
+    expect(summaryCards[1].text()).not.toContain('No usage records this month.')
   })
 
   it('does not present monthly trend failures as empty trend data', async () => {

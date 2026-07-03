@@ -643,7 +643,7 @@ const creditedAmount = computed(() => Math.round((validAmount.value * balanceRec
 const checkoutHelpText = computed(() => {
   const text = checkout.value.help_text?.trim() || ''
   if (text === 'Recharge adds account balance. Usage and fee records follow backend ledger data.') {
-    return '充值会增加账户额度，用量和扣费记录以后端账本为准。'
+    return '充值会增加账户额度，用量和扣费记录以系统记录为准。'
   }
   return text
 })
