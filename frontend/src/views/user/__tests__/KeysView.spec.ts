@@ -706,7 +706,8 @@ describe('KeysView workbench surface', () => {
       [],
       0,
       undefined,
-      { rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0 }
+      { rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0 },
+      { idempotencyKey: expect.stringMatching(/^api-key-create-/) }
     )
     expect(wrapper.find('[data-testid="created-key-reveal"]').exists()).toBe(true)
     expect((wrapper.get('[data-testid="created-key-value"]').element as HTMLInputElement).value).toBe(createdKey)
@@ -730,6 +731,53 @@ describe('KeysView workbench surface', () => {
     await flushPromises()
     expect(wrapper.find('[data-testid="created-key-reveal"]').exists()).toBe(false)
     expect(wrapper.html()).not.toContain(createdKey)
+  })
+
+  it('ignores duplicate create submits while the first request is pending', async () => {
+    userGroupsAPI.getAvailable.mockResolvedValue([groupFixture()])
+    let resolveCreate!: (value: unknown) => void
+    keysAPI.create.mockImplementation(() => new Promise((resolve) => {
+      resolveCreate = resolve
+    }))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const createButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.createKey'))
+    expect(createButton).toBeTruthy()
+    await createButton!.trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-tour="key-form-name"]').setValue('client-key')
+    const form = wrapper.get('form#key-form')
+    await form.trigger('submit')
+    await form.trigger('submit')
+
+    expect(keysAPI.create).toHaveBeenCalledTimes(1)
+    expect(keysAPI.create).toHaveBeenCalledWith(
+      'client-key',
+      1,
+      [1],
+      [],
+      undefined,
+      [],
+      [],
+      0,
+      undefined,
+      { rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0 },
+      { idempotencyKey: expect.stringMatching(/^api-key-create-/) }
+    )
+
+    resolveCreate(apiKeyFixture({
+      id: 2,
+      name: 'client-key',
+      key: 'sk-created-once',
+      group_id: 1,
+      group_ids: [1]
+    }))
+    await flushPromises()
   })
 
   it('does not close the create dialog or reveal a key when API key creation fails', async () => {

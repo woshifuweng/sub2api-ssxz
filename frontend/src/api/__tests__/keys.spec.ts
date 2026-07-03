@@ -45,6 +45,31 @@ describe('keys API', () => {
     }))
   })
 
+  it('sends Idempotency-Key when creating an API key with a key', async () => {
+    postMock.mockResolvedValue({ data: { id: 1 } })
+    const mod = await import('../keys')
+
+    await mod.create(
+      'test-key',
+      1,
+      [1],
+      [],
+      undefined,
+      [],
+      [],
+      0,
+      undefined,
+      { rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0 },
+      { idempotencyKey: 'api-key-create-once' }
+    )
+
+    expect(postMock).toHaveBeenCalledWith(
+      '/keys',
+      expect.objectContaining({ name: 'test-key' }),
+      { headers: { 'Idempotency-Key': 'api-key-create-once' } }
+    )
+  })
+
   it('sends update payloads to the key detail endpoint', async () => {
     putMock.mockResolvedValue({ data: { id: 42, status: 'inactive' } })
     const mod = await import('../keys')

@@ -1849,7 +1849,16 @@ const confirmDelete = (key: ApiKey) => {
   showDeleteDialog.value = true
 }
 
+function createApiKeyCreateIdempotencyKey() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `api-key-create-${crypto.randomUUID()}`
+  }
+  return `api-key-create-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
 const handleSubmit = async () => {
+  if (submitting.value) return
+
   if (formData.value.group_ids.length === 0) {
     appStore.showError(t('keys.groupRequired'))
     return
@@ -1935,7 +1944,8 @@ const handleSubmit = async () => {
         ipBlacklist,
         quota,
         expiresInDays,
-        rateLimitData
+        rateLimitData,
+        { idempotencyKey: createApiKeyCreateIdempotencyKey() }
       )
       if (createdKey?.key) {
         createdKeyToReveal.value = createdKey
