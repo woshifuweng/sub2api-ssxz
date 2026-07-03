@@ -5781,6 +5781,7 @@ export default {
   availableChannels: {
     title: 'Available Models / Channels',
     description: 'View the models, channels, and group multipliers available to your account.',
+    eyebrow: 'Account availability',
     searchPlaceholder: 'Search channel name or model...',
     noPricing: 'No pricing information',
     noModels: 'No models available',
@@ -5818,6 +5819,7 @@ export default {
     dialogLatency: 'Model latency',
     endpointPing: 'Endpoint ping',
     availabilityPrefix: 'Availability',
+    windowAvailabilityLabel: 'Availability {window}',
     extraModelsCount: '+ {n} more models',
     history60pts: 'Last {n} checks',
     nextUpdateIn: 'Next update in {n}s',

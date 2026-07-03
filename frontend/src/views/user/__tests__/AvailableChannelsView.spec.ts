@@ -96,7 +96,8 @@ describe('AvailableChannelsView', () => {
 
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="app-layout"]').exists()).toBe(false)
-    expect(wrapper.text()).toContain('可用模型 / 渠道')
+    expect(wrapper.text()).toContain('availableChannels.title')
+    expect(wrapper.text()).toContain('availableChannels.description')
     expect(userChannelsAPI.getAvailable).toHaveBeenCalledTimes(1)
   })
 

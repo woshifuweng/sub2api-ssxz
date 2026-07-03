@@ -70,9 +70,9 @@ const useWorkbenchShell = computed(() => route.path === '/app/available-channels
 const pageShell = computed(() => useWorkbenchShell.value ? AppSectionShell : AppLayout)
 const pageShellProps = computed(() => useWorkbenchShell.value
   ? {
-      title: '可用模型 / 渠道',
-      subtitle: '查看当前账号可用的模型、渠道和分组倍率信息。',
-      eyebrow: '技术信息',
+      title: t('availableChannels.title'),
+      subtitle: t('availableChannels.description'),
+      eyebrow: t('availableChannels.eyebrow'),
       icon: 'server'
     }
   : {})

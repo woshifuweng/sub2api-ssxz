@@ -5968,6 +5968,7 @@ export default {
   availableChannels: {
     title: '可用模型 / 渠道',
     description: '查看当前账号可用的模型、渠道和分组倍率信息。',
+    eyebrow: '账号可用性',
     searchPlaceholder: '搜索渠道名称或模型...',
     noPricing: '暂无价格信息',
     noModels: '暂无可用模型',
@@ -6005,6 +6006,7 @@ export default {
     dialogLatency: '模型延迟',
     endpointPing: '端点延迟',
     availabilityPrefix: '可用性',
+    windowAvailabilityLabel: '{window} 可用性',
     extraModelsCount: '+ {n} 个模型',
     history60pts: '最近 {n} 次检测',
     nextUpdateIn: '{n}s 后更新',
