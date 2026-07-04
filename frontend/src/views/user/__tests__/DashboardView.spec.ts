@@ -1,7 +1,12 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { authStore, usageAPI } = vi.hoisted(() => ({
+const { appStore, authStore, usageAPI } = vi.hoisted(() => ({
+  appStore: {
+    cachedPublicSettings: {
+      channel_monitor_enabled: true
+    }
+  },
   authStore: {
     user: {
       email: 'user@example.com',
@@ -20,6 +25,10 @@ const { authStore, usageAPI } = vi.hoisted(() => ({
 
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => authStore
+}))
+
+vi.mock('@/stores/app', () => ({
+  useAppStore: () => appStore
 }))
 
 vi.mock('@/api/usage', () => ({
@@ -126,6 +135,9 @@ describe('DashboardView', () => {
     authStore.user.email = 'user@example.com'
     authStore.user.balance = 42.35
     authStore.isSimpleMode = false
+    appStore.cachedPublicSettings = {
+      channel_monitor_enabled: true
+    }
     authStore.refreshUser.mockResolvedValue(authStore.user)
     usageAPI.getDashboardStats.mockResolvedValue(dashboardStatsFixture())
     usageAPI.getDashboardTrend.mockResolvedValue({
@@ -202,6 +214,18 @@ describe('DashboardView', () => {
     expect(usageAPI.getDashboardTrend).toHaveBeenCalledTimes(1)
     expect(usageAPI.getDashboardModels).toHaveBeenCalledTimes(1)
     expect(usageAPI.getByDateRange).toHaveBeenCalledTimes(1)
+  })
+
+  it('hides the channel status shortcut when channel monitoring is disabled', async () => {
+    appStore.cachedPublicSettings = {
+      channel_monitor_enabled: false
+    }
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
+    expect(hrefs).not.toContain('/app/channel-status')
   })
 
   it('shows a retryable error state instead of a blank page when stats fail', async () => {
