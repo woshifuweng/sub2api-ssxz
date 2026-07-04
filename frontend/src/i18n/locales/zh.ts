@@ -6049,8 +6049,8 @@ export default {
 
   monitorCommon: {
     latencyEmpty: '-',
-    dialogLatency: '模型响应速度',
-    endpointPing: '线路连通',
+    dialogLatency: '响应延迟',
+    endpointPing: '网络 Ping',
     availabilityPrefix: '近期可用率',
     windowAvailabilityLabel: '{window} 可用率',
     extraModelsCount: '+ {n} 个模型',
@@ -6079,9 +6079,9 @@ export default {
 
   channelStatus: {
     title: '渠道状态',
-    description: '查看当前可用通道的近期状态、响应速度和可用趋势。',
+    description: '查看当前可用通道的近期状态、响应延迟和可用趋势。',
     eyebrow: '服务状态',
-    disclaimer: '状态来自近期自动检测，仅显示当前套餐/分组可见通道。可用率和速度用于参考，不是 100% 承诺；实际可用模型、余额和扣费以后端配置及请求结果为准。',
+    disclaimer: '状态来自近期自动检测，仅显示当前套餐/分组可见通道。这里的响应延迟是检测请求耗时，不等同于每次对话开始出字的等待时间；可用率和速度仅作参考，实际可用模型、余额和扣费以后端配置及请求结果为准。',
     detailTitle: '渠道详情',
     loadError: '加载渠道状态失败',
     detailLoadError: '加载渠道详情失败',
@@ -6104,11 +6104,11 @@ export default {
     detailColumns: {
       model: '模型',
       latestStatus: '最新状态',
-      latestLatency: '最新延迟',
+      latestLatency: '最新响应延迟',
       availability7d: '7 天可用性',
       availability15d: '15 天可用性',
       availability30d: '30 天可用性',
-      avgLatency7d: '7 天平均延迟'
+      avgLatency7d: '7 天平均响应延迟'
     }
   },
 

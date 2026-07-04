@@ -7,6 +7,8 @@ vi.mock('vue-i18n', () => ({
       if (key === 'channelStatus.windowTab.7d') return '7 days'
       if (key === 'monitorCommon.windowAvailabilityLabel') return `Availability ${params?.window}`
       if (key === 'monitorCommon.extraModelsCount') return `+ ${params?.n} more models`
+      if (key === 'monitorCommon.dialogLatency') return 'Response latency'
+      if (key === 'monitorCommon.endpointPing') return 'Network ping'
       return key
     }
   })
@@ -22,7 +24,8 @@ vi.mock('../ProviderIcon.vue', () => ({
 vi.mock('../MonitorMetricPair.vue', () => ({
   default: {
     name: 'MonitorMetricPair',
-    template: '<section data-testid="metric-pair" />'
+    props: ['primaryLabel', 'primaryValue', 'secondaryLabel', 'secondaryValue'],
+    template: '<section data-testid="metric-pair">{{ primaryLabel }} {{ primaryValue }} {{ secondaryLabel }} {{ secondaryValue }}</section>'
   }
 }))
 
@@ -68,5 +71,9 @@ describe('MonitorCard', () => {
 
     const label = wrapper.get('[data-testid="availability-row"]').text()
     expect(label).toContain('Availability 7 days')
+
+    const metrics = wrapper.get('[data-testid="metric-pair"]').text()
+    expect(metrics).toContain('Response latency 900')
+    expect(metrics).toContain('Network ping 80')
   })
 })

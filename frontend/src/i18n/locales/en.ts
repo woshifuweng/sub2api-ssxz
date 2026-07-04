@@ -5862,8 +5862,8 @@ export default {
 
   monitorCommon: {
     latencyEmpty: '-',
-    dialogLatency: 'Model response speed',
-    endpointPing: 'Route connectivity',
+    dialogLatency: 'Response latency',
+    endpointPing: 'Network ping',
     availabilityPrefix: 'Recent availability',
     windowAvailabilityLabel: '{window} availability',
     extraModelsCount: '+ {n} more models',
@@ -5892,9 +5892,9 @@ export default {
 
   channelStatus: {
     title: 'Channel Status',
-    description: 'View recent channel status, response speed, and availability trends.',
+    description: 'View recent channel status, response latency, and availability trends.',
     eyebrow: 'Service status',
-    disclaimer: 'Status comes from recent automated checks and only shows channels visible to the current plan/group. Availability and speed are reference signals, not a 100% guarantee; actual model access, balance, and billing still follow backend configuration and request results.',
+    disclaimer: 'Status comes from recent automated checks and only shows channels visible to the current plan/group. Response latency is check request duration, not the wait for every chat to start producing text; availability and speed are reference signals, while actual model access, balance, and billing still follow backend configuration and request results.',
     detailTitle: 'Channel Details',
     loadError: 'Failed to load channel status',
     detailLoadError: 'Failed to load channel details',
@@ -5917,11 +5917,11 @@ export default {
     detailColumns: {
       model: 'Model',
       latestStatus: 'Latest status',
-      latestLatency: 'Latest latency',
+      latestLatency: 'Latest response latency',
       availability7d: '7d availability',
       availability15d: '15d availability',
       availability30d: '30d availability',
-      avgLatency7d: '7d average latency'
+      avgLatency7d: '7d average response latency'
     }
   },
 
