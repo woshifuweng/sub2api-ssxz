@@ -246,4 +246,17 @@ describe('AppSidebar', () => {
     expect(destinations).toContain('/admin/affiliates')
     expect(wrapper.text()).toContain('Affiliates')
   })
+
+  it('keeps payment settings accessible to admins when payment is disabled', () => {
+    appState.cachedPublicSettings.payment_enabled = false
+
+    const wrapper = mountSidebar()
+    const destinations = hrefs(wrapper)
+
+    expect(destinations).toContain('/admin/orders/settings')
+    expect(wrapper.text()).toContain('支付配置')
+    expect(destinations).not.toContain('/admin/orders/dashboard')
+    expect(destinations).not.toContain('/admin/orders')
+    expect(destinations).not.toContain('/admin/orders/plans')
+  })
 })
