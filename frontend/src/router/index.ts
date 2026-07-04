@@ -803,6 +803,15 @@ router.beforeEach((to, _from, next) => {
     return
   }
 
+  if (
+    to.path.startsWith('/app/affiliate') &&
+    appStore.cachedPublicSettings &&
+    !appStore.cachedPublicSettings.affiliate_enabled
+  ) {
+    next(DEFAULT_AUTH_REDIRECT)
+    return
+  }
+
   // 简易模式下限制访问某些页面
   if (authStore.isSimpleMode) {
     const restrictedPaths = [
