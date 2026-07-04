@@ -588,12 +588,16 @@ const userNavItems = computed((): NavItem[] => {
     ...(channelMonitorEnabled.value
       ? [{ path: '/app/channel-status', label: '通道状态', icon: SignalIcon, hideInSimpleMode: true }]
       : []),
-    {
-      path: '/app/purchase',
-      label: '充值',
-      icon: RechargeSubscriptionIcon,
-      hideInSimpleMode: true
-    },
+    ...(purchaseEnabled.value
+      ? [
+          {
+            path: '/app/purchase',
+            label: '充值',
+            icon: RechargeSubscriptionIcon,
+            hideInSimpleMode: true
+          }
+        ]
+      : []),
     { path: '/app/orders', label: '订单', icon: OrderListIcon, hideInSimpleMode: true },
     { path: '/app/redeem', label: '兑换码', icon: TicketIcon, hideInSimpleMode: true },
     ...(affiliateEnabled.value

@@ -15,6 +15,8 @@ const { routeState, mocks, appState } = vi.hoisted(() => ({
   appState: {
     cachedPublicSettings: {
       channel_monitor_enabled: true,
+      payment_enabled: true,
+      purchase_subscription_enabled: true,
       affiliate_enabled: false
     }
   }
@@ -98,6 +100,8 @@ describe('AppSectionShell', () => {
     mocks.logout.mockReset()
     mocks.showSuccess.mockReset()
     appState.cachedPublicSettings.channel_monitor_enabled = true
+    appState.cachedPublicSettings.payment_enabled = true
+    appState.cachedPublicSettings.purchase_subscription_enabled = true
     appState.cachedPublicSettings.affiliate_enabled = false
     mockDesktopMedia(true)
   })
@@ -238,6 +242,17 @@ describe('AppSectionShell', () => {
     await affiliateButton?.trigger('click')
 
     expect(mocks.push).toHaveBeenLastCalledWith('/app/affiliate')
+  })
+
+  it('hides recharge entry when balance payment and subscription purchase are both disabled', () => {
+    appState.cachedPublicSettings.payment_enabled = false
+    appState.cachedPublicSettings.purchase_subscription_enabled = false
+
+    const wrapper = mountShell()
+
+    expect(wrapper.text()).not.toContain('充值')
+    expect(wrapper.text()).toContain('订单')
+    expect(wrapper.text()).toContain('兑换码')
   })
 
   it('hides channel status when monitoring is disabled', async () => {

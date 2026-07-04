@@ -53,6 +53,7 @@ interface MockAuthState {
   isSimpleMode: boolean
   backendModeEnabled: boolean
   paymentEnabled?: boolean
+  affiliateEnabled?: boolean
 }
 
 const backendModeAllowedPaths = [
@@ -124,6 +125,10 @@ function simulateGuard(
   // 简易模式限制
   if (toMeta.requiresPayment && !(authState.paymentEnabled ?? true)) {
     return authState.isAdmin ? '/admin/dashboard' : '/app/dashboard'
+  }
+
+  if (toPath.startsWith('/app/affiliate') && !(authState.affiliateEnabled ?? true)) {
+    return '/app/dashboard'
   }
 
   if (authState.isSimpleMode) {
@@ -345,6 +350,7 @@ describe('路由守卫逻辑', () => {
         isAdmin: false,
         isSimpleMode: true,
         backendModeEnabled: false,
+        affiliateEnabled: true,
       }
 
       expect(simulateGuard('/app/purchase', {}, authState)).toBeNull()
@@ -352,6 +358,18 @@ describe('路由守卫逻辑', () => {
       expect(simulateGuard('/app/keys', {}, authState)).toBeNull()
       expect(simulateGuard('/app/profile', {}, authState)).toBeNull()
       expect(simulateGuard('/app/affiliate', {}, authState)).toBeNull()
+    })
+
+    it('redirects /app/affiliate when affiliate is disabled', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: false,
+        affiliateEnabled: false,
+      }
+
+      expect(simulateGuard('/app/affiliate', {}, authState)).toBe('/app/dashboard')
     })
   })
 

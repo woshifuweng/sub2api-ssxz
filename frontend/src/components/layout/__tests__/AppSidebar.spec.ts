@@ -194,6 +194,19 @@ describe('AppSidebar', () => {
     ]))
   })
 
+  it('hides regular user recharge navigation when payment and subscription purchase are disabled', () => {
+    authState.isAdmin = false
+    appState.cachedPublicSettings.payment_enabled = false
+    appState.cachedPublicSettings.purchase_subscription_enabled = false
+
+    const wrapper = mountSidebar()
+    const destinations = hrefs(wrapper)
+
+    expect(destinations).not.toContain('/app/purchase')
+    expect(destinations).toContain('/app/orders')
+    expect(destinations).toContain('/app/redeem')
+  })
+
   it('hides the user channel status entry when monitoring is disabled', () => {
     authState.isAdmin = false
     appState.cachedPublicSettings.channel_monitor_enabled = false
