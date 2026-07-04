@@ -591,6 +591,8 @@ export default {
       connectionTitle: 'Third-party client connection info',
       connectionDescription:
         'Use this with CC Switch, Cherry Studio, Chatbox, and other OpenAI-compatible clients.',
+      primaryActionHint:
+        'Import to CCS or copy the full key before closing. The full key is not shown again.',
       modelLabel: 'Model',
       modelHint: 'Available models follow this key group and the admin model configuration.',
       acknowledge: 'I saved it',
