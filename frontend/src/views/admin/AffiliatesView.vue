@@ -7,7 +7,7 @@
             <div>
               <h1 class="text-lg font-semibold text-gray-900 dark:text-white">推广返利管理</h1>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                管理用户推广码和专属返利比例。邀请人数来自已有推广关系，充值和返佣统计后续接运营报表。
+                管理用户推广码、专属返利比例和推广数据。统计来自已有邀请关系、订单和返利账本。
               </p>
             </div>
             <button class="btn btn-secondary btn-sm" :disabled="loading" @click="loadEntries">
@@ -173,6 +173,26 @@
               <span class="text-sm text-gray-700 dark:text-gray-200">{{ value }} 人</span>
             </template>
 
+            <template #cell-invitee_recharge_total="{ value }">
+              <span class="text-sm text-gray-700 dark:text-gray-200">{{ formatQuota(value) }}</span>
+            </template>
+
+            <template #cell-accrued_rebate_total="{ value }">
+              <span class="text-sm text-gray-700 dark:text-gray-200">{{ formatQuota(value) }}</span>
+            </template>
+
+            <template #cell-aff_frozen_quota="{ value }">
+              <span class="text-sm text-gray-700 dark:text-gray-200">{{ formatQuota(value) }}</span>
+            </template>
+
+            <template #cell-aff_quota="{ value }">
+              <span class="text-sm text-gray-700 dark:text-gray-200">{{ formatQuota(value) }}</span>
+            </template>
+
+            <template #cell-transferred_rebate_total="{ value }">
+              <span class="text-sm text-gray-700 dark:text-gray-200">{{ formatQuota(value) }}</span>
+            </template>
+
             <template #cell-actions="{ row }">
               <div class="flex items-center gap-2">
                 <button class="btn btn-secondary btn-sm" @click="selectEntry(row)">编辑</button>
@@ -250,12 +270,21 @@ const columns = computed<Column[]>(() => [
   { key: 'user', label: '用户' },
   { key: 'aff_code', label: '推广码' },
   { key: 'aff_count', label: '邀请人数' },
+  { key: 'invitee_recharge_total', label: '充值额度' },
+  { key: 'accrued_rebate_total', label: '累计返利' },
+  { key: 'aff_frozen_quota', label: '冻结返利' },
+  { key: 'aff_quota', label: '可结算' },
+  { key: 'transferred_rebate_total', label: '已转余额' },
   { key: 'aff_rebate_rate_percent', label: '专属比例' },
   { key: 'actions', label: '操作' }
 ])
 
 function formatRate(value: number | null | undefined) {
   return value == null ? '默认比例' : `${value.toFixed(2).replace(/\.00$/, '')}%`
+}
+
+function formatQuota(value: number | null | undefined) {
+  return `${Number(value ?? 0).toFixed(2)} 额度`
 }
 
 function resetForm() {

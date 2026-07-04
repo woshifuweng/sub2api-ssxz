@@ -48,6 +48,11 @@ function mountView() {
                 <slot name="cell-user" :row="row" :value="row.user_id" />
                 <slot name="cell-aff_code" :row="row" :value="row.aff_code" />
                 <slot name="cell-aff_count" :row="row" :value="row.aff_count" />
+                <slot name="cell-invitee_recharge_total" :row="row" :value="row.invitee_recharge_total" />
+                <slot name="cell-accrued_rebate_total" :row="row" :value="row.accrued_rebate_total" />
+                <slot name="cell-aff_frozen_quota" :row="row" :value="row.aff_frozen_quota" />
+                <slot name="cell-aff_quota" :row="row" :value="row.aff_quota" />
+                <slot name="cell-transferred_rebate_total" :row="row" :value="row.transferred_rebate_total" />
                 <slot name="cell-aff_rebate_rate_percent" :row="row" :value="row.aff_rebate_rate_percent" />
                 <slot name="cell-actions" :row="row" />
               </div>
@@ -73,7 +78,13 @@ describe('admin AffiliatesView', () => {
           aff_code: 'SSXZ7',
           aff_code_custom: true,
           aff_rebate_rate_percent: 12,
-          aff_count: 3
+          aff_count: 3,
+          aff_quota: 8.25,
+          aff_frozen_quota: 2.5,
+          aff_history_quota: 13,
+          accrued_rebate_total: 13,
+          transferred_rebate_total: 2.25,
+          invitee_recharge_total: 100
         }
       ],
       total: 1,
@@ -97,6 +108,10 @@ describe('admin AffiliatesView', () => {
     expect(wrapper.text()).toContain('promoter@example.com')
     expect(wrapper.text()).toContain('SSXZ7')
     expect(wrapper.text()).toContain('3 人')
+    expect(wrapper.text()).toContain('100.00 额度')
+    expect(wrapper.text()).toContain('13.00 额度')
+    expect(wrapper.text()).toContain('8.25 额度')
+    expect(wrapper.text()).toContain('2.25 额度')
     expect(wrapper.text()).toContain('12%')
   })
 
