@@ -1017,7 +1017,7 @@ describe('KeysView workbench surface', () => {
     openSpy.mockRestore()
   })
 
-  it('keeps CCS import disabled for masked list keys', async () => {
+  it('hides CCS import for masked list keys', async () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
     keysAPI.list.mockResolvedValue({
       items: [
@@ -1036,10 +1036,7 @@ describe('KeysView workbench surface', () => {
     const importButton = wrapper
       .findAll('button')
       .find((button) => button.text().includes('keys.importToCcSwitch'))
-    expect(importButton).toBeTruthy()
-    expect(importButton!.attributes('disabled')).toBeDefined()
-
-    await importButton!.trigger('click')
+    expect(importButton).toBeUndefined()
     expect(openSpy).not.toHaveBeenCalled()
 
     openSpy.mockRestore()
