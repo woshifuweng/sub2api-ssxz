@@ -115,4 +115,31 @@ describe('AffiliateView', () => {
     expect(wrapper.find('[data-testid="app-layout"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(false)
   })
+
+  it('shows a retryable fallback when affiliate data cannot be loaded', async () => {
+    userAPI.getAffiliateDetail
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce({
+        aff_code: 'RETRY123',
+        effective_rebate_rate_percent: 8,
+        aff_count: 1,
+        aff_quota: 0,
+        aff_history_quota: 0,
+        aff_frozen_quota: 0,
+        invitees: []
+      })
+
+    const wrapper = mount(AffiliateView)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('推广数据暂时无法加载')
+    expect(wrapper.text()).toContain('刷新后会重新获取推广码和邀请记录')
+    expect(wrapper.find('[data-testid="affiliate-retry"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="affiliate-retry"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('RETRY123')
+    expect(userAPI.getAffiliateDetail).toHaveBeenCalledTimes(2)
+  })
 })

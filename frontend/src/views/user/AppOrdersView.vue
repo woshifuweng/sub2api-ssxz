@@ -61,7 +61,7 @@
         <div v-if="!paymentEnabled" class="orders-empty">
           <Icon name="creditCard" size="lg" />
           <strong>充值 / 订阅暂未开启</strong>
-          <span>管理员暂未开启充值或订阅功能，请稍后再试或联系管理员。</span>
+          <span>当前暂未开放充值或订阅入口，请先使用已有额度，稍后再回来查看。</span>
           <RouterLink to="/app/purchase" class="empty-action">查看充值说明</RouterLink>
         </div>
 
@@ -73,7 +73,7 @@
         <div v-else-if="loadError" class="orders-empty compact">
           <Icon name="exclamationTriangle" size="md" />
           <strong>{{ loadError }}</strong>
-          <span>请稍后重试，或联系管理员协助查询。</span>
+          <span>订单记录同步中，请稍后刷新重试。如果刚完成支付，到账状态可能需要一点时间更新。</span>
         </div>
 
         <div v-else-if="orders.length === 0" class="orders-empty compact">
