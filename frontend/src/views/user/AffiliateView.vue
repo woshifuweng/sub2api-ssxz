@@ -5,6 +5,21 @@
         <div class="h-8 w-8 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></div>
       </div>
 
+      <div v-else-if="errorMessage" class="card p-6 text-center">
+        <h2 class="text-base font-semibold text-gray-900 dark:text-white">推广数据暂时无法加载</h2>
+        <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500 dark:text-gray-400">
+          刷新后会重新获取推广码和邀请记录。已有推广关系和返利记录以后端数据为准。
+        </p>
+        <button
+          type="button"
+          class="btn btn-primary mt-5"
+          data-testid="affiliate-retry"
+          @click="loadAffiliateDetail()"
+        >
+          重新加载
+        </button>
+      </div>
+
       <template v-else-if="detail">
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div class="card p-5">
@@ -135,6 +150,7 @@ const pageShellProps = computed(() => useWorkbenchShell.value
 const loading = ref(true)
 const transferring = ref(false)
 const detail = ref<UserAffiliateDetail | null>(null)
+const errorMessage = ref('')
 
 const inviteLink = computed(() => {
   if (!detail.value) return ''
@@ -152,8 +168,11 @@ async function loadAffiliateDetail(silent = false): Promise<void> {
   if (!silent) loading.value = true
   try {
     detail.value = await userAPI.getAffiliateDetail()
+    errorMessage.value = ''
   } catch (error) {
-    appStore.showError(extractApiErrorMessage(error, '推广数据加载失败，请稍后重试'))
+    detail.value = null
+    errorMessage.value = extractApiErrorMessage(error, '推广数据加载失败，请稍后重试')
+    appStore.showError(errorMessage.value)
   } finally {
     if (!silent) loading.value = false
   }
