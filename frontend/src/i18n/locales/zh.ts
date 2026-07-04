@@ -588,6 +588,7 @@ export default {
       fullKeyCopied: '完整 API Key 已复制',
       connectionTitle: '第三方客户端接入信息',
       connectionDescription: '可用于 CC Switch、Cherry Studio、Chatbox 等支持 OpenAI-compatible 接入的客户端。',
+      primaryActionHint: '推荐先导入到 CCS 或复制保存完整 Key；关闭后完整 Key 不再显示。',
       modelLabel: '模型',
       modelHint: '可用模型以当前 Key 所属分组和后台开放配置为准。',
       acknowledge: '我已保存'

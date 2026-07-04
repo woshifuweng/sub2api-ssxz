@@ -1083,22 +1083,28 @@
           <p class="mt-2 leading-6">
             {{ t('keys.createdKeyReveal.connectionDescription') }}
           </p>
+          <p
+            v-if="!publicSettings?.hide_ccs_import_button"
+            class="mt-2 text-xs font-semibold text-primary-700 dark:text-primary-300"
+          >
+            {{ t('keys.createdKeyReveal.primaryActionHint') }}
+          </p>
         </div>
       </div>
 
       <template #footer>
         <div class="flex justify-end gap-3">
+          <button type="button" class="btn btn-secondary" data-testid="created-key-ack" @click="acknowledgeCreatedKey">
+            {{ t('keys.createdKeyReveal.acknowledge') }}
+          </button>
           <button
             v-if="createdKeyToReveal && !publicSettings?.hide_ccs_import_button"
             type="button"
-            class="btn btn-secondary"
+            class="btn btn-primary"
             data-testid="created-key-ccs-import"
             @click="importToCcswitch(createdKeyToReveal)"
           >
             {{ t('keys.importToCcSwitch') }}
-          </button>
-          <button type="button" class="btn btn-primary" data-testid="created-key-ack" @click="acknowledgeCreatedKey">
-            {{ t('keys.createdKeyReveal.acknowledge') }}
           </button>
         </div>
       </template>

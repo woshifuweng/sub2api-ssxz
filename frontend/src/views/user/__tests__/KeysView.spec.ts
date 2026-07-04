@@ -716,7 +716,10 @@ describe('KeysView workbench surface', () => {
     expect(wrapper.text()).toContain('keys.createdKeyReveal.connectionTitle')
     expect(wrapper.text()).toContain('keys.workbenchGuide.baseUrlLabel')
     expect(wrapper.text()).toContain('keys.createdKeyReveal.modelHint')
+    expect(wrapper.text()).toContain('keys.createdKeyReveal.primaryActionHint')
     expect(wrapper.text()).toContain('https://example.test/v1')
+    expect(wrapper.get('[data-testid="created-key-ccs-import"]').classes()).toContain('btn-primary')
+    expect(wrapper.get('[data-testid="created-key-ack"]').classes()).toContain('btn-secondary')
 
     await wrapper.get('[data-testid="created-key-base-url-copy"]').trigger('click')
     await flushPromises()
