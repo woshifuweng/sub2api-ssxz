@@ -108,13 +108,19 @@ type AffiliateAdminFilter struct {
 }
 
 type AffiliateAdminEntry struct {
-	UserID               int64    `json:"user_id"`
-	Email                string   `json:"email"`
-	Username             string   `json:"username"`
-	AffCode              string   `json:"aff_code"`
-	AffCodeCustom        bool     `json:"aff_code_custom"`
-	AffRebateRatePercent *float64 `json:"aff_rebate_rate_percent,omitempty"`
-	AffCount             int      `json:"aff_count"`
+	UserID                 int64    `json:"user_id"`
+	Email                  string   `json:"email"`
+	Username               string   `json:"username"`
+	AffCode                string   `json:"aff_code"`
+	AffCodeCustom          bool     `json:"aff_code_custom"`
+	AffRebateRatePercent   *float64 `json:"aff_rebate_rate_percent,omitempty"`
+	AffCount               int      `json:"aff_count"`
+	AffQuota               float64  `json:"aff_quota"`
+	AffFrozenQuota         float64  `json:"aff_frozen_quota"`
+	AffHistoryQuota        float64  `json:"aff_history_quota"`
+	AccruedRebateTotal     float64  `json:"accrued_rebate_total"`
+	TransferredRebateTotal float64  `json:"transferred_rebate_total"`
+	InviteeRechargeTotal   float64  `json:"invitee_recharge_total"`
 }
 
 type AffiliateService struct {

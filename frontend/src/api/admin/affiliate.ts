@@ -14,6 +14,12 @@ export interface AdminAffiliateEntry {
   aff_code_custom: boolean
   aff_rebate_rate_percent?: number | null
   aff_count: number
+  aff_quota: number
+  aff_frozen_quota: number
+  aff_history_quota: number
+  accrued_rebate_total: number
+  transferred_rebate_total: number
+  invitee_recharge_total: number
 }
 
 export interface AffiliateUserSummary {
