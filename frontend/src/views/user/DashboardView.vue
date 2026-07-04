@@ -68,6 +68,7 @@
                   查看用量
                 </RouterLink>
                 <RouterLink
+                  v-if="channelMonitorEnabled"
                   to="/app/channel-status"
                   class="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
                 >
@@ -209,6 +210,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useAppStore } from '@/stores/app'
 import { usageAPI, type UserDashboardStats as UserStatsType } from '@/api/usage'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -220,9 +222,11 @@ import UserDashboardQuickActions from '@/components/user/dashboard/UserDashboard
 import type { ModelStat, TrendDataPoint, UsageLog } from '@/types'
 
 const authStore = useAuthStore()
+const appStore = useAppStore()
 const user = computed(() => authStore.user)
 const balance = computed(() => user.value?.balance || 0)
 const userEmail = computed(() => user.value?.email || '当前用户')
+const channelMonitorEnabled = computed(() => !!appStore.cachedPublicSettings?.channel_monitor_enabled)
 
 const stats = ref<UserStatsType | null>(null)
 const loading = ref(false)
@@ -233,7 +237,7 @@ const trendData = ref<TrendDataPoint[]>([])
 const modelStats = ref<ModelStat[]>([])
 const recentUsage = ref<UsageLog[]>([])
 
-const productEntries = [
+const baseProductEntries = [
   {
     to: '/app/keys',
     icon: 'key' as const,
@@ -275,6 +279,12 @@ const productEntries = [
     action: '打开测试'
   }
 ]
+
+const productEntries = computed(() =>
+  baseProductEntries.filter(
+    (entry) => entry.to !== '/app/channel-status' || channelMonitorEnabled.value
+  )
+)
 
 const onboardingSteps = [
   {
