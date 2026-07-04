@@ -410,7 +410,19 @@
                 v-if="!publicSettings?.hide_ccs_import_button && !isMaskedApiKey(row.key)"
                 @click="importToCcswitch(row)"
                 :title="t('keys.importToCcSwitch')"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
+                data-testid="api-key-ccs-import"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 dark:text-blue-300 dark:hover:bg-blue-900/20 dark:hover:text-blue-200"
+              >
+                <Icon name="upload" size="sm" />
+                <span class="text-xs">{{ t('keys.importToCcSwitch') }}</span>
+              </button>
+              <button
+                v-else-if="!publicSettings?.hide_ccs_import_button"
+                type="button"
+                disabled
+                :title="t('keys.fullKeyRequiredForImport')"
+                data-testid="api-key-ccs-import-disabled"
+                class="flex cursor-not-allowed flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-400 opacity-60 dark:text-gray-500"
               >
                 <Icon name="upload" size="sm" />
                 <span class="text-xs">{{ t('keys.importToCcSwitch') }}</span>
