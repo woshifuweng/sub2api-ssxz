@@ -555,6 +555,7 @@ export default {
     clientAccessTitle: 'Third-party client access',
     clientAccessDescription:
       'Power users can create and manage API Keys here, then copy the Base URL into CC Switch, Cherry Studio, Chatbox, and other clients. Save the full key when it is created; the list only shows masked values later.',
+    clientReadinessHint: 'Before connecting, choose an available group, keep enough account balance, and select a model currently open for that group.',
     workbenchGuide: {
       ariaLabel: 'Third-party client access guide',
       eyebrow: 'Power user access',
@@ -595,6 +596,8 @@ export default {
         'Import to CCS or copy the full key before closing. The full key is not shown again.',
       modelLabel: 'Model',
       modelHint: 'Available models follow this key group and the admin model configuration.',
+      readinessHint:
+        'If the client reports insufficient balance, unavailable model, or temporary service pressure, try another open model, check balance, or retry later.',
       acknowledge: 'I saved it',
     },
     searchPlaceholder: 'Search name...',
@@ -613,6 +616,8 @@ export default {
     noGroup: 'No group',
     searchGroup: 'Search groups...',
     noGroupFound: 'No groups found',
+    noAvailableGroups: 'No group is currently available for third-party clients. Please try again later.',
+    groupClientHint: 'Client access is controlled by the selected group. The default open group usually works; available models follow the client model list.',
     created: 'Created',
     copyToClipboard: 'Copy to clipboard',
     copied: 'Copied!',

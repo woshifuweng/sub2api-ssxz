@@ -555,6 +555,7 @@ export default {
     clientAccessTitle: '第三方客户端接入',
     clientAccessDescription:
       '熟练用户可以在这里创建和管理自己的 API Key，并复制 Base URL 接入 CC Switch、Cherry Studio、Chatbox 等客户端。创建后请及时保存完整 Key，列表中只展示脱敏值。',
+    clientReadinessHint: '接入前请确认已选择可用分组、账户额度充足，并在客户端选择当前开放的模型。',
     workbenchGuide: {
       ariaLabel: '第三方客户端接入说明',
       eyebrow: '成熟用户入口',
@@ -591,6 +592,7 @@ export default {
       primaryActionHint: '推荐先导入到 CCS 或复制保存完整 Key；关闭后完整 Key 不再显示。',
       modelLabel: '模型',
       modelHint: '可用模型以当前 Key 所属分组和后台开放配置为准。',
+      readinessHint: '如果客户端提示额度不足、模型不可用或服务繁忙，请先换一个开放模型、确认余额，或稍后再试。',
       acknowledge: '我已保存'
     },
     searchPlaceholder: '搜索名称...',
@@ -609,6 +611,8 @@ export default {
     noGroup: '无分组',
     searchGroup: '搜索分组...',
     noGroupFound: '未找到匹配的分组',
+    noAvailableGroups: '当前暂无可用于第三方客户端的分组，请稍后再试。',
+    groupClientHint: '客户端可用范围由所选分组决定。通常选择默认开放分组即可，具体可用模型以客户端实际列表为准。',
     created: '创建时间',
     copyToClipboard: '复制到剪贴板',
     copied: '已复制！',

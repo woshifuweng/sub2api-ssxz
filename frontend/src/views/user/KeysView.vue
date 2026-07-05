@@ -79,6 +79,7 @@
           <div class="rounded-xl border border-blue-100 bg-blue-50/80 p-4 text-sm text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-100">
             <p class="font-semibold">{{ t('keys.clientAccessTitle') }}</p>
             <p class="mt-1 leading-6">{{ t('keys.clientAccessDescription') }}</p>
+            <p class="mt-1 leading-6">{{ t('keys.clientReadinessHint') }}</p>
           </div>
           <div class="flex flex-wrap items-center gap-3">
             <SearchInput
@@ -113,7 +114,13 @@
         >
           <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
         </button>
-        <button @click="openCreateModal" class="btn btn-primary" data-tour="keys-create-btn">
+        <button
+          @click="openCreateModal"
+          :disabled="groups.length === 0"
+          class="btn btn-primary"
+          data-tour="keys-create-btn"
+          :title="groups.length === 0 ? t('keys.noAvailableGroups') : t('keys.createKey')"
+        >
           <Icon name="plus" size="md" class="mr-2" />
           {{ t('keys.createKey') }}
         </button>
@@ -508,6 +515,9 @@
 
         <div>
           <label class="input-label">{{ t('keys.groupLabel') }}</label>
+          <p class="mb-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+            {{ t('keys.groupClientHint') }}
+          </p>
           <div v-if="formData.group_ids.length > 0" class="mb-2 flex flex-wrap gap-1.5">
             <GroupBadge
               v-for="group in groups.filter((item) => formData.group_ids.includes(item.id))"
@@ -519,7 +529,14 @@
               :user-rate-multiplier="userGroupRates[group.id]"
             />
           </div>
-          <div class="grid max-h-44 grid-cols-1 gap-1 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-dark-600 dark:bg-dark-800" data-tour="key-form-group">
+          <div
+            v-if="groups.length === 0"
+            class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100"
+            data-testid="key-form-no-groups"
+          >
+            {{ t('keys.noAvailableGroups') }}
+          </div>
+          <div v-else class="grid max-h-44 grid-cols-1 gap-1 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-dark-600 dark:bg-dark-800" data-tour="key-form-group">
             <label
               v-for="group in groups"
               :key="group.id"
@@ -991,7 +1008,7 @@
           <button
             form="key-form"
             type="submit"
-            :disabled="submitting"
+            :disabled="submitting || formData.group_ids.length === 0"
             class="btn btn-primary"
             data-tour="key-form-submit"
           >
@@ -1092,6 +1109,9 @@
             <span class="text-gray-500 dark:text-gray-400">{{ t('keys.createdKeyReveal.modelLabel') }}</span>
             <span class="leading-6">{{ t('keys.createdKeyReveal.modelHint') }}</span>
           </div>
+          <p class="mt-2 leading-6" data-testid="created-key-readiness-hint">
+            {{ t('keys.createdKeyReveal.readinessHint') }}
+          </p>
           <p class="mt-2 leading-6">
             {{ t('keys.createdKeyReveal.connectionDescription') }}
           </p>
