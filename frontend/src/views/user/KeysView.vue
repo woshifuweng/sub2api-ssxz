@@ -80,6 +80,23 @@
             <p class="font-semibold">{{ t('keys.clientAccessTitle') }}</p>
             <p class="mt-1 leading-6">{{ t('keys.clientAccessDescription') }}</p>
             <p class="mt-1 leading-6">{{ t('keys.clientReadinessHint') }}</p>
+            <div class="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold">
+              <span class="text-blue-800/80 dark:text-blue-100/80">
+                {{ t('keys.clientTroubleshootingHint') }}
+              </span>
+              <a
+                href="/app/available-channels"
+                class="rounded-full border border-blue-200 bg-white/70 px-3 py-1 text-blue-700 transition hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-100 dark:hover:bg-blue-900/40"
+              >
+                {{ t('keys.viewAvailableModels') }}
+              </a>
+              <a
+                href="/app/channel-status"
+                class="rounded-full border border-blue-200 bg-white/70 px-3 py-1 text-blue-700 transition hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-100 dark:hover:bg-blue-900/40"
+              >
+                {{ t('keys.viewServiceStatus') }}
+              </a>
+            </div>
           </div>
           <div class="flex flex-wrap items-center gap-3">
             <SearchInput

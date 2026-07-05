@@ -98,6 +98,8 @@ describe('AvailableChannelsView', () => {
     expect(wrapper.find('[data-testid="app-layout"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('availableChannels.title')
     expect(wrapper.text()).toContain('availableChannels.description')
+    expect(wrapper.text()).toContain('availableChannels.userGuideTitle')
+    expect(wrapper.text()).toContain('availableChannels.userGuideDescription')
     expect(userChannelsAPI.getAvailable).toHaveBeenCalledTimes(1)
   })
 

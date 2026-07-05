@@ -555,7 +555,10 @@ export default {
     clientAccessTitle: '第三方客户端接入',
     clientAccessDescription:
       '熟练用户可以在这里创建和管理自己的 API Key，并复制 Base URL 接入 CC Switch、Cherry Studio、Chatbox 等客户端。创建后请及时保存完整 Key，列表中只展示脱敏值。',
-    clientReadinessHint: '接入前请确认已选择可用分组、账户额度充足，并在客户端选择当前开放的模型。',
+    clientReadinessHint: '接入前请确认已选择可用范围、账户额度充足，并在客户端选择当前开放的模型。',
+    clientTroubleshootingHint: '不确定选哪个模型时，先看可用模型；遇到慢或失败，再看服务状态。',
+    viewAvailableModels: '查看可用模型',
+    viewServiceStatus: '查看服务状态',
     workbenchGuide: {
       ariaLabel: '第三方客户端接入说明',
       eyebrow: '成熟用户入口',
@@ -6016,23 +6019,25 @@ export default {
   },
 
   availableChannels: {
-    title: '可用模型 / 渠道',
-    description: '查看当前账号可用的模型、渠道和分组倍率信息。',
+    title: '可用模型',
+    description: '查看当前账号可选模型和适用范围。',
     eyebrow: '账号可用性',
-    searchPlaceholder: '搜索渠道名称或模型...',
+    searchPlaceholder: '搜索模型或服务名称...',
     noPricing: '暂无价格信息',
     noModels: '暂无可用模型',
-    empty: '暂无可用渠道',
+    empty: '暂无可用模型',
+    userGuideTitle: '接入前先看这里',
+    userGuideDescription: '这里显示当前账号可选的模型和适用范围。客户端里能否使用，还要看 API Key 所选范围、账户额度和实际请求结果。',
     exclusive: '专属',
     exclusiveTooltip: '仅分配用户可见的专属分组',
     public: '公开',
     publicTooltip: '符合条件的用户均可见的公开分组',
     columns: {
-      name: '渠道',
+      name: '服务',
       description: '说明',
-      platform: '平台',
-      groups: '分组',
-      supportedModels: '支持模型'
+      platform: '类型',
+      groups: '适用范围',
+      supportedModels: '可选模型'
     },
     pricing: {
       billingMode: '计费方式',
@@ -6082,13 +6087,13 @@ export default {
   },
 
   channelStatus: {
-    title: '渠道状态',
-    description: '查看当前可用通道的近期状态、响应延迟和可用趋势。',
+    title: '服务状态',
+    description: '查看当前可用服务的近期状态、响应延迟和可用趋势。',
     eyebrow: '服务状态',
-    disclaimer: '状态来自近期自动检测，仅显示当前套餐/分组可见通道。这里的响应延迟是检测请求耗时，不等同于每次对话开始出字的等待时间；可用率和速度仅作参考，实际可用模型、余额和扣费以后端配置及请求结果为准。',
-    detailTitle: '渠道详情',
-    loadError: '加载渠道状态失败',
-    detailLoadError: '加载渠道详情失败',
+    disclaimer: '状态来自近期自动检测，仅显示当前账号可见服务。这里的响应延迟是检测耗时，不等于每次对话都会同样快；深度思考、联网搜索或长任务通常会更久。实际可用模型、余额和扣费以请求结果为准。',
+    detailTitle: '服务详情',
+    loadError: '加载服务状态失败',
+    detailLoadError: '加载服务详情失败',
     closeDetail: '关闭',
     windowTab: {
       '7d': '7 天',
@@ -6101,9 +6106,9 @@ export default {
       unknown: '暂无数据'
     },
     empty: {
-      title: '暂无渠道状态',
-      description: '当前账号还没有可展示的监控数据。这不代表全部渠道正常，请以实际请求结果、使用记录和管理员配置为准。',
-      disabledDescription: '管理员当前未启用渠道状态监控。你仍可以使用已分配的 API Key 和模型，实际可用性以请求结果和后台配置为准。'
+      title: '暂无服务状态',
+      description: '当前账号还没有可展示的状态数据。这不代表全部服务正常，请以实际请求结果和使用记录为准。',
+      disabledDescription: '当前暂未展示服务状态。你仍可以使用已分配的 API Key 和模型，实际可用性以请求结果为准。'
     },
     detailColumns: {
       model: '模型',

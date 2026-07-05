@@ -555,7 +555,10 @@ export default {
     clientAccessTitle: 'Third-party client access',
     clientAccessDescription:
       'Power users can create and manage API Keys here, then copy the Base URL into CC Switch, Cherry Studio, Chatbox, and other clients. Save the full key when it is created; the list only shows masked values later.',
-    clientReadinessHint: 'Before connecting, choose an available group, keep enough account balance, and select a model currently open for that group.',
+    clientReadinessHint: 'Before connecting, choose an available access scope, keep enough account balance, and select a currently open model in the client.',
+    clientTroubleshootingHint: 'If you are unsure which model to use, check available models first; if calls are slow or fail, check service status.',
+    viewAvailableModels: 'View available models',
+    viewServiceStatus: 'View service status',
     workbenchGuide: {
       ariaLabel: 'Third-party client access guide',
       eyebrow: 'Power user access',
@@ -5830,23 +5833,25 @@ export default {
   },
 
   availableChannels: {
-    title: 'Available Models / Channels',
-    description: 'View the models, channels, and group multipliers available to your account.',
+    title: 'Available Models',
+    description: 'View the models and access scope available to your account.',
     eyebrow: 'Account availability',
-    searchPlaceholder: 'Search channel name or model...',
+    searchPlaceholder: 'Search model or service...',
     noPricing: 'No pricing information',
     noModels: 'No models available',
-    empty: 'No available channels',
+    empty: 'No available models',
+    userGuideTitle: 'Check this before connecting',
+    userGuideDescription: 'This page shows the models and access scope available to your account. Client access still depends on the API Key scope, account balance, and the actual request result.',
     exclusive: 'Exclusive',
     exclusiveTooltip: 'Exclusive groups available only to assigned users',
     public: 'Public',
     publicTooltip: 'Public groups visible to all eligible users',
     columns: {
-      name: 'Channel',
+      name: 'Service',
       description: 'Description',
-      platform: 'Provider',
-      groups: 'Groups',
-      supportedModels: 'Supported Models'
+      platform: 'Type',
+      groups: 'Access Scope',
+      supportedModels: 'Available Models'
     },
     pricing: {
       billingMode: 'Billing',
@@ -5896,13 +5901,13 @@ export default {
   },
 
   channelStatus: {
-    title: 'Channel Status',
-    description: 'View recent channel status, response latency, and availability trends.',
+    title: 'Service Status',
+    description: 'View recent service status, response latency, and availability trends.',
     eyebrow: 'Service status',
-    disclaimer: 'Status comes from recent automated checks and only shows channels visible to the current plan/group. Response latency is check request duration, not the wait for every chat to start producing text; availability and speed are reference signals, while actual model access, balance, and billing still follow backend configuration and request results.',
-    detailTitle: 'Channel Details',
-    loadError: 'Failed to load channel status',
-    detailLoadError: 'Failed to load channel details',
+    disclaimer: 'Status comes from recent automated checks and only shows services visible to the current account. Response latency is check duration, not a guarantee that every chat will be equally fast; deep reasoning, web search, and long tasks usually take longer. Actual model access, balance, and billing follow request results.',
+    detailTitle: 'Service Details',
+    loadError: 'Failed to load service status',
+    detailLoadError: 'Failed to load service details',
     closeDetail: 'Close',
     windowTab: {
       '7d': '7 days',
@@ -5915,9 +5920,9 @@ export default {
       unknown: 'No data'
     },
     empty: {
-      title: 'No channel status yet',
-      description: 'No monitoring data is available for this account yet. This does not mean all channels are healthy; use actual request results, usage records, and admin configuration as the source of truth.',
-      disabledDescription: 'Channel status monitoring is currently disabled by the administrator. You can still use assigned API keys and models; actual availability follows request results and backend configuration.'
+      title: 'No service status yet',
+      description: 'No status data is available for this account yet. This does not mean every service is healthy; use actual request results and usage records as the source of truth.',
+      disabledDescription: 'Service status is not currently shown. You can still use assigned API keys and models; actual availability follows request results.'
     },
     detailColumns: {
       model: 'Model',

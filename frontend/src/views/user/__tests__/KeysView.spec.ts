@@ -302,6 +302,13 @@ describe('KeysView workbench surface', () => {
     expect(wrapper.find('.keys-workbench-layout').exists()).toBe(true)
     expect(wrapper.text()).toContain('keys.clientAccessTitle')
     expect(wrapper.text()).toContain('keys.clientReadinessHint')
+    expect(wrapper.text()).toContain('keys.clientTroubleshootingHint')
+    expect(wrapper.find('a[href="/app/available-channels"]').text()).toContain(
+      'keys.viewAvailableModels'
+    )
+    expect(wrapper.find('a[href="/app/channel-status"]').text()).toContain(
+      'keys.viewServiceStatus'
+    )
     expect(wrapper.text()).toContain('keys.workbenchGuide.title')
     expect(wrapper.text()).toContain('keys.workbenchGuide.stepCreateTitle')
     expect(wrapper.text()).toContain('keys.workbenchGuide.stepCopyTitle')

@@ -2,32 +2,39 @@
   <component :is="pageShell" v-bind="pageShellProps">
     <TablePageLayout>
       <template #filters>
-        <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-          <div class="flex flex-1 flex-wrap items-center gap-3">
-            <div class="relative w-full sm:w-80">
-              <Icon
-                name="search"
-                size="md"
-                class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
-              />
-              <input
-                v-model="searchQuery"
-                type="text"
-                :placeholder="t('availableChannels.searchPlaceholder')"
-                class="input pl-10"
-              />
-            </div>
+        <div class="space-y-3">
+          <div class="rounded-xl border border-emerald-100 bg-emerald-50/80 p-4 text-sm text-emerald-950 dark:border-emerald-900/40 dark:bg-emerald-950/25 dark:text-emerald-100">
+            <p class="font-semibold">{{ t('availableChannels.userGuideTitle') }}</p>
+            <p class="mt-1 leading-6">{{ t('availableChannels.userGuideDescription') }}</p>
           </div>
 
-          <div class="flex w-full flex-shrink-0 flex-wrap items-center justify-end gap-3 lg:w-auto">
-            <button
-              @click="loadChannels"
-              :disabled="loading"
-              class="btn btn-secondary"
-              :title="t('common.refresh', 'Refresh')"
-            >
-              <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-            </button>
+          <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+            <div class="flex flex-1 flex-wrap items-center gap-3">
+              <div class="relative w-full sm:w-80">
+                <Icon
+                  name="search"
+                  size="md"
+                  class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+                />
+                <input
+                  v-model="searchQuery"
+                  type="text"
+                  :placeholder="t('availableChannels.searchPlaceholder')"
+                  class="input pl-10"
+                />
+              </div>
+            </div>
+
+            <div class="flex w-full flex-shrink-0 flex-wrap items-center justify-end gap-3 lg:w-auto">
+              <button
+                @click="loadChannels"
+                :disabled="loading"
+                class="btn btn-secondary"
+                :title="t('common.refresh', 'Refresh')"
+              >
+                <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+              </button>
+            </div>
           </div>
         </div>
       </template>
