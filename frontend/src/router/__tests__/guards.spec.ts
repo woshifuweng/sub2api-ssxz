@@ -82,6 +82,14 @@ const backendModeAllowedPaths = [
   '/payment/stripe-popup'
 ]
 
+function isBackendModeAllowedPath(path: string): boolean {
+  if (path === '/' || path === '/home') {
+    return true
+  }
+
+  return backendModeAllowedPaths.some((allowedPath) => path === allowedPath || path.startsWith(allowedPath))
+}
+
 /**
  * 将 router/index.ts 中 beforeEach 守卫的核心逻辑提取为可测试的函数
  */
@@ -105,7 +113,7 @@ function simulateGuard(
       return authState.isAdmin ? '/admin/dashboard' : '/app/dashboard'
     }
     if (authState.backendModeEnabled && !authState.isAuthenticated) {
-      if (!backendModeAllowedPaths.some((path) => toPath === path || toPath.startsWith(path))) {
+      if (!isBackendModeAllowedPath(toPath)) {
         return '/login'
       }
     }
@@ -150,7 +158,7 @@ function simulateGuard(
     if (authState.isAuthenticated && authState.isAdmin) {
       return null
     }
-    if (!backendModeAllowedPaths.some((path) => toPath === path || toPath.startsWith(path))) {
+    if (!isBackendModeAllowedPath(toPath)) {
       return '/login'
     }
   }
@@ -374,7 +382,7 @@ describe('路由守卫逻辑', () => {
   })
 
   describe('Backend Mode', () => {
-    it('unauthenticated: /home redirects to /login', () => {
+    it('unauthenticated: /home remains available as the public landing page', () => {
       const authState: MockAuthState = {
         isAuthenticated: false,
         isAdmin: false,
@@ -382,7 +390,18 @@ describe('路由守卫逻辑', () => {
         backendModeEnabled: true,
       }
       const redirect = simulateGuard('/home', { requiresAuth: false }, authState)
-      expect(redirect).toBe('/login')
+      expect(redirect).toBeNull()
+    })
+
+    it('unauthenticated: / remains available as the public landing page', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: false,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: true,
+      }
+      const redirect = simulateGuard('/', { requiresAuth: false }, authState)
+      expect(redirect).toBeNull()
     })
 
     it('unauthenticated: /login is allowed', () => {
