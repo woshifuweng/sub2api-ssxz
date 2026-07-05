@@ -301,6 +301,7 @@ describe('KeysView workbench surface', () => {
     expect(wrapper.find('.keys-page-surface--workbench').exists()).toBe(true)
     expect(wrapper.find('.keys-workbench-layout').exists()).toBe(true)
     expect(wrapper.text()).toContain('keys.clientAccessTitle')
+    expect(wrapper.text()).toContain('keys.clientReadinessHint')
     expect(wrapper.text()).toContain('keys.workbenchGuide.title')
     expect(wrapper.text()).toContain('keys.workbenchGuide.stepCreateTitle')
     expect(wrapper.text()).toContain('keys.workbenchGuide.stepCopyTitle')
@@ -318,6 +319,25 @@ describe('KeysView workbench surface', () => {
       'https://example.test/v1',
       'keys.workbenchGuide.baseUrlCopied'
     )
+  })
+
+  it('keeps API key creation disabled until an available group exists', async () => {
+    userGroupsAPI.getAvailable.mockResolvedValue([])
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const createButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.createKey'))
+    expect(createButton).toBeTruthy()
+    expect(createButton!.attributes('disabled')).toBeDefined()
+    expect(createButton!.attributes('title')).toBe('keys.noAvailableGroups')
+
+    await createButton!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('form#key-form').exists()).toBe(false)
   })
 
   it('does not duplicate v1 when the public API base URL already includes it', async () => {
@@ -716,6 +736,7 @@ describe('KeysView workbench surface', () => {
     expect(wrapper.text()).toContain('keys.createdKeyReveal.connectionTitle')
     expect(wrapper.text()).toContain('keys.workbenchGuide.baseUrlLabel')
     expect(wrapper.text()).toContain('keys.createdKeyReveal.modelHint')
+    expect(wrapper.text()).toContain('keys.createdKeyReveal.readinessHint')
     expect(wrapper.text()).toContain('keys.createdKeyReveal.primaryActionHint')
     expect(wrapper.text()).toContain('https://example.test/v1')
     expect(wrapper.get('[data-testid="created-key-ccs-import"]').classes()).toContain('btn-primary')
