@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { appStore, authStore, usageAPI } = vi.hoisted(() => ({
   appStore: {
     cachedPublicSettings: {
-      channel_monitor_enabled: true
+      channel_monitor_enabled: true,
+      affiliate_enabled: false
     }
   },
   authStore: {
@@ -136,7 +137,8 @@ describe('DashboardView', () => {
     authStore.user.balance = 42.35
     authStore.isSimpleMode = false
     appStore.cachedPublicSettings = {
-      channel_monitor_enabled: true
+      channel_monitor_enabled: true,
+      affiliate_enabled: false
     }
     authStore.refreshUser.mockResolvedValue(authStore.user)
     usageAPI.getDashboardStats.mockResolvedValue(dashboardStatsFixture())
@@ -205,6 +207,7 @@ describe('DashboardView', () => {
     expect(hrefs).toContain('/app/purchase')
     expect(hrefs).toContain('/app/orders')
     expect(hrefs).toContain('/app/chat')
+    expect(hrefs).not.toContain('/app/affiliate')
     expect(wrapper.find('[data-testid="dashboard-stats-child"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="dashboard-charts-child"]').text()).toContain('1 1')
     expect(wrapper.find('[data-testid="dashboard-recent-usage-child"]').text()).toContain('1')
@@ -218,7 +221,8 @@ describe('DashboardView', () => {
 
   it('hides the channel status shortcut when channel monitoring is disabled', async () => {
     appStore.cachedPublicSettings = {
-      channel_monitor_enabled: false
+      channel_monitor_enabled: false,
+      affiliate_enabled: false
     }
 
     const wrapper = mountView()
@@ -226,6 +230,21 @@ describe('DashboardView', () => {
 
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
     expect(hrefs).not.toContain('/app/channel-status')
+  })
+
+  it('shows the affiliate shortcut only when the affiliate feature is enabled', async () => {
+    appStore.cachedPublicSettings = {
+      channel_monitor_enabled: true,
+      affiliate_enabled: true
+    }
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
+    expect(hrefs).toContain('/app/affiliate')
+    expect(wrapper.text()).toContain('推广邀请')
+    expect(wrapper.text()).toContain('查看推广')
   })
 
   it('shows a retryable error state instead of a blank page when stats fail', async () => {
