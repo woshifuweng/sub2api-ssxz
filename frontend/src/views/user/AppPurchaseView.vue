@@ -12,6 +12,14 @@
       <p class="mx-auto mt-2 max-w-xl text-sm leading-6 text-gray-600 dark:text-gray-300">
         当前暂未开放在线充值，可先使用已有额度或兑换码。
       </p>
+      <div class="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+        <RouterLink to="/app/redeem" class="btn btn-primary">
+          使用兑换码
+        </RouterLink>
+        <RouterLink to="/app/orders" class="btn btn-secondary">
+          查看订单记录
+        </RouterLink>
+      </div>
     </div>
     <PaymentCheckoutContent v-else variant="workspace" />
   </AppSectionShell>
@@ -19,6 +27,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { RouterLink } from 'vue-router'
 import { useAppStore } from '@/stores'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import PaymentCheckoutContent from './PaymentCheckoutContent.vue'
