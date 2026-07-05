@@ -145,7 +145,7 @@ describe('AppOrdersView', () => {
     paymentAPI.requestRefund.mockResolvedValue({})
   })
 
-  it('shows the workbench disabled state without calling order APIs when payment is off', async () => {
+  it('shows the payment-off notice while still loading order history', async () => {
     const wrapper = mountView()
     await flushPromises()
 
@@ -162,7 +162,21 @@ describe('AppOrdersView', () => {
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
     expect(hrefs).not.toContain('/app/purchase')
     expect(hrefs).toContain('/app/redeem')
-    expect(paymentAPI.getMyOrders).not.toHaveBeenCalled()
+    expect(paymentAPI.getMyOrders).toHaveBeenCalledWith({ page: 1, page_size: 10 })
+    expect(paymentAPI.getRefundEligibleProviders).not.toHaveBeenCalled()
+  })
+
+  it('keeps existing order history visible while payment actions are disabled', async () => {
+    paymentAPI.getMyOrders.mockResolvedValue(ordersResponse([
+      order({ id: 31, status: 'PENDING', out_trade_no: 'ORDER-OFF' })
+    ]))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('ORDER-OFF')
+    expect(wrapper.find('[data-testid="cancel-order-31"]').exists()).toBe(false)
+    expect(paymentAPI.getMyOrders).toHaveBeenCalledWith({ page: 1, page_size: 10 })
     expect(paymentAPI.getRefundEligibleProviders).not.toHaveBeenCalled()
   })
 
@@ -181,7 +195,7 @@ describe('AppOrdersView', () => {
     expect(text).toContain('查看充值说明')
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
     expect(hrefs).toContain('/app/purchase')
-    expect(paymentAPI.getMyOrders).not.toHaveBeenCalled()
+    expect(paymentAPI.getMyOrders).toHaveBeenCalledWith({ page: 1, page_size: 10 })
     expect(paymentAPI.getRefundEligibleProviders).not.toHaveBeenCalled()
   })
 
