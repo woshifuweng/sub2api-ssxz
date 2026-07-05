@@ -23,19 +23,22 @@
       <template v-else-if="detail">
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div class="card p-5">
-            <p class="text-sm text-gray-500">当前推广比例</p>
+            <p class="text-sm text-gray-500">当前合作比例</p>
             <p class="mt-2 text-2xl font-semibold text-primary-600">{{ formattedRate }}%</p>
+            <p class="mt-1 text-xs text-gray-500">实际奖励以后端记录为准</p>
           </div>
           <div class="card p-5">
             <p class="text-sm text-gray-500">邀请人数</p>
             <p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ detail.aff_count }}</p>
+            <p class="mt-1 text-xs text-gray-500">通过专属链接注册的人数</p>
           </div>
           <div class="card p-5">
             <p class="text-sm text-gray-500">可结算额度</p>
             <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ formatCurrency(detail.aff_quota) }}</p>
+            <p class="mt-1 text-xs text-gray-500">可转入账户余额</p>
           </div>
           <div class="card p-5">
-            <p class="text-sm text-gray-500">累计推广收益</p>
+            <p class="text-sm text-gray-500">累计奖励</p>
             <p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ formatCurrency(detail.aff_history_quota) }}</p>
             <p v-if="detail.aff_frozen_quota > 0" class="mt-1 text-xs text-amber-600">
               待确认：{{ formatCurrency(detail.aff_frozen_quota) }}
@@ -45,14 +48,14 @@
 
         <div class="card p-6">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white">推广邀请</h2>
-          <p class="mt-1 text-sm text-gray-500">分享推广码或链接，新用户注册并完成有效消费后，符合规则的奖励会计入可结算额度。</p>
+          <p class="mt-1 text-sm text-gray-500">复制专属链接发给客户，对方通过链接注册后会自动计入邀请记录。有效使用后，奖励会按后台规则进入可结算额度。</p>
 
           <div class="mt-5 grid gap-4 md:grid-cols-2">
             <div class="space-y-2">
               <p class="text-sm font-medium text-gray-700 dark:text-gray-300">推广码</p>
               <div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900">
                 <code class="flex-1 truncate text-sm font-semibold text-gray-900 dark:text-white">{{ detail.aff_code }}</code>
-                <button class="btn btn-secondary btn-sm" @click="copyValue(detail.aff_code, '推广码已复制')">
+                <button class="btn btn-secondary btn-sm" data-testid="copy-affiliate-code" @click="copyValue(detail.aff_code, '推广码已复制')">
                   <Icon name="copy" size="sm" />
                   <span>复制</span>
                 </button>
@@ -63,7 +66,7 @@
               <p class="text-sm font-medium text-gray-700 dark:text-gray-300">推广链接</p>
               <div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900">
                 <code class="flex-1 truncate text-sm text-gray-700 dark:text-gray-300">{{ inviteLink }}</code>
-                <button class="btn btn-secondary btn-sm" @click="copyValue(inviteLink, '推广链接已复制')">
+                <button class="btn btn-secondary btn-sm" data-testid="copy-affiliate-link" @click="copyValue(inviteLink, '推广链接已复制')">
                   <Icon name="copy" size="sm" />
                   <span>复制</span>
                 </button>
@@ -76,7 +79,7 @@
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 class="text-base font-semibold text-gray-900 dark:text-white">结算到余额</h3>
-              <p class="mt-1 text-sm text-gray-500">将可结算额度转入账户余额，到账后可直接使用。</p>
+              <p class="mt-1 text-sm text-gray-500">将可结算额度转入账户余额，到账后可直接用于站内调用。待确认额度会在满足规则后再进入可结算额度。</p>
             </div>
             <button class="btn btn-primary" :disabled="transferring || detail.aff_quota <= 0" @click="transferQuota">
               <Icon v-if="transferring" name="refresh" size="sm" class="animate-spin" />
@@ -88,6 +91,7 @@
 
         <div class="card p-6">
           <h3 class="text-base font-semibold text-gray-900 dark:text-white">邀请记录</h3>
+          <p class="mt-1 text-sm text-gray-500">这里显示通过你推广链接注册的客户，以及已计入的累计奖励。客户具体充值和核算细节由后台统一记录。</p>
           <div v-if="detail.invitees.length === 0" class="mt-4 rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-dark-700">
             暂无邀请记录。
           </div>
@@ -97,7 +101,7 @@
                 <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700">
                   <th class="px-3 py-2 font-medium">用户</th>
                   <th class="px-3 py-2 font-medium">名称</th>
-                  <th class="px-3 py-2 text-right font-medium">累计奖励</th>
+                  <th class="px-3 py-2 text-right font-medium">已计奖励</th>
                   <th class="px-3 py-2 font-medium">注册时间</th>
                 </tr>
               </thead>
@@ -141,7 +145,7 @@ const pageShell = computed(() => useWorkbenchShell.value ? AppSectionShell : App
 const pageShellProps = computed(() => useWorkbenchShell.value
   ? {
       title: '推广中心',
-      subtitle: '查看推广码、邀请记录和可转入余额。',
+      subtitle: '复制专属链接，查看邀请人数、奖励和可转入余额。',
       eyebrow: '账户运营',
       icon: 'gift'
     }
