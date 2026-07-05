@@ -620,6 +620,7 @@ export default {
     copyToClipboard: '复制到剪贴板',
     copied: '已复制！',
     importToCcSwitch: '导入到 CCS',
+    ccsImportNeedsNewKey: '需新建 Key',
     fullKeyRequiredForImport: '列表里只显示脱敏值，无法自动导入。请使用创建时保存的完整 Key；如果丢失，请新建一个 API Key。',
     enable: '启用',
     disable: '禁用',

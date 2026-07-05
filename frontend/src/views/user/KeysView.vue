@@ -449,7 +449,7 @@
                 class="flex cursor-not-allowed flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-400 opacity-60 dark:text-gray-500"
               >
                 <Icon name="upload" size="sm" />
-                <span class="text-xs">{{ t('keys.importToCcSwitch') }}</span>
+                <span class="text-xs">{{ t('keys.ccsImportNeedsNewKey') }}</span>
               </button>
               <!-- Toggle Status Button -->
               <button

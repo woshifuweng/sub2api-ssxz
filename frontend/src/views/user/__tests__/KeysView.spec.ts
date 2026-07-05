@@ -1067,7 +1067,7 @@ describe('KeysView workbench surface', () => {
     const importButton = wrapper.get('[data-testid="api-key-ccs-import-disabled"]')
     expect(importButton.attributes('disabled')).toBeDefined()
     expect(importButton.attributes('title')).toBe('keys.fullKeyRequiredForImport')
-    expect(importButton.text()).toContain('keys.importToCcSwitch')
+    expect(importButton.text()).toContain('keys.ccsImportNeedsNewKey')
     await importButton.trigger('click')
     expect(openSpy).not.toHaveBeenCalled()
 
