@@ -5,6 +5,7 @@ const { appStore, authStore, usageAPI } = vi.hoisted(() => ({
   appStore: {
     cachedPublicSettings: {
       channel_monitor_enabled: true,
+      payment_enabled: true,
       affiliate_enabled: false
     }
   },
@@ -138,6 +139,7 @@ describe('DashboardView', () => {
     authStore.isSimpleMode = false
     appStore.cachedPublicSettings = {
       channel_monitor_enabled: true,
+      payment_enabled: true,
       affiliate_enabled: false
     }
     authStore.refreshUser.mockResolvedValue(authStore.user)
@@ -222,6 +224,7 @@ describe('DashboardView', () => {
   it('hides the channel status shortcut when channel monitoring is disabled', async () => {
     appStore.cachedPublicSettings = {
       channel_monitor_enabled: false,
+      payment_enabled: true,
       affiliate_enabled: false
     }
 
@@ -235,6 +238,7 @@ describe('DashboardView', () => {
   it('shows the affiliate shortcut only when the affiliate feature is enabled', async () => {
     appStore.cachedPublicSettings = {
       channel_monitor_enabled: true,
+      payment_enabled: true,
       affiliate_enabled: true
     }
 
@@ -245,6 +249,26 @@ describe('DashboardView', () => {
     expect(hrefs).toContain('/app/affiliate')
     expect(wrapper.text()).toContain('推广邀请')
     expect(wrapper.text()).toContain('查看推广')
+  })
+
+  it('does not advertise recharge actions when online payment is disabled', async () => {
+    appStore.cachedPublicSettings = {
+      channel_monitor_enabled: true,
+      payment_enabled: false,
+      affiliate_enabled: false
+    }
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
+    expect(hrefs).not.toContain('/app/purchase')
+    expect(hrefs).toContain('/app/orders')
+    expect(wrapper.text()).not.toContain('购买套餐')
+    expect(wrapper.text()).not.toContain('去充值')
+    expect(wrapper.text()).not.toContain('充值和订单')
+    expect(wrapper.text()).toContain('订单记录')
+    expect(wrapper.text()).toContain('查看订单')
   })
 
   it('shows a retryable error state instead of a blank page when stats fail', async () => {
