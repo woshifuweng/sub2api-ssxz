@@ -724,6 +724,8 @@ export default {
         chatbox: 'Add a custom OpenAI API provider, enter the Base URL and API Key, and use compatible chat or image capabilities.',
         otherClientsTitle: 'Other clients',
         otherClients: 'Any client that supports OpenAI-compatible APIs can usually connect with Base URL + API Key.',
+        advancedHelpTitle: 'More checks and common errors',
+        advancedHelpDescription: 'Normal setup only needs the quick info above. Open this when connection fails, models are empty, or you want to verify usage records.',
         connectionTitle: 'Common connection info',
         apiKeyHint: 'Use the full key saved when it was created. The list only shows a masked value; create a new API Key if it is lost.',
         modelLabel: 'Model',

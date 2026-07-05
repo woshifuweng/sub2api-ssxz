@@ -722,6 +722,8 @@ export default {
         chatbox: '在模型提供商里新增自定义 OpenAI API，填入 Base URL 和 API Key，用于聊天、图片等兼容能力。',
         otherClientsTitle: '其他客户端',
         otherClients: '凡是支持 OpenAI-compatible API 的客户端，通常都可以按 Base URL + API Key 的方式接入。',
+        advancedHelpTitle: '更多检查和常见错误',
+        advancedHelpDescription: '正常接入只需要上面的快速信息。遇到连接失败、模型为空或想核对请求记录时，再展开这里。',
         connectionTitle: '通用连接信息',
         apiKeyHint: '使用创建时保存的完整 Key；列表里只展示脱敏值，丢失请新建一个 API Key。',
         modelLabel: '模型',
