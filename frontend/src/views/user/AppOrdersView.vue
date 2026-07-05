@@ -1,7 +1,7 @@
 <template>
   <AppSectionShell
     title="充值订单"
-    subtitle="查看自己的充值订单和处理状态，方便核对到账情况。"
+    subtitle="查看支付状态、到账额度和订单处理结果。"
     eyebrow="账户计费"
     icon="creditCard"
   >
@@ -26,7 +26,7 @@
           <div>
             <span>订单数量</span>
             <strong>{{ orderCountText }}</strong>
-            <p>这里汇总你的充值订单，暂无记录时会显示空状态。</p>
+            <p>这里会显示充值、套餐和退款相关订单。</p>
           </div>
         </article>
       </div>
@@ -61,7 +61,7 @@
         <div v-if="!paymentEnabled" class="orders-empty">
           <Icon name="creditCard" size="lg" />
           <strong>充值暂未开启</strong>
-          <span>当前暂未开放在线充值，请先使用已有额度，稍后再回来查看。</span>
+          <span>当前暂未开放在线充值，可先使用已有额度或兑换码。</span>
           <RouterLink to="/app/purchase" class="empty-action">查看充值说明</RouterLink>
         </div>
 
@@ -73,13 +73,13 @@
         <div v-else-if="loadError" class="orders-empty compact">
           <Icon name="exclamationTriangle" size="md" />
           <strong>{{ loadError }}</strong>
-          <span>订单记录同步中，请稍后刷新重试。如果刚完成支付，到账状态可能需要一点时间更新。</span>
+          <span>订单状态正在更新，请稍后刷新。如果刚完成支付，到账可能需要一点时间。</span>
         </div>
 
         <div v-else-if="orders.length === 0" class="orders-empty compact">
           <Icon name="inbox" size="md" />
           <strong>暂无订单记录</strong>
-          <span>完成充值后，订单会显示在这里。</span>
+          <span>完成充值或购买套餐后，订单会显示在这里。</span>
           <div class="empty-actions">
             <RouterLink to="/app/purchase" class="empty-action">去充值</RouterLink>
             <RouterLink to="/app/redeem" class="empty-action secondary">使用兑换码</RouterLink>
@@ -203,7 +203,7 @@
             class="refund-textarea"
             data-testid="refund-reason"
             rows="3"
-            placeholder="请填写退款原因，方便管理员处理。"
+            placeholder="请简单说明原因，方便核对订单。"
           />
         </div>
         <template #footer>

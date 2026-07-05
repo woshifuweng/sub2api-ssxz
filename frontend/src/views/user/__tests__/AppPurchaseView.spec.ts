@@ -54,7 +54,7 @@ describe('AppPurchaseView', () => {
     const text = wrapper.text()
 
     expect(text).toContain('充值')
-    expect(text).toContain('支付成功后会按订单记录更新账户额度')
+    expect(text).toContain('支付完成后额度会自动到账')
     expect(text).not.toContain('新版工作台')
     expect(text).not.toContain('支付链路')
     expect(text).not.toContain('账务逻辑')
