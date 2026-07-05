@@ -7,7 +7,7 @@
             <div>
               <h1 class="text-lg font-semibold text-gray-900 dark:text-white">推广返利管理</h1>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                管理用户推广码、专属返利比例和推广数据。统计来自已有邀请关系、订单和返利账本。
+                管理推广码、专属比例和推广数据，用来核对谁拉了谁、充值多少、返点多少、还剩多少可结算。
               </p>
             </div>
             <button class="btn btn-secondary btn-sm" :disabled="loading" @click="loadEntries">
@@ -18,6 +18,10 @@
         </div>
 
         <div class="grid gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div class="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200 lg:col-span-2">
+            数据来自已有邀请关系、订单和返利账本；普通用户只看到自己的推广码、邀请记录和可结算额度。
+          </div>
+
           <div class="space-y-4">
             <div>
               <label class="input-label">查找推广用户</label>
@@ -270,9 +274,9 @@ const columns = computed<Column[]>(() => [
   { key: 'user', label: '用户' },
   { key: 'aff_code', label: '推广码' },
   { key: 'aff_count', label: '邀请人数' },
-  { key: 'invitee_recharge_total', label: '充值额度' },
-  { key: 'accrued_rebate_total', label: '累计返利' },
-  { key: 'aff_frozen_quota', label: '冻结返利' },
+  { key: 'invitee_recharge_total', label: '被邀充值' },
+  { key: 'accrued_rebate_total', label: '已产生返利' },
+  { key: 'aff_frozen_quota', label: '待确认' },
   { key: 'aff_quota', label: '可结算' },
   { key: 'transferred_rebate_total', label: '已转余额' },
   { key: 'aff_rebate_rate_percent', label: '专属比例' },

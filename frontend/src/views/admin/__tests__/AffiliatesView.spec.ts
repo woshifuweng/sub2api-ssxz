@@ -105,6 +105,7 @@ describe('admin AffiliatesView', () => {
     await flushPromises()
 
     expect(affiliateAPI.listUsers).toHaveBeenCalledWith(1, 20, '')
+    expect(wrapper.text()).toContain('谁拉了谁、充值多少、返点多少')
     expect(wrapper.text()).toContain('promoter@example.com')
     expect(wrapper.text()).toContain('SSXZ7')
     expect(wrapper.text()).toContain('3 人')
