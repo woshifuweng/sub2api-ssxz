@@ -59,7 +59,7 @@
           </div>
         </header>
 
-        <div v-if="!paymentEnabled" class="orders-empty">
+        <div v-if="!paymentEnabled" class="orders-disabled-note">
           <Icon name="creditCard" size="lg" />
           <strong>{{ disabledOrdersTitle }}</strong>
           <span>{{ disabledOrdersDescription }}</span>
@@ -67,7 +67,7 @@
           <RouterLink v-else to="/app/redeem" class="empty-action">使用兑换码</RouterLink>
         </div>
 
-        <div v-else-if="loading" class="orders-empty compact">
+        <div v-if="loading" class="orders-empty compact">
           <Icon name="sync" size="md" />
           <strong>正在加载订单</strong>
         </div>
@@ -83,7 +83,7 @@
           <strong>暂无订单记录</strong>
           <span>完成充值或购买套餐后，订单会显示在这里。</span>
           <div class="empty-actions">
-            <RouterLink to="/app/purchase" class="empty-action">去充值</RouterLink>
+            <RouterLink v-if="purchaseEnabled" to="/app/purchase" class="empty-action">去充值</RouterLink>
             <RouterLink to="/app/redeem" class="empty-action secondary">使用兑换码</RouterLink>
           </div>
         </div>
@@ -112,7 +112,7 @@
                 <td>
                   <div class="order-actions">
                     <button
-                      v-if="order.status === 'PENDING'"
+                      v-if="paymentEnabled && order.status === 'PENDING'"
                       type="button"
                       class="text-action warning"
                       :data-testid="`cancel-order-${order.id}`"
@@ -139,7 +139,7 @@
           </table>
         </div>
 
-        <footer v-if="paymentEnabled && totalOrders > 0" class="pagination-row">
+        <footer v-if="totalOrders > 0" class="pagination-row">
           <span>第 {{ pagination.page }} / {{ totalPages }} 页，共 {{ totalOrders }} 条</span>
           <div>
             <button
@@ -282,14 +282,18 @@ const statusFilters = [
 let ordersBootstrapped = false
 
 watch(paymentEnabled, (enabled) => {
-  if (!enabled || ordersBootstrapped) return
-  ordersBootstrapped = true
-  void loadOrders()
-  void loadRefundEligibility()
+  if (!ordersBootstrapped) {
+    ordersBootstrapped = true
+    void loadOrders()
+  }
+  if (enabled) {
+    void loadRefundEligibility()
+  } else {
+    refundEligibleProviders.value = new Set()
+  }
 }, { immediate: true })
 
 async function loadOrders() {
-  if (!paymentEnabled.value) return
   loading.value = true
   loadError.value = ''
   try {
@@ -328,7 +332,6 @@ function handleFilterChange() {
 }
 
 function handlePageChange(page: number) {
-  if (!paymentEnabled.value) return
   if (page < 1 || page > totalPages.value) return
   pagination.page = page
   void loadOrders()
@@ -592,6 +595,32 @@ function formatPaymentType(type: string) {
 
 .orders-empty.compact {
   min-height: 12rem;
+}
+
+.orders-disabled-note {
+  display: grid;
+  gap: 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--ssxz-action) 26%, var(--ssxz-border));
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--ssxz-action-soft) 45%, var(--ssxz-surface));
+  color: var(--ssxz-text-secondary);
+  padding: 0.95rem 1rem;
+}
+
+.orders-disabled-note strong {
+  color: var(--ssxz-text-primary);
+  font-size: 0.92rem;
+  font-weight: 850;
+}
+
+.orders-disabled-note span {
+  max-width: 42rem;
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.orders-disabled-note .empty-action {
+  justify-self: start;
 }
 
 .orders-empty strong {
