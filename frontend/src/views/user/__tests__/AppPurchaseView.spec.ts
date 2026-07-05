@@ -45,6 +45,19 @@ vi.mock('../PurchaseSubscriptionView.vue', () => ({
 
 import AppPurchaseView from '../AppPurchaseView.vue'
 
+function mountView() {
+  return mount(AppPurchaseView, {
+    global: {
+      stubs: {
+        RouterLink: {
+          props: ['to'],
+          template: '<a :href="to"><slot /></a>'
+        }
+      }
+    }
+  })
+}
+
 describe('AppPurchaseView', () => {
   beforeEach(() => {
     appStore.cachedPublicSettings = {
@@ -54,7 +67,7 @@ describe('AppPurchaseView', () => {
   })
 
   it('wraps the shared checkout content in the user workspace shell', () => {
-    const wrapper = mount(AppPurchaseView)
+    const wrapper = mountView()
 
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(true)
     const checkout = wrapper.find('[data-testid="payment-checkout-content"]')
@@ -63,7 +76,7 @@ describe('AppPurchaseView', () => {
   })
 
   it('uses customer-facing billing copy instead of implementation notes', () => {
-    const wrapper = mount(AppPurchaseView)
+    const wrapper = mountView()
     const text = wrapper.text()
 
     expect(text).toContain('充值')
@@ -79,11 +92,16 @@ describe('AppPurchaseView', () => {
       purchase_subscription_enabled: false,
     }
 
-    const wrapper = mount(AppPurchaseView)
+    const wrapper = mountView()
     const text = wrapper.text()
 
     expect(text).toContain('充值暂未开启')
     expect(text).toContain('当前暂未开放在线充值')
+    expect(text).toContain('使用兑换码')
+    expect(text).toContain('查看订单记录')
+    const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
+    expect(hrefs).toContain('/app/redeem')
+    expect(hrefs).toContain('/app/orders')
     expect(wrapper.find('[data-testid="payment-checkout-content"]').exists()).toBe(false)
   })
 
@@ -93,7 +111,7 @@ describe('AppPurchaseView', () => {
       purchase_subscription_enabled: true,
     }
 
-    const wrapper = mount(AppPurchaseView)
+    const wrapper = mountView()
 
     expect(wrapper.find('[data-testid="legacy-purchase-subscription"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(false)
