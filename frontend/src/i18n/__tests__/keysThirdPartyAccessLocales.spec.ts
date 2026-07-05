@@ -35,6 +35,10 @@ describe('API Key third-party access locale copy', () => {
       zh.keys.useKeyModal.thirdParty.apiKeyHint,
       zh.keys.useKeyModal.thirdParty.modelsEndpointLabel,
       zh.keys.useKeyModal.thirdParty.connectionChecklistBaseUrl,
+      zh.keys.useKeyModal.thirdParty.ccSwitchHomepageLabel,
+      zh.keys.useKeyModal.thirdParty.ccSwitchRequestUrlLabel,
+      zh.keys.useKeyModal.thirdParty.ccSwitchQuickOfficialSite,
+      zh.keys.useKeyModal.thirdParty.ccSwitchQuickRequestUrl,
       zh.keys.useKeyModal.thirdParty.connectionChecklistFullKey,
       zh.keys.useKeyModal.thirdParty.connectionChecklistModels,
       zh.keys.useKeyModal.thirdParty.connectionChecklistBalance,
@@ -62,6 +66,10 @@ describe('API Key third-party access locale copy', () => {
     expect(copy).toContain('账户余额')
     expect(copy).toContain('额度')
     expect(copy).toContain('其它服务商地址')
+    expect(copy).toContain('官网链接')
+    expect(copy).toContain('API 请求地址')
+    expect(copy).toContain('不带 /v1')
+    expect(copy).toContain('必须带 /v1')
     expect(copy).toContain('custom provider')
     expect(copy).toContain('base_url')
     expect(copy).toContain('Codex / CC Switch')
@@ -104,6 +112,10 @@ describe('API Key third-party access locale copy', () => {
       en.keys.useKeyModal.thirdParty.apiKeyHint,
       en.keys.useKeyModal.thirdParty.modelsEndpointLabel,
       en.keys.useKeyModal.thirdParty.connectionChecklistBaseUrl,
+      en.keys.useKeyModal.thirdParty.ccSwitchHomepageLabel,
+      en.keys.useKeyModal.thirdParty.ccSwitchRequestUrlLabel,
+      en.keys.useKeyModal.thirdParty.ccSwitchQuickOfficialSite,
+      en.keys.useKeyModal.thirdParty.ccSwitchQuickRequestUrl,
       en.keys.useKeyModal.thirdParty.connectionChecklistFullKey,
       en.keys.useKeyModal.thirdParty.connectionChecklistModels,
       en.keys.useKeyModal.thirdParty.connectionChecklistBalance,
@@ -131,6 +143,10 @@ describe('API Key third-party access locale copy', () => {
     expect(copy).toContain('account balance')
     expect(copy).toContain('quota')
     expect(copy).toContain('another service address')
+    expect(copy).toContain('Homepage')
+    expect(copy).toContain('API request URL')
+    expect(copy).toContain('without /v1')
+    expect(copy).toContain('including /v1')
     expect(copy).toContain('custom provider')
     expect(copy).toContain('base_url')
     expect(copy).toContain('Codex / CC Switch')
