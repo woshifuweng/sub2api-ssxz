@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last updated: 2026-06-29
+Last updated: 2026-07-05
 
 ## Product Positioning
 
@@ -36,6 +36,18 @@ The admin side should preserve operation capabilities for the owner and operator
 | Migrations | `backend/migrations` | SQL migrations include usage/billing consistency, group pricing, image/media fields, Sora/image tables, API key rate limits, and routing-related changes. |
 | Frontend routes | `frontend/src/router/index.ts` | User workspace, legacy user pages, payment pages, and admin routes are registered in one route file. |
 | Backend routes | `backend/internal/server/routes` | User, admin, payment, gateway, Sora/client, and workspace route registration. |
+
+## Existing Sub2 Capabilities Confirmed On 2026-07-05
+
+These capabilities already exist in the current Sub2API / SSXZ trunk. Do not rebuild them from scratch; future PRs should reuse and lightly productize these paths first.
+
+| Capability | Existing paths / modules | Current product decision |
+| --- | --- | --- |
+| API Key / third-party client access | `/app/keys`, `frontend/src/views/user/KeysView.vue`, API-key gateway middleware | Keep as the main commercial entry. CC Switch import already exists through `ccswitch://v1/import`; masked list keys must stay non-importable for safety, while newly created full keys can be imported from the one-time reveal dialog. |
+| Redeem codes | `/app/redeem`, `/admin/redeem`, `frontend/src/api/redeem.ts`, `frontend/src/api/admin/redeem.ts` | Keep as a normal user and operator capability. Use it when online payment is disabled or when operators need manual/private quota distribution. |
+| Affiliate / invite rebate | `/app/affiliate`, `/admin/affiliates`, register `?aff=` / `?affiliate=`, `backend/internal/service/affiliate_service.go`, `backend/internal/repository/affiliate_repo.go` | Existing end-to-end chain covers inviter code, register binding, recharge rebate accrual, transferable quota, invitee list, admin custom rates, and invitee recharge totals. Keep hidden unless `affiliate_enabled` is on; do not design a separate promoter system. |
+| Channel status | `/app/channel-status`, `/admin/channel-monitor`, `frontend/src/views/user/ChannelStatusView.vue` | Existing monitor view is useful for API clients and support. It should explain availability without promising 100% uptime and should not dominate ordinary-user navigation. |
+| Orders / payment records | `/app/orders`, `/app/purchase`, admin payment/order pages | Online payment may be disabled in production. User copy should route to orders/redeem when payment is off and avoid fake recharge success states. |
 
 ## User-Side Page State
 
