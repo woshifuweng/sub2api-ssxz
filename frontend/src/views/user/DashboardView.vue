@@ -227,6 +227,7 @@ const user = computed(() => authStore.user)
 const balance = computed(() => user.value?.balance || 0)
 const userEmail = computed(() => user.value?.email || '当前用户')
 const channelMonitorEnabled = computed(() => !!appStore.cachedPublicSettings?.channel_monitor_enabled)
+const affiliateEnabled = computed(() => !!appStore.cachedPublicSettings?.affiliate_enabled)
 
 const stats = ref<UserStatsType | null>(null)
 const loading = ref(false)
@@ -271,6 +272,14 @@ const baseProductEntries = [
     action: '去充值'
   },
   {
+    to: '/app/affiliate',
+    icon: 'gift' as const,
+    badge: '推广',
+    title: '推广邀请',
+    description: '分享专属链接，查看邀请记录和活动奖励。具体规则以后台开关和运营策略为准。',
+    action: '查看推广'
+  },
+  {
     to: '/app/chat',
     icon: 'chat' as const,
     badge: '轻量测试',
@@ -282,7 +291,9 @@ const baseProductEntries = [
 
 const productEntries = computed(() =>
   baseProductEntries.filter(
-    (entry) => entry.to !== '/app/channel-status' || channelMonitorEnabled.value
+    (entry) =>
+      (entry.to !== '/app/channel-status' || channelMonitorEnabled.value) &&
+      (entry.to !== '/app/affiliate' || affiliateEnabled.value)
   )
 )
 
