@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appStore } = vi.hoisted(() => ({
   appStore: {
-    cachedPublicSettings: { payment_enabled: true as boolean },
+    cachedPublicSettings: {
+      payment_enabled: true as boolean,
+      purchase_subscription_enabled: false as boolean,
+    },
   },
 }))
 
@@ -33,11 +36,21 @@ vi.mock('../PaymentCheckoutContent.vue', () => ({
   }
 }))
 
+vi.mock('../PurchaseSubscriptionView.vue', () => ({
+  default: {
+    name: 'PurchaseSubscriptionView',
+    template: '<section data-testid="legacy-purchase-subscription" />'
+  }
+}))
+
 import AppPurchaseView from '../AppPurchaseView.vue'
 
 describe('AppPurchaseView', () => {
   beforeEach(() => {
-    appStore.cachedPublicSettings = { payment_enabled: true }
+    appStore.cachedPublicSettings = {
+      payment_enabled: true,
+      purchase_subscription_enabled: false,
+    }
   })
 
   it('wraps the shared checkout content in the user workspace shell', () => {
@@ -61,13 +74,29 @@ describe('AppPurchaseView', () => {
   })
 
   it('shows a safe disabled state without mounting checkout when payment is off', () => {
-    appStore.cachedPublicSettings = { payment_enabled: false }
+    appStore.cachedPublicSettings = {
+      payment_enabled: false,
+      purchase_subscription_enabled: false,
+    }
 
     const wrapper = mount(AppPurchaseView)
     const text = wrapper.text()
 
     expect(text).toContain('充值暂未开启')
     expect(text).toContain('当前暂未开放在线充值')
+    expect(wrapper.find('[data-testid="payment-checkout-content"]').exists()).toBe(false)
+  })
+
+  it('keeps the legacy subscription purchase entry available when configured', () => {
+    appStore.cachedPublicSettings = {
+      payment_enabled: false,
+      purchase_subscription_enabled: true,
+    }
+
+    const wrapper = mount(AppPurchaseView)
+
+    expect(wrapper.find('[data-testid="legacy-purchase-subscription"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="payment-checkout-content"]').exists()).toBe(false)
   })
 })

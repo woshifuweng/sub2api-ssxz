@@ -4,7 +4,10 @@ import type { PaymentOrder } from '@/types/payment'
 
 const { appStore, authStore, paymentAPI } = vi.hoisted(() => ({
   appStore: {
-    cachedPublicSettings: { payment_enabled: false as boolean },
+    cachedPublicSettings: {
+      payment_enabled: false as boolean,
+      purchase_subscription_enabled: false as boolean
+    },
     showSuccess: vi.fn(),
     showError: vi.fn()
   },
@@ -125,7 +128,10 @@ function mountView() {
 
 describe('AppOrdersView', () => {
   beforeEach(() => {
-    appStore.cachedPublicSettings = { payment_enabled: false }
+    appStore.cachedPublicSettings = {
+      payment_enabled: false,
+      purchase_subscription_enabled: false
+    }
     authStore.user.balance = 49.4
     appStore.showSuccess.mockReset()
     appStore.showError.mockReset()
@@ -148,16 +154,39 @@ describe('AppOrdersView', () => {
     expect(text).toContain('充值订单')
     expect(text).toContain('充值暂未开启')
     expect(text).toContain('当前暂未开放在线充值')
+    expect(text).toContain('使用兑换码')
     expect(text).not.toContain('联系管理员')
     expect(text).not.toContain('新版工作台')
     expect(text).not.toContain('真实订单接口')
     expect(text).not.toContain('旧版订单页')
+    const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
+    expect(hrefs).not.toContain('/app/purchase')
+    expect(hrefs).toContain('/app/redeem')
+    expect(paymentAPI.getMyOrders).not.toHaveBeenCalled()
+    expect(paymentAPI.getRefundEligibleProviders).not.toHaveBeenCalled()
+  })
+
+  it('keeps the configured legacy purchase entry from the disabled order state', async () => {
+    appStore.cachedPublicSettings = {
+      payment_enabled: false,
+      purchase_subscription_enabled: true
+    }
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(text).toContain('在线订单暂未开启')
+    expect(text).toContain('当前订单记录暂未接入在线支付')
+    expect(text).toContain('查看充值说明')
+    const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
+    expect(hrefs).toContain('/app/purchase')
     expect(paymentAPI.getMyOrders).not.toHaveBeenCalled()
     expect(paymentAPI.getRefundEligibleProviders).not.toHaveBeenCalled()
   })
 
   it('renders real order data inside the workbench shell when payment is enabled', async () => {
-    appStore.cachedPublicSettings = { payment_enabled: true }
+    appStore.cachedPublicSettings = { payment_enabled: true, purchase_subscription_enabled: false }
     paymentAPI.getMyOrders.mockResolvedValue(ordersResponse([
       order({ provider_instance_id: 'provider-1' })
     ]))
@@ -181,7 +210,7 @@ describe('AppOrdersView', () => {
   })
 
   it('lets the user cancel a pending order from the app orders page', async () => {
-    appStore.cachedPublicSettings = { payment_enabled: true }
+    appStore.cachedPublicSettings = { payment_enabled: true, purchase_subscription_enabled: false }
     paymentAPI.getMyOrders.mockResolvedValue(ordersResponse([
       order({ id: 18, status: 'PENDING', out_trade_no: 'ORDER-18' })
     ]))
@@ -201,7 +230,7 @@ describe('AppOrdersView', () => {
   })
 
   it('lets the user request a refund when the provider allows user refunds', async () => {
-    appStore.cachedPublicSettings = { payment_enabled: true }
+    appStore.cachedPublicSettings = { payment_enabled: true, purchase_subscription_enabled: false }
     paymentAPI.getMyOrders.mockResolvedValue(ordersResponse([
       order({ id: 22, provider_instance_id: 'provider-2', out_trade_no: 'ORDER-22' })
     ]))
@@ -221,7 +250,7 @@ describe('AppOrdersView', () => {
   })
 
   it('supports status filtering and pagination', async () => {
-    appStore.cachedPublicSettings = { payment_enabled: true }
+    appStore.cachedPublicSettings = { payment_enabled: true, purchase_subscription_enabled: false }
     paymentAPI.getMyOrders.mockResolvedValue(ordersResponse([
       order({ id: 1, status: 'PENDING' })
     ], 25))
@@ -239,7 +268,7 @@ describe('AppOrdersView', () => {
   })
 
   it('shows an empty state when the user has no orders', async () => {
-    appStore.cachedPublicSettings = { payment_enabled: true }
+    appStore.cachedPublicSettings = { payment_enabled: true, purchase_subscription_enabled: false }
 
     const wrapper = mountView()
     await flushPromises()
@@ -258,7 +287,7 @@ describe('AppOrdersView', () => {
   })
 
   it('shows a user-facing load error when orders cannot be loaded', async () => {
-    appStore.cachedPublicSettings = { payment_enabled: true }
+    appStore.cachedPublicSettings = { payment_enabled: true, purchase_subscription_enabled: false }
     paymentAPI.getMyOrders.mockRejectedValue(new Error('network down'))
 
     const wrapper = mountView()
