@@ -102,6 +102,7 @@ describe('AffiliateView', () => {
     expect(wrapper.find('[data-testid="app-layout"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('推广返利')
     expect(wrapper.text()).toContain('推广邀请')
+    expect(wrapper.text()).toContain('当前收益比例')
     expect(wrapper.text()).toContain('INVITE123')
     expect(userAPI.getAffiliateDetail).toHaveBeenCalledTimes(1)
   })

@@ -23,7 +23,7 @@
       <template v-else-if="detail">
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div class="card p-5">
-            <p class="text-sm text-gray-500">当前返利比例</p>
+            <p class="text-sm text-gray-500">当前收益比例</p>
             <p class="mt-2 text-2xl font-semibold text-primary-600">{{ formattedRate }}%</p>
           </div>
           <div class="card p-5">
@@ -35,7 +35,7 @@
             <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ formatCurrency(detail.aff_quota) }}</p>
           </div>
           <div class="card p-5">
-            <p class="text-sm text-gray-500">累计返利</p>
+            <p class="text-sm text-gray-500">累计收益</p>
             <p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ formatCurrency(detail.aff_history_quota) }}</p>
             <p v-if="detail.aff_frozen_quota > 0" class="mt-1 text-xs text-amber-600">
               待确认：{{ formatCurrency(detail.aff_frozen_quota) }}
@@ -45,7 +45,7 @@
 
         <div class="card p-6">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white">推广邀请</h2>
-          <p class="mt-1 text-sm text-gray-500">分享推广码或链接，新用户注册并完成充值后会按当前规则产生可结算额度。</p>
+          <p class="mt-1 text-sm text-gray-500">分享推广码或链接，新用户注册并充值后，会按当前活动规则计入可结算额度。</p>
 
           <div class="mt-5 grid gap-4 md:grid-cols-2">
             <div class="space-y-2">
@@ -97,7 +97,7 @@
                 <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700">
                   <th class="px-3 py-2 font-medium">用户</th>
                   <th class="px-3 py-2 font-medium">名称</th>
-                  <th class="px-3 py-2 text-right font-medium">产生返利</th>
+                  <th class="px-3 py-2 text-right font-medium">贡献额度</th>
                   <th class="px-3 py-2 font-medium">注册时间</th>
                 </tr>
               </thead>
@@ -141,7 +141,7 @@ const pageShell = computed(() => useWorkbenchShell.value ? AppSectionShell : App
 const pageShellProps = computed(() => useWorkbenchShell.value
   ? {
       title: '推广返利',
-      subtitle: '查看推广码、邀请记录和可结算额度。实际结算以后端记录和当前策略为准。',
+      subtitle: '查看推广码、邀请记录和可结算额度。',
       eyebrow: '账户运营',
       icon: 'gift'
     }
