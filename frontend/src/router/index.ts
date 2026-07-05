@@ -721,6 +721,14 @@ const BACKEND_MODE_ALLOWED_PATHS = [
   '/payment/stripe-popup'
 ]
 
+function isBackendModeAllowedPath(path: string): boolean {
+  if (path === '/' || path === '/home') {
+    return true
+  }
+
+  return BACKEND_MODE_ALLOWED_PATHS.some((p) => path === p || path.startsWith(p))
+}
+
 router.beforeEach((to, _from, next) => {
   // 开始导航加载状态
   navigationLoading.startNavigation()
@@ -771,7 +779,7 @@ router.beforeEach((to, _from, next) => {
     }
     // Backend mode: block public pages for unauthenticated users (except login, key-usage, setup)
     if (appStore.backendModeEnabled && !authStore.isAuthenticated) {
-      const isAllowed = BACKEND_MODE_ALLOWED_PATHS.some((p) => to.path === p || to.path.startsWith(p))
+      const isAllowed = isBackendModeAllowedPath(to.path)
       if (!isAllowed) {
         next('/login')
         return
@@ -836,7 +844,7 @@ router.beforeEach((to, _from, next) => {
       next()
       return
     }
-    const isAllowed = BACKEND_MODE_ALLOWED_PATHS.some((p) => to.path === p || to.path.startsWith(p))
+    const isAllowed = isBackendModeAllowedPath(to.path)
     if (!isAllowed) {
       next('/login')
       return
