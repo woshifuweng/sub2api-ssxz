@@ -165,81 +165,93 @@
             </div>
           </div>
 
-          <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-900/70">
-            <p class="text-sm font-semibold text-gray-900 dark:text-white">
-              {{ t('keys.useKeyModal.thirdParty.connectionTitle') }}
-            </p>
-            <dl class="mt-3 space-y-2 text-sm">
-              <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <dt class="text-gray-500 dark:text-gray-400">Base URL</dt>
-                <dd class="break-all font-mono text-gray-900 dark:text-gray-100">{{ openAICompatibleBaseUrl }}</dd>
-              </div>
-              <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <dt class="text-gray-500 dark:text-gray-400">API Key</dt>
-                <dd class="text-gray-900 dark:text-gray-100">
-                  {{ t('keys.useKeyModal.thirdParty.apiKeyHint') }}
-                </dd>
-              </div>
-              <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.modelLabel') }}</dt>
-                <dd class="text-gray-900 dark:text-gray-100">
-                  {{ t('keys.useKeyModal.thirdParty.modelHint') }}
-                </dd>
-              </div>
-              <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.modelsEndpointLabel') }}</dt>
-                <dd class="break-all font-mono text-gray-900 dark:text-gray-100">{{ modelsEndpointUrl }}</dd>
-              </div>
-            </dl>
-          </div>
-
-          <div
+          <details
             class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900/80"
-            data-testid="third-party-connection-checklist"
+            data-testid="third-party-advanced-help"
           >
-            <p class="text-sm font-semibold text-gray-900 dark:text-white">
-              {{ t('keys.useKeyModal.thirdParty.connectionChecklistTitle') }}
+            <summary class="cursor-pointer select-none text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.thirdParty.advancedHelpTitle') }}
+            </summary>
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              {{ t('keys.useKeyModal.thirdParty.advancedHelpDescription') }}
             </p>
-            <ul class="mt-3 space-y-2 text-sm text-gray-600 dark:text-gray-300">
-              <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistBaseUrl') }}</li>
-              <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistEndpoint') }}</li>
-              <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistFullKey') }}</li>
-              <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistModels') }}</li>
-              <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistBalance') }}</li>
-              <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistRestart') }}</li>
-            </ul>
-          </div>
 
-          <div
-            class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900/80"
-            data-testid="third-party-troubleshooting"
-          >
-            <p class="text-sm font-semibold text-gray-900 dark:text-white">
-              {{ t('keys.useKeyModal.thirdParty.troubleshootingTitle') }}
-            </p>
-            <dl class="mt-3 space-y-2 text-sm text-gray-600 dark:text-gray-300">
-              <div
-                v-for="item in troubleshootingItems"
-                :key="item.code"
-                class="grid gap-1 sm:grid-cols-[5rem_1fr]"
-              >
-                <dt class="font-mono font-semibold text-gray-900 dark:text-gray-100">
-                  {{ item.code }}
-                </dt>
-                <dd>{{ item.description }}</dd>
-              </div>
-            </dl>
-            <p class="mt-3 text-xs leading-5 text-gray-500 dark:text-gray-400">
-              {{ t('keys.useKeyModal.thirdParty.troubleshootingUsageHint') }}
-            </p>
-          </div>
+            <div class="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-900/70">
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">
+                {{ t('keys.useKeyModal.thirdParty.connectionTitle') }}
+              </p>
+              <dl class="mt-3 space-y-2 text-sm">
+                <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <dt class="text-gray-500 dark:text-gray-400">Base URL</dt>
+                  <dd class="break-all font-mono text-gray-900 dark:text-gray-100">{{ openAICompatibleBaseUrl }}</dd>
+                </div>
+                <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <dt class="text-gray-500 dark:text-gray-400">API Key</dt>
+                  <dd class="text-gray-900 dark:text-gray-100">
+                    {{ t('keys.useKeyModal.thirdParty.apiKeyHint') }}
+                  </dd>
+                </div>
+                <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.modelLabel') }}</dt>
+                  <dd class="text-gray-900 dark:text-gray-100">
+                    {{ t('keys.useKeyModal.thirdParty.modelHint') }}
+                  </dd>
+                </div>
+                <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.modelsEndpointLabel') }}</dt>
+                  <dd class="break-all font-mono text-gray-900 dark:text-gray-100">{{ modelsEndpointUrl }}</dd>
+                </div>
+              </dl>
+            </div>
 
-          <div class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
-            <Icon name="exclamationCircle" size="md" class="mt-0.5 flex-shrink-0 text-amber-500" />
-            <p class="text-sm text-amber-700 dark:text-amber-300">
-              {{ t('keys.useKeyModal.thirdParty.securityNote') }}
-            </p>
-          </div>
+            <div
+              class="mt-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900/80"
+              data-testid="third-party-connection-checklist"
+            >
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">
+                {{ t('keys.useKeyModal.thirdParty.connectionChecklistTitle') }}
+              </p>
+              <ul class="mt-3 space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistBaseUrl') }}</li>
+                <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistEndpoint') }}</li>
+                <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistFullKey') }}</li>
+                <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistModels') }}</li>
+                <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistBalance') }}</li>
+                <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistRestart') }}</li>
+              </ul>
+            </div>
+
+            <div
+              class="mt-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900/80"
+              data-testid="third-party-troubleshooting"
+            >
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">
+                {{ t('keys.useKeyModal.thirdParty.troubleshootingTitle') }}
+              </p>
+              <dl class="mt-3 space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                <div
+                  v-for="item in troubleshootingItems"
+                  :key="item.code"
+                  class="grid gap-1 sm:grid-cols-[5rem_1fr]"
+                >
+                  <dt class="font-mono font-semibold text-gray-900 dark:text-gray-100">
+                    {{ item.code }}
+                  </dt>
+                  <dd>{{ item.description }}</dd>
+                </div>
+              </dl>
+              <p class="mt-3 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                {{ t('keys.useKeyModal.thirdParty.troubleshootingUsageHint') }}
+              </p>
+            </div>
+
+            <div class="mt-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+              <Icon name="exclamationCircle" size="md" class="mt-0.5 flex-shrink-0 text-amber-500" />
+              <p class="text-sm text-amber-700 dark:text-amber-300">
+                {{ t('keys.useKeyModal.thirdParty.securityNote') }}
+              </p>
+            </div>
+          </details>
         </div>
 
         <!-- Code Blocks (Stacked for multi-file platforms) -->
