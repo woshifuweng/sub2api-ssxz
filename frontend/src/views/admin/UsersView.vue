@@ -545,6 +545,24 @@
                 {{ t('payment.result.viewOrders') }}
               </button>
 
+              <!-- View Affiliate -->
+              <button
+                @click="handleViewAffiliate(user); closeActionMenu()"
+                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+              >
+                <Icon name="link" size="sm" class="text-gray-400" :stroke-width="2" />
+                推广返利
+              </button>
+
+              <!-- View Redeem Codes -->
+              <button
+                @click="handleViewRedeemCodes(user); closeActionMenu()"
+                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+              >
+                <Icon name="gift" size="sm" class="text-gray-400" :stroke-width="2" />
+                兑换记录
+              </button>
+
               <!-- Allowed Groups -->
               <button
                 @click="handleAllowedGroups(user); closeActionMenu()"
@@ -1291,6 +1309,22 @@ const handleViewOrders = (user: AdminUser) => {
   void router.push({
     path: '/admin/orders',
     query: { user_id: String(user.id) }
+  })
+}
+
+const investigationKeywordForUser = (user: AdminUser) => user.email || user.username || String(user.id)
+
+const handleViewAffiliate = (user: AdminUser) => {
+  void router.push({
+    path: '/admin/affiliates',
+    query: { search: investigationKeywordForUser(user) }
+  })
+}
+
+const handleViewRedeemCodes = (user: AdminUser) => {
+  void router.push({
+    path: '/admin/redeem',
+    query: { search: investigationKeywordForUser(user) }
   })
 }
 

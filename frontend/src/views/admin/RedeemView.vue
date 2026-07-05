@@ -393,6 +393,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useClipboard } from '@/composables/useClipboard'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -413,6 +414,7 @@ import Icon from '@/components/icons/Icon.vue'
 const { t } = useI18n()
 const appStore = useAppStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
+const route = useRoute()
 
 interface GroupOption {
   value: number
@@ -552,6 +554,16 @@ const generateForm = reactive({
   group_id: null as number | null,
   validity_days: 30
 })
+
+const getSingleQueryValue = (value: string | null | Array<string | null> | undefined): string | undefined => {
+  if (Array.isArray(value)) return value.find((item): item is string => typeof item === 'string' && item.length > 0)
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+const getInitialInvestigationKeyword = () =>
+  getSingleQueryValue(route.query.search) ||
+  getSingleQueryValue(route.query.user) ||
+  getSingleQueryValue(route.query.user_id)
 
 // 监听类型变化，邀请码类型时自动设置 value 为 0
 watch(
@@ -747,6 +759,10 @@ const loadSubscriptionGroups = async () => {
 }
 
 onMounted(() => {
+  const keyword = getInitialInvestigationKeyword()
+  if (keyword) {
+    searchQuery.value = keyword
+  }
   loadCodes()
   loadSubscriptionGroups()
 })

@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { affiliateAPI, showError, showSuccess } = vi.hoisted(() => ({
+const { affiliateAPI, showError, showSuccess, routeQuery } = vi.hoisted(() => ({
   affiliateAPI: {
     listUsers: vi.fn(),
     lookupUsers: vi.fn(),
@@ -10,7 +10,8 @@ const { affiliateAPI, showError, showSuccess } = vi.hoisted(() => ({
     batchSetRate: vi.fn()
   },
   showError: vi.fn(),
-  showSuccess: vi.fn()
+  showSuccess: vi.fn(),
+  routeQuery: {} as Record<string, string>
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -28,6 +29,12 @@ vi.mock('@/stores/app', () => ({
 
 vi.mock('@/composables/usePersistedPageSize', () => ({
   getPersistedPageSize: () => 20
+}))
+
+vi.mock('vue-router', () => ({
+  useRoute: () => ({
+    query: routeQuery
+  })
 }))
 
 import AffiliatesView from '../AffiliatesView.vue'
@@ -69,6 +76,9 @@ function mountView() {
 describe('admin AffiliatesView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    for (const key of Object.keys(routeQuery)) {
+      delete routeQuery[key]
+    }
     affiliateAPI.listUsers.mockResolvedValue({
       items: [
         {
@@ -114,6 +124,16 @@ describe('admin AffiliatesView', () => {
     expect(wrapper.text()).toContain('8.25 额度')
     expect(wrapper.text()).toContain('2.25 额度')
     expect(wrapper.text()).toContain('12%')
+  })
+
+  it('uses route query as an investigation search keyword', async () => {
+    routeQuery.search = 'promoter@example.com'
+
+    mountView()
+    await flushPromises()
+
+    expect(affiliateAPI.listUsers).toHaveBeenCalledWith(1, 20, 'promoter@example.com')
+    expect(affiliateAPI.lookupUsers).toHaveBeenCalledWith('promoter@example.com')
   })
 
   it('searches a user and saves affiliate settings', async () => {
