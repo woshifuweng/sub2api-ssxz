@@ -53,8 +53,8 @@ describe('AppPurchaseView', () => {
     const wrapper = mount(AppPurchaseView)
     const text = wrapper.text()
 
-    expect(text).toContain('充值 / 订阅')
-    expect(text).toContain('为账户充值余额')
+    expect(text).toContain('充值')
+    expect(text).toContain('支付成功后会按订单记录更新账户额度')
     expect(text).not.toContain('新版工作台')
     expect(text).not.toContain('支付链路')
     expect(text).not.toContain('账务逻辑')
@@ -66,8 +66,8 @@ describe('AppPurchaseView', () => {
     const wrapper = mount(AppPurchaseView)
     const text = wrapper.text()
 
-    expect(text).toContain('充值 / 订阅暂未开启')
-    expect(text).toContain('当前暂未开放在线充值或订阅入口')
+    expect(text).toContain('充值暂未开启')
+    expect(text).toContain('当前暂未开放在线充值')
     expect(wrapper.find('[data-testid="payment-checkout-content"]').exists()).toBe(false)
   })
 })

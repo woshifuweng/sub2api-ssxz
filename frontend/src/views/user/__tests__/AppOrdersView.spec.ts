@@ -145,9 +145,9 @@ describe('AppOrdersView', () => {
 
     const text = wrapper.text()
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(true)
-    expect(text).toContain('订单记录')
-    expect(text).toContain('充值 / 订阅暂未开启')
-    expect(text).toContain('当前暂未开放充值或订阅入口')
+    expect(text).toContain('充值订单')
+    expect(text).toContain('充值暂未开启')
+    expect(text).toContain('当前暂未开放在线充值')
     expect(text).not.toContain('联系管理员')
     expect(text).not.toContain('新版工作台')
     expect(text).not.toContain('真实订单接口')
@@ -246,7 +246,7 @@ describe('AppOrdersView', () => {
 
     const text = wrapper.text()
     expect(text).toContain('暂无订单记录')
-    expect(text).toContain('完成充值或购买订阅后')
+    expect(text).toContain('完成充值后')
     expect(text).toContain('去充值')
     expect(text).toContain('使用兑换码')
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
