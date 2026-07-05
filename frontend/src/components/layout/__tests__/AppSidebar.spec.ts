@@ -163,11 +163,10 @@ describe('AppSidebar', () => {
       '/app/purchase',
       '/app/orders',
       '/app/redeem',
-      '/app/profile',
-      '/app/chat',
-      '/app/image'
+      '/app/profile'
     ]))
-    expect(destinations.filter((destination) => destination === '/app/image')).toHaveLength(1)
+    expect(destinations).not.toContain('/app/chat')
+    expect(destinations).not.toContain('/app/image')
     expect(destinations).not.toEqual(expect.arrayContaining([
       '/available-channels',
       '/monitor',
@@ -189,9 +188,7 @@ describe('AppSidebar', () => {
       '/app/purchase',
       '/app/orders',
       '/app/redeem',
-      '/app/profile',
-      '/app/chat',
-      '/app/image'
+      '/app/profile'
     ])
     expect(destinations).not.toEqual(expect.arrayContaining([
       '/available-channels',
@@ -229,9 +226,7 @@ describe('AppSidebar', () => {
       '/app/purchase',
       '/app/orders',
       '/app/redeem',
-      '/app/profile',
-      '/app/chat',
-      '/app/image'
+      '/app/profile'
     ])
   })
 
@@ -252,9 +247,7 @@ describe('AppSidebar', () => {
       '/app/orders',
       '/app/redeem',
       '/app/affiliate',
-      '/app/profile',
-      '/app/chat',
-      '/app/image'
+      '/app/profile'
     ])
   })
 

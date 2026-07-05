@@ -100,9 +100,9 @@ describe('AffiliateView', () => {
 
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="app-layout"]').exists()).toBe(false)
-    expect(wrapper.text()).toContain('推广返利')
+    expect(wrapper.text()).toContain('推广中心')
     expect(wrapper.text()).toContain('推广邀请')
-    expect(wrapper.text()).toContain('当前收益比例')
+    expect(wrapper.text()).toContain('当前推广比例')
     expect(wrapper.text()).toContain('INVITE123')
     expect(userAPI.getAffiliateDetail).toHaveBeenCalledTimes(1)
   })
@@ -133,7 +133,7 @@ describe('AffiliateView', () => {
     const wrapper = mount(AffiliateView)
     await flushPromises()
 
-    expect(wrapper.text()).toContain('推广数据暂时无法加载')
+    expect(wrapper.text()).toContain('推广中心暂时无法加载')
     expect(wrapper.text()).toContain('刷新后会重新获取推广码和邀请记录')
     expect(wrapper.find('[data-testid="affiliate-retry"]').exists()).toBe(true)
 
