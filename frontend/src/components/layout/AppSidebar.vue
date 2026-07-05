@@ -670,9 +670,9 @@ const adminNavItems = computed((): NavItem[] => {
       : []),
     { path: '/admin/users', label: t('nav.users'), icon: UsersIcon, hideInSimpleMode: true },
     { path: '/admin/groups', label: t('nav.groups'), icon: FolderIcon, hideInSimpleMode: true },
-    { path: '/admin/channels/pricing', label: 'Channel Pricing', icon: ChannelIcon, hideInSimpleMode: true },
+    { path: '/admin/channels/pricing', label: t('nav.channelPricing'), icon: ChannelIcon, hideInSimpleMode: true },
     ...(channelMonitorEnabled.value
-      ? [{ path: '/admin/channels/monitor', label: 'Channel Monitor', icon: SignalIcon, hideInSimpleMode: true }]
+      ? [{ path: '/admin/channels/monitor', label: t('nav.channelMonitor'), icon: SignalIcon, hideInSimpleMode: true }]
       : []),
     { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
@@ -681,12 +681,12 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/redeem', label: t('nav.redeemCodes'), icon: TicketIcon, hideInSimpleMode: true },
     { path: '/admin/promo-codes', label: t('nav.promoCodes'), icon: GiftIcon, hideInSimpleMode: true },
     { path: '/admin/affiliates', label: t('nav.affiliates'), icon: UsersIcon, hideInSimpleMode: true },
-    { path: '/admin/orders/settings', label: '支付配置', icon: CreditCardIcon, hideInSimpleMode: true },
+    { path: '/admin/orders/settings', label: t('nav.paymentSettings'), icon: CreditCardIcon, hideInSimpleMode: true },
     ...(paymentEnabled.value
       ? [
-          { path: '/admin/orders/dashboard', label: 'Payment Dashboard', icon: ChartIcon, hideInSimpleMode: true },
-          { path: '/admin/orders', label: 'Order Management', icon: OrderIcon, hideInSimpleMode: true },
-          { path: '/admin/orders/plans', label: 'Payment Plans', icon: OrderListIcon, hideInSimpleMode: true }
+          { path: '/admin/orders/dashboard', label: t('nav.paymentDashboard'), icon: ChartIcon, hideInSimpleMode: true },
+          { path: '/admin/orders', label: t('nav.orderManagement'), icon: OrderIcon, hideInSimpleMode: true },
+          { path: '/admin/orders/plans', label: t('nav.paymentPlans'), icon: OrderListIcon, hideInSimpleMode: true }
         ]
       : []),
     { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon }

@@ -56,17 +56,23 @@ vi.mock('vue-i18n', () => ({
       'nav.redeem': 'Redeem',
       'nav.myAccount': 'My Account',
       'nav.dashboard': 'Dashboard',
-      'nav.ops': 'Ops',
-      'nav.users': 'Users',
-      'nav.groups': 'Groups',
-      'nav.subscriptions': 'Admin Subscriptions',
-      'nav.accounts': 'Accounts',
+      'nav.ops': 'Runtime Monitor',
+      'nav.users': 'Users / Balance',
+      'nav.groups': 'Groups / Pricing',
+      'nav.subscriptions': 'Subscriptions',
+      'nav.accounts': 'Upstream Accounts',
       'nav.announcements': 'Announcements',
-      'nav.proxies': 'IP Management',
+      'nav.proxies': 'Proxy IPs',
       'nav.redeemCodes': 'Redeem Codes',
       'nav.promoCodes': 'Promo Codes',
       'nav.affiliates': 'Affiliates',
-      'nav.settings': 'Settings',
+      'nav.settings': 'Site Settings',
+      'nav.channelPricing': 'Channel Pricing',
+      'nav.channelMonitor': 'Channel Monitor',
+      'nav.paymentSettings': 'Payment Settings',
+      'nav.paymentDashboard': 'Revenue Overview',
+      'nav.orderManagement': 'Recharge Orders',
+      'nav.paymentPlans': 'Plan Settings',
       'nav.lightMode': 'Light Mode',
       'nav.darkMode': 'Dark Mode',
       'nav.expand': 'Expand',
@@ -260,6 +266,20 @@ describe('AppSidebar', () => {
     expect(wrapper.text()).toContain('Affiliates')
   })
 
+  it('uses owner-facing labels for admin operating entries', () => {
+    const wrapper = mountSidebar()
+    const text = wrapper.text()
+
+    expect(text).toContain('Users / Balance')
+    expect(text).toContain('Groups / Pricing')
+    expect(text).toContain('Upstream Accounts')
+    expect(text).toContain('Channel Pricing')
+    expect(text).toContain('Channel Monitor')
+    expect(text).toContain('Revenue Overview')
+    expect(text).toContain('Recharge Orders')
+    expect(text).toContain('Plan Settings')
+  })
+
   it('keeps payment settings accessible to admins when payment is disabled', () => {
     appState.cachedPublicSettings.payment_enabled = false
 
@@ -267,7 +287,7 @@ describe('AppSidebar', () => {
     const destinations = hrefs(wrapper)
 
     expect(destinations).toContain('/admin/orders/settings')
-    expect(wrapper.text()).toContain('支付配置')
+    expect(wrapper.text()).toContain('Payment Settings')
     expect(destinations).not.toContain('/admin/orders/dashboard')
     expect(destinations).not.toContain('/admin/orders')
     expect(destinations).not.toContain('/admin/orders/plans')
