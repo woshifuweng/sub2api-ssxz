@@ -288,14 +288,6 @@ const baseProductEntries = [
     title: '推广邀请',
     description: '分享专属链接，查看邀请记录和活动奖励。具体规则以后台开关和运营策略为准。',
     action: '查看推广'
-  },
-  {
-    to: '/app/chat',
-    icon: 'chat' as const,
-    badge: '轻量测试',
-    title: '模型测试入口',
-    description: '需要快速验证模型是否可用时再进入聊天。它不是本阶段默认商业主线。',
-    action: '打开测试'
   }
 ]
 
