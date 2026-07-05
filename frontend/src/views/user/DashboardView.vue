@@ -17,7 +17,7 @@
           仪表盘数据暂时无法加载
         </h1>
         <p class="mx-auto mt-2 max-w-2xl text-sm leading-6 text-gray-600 dark:text-gray-400">
-          当前没有展示假数据。请稍后重试；API Key、用量、充值和通道状态仍可从左侧菜单进入。
+          当前没有展示假数据。请稍后重试；API Key、用量、订单和通道状态仍可从左侧菜单进入。
         </p>
         <button
           type="button"
@@ -48,7 +48,7 @@
                   先管理 API Key，再查看用量和余额
                 </h1>
                 <p class="mt-3 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-400">
-                  这里是普通用户的默认入口：创建 API Key、接入常用客户端、查看余额用量、充值和回查订单。聊天和图片只保留为轻量测试入口。
+                  这里是普通用户的默认入口：创建 API Key、接入常用客户端、查看余额用量和订单记录。聊天和图片只保留为轻量测试入口。
                 </p>
               </div>
 
@@ -76,11 +76,20 @@
                   通道状态
                 </RouterLink>
                 <RouterLink
+                  v-if="paymentEnabled"
                   to="/app/purchase"
                   class="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
                 >
                   <Icon name="creditCard" size="sm" />
                   充值
+                </RouterLink>
+                <RouterLink
+                  v-else
+                  to="/app/orders"
+                  class="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
+                >
+                  <Icon name="clipboard" size="sm" />
+                  订单记录
                 </RouterLink>
               </div>
             </div>
@@ -116,7 +125,7 @@
               </div>
 
               <div class="mt-4 flex flex-wrap gap-2">
-                <RouterLink to="/app/purchase" class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700">
+                <RouterLink v-if="paymentEnabled" to="/app/purchase" class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700">
                   购买套餐
                 </RouterLink>
                 <RouterLink to="/app/usage" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-200">
@@ -137,7 +146,7 @@
               <h2 class="text-xl font-semibold text-gray-900 dark:text-white">核心入口</h2>
             </div>
             <p class="max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-              常用入口集中在 API Key、用量、余额、充值、订单和通道状态。熟练用户可以用本站 Key 接入 CC Switch、Cherry Studio、Chatbox 等客户端。
+              常用入口集中在 API Key、用量、余额、订单和通道状态。熟练用户可以用本站 Key 接入 CC Switch、Cherry Studio、Chatbox 等客户端。
             </p>
           </div>
 
@@ -226,6 +235,7 @@ const appStore = useAppStore()
 const user = computed(() => authStore.user)
 const balance = computed(() => user.value?.balance || 0)
 const userEmail = computed(() => user.value?.email || '当前用户')
+const paymentEnabled = computed(() => !!appStore.cachedPublicSettings?.payment_enabled)
 const channelMonitorEnabled = computed(() => !!appStore.cachedPublicSettings?.channel_monitor_enabled)
 const affiliateEnabled = computed(() => !!appStore.cachedPublicSettings?.affiliate_enabled)
 
@@ -293,11 +303,12 @@ const productEntries = computed(() =>
   baseProductEntries.filter(
     (entry) =>
       (entry.to !== '/app/channel-status' || channelMonitorEnabled.value) &&
+      (entry.to !== '/app/purchase' || paymentEnabled.value) &&
       (entry.to !== '/app/affiliate' || affiliateEnabled.value)
   )
 )
 
-const onboardingSteps = [
+const onboardingSteps = computed(() => [
   {
     index: '01',
     title: '先创建 API Key',
@@ -312,14 +323,22 @@ const onboardingSteps = [
     to: '/app/usage',
     action: '查看用量'
   },
-  {
-    index: '03',
-    title: '最后处理充值和订单',
-    description: '余额不足时进入充值页，付款后回查订单和余额到账情况。',
-    to: '/app/purchase',
-    action: '去充值'
-  }
-]
+  paymentEnabled.value
+    ? {
+        index: '03',
+        title: '最后处理充值和订单',
+        description: '余额不足时进入充值页，付款后回查订单和余额到账情况。',
+        to: '/app/purchase',
+        action: '去充值'
+      }
+    : {
+        index: '03',
+        title: '最后查看订单记录',
+        description: '需要核对账户变化时，先看使用记录和订单记录；可用额度以后端账本为准。',
+        to: '/app/orders',
+        action: '查看订单'
+      }
+])
 
 const formatLD = (d: Date) => d.toISOString().split('T')[0]
 const startDate = ref(formatLD(new Date(Date.now() - 6 * 86400000)))
