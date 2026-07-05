@@ -143,6 +143,15 @@
               <li>{{ t('keys.useKeyModal.thirdParty.ccSwitchQuickModel') }}</li>
               <li>{{ t('keys.useKeyModal.thirdParty.ccSwitchQuickRestart') }}</li>
             </ol>
+            <dl
+              class="mt-3 grid gap-2 rounded-lg border border-primary-100 bg-white/70 p-3 text-sm dark:border-primary-800/50 dark:bg-dark-900/60 sm:grid-cols-[8rem_1fr]"
+              data-testid="cc-switch-field-values"
+            >
+              <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.ccSwitchHomepageLabel') }}</dt>
+              <dd class="break-all font-mono text-gray-900 dark:text-gray-100">{{ siteHomepageUrl }}</dd>
+              <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.ccSwitchRequestUrlLabel') }}</dt>
+              <dd class="break-all font-mono text-gray-900 dark:text-gray-100">{{ openAICompatibleBaseUrl }}</dd>
+            </dl>
           </div>
 
           <div class="grid gap-3 md:grid-cols-2">
@@ -605,6 +614,11 @@ const openAICompatibleBaseUrl = computed(() => {
   const baseUrl = props.baseUrl || window.location.origin
   const trimmed = baseUrl.replace(/\/+$/, '')
   return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
+})
+
+const siteHomepageUrl = computed(() => {
+  const baseUrl = props.baseUrl || window.location.origin
+  return baseUrl.replace(/\/v1\/?$/, '').replace(/\/+$/, '')
 })
 
 const modelsEndpointUrl = computed(() => `${openAICompatibleBaseUrl.value}/models`)
