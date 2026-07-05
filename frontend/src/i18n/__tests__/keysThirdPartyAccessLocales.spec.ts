@@ -25,6 +25,7 @@ describe('API Key third-party access locale copy', () => {
       zh.keys.createdKeyReveal.warningDescription,
       zh.keys.createdKeyReveal.connectionDescription,
       zh.keys.createdKeyReveal.modelHint,
+      zh.keys.ccsImportNeedsNewKey,
       zh.keys.fullKeyRequiredForImport,
       zh.keys.useKeyModal.fullKeyMissingDescription,
       zh.keys.useKeyModal.openai.configTomlHint,
@@ -53,6 +54,7 @@ describe('API Key third-party access locale copy', () => {
     expect(copy).toContain('Cherry Studio')
     expect(copy).toContain('Chatbox')
     expect(copy).toContain('脱敏值')
+    expect(copy).toContain('新建后可导入')
     expect(copy).toContain('新建')
     expect(copy).toContain('一键导入')
     expect(copy).toContain('后台开放配置')
@@ -92,6 +94,7 @@ describe('API Key third-party access locale copy', () => {
       en.keys.createdKeyReveal.warningDescription,
       en.keys.createdKeyReveal.connectionDescription,
       en.keys.createdKeyReveal.modelHint,
+      en.keys.ccsImportNeedsNewKey,
       en.keys.fullKeyRequiredForImport,
       en.keys.useKeyModal.fullKeyMissingDescription,
       en.keys.useKeyModal.openai.configTomlHint,
@@ -120,6 +123,7 @@ describe('API Key third-party access locale copy', () => {
     expect(copy).toContain('Cherry Studio')
     expect(copy).toContain('Chatbox')
     expect(copy).toContain('masked')
+    expect(copy).toContain('Import after creating')
     expect(copy).toContain('create a new API Key')
     expect(copy).toContain('One-click CC Switch import')
     expect(copy).toContain('admin model configuration')
