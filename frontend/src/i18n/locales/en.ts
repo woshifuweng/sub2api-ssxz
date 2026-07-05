@@ -625,6 +625,7 @@ export default {
     copyToClipboard: 'Copy to clipboard',
     copied: 'Copied!',
     importToCcSwitch: 'Import to CCS',
+    ccsImportNeedsNewKey: 'New key needed',
     fullKeyRequiredForImport: 'The list only shows a masked value, so automatic import is unavailable. Use the full key saved when it was created, or create a new API Key if it is lost.',
     enable: 'Enable',
     disable: 'Disable',
