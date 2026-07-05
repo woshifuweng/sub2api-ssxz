@@ -38,7 +38,7 @@
                 <div class="mb-3 flex flex-wrap items-center gap-2">
                   <span class="inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-950/40 dark:text-primary-300">
                     <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                    SSXZ 中转运营平台
+                    SSXZ AI 服务平台
                   </span>
                   <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-gray-300">
                     登录账号 {{ userEmail }}
@@ -48,7 +48,7 @@
                   先管理 API Key，再查看用量和余额
                 </h1>
                 <p class="mt-3 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-400">
-                  这里是普通用户的默认入口：创建 API Key、接入第三方客户端、查看余额用量、充值和回查订单。聊天和图片只保留为轻量测试入口。
+                  这里是普通用户的默认入口：创建 API Key、接入常用客户端、查看余额用量、充值和回查订单。聊天和图片只保留为轻量测试入口。
                 </p>
               </div>
 
@@ -134,10 +134,10 @@
           <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p class="text-sm font-medium text-primary-600 dark:text-primary-400">开始使用</p>
-              <h2 class="text-xl font-semibold text-gray-900 dark:text-white">中转站核心入口</h2>
+              <h2 class="text-xl font-semibold text-gray-900 dark:text-white">核心入口</h2>
             </div>
             <p class="max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-              常用入口集中在 API Key、用量、余额、充值、订单和通道状态。熟练用户可以用本站 Key 接入 CC Switch、Cherry Studio、Chatbox 等第三方客户端。
+              常用入口集中在 API Key、用量、余额、充值、订单和通道状态。熟练用户可以用本站 Key 接入 CC Switch、Cherry Studio、Chatbox 等客户端。
             </p>
           </div>
 
@@ -243,7 +243,7 @@ const baseProductEntries = [
     icon: 'key' as const,
     badge: '主入口',
     title: 'API 密钥',
-    description: '创建和管理自己的 API Key，用于 Cherry Studio、Chatbox、CC Switch 等第三方客户端。',
+    description: '创建和管理自己的 API Key，用于 Cherry Studio、Chatbox、CC Switch 等常用客户端。',
     action: '管理 Key'
   },
   {

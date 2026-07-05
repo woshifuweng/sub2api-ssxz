@@ -123,10 +123,10 @@
               {{ siteName }}
             </h1>
             <p class="mb-3 text-lg text-gray-600 dark:text-dark-300 md:text-xl">
-              私域 AI 中转站 · API Key · 多模型 · 余额用量 · 第三方客户端接入
+              私域 AI 服务 · API Key · 多模型 · 余额用量 · 常用客户端接入
             </p>
             <p class="mx-auto mb-8 max-w-2xl text-sm leading-6 text-gray-500 dark:text-dark-300 lg:mx-0">
-              统一管理 API Key、多模型调用、余额用量和第三方客户端接入。可用模型和计费规则以后端配置为准。
+              统一管理 API Key、多模型调用、余额用量和常用客户端接入。可用模型和计费规则以后端配置为准。
             </p>
 
             <!-- CTA Button -->
