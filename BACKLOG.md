@@ -1,6 +1,6 @@
 # BACKLOG
 
-Last updated: 2026-06-29
+Last updated: 2026-07-06
 
 ## Validated On Staging
 
@@ -95,8 +95,8 @@ Last updated: 2026-06-29
 ## Phase Progress Snapshot
 
 - P0 / P0-Beta convergence: about 99%. Remaining P0/P0-Beta risk is controlled production image-generation acceptance, full reservation/pre-charge spend-cap hardening, production rollout of staging-only chat gate fixes when batched, and any regression found while doing P1.
-- P1 product/operations: about 42%. Completed or staged slices: image-model alias display clarity, user-shell lint baseline cleanup, first image history/download feedback hardening, staging catalog exposure verification, API Key third-party access copy/safety polish, usage explanation-state clarity, profile TOTP failure clarity, masked API-key configuration guards, `/app/usage` DTO/balance-refresh boundary verification, Google/Gemini-compatible API-key auth restriction parity, production-deployed usage-billing no-overdraft safety, production-deployed bounded generic/Gemini token request cost gating, production-deployed bounded OpenAI Responses WebSocket token cost gating, and production-deployed no-cap token-request safety-budget gating. Remaining large P1 loops: controlled production real-generation acceptance, broader usage/balance workflow verification, full API Key lifecycle/security verification, and admin/ops hardening.
-- Distance to P2: about 58% of P1 remains. Do not prioritize P2 visual polish until P1 loops have evidence.
+- P1 product/operations: about 83%. Completed or staged slices now include the earlier API Key, usage, billing-safety, image-model clarity, and chat gate work through PR #228, plus PR #314-#321 for admin investigation links, payment-gated dashboard entries, disabled purchase guidance, CCS import safety copy, existing Sub2 capability inventory, sidebar/main-entry cleanup, and dashboard core-entry focus. Remaining P1 loops are mostly real customer-path verification and small fixes around API Key lifecycle, CCS/third-party onboarding, recharge/order/redeem/affiliate clarity, admin support visibility, and staged deployment evidence.
+- Distance to P2: about 17% of P1 remains. Do not prioritize P2 visual polish until the remaining P1 customer/business loops have evidence.
 - P2: 0%. Keep as later polish/enhancement work.
 
 ## Chains That Need Verification

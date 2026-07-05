@@ -1,14 +1,14 @@
 # ROADMAP
 
-Last updated: 2026-06-29
+Last updated: 2026-07-06
 
 ## Product Goal
 
 Build SSXZ AI into a lightweight AI creation workspace for about 200-300 private users, while preserving the Sub2API backend strengths: login, balance, usage, payment, API keys, admin operations, provider/account configuration, and security boundaries.
 
-## Current Phase As Of 2026-06-29
+## Current Phase As Of 2026-07-06
 
-The project can start P1 planning and small P1 PRs. P0/P0-Beta structural convergence has enough evidence to move forward:
+The project is in P1 commercial-mainline convergence. P0/P0-Beta structural convergence has enough evidence to keep moving, but P2 visual polish and complex Workbench expansion remain deferred.
 
 - ordinary-user workspace routes are established around `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/app/profile`
 - chat P0 fixes were validated on staging
@@ -29,6 +29,7 @@ The project can start P1 planning and small P1 PRs. P0/P0-Beta structural conver
 - PR #217 was merged to main, deployed to staging, and then deployed to production through main `db9d736be` after CI and staging smoke passed. It adds estimated-cost pre-provider billing eligibility checks for bounded OpenAI Responses WebSocket requests before upstream account selection and before later client turns are written upstream. No real provider was called during deployment or smoke.
 - PR #219 was merged to main, deployed to staging, and then deployed to production through main `57eccdd3` after CI and staging smoke passed. It adds a conservative pre-provider safety budget for token requests that omit a positive output cap on generic gateway and OpenAI-compatible gateway paths. No real provider was called during deployment or smoke.
 - PR #228 was merged to main and deployed to staging only through main `87504f2096b0`. It enables the chat workspace frontend backend gate in production-style builds and confirmed on staging that ordinary-user `/app/chat` loads the real workspace instead of the frontend "backend not enabled" blocker. Production was not deployed and no real provider was called.
+- PR #314 through PR #321 completed several P1 commercial-mainline slices on main: admin user investigation links, payment-gated dashboard entries, disabled purchase actions, masked CCS import copy, existing Sub2 capability inventory, legacy sidebar/chat-image entry cleanup, disabled purchase next actions, and dashboard core-entry focus. These were small frontend/docs/admin-support slices and should be batched for later deployment instead of deployed one by one.
 
 This does not mean production image generation or token-request spend-cap coverage is fully accepted. Controlled real-provider production image-generation acceptance remains separate and must verify creation, storage, usage/billing, history, and download before claiming the production image chain is complete. Token-request coverage now includes bounded checks plus a no-cap safety-budget gate; full reservation, pre-charge, or streaming spend-cap design remains separate hardening.
 
@@ -39,8 +40,8 @@ Use this progress meter in every major status report. It is a product/operations
 | Stage | Current estimate | Meaning |
 | --- | ---: | --- |
 | P0 / P0-Beta convergence | 99% | Core shell, chat, failure/no-charge, fake-model, catalog authenticity, frontend lint baseline, usage DTO boundary, no-overdraft final billing, bounded image cost gating, bounded OpenAI-compatible token cost gating, bounded generic/Gemini token cost gating, bounded OpenAI Responses WebSocket token cost gating, no-cap token-request safety-budget gating, and staging chat-workspace frontend gate alignment are contained enough to continue P1. Remaining P0/P0-Beta risks are controlled production image-generation acceptance, full reservation/pre-charge spend-cap hardening, production rollout of staging-only chat gate fixes when batched, and any regressions found during P1. |
-| P1 product/operations | 42% | P1 has started. Completed or staged slices include image-model alias display clarity (#188), user-shell lint baseline cleanup (#190), first image history/download feedback hardening (#192), staging image catalog exposure verification (#194), API Key third-party access copy/safety polish (#195), usage explanation-state clarity (#197), profile TOTP failure clarity (#198), masked API-key configuration guards (#199), `/app/usage` DTO/balance-refresh boundary verification (#201), Google/Gemini-compatible API-key auth restriction parity (#203), production-deployed usage-billing no-overdraft safety (#208), production-deployed generic/Gemini bounded token request cost gating (#214), production-deployed bounded OpenAI Responses WebSocket token cost gating (#217), and production-deployed no-cap token-request safety-budget gating (#219). Major remaining P1 work is controlled production real-generation acceptance, broader usage/balance workflow verification, full API Key lifecycle/security verification, and admin/ops hardening. |
-| Distance to P2 | 58% of P1 remains | P2 should not begin as a main focus until the P1 user/business loops above have credible staging or production evidence. |
+| P1 product/operations | 83% | P1 is the active commercial mainline. Completed or staged slices include the earlier API Key, usage, billing-safety, image-model clarity, and chat gate work through #228, plus #314-#321 for admin investigation links, payment-gated dashboard entries, disabled purchase guidance, CCS import safety copy, Sub2 capability inventory, sidebar/main-entry cleanup, and dashboard core-entry focus. Remaining P1 work is mostly real customer-path verification and small fixes around API Key lifecycle, CCS/third-party onboarding, recharge/order/redeem/affiliate clarity, admin support visibility, and staged deployment evidence. |
+| Distance to P2 | 17% of P1 remains | P2 should not begin as the main focus until the remaining P1 customer/business loops have credible staging or production evidence. |
 | P2 visual polish/enhanced experience | 0% | P2 is intentionally not active. UI polish and advanced workflows wait until P1 is materially closed. |
 
 ## Decision Rules
