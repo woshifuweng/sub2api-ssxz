@@ -1010,8 +1010,8 @@ export default {
 
   // Redeem
   redeem: {
-    title: '兑换码',
-    description: '输入兑换码以充值余额或增加并发数',
+    title: '兑换额度',
+    description: '输入兑换码，兑换账户额度或试用权益',
     accountBilling: '账户计费',
     currentBalance: '当前余额',
     concurrency: '并发数',
@@ -1027,11 +1027,11 @@ export default {
     concurrentRequests: '并发请求',
     newBalance: '新余额',
     newConcurrency: '新并发数',
-    aboutCodes: '关于兑换码',
+    aboutCodes: '兑换说明',
     codeRule1: '每个兑换码只能使用一次',
-    codeRule2: '兑换码可以增加余额、并发数或试用权限',
-    codeRule3: '如有兑换问题，请联系客服',
-    codeRule4: '余额和并发数即时更新',
+    codeRule2: '兑换码可用于增加账户额度、并发数或试用权益',
+    codeRule3: '如有兑换问题，请核对兑换码后再试',
+    codeRule4: '兑换成功后，页面会刷新账户额度',
     recentActivity: '最近活动',
     historyWillAppear: '兑换成功后，余额、并发或订阅变动会显示在这里。',
     balanceAddedRedeem: '余额充值（兑换）',

@@ -1008,8 +1008,8 @@ export default {
 
   // Redeem
   redeem: {
-    title: 'Redeem Code',
-    description: 'Enter your redeem code to add balance or increase concurrency',
+    title: 'Redeem Credit',
+    description: 'Enter a redeem code to add account credit or trial access',
     accountBilling: 'Account billing',
     currentBalance: 'Current Balance',
     concurrency: 'Concurrency',
@@ -1025,11 +1025,11 @@ export default {
     concurrentRequests: 'concurrent requests',
     newBalance: 'New Balance',
     newConcurrency: 'New Concurrency',
-    aboutCodes: 'About Redeem Codes',
+    aboutCodes: 'Redeem Notes',
     codeRule1: 'Each code can only be used once',
-    codeRule2: 'Codes may add balance, increase concurrency, or grant trial access',
-    codeRule3: 'Contact support if you have issues redeeming a code',
-    codeRule4: 'Balance and concurrency updates are immediate',
+    codeRule2: 'Codes may add account credit, concurrency, or trial access',
+    codeRule3: 'If redemption fails, check the code and try again',
+    codeRule4: 'The page refreshes account credit after successful redemption',
     recentActivity: 'Recent Activity',
     historyWillAppear: 'Successful balance, concurrency, or subscription redemptions will appear here.',
     balanceAddedRedeem: 'Balance Added (Redeem)',

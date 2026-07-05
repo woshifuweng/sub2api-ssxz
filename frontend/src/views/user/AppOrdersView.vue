@@ -1,7 +1,7 @@
 <template>
   <AppSectionShell
-    title="订单记录"
-    subtitle="查看自己的充值、订阅和支付状态，方便核对每笔订单。"
+    title="充值订单"
+    subtitle="查看自己的充值订单和处理状态，方便核对到账情况。"
     eyebrow="账户计费"
     icon="creditCard"
   >
@@ -26,7 +26,7 @@
           <div>
             <span>订单数量</span>
             <strong>{{ orderCountText }}</strong>
-            <p>这里汇总你的充值和订阅订单，暂无记录时会显示空状态。</p>
+            <p>这里汇总你的充值订单，暂无记录时会显示空状态。</p>
           </div>
         </article>
       </div>
@@ -60,8 +60,8 @@
 
         <div v-if="!paymentEnabled" class="orders-empty">
           <Icon name="creditCard" size="lg" />
-          <strong>充值 / 订阅暂未开启</strong>
-          <span>当前暂未开放充值或订阅入口，请先使用已有额度，稍后再回来查看。</span>
+          <strong>充值暂未开启</strong>
+          <span>当前暂未开放在线充值，请先使用已有额度，稍后再回来查看。</span>
           <RouterLink to="/app/purchase" class="empty-action">查看充值说明</RouterLink>
         </div>
 
@@ -79,7 +79,7 @@
         <div v-else-if="orders.length === 0" class="orders-empty compact">
           <Icon name="inbox" size="md" />
           <strong>暂无订单记录</strong>
-          <span>完成充值或购买订阅后，订单会显示在这里。</span>
+          <span>完成充值后，订单会显示在这里。</span>
           <div class="empty-actions">
             <RouterLink to="/app/purchase" class="empty-action">去充值</RouterLink>
             <RouterLink to="/app/redeem" class="empty-action secondary">使用兑换码</RouterLink>

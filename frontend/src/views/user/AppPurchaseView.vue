@@ -1,14 +1,14 @@
 <template>
   <AppSectionShell
-    title="充值 / 订阅"
-    subtitle="为账户充值余额，或选择适合你的订阅套餐。"
+    title="充值"
+    subtitle="选择充值金额，支付成功后会按订单记录更新账户额度。"
     eyebrow="账户计费"
     icon="creditCard"
   >
     <div v-if="!paymentEnabled" class="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm dark:border-dark-700 dark:bg-dark-900">
-      <h2 class="text-lg font-semibold text-gray-900 dark:text-white">充值 / 订阅暂未开启</h2>
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-white">充值暂未开启</h2>
       <p class="mx-auto mt-2 max-w-xl text-sm leading-6 text-gray-600 dark:text-gray-300">
-        当前暂未开放在线充值或订阅入口，请先使用已有额度或兑换码，稍后再回来查看。
+        当前暂未开放在线充值，可先使用已有额度或兑换码，稍后再回来查看。
       </p>
     </div>
     <PaymentCheckoutContent v-else variant="workspace" />
