@@ -246,7 +246,7 @@ describe('AppOrdersView', () => {
 
     const text = wrapper.text()
     expect(text).toContain('暂无订单记录')
-    expect(text).toContain('完成充值后')
+    expect(text).toContain('完成充值或购买套餐后')
     expect(text).toContain('去充值')
     expect(text).toContain('使用兑换码')
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
@@ -266,7 +266,7 @@ describe('AppOrdersView', () => {
 
     const text = wrapper.text()
     expect(text).toContain('订单记录暂时无法加载')
-    expect(text).toContain('订单记录同步中，请稍后刷新重试')
+    expect(text).toContain('订单状态正在更新，请稍后刷新')
     expect(text).not.toContain('联系管理员')
     expect(text).not.toContain('network down')
     expect(text).not.toContain('真实订单接口')

@@ -10,18 +10,18 @@
             <div class="mb-3 flex flex-wrap items-center gap-2">
               <span class="inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-950/40 dark:text-primary-300">
                 <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                购买与扣费
+                充值与套餐
               </span>
               <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-gray-300">
                 当前余额 ${{ user?.balance?.toFixed(2) || '0.00' }} 额度
               </span>
             </div>
             <h1 class="text-2xl font-bold tracking-normal text-gray-900 dark:text-white">
-              先充值余额，或购买适合你的套餐
+              充值后即可开始使用
             </h1>
             <p class="mt-3 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-400">
-              余额可用于站内聊天、图片生成和 API Key / 第三方客户端调用，所有消费都会记录在用量明细中。
-              账户余额和到账额度使用 $ 额度计量，充值支付使用人民币 ¥，两者不是同一种货币单位。
+              余额可用于站内聊天、图片生成和 API Key / 第三方客户端调用，消费记录可在用量明细中查看。
+              充值支付使用人民币 ¥，到账后显示为账户 $ 额度。
             </p>
           </div>
 
@@ -109,7 +109,7 @@
           <div v-if="validAmount > 0" class="card p-6">
             <div class="space-y-2 text-sm">
               <p class="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
-                支付金额使用人民币 ¥；到账后进入账户的可消费额度使用 $ 计量。
+                支付 ¥ 金额，到账 $ 额度；实际到账以订单完成结果为准。
               </p>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.paymentAmount') }}</span>
