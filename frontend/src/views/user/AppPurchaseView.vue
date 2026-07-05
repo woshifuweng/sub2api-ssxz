@@ -1,5 +1,7 @@
 <template>
+  <PurchaseSubscriptionView v-if="legacyPurchaseEnabled && !paymentEnabled" />
   <AppSectionShell
+    v-else
     title="充值"
     subtitle="选择充值金额或套餐，支付完成后额度会自动到账。"
     eyebrow="账户计费"
@@ -20,7 +22,9 @@ import { computed } from 'vue'
 import { useAppStore } from '@/stores'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import PaymentCheckoutContent from './PaymentCheckoutContent.vue'
+import PurchaseSubscriptionView from './PurchaseSubscriptionView.vue'
 
 const appStore = useAppStore()
 const paymentEnabled = computed(() => !!appStore.cachedPublicSettings?.payment_enabled)
+const legacyPurchaseEnabled = computed(() => !!appStore.cachedPublicSettings?.purchase_subscription_enabled)
 </script>

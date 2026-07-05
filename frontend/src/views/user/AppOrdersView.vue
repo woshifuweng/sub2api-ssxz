@@ -16,7 +16,8 @@
             <strong>{{ balanceText }}</strong>
             <p>余额可用于站内聊天、图片生成和 API Key / 第三方接入调用。</p>
           </div>
-          <RouterLink to="/app/purchase" class="summary-action">充值</RouterLink>
+          <RouterLink v-if="purchaseEnabled" to="/app/purchase" class="summary-action">充值</RouterLink>
+          <RouterLink v-else to="/app/redeem" class="summary-action">兑换码</RouterLink>
         </article>
 
         <article class="orders-summary-card">
@@ -60,9 +61,10 @@
 
         <div v-if="!paymentEnabled" class="orders-empty">
           <Icon name="creditCard" size="lg" />
-          <strong>充值暂未开启</strong>
-          <span>当前暂未开放在线充值，可先使用已有额度或兑换码。</span>
-          <RouterLink to="/app/purchase" class="empty-action">查看充值说明</RouterLink>
+          <strong>{{ disabledOrdersTitle }}</strong>
+          <span>{{ disabledOrdersDescription }}</span>
+          <RouterLink v-if="purchaseEnabled" to="/app/purchase" class="empty-action">查看充值说明</RouterLink>
+          <RouterLink v-else to="/app/redeem" class="empty-action">使用兑换码</RouterLink>
         </div>
 
         <div v-else-if="loading" class="orders-empty compact">
@@ -255,8 +257,19 @@ const refundReason = ref('')
 const pagination = reactive({ page: 1, page_size: 10, total: 0 })
 
 const paymentEnabled = computed(() => !!appStore.cachedPublicSettings?.payment_enabled)
+const purchaseEnabled = computed(() => (
+  paymentEnabled.value || !!appStore.cachedPublicSettings?.purchase_subscription_enabled
+))
 const balanceText = computed(() => `$${Number(authStore.user?.balance || 0).toFixed(2)}`)
 const orderCountText = computed(() => String(totalOrders.value || orders.value.length))
+const disabledOrdersTitle = computed(() => (
+  purchaseEnabled.value ? '在线订单暂未开启' : '充值暂未开启'
+))
+const disabledOrdersDescription = computed(() => (
+  purchaseEnabled.value
+    ? '当前订单记录暂未接入在线支付，可先查看充值入口或使用已有额度。'
+    : '当前暂未开放在线充值，可先使用已有额度或兑换码。'
+))
 const totalPages = computed(() => Math.max(1, Math.ceil(totalOrders.value / pagination.page_size)))
 const statusFilters = [
   { value: '', label: '全部状态' },
