@@ -225,6 +225,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -246,6 +247,7 @@ type SelectedAffiliateUser = AffiliateUserSummary | {
 }
 
 const appStore = useAppStore()
+const route = useRoute()
 
 const loading = ref(false)
 const saving = ref(false)
@@ -296,6 +298,16 @@ function resetForm() {
   form.aff_rebate_rate_percent = null
   form.clear_rebate_rate = false
 }
+
+const getSingleQueryValue = (value: string | null | Array<string | null> | undefined): string | undefined => {
+  if (Array.isArray(value)) return value.find((item): item is string => typeof item === 'string' && item.length > 0)
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+const getInitialInvestigationKeyword = () =>
+  getSingleQueryValue(route.query.search) ||
+  getSingleQueryValue(route.query.user) ||
+  getSingleQueryValue(route.query.user_id)
 
 function setPagination(response: { total: number; page: number; page_size: number; pages: number }) {
   pagination.total = response.total
@@ -438,6 +450,12 @@ function handlePageSizeChange(pageSize: number) {
 }
 
 onMounted(() => {
+  const keyword = getInitialInvestigationKeyword()
+  if (keyword) {
+    searchQuery.value = keyword
+    lookupKeyword.value = keyword
+    void lookupUsers()
+  }
   loadEntries()
 })
 </script>
