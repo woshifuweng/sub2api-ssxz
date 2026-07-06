@@ -293,9 +293,9 @@ const baseProductEntries = [
     to: '/app/affiliate',
     icon: 'gift' as const,
     badge: '推广',
-    title: '推广邀请',
-    description: '分享专属链接，查看邀请记录和活动奖励。具体规则以后台开关和运营策略为准。',
-    action: '查看推广'
+    title: '推广中心',
+    description: '分享专属链接，查看邀请记录和活动奖励；具体到账以系统记录为准。',
+    action: '查看邀请'
   }
 ]
 

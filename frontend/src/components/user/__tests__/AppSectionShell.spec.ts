@@ -236,9 +236,9 @@ describe('AppSectionShell', () => {
       ...wrapper.findAll('.ssxz-secondary-nav .ssxz-nav-item')
     ]
 
-    expect(wrapper.text()).toContain('推广返利')
+    expect(wrapper.text()).toContain('推广中心')
 
-    const affiliateButton = buttons.find((button) => button.text().includes('推广返利'))
+    const affiliateButton = buttons.find((button) => button.text().includes('推广中心'))
     expect(affiliateButton).toBeTruthy()
     await affiliateButton?.trigger('click')
 

@@ -23,9 +23,9 @@
       <template v-else-if="detail">
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div class="card p-5">
-            <p class="text-sm text-gray-500">当前合作比例</p>
+            <p class="text-sm text-gray-500">当前活动比例</p>
             <p class="mt-2 text-2xl font-semibold text-primary-600">{{ formattedRate }}%</p>
-            <p class="mt-1 text-xs text-gray-500">实际奖励以后端记录为准</p>
+            <p class="mt-1 text-xs text-gray-500">实际奖励以系统记录为准</p>
           </div>
           <div class="card p-5">
             <p class="text-sm text-gray-500">邀请人数</p>
@@ -47,8 +47,8 @@
         </div>
 
         <div class="card p-6">
-          <h2 class="text-base font-semibold text-gray-900 dark:text-white">推广邀请</h2>
-          <p class="mt-1 text-sm text-gray-500">复制专属链接发给客户，对方通过链接注册后会自动计入邀请记录。有效使用后，奖励会按后台规则进入可结算额度。</p>
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">专属邀请</h2>
+          <p class="mt-1 text-sm text-gray-500">复制专属链接发给客户，对方通过链接注册后会自动计入邀请记录。有效使用后，奖励会按活动规则进入可结算额度。</p>
 
           <div class="mt-5 grid gap-4 md:grid-cols-2">
             <div class="space-y-2">
@@ -91,7 +91,7 @@
 
         <div class="card p-6">
           <h3 class="text-base font-semibold text-gray-900 dark:text-white">邀请记录</h3>
-          <p class="mt-1 text-sm text-gray-500">这里显示通过你推广链接注册的客户，以及已计入的累计奖励。客户具体充值和核算细节由后台统一记录。</p>
+          <p class="mt-1 text-sm text-gray-500">这里显示通过你推广链接注册的客户，以及已计入的累计奖励。具体到账以系统记录为准。</p>
           <div v-if="detail.invitees.length === 0" class="mt-4 rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-dark-700">
             暂无邀请记录。
           </div>
