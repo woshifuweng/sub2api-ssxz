@@ -98,7 +98,7 @@
               <div class="mb-4 flex items-center justify-between">
                 <div>
                   <p class="text-sm font-semibold text-gray-900 dark:text-white">账户概览</p>
-                  <p class="text-xs text-gray-500 dark:text-gray-400">费用以实际模型和后台费率为准</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">费用以实际模型和账号可用范围为准</p>
                 </div>
                 <RouterLink to="/app/usage" class="text-xs font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400">
                   查看明细
@@ -270,7 +270,7 @@ const baseProductEntries = [
     icon: 'server' as const,
     badge: '通道',
     title: '通道状态',
-    description: '查看当前可用通道和模型状态，遇到失败时先判断是额度、模型还是上游问题。',
+    description: '查看当前可用通道和模型状态，遇到失败时先判断是额度、模型还是当前线路问题。',
     action: '查看状态'
   },
   {
@@ -312,7 +312,7 @@ const onboardingSteps = computed(() => [
   {
     index: '01',
     title: '先创建 API Key',
-    description: '把 Key 配到 Cherry Studio、Chatbox、CC Switch 等客户端，优先跑通真实调用链路。',
+    description: '把 Key 配到 Cherry Studio、Chatbox、CC Switch 等客户端，优先完成首次可用连接。',
     to: '/app/keys',
     action: '管理 Key'
   },
@@ -334,7 +334,7 @@ const onboardingSteps = computed(() => [
     : {
         index: '03',
         title: '最后查看订单记录',
-        description: '需要核对账户变化时，先看使用记录和订单记录；可用额度以后端账本为准。',
+        description: '需要核对账户变化时，先看使用记录和订单记录；可用额度以系统记录为准。',
         to: '/app/orders',
         action: '查看订单'
       }

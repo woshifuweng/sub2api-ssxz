@@ -90,15 +90,15 @@ export default {
       }
     },
     providers: {
-      title: '模型能力以后台配置为准',
-      description: '一个 API，多种选择，实际可用模型以后端配置和账户分组为准。',
-      supported: '后台配置',
+      title: '模型能力以账号可用范围为准',
+      description: '一个 API，多种选择，实际可用模型以账号可用范围和系统配置为准。',
+      supported: '系统配置',
       soon: '即将推出',
       claude: 'Claude',
       gemini: 'Gemini',
       antigravity: 'Antigravity',
       more: '更多',
-      backendConfigured: '后台配置'
+      backendConfigured: '系统配置'
     },
     // CTA 区块
     cta: {
@@ -600,7 +600,7 @@ export default {
       connectionDescription: '可用于 CC Switch、Cherry Studio、Chatbox 等支持 OpenAI-compatible 接入的客户端。',
       primaryActionHint: '推荐先导入到 CCS 或复制保存完整 Key；关闭后完整 Key 不再显示。',
       modelLabel: '模型',
-      modelHint: '可用模型以当前 Key 所属分组和后台开放配置为准。',
+      modelHint: '可用模型以当前 Key 所属分组和账号可用范围为准。',
       readinessHint: '如果客户端提示额度不足、模型不可用或服务繁忙，请先换一个开放模型、确认余额，或稍后再试。',
       acknowledge: '我已保存'
     },
@@ -677,12 +677,12 @@ export default {
         expiredTitle: '这个 API Key 当前已过期',
         expiredDescription: '第三方客户端会认证失败。请编辑有效期或新建一个 Key，然后把客户端里的旧 Key 替换掉。',
         quotaExhaustedTitle: '这个 API Key 的额度已用完',
-        quotaExhaustedDescription: '第三方客户端会被后端拒绝继续调用。请提高 Key 额度、重置用量，或新建一个受控额度的 Key。'
+        quotaExhaustedDescription: '第三方客户端会被系统拒绝继续调用。请提高 Key 额度、重置用量，或新建一个受控额度的 Key。'
       },
       openai: {
         description: '将以下配置文件添加到 Codex CLI 配置目录中。',
         configTomlHint:
-          '请确保以下内容位于 config.toml 文件的开头部分；不要保留没有 base_url 的 custom provider 配置。保存后请完全退出 Codex / CC Switch，再重新打开。',
+          '请确保以下内容位于 config.toml 文件的开头部分；不要保留缺少 base_url 的旧 custom 配置块。保存后请完全退出 Codex / CC Switch，再重新打开。',
         note: '请确保配置目录存在。macOS/Linux 用户可运行 mkdir -p ~/.codex 创建目录。',
         noteWindows:
           '按 Win+R，输入 %userprofile%\\.codex 打开配置目录。如目录不存在，请先手动创建。'
@@ -775,7 +775,7 @@ export default {
         otherClientFields: {
           baseUrl: 'Base URL / API Host：填写上方 Base URL',
           apiKey: 'API Key / Token：填写创建时保存的完整 Key',
-          model: '模型：以后端开放给当前分组的模型为准'
+          model: '模型：以当前账号可用模型为准'
         }
       },
       antigravity: {
@@ -827,7 +827,7 @@ export default {
     quotaLimit: '额度限制',
     quotaAmount: '额度金额 (USD)',
     quotaAmountPlaceholder: '输入 USD 额度限制',
-    quotaAmountHint: '仅设置此 API Key 的自限额。0 表示不额外设置 Key 级额度，但仍受账户余额、分组和后台策略限制；不会改变历史用量、账单或账户余额。',
+    quotaAmountHint: '仅设置此 API Key 的自限额。0 表示不额外设置 Key 级额度，但仍受账户余额、分组和系统策略限制；不会改变历史用量、账单或账户余额。',
     quotaUsed: '已用额度',
     reset: '重置',
     resetQuotaUsed: '将已用额度重置为 0',
@@ -841,7 +841,7 @@ export default {
     rateLimit5h: '5小时限额 (USD)',
     rateLimit1d: '日限额 (USD)',
     rateLimit7d: '7天限额 (USD)',
-    rateLimitHint: '设置此 API Key 在指定时间窗口内的自限额。0 表示不额外设置该窗口限制，但仍受账户余额、分组和后台策略限制；不会改变历史用量、账单或账户余额。',
+    rateLimitHint: '设置此 API Key 在指定时间窗口内的自限额。0 表示不额外设置该窗口限制，但仍受账户余额、分组和系统策略限制；不会改变历史用量、账单或账户余额。',
     rateLimitUsage: '速率限制用量',
     resetRateLimitUsage: '重置速率限制用量',
     resetRateLimitTitle: '确认重置速率限制',

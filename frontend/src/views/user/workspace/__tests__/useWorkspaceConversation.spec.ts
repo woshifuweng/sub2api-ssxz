@@ -41,7 +41,7 @@ import {
 } from '../useWorkspaceConversation'
 
 const unavailableAssistantContent =
-  '当前模型暂不可用，请切换其他模型，或联系管理员检查模型、API Key、分组和上游账号配置。'
+  '当前模型暂不可用，请切换可用模型、确认账号可用范围，或稍后再试。'
 
 function deferred<T>() {
   let resolve!: (value: T) => void

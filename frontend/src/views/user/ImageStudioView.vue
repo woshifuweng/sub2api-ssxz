@@ -1,7 +1,7 @@
 <template>
   <AppSectionShell
     title="图片内测入口"
-    subtitle="用于小范围验证图片生成链路、预览和下载能力；是否可用以后端账号、模型、分组和价格配置为准。"
+    subtitle="用于小范围验证图片生成链路、预览和下载能力；是否可用以账号可用范围和系统配置为准。"
     eyebrow="轻量体验入口"
     icon="sparkles"
   >
@@ -13,7 +13,7 @@
           这里用于内测图片生成、历史预览和下载，不承诺正式图片产品能力。
         </p>
         <div class="hero-note">
-          用途、比例、风格和参考图只做方向参考；真实生成质量、可用模型和扣费以后端配置和实际返回为准。
+          用途、比例、风格和参考图只做方向参考；真实生成质量、可用模型和扣费以账号可用范围和实际返回为准。
         </div>
         <div class="hero-actions" aria-label="作图辅助入口">
           <RouterLink to="/app/chat" class="hero-helper-link">
@@ -465,7 +465,7 @@
           </div>
           <div>
             <span>模型</span>
-            <b>{{ previewWork.work.model || '后台配置' }}</b>
+            <b>{{ previewWork.work.model || '系统配置' }}</b>
           </div>
           <div class="recent-preview-actions">
             <button type="button" class="secondary-button" @click="downloadPreviewWork">下载图片</button>
@@ -573,8 +573,8 @@ const referenceDragging = ref(false)
 const referencePreviewError = ref('')
 const generating = ref(false)
 const errorMessage = ref('')
-const noImageModelMessage = '当前没有可用的图片生成模型。请确认后台账号、分组和价格配置后再使用图片生成。'
-const failureRecoveryNote = '本次没有生成成功作品，不会保存到历史；未成功返回结果不会扣生成费用。可以调整提示词后重试，或联系管理员。'
+const noImageModelMessage = '当前没有可用的图片生成模型。请确认账号可用范围后再使用图片生成。'
+const failureRecoveryNote = '本次没有生成成功作品，不会保存到历史；未成功返回结果不会扣生成费用。可以调整提示词后重试。'
 const results = ref<ResultImage[]>([])
 const activeResultIndex = ref(0)
 const recentWorks = ref<SoraGeneration[]>([])
@@ -664,19 +664,19 @@ const activeImageModel = computed(() => {
   const preferred = resolvePreferredImageModelId(imageModelOptions.value, capabilities.defaultImageModel.value)
   return imageModelOptions.value.find((model) => model.id === preferred) || null
 })
-const activeImageModelLabel = computed(() => activeImageModel.value?.name || '后台配置')
+const activeImageModelLabel = computed(() => activeImageModel.value?.name || '系统配置')
 const activeImageModelRouteLabel = computed(() => imageModelRouteLabel(activeImageModel.value))
 const imageModelHint = computed(() => {
   if (capabilities.loading.value) return '正在读取账号可用的图片模型。'
   if (activeImageModel.value) {
     const routeLabel = activeImageModelRouteLabel.value
     if (routeLabel && isImageModelRouteAlias(activeImageModel.value)) {
-      return `${routeLabel}；模型名为兼容别名，实际执行以后端授权渠道为准。`
+      return `${routeLabel}；模型名为兼容别名，实际执行以账号可用范围为准。`
     }
-    if (routeLabel) return `${routeLabel}；来自账号可用渠道，当前生成仍以后端配置为准。`
-    return '来自账号可用渠道；当前生成仍以后端配置为准。'
+    if (routeLabel) return `${routeLabel}；来自账号可用渠道，当前生成仍以系统配置为准。`
+    return '来自账号可用渠道；当前生成仍以系统配置为准。'
   }
-  return '暂未读取到可展示的图片模型，请确认后台账号、分组和价格配置。'
+  return '暂未读取到可展示的图片模型，请确认账号可用范围。'
 })
 const referenceMeta = computed(() => {
   if (!selectedFile.value) return '未上传'
@@ -1006,17 +1006,17 @@ function normalizeUnknownError(error: unknown) {
 
 function normalizeImageError(message: string, status?: number) {
   if (/does not support OpenAI Images API|images api|image/i.test(message)) {
-    return '当前账号暂不支持图片生成/改图接口。请联系管理员开通支持图片生成的模型或上游账号后再使用。'
+    return '当前账号暂不支持图片生成或改图接口。请切换可用模型，或稍后再试。'
   }
   if (/please create an active OpenAI API key/i.test(message)) {
-    return '当前没有可用于作图的 API Key。请先在后台创建支持图片生成的可用 Key，或联系管理员分配图片分组。'
+    return '当前没有可用于作图的 API Key。请确认账号可用范围后再试。'
   }
   if (
     (typeof status === 'number' && status >= 500)
     || /Request failed with status code 5\d\d/i.test(message)
     || /Network Error|timeout/i.test(message)
   ) {
-    return '图片生成服务暂不可用，请稍后重试或联系管理员。'
+    return '图片生成服务暂不可用，请稍后重试。'
   }
   return message
 }
@@ -1056,7 +1056,7 @@ async function loadRecentWorks() {
     recentWorks.value = rows.filter((item) => workImageSrc(item) !== '')
   } catch (error) {
     console.error('Failed to load image works:', error)
-    recentWorksError.value = '最近作品加载失败，请稍后重试或联系管理员。已生成的作品不会因此被删除。'
+    recentWorksError.value = '最近作品加载失败，请稍后重试。已生成的作品不会因此被删除。'
   } finally {
     recentWorksLoading.value = false
   }
