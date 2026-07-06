@@ -17,6 +17,7 @@ var (
 	ErrAffiliateCodeTaken       = infraerrors.Conflict("AFFILIATE_CODE_TAKEN", "affiliate code already in use")
 	ErrAffiliateAlreadyBound    = infraerrors.Conflict("AFFILIATE_ALREADY_BOUND", "affiliate inviter already bound")
 	ErrAffiliateQuotaEmpty      = infraerrors.BadRequest("AFFILIATE_QUOTA_EMPTY", "no affiliate quota available to transfer")
+	ErrAffiliateDisabled        = infraerrors.NotFound("AFFILIATE_DISABLED", "affiliate feature is disabled")
 )
 
 const (
@@ -157,6 +158,9 @@ func (s *AffiliateService) EnsureUserAffiliate(ctx context.Context, userID int64
 }
 
 func (s *AffiliateService) GetAffiliateDetail(ctx context.Context, userID int64) (*AffiliateDetail, error) {
+	if !s.IsEnabled(ctx) {
+		return nil, ErrAffiliateDisabled
+	}
 	if s != nil && s.repo != nil {
 		_, _ = s.repo.ThawFrozenQuota(ctx, userID)
 	}
@@ -314,6 +318,9 @@ func (s *AffiliateService) globalRebateRatePercent(ctx context.Context) float64 
 func (s *AffiliateService) TransferAffiliateQuota(ctx context.Context, userID int64) (float64, float64, error) {
 	if s == nil || s.repo == nil {
 		return 0, 0, infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "affiliate service unavailable")
+	}
+	if !s.IsEnabled(ctx) {
+		return 0, 0, ErrAffiliateDisabled
 	}
 
 	transferred, balance, err := s.repo.TransferQuotaToBalance(ctx, userID)
