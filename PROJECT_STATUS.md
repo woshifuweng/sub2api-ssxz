@@ -94,6 +94,20 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | Web search | Existing but frozen for main UX | Technical chain exists from prior PRs. Do not surface as ordinary-user main functionality during P0 structure work. |
 | Admin operations | Rich but broad | Strong asset from the Sub2API base. Needs product boundary, not deletion. |
 
+## Minimum Commercial Launch Readiness On 2026-07-06
+
+Current judgment: suitable to prepare a controlled whitelist/low-quota paid beta after a separate production release gate, but not suitable to claim broad public commercial launch.
+
+| Area | Status | Notes |
+| --- | --- | --- |
+| Commercial mainline | Mostly ready for controlled beta | The sellable core is API Key, balance/usage, orders/redeem, channel status, and admin support. Workbench is secondary. |
+| Customer onboarding | Needs release-gate evidence | First customers should receive one low-risk key, connect one client, run one small request, and have usage/balance/admin evidence checked. |
+| Payment | Conditional | If online payment is enabled, verify order, callback, balance arrival, and ledger with a small amount. If disabled, route users to redeem/manual credit and avoid fake recharge success. |
+| Billing safety | Stronger than before, still not complete | No-overdraft and estimated-cost gates are deployed for several paths. Full reservation/pre-charge/streaming spend-cap remains later hardening. |
+| Image generation | Beta/internal | Staging evidence exists, but full production creation/storage/billing/history/download acceptance remains separate. |
+| Admin support | Usable | Existing admin pages support user, key, usage, order, balance, redeem, affiliate, channel/account/model/pricing, and ops investigation. |
+| Public launch | Not allowed yet | Keep first users controlled, low-quota, and supportable. |
+
 ## Staging P0 Validation Recorded On 2026-06-20
 
 | Area | Result | Evidence |

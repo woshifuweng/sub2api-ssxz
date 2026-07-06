@@ -44,6 +44,30 @@ Use this progress meter in every major status report. It is a product/operations
 | Distance to P2 | 17% of P1 remains | P2 should not begin as the main focus until the remaining P1 customer/business loops have credible staging or production evidence. |
 | P2 visual polish/enhanced experience | 0% | P2 is intentionally not active. UI polish and advanced workflows wait until P1 is materially closed. |
 
+## Minimum Commercial Launch Gate
+
+As of 2026-07-06, the practical commercial target is a controlled Sub2API-based private relay beta, not a public paid launch and not a full Workbench launch.
+
+Allowed after a separate production release gate:
+
+- whitelist-only or invite-only customers
+- low-balance / low-quota accounts
+- API Key and third-party client access as the main paid path
+- owner support through admin users, usage, orders, API keys, balances, redeem, affiliate, channel/account/model/pricing, and ops logs
+- `/app/chat` and `/app/image` only as light test/internal entries
+
+Not allowed to promise yet:
+
+- public paid traffic
+- unlimited usage
+- 100% uptime or always-fast first token
+- Sora availability
+- full production image-generation acceptance
+- full reservation/pre-charge spend-cap coverage
+- Agent, workflow, Lovart-like canvas, PS/MCP, or complex image design
+
+The first 10-20 customers should be onboarded manually: create or approve the account, issue one low-risk API Key, connect one client such as CC Switch / Cherry Studio / Chatbox, run one small text request, then confirm user usage, balance, admin usage, and order/redeem evidence. Image generation remains optional beta/internal until its production acceptance gate is closed.
+
 ## Decision Rules
 
 Before implementing new product, quality, UX, or operations work, apply the mature solution comparison principle:
@@ -245,3 +269,5 @@ Production deployment is a separate release gate. Production deployments happene
 8. No provider keys, API keys, cookies, tokens, or Authorization values are printed or persisted in unsafe places.
 9. Frontend typecheck/build and relevant tests pass.
 10. Production deployment is either explicitly approved by the user or selected by the agent under the 2026-06-29 deployment-autonomy instruction after the previous gates pass.
+11. For commercial beta, one ordinary user API Key must be smoke-tested through a third-party client or equivalent OpenAI-compatible request with a low balance/quota test key, and the resulting usage/balance/admin evidence must be inspectable.
+12. Payment must be either fully verified end to end or clearly disabled with redeem/manual-credit alternatives; do not imply instant online recharge when the backend setting is disabled.
