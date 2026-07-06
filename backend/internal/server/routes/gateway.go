@@ -2,14 +2,24 @@ package routes
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
+	appmiddleware "github.com/Wei-Shaw/sub2api/internal/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
+)
+
+const (
+	GatewayConsumptionRateLimitKey    = "gateway-consumption"
+	GatewayConsumptionRateLimitLimit  = 600
+	GatewayConsumptionRateLimitWindow = time.Minute
+	gatewayConsumptionRateLimitTag    = "rl_gateway_consumption"
 )
 
 // RegisterGatewayRoutes 注册 API 网关路由（Claude/OpenAI/Gemini 兼容）
@@ -22,7 +32,9 @@ func RegisterGatewayRoutes(
 	opsService *service.OpsService,
 	settingService *service.SettingService,
 	cfg *config.Config,
+	redisClient *redis.Client,
 ) {
+	gatewayRL := gatewayConsumptionRateLimit(redisClient)
 	bodyLimit := middleware.RequestBodyLimit(cfg.Gateway.MaxBodySize)
 	soraMaxBodySize := cfg.Gateway.SoraMaxBodySize
 	if soraMaxBodySize <= 0 {
@@ -39,6 +51,7 @@ func RegisterGatewayRoutes(
 
 	// API网关（Claude API兼容）
 	gateway := r.Group("/v1")
+	gateway.Use(gatewayRL)
 	gateway.Use(bodyLimit)
 	gateway.Use(clientRequestID)
 	gateway.Use(opsErrorLogger)
@@ -104,6 +117,7 @@ func RegisterGatewayRoutes(
 
 	// Gemini 原生 API 兼容层（Gemini SDK/CLI 直连）
 	gemini := r.Group("/v1beta")
+	gemini.Use(gatewayRL)
 	gemini.Use(bodyLimit)
 	gemini.Use(clientRequestID)
 	gemini.Use(opsErrorLogger)
@@ -118,12 +132,12 @@ func RegisterGatewayRoutes(
 	}
 
 	// OpenAI Responses API（不带v1前缀的别名）
-	r.POST("/responses", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.OpenAIGateway.Responses)
-	r.POST("/responses/*subpath", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.OpenAIGateway.Responses)
-	r.GET("/responses", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.OpenAIGateway.ResponsesWebSocket)
+	r.POST("/responses", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.OpenAIGateway.Responses)
+	r.POST("/responses/*subpath", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.OpenAIGateway.Responses)
+	r.GET("/responses", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.OpenAIGateway.ResponsesWebSocket)
 	// OpenAI Chat Completions API（不带v1前缀的别名）
-	r.POST("/chat/completions", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.OpenAIGateway.ChatCompletions)
-	r.POST("/images/generations", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, func(c *gin.Context) {
+	r.POST("/chat/completions", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.OpenAIGateway.ChatCompletions)
+	r.POST("/images/generations", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, func(c *gin.Context) {
 		if getGroupPlatform(c) != service.PlatformOpenAI {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": gin.H{
@@ -135,7 +149,7 @@ func RegisterGatewayRoutes(
 		}
 		h.OpenAIGateway.Images(c)
 	})
-	r.POST("/images/edits", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, func(c *gin.Context) {
+	r.POST("/images/edits", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, func(c *gin.Context) {
 		if getGroupPlatform(c) != service.PlatformOpenAI {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": gin.H{
@@ -148,18 +162,19 @@ func RegisterGatewayRoutes(
 		h.OpenAIGateway.Images(c)
 	})
 	// Claude Code bootstrap / telemetry compatibility endpoints.
-	r.GET("/api/claude_cli/bootstrap", clientRequestID, opsErrorLogger, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.ClaudeBootstrap)
-	r.GET("/api/claude_code/organizations/metrics_enabled", clientRequestID, opsErrorLogger, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.ClaudeMetricsEnabled)
-	r.GET("/api/claude_code/settings", clientRequestID, opsErrorLogger, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.ClaudeManagedSettings)
-	r.GET("/api/claude_code/policy_limits", clientRequestID, opsErrorLogger, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.ClaudePolicyLimits)
-	r.GET("/api/claude_code/user_settings", clientRequestID, opsErrorLogger, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.ClaudeUserSettings)
-	r.PUT("/api/claude_code/user_settings", bodyLimit, clientRequestID, opsErrorLogger, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.ClaudeUpdateUserSettings)
+	r.GET("/api/claude_cli/bootstrap", gatewayRL, clientRequestID, opsErrorLogger, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.ClaudeBootstrap)
+	r.GET("/api/claude_code/organizations/metrics_enabled", gatewayRL, clientRequestID, opsErrorLogger, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.ClaudeMetricsEnabled)
+	r.GET("/api/claude_code/settings", gatewayRL, clientRequestID, opsErrorLogger, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.ClaudeManagedSettings)
+	r.GET("/api/claude_code/policy_limits", gatewayRL, clientRequestID, opsErrorLogger, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.ClaudePolicyLimits)
+	r.GET("/api/claude_code/user_settings", gatewayRL, clientRequestID, opsErrorLogger, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.ClaudeUserSettings)
+	r.PUT("/api/claude_code/user_settings", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.ClaudeUpdateUserSettings)
 
 	// Antigravity 模型列表
-	r.GET("/antigravity/models", gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.AntigravityModels)
+	r.GET("/antigravity/models", gatewayRL, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.AntigravityModels)
 
 	// Antigravity 专用路由（仅使用 antigravity 账户，不混合调度）
 	antigravityV1 := r.Group("/antigravity/v1")
+	antigravityV1.Use(gatewayRL)
 	antigravityV1.Use(bodyLimit)
 	antigravityV1.Use(clientRequestID)
 	antigravityV1.Use(opsErrorLogger)
@@ -175,6 +190,7 @@ func RegisterGatewayRoutes(
 	}
 
 	antigravityV1Beta := r.Group("/antigravity/v1beta")
+	antigravityV1Beta.Use(gatewayRL)
 	antigravityV1Beta.Use(bodyLimit)
 	antigravityV1Beta.Use(clientRequestID)
 	antigravityV1Beta.Use(opsErrorLogger)
@@ -190,6 +206,7 @@ func RegisterGatewayRoutes(
 
 	// Sora 专用路由（强制使用 sora 平台）
 	soraV1 := r.Group("/sora/v1")
+	soraV1.Use(gatewayRL)
 	soraV1.Use(soraBodyLimit)
 	soraV1.Use(clientRequestID)
 	soraV1.Use(opsErrorLogger)
@@ -204,7 +221,7 @@ func RegisterGatewayRoutes(
 
 	// Sora 媒体代理（可选 API Key 验证）
 	if cfg.Gateway.SoraMediaRequireAPIKey {
-		r.GET("/sora/media/*filepath", gin.HandlerFunc(apiKeyAuth), h.SoraGateway.MediaProxy)
+		r.GET("/sora/media/*filepath", gatewayRL, gin.HandlerFunc(apiKeyAuth), h.SoraGateway.MediaProxy)
 	} else {
 		r.GET("/sora/media/*filepath", h.SoraGateway.MediaProxy)
 	}
@@ -212,11 +229,25 @@ func RegisterGatewayRoutes(
 	r.GET("/sora/media-signed/*filepath", h.SoraGateway.MediaProxySigned)
 }
 
+func gatewayConsumptionRateLimit(redisClient *redis.Client) gin.HandlerFunc {
+	if redisClient == nil {
+		return func(c *gin.Context) {
+			c.Next()
+		}
+	}
+	return appmiddleware.NewRateLimiter(redisClient).LimitWithOptions(
+		GatewayConsumptionRateLimitKey,
+		GatewayConsumptionRateLimitLimit,
+		GatewayConsumptionRateLimitWindow,
+		appmiddleware.RateLimitOptions{FailureMode: appmiddleware.RateLimitFailOpen},
+	)
+}
+
 func ExecutableGatewayRoutes(h *handler.Handlers) []gatewayctx.RouteDef {
 	if h == nil || h.Gateway == nil {
 		return nil
 	}
-	return []gatewayctx.RouteDef{
+	return withGatewayConsumptionRateLimit([]gatewayctx.RouteDef{
 		{
 			Method:  http.MethodGet,
 			Path:    "/api/claude_cli/bootstrap",
@@ -656,7 +687,25 @@ func ExecutableGatewayRoutes(h *handler.Handlers) []gatewayctx.RouteDef {
 				"client_request_id",
 			},
 		},
+	})
+}
+
+func withGatewayConsumptionRateLimit(defs []gatewayctx.RouteDef) []gatewayctx.RouteDef {
+	for i := range defs {
+		if routeRequiresGatewayAPIKey(defs[i]) {
+			defs[i].Middleware = append([]string{gatewayConsumptionRateLimitTag}, defs[i].Middleware...)
+		}
 	}
+	return defs
+}
+
+func routeRequiresGatewayAPIKey(def gatewayctx.RouteDef) bool {
+	for _, tag := range def.Middleware {
+		if tag == "standard_api_key_auth" || tag == "google_api_key_auth" {
+			return true
+		}
+	}
+	return false
 }
 
 func openAIMessagesDispatchGateway(h *handler.Handlers) gatewayctx.HandlerFunc {
