@@ -99,6 +99,18 @@ Last updated: 2026-07-06
 - Distance to P2: about 17% of P1 remains. Do not prioritize P2 visual polish until the remaining P1 customer/business loops have evidence.
 - P2: 0%. Keep as later polish/enhancement work.
 
+## Minimum Commercial Launch Checklist
+
+- Commercial posture: controlled whitelist/low-quota beta only; do not open public paid traffic yet.
+- Main sellable path: API Key plus third-party clients such as CC Switch, Cherry Studio, Chatbox, and OpenAI-compatible clients.
+- User-visible routes to verify before each larger release: `/home`, `/login`, `/register`, `/app/dashboard`, `/app/keys`, `/app/usage`, `/app/channel-status`, `/app/purchase`, `/app/orders`, `/app/redeem`, `/app/profile`, and `/admin`.
+- Admin support paths to verify: user lookup by email, balance history, API keys, usage rows, order detail, redeem records, affiliate records, channel/account/model/pricing, and ops request logs.
+- Billing gate: success charges, failures do not charge, insufficient balance blocks where supported, retry/duplicate paths do not double-charge, and usage rows remain traceable to user/key/model/request id.
+- Payment gate: either verify real payment callback/order/balance/ledger with a small amount, or keep online recharge disabled and use redeem/manual credit.
+- Customer promise boundary: do not promise unlimited usage, 100% uptime, exact first-token speed, Sora availability, full image product maturity, or absolute commercial copyright guarantees.
+- First customer flow: give one low-risk API Key, connect one client, run one small text request, inspect user balance/usage and admin evidence, then raise quota only if stable.
+- `docs/review/08-minimum-commercial-launch-gate.md` contains the detailed local audit draft, but `docs/review/*` is currently ignored by `.gitignore`; keep this root checklist as the tracked canonical summary until docs tracking is changed deliberately.
+
 ## Chains That Need Verification
 
 - Login/register to user workspace entry.
