@@ -157,7 +157,7 @@ const capabilityTools = computed<Array<{
     {
       key: 'web-search',
       label: '联网',
-      description: '使用后端可用的联网搜索能力补充当前信息。',
+      description: '使用当前可用的联网搜索能力补充信息。',
       icon: 'globe',
       available: true
     },
@@ -192,7 +192,7 @@ const canSubmit = computed(() =>
   props.modelValue.trim().length > 0
 )
 const sendButtonTitle = computed(() => {
-  if (props.backendEnabled !== true) return '统一工作台后端正在接入，暂不可发送'
+  if (props.backendEnabled !== true) return '模型测试服务暂不可用，暂不可发送'
   if (props.sending) return '正在发送'
   if (props.assetPreviews.length > 0) return '当前对话页暂不支持发送图片或文件，请移除附件后发送文字'
   if (!props.selectedModel) return '请选择可用模型'

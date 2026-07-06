@@ -18,7 +18,7 @@ export type WorkspaceRequestPhase = 'idle' | 'sending' | 'generating' | 'success
 export type WorkspaceMessageState = 'sending' | 'generating' | 'success' | 'failed'
 
 export const WORKSPACE_BACKEND_UNAVAILABLE_MESSAGE =
-  '模型测试后端正在接入，暂不可发送。当前仅展示轻量测试入口。'
+  '模型测试服务暂不可用，暂不可发送。当前仅展示轻量测试入口。'
 export const WORKSPACE_TEXT_ONLY_MESSAGE =
   '当前对话页是文本 beta，暂不支持发送图片、文件、图片理解或多图分析。图片不会上传，也不会调用模型或扣费；请到图片内测入口查看图片能力，或先只发送文字。'
 export const WORKSPACE_HISTORY_FAILED_MESSAGE = '工作台历史暂时无法加载。'
@@ -26,7 +26,7 @@ export const WORKSPACE_MESSAGES_FAILED_MESSAGE = '该对话暂时无法加载。
 export const WORKSPACE_SEND_FAILED_MESSAGE =
   '发送失败，请稍后重试。若消息没有出现在历史记录中，本次不会按成功回复扣费。'
 export const WORKSPACE_MODEL_UNAVAILABLE_MESSAGE =
-  '当前模型暂不可用，请切换可用模型或联系管理员检查模型、API Key、分组和上游账号配置。本次未调用模型，不会扣费。'
+  '当前模型暂不可用，请切换可用模型、确认账号可用范围，或稍后再试。本次未调用模型，不会扣费。'
 export const WORKSPACE_PROVIDER_FAILED_MESSAGE =
   'AI 回复失败。若消息已出现在历史中，可以重试或切换模型；本次未完成 AI 回复，不会按成功回复扣费。'
 export const WORKSPACE_REFRESH_AFTER_SEND_FAILED_MESSAGE =

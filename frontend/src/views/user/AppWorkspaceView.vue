@@ -41,7 +41,7 @@
         </button>
       </div>
       <p v-else-if="!workspace.backendEnabled.value" class="workspace-notice" role="status">
-        模型测试后端正在接入，暂不可发送。当前仅展示轻量测试入口。
+        模型测试服务暂不可用，暂不可发送。当前仅展示轻量测试入口。
       </p>
 
       <section class="composer-zone" aria-label="模型测试输入框">
@@ -123,7 +123,7 @@ const sectionContent: Record<SectionKey, SectionContent> = {
   },
   chat: {
     shellTitle: '模型测试入口',
-    shellSubtitle: '当前只做轻量文本模型测试，真实能力以后端模型和分组配置为准。',
+    shellSubtitle: '当前只做轻量文本模型测试，真实能力以账号可用模型和分组为准。',
     eyebrow: '轻量体验入口',
     icon: 'chat'
   },

@@ -167,7 +167,7 @@ describe('ImageStudioView workbench', () => {
     expect(text).toContain('图片内测入口')
     expect(text).toContain('先验证图片生成链路，再逐步完善体验')
     expect(text).toContain('不承诺正式图片产品能力')
-    expect(text).toContain('真实生成质量、可用模型和扣费以后端配置和实际返回为准')
+    expect(text).toContain('真实生成质量、可用模型和扣费以账号可用范围和实际返回为准')
     expect(text).toContain('先用模型测试整理想法')
     expect(text).toContain('图片入口当前是内测能力')
     expect(text).toContain('对话辅助保留')
@@ -572,7 +572,7 @@ describe('ImageStudioView workbench', () => {
     const wrapper = mountImageStudio()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('最近作品加载失败，请稍后重试或联系管理员。已生成的作品不会因此被删除。')
+    expect(wrapper.text()).toContain('最近作品加载失败，请稍后重试。已生成的作品不会因此被删除。')
     expect(consoleError).toHaveBeenCalledTimes(1)
 
     soraApi.listGenerations.mockResolvedValueOnce({
@@ -939,8 +939,8 @@ describe('ImageStudioView workbench', () => {
     await flushPromises()
 
     const text = wrapper.text()
-    expect(text).toContain('当前账号暂不支持图片生成/改图接口')
-    expect(text).toContain('支持图片生成的模型或上游账号')
+    expect(text).toContain('当前账号暂不支持图片生成或改图接口')
+    expect(text).toContain('请切换可用模型，或稍后再试')
     expect(text).toContain('本次没有生成成功作品')
     expect(text).toContain('不会保存到历史')
     expect(text).toContain('未成功返回结果不会扣生成费用')
@@ -972,13 +972,13 @@ describe('ImageStudioView workbench', () => {
     await flushPromises()
 
     const text = wrapper.text()
-    expect(text).toContain('图片生成服务暂不可用，请稍后重试或联系管理员。')
+    expect(text).toContain('图片生成服务暂不可用，请稍后重试。')
     expect(text).toContain('本次没有生成成功作品')
     expect(text).toContain('不会保存到历史')
     expect(text).toContain('未成功返回结果不会扣生成费用')
     expect(text).toContain('可以调整提示词后重试')
     expect(text).not.toContain('Request failed with status code 502')
-    expect(appStore.showError).toHaveBeenCalledWith('图片生成服务暂不可用，请稍后重试或联系管理员。')
+    expect(appStore.showError).toHaveBeenCalledWith('图片生成服务暂不可用，请稍后重试。')
     expect(authStore.refreshUser).not.toHaveBeenCalled()
     expect(consoleError).toHaveBeenCalledTimes(1)
 

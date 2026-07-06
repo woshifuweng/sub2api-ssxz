@@ -17,7 +17,7 @@
               查看你当前能使用的模型套餐
             </h1>
             <p class="mt-3 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-400">
-              套餐会影响可用分组、模型范围、每日或每月额度。普通聊天、电商文案、API 接入都会按后台配置计入这里的使用进度。
+              套餐会影响可用分组、模型范围、每日或每月额度。普通聊天、电商文案、API 接入都会按系统配置计入这里的使用进度。
             </p>
           </div>
           <div class="flex flex-wrap gap-2">
@@ -43,7 +43,7 @@
           </div>
           <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-800/70">
             <p class="text-sm font-semibold text-gray-900 dark:text-white">分组能力</p>
-            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">不同分组可以对应聊天、图片、电商或开发者能力，管理员可在后台单独配置。</p>
+            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">不同分组可以对应聊天、图片、电商或开发者能力，具体可用范围以当前账号为准。</p>
           </div>
         </div>
       </section>
