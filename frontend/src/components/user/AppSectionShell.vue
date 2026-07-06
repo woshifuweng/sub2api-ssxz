@@ -211,7 +211,7 @@ const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName 
   { label: '订单', to: '/app/orders', icon: 'clipboard' },
   { label: '兑换码', to: '/app/redeem', icon: 'gift' },
   ...(affiliateEnabled.value
-    ? [{ label: '推广返利', to: '/app/affiliate', icon: 'gift' as IconName }]
+    ? [{ label: '推广中心', to: '/app/affiliate', icon: 'gift' as IconName }]
     : []),
   { label: '个人资料', to: '/app/profile', icon: 'userCircle' },
   ...(authStore.isAdmin

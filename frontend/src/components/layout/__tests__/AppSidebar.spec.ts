@@ -260,7 +260,7 @@ describe('AppSidebar', () => {
     const wrapper = mountSidebar()
     const destinations = hrefs(wrapper)
 
-    expect(wrapper.text()).toContain('推广返利')
+    expect(wrapper.text()).toContain('推广中心')
     expect(destinations).toEqual([
       '/app/dashboard',
       '/app/keys',

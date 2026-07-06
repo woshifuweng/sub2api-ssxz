@@ -249,8 +249,8 @@ describe('DashboardView', () => {
 
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
     expect(hrefs).toContain('/app/affiliate')
-    expect(wrapper.text()).toContain('推广邀请')
-    expect(wrapper.text()).toContain('查看推广')
+    expect(wrapper.text()).toContain('推广中心')
+    expect(wrapper.text()).toContain('查看邀请')
   })
 
   it('does not advertise recharge actions when online payment is disabled', async () => {
