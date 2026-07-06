@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { usageAPI, authStore } = vi.hoisted(() => ({
+const { usageAPI, authStore, copyToClipboard } = vi.hoisted(() => ({
   usageAPI: {
     getStatsByDateRange: vi.fn(),
     query: vi.fn(),
@@ -14,7 +14,8 @@ const { usageAPI, authStore } = vi.hoisted(() => ({
       email: 'real@example.com'
     },
     refreshUser: vi.fn()
-  }
+  },
+  copyToClipboard: vi.fn()
 }))
 
 const messages: Record<string, string> = {
@@ -74,6 +75,11 @@ const messages: Record<string, string> = {
   'usage.workbench.performanceSummary': 'Started in {firstToken}; total time {duration}',
   'usage.workbench.performanceSlowFirstTokenHint': 'This task was slightly slower to start, usually because of model tier, task complexity, or extra processing steps. For faster replies, use a lighter model or lower reasoning effort.',
   'usage.workbench.performanceSlowTotalHint': 'This task took longer, usually because it did more checking or used more steps. For faster replies, use a lighter model, lower reasoning effort, or shorten one-shot input.',
+  'usage.workbench.supportCode': 'Support code',
+  'usage.workbench.copySupportCode': 'Copy support code',
+  'usage.workbench.supportCodeCopied': 'Support code copied',
+  'usage.workbench.copy': 'Copy',
+  'usage.workbench.copied': 'Copied',
   'usage.workbench.fee': 'Fee',
   'usage.workbench.noCharge': 'No charge',
   'usage.workbench.zeroTokenCharged': 'Image / fixed-fee item',
@@ -102,6 +108,12 @@ vi.mock('@/api', () => ({
 
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => authStore
+}))
+
+vi.mock('@/composables/useClipboard', () => ({
+  useClipboard: () => ({
+    copyToClipboard
+  })
 }))
 
 vi.mock('vue-i18n', async () => {
@@ -169,6 +181,8 @@ describe('AppUsageView', () => {
     usageAPI.getStatsByDateRange.mockReset()
     usageAPI.query.mockReset()
     usageAPI.getDashboardTrend.mockReset()
+    copyToClipboard.mockReset()
+    copyToClipboard.mockResolvedValue(true)
     authStore.refreshUser.mockReset()
     authStore.refreshUser.mockResolvedValue(authStore.user)
     authStore.user.balance = 8.53
@@ -316,6 +330,10 @@ describe('AppUsageView', () => {
     expect(tableText).toContain('task complexity, or extra processing steps')
     expect(tableText).toContain('Normal')
     expect(tableText).toContain('Started in 123 ms; total time 987 ms')
+    expect(tableText).toContain('Support code')
+    expect(tableText).toContain('req-image')
+    expect(tableText).toContain('req-no-charge')
+    expect(tableText).toContain('req-chat')
     expect(tableText).not.toContain('upstream account')
     expect(tableText).not.toContain('web search')
     expect(tableText).not.toContain('tool calls')
@@ -324,6 +342,51 @@ describe('AppUsageView', () => {
       page_size: 8
     }))
     expect(authStore.refreshUser).toHaveBeenCalledTimes(1)
+  })
+
+  it('copies the usage support code for customer support lookup', async () => {
+    mockZeroStats()
+    usageAPI.query.mockResolvedValue({
+      items: [
+        {
+          id: 7,
+          request_id: 'req-support-123',
+          model: 'gpt-5-mini',
+          inbound_endpoint: '/v1/responses',
+          input_tokens: 5,
+          output_tokens: 3,
+          cache_creation_tokens: 0,
+          cache_read_tokens: 0,
+          total_cost: 0.01,
+          image_count: 0,
+          image_size: null,
+          actual_cost: 0.01,
+          billing_type: 0,
+          duration_ms: 1200,
+          first_token_ms: 300,
+          created_at: '2026-06-18T08:00:00Z'
+        }
+      ],
+      total: 1,
+      pages: 1
+    })
+    usageAPI.getDashboardTrend.mockResolvedValue({
+      trend: [],
+      start_date: '2026-01-01',
+      end_date: '2026-06-18',
+      granularity: 'day'
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('req-support-123')
+
+    await wrapper.get('.support-code-button').trigger('click')
+    await flushPromises()
+
+    expect(copyToClipboard).toHaveBeenCalledWith('req-support-123', 'Support code copied')
+    expect(wrapper.text()).toContain('Copied')
   })
 
   it('marks local mock usage as demo data instead of real data', async () => {

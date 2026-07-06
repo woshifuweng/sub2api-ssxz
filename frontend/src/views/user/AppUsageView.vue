@@ -120,6 +120,7 @@
                 <th>{{ t('usage.workbench.amount') }}</th>
                 <th>{{ t('usage.workbench.billingBasis') }}</th>
                 <th>{{ t('usage.workbench.performance') }}</th>
+                <th>{{ t('usage.workbench.supportCode') }}</th>
                 <th>{{ t('usage.workbench.fee') }}</th>
               </tr>
             </thead>
@@ -143,6 +144,21 @@
                   <small v-if="formatPerformanceHint(row)" class="performance-hint">
                     {{ formatPerformanceHint(row) }}
                   </small>
+                </td>
+                <td class="support-cell">
+                  <template v-if="resolveSupportCode(row)">
+                    <code>{{ resolveSupportCode(row) }}</code>
+                    <button
+                      type="button"
+                      class="support-code-button"
+                      :aria-label="t('usage.workbench.copySupportCode')"
+                      :title="t('usage.workbench.copySupportCode')"
+                      @click="copySupportCode(row)"
+                    >
+                      {{ copiedSupportCode === resolveSupportCode(row) ? t('usage.workbench.copied') : t('usage.workbench.copy') }}
+                    </button>
+                  </template>
+                  <span v-else>-</span>
                 </td>
                 <td>
                   <span>{{ formatCost(row.actual_cost) }}</span>
@@ -169,6 +185,7 @@ import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { usageAPI } from '@/api'
 import { useAuthStore } from '@/stores/auth'
+import { useClipboard } from '@/composables/useClipboard'
 import type { TrendDataPoint, UsageLog, UsageStatsResponse } from '@/types'
 
 interface MonthlyUsage {
@@ -181,6 +198,7 @@ interface MonthlyUsage {
 
 const { t } = useI18n()
 const authStore = useAuthStore()
+const { copyToClipboard } = useClipboard()
 const usageRows = ref<UsageLog[]>([])
 const usageStats = ref<UsageStatsResponse | null>(null)
 const monthlySeries = ref<MonthlyUsage[]>([])
@@ -189,6 +207,7 @@ const detailsLoadError = ref(false)
 const statsLoadError = ref(false)
 const trendLoadError = ref(false)
 const balanceRefreshError = ref(false)
+const copiedSupportCode = ref<string | null>(null)
 
 const today = new Date()
 const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
@@ -339,6 +358,21 @@ function formatUsageKind(row: UsageLog) {
 
 function resolveEndpoint(row: UsageLog) {
   return row.inbound_endpoint || '-'
+}
+
+function resolveSupportCode(row: UsageLog) {
+  return row.request_id || ''
+}
+
+async function copySupportCode(row: UsageLog) {
+  const supportCode = resolveSupportCode(row)
+  if (!supportCode) return
+  const copied = await copyToClipboard(supportCode, t('usage.workbench.supportCodeCopied'))
+  if (!copied) return
+  copiedSupportCode.value = supportCode
+  window.setTimeout(() => {
+    if (copiedSupportCode.value === supportCode) copiedSupportCode.value = null
+  }, 2000)
 }
 
 function formatSource(row: UsageLog) {
@@ -769,7 +803,8 @@ function toDateKey(date: Date) {
 }
 
 .billing-cell,
-.performance-cell {
+.performance-cell,
+.support-cell {
   display: grid;
   min-width: 9rem;
   gap: 0.18rem;
@@ -817,6 +852,33 @@ function toDateKey(date: Date) {
 
 .performance-hint {
   max-width: 15rem;
+}
+
+.support-cell code {
+  width: fit-content;
+  max-width: 14rem;
+  overflow-wrap: anywhere;
+  border-radius: 0.45rem;
+  background: color-mix(in srgb, var(--ssxz-surface-muted) 80%, transparent);
+  color: var(--ssxz-text-primary);
+  padding: 0.16rem 0.34rem;
+  font-size: 0.74rem;
+}
+
+.support-code-button {
+  width: fit-content;
+  border: 0;
+  background: transparent;
+  color: var(--ssxz-action);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0;
+  text-align: left;
+}
+
+.support-code-button:hover {
+  text-decoration: underline;
 }
 
 .usage-cost-note {
