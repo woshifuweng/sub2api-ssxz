@@ -77,7 +77,7 @@ func TestAPIKeyService_Create_RejectsNegativeRateLimit(t *testing.T) {
 	}
 }
 
-func TestAPIKeyService_Create_AllowsZeroLimitsAsUnlimited(t *testing.T) {
+func TestAPIKeyService_Create_RejectsMissingGroup(t *testing.T) {
 	repo := &apiKeyCreateValidationRepoStub{}
 	svc := &APIKeyService{
 		apiKeyRepo: repo,
@@ -85,8 +85,33 @@ func TestAPIKeyService_Create_AllowsZeroLimitsAsUnlimited(t *testing.T) {
 		cfg:        &config.Config{},
 	}
 
+	_, err := svc.Create(context.Background(), 7, CreateAPIKeyRequest{
+		Name: "missing group",
+	})
+
+	require.ErrorIs(t, err, ErrAPIKeyGroupRequired)
+	require.Nil(t, repo.created)
+}
+
+func TestAPIKeyService_Create_AllowsZeroLimitsAsUnlimited(t *testing.T) {
+	repo := &apiKeyCreateValidationRepoStub{}
+	groupID := int64(10)
+	svc := &APIKeyService{
+		apiKeyRepo: repo,
+		userRepo:   &mockUserRepo{},
+		groupRepo: &groupRepoStubForGroupUpdate{group: &Group{
+			ID:               groupID,
+			Name:             "default",
+			Platform:         PlatformOpenAI,
+			Status:           StatusActive,
+			SubscriptionType: SubscriptionTypeStandard,
+		}},
+		cfg: &config.Config{},
+	}
+
 	got, err := svc.Create(context.Background(), 7, CreateAPIKeyRequest{
 		Name:        "zero limits",
+		GroupID:     &groupID,
 		Quota:       0,
 		RateLimit5h: 0,
 		RateLimit1d: 0,
@@ -100,6 +125,8 @@ func TestAPIKeyService_Create_AllowsZeroLimitsAsUnlimited(t *testing.T) {
 	require.Zero(t, repo.created.RateLimit5h)
 	require.Zero(t, repo.created.RateLimit1d)
 	require.Zero(t, repo.created.RateLimit7d)
+	require.Equal(t, &groupID, repo.created.GroupID)
+	require.Equal(t, []int64{groupID}, repo.created.GroupIDs)
 }
 
 func TestAPIKeyService_Update_RejectsNegativeQuota(t *testing.T) {

@@ -29,6 +29,7 @@ var (
 	ErrInvalidIPPattern       = infraerrors.BadRequest("INVALID_IP_PATTERN", "invalid IP or CIDR pattern")
 	ErrAPIKeyQuotaInvalid     = infraerrors.BadRequest("API_KEY_QUOTA_INVALID", "api key quota must be greater than or equal to 0")
 	ErrAPIKeyRateLimitInvalid = infraerrors.BadRequest("API_KEY_RATE_LIMIT_INVALID", "api key rate limits must be greater than or equal to 0")
+	ErrAPIKeyGroupRequired    = infraerrors.BadRequest("API_KEY_GROUP_REQUIRED", "api key must bind an available group")
 	// ErrAPIKeyExpired        = infraerrors.Forbidden("API_KEY_EXPIRED", "api key has expired")
 	ErrAPIKeyExpired = infraerrors.Forbidden("API_KEY_EXPIRED", "api key 已过期")
 	// ErrAPIKeyQuotaExhausted = infraerrors.TooManyRequests("API_KEY_QUOTA_EXHAUSTED", "api key quota exhausted")
@@ -395,6 +396,10 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 	}
 
 	requestedGroupIDs := s.resolveRequestedGroupIDs(req.GroupID, req.GroupIDs)
+	if len(requestedGroupIDs) == 0 {
+		return nil, ErrAPIKeyGroupRequired
+	}
+
 	groups, err := s.validateAPIKeyGroups(ctx, user, requestedGroupIDs)
 	if err != nil {
 		return nil, err
