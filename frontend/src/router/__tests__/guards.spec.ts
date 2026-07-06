@@ -144,9 +144,7 @@ function simulateGuard(
       '/admin/groups',
       '/admin/subscriptions',
       '/admin/redeem',
-      '/app/redeem',
       '/subscriptions',
-      '/redeem',
     ]
     if (restrictedPaths.some((path) => toPath.startsWith(path))) {
       return authState.isAdmin ? '/admin/dashboard' : '/app/dashboard'
@@ -293,7 +291,7 @@ describe('路由守卫逻辑', () => {
       expect(redirect).toBeNull()
     })
 
-    it('普通用户简易模式访问 /app/redeem 重定向到 /app/dashboard', () => {
+    it('普通用户简易模式可访问 /app/redeem 作为兑换入口', () => {
       const authState: MockAuthState = {
         isAuthenticated: true,
         isAdmin: false,
@@ -301,7 +299,7 @@ describe('路由守卫逻辑', () => {
         backendModeEnabled: false,
       }
       const redirect = simulateGuard('/app/redeem', {}, authState)
-      expect(redirect).toBe('/app/dashboard')
+      expect(redirect).toBeNull()
     })
 
     it('管理员简易模式访问 /admin/groups 重定向到 /admin/dashboard', () => {
@@ -363,6 +361,7 @@ describe('路由守卫逻辑', () => {
 
       expect(simulateGuard('/app/purchase', {}, authState)).toBeNull()
       expect(simulateGuard('/app/orders', {}, authState)).toBeNull()
+      expect(simulateGuard('/app/redeem', {}, authState)).toBeNull()
       expect(simulateGuard('/app/keys', {}, authState)).toBeNull()
       expect(simulateGuard('/app/profile', {}, authState)).toBeNull()
       expect(simulateGuard('/app/affiliate', {}, authState)).toBeNull()

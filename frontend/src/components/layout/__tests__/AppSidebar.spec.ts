@@ -197,6 +197,29 @@ describe('AppSidebar', () => {
     ]))
   })
 
+  it('keeps core commercial entries visible for regular users in simple mode', () => {
+    authState.isAdmin = false
+    authState.isSimpleMode = true
+    appState.cachedPublicSettings.affiliate_enabled = true
+
+    const wrapper = mountSidebar()
+    const destinations = hrefs(wrapper)
+
+    expect(destinations).toEqual([
+      '/app/dashboard',
+      '/app/keys',
+      '/app/usage',
+      '/app/channel-status',
+      '/app/purchase',
+      '/app/orders',
+      '/app/redeem',
+      '/app/affiliate',
+      '/app/profile'
+    ])
+    expect(destinations).not.toContain('/app/chat')
+    expect(destinations).not.toContain('/app/image')
+  })
+
   it('hides regular user recharge navigation when payment and subscription purchase are disabled', () => {
     authState.isAdmin = false
     appState.cachedPublicSettings.payment_enabled = false

@@ -539,24 +539,23 @@ const userNavItems = computed((): NavItem[] => {
   const items: NavItem[] = [
     { path: '/app/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
     { path: '/app/keys', label: 'API 密钥', icon: KeyIcon },
-    { path: '/app/usage', label: '使用记录', icon: ChartIcon, hideInSimpleMode: true },
+    { path: '/app/usage', label: '使用记录', icon: ChartIcon },
     ...(channelMonitorEnabled.value
-      ? [{ path: '/app/channel-status', label: '通道状态', icon: SignalIcon, hideInSimpleMode: true }]
+      ? [{ path: '/app/channel-status', label: '通道状态', icon: SignalIcon }]
       : []),
     ...(purchaseEnabled.value
       ? [
           {
             path: '/app/purchase',
             label: '充值',
-            icon: RechargeSubscriptionIcon,
-            hideInSimpleMode: true
+            icon: RechargeSubscriptionIcon
           }
         ]
       : []),
-    { path: '/app/orders', label: '订单', icon: OrderListIcon, hideInSimpleMode: true },
-    { path: '/app/redeem', label: '兑换码', icon: TicketIcon, hideInSimpleMode: true },
+    { path: '/app/orders', label: '订单', icon: OrderListIcon },
+    { path: '/app/redeem', label: '兑换码', icon: TicketIcon },
     ...(affiliateEnabled.value
-      ? [{ path: '/app/affiliate', label: '推广返利', icon: GiftIcon, hideInSimpleMode: true }]
+      ? [{ path: '/app/affiliate', label: '推广返利', icon: GiftIcon }]
       : []),
     { path: '/app/profile', label: '个人资料', icon: UserIcon }
   ]
