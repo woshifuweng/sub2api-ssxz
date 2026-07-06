@@ -1,6 +1,6 @@
 <template>
-  <AppLayout>
-    <div class="purchase-page-layout">
+  <component :is="shellComponent">
+    <div class="purchase-page-layout" :class="{ 'is-embedded': embedded }">
       <div class="card flex-1 min-h-0 overflow-hidden">
         <div v-if="loading" class="flex h-full items-center justify-center py-12">
           <div
@@ -95,7 +95,7 @@
         </div>
       </div>
     </div>
-  </AppLayout>
+  </component>
 </template>
 
 <script setup lang="ts">
@@ -113,10 +113,15 @@ import {
 
 const { t, locale } = useI18n()
 const appStore = useAppStore()
+const props = defineProps<{
+  embedded?: boolean
+}>()
 
 const loading = ref(false)
 const purchaseTheme = ref<'light' | 'dark'>('light')
 let themeObserver: MutationObserver | null = null
+const embedded = computed(() => !!props.embedded)
+const shellComponent = computed(() => (embedded.value ? 'div' : AppLayout))
 
 const purchaseEnabled = computed(() => {
   return appStore.cachedPublicSettings?.purchase_subscription_enabled ?? false
@@ -170,6 +175,11 @@ onUnmounted(() => {
 .purchase-page-layout {
   @apply flex flex-col;
   height: calc(100vh - 64px - 4rem);
+}
+
+.purchase-page-layout.is-embedded {
+  min-height: 560px;
+  height: min(720px, calc(100vh - 12rem));
 }
 
 .purchase-embed-shell {

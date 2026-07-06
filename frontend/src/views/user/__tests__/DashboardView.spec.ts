@@ -208,6 +208,7 @@ describe('DashboardView', () => {
     expect(hrefs).toContain('/app/channel-status')
     expect(hrefs).toContain('/app/purchase')
     expect(hrefs).toContain('/app/orders')
+    expect(hrefs).toContain('/app/redeem')
     expect(hrefs).not.toContain('/app/chat')
     expect(wrapper.text()).not.toContain('模型测试入口')
     expect(hrefs).not.toContain('/app/affiliate')
@@ -270,6 +271,8 @@ describe('DashboardView', () => {
     expect(wrapper.text()).not.toContain('充值和订单')
     expect(wrapper.text()).toContain('订单记录')
     expect(wrapper.text()).toContain('查看订单')
+    expect(hrefs).toContain('/app/redeem')
+    expect(wrapper.text()).toContain('兑换码')
   })
 
   it('shows a retryable error state instead of a blank page when stats fail', async () => {

@@ -282,6 +282,14 @@ const baseProductEntries = [
     action: '去充值'
   },
   {
+    to: '/app/redeem',
+    icon: 'gift' as const,
+    badge: '兑换',
+    title: '兑换码',
+    description: '已有兑换码时可直接兑换到账户额度或试用权益，适合私域发放和人工开通。',
+    action: '去兑换'
+  },
+  {
     to: '/app/affiliate',
     icon: 'gift' as const,
     badge: '推广',

@@ -39,7 +39,10 @@ vi.mock('../PaymentCheckoutContent.vue', () => ({
 vi.mock('../PurchaseSubscriptionView.vue', () => ({
   default: {
     name: 'PurchaseSubscriptionView',
-    template: '<section data-testid="legacy-purchase-subscription" />'
+    props: {
+      embedded: Boolean
+    },
+    template: '<section data-testid="legacy-purchase-subscription" :data-embedded="String(embedded)" />'
   }
 }))
 
@@ -105,7 +108,7 @@ describe('AppPurchaseView', () => {
     expect(wrapper.find('[data-testid="payment-checkout-content"]').exists()).toBe(false)
   })
 
-  it('keeps the legacy subscription purchase entry available when configured', () => {
+  it('keeps the legacy subscription purchase entry inside the user workspace shell when configured', () => {
     appStore.cachedPublicSettings = {
       payment_enabled: false,
       purchase_subscription_enabled: true,
@@ -113,8 +116,10 @@ describe('AppPurchaseView', () => {
 
     const wrapper = mountView()
 
-    expect(wrapper.find('[data-testid="legacy-purchase-subscription"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(false)
+    const legacyPurchase = wrapper.find('[data-testid="legacy-purchase-subscription"]')
+    expect(legacyPurchase.exists()).toBe(true)
+    expect(legacyPurchase.attributes('data-embedded')).toBe('true')
+    expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="payment-checkout-content"]').exists()).toBe(false)
   })
 })
