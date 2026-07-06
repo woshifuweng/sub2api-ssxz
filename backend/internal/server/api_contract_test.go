@@ -64,10 +64,26 @@ func TestAPIContracts(t *testing.T) {
 			}`,
 		},
 		{
-			name:   "POST /api/v1/keys",
+			name: "POST /api/v1/keys",
+			setup: func(t *testing.T, deps *contractDeps) {
+				t.Helper()
+				deps.groupRepo.SetActive([]service.Group{
+					{
+						ID:               10,
+						Name:             "Group One",
+						Platform:         service.PlatformOpenAI,
+						RateMultiplier:   1,
+						IsExclusive:      false,
+						Status:           service.StatusActive,
+						SubscriptionType: service.SubscriptionTypeStandard,
+						CreatedAt:        deps.now,
+						UpdatedAt:        deps.now,
+					},
+				})
+			},
 			method: http.MethodPost,
 			path:   "/api/v1/keys",
-			body:   `{"name":"Key One","custom_key":"sk_custom_1234567890"}`,
+			body:   `{"name":"Key One","group_id":10,"custom_key":"sk_custom_1234567890"}`,
 			headers: map[string]string{
 				"Content-Type": "application/json",
 			},
@@ -80,7 +96,8 @@ func TestAPIContracts(t *testing.T) {
 					"user_id": 1,
 					"key": "sk_custom_1234567890",
 					"name": "Key One",
-					"group_id": null,
+					"group_id": 10,
+					"group_ids": [10],
 					"allowed_models": [],
 					"status": "active",
 					"ip_whitelist": null,
@@ -99,7 +116,63 @@ func TestAPIContracts(t *testing.T) {
 					"window_7d_start": null,
 					"expires_at": null,
 					"created_at": "2025-01-02T03:04:05Z",
-					"updated_at": "2025-01-02T03:04:05Z"
+					"updated_at": "2025-01-02T03:04:05Z",
+					"group": {
+						"id": 10,
+						"name": "Group One",
+						"description": "",
+						"platform": "openai",
+						"rate_multiplier": 1,
+						"is_exclusive": false,
+						"status": "active",
+						"subscription_type": "standard",
+						"daily_limit_usd": null,
+						"weekly_limit_usd": null,
+						"monthly_limit_usd": null,
+						"image_price_1k": null,
+						"image_price_2k": null,
+						"image_price_4k": null,
+						"sora_image_price_360": null,
+						"sora_image_price_540": null,
+						"sora_video_price_per_request": null,
+						"sora_video_price_per_request_hd": null,
+						"sora_storage_quota_bytes": 0,
+						"claude_code_only": false,
+						"fallback_group_id": null,
+						"fallback_group_id_on_invalid_request": null,
+						"allow_messages_dispatch": false,
+						"created_at": "2025-01-02T03:04:05Z",
+						"updated_at": "2025-01-02T03:04:05Z"
+					},
+					"groups": [
+						{
+							"id": 10,
+							"name": "Group One",
+							"description": "",
+							"platform": "openai",
+							"rate_multiplier": 1,
+							"is_exclusive": false,
+							"status": "active",
+							"subscription_type": "standard",
+							"daily_limit_usd": null,
+							"weekly_limit_usd": null,
+							"monthly_limit_usd": null,
+							"image_price_1k": null,
+							"image_price_2k": null,
+							"image_price_4k": null,
+							"sora_image_price_360": null,
+							"sora_image_price_540": null,
+							"sora_video_price_per_request": null,
+							"sora_video_price_per_request_hd": null,
+							"sora_storage_quota_bytes": 0,
+							"claude_code_only": false,
+							"fallback_group_id": null,
+							"fallback_group_id_on_invalid_request": null,
+							"allow_messages_dispatch": false,
+							"created_at": "2025-01-02T03:04:05Z",
+							"updated_at": "2025-01-02T03:04:05Z"
+						}
+					]
 				}
 			}`,
 		},
@@ -888,7 +961,13 @@ func (stubGroupRepo) Create(ctx context.Context, group *service.Group) error {
 	return errors.New("not implemented")
 }
 
-func (stubGroupRepo) GetByID(ctx context.Context, id int64) (*service.Group, error) {
+func (r *stubGroupRepo) GetByID(ctx context.Context, id int64) (*service.Group, error) {
+	for i := range r.active {
+		if r.active[i].ID == id {
+			out := r.active[i]
+			return &out, nil
+		}
+	}
 	return nil, service.ErrGroupNotFound
 }
 

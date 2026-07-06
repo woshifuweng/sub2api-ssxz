@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -57,6 +58,62 @@ func (r *apiKeyCreateReplayRepo) Create(_ context.Context, key *service.APIKey) 
 	return nil
 }
 
+type apiKeyCreateHandlerGroupRepo struct {
+	group *service.Group
+}
+
+func (r *apiKeyCreateHandlerGroupRepo) GetByID(_ context.Context, id int64) (*service.Group, error) {
+	if r.group == nil || r.group.ID != id {
+		return nil, service.ErrGroupNotFound
+	}
+	out := *r.group
+	return &out, nil
+}
+
+func (r *apiKeyCreateHandlerGroupRepo) Create(context.Context, *service.Group) error {
+	panic("unexpected")
+}
+func (r *apiKeyCreateHandlerGroupRepo) GetByIDLite(context.Context, int64) (*service.Group, error) {
+	panic("unexpected")
+}
+func (r *apiKeyCreateHandlerGroupRepo) Update(context.Context, *service.Group) error {
+	panic("unexpected")
+}
+func (r *apiKeyCreateHandlerGroupRepo) Delete(context.Context, int64) error { panic("unexpected") }
+func (r *apiKeyCreateHandlerGroupRepo) DeleteCascade(context.Context, int64) ([]int64, error) {
+	panic("unexpected")
+}
+func (r *apiKeyCreateHandlerGroupRepo) List(context.Context, pagination.PaginationParams) ([]service.Group, *pagination.PaginationResult, error) {
+	panic("unexpected")
+}
+func (r *apiKeyCreateHandlerGroupRepo) ListWithFilters(context.Context, pagination.PaginationParams, string, string, string, *bool) ([]service.Group, *pagination.PaginationResult, error) {
+	panic("unexpected")
+}
+func (r *apiKeyCreateHandlerGroupRepo) ListActive(context.Context) ([]service.Group, error) {
+	panic("unexpected")
+}
+func (r *apiKeyCreateHandlerGroupRepo) ListActiveByPlatform(context.Context, string) ([]service.Group, error) {
+	panic("unexpected")
+}
+func (r *apiKeyCreateHandlerGroupRepo) ExistsByName(context.Context, string) (bool, error) {
+	panic("unexpected")
+}
+func (r *apiKeyCreateHandlerGroupRepo) GetAccountCount(context.Context, int64) (int64, int64, error) {
+	panic("unexpected")
+}
+func (r *apiKeyCreateHandlerGroupRepo) DeleteAccountGroupsByGroupID(context.Context, int64) (int64, error) {
+	panic("unexpected")
+}
+func (r *apiKeyCreateHandlerGroupRepo) GetAccountIDsByGroupIDs(context.Context, []int64) ([]int64, error) {
+	panic("unexpected")
+}
+func (r *apiKeyCreateHandlerGroupRepo) BindAccountsToGroup(context.Context, int64, []int64) error {
+	panic("unexpected")
+}
+func (r *apiKeyCreateHandlerGroupRepo) UpdateSortOrders(context.Context, []service.GroupSortOrderUpdate) error {
+	panic("unexpected")
+}
+
 func setupUserAPIKeyCreateTestRouter(repo *apiKeyCreateReplayRepo) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -67,7 +124,14 @@ func setupUserAPIKeyCreateTestRouter(repo *apiKeyCreateReplayRepo) *gin.Engine {
 
 	userRepo := newStubUserRepoForHandler()
 	userRepo.users[1] = &service.User{ID: 1}
-	apiKeyService := service.NewAPIKeyService(repo, userRepo, nil, nil, nil, nil, &config.Config{})
+	groupRepo := &apiKeyCreateHandlerGroupRepo{group: &service.Group{
+		ID:               10,
+		Name:             "default",
+		Platform:         service.PlatformOpenAI,
+		Status:           service.StatusActive,
+		SubscriptionType: service.SubscriptionTypeStandard,
+	}}
+	apiKeyService := service.NewAPIKeyService(repo, userRepo, groupRepo, nil, nil, nil, &config.Config{})
 	h := NewAPIKeyHandler(apiKeyService)
 	router.POST("/api/v1/keys", func(c *gin.Context) {
 		h.CreateGateway(gatewayctx.FromGin(c))
@@ -102,7 +166,7 @@ func TestAPIKeyHandler_Create_IdempotencyReplayMasksFullKey(t *testing.T) {
 	router := setupUserAPIKeyCreateTestRouter(repo)
 
 	const plaintextKey = "sk-created-full-key-only-shown-once"
-	body := `{"name":"client-key","custom_key":"` + plaintextKey + `"}`
+	body := `{"name":"client-key","group_id":10,"custom_key":"` + plaintextKey + `"}`
 	call := func() *httptest.ResponseRecorder {
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/keys", bytes.NewBufferString(body))
 		req.Header.Set("Content-Type", "application/json")
