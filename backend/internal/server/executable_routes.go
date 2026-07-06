@@ -18,45 +18,46 @@ import (
 )
 
 const (
-	middlewareTagRequestLogger    = "request_logger"
-	middlewareTagClientReqID      = "client_request_id"
-	middlewareTagSecurity         = "security_headers"
-	middlewareTagCORS             = "cors"
-	middlewareTagSetupGuard       = "setup_guard"
-	middlewareTagGoogleAPIKey     = "google_api_key_auth"
-	middlewareTagStandardAPIKey   = "standard_api_key_auth"
-	middlewareTagRequireGoogle    = "require_group_google"
-	middlewareTagRequireAnthropic = "require_group_anthropic"
-	middlewareTagInboundEP        = "inbound_endpoint"
-	middlewareTagForceAG          = "force_platform_antigravity"
-	middlewareTagBodyLimitGW      = "gateway_body_limit"
-	middlewareTagMessageDispatch  = "message_dispatch"
-	middlewareTagAdminAuth        = "admin_auth"
-	middlewareTagJWTAuth          = "jwt_auth"
-	middlewareTagBackendModeAuth  = "backend_mode_auth_guard"
-	middlewareTagBackendModeUser  = "backend_mode_user_guard"
-	middlewareTagRLAuthRegister   = "rl_auth_register"
-	middlewareTagRLAuthLogin      = "rl_auth_login"
-	middlewareTagRLAuthLogin2FA   = "rl_auth_login_2fa"
-	middlewareTagRLSendVerify     = "rl_auth_send_verify_code"
-	middlewareTagRLRefresh        = "rl_auth_refresh"
-	middlewareTagRLPromo          = "rl_auth_validate_promo"
-	middlewareTagRLInvite         = "rl_auth_validate_invitation"
-	middlewareTagRLForgot         = "rl_auth_forgot_password"
-	middlewareTagRLReset          = "rl_auth_reset_password"
-	middlewareTagRLLinuxDoFinish  = "rl_auth_linuxdo_complete"
-	middlewareTagRLOAuthPendingExchange     = "rl_auth_oauth_pending_exchange"
-	middlewareTagRLOAuthPendingSendVerify   = "rl_auth_oauth_pending_send_verify"
-	middlewareTagRLOAuthPendingCreateAcct   = "rl_auth_oauth_pending_create_account"
-	middlewareTagRLOAuthPendingBindLogin    = "rl_auth_oauth_pending_bind_login"
-	middlewareTagRLOAuthLinuxDoBindLogin    = "rl_auth_oauth_linuxdo_bind_login"
-	middlewareTagRLOAuthLinuxDoCreateAcct   = "rl_auth_oauth_linuxdo_create_account"
-	middlewareTagRLOAuthWeChatComplete      = "rl_auth_oauth_wechat_complete"
-	middlewareTagRLOAuthWeChatBindLogin     = "rl_auth_oauth_wechat_bind_login"
-	middlewareTagRLOAuthWeChatCreateAcct    = "rl_auth_oauth_wechat_create_account"
-	middlewareTagRLOAuthOIDCComplete        = "rl_auth_oauth_oidc_complete"
-	middlewareTagRLOAuthOIDCBindLogin       = "rl_auth_oauth_oidc_bind_login"
-	middlewareTagRLOAuthOIDCCreateAcct      = "rl_auth_oauth_oidc_create_account"
+	middlewareTagRequestLogger            = "request_logger"
+	middlewareTagClientReqID              = "client_request_id"
+	middlewareTagSecurity                 = "security_headers"
+	middlewareTagCORS                     = "cors"
+	middlewareTagSetupGuard               = "setup_guard"
+	middlewareTagGoogleAPIKey             = "google_api_key_auth"
+	middlewareTagStandardAPIKey           = "standard_api_key_auth"
+	middlewareTagRequireGoogle            = "require_group_google"
+	middlewareTagRequireAnthropic         = "require_group_anthropic"
+	middlewareTagInboundEP                = "inbound_endpoint"
+	middlewareTagForceAG                  = "force_platform_antigravity"
+	middlewareTagBodyLimitGW              = "gateway_body_limit"
+	middlewareTagMessageDispatch          = "message_dispatch"
+	middlewareTagAdminAuth                = "admin_auth"
+	middlewareTagJWTAuth                  = "jwt_auth"
+	middlewareTagBackendModeAuth          = "backend_mode_auth_guard"
+	middlewareTagBackendModeUser          = "backend_mode_user_guard"
+	middlewareTagRLAuthRegister           = "rl_auth_register"
+	middlewareTagRLAuthLogin              = "rl_auth_login"
+	middlewareTagRLAuthLogin2FA           = "rl_auth_login_2fa"
+	middlewareTagRLSendVerify             = "rl_auth_send_verify_code"
+	middlewareTagRLRefresh                = "rl_auth_refresh"
+	middlewareTagRLPromo                  = "rl_auth_validate_promo"
+	middlewareTagRLInvite                 = "rl_auth_validate_invitation"
+	middlewareTagRLForgot                 = "rl_auth_forgot_password"
+	middlewareTagRLReset                  = "rl_auth_reset_password"
+	middlewareTagRLLinuxDoFinish          = "rl_auth_linuxdo_complete"
+	middlewareTagRLGateway                = "rl_gateway_consumption"
+	middlewareTagRLOAuthPendingExchange   = "rl_auth_oauth_pending_exchange"
+	middlewareTagRLOAuthPendingSendVerify = "rl_auth_oauth_pending_send_verify"
+	middlewareTagRLOAuthPendingCreateAcct = "rl_auth_oauth_pending_create_account"
+	middlewareTagRLOAuthPendingBindLogin  = "rl_auth_oauth_pending_bind_login"
+	middlewareTagRLOAuthLinuxDoBindLogin  = "rl_auth_oauth_linuxdo_bind_login"
+	middlewareTagRLOAuthLinuxDoCreateAcct = "rl_auth_oauth_linuxdo_create_account"
+	middlewareTagRLOAuthWeChatComplete    = "rl_auth_oauth_wechat_complete"
+	middlewareTagRLOAuthWeChatBindLogin   = "rl_auth_oauth_wechat_bind_login"
+	middlewareTagRLOAuthWeChatCreateAcct  = "rl_auth_oauth_wechat_create_account"
+	middlewareTagRLOAuthOIDCComplete      = "rl_auth_oauth_oidc_complete"
+	middlewareTagRLOAuthOIDCBindLogin     = "rl_auth_oauth_oidc_bind_login"
+	middlewareTagRLOAuthOIDCCreateAcct    = "rl_auth_oauth_oidc_create_account"
 )
 
 const nativeRouteFallbackToHTTPHandlerKey = "_native_route_fallback_http_handler"
@@ -196,6 +197,18 @@ func applyExecutableMiddlewares(runtimeCfg *executableRuntimeConfig, c gatewayct
 			appmiddleware.RateLimitOptions{FailureMode: appmiddleware.RateLimitFailClose},
 		)
 	}
+	allowGatewayRateLimit := func() bool {
+		if runtimeCfg == nil || runtimeCfg.redisClient == nil {
+			return true
+		}
+		return appmiddleware.NewRateLimiter(runtimeCfg.redisClient).AllowContext(
+			c,
+			routes.GatewayConsumptionRateLimitKey,
+			routes.GatewayConsumptionRateLimitLimit,
+			routes.GatewayConsumptionRateLimitWindow,
+			appmiddleware.RateLimitOptions{FailureMode: appmiddleware.RateLimitFailOpen},
+		)
+	}
 
 	for _, tag := range tags {
 		switch tag {
@@ -253,6 +266,10 @@ func applyExecutableMiddlewares(runtimeCfg *executableRuntimeConfig, c gatewayct
 			}
 		case middlewareTagBackendModeUser:
 			if runtimeCfg == nil || !sermiddleware.ApplyBackendModeUserGuardContext(runtimeCfg.settingService, c) {
+				return false
+			}
+		case middlewareTagRLGateway:
+			if !allowGatewayRateLimit() {
 				return false
 			}
 		case middlewareTagRLAuthRegister:
