@@ -50,7 +50,7 @@ describe('legacy user routes', () => {
     ['/app/purchase', '补充额度'],
     ['/app/orders', '账户记录'],
     ['/app/redeem', '兑换码'],
-    ['/app/affiliate', 'Affiliate'],
+    ['/app/affiliate', '推广中心'],
     ['/app/available-channels', 'Available Channels'],
     ['/app/channel-status', 'Channel Status'],
     ['/app/keys', 'API Key / 第三方接入'],
