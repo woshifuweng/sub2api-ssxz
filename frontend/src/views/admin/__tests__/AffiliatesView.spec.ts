@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { affiliateAPI, showError, showSuccess, routeQuery } = vi.hoisted(() => ({
+const { affiliateAPI, showError, showSuccess, routeQuery, copyToClipboard } = vi.hoisted(() => ({
   affiliateAPI: {
     listUsers: vi.fn(),
     lookupUsers: vi.fn(),
@@ -11,6 +11,7 @@ const { affiliateAPI, showError, showSuccess, routeQuery } = vi.hoisted(() => ({
   },
   showError: vi.fn(),
   showSuccess: vi.fn(),
+  copyToClipboard: vi.fn(),
   routeQuery: {} as Record<string, string>
 }))
 
@@ -29,6 +30,12 @@ vi.mock('@/stores/app', () => ({
 
 vi.mock('@/composables/usePersistedPageSize', () => ({
   getPersistedPageSize: () => 20
+}))
+
+vi.mock('@/composables/useClipboard', () => ({
+  useClipboard: () => ({
+    copyToClipboard
+  })
 }))
 
 vi.mock('vue-router', () => ({
@@ -124,6 +131,19 @@ describe('admin AffiliatesView', () => {
     expect(wrapper.text()).toContain('8.25 额度')
     expect(wrapper.text()).toContain('2.25 额度')
     expect(wrapper.text()).toContain('12%')
+    expect(wrapper.text()).toContain('复制链接')
+  })
+
+  it('copies an existing promoter register link from the admin table', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.findAll('button').find((button) => button.text().includes('复制链接'))!.trigger('click')
+
+    expect(copyToClipboard).toHaveBeenCalledWith(
+      expect.stringContaining('/register?aff=SSXZ7'),
+      '推广链接已复制'
+    )
   })
 
   it('uses route query as an investigation search keyword', async () => {

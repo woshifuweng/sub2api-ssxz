@@ -199,6 +199,9 @@
 
             <template #cell-actions="{ row }">
               <div class="flex items-center gap-2">
+                <button class="btn btn-secondary btn-sm" @click="copyAffiliateLink(row)">
+                  复制链接
+                </button>
                 <button class="btn btn-secondary btn-sm" @click="selectEntry(row)">编辑</button>
                 <button class="btn btn-secondary btn-sm text-red-600 dark:text-red-400" @click="clearEntry(row)">
                   清除
@@ -229,6 +232,7 @@ import { useRoute } from 'vue-router'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
+import { useClipboard } from '@/composables/useClipboard'
 import type {
   AdminAffiliateEntry,
   AffiliateUserSummary
@@ -248,6 +252,7 @@ type SelectedAffiliateUser = AffiliateUserSummary | {
 
 const appStore = useAppStore()
 const route = useRoute()
+const { copyToClipboard } = useClipboard()
 
 const loading = ref(false)
 const saving = ref(false)
@@ -291,6 +296,23 @@ function formatRate(value: number | null | undefined) {
 
 function formatQuota(value: number | null | undefined) {
   return `${Number(value ?? 0).toFixed(2)} 额度`
+}
+
+function buildAffiliateLink(code: string) {
+  const normalizedCode = String(code || '').trim()
+  if (!normalizedCode) return ''
+  const path = `/register?aff=${encodeURIComponent(normalizedCode)}`
+  if (typeof window === 'undefined') return path
+  return `${window.location.origin}${path}`
+}
+
+async function copyAffiliateLink(row: AdminAffiliateEntry) {
+  const link = buildAffiliateLink(row.aff_code)
+  if (!link) {
+    appStore.showError('该用户暂无可用推广码')
+    return
+  }
+  await copyToClipboard(link, '推广链接已复制')
 }
 
 function resetForm() {
