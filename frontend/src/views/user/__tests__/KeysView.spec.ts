@@ -1049,6 +1049,68 @@ describe('KeysView workbench surface', () => {
     openSpy.mockRestore()
   })
 
+  it('imports OpenAI platform keys to CC Switch as Codex/OpenAI-compatible', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    keysAPI.list.mockResolvedValue({
+      items: [
+        apiKeyFixture({
+          key: 'sk-full-key-value-visible-once-1234',
+          group: { platform: 'openai', allow_messages_dispatch: false }
+        })
+      ],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const importButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.importToCcSwitch'))
+    expect(importButton).toBeTruthy()
+    await importButton!.trigger('click')
+
+    expect(openSpy).toHaveBeenCalledTimes(1)
+    const deeplink = String(openSpy.mock.calls[0]?.[0])
+    const params = new URLSearchParams(deeplink.split('?')[1])
+    expect(params.get('app')).toBe('codex')
+    expect(params.get('endpoint')).toBe('https://example.test/v1')
+
+    openSpy.mockRestore()
+  })
+
+  it('does not default unknown-platform keys to Claude when importing to CC Switch', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    keysAPI.list.mockResolvedValue({
+      items: [
+        apiKeyFixture({
+          key: 'sk-full-key-value-visible-once-1234',
+          group_id: null,
+          group_ids: [],
+          groups: [],
+          group: null
+        })
+      ],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const importButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.importToCcSwitch'))
+    expect(importButton).toBeTruthy()
+    await importButton!.trigger('click')
+
+    expect(openSpy).not.toHaveBeenCalled()
+    expect(appStore.showError).toHaveBeenCalledWith('keys.noGroupFound')
+
+    openSpy.mockRestore()
+  })
+
   it('shows disabled CCS import for masked list keys without opening CC Switch', async () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
     keysAPI.list.mockResolvedValue({

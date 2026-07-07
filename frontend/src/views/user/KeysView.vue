@@ -1660,6 +1660,30 @@ const isMaskedApiKey = (key?: string | null): boolean => {
   return key === '[redacted]' || key.includes('...')
 }
 
+type CcsImportPlatform = 'openai' | 'gemini' | 'anthropic' | 'antigravity'
+
+const normalizeCcsImportPlatform = (value?: string | null): CcsImportPlatform | null => {
+  const platform = value?.trim().toLowerCase()
+  if (
+    platform === 'openai' ||
+    platform === 'gemini' ||
+    platform === 'anthropic' ||
+    platform === 'antigravity'
+  ) {
+    return platform
+  }
+  return null
+}
+
+const resolveCcsImportPlatform = (row: ApiKey): CcsImportPlatform | null => {
+  const candidates = [
+    normalizeCcsImportPlatform(row.group?.platform),
+    ...(row.groups || []).map((group) => normalizeCcsImportPlatform(group.platform))
+  ].filter((platform): platform is CcsImportPlatform => Boolean(platform))
+  const uniquePlatforms = Array.from(new Set(candidates))
+  return uniquePlatforms.length === 1 ? uniquePlatforms[0] : null
+}
+
 const selectedKeyUsableApiKey = computed(() => {
   const key = selectedKey.value?.key
   return isMaskedApiKey(key) ? '' : (key ?? '')
@@ -2121,7 +2145,11 @@ const importToCcswitch = (row: ApiKey) => {
     return
   }
 
-  const platform = row.group?.platform || 'anthropic'
+  const platform = resolveCcsImportPlatform(row)
+  if (!platform) {
+    appStore.showError(t('keys.noGroupFound'))
+    return
+  }
 
   // For antigravity platform, show client selection dialog
   if (platform === 'antigravity') {
@@ -2136,7 +2164,11 @@ const importToCcswitch = (row: ApiKey) => {
 
 const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
   const baseUrl = apiBaseUrl.value
-  const platform = row.group?.platform || 'anthropic'
+  const platform = resolveCcsImportPlatform(row)
+  if (!platform) {
+    appStore.showError(t('keys.noGroupFound'))
+    return
+  }
 
   // Determine app name and endpoint based on platform and client type
   let app: string
