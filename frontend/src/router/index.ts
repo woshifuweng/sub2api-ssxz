@@ -400,16 +400,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/sora',
-    name: 'Sora',
-    component: () => import('@/views/user/SoraView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Image Generation',
-      titleKey: 'sora.title',
-      descriptionKey: 'sora.description',
-      titleSiteName: 'SSXZ AI'
-    }
+    redirect: redirectLegacyRoute('/app/image')
   },
   {
     path: '/custom/:id',
@@ -709,7 +700,6 @@ const BACKEND_MODE_ALLOWED_PATHS = [
   '/app/channel-status',
   '/app/keys',
   '/app/profile',
-  '/sora',
   '/app/chat',
   '/usage',
   '/purchase',

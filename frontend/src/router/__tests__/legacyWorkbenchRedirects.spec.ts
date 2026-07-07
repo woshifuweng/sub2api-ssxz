@@ -62,19 +62,12 @@ describe('legacy user routes', () => {
     expect(route.meta.titleSiteName).toBe('SSXZ AI')
   })
 
-  it('keeps the legacy /sora compatibility page under the SSXZ AI document title brand', () => {
-    const route = router.resolve('/sora')
-
-    expect(route.meta.title).toBe('Image Generation')
-    expect(route.meta.titleKey).toBe('sora.title')
-    expect(route.meta.titleSiteName).toBe('SSXZ AI')
-  })
-
   it.each([
     ['/app', '/app/dashboard'],
     ['/dashboard', '/app/dashboard'],
     ['/ai-chat', '/app/chat'],
     ['/image-studio', '/app/image'],
+    ['/sora', '/app/image'],
     ['/keys', '/app/keys'],
     ['/usage', '/app/usage'],
     ['/profile', '/app/profile'],

@@ -70,7 +70,6 @@ const backendModeAllowedPaths = [
   '/app/keys',
   '/app/profile',
   '/app/affiliate',
-  '/sora',
   '/app/chat',
   '/usage',
   '/purchase',
@@ -479,17 +478,6 @@ describe('路由守卫逻辑', () => {
       }
       const redirect = simulateGuard('/dashboard', {}, authState)
       expect(redirect).toBe('/login')
-    })
-
-    it('non-admin authenticated: /sora remains allowed as a legacy image entry', () => {
-      const authState: MockAuthState = {
-        isAuthenticated: true,
-        isAdmin: false,
-        isSimpleMode: false,
-        backendModeEnabled: true,
-      }
-      const redirect = simulateGuard('/sora', {}, authState)
-      expect(redirect).toBeNull()
     })
 
     it('non-admin authenticated: /app/dashboard is allowed as the primary operating entry', () => {
