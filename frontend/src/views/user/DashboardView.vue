@@ -278,7 +278,7 @@ const baseProductEntries = [
     icon: 'creditCard' as const,
     badge: '余额',
     title: '充值和订单',
-    description: '查看余额、充值入口和订单记录，余额不足时先充值再继续调用。',
+    description: '查看余额、可用充值方式和订单记录，余额不足时先补充额度再继续调用。',
     action: '去充值'
   },
   {
@@ -333,10 +333,10 @@ const onboardingSteps = computed(() => [
       }
     : {
         index: '03',
-        title: '最后查看订单记录',
-        description: '需要核对账户变化时，先看使用记录和订单记录；可用额度以系统记录为准。',
-        to: '/app/orders',
-        action: '查看订单'
+        title: '最后使用兑换码或核对订单',
+        description: '当前账号没有在线充值入口时，可先用兑换码补充额度；账户变化以使用记录和订单记录为准。',
+        to: '/app/redeem',
+        action: '去兑换'
       }
 ])
 
