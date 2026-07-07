@@ -79,9 +79,15 @@ function mountView() {
         UserCreateModal: true,
         UserEditModal: true,
         UserApiKeysModal: true,
-        UserAllowedGroupsModal: true,
+        UserAllowedGroupsModal: {
+          props: ['show', 'user'],
+          template: '<section v-if="show" data-testid="allowed-groups-modal">{{ user?.email }}</section>'
+        },
         UserBalanceModal: true,
-        UserBalanceHistoryModal: true,
+        UserBalanceHistoryModal: {
+          props: ['show', 'user'],
+          template: '<section v-if="show" data-testid="balance-history-modal">{{ user?.email }}</section>'
+        },
         GroupReplaceModal: true,
         BaseDialog: {
           props: ['show'],
@@ -181,6 +187,82 @@ describe('admin UsersView investigation links', () => {
       path: '/admin/usage',
       query: { user_id: '42' }
     })
+  })
+
+  it('routes from customer handoff checklist to filtered orders', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('.action-menu-trigger').trigger('click', { clientX: 480, clientY: 240 })
+    await flushPromises()
+    await wrapper.find('[data-testid="customer-handoff-open"]').trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text().includes('订单'))!.trigger('click')
+
+    expect(routerPush).toHaveBeenCalledWith({
+      path: '/admin/orders',
+      query: { user_id: '42' }
+    })
+  })
+
+  it('routes from customer handoff checklist to redeem investigation', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('.action-menu-trigger').trigger('click', { clientX: 480, clientY: 240 })
+    await flushPromises()
+    await wrapper.find('[data-testid="customer-handoff-open"]').trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text().includes('兑换码'))!.trigger('click')
+
+    expect(routerPush).toHaveBeenCalledWith({
+      path: '/admin/redeem',
+      query: { search: 'customer@example.com' }
+    })
+  })
+
+  it('routes from customer handoff checklist to affiliate investigation', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('.action-menu-trigger').trigger('click', { clientX: 480, clientY: 240 })
+    await flushPromises()
+    await wrapper.find('[data-testid="customer-handoff-open"]').trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text().includes('推广记录'))!.trigger('click')
+
+    expect(routerPush).toHaveBeenCalledWith({
+      path: '/admin/affiliates',
+      query: { search: 'customer@example.com' }
+    })
+  })
+
+  it('opens user group permissions from customer handoff checklist', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('.action-menu-trigger').trigger('click', { clientX: 480, clientY: 240 })
+    await flushPromises()
+    await wrapper.find('[data-testid="customer-handoff-open"]').trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text().includes('分组权限'))!.trigger('click')
+
+    expect(wrapper.find('[data-testid="base-dialog"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="allowed-groups-modal"]').text()).toContain('customer@example.com')
+  })
+
+  it('opens user balance history from customer handoff checklist', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('.action-menu-trigger').trigger('click', { clientX: 480, clientY: 240 })
+    await flushPromises()
+    await wrapper.find('[data-testid="customer-handoff-open"]').trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text().includes('余额历史'))!.trigger('click')
+
+    expect(wrapper.find('[data-testid="base-dialog"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="balance-history-modal"]').text()).toContain('customer@example.com')
   })
 
   it('routes from customer handoff checklist to filtered ops request details', async () => {
