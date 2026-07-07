@@ -6,7 +6,8 @@ const { adminAPI, routerPush, showError, showSuccess } = vi.hoisted(() => ({
     users: {
       list: vi.fn(),
       toggleStatus: vi.fn(),
-      delete: vi.fn()
+      delete: vi.fn(),
+      getUserApiKeys: vi.fn()
     },
     userAttributes: {
       listEnabledDefinitions: vi.fn(),
@@ -56,6 +57,47 @@ vi.mock('vue-i18n', async (importOriginal) => {
 })
 
 import UsersView from '../UsersView.vue'
+
+const makeApiKey = (overrides: Record<string, unknown> = {}) => ({
+  id: 100,
+  user_id: 42,
+  key: 'sk-test-secret-value-1234567890',
+  name: 'client-key',
+  group_id: 7,
+  group_ids: [7],
+  allowed_models: [],
+  status: 'active',
+  ip_whitelist: [],
+  ip_blacklist: [],
+  last_used_at: '2026-07-07T10:00:00Z',
+  quota: 0,
+  quota_used: 0,
+  expires_at: null,
+  created_at: '2026-07-01T00:00:00Z',
+  updated_at: '2026-07-01T00:00:00Z',
+  group: {
+    id: 7,
+    name: 'default',
+    platform: 'openai',
+    status: 'active',
+    rate_multiplier: 1,
+    subscription_type: 'standard'
+  },
+  groups: [],
+  rate_limit_5h: 0,
+  rate_limit_1d: 0,
+  rate_limit_7d: 0,
+  usage_5h: 0,
+  usage_1d: 0,
+  usage_7d: 0,
+  window_5h_start: null,
+  window_1d_start: null,
+  window_7d_start: null,
+  reset_5h_at: null,
+  reset_1d_at: null,
+  reset_7d_at: null,
+  ...overrides
+})
 
 function mountView() {
   return mount(UsersView, {
@@ -107,6 +149,13 @@ describe('admin UsersView investigation links', () => {
     adminAPI.userAttributes.getBatchUserAttributes.mockResolvedValue({ attributes: {} })
     adminAPI.dashboard.getBatchUsersUsage.mockResolvedValue({ stats: {} })
     adminAPI.groups.getAll.mockResolvedValue([])
+    adminAPI.users.getUserApiKeys.mockResolvedValue({
+      items: [makeApiKey()],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
     adminAPI.users.list.mockResolvedValue({
       items: [
         {
@@ -171,6 +220,59 @@ describe('admin UsersView investigation links', () => {
     expect(wrapper.find('[data-testid="customer-handoff-usage"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="customer-handoff-api-keys"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="customer-handoff-channel-status"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="customer-handoff-key-readiness"]').text()).toContain('API Key 可用性')
+    expect(wrapper.find('[data-testid="customer-handoff-key-readiness"]').text()).toContain('可交付 1')
+    expect(wrapper.find('[data-testid="customer-handoff-key-readiness"]').text()).toContain('需处理 0')
+  })
+
+  it('shows missing API keys in the customer handoff checklist', async () => {
+    adminAPI.users.getUserApiKeys.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 20,
+      pages: 0
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('.action-menu-trigger').trigger('click', { clientX: 480, clientY: 240 })
+    await flushPromises()
+    await wrapper.find('[data-testid="customer-handoff-open"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="customer-handoff-key-readiness"]').text()).toContain('暂无 API Key')
+  })
+
+  it('surfaces blocked API keys in the customer handoff checklist', async () => {
+    adminAPI.users.getUserApiKeys.mockResolvedValue({
+      items: [
+        makeApiKey({
+          status: 'quota_exhausted',
+          quota: 10,
+          quota_used: 10,
+          last_used_at: null
+        })
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('.action-menu-trigger').trigger('click', { clientX: 480, clientY: 240 })
+    await flushPromises()
+    await wrapper.find('[data-testid="customer-handoff-open"]').trigger('click')
+    await flushPromises()
+
+    const summary = wrapper.find('[data-testid="customer-handoff-key-readiness"]').text()
+    expect(summary).toContain('需处理 1')
+    expect(summary).toContain('Key 状态为 quota_exhausted')
+    expect(summary).toContain('Key 额度已用完')
   })
 
   it('routes from customer handoff checklist to filtered usage', async () => {
