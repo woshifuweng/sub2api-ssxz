@@ -1,7 +1,7 @@
 <template>
   <AppSectionShell
     title="充值订单"
-    subtitle="查看支付状态、到账额度和订单处理结果。"
+    subtitle="查看订单状态、到账额度和账户处理结果。"
     eyebrow="账户计费"
     icon="creditCard"
   >
@@ -27,7 +27,7 @@
           <div>
             <span>订单数量</span>
             <strong>{{ orderCountText }}</strong>
-            <p>这里会显示充值、套餐和退款相关订单。</p>
+            <p>这里会显示充值、套餐、调整和退款相关记录。</p>
           </div>
         </article>
       </div>
@@ -263,12 +263,12 @@ const purchaseEnabled = computed(() => (
 const balanceText = computed(() => `$${Number(authStore.user?.balance || 0).toFixed(2)}`)
 const orderCountText = computed(() => String(totalOrders.value || orders.value.length))
 const disabledOrdersTitle = computed(() => (
-  purchaseEnabled.value ? '在线订单暂未开启' : '充值暂未开启'
+  purchaseEnabled.value ? '当前账号暂不支持在线创建订单' : '当前账号暂不支持在线充值'
 ))
 const disabledOrdersDescription = computed(() => (
   purchaseEnabled.value
-    ? '当前订单记录暂未接入在线支付，可先查看充值入口或使用已有额度。'
-    : '当前暂未开放在线充值，可先使用已有额度或兑换码。'
+    ? '已有订单和账户变化仍会保留在记录中；如需补充额度，可先查看充值入口。'
+    : '可继续使用已有额度，或通过兑换码补充账户额度；已有订单仍可在这里查看。'
 ))
 const totalPages = computed(() => Math.max(1, Math.ceil(totalOrders.value / pagination.page_size)))
 const statusFilters = [
