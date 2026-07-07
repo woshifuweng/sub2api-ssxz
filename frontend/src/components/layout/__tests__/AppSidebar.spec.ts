@@ -197,6 +197,18 @@ describe('AppSidebar', () => {
     ]))
   })
 
+  it('uses account-oriented labels for recharge and order destinations', () => {
+    authState.isAdmin = false
+
+    const wrapper = mountSidebar()
+    const text = wrapper.text()
+
+    expect(text).toContain('补充额度')
+    expect(text).toContain('账户记录')
+    expect(text).not.toContain('充值')
+    expect(text).not.toContain('订单')
+  })
+
   it('keeps core commercial entries visible for regular users in simple mode', () => {
     authState.isAdmin = false
     authState.isSimpleMode = true
