@@ -116,6 +116,7 @@ func (h *UsageHandler) ListGateway(c gatewayctx.GatewayContext) {
 	}
 
 	model := c.QueryValue("model")
+	requestID := strings.TrimSpace(c.QueryValue("request_id"))
 
 	var requestType *int16
 	var stream *bool
@@ -177,6 +178,7 @@ func (h *UsageHandler) ListGateway(c gatewayctx.GatewayContext) {
 		AccountID:   accountID,
 		GroupID:     groupID,
 		Model:       model,
+		RequestID:   requestID,
 		RequestType: requestType,
 		Stream:      stream,
 		BillingType: billingType,
@@ -244,6 +246,7 @@ func (h *UsageHandler) StatsGateway(c gatewayctx.GatewayContext) {
 	}
 
 	model := c.QueryValue("model")
+	requestID := strings.TrimSpace(c.QueryValue("request_id"))
 
 	var requestType *int16
 	var stream *bool
@@ -319,6 +322,7 @@ func (h *UsageHandler) StatsGateway(c gatewayctx.GatewayContext) {
 		AccountID:   accountID,
 		GroupID:     groupID,
 		Model:       model,
+		RequestID:   requestID,
 		RequestType: requestType,
 		Stream:      stream,
 		BillingType: billingType,

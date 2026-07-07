@@ -139,6 +139,19 @@
           <Select v-model="filters.group_id" :options="groupOptions" searchable @change="emitChange" />
         </div>
 
+        <!-- Request ID Filter -->
+        <div class="w-full sm:w-auto sm:min-w-[260px]">
+          <label class="input-label">{{ t('admin.usage.requestId') }}</label>
+          <input
+            v-model.trim="filters.request_id"
+            type="text"
+            class="input font-mono text-sm"
+            placeholder="request id / req_..."
+            data-test="usage-request-id-filter"
+            @input="emitChange"
+          />
+        </div>
+
       </div>
 
       <!-- Right: actions -->
