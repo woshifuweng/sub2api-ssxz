@@ -51,7 +51,7 @@ These capabilities already exist in the current Sub2API / SSXZ trunk. Do not reb
 
 ### 2026-07-08 P1 Commercial Mainline Update
 
-P1 is roughly 95% complete. The main commercial path is the Sub2API-based private AI relay operations platform: API Key, third-party client handoff, usage, balance, channel status, recharge/orders, redeem, admin support, and provider/account/channel/model/pricing operations. Workbench remains secondary during P1.
+P1 is roughly 96% complete. The main commercial path is the Sub2API-based private AI relay operations platform: API Key, third-party client handoff, usage, balance, channel status, recharge/orders, redeem, admin support, and provider/account/channel/model/pricing operations. Workbench remains secondary during P1.
 
 Recent evidence:
 
@@ -59,6 +59,7 @@ Recent evidence:
 - PR #346 merged the CCS import platform guard so unknown or missing platform keys do not silently default to Claude.
 - PR #347 merged a test-only API Key handoff locale assertion sync.
 - Targeted local tests passed for API Key lifecycle, CCS/third-party guidance, usage, purchase, orders, redeem, admin user handoff, admin usage, admin redeem, admin orders, and backend handler/service/repository commercial paths.
+- Controlled production gateway validation added a low-quota SSXZ customer key for the `gpt测试` group and verified GPT relay through SSXZ for `gpt-5.5` and `gpt-5.4-mini`. The related Gemini-compatible upstream was disabled because that upstream returned quota/high-demand errors; do not recommend Gemini on this path yet.
 
 Remaining P1 work is mostly release/evidence and real customer handoff validation. Do not expand Agent/workflow/Lovart-like/PS-MCP/complex image-design work during P1.
 
@@ -113,8 +114,8 @@ Current judgment: suitable to prepare a controlled whitelist/low-quota paid beta
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Commercial mainline | Mostly ready for controlled beta | The sellable core is API Key, balance/usage, orders/redeem, channel status, and admin support. Workbench is secondary. P1 is roughly 95% complete. |
-| Customer onboarding | Needs real-customer evidence | First customers should receive one low-risk key, connect one client, run one small request, and have usage/balance/admin evidence checked. Existing tests cover the path, but real customer machines may still reveal client-specific friction. |
+| Commercial mainline | Mostly ready for controlled beta | The sellable core is API Key, balance/usage, orders/redeem, channel status, and admin support. Workbench is secondary. P1 is roughly 96% complete. |
+| Customer onboarding | Partial real evidence, still controlled | The production GPT relay path was validated with a low-quota customer key and usage traceability. First customers should still receive one low-risk key, connect one client, run one small request, and have usage/balance/admin evidence checked because real customer machines may reveal client-specific friction. |
 | Payment | Conditional | If online payment is enabled, verify order, callback, balance arrival, and ledger with a small amount. If disabled, route users to redeem/manual credit and avoid fake recharge success. |
 | Billing safety | Stronger than before, still not complete | No-overdraft and estimated-cost gates are deployed for several paths. Full reservation/pre-charge/streaming spend-cap remains later hardening. |
 | Image generation | Beta/internal | Staging evidence exists, but full production creation/storage/billing/history/download acceptance remains separate. |
@@ -135,6 +136,14 @@ Production no-provider validation on 2026-07-08 confirmed:
 - no provider calls and no write operations were performed
 
 This is enough evidence to continue controlled, low-quota customer handoff work. It is not evidence for public paid launch, full image production acceptance, or universal third-party client compatibility.
+
+Additional controlled GPT handoff evidence on 2026-07-08:
+
+- production upstream URL allowlist was updated to include `dev.nextopenai.com` and `sub2api` was restarted; this was an operations config change, not a code deployment, database change, payment change, provider-routing code change, or Nginx change
+- a NextOpenAI-compatible GPT upstream account was added for the `gpt测试` group
+- a low-quota customer API Key was created for controlled testing
+- `gpt-5.5` and `gpt-5.4-mini` returned HTTP 200 through the SSXZ production gateway, and usage was traceable to the GPT upstream account
+- a Gemini-compatible upstream was evaluated but disabled after upstream quota/high-demand failures, so Gemini should not be promised on this customer path yet
 
 ## Staging P0 Validation Recorded On 2026-06-20
 
