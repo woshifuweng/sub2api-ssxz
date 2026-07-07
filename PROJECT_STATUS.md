@@ -51,17 +51,19 @@ These capabilities already exist in the current Sub2API / SSXZ trunk. Do not reb
 
 ### 2026-07-08 P1 Commercial Mainline Update
 
-P1 is roughly 96% complete. The main commercial path is the Sub2API-based private AI relay operations platform: API Key, third-party client handoff, usage, balance, channel status, recharge/orders, redeem, admin support, and provider/account/channel/model/pricing operations. Workbench remains secondary during P1.
+P1 is roughly 96-97% complete. The main commercial path is the Sub2API-based private AI relay operations platform: API Key, third-party client handoff, usage, balance, channel status, recharge/orders, redeem, admin support, and provider/account/channel/model/pricing operations. Workbench remains secondary during P1.
 
 Recent evidence:
 
 - Production was previously deployed to main `26639dbe` with user workspace, API Key, usage, channel status, purchase/order/redeem/profile, and admin smoke checks passing.
 - PR #346 merged the CCS import platform guard so unknown or missing platform keys do not silently default to Claude.
 - PR #347 merged a test-only API Key handoff locale assertion sync.
+- PR #354 through PR #356 aligned account menu, dashboard, purchase/order, account-balance, and third-party handoff wording around the current commercial mainline.
+- Main `798412473` was deployed to staging and production on 2026-07-08. Production and staging both run SHA-256 `b1593aa8a6aa4da584690a1dee44bb63a0225c682336c7bc9cc6bf1b1f49429c`. Production HTTPS smoke passed for `/home`, `/login`, `/register`, `/app/dashboard`, `/app/keys`, `/app/usage`, `/app/channel-status`, `/app/purchase`, `/app/orders`, `/app/redeem`, `/app/profile`, `/app/chat`, `/app/image`, and `/api/v1/settings/public`; `/v1/models` without a key returned HTTP 401.
 - Targeted local tests passed for API Key lifecycle, CCS/third-party guidance, usage, purchase, orders, redeem, admin user handoff, admin usage, admin redeem, admin orders, and backend handler/service/repository commercial paths.
 - Controlled production gateway validation added a low-quota SSXZ customer key for the `gpt测试` group and verified GPT relay through SSXZ for `gpt-5.5` and `gpt-5.4-mini`. The related Gemini-compatible upstream was disabled because that upstream returned quota/high-demand errors; do not recommend Gemini on this path yet.
 
-Remaining P1 work is mostly release/evidence and real customer handoff validation. Do not expand Agent/workflow/Lovart-like/PS-MCP/complex image-design work during P1.
+Remaining P1 work is mostly real customer handoff validation, recharge/order/redeem support evidence, and small onboarding fixes. Do not expand Agent/workflow/Lovart-like/PS-MCP/complex image-design work during P1.
 
 ## User-Side Page State
 
@@ -110,7 +112,7 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 
 ## Minimum Commercial Launch Readiness On 2026-07-08
 
-Current judgment: suitable to prepare a controlled whitelist/low-quota paid beta after a separate production release gate, but not suitable to claim broad public commercial launch.
+Current judgment: suitable to continue a controlled whitelist/low-quota paid beta after the 2026-07-08 production release gate, but not suitable to claim broad public commercial launch.
 
 | Area | Status | Notes |
 | --- | --- | --- |
@@ -374,6 +376,18 @@ Additional controlled GPT handoff evidence on 2026-07-08:
 | Chat workspace gate | Frontend build gate no longer blocks staging chat | Ordinary-user `/app/chat` loaded the workspace with a usable text input, no backend-gate blocking copy, no image-upload file input, no `Gpt-Image-2`, no `AI response provider is not connected yet`, and no browser console error/warning. |
 | Scope | Frontend build/config and regression test release | No database migration, Nginx change, payment file change, provider-routing change, production deployment, or real-provider call was part of the release. |
 | Remaining gate | Production deployment is still separate | This staging release does not mean production is running PR #228. Production deployment should be batched or explicitly selected only after the release gates in `ROADMAP.md` remain satisfied. |
+
+## Staging And Production Release Recorded On 2026-07-08 For Main `798412473` / PR #354-#356
+
+| Area | Result | Evidence |
+| --- | --- | --- |
+| Deployment | Completed on staging and production | Main `798412473` was deployed first to `sub2api-staging.service`, then to `sub2api.service` after CI, security scan, staging smoke, and rollback readiness were confirmed. |
+| Binary | Production and staging aligned | Production `/opt/sub2api/sub2api` and staging `/opt/sub2api/sub2api-staging` both run SHA-256 `b1593aa8a6aa4da584690a1dee44bb63a0225c682336c7bc9cc6bf1b1f49429c`. |
+| Backups | Created before replacement | Staging backup: `/opt/sub2api/backups/staging-before-main-798412473-20260708-070715-sub2api-staging`. Production backup: `/opt/sub2api/backups/production-before-main-798412473-20260708-071029-sub2api`. |
+| Production smoke | Public and user routes responded | HTTPS smoke returned HTTP 200 for `/health`, `/home`, `/login`, `/register`, `/app/dashboard`, `/app/keys`, `/app/usage`, `/app/channel-status`, `/app/purchase`, `/app/orders`, `/app/redeem`, `/app/profile`, `/app/chat`, `/app/image`, and `/api/v1/settings/public`; `/v1/models` without an API key returned HTTP 401. |
+| Runtime health | Services active | `sub2api.service` and `sub2api-staging.service` were active after restart, and recent production journal checks showed no panic/fatal/traceback matches. |
+| Scope | Commercial user-entry and wording release | PR #354 through PR #356 aligned account menu, dashboard, purchase/order, account-balance, and third-party handoff wording. No database migration, Nginx change, payment logic change, provider-routing change, or real-provider call was part of the release. |
+| Remaining gate | Customer handoff validation | This release supports controlled low-quota customer handoff. It does not prove universal third-party client compatibility, public paid launch readiness, or full production image-generation acceptance. |
 
 ## Historical Product Decisions Preserved On 2026-06-18
 

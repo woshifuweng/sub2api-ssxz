@@ -55,6 +55,22 @@ This evidence means the customer handoff shell and support surfaces are reachabl
 | Gemini-compatible upstream | A Gemini-compatible upstream account was added for evaluation but then disabled because the upstream returned quota/high-demand errors (`429` / `503`). Do not expose or recommend Gemini from this source until a stable upstream key is available. |
 | Scope | This proves the controlled GPT relay path can work through SSXZ production. It does not prove universal CC Switch import success, all customer machines, image generation, public paid traffic, or every model/provider variant. |
 
+## Production Release Evidence
+
+2026-07-08 production release for main `798412473`:
+
+| Area | Result |
+| --- | --- |
+| Release scope | PR #354 through PR #356 aligned account menu, dashboard, purchase/order, account-balance, and third-party handoff wording for the commercial mainline. |
+| Runtime binary | Production and staging both run SHA-256 `b1593aa8a6aa4da584690a1dee44bb63a0225c682336c7bc9cc6bf1b1f49429c`. |
+| Backups | Staging backup: `/opt/sub2api/backups/staging-before-main-798412473-20260708-070715-sub2api-staging`. Production backup: `/opt/sub2api/backups/production-before-main-798412473-20260708-071029-sub2api`. |
+| Production smoke | HTTPS smoke returned HTTP 200 for `/health`, `/home`, `/login`, `/register`, `/app/dashboard`, `/app/keys`, `/app/usage`, `/app/channel-status`, `/app/purchase`, `/app/orders`, `/app/redeem`, `/app/profile`, `/app/chat`, `/app/image`, and `/api/v1/settings/public`. |
+| API auth boundary | `/v1/models` without an API key returned HTTP 401. |
+| Runtime health | `sub2api.service` and `sub2api-staging.service` were active after restart; recent production journal checks showed no panic/fatal/traceback matches. |
+| Exclusions | No real provider call, database migration, Nginx change, payment logic change, or provider-routing change was part of this release. |
+
+This release improves customer-facing clarity and route stability for controlled handoff. It is still not evidence for broad public paid launch, universal client compatibility, or production image-generation maturity.
+
 For the next real customer test, recommend only:
 
 - Base URL: `https://api.ssxzapi.com/v1`
