@@ -1080,6 +1080,143 @@ describe('KeysView workbench surface', () => {
     openSpy.mockRestore()
   })
 
+  it('imports Gemini platform keys to CC Switch as Gemini-compatible', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    keysAPI.list.mockResolvedValue({
+      items: [
+        apiKeyFixture({
+          key: 'sk-full-key-value-visible-once-1234',
+          group: { platform: 'gemini', allow_messages_dispatch: false }
+        })
+      ],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const importButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.importToCcSwitch'))
+    expect(importButton).toBeTruthy()
+    await importButton!.trigger('click')
+
+    expect(openSpy).toHaveBeenCalledTimes(1)
+    const deeplink = String(openSpy.mock.calls[0]?.[0])
+    const params = new URLSearchParams(deeplink.split('?')[1])
+    expect(params.get('app')).toBe('gemini')
+    expect(params.get('homepage')).toBe('https://example.test')
+    expect(params.get('endpoint')).toBe('https://example.test')
+
+    openSpy.mockRestore()
+  })
+
+  it('imports Anthropic platform keys to CC Switch as Claude-compatible', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    keysAPI.list.mockResolvedValue({
+      items: [
+        apiKeyFixture({
+          key: 'sk-full-key-value-visible-once-1234',
+          group: { platform: 'anthropic', allow_messages_dispatch: true }
+        })
+      ],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const importButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.importToCcSwitch'))
+    expect(importButton).toBeTruthy()
+    await importButton!.trigger('click')
+
+    expect(openSpy).toHaveBeenCalledTimes(1)
+    const deeplink = String(openSpy.mock.calls[0]?.[0])
+    const params = new URLSearchParams(deeplink.split('?')[1])
+    expect(params.get('app')).toBe('claude')
+    expect(params.get('homepage')).toBe('https://example.test')
+    expect(params.get('endpoint')).toBe('https://example.test')
+
+    openSpy.mockRestore()
+  })
+
+  it('asks which CC Switch client to import Antigravity platform keys into', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    keysAPI.list.mockResolvedValue({
+      items: [
+        apiKeyFixture({
+          key: 'sk-full-key-value-visible-once-1234',
+          group: { platform: 'antigravity', allow_messages_dispatch: false }
+        })
+      ],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const importButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.importToCcSwitch'))
+    expect(importButton).toBeTruthy()
+    await importButton!.trigger('click')
+    await flushPromises()
+
+    expect(openSpy).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('keys.ccsClientSelect.title')
+
+    const claudeButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.ccsClientSelect.claudeCode'))
+    expect(claudeButton).toBeTruthy()
+    await claudeButton!.trigger('click')
+
+    expect(openSpy).toHaveBeenCalledTimes(1)
+    const deeplink = String(openSpy.mock.calls[0]?.[0])
+    const params = new URLSearchParams(deeplink.split('?')[1])
+    expect(params.get('app')).toBe('claude')
+    expect(params.get('endpoint')).toBe('https://example.test/antigravity')
+
+    openSpy.mockRestore()
+  })
+
+  it('does not import mixed-platform keys to CC Switch', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    keysAPI.list.mockResolvedValue({
+      items: [
+        apiKeyFixture({
+          key: 'sk-full-key-value-visible-once-1234',
+          group: { platform: 'openai', allow_messages_dispatch: false },
+          groups: [
+            { id: 1, name: 'openai', platform: 'openai' },
+            { id: 2, name: 'gemini', platform: 'gemini' }
+          ]
+        })
+      ],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const importButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.importToCcSwitch'))
+    expect(importButton).toBeTruthy()
+    await importButton!.trigger('click')
+
+    expect(openSpy).not.toHaveBeenCalled()
+    expect(appStore.showError).toHaveBeenCalledWith('keys.noGroupFound')
+
+    openSpy.mockRestore()
+  })
+
   it('does not default unknown-platform keys to Claude when importing to CC Switch', async () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
     keysAPI.list.mockResolvedValue({
