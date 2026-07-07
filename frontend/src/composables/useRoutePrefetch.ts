@@ -27,11 +27,13 @@ const PREFETCH_ADJACENCY: Record<string, string[]> = {
   '/admin/groups': ['/admin/subscriptions', '/admin/users'],
   '/admin/subscriptions': ['/admin/groups', '/admin/redeem'],
   // User routes
+  '/app/dashboard': ['/app/keys', '/app/usage'],
   '/dashboard': ['/app/keys', '/app/usage'],
-  '/app/keys': ['/dashboard', '/app/usage'],
-  '/app/usage': ['/app/keys', '/redeem'],
+  '/app/keys': ['/app/dashboard', '/app/usage'],
+  '/app/usage': ['/app/keys', '/app/redeem'],
+  '/app/redeem': ['/app/usage', '/app/profile'],
   '/redeem': ['/app/usage', '/app/profile'],
-  '/app/profile': ['/dashboard', '/app/keys']
+  '/app/profile': ['/app/dashboard', '/app/keys']
 }
 
 /**

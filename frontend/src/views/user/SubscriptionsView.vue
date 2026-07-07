@@ -73,7 +73,7 @@
             <Icon name="creditCard" size="sm" class="mr-1.5" />
             购买套餐
           </RouterLink>
-          <RouterLink to="/redeem" class="btn btn-secondary">
+          <RouterLink to="/app/redeem" class="btn btn-secondary">
             <Icon name="gift" size="sm" class="mr-1.5" />
             兑换额度
           </RouterLink>
