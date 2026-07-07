@@ -673,6 +673,43 @@
           </p>
         </section>
 
+        <section
+          data-testid="customer-handoff-key-readiness"
+          class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
+        >
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p class="font-semibold text-gray-900 dark:text-white">API Key 可用性</p>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                只给运营判断交付状态；客户侧只需要拿到可用 Key 和接入方式。
+              </p>
+            </div>
+            <div v-if="customerHandoffKeyReadiness.loading" class="text-xs text-gray-500 dark:text-gray-400">
+              加载中
+            </div>
+            <div v-else class="flex flex-wrap gap-2 text-xs">
+              <span class="rounded-full bg-gray-100 px-2 py-1 text-gray-700 dark:bg-dark-800 dark:text-dark-100">
+                总数 {{ customerHandoffKeyReadiness.total }}
+              </span>
+              <span class="rounded-full bg-green-100 px-2 py-1 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                可交付 {{ customerHandoffKeyReadiness.ready }}
+              </span>
+              <span class="rounded-full bg-red-100 px-2 py-1 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                需处理 {{ customerHandoffKeyReadiness.blocked }}
+              </span>
+              <span class="rounded-full bg-yellow-100 px-2 py-1 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300">
+                需留意 {{ customerHandoffKeyReadiness.warning }}
+              </span>
+            </div>
+          </div>
+          <p v-if="!customerHandoffKeyReadiness.loading && customerHandoffKeyReadiness.total === 0" class="mt-3 text-sm text-red-600 dark:text-red-300">
+            暂无 API Key，先创建低额度测试 Key。
+          </p>
+          <ul v-else-if="customerHandoffKeyReadiness.notes.length > 0" class="mt-3 space-y-1 text-xs text-gray-600 dark:text-gray-300">
+            <li v-for="note in customerHandoffKeyReadiness.notes" :key="note">• {{ note }}</li>
+          </ul>
+        </section>
+
         <section class="grid gap-3 lg:grid-cols-2">
           <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
             <p class="font-semibold text-gray-900 dark:text-white">交付前按这个顺序看</p>
@@ -751,7 +788,7 @@ import Icon from '@/components/icons/Icon.vue'
 const { t } = useI18n()
 const router = useRouter()
 import { adminAPI } from '@/api/admin'
-import type { AdminUser, AdminGroup, UserAttributeDefinition } from '@/types'
+import type { AdminUser, AdminGroup, ApiKey, UserAttributeDefinition } from '@/types'
 import type { BatchUserUsageStats } from '@/api/admin/dashboard'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -1044,6 +1081,27 @@ const getAttributeDefinition = (attrId: number): UserAttributeDefinition | undef
   return attributeDefinitions.value.find(d => d.id === attrId)
 }
 const usageStats = ref<Record<string, BatchUserUsageStats>>({})
+type CustomerHandoffKeyReadiness = {
+  loading: boolean
+  total: number
+  ready: number
+  warning: number
+  blocked: number
+  notes: string[]
+}
+
+const createEmptyCustomerHandoffKeyReadiness = (): CustomerHandoffKeyReadiness => ({
+  loading: false,
+  total: 0,
+  ready: 0,
+  warning: 0,
+  blocked: 0,
+  notes: []
+})
+
+const customerHandoffKeyReadiness = ref<CustomerHandoffKeyReadiness>(
+  createEmptyCustomerHandoffKeyReadiness()
+)
 // User attribute definitions and values
 const attributeDefinitions = ref<UserAttributeDefinition[]>([])
 const userAttributeValues = ref<Record<number, Record<number, string>>>({})
@@ -1450,16 +1508,103 @@ const loadCustomerHandoffUsage = async (user: AdminUser) => {
   }
 }
 
+const hasCustomerHandoffKeyGroup = (key: ApiKey) =>
+  Boolean(
+    key.group_id ||
+    (key.group_ids && key.group_ids.length > 0) ||
+    (key.groups && key.groups.length > 0)
+  )
+
+const isCustomerHandoffKeyExpired = (value: string | null) =>
+  Boolean(value && new Date(value).getTime() <= Date.now())
+
+const isCustomerHandoffKeyExpiringSoon = (value: string | null) => {
+  if (!value) return false
+  const expiresAt = new Date(value).getTime()
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
+  return expiresAt > Date.now() && expiresAt - Date.now() <= sevenDaysMs
+}
+
+const customerHandoffRateWindows = (key: ApiKey) => [
+  { label: '5小时', limit: key.rate_limit_5h, usage: key.usage_5h },
+  { label: '1天', limit: key.rate_limit_1d, usage: key.usage_1d },
+  { label: '7天', limit: key.rate_limit_7d, usage: key.usage_7d }
+]
+
+const classifyCustomerHandoffKey = (user: AdminUser, key: ApiKey) => {
+  const blockers: string[] = []
+  const warnings: string[] = []
+
+  if (user.balance <= 0) blockers.push('账户余额不足')
+  if (key.status !== 'active') blockers.push(`Key 状态为 ${key.status}`)
+  if (!hasCustomerHandoffKeyGroup(key)) blockers.push('Key 未绑定分组')
+  if (isCustomerHandoffKeyExpired(key.expires_at)) blockers.push('Key 已过期')
+  if (key.quota > 0 && key.quota_used >= key.quota) blockers.push('Key 额度已用完')
+
+  const exhaustedWindows = customerHandoffRateWindows(key).filter((window) => window.limit > 0 && window.usage >= window.limit)
+  if (exhaustedWindows.length > 0) {
+    blockers.push(`${exhaustedWindows.map((window) => window.label).join('、')}限额已用完`)
+  }
+
+  if (isCustomerHandoffKeyExpiringSoon(key.expires_at)) warnings.push('Key 即将过期')
+  if (key.quota > 0 && key.quota_used >= key.quota * 0.8 && key.quota_used < key.quota) warnings.push('Key 额度接近上限')
+
+  const nearWindows = customerHandoffRateWindows(key).filter((window) => window.limit > 0 && window.usage >= window.limit * 0.8 && window.usage < window.limit)
+  if (nearWindows.length > 0) {
+    warnings.push(`${nearWindows.map((window) => window.label).join('、')}限额接近上限`)
+  }
+  if (key.allowed_models?.length) warnings.push('Key 有模型限制')
+  if ((key.ip_whitelist?.length || 0) > 0 || (key.ip_blacklist?.length || 0) > 0) warnings.push('Key 有 IP 限制')
+  if (!key.last_used_at) warnings.push('暂无调用记录')
+
+  if (blockers.length > 0) return { level: 'blocked' as const, notes: [...blockers, ...warnings] }
+  if (warnings.length > 0) return { level: 'warning' as const, notes: warnings }
+  return { level: 'ready' as const, notes: ['状态、余额、分组、额度看起来可交付'] }
+}
+
+const loadCustomerHandoffKeyReadiness = async (user: AdminUser) => {
+  customerHandoffKeyReadiness.value = {
+    ...createEmptyCustomerHandoffKeyReadiness(),
+    loading: true
+  }
+  try {
+    const response = await adminAPI.users.getUserApiKeys(user.id)
+    const keys = response.items || []
+    const summary = createEmptyCustomerHandoffKeyReadiness()
+    summary.total = keys.length
+
+    const notes = new Set<string>()
+    for (const key of keys) {
+      const result = classifyCustomerHandoffKey(user, key)
+      summary[result.level] += 1
+      for (const note of result.notes.slice(0, 2)) {
+        notes.add(note)
+      }
+    }
+
+    summary.notes = [...notes].slice(0, 5)
+    customerHandoffKeyReadiness.value = summary
+  } catch (e) {
+    console.error('Failed to load customer handoff key readiness:', e)
+    customerHandoffKeyReadiness.value = {
+      ...createEmptyCustomerHandoffKeyReadiness(),
+      notes: ['Key 摘要加载失败，点 API Key 入口查看']
+    }
+  }
+}
+
 const handleCustomerHandoff = (user: AdminUser) => {
   customerHandoffUser.value = user
   showCustomerHandoffModal.value = true
   void loadAllGroups()
   void loadCustomerHandoffUsage(user)
+  void loadCustomerHandoffKeyReadiness(user)
 }
 
 const closeCustomerHandoff = () => {
   showCustomerHandoffModal.value = false
   customerHandoffUser.value = null
+  customerHandoffKeyReadiness.value = createEmptyCustomerHandoffKeyReadiness()
 }
 
 const withCustomerHandoffUser = (action: (user: AdminUser) => void) => {
