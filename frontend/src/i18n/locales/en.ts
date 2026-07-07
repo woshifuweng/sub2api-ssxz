@@ -560,17 +560,17 @@ export default {
     description: 'Create your own API Key for CC Switch, Cherry Studio, Chatbox, and other third-party clients.',
     clientAccessTitle: 'Third-party client access',
     clientAccessDescription:
-      'Power users can create and manage API Keys here, then copy the Base URL into CC Switch, Cherry Studio, Chatbox, and other clients. Save the full key when it is created; the list only shows masked values later.',
-    clientReadinessHint: 'Before connecting, choose an available access scope, keep enough account balance, and select a currently open model in the client.',
-    clientTroubleshootingHint: 'If you are unsure which model to use, check available models first; if calls are slow or fail, check service status.',
+      'Create an API Key here, then copy the Base URL into Cherry Studio, Chatbox, CC Switch, and other clients. Save the full key when it is created; the list only shows masked values later.',
+    clientReadinessHint: 'Client setup only needs the Base URL, API Key, and an available model name; the Base URL always uses this site with /v1.',
+    clientTroubleshootingHint: 'If you are unsure which model to use, check available models first; if calls are slow or fail, check service status or switch to another open model.',
     viewAvailableModels: 'View available models',
     viewServiceStatus: 'View service status',
     workbenchGuide: {
       ariaLabel: 'Third-party client access guide',
-      eyebrow: 'Power user access',
+      eyebrow: 'Client access',
       title: 'Connect SSXZ AI to your preferred clients',
       description:
-        'Use API Keys with CC Switch, Cherry Studio, Chatbox, and other third-party clients. Save the full key when it is created; the list only shows masked values later.',
+        'Use API Keys with Cherry Studio, Chatbox, CC Switch, and other third-party clients. Save the full key when it is created; the list only shows masked values later.',
       baseUrlLabel: 'Base URL',
       copyBaseUrl: 'Copy Base URL',
       baseUrlCopied: 'Base URL copied',
@@ -581,13 +581,13 @@ export default {
       stepCopyDescription: 'The Base URL is this site origin plus /v1. Use the full key saved when it was created.',
       stepConfigureTitle: 'Choose OpenAI-compatible in the client',
       stepConfigureDescription:
-        'Enter the Base URL and API Key in CC Switch, Cherry Studio, Chatbox, or another compatible client, then select an available model.',
+        'Enter the Base URL and API Key in Cherry Studio, Chatbox, CC Switch, or another compatible client, then select an available model.',
       ccsImportNote:
         'One-click CC Switch import is enabled only while the full key is available. Older keys in the list are masked; create a new API Key if you did not save the full key.',
       clientsAriaLabel: 'Supported client examples',
-      ccSwitch: 'Enter the Base URL and API Key, then switch models from the client.',
+      ccSwitch: 'Enter the Base URL and API Key, then choose an available model.',
       cherryStudio: 'Choose OpenAI-compatible configuration in the provider settings.',
-      chatbox: 'For power users who want to continue chats or call image APIs outside the site.',
+      chatbox: 'For continuing chats or calling enabled APIs outside the site.',
     },
     createdKeyReveal: {
       title: 'Save the full API Key',
