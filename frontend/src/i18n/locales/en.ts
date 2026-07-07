@@ -560,9 +560,9 @@ export default {
     description: 'Create your own API Key for CC Switch, Cherry Studio, Chatbox, and other third-party clients.',
     clientAccessTitle: 'Third-party client access',
     clientAccessDescription:
-      'Create an API Key here, then copy the Base URL into Cherry Studio, Chatbox, CC Switch, and other clients. Save the full key when it is created; the list only shows masked values later.',
-    clientReadinessHint: 'Client setup only needs the Base URL, API Key, and an available model name; the Base URL always uses this site with /v1.',
-    clientTroubleshootingHint: 'If you are unsure which model to use, check available models first; if calls are slow or fail, check service status or switch to another open model.',
+      'For customer testing, provide only three items: Base URL, full API Key, and the recommended model. Save the full key when it is created; the list only shows masked values later.',
+    clientReadinessHint: 'Start with gpt-5.5; if unavailable, switch to gpt-5.4-mini. Available models follow this key group and admin model configuration.',
+    clientTroubleshootingHint: 'For 401, check the key first; 403 usually means quota, permission, or model availability; 503 usually means the service is busy, so retry later or switch recommended models.',
     viewAvailableModels: 'View available models',
     viewServiceStatus: 'View service status',
     workbenchGuide: {
@@ -570,7 +570,7 @@ export default {
       eyebrow: 'Client access',
       title: 'Connect SSXZ AI to your preferred clients',
       description:
-        'Use API Keys with Cherry Studio, Chatbox, CC Switch, and other third-party clients. Save the full key when it is created; the list only shows masked values later.',
+        'Use API Keys with Cherry Studio, Chatbox, CC Switch, and other third-party clients. For customer testing, provide the Base URL, full key, and recommended model first.',
       baseUrlLabel: 'Base URL',
       copyBaseUrl: 'Copy Base URL',
       baseUrlCopied: 'Base URL copied',
@@ -581,11 +581,11 @@ export default {
       stepCopyDescription: 'The Base URL is this site origin plus /v1. Use the full key saved when it was created.',
       stepConfigureTitle: 'Choose OpenAI-compatible in the client',
       stepConfigureDescription:
-        'Enter the Base URL and API Key in Cherry Studio, Chatbox, CC Switch, or another compatible client, then select an available model.',
+        'Enter the Base URL and API Key in Cherry Studio, Chatbox, CC Switch, or another compatible client, then choose gpt-5.5 or another model available to the key.',
       ccsImportNote:
         'One-click CC Switch import is enabled only while the full key is available. Older keys in the list are masked; create a new API Key if you did not save the full key.',
       clientsAriaLabel: 'Supported client examples',
-      ccSwitch: 'Enter the Base URL and API Key, then choose an available model.',
+      ccSwitch: 'Enter the Base URL and API Key, then try gpt-5.5 first; use gpt-5.4-mini when a faster fallback is needed.',
       cherryStudio: 'Choose OpenAI-compatible configuration in the provider settings.',
       chatbox: 'For continuing chats or calling enabled APIs outside the site.',
     },
@@ -604,9 +604,9 @@ export default {
       primaryActionHint:
         'Import to CCS or copy the full key before closing. The full key is not shown again.',
       modelLabel: 'Model',
-      modelHint: 'Available models follow this key group and the admin model configuration.',
+      modelHint: 'Start with gpt-5.5, then use gpt-5.4-mini as fallback; available models follow this key group and admin model configuration.',
       readinessHint:
-        'If the client reports insufficient balance, unavailable model, or temporary service pressure, try another open model, check balance, or retry later.',
+        'If the client reports insufficient balance, unavailable model, or temporary service pressure, switch to a recommended model or retry later; complex tasks may take longer to start.',
       acknowledge: 'I saved it',
     },
     searchPlaceholder: 'Search name...',
@@ -705,20 +705,20 @@ export default {
         description:
           'Add an OpenAI-compatible or custom OpenAI service in your client, then fill in the connection fields below. Do not change advanced settings unless you know the client requires it.',
         quickStartTitle: 'Fill these first',
-        quickStartDescription: 'Most clients only need these four items. If the client offers both a homepage and an API request URL, use this site domain for homepage and the Base URL here for API requests.',
+        quickStartDescription: 'Most clients only need these items. If the client offers both a homepage and an API request URL, use this site domain for homepage and the Base URL here for API requests.',
         quickStartBaseUrl: 'Base URL',
         quickStartApiKey: 'API Key',
         quickStartApiKeyHint: 'Use the full key shown once after creation. Masked values from the list cannot connect.',
         quickStartModel: 'Model',
-        quickStartModelHint: 'Use the client dropdown, or refresh the model list. Available models follow your account package.',
+        quickStartModelHint: 'For customer testing, start with gpt-5.5; if unavailable, switch to gpt-5.4-mini. Available models follow this key group and admin model configuration.',
         quickStartSpeed: 'Want faster replies',
-        quickStartSpeedHint: 'Choose a lightweight model, lower reasoning effort, or reduce one-shot input size.',
+        quickStartSpeedHint: 'Choose a lightweight model, lower reasoning effort, or reduce one-shot input size. Web search, long context, and complex tasks take longer.',
         ccSwitchQuickTitle: 'CC Switch setup',
-        ccSwitchQuickDescription: 'Use this when connecting Codex through CC Switch.',
+        ccSwitchQuickDescription: 'Prefer one-click import for CC Switch. If the customer client version is incompatible, fill these fields manually.',
         ccSwitchQuickOfficialSite: 'Homepage / official link: enter this site domain, without /v1.',
         ccSwitchQuickRequestUrl: 'API request URL: enter the Base URL above, including /v1.',
         ccSwitchQuickApiKey: 'API Key: paste the full sk-... key.',
-        ccSwitchQuickModel: 'Model: choose GPT-5.5, GPT-5.4, or GPT-5.4-Mini from the available list.',
+        ccSwitchQuickModel: 'Model: choose gpt-5.5 first. If unavailable, use gpt-5.4-mini or another available model in the current list.',
         ccSwitchQuickRestart: 'After saving changes, fully quit CC Switch and Codex, then reopen them.',
         ccSwitchHomepageLabel: 'Homepage',
         ccSwitchRequestUrlLabel: 'API request URL',
@@ -737,18 +737,18 @@ export default {
         connectionChecklistBaseUrl: 'Base URL must be this site plus /v1, not another service address.',
         connectionChecklistEndpoint: 'If a client asks for both homepage and API request URL, homepage is this site domain, while API request URL must be the Base URL above.',
         connectionChecklistFullKey: 'API Key must be the full value saved from the creation dialog; the masked list value cannot connect.',
-        connectionChecklistModels: 'If the client model list is empty, refresh the client model list or open /v1/models to check available models.',
-        connectionChecklistBalance: 'If requests fail, check key status, account balance, quota, and usage records.',
+        connectionChecklistModels: 'If the client model list is empty, refresh the client model list or open /v1/models to check models available to this key.',
+        connectionChecklistBalance: 'If requests fail, check key status, account balance, quota, model group, and usage records.',
         connectionChecklistRestart: 'After changing CC Switch / Codex configuration, fully quit and reopen the client. A page refresh may still use old config.',
         troubleshootingTitle: 'Common error checks',
         troubleshooting401:
-          '401 usually means the API Key is wrong, incomplete, pasted from a masked value, or placed in the wrong field.',
+          '401 usually means the API Key is wrong, incomplete, pasted from a masked value, or placed in the wrong field. Copy the full key again and retry.',
         troubleshooting403:
-          '403 usually means the account balance, quota, key status, or selected model is not currently available.',
+          '403 usually means the balance, quota, key status, group permission, or selected model is not currently available. Switch to a recommended model or adjust quota before retrying.',
         troubleshooting429:
           '429 usually means requests are too frequent. Wait a moment, reduce concurrent requests, or choose a lighter model.',
         troubleshooting503:
-          '503 usually means the current line is busy or temporarily unavailable. Retry later, switch to another available model, and fully restart the client after changing settings.',
+          '503 usually means the current line is busy or temporarily unavailable. Retry later or switch to gpt-5.5 / gpt-5.4-mini, and fully restart the client after changing settings.',
         troubleshootingModelsCode: 'No models',
         troubleshootingModels:
           'If the model list is empty, open /v1/models first to check whether this key can return models, then refresh the client model list.',

@@ -10,6 +10,8 @@ describe('API Key third-party access locale copy', () => {
       zh.keys.description,
       zh.keys.clientAccessTitle,
       zh.keys.clientAccessDescription,
+      zh.keys.clientReadinessHint,
+      zh.keys.clientTroubleshootingHint,
       zh.keys.workbenchGuide.title,
       zh.keys.workbenchGuide.description,
       zh.keys.workbenchGuide.stepCreateTitle,
@@ -87,6 +89,8 @@ describe('API Key third-party access locale copy', () => {
       en.keys.description,
       en.keys.clientAccessTitle,
       en.keys.clientAccessDescription,
+      en.keys.clientReadinessHint,
+      en.keys.clientTroubleshootingHint,
       en.keys.workbenchGuide.title,
       en.keys.workbenchGuide.description,
       en.keys.workbenchGuide.stepCreateTitle,
@@ -157,6 +161,68 @@ describe('API Key third-party access locale copy', () => {
     expect(copy).toContain('x-api-key')
     expect(copy).toContain('query keys')
     expect(copy).not.toContain('Developer API Platform')
+  })
+
+  it('keeps customer test setup concise and model availability scoped to key configuration', () => {
+    const zhCopy = [
+      zh.keys.clientAccessDescription,
+      zh.keys.clientReadinessHint,
+      zh.keys.clientTroubleshootingHint,
+      zh.keys.workbenchGuide.stepConfigureDescription,
+      zh.keys.workbenchGuide.ccSwitch,
+      zh.keys.createdKeyReveal.modelHint,
+      zh.keys.createdKeyReveal.readinessHint,
+      zh.keys.useKeyModal.thirdParty.quickStartModelHint,
+      zh.keys.useKeyModal.thirdParty.quickStartSpeedHint,
+      zh.keys.useKeyModal.thirdParty.ccSwitchQuickDescription,
+      zh.keys.useKeyModal.thirdParty.ccSwitchQuickModel,
+      zh.keys.useKeyModal.thirdParty.connectionChecklistModels,
+      zh.keys.useKeyModal.thirdParty.connectionChecklistBalance,
+      zh.keys.useKeyModal.thirdParty.troubleshooting401,
+      zh.keys.useKeyModal.thirdParty.troubleshooting403,
+      zh.keys.useKeyModal.thirdParty.troubleshooting503
+    ].join(' ')
+
+    expect(zhCopy).toContain('Base URL')
+    expect(zhCopy).toContain('完整 API Key')
+    expect(zhCopy).toContain('gpt-5.5')
+    expect(zhCopy).toContain('gpt-5.4-mini')
+    expect(zhCopy).toContain('当前 Key 所属分组')
+    expect(zhCopy).toContain('后台配置')
+    expect(zhCopy).toContain('401')
+    expect(zhCopy).toContain('403')
+    expect(zhCopy).toContain('503')
+    expect(zhCopy).not.toContain('Gemini/Claude/OpenAI 全部稳定')
+
+    const enCopy = [
+      en.keys.clientAccessDescription,
+      en.keys.clientReadinessHint,
+      en.keys.clientTroubleshootingHint,
+      en.keys.workbenchGuide.stepConfigureDescription,
+      en.keys.workbenchGuide.ccSwitch,
+      en.keys.createdKeyReveal.modelHint,
+      en.keys.createdKeyReveal.readinessHint,
+      en.keys.useKeyModal.thirdParty.quickStartModelHint,
+      en.keys.useKeyModal.thirdParty.quickStartSpeedHint,
+      en.keys.useKeyModal.thirdParty.ccSwitchQuickDescription,
+      en.keys.useKeyModal.thirdParty.ccSwitchQuickModel,
+      en.keys.useKeyModal.thirdParty.connectionChecklistModels,
+      en.keys.useKeyModal.thirdParty.connectionChecklistBalance,
+      en.keys.useKeyModal.thirdParty.troubleshooting401,
+      en.keys.useKeyModal.thirdParty.troubleshooting403,
+      en.keys.useKeyModal.thirdParty.troubleshooting503
+    ].join(' ')
+
+    expect(enCopy).toContain('Base URL')
+    expect(enCopy).toContain('full API Key')
+    expect(enCopy).toContain('gpt-5.5')
+    expect(enCopy).toContain('gpt-5.4-mini')
+    expect(enCopy).toContain('key group')
+    expect(enCopy).toContain('admin model configuration')
+    expect(enCopy).toContain('401')
+    expect(enCopy).toContain('403')
+    expect(enCopy).toContain('503')
+    expect(enCopy).not.toContain('Gemini/Claude/OpenAI are all stable')
   })
 
   it('explains API Key quota resets without implying billing or balance changes', () => {
