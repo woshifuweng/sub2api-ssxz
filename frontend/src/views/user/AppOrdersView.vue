@@ -1,7 +1,7 @@
 <template>
   <AppSectionShell
     title="账户记录"
-    subtitle="查看充值、兑换、到账额度和账户处理结果。"
+    subtitle="查看额度变动、兑换记录、订单状态和账户处理结果。"
     eyebrow="账户计费"
     icon="creditCard"
   >
@@ -27,7 +27,7 @@
           <div>
             <span>记录数量</span>
             <strong>{{ orderCountText }}</strong>
-            <p>这里会显示充值、套餐、兑换、调整和退款相关记录。</p>
+            <p>这里会显示充值、兑换、订单、账户调整和退款相关记录。</p>
           </div>
         </article>
       </div>
@@ -36,7 +36,7 @@
         <header class="panel-heading">
           <div>
             <h3>记录明细</h3>
-            <p>查看金额、方式和当前状态。</p>
+            <p>查看金额、来源和当前状态。</p>
           </div>
           <div class="orders-toolbar">
             <label class="status-filter-label" for="app-order-status-filter">状态</label>
@@ -75,13 +75,13 @@
         <div v-else-if="loadError" class="orders-empty compact">
           <Icon name="exclamationTriangle" size="md" />
           <strong>{{ loadError }}</strong>
-          <span>订单状态正在更新，请稍后刷新。如果刚完成支付，到账可能需要一点时间。</span>
+          <span>账户记录正在更新，请稍后刷新。如果刚完成支付，到账可能需要一点时间。</span>
         </div>
 
         <div v-else-if="orders.length === 0" class="orders-empty compact">
           <Icon name="inbox" size="md" />
           <strong>暂无账户记录</strong>
-          <span>完成充值、兑换或购买套餐后，记录会显示在这里。</span>
+          <span>完成充值、兑换或额度调整后，记录会显示在这里。</span>
           <div class="empty-actions">
             <RouterLink v-if="purchaseEnabled" to="/app/purchase" class="empty-action">补充额度</RouterLink>
             <RouterLink to="/app/redeem" class="empty-action secondary">使用兑换码</RouterLink>
@@ -263,12 +263,12 @@ const purchaseEnabled = computed(() => (
 const balanceText = computed(() => `$${Number(authStore.user?.balance || 0).toFixed(2)}`)
 const orderCountText = computed(() => String(totalOrders.value || orders.value.length))
 const disabledOrdersTitle = computed(() => (
-  purchaseEnabled.value ? '当前账号可查看已有账户记录' : '当前使用兑换码补充额度'
+  purchaseEnabled.value ? '当前账号可查看已有账户记录' : '当前可用方式：兑换码'
 ))
 const disabledOrdersDescription = computed(() => (
   purchaseEnabled.value
-    ? '已有订单和账户变化会保留在记录中；如需补充额度，可先查看可用方式。'
-    : '可继续使用已有额度，或通过兑换码补充账户额度；已有记录仍可在这里查看。'
+    ? '已有订单和账户变化会保留在账户记录中；如需补充额度，可先查看可用方式。'
+    : '可继续使用已有额度，或通过兑换码补充账户额度；已有账户记录仍可在这里查看。'
 ))
 const totalPages = computed(() => Math.max(1, Math.ceil(totalOrders.value / pagination.page_size)))
 const statusFilters = [

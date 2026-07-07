@@ -82,8 +82,8 @@ describe('AppPurchaseView', () => {
     const wrapper = mountView()
     const text = wrapper.text()
 
-    expect(text).toContain('充值')
-    expect(text).toContain('到账结果以账户记录为准')
+    expect(text).toContain('补充额度')
+    expect(text).toContain('账户变化以账户记录为准')
     expect(text).not.toContain('新版工作台')
     expect(text).not.toContain('支付链路')
     expect(text).not.toContain('账务逻辑')
@@ -98,9 +98,9 @@ describe('AppPurchaseView', () => {
     const wrapper = mountView()
     const text = wrapper.text()
 
-    expect(text).toContain('当前使用兑换码补充额度')
-    expect(text).toContain('已有充值、兑换和账户调整记录')
-    expect(text).toContain('使用兑换码')
+    expect(text).toContain('当前可用方式：兑换码')
+    expect(text).toContain('充值、兑换和账户调整记录可在账户记录查看')
+    expect(text).toContain('去兑换额度')
     expect(text).toContain('查看账户记录')
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
     expect(hrefs).toContain('/app/redeem')
