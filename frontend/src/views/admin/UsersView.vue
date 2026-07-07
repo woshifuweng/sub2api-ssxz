@@ -721,6 +721,9 @@
             <button data-testid="customer-handoff-channel-status" type="button" class="btn btn-secondary justify-center" @click="openCustomerHandoffChannelStatus">
               通道监控
             </button>
+            <button data-testid="customer-handoff-request-details" type="button" class="btn btn-secondary justify-center" @click="openCustomerHandoffRequestDetails">
+              最近请求排查
+            </button>
           </div>
         </section>
       </div>
@@ -1477,6 +1480,16 @@ const openCustomerHandoffChannelStatus = () => {
   closeCustomerHandoff()
   void router.push({ path: '/admin/channels/monitor' })
 }
+const openCustomerHandoffRequestDetails = () => withCustomerHandoffUser((user) => {
+  void router.push({
+    path: '/admin/ops',
+    query: {
+      tr: '24h',
+      open_request_details: '1',
+      user_id: String(user.id)
+    }
+  })
+})
 
 const formatCustomerHandoffUsage = (user: AdminUser) => {
   const stats = usageStats.value[user.id]

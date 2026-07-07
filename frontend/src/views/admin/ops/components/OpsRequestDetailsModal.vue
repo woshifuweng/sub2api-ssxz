@@ -12,6 +12,9 @@ export interface OpsRequestDetailsPreset {
   title: string
   kind?: OpsRequestDetailsParams['kind']
   sort?: OpsRequestDetailsParams['sort']
+  user_id?: number
+  api_key_id?: number
+  request_id?: string
   min_duration_ms?: number
   max_duration_ms?: number
 }
@@ -85,6 +88,11 @@ const fetchData = async () => {
 
     if (typeof props.preset.min_duration_ms === 'number') params.min_duration_ms = props.preset.min_duration_ms
     if (typeof props.preset.max_duration_ms === 'number') params.max_duration_ms = props.preset.max_duration_ms
+    if (typeof props.preset.user_id === 'number' && props.preset.user_id > 0) params.user_id = props.preset.user_id
+    if (typeof props.preset.api_key_id === 'number' && props.preset.api_key_id > 0) params.api_key_id = props.preset.api_key_id
+
+    const requestId = (props.preset.request_id || '').trim()
+    if (requestId) params.request_id = requestId
 
     const res = await opsAPI.listRequestDetails(params)
     items.value = res.items || []
@@ -107,7 +115,8 @@ watch(
       pageSize.value = 10
       fetchData()
     }
-  }
+  },
+  { immediate: true }
 )
 
 watch(
@@ -117,6 +126,9 @@ watch(
     props.groupId,
     props.preset.kind,
     props.preset.sort,
+    props.preset.user_id,
+    props.preset.api_key_id,
+    props.preset.request_id,
     props.preset.min_duration_ms,
     props.preset.max_duration_ms
   ],
