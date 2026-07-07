@@ -157,7 +157,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Dashboard',
+      title: '仪表盘',
       appSection: 'dashboard',
       titleSiteName: 'SSXZ AI'
     }
@@ -169,7 +169,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-        title: 'Model Test',
+        title: '模型测试入口',
       appSection: 'chat',
       titleSiteName: 'SSXZ AI'
     }
@@ -181,7 +181,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-        title: 'Image Beta',
+        title: '图片内测入口',
       titleSiteName: 'SSXZ AI'
     }
   },
@@ -192,7 +192,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Usage Information',
+      title: '使用记录',
       appSection: 'usage',
       titleSiteName: 'SSXZ AI'
     }
@@ -204,7 +204,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Recharge / Subscription',
+      title: '补充额度',
       appSection: 'purchase',
       titleSiteName: 'SSXZ AI'
     }
@@ -216,7 +216,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Order Records',
+      title: '账户记录',
       appSection: 'orders',
       titleSiteName: 'SSXZ AI'
     }
@@ -228,7 +228,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Redeem Code',
+      title: '兑换码',
       appSection: 'redeem',
       titleSiteName: 'SSXZ AI'
     }
@@ -279,7 +279,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'API Key / Third-party Access',
+      title: 'API Key / 第三方接入',
       appSection: 'keys',
       titleSiteName: 'SSXZ AI'
     }
