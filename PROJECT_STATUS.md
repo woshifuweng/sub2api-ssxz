@@ -1,6 +1,6 @@
 # PROJECT_STATUS
 
-Last updated: 2026-07-05
+Last updated: 2026-07-08
 
 ## Product Positioning
 
@@ -49,6 +49,19 @@ These capabilities already exist in the current Sub2API / SSXZ trunk. Do not reb
 | Channel status | `/app/channel-status`, `/admin/channel-monitor`, `frontend/src/views/user/ChannelStatusView.vue` | Existing monitor view is useful for API clients and support. It should explain availability without promising 100% uptime and should not dominate ordinary-user navigation. |
 | Orders / payment records | `/app/orders`, `/app/purchase`, admin payment/order pages | Online payment may be disabled in production. User copy should route to orders/redeem when payment is off and avoid fake recharge success states. |
 
+### 2026-07-08 P1 Commercial Mainline Update
+
+P1 is roughly 95% complete. The main commercial path is the Sub2API-based private AI relay operations platform: API Key, third-party client handoff, usage, balance, channel status, recharge/orders, redeem, admin support, and provider/account/channel/model/pricing operations. Workbench remains secondary during P1.
+
+Recent evidence:
+
+- Production was previously deployed to main `26639dbe` with user workspace, API Key, usage, channel status, purchase/order/redeem/profile, and admin smoke checks passing.
+- PR #346 merged the CCS import platform guard so unknown or missing platform keys do not silently default to Claude.
+- PR #347 merged a test-only API Key handoff locale assertion sync.
+- Targeted local tests passed for API Key lifecycle, CCS/third-party guidance, usage, purchase, orders, redeem, admin user handoff, admin usage, admin redeem, admin orders, and backend handler/service/repository commercial paths.
+
+Remaining P1 work is mostly release/evidence and real customer handoff validation. Do not expand Agent/workflow/Lovart-like/PS-MCP/complex image-design work during P1.
+
 ## User-Side Page State
 
 | Page / route family | 2026-06-18 status | Notes |
@@ -86,7 +99,7 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | User workspace shell | Partial | `/app/*` exists, but not every user entry stays inside this shell. |
 | AI chat | Connected | `/app/chat` works through workspace logic; old `ChatStudioView` remains a product reference/asset. PR #228 fixed the frontend build-time workspace backend gate and was validated on staging only; production deployment remains a separate release gate. |
 | Image generation | P0/P0-Beta guard deployed; production real generation acceptance still open | `ImageStudioView`, `ImageStudioHandler`, OpenAI-compatible image gateway, and image/Sora-related storage exist. On 2026-06-20 staging verified generation, usage cost, history, and HTTP image download with `gpt-image-2`. On 2026-06-27 PR #184 was deployed to production after explicit approval and verified that ordinary users do not see non-real image-capable models. PR #188 was also deployed to production after explicit approval and clarified OpenAI-compatible image alias labels without enabling production image generation. Production real image generation remains an acceptance gate because these production validations did not call a real provider. |
-| API Key / third-party access | Mostly complete, P1 polish and auth parity staged | Backend and frontend exist. PR #195 improved user-facing Base URL/model guidance, key masking explanation, and one-time full-key display copy. PR #199 added a frontend guard so masked API-key list values are not presented as usable config material. PR #203 aligned Google/Gemini-compatible API-key middleware with ordinary API-key restriction handling for IP restrictions, expired keys, and quota-exhausted keys, and was deployed to staging only. Create/copy/delete/enable/disable behavior and broader API-key lifecycle/security review remain separate verification items. |
+| API Key / third-party access | Mostly complete for controlled P1 customer handoff | Backend and frontend exist. PR #195 improved user-facing Base URL/model guidance, key masking explanation, and one-time full-key display copy. PR #199 added a frontend guard so masked API-key list values are not presented as usable config material. PR #203 aligned Google/Gemini-compatible API-key middleware with ordinary API-key restriction handling for IP restrictions, expired keys, and quota-exhausted keys. PR #346 added the CCS import platform guard. PR #347 kept handoff tests aligned with current copy. Current behavior requires a usable group binding, shows full keys once, keeps masked list keys non-importable, and supports CCS/third-party guidance. Remaining work is real customer handoff validation and small fixes found during onboarding. |
 | Usage center | Backend complete enough, DTO and no-overdraft boundaries verified | Usage APIs and older page exist; `/app/usage` is the desired new user-shell direction. PR #197 clarified user-facing failure/no-charge states. PR #201 reduced the ordinary-user usage DTO, refreshed user balance on `/app/usage`, and passed staging ordinary/admin boundary checks. PR #208 prevents final balance billing from making the user balance negative and keeps insufficient-balance usage-billing attempts from leaving dedup/quota/rate side effects. PR #214 adds estimated-cost pre-provider checks for bounded generic token requests on Claude/Anthropic-compatible gateway paths and Gemini v1beta, and was deployed to production after explicit approval on 2026-06-29. PR #217 covers bounded OpenAI Responses WebSocket token-cost checks. PR #219 adds a low-balance safety-budget gate for token requests without positive output caps. Broader recharge/order/account-balance workflow verification and full reservation/pre-charge spend-cap hardening remain open. |
 | Recharge/payment | Backend/admin rich, user-shell partial | Payment/order/subscription capabilities exist; user shell alignment remains incomplete. |
 | Orders | Existing, user-shell partial | Order pages exist; not yet fully aligned to the new user workspace. |
@@ -94,14 +107,14 @@ Admin pages live under `frontend/src/views/admin` and are routed under `/admin/*
 | Web search | Existing but frozen for main UX | Technical chain exists from prior PRs. Do not surface as ordinary-user main functionality during P0 structure work. |
 | Admin operations | Rich but broad | Strong asset from the Sub2API base. Needs product boundary, not deletion. |
 
-## Minimum Commercial Launch Readiness On 2026-07-06
+## Minimum Commercial Launch Readiness On 2026-07-08
 
 Current judgment: suitable to prepare a controlled whitelist/low-quota paid beta after a separate production release gate, but not suitable to claim broad public commercial launch.
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Commercial mainline | Mostly ready for controlled beta | The sellable core is API Key, balance/usage, orders/redeem, channel status, and admin support. Workbench is secondary. |
-| Customer onboarding | Needs release-gate evidence | First customers should receive one low-risk key, connect one client, run one small request, and have usage/balance/admin evidence checked. |
+| Commercial mainline | Mostly ready for controlled beta | The sellable core is API Key, balance/usage, orders/redeem, channel status, and admin support. Workbench is secondary. P1 is roughly 95% complete. |
+| Customer onboarding | Needs real-customer evidence | First customers should receive one low-risk key, connect one client, run one small request, and have usage/balance/admin evidence checked. Existing tests cover the path, but real customer machines may still reveal client-specific friction. |
 | Payment | Conditional | If online payment is enabled, verify order, callback, balance arrival, and ledger with a small amount. If disabled, route users to redeem/manual credit and avoid fake recharge success. |
 | Billing safety | Stronger than before, still not complete | No-overdraft and estimated-cost gates are deployed for several paths. Full reservation/pre-charge/streaming spend-cap remains later hardening. |
 | Image generation | Beta/internal | Staging evidence exists, but full production creation/storage/billing/history/download acceptance remains separate. |

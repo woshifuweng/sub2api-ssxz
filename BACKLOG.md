@@ -1,6 +1,6 @@
 # BACKLOG
 
-Last updated: 2026-07-06
+Last updated: 2026-07-08
 
 ## Validated On Staging
 
@@ -66,6 +66,8 @@ Last updated: 2026-07-06
 - 2026-06-29: after the #219 production deployment, public smoke returned HTTP 200 for `https://api.ssxzapi.com/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, `/app/profile`, and `/api/v1/settings/public`; `/v1/models` without an API key returned HTTP 401. No real provider was called, no database migration, no Nginx change, no payment file change, no provider-routing change, and no production config change was part of the release. No-cap token requests now get a conservative safety-budget eligibility check before provider dispatch; full reservation/pre-charge spend-cap design remains later hardening.
 - 2026-06-29: PR #228 was merged to main at `87504f2096b0` and deployed to staging only from GHCR image `ghcr.io/woshifuweng/sub2api:87504f2096b0`. Staging `/opt/sub2api/sub2api-staging` runs SHA-256 `5a8da633aa7a165a4dc365370fffa4303ca1ba6087216f0e822948bec6ecd0b3`; production was not deployed.
 - 2026-06-29: after the #228 staging deployment, staging smoke returned HTTP 200 for `/health`, `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/app/profile`; `/v1/models` without an API key returned HTTP 401. Ordinary-user `/app/chat` loaded the real workspace with a usable text input, no backend-gate blocking copy, no image-upload file input, no `Gpt-Image-2`, and no `AI response provider is not connected yet`. No real provider was called, no database migration, no Nginx change, no payment file change, no provider-routing change, and no production config change was part of the release.
+- 2026-07-08: P1 commercial-mainline status is roughly 95%. Production was previously deployed to main `26639dbe` with user workspace, API Key, usage, channel status, purchase/order/redeem/profile, and admin smoke checks passing. PR #346 merged the CCS import platform guard, and PR #347 merged a test-only API Key handoff locale assertion sync.
+- 2026-07-08: local targeted customer-path tests passed for API Key lifecycle, CCS/third-party guidance, usage, purchase, orders, redeem, admin user handoff, admin usage, admin redeem, admin orders, and backend handler/service/repository commercial paths. This is local evidence only; broad paid rollout still needs a separate release and customer handoff gate.
 
 ## P0 Bugs And Structural Fixes
 
@@ -95,8 +97,8 @@ Last updated: 2026-07-06
 ## Phase Progress Snapshot
 
 - P0 / P0-Beta convergence: about 99%. Remaining P0/P0-Beta risk is controlled production image-generation acceptance, full reservation/pre-charge spend-cap hardening, production rollout of staging-only chat gate fixes when batched, and any regression found while doing P1.
-- P1 product/operations: about 83%. Completed or staged slices now include the earlier API Key, usage, billing-safety, image-model clarity, and chat gate work through PR #228, plus PR #314-#321 for admin investigation links, payment-gated dashboard entries, disabled purchase guidance, CCS import safety copy, existing Sub2 capability inventory, sidebar/main-entry cleanup, and dashboard core-entry focus. Remaining P1 loops are mostly real customer-path verification and small fixes around API Key lifecycle, CCS/third-party onboarding, recharge/order/redeem/affiliate clarity, admin support visibility, and staged deployment evidence.
-- Distance to P2: about 17% of P1 remains. Do not prioritize P2 visual polish until the remaining P1 customer/business loops have evidence.
+- P1 product/operations: about 95%. API Key lifecycle, group binding, one-time full-key reveal, masked-key safety, CCS import guard, usage, purchase, orders, redeem, and admin customer-handoff diagnostics now have targeted local coverage. Remaining P1 loops are mostly release/evidence and real customer handoff validation, plus small fixes found during onboarding.
+- Distance to P2: about 5% of P1 remains. Do not prioritize P2 visual polish until customer handoff, recharge/order/redeem, and admin-support evidence are stable enough for controlled low-quota customers.
 - P2: 0%. Keep as later polish/enhancement work.
 
 ## Minimum Commercial Launch Checklist
