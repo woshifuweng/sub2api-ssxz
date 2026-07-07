@@ -42,6 +42,28 @@ Not allowed to promise:
 
 This evidence means the customer handoff shell and support surfaces are reachable. It does not prove every real customer client is configured correctly.
 
+## Production GPT Handoff Evidence
+
+2026-07-08 controlled production gateway validation with a low-quota customer key:
+
+| Area | Result |
+| --- | --- |
+| Production config | `dev.nextopenai.com` was added to the upstream URL allowlist and `sub2api` was restarted. This was an operations config change, not a code deploy, database change, payment change, or Nginx change. |
+| Upstream GPT account | A NextOpenAI-compatible GPT upstream account was added and kept active for the `gpt测试` group. Full upstream keys must not be written into docs or customer copy. |
+| Customer test key | A low-quota SSXZ customer API Key was created for controlled testing, bound to the `gpt测试` group with quota `20`. Docs should refer to the key by id or masked value only. |
+| Validated GPT paths | SSXZ gateway calls returned HTTP 200 for `gpt-5.5` on `/v1/responses`, `gpt-5.5` on `/v1/chat/completions`, and `gpt-5.4-mini` on `/v1/chat/completions`. Usage was traceable to the GPT upstream account. |
+| Gemini-compatible upstream | A Gemini-compatible upstream account was added for evaluation but then disabled because the upstream returned quota/high-demand errors (`429` / `503`). Do not expose or recommend Gemini from this source until a stable upstream key is available. |
+| Scope | This proves the controlled GPT relay path can work through SSXZ production. It does not prove universal CC Switch import success, all customer machines, image generation, public paid traffic, or every model/provider variant. |
+
+For the next real customer test, recommend only:
+
+- Base URL: `https://api.ssxzapi.com/v1`
+- model: `gpt-5.5`
+- fallback model: `gpt-5.4-mini`
+- one small text request first
+
+Do not recommend Gemini for this customer path yet.
+
 ## First Customer Handoff Flow
 
 Use this flow for the first 10-20 customers. Keep it short.
