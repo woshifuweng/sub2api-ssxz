@@ -31,8 +31,10 @@ const createMockRouter = (): Router => {
     { path: '/admin/subscriptions', components: { default: mockImportFn } },
     { path: '/admin/redeem', components: { default: mockImportFn } },
     { path: '/dashboard', components: { default: mockImportFn } },
+    { path: '/app/dashboard', components: { default: mockImportFn } },
     { path: '/app/keys', components: { default: mockImportFn } },
     { path: '/app/usage', components: { default: mockImportFn } },
+    { path: '/app/redeem', components: { default: mockImportFn } },
     { path: '/app/profile', components: { default: mockImportFn } },
     { path: '/keys', components: { default: mockImportFn } },
     { path: '/usage', components: { default: mockImportFn } },
@@ -200,6 +202,7 @@ describe('useRoutePrefetch', () => {
       expect(_userPrefetchMap).toHaveProperty('/dashboard')
       expect(_userPrefetchMap['/dashboard']).toHaveLength(2)
       expect(_userPrefetchMap['/dashboard']).toEqual(['/app/keys', '/app/usage'])
+      expect(_userPrefetchMap['/app/usage']).toEqual(['/app/keys', '/app/redeem'])
     })
   })
 
