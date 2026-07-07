@@ -708,7 +708,8 @@ describe('KeysView workbench surface', () => {
       name: 'client-key',
       key: createdKey,
       group_id: 1,
-      group_ids: [1]
+      group_ids: [1],
+      group: { platform: 'openai', allow_messages_dispatch: false }
     }))
 
     const wrapper = mountView()
@@ -768,7 +769,7 @@ describe('KeysView workbench surface', () => {
     expect(deeplink).toMatch(/^ccswitch:\/\/v1\/import\?/)
     expect(params.get('apiKey')).toBe(createdKey)
     expect(params.get('homepage')).toBe('https://example.test')
-    expect(params.get('endpoint')).toBe('https://example.test')
+    expect(params.get('endpoint')).toBe('https://example.test/v1')
 
     await wrapper.get('[data-testid="created-key-ack"]').trigger('click')
     await flushPromises()
@@ -1042,7 +1043,7 @@ describe('KeysView workbench surface', () => {
     const deeplink = String(openSpy.mock.calls[0]?.[0])
     const params = new URLSearchParams(deeplink.split('?')[1])
     expect(params.get('homepage')).toBe(window.location.origin)
-    expect(params.get('endpoint')).toBe(window.location.origin)
+    expect(params.get('endpoint')).toBe(`${window.location.origin}/v1`)
     expect(deeplink).not.toContain('127.0.0.1')
 
     openSpy.mockRestore()
