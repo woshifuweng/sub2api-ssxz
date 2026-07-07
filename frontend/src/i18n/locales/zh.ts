@@ -560,17 +560,17 @@ export default {
     description: '创建自己的 API Key，用于 CC Switch、Cherry Studio、Chatbox 等第三方客户端。',
     clientAccessTitle: '第三方客户端接入',
     clientAccessDescription:
-      '熟练用户可以在这里创建和管理自己的 API Key，并复制 Base URL 接入 CC Switch、Cherry Studio、Chatbox 等客户端。创建后请及时保存完整 Key，列表中只展示脱敏值。',
-    clientReadinessHint: '接入前请确认已选择可用范围、账户额度充足，并在客户端选择当前开放的模型。',
-    clientTroubleshootingHint: '不确定选哪个模型时，先看可用模型；遇到慢或失败，再看服务状态。',
+      '在这里创建 API Key，并复制 Base URL 接入 Cherry Studio、Chatbox、CC Switch 等客户端。创建后请及时保存完整 Key，列表中只展示脱敏值。',
+    clientReadinessHint: '接入时只需要 Base URL、API Key 和可用模型名称；Base URL 固定使用本站 /v1 地址。',
+    clientTroubleshootingHint: '不确定选哪个模型时，先看可用模型；遇到慢或失败，再看服务状态或换一个开放模型。',
     viewAvailableModels: '查看可用模型',
     viewServiceStatus: '查看服务状态',
     workbenchGuide: {
       ariaLabel: '第三方客户端接入说明',
-      eyebrow: '成熟用户入口',
+      eyebrow: '客户端接入',
       title: '把 SSXZ AI 接到你常用的客户端',
       description:
-        'API Key 用于 CC Switch、Cherry Studio、Chatbox 等第三方客户端。创建后请保存完整 Key，列表里只展示脱敏值。',
+        'API Key 用于 Cherry Studio、Chatbox、CC Switch 等第三方客户端。创建后请保存完整 Key，列表里只展示脱敏值。',
       baseUrlLabel: 'Base URL',
       copyBaseUrl: '复制 Base URL',
       baseUrlCopied: 'Base URL 已复制',
@@ -580,12 +580,12 @@ export default {
       stepCopyTitle: '复制 Base URL 和完整 Key',
       stepCopyDescription: 'Base URL 使用本站地址加 /v1；完整 Key 请使用创建时保存的值。',
       stepConfigureTitle: '在客户端选择 OpenAI-compatible',
-      stepConfigureDescription: '在 CC Switch、Cherry Studio、Chatbox 等客户端填入 Base URL、API Key，再选择可用模型。',
+      stepConfigureDescription: '在 Cherry Studio、Chatbox、CC Switch 等客户端填入 Base URL、API Key，再选择可用模型。',
       ccsImportNote: '一键导入 CC Switch 只在完整 Key 可用时启用。列表中的旧 Key 已脱敏，如果没有保存完整 Key，请新建一个 API Key 后再导入。',
       clientsAriaLabel: '支持的客户端示例',
-      ccSwitch: '填入 Base URL 和 API Key 后切换模型使用。',
+      ccSwitch: '填入 Base URL 和 API Key 后，选择可用模型使用。',
       cherryStudio: '选择 OpenAI-compatible 配置方式接入。',
-      chatbox: '适合熟练用户在站外继续聊天或调用图片接口。'
+      chatbox: '适合在站外继续聊天或调用已开放接口。'
     },
     createdKeyReveal: {
       title: '保存完整 API Key',

@@ -1,7 +1,7 @@
 <template>
   <AppSectionShell
-    title="充值订单"
-    subtitle="查看订单状态、到账额度和账户处理结果。"
+    title="账户记录"
+    subtitle="查看充值、兑换、到账额度和账户处理结果。"
     eyebrow="账户计费"
     icon="creditCard"
   >
@@ -16,7 +16,7 @@
             <strong>{{ balanceText }}</strong>
             <p>余额可用于站内聊天、图片生成和 API Key / 第三方接入调用。</p>
           </div>
-          <RouterLink v-if="purchaseEnabled" to="/app/purchase" class="summary-action">充值</RouterLink>
+          <RouterLink v-if="purchaseEnabled" to="/app/purchase" class="summary-action">补充额度</RouterLink>
           <RouterLink v-else to="/app/redeem" class="summary-action">兑换码</RouterLink>
         </article>
 
@@ -25,9 +25,9 @@
             <Icon name="chartBar" size="sm" />
           </div>
           <div>
-            <span>订单数量</span>
+            <span>记录数量</span>
             <strong>{{ orderCountText }}</strong>
-            <p>这里会显示充值、套餐、调整和退款相关记录。</p>
+            <p>这里会显示充值、套餐、兑换、调整和退款相关记录。</p>
           </div>
         </article>
       </div>
@@ -35,8 +35,8 @@
       <section class="orders-panel">
         <header class="panel-heading">
           <div>
-            <h3>订单明细</h3>
-            <p>查看订单金额、支付方式和当前状态。</p>
+            <h3>记录明细</h3>
+            <p>查看金额、方式和当前状态。</p>
           </div>
           <div class="orders-toolbar">
             <label class="status-filter-label" for="app-order-status-filter">状态</label>
@@ -63,13 +63,13 @@
           <Icon name="creditCard" size="lg" />
           <strong>{{ disabledOrdersTitle }}</strong>
           <span>{{ disabledOrdersDescription }}</span>
-          <RouterLink v-if="purchaseEnabled" to="/app/purchase" class="empty-action">查看充值说明</RouterLink>
+          <RouterLink v-if="purchaseEnabled" to="/app/purchase" class="empty-action">查看补充额度方式</RouterLink>
           <RouterLink v-else to="/app/redeem" class="empty-action">使用兑换码</RouterLink>
         </div>
 
         <div v-if="loading" class="orders-empty compact">
           <Icon name="sync" size="md" />
-          <strong>正在加载订单</strong>
+          <strong>正在加载账户记录</strong>
         </div>
 
         <div v-else-if="loadError" class="orders-empty compact">
@@ -80,10 +80,10 @@
 
         <div v-else-if="orders.length === 0" class="orders-empty compact">
           <Icon name="inbox" size="md" />
-          <strong>暂无订单记录</strong>
-          <span>完成充值或购买套餐后，订单会显示在这里。</span>
+          <strong>暂无账户记录</strong>
+          <span>完成充值、兑换或购买套餐后，记录会显示在这里。</span>
           <div class="empty-actions">
-            <RouterLink v-if="purchaseEnabled" to="/app/purchase" class="empty-action">去充值</RouterLink>
+            <RouterLink v-if="purchaseEnabled" to="/app/purchase" class="empty-action">补充额度</RouterLink>
             <RouterLink to="/app/redeem" class="empty-action secondary">使用兑换码</RouterLink>
           </div>
         </div>
@@ -263,12 +263,12 @@ const purchaseEnabled = computed(() => (
 const balanceText = computed(() => `$${Number(authStore.user?.balance || 0).toFixed(2)}`)
 const orderCountText = computed(() => String(totalOrders.value || orders.value.length))
 const disabledOrdersTitle = computed(() => (
-  purchaseEnabled.value ? '当前账号暂不支持在线创建订单' : '当前账号暂不支持在线充值'
+  purchaseEnabled.value ? '当前账号可查看已有账户记录' : '当前使用兑换码补充额度'
 ))
 const disabledOrdersDescription = computed(() => (
   purchaseEnabled.value
-    ? '已有订单和账户变化仍会保留在记录中；如需补充额度，可先查看充值入口。'
-    : '可继续使用已有额度，或通过兑换码补充账户额度；已有订单仍可在这里查看。'
+    ? '已有订单和账户变化会保留在记录中；如需补充额度，可先查看可用方式。'
+    : '可继续使用已有额度，或通过兑换码补充账户额度；已有记录仍可在这里查看。'
 ))
 const totalPages = computed(() => Math.max(1, Math.ceil(totalOrders.value / pagination.page_size)))
 const statusFilters = [
@@ -310,7 +310,7 @@ async function loadOrders() {
     orders.value = []
     totalOrders.value = 0
     pagination.total = 0
-    loadError.value = '订单记录暂时无法加载'
+    loadError.value = '账户记录暂时无法加载'
   } finally {
     loading.value = false
   }
