@@ -204,6 +204,12 @@ describe('PaymentCheckoutContent', () => {
     expect(text).not.toContain('模型倍率')
     expect(text).not.toContain('Images API')
     expect(text).not.toContain('上游账号')
+    expect(text).toContain('补充额度')
+    expect(text).toContain('补充账户额度后即可使用')
+    expect(text).toContain('账户额度')
+    expect(text).toContain('权益订阅')
+    expect(text).not.toContain('充值与套餐')
+    expect(text).not.toContain('套餐订阅')
     expect(paymentAPI.getCheckoutInfo).toHaveBeenCalledTimes(1)
   })
 
@@ -266,7 +272,7 @@ describe('PaymentCheckoutContent', () => {
 
     const text = wrapper.text()
     expect(text).toContain('当前余额 $49.40 额度')
-    expect(text).toContain('充值支付使用人民币 ¥，到账后显示为账户 $ 额度')
+    expect(text).toContain('补充额度支付使用人民币 ¥，到账后显示为账户 $ 额度')
     expect(text).toContain('支付 ¥ 金额，到账 $ 额度；实际到账以订单完成结果为准。')
     expect(text).toContain('¥50.00')
     expect(text).toContain('$50.00 额度')
@@ -283,7 +289,7 @@ describe('PaymentCheckoutContent', () => {
 
     const submit = wrapper
       .findAll('button')
-      .find((button) => button.text().includes('请选择充值金额'))
+      .find((button) => button.text().includes('请选择补充金额'))
     expect(submit).toBeTruthy()
     expect(submit?.attributes('disabled')).toBeDefined()
     expect(wrapper.text()).not.toContain('payment.createOrder ¥0.00')
@@ -300,7 +306,7 @@ describe('PaymentCheckoutContent', () => {
     const wrapper = mountContent('workspace')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('充值会增加账户额度，用量和扣费记录以系统记录为准。')
+    expect(wrapper.text()).toContain('补充额度会增加账户额度，用量和扣费记录以系统记录为准。')
     expect(wrapper.text()).not.toContain('Recharge adds account balance')
   })
 

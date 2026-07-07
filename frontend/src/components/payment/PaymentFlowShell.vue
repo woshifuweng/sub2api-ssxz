@@ -1,7 +1,7 @@
 <template>
   <main class="payment-flow-shell">
     <header class="payment-flow-header">
-      <RouterLink to="/app/purchase" class="payment-flow-brand" aria-label="返回充值中心">
+      <RouterLink to="/app/purchase" class="payment-flow-brand" aria-label="返回补充额度">
         <span class="payment-flow-brand-mark">S</span>
         <span>
           <strong>SSXZ AI</strong>
@@ -9,7 +9,7 @@
         </span>
       </RouterLink>
       <RouterLink to="/app/purchase" class="payment-flow-return">
-        返回充值中心
+        返回补充额度
       </RouterLink>
     </header>
 
