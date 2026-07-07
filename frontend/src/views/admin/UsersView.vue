@@ -527,6 +527,16 @@
                 {{ t('admin.users.apiKeys') }}
               </button>
 
+              <!-- Customer Handoff Checklist -->
+              <button
+                data-testid="customer-handoff-open"
+                @click="handleCustomerHandoff(user); closeActionMenu()"
+                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+              >
+                <Icon name="clipboard" size="sm" class="text-gray-400" :stroke-width="2" />
+                客户交付核对
+              </button>
+
               <!-- View Usage -->
               <button
                 @click="handleViewUsage(user); closeActionMenu()"
@@ -621,6 +631,100 @@
     </Teleport>
 
     <ConfirmDialog :show="showDeleteDialog" :title="t('admin.users.deleteUser')" :message="t('admin.users.deleteConfirm', { email: deletingUser?.email })" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
+    <BaseDialog
+      :show="showCustomerHandoffModal"
+      title="客户交付核对"
+      width="wide"
+      @close="closeCustomerHandoff"
+    >
+      <div
+        v-if="customerHandoffUser"
+        data-testid="customer-handoff-checklist"
+        class="space-y-5 text-sm text-gray-700 dark:text-gray-300"
+      >
+        <section class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/70">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">客户账号</p>
+              <h3 class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+                {{ customerHandoffUser.email || customerHandoffUser.username || customerHandoffUser.id }}
+              </h3>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                ID {{ customerHandoffUser.id }} · {{ customerHandoffUser.status === 'active' ? '启用' : '禁用' }}
+              </p>
+            </div>
+            <div class="grid min-w-[260px] grid-cols-2 gap-2 text-xs">
+              <div class="rounded-lg bg-white p-3 dark:bg-dark-900">
+                <span class="text-gray-500 dark:text-gray-400">余额</span>
+                <strong class="mt-1 block text-base text-gray-900 dark:text-white">
+                  ${{ customerHandoffUser.balance.toFixed(2) }}
+                </strong>
+              </div>
+              <div class="rounded-lg bg-white p-3 dark:bg-dark-900">
+                <span class="text-gray-500 dark:text-gray-400">近期用量</span>
+                <strong class="mt-1 block text-base text-gray-900 dark:text-white">
+                  {{ formatCustomerHandoffUsage(customerHandoffUser) }}
+                </strong>
+              </div>
+            </div>
+          </div>
+          <p class="mt-3 text-xs leading-5 text-gray-500 dark:text-gray-400">
+            这个面板只给运营核对使用。给客户前先看 Key、余额、分组、通道和最近用量；客户侧只需要拿到可用 Key 和简单接入方式。
+          </p>
+        </section>
+
+        <section class="grid gap-3 lg:grid-cols-2">
+          <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
+            <p class="font-semibold text-gray-900 dark:text-white">交付前按这个顺序看</p>
+            <ol class="mt-3 space-y-2 text-sm leading-6">
+              <li><strong>1.</strong> 看账号是否启用，余额是否足够本次测试。</li>
+              <li><strong>2.</strong> 看 API Key 是否启用、是否有额度或时间限制。</li>
+              <li><strong>3.</strong> 看分组/套餐是否覆盖客户要测的模型。</li>
+              <li><strong>4.</strong> 客户发起测试后，看用量定位码和通道状态。</li>
+            </ol>
+          </div>
+          <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
+            <p class="font-semibold text-gray-900 dark:text-white">错误快速归类</p>
+            <ul class="mt-3 space-y-2 text-sm leading-6">
+              <li><strong>401</strong>：优先查 Key 是否完整、启用、填错位置。</li>
+              <li><strong>403</strong>：优先查余额、Key 额度、分组和模型权限。</li>
+              <li><strong>503</strong>：优先查当前线路、上游账号或模型临时状态。</li>
+              <li><strong>慢</strong>：优先换低推理/轻量模型；深度检索和高推理本来会慢。</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
+          <p class="font-semibold text-gray-900 dark:text-white">常用排查入口</p>
+          <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <button data-testid="customer-handoff-api-keys" type="button" class="btn btn-secondary justify-center" @click="openCustomerHandoffApiKeys">
+              API Key
+            </button>
+            <button data-testid="customer-handoff-usage" type="button" class="btn btn-secondary justify-center" @click="openCustomerHandoffUsage">
+              用量记录
+            </button>
+            <button type="button" class="btn btn-secondary justify-center" @click="openCustomerHandoffOrders">
+              订单
+            </button>
+            <button type="button" class="btn btn-secondary justify-center" @click="openCustomerHandoffRedeem">
+              兑换码
+            </button>
+            <button type="button" class="btn btn-secondary justify-center" @click="openCustomerHandoffAffiliate">
+              推广记录
+            </button>
+            <button type="button" class="btn btn-secondary justify-center" @click="openCustomerHandoffGroups">
+              分组权限
+            </button>
+            <button type="button" class="btn btn-secondary justify-center" @click="openCustomerHandoffBalanceHistory">
+              余额历史
+            </button>
+            <button data-testid="customer-handoff-channel-status" type="button" class="btn btn-secondary justify-center" @click="openCustomerHandoffChannelStatus">
+              通道监控
+            </button>
+          </div>
+        </section>
+      </div>
+    </BaseDialog>
     <UserCreateModal :show="showCreateModal" @close="showCreateModal = false" @success="loadUsers" />
     <UserEditModal :show="showEditModal" :user="editingUser" @close="closeEditModal" @success="loadUsers" />
     <UserApiKeysModal :show="showApiKeysModal" :user="viewingUser" @close="closeApiKeysModal" />
@@ -651,6 +755,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
@@ -951,9 +1056,11 @@ const showEditModal = ref(false)
 const showDeleteDialog = ref(false)
 const showApiKeysModal = ref(false)
 const showAttributesModal = ref(false)
+const showCustomerHandoffModal = ref(false)
 const editingUser = ref<AdminUser | null>(null)
 const deletingUser = ref<AdminUser | null>(null)
 const viewingUser = ref<AdminUser | null>(null)
+const customerHandoffUser = ref<AdminUser | null>(null)
 let abortController: AbortController | null = null
 let secondaryDataSeq = 0
 
@@ -1326,6 +1433,57 @@ const handleViewRedeemCodes = (user: AdminUser) => {
     path: '/admin/redeem',
     query: { search: investigationKeywordForUser(user) }
   })
+}
+
+const loadCustomerHandoffUsage = async (user: AdminUser) => {
+  try {
+    const usageResponse = await adminAPI.dashboard.getBatchUsersUsage([user.id])
+    usageStats.value = {
+      ...usageStats.value,
+      ...usageResponse.stats
+    }
+  } catch (e) {
+    console.error('Failed to load customer handoff usage stats:', e)
+  }
+}
+
+const handleCustomerHandoff = (user: AdminUser) => {
+  customerHandoffUser.value = user
+  showCustomerHandoffModal.value = true
+  void loadAllGroups()
+  void loadCustomerHandoffUsage(user)
+}
+
+const closeCustomerHandoff = () => {
+  showCustomerHandoffModal.value = false
+  customerHandoffUser.value = null
+}
+
+const withCustomerHandoffUser = (action: (user: AdminUser) => void) => {
+  const user = customerHandoffUser.value
+  if (!user) return
+  closeCustomerHandoff()
+  action(user)
+}
+
+const openCustomerHandoffApiKeys = () => withCustomerHandoffUser(handleViewApiKeys)
+const openCustomerHandoffUsage = () => withCustomerHandoffUser(handleViewUsage)
+const openCustomerHandoffOrders = () => withCustomerHandoffUser(handleViewOrders)
+const openCustomerHandoffAffiliate = () => withCustomerHandoffUser(handleViewAffiliate)
+const openCustomerHandoffRedeem = () => withCustomerHandoffUser(handleViewRedeemCodes)
+const openCustomerHandoffGroups = () => withCustomerHandoffUser(handleAllowedGroups)
+const openCustomerHandoffBalanceHistory = () => withCustomerHandoffUser(handleBalanceHistory)
+const openCustomerHandoffChannelStatus = () => {
+  closeCustomerHandoff()
+  void router.push({ path: '/admin/channels/monitor' })
+}
+
+const formatCustomerHandoffUsage = (user: AdminUser) => {
+  const stats = usageStats.value[user.id]
+  if (!stats) return '加载中'
+  const today = (stats.today_actual_cost ?? 0).toFixed(4)
+  const total = (stats.total_actual_cost ?? 0).toFixed(4)
+  return `$${today} / $${total}`
 }
 
 const closeApiKeysModal = () => {
