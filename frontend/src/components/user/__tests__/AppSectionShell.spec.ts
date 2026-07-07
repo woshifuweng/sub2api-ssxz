@@ -118,8 +118,8 @@ describe('AppSectionShell', () => {
     expect(wrapper.text()).toContain('API 密钥')
     expect(wrapper.text()).toContain('使用记录')
     expect(wrapper.text()).toContain('通道状态')
-    expect(wrapper.text()).toContain('充值')
-    expect(wrapper.text()).toContain('订单')
+    expect(wrapper.text()).toContain('补充额度')
+    expect(wrapper.text()).toContain('账户记录')
     expect(wrapper.text()).toContain('兑换码')
     expect(wrapper.text()).toContain('个人资料')
     expect(wrapper.text()).toContain('模型测试')
@@ -165,10 +165,10 @@ describe('AppSectionShell', () => {
     await buttons.find((button) => button.text().includes('使用记录'))?.trigger('click')
     expect(mocks.push).toHaveBeenLastCalledWith('/app/usage')
 
-    await buttons.find((button) => button.text().includes('充值'))?.trigger('click')
+    await buttons.find((button) => button.text().includes('补充额度'))?.trigger('click')
     expect(mocks.push).toHaveBeenLastCalledWith('/app/purchase')
 
-    await buttons.find((button) => button.text() === '订单')?.trigger('click')
+    await buttons.find((button) => button.text() === '账户记录')?.trigger('click')
     expect(mocks.push).toHaveBeenLastCalledWith('/app/orders')
 
     await buttons.find((button) => button.text().includes('兑换码'))?.trigger('click')
@@ -251,8 +251,8 @@ describe('AppSectionShell', () => {
 
     const wrapper = mountShell()
 
-    expect(wrapper.text()).not.toContain('充值')
-    expect(wrapper.text()).toContain('订单')
+    expect(wrapper.text()).not.toContain('补充额度')
+    expect(wrapper.text()).toContain('账户记录')
     expect(wrapper.text()).toContain('兑换码')
   })
 

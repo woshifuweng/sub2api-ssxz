@@ -547,12 +547,12 @@ const userNavItems = computed((): NavItem[] => {
       ? [
           {
             path: '/app/purchase',
-            label: '充值',
+            label: '补充额度',
             icon: RechargeSubscriptionIcon
           }
         ]
       : []),
-    { path: '/app/orders', label: '订单', icon: OrderListIcon },
+    { path: '/app/orders', label: '账户记录', icon: OrderListIcon },
     { path: '/app/redeem', label: '兑换码', icon: TicketIcon },
     ...(affiliateEnabled.value
       ? [{ path: '/app/affiliate', label: '推广中心', icon: GiftIcon }]
@@ -575,13 +575,13 @@ const personalNavItems = computed((): NavItem[] => {
       ? [
           {
             path: '/app/purchase',
-            label: '充值',
+            label: '补充额度',
             icon: RechargeSubscriptionIcon,
             hideInSimpleMode: true
           }
         ]
       : []),
-    { path: '/app/orders', label: '订单', icon: OrderListIcon, hideInSimpleMode: true },
+    { path: '/app/orders', label: '账户记录', icon: OrderListIcon, hideInSimpleMode: true },
     { path: '/app/redeem', label: '兑换码', icon: TicketIcon, hideInSimpleMode: true },
     ...(affiliateEnabled.value
       ? [{ path: '/app/affiliate', label: '推广中心', icon: GiftIcon, hideInSimpleMode: true }]

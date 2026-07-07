@@ -206,9 +206,9 @@ const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName 
     ? [{ label: '通道状态', to: '/app/channel-status', icon: 'server' as IconName }]
     : []),
   ...(purchaseEnabled.value
-    ? [{ label: '充值', to: '/app/purchase', icon: 'creditCard' as IconName }]
+    ? [{ label: '补充额度', to: '/app/purchase', icon: 'creditCard' as IconName }]
     : []),
-  { label: '订单', to: '/app/orders', icon: 'clipboard' },
+  { label: '账户记录', to: '/app/orders', icon: 'clipboard' },
   { label: '兑换码', to: '/app/redeem', icon: 'gift' },
   ...(affiliateEnabled.value
     ? [{ label: '推广中心', to: '/app/affiliate', icon: 'gift' as IconName }]
