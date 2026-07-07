@@ -71,6 +71,8 @@ Not allowed to promise yet:
 
 The first 10-20 customers should be onboarded manually: create or approve the account, issue one low-risk API Key, connect one client such as CC Switch / Cherry Studio / Chatbox, run one small text request, then confirm user usage, balance, admin usage, and order/redeem evidence. Image generation remains optional beta/internal until its production acceptance gate is closed.
 
+The tracked customer handoff gate is `CUSTOMER_HANDOFF_GATE.md`. As of 2026-07-08, production no-provider validation confirmed the public/user/admin support surfaces are reachable and admin/user permission boundaries hold for the checked path. This supports continued controlled customer handoff, not broad public paid launch.
+
 ## Decision Rules
 
 Before implementing new product, quality, UX, or operations work, apply the mature solution comparison principle:

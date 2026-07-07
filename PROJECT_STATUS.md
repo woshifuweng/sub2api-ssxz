@@ -121,6 +121,21 @@ Current judgment: suitable to prepare a controlled whitelist/low-quota paid beta
 | Admin support | Usable | Existing admin pages support user, key, usage, order, balance, redeem, affiliate, channel/account/model/pricing, and ops investigation. |
 | Public launch | Not allowed yet | Keep first users controlled, low-quota, and supportable. |
 
+### 2026-07-08 Customer Handoff Gate
+
+The tracked customer handoff gate is `CUSTOMER_HANDOFF_GATE.md`.
+
+Production no-provider validation on 2026-07-08 confirmed:
+
+- public user routes returned HTTP 200 for `/home`, `/login`, `/register`, `/app/dashboard`, `/app/keys`, `/app/usage`, `/app/channel-status`, `/app/purchase`, `/app/orders`, `/app/redeem`, and `/app/profile`
+- ordinary and admin login both succeeded
+- ordinary user had visible groups, channels, API Keys, usage, and redeem history
+- ordinary user access to admin redeem codes returned HTTP 403
+- admin users, usage, redeem codes, payment orders, groups, and dashboard stats returned HTTP 200
+- no provider calls and no write operations were performed
+
+This is enough evidence to continue controlled, low-quota customer handoff work. It is not evidence for public paid launch, full image production acceptance, or universal third-party client compatibility.
+
 ## Staging P0 Validation Recorded On 2026-06-20
 
 | Area | Result | Evidence |
