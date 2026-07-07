@@ -95,14 +95,19 @@ const baseResponse = {
   page_size: 10,
 }
 
-function mountModal(sort: 'first_token_desc' | 'duration_desc') {
+function mountModal(
+  sort: 'first_token_desc' | 'duration_desc',
+  presetOverrides: Record<string, unknown> = {},
+  modelValue = false
+) {
   return mount(OpsRequestDetailsModal, {
     props: {
-      modelValue: false,
+      modelValue,
       timeRange: '30m',
       preset: {
         title: sort === 'first_token_desc' ? 'TTFT Detail' : 'Duration Detail',
         sort,
+        ...presetOverrides,
       },
       platform: 'openai',
       groupId: 7,
@@ -159,5 +164,36 @@ describe('OpsRequestDetailsModal', () => {
     expect(wrapper.text()).toContain('Duration')
     expect(wrapper.text()).toContain('987 ms')
     expect(wrapper.text()).not.toContain('123 ms')
+  })
+
+  it('按用户、API Key 和 request id 过滤请求详情', async () => {
+    const wrapper = mountModal('duration_desc', {
+      user_id: 42,
+      api_key_id: 9,
+      request_id: 'req_customer_1',
+    })
+
+    await wrapper.setProps({ modelValue: true })
+    await flushPromises()
+
+    expect(mockListRequestDetails).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: 42,
+        api_key_id: 9,
+        request_id: 'req_customer_1',
+      })
+    )
+  })
+
+  it('初始打开时会立即加载请求详情', async () => {
+    mountModal('duration_desc', { user_id: 42 }, true)
+    await flushPromises()
+
+    expect(mockListRequestDetails).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: 42,
+        sort: 'duration_desc',
+      })
+    )
   })
 })

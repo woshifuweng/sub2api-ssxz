@@ -169,7 +169,9 @@ import {
   type OpsErrorTrendResponse,
   type OpsLatencyHistogramResponse,
   type OpsThroughputTrendResponse,
-  type OpsMetricThresholds
+  type OpsMetricThresholds,
+  type OpsRequestDetailsKind,
+  type OpsRequestDetailsSort
 } from '@/api/admin/ops'
 import { useAdminSettingsStore, useAppStore } from '@/stores'
 import OpsDashboardHeader from './components/OpsDashboardHeader.vue'
@@ -204,6 +206,8 @@ const allowedTimeRanges = new Set<TimeRange>(['5m', '30m', '1h', '6h', '24h', 'c
 
 type QueryMode = 'auto' | 'raw' | 'preagg'
 const allowedQueryModes = new Set<QueryMode>(['auto', 'raw', 'preagg'])
+const allowedRequestDetailsKinds = new Set<OpsRequestDetailsKind>(['all', 'success', 'error'])
+const allowedRequestDetailsSorts = new Set<OpsRequestDetailsSort>(['created_at_desc', 'duration_desc', 'first_token_desc'])
 
 const loading = ref(true)
 const hasLoadedOnce = ref(false)
@@ -230,6 +234,12 @@ const QUERY_KEYS = {
   // Deep links
   openErrorDetails: 'open_error_details',
   errorType: 'error_type',
+  openRequestDetails: 'open_request_details',
+  requestUserId: 'user_id',
+  requestApiKeyId: 'api_key_id',
+  requestId: 'request_id',
+  requestKind: 'request_kind',
+  requestSort: 'request_sort',
   alertRuleId: 'alert_rule_id',
   openAlertRules: 'open_alert_rules'
 } as const
@@ -329,9 +339,30 @@ const applyRouteQueryToState = () => {
     errorDetailsType.value = typ === 'upstream' ? 'upstream' : 'request'
     showErrorDetails.value = true
   }
-}
 
-applyRouteQueryToState()
+  const openReq = readQueryString(QUERY_KEYS.openRequestDetails)
+  if (openReq === '1' || openReq === 'true') {
+    const kindRaw = readQueryString(QUERY_KEYS.requestKind)
+    const sortRaw = readQueryString(QUERY_KEYS.requestSort)
+    const requestID = readQueryString(QUERY_KEYS.requestId).trim()
+    const userID = readQueryNumber(QUERY_KEYS.requestUserId)
+    const apiKeyID = readQueryNumber(QUERY_KEYS.requestApiKeyId)
+    const preset: OpsRequestDetailsPreset = {
+      title: t('admin.ops.requestDetails.title'),
+      kind: allowedRequestDetailsKinds.has(kindRaw as OpsRequestDetailsKind) ? (kindRaw as OpsRequestDetailsKind) : 'all',
+      sort: allowedRequestDetailsSorts.has(sortRaw as OpsRequestDetailsSort) ? (sortRaw as OpsRequestDetailsSort) : 'created_at_desc'
+    }
+
+    if (typeof userID === 'number' && userID > 0) preset.user_id = userID
+    if (typeof apiKeyID === 'number' && apiKeyID > 0) preset.api_key_id = apiKeyID
+    if (requestID) preset.request_id = requestID
+
+    requestDetailsPreset.value = preset
+    showErrorDetails.value = false
+    showErrorModal.value = false
+    showRequestDetails.value = true
+  }
+}
 
 const buildQueryFromState = () => {
   const next: Record<string, any> = { ...route.query }
@@ -423,6 +454,8 @@ const runtimeCardsActive = computed(() => {
 
 // Used to trigger child component refreshes in a single shared cadence.
 const dashboardRefreshToken = ref(0)
+
+applyRouteQueryToState()
 
 // Countdown timer (drives auto refresh; updates every second)
 const { pause: pauseCountdown, resume: resumeCountdown } = useIntervalFn(

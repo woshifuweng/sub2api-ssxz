@@ -182,4 +182,24 @@ describe('admin UsersView investigation links', () => {
       query: { user_id: '42' }
     })
   })
+
+  it('routes from customer handoff checklist to filtered ops request details', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('.action-menu-trigger').trigger('click', { clientX: 480, clientY: 240 })
+    await flushPromises()
+    await wrapper.find('[data-testid="customer-handoff-open"]').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-testid="customer-handoff-request-details"]').trigger('click')
+
+    expect(routerPush).toHaveBeenCalledWith({
+      path: '/admin/ops',
+      query: {
+        tr: '24h',
+        open_request_details: '1',
+        user_id: '42'
+      }
+    })
+  })
 })
