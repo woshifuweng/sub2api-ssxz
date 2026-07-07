@@ -8,7 +8,7 @@ Build SSXZ AI into a lightweight AI creation workspace for about 200-300 private
 
 ## Current Phase As Of 2026-07-08
 
-The project is in P1 commercial-mainline convergence at roughly 96%. P0/P0-Beta structural convergence has enough evidence to keep moving, but P2 visual polish and complex Workbench expansion remain deferred.
+The project is in P1 commercial-mainline convergence at roughly 96-97%. P0/P0-Beta structural convergence has enough evidence to keep moving, but P2 visual polish and complex Workbench expansion remain deferred.
 
 - ordinary-user workspace routes are established around `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/app/profile`
 - chat P0 fixes were validated on staging
@@ -32,6 +32,7 @@ The project is in P1 commercial-mainline convergence at roughly 96%. P0/P0-Beta 
 - PR #314 through PR #321 completed several P1 commercial-mainline slices on main: admin user investigation links, payment-gated dashboard entries, disabled purchase actions, masked CCS import copy, existing Sub2 capability inventory, legacy sidebar/chat-image entry cleanup, disabled purchase next actions, and dashboard core-entry focus. These were small frontend/docs/admin-support slices and should be batched for later deployment instead of deployed one by one.
 - Production was later deployed to main `26639dbe` with the commercial user routes and admin smoke checks passing: `/home`, `/login`, `/register`, `/app/dashboard`, `/app/keys`, `/app/usage`, `/app/channel-status`, `/app/purchase`, `/app/orders`, `/app/redeem`, `/app/profile`, and admin/user auth boundary checks.
 - PR #346 merged the CCS import platform guard so unknown or missing platform keys do not silently default to Claude. PR #347 merged a test-only API Key handoff locale assertion sync.
+- PR #354 through PR #356 aligned account menu, dashboard, purchase/order, account-balance, and third-party handoff wording. Main `798412473` was deployed to staging and production on 2026-07-08; both services now run SHA-256 `b1593aa8a6aa4da584690a1dee44bb63a0225c682336c7bc9cc6bf1b1f49429c`. Production HTTPS smoke passed for the commercial user routes, `/app/chat`, `/app/image`, and `/api/v1/settings/public`; `/v1/models` without a key returned HTTP 401.
 - Local targeted customer-path tests now cover API Key lifecycle, CCS/third-party guidance, usage, purchase, orders, redeem, admin user handoff, admin usage, admin redeem, admin orders, and related backend handler/service/repository commercial paths.
 - Controlled production GPT handoff validation now verifies a low-quota customer key through SSXZ for `gpt-5.5` and `gpt-5.4-mini`, with usage traceable to the GPT upstream account. The evaluated Gemini-compatible upstream is disabled because that upstream returned quota/high-demand errors, so Gemini should not be promised on this handoff path yet.
 
@@ -44,8 +45,8 @@ Use this progress meter in every major status report. It is a product/operations
 | Stage | Current estimate | Meaning |
 | --- | ---: | --- |
 | P0 / P0-Beta convergence | 99% | Core shell, chat, failure/no-charge, fake-model, catalog authenticity, frontend lint baseline, usage DTO boundary, no-overdraft final billing, bounded image cost gating, bounded OpenAI-compatible token cost gating, bounded generic/Gemini token cost gating, bounded OpenAI Responses WebSocket token cost gating, no-cap token-request safety-budget gating, and staging chat-workspace frontend gate alignment are contained enough to continue P1. Remaining P0/P0-Beta risks are controlled production image-generation acceptance, full reservation/pre-charge spend-cap hardening, production rollout of staging-only chat gate fixes when batched, and any regressions found during P1. |
-| P1 product/operations | 96% | P1 is the active commercial mainline. API Key lifecycle, group binding, one-time full-key reveal, masked-key safety, CCS import guard, usage, purchase, orders, redeem, admin diagnostics, and one controlled production GPT relay handoff now have evidence. Remaining P1 work is mostly real customer client friction, recharge/order/redeem release evidence, and small fixes found during onboarding. |
-| Distance to P2 | 4% of P1 remains | P2 should not begin as the main focus until customer handoff, recharge/order/redeem, and admin-support evidence are stable enough for controlled low-quota customers. |
+| P1 product/operations | 96-97% | P1 is the active commercial mainline. API Key lifecycle, group binding, one-time full-key reveal, masked-key safety, CCS import guard, usage, purchase, orders, redeem, admin diagnostics, production release of the commercial user-entry wording batch, and one controlled production GPT relay handoff now have evidence. Remaining P1 work is mostly real customer client friction, recharge/order/redeem support evidence, and small fixes found during onboarding. |
+| Distance to P2 | 3-4% of P1 remains | P2 should not begin as the main focus until customer handoff, recharge/order/redeem, and admin-support evidence are stable enough for controlled low-quota customers. |
 | P2 visual polish/enhanced experience | 0% | P2 is intentionally not active. UI polish and advanced workflows wait until P1 is materially closed. |
 
 ## Minimum Commercial Launch Gate
@@ -72,7 +73,7 @@ Not allowed to promise yet:
 
 The first 10-20 customers should be onboarded manually: create or approve the account, issue one low-risk API Key, connect one client such as CC Switch / Cherry Studio / Chatbox, run one small text request, then confirm user usage, balance, admin usage, and order/redeem evidence. Image generation remains optional beta/internal until its production acceptance gate is closed.
 
-The tracked customer handoff gate is `CUSTOMER_HANDOFF_GATE.md`. As of 2026-07-08, production no-provider validation confirmed the public/user/admin support surfaces are reachable and admin/user permission boundaries hold for the checked path. A later controlled GPT handoff smoke verified `gpt-5.5` and `gpt-5.4-mini` through SSXZ production with a low-quota customer key, while the evaluated Gemini upstream was disabled for instability. This supports continued controlled customer handoff, not broad public paid launch.
+The tracked customer handoff gate is `CUSTOMER_HANDOFF_GATE.md`. As of 2026-07-08, production no-provider validation confirmed the public/user/admin support surfaces are reachable and admin/user permission boundaries hold for the checked path. A later controlled GPT handoff smoke verified `gpt-5.5` and `gpt-5.4-mini` through SSXZ production with a low-quota customer key, while the evaluated Gemini upstream was disabled for instability. Main `798412473` then shipped the commercial user-entry wording batch to production with no-provider smoke passing. This supports continued controlled customer handoff, not broad public paid launch.
 
 ## Decision Rules
 
@@ -258,7 +259,7 @@ P0 can exit only when these are true:
 
 ## Production Release Gates
 
-Production deployment is a separate release gate. Production deployments happened on 2026-06-21, 2026-06-27, 2026-06-28, and 2026-06-29. As of the user's 2026-06-29 instruction, the agent may decide production deployment timing for larger completed stages after CI, merge, staging deployment, staging smoke, and rollback readiness are confirmed; small or low-impact PRs should still be batched instead of deployed one by one. Full production acceptance should use the gates below:
+Production deployment is a separate release gate. Production deployments happened on 2026-06-21, 2026-06-27, 2026-06-28, 2026-06-29, and 2026-07-08. As of the user's 2026-06-29 instruction, the agent may decide production deployment timing for larger completed stages after CI, merge, staging deployment, staging smoke, and rollback readiness are confirmed; small or low-impact PRs should still be batched instead of deployed one by one. Full production acceptance should use the gates below:
 
 1. Ordinary-user navigation stays inside the intended user workspace shell.
 2. `/app/chat`, `/app/image`, `/app/usage`, `/app/keys`, and `/app/profile` behave consistently after refresh.
