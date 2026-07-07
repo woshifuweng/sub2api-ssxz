@@ -39,8 +39,8 @@
           <Icon :name="paymentEnabled ? 'creditCard' : 'clipboard'" size="lg" class="text-amber-600 dark:text-amber-400" />
         </div>
         <div class="min-w-0 flex-1">
-          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ paymentEnabled ? '充值余额' : '订单记录' }}</p>
-          <p class="text-xs text-gray-500 dark:text-dark-400">{{ paymentEnabled ? '购买套餐或查看订单' : '查看订单和到账状态' }}</p>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ paymentEnabled ? '补充额度' : '账户记录' }}</p>
+          <p class="text-xs text-gray-500 dark:text-dark-400">{{ paymentEnabled ? '补充额度或查看账户记录' : '查看账户记录和到账状态' }}</p>
         </div>
         <Icon
           name="chevronRight"

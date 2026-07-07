@@ -49,8 +49,8 @@ describe('UserDashboardQuickActions', () => {
   it('routes to purchase when online payment is enabled', async () => {
     const wrapper = mountView()
 
-    expect(wrapper.text()).toContain('充值余额')
-    expect(wrapper.text()).toContain('购买套餐或查看订单')
+    expect(wrapper.text()).toContain('补充额度')
+    expect(wrapper.text()).toContain('补充额度或查看账户记录')
 
     await wrapper.findAll('button')[2].trigger('click')
 
@@ -63,9 +63,9 @@ describe('UserDashboardQuickActions', () => {
     }
     const wrapper = mountView()
 
-    expect(wrapper.text()).toContain('订单记录')
-    expect(wrapper.text()).toContain('查看订单和到账状态')
-    expect(wrapper.text()).not.toContain('充值余额')
+    expect(wrapper.text()).toContain('账户记录')
+    expect(wrapper.text()).toContain('查看账户记录和到账状态')
+    expect(wrapper.text()).not.toContain('补充额度')
 
     await wrapper.findAll('button')[2].trigger('click')
 

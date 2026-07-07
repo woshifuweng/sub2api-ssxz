@@ -43,17 +43,17 @@ describe('legacy user routes', () => {
   })
 
   it.each([
-    ['/app/dashboard', 'Dashboard'],
-    ['/app/chat', 'Model Test'],
-    ['/app/image', 'Image Beta'],
-    ['/app/usage', 'Usage Information'],
-    ['/app/purchase', 'Recharge / Subscription'],
-    ['/app/orders', 'Order Records'],
-    ['/app/redeem', 'Redeem Code'],
+    ['/app/dashboard', '仪表盘'],
+    ['/app/chat', '模型测试入口'],
+    ['/app/image', '图片内测入口'],
+    ['/app/usage', '使用记录'],
+    ['/app/purchase', '补充额度'],
+    ['/app/orders', '账户记录'],
+    ['/app/redeem', '兑换码'],
     ['/app/affiliate', 'Affiliate'],
     ['/app/available-channels', 'Available Channels'],
     ['/app/channel-status', 'Channel Status'],
-    ['/app/keys', 'API Key / Third-party Access'],
+    ['/app/keys', 'API Key / 第三方接入'],
     ['/app/profile', 'Account Settings'],
   ])('uses SSXZ AI as the user workbench document title site name for %s', (path, title) => {
     const route = router.resolve(path)
