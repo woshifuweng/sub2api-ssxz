@@ -240,7 +240,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Affiliate',
+      title: '推广中心',
       appSection: 'affiliate',
       titleSiteName: 'SSXZ AI'
     }

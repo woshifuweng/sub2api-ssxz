@@ -28,7 +28,7 @@ Every new request must first answer:
 | Public entry | `/home`, `/login`, `/register`, email verification, password reset, OAuth callbacks | Registration can be disabled; email verification, promo code, invitation code, and affiliate code are setting-driven | Do not build a second auth flow |
 | User dashboard | `/app/dashboard` | Main authenticated landing page after login | Reuse dashboard cards and quick actions |
 | API keys | `/app/keys`, `/api/v1/keys` | Full key is only visible at creation; list is masked; inactive/expired/quota/group/balance can block usage | Do not rebuild key management |
-| CC Switch / clients | Base URL guide, CC Switch deeplink logic, Cherry Studio / Chatbox / CC Switch text | List import is disabled for masked keys. Best fix is import from create-success full-key dialog | Reuse `importToCcswitch` instead of new import logic |
+| CC Switch / clients | Base URL guide, CC Switch deeplink logic, Cherry Studio / Chatbox / CC Switch text | Create-success full-key import exists; list import remains disabled for masked keys. Customer machine issues should be diagnosed before changing the importer | Reuse `importToCcswitch` instead of new import logic |
 | Usage records | `/app/usage`, usage detail/stats/dashboard APIs | Has model, endpoint, tokens, cost, first token field, client/source style data foundations | Do not create a separate ledger view from scratch |
 | Channel status | `/app/channel-status`, `/api/v1/channel-monitors` | Hidden unless `channel_monitor_enabled`; monitor data depends on backend config | Reuse channel monitor system |
 | Available channels | `/app/available-channels`, `/api/v1/channels/available` | User-facing availability list exists | Do not invent a second model availability page |
@@ -93,7 +93,7 @@ Admin pages and routes are already broad. The near-term work should be trimming,
 
 ## Current Reuse Decisions
 
-- CC Switch import exists. Fix should add import at the create-success full-key step, not enable masked-key list import.
+- CC Switch import exists, including the create-success full-key step. Keep masked-key list import disabled and collect customer evidence before changing client-specific behavior.
 - Affiliate/referral exists. Future work should improve owner reporting, not rebuild inviter tracking.
 - Usage and ledger foundations exist. Future work should clarify customer-facing copy and owner-facing diagnostics.
 - Channel status exists. Future work should validate first-token and availability display against real monitor data.
@@ -124,19 +124,20 @@ Do not expose unnecessary internal provider/routing/cost mechanics to ordinary u
 
 ## Known Gaps
 
-1. CC Switch import should be available immediately after creating a key while the full key is still visible.
-2. Some existing admin/ops features need productized Chinese labels and owner-focused grouping.
-3. Channel monitor, first-token, and availability should be verified against real runtime data before being sold as a promise.
-4. Payment, order, balance, usage, and affiliate paths need end-to-end acceptance evidence before broad paid traffic.
+1. Some existing admin/ops features need productized Chinese labels and owner-focused grouping.
+2. Channel monitor, first-token, and availability should be verified against real runtime data before being sold as a promise.
+3. Payment, order, balance, usage, and affiliate paths need end-to-end acceptance evidence before broad paid traffic.
+4. CC Switch import still needs real customer-machine evidence before claiming universal one-click success.
 5. Workbench should remain secondary until the API relay commercial loop is stable.
 
 ## Recommended Next Small PR
 
-PR: API Key create-success client import.
+PR: customer handoff evidence and support clarity.
 
 Scope:
 
-- Reuse existing CC Switch deeplink/import builder.
-- Add "Import to CCS" in the create-success full-key reveal dialog.
+- Keep the existing CC Switch deeplink/import builder.
+- Verify one newly created full-key path with a real customer or operator-controlled client before changing import code.
 - Keep existing list-row import disabled for masked keys.
+- Record whether usage, balance, admin usage, and customer-facing errors are easy to locate after the first request.
 - Do not change backend, payment, provider routing, DB schema, Nginx, or production config.
