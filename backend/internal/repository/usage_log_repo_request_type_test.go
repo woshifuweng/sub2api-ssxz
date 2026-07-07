@@ -259,6 +259,64 @@ func TestUsageLogRepositoryListWithFiltersRequestTypePriority(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestUsageLogRepositoryListWithFiltersRequestID(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	filters := usagestats.UsageLogFilters{
+		RequestID:  " req_customer_123 ",
+		ExactTotal: true,
+	}
+
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM usage_logs WHERE request_id = \\$1").
+		WithArgs("req_customer_123").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(0)))
+	mock.ExpectQuery("SELECT .* FROM usage_logs WHERE request_id = \\$1 ORDER BY id DESC LIMIT \\$2 OFFSET \\$3").
+		WithArgs("req_customer_123", 20, 0).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	logs, page, err := repo.ListWithFilters(context.Background(), pagination.PaginationParams{Page: 1, PageSize: 20}, filters)
+	require.NoError(t, err)
+	require.Empty(t, logs)
+	require.NotNil(t, page)
+	require.Equal(t, int64(0), page.Total)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUsageLogRepositoryGetStatsWithFiltersRequestID(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	mock.ExpectQuery("(?s)SELECT.*FROM usage_logs\\s+WHERE request_id = \\$1").
+		WithArgs("req_customer_123").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"total_requests",
+			"total_input_tokens",
+			"total_output_tokens",
+			"total_cache_tokens",
+			"total_cost",
+			"total_actual_cost",
+			"total_account_cost",
+			"avg_duration_ms",
+		}).AddRow(int64(1), int64(10), int64(20), int64(0), float64(0.5), float64(0.5), float64(0.5), float64(100)))
+
+	endpointRows := func() *sqlmock.Rows {
+		return sqlmock.NewRows([]string{"endpoint", "requests", "total_tokens", "cost", "actual_cost"})
+	}
+	for i := 0; i < 3; i++ {
+		mock.ExpectQuery("(?s)FROM usage_logs\\s+WHERE created_at >= \\$1 AND created_at < \\$2\\s+AND request_id = \\$3\\s+GROUP BY endpoint ORDER BY requests DESC").
+			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), "req_customer_123").
+			WillReturnRows(endpointRows())
+	}
+
+	stats, err := repo.GetStatsWithFilters(context.Background(), usagestats.UsageLogFilters{RequestID: " req_customer_123 "})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), stats.TotalRequests)
+	require.Equal(t, int64(30), stats.TotalTokens)
+	require.InEpsilon(t, 0.5, stats.TotalActualCost, 0.0001)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestUsageLogRepositoryGetUsageTrendWithFiltersRequestTypePriority(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := &usageLogRepository{sql: db}

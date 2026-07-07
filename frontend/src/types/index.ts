@@ -1507,6 +1507,7 @@ export interface UsageQueryParams {
   account_id?: number
   group_id?: number
   model?: string
+  request_id?: string
   request_type?: UsageRequestType
   stream?: boolean
   billing_type?: number | null
