@@ -2150,7 +2150,7 @@ const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
     switch (platform) {
       case 'openai':
         app = 'codex'
-        endpoint = baseUrl
+        endpoint = openAICompatibleBaseUrl.value
         break
       case 'gemini':
         app = 'gemini'
