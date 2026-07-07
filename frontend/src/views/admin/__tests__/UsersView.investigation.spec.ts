@@ -83,6 +83,10 @@ function mountView() {
         UserBalanceModal: true,
         UserBalanceHistoryModal: true,
         GroupReplaceModal: true,
+        BaseDialog: {
+          props: ['show'],
+          template: '<section v-if="show" data-testid="base-dialog"><slot /><slot name="footer" /></section>'
+        },
         Icon: true,
         Teleport: true
       }
@@ -144,6 +148,38 @@ describe('admin UsersView investigation links', () => {
     expect(routerPush).toHaveBeenCalledWith({
       path: '/admin/redeem',
       query: { search: 'customer@example.com' }
+    })
+  })
+
+  it('opens a customer handoff checklist from a user row', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('.action-menu-trigger').trigger('click', { clientX: 480, clientY: 240 })
+    await flushPromises()
+    await wrapper.find('[data-testid="customer-handoff-open"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="customer-handoff-checklist"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('customer@example.com')
+    expect(wrapper.find('[data-testid="customer-handoff-usage"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="customer-handoff-api-keys"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="customer-handoff-channel-status"]').exists()).toBe(true)
+  })
+
+  it('routes from customer handoff checklist to filtered usage', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('.action-menu-trigger').trigger('click', { clientX: 480, clientY: 240 })
+    await flushPromises()
+    await wrapper.find('[data-testid="customer-handoff-open"]').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-testid="customer-handoff-usage"]').trigger('click')
+
+    expect(routerPush).toHaveBeenCalledWith({
+      path: '/admin/usage',
+      query: { user_id: '42' }
     })
   })
 })
