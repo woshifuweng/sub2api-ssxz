@@ -1026,7 +1026,7 @@ export default {
   // Redeem
   redeem: {
     title: '兑换额度',
-    description: '输入兑换码，兑换账户额度或试用权益',
+    description: '输入兑换码，补充账户额度或领取试用权益',
     accountBilling: '账户计费',
     currentBalance: '当前余额',
     concurrency: '并发数',
@@ -1044,9 +1044,9 @@ export default {
     newConcurrency: '新并发数',
     aboutCodes: '兑换说明',
     codeRule1: '每个兑换码只能使用一次',
-    codeRule2: '兑换码可用于增加账户额度、并发数或试用权益',
-    codeRule3: '如有兑换问题，请核对兑换码后再试',
-    codeRule4: '兑换成功后，页面会刷新账户额度',
+    codeRule2: '兑换码可用于补充账户额度、并发数或试用权益',
+    codeRule3: '如有兑换问题，请先核对兑换码后再试',
+    codeRule4: '兑换成功后，页面会刷新账户额度，账户记录会保留本次变化',
     recentActivity: '最近活动',
     historyWillAppear: '兑换成功后，余额、并发或订阅变动会显示在这里。',
     balanceAddedRedeem: '余额充值（兑换）',
@@ -1075,7 +1075,7 @@ export default {
       REDEEM_CODE_USED: '该兑换码已被使用。',
       REDEEM_RATE_LIMITED: '失败次数过多，请稍后再试。',
       REDEEM_CODE_LOCKED: '该兑换码正在处理中，请稍后重试。',
-      REDEEM_CODE_INVALID: '该兑换码无效，请联系客服。'
+      REDEEM_CODE_INVALID: '该兑换码无效，请核对后再试。'
     }
   },
 

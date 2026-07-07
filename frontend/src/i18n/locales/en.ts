@@ -1024,7 +1024,7 @@ export default {
   // Redeem
   redeem: {
     title: 'Redeem Credit',
-    description: 'Enter a redeem code to add account credit or trial access',
+    description: 'Enter a redeem code to add account credit or claim trial access',
     accountBilling: 'Account billing',
     currentBalance: 'Current Balance',
     concurrency: 'Concurrency',
@@ -1042,9 +1042,9 @@ export default {
     newConcurrency: 'New Concurrency',
     aboutCodes: 'Redeem Notes',
     codeRule1: 'Each code can only be used once',
-    codeRule2: 'Codes may add account credit, concurrency, or trial access',
+    codeRule2: 'Codes may add account credit, concurrency quota, or trial access',
     codeRule3: 'If redemption fails, check the code and try again',
-    codeRule4: 'The page refreshes account credit after successful redemption',
+    codeRule4: 'After successful redemption, the page refreshes account credit and keeps the change in account records',
     recentActivity: 'Recent Activity',
     historyWillAppear: 'Successful balance, concurrency, or subscription redemptions will appear here.',
     balanceAddedRedeem: 'Balance Added (Redeem)',
@@ -1073,7 +1073,7 @@ export default {
       REDEEM_CODE_USED: 'This redeem code has already been used.',
       REDEEM_RATE_LIMITED: 'Too many failed attempts. Please wait and try again.',
       REDEEM_CODE_LOCKED: 'This redeem code is being processed. Please try again shortly.',
-      REDEEM_CODE_INVALID: 'This redeem code is invalid. Please contact support.'
+      REDEEM_CODE_INVALID: 'This redeem code is invalid. Please check it and try again.'
     }
   },
 

@@ -152,7 +152,7 @@ describe('AppOrdersView', () => {
     const text = wrapper.text()
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(true)
     expect(text).toContain('账户记录')
-    expect(text).toContain('当前使用兑换码补充额度')
+    expect(text).toContain('当前可用方式：兑换码')
     expect(text).toContain('通过兑换码补充账户额度')
     expect(text).toContain('使用兑换码')
     expect(text).not.toContain('联系管理员')
@@ -191,7 +191,7 @@ describe('AppOrdersView', () => {
 
     const text = wrapper.text()
     expect(text).toContain('当前账号可查看已有账户记录')
-    expect(text).toContain('已有订单和账户变化会保留')
+    expect(text).toContain('已有订单和账户变化会保留在账户记录中')
     expect(text).toContain('查看补充额度方式')
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
     expect(hrefs).toContain('/app/purchase')
@@ -289,7 +289,7 @@ describe('AppOrdersView', () => {
 
     const text = wrapper.text()
     expect(text).toContain('暂无账户记录')
-    expect(text).toContain('完成充值、兑换或购买套餐后')
+    expect(text).toContain('完成充值、兑换或额度调整后')
     expect(text).toContain('补充额度')
     expect(text).toContain('使用兑换码')
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
@@ -309,7 +309,7 @@ describe('AppOrdersView', () => {
 
     const text = wrapper.text()
     expect(text).toContain('账户记录暂时无法加载')
-    expect(text).toContain('订单状态正在更新，请稍后刷新')
+    expect(text).toContain('账户记录正在更新，请稍后刷新')
     expect(text).not.toContain('联系管理员')
     expect(text).not.toContain('network down')
     expect(text).not.toContain('真实订单接口')
