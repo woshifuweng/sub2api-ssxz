@@ -17,7 +17,7 @@
         <span class="ssxz-brand-mark">S</span>
         <span class="ssxz-brand-copy ssxz-sidebar-text">
           <span class="ssxz-brand-title">SSXZ AI</span>
-          <span class="ssxz-brand-subtitle">AI 服务平台</span>
+          <span class="ssxz-brand-subtitle">服务控制台</span>
         </span>
       </RouterLink>
 

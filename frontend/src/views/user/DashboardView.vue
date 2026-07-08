@@ -38,7 +38,7 @@
                 <div class="mb-3 flex flex-wrap items-center gap-2">
                   <span class="inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-950/40 dark:text-primary-300">
                     <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                    SSXZ AI 服务平台
+                    SSXZ AI 服务控制台
                   </span>
                   <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-gray-300">
                     登录账号 {{ userEmail }}

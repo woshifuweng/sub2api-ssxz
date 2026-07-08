@@ -15,25 +15,12 @@
   <!-- Default Home Page -->
   <div
     v-else
-    class="relative flex min-h-screen flex-col overflow-hidden bg-gradient-to-br from-gray-50 via-primary-50/30 to-gray-100 dark:from-dark-950 dark:via-dark-900 dark:to-dark-950"
+    class="home-shell relative flex min-h-screen flex-col overflow-hidden"
   >
-    <!-- Background Decorations -->
     <div class="pointer-events-none absolute inset-0 overflow-hidden">
-      <div
-        class="absolute -right-40 -top-40 h-96 w-96 rounded-full bg-primary-400/20 blur-3xl"
-      ></div>
-      <div
-        class="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-primary-500/15 blur-3xl"
-      ></div>
-      <div
-        class="absolute left-1/3 top-1/4 h-72 w-72 rounded-full bg-primary-300/10 blur-3xl"
-      ></div>
-      <div
-        class="absolute bottom-1/4 right-1/4 h-64 w-64 rounded-full bg-primary-400/10 blur-3xl"
-      ></div>
-      <div
-        class="absolute inset-0 bg-[linear-gradient(rgba(20,184,166,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(20,184,166,0.03)_1px,transparent_1px)] bg-[size:64px_64px]"
-      ></div>
+      <div class="home-grid absolute inset-0"></div>
+      <div class="home-rail absolute inset-y-0 left-[16vw] hidden w-px md:block"></div>
+      <div class="home-rail absolute inset-y-0 right-[16vw] hidden w-px md:block"></div>
     </div>
 
     <!-- Header -->
@@ -393,14 +380,6 @@
           >
             {{ t('home.docs') }}
           </a>
-          <a
-            :href="githubUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-dark-400 dark:hover:text-white"
-          >
-            GitHub
-          </a>
         </div>
       </div>
     </footer>
@@ -415,6 +394,7 @@ import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { renderRichContent } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
+import { DEFAULT_SITE_NAME, normalizeSiteName } from '@/utils/brand'
 
 const { t } = useI18n()
 
@@ -422,7 +402,7 @@ const authStore = useAuthStore()
 const appStore = useAppStore()
 
 // Site settings - directly from appStore (already initialized from injected config)
-const siteName = computed(() => appStore.cachedPublicSettings?.site_name || appStore.siteName || 'Sub2API')
+const siteName = computed(() => normalizeSiteName(appStore.cachedPublicSettings?.site_name || appStore.siteName || DEFAULT_SITE_NAME))
 const siteLogo = computed(() => appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '')
 const docUrl = computed(() => appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '')
 const homeContent = computed(() => appStore.cachedPublicSettings?.home_content || '')
@@ -434,9 +414,6 @@ const isHomeContentUrl = computed(() => !!homeContentUrl.value)
 
 // Theme
 const isDark = ref(document.documentElement.classList.contains('dark'))
-
-// GitHub URL
-const githubUrl = 'https://github.com/DR-lin-eng/sub2api'
 
 // Auth state
 const isAuthenticated = computed(() => authStore.isAuthenticated)
@@ -484,6 +461,40 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.home-shell {
+  background:
+    linear-gradient(180deg, rgba(250, 250, 250, 0.95), rgba(244, 244, 245, 0.96)),
+    #fafafa;
+}
+
+:global(.dark) .home-shell {
+  background:
+    linear-gradient(180deg, rgba(24, 24, 27, 0.98), rgba(9, 9, 11, 0.99)),
+    #09090b;
+}
+
+.home-grid {
+  background-image:
+    linear-gradient(rgba(39, 39, 42, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(39, 39, 42, 0.07) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(to bottom, transparent, black 12%, black 88%, transparent);
+}
+
+:global(.dark) .home-grid {
+  background-image:
+    linear-gradient(rgba(244, 244, 245, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(244, 244, 245, 0.06) 1px, transparent 1px);
+}
+
+.home-rail {
+  background: linear-gradient(to bottom, transparent, rgba(39, 39, 42, 0.14), transparent);
+}
+
+:global(.dark) .home-rail {
+  background: linear-gradient(to bottom, transparent, rgba(244, 244, 245, 0.12), transparent);
+}
+
 /* Terminal Container */
 .terminal-container {
   position: relative;

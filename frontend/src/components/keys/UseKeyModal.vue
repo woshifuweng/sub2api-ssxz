@@ -862,7 +862,7 @@ model_reasoning_effort = "medium"
 disable_response_storage = true
 
 [model_providers.ssxz]
-name = "SSXZ API"
+name = "SSXZ AI"
 base_url = "${baseUrl}"
 wire_api = "responses"
 requires_openai_auth = true`
@@ -897,7 +897,7 @@ model_reasoning_effort = "medium"
 disable_response_storage = true
 
 [model_providers.ssxz]
-name = "SSXZ API"
+name = "SSXZ AI"
 base_url = "${baseUrl}"
 wire_api = "responses"
 supports_websockets = true

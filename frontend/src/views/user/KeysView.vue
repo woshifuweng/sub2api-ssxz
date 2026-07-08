@@ -1365,6 +1365,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
 import { formatDateTime } from '@/utils/format'
+import { DEFAULT_SITE_NAME, normalizeSiteName } from '@/utils/brand'
 
 // Helper to format date for datetime-local input
 const formatDateTimeLocal = (isoDate: string): string => {
@@ -2210,7 +2211,7 @@ const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
       };
     }
   })`
-  const providerName = (publicSettings.value?.site_name || 'sub2api').trim() || 'sub2api'
+  const providerName = normalizeSiteName(publicSettings.value?.site_name || DEFAULT_SITE_NAME)
 
   const params = new URLSearchParams({
     resource: 'provider',

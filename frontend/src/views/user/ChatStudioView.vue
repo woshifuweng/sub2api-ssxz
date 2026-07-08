@@ -87,7 +87,7 @@
         <div>
           <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ workspaceTitle }}</h2>
           <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
-            网页内直接使用，后台自动选择兼容 Key，并继续走 Sub2 余额、日志和扣费。
+            网页内直接使用，后台自动选择兼容 Key，并继续走账户余额、日志和扣费。
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">

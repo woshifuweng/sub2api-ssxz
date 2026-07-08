@@ -2211,6 +2211,7 @@ import {
   normalizeRegistrationEmailSuffixDomains,
   parseRegistrationEmailSuffixWhitelistInput
 } from '@/utils/registrationEmailPolicy'
+import { DEFAULT_SITE_NAME, DEFAULT_SITE_SUBTITLE } from '@/utils/brand'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -2334,9 +2335,9 @@ const form = reactive<SettingsForm>({
   affiliate_rebate_freeze_hours: 0,
   affiliate_rebate_duration_days: 0,
   affiliate_rebate_per_invitee_cap: 0,
-  site_name: 'Sub2API',
+  site_name: DEFAULT_SITE_NAME,
   site_logo: '',
-  site_subtitle: 'Subscription to API Conversion Platform',
+  site_subtitle: DEFAULT_SITE_SUBTITLE,
   api_base_url: '',
   contact_info: '',
   doc_url: '',

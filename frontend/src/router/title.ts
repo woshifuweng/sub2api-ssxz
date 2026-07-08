@@ -1,4 +1,5 @@
 import { i18n } from '@/i18n'
+import { DEFAULT_SITE_NAME, normalizeSiteName } from '@/utils/brand'
 
 /**
  * 统一生成页面标题，避免多处写入 document.title 产生覆盖冲突。
@@ -11,10 +12,10 @@ export function resolveDocumentTitle(
   siteNameOverride?: unknown
 ): string {
   const normalizedSiteName = typeof siteNameOverride === 'string' && siteNameOverride.trim()
-    ? siteNameOverride.trim()
+    ? normalizeSiteName(siteNameOverride)
     : typeof siteName === 'string' && siteName.trim()
-      ? siteName.trim()
-      : 'Sub2API'
+      ? normalizeSiteName(siteName)
+      : DEFAULT_SITE_NAME
 
   if (typeof titleKey === 'string' && titleKey.trim()) {
     const translated = i18n.global.t(titleKey)
