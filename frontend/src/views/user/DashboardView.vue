@@ -1,5 +1,10 @@
 <template>
-  <AppLayout>
+  <AppSectionShell
+    title="仪表盘"
+    subtitle="管理 API Key、余额用量、账户记录和通道状态。"
+    eyebrow="服务控制台"
+    icon="home"
+  >
     <div class="space-y-6">
       <div v-if="loading" class="flex items-center justify-center py-12">
         <LoadingSpinner />
@@ -213,7 +218,7 @@
         </div>
       </template>
     </div>
-  </AppLayout>
+  </AppSectionShell>
 </template>
 
 <script setup lang="ts">
@@ -221,7 +226,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { usageAPI, type UserDashboardStats as UserStatsType } from '@/api/usage'
-import AppLayout from '@/components/layout/AppLayout.vue'
+import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'
 import UserDashboardStats from '@/components/user/dashboard/UserDashboardStats.vue'
@@ -237,8 +242,6 @@ const balance = computed(() => user.value?.balance || 0)
 const userEmail = computed(() => user.value?.email || '当前用户')
 const paymentEnabled = computed(() => !!appStore.cachedPublicSettings?.payment_enabled)
 const channelMonitorEnabled = computed(() => !!appStore.cachedPublicSettings?.channel_monitor_enabled)
-const affiliateEnabled = computed(() => !!appStore.cachedPublicSettings?.affiliate_enabled)
-
 const stats = ref<UserStatsType | null>(null)
 const loading = ref(false)
 const statsLoadError = ref(false)
@@ -288,14 +291,6 @@ const baseProductEntries = [
     title: '兑换码',
     description: '已有兑换码时可直接兑换到账户额度或试用权益，适合私域发放和人工开通。',
     action: '去兑换'
-  },
-  {
-    to: '/app/affiliate',
-    icon: 'gift' as const,
-    badge: '推广',
-    title: '推广中心',
-    description: '分享专属链接，查看邀请记录和活动奖励；具体到账以系统记录为准。',
-    action: '查看邀请'
   }
 ]
 
@@ -303,8 +298,7 @@ const productEntries = computed(() =>
   baseProductEntries.filter(
     (entry) =>
       (entry.to !== '/app/channel-status' || channelMonitorEnabled.value) &&
-      (entry.to !== '/app/purchase' || paymentEnabled.value) &&
-      (entry.to !== '/app/affiliate' || affiliateEnabled.value)
+      (entry.to !== '/app/purchase' || paymentEnabled.value)
   )
 )
 

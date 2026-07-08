@@ -225,7 +225,6 @@ describe('AppSidebar', () => {
       '/app/purchase',
       '/app/orders',
       '/app/redeem',
-      '/app/affiliate',
       '/app/profile'
     ])
     expect(destinations).not.toContain('/app/chat')
@@ -265,14 +264,14 @@ describe('AppSidebar', () => {
     ])
   })
 
-  it('shows the existing affiliate route for regular users when enabled', () => {
+  it('keeps the unfinished affiliate route hidden for regular users when enabled', () => {
     authState.isAdmin = false
     appState.cachedPublicSettings.affiliate_enabled = true
 
     const wrapper = mountSidebar()
     const destinations = hrefs(wrapper)
 
-    expect(wrapper.text()).toContain('推广中心')
+    expect(wrapper.text()).not.toContain('推广中心')
     expect(destinations).toEqual([
       '/app/dashboard',
       '/app/keys',
@@ -281,7 +280,6 @@ describe('AppSidebar', () => {
       '/app/purchase',
       '/app/orders',
       '/app/redeem',
-      '/app/affiliate',
       '/app/profile'
     ])
   })

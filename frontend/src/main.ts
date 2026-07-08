@@ -5,13 +5,12 @@ import router from './router'
 import i18n, { initI18n } from './i18n'
 import { useAppStore } from '@/stores/app'
 import { DEFAULT_SITE_NAME } from '@/utils/brand'
+import { getSafeLocalStorageItem } from '@/utils/safeStorage'
 import './style.css'
 
 function initThemeClass() {
-  const savedTheme = localStorage.getItem('theme')
-  const shouldUseDark =
-    savedTheme === 'dark' ||
-    (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  const savedTheme = getSafeLocalStorageItem('theme')
+  const shouldUseDark = savedTheme === 'light' ? false : true
   document.documentElement.classList.toggle('dark', shouldUseDark)
 }
 

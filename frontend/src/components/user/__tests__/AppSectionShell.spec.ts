@@ -109,7 +109,7 @@ describe('AppSectionShell', () => {
   it('keeps API Key available as a third-party client entrypoint', () => {
     const wrapper = mountShell()
 
-    expect(wrapper.text()).toContain('AI 服务平台')
+    expect(wrapper.text()).toContain('服务控制台')
     expect(wrapper.text()).not.toContain('中转运营平台')
     expect(wrapper.text()).toContain('SSXZ AI')
     expect(wrapper.text()).not.toContain('图片工具站')
@@ -227,7 +227,7 @@ describe('AppSectionShell', () => {
     expect(wrapper.text()).not.toContain('Channel Status')
   })
 
-  it('shows the existing affiliate entry only when affiliate is enabled', async () => {
+  it('keeps the unfinished affiliate entry out of the user shell even when enabled', () => {
     appState.cachedPublicSettings.affiliate_enabled = true
 
     const wrapper = mountShell()
@@ -236,13 +236,8 @@ describe('AppSectionShell', () => {
       ...wrapper.findAll('.ssxz-secondary-nav .ssxz-nav-item')
     ]
 
-    expect(wrapper.text()).toContain('推广中心')
-
-    const affiliateButton = buttons.find((button) => button.text().includes('推广中心'))
-    expect(affiliateButton).toBeTruthy()
-    await affiliateButton?.trigger('click')
-
-    expect(mocks.push).toHaveBeenLastCalledWith('/app/affiliate')
+    expect(wrapper.text()).not.toContain('推广中心')
+    expect(buttons.some((button) => button.text().includes('推广中心'))).toBe(false)
   })
 
   it('hides recharge entry when balance payment and subscription purchase are both disabled', () => {

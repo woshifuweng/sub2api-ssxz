@@ -37,10 +37,11 @@ vi.mock('@/api/usage', () => ({
   usageAPI
 }))
 
-vi.mock('@/components/layout/AppLayout.vue', () => ({
+vi.mock('@/components/user/AppSectionShell.vue', () => ({
   default: {
-    name: 'AppLayout',
-    template: '<main data-testid="app-layout"><slot /></main>'
+    name: 'AppSectionShell',
+    props: ['title', 'subtitle', 'eyebrow', 'icon'],
+    template: '<main data-testid="app-section-shell"><slot /></main>'
   }
 }))
 
@@ -198,7 +199,7 @@ describe('DashboardView', () => {
     await flushPromises()
 
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
-    expect(wrapper.find('[data-testid="app-layout"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('user@example.com')
     expect(wrapper.text()).toContain('$42.35')
     expect(wrapper.text()).toContain('$1.25')
@@ -237,7 +238,7 @@ describe('DashboardView', () => {
     expect(hrefs).not.toContain('/app/channel-status')
   })
 
-  it('shows the affiliate shortcut only when the affiliate feature is enabled', async () => {
+  it('keeps the unfinished affiliate shortcut hidden even when the feature is enabled', async () => {
     appStore.cachedPublicSettings = {
       channel_monitor_enabled: true,
       payment_enabled: true,
@@ -248,9 +249,9 @@ describe('DashboardView', () => {
     await flushPromises()
 
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
-    expect(hrefs).toContain('/app/affiliate')
-    expect(wrapper.text()).toContain('推广中心')
-    expect(wrapper.text()).toContain('查看邀请')
+    expect(hrefs).not.toContain('/app/affiliate')
+    expect(wrapper.text()).not.toContain('推广中心')
+    expect(wrapper.text()).not.toContain('查看邀请')
   })
 
   it('does not advertise recharge actions when online payment is disabled', async () => {

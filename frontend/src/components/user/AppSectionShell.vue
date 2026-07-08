@@ -154,6 +154,7 @@ import Icon from '@/components/icons/Icon.vue'
 import type { ChatConversation } from '@/api/chatWorkspace'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
+import { getSafeLocalStorageItem, setSafeLocalStorageItem } from '@/utils/safeStorage'
 
 type IconName = InstanceType<typeof Icon>['$props']['name']
 
@@ -196,8 +197,6 @@ const purchaseEnabled = computed(
     !!appStore.cachedPublicSettings?.payment_enabled ||
     !!appStore.cachedPublicSettings?.purchase_subscription_enabled
 )
-const affiliateEnabled = computed(() => !!appStore.cachedPublicSettings?.affiliate_enabled)
-
 const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName }>>(() => [
   { label: '仪表盘', to: '/app/dashboard', icon: 'home' },
   { label: 'API 密钥', to: '/app/keys', icon: 'key' },
@@ -210,9 +209,6 @@ const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName 
     : []),
   { label: '账户记录', to: '/app/orders', icon: 'clipboard' },
   { label: '兑换码', to: '/app/redeem', icon: 'gift' },
-  ...(affiliateEnabled.value
-    ? [{ label: '推广中心', to: '/app/affiliate', icon: 'gift' as IconName }]
-    : []),
   { label: '个人资料', to: '/app/profile', icon: 'userCircle' },
   ...(authStore.isAdmin
     ? [{ label: '后台入口', to: '/admin/dashboard', icon: 'shield' as IconName }]
@@ -269,20 +265,12 @@ function formatMoney(value: number) {
 }
 
 function readSidebarCollapsed() {
-  try {
-    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true'
-  } catch {
-    return false
-  }
+  return getSafeLocalStorageItem(SIDEBAR_COLLAPSED_KEY) === 'true'
 }
 
 function setSidebarCollapsed(value: boolean) {
   sidebarCollapsed.value = value
-  try {
-    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, value ? 'true' : 'false')
-  } catch {
-    // Private browsing or storage restrictions should not break navigation.
-  }
+  setSafeLocalStorageItem(SIDEBAR_COLLAPSED_KEY, value ? 'true' : 'false')
 }
 
 function toggleSidebarCollapsed() {
@@ -320,7 +308,7 @@ async function logout() {
 }
 
 function initTheme() {
-  const saved = localStorage.getItem('theme')
+  const saved = getSafeLocalStorageItem('theme')
   if (saved) isDark.value = saved === 'dark'
   document.documentElement.classList.toggle('dark', isDark.value)
 }
@@ -328,7 +316,7 @@ function initTheme() {
 function toggleTheme() {
   isDark.value = !isDark.value
   document.documentElement.classList.toggle('dark', isDark.value)
-  localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
+  setSafeLocalStorageItem('theme', isDark.value ? 'dark' : 'light')
 }
 
 onMounted(() => {

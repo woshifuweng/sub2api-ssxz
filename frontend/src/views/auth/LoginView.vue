@@ -187,6 +187,7 @@ import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { useAuthStore, useAppStore } from '@/stores'
 import { getPublicSettings, isTotp2FARequired } from '@/api/auth'
 import { resolveRouteAuthRedirect } from '@/utils/authRedirect'
+import { getSafeSessionStorageItem, removeSafeSessionStorageItem } from '@/utils/safeStorage'
 import type { TotpLoginResponse } from '@/types'
 
 const { t } = useI18n()
@@ -247,9 +248,9 @@ const registerInAppLink = computed(() => {
 // ==================== Lifecycle ====================
 
 onMounted(async () => {
-  const expiredFlag = sessionStorage.getItem('auth_expired')
+  const expiredFlag = getSafeSessionStorageItem('auth_expired')
   if (expiredFlag) {
-    sessionStorage.removeItem('auth_expired')
+    removeSafeSessionStorageItem('auth_expired')
     const message = t('auth.reloginRequired')
     errorMessage.value = message
     appStore.showWarning(message)

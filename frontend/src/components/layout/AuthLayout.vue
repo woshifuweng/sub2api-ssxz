@@ -1,10 +1,10 @@
 <template>
-  <div class="auth-shell relative flex min-h-screen items-center justify-center overflow-hidden p-4">
+  <div class="auth-shell relative isolate flex min-h-screen items-center justify-center overflow-hidden p-4">
     <div
-      class="auth-shell-surface absolute inset-0"
+      class="auth-shell-surface pointer-events-none absolute inset-0 z-0"
     ></div>
 
-    <div class="pointer-events-none absolute inset-0 overflow-hidden">
+    <div class="pointer-events-none absolute inset-0 z-0 overflow-hidden">
       <div class="auth-shell-grid absolute inset-0"></div>
       <div class="auth-shell-rail absolute inset-y-0 left-[12vw] hidden w-px sm:block"></div>
       <div class="auth-shell-rail absolute inset-y-0 right-[12vw] hidden w-px sm:block"></div>

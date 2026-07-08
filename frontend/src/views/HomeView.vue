@@ -395,6 +395,7 @@ import Icon from '@/components/icons/Icon.vue'
 import { renderRichContent } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
 import { DEFAULT_SITE_NAME, normalizeSiteName } from '@/utils/brand'
+import { getSafeLocalStorageItem, setSafeLocalStorageItem } from '@/utils/safeStorage'
 
 const { t } = useI18n()
 
@@ -432,19 +433,14 @@ const currentYear = computed(() => new Date().getFullYear())
 function toggleTheme() {
   isDark.value = !isDark.value
   document.documentElement.classList.toggle('dark', isDark.value)
-  localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
+  setSafeLocalStorageItem('theme', isDark.value ? 'dark' : 'light')
 }
 
 // Initialize theme
 function initTheme() {
-  const savedTheme = localStorage.getItem('theme')
-  if (
-    savedTheme === 'dark' ||
-    (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)
-  ) {
-    isDark.value = true
-    document.documentElement.classList.add('dark')
-  }
+  const savedTheme = getSafeLocalStorageItem('theme')
+  isDark.value = savedTheme === 'light' ? false : true
+  document.documentElement.classList.toggle('dark', isDark.value)
 }
 
 onMounted(() => {

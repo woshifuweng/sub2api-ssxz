@@ -12,6 +12,7 @@ import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { resolveDocumentTitle } from './title'
 import { DEFAULT_AUTH_REDIRECT, resolveAuthRedirect, resolveRouteAuthRedirect } from '@/utils/authRedirect'
 import { normalizeSiteName } from '@/utils/brand'
+import { getSafeSessionStorageItem, setSafeSessionStorageItem } from '@/utils/safeStorage'
 
 const redirectLegacyRoute = (path: string) => (to: RouteLocationGeneric) => ({
   path,
@@ -267,7 +268,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Channel Status',
+      title: '通道状态',
       titleKey: 'nav.channelStatus',
       appSection: 'channel-status',
       titleSiteName: 'SSXZ AI'
@@ -292,7 +293,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Account Settings',
+      title: '个人资料',
       appSection: 'profile',
       titleSiteName: 'SSXZ AI'
     }
@@ -876,12 +877,12 @@ router.onError((error) => {
   if (isChunkLoadError) {
     // Avoid infinite reload loop by checking sessionStorage
     const reloadKey = 'chunk_reload_attempted'
-    const lastReload = sessionStorage.getItem(reloadKey)
+    const lastReload = getSafeSessionStorageItem(reloadKey)
     const now = Date.now()
 
     // Allow reload if never attempted or more than 10 seconds ago
     if (!lastReload || now - parseInt(lastReload) > 10000) {
-      sessionStorage.setItem(reloadKey, now.toString())
+      setSafeSessionStorageItem(reloadKey, now.toString())
       console.warn('Chunk load error detected, reloading page to fetch latest version...')
       window.location.reload()
     } else {

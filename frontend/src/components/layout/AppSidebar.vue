@@ -153,6 +153,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import { sanitizeSvg } from '@/utils/sanitize'
+import { getSafeLocalStorageItem, setSafeLocalStorageItem } from '@/utils/safeStorage'
 
 interface NavItem {
   path: string
@@ -529,7 +530,6 @@ const ChevronDoubleRightIcon = {
 
 const paymentEnabled = computed(() => !!appStore.cachedPublicSettings?.payment_enabled)
 const channelMonitorEnabled = computed(() => !!appStore.cachedPublicSettings?.channel_monitor_enabled)
-const affiliateEnabled = computed(() => !!appStore.cachedPublicSettings?.affiliate_enabled)
 const purchaseEnabled = computed(() => (
   paymentEnabled.value || !!appStore.cachedPublicSettings?.purchase_subscription_enabled
 ))
@@ -554,9 +554,6 @@ const userNavItems = computed((): NavItem[] => {
       : []),
     { path: '/app/orders', label: '账户记录', icon: OrderListIcon },
     { path: '/app/redeem', label: '兑换码', icon: TicketIcon },
-    ...(affiliateEnabled.value
-      ? [{ path: '/app/affiliate', label: '推广中心', icon: GiftIcon }]
-      : []),
     { path: '/app/profile', label: '个人资料', icon: UserIcon }
   ]
   return authStore.isSimpleMode ? items.filter(item => !item.hideInSimpleMode) : items
@@ -583,9 +580,6 @@ const personalNavItems = computed((): NavItem[] => {
       : []),
     { path: '/app/orders', label: '账户记录', icon: OrderListIcon, hideInSimpleMode: true },
     { path: '/app/redeem', label: '兑换码', icon: TicketIcon, hideInSimpleMode: true },
-    ...(affiliateEnabled.value
-      ? [{ path: '/app/affiliate', label: '推广中心', icon: GiftIcon, hideInSimpleMode: true }]
-      : []),
     { path: '/app/profile', label: '个人资料', icon: UserIcon },
     ...customMenuItemsForUser.value.map((item): NavItem => ({
       path: `/custom/${item.id}`,
@@ -669,7 +663,7 @@ function toggleSidebar() {
 function toggleTheme() {
   isDark.value = !isDark.value
   document.documentElement.classList.toggle('dark', isDark.value)
-  localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
+  setSafeLocalStorageItem('theme', isDark.value ? 'dark' : 'light')
 }
 
 function closeMobile() {
@@ -701,7 +695,7 @@ function isActive(path: string): boolean {
 }
 
 // Initialize theme
-const savedTheme = localStorage.getItem('theme')
+const savedTheme = getSafeLocalStorageItem('theme')
 if (
   savedTheme === 'dark' ||
   (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)
