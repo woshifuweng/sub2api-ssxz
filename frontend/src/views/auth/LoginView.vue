@@ -1,5 +1,45 @@
 <template>
-  <AuthLayout>
+  <AuthLayout split>
+    <template #visual>
+      <div class="login-visual">
+        <div class="login-visual-copy">
+          <span>Secure access</span>
+          <h2>回到你的 AI Gateway 控制台</h2>
+          <p>密钥、用量、模型和账单都在同一个工作区里管理。</p>
+        </div>
+
+        <div class="character-stage" :class="`is-${characterState}`" aria-hidden="true">
+          <div class="character character--back">
+            <div class="character-head">
+              <span class="character-eye character-eye--left"></span>
+              <span class="character-eye character-eye--right"></span>
+              <span class="character-hand character-hand--left"></span>
+              <span class="character-hand character-hand--right"></span>
+            </div>
+            <div class="character-body"></div>
+          </div>
+          <div class="character character--front">
+            <div class="character-head">
+              <span class="character-eye character-eye--left"></span>
+              <span class="character-eye character-eye--right"></span>
+              <span class="character-hand character-hand--left"></span>
+              <span class="character-hand character-hand--right"></span>
+            </div>
+            <div class="character-body"></div>
+          </div>
+          <div class="character-input-line">
+            <span></span>
+          </div>
+        </div>
+
+        <div class="login-visual-meta">
+          <span>API Keys</span>
+          <span>Usage</span>
+          <span>Billing</span>
+        </div>
+      </div>
+    </template>
+
     <div class="space-y-6">
       <!-- Title -->
       <div class="text-center">
@@ -36,6 +76,8 @@
               class="input pl-11"
               :class="{ 'input-error': errors.email }"
               :placeholder="t('auth.emailPlaceholder')"
+              @focus="activeField = 'email'"
+              @blur="activeField = null"
             />
           </div>
           <p v-if="errors.email" class="input-error-text">
@@ -62,11 +104,15 @@
               class="input pl-11 pr-11"
               :class="{ 'input-error': errors.password }"
               :placeholder="t('auth.passwordPlaceholder')"
+              @focus="activeField = 'password'"
+              @blur="activeField = null"
             />
             <button
               type="button"
               @click="showPassword = !showPassword"
+              @mousedown.prevent
               class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-dark-300"
+              :aria-label="showPassword ? '隐藏密码' : '显示密码'"
             >
               <Icon v-if="showPassword" name="eyeOff" size="md" />
               <Icon v-else name="eye" size="md" />
@@ -204,6 +250,7 @@ const appStore = useAppStore()
 const isLoading = ref<boolean>(false)
 const errorMessage = ref<string>('')
 const showPassword = ref<boolean>(false)
+const activeField = ref<'email' | 'password' | null>(null)
 
 // Public settings
 const turnstileEnabled = ref<boolean>(false)
@@ -231,6 +278,12 @@ const errors = reactive({
   email: '',
   password: '',
   turnstile: ''
+})
+
+const characterState = computed(() => {
+  if (activeField.value === 'password') return showPassword.value ? 'peek' : 'cover'
+  if (activeField.value === 'email' || formData.email) return 'follow'
+  return 'idle'
 })
 
 const registerInAppLink = computed(() => {
@@ -425,5 +478,244 @@ function handle2FACancel(): void {
 .fade-leave-to {
   opacity: 0;
   transform: translateY(-8px);
+}
+
+.login-visual {
+  display: flex;
+  min-height: 42rem;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 3rem;
+}
+
+.login-visual-copy {
+  max-width: 28rem;
+}
+
+.login-visual-copy > span {
+  color: var(--ssxz-accent);
+  font-family: var(--ssxz-font-mono);
+  font-size: 0.7rem;
+}
+
+.login-visual-copy h2 {
+  max-width: 25rem;
+  margin: 0.9rem 0 0;
+  color: var(--ssxz-text);
+  font-size: clamp(1.8rem, 3vw, 2.7rem);
+  font-weight: 620;
+  line-height: 1.18;
+}
+
+.login-visual-copy p {
+  max-width: 25rem;
+  margin: 1rem 0 0;
+  color: var(--ssxz-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.character-stage {
+  position: relative;
+  width: min(100%, 31rem);
+  height: 17rem;
+  align-self: center;
+  overflow: hidden;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 14px;
+  background: var(--ssxz-surface);
+}
+
+.character-stage::before,
+.character-stage::after {
+  content: "";
+  position: absolute;
+  background: var(--ssxz-border);
+}
+
+.character-stage::before {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+}
+
+.character-stage::after {
+  right: 0;
+  bottom: 3.4rem;
+  left: 0;
+  height: 1px;
+}
+
+.character {
+  position: absolute;
+  bottom: 3.4rem;
+  width: 8rem;
+  transition: transform 480ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.character--back {
+  left: 16%;
+  transform: translateY(1.9rem) scale(0.9);
+}
+
+.character--front {
+  right: 16%;
+}
+
+.character-head {
+  position: relative;
+  z-index: 2;
+  width: 6.3rem;
+  height: 6.7rem;
+  margin: 0 auto -1rem;
+  border: 1px solid color-mix(in srgb, var(--ssxz-primary) 34%, var(--ssxz-border));
+  border-radius: 46% 46% 42% 42%;
+  background: var(--ssxz-surface-raised);
+}
+
+.character--back .character-head {
+  border-color: var(--ssxz-border-strong);
+  border-radius: 42% 48% 44% 46%;
+  background: var(--ssxz-bg-subtle);
+}
+
+.character-body {
+  width: 8rem;
+  height: 5rem;
+  border: 1px solid var(--ssxz-border-strong);
+  border-radius: 3.5rem 3.5rem 0 0;
+  background: var(--ssxz-bg-subtle);
+}
+
+.character--front .character-body {
+  background: color-mix(in srgb, var(--ssxz-primary) 10%, var(--ssxz-bg-subtle));
+}
+
+.character-eye {
+  position: absolute;
+  top: 2.45rem;
+  width: 0.48rem;
+  height: 0.58rem;
+  border-radius: 50%;
+  background: var(--ssxz-text-secondary);
+  transform: translateX(0);
+  transition: transform 220ms ease, height 180ms ease;
+}
+
+.character-eye--left { left: 1.85rem; }
+.character-eye--right { right: 1.85rem; }
+
+.character-hand {
+  position: absolute;
+  z-index: 4;
+  top: 5rem;
+  width: 2.2rem;
+  height: 1.1rem;
+  border: 1px solid var(--ssxz-border-strong);
+  border-radius: 999px;
+  background: var(--ssxz-surface-raised);
+  opacity: 0;
+  transition:
+    top 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease,
+    transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.character-hand--left {
+  left: 0.55rem;
+  transform: rotate(-18deg);
+}
+
+.character-hand--right {
+  right: 0.55rem;
+  transform: rotate(18deg);
+}
+
+.is-follow .character-eye {
+  transform: translateX(0.28rem);
+}
+
+.is-follow .character--front {
+  transform: translateY(-0.2rem);
+}
+
+.is-cover .character-hand {
+  top: 2.25rem;
+  opacity: 1;
+}
+
+.is-cover .character-hand--left {
+  transform: rotate(8deg);
+}
+
+.is-cover .character-hand--right {
+  transform: rotate(-8deg);
+}
+
+.is-peek .character-hand {
+  top: 2.55rem;
+  opacity: 1;
+}
+
+.is-peek .character-hand--left {
+  transform: translateX(-0.42rem) rotate(-8deg);
+}
+
+.is-peek .character-hand--right {
+  transform: translateX(0.42rem) rotate(8deg);
+}
+
+.is-peek .character-eye--right {
+  height: 0.18rem;
+}
+
+.character-input-line {
+  position: absolute;
+  right: 1.25rem;
+  bottom: 1.2rem;
+  left: 1.25rem;
+  height: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  background: var(--ssxz-bg-subtle);
+}
+
+.character-input-line span {
+  display: block;
+  width: 22%;
+  height: 100%;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--ssxz-primary) 42%, transparent);
+  transition: width 420ms ease;
+}
+
+.is-follow .character-input-line span { width: 58%; }
+.is-cover .character-input-line span,
+.is-peek .character-input-line span { width: 82%; }
+
+.login-visual-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.login-visual-meta span {
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  padding: 0.35rem 0.58rem;
+  color: var(--ssxz-text-subtle);
+  font-family: var(--ssxz-font-mono);
+  font-size: 0.64rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .character,
+  .character-eye,
+  .character-hand,
+  .character-input-line span {
+    transition: none;
+  }
 }
 </style>

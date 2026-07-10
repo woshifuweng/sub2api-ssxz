@@ -2,31 +2,23 @@
   <aside
     class="sidebar"
     :class="[
-      sidebarCollapsed ? 'w-[72px]' : 'w-64',
+      sidebarCollapsed ? 'ssxz-sidebar-collapsed' : 'ssxz-sidebar-expanded',
       { '-translate-x-full lg:translate-x-0': !mobileOpen }
     ]"
   >
-    <!-- Logo/Brand -->
     <div class="sidebar-header">
-      <!-- Custom Logo or Default Logo -->
-      <div class="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl shadow-glow">
-        <img v-if="settingsLoaded" :src="siteLogo || '/logo.png'" alt="Logo" class="h-full w-full object-contain" />
-      </div>
+      <span class="ssxz-sidebar-wordmark" aria-label="SSXZ AI Gateway">SSXZ</span>
       <transition name="fade">
-        <div v-if="!sidebarCollapsed" class="flex flex-col">
-          <span class="text-lg font-bold text-gray-900 dark:text-white">
-            {{ siteName }}
-          </span>
-          <span class="text-xs font-medium text-gray-500 dark:text-dark-400">
-            {{ sidebarSubtitle }}
-          </span>
+        <div v-if="!sidebarCollapsed" class="ssxz-sidebar-brand-copy">
+          <span class="ssxz-sidebar-product">{{ siteName }}</span>
+          <span class="ssxz-sidebar-subtitle">{{ sidebarSubtitle }}</span>
         </div>
       </transition>
     </div>
 
     <!-- Navigation -->
     <nav class="sidebar-nav scrollbar-hide">
-      <!-- Admin View: Admin menu first, then personal menu -->
+      <!-- Admin Console remains separate from the user workspace. -->
       <template v-if="isAdmin">
         <!-- Admin Section -->
         <div class="sidebar-section">
@@ -56,30 +48,6 @@
           </router-link>
         </div>
 
-        <!-- Personal Section for Admin (hidden in simple mode) -->
-        <div v-if="!authStore.isSimpleMode" class="sidebar-section">
-          <div v-if="!sidebarCollapsed" class="sidebar-section-title">
-            {{ t('nav.myAccount') }}
-          </div>
-          <div v-else class="mx-3 my-3 h-px bg-gray-200 dark:bg-dark-700"></div>
-
-          <router-link
-            v-for="item in personalNavItems"
-            :key="item.path"
-            :to="item.path"
-            class="sidebar-link mb-1"
-            :class="{ 'sidebar-link-active': isActive(item.path) }"
-            :title="sidebarCollapsed ? item.label : undefined"
-            :data-tour="item.path === '/app/keys' ? 'sidebar-my-keys' : undefined"
-            @click="handleMenuItemClick(item.path)"
-          >
-            <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-            <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
-            <transition name="fade">
-              <span v-if="!sidebarCollapsed">{{ item.label }}</span>
-            </transition>
-          </router-link>
-        </div>
       </template>
 
       <!-- Regular User View -->
@@ -106,22 +74,7 @@
     </nav>
 
     <!-- Bottom Section -->
-    <div class="mt-auto border-t border-gray-100 p-3 dark:border-dark-800">
-      <!-- Theme Toggle -->
-      <button
-        @click="toggleTheme"
-        class="sidebar-link mb-2 w-full"
-        :title="sidebarCollapsed ? (isDark ? t('nav.lightMode') : t('nav.darkMode')) : undefined"
-      >
-        <SunIcon v-if="isDark" class="h-5 w-5 flex-shrink-0 text-amber-500" />
-        <MoonIcon v-else class="h-5 w-5 flex-shrink-0" />
-        <transition name="fade">
-          <span v-if="!sidebarCollapsed">{{
-            isDark ? t('nav.lightMode') : t('nav.darkMode')
-          }}</span>
-        </transition>
-      </button>
-
+    <div class="ssxz-sidebar-footer mt-auto p-3">
       <!-- Collapse Button -->
       <button
         @click="toggleSidebar"
@@ -148,12 +101,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, ref, watch } from 'vue'
+import { computed, h, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import { sanitizeSvg } from '@/utils/sanitize'
-import { getSafeLocalStorageItem, setSafeLocalStorageItem } from '@/utils/safeStorage'
 
 interface NavItem {
   path: string
@@ -174,13 +126,10 @@ const adminSettingsStore = useAdminSettingsStore()
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const mobileOpen = computed(() => appStore.mobileOpen)
 const isAdmin = computed(() => authStore.isAdmin)
-const isDark = ref(document.documentElement.classList.contains('dark'))
 
 // Site settings from appStore (cached, no flicker)
 const siteName = computed(() => appStore.siteName)
-const siteLogo = computed(() => appStore.siteLogo)
 const sidebarSubtitle = computed(() => (isAdmin.value ? '管理控制台' : '服务控制台'))
-const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
 
 // SVG Icon Components
 const DashboardIcon = {
@@ -408,36 +357,6 @@ const CogIcon = {
     )
 }
 
-const SunIcon = {
-  render: () =>
-    h(
-      'svg',
-      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
-      [
-        h('path', {
-          'stroke-linecap': 'round',
-          'stroke-linejoin': 'round',
-          d: 'M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z'
-        })
-      ]
-    )
-}
-
-const MoonIcon = {
-  render: () =>
-    h(
-      'svg',
-      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
-      [
-        h('path', {
-          'stroke-linecap': 'round',
-          'stroke-linejoin': 'round',
-          d: 'M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z'
-        })
-      ]
-    )
-}
-
 const ChevronDoubleLeftIcon = {
   render: () =>
     h(
@@ -530,74 +449,18 @@ const ChevronDoubleRightIcon = {
 
 const paymentEnabled = computed(() => !!appStore.cachedPublicSettings?.payment_enabled)
 const channelMonitorEnabled = computed(() => !!appStore.cachedPublicSettings?.channel_monitor_enabled)
-const purchaseEnabled = computed(() => (
-  paymentEnabled.value || !!appStore.cachedPublicSettings?.purchase_subscription_enabled
-))
-
 // User navigation items (for regular users)
-const userNavItems = computed((): NavItem[] => {
-  const items: NavItem[] = [
-    { path: '/app/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
-    { path: '/app/keys', label: 'API 密钥', icon: KeyIcon },
-    { path: '/app/usage', label: '使用记录', icon: ChartIcon },
-    ...(channelMonitorEnabled.value
-      ? [{ path: '/app/channel-status', label: '通道状态', icon: SignalIcon }]
-      : []),
-    ...(purchaseEnabled.value
-      ? [
-          {
-            path: '/app/purchase',
-            label: '补充额度',
-            icon: RechargeSubscriptionIcon
-          }
-        ]
-      : []),
-    { path: '/app/orders', label: '账户记录', icon: OrderListIcon },
-    { path: '/app/redeem', label: '兑换码', icon: TicketIcon },
-    { path: '/app/profile', label: '个人资料', icon: UserIcon }
-  ]
-  return authStore.isSimpleMode ? items.filter(item => !item.hideInSimpleMode) : items
-})
-
-// Personal navigation items (for admin's "My Account" section, without Dashboard)
-const personalNavItems = computed((): NavItem[] => {
-  const items: NavItem[] = [
-    { path: '/app/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
-    { path: '/app/keys', label: 'API 密钥', icon: KeyIcon },
-    { path: '/app/usage', label: '使用记录', icon: ChartIcon, hideInSimpleMode: true },
-    ...(channelMonitorEnabled.value
-      ? [{ path: '/app/channel-status', label: '通道状态', icon: SignalIcon, hideInSimpleMode: true }]
-      : []),
-    ...(purchaseEnabled.value
-      ? [
-          {
-            path: '/app/purchase',
-            label: '补充额度',
-            icon: RechargeSubscriptionIcon,
-            hideInSimpleMode: true
-          }
-        ]
-      : []),
-    { path: '/app/orders', label: '账户记录', icon: OrderListIcon, hideInSimpleMode: true },
-    { path: '/app/redeem', label: '兑换码', icon: TicketIcon, hideInSimpleMode: true },
-    { path: '/app/profile', label: '个人资料', icon: UserIcon },
-    ...customMenuItemsForUser.value.map((item): NavItem => ({
-      path: `/custom/${item.id}`,
-      label: item.label,
-      icon: null,
-      iconSvg: item.icon_svg,
-    })),
-  ]
-  return authStore.isSimpleMode ? items.filter(item => !item.hideInSimpleMode) : items
-})
-
-// Custom menu items filtered by visibility
-const customMenuItemsForUser = computed(() => {
-  const items = appStore.cachedPublicSettings?.custom_menu_items ?? []
-  return items
-    .filter((item) => item.visibility === 'user')
-    .sort((a, b) => a.sort_order - b.sort_order)
-})
+const userNavItems = computed((): NavItem[] => [
+  { path: '/app/dashboard', label: 'Dashboard', icon: DashboardIcon },
+  { path: '/app/chat', label: 'Chat', icon: ChartIcon },
+  { path: '/app/image', label: 'Image', icon: GiftIcon },
+  { path: '/app/keys', label: 'API Keys', icon: KeyIcon },
+  { path: '/app/available-channels', label: 'Models', icon: ChannelIcon },
+  { path: '/app/usage', label: 'Usage', icon: ChartIcon },
+  { path: '/app/purchase', label: 'Billing', icon: RechargeSubscriptionIcon },
+  { path: '/app/keys?guide=clients', label: 'Docs', icon: GlobeIcon },
+  { path: '/app/profile', label: 'Account', icon: UserIcon }
+])
 
 const customMenuItemsForAdmin = computed(() => {
   return adminSettingsStore.customMenuItems
@@ -636,10 +499,9 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon }
   ]
 
-  // 简单模式下，在系统设置前插入 API密钥
+  // Simple mode keeps the operator console self-contained.
   if (authStore.isSimpleMode) {
     const filtered = baseItems.filter(item => !item.hideInSimpleMode)
-    filtered.push({ path: '/app/keys', label: t('nav.apiKeys'), icon: KeyIcon })
     filtered.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
     // Add admin custom menu items after settings
     for (const cm of customMenuItemsForAdmin.value) {
@@ -658,12 +520,6 @@ const adminNavItems = computed((): NavItem[] => {
 
 function toggleSidebar() {
   appStore.toggleSidebar()
-}
-
-function toggleTheme() {
-  isDark.value = !isDark.value
-  document.documentElement.classList.toggle('dark', isDark.value)
-  setSafeLocalStorageItem('theme', isDark.value ? 'dark' : 'light')
 }
 
 function closeMobile() {
@@ -691,17 +547,8 @@ function handleMenuItemClick(itemPath: string) {
 }
 
 function isActive(path: string): boolean {
-  return route.path === path || route.path.startsWith(path + '/')
-}
-
-// Initialize theme
-const savedTheme = getSafeLocalStorageItem('theme')
-if (
-  savedTheme === 'dark' ||
-  (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)
-) {
-  isDark.value = true
-  document.documentElement.classList.add('dark')
+  const normalizedPath = path.split('?')[0]
+  return route.path === normalizedPath || route.path.startsWith(normalizedPath + '/')
 }
 
 // Fetch admin settings (for feature-gated nav items like Ops).
@@ -739,5 +586,50 @@ onMounted(() => {
   height: 1.25rem;
   stroke: currentColor;
   fill: none;
+}
+
+.ssxz-sidebar-wordmark {
+  display: inline-flex;
+  min-width: 2.75rem;
+  min-height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-button);
+  color: var(--ssxz-text);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.ssxz-sidebar-brand-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.1rem;
+}
+
+.ssxz-sidebar-product {
+  overflow: hidden;
+  color: var(--ssxz-text);
+  font-size: 0.9rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ssxz-sidebar-subtitle {
+  color: var(--ssxz-text-muted);
+  font-size: 0.7rem;
+}
+
+.ssxz-sidebar-expanded {
+  width: var(--ssxz-sidebar-width, 248px);
+}
+
+.ssxz-sidebar-collapsed {
+  width: var(--ssxz-sidebar-collapsed-width, 72px);
+}
+
+.ssxz-sidebar-footer {
+  border-top: 1px solid var(--ssxz-border, rgb(255 255 255 / 0.1));
 }
 </style>

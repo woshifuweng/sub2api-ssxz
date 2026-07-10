@@ -5,33 +5,33 @@ export default {
   theme: {
     extend: {
       colors: {
-        // SSXZ brand accent: restrained champagne/ink, replacing the stock teal shell.
+        // SSXZ interaction color: one indigo scale across public and product surfaces.
         primary: {
-          50: '#fbf8ef',
-          100: '#f4ead2',
-          200: '#e8d1a3',
-          300: '#d8b56f',
-          400: '#c89a42',
-          500: '#aa7a2d',
-          600: '#8a5e24',
-          700: '#6f491f',
-          800: '#5f3f21',
-          900: '#513720',
-          950: '#2f1d0e'
+          50: '#eef2ff',
+          100: '#e0e7ff',
+          200: '#c7d2fe',
+          300: '#a5b4fc',
+          400: '#818cf8',
+          500: '#6366f1',
+          600: '#5558df',
+          700: '#4547bd',
+          800: '#37399a',
+          900: '#30327a',
+          950: '#1e1f4d'
         },
-        // 辅助色 - 深蓝灰
+        // Detail accent: small cyan notes, links, and code highlights only.
         accent: {
-          50: '#f8fafc',
-          100: '#f1f5f9',
-          200: '#e2e8f0',
-          300: '#cbd5e1',
-          400: '#94a3b8',
-          500: '#64748b',
-          600: '#475569',
-          700: '#334155',
-          800: '#1e293b',
-          900: '#0f172a',
-          950: '#020617'
+          50: '#ecfeff',
+          100: '#cffafe',
+          200: '#a5f3fc',
+          300: '#67e8f9',
+          400: '#38bdf8',
+          500: '#0ea5e9',
+          600: '#0284c7',
+          700: '#0369a1',
+          800: '#075985',
+          900: '#0c4a6e',
+          950: '#082f49'
         },
         // 深色模式背景
         dark: {
@@ -67,20 +67,19 @@ export default {
       boxShadow: {
         glass: '0 8px 32px rgba(0, 0, 0, 0.08)',
         'glass-sm': '0 4px 16px rgba(0, 0, 0, 0.06)',
-        glow: '0 0 20px rgba(170, 122, 45, 0.25)',
-        'glow-lg': '0 0 40px rgba(170, 122, 45, 0.35)',
-        card: '0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06)',
-        'card-hover': '0 10px 40px rgba(0, 0, 0, 0.08)',
-        'inner-glow': 'inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+        glow: '0 0 0 1px rgba(99, 102, 241, 0.18)',
+        'glow-lg': '0 0 0 1px rgba(99, 102, 241, 0.22)',
+        card: '0 1px 2px rgba(0, 0, 0, 0.24)',
+        'card-hover': '0 12px 32px rgba(0, 0, 0, 0.24)',
+        'inner-glow': 'inset 0 1px 0 rgba(255, 255, 255, 0.04)'
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-primary': 'linear-gradient(135deg, #c89a42 0%, #8a5e24 100%)',
+        'gradient-primary': 'linear-gradient(180deg, #6366f1 0%, #5558df 100%)',
         'gradient-dark': 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
         'gradient-glass':
           'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-        'mesh-gradient':
-          'radial-gradient(at 40% 20%, rgba(170, 122, 45, 0.12) 0px, transparent 50%), radial-gradient(at 80% 0%, rgba(216, 181, 111, 0.08) 0px, transparent 50%), radial-gradient(at 0% 50%, rgba(95, 63, 33, 0.08) 0px, transparent 50%)'
+        'mesh-gradient': 'linear-gradient(180deg, #0b1120 0%, #070b14 100%)'
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-out',
@@ -90,7 +89,7 @@ export default {
         'scale-in': 'scaleIn 0.2s ease-out',
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         shimmer: 'shimmer 2s linear infinite',
-        glow: 'glow 2s ease-in-out infinite alternate'
+        glow: 'none'
       },
       keyframes: {
         fadeIn: {
@@ -117,10 +116,7 @@ export default {
           '0%': { backgroundPosition: '-200% 0' },
           '100%': { backgroundPosition: '200% 0' }
         },
-        glow: {
-          '0%': { boxShadow: '0 0 20px rgba(170, 122, 45, 0.25)' },
-          '100%': { boxShadow: '0 0 30px rgba(170, 122, 45, 0.4)' }
-        }
+        glow: {}
       },
       backdropBlur: {
         xs: '2px'

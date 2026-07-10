@@ -6,7 +6,7 @@
       </div>
 
       <div v-else-if="errorMessage" class="card p-6 text-center">
-        <h2 class="text-base font-semibold text-gray-900 dark:text-white">推广中心暂时无法加载</h2>
+        <h2 class="text-base font-semibold text-gray-900 dark:text-white">邀请返利暂时无法加载</h2>
         <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500 dark:text-gray-400">
           刷新后会重新获取推广码和邀请记录。已有记录会继续保留。
         </p>
@@ -144,7 +144,7 @@ const useWorkbenchShell = computed(() => route.path === '/app/affiliate')
 const pageShell = computed(() => useWorkbenchShell.value ? AppSectionShell : AppLayout)
 const pageShellProps = computed(() => useWorkbenchShell.value
   ? {
-      title: '推广中心',
+      title: '邀请返利',
       subtitle: '复制专属链接，查看邀请人数、奖励和可转入余额。',
       eyebrow: '账户运营',
       icon: 'gift'

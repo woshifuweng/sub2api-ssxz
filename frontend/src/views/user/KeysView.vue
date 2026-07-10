@@ -59,16 +59,20 @@
         </div>
         <div class="keys-guide-cards" :aria-label="t('keys.workbenchGuide.clientsAriaLabel')">
           <article>
-            <strong>CC Switch</strong>
-            <span>{{ t('keys.workbenchGuide.ccSwitch') }}</span>
+            <strong>OpenAI-compatible</strong>
+            <span>客户端统一填写 Base URL、API Key 和 Model，模型以后端配置为准。</span>
           </article>
           <article>
             <strong>Cherry Studio</strong>
-            <span>{{ t('keys.workbenchGuide.cherryStudio') }}</span>
+            <span>选择 OpenAI-compatible 配置方式接入，适合日常对话和模型切换。</span>
           </article>
           <article>
             <strong>Chatbox</strong>
-            <span>{{ t('keys.workbenchGuide.chatbox') }}</span>
+            <span>适合轻量聊天和测试接口，填写本站 Base URL 与 Key 即可。</span>
+          </article>
+          <article>
+            <strong>CC Switch</strong>
+            <span>导入完整 Key 后可生成客户端配置，无法导入时请先新建并保存完整 Key。</span>
           </article>
         </div>
       </section>
@@ -76,23 +80,23 @@
       <TablePageLayout :class="{ 'keys-workbench-layout': useWorkbenchShell }">
       <template #filters>
         <div class="space-y-3">
-          <div class="rounded-xl border border-blue-100 bg-blue-50/80 p-4 text-sm text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-100">
+          <div class="keys-client-callout rounded-xl border p-4 text-sm">
             <p class="font-semibold">{{ t('keys.clientAccessTitle') }}</p>
             <p class="mt-1 leading-6">{{ t('keys.clientAccessDescription') }}</p>
             <p class="mt-1 leading-6">{{ t('keys.clientReadinessHint') }}</p>
             <div class="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold">
-              <span class="text-blue-800/80 dark:text-blue-100/80">
+              <span>
                 {{ t('keys.clientTroubleshootingHint') }}
               </span>
               <a
                 href="/app/available-channels"
-                class="rounded-full border border-blue-200 bg-white/70 px-3 py-1 text-blue-700 transition hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-100 dark:hover:bg-blue-900/40"
+                class="keys-client-chip"
               >
                 {{ t('keys.viewAvailableModels') }}
               </a>
               <a
                 href="/app/channel-status"
-                class="rounded-full border border-blue-200 bg-white/70 px-3 py-1 text-blue-700 transition hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-100 dark:hover:bg-blue-900/40"
+                class="keys-client-chip"
               >
                 {{ t('keys.viewServiceStatus') }}
               </a>
@@ -209,11 +213,10 @@
                   <GroupBadge
                     v-for="group in ((row.groups && row.groups.length > 0) ? row.groups.slice(0, 2) : (row.group ? [row.group] : []))"
                     :key="group.id"
-                    :name="group.name"
+                    :name="formatGroupDisplayName(group)"
                     :platform="group.platform"
                     :subscription-type="group.subscription_type"
-                    :rate-multiplier="group.rate_multiplier"
-                    :user-rate-multiplier="userGroupRates[group.id]"
+                    :show-rate="false"
                   />
                   <span
                     v-if="row.groups && row.groups.length > 2"
@@ -539,11 +542,10 @@
             <GroupBadge
               v-for="group in groups.filter((item) => formData.group_ids.includes(item.id))"
               :key="group.id"
-              :name="group.name"
+              :name="formatGroupDisplayName(group)"
               :platform="group.platform"
               :subscription-type="group.subscription_type"
-              :rate-multiplier="group.rate_multiplier"
-              :user-rate-multiplier="userGroupRates[group.id]"
+              :show-rate="false"
             />
           </div>
           <div
@@ -566,11 +568,10 @@
                 class="h-3.5 w-3.5 shrink-0 rounded border-gray-300 text-primary-500 focus:ring-primary-500 dark:border-dark-500"
               />
               <GroupBadge
-                :name="group.name"
+                :name="formatGroupDisplayName(group)"
                 :platform="group.platform"
                 :subscription-type="group.subscription_type"
-                :rate-multiplier="group.rate_multiplier"
-                :user-rate-multiplier="userGroupRates[group.id]"
+                :show-rate="false"
                 class="min-w-0 flex-1"
               />
             </label>
@@ -1316,8 +1317,6 @@
               :name="option.label"
               :platform="option.platform"
               :subscription-type="option.subscriptionType"
-              :rate-multiplier="option.rate"
-              :user-rate-multiplier="option.userRate"
               :description="option.description"
               :selected="
                 selectedKeyForGroup?.group_id === option.value ||
@@ -1587,11 +1586,30 @@ const statusOptions = computed(() => [
   { value: 'inactive', label: t('common.inactive') }
 ])
 
+function formatGroupDisplayName(group: Pick<Group, 'name' | 'platform' | 'description'>) {
+  const raw = `${group.name || ''} ${group.description || ''}`.toLowerCase()
+  if (group.platform === 'antigravity' || group.platform === 'sora' || /image|pic|photo|图片|生图/.test(raw)) {
+    return '图片模型组'
+  }
+  if (/advanced|premium|pro|plus|高|plus|coding|code/.test(raw)) {
+    return '高级模型组'
+  }
+  return '标准模型组'
+}
+
+function formatGroupDescription(group: Group) {
+  const description = group.description?.trim()
+  if (!description || /\b(default|gpt-5\.5|gpt-5\.4|mock|demo|localhost)\b/i.test(description)) {
+    return '可用模型以后端配置和当前 Key 分组为准。'
+  }
+  return description
+}
+
 // Filter dropdown options
 const groupFilterOptions = computed(() => [
   { value: '', label: t('keys.allGroups') },
   { value: 0, label: t('keys.noGroup') },
-  ...groups.value.map((g) => ({ value: g.id, label: g.name }))
+  ...groups.value.map((g) => ({ value: g.id, label: formatGroupDisplayName(g) }))
 ])
 
 const statusFilterOptions = computed(() => [
@@ -1621,10 +1639,8 @@ const onStatusFilterChange = (value: string | number | boolean | null) => {
 const groupOptions = computed(() =>
   groups.value.map((group) => ({
     value: group.id,
-    label: group.name,
-    description: group.description,
-    rate: group.rate_multiplier,
-    userRate: userGroupRates.value[group.id] ?? null,
+    label: formatGroupDisplayName(group),
+    description: formatGroupDescription(group),
     subscriptionType: group.subscription_type,
     platform: group.platform
   }))
@@ -2427,8 +2443,8 @@ onUnmounted(() => {
 .keys-guide-note {
   margin-top: 1rem;
   border-radius: 0.75rem;
-  border: 1px solid rgba(20, 184, 166, 0.24);
-  background: rgba(20, 184, 166, 0.08);
+  border: 1px solid color-mix(in srgb, var(--ssxz-action) 30%, transparent);
+  background: color-mix(in srgb, var(--ssxz-action-soft) 70%, transparent);
   padding: 0.75rem 0.9rem;
   color: var(--ssxz-text-secondary);
   font-size: 0.8rem;

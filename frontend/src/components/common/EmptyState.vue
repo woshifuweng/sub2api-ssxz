@@ -2,7 +2,7 @@
   <div class="empty-state">
     <!-- Icon -->
     <div
-      class="mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-gray-100 dark:bg-dark-800"
+      class="empty-state-visual mb-5 flex h-16 w-16 items-center justify-center"
     >
       <slot name="icon">
         <component v-if="icon" :is="icon" class="empty-state-icon h-10 w-10" aria-hidden="true" />
@@ -78,3 +78,11 @@ const displayTitle = computed(() => props.title || t('common.noData'))
 
 defineEmits(['action'])
 </script>
+
+<style scoped>
+.empty-state-visual {
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-bg-subtle);
+}
+</style>

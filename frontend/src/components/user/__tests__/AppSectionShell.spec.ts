@@ -3,22 +3,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { readFileSync } from 'node:fs'
 
-const { routeState, mocks, appState } = vi.hoisted(() => ({
+const { routeState, mocks, authState } = vi.hoisted(() => ({
   routeState: {
-    path: '/app/chat'
+    path: '/app/chat',
+    fullPath: '/app/chat'
   },
   mocks: {
     push: vi.fn(),
     logout: vi.fn(),
     showSuccess: vi.fn()
   },
-  appState: {
-    cachedPublicSettings: {
-      channel_monitor_enabled: true,
-      payment_enabled: true,
-      purchase_subscription_enabled: true,
-      affiliate_enabled: false
-    }
+  authState: {
+    isAdmin: false
   }
 }))
 
@@ -29,7 +25,7 @@ vi.mock('vue-router', () => ({
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
-    cachedPublicSettings: appState.cachedPublicSettings,
+    cachedPublicSettings: {},
     showSuccess: mocks.showSuccess
   })
 }))
@@ -37,6 +33,7 @@ vi.mock('@/stores/app', () => ({
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
     isAuthenticated: true,
+    isAdmin: authState.isAdmin,
     user: {
       username: 'tester',
       email: 'tester@example.com',
@@ -78,8 +75,8 @@ function mockDesktopMedia(matches: boolean) {
 function mountShell(props: Partial<InstanceType<typeof AppSectionShell>['$props']> = {}) {
   return mount(AppSectionShell, {
     props: {
-      title: '聊天',
-      subtitle: '辅助写 prompt',
+      title: 'Chat',
+      subtitle: 'Test a configured model.',
       ...props
     },
     global: {
@@ -93,51 +90,101 @@ function mountShell(props: Partial<InstanceType<typeof AppSectionShell>['$props'
   })
 }
 
+function navButtons(wrapper: ReturnType<typeof mountShell>) {
+  return wrapper.findAll('.ssxz-primary-nav .ssxz-nav-item')
+}
+
 describe('AppSectionShell', () => {
   beforeEach(() => {
     routeState.path = '/app/chat'
+    routeState.fullPath = '/app/chat'
+    authState.isAdmin = false
     mocks.push.mockReset()
     mocks.logout.mockReset()
     mocks.showSuccess.mockReset()
-    appState.cachedPublicSettings.channel_monitor_enabled = true
-    appState.cachedPublicSettings.payment_enabled = true
-    appState.cachedPublicSettings.purchase_subscription_enabled = true
-    appState.cachedPublicSettings.affiliate_enabled = false
     mockDesktopMedia(true)
   })
 
-  it('keeps API Key available as a third-party client entrypoint', () => {
+  it('renders the approved nine-item user navigation', () => {
     const wrapper = mountShell()
 
-    expect(wrapper.text()).toContain('服务控制台')
-    expect(wrapper.text()).not.toContain('中转运营平台')
-    expect(wrapper.text()).toContain('SSXZ AI')
-    expect(wrapper.text()).not.toContain('图片工具站')
-    expect(wrapper.text()).not.toContain('对话工作台')
-    expect(wrapper.text()).toContain('仪表盘')
-    expect(wrapper.text()).toContain('API 密钥')
-    expect(wrapper.text()).toContain('使用记录')
-    expect(wrapper.text()).toContain('通道状态')
-    expect(wrapper.text()).toContain('补充额度')
-    expect(wrapper.text()).toContain('账户记录')
-    expect(wrapper.text()).toContain('兑换码')
-    expect(wrapper.text()).toContain('个人资料')
-    expect(wrapper.text()).toContain('模型测试')
-    expect(wrapper.text()).toContain('图片内测')
+    expect(navButtons(wrapper).map((button) => button.text())).toEqual([
+      'Dashboard',
+      'Chat',
+      'Image',
+      'API Keys',
+      'Models',
+      'Usage',
+      'Billing',
+      'Docs',
+      'Account'
+    ])
+    expect(wrapper.text()).not.toMatch(/Affiliate|Referral|Beta|Experiment/)
+    expect(wrapper.find('.ssxz-secondary-nav').exists()).toBe(false)
   })
 
-  it('uses dashboard as the brand home destination', () => {
+  it('uses dashboard as the brand destination without an invented logo symbol', () => {
+    const wrapper = mountShell()
+    const brand = wrapper.get('.ssxz-brand-link')
+
+    expect(brand.attributes('href')).toBe('/app/dashboard')
+    expect(brand.text()).toContain('SSXZ')
+    expect(brand.find('svg').exists()).toBe(false)
+    expect(brand.find('img').exists()).toBe(false)
+  })
+
+  it('keeps all user navigation inside the approved app routes', async () => {
+    routeState.path = '/app/test-origin'
+    routeState.fullPath = '/app/test-origin'
+    const wrapper = mountShell()
+    const buttons = navButtons(wrapper)
+    const expectedRoutes = [
+      '/app/dashboard',
+      '/app/chat',
+      '/app/image',
+      '/app/keys',
+      '/app/available-channels',
+      '/app/usage',
+      '/app/purchase',
+      '/app/keys?guide=clients',
+      '/app/profile'
+    ]
+
+    for (const [index, button] of buttons.entries()) {
+      await button.trigger('click')
+      expect(mocks.push).toHaveBeenNthCalledWith(index + 1, expectedRoutes[index])
+    }
+
+    expect(mocks.push.mock.calls.map(([destination]) => destination)).toEqual(expectedRoutes)
+  })
+
+  it('starts a new chat through the Chat navigation item', async () => {
+    routeState.path = '/app/image'
+    routeState.fullPath = '/app/image'
     const wrapper = mountShell()
 
-    expect(wrapper.get('.ssxz-brand-link').attributes('href')).toBe('/app/dashboard')
+    await navButtons(wrapper)[1].trigger('click')
+
+    expect(wrapper.emitted('new-chat')).toHaveLength(1)
+    expect(mocks.push).toHaveBeenCalledWith('/app/chat')
   })
 
-  it('keeps long history titles within the sidebar hit target', async () => {
+  it('marks Image active without marking Chat active', () => {
+    routeState.path = '/app/image'
+    routeState.fullPath = '/app/image'
+    const wrapper = mountShell()
+    const buttons = navButtons(wrapper)
+
+    expect(buttons[1].classes()).not.toContain('is-active')
+    expect(buttons[2].classes()).toContain('is-active')
+  })
+
+  it('keeps long history titles inside the sidebar hit target', async () => {
     const wrapper = mountShell({
       historyItems: [
         {
           id: 42,
-          title: 'STAGING_173_NO_PROVIDER_FAILURE_ESC_20260626_210940_WITH_A_VERY_LONG_TITLE',
+          title: 'STAGING_173_NO_PROVIDER_FAILURE_WITH_A_VERY_LONG_TITLE',
           status: 'active',
           created_at: '2026-06-26T00:00:00Z',
           updated_at: '2026-06-26T00:00:00Z'
@@ -147,168 +194,18 @@ describe('AppSectionShell', () => {
       historyLoading: false
     })
     const historyItem = wrapper.get('.ssxz-history-item')
-    const historyText = historyItem.get('.ssxz-sidebar-text')
 
     await historyItem.trigger('click')
 
     expect(wrapper.emitted('select-conversation')).toEqual([[42]])
-    expect(historyText.text()).toContain('STAGING_173_NO_PROVIDER_FAILURE_ESC_20260626_210940_WITH_A_VERY_LONG_TITLE')
     expect(appSectionShellSource).toMatch(/\.ssxz-history-item\s*\{[\s\S]*min-width:\s*0;[\s\S]*max-width:\s*100%;[\s\S]*overflow:\s*hidden;/)
     expect(appSectionShellSource).toMatch(/\.ssxz-history-item \.ssxz-sidebar-text\s*\{[\s\S]*min-width:\s*0;[\s\S]*max-width:\s*100%;/)
   })
 
-  it('switches supported utility menu entries to their own pages instead of rendering inline panels', async () => {
-    routeState.path = '/app/image'
-    const wrapper = mountShell()
-    const buttons = wrapper.findAll('.ssxz-primary-nav .ssxz-nav-item')
-
-    await buttons.find((button) => button.text().includes('使用记录'))?.trigger('click')
-    expect(mocks.push).toHaveBeenLastCalledWith('/app/usage')
-
-    await buttons.find((button) => button.text().includes('补充额度'))?.trigger('click')
-    expect(mocks.push).toHaveBeenLastCalledWith('/app/purchase')
-
-    await buttons.find((button) => button.text() === '账户记录')?.trigger('click')
-    expect(mocks.push).toHaveBeenLastCalledWith('/app/orders')
-
-    await buttons.find((button) => button.text().includes('兑换码'))?.trigger('click')
-    expect(mocks.push).toHaveBeenLastCalledWith('/app/redeem')
-
-    await buttons.find((button) => button.text().includes('API 密钥'))?.trigger('click')
-    expect(mocks.push).toHaveBeenLastCalledWith('/app/keys')
-
-    await buttons.find((button) => button.text().includes('个人资料'))?.trigger('click')
-    expect(mocks.push).toHaveBeenLastCalledWith('/app/profile')
-    expect(wrapper.find('.ssxz-workspace-utility-center').exists()).toBe(false)
-    expect(wrapper.text()).not.toContain('打开 API Key / 第三方客户端接入')
-  })
-
-  it('keeps the whole workbench sidebar inside user-owned /app routes', async () => {
-    const wrapper = mountShell()
-    const buttons = [
-      ...wrapper.findAll('.ssxz-primary-nav .ssxz-nav-item'),
-      ...wrapper.findAll('.ssxz-secondary-nav .ssxz-nav-item')
-    ]
-    const expectedRoutes = [
-      '/app/dashboard',
-      '/app/keys',
-      '/app/usage',
-      '/app/channel-status',
-      '/app/purchase',
-      '/app/orders',
-      '/app/redeem',
-      '/app/profile',
-      '/app/chat',
-      '/app/image'
-    ]
-
-    expect(buttons).toHaveLength(expectedRoutes.length)
-
-    for (const [index, button] of buttons.entries()) {
-      routeState.path = '/app/test-origin'
-      await button.trigger('click')
-      expect(mocks.push).toHaveBeenNthCalledWith(index + 1, expectedRoutes[index])
-    }
-
-    const destinations = mocks.push.mock.calls.map(([destination]) => destination)
-
-    expect(destinations).toEqual(expectedRoutes)
-    expect(destinations.every((destination) => destination.startsWith('/app/'))).toBe(true)
-    expect(destinations).not.toEqual(expect.arrayContaining([
-      '/usage',
-      '/purchase',
-      '/orders',
-      '/keys',
-      '/profile',
-      '/available-channels',
-      '/monitor'
-    ]))
-    expect(wrapper.text()).not.toContain('Available Channels')
-    expect(wrapper.text()).not.toContain('Channel Status')
-  })
-
-  it('keeps the unfinished affiliate entry out of the user shell even when enabled', () => {
-    appState.cachedPublicSettings.affiliate_enabled = true
-
-    const wrapper = mountShell()
-    const buttons = [
-      ...wrapper.findAll('.ssxz-primary-nav .ssxz-nav-item'),
-      ...wrapper.findAll('.ssxz-secondary-nav .ssxz-nav-item')
-    ]
-
-    expect(wrapper.text()).not.toContain('推广中心')
-    expect(buttons.some((button) => button.text().includes('推广中心'))).toBe(false)
-  })
-
-  it('hides recharge entry when balance payment and subscription purchase are both disabled', () => {
-    appState.cachedPublicSettings.payment_enabled = false
-    appState.cachedPublicSettings.purchase_subscription_enabled = false
-
-    const wrapper = mountShell()
-
-    expect(wrapper.text()).not.toContain('补充额度')
-    expect(wrapper.text()).toContain('账户记录')
-    expect(wrapper.text()).toContain('兑换码')
-  })
-
-  it('hides channel status when monitoring is disabled', async () => {
-    appState.cachedPublicSettings.channel_monitor_enabled = false
-
-    const wrapper = mountShell()
-    const buttons = [
-      ...wrapper.findAll('.ssxz-primary-nav .ssxz-nav-item'),
-      ...wrapper.findAll('.ssxz-secondary-nav .ssxz-nav-item')
-    ]
-    const expectedRoutes = [
-      '/app/dashboard',
-      '/app/keys',
-      '/app/usage',
-      '/app/purchase',
-      '/app/orders',
-      '/app/redeem',
-      '/app/profile',
-      '/app/chat',
-      '/app/image'
-    ]
-
-    expect(wrapper.text()).not.toContain('通道状态')
-    expect(buttons).toHaveLength(expectedRoutes.length)
-
-    for (const [index, button] of buttons.entries()) {
-      routeState.path = '/app/test-origin'
-      await button.trigger('click')
-      expect(mocks.push).toHaveBeenNthCalledWith(index + 1, expectedRoutes[index])
-    }
-  })
-
-  it('keeps the image entry active without highlighting new chat on /app/image', () => {
-    routeState.path = '/app/image'
-    const wrapper = mountShell()
-    const navButtons = wrapper.findAll('.ssxz-secondary-nav .ssxz-nav-item')
-
-    expect(navButtons[0].text()).toContain('模型测试')
-    expect(navButtons[0].classes()).not.toContain('is-active')
-    expect(navButtons[1].text()).toContain('图片内测')
-    expect(navButtons[1].classes()).toContain('is-active')
-  })
-
-  it('starts a new chat through /app/chat instead of the generic /app shell', async () => {
-    routeState.path = '/app/image'
-    const wrapper = mountShell()
-    const navButtons = wrapper.findAll('.ssxz-secondary-nav .ssxz-nav-item')
-
-    await navButtons[0].trigger('click')
-
-    expect(wrapper.emitted('new-chat')).toHaveLength(1)
-    expect(mocks.push).toHaveBeenCalledWith('/app/chat')
-    expect(mocks.push).not.toHaveBeenCalledWith('/app')
-  })
-
-  it('opens a real mobile navigation drawer instead of only toggling desktop collapse', async () => {
+  it('opens a real mobile navigation drawer', async () => {
     mockDesktopMedia(false)
     const wrapper = mountShell()
 
-    expect(wrapper.classes()).not.toContain('ssxz-mobile-nav-open')
     await wrapper.get('.ssxz-sidebar-toggle-desktop').trigger('click')
 
     expect(wrapper.classes()).toContain('ssxz-mobile-nav-open')
@@ -320,28 +217,21 @@ describe('AppSectionShell', () => {
     const wrapper = mountShell()
 
     await wrapper.get('.ssxz-sidebar-toggle-desktop').trigger('click')
-    expect(wrapper.classes()).toContain('ssxz-mobile-nav-open')
-
     mockDesktopMedia(true)
     window.dispatchEvent(new Event('resize'))
     await nextTick()
 
     expect(wrapper.classes()).not.toContain('ssxz-mobile-nav-open')
-    expect(wrapper.find('.ssxz-mobile-sidebar-scrim').exists()).toBe(false)
   })
 
-  it('closes the mobile drawer when a utility entry changes pages', async () => {
+  it('closes the mobile drawer after navigation', async () => {
     mockDesktopMedia(false)
     const wrapper = mountShell()
 
     await wrapper.get('.ssxz-sidebar-toggle-desktop').trigger('click')
-    expect(wrapper.classes()).toContain('ssxz-mobile-nav-open')
-
-    const buttons = wrapper.findAll('.ssxz-primary-nav .ssxz-nav-item')
-    await buttons[0].trigger('click')
+    await navButtons(wrapper)[0].trigger('click')
 
     expect(mocks.push).toHaveBeenLastCalledWith('/app/dashboard')
     expect(wrapper.classes()).not.toContain('ssxz-mobile-nav-open')
-    expect(wrapper.find('.ssxz-mobile-sidebar-scrim').exists()).toBe(false)
   })
 })

@@ -206,7 +206,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: '补充额度',
+      title: '充值 / 订阅',
       appSection: 'purchase',
       titleSiteName: 'SSXZ AI'
     }
@@ -218,7 +218,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: '账户记录',
+      title: '我的订单',
       appSection: 'orders',
       titleSiteName: 'SSXZ AI'
     }
@@ -242,7 +242,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: '推广中心',
+      title: '邀请返利',
       appSection: 'affiliate',
       titleSiteName: 'SSXZ AI'
     }
@@ -254,7 +254,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Available Channels',
+      title: '模型价格',
       titleKey: 'availableChannels.title',
       descriptionKey: 'availableChannels.description',
       appSection: 'available-channels',

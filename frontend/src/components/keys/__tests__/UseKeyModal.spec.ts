@@ -144,7 +144,7 @@ describe('UseKeyModal', () => {
     expect(wrapper.text()).not.toContain('/v1/v1')
   })
 
-  it('renders updated GPT-5.4 mini/nano names in OpenCode config', async () => {
+  it('omits deprecated hardcoded mini model names from OpenCode config', async () => {
     const wrapper = mount(UseKeyModal, {
       props: {
         show: true,
@@ -174,7 +174,8 @@ describe('UseKeyModal', () => {
 
     const codeBlock = wrapper.find('pre code')
     expect(codeBlock.exists()).toBe(true)
-    expect(codeBlock.text()).toContain('"name": "GPT-5.4 Mini"')
+    expect(codeBlock.text()).not.toContain('"name": "GPT-5.4 Mini"')
+    expect(codeBlock.text()).not.toContain('"gpt-5.4-mini"')
     expect(codeBlock.text()).toContain('"name": "GPT-5.4 Nano"')
   })
 
@@ -229,7 +230,7 @@ describe('UseKeyModal', () => {
         apiKey: 'sk-test',
         baseUrl: 'https://example.com/v1',
         platform: 'openai',
-        allowedModels: ['gpt-5.5']
+        allowedModels: ['current-model']
       },
       global: {
         stubs: {
@@ -254,6 +255,7 @@ describe('UseKeyModal', () => {
     const codeBlock = wrapper.find('pre code')
     expect(codeBlock.exists()).toBe(true)
     expect(codeBlock.text()).toContain('model_provider = "ssxz"')
+    expect(codeBlock.text()).toContain('model = "current-model"')
     expect(codeBlock.text()).toContain('[model_providers.ssxz]')
     expect(codeBlock.text()).toContain('name = "SSXZ API"')
     expect(codeBlock.text()).toContain('supports_websockets = true')

@@ -124,7 +124,7 @@
                 @click="toggleBreakdown('model', model.model)"
               >
                 <td
-                  class="max-w-[100px] truncate py-1.5 font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                  class="max-w-[100px] truncate py-1.5 font-medium text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
                   :title="model.model"
                 >
                   <span class="inline-flex items-center gap-1">
@@ -139,7 +139,7 @@
                 <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
                   {{ formatTokens(model.total_tokens) }}
                 </td>
-                <td class="py-1.5 text-right text-green-600 dark:text-green-400">
+                <td class="py-1.5 text-right text-amber-700 dark:text-amber-300">
                   ${{ formatCost(model.actual_cost) }}
                 </td>
                 <td class="py-1.5 text-right text-gray-400 dark:text-gray-500">
@@ -201,7 +201,8 @@
             >
               <td class="py-1.5">
                 <div class="flex min-w-0 items-center gap-2">
-                  <span class="shrink-0 text-[11px] font-semibold text-gray-500 dark:text-gray-400">
+                  <span v-if="item.isOther" class="shrink-0 text-[11px] font-semibold text-gray-500 dark:text-gray-400">-</span>
+                  <span v-else class="shrink-0 text-[11px] font-semibold text-gray-500 dark:text-gray-400">
                     {{ item.isOther ? 'Σ' : `#${index + 1}` }}
                   </span>
                   <span
@@ -218,7 +219,7 @@
               <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
                 {{ formatTokens(item.tokens) }}
               </td>
-              <td class="py-1.5 text-right text-green-600 dark:text-green-400">
+              <td class="py-1.5 text-right text-amber-700 dark:text-amber-300">
                 ${{ formatCost(item.actual_cost) }}
               </td>
             </tr>
@@ -325,18 +326,18 @@ const enableRankingView = computed(() => props.enableRankingView)
 const activeView = ref<'model_distribution' | 'spending_ranking'>('model_distribution')
 
 const chartColors = [
-  '#3b82f6',
-  '#10b981',
+  '#f2b84b',
+  '#d99b3d',
+  '#a9742a',
   '#f59e0b',
   '#ef4444',
-  '#8b5cf6',
-  '#ec4899',
-  '#14b8a6',
+  '#a78bfa',
+  '#78716c',
   '#f97316',
-  '#6366f1',
-  '#84cc16',
-  '#06b6d4',
-  '#a855f7'
+  '#eab308',
+  '#fb7185',
+  '#57534e',
+  '#facc15'
 ]
 
 const displayModelStats = computed(() => {
@@ -376,7 +377,7 @@ const rankingChartData = computed(() => {
   if (otherRankingItem.value) {
     labels.push(t('admin.dashboard.spendingRankingOther'))
     data.push(otherRankingItem.value.actual_cost)
-    backgroundColor.push('#94a3b8')
+    backgroundColor.push('#78716c')
   }
 
   return {

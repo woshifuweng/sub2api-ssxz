@@ -556,7 +556,7 @@ const firstAllowedModel = computed(() =>
     ?.map((model) => model.trim())
     .find(Boolean) || ''
 )
-const openAIExampleModel = computed(() => firstAllowedModel.value || 'gpt-5.5')
+const openAIExampleModel = computed(() => firstAllowedModel.value || 'your-model-name')
 const geminiExampleModel = computed(() => firstAllowedModel.value || 'gemini-2.0-flash')
 
 const currentTabs = computed(() => {
@@ -862,7 +862,7 @@ model_reasoning_effort = "medium"
 disable_response_storage = true
 
 [model_providers.ssxz]
-name = "SSXZ AI"
+name = "SSXZ API"
 base_url = "${baseUrl}"
 wire_api = "responses"
 requires_openai_auth = true`
@@ -897,7 +897,7 @@ model_reasoning_effort = "medium"
 disable_response_storage = true
 
 [model_providers.ssxz]
-name = "SSXZ AI"
+name = "SSXZ API"
 base_url = "${baseUrl}"
 wire_api = "responses"
 supports_websockets = true
@@ -1010,42 +1010,10 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
         xhigh: {}
       }
     },
-    'gpt-5.5': {
-      name: 'GPT-5.5',
-      limit: {
-        context: 1050000,
-        output: 128000
-      },
-      options: {
-        store: false
-      },
-      variants: {
-        low: {},
-        medium: {},
-        high: {},
-        xhigh: {}
-      }
-    },
     'gpt-5.4': {
       name: 'GPT-5.4',
       limit: {
         context: 1050000,
-        output: 128000
-      },
-      options: {
-        store: false
-      },
-      variants: {
-        low: {},
-        medium: {},
-        high: {},
-        xhigh: {}
-      }
-    },
-    'gpt-5.4-mini': {
-      name: 'GPT-5.4 Mini',
-      limit: {
-        context: 400000,
         output: 128000
       },
       options: {

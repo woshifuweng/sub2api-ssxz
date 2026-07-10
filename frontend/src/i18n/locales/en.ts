@@ -255,6 +255,7 @@ export default {
   // Common
   common: {
     loading: 'Loading...',
+    login: 'Login',
     justNow: 'just now',
     save: 'Save',
     cancel: 'Cancel',
@@ -561,7 +562,7 @@ export default {
     clientAccessTitle: 'Third-party client access',
     clientAccessDescription:
       'For customer testing, provide only three items: Base URL, full API Key, and the recommended model. Save the full key when it is created; the list only shows masked values later.',
-    clientReadinessHint: 'Start with gpt-5.5; if unavailable, switch to gpt-5.4-mini. Available models follow this key group and admin model configuration.',
+    clientReadinessHint: 'Available models follow backend configuration and the current key group. For customer testing, use the recommended model for that group first.',
     clientTroubleshootingHint: 'For 401, check the key first; 403 usually means quota, permission, or model availability; 503 usually means the service is busy, so retry later or switch recommended models.',
     viewAvailableModels: 'View available models',
     viewServiceStatus: 'View service status',
@@ -581,11 +582,11 @@ export default {
       stepCopyDescription: 'The Base URL is this site origin plus /v1. Use the full key saved when it was created.',
       stepConfigureTitle: 'Choose OpenAI-compatible in the client',
       stepConfigureDescription:
-        'Enter the Base URL and API Key in Cherry Studio, Chatbox, CC Switch, or another compatible client, then choose gpt-5.5 or another model available to the key.',
+        'Enter the Base URL and API Key in Cherry Studio, Chatbox, CC Switch, or another compatible client, then choose a model available to the key.',
       ccsImportNote:
         'One-click CC Switch import is enabled only while the full key is available. Older keys in the list are masked; create a new API Key if you did not save the full key.',
       clientsAriaLabel: 'Supported client examples',
-      ccSwitch: 'Enter the Base URL and API Key, then try gpt-5.5 first; use gpt-5.4-mini when a faster fallback is needed.',
+      ccSwitch: 'Enter the Base URL and API Key, then choose a model available to the key; switch to a lighter group when speed matters.',
       cherryStudio: 'Choose OpenAI-compatible configuration in the provider settings.',
       chatbox: 'For continuing chats or calling enabled APIs outside the site.',
     },
@@ -604,7 +605,7 @@ export default {
       primaryActionHint:
         'Import to CCS or copy the full key before closing. The full key is not shown again.',
       modelLabel: 'Model',
-      modelHint: 'Start with gpt-5.5, then use gpt-5.4-mini as fallback; available models follow this key group and admin model configuration.',
+      modelHint: 'Available models follow backend configuration and the current key group.',
       readinessHint:
         'If the client reports insufficient balance, unavailable model, or temporary service pressure, switch to a recommended model or retry later; complex tasks may take longer to start.',
       acknowledge: 'I saved it',
@@ -626,7 +627,7 @@ export default {
     searchGroup: 'Search groups...',
     noGroupFound: 'No groups found',
     noAvailableGroups: 'No group is currently available for third-party clients. Please try again later.',
-    groupClientHint: 'Client access is controlled by the selected group. The default open group usually works; available models follow the client model list.',
+    groupClientHint: 'Client access is controlled by the selected group. Available models follow backend configuration and the current key group.',
     created: 'Created',
     copyToClipboard: 'Copy to clipboard',
     copied: 'Copied!',
@@ -710,7 +711,7 @@ export default {
         quickStartApiKey: 'API Key',
         quickStartApiKeyHint: 'Use the full key shown once after creation. Masked values from the list cannot connect.',
         quickStartModel: 'Model',
-        quickStartModelHint: 'For customer testing, start with gpt-5.5; if unavailable, switch to gpt-5.4-mini. Available models follow this key group and admin model configuration.',
+        quickStartModelHint: 'Available models follow backend configuration and the current key group. For customer testing, choose the recommended model currently visible in the client.',
         quickStartSpeed: 'Want faster replies',
         quickStartSpeedHint: 'Choose a lightweight model, lower reasoning effort, or reduce one-shot input size. Web search, long context, and complex tasks take longer.',
         ccSwitchQuickTitle: 'CC Switch setup',
@@ -718,7 +719,7 @@ export default {
         ccSwitchQuickOfficialSite: 'Homepage / official link: enter this site domain, without /v1.',
         ccSwitchQuickRequestUrl: 'API request URL: enter the Base URL above, including /v1.',
         ccSwitchQuickApiKey: 'API Key: paste the full sk-... key.',
-        ccSwitchQuickModel: 'Model: choose gpt-5.5 first. If unavailable, use gpt-5.4-mini or another available model in the current list.',
+        ccSwitchQuickModel: 'Model: choose a model available to the current key. If the list is empty, refresh models or check the key group.',
         ccSwitchQuickRestart: 'After saving changes, fully quit CC Switch and Codex, then reopen them.',
         ccSwitchHomepageLabel: 'Homepage',
         ccSwitchRequestUrlLabel: 'API request URL',
@@ -748,7 +749,7 @@ export default {
         troubleshooting429:
           '429 usually means requests are too frequent. Wait a moment, reduce concurrent requests, or choose a lighter model.',
         troubleshooting503:
-          '503 usually means the current line is busy or temporarily unavailable. Retry later or switch to gpt-5.5 / gpt-5.4-mini, and fully restart the client after changing settings.',
+          '503 usually means the current line is busy or temporarily unavailable. Retry later or switch to a lighter available model, and fully restart the client after changing settings.',
         troubleshootingModelsCode: 'No models',
         troubleshootingModels:
           'If the model list is empty, open /v1/models first to check whether this key can return models, then refresh the client model list.',
@@ -891,7 +892,7 @@ export default {
       monthlyUsageTitle: 'Monthly usage',
       monthlyUsageDescription: 'Summarized from the existing usage trend API. Empty data is not filled with fake bars.',
       realDataBadge: 'Real data',
-      demoDataBadge: 'Demo data',
+      demoDataBadge: 'Sample data',
       monthlyChartLabel: 'Monthly usage chart',
       noMonthlyUsageTitle: 'No monthly usage data yet',
       noMonthlyUsageDescription: 'After chat, image generation, or third-party client calls create real usage, trends appear here.',

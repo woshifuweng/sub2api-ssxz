@@ -4,7 +4,6 @@
     data-app-shell-boundary="section"
     :class="{ 'ssxz-sidebar-collapsed': sidebarCollapsed, 'ssxz-mobile-nav-open': mobileNavActive }"
   >
-    <div class="ssxz-app-backdrop" aria-hidden="true" />
     <button
       v-if="mobileNavActive"
       type="button"
@@ -12,12 +11,12 @@
       aria-label="关闭导航"
       @click="closeMobileNav"
     />
-    <aside class="ssxz-app-sidebar fixed inset-y-0 left-0 z-30 w-60 border-r px-3 py-4 backdrop-blur-xl">
+    <aside class="ssxz-app-sidebar fixed inset-y-0 left-0 z-30 border-r px-3 py-4">
       <RouterLink to="/app/dashboard" class="ssxz-brand-link mb-6" title="返回仪表盘" aria-label="返回仪表盘" @click="closeMobileNav">
-        <span class="ssxz-brand-mark">S</span>
+        <span class="ssxz-brand-wordmark" aria-label="SSXZ AI Gateway">SSXZ</span>
         <span class="ssxz-brand-copy ssxz-sidebar-text">
-          <span class="ssxz-brand-title">SSXZ AI</span>
-          <span class="ssxz-brand-subtitle">服务控制台</span>
+          <span class="ssxz-brand-title">AI Gateway</span>
+          <span class="ssxz-brand-subtitle">Developer Console</span>
         </span>
       </RouterLink>
 
@@ -30,24 +29,7 @@
           :class="{ 'is-active': isActive(item.to) }"
           :title="item.label"
           :aria-label="item.label"
-          @click="handleRouteNav(item.to)"
-        >
-          <Icon :name="item.icon" size="sm" />
-          <span class="ssxz-sidebar-text">{{ item.label }}</span>
-        </button>
-      </nav>
-
-      <nav class="ssxz-secondary-nav" aria-label="轻量体验入口">
-        <div class="ssxz-section-label ssxz-sidebar-text">轻量体验入口</div>
-        <button
-          v-for="item in experienceItems"
-          :key="item.to"
-          type="button"
-          class="ssxz-nav-item ssxz-utility-item"
-          :class="{ 'is-active': isActive(item.to) }"
-          :title="item.label"
-          :aria-label="item.label"
-          @click="handleExperienceNav(item.to)"
+          @click="handlePrimaryNav(item.to)"
         >
           <Icon :name="item.icon" size="sm" />
           <span class="ssxz-sidebar-text">{{ item.label }}</span>
@@ -77,22 +59,10 @@
         </p>
       </section>
 
-      <div class="ssxz-sidebar-bottom">
-        <button
-          type="button"
-          class="ssxz-theme-toggle"
-          :title="isDark ? '浅色模式' : '深色模式'"
-          :aria-label="isDark ? '切换到浅色模式' : '切换到深色模式'"
-          @click="toggleTheme"
-        >
-          <Icon :name="isDark ? 'sun' : 'moon'" size="xs" />
-          <span class="ssxz-sidebar-text">{{ isDark ? '浅色模式' : '深色模式' }}</span>
-        </button>
-      </div>
     </aside>
 
     <main class="ssxz-app-content min-h-screen">
-      <header class="ssxz-app-header sticky top-0 z-20 flex h-16 items-center border-b px-4 backdrop-blur-xl sm:px-6">
+      <header class="ssxz-app-header sticky top-0 z-20 flex items-center border-b px-4 sm:px-6">
         <div class="flex w-full items-center justify-between gap-3">
           <button
             type="button"
@@ -109,7 +79,7 @@
               <div class="ssxz-account-cluster">
                 <span class="ssxz-balance-pill">余额 ${{ userBalance }}</span>
                 <button type="button" class="ssxz-user-button" @click="userMenuOpen = !userMenuOpen">
-                <span class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold" style="background: linear-gradient(135deg, var(--ssxz-primary), var(--ssxz-accent)); color: white">{{ userInitial }}</span>
+                <span class="ssxz-user-avatar">{{ userInitial }}</span>
                 <span class="hidden max-w-32 truncate sm:inline">{{ userLabel }}</span>
                 <Icon name="chevronDown" size="xs" />
                 </button>
@@ -119,6 +89,9 @@
                   <strong>{{ userLabel }}</strong>
                   <span>余额 ${{ userBalance }}</span>
                 </div>
+                <button v-if="authStore.isAdmin" type="button" class="ssxz-menu-link" @click="openAdminConsole">
+                  Admin Console
+                </button>
                 <button type="button" class="ssxz-menu-link text-red-600 dark:text-red-300" @click="logout">退出登录</button>
               </div>
             </div>
@@ -188,38 +161,19 @@ const SIDEBAR_COLLAPSED_KEY = 'ssxz.app.sidebar.collapsed'
 const sidebarCollapsed = ref(readSidebarCollapsed())
 const mobileNavOpen = ref(false)
 const isDesktopViewport = ref(false)
-const isDark = ref(document.documentElement.classList.contains('dark'))
 let desktopMediaQuery: MediaQueryList | null = null
 
-const channelMonitorEnabled = computed(() => !!appStore.cachedPublicSettings?.channel_monitor_enabled)
-const purchaseEnabled = computed(
-  () =>
-    !!appStore.cachedPublicSettings?.payment_enabled ||
-    !!appStore.cachedPublicSettings?.purchase_subscription_enabled
-)
 const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName }>>(() => [
-  { label: '仪表盘', to: '/app/dashboard', icon: 'home' },
-  { label: 'API 密钥', to: '/app/keys', icon: 'key' },
-  { label: '使用记录', to: '/app/usage', icon: 'chartBar' },
-  ...(channelMonitorEnabled.value
-    ? [{ label: '通道状态', to: '/app/channel-status', icon: 'server' as IconName }]
-    : []),
-  ...(purchaseEnabled.value
-    ? [{ label: '补充额度', to: '/app/purchase', icon: 'creditCard' as IconName }]
-    : []),
-  { label: '账户记录', to: '/app/orders', icon: 'clipboard' },
-  { label: '兑换码', to: '/app/redeem', icon: 'gift' },
-  { label: '个人资料', to: '/app/profile', icon: 'userCircle' },
-  ...(authStore.isAdmin
-    ? [{ label: '后台入口', to: '/admin/dashboard', icon: 'shield' as IconName }]
-    : [])
+  { label: 'Dashboard', to: '/app/dashboard', icon: 'home' },
+  { label: 'Chat', to: '/app/chat', icon: 'chat' },
+  { label: 'Image', to: '/app/image', icon: 'sparkles' },
+  { label: 'API Keys', to: '/app/keys', icon: 'key' },
+  { label: 'Models', to: '/app/available-channels', icon: 'calculator' },
+  { label: 'Usage', to: '/app/usage', icon: 'chartBar' },
+  { label: 'Billing', to: '/app/purchase', icon: 'creditCard' },
+  { label: 'Docs', to: '/app/keys?guide=clients', icon: 'book' },
+  { label: 'Account', to: '/app/profile', icon: 'userCircle' }
 ])
-
-const experienceItems: Array<{ label: string; to: string; icon: IconName }> = [
-  { label: '模型测试', to: '/app/chat', icon: 'chat' },
-  { label: '图片内测', to: '/app/image', icon: 'sparkles' }
-]
-
 
 const userLabel = computed(() => authStore.user?.username || authStore.user?.email?.split('@')[0] || '账户')
 const userInitial = computed(() => userLabel.value.slice(0, 1).toUpperCase())
@@ -240,12 +194,7 @@ function isActive(path: string) {
   return route.path === normalizedPath
 }
 
-function handleRouteNav(to: string) {
-  closeMobileNav()
-  if (route.path !== to) router.push(to)
-}
-
-function handleExperienceNav(to: string) {
+function handlePrimaryNav(to: string) {
   closeMobileNav()
   if (to === '/app/chat') {
     emit('new-chat')
@@ -253,6 +202,11 @@ function handleExperienceNav(to: string) {
     return
   }
   router.push(to)
+}
+
+function openAdminConsole() {
+  userMenuOpen.value = false
+  router.push('/admin/dashboard')
 }
 
 function handleHistorySelect(id: number) {
@@ -307,20 +261,8 @@ async function logout() {
   router.push('/app')
 }
 
-function initTheme() {
-  const saved = getSafeLocalStorageItem('theme')
-  if (saved) isDark.value = saved === 'dark'
-  document.documentElement.classList.toggle('dark', isDark.value)
-}
-
-function toggleTheme() {
-  isDark.value = !isDark.value
-  document.documentElement.classList.toggle('dark', isDark.value)
-  setSafeLocalStorageItem('theme', isDark.value ? 'dark' : 'light')
-}
-
 onMounted(() => {
-  initTheme()
+  document.documentElement.classList.add('dark')
   if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
     desktopMediaQuery = window.matchMedia('(min-width: 1024px)')
     syncViewportMode()
@@ -341,100 +283,20 @@ watch(() => route.fullPath || route.path, closeMobileNav)
 
 <style scoped>
 .ssxz-app-shell {
-  --ssxz-bg: #f6f8f5;
-  --ssxz-surface: #fffdfa;
-  --ssxz-surface-raised: #ffffff;
-  --ssxz-surface-muted: #eef7f3;
-  --ssxz-surface-subtle: #f8faf6;
-  --ssxz-border: #dfe8e3;
-  --ssxz-border-strong: #1fb6a6;
-  --ssxz-text: #111827;
-  --ssxz-text-primary: #111827;
-  --ssxz-text-secondary: #34423d;
-  --ssxz-text-muted: #6b7b75;
-  --ssxz-body: #34423d;
-  --ssxz-subtle: #6b7b75;
-  --ssxz-primary: #0f9f93;
-  --ssxz-accent: #64d2b6;
-  --ssxz-action: #0f9f93;
-  --ssxz-action-soft: #e1f7ef;
-  --ssxz-action-text: #ffffff;
-  --ssxz-active: #eafaf4;
-  --ssxz-surface-elevated: #ffffff;
-  --ssxz-input: #fffefb;
-  --ssxz-focus: #0f9f93;
-  --ssxz-focus-ring: rgb(15 159 147 / 0.16);
-  --ssxz-danger: #dc2626;
-  --ssxz-disabled: #d7e2dc;
-  --ssxz-canvas: #f7f3ec;
-  --ssxz-glow-subtle: rgb(100 210 182 / 0.16);
-  --ssxz-shadow-sm: 0 8px 24px rgb(15 23 42 / 0.06);
-  --ssxz-shadow: 0 18px 52px rgb(15 23 42 / 0.08);
-  --ssxz-shadow-lg: 0 18px 46px rgb(15 159 147 / 0.22);
   min-height: 100vh;
   overflow-x: hidden;
-  background:
-    linear-gradient(90deg, rgb(15 159 147 / 0.035) 1px, transparent 1px),
-    linear-gradient(180deg, rgb(15 159 147 / 0.028) 1px, transparent 1px),
-    radial-gradient(circle at 70% 18%, rgb(100 210 182 / 0.18), transparent 28rem),
-    linear-gradient(135deg, #fbfaf6 0%, var(--ssxz-bg) 48%, #eef6f2 100%);
-  background-size: 88px 88px, 88px 88px, auto, auto;
+  background: var(--ssxz-bg);
   color: var(--ssxz-text);
 }
 
 .dark .ssxz-app-shell {
-  --ssxz-bg: #0f1110;
-  --ssxz-surface: #1c1d1b;
-  --ssxz-surface-raised: #202320;
-  --ssxz-surface-muted: #181b18;
-  --ssxz-surface-subtle: #171a18;
-  --ssxz-border: #303831;
-  --ssxz-border-strong: #2fd4bf;
-  --ssxz-text: #f7fbf8;
-  --ssxz-text-primary: #f7fbf8;
-  --ssxz-text-secondary: #d8e2dd;
-  --ssxz-text-muted: #93a49d;
-  --ssxz-body: #d8e2dd;
-  --ssxz-subtle: #93a49d;
-  --ssxz-primary: #25c7b5;
-  --ssxz-accent: #5ee0bd;
-  --ssxz-action: #25c7b5;
-  --ssxz-action-soft: #123630;
-  --ssxz-action-text: #061312;
-  --ssxz-active: #123c36;
-  --ssxz-surface-elevated: #232722;
-  --ssxz-input: #121512;
-  --ssxz-focus: #25c7b5;
-  --ssxz-focus-ring: rgb(37 199 181 / 0.18);
-  --ssxz-danger: #f87171;
-  --ssxz-disabled: #26302c;
-  --ssxz-canvas: #171a18;
-  --ssxz-glow-subtle: rgb(37 199 181 / 0.12);
-  --ssxz-shadow-sm: 0 8px 28px rgb(0 0 0 / 0.18);
-  --ssxz-shadow: 0 18px 58px rgb(0 0 0 / 0.25);
-  --ssxz-shadow-lg: 0 18px 52px rgb(37 199 181 / 0.18);
-  background:
-    linear-gradient(90deg, rgb(255 255 255 / 0.025) 1px, transparent 1px),
-    linear-gradient(180deg, rgb(255 255 255 / 0.022) 1px, transparent 1px),
-    radial-gradient(circle at 68% 20%, rgb(37 199 181 / 0.12), transparent 28rem),
-    linear-gradient(135deg, #141614 0%, var(--ssxz-bg) 52%, #111817 100%);
-  background-size: 88px 88px, 88px 88px, auto, auto;
-}
-
-.ssxz-app-backdrop {
-  pointer-events: none;
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  background:
-    radial-gradient(circle at 78% 18%, rgb(15 159 147 / 0.13), transparent 20rem),
-    radial-gradient(circle at 38% 58%, rgb(100 210 182 / 0.10), transparent 24rem);
+  color: var(--ssxz-text);
 }
 
 .ssxz-app-sidebar {
+  width: var(--ssxz-sidebar-width);
   border-color: var(--ssxz-border);
-  background: color-mix(in srgb, var(--ssxz-surface-raised) 88%, transparent);
-  box-shadow: var(--ssxz-shadow-sm);
+  background: var(--ssxz-surface);
   color: var(--ssxz-body);
 }
 
@@ -444,7 +306,7 @@ watch(() => route.fullPath || route.path, closeMobileNav)
   width: 100%;
   align-items: center;
   gap: 0.72rem;
-  border-radius: 1rem;
+  border-radius: var(--ssxz-radius-button);
   color: var(--ssxz-text);
   padding: 0.28rem;
 }
@@ -453,21 +315,18 @@ watch(() => route.fullPath || route.path, closeMobileNav)
   background: color-mix(in srgb, var(--ssxz-primary) 8%, transparent);
 }
 
-.ssxz-brand-mark {
-  display: grid;
-  width: 2.15rem;
-  height: 2.15rem;
+.ssxz-brand-wordmark {
+  display: inline-flex;
+  min-width: 3rem;
+  min-height: 2rem;
   flex: 0 0 auto;
-  place-items: center;
-  border-radius: 0.75rem;
-  background: linear-gradient(135deg, #111827, #0f9f93);
-  color: white;
-  font-weight: 900;
-}
-
-.dark .ssxz-brand-mark {
-  background: linear-gradient(135deg, #f8fafc, #25c7b5);
-  color: #071211;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ssxz-radius-button);
+  border: 1px solid var(--ssxz-border);
+  color: var(--ssxz-text);
+  font-size: 0.76rem;
+  font-weight: 760;
 }
 
 .ssxz-brand-copy {
@@ -476,14 +335,14 @@ watch(() => route.fullPath || route.path, closeMobileNav)
 }
 
 .ssxz-brand-title {
-  font-size: 0.95rem;
-  font-weight: 850;
+  font-size: 0.9rem;
+  font-weight: 650;
 }
 
 .ssxz-brand-subtitle {
   color: var(--ssxz-subtle);
-  font-size: 0.74rem;
-  font-weight: 700;
+  font-size: 0.7rem;
+  font-weight: 500;
 }
 
 .ssxz-app-content {
@@ -492,23 +351,20 @@ watch(() => route.fullPath || route.path, closeMobileNav)
 }
 
 .ssxz-app-header {
+  min-height: var(--ssxz-header-height);
   border-color: var(--ssxz-border);
-  background: color-mix(in srgb, var(--ssxz-surface-raised) 82%, transparent);
+  background: var(--ssxz-surface);
 }
 
 .ssxz-app-main {
   margin-inline: auto;
-  width: min(100%, 96rem);
-  padding: 1rem;
+  width: min(100%, var(--ssxz-content-max));
+  padding: var(--ssxz-space-page-y) var(--ssxz-space-page-x);
 }
 
 .ssxz-page-heading {
-  margin-bottom: 1rem;
-  border: 1px solid var(--ssxz-border);
-  border-radius: 1.25rem;
-  background: color-mix(in srgb, var(--ssxz-surface-raised) 90%, transparent);
-  box-shadow: var(--ssxz-shadow-sm);
-  padding: 1.1rem;
+  margin-bottom: 1.5rem;
+  padding: 0.25rem 0;
 }
 
 .ssxz-page-heading h2 {
@@ -519,12 +375,9 @@ watch(() => route.fullPath || route.path, closeMobileNav)
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ssxz-primary) 12%, transparent);
-  color: var(--ssxz-primary);
+  color: var(--ssxz-text-muted);
   font-size: 0.76rem;
-  font-weight: 800;
-  padding: 0.28rem 0.58rem;
+  font-weight: 550;
 }
 
 .ssxz-btn-icon {
@@ -564,6 +417,19 @@ watch(() => route.fullPath || route.path, closeMobileNav)
   font-weight: 750;
 }
 
+.ssxz-user-avatar {
+  align-items: center;
+  background: var(--ssxz-primary);
+  border-radius: 999px;
+  color: var(--ssxz-action-text);
+  display: inline-flex;
+  font-size: 0.75rem;
+  font-weight: 760;
+  height: 1.75rem;
+  justify-content: center;
+  width: 1.75rem;
+}
+
 .ssxz-app-sidebar {
   display: none;
 }
@@ -588,15 +454,15 @@ watch(() => route.fullPath || route.path, closeMobileNav)
   }
 
   .ssxz-app-content {
-    margin-left: 15rem;
+    margin-left: var(--ssxz-sidebar-width);
   }
 
   .ssxz-sidebar-collapsed .ssxz-app-content {
-    margin-left: 5rem;
+    margin-left: var(--ssxz-sidebar-collapsed-width);
   }
 
   .ssxz-sidebar-collapsed .ssxz-app-sidebar {
-    width: 5rem;
+    width: var(--ssxz-sidebar-collapsed-width);
   }
 
   .ssxz-sidebar-collapsed .ssxz-sidebar-text {
@@ -619,6 +485,7 @@ watch(() => route.fullPath || route.path, closeMobileNav)
   font-size: 0.92rem;
   line-height: 1.3;
   padding: 0.55rem 0.7rem;
+  text-align: left;
 }
 
 .ssxz-nav-item:hover,
@@ -638,15 +505,106 @@ watch(() => route.fullPath || route.path, closeMobileNav)
   gap: 0.45rem;
 }
 
+.ssxz-app-shell :deep(.bg-white),
+.ssxz-app-shell :deep(.bg-gray-50),
+.ssxz-app-shell :deep(.bg-gray-100),
+.ssxz-app-shell :deep(.bg-blue-50),
+.ssxz-app-shell :deep(.bg-purple-50),
+.ssxz-app-shell :deep(.dark\:bg-blue-950),
+.ssxz-app-shell :deep(.dark\:bg-purple-950),
+.ssxz-app-shell :deep(.dark\:bg-dark-700),
+.ssxz-app-shell :deep(.dark\:bg-dark-800),
+.ssxz-app-shell :deep(.dark\:bg-dark-900),
+.ssxz-app-shell :deep([class*='bg-white/']),
+.ssxz-app-shell :deep([class*='bg-gray-50/']),
+.ssxz-app-shell :deep([class*='bg-gray-100/']),
+.ssxz-app-shell :deep([class*='dark:bg-dark-800/']),
+.ssxz-app-shell :deep([class*='dark:bg-dark-900/']) {
+  background-color: color-mix(in srgb, var(--ssxz-surface-raised) 88%, transparent) !important;
+}
+
+.ssxz-app-shell :deep(.border-gray-100),
+.ssxz-app-shell :deep(.border-gray-200),
+.ssxz-app-shell :deep(.border-blue-100),
+.ssxz-app-shell :deep(.border-blue-200),
+.ssxz-app-shell :deep(.border-purple-100),
+.ssxz-app-shell :deep(.dark\:border-blue-900),
+.ssxz-app-shell :deep(.dark\:border-purple-900),
+.ssxz-app-shell :deep(.dark\:border-dark-600),
+.ssxz-app-shell :deep(.dark\:border-dark-700),
+.ssxz-app-shell :deep([class*='border-gray-200/']),
+.ssxz-app-shell :deep([class*='dark:border-dark-700/']) {
+  border-color: var(--ssxz-border) !important;
+}
+
+.ssxz-app-shell :deep(.text-gray-900),
+.ssxz-app-shell :deep(.text-gray-800),
+.ssxz-app-shell :deep(.dark\:text-white),
+.ssxz-app-shell :deep(.dark\:text-gray-100) {
+  color: var(--ssxz-text) !important;
+}
+
+.ssxz-app-shell :deep(.text-gray-700),
+.ssxz-app-shell :deep(.text-gray-600),
+.ssxz-app-shell :deep(.text-gray-500),
+.ssxz-app-shell :deep(.dark\:text-gray-300),
+.ssxz-app-shell :deep(.dark\:text-gray-400),
+.ssxz-app-shell :deep(.dark\:text-dark-300),
+.ssxz-app-shell :deep(.dark\:text-dark-400) {
+  color: var(--ssxz-text-muted) !important;
+}
+
+.ssxz-app-shell :deep(.text-primary-600),
+.ssxz-app-shell :deep(.text-primary-700),
+.ssxz-app-shell :deep(.dark\:text-primary-400),
+.ssxz-app-shell :deep(.text-blue-600),
+.ssxz-app-shell :deep(.dark\:text-blue-400),
+.ssxz-app-shell :deep(.text-purple-600),
+.ssxz-app-shell :deep(.dark\:text-purple-400),
+.ssxz-app-shell :deep(.text-teal-600),
+.ssxz-app-shell :deep(.dark\:text-teal-400) {
+  color: var(--ssxz-accent) !important;
+}
+
+.ssxz-app-shell :deep(a.bg-emerald-600),
+.ssxz-app-shell :deep(button.bg-emerald-600),
+.ssxz-app-shell :deep(a.hover\:bg-emerald-700:hover),
+.ssxz-app-shell :deep(button.hover\:bg-emerald-700:hover),
+.ssxz-app-shell :deep([class*='bg-gradient-to']) {
+  background: var(--ssxz-primary) !important;
+  color: var(--ssxz-action-text) !important;
+}
+
+.ssxz-app-shell :deep([class*='hover:bg-primary-50']:hover),
+.ssxz-app-shell :deep([class*='dark:hover:bg-primary-950']:hover),
+.ssxz-app-shell :deep([class*='hover:border-primary']:hover) {
+  background-color: color-mix(in srgb, var(--ssxz-primary) 12%, transparent) !important;
+  border-color: var(--ssxz-border-strong) !important;
+}
+
 .ssxz-secondary-nav {
   display: grid;
   gap: 0.28rem;
-  margin-top: 0.9rem;
+  margin-top: 1.05rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--ssxz-border);
 }
 
 .ssxz-utility-item {
   border: 0;
   text-align: left;
+}
+
+.ssxz-nav-badge {
+  margin-left: auto;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ssxz-surface-muted) 85%, transparent);
+  color: var(--ssxz-subtle);
+  font-size: 0.68rem;
+  font-weight: 850;
+  line-height: 1;
+  padding: 0.2rem 0.38rem;
 }
 
 .ssxz-utility-panel {
@@ -816,6 +774,10 @@ watch(() => route.fullPath || route.path, closeMobileNav)
 }
 
 @media (max-width: 640px) {
+  .ssxz-app-main {
+    padding: 16px;
+  }
+
   .ssxz-balance-pill {
     display: none;
   }
