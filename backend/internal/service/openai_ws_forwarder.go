@@ -3427,6 +3427,12 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			}
 		}
 		skipBeforeTurn = false
+		limitedPayload, _, limitErr := EnforceUnboundedTokenRequestLimit(currentPayload, "max_output_tokens", "max_output_tokens")
+		if limitErr != nil {
+			return NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "invalid response.create payload", limitErr)
+		}
+		currentPayload = limitedPayload
+		currentPayloadBytes = len(limitedPayload)
 		if hooks != nil && hooks.BeforeTurnPayload != nil {
 			if err := hooks.BeforeTurnPayload(turn, currentPayload, currentOriginalModel); err != nil {
 				return err

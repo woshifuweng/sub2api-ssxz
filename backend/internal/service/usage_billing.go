@@ -114,6 +114,9 @@ type UsageBillingApplyResult struct {
 	Applied              bool
 	APIKeyQuotaExhausted bool
 	NewBalance           *float64
+	BalanceCharged       float64
+	BalanceShortfall     float64
+	BalanceExhausted     bool
 	QuotaState           *AccountQuotaState
 }
 

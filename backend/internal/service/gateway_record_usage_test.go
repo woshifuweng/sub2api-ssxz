@@ -114,6 +114,47 @@ func TestGatewayServiceRecordUsage_BillingUsesDetachedContext(t *testing.T) {
 	require.Equal(t, 0, quotaSvc.quotaCalls)
 }
 
+func TestGatewayServiceRecordUsage_BalanceExhaustionInvalidatesBillingAndAllUserKeyCaches(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{}
+	zero := 0.0
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{
+		Applied:          true,
+		BalanceExhausted: true,
+		BalanceCharged:   1,
+		BalanceShortfall: 0.25,
+		NewBalance:       &zero,
+	}}
+	quotaSvc := &openAIRecordUsageAPIKeyQuotaStub{}
+	cache := &usageBillingShortfallCacheStub{}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(
+		usageRepo,
+		billingRepo,
+		&openAIRecordUsageUserRepoStub{},
+		&openAIRecordUsageSubRepoStub{},
+	)
+	svc.billingCacheService = &BillingCacheService{cache: cache}
+
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID: "gateway_balance_shortfall",
+			Usage:     ClaudeUsage{InputTokens: 10, OutputTokens: 6},
+			Model:     "claude-sonnet-4",
+			Duration:  time.Second,
+		},
+		APIKey: &APIKey{ID: 501, Key: "test-balance-shortfall-key", Quota: 100},
+		User:   &User{ID: 601},
+		Account: &Account{
+			ID: 701,
+		},
+		APIKeyService: quotaSvc,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []int64{601}, cache.invalidatedUserIDs)
+	require.Equal(t, []int64{601}, quotaSvc.invalidatedUserIDs)
+	require.Equal(t, []string{"test-balance-shortfall-key"}, quotaSvc.invalidatedKeys)
+}
+
 func TestGatewayServiceRecordUsage_BillingFingerprintIncludesRequestPayloadHash(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{}
 	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}

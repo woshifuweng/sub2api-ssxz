@@ -89,6 +89,8 @@ type openAIRecordUsageAPIKeyQuotaStub struct {
 	lastAmount          float64
 	lastQuotaCtxErr     error
 	lastRateLimitCtxErr error
+	invalidatedUserIDs  []int64
+	invalidatedKeys     []string
 }
 
 func (s *openAIRecordUsageAPIKeyQuotaStub) UpdateQuotaUsed(ctx context.Context, apiKeyID int64, cost float64) error {
@@ -103,6 +105,30 @@ func (s *openAIRecordUsageAPIKeyQuotaStub) UpdateRateLimitUsage(ctx context.Cont
 	s.lastAmount = cost
 	s.lastRateLimitCtxErr = ctx.Err()
 	return s.err
+}
+
+func (s *openAIRecordUsageAPIKeyQuotaStub) InvalidateAuthCacheByUserID(_ context.Context, userID int64) {
+	s.invalidatedUserIDs = append(s.invalidatedUserIDs, userID)
+}
+
+func (s *openAIRecordUsageAPIKeyQuotaStub) InvalidateAuthCacheByKey(_ context.Context, key string) {
+	s.invalidatedKeys = append(s.invalidatedKeys, key)
+}
+
+type usageBillingShortfallCacheStub struct {
+	BillingCache
+	invalidatedUserIDs []int64
+	deductedAmounts    []float64
+}
+
+func (s *usageBillingShortfallCacheStub) InvalidateUserBalance(_ context.Context, userID int64) error {
+	s.invalidatedUserIDs = append(s.invalidatedUserIDs, userID)
+	return nil
+}
+
+func (s *usageBillingShortfallCacheStub) DeductUserBalance(_ context.Context, _ int64, amount float64) error {
+	s.deductedAmounts = append(s.deductedAmounts, amount)
+	return nil
 }
 
 type openAIUserGroupRateRepoStub struct {

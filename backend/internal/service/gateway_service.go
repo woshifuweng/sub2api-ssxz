@@ -35,6 +35,7 @@ import (
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+	"go.uber.org/zap"
 	"golang.org/x/sync/singleflight"
 
 	"github.com/gin-gonic/gin"
@@ -8038,8 +8039,12 @@ type APIKeyQuotaUpdater interface {
 	UpdateRateLimitUsage(ctx context.Context, apiKeyID int64, cost float64) error
 }
 
-type apiKeyAuthCacheInvalidator interface {
+type apiKeyAuthCacheByKeyInvalidator interface {
 	InvalidateAuthCacheByKey(ctx context.Context, key string)
+}
+
+type apiKeyAuthCacheByUserInvalidator interface {
+	InvalidateAuthCacheByUserID(ctx context.Context, userID int64)
 }
 
 type usageLogBestEffortWriter interface {
@@ -8233,13 +8238,65 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 	}
 
 	if result.APIKeyQuotaExhausted {
-		if invalidator, ok := p.APIKeyService.(apiKeyAuthCacheInvalidator); ok && p.APIKey != nil && p.APIKey.Key != "" {
+		if invalidator, ok := p.APIKeyService.(apiKeyAuthCacheByKeyInvalidator); ok && p.APIKey != nil && p.APIKey.Key != "" {
 			invalidator.InvalidateAuthCacheByKey(billingCtx, p.APIKey.Key)
 		}
 	}
 
 	finalizePostUsageBilling(p, deps)
+	if result.BalanceExhausted {
+		handleUsageBillingBalanceExhausted(billingCtx, requestID, usageLog, p, deps, result)
+	}
 	return true, nil
+}
+
+func handleUsageBillingBalanceExhausted(
+	ctx context.Context,
+	requestID string,
+	usageLog *UsageLog,
+	p *postUsageBillingParams,
+	deps *billingDeps,
+	result *UsageBillingApplyResult,
+) {
+	if p == nil || p.User == nil || result == nil {
+		return
+	}
+	if result.NewBalance != nil {
+		p.User.Balance = *result.NewBalance
+	}
+	if deps != nil && deps.billingCacheService != nil {
+		if err := deps.billingCacheService.InvalidateUserBalance(ctx, p.User.ID); err != nil {
+			logger.L().With(
+				zap.String("component", "service.gateway.billing"),
+				zap.Int64("user_id", p.User.ID),
+			).Error("gateway.billing_balance_cache_invalidation_failed", zap.Error(err))
+		}
+	}
+
+	if invalidator, ok := p.APIKeyService.(apiKeyAuthCacheByKeyInvalidator); ok && p.APIKey != nil && p.APIKey.Key != "" {
+		invalidator.InvalidateAuthCacheByKey(ctx, p.APIKey.Key)
+	}
+	if invalidator, ok := p.APIKeyService.(apiKeyAuthCacheByUserInvalidator); ok {
+		invalidator.InvalidateAuthCacheByUserID(ctx, p.User.ID)
+	}
+
+	if result.BalanceShortfall <= 0 {
+		return
+	}
+	fields := []zap.Field{
+		zap.String("component", "service.gateway.billing"),
+		zap.String("request_id", strings.TrimSpace(requestID)),
+		zap.Int64("user_id", p.User.ID),
+		zap.Float64("charged", result.BalanceCharged),
+		zap.Float64("shortfall", result.BalanceShortfall),
+	}
+	if p.APIKey != nil {
+		fields = append(fields, zap.Int64("api_key_id", p.APIKey.ID))
+	}
+	if usageLog != nil {
+		fields = append(fields, zap.String("model", usageLog.Model))
+	}
+	logger.L().With(fields...).Error("gateway.billing_shortfall_detected")
 }
 
 func usageBillingParamsRequireIdempotentRepository(p *postUsageBillingParams) bool {
