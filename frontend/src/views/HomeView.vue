@@ -85,25 +85,25 @@
 
             <div class="provider-node node-openai">
               <span class="provider-logo provider-logo-light">
-                <img src="/provider-logos/openai.svg" alt="OpenAI" />
+                <ModelIcon model="gpt-4" size="34px" />
               </span>
               <span>OpenAI</span>
             </div>
             <div class="provider-node node-claude">
               <span class="provider-logo">
-                <img src="/provider-logos/claude.svg" alt="Claude" />
+                <ModelIcon model="claude" size="34px" />
               </span>
               <span>Claude</span>
             </div>
             <div class="provider-node node-gemini">
               <span class="provider-logo">
-                <img src="/provider-logos/gemini.svg" alt="Gemini" />
+                <ModelIcon model="gemini" size="34px" />
               </span>
               <span>Gemini</span>
             </div>
             <div class="provider-node node-grok">
-              <span class="provider-logo">
-                <img src="/provider-logos/grok.svg" alt="Grok" />
+              <span class="provider-logo provider-logo-light">
+                <ModelIcon model="grok" size="34px" />
               </span>
               <span>Grok</span>
             </div>
@@ -181,12 +181,15 @@
                 <span class="provider-motion-ring provider-motion-ring--inner"></span>
                 <span class="provider-motion-signal"></span>
                 <span class="provider-motion-scan"></span>
-                <div class="provider-story-logo" :class="{ 'is-light': provider.id === 'openai' }">
+                <div
+                  class="provider-story-logo"
+                  :class="{ 'is-light': provider.id === 'openai' || provider.id === 'grok' }"
+                >
                   <span class="provider-story-logo-trace">
-                    <img :src="provider.asset" alt="" />
+                    <ModelIcon :model="provider.iconModel" size="58%" />
                   </span>
                   <span class="provider-story-logo-color">
-                    <img :src="provider.asset" :alt="`${provider.name} logo`" />
+                    <ModelIcon :model="provider.iconModel" size="58%" />
                   </span>
                 </div>
               </div>
@@ -311,6 +314,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useAuthStore, useAppStore } from '@/stores'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
+import ModelIcon from '@/components/common/ModelIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { renderRichContent } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
@@ -343,7 +347,7 @@ const providers = [
     id: 'openai',
     name: 'OpenAI',
     owner: 'OpenAI',
-    asset: '/provider-logos/openai.svg',
+    iconModel: 'gpt-4',
     description: '通过统一兼容接口接入后端已配置的 OpenAI 模型，并在同一处核对用量、费用与失败记录。',
     capabilities: ['统一 API Key', '兼容常用 OpenAI 客户端', '按 Key 分组控制模型范围']
   },
@@ -351,7 +355,7 @@ const providers = [
     id: 'claude',
     name: 'Claude',
     owner: 'Anthropic',
-    asset: '/provider-logos/claude.svg',
+    iconModel: 'claude',
     description: 'Claude 模型通过 SSXZ 的已配置通道提供，具体模型和可用范围由当前 Key 分组决定。',
     capabilities: ['保持统一接入方式', '记录请求用量与费用', '通道状态集中查看']
   },
@@ -359,7 +363,7 @@ const providers = [
     id: 'gemini',
     name: 'Gemini',
     owner: 'Google',
-    asset: '/provider-logos/gemini.svg',
+    iconModel: 'gemini',
     description: '在统一 Key 和计量体系下使用后端开放的 Gemini 能力，无需为每个客户端维护多套凭据。',
     capabilities: ['多供应商凭据收敛', '统一余额与计量', '客户端配置保持一致']
   },
@@ -367,7 +371,7 @@ const providers = [
     id: 'grok',
     name: 'Grok',
     owner: 'xAI',
-    asset: '/provider-logos/grok.svg',
+    iconModel: 'grok',
     description: 'Grok 入口与其他供应商保持同一套接入方式，开放状态和模型范围以后端配置为准。',
     capabilities: ['统一 Base URL', '模型开放状态可见', '调用记录集中核对']
   }
