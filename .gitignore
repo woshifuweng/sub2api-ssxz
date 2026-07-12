@@ -136,6 +136,9 @@ __pycache__/
 *.pyo
 vite.config.js
 docs/*
+!docs/operations/
+docs/operations/*
+!docs/operations/DATABASE_DISASTER_RECOVERY_RUNBOOK.md
 .serena/
 .codex/
 frontend/coverage/
