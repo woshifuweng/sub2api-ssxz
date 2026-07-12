@@ -984,6 +984,7 @@ type GatewayService struct {
 	modelsListCache       *gocache.Cache
 	modelsListCacheTTL    time.Duration
 	settingService        *SettingService
+	billingShortfallAlert BillingShortfallNotifier
 	responseHeaderFilter  *responseheaders.CompiledHeaderFilter
 	debugModelRouting     atomic.Bool
 	debugClaudeMimic      atomic.Bool
@@ -1097,6 +1098,13 @@ func (s *GatewayService) SetKiroDeps(kiroTokenProvider *KiroTokenProvider, kiroG
 	}
 	s.kiroTokenProvider = kiroTokenProvider
 	s.kiroGatewayService = kiroGatewayService
+}
+
+func (s *GatewayService) SetBillingShortfallNotifier(notifier BillingShortfallNotifier) {
+	if s == nil {
+		return
+	}
+	s.billingShortfallAlert = notifier
 }
 
 // GenerateSessionHash 从预解析请求计算粘性会话 hash
@@ -8297,6 +8305,21 @@ func handleUsageBillingBalanceExhausted(
 		fields = append(fields, zap.String("model", usageLog.Model))
 	}
 	logger.L().With(fields...).Error("gateway.billing_shortfall_detected")
+	if deps != nil && deps.billingShortfallAlert != nil {
+		alert := BillingShortfallAlert{
+			RequestID: strings.TrimSpace(requestID),
+			UserID:    p.User.ID,
+			Charged:   result.BalanceCharged,
+			Shortfall: result.BalanceShortfall,
+		}
+		if p.APIKey != nil {
+			alert.APIKeyID = p.APIKey.ID
+		}
+		if usageLog != nil {
+			alert.Model = usageLog.Model
+		}
+		deps.billingShortfallAlert.NotifyBillingShortfall(ctx, alert)
+	}
 }
 
 func usageBillingParamsRequireIdempotentRepository(p *postUsageBillingParams) bool {
@@ -8368,20 +8391,22 @@ func detachStreamUpstreamContext(ctx context.Context, stream bool) (context.Cont
 
 // billingDeps 扣费逻辑依赖的服务（由各 gateway service 提供）
 type billingDeps struct {
-	accountRepo         AccountRepository
-	userRepo            UserRepository
-	userSubRepo         UserSubscriptionRepository
-	billingCacheService *BillingCacheService
-	deferredService     *DeferredService
+	accountRepo           AccountRepository
+	userRepo              UserRepository
+	userSubRepo           UserSubscriptionRepository
+	billingCacheService   *BillingCacheService
+	deferredService       *DeferredService
+	billingShortfallAlert BillingShortfallNotifier
 }
 
 func (s *GatewayService) billingDeps() *billingDeps {
 	return &billingDeps{
-		accountRepo:         s.accountRepo,
-		userRepo:            s.userRepo,
-		userSubRepo:         s.userSubRepo,
-		billingCacheService: s.billingCacheService,
-		deferredService:     s.deferredService,
+		accountRepo:           s.accountRepo,
+		userRepo:              s.userRepo,
+		userSubRepo:           s.userSubRepo,
+		billingCacheService:   s.billingCacheService,
+		deferredService:       s.deferredService,
+		billingShortfallAlert: s.billingShortfallAlert,
 	}
 }
 

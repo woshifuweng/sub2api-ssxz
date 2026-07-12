@@ -210,3 +210,59 @@ func TestComputeRuleMetricNewIndicators(t *testing.T) {
 		})
 	}
 }
+
+func TestShouldSendOpsAlertEmailByMinSeverityPreservesNamedSeverities(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		minSeverity  string
+		ruleSeverity string
+		want         bool
+	}{
+		{
+			name:         "critical event passes critical threshold",
+			minSeverity:  "critical",
+			ruleSeverity: "critical",
+			want:         true,
+		},
+		{
+			name:         "warning event does not pass critical threshold",
+			minSeverity:  "critical",
+			ruleSeverity: "warning",
+			want:         false,
+		},
+		{
+			name:         "warning event passes warning threshold",
+			minSeverity:  "warning",
+			ruleSeverity: "warning",
+			want:         true,
+		},
+		{
+			name:         "info event passes info threshold",
+			minSeverity:  "info",
+			ruleSeverity: "info",
+			want:         true,
+		},
+		{
+			name:         "P0 remains compatible with critical threshold",
+			minSeverity:  "critical",
+			ruleSeverity: "P0",
+			want:         true,
+		},
+		{
+			name:         "P1 remains compatible with warning threshold",
+			minSeverity:  "warning",
+			ruleSeverity: "P1",
+			want:         true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, shouldSendOpsAlertEmailByMinSeverity(tt.minSeverity, tt.ruleSeverity))
+		})
+	}
+}

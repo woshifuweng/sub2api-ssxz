@@ -60,6 +60,14 @@ type openAIRecordUsageBestEffortLogRepoStub struct {
 	lastCtxErr      error
 }
 
+type billingShortfallNotifierStub struct {
+	alerts []BillingShortfallAlert
+}
+
+func (s *billingShortfallNotifierStub) NotifyBillingShortfall(_ context.Context, alert BillingShortfallAlert) {
+	s.alerts = append(s.alerts, alert)
+}
+
 func (s *openAIRecordUsageBestEffortLogRepoStub) CreateBestEffort(ctx context.Context, log *UsageLog) error {
 	s.bestEffortCalls++
 	s.lastLog = log
@@ -126,6 +134,7 @@ func TestGatewayServiceRecordUsage_BalanceExhaustionInvalidatesBillingAndAllUser
 	}}
 	quotaSvc := &openAIRecordUsageAPIKeyQuotaStub{}
 	cache := &usageBillingShortfallCacheStub{}
+	shortfallNotifier := &billingShortfallNotifierStub{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(
 		usageRepo,
 		billingRepo,
@@ -133,6 +142,7 @@ func TestGatewayServiceRecordUsage_BalanceExhaustionInvalidatesBillingAndAllUser
 		&openAIRecordUsageSubRepoStub{},
 	)
 	svc.billingCacheService = &BillingCacheService{cache: cache}
+	svc.SetBillingShortfallNotifier(shortfallNotifier)
 
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
 		Result: &ForwardResult{
@@ -153,6 +163,14 @@ func TestGatewayServiceRecordUsage_BalanceExhaustionInvalidatesBillingAndAllUser
 	require.Equal(t, []int64{601}, cache.invalidatedUserIDs)
 	require.Equal(t, []int64{601}, quotaSvc.invalidatedUserIDs)
 	require.Equal(t, []string{"test-balance-shortfall-key"}, quotaSvc.invalidatedKeys)
+	require.Equal(t, []BillingShortfallAlert{{
+		RequestID: "gateway_balance_shortfall",
+		UserID:    601,
+		APIKeyID:  501,
+		Model:     "claude-sonnet-4",
+		Charged:   1,
+		Shortfall: 0.25,
+	}}, shortfallNotifier.alerts)
 }
 
 func TestGatewayServiceRecordUsage_BillingFingerprintIncludesRequestPayloadHash(t *testing.T) {
