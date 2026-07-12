@@ -21,6 +21,7 @@ import (
 
 const (
 	accountImportUploadChunkSizeDefault = int64(4 * 1024 * 1024)
+	accountImportUploadMaxTotalBytes    = int64(256 * 1024 * 1024)
 	accountImportUploadSessionTTL       = 2 * time.Hour
 )
 
@@ -84,6 +85,9 @@ func (m *accountImportUploadSessionManager) createSession(req createAccountImpor
 	totalBytes := req.TotalBytes
 	if totalBytes <= 0 {
 		return nil, "", errors.New("total_bytes must be positive")
+	}
+	if totalBytes > accountImportUploadMaxTotalBytes {
+		return nil, "", fmt.Errorf("total_bytes exceeds maximum of %d bytes", accountImportUploadMaxTotalBytes)
 	}
 	filename := strings.TrimSpace(req.Filename)
 	if filename == "" {
@@ -249,6 +253,20 @@ func (h *AccountHandler) UploadImportChunkGateway(c gatewayctx.GatewayContext) {
 		response.ErrorContext(c, http.StatusConflict, "upload session already finalized")
 		return
 	}
+	remaining := session.state.TotalBytes - offset
+	if remaining <= 0 {
+		response.ErrorContext(c, http.StatusBadRequest, "uploaded bytes exceed declared total_bytes")
+		return
+	}
+	request := c.Request()
+	if request == nil || request.Body == nil {
+		response.ErrorContext(c, http.StatusBadRequest, "chunk body is empty")
+		return
+	}
+	if request.ContentLength > remaining {
+		response.ErrorContext(c, http.StatusBadRequest, "uploaded bytes exceed declared total_bytes")
+		return
+	}
 
 	file, err := os.OpenFile(filepath.Clean(session.filepath), os.O_WRONLY, 0o600)
 	if err != nil {
@@ -260,9 +278,18 @@ func (h *AccountHandler) UploadImportChunkGateway(c gatewayctx.GatewayContext) {
 		response.ErrorContext(c, http.StatusInternalServerError, "failed to seek upload file")
 		return
 	}
-	written, err := io.Copy(file, c.Request().Body)
+	written, err := io.Copy(file, io.LimitReader(request.Body, remaining))
 	if err != nil {
 		response.ErrorContext(c, http.StatusInternalServerError, "failed to write upload chunk")
+		return
+	}
+	extraBytes, err := io.Copy(io.Discard, io.LimitReader(request.Body, 1))
+	if err != nil {
+		response.ErrorContext(c, http.StatusInternalServerError, "failed to read upload chunk")
+		return
+	}
+	if extraBytes > 0 {
+		response.ErrorContext(c, http.StatusBadRequest, "uploaded bytes exceed declared total_bytes")
 		return
 	}
 	if written <= 0 {
