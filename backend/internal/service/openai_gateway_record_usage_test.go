@@ -115,22 +115,6 @@ func (s *openAIRecordUsageAPIKeyQuotaStub) InvalidateAuthCacheByKey(_ context.Co
 	s.invalidatedKeys = append(s.invalidatedKeys, key)
 }
 
-type usageBillingShortfallCacheStub struct {
-	BillingCache
-	invalidatedUserIDs []int64
-	deductedAmounts    []float64
-}
-
-func (s *usageBillingShortfallCacheStub) InvalidateUserBalance(_ context.Context, userID int64) error {
-	s.invalidatedUserIDs = append(s.invalidatedUserIDs, userID)
-	return nil
-}
-
-func (s *usageBillingShortfallCacheStub) DeductUserBalance(_ context.Context, _ int64, amount float64) error {
-	s.deductedAmounts = append(s.deductedAmounts, amount)
-	return nil
-}
-
 type openAIUserGroupRateRepoStub struct {
 	UserGroupRateRepository
 
