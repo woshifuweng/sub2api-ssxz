@@ -29,6 +29,8 @@ const (
 	StripeQDomain = "https://q.stripe.com"
 	// StripeRDomain is used by Stripe telemetry.
 	StripeRDomain = "https://r.stripe.com"
+	// HSTSHeaderValue enables one year of HTTPS-only access in production.
+	HSTSHeaderValue = "max-age=31536000"
 )
 
 // GenerateNonce generates a cryptographically secure random nonce.
@@ -97,6 +99,9 @@ func ApplySecurityHeadersContext(c gatewayctx.GatewayContext, cfg config.CSPConf
 	c.SetHeader("X-Content-Type-Options", "nosniff")
 	c.SetHeader("X-Frame-Options", "DENY")
 	c.SetHeader("Referrer-Policy", "strict-origin-when-cross-origin")
+	if gin.Mode() == gin.ReleaseMode {
+		c.SetHeader("Strict-Transport-Security", HSTSHeaderValue)
+	}
 	if isAPIRoutePathContext(c) {
 		return
 	}
