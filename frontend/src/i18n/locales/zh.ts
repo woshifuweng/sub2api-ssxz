@@ -6043,6 +6043,7 @@ export default {
     noPricing: '暂无价格信息',
     noModels: '暂无可用模型',
     empty: '暂无可用模型',
+    emptyDisabled: '当前暂不展示模型与价格。请使用当前 API Key 调用 /v1/models，查看该 Key 实际可用的模型。',
     userGuideTitle: '接入前先看这里',
     userGuideDescription: '这里显示当前账号可选的模型和适用范围。客户端里能否使用，还要看 API Key 所选范围、账户额度和实际请求结果。',
     exclusive: '专属',

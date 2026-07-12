@@ -5857,6 +5857,7 @@ export default {
     noPricing: 'No pricing information',
     noModels: 'No models available',
     empty: 'No available models',
+    emptyDisabled: 'Models and pricing are not currently shown here. Use your current API Key to call /v1/models and view the models available to that Key.',
     userGuideTitle: 'Check this before connecting',
     userGuideDescription: 'This page shows the models and access scope available to your account. Client access still depends on the API Key scope, account balance, and the actual request result.',
     exclusive: 'Exclusive',

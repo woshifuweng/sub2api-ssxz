@@ -48,7 +48,7 @@
           pricing-key-prefix="availableChannels.pricing"
           :no-pricing-label="t('availableChannels.noPricing')"
           :no-models-label="t('availableChannels.noModels')"
-          :empty-label="t('availableChannels.empty')"
+          :empty-label="emptyLabel"
         />
       </template>
     </TablePageLayout>
@@ -96,6 +96,12 @@ const columnLabels = computed(() => ({
   groups: t('availableChannels.columns.groups'),
   supportedModels: t('availableChannels.columns.supportedModels'),
 }))
+
+const emptyLabel = computed(() =>
+  appStore.cachedPublicSettings?.available_channels_enabled === true
+    ? t('availableChannels.empty')
+    : t('availableChannels.emptyDisabled')
+)
 
 /**
  * 搜索过滤：
