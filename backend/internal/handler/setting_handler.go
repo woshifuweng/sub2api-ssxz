@@ -75,6 +75,7 @@ func (h *SettingHandler) GetPublicSettingsGateway(c gatewayctx.GatewayContext) {
 			Available: settings.WebSearch.Available,
 			Provider:  settings.WebSearch.Provider,
 		},
+		AffiliateEnabled:   settings.AffiliateEnabled,
 		BackendModeEnabled: settings.BackendModeEnabled,
 		Version:            h.version,
 	})

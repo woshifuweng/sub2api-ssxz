@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -250,6 +251,26 @@ func TestAffiliateSettingsAreAcceptedAndAudited(t *testing.T) {
 		"affiliate_rebate_duration_days",
 		"affiliate_rebate_per_invitee_cap",
 	}, diffSettings(before, after, req))
+}
+
+func TestBuildSystemSettingsDTOExposesAffiliateSettings(t *testing.T) {
+	handler := &SettingHandler{
+		settingService: service.NewSettingService(nil, &config.Config{}),
+	}
+
+	settingsDTO := handler.buildSystemSettingsDTO(&service.SystemSettings{
+		AffiliateEnabled:             true,
+		AffiliateRebateRate:          12.5,
+		AffiliateRebateFreezeHours:   24,
+		AffiliateRebateDurationDays:  90,
+		AffiliateRebatePerInviteeCap: 50,
+	}, false)
+
+	require.True(t, settingsDTO.AffiliateEnabled)
+	require.Equal(t, 12.5, settingsDTO.AffiliateRebateRate)
+	require.Equal(t, 24, settingsDTO.AffiliateRebateFreezeHours)
+	require.Equal(t, 90, settingsDTO.AffiliateRebateDurationDays)
+	require.Equal(t, 50.0, settingsDTO.AffiliateRebatePerInviteeCap)
 }
 
 func TestOpsWSHelpers(t *testing.T) {
