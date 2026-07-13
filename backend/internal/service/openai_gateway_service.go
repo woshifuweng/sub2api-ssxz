@@ -2418,7 +2418,7 @@ func (s *OpenAIGatewayService) forwardWithContext(ctx context.Context, c gateway
 	}
 
 	// 对所有请求执行模型映射（包含 Codex CLI）。
-	mappedModel := resolveOpenAIForwardModel(account, reqModel, defaultMappedModel)
+	mappedModel, accountModelMappingMatched := resolveOpenAIForwardModelWithMatch(account, reqModel, defaultMappedModel)
 	if mappedModel != reqModel {
 		logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Model mapping applied: %s -> %s (account: %s, isCodexCLI: %v)", reqModel, mappedModel, account.Name, isCodexCLI)
 		reqBody["model"] = mappedModel
@@ -2428,19 +2428,25 @@ func (s *OpenAIGatewayService) forwardWithContext(ctx context.Context, c gateway
 
 	// 针对所有 OpenAI 账号执行 Codex 模型名规范化，确保上游识别一致。
 	if model, ok := reqBody["model"].(string); ok {
-		normalizedModel := normalizeCodexModel(model)
-		if normalizedModel != "" && normalizedModel != model {
-			logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Codex model normalization: %s -> %s (account: %s, type: %s, isCodexCLI: %v)",
-				model, normalizedModel, account.Name, account.Type, isCodexCLI)
-			reqBody["model"] = normalizedModel
-			mappedModel = normalizedModel
-			bodyModified = true
-			markPatchSet("model", normalizedModel)
+		finalModel := model
+		if !accountModelMappingMatched {
+			normalizedModel := normalizeCodexModel(model)
+			if normalizedModel != "" {
+				finalModel = normalizedModel
+			}
+			if normalizedModel != "" && normalizedModel != model {
+				logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Codex model normalization: %s -> %s (account: %s, type: %s, isCodexCLI: %v)",
+					model, normalizedModel, account.Name, account.Type, isCodexCLI)
+				reqBody["model"] = normalizedModel
+				mappedModel = normalizedModel
+				bodyModified = true
+				markPatchSet("model", normalizedModel)
+			}
 		}
 
 		// 移除 gpt-5.2-codex 以下的版本 verbosity 参数
 		// 确保高版本模型向低版本模型映射不报错
-		if !SupportsVerbosity(normalizedModel) {
+		if !SupportsVerbosity(finalModel) {
 			if text, ok := reqBody["text"].(map[string]any); ok {
 				delete(text, "verbosity")
 			}

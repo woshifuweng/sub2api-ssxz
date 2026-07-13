@@ -2011,6 +2011,59 @@ func TestOpenAIForwardAsChatCompletions_OpenAICompatiblePassthroughKeepsChatBody
 	require.False(t, gjson.GetBytes(upstream.lastBody, "input").Exists(), "chat-completions passthrough must not convert to responses input")
 }
 
+func TestOpenAIGatewayService_Forward_ExplicitModelMappingSkipsCodexNormalization(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
+	c.Request.Header.Set("User-Agent", "codex_cli_rs/0.1.0")
+	c.Request.Header.Set("Authorization", "Bearer inbound-customer-token")
+
+	upstream := &httpUpstreamRecorder{
+		resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(`{
+				"id":"resp-explicit-mapping",
+				"object":"response",
+				"model":"claude-opus-4-8",
+				"output":[],
+				"usage":{"input_tokens":1,"output_tokens":1}
+			}`)),
+		},
+	}
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{
+			Security: config.SecurityConfig{
+				URLAllowlist: config.URLAllowlistConfig{Enabled: false},
+			},
+		},
+		httpUpstream: upstream,
+	}
+	account := &Account{
+		ID:          33,
+		Name:        "mapped-compatible-account",
+		Type:        AccountTypeAPIKey,
+		Platform:    PlatformOpenAI,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "upstream-account-token",
+			"base_url": "https://upstream.example/v1",
+			"model_mapping": map[string]any{
+				"claude-opus-4-8": "claude-opus-4-8",
+			},
+		},
+	}
+	body := []byte(`{"model":"claude-opus-4-8","stream":false,"input":"reply ok"}`)
+
+	result, err := svc.Forward(context.Background(), c, account, body)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, upstream.lastReq)
+	require.Equal(t, "claude-opus-4-8", gjson.GetBytes(upstream.lastBody, "model").String())
+	require.Equal(t, "Bearer upstream-account-token", upstream.lastReq.Header.Get("Authorization"))
+}
+
 func TestShouldUseOpenAIStagedTransportBudget(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
