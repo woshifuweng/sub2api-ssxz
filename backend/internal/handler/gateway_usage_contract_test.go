@@ -30,7 +30,7 @@ func TestGatewayUsageSubscriptionKeyWithoutActiveSubscriptionIsExplicitlyInvalid
 	require.Equal(t, float64(0), payload["remaining"])
 	require.Equal(t, float64(0), payload["balance"])
 	require.Equal(t, "USD", payload["unit"])
-	require.Equal(t, float64(0), payload["quota"].(map[string]any)["remaining"])
+	requireUsageQuotaRemaining(t, payload, 0)
 	require.Equal(t, "No active subscription found for this group", payload["message"])
 	require.NotContains(t, payload, "subscription")
 }
@@ -60,7 +60,7 @@ func TestGatewayUsageSubscriptionKeyWithActiveSubscriptionReturnsRemainingAndLim
 	require.Equal(t, float64(8), payload["remaining"])
 	require.Equal(t, float64(8), payload["balance"])
 	require.Equal(t, "USD", payload["unit"])
-	require.Equal(t, float64(8), payload["quota"].(map[string]any)["remaining"])
+	requireUsageQuotaRemaining(t, payload, 8)
 	require.NotContains(t, payload, "status")
 	require.NotContains(t, payload, "message")
 
@@ -93,7 +93,15 @@ func TestGatewayUsageQuotaLimitedReturnsCCSwitchBalanceAliases(t *testing.T) {
 	require.Equal(t, float64(7.5), payload["remaining"])
 	require.Equal(t, float64(7.5), payload["balance"])
 	require.Equal(t, "USD", payload["unit"])
-	require.Equal(t, float64(7.5), payload["quota"].(map[string]any)["remaining"])
+	requireUsageQuotaRemaining(t, payload, 7.5)
+}
+
+func requireUsageQuotaRemaining(t *testing.T, payload map[string]any, expected float64) {
+	t.Helper()
+
+	quota, ok := payload["quota"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, expected, quota["remaining"])
 }
 
 func newGatewayUsageTestContext(apiKey *service.APIKey) (*gin.Context, *httptest.ResponseRecorder) {
