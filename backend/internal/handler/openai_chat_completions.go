@@ -193,7 +193,7 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 					}
 				}
 				if err != nil {
-					h.handleStreamingAwareErrorContext(c, http.StatusServiceUnavailable, "api_error", "Service temporarily unavailable", streamStarted)
+					h.handleStreamingAwareErrorContext(c, http.StatusServiceUnavailable, "no_available_account", "No available upstream account supports the requested model", streamStarted)
 					return
 				}
 			} else {
@@ -221,7 +221,7 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 			}
 		}
 		if selection == nil || selection.Account == nil {
-			h.handleStreamingAwareErrorContext(c, http.StatusServiceUnavailable, "api_error", "No available accounts", streamStarted)
+			h.handleStreamingAwareErrorContext(c, http.StatusServiceUnavailable, "no_available_account", "No available upstream account supports the requested model", streamStarted)
 			return
 		}
 		account := selection.Account

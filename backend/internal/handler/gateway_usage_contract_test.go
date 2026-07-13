@@ -25,8 +25,12 @@ func TestGatewayUsageSubscriptionKeyWithoutActiveSubscriptionIsExplicitlyInvalid
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
 	require.Equal(t, "unrestricted", payload["mode"])
 	require.Equal(t, false, payload["isValid"])
+	require.Equal(t, false, payload["is_active"])
 	require.Equal(t, "subscription_not_found", payload["status"])
 	require.Equal(t, float64(0), payload["remaining"])
+	require.Equal(t, float64(0), payload["balance"])
+	require.Equal(t, "USD", payload["unit"])
+	require.Equal(t, float64(0), payload["quota"].(map[string]any)["remaining"])
 	require.Equal(t, "No active subscription found for this group", payload["message"])
 	require.NotContains(t, payload, "subscription")
 }
@@ -52,7 +56,11 @@ func TestGatewayUsageSubscriptionKeyWithActiveSubscriptionReturnsRemainingAndLim
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
 	require.Equal(t, "unrestricted", payload["mode"])
 	require.Equal(t, true, payload["isValid"])
+	require.Equal(t, true, payload["is_active"])
 	require.Equal(t, float64(8), payload["remaining"])
+	require.Equal(t, float64(8), payload["balance"])
+	require.Equal(t, "USD", payload["unit"])
+	require.Equal(t, float64(8), payload["quota"].(map[string]any)["remaining"])
 	require.NotContains(t, payload, "status")
 	require.NotContains(t, payload, "message")
 
@@ -64,6 +72,28 @@ func TestGatewayUsageSubscriptionKeyWithActiveSubscriptionReturnsRemainingAndLim
 	require.Equal(t, float64(50), subscription["weekly_limit_usd"])
 	require.Equal(t, float64(90), subscription["monthly_usage_usd"])
 	require.Equal(t, float64(200), subscription["monthly_limit_usd"])
+}
+
+func TestGatewayUsageQuotaLimitedReturnsCCSwitchBalanceAliases(t *testing.T) {
+	apiKey := &service.APIKey{
+		ID:        102,
+		UserID:    42,
+		Status:    service.StatusAPIKeyActive,
+		Quota:     10,
+		QuotaUsed: 2.5,
+	}
+	c, rec := newGatewayUsageTestContext(apiKey)
+
+	(&GatewayHandler{}).Usage(c)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
+	require.Equal(t, true, payload["is_active"])
+	require.Equal(t, float64(7.5), payload["remaining"])
+	require.Equal(t, float64(7.5), payload["balance"])
+	require.Equal(t, "USD", payload["unit"])
+	require.Equal(t, float64(7.5), payload["quota"].(map[string]any)["remaining"])
 }
 
 func newGatewayUsageTestContext(apiKey *service.APIKey) (*gin.Context, *httptest.ResponseRecorder) {

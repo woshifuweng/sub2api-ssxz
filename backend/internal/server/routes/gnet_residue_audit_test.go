@@ -129,6 +129,7 @@ func TestExecutableAPIKeyRoutesRequireUserAuthMiddleware(t *testing.T) {
 	for _, item := range []routeKey{
 		{method: http.MethodGet, path: "/api/v1/keys"},
 		{method: http.MethodGet, path: "/api/v1/keys/:id"},
+		{method: http.MethodPost, path: "/api/v1/keys/:id/reveal"},
 		{method: http.MethodPost, path: "/api/v1/keys"},
 		{method: http.MethodPut, path: "/api/v1/keys/:id"},
 		{method: http.MethodDelete, path: "/api/v1/keys/:id"},

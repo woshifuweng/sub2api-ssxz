@@ -109,12 +109,10 @@ func resolveOpenAIForwardDefaultMappedModel(apiKey *service.APIKey, fallbackMode
 	return strings.TrimSpace(apiKey.Group.DefaultMappedModel)
 }
 
-func resolveOpenAISelectionFallbackModel(apiKey *service.APIKey, requestedModel string) string {
-	fallbackModel := resolveOpenAIForwardDefaultMappedModel(apiKey, "")
-	if fallbackModel == "" || strings.EqualFold(strings.TrimSpace(fallbackModel), strings.TrimSpace(requestedModel)) {
-		return ""
-	}
-	return fallbackModel
+func resolveOpenAISelectionFallbackModel(_ *service.APIKey, _ string) string {
+	// Account selection must match the requested model. Silently retrying a group
+	// default can route an unsupported client model to an unrelated upstream.
+	return ""
 }
 
 func handleOpenAISelectionExhausted(
@@ -624,7 +622,7 @@ func (h *OpenAIGatewayHandler) ResponsesGateway(transportCtx gatewayctx.GatewayC
 						h.handleStreamingAwareErrorContext(transportCtx, http.StatusServiceUnavailable, "compact_not_supported", "No available OpenAI accounts support /responses/compact", streamStarted)
 						return
 					}
-					h.handleStreamingAwareErrorContext(transportCtx, http.StatusServiceUnavailable, "api_error", "Service temporarily unavailable", streamStarted)
+					h.handleStreamingAwareErrorContext(transportCtx, http.StatusServiceUnavailable, "no_available_account", "No available upstream account supports the requested model", streamStarted)
 					return
 				}
 			} else {
@@ -652,7 +650,7 @@ func (h *OpenAIGatewayHandler) ResponsesGateway(transportCtx gatewayctx.GatewayC
 			}
 		}
 		if selection == nil || selection.Account == nil {
-			h.handleStreamingAwareErrorContext(transportCtx, http.StatusServiceUnavailable, "api_error", "No available accounts", streamStarted)
+			h.handleStreamingAwareErrorContext(transportCtx, http.StatusServiceUnavailable, "no_available_account", "No available upstream account supports the requested model", streamStarted)
 			return
 		}
 		if previousResponseID != "" && selection != nil && selection.Account != nil {
@@ -1150,7 +1148,7 @@ func (h *OpenAIGatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayCo
 					}
 				}
 				if err != nil {
-					h.anthropicStreamingAwareErrorContext(transportCtx, http.StatusServiceUnavailable, "api_error", "Service temporarily unavailable", streamStarted)
+					h.anthropicStreamingAwareErrorContext(transportCtx, http.StatusServiceUnavailable, "no_available_account", "No available upstream account supports the requested model", streamStarted)
 					return
 				}
 			} else {
@@ -1178,7 +1176,7 @@ func (h *OpenAIGatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayCo
 			}
 		}
 		if selection == nil || selection.Account == nil {
-			h.anthropicStreamingAwareErrorContext(transportCtx, http.StatusServiceUnavailable, "api_error", "No available accounts", streamStarted)
+			h.anthropicStreamingAwareErrorContext(transportCtx, http.StatusServiceUnavailable, "no_available_account", "No available upstream account supports the requested model", streamStarted)
 			return
 		}
 		account := selection.Account

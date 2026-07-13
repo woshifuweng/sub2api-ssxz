@@ -156,23 +156,16 @@
                 {{ maskKey(value) }}
               </code>
               <button
-                @click="copyToClipboard(value, row.id)"
-                :disabled="isMaskedApiKey(value)"
+                @click="copyToClipboard(row)"
                 class="rounded-lg p-1 transition-colors"
                 :class="[
-                  isMaskedApiKey(value)
-                    ? 'cursor-not-allowed text-gray-300 opacity-60 dark:text-gray-600'
-                    : 'hover:bg-gray-100 dark:hover:bg-dark-700',
+                  'hover:bg-gray-100 dark:hover:bg-dark-700',
                   copiedKeyId === row.id
                     ? 'text-green-500'
-                    : !isMaskedApiKey(value)
-                      ? 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                      : ''
+                    : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
                 ]"
                 :title="
-                  isMaskedApiKey(value)
-                    ? t('keys.fullKeyRequiredForImport')
-                    : copiedKeyId === row.id
+                  copiedKeyId === row.id
                       ? t('keys.copied')
                       : t('keys.copyToClipboard')
                 "
@@ -434,7 +427,7 @@
               </button>
               <!-- Import to CC Switch Button -->
               <button
-                v-if="!publicSettings?.hide_ccs_import_button && !isMaskedApiKey(row.key)"
+                v-if="!publicSettings?.hide_ccs_import_button"
                 @click="importToCcswitch(row)"
                 :title="t('keys.importToCcSwitch')"
                 data-testid="api-key-ccs-import"
@@ -442,17 +435,6 @@
               >
                 <Icon name="upload" size="sm" />
                 <span class="text-xs">{{ t('keys.importToCcSwitch') }}</span>
-              </button>
-              <button
-                v-else-if="!publicSettings?.hide_ccs_import_button"
-                type="button"
-                disabled
-                :title="t('keys.fullKeyRequiredForImport')"
-                data-testid="api-key-ccs-import-disabled"
-                class="flex cursor-not-allowed flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-400 opacity-60 dark:text-gray-500"
-              >
-                <Icon name="upload" size="sm" />
-                <span class="text-xs">{{ t('keys.ccsImportNeedsNewKey') }}</span>
               </button>
               <!-- Toggle Status Button -->
               <button
@@ -1706,14 +1688,28 @@ const selectedKeyUsableApiKey = computed(() => {
   return isMaskedApiKey(key) ? '' : (key ?? '')
 })
 
-const copyToClipboard = async (text: string, keyId: number) => {
-  if (isMaskedApiKey(text)) {
-    appStore.showError(t('keys.fullKeyRequiredForImport'))
-    return
+const resolvePlaintextApiKey = async (row: ApiKey): Promise<string | null> => {
+  if (!isMaskedApiKey(row.key)) return row.key
+
+  try {
+    const revealed = await keysAPI.reveal(row.id)
+    if (!revealed.key || isMaskedApiKey(revealed.key)) {
+      throw new Error('API key reveal returned no plaintext key')
+    }
+    return revealed.key
+  } catch {
+    appStore.showError(t('keys.failedToReveal'))
+    return null
   }
-  const success = await clipboardCopy(text, t('keys.copied'))
+}
+
+const copyToClipboard = async (row: ApiKey) => {
+  const plaintextKey = await resolvePlaintextApiKey(row)
+  if (!plaintextKey) return
+
+  const success = await clipboardCopy(plaintextKey, t('keys.copied'))
   if (success) {
-    copiedKeyId.value = keyId
+    copiedKeyId.value = row.id
     setTimeout(() => {
       copiedKeyId.value = null
     }, 800)
@@ -2156,27 +2152,37 @@ const resetRateLimitUsage = async () => {
   }
 }
 
-const importToCcswitch = (row: ApiKey) => {
-  if (isMaskedApiKey(row.key)) {
-    appStore.showError(t('keys.fullKeyRequiredForImport'))
-    return
-  }
-
+const importToCcswitch = async (row: ApiKey) => {
   const platform = resolveCcsImportPlatform(row)
   if (!platform) {
     appStore.showError(t('keys.noGroupFound'))
     return
   }
 
+  const plaintextKey = await resolvePlaintextApiKey(row)
+  if (!plaintextKey) return
+  const importRow = { ...row, key: plaintextKey }
+
   // For antigravity platform, show client selection dialog
   if (platform === 'antigravity') {
-    pendingCcsRow.value = row
+    pendingCcsRow.value = importRow
     showCcsClientSelect.value = true
     return
   }
 
   // For other platforms, execute directly
-  executeCcsImport(row, platform === 'gemini' ? 'gemini' : 'claude')
+  executeCcsImport(importRow, platform === 'gemini' ? 'gemini' : 'claude')
+}
+
+const resolveCcsDefaultModel = (row: ApiKey, platform: CcsImportPlatform, clientType: 'claude' | 'gemini'): string => {
+  const preferred = platform === 'openai'
+    ? 'gpt-5.5'
+    : platform === 'anthropic' || (platform === 'antigravity' && clientType === 'claude')
+      ? 'claude-opus-4-8'
+      : ''
+  const allowedModels = (row.allowed_models || []).map((model) => model.trim()).filter(Boolean)
+  if (!preferred || allowedModels.length === 0 || allowedModels.includes(preferred)) return preferred
+  return allowedModels[0] || ''
 }
 
 const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
@@ -2228,6 +2234,7 @@ const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
     }
   })`
   const providerName = normalizeSiteName(publicSettings.value?.site_name || DEFAULT_SITE_NAME)
+  const defaultModel = resolveCcsDefaultModel(row, platform, clientType)
 
   const params = new URLSearchParams({
     resource: 'provider',
@@ -2236,11 +2243,14 @@ const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
     homepage: baseUrl,
     endpoint: endpoint,
     apiKey: row.key,
+    enabled: 'true',
     configFormat: 'json',
     usageEnabled: 'true',
+    usageBaseUrl: baseUrl,
     usageScript: btoa(usageScript),
     usageAutoInterval: '30'
   })
+  if (defaultModel) params.set('model', defaultModel)
   const deeplink = `ccswitch://v1/import?${params.toString()}`
 
   try {

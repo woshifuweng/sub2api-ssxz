@@ -497,6 +497,14 @@ func TestResolveOpenAIForwardDefaultMappedModel(t *testing.T) {
 	})
 }
 
+func TestResolveOpenAISelectionFallbackModel_DoesNotSilentlyReplaceRequestedModel(t *testing.T) {
+	apiKey := &service.APIKey{
+		Group: &service.Group{DefaultMappedModel: "gpt-5.4"},
+	}
+
+	require.Empty(t, resolveOpenAISelectionFallbackModel(apiKey, "gpt-5.6-sol"))
+}
+
 func TestOpenAIResponses_MissingDependencies_ReturnsServiceUnavailable(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

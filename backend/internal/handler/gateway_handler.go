@@ -1018,25 +1018,37 @@ func (h *GatewayHandler) buildUsageData(ctx context.Context, apiKeyID int64) gin
 }
 
 // usageQuotaLimited 处理 quota_limited 模式的响应
+func addUsageBalanceCompatibility(resp gin.H, remaining float64, active bool) {
+	resp["remaining"] = remaining
+	resp["balance"] = remaining
+	resp["unit"] = "USD"
+	resp["is_active"] = active
+	if _, ok := resp["quota"]; !ok {
+		resp["quota"] = gin.H{
+			"remaining": remaining,
+			"unit":      "USD",
+		}
+	}
+}
+
 func (h *GatewayHandler) usageQuotaLimited(c *gin.Context, ctx context.Context, apiKey *service.APIKey, usageData gin.H, modelStats any) {
 	resp := gin.H{
 		"mode":    "quota_limited",
 		"isValid": apiKey.Status == service.StatusAPIKeyActive || apiKey.Status == service.StatusAPIKeyQuotaExhausted || apiKey.Status == service.StatusAPIKeyExpired,
 		"status":  apiKey.Status,
 	}
+	remaining := apiKey.GetQuotaRemaining()
 
 	// 总额度信息
 	if apiKey.Quota > 0 {
-		remaining := apiKey.GetQuotaRemaining()
 		resp["quota"] = gin.H{
 			"limit":     apiKey.Quota,
 			"used":      apiKey.QuotaUsed,
 			"remaining": remaining,
 			"unit":      "USD",
 		}
-		resp["remaining"] = remaining
-		resp["unit"] = "USD"
 	}
+	addUsageBalanceCompatibility(resp, remaining, apiKey.Status == service.StatusAPIKeyActive)
 
 	// 速率限制信息（从 DB 获取实时用量）
 	if apiKey.HasRateLimits() && h.apiKeyService != nil {
@@ -1138,6 +1150,9 @@ func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, 
 				"expires_at":        subscription.ExpiresAt,
 			}
 		}
+		remaining, _ := resp["remaining"].(float64)
+		isActive, _ := resp["isValid"].(bool)
+		addUsageBalanceCompatibility(resp, remaining, isActive)
 
 		if usageData != nil {
 			resp["usage"] = usageData
@@ -1164,6 +1179,7 @@ func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, 
 		"unit":      "USD",
 		"balance":   latestUser.Balance,
 	}
+	addUsageBalanceCompatibility(resp, latestUser.Balance, true)
 	if usageData != nil {
 		resp["usage"] = usageData
 	}

@@ -577,16 +577,16 @@ export default {
       baseUrlCopied: 'Base URL copied',
       stepsAriaLabel: 'Third-party client connection steps',
       stepCreateTitle: 'Create an API Key',
-      stepCreateDescription: 'Choose an available group and create a key. The full key is shown only once after creation.',
+      stepCreateDescription: 'Choose an available group and create a key. The list shows a masked value by default.',
       stepCopyTitle: 'Copy the Base URL and full key',
-      stepCopyDescription: 'The Base URL is this site origin plus /v1. Use the full key saved when it was created.',
+      stepCopyDescription: 'The Base URL is this site origin plus /v1. Owners can securely retrieve the full key from the list anytime.',
       stepConfigureTitle: 'Choose OpenAI-compatible in the client',
       stepConfigureDescription:
         'Enter the Base URL and API Key in Cherry Studio, Chatbox, CC Switch, or another compatible client, then choose a model available to the key.',
       ccsImportNote:
-        'One-click CC Switch import is enabled only while the full key is available. Older keys in the list are masked; create a new API Key if you did not save the full key.',
+        'One-click CC Switch import securely retrieves the full key and fills the address, model, and balance check automatically.',
       clientsAriaLabel: 'Supported client examples',
-      ccSwitch: 'Enter the Base URL and API Key, then choose a model available to the key; switch to a lighter group when speed matters.',
+      ccSwitch: 'One-click import activates this provider automatically. Codex defaults to gpt-5.5 and Claude defaults to claude-opus-4-8.',
       cherryStudio: 'Choose OpenAI-compatible configuration in the provider settings.',
       chatbox: 'For continuing chats or calling enabled APIs outside the site.',
     },
@@ -594,7 +594,7 @@ export default {
       title: 'Save the full API Key',
       warningTitle: 'Save the full key now',
       warningDescription:
-        'The full API Key is shown only once after creation. After closing this dialog, the list only shows a masked value. Create a new API Key if it is lost. To rotate it, create a new key, update clients, then delete the old key.',
+        'The list shows a masked value by default. The owner can securely retrieve the full key later by copying or importing it; plaintext is never stored back into the list.',
       apiKeyLabel: 'API Key',
       copyFullKey: 'Copy full key',
       copied: 'Copied',
@@ -603,9 +603,9 @@ export default {
       connectionDescription:
         'Use this with CC Switch, Cherry Studio, Chatbox, and other OpenAI-compatible clients.',
       primaryActionHint:
-        'Import to CCS or copy the full key before closing. The full key is not shown again.',
+        'Import to CCS now, or retrieve the same key later from the key list.',
       modelLabel: 'Model',
-      modelHint: 'Available models follow backend configuration and the current key group.',
+      modelHint: 'Available models follow backend configuration and the current key group. Codex defaults to gpt-5.5 and Claude to claude-opus-4-8.',
       readinessHint:
         'If the client reports insufficient balance, unavailable model, or temporary service pressure, switch to a recommended model or retry later; complex tasks may take longer to start.',
       acknowledge: 'I saved it',
@@ -632,8 +632,8 @@ export default {
     copyToClipboard: 'Copy to clipboard',
     copied: 'Copied!',
     importToCcSwitch: 'Import to CCS',
-    ccsImportNeedsNewKey: 'Import after creating',
-    fullKeyRequiredForImport: 'The list only shows a masked value, so it cannot be imported directly to CCS. Create a new API Key and use the one-time full-key dialog to import it, or configure manually if you already saved the full key.',
+    ccsImportNeedsNewKey: 'One-click import',
+    fullKeyRequiredForImport: 'The full key is retrieved briefly only when its owner copies or imports it; it is not kept visible.',
     enable: 'Enable',
     disable: 'Disable',
     nameLabel: 'Name',
@@ -654,6 +654,7 @@ export default {
     failedToSave: 'Failed to save API key',
     failedToDelete: 'Failed to delete API key',
     failedToUpdateStatus: 'Failed to update API key status',
+    failedToReveal: 'Failed to securely retrieve the full API key. Refresh and try again.',
     clickToChangeGroup: 'Click to change group',
     groupChangedSuccess: 'Group changed successfully',
     failedToChangeGroup: 'Failed to change group',
@@ -674,9 +675,9 @@ export default {
       note: 'These environment variables will be active in the current terminal session. For permanent configuration, add them to ~/.bashrc, ~/.zshrc, or the appropriate configuration file.',
       noGroupTitle: 'Please assign a group first',
       noGroupDescription: 'This API key has not been assigned to a group. Please click the group column in the key list to assign one before viewing the configuration.',
-      fullKeyMissingTitle: 'The full API Key is no longer visible',
+      fullKeyMissingTitle: 'The full API Key is hidden by default',
       fullKeyMissingDescription:
-        'The list only keeps a masked value and cannot generate ready-to-use CLI configuration. Use the full key saved when it was created, or create a new API Key if it is lost.',
+        'The list keeps a masked value. Use copy or one-click import from the key list to securely retrieve the full key when needed.',
       statusWarning: {
         inactiveTitle: 'This API Key is currently disabled',
         inactiveDescription: 'Third-party clients using this key will stop working. Enable this key first, or create a new key and update the client configuration.',

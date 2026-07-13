@@ -1087,6 +1087,8 @@ func TestOpenAIGatewayService_APIKeyPassthrough_PreservesBodyAndUsesResponsesEnd
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
 	c.Request.Header.Set("User-Agent", "curl/8.0")
 	c.Request.Header.Set("X-Test", "keep")
+	c.Request.Header.Set("Authorization", "Bearer sk-ssxz-customer-key-must-not-forward")
+	c.Request.Header.Set("X-Api-Key", "sk-ssxz-customer-key-must-not-forward")
 
 	originalBody := []byte(`{"model":"gpt-5.2","stream":false,"service_tier":"flex","max_output_tokens":128,"input":[{"type":"text","text":"hi"}]}`)
 	resp := &http.Response{
@@ -1123,6 +1125,8 @@ func TestOpenAIGatewayService_APIKeyPassthrough_PreservesBodyAndUsesResponsesEnd
 	require.Equal(t, originalBody, upstream.lastBody)
 	require.Equal(t, "https://api.openai.com/v1/responses", upstream.lastReq.URL.String())
 	require.Equal(t, "Bearer sk-api-key", upstream.lastReq.Header.Get("Authorization"))
+	require.NotContains(t, upstream.lastReq.Header.Get("Authorization"), "sk-ssxz-customer-key")
+	require.Empty(t, upstream.lastReq.Header.Get("X-Api-Key"))
 	require.Equal(t, "curl/8.0", upstream.lastReq.Header.Get("User-Agent"))
 	require.Empty(t, upstream.lastReq.Header.Get("X-Test"))
 }
