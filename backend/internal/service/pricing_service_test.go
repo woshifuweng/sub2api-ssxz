@@ -7,6 +7,68 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGetModelPricing_OfficialExactPricesOverrideRemoteData(t *testing.T) {
+	svc := &PricingService{
+		pricingData: map[string]*LiteLLMModelPricing{
+			"claude-opus-4-8": {InputCostPerToken: 99, OutputCostPerToken: 99},
+			"gpt-5.5":         {InputCostPerToken: 99, OutputCostPerToken: 99},
+			"gpt-5.6":         {InputCostPerToken: 99, OutputCostPerToken: 99},
+		},
+	}
+
+	tests := []struct {
+		model       string
+		inputPrice  float64
+		outputPrice float64
+	}{
+		{model: "claude-opus-4-8", inputPrice: 5e-6, outputPrice: 25e-6},
+		{model: "gpt-5.5", inputPrice: 5e-6, outputPrice: 30e-6},
+		{model: "gpt-5.6", inputPrice: 5e-6, outputPrice: 30e-6},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.model, func(t *testing.T) {
+			pricing := svc.GetModelPricing(tt.model)
+			require.NotNil(t, pricing)
+			require.InDelta(t, tt.inputPrice, pricing.InputCostPerToken, 1e-12)
+			require.InDelta(t, tt.outputPrice, pricing.OutputCostPerToken, 1e-12)
+		})
+	}
+}
+
+func TestGetModelPricing_UnknownVersionedModelsRefuseGuessedPricingAndWarn(t *testing.T) {
+	logSink, restore := captureStructuredLog(t)
+	defer restore()
+
+	svc := &PricingService{
+		pricingData: map[string]*LiteLLMModelPricing{
+			"claude-opus-4-5": {InputCostPerToken: 5e-6, OutputCostPerToken: 25e-6},
+			"claude-opus-4-6": {InputCostPerToken: 5e-6, OutputCostPerToken: 25e-6},
+			"gpt-5.1-codex":   {InputCostPerToken: 1.5e-6, OutputCostPerToken: 12e-6},
+		},
+	}
+
+	require.Nil(t, svc.GetModelPricing("claude-opus-4-9"))
+	require.Nil(t, svc.GetModelPricing("gpt-5.7"))
+	require.True(t, logSink.ContainsMessageAtLevel("pricing unavailable for exact model claude-opus-4-9", "warn"))
+	require.True(t, logSink.ContainsMessageAtLevel("pricing unavailable for exact model gpt-5.7", "warn"))
+}
+
+func TestMatchByModelFamily_IsDeterministicForLegacyAliases(t *testing.T) {
+	newest := &LiteLLMModelPricing{InputCostPerToken: 6}
+	svc := &PricingService{
+		pricingData: map[string]*LiteLLMModelPricing{
+			"claude-opus-4-1": {InputCostPerToken: 1},
+			"claude-opus-4-5": {InputCostPerToken: 5},
+			"claude-opus-4-6": newest,
+		},
+	}
+
+	for range 100 {
+		require.Same(t, newest, svc.matchByModelFamily("claude-opus"))
+	}
+}
+
 func TestParsePricingData_ParsesPriorityAndServiceTierFields(t *testing.T) {
 	svc := &PricingService{}
 	body := []byte(`{

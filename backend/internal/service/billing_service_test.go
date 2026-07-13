@@ -133,13 +133,17 @@ func TestGetModelPricing_CaseInsensitive(t *testing.T) {
 	require.Equal(t, p1.InputPricePerToken, p2.InputPricePerToken)
 }
 
-func TestGetModelPricing_UnknownClaudeModelFallsBackToSonnet(t *testing.T) {
+func TestGetModelPricing_UnknownClaudeModelReturnsError(t *testing.T) {
+	logSink, restore := captureStructuredLog(t)
+	defer restore()
+
 	svc := newTestBillingService()
 
-	// 不包含 opus/sonnet/haiku 关键词的 Claude 模型会走默认 Sonnet 价格
 	pricing, err := svc.GetModelPricing("claude-unknown-model")
-	require.NoError(t, err)
-	require.InDelta(t, 3e-6, pricing.InputPricePerToken, 1e-12)
+	require.Error(t, err)
+	require.Nil(t, pricing)
+	require.Contains(t, err.Error(), "pricing not found")
+	require.True(t, logSink.ContainsMessageAtLevel("pricing unavailable for exact model claude-unknown-model", "warn"))
 }
 
 func TestGetModelPricing_UnknownOpenAIModelReturnsError(t *testing.T) {
@@ -229,7 +233,9 @@ func TestGetFallbackPricing_FamilyMatching(t *testing.T) {
 		{name: "empty model", model: "   ", expectNilPricing: true},
 		{name: "claude opus 4.6", model: "claude-opus-4.6-20260201", expectedInput: 5e-6},
 		{name: "claude opus 4.5 alt separator", model: "claude-opus-4-5-20260101", expectedInput: 5e-6},
-		{name: "claude generic model fallback sonnet", model: "claude-foo-bar", expectedInput: 3e-6},
+		{name: "claude generic model has no guessed fallback", model: "claude-foo-bar", expectNilPricing: true},
+		{name: "future claude sonnet has no guessed fallback", model: "claude-sonnet-5", expectNilPricing: true},
+		{name: "future claude haiku has no guessed fallback", model: "claude-haiku-5", expectNilPricing: true},
 		{name: "gemini explicit fallback", model: "gemini-3-1-pro", expectedInput: 2e-6},
 		{name: "gemini unknown no fallback", model: "gemini-2.0-pro", expectNilPricing: true},
 		{name: "openai gpt5.1", model: "gpt-5.1", expectedInput: 1.25e-6},
@@ -682,6 +688,38 @@ func TestBillingServiceGetModelPricing_UsesDynamicPriorityFields(t *testing.T) {
 	require.Equal(t, 272000, pricing.LongContextInputThreshold)
 	require.InDelta(t, 2.0, pricing.LongContextInputMultiplier, 1e-12)
 	require.InDelta(t, 1.5, pricing.LongContextOutputMultiplier, 1e-12)
+}
+
+func TestBillingServiceGetModelPricing_UsesOfficialExactPricesWithoutDynamicData(t *testing.T) {
+	svc := NewBillingService(&config.Config{}, nil)
+
+	tests := []struct {
+		model       string
+		inputPrice  float64
+		outputPrice float64
+	}{
+		{model: "claude-opus-4-8", inputPrice: 5e-6, outputPrice: 25e-6},
+		{model: "gpt-5.5", inputPrice: 5e-6, outputPrice: 30e-6},
+		{model: "gpt-5.6", inputPrice: 5e-6, outputPrice: 30e-6},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.model, func(t *testing.T) {
+			pricing, err := svc.GetModelPricing(tt.model)
+			require.NoError(t, err)
+			require.InDelta(t, tt.inputPrice, pricing.InputPricePerToken, 1e-12)
+			require.InDelta(t, tt.outputPrice, pricing.OutputPricePerToken, 1e-12)
+		})
+	}
+}
+
+func TestBillingServiceGetModelPricing_UnknownClaudeVersionDoesNotFallBackToOlderOpus(t *testing.T) {
+	svc := NewBillingService(&config.Config{}, nil)
+
+	pricing, err := svc.GetModelPricing("claude-opus-4-9")
+	require.Error(t, err)
+	require.Nil(t, pricing)
+	require.Contains(t, err.Error(), "pricing not found")
 }
 
 func TestBillingServiceGetModelPricing_OpenAIFallbackGpt52Variants(t *testing.T) {

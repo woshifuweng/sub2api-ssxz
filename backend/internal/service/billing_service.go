@@ -187,6 +187,16 @@ func (s *BillingService) initFallbackPricing() {
 
 	// Claude 4.6 Opus (与4.5同价)
 	s.fallbackPrices["claude-opus-4.6"] = s.fallbackPrices["claude-opus-4.5"]
+	// Claude Opus 4.8 官方标准价
+	s.fallbackPrices["claude-opus-4.8"] = &ModelPricing{
+		InputPricePerToken:         5e-6,
+		OutputPricePerToken:        25e-6,
+		CacheCreationPricePerToken: 6.25e-6,
+		CacheReadPricePerToken:     0.5e-6,
+		CacheCreation5mPrice:       6.25e-6,
+		CacheCreation1hPrice:       10e-6,
+		SupportsCacheBreakdown:     true,
+	}
 
 	// Gemini 3.1 Pro
 	s.fallbackPrices["gemini-3.1-pro"] = &ModelPricing{
@@ -222,8 +232,26 @@ func (s *BillingService) initFallbackPricing() {
 		LongContextInputMultiplier:     openAIGPT54LongContextInputMultiplier,
 		LongContextOutputMultiplier:    openAIGPT54LongContextOutputMultiplier,
 	}
-	// GPT-5.5 暂无独立定价，回退到 GPT-5.4
-	s.fallbackPrices["gpt-5.5"] = s.fallbackPrices["gpt-5.4"]
+	// OpenAI GPT-5.5 官方标准价
+	s.fallbackPrices["gpt-5.5"] = &ModelPricing{
+		InputPricePerToken:             5e-6,
+		InputPricePerTokenPriority:     12.5e-6,
+		OutputPricePerToken:            30e-6,
+		OutputPricePerTokenPriority:    75e-6,
+		CacheCreationPricePerToken:     5e-6,
+		CacheReadPricePerToken:         0.5e-6,
+		CacheReadPricePerTokenPriority: 1.25e-6,
+		LongContextInputThreshold:      272000,
+		LongContextInputMultiplier:     2,
+		LongContextOutputMultiplier:    1.5,
+	}
+	// GPT-5.6 alias points to the Sol tier.
+	s.fallbackPrices["gpt-5.6"] = &ModelPricing{
+		InputPricePerToken:         5e-6,
+		OutputPricePerToken:        30e-6,
+		CacheCreationPricePerToken: 6.25e-6,
+		CacheReadPricePerToken:     0.5e-6,
+	}
 	s.fallbackPrices["gpt-5.4-mini"] = &ModelPricing{
 		InputPricePerToken:     7.5e-7,
 		OutputPricePerToken:    4.5e-6,
@@ -274,6 +302,27 @@ func (s *BillingService) initFallbackPricing() {
 // getFallbackPricing 根据模型系列获取回退价格
 func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 	modelLower := strings.ToLower(model)
+	modelIsExactOrDated := func(prefix string) bool {
+		if modelLower == prefix || modelLower == prefix+"-thinking" {
+			return true
+		}
+		suffix := strings.TrimPrefix(modelLower, prefix)
+		if suffix == modelLower {
+			return false
+		}
+		suffix = strings.TrimSuffix(suffix, "-thinking")
+		return openAIModelDatePattern.MatchString(suffix)
+	}
+
+	if modelIsExactOrDated("claude-opus-4-8") || modelIsExactOrDated("claude-opus-4.8") {
+		return s.fallbackPrices["claude-opus-4.8"]
+	}
+	if modelIsExactOrDated("gpt-5.6") {
+		return s.fallbackPrices["gpt-5.6"]
+	}
+	if modelIsExactOrDated("gpt-5.5") {
+		return s.fallbackPrices["gpt-5.5"]
+	}
 
 	// 按模型系列匹配
 	if strings.Contains(modelLower, "opus") {
@@ -283,23 +332,34 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 		if strings.Contains(modelLower, "4.5") || strings.Contains(modelLower, "4-5") {
 			return s.fallbackPrices["claude-opus-4.5"]
 		}
-		return s.fallbackPrices["claude-3-opus"]
+		if strings.Contains(modelLower, "claude-3-opus") {
+			return s.fallbackPrices["claude-3-opus"]
+		}
+		return nil
 	}
 	if strings.Contains(modelLower, "sonnet") {
-		if strings.Contains(modelLower, "4") && !strings.Contains(modelLower, "3") {
+		if modelIsExactOrDated("claude-sonnet-4") ||
+			modelIsExactOrDated("claude-sonnet-4-5") ||
+			modelIsExactOrDated("claude-sonnet-4.5") {
 			return s.fallbackPrices["claude-sonnet-4"]
 		}
-		return s.fallbackPrices["claude-3-5-sonnet"]
+		if strings.Contains(modelLower, "claude-3-5-sonnet") || strings.Contains(modelLower, "claude-3.5-sonnet") {
+			return s.fallbackPrices["claude-3-5-sonnet"]
+		}
+		return nil
 	}
 	if strings.Contains(modelLower, "haiku") {
 		if strings.Contains(modelLower, "3-5") || strings.Contains(modelLower, "3.5") {
 			return s.fallbackPrices["claude-3-5-haiku"]
 		}
-		return s.fallbackPrices["claude-3-haiku"]
+		if strings.Contains(modelLower, "claude-3-haiku") {
+			return s.fallbackPrices["claude-3-haiku"]
+		}
+		return nil
 	}
-	// Claude 未知型号统一回退到 Sonnet，避免计费中断。
+	// 未知 Claude 型号拒绝猜价，避免把新模型按旧型号静默计费。
 	if strings.Contains(modelLower, "claude") {
-		return s.fallbackPrices["claude-sonnet-4"]
+		return nil
 	}
 	if strings.Contains(modelLower, "gemini-3.1-pro") || strings.Contains(modelLower, "gemini-3-1-pro") {
 		return s.fallbackPrices["gemini-3.1-pro"]
@@ -309,6 +369,8 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 	if strings.Contains(modelLower, "gpt-5") || strings.Contains(modelLower, "codex") {
 		normalized := normalizeCodexModel(modelLower)
 		switch normalized {
+		case "gpt-5.6":
+			return s.fallbackPrices["gpt-5.6"]
 		case "gpt-5.5":
 			return s.fallbackPrices["gpt-5.5"]
 		case "gpt-5.4-mini":
@@ -373,6 +435,7 @@ func (s *BillingService) GetModelPricing(model string) (*ModelPricing, error) {
 		return s.applyModelSpecificPricingPolicy(model, fallback), nil
 	}
 
+	warnExactPricingUnavailable(model)
 	return nil, fmt.Errorf("pricing not found for model: %s", model)
 }
 
