@@ -721,7 +721,7 @@ func openAIMessagesDispatchGateway(h *handler.Handlers) gatewayctx.HandlerFunc {
 			}
 			return
 		}
-		if apiKey.Group != nil && apiKey.Group.Platform == service.PlatformOpenAI {
+		if shouldUseOpenAIMessagesDispatch(apiKey) {
 			if h.OpenAIGateway != nil {
 				h.OpenAIGateway.MessagesGateway(c)
 			}
@@ -750,7 +750,7 @@ func openAICountTokensDispatchGateway(h *handler.Handlers) gatewayctx.HandlerFun
 			writeGatewayDispatchUnavailable(c)
 			return
 		}
-		if apiKey.Group != nil && apiKey.Group.Platform == service.PlatformOpenAI {
+		if shouldUseOpenAIMessagesDispatch(apiKey) {
 			c.WriteJSON(http.StatusNotFound, gin.H{
 				"type": "error",
 				"error": gin.H{
@@ -766,6 +766,15 @@ func openAICountTokensDispatchGateway(h *handler.Handlers) gatewayctx.HandlerFun
 		}
 		writeGatewayDispatchUnavailable(c)
 	}
+}
+
+func shouldUseOpenAIMessagesDispatch(apiKey *service.APIKey) bool {
+	if apiKey == nil || apiKey.Group == nil {
+		return false
+	}
+	group := apiKey.Group
+	return group.Platform == service.PlatformOpenAI ||
+		(group.Platform == service.PlatformAnthropic && group.AllowMessagesDispatch)
 }
 
 func openAIImagesDispatchGateway(h *handler.Handlers) gatewayctx.HandlerFunc {

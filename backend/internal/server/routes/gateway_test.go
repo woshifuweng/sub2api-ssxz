@@ -8,6 +8,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	servermiddleware "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/alicebob/miniredis/v2"
@@ -168,5 +169,63 @@ func TestExecutableGatewayRoutesSoraMediaPathsAreRegistered(t *testing.T) {
 
 	for path, found := range expected {
 		require.True(t, found, "path=%s should be present in executable gateway routes", path)
+	}
+}
+
+func TestOpenAIMessagesDispatchHonorsExplicitOptInForAnthropicGroup(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-opus-4-8"}`))
+	ctx.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
+		Group: &service.Group{
+			Platform:              service.PlatformAnthropic,
+			AllowMessagesDispatch: true,
+		},
+	})
+
+	openAIMessagesDispatchGateway(&handler.Handlers{
+		OpenAIGateway: &handler.OpenAIGatewayHandler{},
+	})(gatewayctx.FromGin(ctx))
+
+	require.Equal(t, http.StatusInternalServerError, recorder.Code)
+	require.Contains(t, recorder.Body.String(), "User context not found")
+}
+
+func TestOpenAICountTokensDispatchHonorsExplicitOptInForAnthropicGroup(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", strings.NewReader(`{"model":"claude-opus-4-8"}`))
+	ctx.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
+		Group: &service.Group{
+			Platform:              service.PlatformAnthropic,
+			AllowMessagesDispatch: true,
+		},
+	})
+
+	openAICountTokensDispatchGateway(&handler.Handlers{})(gatewayctx.FromGin(ctx))
+
+	require.Equal(t, http.StatusNotFound, recorder.Code)
+	require.Contains(t, recorder.Body.String(), "Token counting is not supported")
+}
+
+func TestShouldUseOpenAIMessagesDispatch(t *testing.T) {
+	tests := []struct {
+		name  string
+		group *service.Group
+		want  bool
+	}{
+		{name: "missing group", group: nil, want: false},
+		{name: "openai preserves existing dispatch", group: &service.Group{Platform: service.PlatformOpenAI}, want: true},
+		{name: "anthropic remains native by default", group: &service.Group{Platform: service.PlatformAnthropic}, want: false},
+		{name: "anthropic explicit opt in", group: &service.Group{Platform: service.PlatformAnthropic, AllowMessagesDispatch: true}, want: true},
+		{name: "other platforms cannot opt in", group: &service.Group{Platform: service.PlatformGemini, AllowMessagesDispatch: true}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, shouldUseOpenAIMessagesDispatch(&service.APIKey{Group: tt.group}))
+		})
 	}
 }
