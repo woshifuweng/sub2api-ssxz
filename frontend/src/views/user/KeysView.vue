@@ -1612,12 +1612,12 @@ function formatGroupRate(option: Record<string, unknown>) {
 }
 
 function getGroupRateBadgeClass(option: Record<string, unknown>) {
-  const rate = getEffectiveGroupRate(option)
-  if (rate < 1) {
+  const platform = getGroupOptionPlatform(option)
+  if (platform === 'openai') {
     return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
   }
-  if (rate > 1) {
-    return 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+  if (platform === 'anthropic') {
+    return 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300'
   }
   return 'bg-gray-100 text-gray-700 dark:bg-dark-600 dark:text-gray-200'
 }

@@ -805,6 +805,17 @@ describe('KeysView workbench surface', () => {
     expect(groupSelect.text()).toContain('0.8x')
     expect(groupSelect.find('input[type="checkbox"]').exists()).toBe(false)
 
+    const claudeRateBadge = groupSelect
+      .get('[data-option-value="11"]')
+      .findAll('span')
+      .find((span) => span.text() === '1.2x')
+    const codexRateBadge = groupSelect
+      .get('[data-option-value="15"]')
+      .findAll('span')
+      .find((span) => span.text() === '0.8x')
+    expect(claudeRateBadge?.classes()).toContain('bg-orange-50')
+    expect(codexRateBadge?.classes()).toContain('bg-emerald-50')
+
     await groupSelect.get('[data-option-value="15"]').trigger('click')
     await wrapper.get('[data-tour="key-form-name"]').setValue('single-group-key')
     await wrapper.get('form#key-form').trigger('submit')
