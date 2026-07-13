@@ -243,15 +243,14 @@ func TestHandlePaymentNotificationDoesNotDoubleFulfillBalanceOrder(t *testing.T)
 	require.Equal(t, 1, redeemRepo.createCalls)
 	require.Equal(t, 1, redeemRepo.useCalls)
 	require.Equal(t, 1, userRepo.balanceUpdateCalls)
-	require.Equal(t, 1, affiliateRepo.accrueCalls)
-	require.Equal(t, float64(2), affiliateRepo.lastAccruedAmount)
+	require.Equal(t, 0, affiliateRepo.accrueCalls)
 
 	dbUser, err := client.User.Get(ctx, user.ID)
 	require.NoError(t, err)
 	require.Equal(t, order.Amount, dbUser.Balance)
 	require.Equal(t, 1, countPaymentAuditLogs(t, client, order.ID, "ORDER_PAID"))
 	require.Equal(t, 1, countPaymentAuditLogs(t, client, order.ID, "RECHARGE_SUCCESS"))
-	require.Equal(t, 1, countPaymentAuditLogs(t, client, order.ID, "AFFILIATE_REBATE_SUCCESS"))
+	require.Equal(t, 0, countPaymentAuditLogs(t, client, order.ID, "AFFILIATE_REBATE_SUCCESS"))
 }
 
 type countingPaymentProvider struct {

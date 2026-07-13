@@ -117,6 +117,7 @@ type UsageBillingApplyResult struct {
 	BalanceCharged       float64
 	BalanceShortfall     float64
 	BalanceExhausted     bool
+	AffiliateRebate      float64
 	QuotaState           *AccountQuotaState
 }
 
