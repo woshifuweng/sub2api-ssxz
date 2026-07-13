@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { readFileSync } from 'node:fs'
 
-const { routeState, mocks, authState } = vi.hoisted(() => ({
+const { routeState, mocks, authState, appState } = vi.hoisted(() => ({
   routeState: {
     path: '/app/chat',
     fullPath: '/app/chat'
@@ -15,7 +15,45 @@ const { routeState, mocks, authState } = vi.hoisted(() => ({
   },
   authState: {
     isAdmin: false
+  },
+  appState: {
+    cachedPublicSettings: {
+      affiliate_enabled: false
+    }
   }
+}))
+
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key: string) => ({
+      'nav.dashboard': 'Dashboard',
+      'nav.chat': 'Chat',
+      'nav.image': 'Image',
+      'nav.apiKeys': 'API Keys',
+      'nav.models': 'Models',
+      'nav.usage': 'Usage',
+      'nav.billing': 'Billing',
+      'nav.docs': 'Docs',
+      'nav.affiliate': 'Referral Rewards',
+      'nav.account': 'Account',
+      'nav.logout': 'Sign out',
+      'appShell.closeNavigation': 'Close navigation',
+      'appShell.openNavigation': 'Open navigation',
+      'appShell.expandSidebar': 'Expand sidebar',
+      'appShell.collapseSidebar': 'Collapse sidebar',
+      'appShell.backToDashboard': 'Back to dashboard',
+      'appShell.developerConsole': 'Developer Console',
+      'appShell.primaryNavigation': 'Primary navigation',
+      'appShell.conversationHistory': 'Conversation history',
+      'appShell.untitledConversation': 'Untitled conversation',
+      'appShell.syncingHistory': 'Syncing history...',
+      'appShell.noHistory': 'No conversation history',
+      'appShell.balance': 'Balance',
+      'appShell.adminConsole': 'Admin Console',
+      'appShell.accountFallback': 'Account',
+      'appShell.loggedOut': 'Signed out'
+    })[key] ?? key
+  })
 }))
 
 vi.mock('vue-router', () => ({
@@ -25,7 +63,7 @@ vi.mock('vue-router', () => ({
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
-    cachedPublicSettings: {},
+    cachedPublicSettings: appState.cachedPublicSettings,
     showSuccess: mocks.showSuccess
   })
 }))
@@ -81,6 +119,7 @@ function mountShell(props: Partial<InstanceType<typeof AppSectionShell>['$props'
     },
     global: {
       stubs: {
+        ThemeToggle: true,
         RouterLink: {
           props: ['to'],
           template: '<a :href="to"><slot /></a>'
@@ -99,6 +138,7 @@ describe('AppSectionShell', () => {
     routeState.path = '/app/chat'
     routeState.fullPath = '/app/chat'
     authState.isAdmin = false
+    appState.cachedPublicSettings.affiliate_enabled = false
     mocks.push.mockReset()
     mocks.logout.mockReset()
     mocks.showSuccess.mockReset()
@@ -121,6 +161,22 @@ describe('AppSectionShell', () => {
     ])
     expect(wrapper.text()).not.toMatch(/Affiliate|Referral|Beta|Experiment/)
     expect(wrapper.find('.ssxz-secondary-nav').exists()).toBe(false)
+  })
+
+  it('adds the affiliate destination only when the public feature flag is enabled', async () => {
+    appState.cachedPublicSettings.affiliate_enabled = true
+    const wrapper = mountShell()
+
+    expect(navButtons(wrapper).map((button) => button.text())).toContain('Referral Rewards')
+    await navButtons(wrapper).find((button) => button.text() === 'Referral Rewards')!.trigger('click')
+    expect(mocks.push).toHaveBeenCalledWith('/app/affiliate')
+  })
+
+  it('keeps the shared theme control in the top-right header without forcing dark mode', () => {
+    const wrapper = mountShell()
+
+    expect(wrapper.findComponent({ name: 'ThemeToggle' }).exists()).toBe(true)
+    expect(appSectionShellSource).not.toContain("document.documentElement.classList.add('dark')")
   })
 
   it('uses dashboard as the brand destination without an invented logo symbol', () => {

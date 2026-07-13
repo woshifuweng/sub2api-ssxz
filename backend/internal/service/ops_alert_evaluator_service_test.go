@@ -211,6 +211,41 @@ func TestComputeRuleMetricNewIndicators(t *testing.T) {
 	}
 }
 
+func TestComputeRuleMetricLatencyPercentiles(t *testing.T) {
+	t.Parallel()
+
+	p95 := 2100
+	p99 := 3300
+	svc := &OpsAlertEvaluatorService{
+		opsRepo: &stubOpsRepo{overview: &OpsDashboardOverview{
+			Duration: OpsPercentiles{P95: &p95, P99: &p99},
+		}},
+	}
+	start := time.Now().UTC().Add(-5 * time.Minute)
+	end := time.Now().UTC()
+
+	tests := []struct {
+		metricType string
+		want       float64
+	}{
+		{metricType: "p95_latency_ms", want: 2100},
+		{metricType: "p99_latency_ms", want: 3300},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.metricType, func(t *testing.T) {
+			t.Parallel()
+			got, ok := svc.computeRuleMetric(context.Background(), &OpsAlertRule{MetricType: tt.metricType}, nil, start, end, "", nil)
+			require.True(t, ok)
+			require.Equal(t, tt.want, got)
+		})
+	}
+
+	emptySvc := &OpsAlertEvaluatorService{opsRepo: &stubOpsRepo{overview: &OpsDashboardOverview{}}}
+	_, ok := emptySvc.computeRuleMetric(context.Background(), &OpsAlertRule{MetricType: "p95_latency_ms"}, nil, start, end, "", nil)
+	require.False(t, ok)
+}
+
 func TestShouldSendOpsAlertEmailByMinSeverityPreservesNamedSeverities(t *testing.T) {
 	t.Parallel()
 

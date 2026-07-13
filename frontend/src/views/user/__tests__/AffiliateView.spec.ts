@@ -25,6 +25,51 @@ vi.mock('vue-router', () => ({
   useRoute: () => routeState
 }))
 
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key: string, params?: Record<string, string>) => {
+      const messages: Record<string, string> = {
+        'affiliate.title': '邀请返利',
+        'affiliate.subtitle': '复制专属链接，查看邀请人数、奖励和可转入余额。',
+        'affiliate.eyebrow': '账户运营',
+        'affiliate.loadFailedTitle': '邀请返利暂时无法加载',
+        'affiliate.loadFailedBody': '刷新后会重新获取推广码和邀请记录。已有记录会继续保留。',
+        'affiliate.reload': '重新加载',
+        'affiliate.currentRate': '当前活动比例',
+        'affiliate.rateHint': '实际奖励以系统记录为准',
+        'affiliate.inviteCount': '邀请人数',
+        'affiliate.inviteCountHint': '通过专属链接注册的人数',
+        'affiliate.availableQuota': '可结算额度',
+        'affiliate.availableQuotaHint': '可转入账户余额',
+        'affiliate.totalRewards': '累计奖励',
+        'affiliate.pending': `待确认：${params?.amount ?? ''}`,
+        'affiliate.exclusiveInvite': '专属邀请',
+        'affiliate.inviteDescription': '复制专属链接发给客户，对方通过链接注册后会自动计入邀请记录。有效使用后，奖励会按活动规则进入可结算额度。',
+        'affiliate.code': '推广码',
+        'affiliate.link': '推广链接',
+        'affiliate.copy': '复制',
+        'affiliate.codeCopied': '推广码已复制',
+        'affiliate.linkCopied': '推广链接已复制',
+        'affiliate.settleTitle': '结算到余额',
+        'affiliate.settleDescription': '将可结算额度转入账户余额。',
+        'affiliate.settling': '结算中...',
+        'affiliate.transfer': '转入余额',
+        'affiliate.recordsTitle': '邀请记录',
+        'affiliate.recordsDescription': '邀请记录说明',
+        'affiliate.noRecords': '暂无邀请记录。',
+        'affiliate.user': '用户',
+        'affiliate.name': '名称',
+        'affiliate.creditedReward': '已计奖励',
+        'affiliate.registeredAt': '注册时间',
+        'affiliate.loadFailed': '推广数据加载失败，请稍后重试',
+        'affiliate.transferSuccess': `已转入余额：${params?.amount ?? ''}`,
+        'affiliate.transferFailed': '结算失败，请稍后重试'
+      }
+      return messages[key] ?? key
+    }
+  })
+}))
+
 vi.mock('@/api/user', () => ({
   default: userAPI
 }))
@@ -100,7 +145,7 @@ describe('AffiliateView', () => {
 
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="app-layout"]').exists()).toBe(false)
-    expect(wrapper.text()).toContain('推广中心')
+    expect(wrapper.text()).toContain('邀请返利')
     expect(wrapper.text()).toContain('复制专属链接，查看邀请人数、奖励和可转入余额。')
     expect(wrapper.text()).toContain('专属邀请')
     expect(wrapper.text()).toContain('当前活动比例')
@@ -175,7 +220,7 @@ describe('AffiliateView', () => {
     const wrapper = mount(AffiliateView)
     await flushPromises()
 
-    expect(wrapper.text()).toContain('推广中心暂时无法加载')
+    expect(wrapper.text()).toContain('邀请返利暂时无法加载')
     expect(wrapper.text()).toContain('刷新后会重新获取推广码和邀请记录')
     expect(wrapper.find('[data-testid="affiliate-retry"]').exists()).toBe(true)
 

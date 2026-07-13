@@ -8,19 +8,25 @@
       v-if="mobileNavActive"
       type="button"
       class="ssxz-mobile-sidebar-scrim lg:hidden"
-      aria-label="关闭导航"
+      :aria-label="t('appShell.closeNavigation')"
       @click="closeMobileNav"
     />
     <aside class="ssxz-app-sidebar fixed inset-y-0 left-0 z-30 border-r px-3 py-4">
-      <RouterLink to="/app/dashboard" class="ssxz-brand-link mb-6" title="返回仪表盘" aria-label="返回仪表盘" @click="closeMobileNav">
+      <RouterLink
+        to="/app/dashboard"
+        class="ssxz-brand-link mb-6"
+        :title="t('appShell.backToDashboard')"
+        :aria-label="t('appShell.backToDashboard')"
+        @click="closeMobileNav"
+      >
         <span class="ssxz-brand-wordmark" aria-label="SSXZ AI Gateway">SSXZ</span>
         <span class="ssxz-brand-copy ssxz-sidebar-text">
           <span class="ssxz-brand-title">AI Gateway</span>
-          <span class="ssxz-brand-subtitle">Developer Console</span>
+          <span class="ssxz-brand-subtitle">{{ t('appShell.developerConsole') }}</span>
         </span>
       </RouterLink>
 
-      <nav class="ssxz-primary-nav" aria-label="主导航">
+      <nav class="ssxz-primary-nav" :aria-label="t('appShell.primaryNavigation')">
         <button
           v-for="item in mainNavItems"
           :key="item.to"
@@ -36,8 +42,8 @@
         </button>
       </nav>
 
-      <section v-if="showHistorySection" class="ssxz-history" aria-label="历史会话">
-        <div class="ssxz-section-label ssxz-sidebar-text">历史会话</div>
+      <section v-if="showHistorySection" class="ssxz-history" :aria-label="t('appShell.conversationHistory')">
+        <div class="ssxz-section-label ssxz-sidebar-text">{{ t('appShell.conversationHistory') }}</div>
         <button
           v-for="item in historyItems"
           :key="item.id"
@@ -49,13 +55,13 @@
           @click="handleHistorySelect(item.id)"
         >
           <Icon name="chat" size="sm" />
-          <span class="ssxz-sidebar-text">{{ item.title || '未命名对话' }}</span>
+          <span class="ssxz-sidebar-text">{{ item.title || t('appShell.untitledConversation') }}</span>
         </button>
         <p v-if="historyLoading" class="ssxz-empty-history ssxz-sidebar-text">
-          正在同步历史...
+          {{ t('appShell.syncingHistory') }}
         </p>
         <p v-if="!historyLoading && historyItems.length === 0" class="ssxz-empty-history ssxz-sidebar-text">
-          暂无历史会话
+          {{ t('appShell.noHistory') }}
         </p>
       </section>
 
@@ -75,9 +81,10 @@
             <Icon name="menu" size="sm" />
           </button>
           <div class="flex items-center gap-2">
+            <ThemeToggle />
             <div v-if="authStore.isAuthenticated" class="relative">
               <div class="ssxz-account-cluster">
-                <span class="ssxz-balance-pill">余额 ${{ userBalance }}</span>
+                <span class="ssxz-balance-pill">{{ t('appShell.balance') }} ${{ userBalance }}</span>
                 <button type="button" class="ssxz-user-button" @click="userMenuOpen = !userMenuOpen">
                 <span class="ssxz-user-avatar">{{ userInitial }}</span>
                 <span class="hidden max-w-32 truncate sm:inline">{{ userLabel }}</span>
@@ -87,12 +94,14 @@
               <div v-if="userMenuOpen" class="ssxz-user-menu">
                 <div class="ssxz-menu-summary">
                   <strong>{{ userLabel }}</strong>
-                  <span>余额 ${{ userBalance }}</span>
+                  <span>{{ t('appShell.balance') }} ${{ userBalance }}</span>
                 </div>
                 <button v-if="authStore.isAdmin" type="button" class="ssxz-menu-link" @click="openAdminConsole">
-                  Admin Console
+                  {{ t('appShell.adminConsole') }}
                 </button>
-                <button type="button" class="ssxz-menu-link text-red-600 dark:text-red-300" @click="logout">退出登录</button>
+                <button type="button" class="ssxz-menu-link text-red-600 dark:text-red-300" @click="logout">
+                  {{ t('nav.logout') }}
+                </button>
               </div>
             </div>
           </div>
@@ -123,7 +132,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
+import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import type { ChatConversation } from '@/api/chatWorkspace'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
@@ -154,6 +165,7 @@ const emit = defineEmits<{
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const userMenuOpen = ref(false)
@@ -164,23 +176,26 @@ const isDesktopViewport = ref(false)
 let desktopMediaQuery: MediaQueryList | null = null
 
 const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName }>>(() => [
-  { label: 'Dashboard', to: '/app/dashboard', icon: 'home' },
-  { label: 'Chat', to: '/app/chat', icon: 'chat' },
-  { label: 'Image', to: '/app/image', icon: 'sparkles' },
-  { label: 'API Keys', to: '/app/keys', icon: 'key' },
-  { label: 'Models', to: '/app/available-channels', icon: 'calculator' },
-  { label: 'Usage', to: '/app/usage', icon: 'chartBar' },
-  { label: 'Billing', to: '/app/purchase', icon: 'creditCard' },
-  { label: 'Docs', to: '/app/keys?guide=clients', icon: 'book' },
-  { label: 'Account', to: '/app/profile', icon: 'userCircle' }
+  { label: t('nav.dashboard'), to: '/app/dashboard', icon: 'home' },
+  { label: t('nav.chat'), to: '/app/chat', icon: 'chat' },
+  { label: t('nav.image'), to: '/app/image', icon: 'sparkles' },
+  { label: t('nav.apiKeys'), to: '/app/keys', icon: 'key' },
+  { label: t('nav.models'), to: '/app/available-channels', icon: 'calculator' },
+  { label: t('nav.usage'), to: '/app/usage', icon: 'chartBar' },
+  { label: t('nav.billing'), to: '/app/purchase', icon: 'creditCard' },
+  { label: t('nav.docs'), to: '/app/keys?guide=clients', icon: 'book' },
+  ...(appStore.cachedPublicSettings?.affiliate_enabled
+    ? [{ label: t('nav.affiliate'), to: '/app/affiliate', icon: 'users' as IconName }]
+    : []),
+  { label: t('nav.account'), to: '/app/profile', icon: 'userCircle' }
 ])
 
-const userLabel = computed(() => authStore.user?.username || authStore.user?.email?.split('@')[0] || '账户')
+const userLabel = computed(() => authStore.user?.username || authStore.user?.email?.split('@')[0] || t('appShell.accountFallback'))
 const userInitial = computed(() => userLabel.value.slice(0, 1).toUpperCase())
 const userBalance = computed(() => formatMoney(authStore.user?.balance || 0))
 const navToggleLabel = computed(() => {
-  if (!isDesktopViewport.value) return mobileNavOpen.value ? '关闭导航' : '打开导航'
-  return sidebarCollapsed.value ? '展开侧边栏' : '收起侧边栏'
+  if (!isDesktopViewport.value) return mobileNavOpen.value ? t('appShell.closeNavigation') : t('appShell.openNavigation')
+  return sidebarCollapsed.value ? t('appShell.expandSidebar') : t('appShell.collapseSidebar')
 })
 const navToggleExpanded = computed(() => !isDesktopViewport.value ? mobileNavOpen.value : !sidebarCollapsed.value)
 const mobileNavActive = computed(() => mobileNavOpen.value && !isDesktopViewport.value)
@@ -257,12 +272,11 @@ function syncViewportMode() {
 async function logout() {
   await authStore.logout()
   userMenuOpen.value = false
-  appStore.showSuccess('已退出登录')
+  appStore.showSuccess(t('appShell.loggedOut'))
   router.push('/app')
 }
 
 onMounted(() => {
-  document.documentElement.classList.add('dark')
   if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
     desktopMediaQuery = window.matchMedia('(min-width: 1024px)')
     syncViewportMode()

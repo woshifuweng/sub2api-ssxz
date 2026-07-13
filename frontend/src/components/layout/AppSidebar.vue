@@ -129,7 +129,7 @@ const isAdmin = computed(() => authStore.isAdmin)
 
 // Site settings from appStore (cached, no flicker)
 const siteName = computed(() => appStore.siteName)
-const sidebarSubtitle = computed(() => (isAdmin.value ? '管理控制台' : '服务控制台'))
+const sidebarSubtitle = computed(() => (isAdmin.value ? t('appShell.adminConsole') : t('appShell.serviceConsole')))
 
 // SVG Icon Components
 const DashboardIcon = {
@@ -449,17 +449,19 @@ const ChevronDoubleRightIcon = {
 
 const paymentEnabled = computed(() => !!appStore.cachedPublicSettings?.payment_enabled)
 const channelMonitorEnabled = computed(() => !!appStore.cachedPublicSettings?.channel_monitor_enabled)
+const affiliateEnabled = computed(() => !!appStore.cachedPublicSettings?.affiliate_enabled)
 // User navigation items (for regular users)
 const userNavItems = computed((): NavItem[] => [
-  { path: '/app/dashboard', label: 'Dashboard', icon: DashboardIcon },
-  { path: '/app/chat', label: 'Chat', icon: ChartIcon },
-  { path: '/app/image', label: 'Image', icon: GiftIcon },
-  { path: '/app/keys', label: 'API Keys', icon: KeyIcon },
-  { path: '/app/available-channels', label: 'Models', icon: ChannelIcon },
-  { path: '/app/usage', label: 'Usage', icon: ChartIcon },
-  { path: '/app/purchase', label: 'Billing', icon: RechargeSubscriptionIcon },
-  { path: '/app/keys?guide=clients', label: 'Docs', icon: GlobeIcon },
-  { path: '/app/profile', label: 'Account', icon: UserIcon }
+  { path: '/app/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
+  { path: '/app/chat', label: t('nav.chat'), icon: ChartIcon },
+  { path: '/app/image', label: t('nav.image'), icon: GiftIcon },
+  { path: '/app/keys', label: t('nav.apiKeys'), icon: KeyIcon },
+  { path: '/app/available-channels', label: t('nav.models'), icon: ChannelIcon },
+  { path: '/app/usage', label: t('nav.usage'), icon: ChartIcon },
+  { path: '/app/purchase', label: t('nav.billing'), icon: RechargeSubscriptionIcon },
+  { path: '/app/keys?guide=clients', label: t('nav.docs'), icon: GlobeIcon },
+  ...(affiliateEnabled.value ? [{ path: '/app/affiliate', label: t('nav.affiliate'), icon: UsersIcon }] : []),
+  { path: '/app/profile', label: t('nav.account'), icon: UserIcon }
 ])
 
 const customMenuItemsForAdmin = computed(() => {

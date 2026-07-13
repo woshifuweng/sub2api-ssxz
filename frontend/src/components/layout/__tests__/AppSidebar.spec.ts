@@ -16,6 +16,7 @@ const { routeState, appState, authState, adminSettingsState, onboardingState } =
     cachedPublicSettings: {
       payment_enabled: true,
       channel_monitor_enabled: true,
+      affiliate_enabled: false,
       custom_menu_items: []
     },
     toggleSidebar: vi.fn(),
@@ -45,6 +46,14 @@ vi.mock('vue-i18n', () => ({
     t: (key: string) => ({
       'nav.usage': 'Usage',
       'nav.dashboard': 'Dashboard',
+      'nav.chat': 'Chat',
+      'nav.image': 'Image',
+      'nav.apiKeys': 'API Keys',
+      'nav.models': 'Models',
+      'nav.billing': 'Billing',
+      'nav.docs': 'Docs',
+      'nav.account': 'Account',
+      'nav.affiliate': 'Referral Rewards',
       'nav.ops': 'Runtime Monitor',
       'nav.users': 'Users / Balance',
       'nav.groups': 'Groups / Pricing',
@@ -63,7 +72,9 @@ vi.mock('vue-i18n', () => ({
       'nav.orderManagement': 'Recharge Orders',
       'nav.paymentPlans': 'Plan Settings',
       'nav.expand': 'Expand',
-      'nav.collapse': 'Collapse'
+      'nav.collapse': 'Collapse',
+      'appShell.adminConsole': 'Admin Console',
+      'appShell.serviceConsole': 'Service Console'
     })[key] ?? key
   })
 }))
@@ -117,6 +128,7 @@ describe('AppSidebar', () => {
     appState.cachedPublicSettings = {
       payment_enabled: true,
       channel_monitor_enabled: true,
+      affiliate_enabled: false,
       custom_menu_items: []
     }
     authState.isAdmin = false
@@ -126,7 +138,7 @@ describe('AppSidebar', () => {
     adminSettingsState.fetch.mockReset()
   })
 
-  it('uses the approved user navigation and no experimental or affiliate entries', () => {
+  it('hides the affiliate entry while the public feature flag is disabled', () => {
     const wrapper = mountSidebar()
 
     expect(hrefs(wrapper)).toEqual([
@@ -142,6 +154,15 @@ describe('AppSidebar', () => {
     ])
     expect(wrapper.text()).toContain('DashboardChatImageAPI KeysModelsUsageBillingDocsAccount')
     expect(wrapper.text()).not.toMatch(/Affiliate|Referral|Beta|Experiment/)
+  })
+
+  it('shows the user affiliate entry when the public feature flag is enabled', () => {
+    appState.cachedPublicSettings.affiliate_enabled = true
+
+    const wrapper = mountSidebar()
+
+    expect(hrefs(wrapper)).toContain('/app/affiliate')
+    expect(wrapper.text()).toContain('Referral Rewards')
   })
 
   it('uses a neutral text wordmark without an invented symbol', () => {

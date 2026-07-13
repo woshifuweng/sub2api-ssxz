@@ -38,6 +38,8 @@
           <span class="hidden sm:inline">{{ t('nav.docs') }}</span>
         </a>
 
+        <ThemeToggle />
+
         <!-- Language Switcher -->
         <LocaleSwitcher />
 
@@ -119,7 +121,7 @@
 
                 <router-link v-if="authStore.isAdmin" to="/app/dashboard" @click="closeDropdown" class="dropdown-item">
                   <Icon name="home" size="sm" />
-                  User Console
+                  {{ t('nav.userConsole') }}
                 </router-link>
 
               </div>
@@ -197,6 +199,7 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
+import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
 import Icon from '@/components/icons/Icon.vue'

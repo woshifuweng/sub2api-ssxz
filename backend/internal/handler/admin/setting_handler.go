@@ -199,9 +199,14 @@ type UpdateSettingsRequest struct {
 	CustomMenuItems             *[]dto.CustomMenuItem `json:"custom_menu_items"`
 
 	// 默认配置
-	DefaultConcurrency   int                              `json:"default_concurrency"`
-	DefaultBalance       float64                          `json:"default_balance"`
-	DefaultSubscriptions []dto.DefaultSubscriptionSetting `json:"default_subscriptions"`
+	DefaultConcurrency           int                              `json:"default_concurrency"`
+	DefaultBalance               float64                          `json:"default_balance"`
+	DefaultSubscriptions         []dto.DefaultSubscriptionSetting `json:"default_subscriptions"`
+	AffiliateEnabled             bool                             `json:"affiliate_enabled"`
+	AffiliateRebateRate          float64                          `json:"affiliate_rebate_rate"`
+	AffiliateRebateFreezeHours   int                              `json:"affiliate_rebate_freeze_hours"`
+	AffiliateRebateDurationDays  int                              `json:"affiliate_rebate_duration_days"`
+	AffiliateRebatePerInviteeCap float64                          `json:"affiliate_rebate_per_invitee_cap"`
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
@@ -527,6 +532,11 @@ func (h *SettingHandler) UpdateSettingsGateway(c gatewayctx.GatewayContext) {
 		DefaultConcurrency:               req.DefaultConcurrency,
 		DefaultBalance:                   req.DefaultBalance,
 		DefaultSubscriptions:             defaultSubscriptions,
+		AffiliateEnabled:                 req.AffiliateEnabled,
+		AffiliateRebateRate:              req.AffiliateRebateRate,
+		AffiliateRebateFreezeHours:       req.AffiliateRebateFreezeHours,
+		AffiliateRebateDurationDays:      req.AffiliateRebateDurationDays,
+		AffiliateRebatePerInviteeCap:     req.AffiliateRebatePerInviteeCap,
 		EnableModelFallback:              req.EnableModelFallback,
 		FallbackModelAnthropic:           req.FallbackModelAnthropic,
 		FallbackModelOpenAI:              req.FallbackModelOpenAI,
@@ -697,6 +707,21 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if !equalDefaultSubscriptions(before.DefaultSubscriptions, after.DefaultSubscriptions) {
 		changed = append(changed, "default_subscriptions")
+	}
+	if before.AffiliateEnabled != after.AffiliateEnabled {
+		changed = append(changed, "affiliate_enabled")
+	}
+	if before.AffiliateRebateRate != after.AffiliateRebateRate {
+		changed = append(changed, "affiliate_rebate_rate")
+	}
+	if before.AffiliateRebateFreezeHours != after.AffiliateRebateFreezeHours {
+		changed = append(changed, "affiliate_rebate_freeze_hours")
+	}
+	if before.AffiliateRebateDurationDays != after.AffiliateRebateDurationDays {
+		changed = append(changed, "affiliate_rebate_duration_days")
+	}
+	if before.AffiliateRebatePerInviteeCap != after.AffiliateRebatePerInviteeCap {
+		changed = append(changed, "affiliate_rebate_per_invitee_cap")
 	}
 	if before.EnableModelFallback != after.EnableModelFallback {
 		changed = append(changed, "enable_model_fallback")
