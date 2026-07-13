@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -21,8 +22,18 @@ func TestGetModelPricing_OfficialExactPricesOverrideRemoteData(t *testing.T) {
 		inputPrice  float64
 		outputPrice float64
 	}{
+		{model: "claude-fable-5", inputPrice: 10e-6, outputPrice: 50e-6},
+		{model: "claude-opus-4-6", inputPrice: 5e-6, outputPrice: 25e-6},
+		{model: "claude-opus-4-7", inputPrice: 5e-6, outputPrice: 25e-6},
 		{model: "claude-opus-4-8", inputPrice: 5e-6, outputPrice: 25e-6},
+		{model: "claude-sonnet-4-6", inputPrice: 3e-6, outputPrice: 15e-6},
+		{model: "claude-sonnet-5", inputPrice: 2e-6, outputPrice: 10e-6},
+		{model: "gpt-5.4", inputPrice: 2.5e-6, outputPrice: 15e-6},
+		{model: "gpt-5.4-mini", inputPrice: 0.75e-6, outputPrice: 4.5e-6},
 		{model: "gpt-5.5", inputPrice: 5e-6, outputPrice: 30e-6},
+		{model: "gpt-5.6-sol", inputPrice: 5e-6, outputPrice: 30e-6},
+		{model: "gpt-5.6-terra", inputPrice: 2.5e-6, outputPrice: 15e-6},
+		{model: "gpt-5.6-luna", inputPrice: 1e-6, outputPrice: 6e-6},
 		{model: "gpt-5.6", inputPrice: 5e-6, outputPrice: 30e-6},
 	}
 
@@ -34,6 +45,24 @@ func TestGetModelPricing_OfficialExactPricesOverrideRemoteData(t *testing.T) {
 			require.InDelta(t, tt.outputPrice, pricing.OutputCostPerToken, 1e-12)
 		})
 	}
+}
+
+func TestGetOfficialExactModelPricing_ClaudeSonnet5SwitchesAtOfficialBoundary(t *testing.T) {
+	before := getOfficialExactModelPricingAt("claude-sonnet-5", time.Date(2026, time.August, 31, 23, 59, 59, 0, time.UTC))
+	require.NotNil(t, before)
+	require.InDelta(t, 2e-6, before.InputCostPerToken, 1e-12)
+	require.InDelta(t, 10e-6, before.OutputCostPerToken, 1e-12)
+	require.InDelta(t, 2.5e-6, before.CacheCreationInputTokenCost, 1e-12)
+	require.InDelta(t, 4e-6, before.CacheCreationInputTokenCostAbove1hr, 1e-12)
+	require.InDelta(t, 0.2e-6, before.CacheReadInputTokenCost, 1e-12)
+
+	after := getOfficialExactModelPricingAt("claude-sonnet-5", time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC))
+	require.NotNil(t, after)
+	require.InDelta(t, 3e-6, after.InputCostPerToken, 1e-12)
+	require.InDelta(t, 15e-6, after.OutputCostPerToken, 1e-12)
+	require.InDelta(t, 3.75e-6, after.CacheCreationInputTokenCost, 1e-12)
+	require.InDelta(t, 6e-6, after.CacheCreationInputTokenCostAbove1hr, 1e-12)
+	require.InDelta(t, 0.3e-6, after.CacheReadInputTokenCost, 1e-12)
 }
 
 func TestGetModelPricing_UnknownVersionedModelsRefuseGuessedPricingAndWarn(t *testing.T) {
@@ -97,19 +126,17 @@ func TestParsePricingData_ParsesPriorityAndServiceTierFields(t *testing.T) {
 	require.True(t, pricing.SupportsServiceTier)
 }
 
-func TestGetModelPricing_Gpt53CodexSparkUsesGpt51CodexPricing(t *testing.T) {
-	sparkPricing := &LiteLLMModelPricing{InputCostPerToken: 1}
-	gpt53Pricing := &LiteLLMModelPricing{InputCostPerToken: 9}
-
+func TestGetModelPricing_Gpt53CodexSparkRefusesAllProxyPricing(t *testing.T) {
 	svc := &PricingService{
 		pricingData: map[string]*LiteLLMModelPricing{
-			"gpt-5.1-codex": sparkPricing,
-			"gpt-5.3":       gpt53Pricing,
+			"gpt-5.3-codex-spark": {InputCostPerToken: 99, OutputCostPerToken: 99},
+			"gpt-5.3-codex":       {InputCostPerToken: 1.75e-6, OutputCostPerToken: 14e-6},
+			"gpt-5.1-codex":       {InputCostPerToken: 1.5e-6, OutputCostPerToken: 12e-6},
 		},
 	}
 
-	got := svc.GetModelPricing("gpt-5.3-codex-spark")
-	require.Same(t, sparkPricing, got)
+	require.Nil(t, svc.GetModelPricing("gpt-5.3-codex-spark"))
+	require.Nil(t, svc.GetModelPricing("gpt-5.3-codex-spark-high"))
 }
 
 func TestGetModelPricing_Gpt53CodexFallbackStillUsesGpt52Codex(t *testing.T) {

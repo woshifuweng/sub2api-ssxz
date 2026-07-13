@@ -121,6 +121,50 @@ func TestOpenAIHandleStreamingAwareError_NonStreaming(t *testing.T) {
 	assert.Equal(t, "test error", errorObj["message"])
 }
 
+func TestResponsesGatewayRejectsModelsOutsideCustomerCatalogBeforeRouting(t *testing.T) {
+	tests := []struct {
+		name     string
+		platform string
+		model    string
+	}{
+		{name: "spark", platform: service.PlatformOpenAI, model: "gpt-5.3-codex-spark"},
+		{name: "spark reasoning variant", platform: service.PlatformOpenAI, model: "gpt-5.3-codex-spark-high"},
+		{name: "haiku alias", platform: service.PlatformAnthropic, model: "haiku"},
+		{name: "haiku model", platform: service.PlatformAnthropic, model: "claude-haiku-4-5"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(fmt.Sprintf(`{"model":%q,"input":"hello"}`, tt.model)))
+			groupID := int64(11)
+			ctx.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
+				ID:      1,
+				UserID:  1,
+				GroupID: &groupID,
+				Group:   &service.Group{ID: groupID, Platform: tt.platform},
+			})
+			ctx.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 1, Concurrency: 1})
+
+			h := &OpenAIGatewayHandler{
+				gatewayService:      &service.OpenAIGatewayService{},
+				billingCacheService: &service.BillingCacheService{},
+				apiKeyService:       &service.APIKeyService{},
+				concurrencyHelper: &ConcurrencyHelper{
+					concurrencyService: &service.ConcurrencyService{},
+				},
+			}
+			h.Responses(ctx)
+
+			require.Equal(t, http.StatusBadRequest, recorder.Code)
+			require.Equal(t, "invalid_request_error", gjson.Get(recorder.Body.String(), "error.type").String())
+			require.Equal(t, fmt.Sprintf("Model %q is not available", tt.model), gjson.Get(recorder.Body.String(), "error.message").String())
+		})
+	}
+}
+
 func TestReadRequestBodyWithPrealloc(t *testing.T) {
 	payload := `{"model":"gpt-5","input":"hello"}`
 	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(payload))
@@ -807,7 +851,7 @@ func TestOpenAIResponsesWebSocket_RejectsModelNotAllowedByAPIKeyBeforeAccountSel
 		User:          user,
 		GroupID:       &groupID,
 		Group:         group,
-		AllowedModels: []string{"gpt-allowed"},
+		AllowedModels: []string{"gpt-5.5"},
 	}
 
 	cfg := &config.Config{}
@@ -866,7 +910,7 @@ func TestOpenAIResponsesWebSocket_RejectsModelNotAllowedByAPIKeyBeforeAccountSel
 
 	writeCtx, cancelWrite := context.WithTimeout(context.Background(), 3*time.Second)
 	err = clientConn.Write(writeCtx, coderws.MessageText, []byte(
-		`{"type":"response.create","model":"gpt-denied","input":"hello","max_output_tokens":1}`,
+		`{"type":"response.create","model":"gpt-5.4","input":"hello","max_output_tokens":1}`,
 	))
 	cancelWrite()
 	require.NoError(t, err)
@@ -966,7 +1010,7 @@ func TestOpenAIResponsesWebSocket_EstimatedCostOverBalanceReturnsBeforeAccountSe
 
 	writeCtx, cancelWrite := context.WithTimeout(context.Background(), 3*time.Second)
 	err = clientConn.Write(writeCtx, coderws.MessageText, []byte(
-		`{"type":"response.create","model":"gpt-5.1","input":"hello","max_output_tokens":200000}`,
+		`{"type":"response.create","model":"gpt-5.5","input":"hello","max_output_tokens":200000}`,
 	))
 	cancelWrite()
 	require.NoError(t, err)

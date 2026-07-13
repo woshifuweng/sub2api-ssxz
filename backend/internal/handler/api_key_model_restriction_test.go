@@ -29,6 +29,29 @@ func TestAPIKeyAllowsRequestedModel(t *testing.T) {
 	}
 }
 
+func TestCanonicalCustomerGatewayModelForAPIKey(t *testing.T) {
+	openAIKey := &service.APIKey{Group: &service.Group{Platform: service.PlatformOpenAI}}
+	canonical, enforced, available := canonicalCustomerGatewayModelForAPIKey(openAIKey, "gpt-5.6")
+	if !enforced || !available || canonical != "gpt-5.6-sol" {
+		t.Fatalf("unexpected OpenAI alias result: canonical=%q enforced=%v available=%v", canonical, enforced, available)
+	}
+
+	claudeKey := &service.APIKey{Group: &service.Group{Platform: service.PlatformAnthropic}}
+	for _, model := range []string{"haiku", "claude-haiku-4-5"} {
+		_, enforced, available = canonicalCustomerGatewayModelForAPIKey(claudeKey, model)
+		if !enforced || available {
+			t.Fatalf("expected %q to be blocked by the customer catalog", model)
+		}
+	}
+}
+
+func TestAPIKeyAllowsRequestedModel_TreatsGpt56AliasAsSol(t *testing.T) {
+	apiKey := &service.APIKey{AllowedModels: []string{"gpt-5.6-sol"}}
+	if !apiKeyAllowsRequestedModel(apiKey, "gpt-5.6") {
+		t.Fatalf("expected gpt-5.6 alias to use the gpt-5.6-sol allowlist entry")
+	}
+}
+
 func TestFilterOpenAIModelsForAPIKey(t *testing.T) {
 	apiKey := &service.APIKey{AllowedModels: []string{"gpt-5.4"}}
 	models := []openai.Model{

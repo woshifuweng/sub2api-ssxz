@@ -22,6 +22,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 	"go.uber.org/zap"
 )
 
@@ -470,6 +471,19 @@ func (h *OpenAIGatewayHandler) ResponsesGateway(transportCtx gatewayctx.GatewayC
 		return
 	}
 	reqModel := modelResult.String()
+	canonicalModel, catalogEnforced, catalogAvailable := canonicalCustomerGatewayModelForAPIKey(apiKey, reqModel)
+	if catalogEnforced && !catalogAvailable {
+		h.errorResponseGateway(transportCtx, http.StatusBadRequest, "invalid_request_error", customerGatewayModelUnavailableMessage(reqModel))
+		return
+	}
+	if catalogEnforced && canonicalModel != reqModel {
+		body, err = sjson.SetBytes(body, "model", canonicalModel)
+		if err != nil {
+			h.errorResponseGateway(transportCtx, http.StatusBadRequest, "invalid_request_error", "Failed to normalize model")
+			return
+		}
+		reqModel = canonicalModel
+	}
 	if !apiKeyAllowsRequestedModel(apiKey, reqModel) {
 		h.errorResponseGateway(transportCtx, http.StatusBadRequest, "invalid_request_error", apiKeyModelNotAllowedMessage(reqModel))
 		return
@@ -1686,6 +1700,19 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocketGateway(transportCtx gatewayctx
 	if reqModel == "" {
 		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "model is required in first response.create payload")
 		return
+	}
+	canonicalModel, catalogEnforced, catalogAvailable := canonicalCustomerGatewayModelForAPIKey(apiKey, reqModel)
+	if catalogEnforced && !catalogAvailable {
+		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, customerGatewayModelUnavailableMessage(reqModel))
+		return
+	}
+	if catalogEnforced && canonicalModel != reqModel {
+		firstMessage, err = sjson.SetBytes(firstMessage, "model", canonicalModel)
+		if err != nil {
+			closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "failed to normalize model")
+			return
+		}
+		reqModel = canonicalModel
 	}
 	if !apiKeyAllowsRequestedModel(apiKey, reqModel) {
 		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, apiKeyModelNotAllowedMessage(reqModel))

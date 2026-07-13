@@ -5,6 +5,7 @@ package service
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
@@ -221,6 +222,24 @@ func TestCalculateCost_OpenAIGPT54LongContextAppliesWholeSessionMultipliers(t *t
 	require.InDelta(t, expectedInput+expectedOutput, cost.ActualCost, 1e-10)
 }
 
+func TestCalculateCost_OpenAIGPT56LongContextMultipliesAllInputCategories(t *testing.T) {
+	svc := newTestBillingService()
+	tokens := UsageTokens{
+		InputTokens:         270000,
+		OutputTokens:        4000,
+		CacheCreationTokens: 2000,
+		CacheReadTokens:     3000,
+	}
+
+	cost, err := svc.CalculateCost("gpt-5.6-terra", tokens, 1.0)
+	require.NoError(t, err)
+
+	require.InDelta(t, float64(tokens.InputTokens)*2.5e-6*2, cost.InputCost, 1e-10)
+	require.InDelta(t, float64(tokens.OutputTokens)*15e-6*1.5, cost.OutputCost, 1e-10)
+	require.InDelta(t, float64(tokens.CacheCreationTokens)*3.125e-6*2, cost.CacheCreationCost, 1e-10)
+	require.InDelta(t, float64(tokens.CacheReadTokens)*0.25e-6*2, cost.CacheReadCost, 1e-10)
+}
+
 func TestGetFallbackPricing_FamilyMatching(t *testing.T) {
 	svc := newTestBillingService()
 
@@ -234,7 +253,7 @@ func TestGetFallbackPricing_FamilyMatching(t *testing.T) {
 		{name: "claude opus 4.6", model: "claude-opus-4.6-20260201", expectedInput: 5e-6},
 		{name: "claude opus 4.5 alt separator", model: "claude-opus-4-5-20260101", expectedInput: 5e-6},
 		{name: "claude generic model has no guessed fallback", model: "claude-foo-bar", expectNilPricing: true},
-		{name: "future claude sonnet has no guessed fallback", model: "claude-sonnet-5", expectNilPricing: true},
+		{name: "claude sonnet 5 has exact dated fallback", model: "claude-sonnet-5", expectedInput: 2e-6},
 		{name: "future claude haiku has no guessed fallback", model: "claude-haiku-5", expectNilPricing: true},
 		{name: "gemini explicit fallback", model: "gemini-3-1-pro", expectedInput: 2e-6},
 		{name: "gemini unknown no fallback", model: "gemini-2.0-pro", expectNilPricing: true},
@@ -698,8 +717,18 @@ func TestBillingServiceGetModelPricing_UsesOfficialExactPricesWithoutDynamicData
 		inputPrice  float64
 		outputPrice float64
 	}{
+		{model: "claude-fable-5", inputPrice: 10e-6, outputPrice: 50e-6},
+		{model: "claude-opus-4-6", inputPrice: 5e-6, outputPrice: 25e-6},
+		{model: "claude-opus-4-7", inputPrice: 5e-6, outputPrice: 25e-6},
 		{model: "claude-opus-4-8", inputPrice: 5e-6, outputPrice: 25e-6},
+		{model: "claude-sonnet-4-6", inputPrice: 3e-6, outputPrice: 15e-6},
+		{model: "claude-sonnet-5", inputPrice: 2e-6, outputPrice: 10e-6},
+		{model: "gpt-5.4", inputPrice: 2.5e-6, outputPrice: 15e-6},
+		{model: "gpt-5.4-mini", inputPrice: 0.75e-6, outputPrice: 4.5e-6},
 		{model: "gpt-5.5", inputPrice: 5e-6, outputPrice: 30e-6},
+		{model: "gpt-5.6-sol", inputPrice: 5e-6, outputPrice: 30e-6},
+		{model: "gpt-5.6-terra", inputPrice: 2.5e-6, outputPrice: 15e-6},
+		{model: "gpt-5.6-luna", inputPrice: 1e-6, outputPrice: 6e-6},
 		{model: "gpt-5.6", inputPrice: 5e-6, outputPrice: 30e-6},
 	}
 
@@ -711,6 +740,31 @@ func TestBillingServiceGetModelPricing_UsesOfficialExactPricesWithoutDynamicData
 			require.InDelta(t, tt.outputPrice, pricing.OutputPricePerToken, 1e-12)
 		})
 	}
+}
+
+func TestBillingFallbackPricing_ClaudeSonnet5SwitchesAtOfficialBoundary(t *testing.T) {
+	svc := NewBillingService(&config.Config{}, nil)
+
+	before := svc.getFallbackPricingAt("claude-sonnet-5", time.Date(2026, time.August, 31, 23, 59, 59, 0, time.UTC))
+	require.NotNil(t, before)
+	require.InDelta(t, 2e-6, before.InputPricePerToken, 1e-12)
+	require.InDelta(t, 10e-6, before.OutputPricePerToken, 1e-12)
+
+	after := svc.getFallbackPricingAt("claude-sonnet-5", time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC))
+	require.NotNil(t, after)
+	require.InDelta(t, 3e-6, after.InputPricePerToken, 1e-12)
+	require.InDelta(t, 15e-6, after.OutputPricePerToken, 1e-12)
+}
+
+func TestBillingServiceGetModelPricing_Gpt53CodexSparkHasNoProxyPrice(t *testing.T) {
+	svc := NewBillingService(&config.Config{}, &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+		"gpt-5.3-codex-spark": {InputCostPerToken: 99, OutputCostPerToken: 99},
+	}})
+
+	pricing, err := svc.GetModelPricing("gpt-5.3-codex-spark")
+	require.Error(t, err)
+	require.Nil(t, pricing)
+	require.Contains(t, err.Error(), "pricing not found")
 }
 
 func TestBillingServiceGetModelPricing_UnknownClaudeVersionDoesNotFallBackToOlderOpus(t *testing.T) {

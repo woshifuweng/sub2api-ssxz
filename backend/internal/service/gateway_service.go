@@ -9385,8 +9385,10 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 		return nil
 	}
 
-	// Filter by platform if specified
-	if platform != "" {
+	// Group-bound model discovery uses the group's customer catalog as the
+	// boundary. The upstream transport can legitimately differ from the group
+	// platform (for example, Claude models over an OpenAI-compatible endpoint).
+	if groupID == nil && platform != "" {
 		filtered := make([]Account, 0)
 		for _, acc := range accounts {
 			if acc.Platform == platform {
@@ -9431,6 +9433,7 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 	for model := range modelSet {
 		models = append(models, model)
 	}
+	models = filterCustomerGatewayModels(platform, models)
 	sort.Strings(models)
 
 	if s.modelsListCache != nil {

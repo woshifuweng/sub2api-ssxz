@@ -801,8 +801,8 @@ func (h *GatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayContext)
 
 // Models handles listing available models
 // GET /v1/models
-// Returns models based on account configurations (model_mapping whitelist)
-// Falls back to default models if no whitelist is configured
+// Returns models based on account configurations (model_mapping whitelist).
+// Customer-facing OpenAI/Anthropic groups fail closed when no supported model exists.
 func (h *GatewayHandler) Models(c *gin.Context) {
 	h.ModelsGateway(gatewayctx.FromGin(c))
 }
@@ -870,6 +870,13 @@ func (h *GatewayHandler) ModelsGateway(c gatewayctx.GatewayContext) {
 		c.WriteJSON(http.StatusOK, gin.H{
 			"object": "list",
 			"data":   models,
+		})
+		return
+	}
+	if service.IsCustomerGatewayPlatform(platform) {
+		c.WriteJSON(http.StatusOK, gin.H{
+			"object": "list",
+			"data":   []claude.Model{},
 		})
 		return
 	}

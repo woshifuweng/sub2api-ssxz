@@ -14,10 +14,24 @@ import (
 func normalizeAPIKeyAllowedModelID(model string) string {
 	model = strings.TrimSpace(model)
 	model = strings.TrimPrefix(model, "models/")
+	if strings.EqualFold(model, "gpt-5.6") {
+		return "gpt-5.6-sol"
+	}
 	return model
 }
 
+func canonicalCustomerGatewayModelForAPIKey(apiKey *service.APIKey, model string) (canonical string, enforced bool, available bool) {
+	if apiKey == nil || apiKey.Group == nil || !service.IsCustomerGatewayPlatform(apiKey.Group.Platform) {
+		return strings.TrimSpace(model), false, true
+	}
+	canonical, available = service.CanonicalCustomerGatewayModel(apiKey.Group.Platform, model)
+	return canonical, true, available
+}
+
 func apiKeyAllowsRequestedModel(apiKey *service.APIKey, model string) bool {
+	if apiKey != nil && apiKey.Group != nil && service.IsBlockedCustomerGatewayModel(apiKey.Group.Platform, model) {
+		return false
+	}
 	if apiKey == nil || len(apiKey.AllowedModels) == 0 {
 		return true
 	}
@@ -31,6 +45,14 @@ func apiKeyAllowsRequestedModel(apiKey *service.APIKey, model string) bool {
 		}
 	}
 	return false
+}
+
+func customerGatewayModelUnavailableMessage(model string) string {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return "Requested model is not available"
+	}
+	return fmt.Sprintf("Model %q is not available", model)
 }
 
 func apiKeyModelNotAllowedMessage(model string) string {
