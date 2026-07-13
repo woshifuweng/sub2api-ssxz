@@ -319,6 +319,7 @@ import Icon from '@/components/icons/Icon.vue'
 import { renderRichContent } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
 import { DEFAULT_SITE_NAME, normalizeSiteName } from '@/utils/brand'
+import { resolvePublicApiBaseUrl } from '@/utils/publicApiBaseUrl'
 
 const authStore = useAuthStore()
 const appStore = useAppStore()
@@ -333,7 +334,8 @@ const renderedHomeContent = computed(() => renderRichContent(homeContent.value))
 const isHomeContentUrl = computed(() => !!homeContentUrl.value)
 const displayedApiBaseUrl = computed(() => {
   const configured = appStore.cachedPublicSettings?.api_base_url || appStore.apiBaseUrl
-  return configured?.trim() || 'https://api.ssxzapi.com/v1'
+  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : ''
+  return resolvePublicApiBaseUrl(configured, currentOrigin)
 })
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
