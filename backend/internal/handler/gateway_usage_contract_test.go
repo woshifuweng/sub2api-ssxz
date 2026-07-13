@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +14,18 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+type gatewayUsageAPIKeyRepoStub struct {
+	service.APIKeyRepository
+	apiKey *service.APIKey
+	err    error
+	calls  int
+}
+
+func (s *gatewayUsageAPIKeyRepoStub) GetByID(_ context.Context, _ int64) (*service.APIKey, error) {
+	s.calls++
+	return s.apiKey, s.err
+}
 
 func TestGatewayUsageSubscriptionKeyWithoutActiveSubscriptionIsExplicitlyInvalid(t *testing.T) {
 	c, rec := newGatewayUsageTestContext(subscriptionAPIKeyForUsageTest())
@@ -75,13 +89,7 @@ func TestGatewayUsageSubscriptionKeyWithActiveSubscriptionReturnsRemainingAndLim
 }
 
 func TestGatewayUsageQuotaLimitedReturnsCCSwitchBalanceAliases(t *testing.T) {
-	apiKey := &service.APIKey{
-		ID:        102,
-		UserID:    42,
-		Status:    service.StatusAPIKeyActive,
-		Quota:     10,
-		QuotaUsed: 2.5,
-	}
+	apiKey := quotaLimitedAPIKeyForUsageTest()
 	c, rec := newGatewayUsageTestContext(apiKey)
 
 	(&GatewayHandler{}).Usage(c)
@@ -94,6 +102,57 @@ func TestGatewayUsageQuotaLimitedReturnsCCSwitchBalanceAliases(t *testing.T) {
 	require.Equal(t, float64(7.5), payload["balance"])
 	require.Equal(t, "USD", payload["unit"])
 	requireUsageQuotaRemaining(t, payload, 7.5)
+}
+
+func TestGatewayUsageQuotaLimitedRefreshesQuotaAfterSettlement(t *testing.T) {
+	cached := quotaLimitedAPIKeyForUsageTest()
+	fresh := *cached
+	fresh.QuotaUsed = 4.25
+	repo := &gatewayUsageAPIKeyRepoStub{apiKey: &fresh}
+	c, rec := newGatewayUsageTestContext(cached)
+
+	h := &GatewayHandler{
+		apiKeyService: service.NewAPIKeyService(repo, nil, nil, nil, nil, nil, nil),
+	}
+	h.Usage(c)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, 1, repo.calls)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
+	require.Equal(t, float64(5.75), payload["remaining"])
+	require.Equal(t, float64(5.75), payload["balance"])
+	requireUsageQuotaRemaining(t, payload, 5.75)
+}
+
+func TestGatewayUsageReturnsSafeErrorWhenQuotaRefreshFails(t *testing.T) {
+	cached := quotaLimitedAPIKeyForUsageTest()
+	repo := &gatewayUsageAPIKeyRepoStub{err: errors.New("database unavailable")}
+	c, rec := newGatewayUsageTestContext(cached)
+
+	h := &GatewayHandler{
+		apiKeyService: service.NewAPIKeyService(repo, nil, nil, nil, nil, nil, nil),
+	}
+	h.Usage(c)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+	require.NotContains(t, rec.Body.String(), "database unavailable")
+}
+
+func TestGatewayUsageRejectsQuotaRefreshForDifferentOwner(t *testing.T) {
+	cached := quotaLimitedAPIKeyForUsageTest()
+	fresh := *cached
+	fresh.UserID++
+	repo := &gatewayUsageAPIKeyRepoStub{apiKey: &fresh}
+	c, rec := newGatewayUsageTestContext(cached)
+
+	h := &GatewayHandler{
+		apiKeyService: service.NewAPIKeyService(repo, nil, nil, nil, nil, nil, nil),
+	}
+	h.Usage(c)
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
 }
 
 func requireUsageQuotaRemaining(t *testing.T, payload map[string]any, expected float64) {
@@ -131,5 +190,15 @@ func subscriptionAPIKeyForUsageTest() *service.APIKey {
 			WeeklyLimitUSD:   &weeklyLimit,
 			MonthlyLimitUSD:  &monthlyLimit,
 		},
+	}
+}
+
+func quotaLimitedAPIKeyForUsageTest() *service.APIKey {
+	return &service.APIKey{
+		ID:        102,
+		UserID:    42,
+		Status:    service.StatusAPIKeyActive,
+		Quota:     10,
+		QuotaUsed: 2.5,
 	}
 }

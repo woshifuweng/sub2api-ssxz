@@ -936,6 +936,18 @@ func (h *GatewayHandler) Usage(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
+	if h.apiKeyService != nil {
+		freshAPIKey, err := h.apiKeyService.GetByID(ctx, apiKey.ID)
+		if err != nil || freshAPIKey == nil {
+			h.errorResponse(c, http.StatusInternalServerError, "api_error", "Failed to get API key usage")
+			return
+		}
+		if freshAPIKey.UserID != subject.UserID {
+			h.errorResponse(c, http.StatusUnauthorized, "authentication_error", "Invalid API key")
+			return
+		}
+		apiKey = freshAPIKey
+	}
 
 	// 解析可选的日期范围参数（用于 model_stats 查询）
 	startTime, endTime := h.parseUsageDateRange(c)
