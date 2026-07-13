@@ -169,7 +169,45 @@ vi.mock('@/components/common/EmptyState.vue', () => ({
 vi.mock('@/components/common/Select.vue', () => ({
   default: {
     name: 'Select',
-    template: '<select data-testid="select" />'
+    inheritAttrs: false,
+    props: {
+      modelValue: { default: null },
+      options: { type: Array, default: () => [] },
+      searchable: { type: Boolean, default: false },
+      searchPlaceholder: { type: String, default: '' }
+    },
+    emits: ['update:modelValue', 'change'],
+    computed: {
+      selectedOption() {
+        return this.options.find((option: { value: unknown }) => option.value === this.modelValue) || null
+      }
+    },
+    template: `
+      <div
+        v-bind="$attrs"
+        data-component="select"
+        :data-model-value="modelValue ?? ''"
+        :data-searchable="String(Boolean(searchable))"
+      >
+        <button type="button" data-testid="select-trigger">
+          <slot name="selected" :option="selectedOption">
+            {{ selectedOption?.label || '' }}
+          </slot>
+        </button>
+        <input v-if="searchable" type="search" :placeholder="searchPlaceholder" />
+        <button
+          v-for="option in options"
+          :key="option.value"
+          type="button"
+          :data-option-value="option.value"
+          @click="$emit('update:modelValue', option.value); $emit('change', option.value, option)"
+        >
+          <slot name="option" :option="option" :selected="option.value === modelValue">
+            {{ option.label }}
+          </slot>
+        </button>
+      </div>
+    `
   }
 }))
 
@@ -191,7 +229,8 @@ vi.mock('@/components/keys/UseKeyModal.vue', () => ({
 vi.mock('@/components/common/GroupBadge.vue', () => ({
   default: {
     name: 'GroupBadge',
-    template: '<span data-testid="group-badge" />'
+    props: ['name'],
+    template: '<span data-testid="group-badge">{{ name }}</span>'
   }
 }))
 
@@ -225,11 +264,9 @@ function mountView() {
       stubs: {
         Teleport: true,
         SearchInput: true,
-        Select: true,
         Pagination: true,
         EmptyState: true,
         UseKeyModal: true,
-        GroupBadge: true,
         GroupOptionItem: true,
         ModelWhitelistSelector: true
       }
@@ -703,7 +740,89 @@ describe('KeysView workbench surface', () => {
     await createButton!.trigger('click')
     await flushPromises()
 
-    expect((wrapper.get('input[type="checkbox"]').element as HTMLInputElement).checked).toBe(true)
+    expect(wrapper.get('[data-testid="key-form-group-select"]').attributes('data-model-value')).toBe('1')
+  })
+
+  it('shows the real group name instead of a generic category', async () => {
+    userGroupsAPI.getAvailable.mockResolvedValue([
+      groupFixture({
+        name: 'Claude Kiro高缓池',
+        description: 'Kiro高缓·性价比',
+        platform: 'anthropic'
+      })
+    ])
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const createButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.createKey'))
+    expect(createButton).toBeTruthy()
+    await createButton!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Claude Kiro高缓池')
+    expect(wrapper.text()).not.toContain('高级模型组')
+  })
+
+  it('uses a searchable single-select and submits only the newly selected group', async () => {
+    userGroupsAPI.getAvailable.mockResolvedValue([
+      groupFixture({
+        id: 11,
+        name: 'Claude 满血池(CCMAX)',
+        description: '满血高质量·支持Fable5',
+        platform: 'anthropic',
+        rate_multiplier: 1.2
+      }),
+      groupFixture({
+        id: 15,
+        name: 'Codex池',
+        description: '标准Codex·性价比',
+        platform: 'openai',
+        rate_multiplier: 0.8
+      })
+    ])
+    keysAPI.create.mockResolvedValue(apiKeyFixture({ group_id: 15, group_ids: [15] }))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const createButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.createKey'))
+    expect(createButton).toBeTruthy()
+    await createButton!.trigger('click')
+    await flushPromises()
+
+    const groupSelect = wrapper.get('[data-testid="key-form-group-select"]')
+    expect(groupSelect.attributes('data-searchable')).toBe('true')
+    expect(groupSelect.attributes('data-model-value')).toBe('11')
+    expect(groupSelect.text()).toContain('Claude 满血池(CCMAX)')
+    expect(groupSelect.text()).toContain('满血高质量·支持Fable5')
+    expect(groupSelect.text()).toContain('1.2x')
+    expect(groupSelect.text()).toContain('Codex池')
+    expect(groupSelect.text()).toContain('0.8x')
+    expect(groupSelect.find('input[type="checkbox"]').exists()).toBe(false)
+
+    await groupSelect.get('[data-option-value="15"]').trigger('click')
+    await wrapper.get('[data-tour="key-form-name"]').setValue('single-group-key')
+    await wrapper.get('form#key-form').trigger('submit')
+    await flushPromises()
+
+    expect(keysAPI.create).toHaveBeenCalledWith(
+      'single-group-key',
+      15,
+      [15],
+      [],
+      undefined,
+      [],
+      [],
+      0,
+      undefined,
+      { rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0 },
+      { idempotencyKey: expect.stringMatching(/^api-key-create-/) }
+    )
   })
 
   it('reveals the full API key once after creation', async () => {

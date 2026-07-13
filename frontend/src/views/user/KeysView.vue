@@ -520,16 +520,6 @@
           <p class="mb-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
             {{ t('keys.groupClientHint') }}
           </p>
-          <div v-if="formData.group_ids.length > 0" class="mb-2 flex flex-wrap gap-1.5">
-            <GroupBadge
-              v-for="group in groups.filter((item) => formData.group_ids.includes(item.id))"
-              :key="group.id"
-              :name="formatGroupDisplayName(group)"
-              :platform="group.platform"
-              :subscription-type="group.subscription_type"
-              :show-rate="false"
-            />
-          </div>
           <div
             v-if="groups.length === 0"
             class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100"
@@ -537,27 +527,54 @@
           >
             {{ t('keys.noAvailableGroups') }}
           </div>
-          <div v-else class="grid max-h-44 grid-cols-1 gap-1 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-dark-600 dark:bg-dark-800" data-tour="key-form-group">
-            <label
-              v-for="group in groups"
-              :key="group.id"
-              class="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 transition-colors hover:bg-white dark:hover:bg-dark-700"
-            >
-              <input
-                type="checkbox"
-                :checked="formData.group_ids.includes(group.id)"
-                @change="toggleFormGroup(group.id, ($event.target as HTMLInputElement).checked)"
-                class="h-3.5 w-3.5 shrink-0 rounded border-gray-300 text-primary-500 focus:ring-primary-500 dark:border-dark-500"
-              />
-              <GroupBadge
-                :name="formatGroupDisplayName(group)"
-                :platform="group.platform"
-                :subscription-type="group.subscription_type"
-                :show-rate="false"
-                class="min-w-0 flex-1"
-              />
-            </label>
-          </div>
+          <Select
+            v-else
+            :model-value="selectedFormGroupId"
+            :options="groupOptions"
+            :placeholder="t('keys.selectGroup')"
+            :search-placeholder="t('keys.searchGroup')"
+            searchable
+            data-tour="key-form-group"
+            data-testid="key-form-group-select"
+            @update:model-value="selectFormGroup"
+          >
+            <template #selected="{ option }">
+              <div v-if="option" class="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+                <span :class="['inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md', getGroupProviderIconClass(getGroupOptionPlatform(option))]">
+                  <PlatformIcon :platform="getGroupOptionPlatform(option)" size="sm" />
+                </span>
+                <span class="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900 dark:text-white">
+                  {{ option.label }}
+                </span>
+                <span :class="['shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold', getGroupRateBadgeClass(option)]">
+                  {{ formatGroupRate(option) }}x
+                </span>
+              </div>
+              <span v-else class="text-gray-400 dark:text-gray-500">{{ t('keys.selectGroup') }}</span>
+            </template>
+
+            <template #option="{ option, selected }">
+              <div class="flex w-full min-w-0 items-start justify-between gap-3 py-0.5">
+                <div class="flex min-w-0 flex-1 items-start gap-2.5">
+                  <span :class="['mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md', getGroupProviderIconClass(getGroupOptionPlatform(option))]">
+                    <PlatformIcon :platform="getGroupOptionPlatform(option)" size="sm" />
+                  </span>
+                  <span class="min-w-0 flex-1 text-left">
+                    <span class="flex items-center gap-2">
+                      <span class="truncate text-sm font-semibold text-gray-900 dark:text-white">{{ option.label }}</span>
+                      <Icon v-if="selected" name="check" size="sm" class="shrink-0 text-primary-500" />
+                    </span>
+                    <span v-if="option.description" class="mt-1 block truncate text-xs text-gray-500 dark:text-gray-400">
+                      {{ option.description }}
+                    </span>
+                  </span>
+                </div>
+                <span :class="['mt-0.5 shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold', getGroupRateBadgeClass(option)]">
+                  {{ formatGroupRate(option) }}x
+                </span>
+              </div>
+            </template>
+          </Select>
         </div>
 
         <div class="space-y-3">
@@ -1341,6 +1358,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import UseKeyModal from '@/components/keys/UseKeyModal.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
 	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
+	import PlatformIcon from '@/components/common/PlatformIcon.vue'
 	import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
 	import type { ApiKey, Group, PublicSettings } from '@/types'
 import type { Column } from '@/components/common/types'
@@ -1478,16 +1496,6 @@ const setGroupButtonRef = (keyId: number, el: Element | ComponentPublicInstance 
   }
 }
 
-const toggleFormGroup = (groupId: number, checked: boolean) => {
-  if (checked) {
-    if (!formData.value.group_ids.includes(groupId)) {
-      formData.value.group_ids = [...formData.value.group_ids, groupId]
-    }
-    return
-  }
-  formData.value.group_ids = formData.value.group_ids.filter((id) => id !== groupId)
-}
-
 const formData = ref({
   name: '',
   group_ids: [] as number[],
@@ -1568,23 +1576,60 @@ const statusOptions = computed(() => [
   { value: 'inactive', label: t('common.inactive') }
 ])
 
-function formatGroupDisplayName(group: Pick<Group, 'name' | 'platform' | 'description'>) {
-  const raw = `${group.name || ''} ${group.description || ''}`.toLowerCase()
-  if (group.platform === 'antigravity' || group.platform === 'sora' || /image|pic|photo|图片|生图/.test(raw)) {
-    return '图片模型组'
-  }
-  if (/advanced|premium|pro|plus|高|plus|coding|code/.test(raw)) {
-    return '高级模型组'
-  }
-  return '标准模型组'
+function formatGroupDisplayName(group: Pick<Group, 'name'>) {
+  return group.name.trim()
 }
 
-function formatGroupDescription(group: Group) {
-  const description = group.description?.trim()
-  if (!description || /\b(default|gpt-5\.5|gpt-5\.4|mock|demo|localhost)\b/i.test(description)) {
-    return '可用模型以后端配置和当前 Key 分组为准。'
+function formatGroupDescription(group: Pick<Group, 'description'>) {
+  return group.description?.trim() || ''
+}
+
+interface GroupSelectOption extends Record<string, unknown> {
+  value: number
+  label: string
+  description: string
+  subscriptionType: Group['subscription_type']
+  platform: Group['platform']
+  rateMultiplier: number
+  userRateMultiplier: number | null
+}
+
+function asGroupSelectOption(option: Record<string, unknown>) {
+  return option as GroupSelectOption
+}
+
+function getGroupOptionPlatform(option: Record<string, unknown>) {
+  return asGroupSelectOption(option).platform
+}
+
+function getEffectiveGroupRate(option: Record<string, unknown>) {
+  const groupOption = asGroupSelectOption(option)
+  return groupOption.userRateMultiplier ?? groupOption.rateMultiplier
+}
+
+function formatGroupRate(option: Record<string, unknown>) {
+  return Number(getEffectiveGroupRate(option).toFixed(4)).toString()
+}
+
+function getGroupRateBadgeClass(option: Record<string, unknown>) {
+  const rate = getEffectiveGroupRate(option)
+  if (rate < 1) {
+    return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
   }
-  return description
+  if (rate > 1) {
+    return 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+  }
+  return 'bg-gray-100 text-gray-700 dark:bg-dark-600 dark:text-gray-200'
+}
+
+function getGroupProviderIconClass(platform: Group['platform']) {
+  if (platform === 'openai') {
+    return 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-300'
+  }
+  if (platform === 'anthropic') {
+    return 'bg-orange-50 text-orange-600 dark:bg-orange-950/50 dark:text-orange-300'
+  }
+  return 'bg-gray-100 text-gray-600 dark:bg-dark-600 dark:text-gray-300'
 }
 
 // Filter dropdown options
@@ -1618,15 +1663,23 @@ const onStatusFilterChange = (value: string | number | boolean | null) => {
 }
 
 // Convert groups to Select options format with rate multiplier and subscription type
-const groupOptions = computed(() =>
+const groupOptions = computed<GroupSelectOption[]>(() =>
   groups.value.map((group) => ({
     value: group.id,
     label: formatGroupDisplayName(group),
     description: formatGroupDescription(group),
     subscriptionType: group.subscription_type,
-    platform: group.platform
+    platform: group.platform,
+    rateMultiplier: group.rate_multiplier,
+    userRateMultiplier: userGroupRates.value[group.id] ?? null
   }))
 )
+
+const selectedFormGroupId = computed(() => formData.value.group_ids[0] ?? null)
+
+const selectFormGroup = (value: string | number | boolean | null) => {
+  formData.value.group_ids = typeof value === 'number' ? [value] : []
+}
 
 const selectedGroupPlatforms = computed(() => {
   const platforms = new Set<string>()
@@ -1856,11 +1909,10 @@ const editKey = (key: ApiKey) => {
   selectedKey.value = key
   const hasIPRestriction = (key.ip_whitelist?.length > 0) || (key.ip_blacklist?.length > 0)
   const hasExpiration = !!key.expires_at
+  const selectedGroupId = key.group_id ?? key.group_ids?.[0] ?? null
   formData.value = {
     name: key.name,
-    group_ids: key.group_ids && key.group_ids.length > 0
-      ? [...key.group_ids]
-      : (key.group_id ? [key.group_id] : []),
+    group_ids: selectedGroupId === null ? [] : [selectedGroupId],
     enable_model_restriction: (key.allowed_models?.length || 0) > 0,
     allowed_models: [...(key.allowed_models || [])],
     status: key.status === 'quota_exhausted' || key.status === 'expired' ? 'inactive' : key.status,
