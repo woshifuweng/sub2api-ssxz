@@ -22,6 +22,10 @@ func newGatewayRoutesTestRouter(redisClient *redis.Client) *gin.Engine {
 }
 
 func newGatewayRoutesTestRouterWithPlatform(redisClient *redis.Client, platform string) *gin.Engine {
+	return newGatewayRoutesTestRouterWithGroup(redisClient, &service.Group{Platform: platform})
+}
+
+func newGatewayRoutesTestRouterWithGroup(redisClient *redis.Client, group *service.Group) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
@@ -36,7 +40,7 @@ func newGatewayRoutesTestRouterWithPlatform(redisClient *redis.Client, platform 
 			groupID := int64(1)
 			c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
 				GroupID: &groupID,
-				Group:   &service.Group{Platform: platform},
+				Group:   group,
 			})
 			c.Next()
 		}),
@@ -49,6 +53,21 @@ func newGatewayRoutesTestRouterWithPlatform(redisClient *redis.Client, platform 
 	)
 
 	return router
+}
+
+func TestGatewayRoutesCountTokensHonorsExplicitMessagesDispatchOptIn(t *testing.T) {
+	router := newGatewayRoutesTestRouterWithGroup(nil, &service.Group{
+		Platform:              service.PlatformAnthropic,
+		AllowMessagesDispatch: true,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", strings.NewReader(`{"model":"claude-opus-4-8"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+	require.Contains(t, w.Body.String(), "Token counting is not supported")
 }
 
 func TestGatewayRoutesOpenAIResponsesCompactPathIsRegistered(t *testing.T) {

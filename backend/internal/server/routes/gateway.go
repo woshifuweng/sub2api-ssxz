@@ -61,15 +61,17 @@ func RegisterGatewayRoutes(
 	{
 		// /v1/messages: auto-route based on group platform
 		gateway.POST("/messages", func(c *gin.Context) {
-			if getGroupPlatform(c) == service.PlatformOpenAI {
+			apiKey, _ := middleware.GetAPIKeyFromContext(c)
+			if shouldUseOpenAIMessagesDispatch(apiKey) {
 				h.OpenAIGateway.Messages(c)
 				return
 			}
 			h.Gateway.Messages(c)
 		})
-		// /v1/messages/count_tokens: OpenAI groups get 404
+		// /v1/messages/count_tokens: groups using OpenAI dispatch get 404
 		gateway.POST("/messages/count_tokens", func(c *gin.Context) {
-			if getGroupPlatform(c) == service.PlatformOpenAI {
+			apiKey, _ := middleware.GetAPIKeyFromContext(c)
+			if shouldUseOpenAIMessagesDispatch(apiKey) {
 				c.JSON(http.StatusNotFound, gin.H{
 					"type": "error",
 					"error": gin.H{
