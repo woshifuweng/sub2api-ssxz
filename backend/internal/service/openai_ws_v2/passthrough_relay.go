@@ -62,6 +62,7 @@ type RelayOptions struct {
 	FirstMessageType     coderws.MessageType
 	OnUsageParseFailure  func(eventType string, usageRaw string)
 	OnTurnComplete       func(turn RelayTurnResult)
+	TransformClientFrame func(msgType coderws.MessageType, payload []byte) ([]byte, error)
 	BeforeClientFrame    func(msgType coderws.MessageType, payload []byte) error
 	OnTrace              func(event RelayTraceEvent)
 	Now                  func() time.Time
@@ -195,7 +196,7 @@ func Relay(
 
 	exitCh := make(chan relayExitSignal, 3)
 	dropDownstreamWrites := atomic.Bool{}
-	go runClientToUpstream(relayCtx, clientConn, writeUpstream, markActivity, clientToUpstreamFrames, options.BeforeClientFrame, onTrace, exitCh)
+	go runClientToUpstream(relayCtx, clientConn, writeUpstream, markActivity, clientToUpstreamFrames, options.TransformClientFrame, options.BeforeClientFrame, onTrace, exitCh)
 	go runUpstreamToClient(
 		relayCtx,
 		upstreamConn,
@@ -352,6 +353,7 @@ func runClientToUpstream(
 	writeUpstream func(msgType coderws.MessageType, payload []byte) error,
 	markActivity func(),
 	forwardedFrames *atomic.Int64,
+	transformClientFrame func(msgType coderws.MessageType, payload []byte) ([]byte, error),
 	beforeClientFrame func(msgType coderws.MessageType, payload []byte) error,
 	onTrace func(event RelayTraceEvent),
 	exitCh chan<- relayExitSignal,
@@ -369,6 +371,20 @@ func runClientToUpstream(
 			return
 		}
 		markActivity()
+		if transformClientFrame != nil {
+			payload, err = transformClientFrame(msgType, payload)
+			if err != nil {
+				emitRelayTrace(onTrace, RelayTraceEvent{
+					Stage:        "transform_client_frame_failed",
+					Direction:    "client_to_upstream",
+					MessageType:  relayMessageTypeString(msgType),
+					PayloadBytes: len(payload),
+					Error:        err.Error(),
+				})
+				exitCh <- relayExitSignal{stage: "transform_client_frame", err: err}
+				return
+			}
+		}
 		if beforeClientFrame != nil {
 			if err := beforeClientFrame(msgType, payload); err != nil {
 				emitRelayTrace(onTrace, RelayTraceEvent{

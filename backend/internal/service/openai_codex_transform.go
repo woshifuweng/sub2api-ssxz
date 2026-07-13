@@ -7,6 +7,10 @@ import (
 )
 
 var codexModelMap = map[string]string{
+	"gpt-5.6":                    "gpt-5.6-sol",
+	"gpt-5.6-sol":                "gpt-5.6-sol",
+	"gpt-5.6-terra":              "gpt-5.6-terra",
+	"gpt-5.6-luna":               "gpt-5.6-luna",
 	"gpt-5.5":                    "gpt-5.5",
 	"gpt-5.4":                    "gpt-5.4",
 	"gpt-5.4-mini":               "gpt-5.4-mini",
@@ -24,11 +28,11 @@ var codexModelMap = map[string]string{
 	"gpt-5.3-high":               "gpt-5.3-codex",
 	"gpt-5.3-xhigh":              "gpt-5.3-codex",
 	"gpt-5.3-codex":              "gpt-5.3-codex",
-	"gpt-5.3-codex-spark":        "gpt-5.3-codex",
-	"gpt-5.3-codex-spark-low":    "gpt-5.3-codex",
-	"gpt-5.3-codex-spark-medium": "gpt-5.3-codex",
-	"gpt-5.3-codex-spark-high":   "gpt-5.3-codex",
-	"gpt-5.3-codex-spark-xhigh":  "gpt-5.3-codex",
+	"gpt-5.3-codex-spark":        "gpt-5.3-codex-spark",
+	"gpt-5.3-codex-spark-low":    "gpt-5.3-codex-spark",
+	"gpt-5.3-codex-spark-medium": "gpt-5.3-codex-spark",
+	"gpt-5.3-codex-spark-high":   "gpt-5.3-codex-spark",
+	"gpt-5.3-codex-spark-xhigh":  "gpt-5.3-codex-spark",
 	"gpt-5.3-codex-low":          "gpt-5.3-codex",
 	"gpt-5.3-codex-medium":       "gpt-5.3-codex",
 	"gpt-5.3-codex-high":         "gpt-5.3-codex",
@@ -273,6 +277,16 @@ func normalizeCodexModel(model string) string {
 	for _, candidate := range candidates {
 		normalized := strings.ToLower(candidate)
 
+		if strings.Contains(normalized, "gpt-5.6-terra") || strings.Contains(normalized, "gpt 5.6 terra") {
+			return "gpt-5.6-terra"
+		}
+		if strings.Contains(normalized, "gpt-5.6-luna") || strings.Contains(normalized, "gpt 5.6 luna") {
+			return "gpt-5.6-luna"
+		}
+		if strings.Contains(normalized, "gpt-5.6-sol") || strings.Contains(normalized, "gpt 5.6 sol") ||
+			normalized == "gpt-5.6" || normalized == "gpt 5.6" {
+			return "gpt-5.6-sol"
+		}
 		if strings.Contains(normalized, "gpt-5.5") || strings.Contains(normalized, "gpt 5.5") {
 			return "gpt-5.5"
 		}

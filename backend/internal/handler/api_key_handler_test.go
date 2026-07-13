@@ -29,6 +29,7 @@ func setupUserAPIKeyHandlerOwnershipTestRouter(repo *stubAPIKeyRepoForHandler) *
 
 	h := NewAPIKeyHandler(newTestAPIKeyService(repo))
 	router.GET("/api/v1/keys/:id", h.GetByID)
+	router.POST("/api/v1/keys/:id/reveal", h.Reveal)
 	router.PUT("/api/v1/keys/:id", h.Update)
 	router.DELETE("/api/v1/keys/:id", h.Delete)
 	return router
@@ -151,6 +152,44 @@ func TestAPIKeyHandler_GetByID_RejectsOtherUsersKey(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/keys/42", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.NotContains(t, rec.Body.String(), "sk-other-user-key")
+}
+
+func TestAPIKeyHandler_Reveal_ReturnsOwnedPlaintextWithoutCaching(t *testing.T) {
+	repo := newStubAPIKeyRepoForHandler()
+	repo.keys[42] = &service.APIKey{
+		ID:     42,
+		UserID: 1,
+		Key:    "sk-owned-full-key",
+		Status: service.StatusAPIKeyActive,
+	}
+	router := setupUserAPIKeyHandlerOwnershipTestRouter(repo)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/keys/42/reveal", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
+	require.Equal(t, "no-cache", rec.Header().Get("Pragma"))
+	require.Contains(t, rec.Body.String(), "sk-owned-full-key")
+}
+
+func TestAPIKeyHandler_Reveal_RejectsOtherUsersKey(t *testing.T) {
+	repo := newStubAPIKeyRepoForHandler()
+	repo.keys[42] = &service.APIKey{
+		ID:     42,
+		UserID: 2,
+		Key:    "sk-other-user-key",
+		Status: service.StatusAPIKeyActive,
+	}
+	router := setupUserAPIKeyHandlerOwnershipTestRouter(repo)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/keys/42/reveal", nil)
 	router.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusForbidden, rec.Code)

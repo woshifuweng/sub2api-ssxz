@@ -475,8 +475,8 @@ func TestGetAvailableModels_UsesShortCacheAndSupportsInvalidation(t *testing.T) 
 					Platform: PlatformAnthropic,
 					Credentials: map[string]any{
 						"model_mapping": map[string]any{
-							"claude-3-5-sonnet": "claude-3-5-sonnet",
-							"claude-3-5-haiku":  "claude-3-5-haiku",
+							"claude-opus-4-6":   "claude-opus-4-6",
+							"claude-sonnet-4-6": "claude-sonnet-4-6",
 						},
 					},
 				},
@@ -500,7 +500,7 @@ func TestGetAvailableModels_UsesShortCacheAndSupportsInvalidation(t *testing.T) 
 	}
 
 	models1 := svc.GetAvailableModels(context.Background(), &groupID, PlatformAnthropic)
-	require.Equal(t, []string{"claude-3-5-haiku", "claude-3-5-sonnet"}, models1)
+	require.Equal(t, []string{"claude-opus-4-6", "claude-sonnet-4-6"}, models1)
 	require.Equal(t, int64(1), repo.listByGroupCalls.Load())
 
 	// TTL 内再次请求应命中缓存，不回源。
@@ -515,18 +515,18 @@ func TestGetAvailableModels_UsesShortCacheAndSupportsInvalidation(t *testing.T) 
 			Platform: PlatformAnthropic,
 			Credentials: map[string]any{
 				"model_mapping": map[string]any{
-					"claude-3-7-sonnet": "claude-3-7-sonnet",
+					"claude-opus-4-8": "claude-opus-4-8",
 				},
 			},
 		},
 	}
 	models3 := svc.GetAvailableModels(context.Background(), &groupID, PlatformAnthropic)
-	require.Equal(t, []string{"claude-3-5-haiku", "claude-3-5-sonnet"}, models3)
+	require.Equal(t, []string{"claude-opus-4-6", "claude-sonnet-4-6"}, models3)
 	require.Equal(t, int64(1), repo.listByGroupCalls.Load())
 
 	svc.InvalidateAvailableModelsCache(&groupID, PlatformAnthropic)
 	models4 := svc.GetAvailableModels(context.Background(), &groupID, PlatformAnthropic)
-	require.Equal(t, []string{"claude-3-7-sonnet"}, models4)
+	require.Equal(t, []string{"claude-opus-4-8"}, models4)
 	require.Equal(t, int64(2), repo.listByGroupCalls.Load())
 
 	hit, miss, store := GatewayModelsListCacheStats()
@@ -551,7 +551,7 @@ func TestGetAvailableModels_PrefersFetchedModelsOverModelMapping(t *testing.T) {
 						},
 					},
 					Extra: map[string]any{
-						AccountExtraFetchedModelsKey: []any{"claude-3-7-sonnet", "claude-3-5-haiku"},
+						AccountExtraFetchedModelsKey: []any{"claude-sonnet-5", "claude-fable-5"},
 					},
 				},
 			},
@@ -565,7 +565,7 @@ func TestGetAvailableModels_PrefersFetchedModelsOverModelMapping(t *testing.T) {
 	}
 
 	models := svc.GetAvailableModels(context.Background(), &groupID, PlatformAnthropic)
-	require.Equal(t, []string{"claude-3-5-haiku", "claude-3-7-sonnet"}, models)
+	require.Equal(t, []string{"claude-fable-5", "claude-sonnet-5"}, models)
 	require.Equal(t, int64(1), repo.listByGroupCalls.Load())
 }
 
@@ -626,7 +626,7 @@ func TestGetAvailableModels_PrefersFetchedModelsOverStaticMapping(t *testing.T) 
 					},
 				},
 				Extra: map[string]any{
-					AccountExtraFetchedModelsKey: []any{"gpt-5", "gpt-5-mini"},
+					AccountExtraFetchedModelsKey: []any{"gpt-5.5", "gpt-5.4-mini"},
 				},
 			},
 		},
@@ -639,7 +639,7 @@ func TestGetAvailableModels_PrefersFetchedModelsOverStaticMapping(t *testing.T) 
 
 	models := svc.GetAvailableModels(context.Background(), nil, PlatformOpenAI)
 
-	require.Equal(t, []string{"gpt-5", "gpt-5-mini"}, models)
+	require.Equal(t, []string{"gpt-5.4-mini", "gpt-5.5"}, models)
 	require.Equal(t, int64(1), repo.listAllCalls.Load())
 }
 

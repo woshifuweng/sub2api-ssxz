@@ -59,16 +59,20 @@
         </div>
         <div class="keys-guide-cards" :aria-label="t('keys.workbenchGuide.clientsAriaLabel')">
           <article>
-            <strong>CC Switch</strong>
-            <span>{{ t('keys.workbenchGuide.ccSwitch') }}</span>
+            <strong>OpenAI-compatible</strong>
+            <span>客户端统一填写 Base URL、API Key 和 Model，模型以后端配置为准。</span>
           </article>
           <article>
             <strong>Cherry Studio</strong>
-            <span>{{ t('keys.workbenchGuide.cherryStudio') }}</span>
+            <span>选择 OpenAI-compatible 配置方式接入，适合日常对话和模型切换。</span>
           </article>
           <article>
             <strong>Chatbox</strong>
-            <span>{{ t('keys.workbenchGuide.chatbox') }}</span>
+            <span>适合轻量聊天和测试接口，填写本站 Base URL 与 Key 即可。</span>
+          </article>
+          <article>
+            <strong>CC Switch</strong>
+            <span>导入完整 Key 后可生成客户端配置，无法导入时请先新建并保存完整 Key。</span>
           </article>
         </div>
       </section>
@@ -76,23 +80,23 @@
       <TablePageLayout :class="{ 'keys-workbench-layout': useWorkbenchShell }">
       <template #filters>
         <div class="space-y-3">
-          <div class="rounded-xl border border-blue-100 bg-blue-50/80 p-4 text-sm text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-100">
+          <div class="keys-client-callout rounded-xl border p-4 text-sm">
             <p class="font-semibold">{{ t('keys.clientAccessTitle') }}</p>
             <p class="mt-1 leading-6">{{ t('keys.clientAccessDescription') }}</p>
             <p class="mt-1 leading-6">{{ t('keys.clientReadinessHint') }}</p>
             <div class="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold">
-              <span class="text-blue-800/80 dark:text-blue-100/80">
+              <span>
                 {{ t('keys.clientTroubleshootingHint') }}
               </span>
               <a
                 href="/app/available-channels"
-                class="rounded-full border border-blue-200 bg-white/70 px-3 py-1 text-blue-700 transition hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-100 dark:hover:bg-blue-900/40"
+                class="keys-client-chip"
               >
                 {{ t('keys.viewAvailableModels') }}
               </a>
               <a
                 href="/app/channel-status"
-                class="rounded-full border border-blue-200 bg-white/70 px-3 py-1 text-blue-700 transition hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-100 dark:hover:bg-blue-900/40"
+                class="keys-client-chip"
               >
                 {{ t('keys.viewServiceStatus') }}
               </a>
@@ -152,23 +156,16 @@
                 {{ maskKey(value) }}
               </code>
               <button
-                @click="copyToClipboard(value, row.id)"
-                :disabled="isMaskedApiKey(value)"
+                @click="copyToClipboard(row)"
                 class="rounded-lg p-1 transition-colors"
                 :class="[
-                  isMaskedApiKey(value)
-                    ? 'cursor-not-allowed text-gray-300 opacity-60 dark:text-gray-600'
-                    : 'hover:bg-gray-100 dark:hover:bg-dark-700',
+                  'hover:bg-gray-100 dark:hover:bg-dark-700',
                   copiedKeyId === row.id
                     ? 'text-green-500'
-                    : !isMaskedApiKey(value)
-                      ? 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                      : ''
+                    : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
                 ]"
                 :title="
-                  isMaskedApiKey(value)
-                    ? t('keys.fullKeyRequiredForImport')
-                    : copiedKeyId === row.id
+                  copiedKeyId === row.id
                       ? t('keys.copied')
                       : t('keys.copyToClipboard')
                 "
@@ -209,11 +206,10 @@
                   <GroupBadge
                     v-for="group in ((row.groups && row.groups.length > 0) ? row.groups.slice(0, 2) : (row.group ? [row.group] : []))"
                     :key="group.id"
-                    :name="group.name"
+                    :name="formatGroupDisplayName(group)"
                     :platform="group.platform"
                     :subscription-type="group.subscription_type"
-                    :rate-multiplier="group.rate_multiplier"
-                    :user-rate-multiplier="userGroupRates[group.id]"
+                    :show-rate="false"
                   />
                   <span
                     v-if="row.groups && row.groups.length > 2"
@@ -431,7 +427,7 @@
               </button>
               <!-- Import to CC Switch Button -->
               <button
-                v-if="!publicSettings?.hide_ccs_import_button && !isMaskedApiKey(row.key)"
+                v-if="!publicSettings?.hide_ccs_import_button"
                 @click="importToCcswitch(row)"
                 :title="t('keys.importToCcSwitch')"
                 data-testid="api-key-ccs-import"
@@ -439,17 +435,6 @@
               >
                 <Icon name="upload" size="sm" />
                 <span class="text-xs">{{ t('keys.importToCcSwitch') }}</span>
-              </button>
-              <button
-                v-else-if="!publicSettings?.hide_ccs_import_button"
-                type="button"
-                disabled
-                :title="t('keys.fullKeyRequiredForImport')"
-                data-testid="api-key-ccs-import-disabled"
-                class="flex cursor-not-allowed flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-400 opacity-60 dark:text-gray-500"
-              >
-                <Icon name="upload" size="sm" />
-                <span class="text-xs">{{ t('keys.ccsImportNeedsNewKey') }}</span>
               </button>
               <!-- Toggle Status Button -->
               <button
@@ -539,11 +524,10 @@
             <GroupBadge
               v-for="group in groups.filter((item) => formData.group_ids.includes(item.id))"
               :key="group.id"
-              :name="group.name"
+              :name="formatGroupDisplayName(group)"
               :platform="group.platform"
               :subscription-type="group.subscription_type"
-              :rate-multiplier="group.rate_multiplier"
-              :user-rate-multiplier="userGroupRates[group.id]"
+              :show-rate="false"
             />
           </div>
           <div
@@ -566,11 +550,10 @@
                 class="h-3.5 w-3.5 shrink-0 rounded border-gray-300 text-primary-500 focus:ring-primary-500 dark:border-dark-500"
               />
               <GroupBadge
-                :name="group.name"
+                :name="formatGroupDisplayName(group)"
                 :platform="group.platform"
                 :subscription-type="group.subscription_type"
-                :rate-multiplier="group.rate_multiplier"
-                :user-rate-multiplier="userGroupRates[group.id]"
+                :show-rate="false"
                 class="min-w-0 flex-1"
               />
             </label>
@@ -1316,8 +1299,6 @@
               :name="option.label"
               :platform="option.platform"
               :subscription-type="option.subscriptionType"
-              :rate-multiplier="option.rate"
-              :user-rate-multiplier="option.userRate"
               :description="option.description"
               :selected="
                 selectedKeyForGroup?.group_id === option.value ||
@@ -1365,6 +1346,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
 import { formatDateTime } from '@/utils/format'
+import { DEFAULT_SITE_NAME, normalizeSiteName } from '@/utils/brand'
 
 // Helper to format date for datetime-local input
 const formatDateTimeLocal = (isoDate: string): string => {
@@ -1586,11 +1568,30 @@ const statusOptions = computed(() => [
   { value: 'inactive', label: t('common.inactive') }
 ])
 
+function formatGroupDisplayName(group: Pick<Group, 'name' | 'platform' | 'description'>) {
+  const raw = `${group.name || ''} ${group.description || ''}`.toLowerCase()
+  if (group.platform === 'antigravity' || group.platform === 'sora' || /image|pic|photo|图片|生图/.test(raw)) {
+    return '图片模型组'
+  }
+  if (/advanced|premium|pro|plus|高|plus|coding|code/.test(raw)) {
+    return '高级模型组'
+  }
+  return '标准模型组'
+}
+
+function formatGroupDescription(group: Group) {
+  const description = group.description?.trim()
+  if (!description || /\b(default|gpt-5\.5|gpt-5\.4|mock|demo|localhost)\b/i.test(description)) {
+    return '可用模型以后端配置和当前 Key 分组为准。'
+  }
+  return description
+}
+
 // Filter dropdown options
 const groupFilterOptions = computed(() => [
   { value: '', label: t('keys.allGroups') },
   { value: 0, label: t('keys.noGroup') },
-  ...groups.value.map((g) => ({ value: g.id, label: g.name }))
+  ...groups.value.map((g) => ({ value: g.id, label: formatGroupDisplayName(g) }))
 ])
 
 const statusFilterOptions = computed(() => [
@@ -1620,10 +1621,8 @@ const onStatusFilterChange = (value: string | number | boolean | null) => {
 const groupOptions = computed(() =>
   groups.value.map((group) => ({
     value: group.id,
-    label: group.name,
-    description: group.description,
-    rate: group.rate_multiplier,
-    userRate: userGroupRates.value[group.id] ?? null,
+    label: formatGroupDisplayName(group),
+    description: formatGroupDescription(group),
     subscriptionType: group.subscription_type,
     platform: group.platform
   }))
@@ -1689,14 +1688,28 @@ const selectedKeyUsableApiKey = computed(() => {
   return isMaskedApiKey(key) ? '' : (key ?? '')
 })
 
-const copyToClipboard = async (text: string, keyId: number) => {
-  if (isMaskedApiKey(text)) {
-    appStore.showError(t('keys.fullKeyRequiredForImport'))
-    return
+const resolvePlaintextApiKey = async (row: ApiKey): Promise<string | null> => {
+  if (!isMaskedApiKey(row.key)) return row.key
+
+  try {
+    const revealed = await keysAPI.reveal(row.id)
+    if (!revealed.key || isMaskedApiKey(revealed.key)) {
+      throw new Error('API key reveal returned no plaintext key')
+    }
+    return revealed.key
+  } catch {
+    appStore.showError(t('keys.failedToReveal'))
+    return null
   }
-  const success = await clipboardCopy(text, t('keys.copied'))
+}
+
+const copyToClipboard = async (row: ApiKey) => {
+  const plaintextKey = await resolvePlaintextApiKey(row)
+  if (!plaintextKey) return
+
+  const success = await clipboardCopy(plaintextKey, t('keys.copied'))
   if (success) {
-    copiedKeyId.value = keyId
+    copiedKeyId.value = row.id
     setTimeout(() => {
       copiedKeyId.value = null
     }, 800)
@@ -2139,27 +2152,37 @@ const resetRateLimitUsage = async () => {
   }
 }
 
-const importToCcswitch = (row: ApiKey) => {
-  if (isMaskedApiKey(row.key)) {
-    appStore.showError(t('keys.fullKeyRequiredForImport'))
-    return
-  }
-
+const importToCcswitch = async (row: ApiKey) => {
   const platform = resolveCcsImportPlatform(row)
   if (!platform) {
     appStore.showError(t('keys.noGroupFound'))
     return
   }
 
+  const plaintextKey = await resolvePlaintextApiKey(row)
+  if (!plaintextKey) return
+  const importRow = { ...row, key: plaintextKey }
+
   // For antigravity platform, show client selection dialog
   if (platform === 'antigravity') {
-    pendingCcsRow.value = row
+    pendingCcsRow.value = importRow
     showCcsClientSelect.value = true
     return
   }
 
   // For other platforms, execute directly
-  executeCcsImport(row, platform === 'gemini' ? 'gemini' : 'claude')
+  executeCcsImport(importRow, platform === 'gemini' ? 'gemini' : 'claude')
+}
+
+const resolveCcsDefaultModel = (row: ApiKey, platform: CcsImportPlatform, clientType: 'claude' | 'gemini'): string => {
+  const preferred = platform === 'openai'
+    ? 'gpt-5.5'
+    : platform === 'anthropic' || (platform === 'antigravity' && clientType === 'claude')
+      ? 'claude-opus-4-8'
+      : ''
+  const allowedModels = (row.allowed_models || []).map((model) => model.trim()).filter(Boolean)
+  if (!preferred || allowedModels.length === 0 || allowedModels.includes(preferred)) return preferred
+  return allowedModels[0] || ''
 }
 
 const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
@@ -2210,7 +2233,8 @@ const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
       };
     }
   })`
-  const providerName = (publicSettings.value?.site_name || 'sub2api').trim() || 'sub2api'
+  const providerName = normalizeSiteName(publicSettings.value?.site_name || DEFAULT_SITE_NAME)
+  const defaultModel = resolveCcsDefaultModel(row, platform, clientType)
 
   const params = new URLSearchParams({
     resource: 'provider',
@@ -2219,11 +2243,14 @@ const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
     homepage: baseUrl,
     endpoint: endpoint,
     apiKey: row.key,
+    enabled: 'true',
     configFormat: 'json',
     usageEnabled: 'true',
+    usageBaseUrl: baseUrl,
     usageScript: btoa(usageScript),
     usageAutoInterval: '30'
   })
+  if (defaultModel) params.set('model', defaultModel)
   const deeplink = `ccswitch://v1/import?${params.toString()}`
 
   try {
@@ -2426,8 +2453,8 @@ onUnmounted(() => {
 .keys-guide-note {
   margin-top: 1rem;
   border-radius: 0.75rem;
-  border: 1px solid rgba(20, 184, 166, 0.24);
-  background: rgba(20, 184, 166, 0.08);
+  border: 1px solid color-mix(in srgb, var(--ssxz-action) 30%, transparent);
+  background: color-mix(in srgb, var(--ssxz-action-soft) 70%, transparent);
   padding: 0.75rem 0.9rem;
   color: var(--ssxz-text-secondary);
   font-size: 0.8rem;

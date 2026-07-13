@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
     steps:
       - uses: actions/checkout@v6
       - name: Detect backend changes
@@ -22,6 +23,9 @@ jobs:
           filters: |
             backend:
               - 'backend/**'
+              - '.github/workflows/backend-ci.yml'
+            frontend:
+              - 'frontend/**'
               - '.github/workflows/backend-ci.yml'
 
   test:
@@ -62,3 +66,26 @@ jobs:
           args: --timeout=30m
           working-directory: backend
           only-new-issues: true
+
+  frontend-build:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Build frontend from clean checkout
+        working-directory: frontend
+        env:
+          VITE_CHAT_WORKSPACE_BACKEND_ENABLED: 'true'
+        run: pnpm run build

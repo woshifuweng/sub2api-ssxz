@@ -43,6 +43,11 @@ export async function getById(id: number): Promise<ApiKey> {
   return data
 }
 
+export async function reveal(id: number): Promise<{ key: string }> {
+  const { data } = await apiClient.post<{ key: string }>(`/keys/${id}/reveal`)
+  return data
+}
+
 /**
  * Create new API key
  * @param name - Key name
@@ -148,6 +153,7 @@ export async function toggleStatus(id: number, status: 'active' | 'inactive'): P
 export const keysAPI = {
   list,
   getById,
+  reveal,
   create,
   update,
   delete: deleteKey,

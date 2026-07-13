@@ -26,6 +26,25 @@ Not allowed to promise:
 
 ## Production No-Provider Gate Evidence
 
+### Repeatable no-provider gate
+
+The repository now keeps the no-provider write gate in the existing Go E2E package instead of relying on a manual checklist alone. It uses the current `/api/v1` routes and fails closed once explicitly enabled.
+
+Required environment variables are injected at runtime and must never be written into this file:
+
+```powershell
+$env:CUSTOMER_HANDOFF_E2E='true'
+$env:BASE_URL='https://staging-or-production.example.com'
+$env:CUSTOMER_HANDOFF_EMAIL='<dedicated low-risk test user>'
+$env:CUSTOMER_HANDOFF_PASSWORD='<runtime secret>'
+$env:CUSTOMER_HANDOFF_GROUP_ID='<allowed group id>'
+$env:CUSTOMER_HANDOFF_KEY_QUOTA='1'
+Set-Location backend
+go test -tags=e2e ./internal/integration -run TestCustomerHandoffGoldenPath -count=1 -v
+```
+
+The gate creates one temporary low-quota API Key, confirms one-time plaintext display and masked list display, checks local `/v1/models` discovery, deletes the key, then requires the deleted key to return HTTP 401. It does not send a model prompt and does not call a Provider. Cleanup retries deletion if an earlier assertion fails.
+
 2026-07-08 production read-only / no-provider validation:
 
 | Area | Result |

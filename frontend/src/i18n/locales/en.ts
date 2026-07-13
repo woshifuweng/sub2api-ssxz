@@ -192,8 +192,8 @@ export default {
 
   // Setup Wizard
   setup: {
-    title: 'Sub2API Setup',
-    description: 'Configure your Sub2API instance',
+    title: 'SSXZ AI Setup',
+    description: 'Configure your service console',
     database: {
       title: 'Database Configuration',
       description: 'Connect to your PostgreSQL database',
@@ -255,6 +255,7 @@ export default {
   // Common
   common: {
     loading: 'Loading...',
+    login: 'Login',
     justNow: 'just now',
     save: 'Save',
     cancel: 'Cancel',
@@ -561,7 +562,7 @@ export default {
     clientAccessTitle: 'Third-party client access',
     clientAccessDescription:
       'For customer testing, provide only three items: Base URL, full API Key, and the recommended model. Save the full key when it is created; the list only shows masked values later.',
-    clientReadinessHint: 'Start with gpt-5.5; if unavailable, switch to gpt-5.4-mini. Available models follow this key group and admin model configuration.',
+    clientReadinessHint: 'Available models follow backend configuration and the current key group. For customer testing, use the recommended model for that group first.',
     clientTroubleshootingHint: 'For 401, check the key first; 403 usually means quota, permission, or model availability; 503 usually means the service is busy, so retry later or switch recommended models.',
     viewAvailableModels: 'View available models',
     viewServiceStatus: 'View service status',
@@ -576,16 +577,16 @@ export default {
       baseUrlCopied: 'Base URL copied',
       stepsAriaLabel: 'Third-party client connection steps',
       stepCreateTitle: 'Create an API Key',
-      stepCreateDescription: 'Choose an available group and create a key. The full key is shown only once after creation.',
+      stepCreateDescription: 'Choose an available group and create a key. The list shows a masked value by default.',
       stepCopyTitle: 'Copy the Base URL and full key',
-      stepCopyDescription: 'The Base URL is this site origin plus /v1. Use the full key saved when it was created.',
+      stepCopyDescription: 'The Base URL is this site origin plus /v1. Owners can securely retrieve the full key from the list anytime.',
       stepConfigureTitle: 'Choose OpenAI-compatible in the client',
       stepConfigureDescription:
-        'Enter the Base URL and API Key in Cherry Studio, Chatbox, CC Switch, or another compatible client, then choose gpt-5.5 or another model available to the key.',
+        'Enter the Base URL and API Key in Cherry Studio, Chatbox, CC Switch, or another compatible client, then choose a model available to the key.',
       ccsImportNote:
-        'One-click CC Switch import is enabled only while the full key is available. Older keys in the list are masked; create a new API Key if you did not save the full key.',
+        'One-click CC Switch import securely retrieves the full key and fills the address, model, and balance check automatically.',
       clientsAriaLabel: 'Supported client examples',
-      ccSwitch: 'Enter the Base URL and API Key, then try gpt-5.5 first; use gpt-5.4-mini when a faster fallback is needed.',
+      ccSwitch: 'One-click import activates this provider automatically. Codex defaults to gpt-5.5 and Claude defaults to claude-opus-4-8.',
       cherryStudio: 'Choose OpenAI-compatible configuration in the provider settings.',
       chatbox: 'For continuing chats or calling enabled APIs outside the site.',
     },
@@ -593,7 +594,7 @@ export default {
       title: 'Save the full API Key',
       warningTitle: 'Save the full key now',
       warningDescription:
-        'The full API Key is shown only once after creation. After closing this dialog, the list only shows a masked value. Create a new API Key if it is lost. To rotate it, create a new key, update clients, then delete the old key.',
+        'The list shows a masked value by default. The owner can securely retrieve the full key later by copying or importing it; plaintext is never stored back into the list.',
       apiKeyLabel: 'API Key',
       copyFullKey: 'Copy full key',
       copied: 'Copied',
@@ -602,9 +603,9 @@ export default {
       connectionDescription:
         'Use this with CC Switch, Cherry Studio, Chatbox, and other OpenAI-compatible clients.',
       primaryActionHint:
-        'Import to CCS or copy the full key before closing. The full key is not shown again.',
+        'Import to CCS now, or retrieve the same key later from the key list.',
       modelLabel: 'Model',
-      modelHint: 'Start with gpt-5.5, then use gpt-5.4-mini as fallback; available models follow this key group and admin model configuration.',
+      modelHint: 'Available models follow backend configuration and the current key group. Codex defaults to gpt-5.5 and Claude to claude-opus-4-8.',
       readinessHint:
         'If the client reports insufficient balance, unavailable model, or temporary service pressure, switch to a recommended model or retry later; complex tasks may take longer to start.',
       acknowledge: 'I saved it',
@@ -626,13 +627,13 @@ export default {
     searchGroup: 'Search groups...',
     noGroupFound: 'No groups found',
     noAvailableGroups: 'No group is currently available for third-party clients. Please try again later.',
-    groupClientHint: 'Client access is controlled by the selected group. The default open group usually works; available models follow the client model list.',
+    groupClientHint: 'Client access is controlled by the selected group. Available models follow backend configuration and the current key group.',
     created: 'Created',
     copyToClipboard: 'Copy to clipboard',
     copied: 'Copied!',
     importToCcSwitch: 'Import to CCS',
-    ccsImportNeedsNewKey: 'Import after creating',
-    fullKeyRequiredForImport: 'The list only shows a masked value, so it cannot be imported directly to CCS. Create a new API Key and use the one-time full-key dialog to import it, or configure manually if you already saved the full key.',
+    ccsImportNeedsNewKey: 'One-click import',
+    fullKeyRequiredForImport: 'The full key is retrieved briefly only when its owner copies or imports it; it is not kept visible.',
     enable: 'Enable',
     disable: 'Disable',
     nameLabel: 'Name',
@@ -653,6 +654,7 @@ export default {
     failedToSave: 'Failed to save API key',
     failedToDelete: 'Failed to delete API key',
     failedToUpdateStatus: 'Failed to update API key status',
+    failedToReveal: 'Failed to securely retrieve the full API key. Refresh and try again.',
     clickToChangeGroup: 'Click to change group',
     groupChangedSuccess: 'Group changed successfully',
     failedToChangeGroup: 'Failed to change group',
@@ -673,9 +675,9 @@ export default {
       note: 'These environment variables will be active in the current terminal session. For permanent configuration, add them to ~/.bashrc, ~/.zshrc, or the appropriate configuration file.',
       noGroupTitle: 'Please assign a group first',
       noGroupDescription: 'This API key has not been assigned to a group. Please click the group column in the key list to assign one before viewing the configuration.',
-      fullKeyMissingTitle: 'The full API Key is no longer visible',
+      fullKeyMissingTitle: 'The full API Key is hidden by default',
       fullKeyMissingDescription:
-        'The list only keeps a masked value and cannot generate ready-to-use CLI configuration. Use the full key saved when it was created, or create a new API Key if it is lost.',
+        'The list keeps a masked value. Use copy or one-click import from the key list to securely retrieve the full key when needed.',
       statusWarning: {
         inactiveTitle: 'This API Key is currently disabled',
         inactiveDescription: 'Third-party clients using this key will stop working. Enable this key first, or create a new key and update the client configuration.',
@@ -710,7 +712,7 @@ export default {
         quickStartApiKey: 'API Key',
         quickStartApiKeyHint: 'Use the full key shown once after creation. Masked values from the list cannot connect.',
         quickStartModel: 'Model',
-        quickStartModelHint: 'For customer testing, start with gpt-5.5; if unavailable, switch to gpt-5.4-mini. Available models follow this key group and admin model configuration.',
+        quickStartModelHint: 'Available models follow backend configuration and the current key group. For customer testing, choose the recommended model currently visible in the client.',
         quickStartSpeed: 'Want faster replies',
         quickStartSpeedHint: 'Choose a lightweight model, lower reasoning effort, or reduce one-shot input size. Web search, long context, and complex tasks take longer.',
         ccSwitchQuickTitle: 'CC Switch setup',
@@ -718,7 +720,7 @@ export default {
         ccSwitchQuickOfficialSite: 'Homepage / official link: enter this site domain, without /v1.',
         ccSwitchQuickRequestUrl: 'API request URL: enter the Base URL above, including /v1.',
         ccSwitchQuickApiKey: 'API Key: paste the full sk-... key.',
-        ccSwitchQuickModel: 'Model: choose gpt-5.5 first. If unavailable, use gpt-5.4-mini or another available model in the current list.',
+        ccSwitchQuickModel: 'Model: choose a model available to the current key. If the list is empty, refresh models or check the key group.',
         ccSwitchQuickRestart: 'After saving changes, fully quit CC Switch and Codex, then reopen them.',
         ccSwitchHomepageLabel: 'Homepage',
         ccSwitchRequestUrlLabel: 'API request URL',
@@ -748,7 +750,7 @@ export default {
         troubleshooting429:
           '429 usually means requests are too frequent. Wait a moment, reduce concurrent requests, or choose a lighter model.',
         troubleshooting503:
-          '503 usually means the current line is busy or temporarily unavailable. Retry later or switch to gpt-5.5 / gpt-5.4-mini, and fully restart the client after changing settings.',
+          '503 usually means the current line is busy or temporarily unavailable. Retry later or switch to a lighter available model, and fully restart the client after changing settings.',
         troubleshootingModelsCode: 'No models',
         troubleshootingModels:
           'If the model list is empty, open /v1/models first to check whether this key can return models, then refresh the client model list.',
@@ -891,7 +893,7 @@ export default {
       monthlyUsageTitle: 'Monthly usage',
       monthlyUsageDescription: 'Summarized from the existing usage trend API. Empty data is not filled with fake bars.',
       realDataBadge: 'Real data',
-      demoDataBadge: 'Demo data',
+      demoDataBadge: 'Sample data',
       monthlyChartLabel: 'Monthly usage chart',
       noMonthlyUsageTitle: 'No monthly usage data yet',
       noMonthlyUsageDescription: 'After chat, image generation, or third-party client calls create real usage, trends appear here.',
@@ -1662,7 +1664,7 @@ export default {
         step1: {
           title: 'Create an R2 Bucket',
           line1: 'Log in to the Cloudflare Dashboard (dash.cloudflare.com), select "R2 Object Storage" from the sidebar',
-          line2: 'Click "Create bucket", enter a name (e.g. sub2api-backups), choose a region',
+          line2: 'Click "Create bucket", enter a name (e.g. ssxz-backups), choose a region',
           line3: 'Click create to finish'
         },
         step2: {
@@ -2685,7 +2687,7 @@ export default {
         antigravityOauth: 'Antigravity OAuth',
         antigravityApikey: 'Connect via Base URL + API Key',
         soraApiKey: 'API Key / Upstream',
-        soraApiKeyHint: 'Connect to another Sub2API or compatible API',
+        soraApiKeyHint: 'Connect to a compatible API service',
         soraBaseUrlRequired: 'Sora API Key account requires a Base URL',
         soraBaseUrlInvalidScheme: 'Base URL must start with http:// or https://',
         upstream: 'Upstream',
@@ -2992,7 +2994,7 @@ export default {
       poolMode: 'Pool Mode',
       poolModeHint: 'Enable when upstream is an account pool; errors won\'t mark local account status',
       poolModeInfo:
-        'When enabled, upstream 429/403/401 errors will auto-retry without marking the account as rate-limited or errored. Suitable for upstream pointing to another sub2api instance.',
+        'When enabled, upstream 429/403/401 errors will auto-retry without marking the account as rate-limited or errored. Suitable for upstream pointing to another compatible service instance.',
       poolModeRetryCount: 'Same-Account Retries',
       poolModeRetryCountHint:
         'Only applies in pool mode. Use 0 to disable in-place retry. Default {default}, maximum {max}.',
@@ -3522,7 +3524,7 @@ export default {
       imageTestMode: 'Mode: Image generation test',
       imagePreview: 'Generated images:',
       imageReceived: 'Received test image #{count}',
-      soraUpstreamBaseUrlHint: 'Upstream Sora service URL (another Sub2API instance or compatible API)',
+      soraUpstreamBaseUrlHint: 'Upstream Sora service URL (compatible API)',
       soraTestHint: 'Sora test runs connectivity and capability checks (/backend/me, subscription, Sora2 invite and remaining quota).',
       soraTestTarget: 'Target: Sora account capability',
       soraTestMode: 'Mode: Connectivity + Capability checks',
@@ -5086,7 +5088,7 @@ export default {
         secretKeyConfiguredHint: 'Secret key configured. Leave empty to keep the current value.'      },
       linuxdo: {
         title: 'LinuxDo Connect Login',
-        description: 'Configure LinuxDo Connect OAuth for Sub2API end-user login',
+        description: 'Configure LinuxDo Connect OAuth for end-user login',
         enable: 'Enable LinuxDo Login',
         enableHint: 'Show LinuxDo login on the login/register pages',
         clientId: 'Client ID',
@@ -5155,10 +5157,10 @@ export default {
         backendModeDescription:
           'Disables user registration, public site, and self-service features. Only admin can log in and manage the platform.',
         siteName: 'Site Name',
-        siteNamePlaceholder: 'Sub2API',
+        siteNamePlaceholder: 'SSXZ AI',
         siteNameHint: 'Displayed in emails and page titles',
         siteSubtitle: 'Site Subtitle',
-        siteSubtitlePlaceholder: 'Subscription to API Conversion Platform',
+        siteSubtitlePlaceholder: 'Intelligent service console',
         siteSubtitleHint: 'Displayed on login and register pages',
         apiBaseUrl: 'API Base URL',
         apiBaseUrlPlaceholder: 'https://api.example.com',
@@ -5243,7 +5245,7 @@ export default {
         fromEmail: 'From Email',
         fromEmailPlaceholder: "noreply{'@'}example.com",
         fromName: 'From Name',
-        fromNamePlaceholder: 'Sub2API',
+        fromNamePlaceholder: 'SSXZ AI',
         useTls: 'Use TLS',
         useTlsHint: 'Enable TLS encryption for SMTP connection'
       },
@@ -5718,14 +5720,14 @@ export default {
     // Admin tour steps
     admin: {
       welcome: {
-        title: '👋 Welcome to Sub2API',
-        description: '<div style="line-height: 1.8;"><p style="margin-bottom: 16px;">Sub2API is a powerful AI service gateway platform that helps you easily manage and distribute AI services.</p><p style="margin-bottom: 12px;"><b>🎯 Core Features:</b></p><ul style="margin-left: 20px; margin-bottom: 16px;"><li>📦 <b>Group Management</b> - Create service tiers (VIP, Free Trial, etc.)</li><li>🔗 <b>Account Pool</b> - Connect multiple upstream AI service accounts</li><li>🔑 <b>Key Distribution</b> - Generate independent API Keys for users</li><li>💰 <b>Billing Control</b> - Flexible rate and quota management</li></ul><p style="color: #10b981; font-weight: 600;">Let\'s complete the initial setup in 3 minutes →</p></div>',
+        title: '👋 Welcome to SSXZ AI',
+        description: '<div style="line-height: 1.8;"><p style="margin-bottom: 16px;">SSXZ AI helps you manage accounts, models, API Keys, balances, and usage in one place.</p><p style="margin-bottom: 12px;"><b>🎯 Core Features:</b></p><ul style="margin-left: 20px; margin-bottom: 16px;"><li>📦 <b>Group Management</b> - Create service tiers</li><li>🔗 <b>Account Pool</b> - Manage upstream service accounts</li><li>🔑 <b>Key Distribution</b> - Generate independent API Keys for users</li><li>💰 <b>Billing Control</b> - Flexible rate and quota management</li></ul><p style="color: #10b981; font-weight: 600;">Let\'s complete the initial setup in 3 minutes →</p></div>',
         nextBtn: 'Start Setup 🚀',
         prevBtn: 'Skip'
       },
       groupManage: {
         title: '📦 Step 1: Group Management',
-        description: '<div style="line-height: 1.7;"><p style="margin-bottom: 12px;"><b>What is a Group?</b></p><p style="margin-bottom: 12px;">Groups are the core concept of Sub2API, like a "service package":</p><ul style="margin-left: 20px; margin-bottom: 12px; font-size: 13px;"><li>🎯 Each group can contain multiple upstream accounts</li><li>💰 Each group has independent billing multiplier</li><li>👥 Can be set as public or exclusive</li></ul><p style="margin-top: 12px; padding: 8px 12px; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px; font-size: 13px;"><b>💡 Example:</b> You can create "VIP Premium" (high rate) and "Free Trial" (low rate) groups</p><p style="margin-top: 16px; color: #10b981; font-weight: 600;">👉 Click "Group Management" on the left sidebar</p></div>'
+        description: '<div style="line-height: 1.7;"><p style="margin-bottom: 12px;"><b>What is a Group?</b></p><p style="margin-bottom: 12px;">A group works like a service tier:</p><ul style="margin-left: 20px; margin-bottom: 12px; font-size: 13px;"><li>🎯 Each group can contain multiple upstream accounts</li><li>💰 Each group has an independent billing multiplier</li><li>👥 It can be public or private</li></ul><p style="margin-top: 12px; padding: 8px 12px; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px; font-size: 13px;"><b>💡 Example:</b> You can create "Premium" and "Trial" groups</p><p style="margin-top: 16px; color: #10b981; font-weight: 600;">👉 Click "Group Management" on the left sidebar</p></div>'
       },
       createGroup: {
         title: '➕ Create New Group',
@@ -5818,8 +5820,8 @@ export default {
     // User tour steps
     user: {
       welcome: {
-        title: '👋 Welcome to Sub2API',
-        description: '<div style="line-height: 1.8;"><p style="margin-bottom: 16px;">Hello! Welcome to the Sub2API AI service platform.</p><p style="margin-bottom: 12px;"><b>🎯 Quick Start:</b></p><ul style="margin-left: 20px; margin-bottom: 16px;"><li>🔑 Create API Key</li><li>📋 Copy key to your application</li><li>🚀 Start using AI services</li></ul><p style="color: #10b981; font-weight: 600;">Just 1 minute, let\'s get started →</p></div>',
+        title: '👋 Welcome to SSXZ AI',
+        description: '<div style="line-height: 1.8;"><p style="margin-bottom: 16px;">Hello! Welcome to SSXZ AI.</p><p style="margin-bottom: 12px;"><b>🎯 Quick Start:</b></p><ul style="margin-left: 20px; margin-bottom: 16px;"><li>🔑 Create API Key</li><li>📋 Copy it to your client</li><li>🚀 Start using AI services</li></ul><p style="color: #10b981; font-weight: 600;">Just 1 minute, let\'s get started →</p></div>',
         nextBtn: 'Start 🚀',
         prevBtn: 'Skip'
       },
@@ -5856,6 +5858,7 @@ export default {
     noPricing: 'No pricing information',
     noModels: 'No models available',
     empty: 'No available models',
+    emptyDisabled: 'Models and pricing are not currently shown here. Use your current API Key to call /v1/models and view the models available to that Key.',
     userGuideTitle: 'Check this before connecting',
     userGuideDescription: 'This page shows the models and access scope available to your account. Client access still depends on the API Key scope, account balance, and the actual request result.',
     exclusive: 'Exclusive',

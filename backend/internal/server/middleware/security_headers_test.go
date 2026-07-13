@@ -82,6 +82,34 @@ func TestGetNonceFromContext(t *testing.T) {
 }
 
 func TestSecurityHeaders(t *testing.T) {
+	t.Run("sets_hsts_only_in_release_mode", func(t *testing.T) {
+		previousMode := gin.Mode()
+		t.Cleanup(func() { gin.SetMode(previousMode) })
+
+		for _, tt := range []struct {
+			name       string
+			mode       string
+			wantHeader string
+		}{
+			{name: "release", mode: gin.ReleaseMode, wantHeader: "max-age=31536000"},
+			{name: "debug", mode: gin.DebugMode},
+			{name: "test", mode: gin.TestMode},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				gin.SetMode(tt.mode)
+				middleware := SecurityHeaders(config.CSPConfig{Enabled: false}, nil)
+
+				w := httptest.NewRecorder()
+				c, _ := gin.CreateTestContext(w)
+				c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+
+				middleware(c)
+
+				assert.Equal(t, tt.wantHeader, w.Header().Get("Strict-Transport-Security"))
+			})
+		}
+	})
+
 	t.Run("sets_basic_security_headers", func(t *testing.T) {
 		cfg := config.CSPConfig{Enabled: false}
 		middleware := SecurityHeaders(cfg, nil)

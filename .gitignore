@@ -136,8 +136,28 @@ __pycache__/
 *.pyo
 vite.config.js
 docs/*
+!docs/operations/
+docs/operations/*
+!docs/operations/DATABASE_DISASTER_RECOVERY_RUNBOOK.md
 .serena/
 .codex/
 frontend/coverage/
 aicodex
 output/
+
+# 部署备份目录(运维临时产物,不进版本控制)
+/.deploy-*/
+/backend/.deploy-*/
+
+# GPT review 临时文档
+/GPT_PRO_*.md
+/GPT_REVIEW_*.md
+
+# 线上快照产物
+/production_*.js
+/production_*.html
+/production_*.json
+
+# 二进制备份
+/sub2api-production-*
+/sub2api-staging-*

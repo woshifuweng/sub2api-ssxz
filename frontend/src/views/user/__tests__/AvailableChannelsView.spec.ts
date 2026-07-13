@@ -12,6 +12,9 @@ const { routeState, userChannelsAPI, userGroupsAPI, appStore } = vi.hoisted(() =
     getUserGroupRates: vi.fn()
   },
   appStore: {
+    cachedPublicSettings: {
+      available_channels_enabled: true
+    } as { available_channels_enabled?: boolean } | null,
     showError: vi.fn()
   }
 }))
@@ -74,7 +77,8 @@ vi.mock('@/components/icons/Icon.vue', () => ({
 vi.mock('@/components/channels/AvailableChannelsTable.vue', () => ({
   default: {
     name: 'AvailableChannelsTable',
-    template: '<div data-testid="channels-table" />'
+    props: ['emptyLabel'],
+    template: '<div data-testid="channels-table">{{ emptyLabel }}</div>'
   }
 }))
 
@@ -86,6 +90,7 @@ describe('AvailableChannelsView', () => {
     userChannelsAPI.getAvailable.mockReset()
     userGroupsAPI.getUserGroupRates.mockReset()
     appStore.showError.mockReset()
+    appStore.cachedPublicSettings = { available_channels_enabled: true }
     userChannelsAPI.getAvailable.mockResolvedValue([])
     userGroupsAPI.getUserGroupRates.mockResolvedValue({})
   })
@@ -101,6 +106,35 @@ describe('AvailableChannelsView', () => {
     expect(wrapper.text()).toContain('availableChannels.userGuideTitle')
     expect(wrapper.text()).toContain('availableChannels.userGuideDescription')
     expect(userChannelsAPI.getAvailable).toHaveBeenCalledTimes(1)
+  })
+
+  it('explains when the models and pricing page is not enabled', async () => {
+    appStore.cachedPublicSettings = { available_channels_enabled: false }
+
+    const wrapper = mount(AvailableChannelsView)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="channels-table"]').text()).toBe(
+      'availableChannels.emptyDisabled'
+    )
+  })
+
+  it('keeps the genuine empty-model message when the page is enabled', async () => {
+    const wrapper = mount(AvailableChannelsView)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="channels-table"]').text()).toBe('availableChannels.empty')
+  })
+
+  it('does not claim there are no models while public settings are unavailable', async () => {
+    appStore.cachedPublicSettings = null
+
+    const wrapper = mount(AvailableChannelsView)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="channels-table"]').text()).toBe(
+      'availableChannels.emptyDisabled'
+    )
   })
 
   it('keeps the legacy layout when used outside the app workbench', async () => {

@@ -8,310 +8,254 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
 
-// E2E 用户流程测试
-// 测试完整的用户操作链路：注册 → 登录 → 创建 API Key → 调用网关 → 查询用量
-
-var (
-	testUserEmail    = "e2e-test-" + fmt.Sprintf("%d", time.Now().UnixMilli()) + "@test.local"
-	testUserPassword = "E2eTest@12345"
-	testUserName     = "e2e-test-user"
+const (
+	customerHandoffEnabledEnv  = "CUSTOMER_HANDOFF_E2E"
+	customerHandoffEmailEnv    = "CUSTOMER_HANDOFF_EMAIL"
+	customerHandoffPasswordEnv = "CUSTOMER_HANDOFF_PASSWORD"
+	customerHandoffGroupIDEnv  = "CUSTOMER_HANDOFF_GROUP_ID"
+	customerHandoffQuotaEnv    = "CUSTOMER_HANDOFF_KEY_QUOTA"
 )
 
-// TestUserRegistrationAndLogin 测试用户注册和登录流程
-func TestUserRegistrationAndLogin(t *testing.T) {
-	// 步骤 1: 注册新用户
-	t.Run("注册新用户", func(t *testing.T) {
-		payload := map[string]string{
-			"email":    testUserEmail,
-			"password": testUserPassword,
-			"username": testUserName,
-		}
-		body, _ := json.Marshal(payload)
-
-		resp, err := doRequest(t, "POST", "/api/auth/register", body, "")
-		if err != nil {
-			t.Skipf("注册接口不可用，跳过用户流程测试: %v", err)
-			return
-		}
-		defer resp.Body.Close()
-
-		respBody, _ := io.ReadAll(resp.Body)
-
-		// 注册可能返回 200（成功）或 400（邮箱已存在）或 403（注册已关闭）
-		switch resp.StatusCode {
-		case 200:
-			t.Logf("✅ 用户注册成功: %s", testUserEmail)
-		case 400:
-			t.Logf("⚠️ 用户可能已存在: %s", string(respBody))
-		case 403:
-			t.Skipf("注册功能已关闭: %s", string(respBody))
-		default:
-			t.Logf("⚠️ 注册返回 HTTP %d: %s（继续尝试登录）", resp.StatusCode, string(respBody))
-		}
-	})
-
-	// 步骤 2: 登录获取 JWT
-	var accessToken string
-	t.Run("用户登录获取JWT", func(t *testing.T) {
-		payload := map[string]string{
-			"email":    testUserEmail,
-			"password": testUserPassword,
-		}
-		body, _ := json.Marshal(payload)
-
-		resp, err := doRequest(t, "POST", "/api/auth/login", body, "")
-		if err != nil {
-			t.Fatalf("登录请求失败: %v", err)
-		}
-		defer resp.Body.Close()
-
-		respBody, _ := io.ReadAll(resp.Body)
-
-		if resp.StatusCode != 200 {
-			t.Skipf("登录失败 HTTP %d: %s（可能需要先注册用户）", resp.StatusCode, string(respBody))
-			return
-		}
-
-		var result map[string]any
-		if err := json.Unmarshal(respBody, &result); err != nil {
-			t.Fatalf("解析登录响应失败: %v", err)
-		}
-
-		// 尝试从标准响应格式获取 token
-		if token, ok := result["access_token"].(string); ok && token != "" {
-			accessToken = token
-		} else if data, ok := result["data"].(map[string]any); ok {
-			if token, ok := data["access_token"].(string); ok {
-				accessToken = token
-			}
-		}
-
-		if accessToken == "" {
-			t.Skipf("未获取到 access_token，响应: %s", string(respBody))
-			return
-		}
-
-		// 验证 token 不为空且格式基本正确
-		if len(accessToken) < 10 {
-			t.Fatalf("access_token 格式异常: %s", accessToken)
-		}
-
-		t.Logf("✅ 登录成功，获取 JWT（长度: %d）", len(accessToken))
-	})
-
-	if accessToken == "" {
-		t.Skip("未获取到 JWT，跳过后续测试")
-		return
-	}
-
-	// 步骤 3: 使用 JWT 获取当前用户信息
-	t.Run("获取当前用户信息", func(t *testing.T) {
-		resp, err := doRequest(t, "GET", "/api/user/me", nil, accessToken)
-		if err != nil {
-			t.Fatalf("请求失败: %v", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != 200 {
-			body, _ := io.ReadAll(resp.Body)
-			t.Fatalf("HTTP %d: %s", resp.StatusCode, string(body))
-		}
-
-		t.Logf("✅ 成功获取用户信息")
-	})
+type customerAPIEnvelope struct {
+	Code    int             `json:"code"`
+	Message string          `json:"message"`
+	Data    json.RawMessage `json:"data"`
 }
 
-// TestAPIKeyLifecycle 测试 API Key 的创建和使用
-func TestAPIKeyLifecycle(t *testing.T) {
-	// 先登录获取 JWT
-	accessToken := loginTestUser(t)
-	if accessToken == "" {
-		t.Skip("无法登录，跳过 API Key 生命周期测试")
-		return
-	}
-
-	var apiKey string
-
-	// 步骤 1: 创建 API Key
-	t.Run("创建API_Key", func(t *testing.T) {
-		payload := map[string]string{
-			"name": "e2e-test-key-" + fmt.Sprintf("%d", time.Now().UnixMilli()),
-		}
-		body, _ := json.Marshal(payload)
-
-		resp, err := doRequest(t, "POST", "/api/keys", body, accessToken)
-		if err != nil {
-			t.Fatalf("创建 API Key 请求失败: %v", err)
-		}
-		defer resp.Body.Close()
-
-		respBody, _ := io.ReadAll(resp.Body)
-
-		if resp.StatusCode != 200 {
-			t.Skipf("创建 API Key 失败 HTTP %d: %s", resp.StatusCode, string(respBody))
-			return
-		}
-
-		var result map[string]any
-		if err := json.Unmarshal(respBody, &result); err != nil {
-			t.Fatalf("解析响应失败: %v", err)
-		}
-
-		// 从响应中提取 key
-		if key, ok := result["key"].(string); ok {
-			apiKey = key
-		} else if data, ok := result["data"].(map[string]any); ok {
-			if key, ok := data["key"].(string); ok {
-				apiKey = key
-			}
-		}
-
-		if apiKey == "" {
-			t.Skipf("未获取到 API Key，响应: %s", string(respBody))
-			return
-		}
-
-		// 验证 API Key 脱敏日志（只显示前 8 位）
-		masked := apiKey
-		if len(masked) > 8 {
-			masked = masked[:8] + "..."
-		}
-		t.Logf("✅ API Key 创建成功: %s", masked)
-	})
-
-	if apiKey == "" {
-		t.Skip("未创建 API Key，跳过后续测试")
-		return
-	}
-
-	// 步骤 2: 使用 API Key 调用网关（需要 Claude 或 Gemini 可用）
-	t.Run("使用API_Key调用网关", func(t *testing.T) {
-		// 尝试调用 models 列表（最轻量的 API 调用）
-		resp, err := doRequest(t, "GET", "/v1/models", nil, apiKey)
-		if err != nil {
-			t.Fatalf("网关请求失败: %v", err)
-		}
-		defer resp.Body.Close()
-
-		respBody, _ := io.ReadAll(resp.Body)
-
-		// 可能返回 200（成功）或 402（余额不足）或 403（无可用账户）
-		switch {
-		case resp.StatusCode == 200:
-			t.Logf("✅ API Key 网关调用成功")
-		case resp.StatusCode == 402:
-			t.Logf("⚠️ 余额不足，但 API Key 认证通过")
-		case resp.StatusCode == 403:
-			t.Logf("⚠️ 无可用账户，但 API Key 认证通过")
-		default:
-			t.Logf("⚠️ 网关返回 HTTP %d: %s", resp.StatusCode, string(respBody))
-		}
-	})
-
-	// 步骤 3: 查询用量记录
-	t.Run("查询用量记录", func(t *testing.T) {
-		resp, err := doRequest(t, "GET", "/api/usage/dashboard", nil, accessToken)
-		if err != nil {
-			t.Fatalf("用量查询请求失败: %v", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != 200 {
-			body, _ := io.ReadAll(resp.Body)
-			t.Logf("⚠️ 用量查询返回 HTTP %d: %s", resp.StatusCode, string(body))
-			return
-		}
-
-		t.Logf("✅ 用量查询成功")
-	})
+type customerLoginData struct {
+	AccessToken string `json:"access_token"`
+	Requires2FA bool   `json:"requires_2fa"`
 }
 
-// =============================================================================
-// 辅助函数
-// =============================================================================
+type customerAPIKey struct {
+	ID  int64  `json:"id"`
+	Key string `json:"key"`
+}
 
-func doRequest(t *testing.T, method, path string, body []byte, token string) (*http.Response, error) {
-	t.Helper()
+type customerAPIKeyList struct {
+	Items []customerAPIKey `json:"items"`
+}
 
-	url := baseURL + path
-	var bodyReader io.Reader
-	if body != nil {
-		bodyReader = bytes.NewReader(body)
+type customerModelsResponse struct {
+	Data []struct {
+		ID string `json:"id"`
+	} `json:"data"`
+}
+
+// TestCustomerHandoffGoldenPath is the strict, no-provider customer handoff gate.
+// It creates one temporary low-quota key, verifies local model discovery, then
+// deletes the key and proves that the revoked credential immediately returns 401.
+func TestCustomerHandoffGoldenPath(t *testing.T) {
+	if !strings.EqualFold(strings.TrimSpace(os.Getenv(customerHandoffEnabledEnv)), "true") {
+		t.Skipf("set %s=true to run the write-enabled customer handoff gate", customerHandoffEnabledEnv)
 	}
 
-	req, err := http.NewRequest(method, url, bodyReader)
-	if err != nil {
-		return nil, fmt.Errorf("创建请求失败: %w", err)
-	}
-
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-
+	email := requireCustomerHandoffEnv(t, customerHandoffEmailEnv)
+	password := requireCustomerHandoffEnv(t, customerHandoffPasswordEnv)
+	groupID := requirePositiveInt64Env(t, customerHandoffGroupIDEnv)
+	quota := customerHandoffQuota(t)
 	client := &http.Client{Timeout: 30 * time.Second}
-	return client.Do(req)
+
+	accessToken := customerLogin(t, client, email, password)
+
+	status, body := customerRequest(t, client, http.MethodGet, "/api/v1/auth/me", nil, accessToken, "")
+	requireCustomerStatus(t, "current user", status, http.StatusOK, body, false)
+
+	requestID := fmt.Sprintf("customer-handoff-%d", time.Now().UnixNano())
+	createPayload := map[string]any{
+		"name":      requestID,
+		"group_id":  groupID,
+		"group_ids": []int64{groupID},
+		"quota":     quota,
+	}
+	status, body = customerRequest(t, client, http.MethodPost, "/api/v1/keys", createPayload, accessToken, requestID)
+	requireCustomerStatus(t, "create API key", status, http.StatusOK, body, true)
+
+	var created customerAPIKey
+	decodeCustomerEnvelopeData(t, "create API key", body, &created, true)
+	if created.ID <= 0 || strings.TrimSpace(created.Key) == "" || strings.Contains(created.Key, "...") {
+		t.Fatal("create API key did not return a one-time plaintext credential")
+	}
+
+	deleted := false
+	t.Cleanup(func() {
+		if deleted {
+			return
+		}
+		_, _ = customerRequest(t, client, http.MethodDelete, fmt.Sprintf("/api/v1/keys/%d", created.ID), nil, accessToken, "")
+	})
+
+	status, body = customerRequest(t, client, http.MethodGet, "/api/v1/keys?page=1&page_size=100", nil, accessToken, "")
+	requireCustomerStatus(t, "list API keys", status, http.StatusOK, body, false)
+	var listed customerAPIKeyList
+	decodeCustomerEnvelopeData(t, "list API keys", body, &listed, false)
+	listedKey, ok := findCustomerAPIKey(listed.Items, created.ID)
+	if !ok {
+		t.Fatalf("new API key id %d is missing from the list response", created.ID)
+	}
+	if listedKey.Key == created.Key || !strings.Contains(listedKey.Key, "...") {
+		t.Fatal("API key list did not mask the one-time plaintext credential")
+	}
+
+	status, body = customerRequest(t, client, http.MethodGet, "/v1/models", nil, created.Key, "")
+	requireCustomerStatus(t, "model discovery", status, http.StatusOK, body, false)
+	var models customerModelsResponse
+	if err := json.Unmarshal(body, &models); err != nil {
+		t.Fatalf("model discovery returned invalid JSON: %v", err)
+	}
+	if len(models.Data) == 0 {
+		t.Fatal("model discovery returned no models for the selected key group")
+	}
+
+	status, body = customerRequest(t, client, http.MethodDelete, fmt.Sprintf("/api/v1/keys/%d", created.ID), nil, accessToken, "")
+	requireCustomerStatus(t, "delete API key", status, http.StatusOK, body, false)
+	deleted = true
+
+	status, body = customerRequest(t, client, http.MethodGet, "/v1/models", nil, created.Key, "")
+	requireCustomerStatus(t, "revoked API key", status, http.StatusUnauthorized, body, false)
+
+	t.Logf("customer handoff gate passed for temporary key id %d with %d discoverable models", created.ID, len(models.Data))
 }
 
-func loginTestUser(t *testing.T) string {
+func customerLogin(t *testing.T, client *http.Client, email, password string) string {
+	t.Helper()
+	status, body := customerRequest(t, client, http.MethodPost, "/api/v1/auth/login", map[string]string{
+		"email":    email,
+		"password": password,
+	}, "", "")
+	requireCustomerStatus(t, "login", status, http.StatusOK, body, true)
+
+	var login customerLoginData
+	decodeCustomerEnvelopeData(t, "login", body, &login, true)
+	if login.Requires2FA {
+		t.Fatal("customer handoff test account requires 2FA; use a dedicated low-risk test account")
+	}
+	if strings.TrimSpace(login.AccessToken) == "" {
+		t.Fatal("login response did not contain an access token")
+	}
+	return login.AccessToken
+}
+
+func customerRequest(t *testing.T, client *http.Client, method, path string, payload any, bearerToken, idempotencyKey string) (int, []byte) {
 	t.Helper()
 
-	// 先尝试用管理员账户登录
-	adminEmail := getEnv("ADMIN_EMAIL", "admin@sub2api.local")
-	adminPassword := getEnv("ADMIN_PASSWORD", "")
-
-	if adminPassword == "" {
-		// 尝试用测试用户
-		adminEmail = testUserEmail
-		adminPassword = testUserPassword
-	}
-
-	payload := map[string]string{
-		"email":    adminEmail,
-		"password": adminPassword,
-	}
-	body, _ := json.Marshal(payload)
-
-	resp, err := doRequest(t, "POST", "/api/auth/login", body, "")
-	if err != nil {
-		return ""
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return ""
-	}
-
-	respBody, _ := io.ReadAll(resp.Body)
-	var result map[string]any
-	if err := json.Unmarshal(respBody, &result); err != nil {
-		return ""
-	}
-
-	if token, ok := result["access_token"].(string); ok {
-		return token
-	}
-	if data, ok := result["data"].(map[string]any); ok {
-		if token, ok := data["access_token"].(string); ok {
-			return token
+	var requestBody io.Reader
+	if payload != nil {
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("encode %s request: %v", path, err)
 		}
+		requestBody = bytes.NewReader(encoded)
 	}
 
-	return ""
+	request, err := http.NewRequest(method, strings.TrimRight(baseURL, "/")+path, requestBody)
+	if err != nil {
+		t.Fatalf("create %s request: %v", path, err)
+	}
+	if payload != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	if bearerToken != "" {
+		request.Header.Set("Authorization", "Bearer "+bearerToken)
+	}
+	if idempotencyKey != "" {
+		request.Header.Set("Idempotency-Key", idempotencyKey)
+	}
+
+	response, err := client.Do(request)
+	if err != nil {
+		t.Fatalf("%s %s failed: %v", method, path, err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if err != nil {
+		t.Fatalf("read %s response: %v", path, err)
+	}
+	return response.StatusCode, body
 }
 
-// redactAPIKey API Key 脱敏，只显示前 8 位
-func redactAPIKey(key string) string {
-	key = strings.TrimSpace(key)
-	if len(key) <= 8 {
-		return "***"
+func decodeCustomerEnvelopeData(t *testing.T, label string, body []byte, target any, sensitive bool) {
+	t.Helper()
+	var envelope customerAPIEnvelope
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		if sensitive {
+			t.Fatalf("%s returned an invalid response envelope", label)
+		}
+		t.Fatalf("%s returned an invalid response envelope: %v", label, err)
 	}
-	return key[:8] + "..."
+	if envelope.Code != 0 {
+		t.Fatalf("%s returned API code %d: %s", label, envelope.Code, envelope.Message)
+	}
+	if len(envelope.Data) == 0 {
+		t.Fatalf("%s response did not contain data", label)
+	}
+	if err := json.Unmarshal(envelope.Data, target); err != nil {
+		if sensitive {
+			t.Fatalf("%s returned invalid data", label)
+		}
+		t.Fatalf("decode %s data: %v", label, err)
+	}
+}
+
+func requireCustomerStatus(t *testing.T, label string, actual, expected int, body []byte, sensitive bool) {
+	t.Helper()
+	if actual == expected {
+		return
+	}
+	if sensitive {
+		t.Fatalf("%s returned HTTP %d; expected %d (response redacted)", label, actual, expected)
+	}
+	message := strings.TrimSpace(string(body))
+	if len(message) > 500 {
+		message = message[:500] + "..."
+	}
+	t.Fatalf("%s returned HTTP %d; expected %d: %s", label, actual, expected, message)
+}
+
+func requireCustomerHandoffEnv(t *testing.T, name string) string {
+	t.Helper()
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		t.Fatalf("%s must be set when %s=true", name, customerHandoffEnabledEnv)
+	}
+	return value
+}
+
+func requirePositiveInt64Env(t *testing.T, name string) int64 {
+	t.Helper()
+	raw := requireCustomerHandoffEnv(t, name)
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value <= 0 {
+		t.Fatalf("%s must be a positive integer", name)
+	}
+	return value
+}
+
+func customerHandoffQuota(t *testing.T) float64 {
+	t.Helper()
+	raw := strings.TrimSpace(os.Getenv(customerHandoffQuotaEnv))
+	if raw == "" {
+		return 1
+	}
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil || value <= 0 || value > 20 {
+		t.Fatalf("%s must be greater than 0 and no more than 20", customerHandoffQuotaEnv)
+	}
+	return value
+}
+
+func findCustomerAPIKey(keys []customerAPIKey, id int64) (customerAPIKey, bool) {
+	for _, key := range keys {
+		if key.ID == id {
+			return key, true
+		}
+	}
+	return customerAPIKey{}, false
 }

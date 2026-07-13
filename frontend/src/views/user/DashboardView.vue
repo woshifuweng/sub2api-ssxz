@@ -1,5 +1,10 @@
 <template>
-  <AppLayout>
+  <AppSectionShell
+    title="仪表盘"
+    subtitle="管理 API Key、用量余额、充值订阅、订单记录和通道状态。"
+    eyebrow="服务控制台"
+    icon="home"
+  >
     <div class="space-y-6">
       <div v-if="loading" class="flex items-center justify-center py-12">
         <LoadingSpinner />
@@ -17,7 +22,7 @@
           仪表盘数据暂时无法加载
         </h1>
         <p class="mx-auto mt-2 max-w-2xl text-sm leading-6 text-gray-600 dark:text-gray-400">
-          当前没有展示假数据。请稍后重试；API Key、用量、账户记录和通道状态仍可从左侧菜单进入。
+          当前没有展示占位数据。请稍后重试；API Key、用量、订单记录和通道状态仍可从左侧菜单进入。
         </p>
         <button
           type="button"
@@ -38,17 +43,17 @@
                 <div class="mb-3 flex flex-wrap items-center gap-2">
                   <span class="inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-950/40 dark:text-primary-300">
                     <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                    SSXZ AI 服务平台
+                    SSXZ AI 控制台
                   </span>
                   <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-gray-300">
                     登录账号 {{ userEmail }}
                   </span>
                 </div>
                 <h1 class="text-2xl font-bold tracking-normal text-gray-900 dark:text-white md:text-3xl">
-                  先管理 API Key，再查看用量和余额
+                  从 API Key 开始，按用量和订单记录核对消耗
                 </h1>
                 <p class="mt-3 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-400">
-                  这里是普通用户的默认入口：创建 API Key、接入常用客户端、查看余额用量和账户记录。聊天和图片只保留为轻量测试入口。
+                  这里是普通用户的默认入口：创建 API Key、接入常用客户端、查看余额用量、充值订阅和订单记录。模型测试和图片内测只作为次级入口。
                 </p>
               </div>
 
@@ -81,7 +86,7 @@
                   class="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
                 >
                   <Icon name="creditCard" size="sm" />
-                  补充额度
+                  充值 / 订阅
                 </RouterLink>
                 <RouterLink
                   v-else
@@ -89,7 +94,7 @@
                   class="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100 dark:hover:border-primary-500"
                 >
                   <Icon name="clipboard" size="sm" />
-                  账户记录
+                  我的订单
                 </RouterLink>
               </div>
             </div>
@@ -98,7 +103,7 @@
               <div class="mb-4 flex items-center justify-between">
                 <div>
                   <p class="text-sm font-semibold text-gray-900 dark:text-white">账户概览</p>
-                  <p class="text-xs text-gray-500 dark:text-gray-400">费用以实际模型和账号可用范围为准</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">模型和价格以后端配置为准</p>
                 </div>
                 <RouterLink to="/app/usage" class="text-xs font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400">
                   查看明细
@@ -108,7 +113,7 @@
               <div class="grid grid-cols-2 gap-3">
                 <div class="rounded-xl bg-white p-3 dark:bg-dark-900">
                   <p class="text-xs text-gray-500 dark:text-gray-400">当前余额</p>
-                  <p class="mt-1 text-xl font-bold text-emerald-600 dark:text-emerald-400">${{ formatMoney(balance) }}</p>
+                  <p class="mt-1 text-xl font-bold text-gray-900 dark:text-white">${{ formatMoney(balance) }}</p>
                 </div>
                 <div class="rounded-xl bg-white p-3 dark:bg-dark-900">
                   <p class="text-xs text-gray-500 dark:text-gray-400">今日消耗</p>
@@ -125,14 +130,14 @@
               </div>
 
               <div class="mt-4 flex flex-wrap gap-2">
-                <RouterLink v-if="paymentEnabled" to="/app/purchase" class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700">
-                  补充额度
+                <RouterLink v-if="paymentEnabled" to="/app/purchase" class="rounded-lg bg-primary-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-primary-700">
+                  充值 / 订阅
                 </RouterLink>
                 <RouterLink to="/app/usage" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-200">
                   用量明细
                 </RouterLink>
                 <RouterLink to="/app/orders" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-200">
-                  账户记录
+                  我的订单
                 </RouterLink>
               </div>
             </div>
@@ -146,7 +151,7 @@
               <h2 class="text-xl font-semibold text-gray-900 dark:text-white">核心入口</h2>
             </div>
             <p class="max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-              常用入口集中在 API Key、用量、余额、账户记录和通道状态。熟练用户可以用本站 Key 接入 CC Switch、Cherry Studio、Chatbox 等客户端。
+              常用入口集中在 API Key、模型价格、通道状态、用量、充值订阅和订单记录。熟练用户可以用本站 Key 接入 Cherry Studio、Chatbox、CC Switch 等客户端。
             </p>
           </div>
 
@@ -213,7 +218,7 @@
         </div>
       </template>
     </div>
-  </AppLayout>
+  </AppSectionShell>
 </template>
 
 <script setup lang="ts">
@@ -221,7 +226,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { usageAPI, type UserDashboardStats as UserStatsType } from '@/api/usage'
-import AppLayout from '@/components/layout/AppLayout.vue'
+import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'
 import UserDashboardStats from '@/components/user/dashboard/UserDashboardStats.vue'
@@ -237,8 +242,6 @@ const balance = computed(() => user.value?.balance || 0)
 const userEmail = computed(() => user.value?.email || '当前用户')
 const paymentEnabled = computed(() => !!appStore.cachedPublicSettings?.payment_enabled)
 const channelMonitorEnabled = computed(() => !!appStore.cachedPublicSettings?.channel_monitor_enabled)
-const affiliateEnabled = computed(() => !!appStore.cachedPublicSettings?.affiliate_enabled)
-
 const stats = ref<UserStatsType | null>(null)
 const loading = ref(false)
 const statsLoadError = ref(false)
@@ -274,12 +277,20 @@ const baseProductEntries = [
     action: '查看状态'
   },
   {
+    to: '/app/available-channels',
+    icon: 'calculator' as const,
+    badge: '价格',
+    title: '模型价格',
+    description: '查看当前账号可用模型和价格范围，最终可用性以后端配置和当前 Key 分组为准。',
+    action: '查看价格'
+  },
+  {
     to: '/app/purchase',
     icon: 'creditCard' as const,
-    badge: '余额',
-    title: '补充额度与账户记录',
-    description: '查看余额、可用补充方式和账户记录，余额不足时先补充额度再继续调用。',
-    action: '补充额度'
+    badge: '充值',
+    title: '充值 / 订阅',
+    description: '查看可用充值方式和订阅入口，额度变化以使用记录和订单记录为准。',
+    action: '进入充值'
   },
   {
     to: '/app/redeem',
@@ -291,11 +302,11 @@ const baseProductEntries = [
   },
   {
     to: '/app/affiliate',
-    icon: 'gift' as const,
-    badge: '推广',
-    title: '推广中心',
-    description: '分享专属链接，查看邀请记录和活动奖励；具体到账以系统记录为准。',
-    action: '查看邀请'
+    icon: 'users' as const,
+    badge: '返利',
+    title: '邀请返利',
+    description: '查看邀请码、邀请用户和返利记录；具体规则以后台策略为准。',
+    action: '查看返利'
   }
 ]
 
@@ -303,8 +314,7 @@ const productEntries = computed(() =>
   baseProductEntries.filter(
     (entry) =>
       (entry.to !== '/app/channel-status' || channelMonitorEnabled.value) &&
-      (entry.to !== '/app/purchase' || paymentEnabled.value) &&
-      (entry.to !== '/app/affiliate' || affiliateEnabled.value)
+      (entry.to !== '/app/purchase' || paymentEnabled.value)
   )
 )
 
@@ -326,15 +336,15 @@ const onboardingSteps = computed(() => [
   paymentEnabled.value
     ? {
         index: '03',
-        title: '最后核对额度和账户记录',
-        description: '余额不足时进入补充额度页，完成后回查账户记录和余额到账情况。',
+        title: '最后核对额度和订单记录',
+        description: '余额不足时进入充值 / 订阅页，完成后回查订单记录和余额到账情况。',
         to: '/app/purchase',
-        action: '补充额度'
+        action: '进入充值'
       }
     : {
         index: '03',
-        title: '最后使用兑换码或核对账户记录',
-        description: '当前账号没有在线补充额度入口时，可先用兑换码补充额度；账户变化以使用记录和账户记录为准。',
+        title: '最后使用兑换码或核对订单记录',
+        description: '当前账号没有在线充值入口时，可先用兑换码补充账户额度；账户变化以使用记录和订单记录为准。',
         to: '/app/redeem',
         action: '去兑换'
       }

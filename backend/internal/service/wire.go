@@ -733,6 +733,7 @@ func ProvideGatewayService(
 	proxyLatencyCache ProxyLatencyCache,
 	kiroTokenProvider *KiroTokenProvider,
 	kiroGatewayService *KiroGatewayService,
+	balanceNotifyService *BalanceNotifyService,
 ) *GatewayService {
 	svc := NewGatewayService(
 		accountRepo,
@@ -760,6 +761,7 @@ func ProvideGatewayService(
 	)
 	svc.SetProxyFailoverDeps(proxyRepo, proxyLatencyCache)
 	svc.SetKiroDeps(kiroTokenProvider, kiroGatewayService)
+	svc.SetBillingShortfallNotifier(balanceNotifyService)
 	return svc
 }
 

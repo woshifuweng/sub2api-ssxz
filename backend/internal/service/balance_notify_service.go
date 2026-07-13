@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"log/slog"
@@ -37,20 +39,164 @@ type AccountQuotaReader interface {
 	GetByID(ctx context.Context, id int64) (*Account, error)
 }
 
+type notificationEmailSender interface {
+	SendEmail(ctx context.Context, to, subject, body string) error
+}
+
+// BillingShortfallAlert contains only non-secret identifiers needed by operators.
+type BillingShortfallAlert struct {
+	RequestID string
+	UserID    int64
+	APIKeyID  int64
+	Model     string
+	Charged   float64
+	Shortfall float64
+}
+
+// BillingShortfallNotifier is the best-effort alert boundary used by billing.
+type BillingShortfallNotifier interface {
+	NotifyBillingShortfall(ctx context.Context, alert BillingShortfallAlert)
+}
+
 // BalanceNotifyService handles balance and quota threshold notifications.
 type BalanceNotifyService struct {
-	emailService *EmailService
-	settingRepo  SettingRepository
-	accountRepo  AccountQuotaReader
+	emailService          notificationEmailSender
+	settingRepo           SettingRepository
+	accountRepo           AccountQuotaReader
+	shortfallEmailLimiter *slidingWindowLimiter
 }
 
 // NewBalanceNotifyService creates a new BalanceNotifyService.
 func NewBalanceNotifyService(emailService *EmailService, settingRepo SettingRepository, accountRepo AccountQuotaReader) *BalanceNotifyService {
 	return &BalanceNotifyService{
-		emailService: emailService,
-		settingRepo:  settingRepo,
-		accountRepo:  accountRepo,
+		emailService:          emailService,
+		settingRepo:           settingRepo,
+		accountRepo:           accountRepo,
+		shortfallEmailLimiter: newSlidingWindowLimiter(0, time.Hour),
 	}
+}
+
+// NotifyBillingShortfall dispatches a critical operator alert without delaying
+// or changing the completed billing transaction.
+func (s *BalanceNotifyService) NotifyBillingShortfall(_ context.Context, alert BillingShortfallAlert) {
+	if s == nil {
+		return
+	}
+	go func() {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				slog.Error("gateway.billing_shortfall_alert_panicked", "recover", recovered)
+			}
+		}()
+		s.sendBillingShortfallAlert(alert)
+	}()
+}
+
+func (s *BalanceNotifyService) sendBillingShortfallAlert(alert BillingShortfallAlert) bool {
+	if s == nil || s.emailService == nil || s.settingRepo == nil {
+		return false
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), emailSendTimeout)
+	defer cancel()
+
+	emailCfg, err := s.getOpsEmailNotificationConfig(ctx)
+	if err != nil {
+		slog.Error("gateway.billing_shortfall_alert_not_delivered", "reason", "config_error", "error", err)
+		return false
+	}
+	if emailCfg == nil || !emailCfg.Alert.Enabled {
+		slog.Warn("gateway.billing_shortfall_alert_not_delivered", "reason", "alert_email_disabled")
+		return false
+	}
+	recipients := normalizeAlertRecipients(emailCfg.Alert.Recipients)
+	if len(recipients) == 0 {
+		slog.Warn("gateway.billing_shortfall_alert_not_delivered", "reason", "no_recipients")
+		return false
+	}
+	if !shouldSendOpsAlertEmailByMinSeverity(emailCfg.Alert.MinSeverity, "critical") {
+		slog.Warn("gateway.billing_shortfall_alert_not_delivered", "reason", "severity_filtered")
+		return false
+	}
+	if s.shortfallEmailLimiter == nil {
+		s.shortfallEmailLimiter = newSlidingWindowLimiter(0, time.Hour)
+	}
+	s.shortfallEmailLimiter.SetLimit(emailCfg.Alert.RateLimitPerHour)
+
+	siteName := sanitizeEmailHeader(s.getSiteName(ctx))
+	subject := fmt.Sprintf("[%s][Critical] Billing shortfall detected", siteName)
+	body := buildBillingShortfallEmailBody(alert, siteName)
+	anySent := false
+	for _, recipient := range recipients {
+		if !s.shortfallEmailLimiter.Allow(time.Now().UTC()) {
+			slog.Warn("gateway.billing_shortfall_alert_not_delivered", "reason", "rate_limited")
+			break
+		}
+		if err := s.emailService.SendEmail(ctx, recipient, subject, body); err != nil {
+			slog.Error("gateway.billing_shortfall_alert_delivery_failed", "to", recipient, "error", err)
+			continue
+		}
+		anySent = true
+		slog.Info("gateway.billing_shortfall_alert_delivered", "to", recipient, "request_id", alert.RequestID)
+	}
+	return anySent
+}
+
+func (s *BalanceNotifyService) getOpsEmailNotificationConfig(ctx context.Context) (*OpsEmailNotificationConfig, error) {
+	raw, err := s.settingRepo.GetValue(ctx, SettingKeyOpsEmailNotificationConfig)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return defaultOpsEmailNotificationConfig(), nil
+		}
+		return nil, err
+	}
+	cfg := &OpsEmailNotificationConfig{}
+	if err := json.Unmarshal([]byte(raw), cfg); err != nil {
+		return nil, fmt.Errorf("decode ops email notification config: %w", err)
+	}
+	normalizeOpsEmailNotificationConfig(cfg)
+	if err := validateOpsEmailNotificationConfig(cfg); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+func normalizeAlertRecipients(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		address := strings.TrimSpace(value)
+		key := strings.ToLower(address)
+		if address == "" {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, address)
+	}
+	return result
+}
+
+func buildBillingShortfallEmailBody(alert BillingShortfallAlert, siteName string) string {
+	return fmt.Sprintf(`<h2>Critical billing shortfall</h2>
+<p>A completed request exhausted the user's available balance. Review the account and billing records immediately.</p>
+<p><b>Site</b>: %s</p>
+<p><b>Request ID</b>: %s</p>
+<p><b>User ID</b>: %d</p>
+<p><b>API Key ID</b>: %d</p>
+<p><b>Model</b>: %s</p>
+<p><b>Charged</b>: %.6f</p>
+<p><b>Shortfall</b>: %.6f</p>`,
+		html.EscapeString(siteName),
+		html.EscapeString(strings.TrimSpace(alert.RequestID)),
+		alert.UserID,
+		alert.APIKeyID,
+		html.EscapeString(strings.TrimSpace(alert.Model)),
+		alert.Charged,
+		alert.Shortfall,
+	)
 }
 
 // resolveBalanceThreshold returns the effective balance threshold.

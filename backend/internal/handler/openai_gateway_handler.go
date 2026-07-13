@@ -22,6 +22,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 	"go.uber.org/zap"
 )
 
@@ -109,12 +110,10 @@ func resolveOpenAIForwardDefaultMappedModel(apiKey *service.APIKey, fallbackMode
 	return strings.TrimSpace(apiKey.Group.DefaultMappedModel)
 }
 
-func resolveOpenAISelectionFallbackModel(apiKey *service.APIKey, requestedModel string) string {
-	fallbackModel := resolveOpenAIForwardDefaultMappedModel(apiKey, "")
-	if fallbackModel == "" || strings.EqualFold(strings.TrimSpace(fallbackModel), strings.TrimSpace(requestedModel)) {
-		return ""
-	}
-	return fallbackModel
+func resolveOpenAISelectionFallbackModel(_ *service.APIKey, _ string) string {
+	// Account selection must match the requested model. Silently retrying a group
+	// default can route an unsupported client model to an unrelated upstream.
+	return ""
 }
 
 func handleOpenAISelectionExhausted(
@@ -459,6 +458,11 @@ func (h *OpenAIGatewayHandler) ResponsesGateway(transportCtx gatewayctx.GatewayC
 		h.errorResponseGateway(transportCtx, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 		return
 	}
+	body, _, err = service.EnforceUnboundedTokenRequestLimit(body, "max_output_tokens", "max_output_tokens")
+	if err != nil {
+		h.errorResponseGateway(transportCtx, http.StatusBadRequest, "invalid_request_error", "Failed to apply output token limit")
+		return
+	}
 
 	// 使用 gjson 只读提取字段做校验，避免完整 Unmarshal
 	modelResult := gjson.GetBytes(body, "model")
@@ -467,6 +471,19 @@ func (h *OpenAIGatewayHandler) ResponsesGateway(transportCtx gatewayctx.GatewayC
 		return
 	}
 	reqModel := modelResult.String()
+	canonicalModel, catalogEnforced, catalogAvailable := canonicalCustomerGatewayModelForAPIKey(apiKey, reqModel)
+	if catalogEnforced && !catalogAvailable {
+		h.errorResponseGateway(transportCtx, http.StatusBadRequest, "invalid_request_error", customerGatewayModelUnavailableMessage(reqModel))
+		return
+	}
+	if catalogEnforced && canonicalModel != reqModel {
+		body, err = sjson.SetBytes(body, "model", canonicalModel)
+		if err != nil {
+			h.errorResponseGateway(transportCtx, http.StatusBadRequest, "invalid_request_error", "Failed to normalize model")
+			return
+		}
+		reqModel = canonicalModel
+	}
 	if !apiKeyAllowsRequestedModel(apiKey, reqModel) {
 		h.errorResponseGateway(transportCtx, http.StatusBadRequest, "invalid_request_error", apiKeyModelNotAllowedMessage(reqModel))
 		return
@@ -619,7 +636,7 @@ func (h *OpenAIGatewayHandler) ResponsesGateway(transportCtx gatewayctx.GatewayC
 						h.handleStreamingAwareErrorContext(transportCtx, http.StatusServiceUnavailable, "compact_not_supported", "No available OpenAI accounts support /responses/compact", streamStarted)
 						return
 					}
-					h.handleStreamingAwareErrorContext(transportCtx, http.StatusServiceUnavailable, "api_error", "Service temporarily unavailable", streamStarted)
+					h.handleStreamingAwareErrorContext(transportCtx, http.StatusServiceUnavailable, "no_available_account", "No available upstream account supports the requested model", streamStarted)
 					return
 				}
 			} else {
@@ -647,7 +664,7 @@ func (h *OpenAIGatewayHandler) ResponsesGateway(transportCtx gatewayctx.GatewayC
 			}
 		}
 		if selection == nil || selection.Account == nil {
-			h.handleStreamingAwareErrorContext(transportCtx, http.StatusServiceUnavailable, "api_error", "No available accounts", streamStarted)
+			h.handleStreamingAwareErrorContext(transportCtx, http.StatusServiceUnavailable, "no_available_account", "No available upstream account supports the requested model", streamStarted)
 			return
 		}
 		if previousResponseID != "" && selection != nil && selection.Account != nil {
@@ -1003,6 +1020,11 @@ func (h *OpenAIGatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayCo
 		h.anthropicErrorResponseContext(transportCtx, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 		return
 	}
+	body, _, err = service.EnforceUnboundedTokenRequestLimit(body, "max_tokens", "max_tokens")
+	if err != nil {
+		h.anthropicErrorResponseContext(transportCtx, http.StatusBadRequest, "invalid_request_error", "Failed to apply output token limit")
+		return
+	}
 
 	modelResult := gjson.GetBytes(body, "model")
 	if !modelResult.Exists() || modelResult.Type != gjson.String || modelResult.String() == "" {
@@ -1140,7 +1162,7 @@ func (h *OpenAIGatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayCo
 					}
 				}
 				if err != nil {
-					h.anthropicStreamingAwareErrorContext(transportCtx, http.StatusServiceUnavailable, "api_error", "Service temporarily unavailable", streamStarted)
+					h.anthropicStreamingAwareErrorContext(transportCtx, http.StatusServiceUnavailable, "no_available_account", "No available upstream account supports the requested model", streamStarted)
 					return
 				}
 			} else {
@@ -1168,7 +1190,7 @@ func (h *OpenAIGatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayCo
 			}
 		}
 		if selection == nil || selection.Account == nil {
-			h.anthropicStreamingAwareErrorContext(transportCtx, http.StatusServiceUnavailable, "api_error", "No available accounts", streamStarted)
+			h.anthropicStreamingAwareErrorContext(transportCtx, http.StatusServiceUnavailable, "no_available_account", "No available upstream account supports the requested model", streamStarted)
 			return
 		}
 		account := selection.Account
@@ -1668,11 +1690,29 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocketGateway(transportCtx gatewayctx
 		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "invalid JSON payload")
 		return
 	}
+	firstMessage, _, err = service.EnforceUnboundedTokenRequestLimit(firstMessage, "max_output_tokens", "max_output_tokens")
+	if err != nil {
+		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "invalid response.create payload")
+		return
+	}
 
 	reqModel := strings.TrimSpace(gjson.GetBytes(firstMessage, "model").String())
 	if reqModel == "" {
 		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "model is required in first response.create payload")
 		return
+	}
+	canonicalModel, catalogEnforced, catalogAvailable := canonicalCustomerGatewayModelForAPIKey(apiKey, reqModel)
+	if catalogEnforced && !catalogAvailable {
+		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, customerGatewayModelUnavailableMessage(reqModel))
+		return
+	}
+	if catalogEnforced && canonicalModel != reqModel {
+		firstMessage, err = sjson.SetBytes(firstMessage, "model", canonicalModel)
+		if err != nil {
+			closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "failed to normalize model")
+			return
+		}
+		reqModel = canonicalModel
 	}
 	if !apiKeyAllowsRequestedModel(apiKey, reqModel) {
 		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, apiKeyModelNotAllowedMessage(reqModel))

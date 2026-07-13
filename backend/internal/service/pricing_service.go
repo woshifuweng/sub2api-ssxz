@@ -9,21 +9,22 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 	"go.uber.org/zap"
 )
 
 var (
-	openAIModelDatePattern     = regexp.MustCompile(`-\d{8}$`)
-	openAIModelBasePattern     = regexp.MustCompile(`^(gpt-\d+(?:\.\d+)?)(?:-|$)`)
-	openAIGPT54FallbackPricing = &LiteLLMModelPricing{
+	openAIModelDatePattern      = regexp.MustCompile(`-\d{8}$`)
+	openAIModelBasePattern      = regexp.MustCompile(`^(gpt-\d+(?:\.\d+)?)(?:-|$)`)
+	versionedClaudeModelPattern = regexp.MustCompile(`^claude-(?:opus|sonnet|haiku)-\d+(?:[.-]\d+)?(?:-|$)`)
+	openAIGPT54FallbackPricing  = &LiteLLMModelPricing{
 		InputCostPerToken:               2.5e-06, // $2.5 per MTok
 		OutputCostPerToken:              1.5e-05, // $15 per MTok
 		CacheReadInputTokenCost:         2.5e-07, // $0.25 per MTok
@@ -72,6 +73,183 @@ type LiteLLMModelPricing struct {
 	SupportsPromptCaching               bool    `json:"supports_prompt_caching"`
 	OutputCostPerImage                  float64 `json:"output_cost_per_image"`       // 图片生成模型每张图片价格
 	OutputCostPerImageToken             float64 `json:"output_cost_per_image_token"` // 图片输出 token 价格
+}
+
+var officialExactModelPricing = map[string]LiteLLMModelPricing{
+	"claude-fable-5": {
+		InputCostPerToken:                   10e-6,
+		OutputCostPerToken:                  50e-6,
+		CacheCreationInputTokenCost:         12.5e-6,
+		CacheCreationInputTokenCostAbove1hr: 20e-6,
+		CacheReadInputTokenCost:             1e-6,
+		LiteLLMProvider:                     "anthropic",
+		Mode:                                "chat",
+		SupportsPromptCaching:               true,
+	},
+	"claude-opus-4-6": {
+		InputCostPerToken:                   5e-6,
+		OutputCostPerToken:                  25e-6,
+		CacheCreationInputTokenCost:         6.25e-6,
+		CacheCreationInputTokenCostAbove1hr: 10e-6,
+		CacheReadInputTokenCost:             0.5e-6,
+		LiteLLMProvider:                     "anthropic",
+		Mode:                                "chat",
+		SupportsPromptCaching:               true,
+	},
+	"claude-opus-4-7": {
+		InputCostPerToken:                   5e-6,
+		OutputCostPerToken:                  25e-6,
+		CacheCreationInputTokenCost:         6.25e-6,
+		CacheCreationInputTokenCostAbove1hr: 10e-6,
+		CacheReadInputTokenCost:             0.5e-6,
+		LiteLLMProvider:                     "anthropic",
+		Mode:                                "chat",
+		SupportsPromptCaching:               true,
+	},
+	"claude-opus-4-8": {
+		InputCostPerToken:                   5e-6,
+		OutputCostPerToken:                  25e-6,
+		CacheCreationInputTokenCost:         6.25e-6,
+		CacheCreationInputTokenCostAbove1hr: 10e-6,
+		CacheReadInputTokenCost:             0.5e-6,
+		LiteLLMProvider:                     "anthropic",
+		Mode:                                "chat",
+		SupportsPromptCaching:               true,
+	},
+	"claude-sonnet-4-6": {
+		InputCostPerToken:                   3e-6,
+		OutputCostPerToken:                  15e-6,
+		CacheCreationInputTokenCost:         3.75e-6,
+		CacheCreationInputTokenCostAbove1hr: 6e-6,
+		CacheReadInputTokenCost:             0.3e-6,
+		LiteLLMProvider:                     "anthropic",
+		Mode:                                "chat",
+		SupportsPromptCaching:               true,
+	},
+	"claude-sonnet-5": {
+		InputCostPerToken:                   3e-6,
+		OutputCostPerToken:                  15e-6,
+		CacheCreationInputTokenCost:         3.75e-6,
+		CacheCreationInputTokenCostAbove1hr: 6e-6,
+		CacheReadInputTokenCost:             0.3e-6,
+		LiteLLMProvider:                     "anthropic",
+		Mode:                                "chat",
+		SupportsPromptCaching:               true,
+	},
+	"gpt-5.4": {
+		InputCostPerToken:               2.5e-6,
+		InputCostPerTokenPriority:       5e-6,
+		OutputCostPerToken:              15e-6,
+		OutputCostPerTokenPriority:      30e-6,
+		CacheReadInputTokenCost:         0.25e-6,
+		CacheReadInputTokenCostPriority: 0.5e-6,
+		LongContextInputTokenThreshold:  272000,
+		LongContextInputCostMultiplier:  2,
+		LongContextOutputCostMultiplier: 1.5,
+		SupportsServiceTier:             true,
+		LiteLLMProvider:                 "openai",
+		Mode:                            "chat",
+		SupportsPromptCaching:           true,
+	},
+	"gpt-5.4-mini": {
+		InputCostPerToken:       0.75e-6,
+		OutputCostPerToken:      4.5e-6,
+		CacheReadInputTokenCost: 0.075e-6,
+		LiteLLMProvider:         "openai",
+		Mode:                    "chat",
+		SupportsPromptCaching:   true,
+	},
+	"gpt-5.5": {
+		InputCostPerToken:               5e-6,
+		InputCostPerTokenPriority:       12.5e-6,
+		OutputCostPerToken:              30e-6,
+		OutputCostPerTokenPriority:      75e-6,
+		CacheReadInputTokenCost:         0.5e-6,
+		CacheReadInputTokenCostPriority: 1.25e-6,
+		LongContextInputTokenThreshold:  272000,
+		LongContextInputCostMultiplier:  2,
+		LongContextOutputCostMultiplier: 1.5,
+		SupportsServiceTier:             true,
+		LiteLLMProvider:                 "openai",
+		Mode:                            "chat",
+		SupportsPromptCaching:           true,
+	},
+	"gpt-5.6-sol": {
+		InputCostPerToken:               5e-6,
+		OutputCostPerToken:              30e-6,
+		CacheCreationInputTokenCost:     6.25e-6,
+		CacheReadInputTokenCost:         0.5e-6,
+		LongContextInputTokenThreshold:  272000,
+		LongContextInputCostMultiplier:  2,
+		LongContextOutputCostMultiplier: 1.5,
+		LiteLLMProvider:                 "openai",
+		Mode:                            "chat",
+		SupportsPromptCaching:           true,
+	},
+	"gpt-5.6-terra": {
+		InputCostPerToken:               2.5e-6,
+		OutputCostPerToken:              15e-6,
+		CacheCreationInputTokenCost:     3.125e-6,
+		CacheReadInputTokenCost:         0.25e-6,
+		LongContextInputTokenThreshold:  272000,
+		LongContextInputCostMultiplier:  2,
+		LongContextOutputCostMultiplier: 1.5,
+		LiteLLMProvider:                 "openai",
+		Mode:                            "chat",
+		SupportsPromptCaching:           true,
+	},
+	"gpt-5.6-luna": {
+		InputCostPerToken:               1e-6,
+		OutputCostPerToken:              6e-6,
+		CacheCreationInputTokenCost:     1.25e-6,
+		CacheReadInputTokenCost:         0.1e-6,
+		LongContextInputTokenThreshold:  272000,
+		LongContextInputCostMultiplier:  2,
+		LongContextOutputCostMultiplier: 1.5,
+		LiteLLMProvider:                 "openai",
+		Mode:                            "chat",
+		SupportsPromptCaching:           true,
+	},
+}
+
+var claudeSonnet5IntroPricing = LiteLLMModelPricing{
+	InputCostPerToken:                   2e-6,
+	OutputCostPerToken:                  10e-6,
+	CacheCreationInputTokenCost:         2.5e-6,
+	CacheCreationInputTokenCostAbove1hr: 4e-6,
+	CacheReadInputTokenCost:             0.2e-6,
+	LiteLLMProvider:                     "anthropic",
+	Mode:                                "chat",
+	SupportsPromptCaching:               true,
+}
+
+var claudeSonnet5StandardPricingStartsAt = time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC)
+
+func getOfficialExactModelPricing(model string) *LiteLLMModelPricing {
+	return getOfficialExactModelPricingAt(model, time.Now().UTC())
+}
+
+func getOfficialExactModelPricingAt(model string, now time.Time) *LiteLLMModelPricing {
+	model = strings.ToLower(strings.TrimSpace(model))
+	if model == "gpt-5.6" {
+		model = "gpt-5.6-sol"
+	}
+	if model == "claude-sonnet-5" && now.Before(claudeSonnet5StandardPricingStartsAt) {
+		pricing := claudeSonnet5IntroPricing
+		return &pricing
+	}
+	pricing, ok := officialExactModelPricing[model]
+	if !ok {
+		return nil
+	}
+	copy := pricing
+	return &copy
+}
+
+func isUnpricedBlockedModel(model string) bool {
+	model = strings.ToLower(strings.TrimSpace(model))
+	model = strings.TrimPrefix(model, "models/")
+	return strings.HasPrefix(model, "gpt-5.3-codex-spark")
 }
 
 // PricingRemoteClient 远程价格数据获取接口
@@ -515,10 +693,21 @@ func (s *PricingService) GetModelPricing(modelName string) *LiteLLMModelPricing 
 	if modelName == "" {
 		return nil
 	}
+	if isUnpricedBlockedModel(modelName) {
+		warnExactPricingUnavailable(strings.ToLower(strings.TrimSpace(modelName)))
+		return nil
+	}
 
 	// 标准化模型名称（同时兼容 "models/xxx"、VertexAI 资源名等前缀）
 	modelLower := strings.ToLower(strings.TrimSpace(modelName))
 	lookupCandidates := s.buildModelLookupCandidates(modelLower)
+
+	// 0. 站点已核对的官方精确价优先于远端价格快照，避免旧数据覆盖。
+	for _, candidate := range lookupCandidates {
+		if pricing := getOfficialExactModelPricing(candidate); pricing != nil {
+			return pricing
+		}
+	}
 
 	// 1. 精确匹配
 	for _, candidate := range lookupCandidates {
@@ -542,7 +731,8 @@ func (s *PricingService) GetModelPricing(modelName string) *LiteLLMModelPricing 
 	// 3. 尝试模糊匹配（去掉版本号后缀）
 	// claude-opus-4-5-20251101 -> claude-opus-4.5
 	baseName := s.extractBaseName(lookupCandidates[0])
-	for key, pricing := range s.pricingData {
+	for _, key := range s.sortedPricingKeys() {
+		pricing := s.pricingData[key]
 		keyBase := s.extractBaseName(strings.ToLower(key))
 		if keyBase == baseName {
 			return pricing
@@ -560,6 +750,22 @@ func (s *PricingService) GetModelPricing(modelName string) *LiteLLMModelPricing 
 	}
 
 	return nil
+}
+
+func (s *PricingService) sortedPricingKeys() []string {
+	keys := make([]string, 0, len(s.pricingData))
+	for key := range s.pricingData {
+		keys = append(keys, key)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	return keys
+}
+
+func warnExactPricingUnavailable(model string) {
+	logger.With(
+		zap.String("component", "service.pricing"),
+		zap.String("model", model),
+	).Warn(fmt.Sprintf("[Pricing] pricing unavailable for exact model %s; refusing guessed family price", model))
 }
 
 func (s *PricingService) buildModelLookupCandidates(modelLower string) []string {
@@ -642,25 +848,37 @@ func (s *PricingService) extractBaseName(model string) string {
 
 // matchByModelFamily 基于模型系列匹配
 func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
+	if versionedClaudeModelPattern.MatchString(model) {
+		warnExactPricingUnavailable(model)
+		return nil
+	}
+
 	// Claude模型系列匹配规则
-	familyPatterns := map[string][]string{
-		"opus-4.6":   {"claude-opus-4.6", "claude-opus-4-6"},
-		"opus-4.5":   {"claude-opus-4.5", "claude-opus-4-5"},
-		"opus-4":     {"claude-opus-4", "claude-3-opus"},
-		"sonnet-4.5": {"claude-sonnet-4.5", "claude-sonnet-4-5"},
-		"sonnet-4":   {"claude-sonnet-4", "claude-3-5-sonnet"},
-		"sonnet-3.5": {"claude-3-5-sonnet", "claude-3.5-sonnet"},
-		"sonnet-3":   {"claude-3-sonnet"},
-		"haiku-3.5":  {"claude-3-5-haiku", "claude-3.5-haiku"},
-		"haiku-3":    {"claude-3-haiku"},
+	families := []struct {
+		name     string
+		patterns []string
+	}{
+		{name: "opus-4.6", patterns: []string{"claude-opus-4.6", "claude-opus-4-6"}},
+		{name: "opus-4.5", patterns: []string{"claude-opus-4.5", "claude-opus-4-5"}},
+		{name: "opus-4", patterns: []string{"claude-opus-4", "claude-3-opus"}},
+		{name: "sonnet-4.5", patterns: []string{"claude-sonnet-4.5", "claude-sonnet-4-5"}},
+		{name: "sonnet-4", patterns: []string{"claude-sonnet-4", "claude-3-5-sonnet"}},
+		{name: "sonnet-3.5", patterns: []string{"claude-3-5-sonnet", "claude-3.5-sonnet"}},
+		{name: "sonnet-3", patterns: []string{"claude-3-sonnet"}},
+		{name: "haiku-3.5", patterns: []string{"claude-3-5-haiku", "claude-3.5-haiku"}},
+		{name: "haiku-3", patterns: []string{"claude-3-haiku"}},
+	}
+	familyPatterns := make(map[string][]string, len(families))
+	for _, family := range families {
+		familyPatterns[family.name] = family.patterns
 	}
 
 	// 确定模型属于哪个系列
 	var matchedFamily string
-	for family, patterns := range familyPatterns {
-		for _, pattern := range patterns {
+	for _, family := range families {
+		for _, pattern := range family.patterns {
 			if strings.Contains(model, pattern) || strings.Contains(model, strings.ReplaceAll(pattern, "-", "")) {
-				matchedFamily = family
+				matchedFamily = family.name
 				break
 			}
 		}
@@ -701,7 +919,8 @@ func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
 	// 在价格数据中查找该系列的模型
 	patterns := familyPatterns[matchedFamily]
 	for _, pattern := range patterns {
-		for key, pricing := range s.pricingData {
+		for _, key := range s.sortedPricingKeys() {
+			pricing := s.pricingData[key]
 			keyLower := strings.ToLower(key)
 			if strings.Contains(keyLower, pattern) {
 				logger.LegacyPrintf("service.pricing", "[Pricing] Fuzzy matched %s -> %s", model, key)
@@ -720,21 +939,29 @@ func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
 // 3. gpt-5.2-20251222 -> gpt-5.2（去掉日期版本号）
 // 4. gpt-5.3-codex -> gpt-5.2-codex
 // 5. gpt-5.4* -> 业务静态兜底价
-// 6. 最终回退到 DefaultTestModel (gpt-5.1-codex)
+// 6. 其他未知型号记 WARN 并拒绝猜价
 func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
-	if strings.HasPrefix(model, "gpt-5.3-codex-spark") {
-		if pricing, ok := s.pricingData["gpt-5.1-codex"]; ok {
-			logger.LegacyPrintf("service.pricing", "[Pricing][SparkBilling] %s -> %s billing", model, "gpt-5.1-codex")
-			logger.With(zap.String("component", "service.pricing")).
-				Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.1-codex"))
-			return pricing
-		}
+	if pricing := getOfficialExactModelPricing(model); pricing != nil {
+		return pricing
+	}
+	if strings.HasPrefix(model, "gpt-5.4-mini") {
+		logger.With(zap.String("component", "service.pricing")).
+			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.4-mini(static)"))
+		return openAIGPT54MiniFallbackPricing
+	}
+	if strings.HasPrefix(model, "gpt-5.4-nano") {
+		logger.With(zap.String("component", "service.pricing")).
+			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.4-nano(static)"))
+		return openAIGPT54NanoFallbackPricing
 	}
 
 	// 尝试的回退变体
 	variants := s.generateOpenAIModelVariants(model, openAIModelDatePattern)
 
 	for _, variant := range variants {
+		if pricing := getOfficialExactModelPricing(variant); pricing != nil {
+			return pricing
+		}
 		if pricing, ok := s.pricingData[variant]; ok {
 			logger.With(zap.String("component", "service.pricing")).
 				Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, variant))
@@ -750,38 +977,13 @@ func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
 		}
 	}
 
-	// GPT-5.5 回退到 GPT-5.4 定价
-	if strings.HasPrefix(model, "gpt-5.5") {
-		logger.With(zap.String("component", "service.pricing")).
-			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.4(static)"))
-		return openAIGPT54FallbackPricing
-	}
-
-	if strings.HasPrefix(model, "gpt-5.4-mini") {
-		logger.With(zap.String("component", "service.pricing")).
-			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.4-mini(static)"))
-		return openAIGPT54MiniFallbackPricing
-	}
-
-	if strings.HasPrefix(model, "gpt-5.4-nano") {
-		logger.With(zap.String("component", "service.pricing")).
-			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.4-nano(static)"))
-		return openAIGPT54NanoFallbackPricing
-	}
-
 	if strings.HasPrefix(model, "gpt-5.4") {
 		logger.With(zap.String("component", "service.pricing")).
 			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.4(static)"))
 		return openAIGPT54FallbackPricing
 	}
 
-	// 最终回退到 DefaultTestModel
-	defaultModel := strings.ToLower(openai.DefaultTestModel)
-	if pricing, ok := s.pricingData[defaultModel]; ok {
-		logger.LegacyPrintf("service.pricing", "[Pricing] OpenAI fallback to default model %s -> %s", model, defaultModel)
-		return pricing
-	}
-
+	warnExactPricingUnavailable(model)
 	return nil
 }
 

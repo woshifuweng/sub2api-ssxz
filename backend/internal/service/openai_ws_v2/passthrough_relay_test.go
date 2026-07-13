@@ -11,6 +11,8 @@ import (
 
 	coderws "github.com/coder/websocket"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 type passthroughTestFrame struct {
@@ -508,6 +510,34 @@ func TestRelay_BeforeClientFrameStopsFrameBeforeUpstreamWrite(t *testing.T) {
 	writes := upstreamConn.Writes()
 	require.Len(t, writes, 1)
 	require.JSONEq(t, string(firstPayload), string(writes[0].payload))
+}
+
+func TestRelay_TransformClientFrameMutatesPayloadBeforeValidationAndUpstreamWrite(t *testing.T) {
+	t.Parallel()
+
+	secondPayload := []byte(`{"type":"response.create","model":"gpt-5.1","input":[]}`)
+	clientConn := newPassthroughTestFrameConn([]passthroughTestFrame{
+		{msgType: coderws.MessageText, payload: secondPayload},
+	}, false)
+	upstreamConn := newPassthroughTestFrameConn(nil, false)
+	firstPayload := []byte(`{"type":"response.create","model":"gpt-5.1","input":[],"max_output_tokens":32}`)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	_, _ = Relay(ctx, clientConn, upstreamConn, firstPayload, RelayOptions{
+		TransformClientFrame: func(_ coderws.MessageType, payload []byte) ([]byte, error) {
+			return sjson.SetBytes(payload, "max_output_tokens", 64)
+		},
+		BeforeClientFrame: func(_ coderws.MessageType, payload []byte) error {
+			require.Equal(t, int64(64), gjson.GetBytes(payload, "max_output_tokens").Int())
+			return nil
+		},
+	})
+
+	writes := upstreamConn.Writes()
+	require.GreaterOrEqual(t, len(writes), 2)
+	require.Equal(t, int64(64), gjson.GetBytes(writes[1].payload, "max_output_tokens").Int())
 }
 
 func TestRelay_OnTurnComplete_ProvidesTurnMetrics(t *testing.T) {

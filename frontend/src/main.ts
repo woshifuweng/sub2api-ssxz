@@ -4,13 +4,13 @@ import App from './App.vue'
 import router from './router'
 import i18n, { initI18n } from './i18n'
 import { useAppStore } from '@/stores/app'
+import { DEFAULT_SITE_NAME } from '@/utils/brand'
+import { getSafeLocalStorageItem } from '@/utils/safeStorage'
 import './style.css'
 
 function initThemeClass() {
-  const savedTheme = localStorage.getItem('theme')
-  const shouldUseDark =
-    savedTheme === 'dark' ||
-    (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  const savedTheme = getSafeLocalStorageItem('theme')
+  const shouldUseDark = savedTheme === 'light' ? false : true
   document.documentElement.classList.toggle('dark', shouldUseDark)
 }
 
@@ -28,7 +28,7 @@ async function bootstrap() {
   appStore.initFromInjectedConfig()
 
   // Set document title immediately after config is loaded
-  if (appStore.siteName && appStore.siteName !== 'Sub2API') {
+  if (appStore.siteName && appStore.siteName !== DEFAULT_SITE_NAME) {
     document.title = `${appStore.siteName} - AI API Gateway`
   }
 

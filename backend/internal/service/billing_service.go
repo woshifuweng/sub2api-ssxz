@@ -6,6 +6,7 @@ import (
 
 	"log"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 )
@@ -131,6 +132,15 @@ func NewBillingService(cfg *config.Config, pricingService *PricingService) *Bill
 // initFallbackPricing 初始化硬编码回退价格（当动态价格不可用时使用）
 // 价格单位：USD per token（与LiteLLM格式一致）
 func (s *BillingService) initFallbackPricing() {
+	s.fallbackPrices["claude-fable-5"] = &ModelPricing{
+		InputPricePerToken:         10e-6,
+		OutputPricePerToken:        50e-6,
+		CacheCreationPricePerToken: 12.5e-6,
+		CacheReadPricePerToken:     1e-6,
+		CacheCreation5mPrice:       12.5e-6,
+		CacheCreation1hPrice:       20e-6,
+		SupportsCacheBreakdown:     true,
+	}
 	// Claude 4.5 Opus
 	s.fallbackPrices["claude-opus-4.5"] = &ModelPricing{
 		InputPricePerToken:         5e-6,    // $5 per MTok
@@ -185,8 +195,46 @@ func (s *BillingService) initFallbackPricing() {
 		SupportsCacheBreakdown:     false,
 	}
 
-	// Claude 4.6 Opus (与4.5同价)
-	s.fallbackPrices["claude-opus-4.6"] = s.fallbackPrices["claude-opus-4.5"]
+	// Claude Opus 4.6/4.7/4.8 官方标准价
+	for _, model := range []string{"claude-opus-4.6", "claude-opus-4.7", "claude-opus-4.8"} {
+		s.fallbackPrices[model] = &ModelPricing{
+			InputPricePerToken:         5e-6,
+			OutputPricePerToken:        25e-6,
+			CacheCreationPricePerToken: 6.25e-6,
+			CacheReadPricePerToken:     0.5e-6,
+			CacheCreation5mPrice:       6.25e-6,
+			CacheCreation1hPrice:       10e-6,
+			SupportsCacheBreakdown:     true,
+		}
+	}
+	// Claude Sonnet 4.6 官方标准价
+	s.fallbackPrices["claude-sonnet-4.6"] = &ModelPricing{
+		InputPricePerToken:         3e-6,
+		OutputPricePerToken:        15e-6,
+		CacheCreationPricePerToken: 3.75e-6,
+		CacheReadPricePerToken:     0.3e-6,
+		CacheCreation5mPrice:       3.75e-6,
+		CacheCreation1hPrice:       6e-6,
+		SupportsCacheBreakdown:     true,
+	}
+	s.fallbackPrices["claude-sonnet-5"] = &ModelPricing{
+		InputPricePerToken:         3e-6,
+		OutputPricePerToken:        15e-6,
+		CacheCreationPricePerToken: 3.75e-6,
+		CacheReadPricePerToken:     0.3e-6,
+		CacheCreation5mPrice:       3.75e-6,
+		CacheCreation1hPrice:       6e-6,
+		SupportsCacheBreakdown:     true,
+	}
+	s.fallbackPrices["claude-sonnet-5-intro"] = &ModelPricing{
+		InputPricePerToken:         2e-6,
+		OutputPricePerToken:        10e-6,
+		CacheCreationPricePerToken: 2.5e-6,
+		CacheReadPricePerToken:     0.2e-6,
+		CacheCreation5mPrice:       2.5e-6,
+		CacheCreation1hPrice:       4e-6,
+		SupportsCacheBreakdown:     true,
+	}
 
 	// Gemini 3.1 Pro
 	s.fallbackPrices["gemini-3.1-pro"] = &ModelPricing{
@@ -214,7 +262,6 @@ func (s *BillingService) initFallbackPricing() {
 		InputPricePerTokenPriority:     5e-6,    // $5 per MTok
 		OutputPricePerToken:            15e-6,   // $15 per MTok
 		OutputPricePerTokenPriority:    30e-6,   // $30 per MTok
-		CacheCreationPricePerToken:     2.5e-6,  // $2.5 per MTok
 		CacheReadPricePerToken:         0.25e-6, // $0.25 per MTok
 		CacheReadPricePerTokenPriority: 0.5e-6,  // $0.5 per MTok
 		SupportsCacheBreakdown:         false,
@@ -222,8 +269,47 @@ func (s *BillingService) initFallbackPricing() {
 		LongContextInputMultiplier:     openAIGPT54LongContextInputMultiplier,
 		LongContextOutputMultiplier:    openAIGPT54LongContextOutputMultiplier,
 	}
-	// GPT-5.5 暂无独立定价，回退到 GPT-5.4
-	s.fallbackPrices["gpt-5.5"] = s.fallbackPrices["gpt-5.4"]
+	// OpenAI GPT-5.5 官方标准价
+	s.fallbackPrices["gpt-5.5"] = &ModelPricing{
+		InputPricePerToken:             5e-6,
+		InputPricePerTokenPriority:     12.5e-6,
+		OutputPricePerToken:            30e-6,
+		OutputPricePerTokenPriority:    75e-6,
+		CacheReadPricePerToken:         0.5e-6,
+		CacheReadPricePerTokenPriority: 1.25e-6,
+		LongContextInputThreshold:      272000,
+		LongContextInputMultiplier:     2,
+		LongContextOutputMultiplier:    1.5,
+	}
+	// GPT-5.6 exact tiers. The generic alias points to Sol.
+	s.fallbackPrices["gpt-5.6-sol"] = &ModelPricing{
+		InputPricePerToken:          5e-6,
+		OutputPricePerToken:         30e-6,
+		CacheCreationPricePerToken:  6.25e-6,
+		CacheReadPricePerToken:      0.5e-6,
+		LongContextInputThreshold:   272000,
+		LongContextInputMultiplier:  2,
+		LongContextOutputMultiplier: 1.5,
+	}
+	s.fallbackPrices["gpt-5.6-terra"] = &ModelPricing{
+		InputPricePerToken:          2.5e-6,
+		OutputPricePerToken:         15e-6,
+		CacheCreationPricePerToken:  3.125e-6,
+		CacheReadPricePerToken:      0.25e-6,
+		LongContextInputThreshold:   272000,
+		LongContextInputMultiplier:  2,
+		LongContextOutputMultiplier: 1.5,
+	}
+	s.fallbackPrices["gpt-5.6-luna"] = &ModelPricing{
+		InputPricePerToken:          1e-6,
+		OutputPricePerToken:         6e-6,
+		CacheCreationPricePerToken:  1.25e-6,
+		CacheReadPricePerToken:      0.1e-6,
+		LongContextInputThreshold:   272000,
+		LongContextInputMultiplier:  2,
+		LongContextOutputMultiplier: 1.5,
+	}
+	s.fallbackPrices["gpt-5.6"] = s.fallbackPrices["gpt-5.6-sol"]
 	s.fallbackPrices["gpt-5.4-mini"] = &ModelPricing{
 		InputPricePerToken:     7.5e-7,
 		OutputPricePerToken:    4.5e-6,
@@ -273,7 +359,62 @@ func (s *BillingService) initFallbackPricing() {
 
 // getFallbackPricing 根据模型系列获取回退价格
 func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
+	return s.getFallbackPricingAt(model, time.Now().UTC())
+}
+
+func (s *BillingService) getFallbackPricingAt(model string, now time.Time) *ModelPricing {
 	modelLower := strings.ToLower(model)
+	if isUnpricedBlockedModel(modelLower) {
+		return nil
+	}
+	modelIsExactOrDated := func(prefix string) bool {
+		if modelLower == prefix || modelLower == prefix+"-thinking" {
+			return true
+		}
+		suffix := strings.TrimPrefix(modelLower, prefix)
+		if suffix == modelLower {
+			return false
+		}
+		suffix = strings.TrimSuffix(suffix, "-thinking")
+		return openAIModelDatePattern.MatchString(suffix)
+	}
+
+	if modelIsExactOrDated("claude-fable-5") {
+		return s.fallbackPrices["claude-fable-5"]
+	}
+	if modelIsExactOrDated("claude-opus-4-6") || modelIsExactOrDated("claude-opus-4.6") {
+		return s.fallbackPrices["claude-opus-4.6"]
+	}
+	if modelIsExactOrDated("claude-opus-4-7") || modelIsExactOrDated("claude-opus-4.7") {
+		return s.fallbackPrices["claude-opus-4.7"]
+	}
+	if modelIsExactOrDated("claude-opus-4-8") || modelIsExactOrDated("claude-opus-4.8") {
+		return s.fallbackPrices["claude-opus-4.8"]
+	}
+	if modelIsExactOrDated("claude-sonnet-4-6") || modelIsExactOrDated("claude-sonnet-4.6") {
+		return s.fallbackPrices["claude-sonnet-4.6"]
+	}
+	if modelIsExactOrDated("claude-sonnet-5") {
+		if now.Before(claudeSonnet5StandardPricingStartsAt) {
+			return s.fallbackPrices["claude-sonnet-5-intro"]
+		}
+		return s.fallbackPrices["claude-sonnet-5"]
+	}
+	if modelIsExactOrDated("gpt-5.6-sol") {
+		return s.fallbackPrices["gpt-5.6-sol"]
+	}
+	if modelIsExactOrDated("gpt-5.6-terra") {
+		return s.fallbackPrices["gpt-5.6-terra"]
+	}
+	if modelIsExactOrDated("gpt-5.6-luna") {
+		return s.fallbackPrices["gpt-5.6-luna"]
+	}
+	if modelIsExactOrDated("gpt-5.6") {
+		return s.fallbackPrices["gpt-5.6"]
+	}
+	if modelIsExactOrDated("gpt-5.5") {
+		return s.fallbackPrices["gpt-5.5"]
+	}
 
 	// 按模型系列匹配
 	if strings.Contains(modelLower, "opus") {
@@ -283,23 +424,34 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 		if strings.Contains(modelLower, "4.5") || strings.Contains(modelLower, "4-5") {
 			return s.fallbackPrices["claude-opus-4.5"]
 		}
-		return s.fallbackPrices["claude-3-opus"]
+		if strings.Contains(modelLower, "claude-3-opus") {
+			return s.fallbackPrices["claude-3-opus"]
+		}
+		return nil
 	}
 	if strings.Contains(modelLower, "sonnet") {
-		if strings.Contains(modelLower, "4") && !strings.Contains(modelLower, "3") {
+		if modelIsExactOrDated("claude-sonnet-4") ||
+			modelIsExactOrDated("claude-sonnet-4-5") ||
+			modelIsExactOrDated("claude-sonnet-4.5") {
 			return s.fallbackPrices["claude-sonnet-4"]
 		}
-		return s.fallbackPrices["claude-3-5-sonnet"]
+		if strings.Contains(modelLower, "claude-3-5-sonnet") || strings.Contains(modelLower, "claude-3.5-sonnet") {
+			return s.fallbackPrices["claude-3-5-sonnet"]
+		}
+		return nil
 	}
 	if strings.Contains(modelLower, "haiku") {
 		if strings.Contains(modelLower, "3-5") || strings.Contains(modelLower, "3.5") {
 			return s.fallbackPrices["claude-3-5-haiku"]
 		}
-		return s.fallbackPrices["claude-3-haiku"]
+		if strings.Contains(modelLower, "claude-3-haiku") {
+			return s.fallbackPrices["claude-3-haiku"]
+		}
+		return nil
 	}
-	// Claude 未知型号统一回退到 Sonnet，避免计费中断。
+	// 未知 Claude 型号拒绝猜价，避免把新模型按旧型号静默计费。
 	if strings.Contains(modelLower, "claude") {
-		return s.fallbackPrices["claude-sonnet-4"]
+		return nil
 	}
 	if strings.Contains(modelLower, "gemini-3.1-pro") || strings.Contains(modelLower, "gemini-3-1-pro") {
 		return s.fallbackPrices["gemini-3.1-pro"]
@@ -309,6 +461,8 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 	if strings.Contains(modelLower, "gpt-5") || strings.Contains(modelLower, "codex") {
 		normalized := normalizeCodexModel(modelLower)
 		switch normalized {
+		case "gpt-5.6":
+			return s.fallbackPrices["gpt-5.6"]
 		case "gpt-5.5":
 			return s.fallbackPrices["gpt-5.5"]
 		case "gpt-5.4-mini":
@@ -337,6 +491,9 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 func (s *BillingService) GetModelPricing(model string) (*ModelPricing, error) {
 	// 标准化模型名称（转小写）
 	model = strings.ToLower(model)
+	if isUnpricedBlockedModel(model) {
+		return nil, fmt.Errorf("pricing not found for model: %s", model)
+	}
 
 	// 1. 优先从动态价格服务获取
 	if s.pricingService != nil {
@@ -373,6 +530,7 @@ func (s *BillingService) GetModelPricing(model string) (*ModelPricing, error) {
 		return s.applyModelSpecificPricingPolicy(model, fallback), nil
 	}
 
+	warnExactPricingUnavailable(model)
 	return nil, fmt.Errorf("pricing not found for model: %s", model)
 }
 
@@ -402,6 +560,9 @@ func CalculateCostFromModelPricing(pricing *ModelPricing, tokens UsageTokens, ra
 	inputPricePerToken := pricing.InputPricePerToken
 	outputPricePerToken := pricing.OutputPricePerToken
 	cacheReadPricePerToken := pricing.CacheReadPricePerToken
+	cacheCreationPricePerToken := pricing.CacheCreationPricePerToken
+	cacheCreation5mPrice := pricing.CacheCreation5mPrice
+	cacheCreation1hPrice := pricing.CacheCreation1hPrice
 	tierMultiplier := 1.0
 	if usePriorityServiceTierPricing(serviceTier, pricing) {
 		if pricing.InputPricePerTokenPriority > 0 {
@@ -419,6 +580,10 @@ func CalculateCostFromModelPricing(pricing *ModelPricing, tokens UsageTokens, ra
 	if shouldApplySessionLongContextPricing(tokens, pricing) {
 		inputPricePerToken *= pricing.LongContextInputMultiplier
 		outputPricePerToken *= pricing.LongContextOutputMultiplier
+		cacheReadPricePerToken *= pricing.LongContextInputMultiplier
+		cacheCreationPricePerToken *= pricing.LongContextInputMultiplier
+		cacheCreation5mPrice *= pricing.LongContextInputMultiplier
+		cacheCreation1hPrice *= pricing.LongContextInputMultiplier
 	}
 
 	// 计算输入token费用（使用per-token价格）
@@ -432,14 +597,14 @@ func CalculateCostFromModelPricing(pricing *ModelPricing, tokens UsageTokens, ra
 		// 支持详细缓存分类的模型（5分钟/1小时缓存，价格为 per-token）
 		if tokens.CacheCreation5mTokens == 0 && tokens.CacheCreation1hTokens == 0 && tokens.CacheCreationTokens > 0 {
 			// API 未返回 ephemeral 明细，回退到全部按 5m 单价计费
-			breakdown.CacheCreationCost = float64(tokens.CacheCreationTokens) * pricing.CacheCreation5mPrice
+			breakdown.CacheCreationCost = float64(tokens.CacheCreationTokens) * cacheCreation5mPrice
 		} else {
-			breakdown.CacheCreationCost = float64(tokens.CacheCreation5mTokens)*pricing.CacheCreation5mPrice +
-				float64(tokens.CacheCreation1hTokens)*pricing.CacheCreation1hPrice
+			breakdown.CacheCreationCost = float64(tokens.CacheCreation5mTokens)*cacheCreation5mPrice +
+				float64(tokens.CacheCreation1hTokens)*cacheCreation1hPrice
 		}
 	} else {
 		// 标准缓存创建价格（per-token）
-		breakdown.CacheCreationCost = float64(tokens.CacheCreationTokens) * pricing.CacheCreationPricePerToken
+		breakdown.CacheCreationCost = float64(tokens.CacheCreationTokens) * cacheCreationPricePerToken
 	}
 
 	breakdown.CacheReadCost = float64(tokens.CacheReadTokens) * cacheReadPricePerToken

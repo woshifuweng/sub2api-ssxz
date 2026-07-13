@@ -10,7 +10,7 @@
             <div class="mb-3 flex flex-wrap items-center gap-2">
               <span class="inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-950/40 dark:text-primary-300">
                 <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                补充额度
+                充值 / 订阅
               </span>
               <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-gray-300">
                 当前余额 ${{ user?.balance?.toFixed(2) || '0.00' }} 额度
@@ -21,7 +21,7 @@
             </h1>
             <p class="mt-3 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-400">
               余额可用于站内聊天、图片生成和 API Key / 第三方客户端调用，消费记录可在用量明细中查看。
-              补充额度支付使用人民币 ¥，到账后显示为账户 $ 额度。
+              充值支付使用人民币 ¥，到账后显示为账户 $ 额度。
             </p>
           </div>
 
@@ -643,7 +643,7 @@ const creditedAmount = computed(() => Math.round((validAmount.value * balanceRec
 const checkoutHelpText = computed(() => {
   const text = checkout.value.help_text?.trim() || ''
   if (text === 'Recharge adds account balance. Usage and fee records follow backend ledger data.') {
-    return '补充额度会增加账户额度，用量和扣费记录以系统记录为准。'
+    return '充值会增加账户额度，用量和扣费记录以系统记录为准。'
   }
   return text
 })

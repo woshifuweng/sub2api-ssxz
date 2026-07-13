@@ -7,6 +7,7 @@ const { routeState, keysAPI, authAPI, usageAPI, userGroupsAPI, appStore, onboard
   },
   keysAPI: {
     list: vi.fn(),
+    reveal: vi.fn(),
     toggleStatus: vi.fn(),
     update: vi.fn(),
     create: vi.fn(),
@@ -405,8 +406,10 @@ describe('KeysView workbench surface', () => {
     expect(appStore.showSuccess).toHaveBeenCalledWith('keys.keyDisabledSuccess')
   })
 
-  it('does not copy the masked list key value', async () => {
+  it('retrieves and copies an owned masked list key without storing it in the row', async () => {
     const maskedKey = 'sk-user-...1234'
+    const fullKey = 'sk-user-revealed-full-key-1234'
+    keysAPI.reveal.mockResolvedValue({ key: fullKey })
     keysAPI.list.mockResolvedValue({
       items: [apiKeyFixture({ key: maskedKey })],
       total: 1,
@@ -416,11 +419,15 @@ describe('KeysView workbench surface', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const copyButton = wrapper.get('button[title="keys.fullKeyRequiredForImport"]')
-    expect(copyButton.attributes('disabled')).toBeDefined()
+    const copyButton = wrapper.get('button[title="keys.copyToClipboard"]')
+    expect(copyButton.attributes('disabled')).toBeUndefined()
     await copyButton.trigger('click')
 
-    expect(clipboardCopy).not.toHaveBeenCalled()
+		await flushPromises()
+
+    expect(keysAPI.reveal).toHaveBeenCalledWith(1)
+    expect(clipboardCopy).toHaveBeenCalledWith(fullKey, 'keys.copied')
+    expect(wrapper.html()).not.toContain(fullKey)
   })
 
   it('copies a full list key when one is available', async () => {
@@ -770,6 +777,9 @@ describe('KeysView workbench surface', () => {
     expect(params.get('apiKey')).toBe(createdKey)
     expect(params.get('homepage')).toBe('https://example.test')
     expect(params.get('endpoint')).toBe('https://example.test/v1')
+    expect(params.get('model')).toBe('gpt-5.5')
+    expect(params.get('enabled')).toBe('true')
+    expect(params.get('usageBaseUrl')).toBe('https://example.test')
 
     await wrapper.get('[data-testid="created-key-ack"]').trigger('click')
     await flushPromises()
@@ -1076,6 +1086,10 @@ describe('KeysView workbench surface', () => {
     const params = new URLSearchParams(deeplink.split('?')[1])
     expect(params.get('app')).toBe('codex')
     expect(params.get('endpoint')).toBe('https://example.test/v1')
+    expect(params.get('model')).toBe('gpt-5.5')
+    expect(params.get('enabled')).toBe('true')
+    expect(params.get('usageBaseUrl')).toBe('https://example.test')
+    expect(atob(params.get('usageScript') || '')).toContain('"{{baseUrl}}/v1/usage"')
 
     openSpy.mockRestore()
   })
@@ -1140,6 +1154,9 @@ describe('KeysView workbench surface', () => {
     expect(params.get('app')).toBe('claude')
     expect(params.get('homepage')).toBe('https://example.test')
     expect(params.get('endpoint')).toBe('https://example.test')
+    expect(params.get('model')).toBe('claude-opus-4-8')
+    expect(params.get('enabled')).toBe('true')
+    expect(params.get('usageBaseUrl')).toBe('https://example.test')
 
     openSpy.mockRestore()
   })
@@ -1248,8 +1265,10 @@ describe('KeysView workbench surface', () => {
     openSpy.mockRestore()
   })
 
-  it('shows disabled CCS import for masked list keys without opening CC Switch', async () => {
+  it('retrieves a masked owned key and imports it to CC Switch in one click', async () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const fullKey = 'sk-user-revealed-full-key-1234'
+    keysAPI.reveal.mockResolvedValue({ key: fullKey })
     keysAPI.list.mockResolvedValue({
       items: [
         apiKeyFixture({
@@ -1264,12 +1283,45 @@ describe('KeysView workbench surface', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const importButton = wrapper.get('[data-testid="api-key-ccs-import-disabled"]')
-    expect(importButton.attributes('disabled')).toBeDefined()
-    expect(importButton.attributes('title')).toBe('keys.fullKeyRequiredForImport')
-    expect(importButton.text()).toContain('keys.ccsImportNeedsNewKey')
+    const importButton = wrapper.get('[data-testid="api-key-ccs-import"]')
+    expect(importButton.attributes('disabled')).toBeUndefined()
     await importButton.trigger('click')
+		await flushPromises()
+
+    expect(keysAPI.reveal).toHaveBeenCalledWith(1)
+    expect(openSpy).toHaveBeenCalledTimes(1)
+    const deeplink = String(openSpy.mock.calls[0]?.[0])
+    const params = new URLSearchParams(deeplink.split('?')[1])
+    expect(params.get('apiKey')).toBe(fullKey)
+    expect(params.get('model')).toBe('gpt-5.5')
+    expect(params.get('enabled')).toBe('true')
+    expect(wrapper.html()).not.toContain(fullKey)
+
+    openSpy.mockRestore()
+  })
+
+  it('does not open CC Switch when retrieving a masked key fails', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    keysAPI.reveal.mockRejectedValue(new Error('request failed'))
+    keysAPI.list.mockResolvedValue({
+      items: [
+        apiKeyFixture({
+          key: 'sk-user-...1234',
+          group: { platform: 'openai', allow_messages_dispatch: false }
+        })
+      ],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="api-key-ccs-import"]').trigger('click')
+    await flushPromises()
+
     expect(openSpy).not.toHaveBeenCalled()
+    expect(appStore.showError).toHaveBeenCalledWith('keys.failedToReveal')
 
     openSpy.mockRestore()
   })

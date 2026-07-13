@@ -225,6 +225,11 @@ func (h *GatewayHandler) GeminiV1BetaModelsGateway(transportCtx gatewayctx.Gatew
 		googleErrorContext(transportCtx, http.StatusBadRequest, "Request body is empty")
 		return
 	}
+	body, _, err = service.EnforceUnboundedTokenRequestLimit(body, "generationConfig.maxOutputTokens", "generationConfig.maxOutputTokens")
+	if err != nil {
+		googleErrorContext(transportCtx, http.StatusBadRequest, "Failed to apply output token limit")
+		return
+	}
 
 	setOpsRequestContextGateway(transportCtx, modelName, stream, body)
 	setOpsEndpointContextGateway(transportCtx, "", int16(service.RequestTypeFromLegacy(stream, false)))

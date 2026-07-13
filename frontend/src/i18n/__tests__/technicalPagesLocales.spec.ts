@@ -18,6 +18,7 @@ describe('technical user page locale copy', () => {
     'availableChannels.columns.platform',
     'availableChannels.columns.groups',
     'availableChannels.columns.supportedModels',
+    'availableChannels.emptyDisabled',
     'availableChannels.exclusive',
     'availableChannels.public',
     'availableChannels.pricing.billingMode',
@@ -58,5 +59,12 @@ describe('technical user page locale copy', () => {
       expect(value).not.toContain('channelStatus.')
       expect(value).not.toContain('monitorCommon.')
     }
+  })
+
+  it.each([
+    ['en', en],
+    ['zh', zh]
+  ] as const)('points disabled model-list guidance to /v1/models for %s', (_locale, messages) => {
+    expect(readPath(messages, 'availableChannels.emptyDisabled')).toContain('/v1/models')
   })
 })

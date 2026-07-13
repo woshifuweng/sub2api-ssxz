@@ -166,6 +166,10 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			WriteTimeout:     s.openAIWSWriteTimeout(),
 			IdleTimeout:      s.openAIWSPassthroughIdleTimeout(),
 			FirstMessageType: coderws.MessageText,
+			TransformClientFrame: func(_ coderws.MessageType, payload []byte) ([]byte, error) {
+				limited, _, err := EnforceUnboundedTokenRequestLimit(payload, "max_output_tokens", "max_output_tokens")
+				return limited, err
+			},
 			OnUsageParseFailure: func(eventType string, usageRaw string) {
 				logOpenAIWSV2Passthrough(
 					"usage_parse_failed event_type=%s usage_raw=%s",

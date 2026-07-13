@@ -9,6 +9,7 @@ func TestResolveOpenAIForwardModel(t *testing.T) {
 		requestedModel     string
 		defaultMappedModel string
 		expectedModel      string
+		expectedMatch      bool
 	}{
 		{
 			name: "falls back to group default when account has no mapping",
@@ -31,6 +32,7 @@ func TestResolveOpenAIForwardModel(t *testing.T) {
 			requestedModel:     "gpt-5.4",
 			defaultMappedModel: "gpt-4o-mini",
 			expectedModel:      "gpt-5.4",
+			expectedMatch:      true,
 		},
 		{
 			name: "preserves wildcard passthrough mapping instead of group default",
@@ -44,6 +46,7 @@ func TestResolveOpenAIForwardModel(t *testing.T) {
 			requestedModel:     "gpt-5.4",
 			defaultMappedModel: "gpt-4o-mini",
 			expectedModel:      "gpt-5.4",
+			expectedMatch:      true,
 		},
 		{
 			name: "uses account remap when explicit target differs",
@@ -57,6 +60,7 @@ func TestResolveOpenAIForwardModel(t *testing.T) {
 			requestedModel:     "gpt-5",
 			defaultMappedModel: "gpt-4o-mini",
 			expectedModel:      "gpt-5.4",
+			expectedMatch:      true,
 		},
 		{
 			name: "reasoning suffix falls back to base model exact mapping",
@@ -70,6 +74,7 @@ func TestResolveOpenAIForwardModel(t *testing.T) {
 			requestedModel:     "gpt-5.4-xhigh",
 			defaultMappedModel: "gpt-4o-mini",
 			expectedModel:      "gpt-5.4-mini",
+			expectedMatch:      true,
 		},
 		{
 			name: "reasoning suffix falls back to wildcard mapping",
@@ -83,19 +88,24 @@ func TestResolveOpenAIForwardModel(t *testing.T) {
 			requestedModel:     "gpt-5.4-xhigh",
 			defaultMappedModel: "gpt-4o-mini",
 			expectedModel:      "gpt-5.4-mini",
+			expectedMatch:      true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := resolveOpenAIForwardModel(tt.account, tt.requestedModel, tt.defaultMappedModel); got != tt.expectedModel {
+			got, matched := resolveOpenAIForwardModelWithMatch(tt.account, tt.requestedModel, tt.defaultMappedModel)
+			if got != tt.expectedModel {
 				t.Fatalf("resolveOpenAIForwardModel(...) = %q, want %q", got, tt.expectedModel)
+			}
+			if matched != tt.expectedMatch {
+				t.Fatalf("resolveOpenAIForwardModelWithMatch(...) matched = %v, want %v", matched, tt.expectedMatch)
 			}
 		})
 	}
 }
 
-func TestResolveOpenAIForwardModel_PreventsClaudeModelFromFallingBackToGpt51(t *testing.T) {
+func TestResolveOpenAIForwardModel_UnmappedClaudeUsesExistingCodexFallback(t *testing.T) {
 	account := &Account{
 		Credentials: map[string]any{},
 	}

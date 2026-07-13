@@ -12,8 +12,8 @@
           <!-- Total API Keys -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30">
-                <Icon name="key" size="md" class="text-blue-600 dark:text-blue-400" :stroke-width="2" />
+              <div class="rounded-lg bg-primary-100 p-2 dark:bg-primary-900/30">
+                <Icon name="key" size="md" class="text-primary-700 dark:text-primary-300" :stroke-width="2" />
               </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -32,8 +32,8 @@
           <!-- Service Accounts -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-purple-100 p-2 dark:bg-purple-900/30">
-                <Icon name="server" size="md" class="text-purple-600 dark:text-purple-400" :stroke-width="2" />
+              <div class="rounded-lg bg-primary-100 p-2 dark:bg-primary-900/30">
+                <Icon name="server" size="md" class="text-primary-700 dark:text-primary-300" :stroke-width="2" />
               </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -57,8 +57,8 @@
           <!-- Today Requests -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-green-100 p-2 dark:bg-green-900/30">
-                <Icon name="chart" size="md" class="text-green-600 dark:text-green-400" :stroke-width="2" />
+              <div class="rounded-lg bg-amber-100 p-2 dark:bg-amber-900/30">
+                <Icon name="chart" size="md" class="text-amber-700 dark:text-amber-300" :stroke-width="2" />
               </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -77,14 +77,14 @@
           <!-- New Users Today -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-emerald-100 p-2 dark:bg-emerald-900/30">
-                <Icon name="userPlus" size="md" class="text-emerald-600 dark:text-emerald-400" :stroke-width="2" />
+              <div class="rounded-lg bg-primary-100 p-2 dark:bg-primary-900/30">
+                <Icon name="userPlus" size="md" class="text-primary-700 dark:text-primary-300" :stroke-width="2" />
               </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.users') }}
                 </p>
-                <p class="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                <p class="text-xl font-bold text-primary-700 dark:text-primary-300">
                   +{{ stats.today_new_users }}
                 </p>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -130,8 +130,8 @@
           <!-- Total Tokens -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-indigo-100 p-2 dark:bg-indigo-900/30">
-                <Icon name="database" size="md" class="text-indigo-600 dark:text-indigo-400" :stroke-width="2" />
+              <div class="rounded-lg bg-primary-100 p-2 dark:bg-primary-900/30">
+                <Icon name="database" size="md" class="text-primary-700 dark:text-primary-300" :stroke-width="2" />
               </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -142,7 +142,7 @@
                 </p>
                 <p class="text-xs">
                   <span
-                    class="text-indigo-600 dark:text-indigo-400"
+                    class="text-primary-700 dark:text-primary-300"
                     :title="t('admin.dashboard.actual')"
                     >${{ formatCost(stats.total_actual_cost) }}</span
                   >
@@ -160,8 +160,8 @@
           <!-- Performance (RPM/TPM) -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-violet-100 p-2 dark:bg-violet-900/30">
-                <Icon name="bolt" size="md" class="text-violet-600 dark:text-violet-400" :stroke-width="2" />
+              <div class="rounded-lg bg-primary-100 p-2 dark:bg-primary-900/30">
+                <Icon name="bolt" size="md" class="text-primary-700 dark:text-primary-300" :stroke-width="2" />
               </div>
               <div class="flex-1">
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -174,7 +174,7 @@
                   <span class="text-xs text-gray-500 dark:text-gray-400">RPM</span>
                 </div>
                 <div class="flex items-baseline gap-2">
-                  <p class="text-sm font-semibold text-violet-600 dark:text-violet-400">
+                  <p class="text-sm font-semibold text-primary-700 dark:text-primary-300">
                     {{ formatTokens(stats.tpm) }}
                   </p>
                   <span class="text-xs text-gray-500 dark:text-gray-400">TPM</span>
@@ -476,18 +476,18 @@ const userTrendChartData = computed(() => {
 
   const sortedDates = Array.from(allDates).sort()
   const colors = [
-    '#3b82f6',
-    '#10b981',
+    '#f2b84b',
+    '#d99b3d',
+    '#a9742a',
     '#f59e0b',
+    '#78716c',
+    '#57534e',
     '#ef4444',
-    '#8b5cf6',
-    '#ec4899',
-    '#14b8a6',
     '#f97316',
-    '#6366f1',
-    '#84cc16',
-    '#06b6d4',
-    '#a855f7'
+    '#eab308',
+    '#fb7185',
+    '#a78bfa',
+    '#facc15'
   ]
 
   const datasets = Array.from(userGroups.values()).map((group, idx) => ({

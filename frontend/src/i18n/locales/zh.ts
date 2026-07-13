@@ -192,8 +192,8 @@ export default {
 
   // Setup Wizard
   setup: {
-    title: 'Sub2API 安装向导',
-    description: '配置您的 Sub2API 实例',
+    title: 'SSXZ AI 安装向导',
+    description: '配置您的服务控制台',
     database: {
       title: '数据库配置',
       description: '连接到您的 PostgreSQL 数据库',
@@ -255,6 +255,7 @@ export default {
   // Common
   common: {
     loading: '加载中...',
+    login: '登录',
     justNow: '刚刚',
     save: '保存',
     cancel: '取消',
@@ -561,7 +562,7 @@ export default {
     clientAccessTitle: '第三方客户端接入',
     clientAccessDescription:
       '给客户测试时只需要三项：Base URL、完整 API Key、推荐模型。创建后请及时保存完整 Key，列表中只展示脱敏值。',
-    clientReadinessHint: '建议先用 gpt-5.5；如不可用再换 gpt-5.4-mini。可用模型以当前 Key 所属分组和后台配置为准。',
+    clientReadinessHint: '可用模型以后端配置和当前 Key 分组为准。给客户测试时优先使用当前分组推荐模型。',
     clientTroubleshootingHint: '401 先检查 Key；403 多半是额度、权限或模型不可用；503 通常是服务繁忙，稍后重试或换推荐模型。',
     viewAvailableModels: '查看可用模型',
     viewServiceStatus: '查看服务状态',
@@ -576,14 +577,14 @@ export default {
       baseUrlCopied: 'Base URL 已复制',
       stepsAriaLabel: '第三方客户端接入步骤',
       stepCreateTitle: '创建一个 API Key',
-      stepCreateDescription: '先选择可用分组并创建 Key。完整 Key 只在创建后展示一次。',
+      stepCreateDescription: '先选择可用分组并创建 Key。列表默认只展示脱敏值。',
       stepCopyTitle: '复制 Base URL 和完整 Key',
-      stepCopyDescription: 'Base URL 使用本站地址加 /v1；完整 Key 请使用创建时保存的值。',
+      stepCopyDescription: 'Base URL 使用本站地址加 /v1；完整 Key 可从本人 Key 列表随时安全取回。',
       stepConfigureTitle: '在客户端选择 OpenAI-compatible',
-      stepConfigureDescription: '在 Cherry Studio、Chatbox、CC Switch 等客户端填入 Base URL、API Key，再选择 gpt-5.5 或当前 Key 可用模型。',
-      ccsImportNote: '一键导入 CC Switch 只在完整 Key 可用时启用。列表中的旧 Key 已脱敏，如果没有保存完整 Key，请新建一个 API Key 后再导入。',
+      stepConfigureDescription: '在 Cherry Studio、Chatbox、CC Switch 等客户端填入 Base URL、API Key，再选择当前 Key 可用模型。',
+      ccsImportNote: '一键导入 CC Switch 会安全取回完整 Key，并自动填写地址、模型和余额查询，无需手动抄写。',
       clientsAriaLabel: '支持的客户端示例',
-      ccSwitch: '填入 Base URL 和 API Key 后，优先选择 gpt-5.5；需要更快时可试 gpt-5.4-mini。',
+      ccSwitch: '点击一键导入即可自动启用本站配置；Codex 默认 gpt-5.5，Claude 默认 claude-opus-4-8。',
       cherryStudio: '选择 OpenAI-compatible 配置方式接入。',
       chatbox: '适合在站外继续聊天或调用已开放接口。'
     },
@@ -591,16 +592,16 @@ export default {
       title: '保存完整 API Key',
       warningTitle: '请立即保存完整 Key',
       warningDescription:
-        '完整 API Key 只在创建后展示一次。关闭后列表只显示脱敏值，丢失后请新建一个 API Key。如需轮换，请先创建新 Key 并更新客户端，再删除旧 Key。',
+        '列表默认只显示脱敏值；本人可随时通过复制或一键导入安全取回完整 Key。完整值不会写回列表或长期显示。',
       apiKeyLabel: 'API Key',
       copyFullKey: '复制完整 Key',
       copied: '已复制',
       fullKeyCopied: '完整 API Key 已复制',
       connectionTitle: '第三方客户端接入信息',
       connectionDescription: '可用于 CC Switch、Cherry Studio、Chatbox 等支持 OpenAI-compatible 接入的客户端。',
-      primaryActionHint: '推荐先导入到 CCS 或复制保存完整 Key；关闭后完整 Key 不再显示。',
+      primaryActionHint: '推荐直接导入到 CCS；以后也可从 Key 列表再次导入或复制。',
       modelLabel: '模型',
-      modelHint: '建议先测 gpt-5.5，备选 gpt-5.4-mini；可用模型以当前 Key 所属分组和后台配置为准。',
+      modelHint: '可用模型以后端配置和当前 Key 分组为准；Codex 默认 gpt-5.5，Claude 默认 claude-opus-4-8。',
       readinessHint: '如果客户端提示额度不足、模型不可用或服务繁忙，先换推荐模型或稍后再试；复杂任务启动慢属于正常现象。',
       acknowledge: '我已保存'
     },
@@ -621,13 +622,13 @@ export default {
     searchGroup: '搜索分组...',
     noGroupFound: '未找到匹配的分组',
     noAvailableGroups: '当前暂无可用于第三方客户端的分组，请稍后再试。',
-    groupClientHint: '客户端可用范围由所选分组决定。通常选择默认开放分组即可，具体可用模型以客户端实际列表为准。',
+    groupClientHint: '客户端可用范围由所选分组决定。具体可用模型以后端配置和当前 Key 分组为准。',
     created: '创建时间',
     copyToClipboard: '复制到剪贴板',
     copied: '已复制！',
     importToCcSwitch: '导入到 CCS',
-    ccsImportNeedsNewKey: '新建后可导入',
-    fullKeyRequiredForImport: '列表里只显示脱敏值，不能直接导入 CCS。创建新 API Key 后，可在完整 Key 弹窗里一键导入；已保存完整 Key 的也可以手动配置。',
+    ccsImportNeedsNewKey: '一键导入',
+    fullKeyRequiredForImport: '完整 Key 仅在本人主动复制或导入时短暂取回，不会持续显示。',
     enable: '启用',
     disable: '禁用',
     nameLabel: '名称',
@@ -648,6 +649,7 @@ export default {
     failedToSave: '保存 API 密钥失败',
     failedToDelete: '删除 API 密钥失败',
     failedToUpdateStatus: '更新 API 密钥状态失败',
+    failedToReveal: '安全取回完整 API Key 失败，请刷新后重试',
     clickToChangeGroup: '点击更换分组',
     groupChangedSuccess: '分组更换成功',
     failedToChangeGroup: '更换分组失败',
@@ -668,9 +670,9 @@ export default {
       noGroupTitle: '请先分配分组',
       noGroupDescription:
         '此 API 密钥尚未分配分组，请先在密钥列表中点击分组列进行分配，然后才能查看使用配置。',
-      fullKeyMissingTitle: '完整 API Key 不再可见',
+      fullKeyMissingTitle: '完整 API Key 默认隐藏',
       fullKeyMissingDescription:
-        '列表中只保留脱敏值，不能生成可直接使用的 CLI 配置。请使用创建时保存的完整 Key；如果丢失，请新建一个 API Key。',
+        '列表只持续显示脱敏值。需要完整 Key 时，可在 Key 列表点击复制或一键导入，由系统安全取回。',
       statusWarning: {
         inactiveTitle: '这个 API Key 当前已禁用',
         inactiveDescription: '第三方客户端会停止工作。需要继续使用时，请先启用这个 Key，或者新建一个 Key 并更新客户端配置。',
@@ -707,7 +709,7 @@ export default {
         quickStartApiKey: 'API Key',
         quickStartApiKeyHint: '使用创建后只显示一次的完整 Key。列表里的脱敏值不能连接。',
         quickStartModel: '模型',
-        quickStartModelHint: '客户测试优先用 gpt-5.5；如不可用再换 gpt-5.4-mini。可用模型以当前 Key 所属分组和后台配置为准。',
+        quickStartModelHint: '可用模型以后端配置和当前 Key 分组为准。客户测试时优先选择客户端当前可见的推荐模型。',
         quickStartSpeed: '想更快',
         quickStartSpeedHint: '选择轻量模型、降低推理强度，或减少一次性输入内容；联网、长上下文和复杂任务会更慢。',
         ccSwitchQuickTitle: 'CC Switch 填写方式',
@@ -715,7 +717,7 @@ export default {
         ccSwitchQuickOfficialSite: '官网链接：填写本站域名，不带 /v1。',
         ccSwitchQuickRequestUrl: 'API 请求地址：填写上方 Base URL，必须带 /v1。',
         ccSwitchQuickApiKey: 'API Key：粘贴完整 sk-... Key。',
-        ccSwitchQuickModel: '模型：优先选 gpt-5.5；如不可用，改用 gpt-5.4-mini 或当前列表里的可用模型。',
+        ccSwitchQuickModel: '模型：选择当前 Key 可用模型；如果列表为空，先刷新模型列表或检查 Key 分组。',
         ccSwitchQuickRestart: '保存后完全退出 CC Switch 和 Codex，再重新打开。',
         ccSwitchHomepageLabel: '官网链接',
         ccSwitchRequestUrlLabel: 'API 请求地址',
@@ -746,7 +748,7 @@ export default {
         troubleshooting429:
           '429 通常是请求太频繁。稍等一会儿，降低并发，或选择更轻量的模型。',
         troubleshooting503:
-          '503 通常是当前线路繁忙或暂时不可用。稍后重试，或换 gpt-5.5 / gpt-5.4-mini；修改配置后请完全重启客户端。',
+          '503 通常是当前线路繁忙或暂时不可用。稍后重试，或切换当前 Key 可用的轻量模型；修改配置后请完全重启客户端。',
         troubleshootingModelsCode: '模型为空',
         troubleshootingModels:
           '模型列表为空时，先打开 /v1/models 检查这个 Key 是否能返回模型，再回到客户端刷新模型列表。',
@@ -877,7 +879,7 @@ export default {
       balanceTitle: '账户余额',
       balanceDescription: '可用于站内聊天、图片生成和 API Key / 第三方接入调用。',
       balanceRefreshError: '余额暂时无法刷新，当前显示可能是上次加载的余额，请稍后重试。',
-      recharge: '补充额度',
+      recharge: '充值 / 订阅',
       monthlyCostTitle: '本月消耗',
       unavailable: '暂不可用',
       noRealUsageNote: '本月暂未产生用量记录。',
@@ -893,7 +895,7 @@ export default {
       monthlyUsageTitle: '每月用量',
       monthlyUsageDescription: '按现有用量趋势接口汇总展示，没有数据时不会补假柱子。',
       realDataBadge: '真实数据',
-      demoDataBadge: '演示数据',
+      demoDataBadge: '样例数据',
       monthlyChartLabel: '每月用量图表',
       noMonthlyUsageTitle: '暂无月度用量数据',
       noMonthlyUsageDescription: '后续产生聊天、图片生成或第三方客户端调用后，这里会展示趋势。',
@@ -1046,7 +1048,7 @@ export default {
     codeRule1: '每个兑换码只能使用一次',
     codeRule2: '兑换码可用于补充账户额度、并发数或试用权益',
     codeRule3: '如有兑换问题，请先核对兑换码后再试',
-    codeRule4: '兑换成功后，页面会刷新账户额度，账户记录会保留本次变化',
+    codeRule4: '兑换成功后，页面会刷新账户额度，订单记录会保留本次变化',
     recentActivity: '最近活动',
     historyWillAppear: '兑换成功后，余额、并发或订阅变动会显示在这里。',
     balanceAddedRedeem: '余额充值（兑换）',
@@ -1681,7 +1683,7 @@ export default {
         step1: {
           title: '创建 R2 存储桶',
           line1: '登录 Cloudflare Dashboard (dash.cloudflare.com)，左侧菜单选择「R2 对象存储」',
-          line2: '点击「创建存储桶」，输入名称（如 sub2api-backups），选择区域',
+          line2: '点击「创建存储桶」，输入名称（如 ssxz-backups），选择区域',
           line3: '点击创建完成'
         },
         step2: {
@@ -2867,7 +2869,7 @@ export default {
         antigravityOauth: 'Antigravity OAuth',
         antigravityApikey: '通过 Base URL + API Key 连接',
         soraApiKey: 'API Key / 上游透传',
-        soraApiKeyHint: '连接另一个 Sub2API 或兼容 API',
+      soraApiKeyHint: '连接兼容 API 服务',
         soraBaseUrlRequired: 'Sora apikey 账号必须设置上游地址（Base URL）',
         soraBaseUrlInvalidScheme: 'Base URL 必须以 http:// 或 https:// 开头',
         upstream: '对接上游',
@@ -3136,7 +3138,7 @@ export default {
       poolMode: '池模式',
       poolModeHint: '上游为账号池时启用，错误不标记本地账号状态',
       poolModeInfo:
-        '启用后，上游 429/403/401 错误将自动重试而不标记账号限流或错误，适用于上游指向另一个 sub2api 实例的场景。',
+        '启用后，上游 429/403/401 错误将自动重试而不标记账号限流或错误，适用于上游指向另一个兼容服务实例的场景。',
       poolModeRetryCount: '同账号重试次数',
       poolModeRetryCountHint: '仅在池模式下生效。0 表示不原地重试；默认 {default}，最大 {max}。',
       customErrorCodes: '自定义错误码',
@@ -3650,7 +3652,7 @@ export default {
       imageTestMode: '模式：生图测试',
       imagePreview: '生成结果：',
       imageReceived: '已收到第 {count} 张测试图片',
-      soraUpstreamBaseUrlHint: '上游 Sora 服务地址（另一个 Sub2API 实例或兼容 API）',
+      soraUpstreamBaseUrlHint: '上游 Sora 服务地址（兼容 API）',
       soraTestHint: 'Sora 测试将执行连通性与能力检测（/backend/me、订阅信息、Sora2 邀请码与剩余额度）。',
       soraTestTarget: '检测目标：Sora 账号能力',
       soraTestMode: '模式：连通性 + 能力探测',
@@ -5250,7 +5252,7 @@ export default {
       },
       linuxdo: {
         title: 'LinuxDo Connect 登录',
-        description: '配置 LinuxDo Connect OAuth，用于 Sub2API 用户登录',
+        description: '配置 LinuxDo Connect OAuth，用于用户登录',
         enable: '启用 LinuxDo 登录',
         enableHint: '在登录/注册页面显示 LinuxDo 登录入口',
         clientId: 'Client ID',
@@ -5316,7 +5318,7 @@ export default {
           '禁用用户注册、公开页面和自助服务功能。仅管理员可以登录和管理平台。',
         siteName: '站点名称',
         siteNameHint: '显示在邮件和页面标题中',
-        siteNamePlaceholder: 'Sub2API',
+        siteNamePlaceholder: 'SSXZ AI',
         siteSubtitle: '站点副标题',
         siteSubtitleHint: '显示在登录和注册页面',
         siteSubtitlePlaceholder: '订阅转 API 转换平台',
@@ -5405,7 +5407,7 @@ export default {
         fromEmail: '发件人邮箱',
         fromEmailPlaceholder: "noreply{'@'}example.com",
         fromName: '发件人名称',
-        fromNamePlaceholder: 'Sub2API',
+        fromNamePlaceholder: 'SSXZ AI',
         useTls: '使用 TLS',
         useTlsHint: '为 SMTP 连接启用 TLS 加密'
       },
@@ -5877,16 +5879,16 @@ export default {
     // Admin tour steps
     admin: {
       welcome: {
-        title: '👋 欢迎使用 Sub2API',
+        title: '👋 欢迎使用 SSXZ AI',
         description:
-          '<div style="line-height: 1.8;"><p style="margin-bottom: 16px;">Sub2API 是一个强大的 AI 服务中转平台，让您轻松管理和分发 AI 服务。</p><p style="margin-bottom: 12px;"><b>🎯 核心功能：</b></p><ul style="margin-left: 20px; margin-bottom: 16px;"><li>📦 <b>分组管理</b> - 创建不同的服务套餐（VIP、免费试用等）</li><li>🔗 <b>账号池</b> - 连接多个上游 AI 服务商账号</li><li>🔑 <b>密钥分发</b> - 为用户生成独立的 API Key</li><li>💰 <b>计费管理</b> - 灵活的费率和配额控制</li></ul><p style="color: #10b981; font-weight: 600;">接下来，我们将用 3 分钟带您完成首次配置 →</p></div>',
+          '<div style="line-height: 1.8;"><p style="margin-bottom: 16px;">SSXZ AI 帮您统一管理账号、模型、API Key、余额和用量。</p><p style="margin-bottom: 12px;"><b>🎯 核心功能：</b></p><ul style="margin-left: 20px; margin-bottom: 16px;"><li>📦 <b>分组管理</b> - 创建不同的服务套餐</li><li>🔗 <b>账号池</b> - 管理多个上游服务账号</li><li>🔑 <b>密钥分发</b> - 为用户生成独立的 API Key</li><li>💰 <b>计费管理</b> - 灵活的费率和额度控制</li></ul><p style="color: #10b981; font-weight: 600;">接下来，我们将用 3 分钟带您完成首次配置 →</p></div>',
         nextBtn: '开始配置 🚀',
         prevBtn: '跳过'
       },
       groupManage: {
         title: '📦 第一步：分组管理',
         description:
-          '<div style="line-height: 1.7;"><p style="margin-bottom: 12px;"><b>什么是分组？</b></p><p style="margin-bottom: 12px;">分组是 Sub2API 的核心概念，它就像一个"服务套餐"：</p><ul style="margin-left: 20px; margin-bottom: 12px; font-size: 13px;"><li>🎯 每个分组可以包含多个上游账号</li><li>💰 每个分组有独立的计费倍率</li><li>👥 可以设置为公开或专属分组</li></ul><p style="margin-top: 12px; padding: 8px 12px; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px; font-size: 13px;"><b>💡 示例：</b>您可以创建"VIP专线"（高倍率）和"免费试用"（低倍率）两个分组</p><p style="margin-top: 16px; color: #10b981; font-weight: 600;">👉 点击左侧的"分组管理"开始</p></div>'
+          '<div style="line-height: 1.7;"><p style="margin-bottom: 12px;"><b>什么是分组？</b></p><p style="margin-bottom: 12px;">分组就像一个"服务套餐"：</p><ul style="margin-left: 20px; margin-bottom: 12px; font-size: 13px;"><li>🎯 每个分组可以包含多个上游账号</li><li>💰 每个分组有独立的计费倍率</li><li>👥 可以设置为公开或专属分组</li></ul><p style="margin-top: 12px; padding: 8px 12px; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px; font-size: 13px;"><b>💡 示例：</b>您可以创建"VIP专线"和"免费试用"两个分组</p><p style="margin-top: 16px; color: #10b981; font-weight: 600;">👉 点击左侧的"分组管理"开始</p></div>'
       },
       createGroup: {
         title: '➕ 创建新分组',
@@ -5998,9 +6000,9 @@ export default {
     // User tour steps
     user: {
       welcome: {
-        title: '👋 欢迎使用 Sub2API',
+        title: '👋 欢迎使用 SSXZ AI',
         description:
-          '<div style="line-height: 1.8;"><p style="margin-bottom: 16px;">您好！欢迎来到 Sub2API AI 服务平台。</p><p style="margin-bottom: 12px;"><b>🎯 快速开始：</b></p><ul style="margin-left: 20px; margin-bottom: 16px;"><li>🔑 创建 API 密钥</li><li>📋 复制密钥到您的应用</li><li>🚀 开始使用 AI 服务</li></ul><p style="color: #10b981; font-weight: 600;">只需 1 分钟，让我们开始吧 →</p></div>',
+          '<div style="line-height: 1.8;"><p style="margin-bottom: 16px;">您好！欢迎来到 SSXZ AI。</p><p style="margin-bottom: 12px;"><b>🎯 快速开始：</b></p><ul style="margin-left: 20px; margin-bottom: 16px;"><li>🔑 创建 API 密钥</li><li>📋 复制密钥到您的应用</li><li>🚀 开始使用 AI 服务</li></ul><p style="color: #10b981; font-weight: 600;">只需 1 分钟，让我们开始吧 →</p></div>',
         nextBtn: '开始 🚀',
         prevBtn: '跳过'
       },
@@ -6042,6 +6044,7 @@ export default {
     noPricing: '暂无价格信息',
     noModels: '暂无可用模型',
     empty: '暂无可用模型',
+    emptyDisabled: '当前暂不展示模型与价格。请使用当前 API Key 调用 /v1/models，查看该 Key 实际可用的模型。',
     userGuideTitle: '接入前先看这里',
     userGuideDescription: '这里显示当前账号可选的模型和适用范围。客户端里能否使用，还要看 API Key 所选范围、账户额度和实际请求结果。',
     exclusive: '专属',

@@ -69,6 +69,11 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 		h.errorResponseGateway(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 		return
 	}
+	body, _, err = service.EnforceUnboundedTokenRequestLimit(body, "max_tokens", "max_completion_tokens", "max_tokens")
+	if err != nil {
+		h.errorResponseGateway(c, http.StatusBadRequest, "invalid_request_error", "Failed to apply output token limit")
+		return
+	}
 
 	modelResult := gjson.GetBytes(body, "model")
 	if !modelResult.Exists() || modelResult.Type != gjson.String || modelResult.String() == "" {
@@ -188,7 +193,7 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 					}
 				}
 				if err != nil {
-					h.handleStreamingAwareErrorContext(c, http.StatusServiceUnavailable, "api_error", "Service temporarily unavailable", streamStarted)
+					h.handleStreamingAwareErrorContext(c, http.StatusServiceUnavailable, "no_available_account", "No available upstream account supports the requested model", streamStarted)
 					return
 				}
 			} else {
@@ -216,7 +221,7 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 			}
 		}
 		if selection == nil || selection.Account == nil {
-			h.handleStreamingAwareErrorContext(c, http.StatusServiceUnavailable, "api_error", "No available accounts", streamStarted)
+			h.handleStreamingAwareErrorContext(c, http.StatusServiceUnavailable, "no_available_account", "No available upstream account supports the requested model", streamStarted)
 			return
 		}
 		account := selection.Account

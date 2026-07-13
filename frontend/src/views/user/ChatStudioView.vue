@@ -87,7 +87,7 @@
         <div>
           <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ workspaceTitle }}</h2>
           <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
-            网页内直接使用，后台自动选择兼容 Key，并继续走 Sub2 余额、日志和扣费。
+            网页内直接使用，后台自动选择兼容 Key，并继续走账户余额、日志和扣费。
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -329,10 +329,10 @@ const route = useRoute()
 const authStore = useAuthStore()
 
 const models = [
-  { id: 'gpt-5.5', name: 'GPT-5.5' },
-  { id: 'gpt-5.4', name: 'GPT-5.4' },
-  { id: 'gpt-5.2', name: 'GPT-5.2' },
-  { id: 'gpt-5.4-mini', name: 'GPT-5.4 Mini' }
+  { id: 'recommended-model', name: '推荐模型' },
+  { id: 'advanced-model', name: '高级模型' },
+  { id: 'standard-model', name: '标准模型' },
+  { id: 'light-model', name: '轻量模型' }
 ]
 
 const quickPrompts = [
@@ -390,7 +390,7 @@ const commerceTones = ['高转化', '种草风', '专业质感', '直播口播',
 
 const sessions = ref<ChatSession[]>([])
 const activeSessionId = ref('')
-const selectedModel = ref('gpt-5.5')
+const selectedModel = ref('recommended-model')
 const mode = ref<WorkMode>(route.query.mode === 'ecommerce' ? 'commerce' : 'chat')
 const draft = ref('')
 const sending = ref(false)
@@ -495,7 +495,7 @@ function activateSession(id: string) {
   if (!session) return
   activeSessionId.value = id
   mode.value = session.mode
-  selectedModel.value = session.model || 'gpt-5.5'
+  selectedModel.value = session.model || 'recommended-model'
   errorMessage.value = ''
   saveSessions()
 }

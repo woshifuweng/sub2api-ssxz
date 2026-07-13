@@ -113,9 +113,14 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 	}
 
 	if cmd.BalanceCost > 0 {
-		if err := deductUsageBillingBalance(ctx, tx, cmd.UserID, cmd.BalanceCost); err != nil {
+		newBalance, charged, shortfall, err := settleUsageBillingBalance(ctx, tx, cmd.UserID, cmd.BalanceCost)
+		if err != nil {
 			return err
 		}
+		result.NewBalance = &newBalance
+		result.BalanceCharged = charged
+		result.BalanceShortfall = shortfall
+		result.BalanceExhausted = newBalance <= 0
 	}
 
 	if cmd.APIKeyQuotaCost > 0 {
@@ -169,35 +174,50 @@ func incrementUsageBillingSubscription(ctx context.Context, tx *sql.Tx, subscrip
 	return service.ErrSubscriptionNotFound
 }
 
-func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, amount float64) error {
-	res, err := tx.ExecContext(ctx, `
+func settleUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, amount float64) (newBalance, charged, shortfall float64, err error) {
+	var oldBalance float64
+	err = tx.QueryRowContext(ctx, `
+		SELECT balance
+		FROM users
+		WHERE id = $1 AND deleted_at IS NULL
+		FOR UPDATE
+	`, userID).Scan(&oldBalance)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, 0, 0, service.ErrUserNotFound
+	}
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	available := oldBalance
+	if available < 0 {
+		available = 0
+	}
+	charged = amount
+	if charged > available {
+		charged = available
+	}
+	if charged < 0 {
+		charged = 0
+	}
+	newBalance = available - charged
+	if newBalance < 1e-9 {
+		newBalance = 0
+	}
+	shortfall = amount - charged
+	if shortfall < 1e-9 {
+		shortfall = 0
+	}
+
+	if _, err = tx.ExecContext(ctx, `
 		UPDATE users
-		SET balance = balance - $1,
+		SET balance = $1,
 			updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL AND balance >= $1
-	`, amount, userID)
-	if err != nil {
-		return err
+		WHERE id = $2 AND deleted_at IS NULL
+	`, newBalance, userID); err != nil {
+		return 0, 0, 0, err
 	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected > 0 {
-		return nil
-	}
-	var exists bool
-	if err := tx.QueryRowContext(ctx, `
-		SELECT EXISTS(
-			SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL
-		)
-	`, userID).Scan(&exists); err != nil {
-		return err
-	}
-	if !exists {
-		return service.ErrUserNotFound
-	}
-	return service.ErrInsufficientBalance
+	return newBalance, charged, shortfall, nil
 }
 
 func incrementUsageBillingAPIKeyQuota(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount float64) (bool, error) {

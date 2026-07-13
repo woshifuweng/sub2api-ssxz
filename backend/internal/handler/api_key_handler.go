@@ -165,6 +165,40 @@ func (h *APIKeyHandler) GetByIDGateway(c gatewayctx.GatewayContext) {
 	response.SuccessContext(apiKeyGatewayResponder{ctx: c}, dto.APIKeyFromService(key))
 }
 
+// Reveal returns the plaintext value for an API key owned by the authenticated user.
+// POST /api/v1/keys/:id/reveal
+func (h *APIKeyHandler) Reveal(c *gin.Context) {
+	h.RevealGateway(gatewayctx.FromGin(c))
+}
+
+func (h *APIKeyHandler) RevealGateway(c gatewayctx.GatewayContext) {
+	subject, ok := middleware2.GetAuthSubjectFromGatewayContext(c)
+	if !ok {
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
+		return
+	}
+
+	keyID, err := strconv.ParseInt(c.PathParam("id"), 10, 64)
+	if err != nil {
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusBadRequest, "Invalid key ID")
+		return
+	}
+
+	key, err := h.apiKeyService.GetByID(c.Request().Context(), keyID)
+	if err != nil {
+		response.ErrorFromContext(apiKeyGatewayResponder{ctx: c}, err)
+		return
+	}
+	if key.UserID != subject.UserID {
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusForbidden, "Not authorized to access this key")
+		return
+	}
+
+	c.SetHeader("Cache-Control", "no-store")
+	c.SetHeader("Pragma", "no-cache")
+	response.SuccessContext(apiKeyGatewayResponder{ctx: c}, gin.H{"key": key.Key})
+}
+
 // Create handles creating a new API key
 // POST /api/v1/api-keys
 func (h *APIKeyHandler) Create(c *gin.Context) {

@@ -196,6 +196,11 @@ func (h *GatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayContext)
 		h.errorResponseGateway(transportCtx, http.StatusBadRequest, "invalid_request_error", "Request body is empty")
 		return
 	}
+	body, _, err = service.EnforceUnboundedTokenRequestLimit(body, "max_tokens", "max_tokens")
+	if err != nil {
+		h.errorResponseGateway(transportCtx, http.StatusBadRequest, "invalid_request_error", "Failed to apply output token limit")
+		return
+	}
 
 	setOpsRequestContextGateway(transportCtx, "", false, body)
 
@@ -796,8 +801,8 @@ func (h *GatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayContext)
 
 // Models handles listing available models
 // GET /v1/models
-// Returns models based on account configurations (model_mapping whitelist)
-// Falls back to default models if no whitelist is configured
+// Returns models based on account configurations (model_mapping whitelist).
+// Customer-facing OpenAI/Anthropic groups fail closed when no supported model exists.
 func (h *GatewayHandler) Models(c *gin.Context) {
 	h.ModelsGateway(gatewayctx.FromGin(c))
 }
@@ -868,6 +873,13 @@ func (h *GatewayHandler) ModelsGateway(c gatewayctx.GatewayContext) {
 		})
 		return
 	}
+	if service.IsCustomerGatewayPlatform(platform) {
+		c.WriteJSON(http.StatusOK, gin.H{
+			"object": "list",
+			"data":   []claude.Model{},
+		})
+		return
+	}
 
 	// Fallback to default models
 	if platform == "openai" {
@@ -931,6 +943,18 @@ func (h *GatewayHandler) Usage(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
+	if h.apiKeyService != nil {
+		freshAPIKey, err := h.apiKeyService.GetByID(ctx, apiKey.ID)
+		if err != nil || freshAPIKey == nil {
+			h.errorResponse(c, http.StatusInternalServerError, "api_error", "Failed to get API key usage")
+			return
+		}
+		if freshAPIKey.UserID != subject.UserID {
+			h.errorResponse(c, http.StatusUnauthorized, "authentication_error", "Invalid API key")
+			return
+		}
+		apiKey = freshAPIKey
+	}
 
 	// 解析可选的日期范围参数（用于 model_stats 查询）
 	startTime, endTime := h.parseUsageDateRange(c)
@@ -1013,25 +1037,37 @@ func (h *GatewayHandler) buildUsageData(ctx context.Context, apiKeyID int64) gin
 }
 
 // usageQuotaLimited 处理 quota_limited 模式的响应
+func addUsageBalanceCompatibility(resp gin.H, remaining float64, active bool) {
+	resp["remaining"] = remaining
+	resp["balance"] = remaining
+	resp["unit"] = "USD"
+	resp["is_active"] = active
+	if _, ok := resp["quota"]; !ok {
+		resp["quota"] = gin.H{
+			"remaining": remaining,
+			"unit":      "USD",
+		}
+	}
+}
+
 func (h *GatewayHandler) usageQuotaLimited(c *gin.Context, ctx context.Context, apiKey *service.APIKey, usageData gin.H, modelStats any) {
 	resp := gin.H{
 		"mode":    "quota_limited",
 		"isValid": apiKey.Status == service.StatusAPIKeyActive || apiKey.Status == service.StatusAPIKeyQuotaExhausted || apiKey.Status == service.StatusAPIKeyExpired,
 		"status":  apiKey.Status,
 	}
+	remaining := apiKey.GetQuotaRemaining()
 
 	// 总额度信息
 	if apiKey.Quota > 0 {
-		remaining := apiKey.GetQuotaRemaining()
 		resp["quota"] = gin.H{
 			"limit":     apiKey.Quota,
 			"used":      apiKey.QuotaUsed,
 			"remaining": remaining,
 			"unit":      "USD",
 		}
-		resp["remaining"] = remaining
-		resp["unit"] = "USD"
 	}
+	addUsageBalanceCompatibility(resp, remaining, apiKey.Status == service.StatusAPIKeyActive)
 
 	// 速率限制信息（从 DB 获取实时用量）
 	if apiKey.HasRateLimits() && h.apiKeyService != nil {
@@ -1133,6 +1169,9 @@ func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, 
 				"expires_at":        subscription.ExpiresAt,
 			}
 		}
+		remaining, _ := resp["remaining"].(float64)
+		isActive, _ := resp["isValid"].(bool)
+		addUsageBalanceCompatibility(resp, remaining, isActive)
 
 		if usageData != nil {
 			resp["usage"] = usageData
@@ -1159,6 +1198,7 @@ func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, 
 		"unit":      "USD",
 		"balance":   latestUser.Balance,
 	}
+	addUsageBalanceCompatibility(resp, latestUser.Balance, true)
 	if usageData != nil {
 		resp["usage"] = usageData
 	}

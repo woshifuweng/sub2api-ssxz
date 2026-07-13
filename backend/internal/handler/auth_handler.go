@@ -3,6 +3,7 @@ package handler
 import (
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -519,6 +520,37 @@ type ForgotPasswordResponse struct {
 	Message string `json:"message"`
 }
 
+const passwordResetGenericMessage = "If your email is registered, you will receive a password reset link shortly."
+
+func resolvePasswordResetBaseURL(configuredURL, requestOrigin string, cfg *config.Config) string {
+	if configuredURL = strings.TrimSpace(configuredURL); configuredURL != "" {
+		return configuredURL
+	}
+
+	requestOrigin = strings.TrimSpace(requestOrigin)
+	if cfg == nil || config.ValidateAbsoluteHTTPURL(requestOrigin) != nil {
+		return ""
+	}
+
+	originURL, err := url.Parse(requestOrigin)
+	if err != nil || originURL.User != nil || originURL.Opaque != "" || originURL.Path != "" ||
+		originURL.RawPath != "" || originURL.RawQuery != "" || originURL.ForceQuery || originURL.Fragment != "" ||
+		strings.TrimSpace(originURL.Hostname()) == "" {
+		return ""
+	}
+
+	if strings.EqualFold(strings.TrimSpace(cfg.Server.Mode), gin.ReleaseMode) {
+		for _, allowedOrigin := range cfg.CORS.AllowedOrigins {
+			if strings.TrimSpace(allowedOrigin) == requestOrigin && requestOrigin != "*" {
+				return requestOrigin
+			}
+		}
+		return ""
+	}
+
+	return requestOrigin
+}
+
 // ForgotPassword 请求密码重置
 // POST /api/v1/auth/forgot-password
 func (h *AuthHandler) ForgotPassword(c *gin.Context) {
@@ -538,10 +570,16 @@ func (h *AuthHandler) ForgotPasswordGateway(c gatewayctx.GatewayContext) {
 		return
 	}
 
-	frontendBaseURL := strings.TrimSpace(h.settingSvc.GetFrontendURL(c.Request().Context()))
+	frontendBaseURL := resolvePasswordResetBaseURL(
+		h.settingSvc.GetFrontendURL(c.Request().Context()),
+		c.HeaderValue("Origin"),
+		h.cfg,
+	)
 	if frontendBaseURL == "" {
-		slog.Error("frontend_url not configured in settings or config; cannot build password reset link")
-		response.ErrorContext(authJSONResponder{ctx: c}, http.StatusInternalServerError, "Password reset is not configured")
+		slog.Warn("password reset email skipped: frontend_url is not configured and request Origin is not trusted")
+		response.SuccessContext(authJSONResponder{ctx: c}, ForgotPasswordResponse{
+			Message: passwordResetGenericMessage,
+		})
 		return
 	}
 
@@ -553,7 +591,7 @@ func (h *AuthHandler) ForgotPasswordGateway(c gatewayctx.GatewayContext) {
 	}
 
 	response.SuccessContext(authJSONResponder{ctx: c}, ForgotPasswordResponse{
-		Message: "If your email is registered, you will receive a password reset link shortly.",
+		Message: passwordResetGenericMessage,
 	})
 }
 
