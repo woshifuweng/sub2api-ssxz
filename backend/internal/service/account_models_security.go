@@ -74,20 +74,23 @@ func MaskSensitiveCredentials(in map[string]any) map[string]any {
 }
 
 func MergeCredentialUpdatesPreservingSecrets(existing, incoming map[string]any) map[string]any {
-	if incoming == nil {
+	if existing == nil && incoming == nil {
 		return nil
 	}
 
-	out := cloneJSONMap(incoming)
-	for key, value := range out {
-		if !IsSensitiveCredentialKey(key) || !IsMaskedCredentialValue(value) {
+	out := cloneJSONMap(existing)
+	if out == nil {
+		out = make(map[string]any, len(incoming))
+	}
+	for key, value := range incoming {
+		if IsSensitiveCredentialKey(key) && IsMaskedCredentialValue(value) {
+			if _, ok := out[key]; ok {
+				continue
+			}
+			delete(out, key)
 			continue
 		}
-		if existingValue, ok := existing[key]; ok {
-			out[key] = existingValue
-			continue
-		}
-		delete(out, key)
+		out[key] = value
 	}
 	return out
 }
