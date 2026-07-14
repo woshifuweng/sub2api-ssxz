@@ -1493,6 +1493,16 @@ export interface BulkAssignSubscriptionRequest {
   validity_days?: number
 }
 
+export interface BulkAssignSubscriptionResult {
+  success_count: number
+  created_count: number
+  reused_count: number
+  failed_count: number
+  subscriptions: UserSubscription[]
+  errors: string[]
+  statuses: Record<string, 'created' | 'reused' | 'failed'>
+}
+
 export interface ExtendSubscriptionRequest {
   days: number
 }

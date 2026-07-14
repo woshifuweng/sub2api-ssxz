@@ -332,20 +332,27 @@ export async function batchCreate(accounts: CreateAccountRequest[]): Promise<{
  * @param request - Batch update request containing account IDs, field name, and value
  * @returns Results of batch update
  */
-export async function batchUpdateCredentials(request: {
+export type BatchCredentialField = 'account_uuid' | 'org_uuid' | 'intercept_warmup_requests'
+
+export interface BatchUpdateCredentialsRequest {
   account_ids: number[]
-  field: string
-  value: any
-}): Promise<{
+  field: BatchCredentialField
+  value: string | boolean | null
+}
+
+export interface BatchUpdateCredentialsResult {
   success: number
   failed: number
   results: Array<{ account_id: number; success: boolean; error?: string }>
-}> {
-  const { data } = await apiClient.post<{
-    success: number
-    failed: number
-    results: Array<{ account_id: number; success: boolean; error?: string }>
-  }>('/admin/accounts/batch-update-credentials', request)
+}
+
+export async function batchUpdateCredentials(
+  request: BatchUpdateCredentialsRequest
+): Promise<BatchUpdateCredentialsResult> {
+  const { data } = await apiClient.post<BatchUpdateCredentialsResult>(
+    '/admin/accounts/batch-update-credentials',
+    request
+  )
   return data
 }
 

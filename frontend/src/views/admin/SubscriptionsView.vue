@@ -159,6 +159,10 @@
             >
               <Icon name="questionCircle" size="md" />
             </button>
+            <button @click="showBulkAssignModal = true" class="btn btn-secondary">
+              <Icon name="users" size="md" class="mr-2" />
+              {{ t('admin.subscriptions.bulkAssign.action') }}
+            </button>
             <button @click="showAssignModal = true" class="btn btn-primary">
               <Icon name="plus" size="md" class="mr-2" />
               {{ t('admin.subscriptions.assignSubscription') }}
@@ -428,6 +432,13 @@
       />
       </template>
     </TablePageLayout>
+
+    <BulkAssignSubscriptionsDialog
+      :show="showBulkAssignModal"
+      :groups="groups"
+      @close="showBulkAssignModal = false"
+      @assigned="loadSubscriptions"
+    />
 
     <!-- Assign Subscription Modal -->
     <BaseDialog
@@ -756,6 +767,7 @@ import Select from '@/components/common/Select.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
 import Icon from '@/components/icons/Icon.vue'
+import BulkAssignSubscriptionsDialog from '@/components/admin/subscription/BulkAssignSubscriptionsDialog.vue'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -935,6 +947,7 @@ const pagination = reactive({
 })
 
 const showAssignModal = ref(false)
+const showBulkAssignModal = ref(false)
 const showExtendModal = ref(false)
 const showRevokeDialog = ref(false)
 const showResetQuotaConfirm = ref(false)
