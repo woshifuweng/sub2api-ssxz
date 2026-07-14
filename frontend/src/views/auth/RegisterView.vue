@@ -1,206 +1,129 @@
 <template>
-  <AuthLayout>
-    <div class="space-y-6">
-      <!-- Title -->
-      <div class="text-center">
-        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
-          {{ t('auth.createAccount') }}
-        </h2>
-        <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">
-          {{ t('auth.signUpToStart', { siteName }) }}
-        </p>
-      </div>
+  <AuthPortalShell active-tab="register">
+    <div class="auth-form-stack">
+      <header class="auth-form-heading">
+        <h1>{{ t('auth.createAccount') }}</h1>
+        <p>{{ t('auth.signUpToStart', { siteName }) }}</p>
+      </header>
 
-      <!-- LinuxDo Connect OAuth 登录 -->
       <LinuxDoOAuthSection v-if="linuxdoOAuthEnabled" :disabled="isLoading" />
 
-      <!-- Registration Disabled Message -->
       <div
         v-if="!registrationEnabled && settingsLoaded"
-        class="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/50 dark:bg-amber-900/20"
+        class="auth-form-status auth-form-status--warning"
+        role="status"
       >
-        <div class="flex items-start gap-3">
-          <div class="flex-shrink-0">
-            <Icon name="exclamationCircle" size="md" class="text-amber-500" />
-          </div>
-          <p class="text-sm text-amber-700 dark:text-amber-400">
-            {{ t('auth.registrationDisabled') }}
-          </p>
-        </div>
+        <CircleAlert aria-hidden="true" />
+        <p>{{ t('auth.registrationDisabled') }}</p>
       </div>
 
-      <!-- Registration Form -->
-      <form v-else @submit.prevent="handleRegister" class="space-y-5">
-        <!-- Email Input -->
-        <div>
-          <label for="email" class="input-label">
-            {{ t('auth.emailLabel') }}
-          </label>
-          <div class="relative">
-            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-              <Icon name="mail" size="md" class="text-gray-400 dark:text-dark-500" />
-            </div>
-            <input
-              id="email"
-              v-model="formData.email"
-              type="email"
-              required
-              autofocus
-              autocomplete="email"
-              :disabled="isLoading"
-              class="input pl-11"
-              :class="{ 'input-error': errors.email }"
-              :placeholder="t('auth.emailPlaceholder')"
-            />
-          </div>
-          <p v-if="errors.email" class="input-error-text">
-            {{ errors.email }}
-          </p>
-        </div>
+      <form v-else class="auth-form" @submit.prevent="handleRegister">
+        <FoundationInput
+          id="email"
+          v-model="formData.email"
+          type="email"
+          name="email"
+          autocomplete="email"
+          inputmode="email"
+          required
+          autofocus
+          :label="t('auth.emailLabel')"
+          :placeholder="t('auth.emailPlaceholder')"
+          :error="errors.email"
+          :disabled="isLoading"
+        >
+          <template #leading><Mail aria-hidden="true" /></template>
+        </FoundationInput>
 
-        <!-- Password Input -->
-        <div>
-          <label for="password" class="input-label">
-            {{ t('auth.passwordLabel') }}
-          </label>
-          <div class="relative">
-            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-              <Icon name="lock" size="md" class="text-gray-400 dark:text-dark-500" />
-            </div>
-            <input
-              id="password"
-              v-model="formData.password"
-              :type="showPassword ? 'text' : 'password'"
-              required
-              autocomplete="new-password"
-              :disabled="isLoading"
-              class="input pl-11 pr-11"
-              :class="{ 'input-error': errors.password }"
-              :placeholder="t('auth.createPasswordPlaceholder')"
-            />
-            <button
-              type="button"
+        <FoundationInput
+          id="password"
+          v-model="formData.password"
+          :type="showPassword ? 'text' : 'password'"
+          name="password"
+          autocomplete="new-password"
+          required
+          :label="t('auth.passwordLabel')"
+          :placeholder="t('auth.createPasswordPlaceholder')"
+          :help="errors.password ? undefined : t('auth.passwordHint')"
+          :error="errors.password"
+          :disabled="isLoading"
+        >
+          <template #leading><LockKeyhole aria-hidden="true" /></template>
+          <template #trailing>
+            <FoundationButton
+              variant="ghost"
+              size="icon"
+              :aria-label="showPassword ? t('auth.hidePassword') : t('auth.showPassword')"
+              @mousedown.prevent
               @click="showPassword = !showPassword"
-              class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-dark-300"
             >
-              <Icon v-if="showPassword" name="eyeOff" size="md" />
-              <Icon v-else name="eye" size="md" />
-            </button>
-          </div>
-          <p v-if="errors.password" class="input-error-text">
-            {{ errors.password }}
-          </p>
-          <p v-else class="input-hint">
-            {{ t('auth.passwordHint') }}
-          </p>
+              <EyeOff v-if="showPassword" aria-hidden="true" />
+              <Eye v-else aria-hidden="true" />
+            </FoundationButton>
+          </template>
+        </FoundationInput>
+
+        <div v-if="invitationCodeEnabled" class="auth-code-field">
+          <FoundationInput
+            id="invitation_code"
+            v-model="formData.invitation_code"
+            type="text"
+            name="invitation_code"
+            autocomplete="off"
+            :label="t('auth.invitationCodeLabel')"
+            :placeholder="t('auth.invitationCodePlaceholder')"
+            :error="invitationValidation.invalid ? invitationValidation.message : errors.invitation_code"
+            :disabled="isLoading"
+            @input="handleInvitationCodeInput"
+          >
+            <template #leading><KeyRound aria-hidden="true" /></template>
+            <template #trailing>
+              <LoaderCircle v-if="invitationValidating" class="auth-spinner" aria-hidden="true" />
+              <CircleCheck v-else-if="invitationValidation.valid" class="auth-status-icon--success" aria-hidden="true" />
+              <CircleAlert
+                v-else-if="invitationValidation.invalid || errors.invitation_code"
+                class="auth-status-icon--error"
+                aria-hidden="true"
+              />
+            </template>
+          </FoundationInput>
+          <Transition name="fade">
+            <p v-if="invitationValidation.valid" class="auth-validation-note auth-validation-note--success">
+              <CircleCheck aria-hidden="true" />
+              {{ t('auth.invitationCodeValid') }}
+            </p>
+          </Transition>
         </div>
 
-        <!-- Invitation Code Input (Required when enabled) -->
-        <div v-if="invitationCodeEnabled">
-          <label for="invitation_code" class="input-label">
-            {{ t('auth.invitationCodeLabel') }}
-          </label>
-          <div class="relative">
-            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-              <Icon name="key" size="md" :class="invitationValidation.valid ? 'text-green-500' : 'text-gray-400 dark:text-dark-500'" />
-            </div>
-            <input
-              id="invitation_code"
-              v-model="formData.invitation_code"
-              type="text"
-              :disabled="isLoading"
-              class="input pl-11 pr-10"
-              :class="{
-                'border-green-500 focus:border-green-500 focus:ring-green-500': invitationValidation.valid,
-                'border-red-500 focus:border-red-500 focus:ring-red-500': invitationValidation.invalid || errors.invitation_code
-              }"
-              :placeholder="t('auth.invitationCodePlaceholder')"
-              @input="handleInvitationCodeInput"
-            />
-            <!-- Validation indicator -->
-            <div v-if="invitationValidating" class="absolute inset-y-0 right-0 flex items-center pr-3.5">
-              <svg class="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            </div>
-            <div v-else-if="invitationValidation.valid" class="absolute inset-y-0 right-0 flex items-center pr-3.5">
-              <Icon name="checkCircle" size="md" class="text-green-500" />
-            </div>
-            <div v-else-if="invitationValidation.invalid || errors.invitation_code" class="absolute inset-y-0 right-0 flex items-center pr-3.5">
-              <Icon name="exclamationCircle" size="md" class="text-red-500" />
-            </div>
-          </div>
-          <!-- Invitation code validation result -->
-          <transition name="fade">
-            <div v-if="invitationValidation.valid" class="mt-2 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 dark:bg-green-900/20">
-              <Icon name="checkCircle" size="sm" class="text-green-600 dark:text-green-400" />
-              <span class="text-sm text-green-700 dark:text-green-400">
-                {{ t('auth.invitationCodeValid') }}
-              </span>
-            </div>
-            <p v-else-if="invitationValidation.invalid" class="input-error-text">
-              {{ invitationValidation.message }}
+        <div v-if="promoCodeEnabled" class="auth-code-field">
+          <FoundationInput
+            id="promo_code"
+            v-model="formData.promo_code"
+            type="text"
+            name="promo_code"
+            autocomplete="off"
+            :label="`${t('auth.promoCodeLabel')} · ${t('common.optional')}`"
+            :placeholder="t('auth.promoCodePlaceholder')"
+            :error="promoValidation.invalid ? promoValidation.message : undefined"
+            :disabled="isLoading"
+            @input="handlePromoCodeInput"
+          >
+            <template #leading><Gift aria-hidden="true" /></template>
+            <template #trailing>
+              <LoaderCircle v-if="promoValidating" class="auth-spinner" aria-hidden="true" />
+              <CircleCheck v-else-if="promoValidation.valid" class="auth-status-icon--success" aria-hidden="true" />
+              <CircleAlert v-else-if="promoValidation.invalid" class="auth-status-icon--error" aria-hidden="true" />
+            </template>
+          </FoundationInput>
+          <Transition name="fade">
+            <p v-if="promoValidation.valid" class="auth-validation-note auth-validation-note--success">
+              <Gift aria-hidden="true" />
+              {{ t('auth.promoCodeValid', { amount: promoValidation.bonusAmount?.toFixed(2) }) }}
             </p>
-            <p v-else-if="errors.invitation_code" class="input-error-text">
-              {{ errors.invitation_code }}
-            </p>
-          </transition>
+          </Transition>
         </div>
 
-        <!-- Promo Code Input (Optional) -->
-        <div v-if="promoCodeEnabled">
-          <label for="promo_code" class="input-label">
-            {{ t('auth.promoCodeLabel') }}
-            <span class="ml-1 text-xs font-normal text-gray-400 dark:text-dark-500">({{ t('common.optional') }})</span>
-          </label>
-          <div class="relative">
-            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-              <Icon name="gift" size="md" :class="promoValidation.valid ? 'text-green-500' : 'text-gray-400 dark:text-dark-500'" />
-            </div>
-            <input
-              id="promo_code"
-              v-model="formData.promo_code"
-              type="text"
-              :disabled="isLoading"
-              class="input pl-11 pr-10"
-              :class="{
-                'border-green-500 focus:border-green-500 focus:ring-green-500': promoValidation.valid,
-                'border-red-500 focus:border-red-500 focus:ring-red-500': promoValidation.invalid
-              }"
-              :placeholder="t('auth.promoCodePlaceholder')"
-              @input="handlePromoCodeInput"
-            />
-            <!-- Validation indicator -->
-            <div v-if="promoValidating" class="absolute inset-y-0 right-0 flex items-center pr-3.5">
-              <svg class="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            </div>
-            <div v-else-if="promoValidation.valid" class="absolute inset-y-0 right-0 flex items-center pr-3.5">
-              <Icon name="checkCircle" size="md" class="text-green-500" />
-            </div>
-            <div v-else-if="promoValidation.invalid" class="absolute inset-y-0 right-0 flex items-center pr-3.5">
-              <Icon name="exclamationCircle" size="md" class="text-red-500" />
-            </div>
-          </div>
-          <!-- Promo code validation result -->
-          <transition name="fade">
-            <div v-if="promoValidation.valid" class="mt-2 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 dark:bg-green-900/20">
-              <Icon name="gift" size="sm" class="text-green-600 dark:text-green-400" />
-              <span class="text-sm text-green-700 dark:text-green-400">
-                {{ t('auth.promoCodeValid', { amount: promoValidation.bonusAmount?.toFixed(2) }) }}
-              </span>
-            </div>
-            <p v-else-if="promoValidation.invalid" class="input-error-text">
-              {{ promoValidation.message }}
-            </p>
-          </transition>
-        </div>
-
-        <!-- Turnstile Widget -->
-        <div v-if="turnstileEnabled && turnstileSiteKey">
+        <div v-if="turnstileEnabled && turnstileSiteKey" class="auth-turnstile">
           <TurnstileWidget
             ref="turnstileRef"
             :site-key="turnstileSiteKey"
@@ -208,55 +131,26 @@
             @expire="onTurnstileExpire"
             @error="onTurnstileError"
           />
-          <p v-if="errors.turnstile" class="input-error-text mt-2 text-center">
-            {{ errors.turnstile }}
-          </p>
+          <p v-if="errors.turnstile" class="auth-field-error">{{ errors.turnstile }}</p>
         </div>
 
-        <!-- Error Message -->
-        <transition name="fade">
-          <div
-            v-if="errorMessage"
-            class="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800/50 dark:bg-red-900/20"
-          >
-            <div class="flex items-start gap-3">
-              <div class="flex-shrink-0">
-                <Icon name="exclamationCircle" size="md" class="text-red-500" />
-              </div>
-              <p class="text-sm text-red-700 dark:text-red-400">
-                {{ errorMessage }}
-              </p>
-            </div>
+        <Transition name="fade">
+          <div v-if="errorMessage" class="auth-form-status auth-form-status--error" role="alert">
+            <CircleAlert aria-hidden="true" />
+            <p>{{ errorMessage }}</p>
           </div>
-        </transition>
+        </Transition>
 
-        <!-- Submit Button -->
-        <button
+        <FoundationButton
           type="submit"
+          size="lg"
+          class="auth-submit"
           :disabled="isLoading || (turnstileEnabled && !turnstileToken)"
-          class="btn btn-primary w-full"
         >
-          <svg
-            v-if="isLoading"
-            class="-ml-1 mr-2 h-4 w-4 animate-spin text-white"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              class="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              stroke-width="4"
-            ></circle>
-            <path
-              class="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            ></path>
-          </svg>
-          <Icon v-else name="userPlus" size="md" class="mr-2" />
+          <template #leading>
+            <LoaderCircle v-if="isLoading" class="auth-spinner" aria-hidden="true" />
+            <UserPlus v-else aria-hidden="true" />
+          </template>
           {{
             isLoading
               ? t('auth.processing')
@@ -264,33 +158,32 @@
                 ? t('auth.continue')
                 : t('auth.createAccount')
           }}
-        </button>
+        </FoundationButton>
       </form>
     </div>
-
-    <!-- Footer -->
-    <template #footer>
-      <p class="text-gray-500 dark:text-dark-400">
-        {{ t('auth.alreadyHaveAccount') }}
-        <router-link
-          to="/login"
-          class="font-medium text-primary-600 transition-colors hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
-        >
-          {{ t('auth.signIn') }}
-        </router-link>
-      </p>
-    </template>
-  </AuthLayout>
+  </AuthPortalShell>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import {
+  CircleAlert,
+  CircleCheck,
+  Eye,
+  EyeOff,
+  Gift,
+  KeyRound,
+  LoaderCircle,
+  LockKeyhole,
+  Mail,
+  UserPlus
+} from '@lucide/vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { AuthLayout } from '@/components/layout'
+import AuthPortalShell from '@/components/auth/AuthPortalShell.vue'
 import LinuxDoOAuthSection from '@/components/auth/LinuxDoOAuthSection.vue'
-import Icon from '@/components/icons/Icon.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
+import { FoundationButton, FoundationInput } from '@/components/foundation'
 import { useAuthStore, useAppStore } from '@/stores'
 import { getPublicSettings, validatePromoCode, validateInvitationCode } from '@/api/auth'
 import { buildAuthErrorMessage } from '@/utils/authError'
@@ -751,5 +644,126 @@ async function handleRegister(): Promise<void> {
 .fade-leave-to {
   opacity: 0;
   transform: translateY(-8px);
+}
+
+.auth-form-stack,
+.auth-form,
+.auth-code-field {
+  display: grid;
+}
+
+.auth-form-stack {
+  gap: 1.5rem;
+}
+
+.auth-form {
+  gap: 1.25rem;
+}
+
+.auth-code-field {
+  gap: 0.5rem;
+}
+
+.auth-form-heading h1 {
+  margin: 0;
+  color: hsl(var(--foreground));
+  font-size: 1.75rem;
+  font-weight: 680;
+  line-height: 2.125rem;
+  letter-spacing: 0;
+}
+
+.auth-form-heading p {
+  margin: 0.5rem 0 0;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+}
+
+.auth-turnstile {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: center;
+}
+
+.auth-field-error {
+  margin: 0;
+  color: hsl(var(--destructive));
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+}
+
+.auth-form-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  border: 1px solid;
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+.auth-form-status svg,
+.auth-validation-note svg {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+}
+
+.auth-form-status svg {
+  margin-top: 0.125rem;
+}
+
+.auth-form-status p,
+.auth-validation-note {
+  margin: 0;
+}
+
+.auth-form-status--error {
+  border-color: hsl(var(--destructive) / 0.26);
+  color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / 0.08);
+}
+
+.auth-form-status--warning {
+  border-color: hsl(var(--warning) / 0.3);
+  color: hsl(var(--warning));
+  background: hsl(var(--warning) / 0.1);
+}
+
+.auth-validation-note {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: var(--radius);
+  padding: 0.5rem 0.625rem;
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+}
+
+.auth-validation-note--success {
+  color: hsl(var(--success));
+  background: hsl(var(--success) / 0.1);
+}
+
+.auth-status-icon--success {
+  color: hsl(var(--success));
+}
+
+.auth-status-icon--error {
+  color: hsl(var(--destructive));
+}
+
+.auth-submit {
+  width: 100%;
+}
+
+.auth-spinner {
+  animation: auth-spin 800ms linear infinite;
+}
+
+@keyframes auth-spin {
+  to { transform: rotate(360deg); }
 }
 </style>
