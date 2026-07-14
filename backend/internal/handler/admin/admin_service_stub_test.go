@@ -11,24 +11,29 @@ import (
 )
 
 type stubAdminService struct {
-	users                []service.User
-	apiKeys              []service.APIKey
-	groups               []service.Group
-	accounts             []service.Account
-	proxies              []service.Proxy
-	proxyCounts          []service.ProxyWithAccountCount
-	redeems              []service.RedeemCode
-	createdAccounts      []*service.CreateAccountInput
-	createdProxies       []*service.CreateProxyInput
-	updatedProxyIDs      []int64
-	updatedProxies       []*service.UpdateProxyInput
-	testedProxyIDs       []int64
-	createAccountErr     error
-	updateAccountErr     error
-	bulkUpdateAccountErr error
-	checkMixedErr        error
-	lastBalanceNotes     string
-	lastMixedCheck       struct {
+	users                 []service.User
+	apiKeys               []service.APIKey
+	adminAPIKeyList       *service.AdminAPIKeyListResult
+	adminAPIKeyListParams service.AdminAPIKeyListParams
+	adminAPIKeyListErr    error
+	adminAPIKeyActorID    int64
+	adminAPIKeyMutations  int
+	groups                []service.Group
+	accounts              []service.Account
+	proxies               []service.Proxy
+	proxyCounts           []service.ProxyWithAccountCount
+	redeems               []service.RedeemCode
+	createdAccounts       []*service.CreateAccountInput
+	createdProxies        []*service.CreateProxyInput
+	updatedProxyIDs       []int64
+	updatedProxies        []*service.UpdateProxyInput
+	testedProxyIDs        []int64
+	createAccountErr      error
+	updateAccountErr      error
+	bulkUpdateAccountErr  error
+	checkMixedErr         error
+	lastBalanceNotes      string
+	lastMixedCheck        struct {
 		accountID int64
 		platform  string
 		groupIDs  []int64
@@ -137,6 +142,17 @@ func (s *stubAdminService) UpdateUserBalance(ctx context.Context, userID int64, 
 
 func (s *stubAdminService) GetUserAPIKeys(ctx context.Context, userID int64, page, pageSize int) ([]service.APIKey, int64, error) {
 	return s.apiKeys, int64(len(s.apiKeys)), nil
+}
+
+func (s *stubAdminService) ListAdminAPIKeys(_ context.Context, params service.AdminAPIKeyListParams) (*service.AdminAPIKeyListResult, error) {
+	s.adminAPIKeyListParams = params
+	if s.adminAPIKeyListErr != nil {
+		return nil, s.adminAPIKeyListErr
+	}
+	if s.adminAPIKeyList != nil {
+		return s.adminAPIKeyList, nil
+	}
+	return &service.AdminAPIKeyListResult{}, nil
 }
 
 func (s *stubAdminService) GetUserUsageStats(ctx context.Context, userID int64, period string) (any, error) {
@@ -442,6 +458,53 @@ func (s *stubAdminService) AdminUpdateAPIKeyGroupID(ctx context.Context, keyID i
 		}
 	}
 	return nil, service.ErrAPIKeyNotFound
+}
+
+func (s *stubAdminService) AdminSetAPIKeyEnabled(_ context.Context, keyID int64, enabled bool, actorUserID int64) (*service.APIKey, error) {
+	s.adminAPIKeyActorID = actorUserID
+	s.adminAPIKeyMutations++
+	for i := range s.apiKeys {
+		if s.apiKeys[i].ID == keyID {
+			if enabled {
+				s.apiKeys[i].Status = service.StatusAPIKeyActive
+			} else {
+				s.apiKeys[i].Status = service.StatusAPIKeyDisabled
+			}
+			key := s.apiKeys[i]
+			return &key, nil
+		}
+	}
+	return nil, service.ErrAPIKeyNotFound
+}
+
+func (s *stubAdminService) AdminChangeAPIKeyGroup(_ context.Context, keyID, groupID, actorUserID int64) (*service.AdminUpdateAPIKeyGroupIDResult, error) {
+	s.adminAPIKeyActorID = actorUserID
+	s.adminAPIKeyMutations++
+	for i := range s.apiKeys {
+		if s.apiKeys[i].ID == keyID {
+			if groupID == 0 {
+				s.apiKeys[i].GroupID = nil
+			} else {
+				gid := groupID
+				s.apiKeys[i].GroupID = &gid
+			}
+			key := s.apiKeys[i]
+			return &service.AdminUpdateAPIKeyGroupIDResult{APIKey: &key}, nil
+		}
+	}
+	return nil, service.ErrAPIKeyNotFound
+}
+
+func (s *stubAdminService) AdminDeleteAPIKey(_ context.Context, keyID, actorUserID int64) error {
+	s.adminAPIKeyActorID = actorUserID
+	s.adminAPIKeyMutations++
+	for i := range s.apiKeys {
+		if s.apiKeys[i].ID == keyID {
+			s.apiKeys = append(s.apiKeys[:i], s.apiKeys[i+1:]...)
+			return nil
+		}
+	}
+	return service.ErrAPIKeyNotFound
 }
 
 func (s *stubAdminService) ResetAccountQuota(ctx context.Context, id int64) error {

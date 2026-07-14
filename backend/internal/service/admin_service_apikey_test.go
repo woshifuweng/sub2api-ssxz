@@ -76,10 +76,13 @@ func (s *userRepoStubForGroupUpdate) DisableTotp(context.Context, int64) error {
 
 // apiKeyRepoStubForGroupUpdate implements APIKeyRepository for AdminUpdateAPIKeyGroupID tests.
 type apiKeyRepoStubForGroupUpdate struct {
-	key       *APIKey
-	getErr    error
-	updateErr error
-	updated   *APIKey // captures what was passed to Update
+	key             *APIKey
+	getErr          error
+	updateErr       error
+	updated         *APIKey // captures what was passed to Update
+	mutationCommand AdminAPIKeyMutationCommand
+	mutationResult  *AdminAPIKeyMutationRecord
+	mutationErr     error
 }
 
 func (s *apiKeyRepoStubForGroupUpdate) GetByID(_ context.Context, _ int64) (*APIKey, error) {
@@ -96,6 +99,14 @@ func (s *apiKeyRepoStubForGroupUpdate) Update(_ context.Context, key *APIKey) er
 	clone := *key
 	s.updated = &clone
 	return nil
+}
+
+func (s *apiKeyRepoStubForGroupUpdate) AdminMutateAPIKey(_ context.Context, command AdminAPIKeyMutationCommand) (*AdminAPIKeyMutationRecord, error) {
+	s.mutationCommand = command
+	if s.mutationErr != nil {
+		return nil, s.mutationErr
+	}
+	return s.mutationResult, nil
 }
 
 // Unused methods – panic on unexpected call.
@@ -506,4 +517,33 @@ func TestAdminService_AdminUpdateAPIKeyGroupID_Unbind_NoAllowedGroupUpdate(t *te
 	// 解绑时不修改 allowed_groups
 	require.False(t, userRepo.addGroupCalled)
 	require.False(t, got.AutoGrantedGroupAccess)
+}
+
+func TestAdminService_AdminSetAPIKeyEnabledUsesAuditedRepositoryAndInvalidatesCache(t *testing.T) {
+	repo := &apiKeyRepoStubForGroupUpdate{
+		key: &APIKey{ID: 41, UserID: 9, Key: "sk-secret", Status: StatusAPIKeyDisabled},
+		mutationResult: &AdminAPIKeyMutationRecord{
+			APIKeyID: 41, UserID: 9, AuthenticationKey: "sk-secret", Status: StatusAPIKeyDisabled,
+		},
+	}
+	invalidator := &authCacheInvalidatorStub{}
+	svc := &adminServiceImpl{apiKeyRepo: repo, authCacheInvalidator: invalidator}
+
+	result, err := svc.AdminSetAPIKeyEnabled(context.Background(), 41, false, 42)
+
+	require.NoError(t, err)
+	require.Equal(t, int64(42), repo.mutationCommand.ActorUserID)
+	require.Equal(t, AdminAPIKeyAuditActionDisable, repo.mutationCommand.Action)
+	require.Equal(t, []string{"sk-secret"}, invalidator.keys)
+	require.Equal(t, StatusAPIKeyDisabled, result.Status)
+}
+
+func TestAdminService_AdminDeleteAPIKeyRejectsMissingActorBeforeMutation(t *testing.T) {
+	repo := &apiKeyRepoStubForGroupUpdate{}
+	svc := &adminServiceImpl{apiKeyRepo: repo}
+
+	err := svc.AdminDeleteAPIKey(context.Background(), 41, 0)
+
+	require.ErrorIs(t, err, ErrAdminActorRequired)
+	require.Zero(t, repo.mutationCommand.APIKeyID)
 }

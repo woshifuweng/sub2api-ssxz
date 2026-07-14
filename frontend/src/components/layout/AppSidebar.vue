@@ -478,6 +478,7 @@ const adminNavItems = computed((): NavItem[] => {
       ? [{ path: '/admin/ops', label: t('nav.ops'), icon: ChartIcon }]
       : []),
     { path: '/admin/users', label: t('nav.users'), icon: UsersIcon, hideInSimpleMode: true },
+    { path: '/admin/api-keys', label: t('nav.adminApiKeys'), icon: KeyIcon, hideInSimpleMode: true },
     { path: '/admin/groups', label: t('nav.groups'), icon: FolderIcon, hideInSimpleMode: true },
     { path: '/admin/channels/pricing', label: t('nav.channelPricing'), icon: ChannelIcon, hideInSimpleMode: true },
     ...(channelMonitorEnabled.value

@@ -106,6 +106,18 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 
 	// user_allowed_groups: created_at should be timestamptz
 	requireColumn(t, tx, "user_allowed_groups", "created_at", "timestamp with time zone", 0, false)
+
+	// admin_audit_logs: append-only evidence for privileged mutations (migration 138)
+	var adminAuditRegclass sql.NullString
+	require.NoError(t, tx.QueryRowContext(context.Background(), "SELECT to_regclass('public.admin_audit_logs')").Scan(&adminAuditRegclass))
+	require.True(t, adminAuditRegclass.Valid, "expected admin_audit_logs table to exist")
+	requireColumn(t, tx, "admin_audit_logs", "actor_user_id", "bigint", 0, false)
+	requireColumn(t, tx, "admin_audit_logs", "before_values", "jsonb", 0, false)
+	requireColumn(t, tx, "admin_audit_logs", "after_values", "jsonb", 0, false)
+	requireColumn(t, tx, "admin_audit_logs", "created_at", "timestamp with time zone", 0, false)
+	requireIndex(t, tx, "admin_audit_logs", "idx_admin_audit_logs_created_at")
+	requireIndex(t, tx, "admin_audit_logs", "idx_admin_audit_logs_actor_created")
+	requireIndex(t, tx, "admin_audit_logs", "idx_admin_audit_logs_resource_created")
 }
 
 func requireIndex(t *testing.T, tx *sql.Tx, table, index string) {

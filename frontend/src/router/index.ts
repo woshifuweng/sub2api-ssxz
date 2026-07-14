@@ -605,6 +605,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/api-keys',
+    name: 'AdminAPIKeys',
+    component: () => import('@/views/admin/ApiKeysView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Full-site API Keys',
+      titleKey: 'admin.apiKeyInventory.title',
+      descriptionKey: 'admin.apiKeyInventory.description'
+    }
+  },
+  {
     path: '/admin/orders/settings',
     name: 'AdminPaymentSettings',
     component: () => import('@/views/admin/orders/AdminPaymentSettingsView.vue'),
