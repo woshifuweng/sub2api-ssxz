@@ -20,6 +20,7 @@ func ExecutableAdminRoutes(h *handler.Handlers) []gatewayctx.RouteDef {
 		out = append(out,
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/admin/dashboard/snapshot-v2", Handler: h.Admin.Dashboard.GetSnapshotV2Gateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "admin_auth"}},
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/admin/dashboard/stats", Handler: h.Admin.Dashboard.GetStatsGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "admin_auth"}},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/admin/dashboard/operations-summary", Handler: h.Admin.Dashboard.GetOperationsSummaryGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "admin_auth"}},
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/admin/dashboard/realtime", Handler: h.Admin.Dashboard.GetRealtimeMetricsGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "admin_auth"}},
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/admin/dashboard/trend", Handler: h.Admin.Dashboard.GetUsageTrendGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "admin_auth"}},
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/admin/dashboard/models", Handler: h.Admin.Dashboard.GetModelStatsGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "admin_auth"}},
@@ -607,6 +608,7 @@ func registerDashboardRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		dashboard.GET("/snapshot-v2", h.Admin.Dashboard.GetSnapshotV2)
 		dashboard.GET("/stats", h.Admin.Dashboard.GetStats)
+		dashboard.GET("/operations-summary", h.Admin.Dashboard.GetOperationsSummary)
 		dashboard.GET("/realtime", h.Admin.Dashboard.GetRealtimeMetrics)
 		dashboard.GET("/trend", h.Admin.Dashboard.GetUsageTrend)
 		dashboard.GET("/models", h.Admin.Dashboard.GetModelStats)

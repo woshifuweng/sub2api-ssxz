@@ -1715,7 +1715,37 @@ export default {
       configureAiAccounts: '配置 AI 平台账号',
       systemSettings: '系统设置',
       configureSystem: '配置系统设置',
-      failedToLoad: '加载仪表盘数据失败'
+      failedToLoad: '加载仪表盘数据失败',
+      operations: {
+        title: '运营总览',
+        rangeLabel: '按所选区间统计',
+        loadFailed: '运营数据加载失败，原有仪表盘不受影响',
+        today: '今日',
+        days7: '7 日',
+        days30: '30 日',
+        newCustomers: '新增客户',
+        registeredInRange: '区间内完成注册',
+        customerSpend: '客户消费额',
+        actualCostOnly: '按客户实际扣费统计',
+        inviteeRecharge: '被邀成功充值',
+        completedBalanceOrders: '已完成余额充值订单',
+        activeCustomersAndKeys: '活跃客户 / Key',
+        distinctUsage: '按真实调用去重',
+        rebateTitle: '返利流转',
+        rebatePending: '待确认',
+        rebatePendingHint: '区间内产生且仍在冻结期',
+        rebateAvailable: '可结算',
+        rebateAvailableHint: '区间内新增或解冻为可结算',
+        rebateTransferred: '已转余额',
+        rebateTransferredHint: '区间内已转入用户余额',
+        viewDetails: '查看明细',
+        topCustomers: '消费 Top 5',
+        byActualCost: '按客户实际扣费排序',
+        viewAll: '全部用量',
+        requestsUnit: '次请求',
+        keysUnit: '个 Key',
+        zeroCustomers: '所选区间消费客户 0 位'
+      }
     },
 
     backup: {

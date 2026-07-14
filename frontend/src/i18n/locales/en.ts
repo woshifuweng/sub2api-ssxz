@@ -1696,7 +1696,37 @@ export default {
       spendShort: 'Spend',
       requestsShort: 'Req',
       tokensShort: 'Tok',
-      failedToLoad: 'Failed to load dashboard statistics'
+      failedToLoad: 'Failed to load dashboard statistics',
+      operations: {
+        title: 'Operations Overview',
+        rangeLabel: 'Selected period',
+        loadFailed: 'Operations data failed to load; existing dashboard data is unaffected',
+        today: 'Today',
+        days7: '7 days',
+        days30: '30 days',
+        newCustomers: 'New customers',
+        registeredInRange: 'Registered in this period',
+        customerSpend: 'Customer spend',
+        actualCostOnly: 'Customer actual cost',
+        inviteeRecharge: 'Invitee recharge',
+        completedBalanceOrders: 'Completed balance orders',
+        activeCustomersAndKeys: 'Active customers / keys',
+        distinctUsage: 'Distinct real usage',
+        rebateTitle: 'Affiliate rebate flow',
+        rebatePending: 'Pending',
+        rebatePendingHint: 'Created in period and still frozen',
+        rebateAvailable: 'Available',
+        rebateAvailableHint: 'Created or thawed in period',
+        rebateTransferred: 'Transferred',
+        rebateTransferredHint: 'Moved to user balance in period',
+        viewDetails: 'View details',
+        topCustomers: 'Top 5 spenders',
+        byActualCost: 'Ranked by customer actual cost',
+        viewAll: 'All usage',
+        requestsUnit: 'requests',
+        keysUnit: 'keys',
+        zeroCustomers: '0 spending customers in this period'
+      }
     },
 
     backup: {

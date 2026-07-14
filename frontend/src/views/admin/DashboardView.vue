@@ -7,6 +7,16 @@
       </div>
 
       <template v-else-if="stats">
+        <AdminOperationsSummary
+          :summary="operationsSummary"
+          :range="operationsRange"
+          :loading="operationsLoading"
+          :error="operationsError"
+          @update:range="setOperationsRange"
+          @refresh="loadOperationsSummary"
+          @drilldown="openOperationsDrilldown"
+        />
+
         <!-- Row 1: Core Stats -->
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <!-- Total API Keys -->
@@ -292,7 +302,13 @@ import type {
   UserUsageTrendPoint,
   UserSpendingRankingItem
 } from '@/types'
+import type {
+  DashboardOperationsDrilldown,
+  DashboardOperationsRange,
+  DashboardOperationsSummary
+} from '@/api/admin/dashboard'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AdminOperationsSummary from '@/components/admin/dashboard/AdminOperationsSummary.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
@@ -331,6 +347,10 @@ const chartsLoading = ref(false)
 const userTrendLoading = ref(false)
 const rankingLoading = ref(false)
 const rankingError = ref(false)
+const operationsSummary = ref<DashboardOperationsSummary | null>(null)
+const operationsRange = ref<DashboardOperationsRange>('30d')
+const operationsLoading = ref(false)
+const operationsError = ref(false)
 
 // Chart data
 const trendData = ref<TrendDataPoint[]>([])
@@ -551,6 +571,64 @@ const goToUserUsage = (item: UserSpendingRankingItem) => {
   })
 }
 
+const getOperationsDates = (range: DashboardOperationsRange): { start: string; end: string } => {
+  const end = new Date()
+  const start = new Date(end)
+  const daysBack = range === 'today' ? 0 : range === '7d' ? 6 : 29
+  start.setDate(start.getDate() - daysBack)
+  return { start: formatLocalDate(start), end: formatLocalDate(end) }
+}
+
+const loadOperationsSummary = async () => {
+  operationsLoading.value = true
+  operationsError.value = false
+  const range = getOperationsDates(operationsRange.value)
+  try {
+    operationsSummary.value = await adminAPI.dashboard.getOperationsSummary({
+      start_date: range.start,
+      end_date: range.end,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      limit: 10
+    })
+  } catch (error) {
+    operationsError.value = true
+    console.error('Error loading operations summary:', error)
+  } finally {
+    operationsLoading.value = false
+  }
+}
+
+const setOperationsRange = (range: DashboardOperationsRange) => {
+  if (operationsRange.value === range) return
+  operationsRange.value = range
+  void loadOperationsSummary()
+}
+
+const openOperationsDrilldown = (target: DashboardOperationsDrilldown, userId?: number) => {
+  const range = getOperationsDates(operationsRange.value)
+  const dateQuery = { start_date: range.start, end_date: range.end }
+  const destinations: Record<
+    Exclude<DashboardOperationsDrilldown, 'customer'>,
+    { path: string; query?: Record<string, string> }
+  > = {
+    users: { path: '/admin/users', query: { created_from: range.start, created_to: range.end } },
+    usage: { path: '/admin/usage', query: dateQuery },
+    orders: { path: '/admin/orders', query: { status: 'COMPLETED', ...dateQuery } },
+    apiKeys: {
+      path: '/admin/api-keys',
+      query: { sort_by: 'last_30_days_actual_cost', sort_order: 'desc' }
+    },
+    affiliates: { path: '/admin/affiliates' }
+  }
+  if (target === 'customer' && userId) {
+    void router.push({ path: '/admin/usage', query: { user_id: String(userId), ...dateQuery } })
+    return
+  }
+  if (target !== 'customer') {
+    void router.push(destinations[target])
+  }
+}
+
 // Date range change handler
 const onDateRangeChange = (range: {
   startDate: string
@@ -665,7 +743,8 @@ const loadDashboardStats = async () => {
   await Promise.all([
     loadDashboardSnapshot(true),
     loadUsersTrend(),
-    loadUserSpendingRanking()
+    loadUserSpendingRanking(),
+    loadOperationsSummary()
   ])
 }
 

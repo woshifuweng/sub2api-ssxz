@@ -21,8 +21,16 @@ import (
 type DashboardHandler struct {
 	dashboardService   *service.DashboardService
 	aggregationService *service.DashboardAggregationService
+	operationsService  *service.DashboardOperationsService
 	opsService         *service.OpsService
 	startTime          time.Time // Server start time for uptime calculation
+}
+
+func (h *DashboardHandler) SetOperationsService(operationsService *service.DashboardOperationsService) {
+	if h == nil {
+		return
+	}
+	h.operationsService = operationsService
 }
 
 // NewDashboardHandler creates a new admin dashboard handler
@@ -144,6 +152,36 @@ func (h *DashboardHandler) GetStatsGateway(c gatewayctx.GatewayContext) {
 		"stats_updated_at":    stats.StatsUpdatedAt,
 		"stats_stale":         stats.StatsStale,
 	})
+}
+
+// GetOperationsSummary returns the business operations metrics for a selected time range.
+// GET /api/v1/admin/dashboard/operations-summary
+func (h *DashboardHandler) GetOperationsSummary(c *gin.Context) {
+	h.GetOperationsSummaryGateway(gatewayctx.FromGin(c))
+}
+
+func (h *DashboardHandler) GetOperationsSummaryGateway(c gatewayctx.GatewayContext) {
+	if h.operationsService == nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusServiceUnavailable, "Dashboard operations service not available")
+		return
+	}
+	startTime, endTime := parseTimeRangeGateway(c)
+	limit := 10
+	if raw := c.QueryValue("limit"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			limit = parsed
+		}
+	}
+	summary, err := h.operationsService.GetSummary(c.Request().Context(), startTime, endTime, limit)
+	if err != nil {
+		if errors.Is(err, service.ErrInvalidDashboardOperationsRange) {
+			response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid dashboard operations time range")
+			return
+		}
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, summary)
 }
 
 type DashboardAggregationBackfillRequest struct {

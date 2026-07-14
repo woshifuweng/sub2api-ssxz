@@ -4,10 +4,12 @@ import { flushPromises, mount } from '@vue/test-utils'
 import type { DashboardStats } from '@/types'
 import DashboardView from '../DashboardView.vue'
 
-const { getSnapshotV2, getUserUsageTrend, getUserSpendingRanking } = vi.hoisted(() => ({
+const { getSnapshotV2, getUserUsageTrend, getUserSpendingRanking, getOperationsSummary, routerPush } = vi.hoisted(() => ({
   getSnapshotV2: vi.fn(),
   getUserUsageTrend: vi.fn(),
-  getUserSpendingRanking: vi.fn()
+  getUserSpendingRanking: vi.fn(),
+  getOperationsSummary: vi.fn(),
+  routerPush: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -15,7 +17,8 @@ vi.mock('@/api/admin', () => ({
     dashboard: {
       getSnapshotV2,
       getUserUsageTrend,
-      getUserSpendingRanking
+      getUserSpendingRanking,
+      getOperationsSummary
     }
   }
 }))
@@ -28,7 +31,7 @@ vi.mock('@/stores/app', () => ({
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({
-    push: vi.fn()
+    push: routerPush
   })
 }))
 
@@ -90,6 +93,8 @@ describe('admin DashboardView', () => {
     getSnapshotV2.mockReset()
     getUserUsageTrend.mockReset()
     getUserSpendingRanking.mockReset()
+    getOperationsSummary.mockReset()
+    routerPush.mockReset()
 
     getSnapshotV2.mockResolvedValue({
       stats: createDashboardStats(),
@@ -109,6 +114,19 @@ describe('admin DashboardView', () => {
       total_tokens: 0,
       start_date: '',
       end_date: ''
+    })
+    getOperationsSummary.mockResolvedValue({
+      start_date: '',
+      end_date: '',
+      new_customers: 0,
+      customer_actual_cost: 0,
+      invitee_recharge_amount: 0,
+      rebate_pending: 0,
+      rebate_available: 0,
+      rebate_transferred: 0,
+      active_customers: 0,
+      active_api_keys: 0,
+      top_customers: []
     })
   })
 
@@ -139,5 +157,40 @@ describe('admin DashboardView', () => {
       end_date: formatLocalDate(now),
       granularity: 'hour'
     }))
+    expect(getOperationsSummary).toHaveBeenCalledWith(expect.objectContaining({
+      start_date: formatLocalDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29)),
+      end_date: formatLocalDate(now),
+      limit: 10
+    }))
+  })
+
+  it('reloads only operations data when the operations range changes', async () => {
+    const wrapper = mount(DashboardView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          LoadingSpinner: true,
+          Icon: true,
+          DateRangePicker: true,
+          Select: true,
+          ModelDistributionChart: true,
+          TokenUsageTrend: true,
+          Line: true
+        }
+      }
+    })
+    await flushPromises()
+    getOperationsSummary.mockClear()
+    getSnapshotV2.mockClear()
+
+    await wrapper.get('[data-testid="operations-range-7d"]').trigger('click')
+    await flushPromises()
+
+    const now = new Date()
+    expect(getOperationsSummary).toHaveBeenCalledWith(expect.objectContaining({
+      start_date: formatLocalDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6)),
+      end_date: formatLocalDate(now)
+    }))
+    expect(getSnapshotV2).not.toHaveBeenCalled()
   })
 })
