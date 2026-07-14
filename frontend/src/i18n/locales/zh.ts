@@ -5897,6 +5897,7 @@ export default {
     viewRelease: '查看发布',
     viewChangelog: '查看更新日志',
     refresh: '刷新',
+    checkUpdates: '检查更新',
     sourceMode: '源码构建',
     sourceModeHint: '源码构建请使用 git pull 更新',
     updateNow: '立即更新',
@@ -5906,7 +5907,19 @@ export default {
     restartRequired: '请重启服务以应用更新',
     restartNow: '立即重启',
     restarting: '正在重启...',
-    retry: '重试'
+    retry: '重试',
+    runtimeActions: '系统操作',
+    managedDeployment: '受控发布',
+    managedDeploymentHint: '当前生产由快照、staging 与人工复核流程发布，请通过正式部署流程执行这些操作。',
+    rollback: '回滚',
+    rollingBack: '回滚中...',
+    rollbackFailed: '回滚失败',
+    confirmUpdateTitle: '确认执行系统更新',
+    confirmUpdateMessage: '更新会替换当前运行文件。确认已完成快照并准备好回滚后再继续。',
+    confirmRollbackTitle: '确认回滚系统版本',
+    confirmRollbackMessage: '回滚会替换当前运行文件，并可能需要重启服务。确定继续吗？',
+    confirmRestartTitle: '确认重启服务',
+    confirmRestartMessage: '重启会短暂中断服务。确定现在重启吗？'
   },
 
   // Recharge / Subscription Page

@@ -5736,6 +5736,7 @@ export default {
     viewRelease: 'View Release',
     viewChangelog: 'View Changelog',
     refresh: 'Refresh',
+    checkUpdates: 'Check updates',
     sourceMode: 'Source Build',
     sourceModeHint: 'Source build, use git pull to update',
     updateNow: 'Update Now',
@@ -5745,7 +5746,19 @@ export default {
     restartRequired: 'Please restart the service to apply the update',
     restartNow: 'Restart Now',
     restarting: 'Restarting...',
-    retry: 'Retry'
+    retry: 'Retry',
+    runtimeActions: 'System actions',
+    managedDeployment: 'Managed release',
+    managedDeploymentHint: 'Production releases use snapshots, staging, and manual review. Run these actions through the controlled deployment process.',
+    rollback: 'Rollback',
+    rollingBack: 'Rolling back...',
+    rollbackFailed: 'Rollback failed',
+    confirmUpdateTitle: 'Confirm system update',
+    confirmUpdateMessage: 'This replaces the running binary. Continue only after taking a snapshot and preparing a rollback.',
+    confirmRollbackTitle: 'Confirm system rollback',
+    confirmRollbackMessage: 'This replaces the running binary and may require a service restart. Continue?',
+    confirmRestartTitle: 'Confirm service restart',
+    confirmRestartMessage: 'Restarting briefly interrupts service. Restart now?'
   },
 
   // Recharge / Subscription Page

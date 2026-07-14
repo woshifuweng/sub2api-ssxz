@@ -11,13 +11,17 @@
           <Icon name="menu" size="md" />
         </button>
 
-        <div class="hidden lg:block">
-          <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
-            {{ pageTitle }}
-          </h1>
-          <p v-if="pageDescription" class="text-xs text-gray-500 dark:text-dark-400">
-            {{ pageDescription }}
-          </p>
+        <div class="flex items-center gap-3">
+          <div class="hidden lg:block">
+            <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ pageTitle }}
+            </h1>
+            <p v-if="pageDescription" class="text-xs text-gray-500 dark:text-dark-400">
+              {{ pageDescription }}
+            </p>
+          </div>
+
+          <VersionBadge v-if="authStore.isAdmin" :runtime-actions-enabled="false" />
         </div>
       </div>
 
@@ -202,6 +206,7 @@ import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
+import VersionBadge from '@/components/common/VersionBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 
 const router = useRouter()

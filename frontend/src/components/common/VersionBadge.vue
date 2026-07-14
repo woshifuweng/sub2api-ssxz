@@ -31,7 +31,7 @@
         <div
           v-if="dropdownOpen"
           ref="dropdownRef"
-          class="absolute left-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-dark-700 dark:bg-dark-800"
+          class="absolute left-0 z-50 mt-2 w-72 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-dark-700 dark:bg-dark-800"
         >
           <!-- Header with refresh button -->
           <div
@@ -42,7 +42,7 @@
             }}</span>
             <button
               @click="refreshVersion(true)"
-              class="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-dark-200"
+              class="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-dark-400 dark:hover:bg-dark-700 dark:hover:text-dark-200"
               :disabled="loading"
               :title="t('version.refresh')"
             >
@@ -52,6 +52,7 @@
                 :stroke-width="2"
                 :class="{ 'animate-spin': loading }"
               />
+              <span>{{ t('version.checkUpdates') }}</span>
             </button>
           </div>
 
@@ -140,8 +141,9 @@
 
                 <!-- Retry button -->
                 <button
-                  @click="handleUpdate"
+                  @click="requestRuntimeAction('update')"
                   :disabled="updating"
+                  data-testid="version-retry-action"
                   class="flex w-full items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {{ t('version.retry') }}
@@ -178,8 +180,9 @@
 
                 <!-- Restart button with countdown -->
                 <button
-                  @click="handleRestart"
+                  @click="requestRuntimeAction('restart')"
                   :disabled="restarting"
+                  data-testid="version-post-update-restart"
                   class="flex w-full items-center justify-center gap-2 rounded-lg bg-green-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <svg
@@ -314,8 +317,10 @@
 
                 <!-- Update button -->
                 <button
-                  @click="handleUpdate"
+                  v-if="runtimeActionsEnabled"
+                  @click="requestRuntimeAction('update')"
                   :disabled="updating"
+                  data-testid="version-update-action"
                   class="flex w-full items-center justify-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <svg v-if="updating" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -367,10 +372,91 @@
                 </svg>
                 {{ t('version.viewRelease') }}
               </a>
+
+              <div
+                v-if="!runtimeActionsEnabled"
+                class="mt-4 border-t border-gray-100 pt-3 dark:border-dark-700"
+                data-testid="managed-runtime-actions"
+              >
+                <div class="mb-2 flex items-center justify-between gap-2">
+                  <span class="text-xs font-medium text-gray-700 dark:text-dark-300">
+                    {{ t('version.runtimeActions') }}
+                  </span>
+                  <span
+                    class="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                  >
+                    {{ t('version.managedDeployment') }}
+                  </span>
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                  <button
+                    disabled
+                    data-testid="managed-update-action"
+                    class="flex items-center justify-center gap-1 whitespace-nowrap rounded-md border border-gray-200 bg-gray-50 px-1 py-1.5 text-[11px] text-gray-400 disabled:cursor-not-allowed dark:border-dark-700 dark:bg-dark-900/40 dark:text-dark-500"
+                  >
+                    <Icon name="download" size="xs" />
+                    {{ t('version.updateNow') }}
+                  </button>
+                  <button
+                    disabled
+                    data-testid="managed-rollback-action"
+                    class="flex items-center justify-center gap-1 whitespace-nowrap rounded-md border border-gray-200 bg-gray-50 px-1 py-1.5 text-[11px] text-gray-400 disabled:cursor-not-allowed dark:border-dark-700 dark:bg-dark-900/40 dark:text-dark-500"
+                  >
+                    <Icon name="refresh" size="xs" />
+                    {{ t('version.rollback') }}
+                  </button>
+                  <button
+                    disabled
+                    data-testid="managed-restart-action"
+                    class="flex items-center justify-center gap-1 whitespace-nowrap rounded-md border border-gray-200 bg-gray-50 px-1 py-1.5 text-[11px] text-gray-400 disabled:cursor-not-allowed dark:border-dark-700 dark:bg-dark-900/40 dark:text-dark-500"
+                  >
+                    <Icon name="refresh" size="xs" />
+                    {{ t('version.restartNow') }}
+                  </button>
+                </div>
+                <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-dark-400">
+                  {{ runtimeActionsReason || t('version.managedDeploymentHint') }}
+                </p>
+              </div>
+
+              <div
+                v-else
+                class="mt-4 flex gap-2 border-t border-gray-100 pt-3 dark:border-dark-700"
+              >
+                <button
+                  @click="requestRuntimeAction('rollback')"
+                  :disabled="rollingBack || updating || restarting"
+                  data-testid="version-rollback-action"
+                  class="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-600 dark:text-dark-300 dark:hover:bg-dark-700"
+                >
+                  <Icon name="refresh" size="xs" />
+                  {{ rollingBack ? t('version.rollingBack') : t('version.rollback') }}
+                </button>
+                <button
+                  v-if="!(updateSuccess && needRestart)"
+                  @click="requestRuntimeAction('restart')"
+                  :disabled="rollingBack || updating || restarting"
+                  data-testid="version-restart-action"
+                  class="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-600 dark:text-dark-300 dark:hover:bg-dark-700"
+                >
+                  <Icon name="refresh" size="xs" />
+                  {{ t('version.restartNow') }}
+                </button>
+              </div>
             </template>
           </div>
         </div>
       </transition>
+
+      <ConfirmDialog
+        :show="pendingRuntimeAction !== null"
+        :title="runtimeActionConfirmTitle"
+        :message="runtimeActionConfirmMessage"
+        :confirm-text="runtimeActionConfirmText"
+        :danger="pendingRuntimeAction === 'rollback' || pendingRuntimeAction === 'restart'"
+        @confirm="confirmRuntimeAction"
+        @cancel="pendingRuntimeAction = null"
+      />
     </template>
 
     <!-- Non-admin: Simple static version text -->
@@ -384,14 +470,20 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore, useAppStore } from '@/stores'
-import { performUpdate, restartService } from '@/api/admin/system'
+import { performUpdate, restartService, rollback as rollbackSystem } from '@/api/admin/system'
 import Icon from '@/components/icons/Icon.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 
 const { t } = useI18n()
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   version?: string
-}>()
+  runtimeActionsEnabled?: boolean
+  runtimeActionsReason?: string
+}>(), {
+  runtimeActionsEnabled: false,
+  runtimeActionsReason: ''
+})
 
 const authStore = useAuthStore()
 const appStore = useAppStore()
@@ -411,11 +503,35 @@ const buildType = computed(() => appStore.buildType)
 
 // Update process states (local to this component)
 const updating = ref(false)
+const rollingBack = ref(false)
 const restarting = ref(false)
 const needRestart = ref(false)
 const updateError = ref('')
 const updateSuccess = ref(false)
 const restartCountdown = ref(0)
+type RuntimeAction = 'update' | 'rollback' | 'restart'
+const pendingRuntimeAction = ref<RuntimeAction | null>(null)
+
+const runtimeActionsEnabled = computed(() => props.runtimeActionsEnabled)
+const runtimeActionsReason = computed(() => props.runtimeActionsReason)
+const runtimeActionConfirmTitle = computed(() => {
+  if (pendingRuntimeAction.value === 'update') return t('version.confirmUpdateTitle')
+  if (pendingRuntimeAction.value === 'rollback') return t('version.confirmRollbackTitle')
+  if (pendingRuntimeAction.value === 'restart') return t('version.confirmRestartTitle')
+  return ''
+})
+const runtimeActionConfirmMessage = computed(() => {
+  if (pendingRuntimeAction.value === 'update') return t('version.confirmUpdateMessage')
+  if (pendingRuntimeAction.value === 'rollback') return t('version.confirmRollbackMessage')
+  if (pendingRuntimeAction.value === 'restart') return t('version.confirmRestartMessage')
+  return ''
+})
+const runtimeActionConfirmText = computed(() => {
+  if (pendingRuntimeAction.value === 'update') return t('version.updateNow')
+  if (pendingRuntimeAction.value === 'rollback') return t('version.rollback')
+  if (pendingRuntimeAction.value === 'restart') return t('version.restartNow')
+  return t('common.confirm')
+})
 
 // Only show update check for release builds (binary/docker deployment)
 const isReleaseBuild = computed(() => buildType.value === 'release')
@@ -439,8 +555,22 @@ async function refreshVersion(force = true) {
   await appStore.fetchVersion(force)
 }
 
+function requestRuntimeAction(action: RuntimeAction) {
+  if (!runtimeActionsEnabled.value || !isAdmin.value) return
+  pendingRuntimeAction.value = action
+}
+
+async function confirmRuntimeAction() {
+  const action = pendingRuntimeAction.value
+  pendingRuntimeAction.value = null
+
+  if (action === 'update') await handleUpdate()
+  if (action === 'rollback') await handleRollback()
+  if (action === 'restart') await handleRestart()
+}
+
 async function handleUpdate() {
-  if (updating.value) return
+  if (!runtimeActionsEnabled.value || updating.value) return
 
   updating.value = true
   updateError.value = ''
@@ -460,8 +590,28 @@ async function handleUpdate() {
   }
 }
 
+async function handleRollback() {
+  if (!runtimeActionsEnabled.value || rollingBack.value) return
+
+  rollingBack.value = true
+  updateError.value = ''
+  updateSuccess.value = false
+
+  try {
+    const result = await rollbackSystem()
+    updateSuccess.value = true
+    needRestart.value = result.need_restart
+    appStore.clearVersionCache()
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    updateError.value = err.response?.data?.message || err.message || t('version.rollbackFailed')
+  } finally {
+    rollingBack.value = false
+  }
+}
+
 async function handleRestart() {
-  if (restarting.value) return
+  if (!runtimeActionsEnabled.value || restarting.value) return
 
   restarting.value = true
   restartCountdown.value = 8
