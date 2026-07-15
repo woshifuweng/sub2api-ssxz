@@ -34,7 +34,7 @@ afterEach(() => {
 })
 
 describe('AuthPortalShell', () => {
-  it('keeps affiliate and safe redirect query values when switching tabs', async () => {
+  it('keeps affiliate and safe redirect values without carrying the removed promo field', async () => {
     const router = createRouter({
       history: createMemoryHistory(),
       routes: [
@@ -62,9 +62,9 @@ describe('AuthPortalShell', () => {
     expect(router.currentRoute.value.path).toBe('/login')
     expect(router.currentRoute.value.query).toMatchObject({
       aff: 'AFF-2026',
-      promo: 'WELCOME',
       returnTo: '/app/keys'
     })
+    expect(router.currentRoute.value.query).not.toHaveProperty('promo')
   })
 
   it('changes only the scoped F0 theme while keeping the global preference in sync', async () => {

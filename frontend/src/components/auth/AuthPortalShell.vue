@@ -95,7 +95,7 @@ const themeLabel = computed(() => (theme.value === 'dark' ? t('nav.lightMode') :
 
 const preservedQuery = computed(() => {
   const query: Record<string, string> = {}
-  for (const key of ['aff', 'affiliate', 'promo', 'returnTo', 'redirect'] as const) {
+  for (const key of ['aff', 'affiliate', 'returnTo', 'redirect'] as const) {
     const value = route.query[key]
     if (typeof value === 'string' && value) query[key] = value
   }
@@ -262,7 +262,7 @@ onUnmounted(() => {
 .auth-portal-content {
   width: 100%;
   max-width: 24rem;
-  margin: auto;
+  margin: 0 auto auto;
 }
 
 .auth-portal-footer {

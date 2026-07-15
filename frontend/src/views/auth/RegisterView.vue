@@ -63,65 +63,22 @@
           </template>
         </FoundationInput>
 
-        <div v-if="invitationCodeEnabled" class="auth-code-field">
+        <Transition name="auth-invite" appear>
+          <div class="auth-code-field">
           <FoundationInput
-            id="invitation_code"
-            v-model="formData.invitation_code"
+            id="affiliate_code"
+            v-model="formData.affiliate_code"
             type="text"
-            name="invitation_code"
+            name="affiliate_code"
             autocomplete="off"
             :label="t('auth.invitationCodeLabel')"
             :placeholder="t('auth.invitationCodePlaceholder')"
-            :error="invitationValidation.invalid ? invitationValidation.message : errors.invitation_code"
             :disabled="isLoading"
-            @input="handleInvitationCodeInput"
           >
             <template #leading><KeyRound aria-hidden="true" /></template>
-            <template #trailing>
-              <LoaderCircle v-if="invitationValidating" class="auth-spinner" aria-hidden="true" />
-              <CircleCheck v-else-if="invitationValidation.valid" class="auth-status-icon--success" aria-hidden="true" />
-              <CircleAlert
-                v-else-if="invitationValidation.invalid || errors.invitation_code"
-                class="auth-status-icon--error"
-                aria-hidden="true"
-              />
-            </template>
           </FoundationInput>
-          <Transition name="fade">
-            <p v-if="invitationValidation.valid" class="auth-validation-note auth-validation-note--success">
-              <CircleCheck aria-hidden="true" />
-              {{ t('auth.invitationCodeValid') }}
-            </p>
-          </Transition>
-        </div>
-
-        <div v-if="promoCodeEnabled" class="auth-code-field">
-          <FoundationInput
-            id="promo_code"
-            v-model="formData.promo_code"
-            type="text"
-            name="promo_code"
-            autocomplete="off"
-            :label="`${t('auth.promoCodeLabel')} · ${t('common.optional')}`"
-            :placeholder="t('auth.promoCodePlaceholder')"
-            :error="promoValidation.invalid ? promoValidation.message : undefined"
-            :disabled="isLoading"
-            @input="handlePromoCodeInput"
-          >
-            <template #leading><Gift aria-hidden="true" /></template>
-            <template #trailing>
-              <LoaderCircle v-if="promoValidating" class="auth-spinner" aria-hidden="true" />
-              <CircleCheck v-else-if="promoValidation.valid" class="auth-status-icon--success" aria-hidden="true" />
-              <CircleAlert v-else-if="promoValidation.invalid" class="auth-status-icon--error" aria-hidden="true" />
-            </template>
-          </FoundationInput>
-          <Transition name="fade">
-            <p v-if="promoValidation.valid" class="auth-validation-note auth-validation-note--success">
-              <Gift aria-hidden="true" />
-              {{ t('auth.promoCodeValid', { amount: promoValidation.bonusAmount?.toFixed(2) }) }}
-            </p>
-          </Transition>
-        </div>
+          </div>
+        </Transition>
 
         <div v-if="turnstileEnabled && turnstileSiteKey" class="auth-turnstile">
           <TurnstileWidget
@@ -165,13 +122,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import {
   CircleAlert,
-  CircleCheck,
   Eye,
   EyeOff,
-  Gift,
   KeyRound,
   LoaderCircle,
   LockKeyhole,
@@ -185,7 +140,8 @@ import LinuxDoOAuthSection from '@/components/auth/LinuxDoOAuthSection.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { FoundationButton, FoundationInput } from '@/components/foundation'
 import { useAuthStore, useAppStore } from '@/stores'
-import { getPublicSettings, validatePromoCode, validateInvitationCode } from '@/api/auth'
+import { clearAuthPortalDraft, useAuthPortalDraft } from '@/composables/useAuthPortalDraft'
+import { getPublicSettings } from '@/api/auth'
 import { buildAuthErrorMessage } from '@/utils/authError'
 import { DEFAULT_SITE_NAME, normalizeSiteName } from '@/utils/brand'
 import {
@@ -212,8 +168,6 @@ const showPassword = ref<boolean>(false)
 // Public settings
 const registrationEnabled = ref<boolean>(true)
 const emailVerifyEnabled = ref<boolean>(false)
-const promoCodeEnabled = ref<boolean>(true)
-const invitationCodeEnabled = ref<boolean>(false)
 const turnstileEnabled = ref<boolean>(false)
 const turnstileSiteKey = ref<string>('')
 const siteName = ref<string>(DEFAULT_SITE_NAME)
@@ -224,38 +178,12 @@ const registrationEmailSuffixWhitelist = ref<string[]>([])
 const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
 const turnstileToken = ref<string>('')
 
-// Promo code validation
-const promoValidating = ref<boolean>(false)
-const promoValidation = reactive({
-  valid: false,
-  invalid: false,
-  bonusAmount: null as number | null,
-  message: ''
-})
-let promoValidateTimeout: ReturnType<typeof setTimeout> | null = null
-
-// Invitation code validation
-const invitationValidating = ref<boolean>(false)
-const invitationValidation = reactive({
-  valid: false,
-  invalid: false,
-  message: ''
-})
-let invitationValidateTimeout: ReturnType<typeof setTimeout> | null = null
-
-const formData = reactive({
-  email: '',
-  password: '',
-  promo_code: '',
-  invitation_code: '',
-  affiliate_code: ''
-})
+const formData = useAuthPortalDraft()
 
 const errors = reactive({
   email: '',
   password: '',
-  turnstile: '',
-  invitation_code: ''
+  turnstile: ''
 })
 
 // ==================== Lifecycle ====================
@@ -265,8 +193,6 @@ onMounted(async () => {
     const settings = await getPublicSettings()
     registrationEnabled.value = settings.registration_enabled
     emailVerifyEnabled.value = settings.email_verify_enabled
-    promoCodeEnabled.value = settings.promo_code_enabled
-    invitationCodeEnabled.value = settings.invitation_code_enabled
     turnstileEnabled.value = settings.turnstile_enabled
     turnstileSiteKey.value = settings.turnstile_site_key || ''
     siteName.value = normalizeSiteName(settings.site_name)
@@ -275,15 +201,6 @@ onMounted(async () => {
       settings.registration_email_suffix_whitelist || []
     )
 
-    // Read promo code from URL parameter only if promo code is enabled
-    if (promoCodeEnabled.value) {
-      const promoParam = route.query.promo as string
-      if (promoParam) {
-        formData.promo_code = promoParam
-        // Validate the promo code from URL
-        await validatePromoCodeDebounced(promoParam)
-      }
-    }
     const affiliateParam = (route.query.aff || route.query.affiliate) as string | undefined
     if (affiliateParam) {
       formData.affiliate_code = affiliateParam
@@ -294,152 +211,6 @@ onMounted(async () => {
     settingsLoaded.value = true
   }
 })
-
-onUnmounted(() => {
-  if (promoValidateTimeout) {
-    clearTimeout(promoValidateTimeout)
-  }
-  if (invitationValidateTimeout) {
-    clearTimeout(invitationValidateTimeout)
-  }
-})
-
-// ==================== Promo Code Validation ====================
-
-function handlePromoCodeInput(): void {
-  const code = formData.promo_code.trim()
-
-  // Clear previous validation
-  promoValidation.valid = false
-  promoValidation.invalid = false
-  promoValidation.bonusAmount = null
-  promoValidation.message = ''
-
-  if (!code) {
-    promoValidating.value = false
-    return
-  }
-
-  // Debounce validation
-  if (promoValidateTimeout) {
-    clearTimeout(promoValidateTimeout)
-  }
-
-  promoValidateTimeout = setTimeout(() => {
-    validatePromoCodeDebounced(code)
-  }, 500)
-}
-
-async function validatePromoCodeDebounced(code: string): Promise<void> {
-  if (!code.trim()) return
-
-  promoValidating.value = true
-
-  try {
-    const result = await validatePromoCode(code)
-
-    if (result.valid) {
-      promoValidation.valid = true
-      promoValidation.invalid = false
-      promoValidation.bonusAmount = result.bonus_amount || 0
-      promoValidation.message = ''
-    } else {
-      promoValidation.valid = false
-      promoValidation.invalid = true
-      promoValidation.bonusAmount = null
-      // 根据错误码显示对应的翻译
-      promoValidation.message = getPromoErrorMessage(result.error_code)
-    }
-  } catch (error) {
-    console.error('Failed to validate promo code:', error)
-    promoValidation.valid = false
-    promoValidation.invalid = true
-    promoValidation.message = t('auth.promoCodeInvalid')
-  } finally {
-    promoValidating.value = false
-  }
-}
-
-function getPromoErrorMessage(errorCode?: string): string {
-  switch (errorCode) {
-    case 'PROMO_CODE_NOT_FOUND':
-      return t('auth.promoCodeNotFound')
-    case 'PROMO_CODE_EXPIRED':
-      return t('auth.promoCodeExpired')
-    case 'PROMO_CODE_DISABLED':
-      return t('auth.promoCodeDisabled')
-    case 'PROMO_CODE_MAX_USED':
-      return t('auth.promoCodeMaxUsed')
-    case 'PROMO_CODE_ALREADY_USED':
-      return t('auth.promoCodeAlreadyUsed')
-    default:
-      return t('auth.promoCodeInvalid')
-  }
-}
-
-// ==================== Invitation Code Validation ====================
-
-function handleInvitationCodeInput(): void {
-  const code = formData.invitation_code.trim()
-
-  // Clear previous validation
-  invitationValidation.valid = false
-  invitationValidation.invalid = false
-  invitationValidation.message = ''
-  errors.invitation_code = ''
-
-  if (!code) {
-    return
-  }
-
-  // Debounce validation
-  if (invitationValidateTimeout) {
-    clearTimeout(invitationValidateTimeout)
-  }
-
-  invitationValidateTimeout = setTimeout(() => {
-    validateInvitationCodeDebounced(code)
-  }, 500)
-}
-
-async function validateInvitationCodeDebounced(code: string): Promise<void> {
-  invitationValidating.value = true
-
-  try {
-    const result = await validateInvitationCode(code)
-
-    if (result.valid) {
-      invitationValidation.valid = true
-      invitationValidation.invalid = false
-      invitationValidation.message = ''
-    } else {
-      invitationValidation.valid = false
-      invitationValidation.invalid = true
-      invitationValidation.message = getInvitationErrorMessage(result.error_code)
-    }
-  } catch {
-    invitationValidation.valid = false
-    invitationValidation.invalid = true
-    invitationValidation.message = t('auth.invitationCodeInvalid')
-  } finally {
-    invitationValidating.value = false
-  }
-}
-
-function getInvitationErrorMessage(errorCode?: string): string {
-  switch (errorCode) {
-    case 'INVITATION_CODE_NOT_FOUND':
-      return t('auth.invitationCodeInvalid')
-    case 'INVITATION_CODE_INVALID':
-      return t('auth.invitationCodeInvalid')
-    case 'INVITATION_CODE_USED':
-      return t('auth.invitationCodeInvalid')
-    case 'INVITATION_CODE_DISABLED':
-      return t('auth.invitationCodeInvalid')
-    default:
-      return t('auth.invitationCodeInvalid')
-  }
-}
 
 // ==================== Turnstile Handlers ====================
 
@@ -483,7 +254,6 @@ function validateForm(): boolean {
   errors.email = ''
   errors.password = ''
   errors.turnstile = ''
-  errors.invitation_code = ''
 
   let isValid = true
 
@@ -510,14 +280,6 @@ function validateForm(): boolean {
     isValid = false
   }
 
-  // Invitation code validation (required when enabled)
-  if (invitationCodeEnabled.value) {
-    if (!formData.invitation_code.trim()) {
-      errors.invitation_code = t('auth.invitationCodeRequired')
-      isValid = false
-    }
-  }
-
   // Turnstile validation
   if (turnstileEnabled.value && !turnstileToken.value) {
     errors.turnstile = t('auth.completeVerification')
@@ -538,44 +300,6 @@ async function handleRegister(): Promise<void> {
     return
   }
 
-  // Check promo code validation status
-  if (formData.promo_code.trim()) {
-    // If promo code is being validated, wait
-    if (promoValidating.value) {
-      errorMessage.value = t('auth.promoCodeValidating')
-      return
-    }
-    // If promo code is invalid, block submission
-    if (promoValidation.invalid) {
-      errorMessage.value = t('auth.promoCodeInvalidCannotRegister')
-      return
-    }
-  }
-
-  // Check invitation code validation status (if enabled and code provided)
-  if (invitationCodeEnabled.value) {
-    // If still validating, wait
-    if (invitationValidating.value) {
-      errorMessage.value = t('auth.invitationCodeValidating')
-      return
-    }
-    // If invitation code is invalid, block submission
-    if (invitationValidation.invalid) {
-      errorMessage.value = t('auth.invitationCodeInvalidCannotRegister')
-      return
-    }
-    // If invitation code is required but not validated yet
-    if (formData.invitation_code.trim() && !invitationValidation.valid) {
-      errorMessage.value = t('auth.invitationCodeValidating')
-      // Trigger validation
-      await validateInvitationCodeDebounced(formData.invitation_code.trim())
-      if (!invitationValidation.valid) {
-        errorMessage.value = t('auth.invitationCodeInvalidCannotRegister')
-        return
-      }
-    }
-  }
-
   isLoading.value = true
 
   try {
@@ -588,11 +312,11 @@ async function handleRegister(): Promise<void> {
           email: formData.email,
           password: formData.password,
           turnstile_token: turnstileToken.value,
-          promo_code: formData.promo_code || undefined,
-          invitation_code: formData.invitation_code || undefined,
           affiliate_code: formData.affiliate_code || undefined
         })
       )
+
+      clearAuthPortalDraft()
 
       // Navigate to email verification page
       await router.push('/email-verify')
@@ -604,10 +328,10 @@ async function handleRegister(): Promise<void> {
       email: formData.email,
       password: formData.password,
       turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined,
-      promo_code: formData.promo_code || undefined,
-      invitation_code: formData.invitation_code || undefined,
       affiliate_code: formData.affiliate_code || undefined
     })
+
+    clearAuthPortalDraft()
 
     // Show success toast
     appStore.showSuccess(t('auth.accountCreatedSuccess', { siteName: siteName.value }))
@@ -660,8 +384,35 @@ async function handleRegister(): Promise<void> {
   gap: 1.25rem;
 }
 
+.auth-form-heading {
+  min-height: 4rem;
+}
+
 .auth-code-field {
   gap: 0.5rem;
+}
+
+.auth-invite-enter-active,
+.auth-invite-leave-active {
+  overflow: hidden;
+  transition:
+    max-height 220ms ease,
+    opacity 180ms ease,
+    transform 220ms ease;
+}
+
+.auth-invite-enter-from,
+.auth-invite-leave-to {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-0.5rem);
+}
+
+.auth-invite-enter-to,
+.auth-invite-leave-from {
+  max-height: 6rem;
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .auth-form-heading h1 {
@@ -704,8 +455,7 @@ async function handleRegister(): Promise<void> {
   line-height: 1.25rem;
 }
 
-.auth-form-status svg,
-.auth-validation-note svg {
+.auth-form-status svg {
   width: 1rem;
   height: 1rem;
   flex: 0 0 auto;
@@ -715,8 +465,7 @@ async function handleRegister(): Promise<void> {
   margin-top: 0.125rem;
 }
 
-.auth-form-status p,
-.auth-validation-note {
+.auth-form-status p {
   margin: 0;
 }
 
@@ -732,29 +481,6 @@ async function handleRegister(): Promise<void> {
   background: hsl(var(--warning) / 0.1);
 }
 
-.auth-validation-note {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  border-radius: var(--radius);
-  padding: 0.5rem 0.625rem;
-  font-size: 0.75rem;
-  line-height: 1.125rem;
-}
-
-.auth-validation-note--success {
-  color: hsl(var(--success));
-  background: hsl(var(--success) / 0.1);
-}
-
-.auth-status-icon--success {
-  color: hsl(var(--success));
-}
-
-.auth-status-icon--error {
-  color: hsl(var(--destructive));
-}
-
 .auth-submit {
   width: 100%;
 }
@@ -765,5 +491,12 @@ async function handleRegister(): Promise<void> {
 
 @keyframes auth-spin {
   to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-invite-enter-active,
+  .auth-invite-leave-active {
+    transition: none;
+  }
 }
 </style>

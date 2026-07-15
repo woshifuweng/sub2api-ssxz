@@ -3,6 +3,7 @@ import { defineComponent } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import LoginView from '../LoginView.vue'
 import RegisterView from '../RegisterView.vue'
+import { clearAuthPortalDraft, useAuthPortalDraft } from '@/composables/useAuthPortalDraft'
 
 const mocks = vi.hoisted(() => ({
   route: { query: {} as Record<string, string> },
@@ -112,6 +113,7 @@ function mountRegister() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  clearAuthPortalDraft()
   sessionStorage.clear()
   mocks.route.query = {}
   mocks.getPublicSettings.mockResolvedValue(publicSettings())
@@ -123,6 +125,30 @@ afterEach(() => {
 })
 
 describe('LoginView C2 integration', () => {
+  it('keeps email and password in memory while switching to registration', async () => {
+    const login = mountLogin()
+    await flushPromises()
+
+    await login.get('#email').setValue('switch@example.com')
+    await login.get('#password').setValue('switch-password')
+    login.unmount()
+
+    const register = mountRegister()
+    await flushPromises()
+
+    expect((register.get('#email').element as HTMLInputElement).value).toBe('switch@example.com')
+    expect((register.get('#password').element as HTMLInputElement).value).toBe('switch-password')
+
+    await register.get('#email').setValue('back@example.com')
+    await register.get('#password').setValue('back-password')
+    register.unmount()
+
+    const loginAgain = mountLogin()
+    await flushPromises()
+    expect((loginAgain.get('#email').element as HTMLInputElement).value).toBe('back@example.com')
+    expect((loginAgain.get('#password').element as HTMLInputElement).value).toBe('back-password')
+  })
+
   it('keeps the real password login and safe return target flow', async () => {
     mocks.route.query = { returnTo: '/app/keys' }
     mocks.login.mockResolvedValue({ access_token: 'test-token' })
@@ -140,6 +166,7 @@ describe('LoginView C2 integration', () => {
       turnstile_token: undefined
     })
     expect(mocks.push).toHaveBeenCalledWith('/app/keys')
+    expect(useAuthPortalDraft()).toMatchObject({ email: '', password: '' })
   })
 
   it('still opens the TOTP step without redirecting after the first factor', async () => {
@@ -162,6 +189,18 @@ describe('LoginView C2 integration', () => {
 })
 
 describe('RegisterView C2 integration', () => {
+  it('shows only the affiliate invitation field even when legacy code settings are enabled', async () => {
+    mocks.getPublicSettings.mockResolvedValue(
+      publicSettings({ promo_code_enabled: true, invitation_code_enabled: true })
+    )
+    const wrapper = mountRegister()
+    await flushPromises()
+
+    expect(wrapper.find('#promo_code').exists()).toBe(false)
+    expect(wrapper.find('#invitation_code').exists()).toBe(false)
+    expect(wrapper.get('#affiliate_code').attributes('name')).toBe('affiliate_code')
+  })
+
   it('sends the /register?aff= attribution in the direct registration payload', async () => {
     mocks.route.query = { aff: 'AFF-2026' }
     mocks.register.mockResolvedValue({ access_token: 'test-token' })
@@ -177,10 +216,50 @@ describe('RegisterView C2 integration', () => {
       email: 'new-user@example.com',
       password: 'strong-password',
       turnstile_token: undefined,
-      promo_code: undefined,
-      invitation_code: undefined,
       affiliate_code: 'AFF-2026'
     })
+    const payload = mocks.register.mock.calls[0]?.[0]
+    expect(payload).not.toHaveProperty('promo_code')
+    expect(payload).not.toHaveProperty('invitation_code')
+    expect(useAuthPortalDraft()).toEqual({ email: '', password: '', affiliate_code: '' })
+  })
+
+  it('allows registration without an invitation even if the legacy gate setting is true', async () => {
+    mocks.getPublicSettings.mockResolvedValue(publicSettings({ invitation_code_enabled: true }))
+    mocks.register.mockResolvedValue({ access_token: 'test-token' })
+    const wrapper = mountRegister()
+    await flushPromises()
+
+    await wrapper.get('#email').setValue('no-invite@example.com')
+    await wrapper.get('#password').setValue('strong-password')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(mocks.register).toHaveBeenCalledWith({
+      email: 'no-invite@example.com',
+      password: 'strong-password',
+      turnstile_token: undefined,
+      affiliate_code: undefined
+    })
+    expect(mocks.validateInvitationCode).not.toHaveBeenCalled()
+  })
+
+  it('passes a typed affiliate code without turning an invalid attribution into a registration gate', async () => {
+    mocks.validateInvitationCode.mockResolvedValue({ valid: false })
+    mocks.register.mockResolvedValue({ access_token: 'test-token' })
+    const wrapper = mountRegister()
+    await flushPromises()
+
+    await wrapper.get('#email').setValue('invalid-aff@example.com')
+    await wrapper.get('#password').setValue('strong-password')
+    await wrapper.get('#affiliate_code').setValue('UNKNOWN-CODE')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(mocks.register).toHaveBeenCalledWith(
+      expect.objectContaining({ affiliate_code: 'UNKNOWN-CODE' })
+    )
+    expect(mocks.validateInvitationCode).not.toHaveBeenCalled()
   })
 
   it('keeps affiliate attribution through the email verification handoff', async () => {
@@ -199,6 +278,9 @@ describe('RegisterView C2 integration', () => {
       email: 'verify@example.com',
       affiliate_code: 'AFF-VERIFY'
     })
+    expect(pending).not.toHaveProperty('promo_code')
+    expect(pending).not.toHaveProperty('invitation_code')
+    expect(useAuthPortalDraft()).toEqual({ email: '', password: '', affiliate_code: '' })
     expect(mocks.register).not.toHaveBeenCalled()
     expect(mocks.push).toHaveBeenCalledWith('/email-verify')
   })

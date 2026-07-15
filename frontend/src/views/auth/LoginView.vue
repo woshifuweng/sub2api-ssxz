@@ -118,6 +118,7 @@ import TotpLoginModal from '@/components/auth/TotpLoginModal.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { FoundationButton, FoundationInput } from '@/components/foundation'
 import { useAuthStore, useAppStore } from '@/stores'
+import { clearAuthPortalDraft, useAuthPortalDraft } from '@/composables/useAuthPortalDraft'
 import { getPublicSettings, isTotp2FARequired } from '@/api/auth'
 import { resolveRouteAuthRedirect } from '@/utils/authRedirect'
 import { getSafeSessionStorageItem, removeSafeSessionStorageItem } from '@/utils/safeStorage'
@@ -155,10 +156,7 @@ const totpTempToken = ref<string>('')
 const totpUserEmailMasked = ref<string>('')
 const totpModalRef = ref<InstanceType<typeof TotpLoginModal> | null>(null)
 
-const formData = reactive({
-  email: '',
-  password: ''
-})
+const formData = useAuthPortalDraft()
 
 const errors = reactive({
   email: '',
@@ -274,6 +272,8 @@ async function handleLogin(): Promise<void> {
       return
     }
 
+    clearAuthPortalDraft()
+
     // Show success toast
     appStore.showSuccess(t('auth.loginSuccess'))
 
@@ -315,6 +315,7 @@ async function handle2FAVerify(code: string): Promise<void> {
 
     // Close modal and show success
     show2FAModal.value = false
+    clearAuthPortalDraft()
     appStore.showSuccess(t('auth.loginSuccess'))
 
     await router.push(resolveRouteAuthRedirect(route.query))
@@ -359,6 +360,10 @@ function handle2FACancel(): void {
 
 .auth-form {
   gap: 1.25rem;
+}
+
+.auth-form-heading {
+  min-height: 4rem;
 }
 
 .auth-form-heading h1 {
