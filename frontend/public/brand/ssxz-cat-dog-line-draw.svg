@@ -1,0 +1,343 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 119.8 194" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="ssxz-logo-title">
+  <title id="ssxz-logo-title">SSXZ Double-S Cat and Dog Logo</title>
+  <!-- Derived from ????111.svg, created with Arrow by QuiverAI. -->
+  <style>
+.cls-0 {fill:none;stroke:#FFE1BB;stroke-width:0.45;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
+.cls-dog-head {fill:none;stroke:#FFE1BB;stroke-width:0.75;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
+.cls-1 {fill:#FCE5C6;}
+.cls-2 {fill:none;stroke:#E0BF93;stroke-width:0.75;stroke-miterlimit:10;}
+.cls-3 {fill:none;stroke:#FFE1BB;stroke-width:0.75;stroke-miterlimit:10;}
+.cls-4 {fill:#FFFDFD;}
+.cls-5 {fill:#FFFFFF;}
+.cls-6 {fill:#FFE1BA;}
+.cls-7 {fill:none;stroke:#EAC8A1;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
+.cls-8 {fill:#EBCCAB;}
+.cls-9 {fill:#FFF3DE;}
+.cls-10 {fill:#0084FF;}
+.cls-11 {fill:#FFFFFF;stroke:#0D0B0B;stroke-width:0.1;stroke-miterlimit:10;}
+.cls-12 {fill:#858585;}
+.cls-13 {fill:none;stroke:#DBB99A;stroke-width:0.15;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
+.cls-14 {fill:#FAFAFB;}
+
+.ssxz-outline {
+  animation: ssxz-outline-retire .34s ease 2.08s forwards;
+}
+.ssxz-draw {
+  fill: none;
+  stroke-width: .55;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-miterlimit: 10;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  stroke-opacity: 0;
+  animation: ssxz-line-draw .72s cubic-bezier(.22,.72,.18,1) calc(var(--path-index) * 11.5ms) both;
+}
+.ssxz-draw--warm { stroke: #f6d6aa; }
+.ssxz-draw--light { stroke: #f7f8fa; }
+.ssxz-draw--blue { stroke: #278fff; }
+.ssxz-draw--muted { stroke: #aeb3ba; }
+.ssxz-draw--shadow { stroke: #7d8188; }
+@media (prefers-color-scheme: light) {
+  .cls-0 {fill:none;stroke:#5C3C16;stroke-width:0.45;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
+  .cls-dog-head {fill:none;stroke:#6B451B;stroke-width:0.75;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
+  .cls-1 {fill:#71491D;}
+  .cls-2 {fill:none;stroke:#795323;stroke-width:0.75;stroke-miterlimit:10;}
+  .cls-3 {fill:none;stroke:#674318;stroke-width:0.75;stroke-miterlimit:10;}
+  .cls-4 {fill:#343A40;}
+  .cls-5 {fill:#252A30;}
+  .cls-6 {fill:#7B5120;}
+  .cls-7 {fill:none;stroke:#765126;stroke-width:0.25;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
+  .cls-8 {fill:#68461F;}
+  .cls-9 {fill:#7A5A2D;}
+  .cls-10 {fill:#006FC4;}
+  .cls-11 {fill:#272C32;stroke:#111417;stroke-width:0.1;stroke-miterlimit:10;}
+  .cls-12 {fill:#4B525A;}
+  .cls-13 {fill:none;stroke:#6C4A2D;stroke-width:0.15;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
+  .cls-14 {fill:#30363C;}
+  .ssxz-draw--warm { stroke: #704A1D; }
+  .ssxz-draw--light { stroke: #252A30; }
+  .ssxz-draw--blue { stroke: #006FC4; }
+  .ssxz-draw--muted { stroke: #4B525A; }
+  .ssxz-draw--shadow { stroke: #353B42; }
+}
+.ssxz-color {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation:
+    ssxz-color-form .42s cubic-bezier(.2,.78,.22,1) 1.92s forwards,
+    ssxz-color-breathe 6s ease-in-out 2.55s infinite;
+}
+@keyframes ssxz-line-draw {
+  0% { stroke-dashoffset: 1; stroke-opacity: 0; }
+  10% { stroke-opacity: .28; }
+  100% { stroke-dashoffset: 0; stroke-opacity: .96; }
+}
+@keyframes ssxz-outline-retire {
+  from { opacity: 1; }
+  to { opacity: .18; }
+}
+@keyframes ssxz-color-form {
+  0% {
+    opacity: 0;
+    filter: brightness(.76) drop-shadow(0 0 0 rgb(246 214 170 / 0));
+    transform: scale(.992);
+  }
+  100% {
+    opacity: 1;
+    filter:
+      brightness(1)
+      drop-shadow(0 0 .9px rgb(246 214 170 / 28%))
+      drop-shadow(0 0 1.2px rgb(39 143 255 / 12%));
+    transform: scale(1);
+  }
+}
+@keyframes ssxz-color-breathe {
+  0%, 100% {
+    filter:
+      brightness(1)
+      drop-shadow(0 0 .8px rgb(246 214 170 / 22%))
+      drop-shadow(0 0 1px rgb(39 143 255 / 10%));
+    transform: scale(1);
+  }
+  50% {
+    filter:
+      brightness(1.035)
+      drop-shadow(0 0 1.4px rgb(246 214 170 / 32%))
+      drop-shadow(0 0 1.8px rgb(39 143 255 / 16%));
+    transform: scale(1.008);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ssxz-outline { display: none; animation: none; }
+  .ssxz-draw { animation: none; }
+  .ssxz-color {
+    opacity: 1;
+    animation: none;
+    filter: none;
+    transform: none;
+  }
+}
+  </style>
+  <g class="ssxz-outline" aria-hidden="true">
+    <path class="ssxz-draw ssxz-draw--warm" d="m57.6 20.4c-2.3 1.6-4.7 2.6-7.9 3.2-5.9 1.1-11 2.3-17.2 5l-0.5 1.1c7.3-4 13.1-5.7 19-5.7-9.7 1.3-14.6 3.4-22.8 8l-4.7 3c8.1-3.6 16.6-8 23.9-8.7l5.6-1.1c-6.4 2.2-12 2.8-14.7 4.5 2.9-0.8 5.6-1.9 8-1.9-11.4 3.9-23.7 10.4-28.9 14.5s-6.4 5.7-9.6 10.5c6.6-9.1 13.2-12.9 22.5-17.9-11.3 7.4-16.1 11.3-21.1 17.6s-8.5 15.1-8.4 25.7c0.8-16.3 9.5-30.4 26.4-40.2 13.2-8.1 19.4-9.7 30.4-17.6z" pathLength="1" style="--path-index:0"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m77 21c2.9-0.4 8.6-3.4 11.6-5.5l1.3-1.4c1 1.8-1.6 7.8-2.5 8.5l-1 5.2" pathLength="1" style="--path-index:1"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m77.4 23.4c4.6 2.4 10.3 5.7 13.8 10.1l1.8 2.5 0.4 0.9-0.7-1.4 0.3 0.5h-0.1l0.9 2m-9.8-19.1-3.9 3" pathLength="1" style="--path-index:2"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m76.8 27.8c2.1-5-1.4-12.1 1.2-22.8 0-5.3-8.9 3.1-10.1 4.6s-5.8 5.8-6.7 9.8c1.7-4.5 4.4-5.4 4.4-5.4-3 4-5.2 9-4.1 13-1.1-5 2.4-11.6 4.5-13.9s8.4-9.3 11.6-9" pathLength="1" style="--path-index:3"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m55.9 33.9c-3.9-7 1.5-14.3 8-19.4l0.6-0.4" pathLength="1" style="--path-index:4"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m77.7 21.1c3-5.4-0.8-10.1 2.3-17.1" pathLength="1" style="--path-index:5"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m85.9 27.8c3.6 2.4 5.6 4.8 7.2 7.2l0.3 0.4-0.4-0.5 0.4 0.7m-0.7-0.2 0.3 0.5-0.1-0.3" pathLength="1" style="--path-index:6"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m77.6 23.6c3.8 3.4 11.9 8.3 13.4 13.9" pathLength="1" style="--path-index:7"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m92.7 35.6 0.2 0.3" pathLength="1" style="--path-index:8"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m59 42.6c3.6-1 5.7-2.6 6.7-3.4-4 4.2-6.2 4.9-9.3 6.8-5.4 3.1-9 6.4-10.4 9.9 2.9-6.8 11.2-8.4 14-8.8l1.5-0.2c-2.9 0.6-7.5 1.6-10.3 3.5 4.7-3.8 10.7-4.9 14.3-9.2-2.1 2.8-7.3 4-8.9 4.8-8 2.6-20.1 6.5-19.1 15.9 0.5 8.2 10.5 11.6 14.9 12.6l8 2.2v0.8c-8.7-1.9-20.2-3.3-23.5-12.6-1.8-5.5 1.1-13.7 14-17.8l5.2-1.7 0.5-0.4" pathLength="1" style="--path-index:9"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m58.9 23.5c0.8-5.5 4.8-6.8 5.7-9.1-3.4 2.1-11.4 8.6-9.1 18-0.4-6.4 2.9-10.9 4.6-12.7-0.6 1.2-1 2.2-1.2 3.8z" pathLength="1" style="--path-index:10"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m47.7 32.1c-11.2 2.1-20.8 7.4-26.8 14.6-4.9 5.8-7.7 11.4-8.7 19.3-1 10.5 4 28.1 27.7 38.5-20.4-7.6-26.7-22.4-28-31.8-1-7.5 0.7-18.1 9.7-26.8 5.3-5.7 14.9-11.5 26.1-13.8z" pathLength="1" style="--path-index:11"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m14.4 54.4c-5.8 7.2-9.4 17.6-7 30.6 1.8 8.4 7.5 19.7 31.5 31.5-20.9-8.6-30.4-18.6-33-31.4-1.5-6.1-2-18.5 8.5-30.7z" pathLength="1" style="--path-index:12"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m4.2 83.9c0.3 12.7 7 25 18.8 31.5 10.4 6.1 22.6 8.5 33.2 16.2-11-7-24.3-7.9-35.3-16.2s-16.9-18.5-16.7-31.5z" pathLength="1" style="--path-index:13"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m15.4 111c7.6 9.4 13.7 11.9 23.5 15.5 4.5 1.6 9.1 3.7 11.6 6.5-5.3-4.1-15.5-6.6-23.4-11.9l-4.2-4.2 5.6 4.1c-4.8-2.5-7.6-5-13.1-10z" pathLength="1" style="--path-index:14"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m68.5 36.7c-4.3 3.9-5.3 6.3-8.9 7.9l-2.2 1.1 2.5-1.1c4-1.2 5.6-4.6 8.6-7.9z" pathLength="1" style="--path-index:15"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m62.6 50.9c-6 2.6-12.2 5.2-13.7 12.3 2-6.7 7.6-11.5 13.7-12.3z" pathLength="1" style="--path-index:16"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m62 56.4c-6.1 2.6-9.5 8.2-6.9 13.5-0.6-1.3-0.7-2.5-0.6-4.4-0.1-3.9 3.1-7.5 7.5-9.1z" pathLength="1" style="--path-index:17"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m65.5 41.2c-2.6 2.5-6.1 3.4-8.9 4.7s-4.9 2.2-6.6 4.6c4.5-4.1 12.5-5.6 15.5-9.3z" pathLength="1" style="--path-index:18"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m51.5 55.5c3.7-1.5 7.6-3 10.9-4.6" pathLength="1" style="--path-index:19"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m60.6 53.5c-2.9 1.1-9.2 2.4-11.7 9.7 2.6-6.5 10.1-9.2 16-10.2l5.7-1.5c-4.9 1.1-8.1 1.4-10 2z" pathLength="1" style="--path-index:20"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m60.5 66.7c1.7-7.8 9.1-10.1 14-9.8-3-0.3-12.8 1.7-14 9.8z" pathLength="1" style="--path-index:21"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m67.1 65c3.6-6 9.8-7 13-7-3.4-0.4-10.4 1.9-13 7z" pathLength="1" style="--path-index:22"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m79.5 62c8.6-2.1 14.1 3.2 17.5 3.2l2.1 0.4c2.3 0.5 5.5-0.5 6.9-3.1" pathLength="1" style="--path-index:23"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m70.6 70.1c4.4 6.6 15.4 7 23.3 9.4 3.8 1.2 7.7 4 9.1 5l2.6 2-2.9-2c-10.2-6.4-26.3-6.5-32.1-14.4z" pathLength="1" style="--path-index:24"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m81.4 81.1c14 3.6 22.2 8.1 29.2 16.4 3.6 4.5 6.9 10.6 9.1 18.5l-1.8-6c-3.5-9-10.9-18-25.3-25.3l-11.2-3.6z" pathLength="1" style="--path-index:25"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m84.4 81.6c9.1 2.1 16 4.3 24.6 11.9l0.1 0.2 0.3 0.2 1.1 1.1-1.5-1.5c-2-2.5-6.5-6.3-9.5-8.5-4.8-2.9-13-2.9-15.1-3.4z" pathLength="1" style="--path-index:26"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m78.7 68.6c1.5 5.5 6.7 6.8 14 9l0.4 0.1-1.1-0.3-0.4-0.2c-4.4-1.5-10.5-2.3-12.9-7.3v-1.3z" pathLength="1" style="--path-index:27"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m82.2 74.5c7.9 3.7 13.2 6.5 17.4 10.6-2.7-2.5-11.5-6.5-17.4-10.6z" pathLength="1" style="--path-index:28"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m63.2 25.9c-1.5 1.6-1 3.5-0.2 4-1.3-1.4 0.2-4 0.2-4z" pathLength="1" style="--path-index:29"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m64.5 21.9c-0.5 1.7-0.5 5-1 7.2 1.1-2.1 1.2-5.1 1-7.2z" pathLength="1" style="--path-index:30"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m62.2 25.6c-0.8-6.1 5.3-15.7 12.3-19.7-4.9 3.7-11.5 12.1-12.1 19.7h-0.2z" pathLength="1" style="--path-index:31"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m62.2 34.5c1.2-2 2.9-3 3.8-7.9-0.4 2.8-2.5 5-3.8 7.9z" pathLength="1" style="--path-index:32"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m71.1 28 3.5-5.1-0.2 1.1c1.6-2.9 0.7-9 0.7-9 0.4 8-2.5 10.6-5 13.5" pathLength="1" style="--path-index:33"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m74.6 23-1.4 2.5-0.6 1.4c1-1.3 2.5-3.3 2.4-6l-0.4 2.1z" pathLength="1" style="--path-index:34"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m75.9 22.6c-0.7 2.9-2.4 5.3-3.4 6.1 2-1 3.5-4.1 3.6-6.7l-0.2 0.6z" pathLength="1" style="--path-index:35"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m87 23.6-3.3 1.3 0.9-0.3 2.4-1z" pathLength="1" style="--path-index:36"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m82.1 23 3.4-4 2-1.9-1.8 1.3-3.6 4.6z" pathLength="1" style="--path-index:37"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m93 38.9c-0.4 7.6 8.9 8.6 16.4 14.2l0.2 0.3c1.8 1.1 2.4 0.7 2.5 1.2 1 0.4 1 1.4-1.1 4l-2.3 1.8" pathLength="1" style="--path-index:38"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m93 46.4" pathLength="1" style="--path-index:39"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m93.1 46.1" pathLength="1" style="--path-index:40"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m106 61.9" pathLength="1" style="--path-index:41"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m93.1 42.1" pathLength="1" style="--path-index:42"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m92.7 41.6" pathLength="1" style="--path-index:43"/>
+    <path class="ssxz-draw ssxz-draw--shadow" d="m103.9 62.6c2-0.4 4.8-2.5 5.1-4l-5-6.2-8.6-4.4-1.8-8-1.1-3.5-2.5-3.5-5.4-4.1-6.6-4.9-1 1.9-1.4 2.8-7-0.7-4.2 3.9-1.7 2.5-0.8-0.4-5.7 0.4 0.9 2.6 2 4.4 6.6-2 9.3-4.4 8.6-0.1 5 3.7 1.4 8 3 0.4 2.9-0.4 4.2 2.8 5 3.1 1.8 5.5-3 4.6z" pathLength="1" style="--path-index:44"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m86 34.9c2.2 1 3.6 2.6 3.5 4.1 0.6-1.6-1.1-3.5-3.5-4.1z" pathLength="1" style="--path-index:45"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m81.4 35c3.3-0.4 5.2 0.4 6.7 1.7-0.6-0.7-1-2.2-6.7-1.7z" pathLength="1" style="--path-index:46"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m78.7 41.4c3.2 0.6 6.2-1.9 6.7-1.9 1-0.5 2.6 1.1 3.6 0.5-2.5 1.6-6 1.6-7 1.6h-3.3z" pathLength="1" style="--path-index:47"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m81.6 41.6c1.1 0.1 3 2.5 4.8 2.9l1.8-0.4 1.8 1-1.9-1.6h-1.9l-1.2-0.5-1.9-1.4h-1.5z" pathLength="1" style="--path-index:48"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m82.7 41.6c3.3-1.2 5.3-1.6 5.7-1.2v1.2l0.1-1.5-0.8-0.6c-1.6 0-1.8 1.5-5 2.1z" pathLength="1" style="--path-index:49"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m85 41.2c0 1.4 0.6 1.8 2.1 2.7l-0.1-1.3-0.4-0.9-1.6-0.5z" pathLength="1" style="--path-index:50"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m87.6 41.1-1.1 0.3 0.4 1.2 1.1-0.6-0.4-0.9z" pathLength="1" style="--path-index:51"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m86.7 44.1 1.8-0.5 0.6-1.5 0.3 0.5 0.6 1.4-1.6 0.1h-1.7z" pathLength="1" style="--path-index:52"/>
+    <path class="ssxz-draw ssxz-draw--shadow" d="m102.7 62.9c4 0.1 6.7-2.7 6.7-4.3-0.4-1-1.7-2-1.7-3.1-0.1-1.4 1.4-2.9 3.3-1.6l-2.1-1.5-4.9-2.4-10.6-3.9 1.5 3.5 6.1 4 2.9 5.4-1.2 3.9z" pathLength="1" style="--path-index:53"/>
+    <path class="ssxz-draw ssxz-draw--shadow" d="m105.4 52.9 3.7 4.5c0.5 0.2 2-1.8 2-2.4 0.1-0.6-3.7-1-3.7-1l-2-1.1z" pathLength="1" style="--path-index:54"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m106 52.6c-2 1.4 1 7.8 4 5" pathLength="1" style="--path-index:55"/>
+    <path class="ssxz-draw ssxz-draw--shadow" d="m88.4 36c1.3 1 1.1 2.6 0.3 4.6l1.5-0.1v-2.9l-1.8-1.6z" pathLength="1" style="--path-index:56"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m87.5 35c1.7 1.4 2.9 2.7 1.1 5.6l1.4-2-0.4-1.5-2.1-2.1z" pathLength="1" style="--path-index:57"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m53.9 140c9.6-9 17.8-12.1 13.2-22.3-3.4-4.6-6-4.6-9.1-3.3-2.8 1.5-7 4.5-9.5 0l-0.5-0.4 0.4-0.1c1.7 3.1 4.8 3 7.8 1.1 3.8-2.4 9.2-2.4 11.8 2 5.7 9.5-5.5 16.1-14.1 23z" pathLength="1" style="--path-index:58"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m66 76.6c7.5 5.5 14.1 4.6 25.2 11.4 12.8 7.6 24.9 19.5 26.5 36.1 1.2 10.9-1.6 25.4-13.1 37.9 7.1-7.1 11.3-21.8 9.9-35.8-1.8-16.6-13.1-28.2-20.6-33.2-9.5-6.6-16.7-8-27.5-14l-0.4-2.4z" pathLength="1" style="--path-index:59"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m58 84c-3.9-0.4-8-2.1-11.4-4.5v0.1c0.5 3.4 2.9 7.4 3.9 9.3l0.6 0.1 0.3-0.3-1.7-2.7 1.8 1.4-2-2.3-2.3-4.6c2.8 2.1 5.9 3.1 9.8 4.1" pathLength="1" style="--path-index:60"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m59 84c-5.1 1.9-12 7-12.5 12.9-0.3 2.5 1.5 3.8-0.5 7.1l-2.4 4.6c1.6-1.2 4.5-0.2 1.4 2.5l0.4 0.9 1.2 1.1 1.5 0.5 3.3 0.3-2.8 0.3c-2-0.3-2.6-0.8-3.6-2.7l-1.4-1.6c-0.6-0.9-0.6-1.3-0.2-2.2l2-3.8c1.7-3 0.7-3.3 0.8-6.9 0.4-4.4 9-13 12.8-13z" pathLength="1" style="--path-index:61"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m43.5 141.4c-5-5.5-12.9-7.3-19.6-6-10.7 1.5-18.4 10.1-19 19.5 0.7-10 7.2-18.8 17.2-20.8 6.4-1.5 17-1.2 21.4 7.3z" pathLength="1" style="--path-index:62"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m20 137c-5 1-16.1 6.9-16 20.5 0.1 6.5 2.6 13.9 8.9 18.5-4.9-4.5-6.4-10-6.9-16 0.1-7.4 2-14 9.6-18.1-1.6 0.6-10.5 5.2-8.6 19.1 0.1-11.5 5.9-16.9 12.5-20.5" pathLength="1" style="--path-index:63"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m36.1 134.6c-4.6-3-8.4-3.7-14-3.2l-0.2 0.1 0.6-0.1h0.2-0.2l-0.4 0.1c6-0.5 10.5 0.9 14 3.1z" pathLength="1" style="--path-index:64"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m31.1 143.5c-8.1 4.2-6.6 15.1 1.4 21 4 3.5 10.9 6 15.2 7.1l5.8 1.5c-4 0-11.3-1.7-15.4-3.6-3.1-1.4-7.5-4-10-7.8-4.9-6.7-5.4-14.7 3-18.2z" pathLength="1" style="--path-index:65"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m36.1 136.6c-10.5-2.7-18.6 5.8-18 16.5-0.2-12 9.4-18.1 18-16.5z" pathLength="1" style="--path-index:66"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m14.5 162.2c0.4 9.7 11.5 22.2 31 21.7-8.8 1-30.8-1.7-31-21.7z" pathLength="1" style="--path-index:67"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m14.6 150c-6.6 7.4-5.1 22.6 5.4 30.5 3.6 3.4 8.4 6.5 16 7.5-11.4-1.6-21.3-6.9-24.8-17-2.2-5.5-4-14 3.4-21z" pathLength="1" style="--path-index:68"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m10.5 153.7c-3 5.8-1.5 14.8 0.2 18.4-1.1-1.6-3.7-7.1-2.2-14.5l2-3.9z" pathLength="1" style="--path-index:69"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m33 138c-9-2-15.8 8-13.4 5 3.9-4.9 10.6-6.3 13.4-5z" pathLength="1" style="--path-index:70"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m28.5 184.7c9.2 4.3 26.5 7 45-5.3-8.4 5.6-26.1 14.6-45 5.3z" pathLength="1" style="--path-index:71"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m47.7 191c12.3 0 27.9-4.4 41.7-17 11.7-10.5 18.7-17 23.3-35-1 14.9-9.3 25.1-21.3 35-9.2 7-19.2 15.6-36.9 16.9l-6.8 0.1z" pathLength="1" style="--path-index:72"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m91.4 172.9c4.6-3.4 8.7-7.9 12.1-10.4l-2.5 3.4-3 2.8-6.6 4.2z" pathLength="1" style="--path-index:73"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m72.5 170.5c-7.3 4-19.1 5.9-26.9 2.5 9.3 2.5 18.9 1.5 26.9-2.5z" pathLength="1" style="--path-index:74"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m69.5 177.2c10.9-2.8 23.2-10.2 29.9-20.8l0.5-0.8 0.5-0.7 0.3-0.5-0.7 1.2h-0.1l-0.5 0.8c-4.3 7.6-17.8 18-29.9 20.8z" pathLength="1" style="--path-index:75"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m77.1 179c9.6-3.4 21.8-14.4 25.4-21.1-2.6 4.7-16.5 18.1-25.4 21.1z" pathLength="1" style="--path-index:76"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m93.9 171.6 6.1-4.6 1.6-1.6 2.4-2.9-3.3 4.1-6.8 5z" pathLength="1" style="--path-index:77"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m103.6 151.6c-4.2 9.4-12.6 16.3-17.9 18.9 7.8-4.5 14.3-11.5 17.9-18.9z" pathLength="1" style="--path-index:78"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m103 161 3.6-4.3-3 4.4-0.6-0.1z" pathLength="1" style="--path-index:79"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m101.4 163.5 3.2-3.4-2.7 3.5-0.5-0.1z" pathLength="1" style="--path-index:80"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m54 140c11-6 23-6.3 28.6-13.1 7.8-7.5 5.4-23.3-9.7-29.2l-5.5-3 5.2 2.3c11.8 3.7 17 14 14.8 22.9-3.8 14.1-17.3 13.7-30.8 20.6-16.9 8.5-21.5 23.5-14.7 29.9l-0.9-0.3c-6-6.2-2.5-21.5 13-30.1z" pathLength="1" style="--path-index:81"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m43.5 110c2-0.4 1.9-2 2.4-1l-0.4 1.2-1.5 0.4-0.5-0.6z" pathLength="1" style="--path-index:82"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m58.9 83.6-0.9 4.4 1.1-2v-4.4l-0.2-10.1c3.2 1.5 8 4.9 11.1 7 2 1.5 5.4 5.1 5.9 8.1-0.8-2.6-4-5-9.5-9l-6.8-5.2-0.7 11.2z" pathLength="1" style="--path-index:83"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m65.5 76c7 7.1 6 10.1 4.5 12.4l1.6-1-0.9 2.3 0.4 1.8-2.5-1.6 1 0.5-0.7-2.3 1.1 1.1-1.1-3.2 1.2 0.9v-2l-0.6-1.3-4-5.6v-2z" pathLength="1" style="--path-index:84"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m80.1 62.1 5.6-0.1 3.8 0.9 1.9 0.7 2.1 0.5c-3-0.4-6.6-2.7-13.4-2z" pathLength="1" style="--path-index:85"/>
+    <path class="ssxz-draw ssxz-draw--muted" d="m45.6 93 0.5 5.6-0.5-1.1v-4.5z" pathLength="1" style="--path-index:86"/>
+    <path class="ssxz-draw ssxz-draw--muted" d="m44.9 96 1.6 1.6-2-1.2 0.4-0.4z" pathLength="1" style="--path-index:87"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m62.4 77c-1.9 6.6 0 10 1.1 11.6-2-1.5-3.6-5.2-1.1-11.6z" pathLength="1" style="--path-index:88"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m63.4 88.6c-1.9-1.5-2.4-3.6-2.4-5.6 0.2 1.9 1 4 2.6 5.6h-0.2z" pathLength="1" style="--path-index:89"/>
+    <path class="ssxz-draw ssxz-draw--muted" d="m53.5 85-3.6-2.6 4.2 2.2-0.6 0.4z" pathLength="1" style="--path-index:90"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m53.4 89 2.1-3h1l-3.1 3z" pathLength="1" style="--path-index:91"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m50.5 94.1c-1 1.9-0.6 2.9-0.1 3.6-0.4-2.7 1-3.7 0.1-3.6z" pathLength="1" style="--path-index:92"/>
+    <path class="ssxz-draw ssxz-draw--blue" d="m52.2 98 0.3 3 1.5-0.5 1.4-2.4 1.1-0.5-3.4-0.2-0.9 0.6z" pathLength="1" style="--path-index:93"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m55.9 97.6-3-0.2-0.4 1.5 0.4-0.2 0.6-0.7 2.4-0.4z" pathLength="1" style="--path-index:94"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m52 98.9-0.5 2.8-0.5 0.8 0.6-0.5c0.8-0.9 0.4-3.1 0.4-3.1z" pathLength="1" style="--path-index:95"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m52.5 97.9c-0.5 1.1 0 1.5 0.5 1.1 0.5-0.5 0.4-1.4-0.5-1.1z" pathLength="1" style="--path-index:96"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m62.5 105.6c6.4-0.5 14-0.1 17 5.9-2.6-4-8-6.5-17-5.9z" pathLength="1" style="--path-index:97"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m56.1 109.6c6.4-1.5 18.6 0.5 20.1 8.8-1.6-7.4-13.3-10.4-20.1-8.8z" pathLength="1" style="--path-index:98"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m52.7 112.6c4.4-1.6 6.5-0.6 10.9 0.4l-4-0.8c-2.6-0.2-4.5-0.3-6.9 0.4z" pathLength="1" style="--path-index:99"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m54.6 112 4.1-1.4 5.8-0.1-3.5 0.5c-1.4-0.5-4.4 0.5-6.4 1z" pathLength="1" style="--path-index:100"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m59 111.1c5.2 0.4 9 2.5 10.4 5.8-2.3-4-8-5.4-10.4-5.8z" pathLength="1" style="--path-index:101"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m64.1 108.9 2.8-0.4 7.6 2-4.9-1-5.5-0.6z" pathLength="1" style="--path-index:102"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m68.9 104.5c3.1-0.1 6.5 0.5 7.7 1l-2.6-0.5h-5v-0.5h-0.1z" pathLength="1" style="--path-index:103"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m69.4 100.6c5.1-0.1 9.5 2.4 11.1 5.8-1.9-3-5.3-5.8-11.1-5.8z" pathLength="1" style="--path-index:104"/>
+    <path class="ssxz-draw ssxz-draw--light" d="m61.5 130.6c3.2-2.7 5.5-7.1 4.7-11 1.3 4.5-1.2 7.4-4.7 11z" pathLength="1" style="--path-index:105"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m71 69.5c-2.5-5.5 3-12.8 14-10.9" pathLength="1" style="--path-index:106"/>
+    <path class="ssxz-draw ssxz-draw--warm" d="m109 52.6v1h1.1l-0.2 0.5 0.6 0.4-1.8 0.5 1.3 0.1 0.1 0.3 1.5-0.7-2.6-2.1z" pathLength="1" style="--path-index:107"/>
+  </g>
+  <g class="ssxz-color">
+    <path class="cls-1" d="m57.6 20.4c-2.3 1.6-4.7 2.6-7.9 3.2-5.9 1.1-11 2.3-17.2 5l-0.5 1.1c7.3-4 13.1-5.7 19-5.7-9.7 1.3-14.6 3.4-22.8 8l-4.7 3c8.1-3.6 16.6-8 23.9-8.7l5.6-1.1c-6.4 2.2-12 2.8-14.7 4.5 2.9-0.8 5.6-1.9 8-1.9-11.4 3.9-23.7 10.4-28.9 14.5s-6.4 5.7-9.6 10.5c6.6-9.1 13.2-12.9 22.5-17.9-11.3 7.4-16.1 11.3-21.1 17.6s-8.5 15.1-8.4 25.7c0.8-16.3 9.5-30.4 26.4-40.2 13.2-8.1 19.4-9.7 30.4-17.6z"/>
+    <path class="cls-3" d="m77 21c2.9-0.4 8.6-3.4 11.6-5.5l1.3-1.4c1 1.8-1.6 7.8-2.5 8.5l-1 5.2"/>
+    <path class="cls-3" d="m77.4 23.4c4.6 2.4 10.3 5.7 13.8 10.1l1.8 2.5 0.4 0.9-0.7-1.4 0.3 0.5h-0.1l0.9 2m-9.8-19.1-3.9 3"/>
+    <path class="cls-2" d="m76.8 27.8c2.1-5-1.4-12.1 1.2-22.8 0-5.3-8.9 3.1-10.1 4.6s-5.8 5.8-6.7 9.8c1.7-4.5 4.4-5.4 4.4-5.4-3 4-5.2 9-4.1 13-1.1-5 2.4-11.6 4.5-13.9s8.4-9.3 11.6-9"/>
+    <path class="cls-3" d="m55.9 33.9c-3.9-7 1.5-14.3 8-19.4l0.6-0.4"/>
+    <path class="cls-3" d="m77.7 21.1c3-5.4-0.8-10.1 2.3-17.1"/>
+    <path class="cls-3" d="m85.9 27.8c3.6 2.4 5.6 4.8 7.2 7.2l0.3 0.4-0.4-0.5 0.4 0.7m-0.7-0.2 0.3 0.5-0.1-0.3"/>
+    <path class="cls-3" d="m77.6 23.6c3.8 3.4 11.9 8.3 13.4 13.9"/>
+    <path class="cls-3" d="m92.7 35.6 0.2 0.3"/>
+    <path class="cls-6" d="m59 42.6c3.6-1 5.7-2.6 6.7-3.4-4 4.2-6.2 4.9-9.3 6.8-5.4 3.1-9 6.4-10.4 9.9 2.9-6.8 11.2-8.4 14-8.8l1.5-0.2c-2.9 0.6-7.5 1.6-10.3 3.5 4.7-3.8 10.7-4.9 14.3-9.2-2.1 2.8-7.3 4-8.9 4.8-8 2.6-20.1 6.5-19.1 15.9 0.5 8.2 10.5 11.6 14.9 12.6l8 2.2v0.8c-8.7-1.9-20.2-3.3-23.5-12.6-1.8-5.5 1.1-13.7 14-17.8l5.2-1.7 0.5-0.4"/>
+    <path class="cls-6" d="m58.9 23.5c0.8-5.5 4.8-6.8 5.7-9.1-3.4 2.1-11.4 8.6-9.1 18-0.4-6.4 2.9-10.9 4.6-12.7-0.6 1.2-1 2.2-1.2 3.8z"/>
+    <path class="cls-6" d="m47.7 32.1c-11.2 2.1-20.8 7.4-26.8 14.6-4.9 5.8-7.7 11.4-8.7 19.3-1 10.5 4 28.1 27.7 38.5-20.4-7.6-26.7-22.4-28-31.8-1-7.5 0.7-18.1 9.7-26.8 5.3-5.7 14.9-11.5 26.1-13.8z"/>
+    <path class="cls-6" d="m14.4 54.4c-5.8 7.2-9.4 17.6-7 30.6 1.8 8.4 7.5 19.7 31.5 31.5-20.9-8.6-30.4-18.6-33-31.4-1.5-6.1-2-18.5 8.5-30.7z"/>
+    <path class="cls-6" d="m4.2 83.9c0.3 12.7 7 25 18.8 31.5 10.4 6.1 22.6 8.5 33.2 16.2-11-7-24.3-7.9-35.3-16.2s-16.9-18.5-16.7-31.5z"/>
+    <path class="cls-6" d="m15.4 111c7.6 9.4 13.7 11.9 23.5 15.5 4.5 1.6 9.1 3.7 11.6 6.5-5.3-4.1-15.5-6.6-23.4-11.9l-4.2-4.2 5.6 4.1c-4.8-2.5-7.6-5-13.1-10z"/>
+    <path class="cls-1" d="m68.5 36.7c-4.3 3.9-5.3 6.3-8.9 7.9l-2.2 1.1 2.5-1.1c4-1.2 5.6-4.6 8.6-7.9z"/>
+    <path class="cls-1" d="m62.6 50.9c-6 2.6-12.2 5.2-13.7 12.3 2-6.7 7.6-11.5 13.7-12.3z"/>
+    <path class="cls-1" d="m62 56.4c-6.1 2.6-9.5 8.2-6.9 13.5-0.6-1.3-0.7-2.5-0.6-4.4-0.1-3.9 3.1-7.5 7.5-9.1z"/>
+    <path class="cls-1" d="m65.5 41.2c-2.6 2.5-6.1 3.4-8.9 4.7s-4.9 2.2-6.6 4.6c4.5-4.1 12.5-5.6 15.5-9.3z"/>
+    <path class="cls-7" d="m51.5 55.5c3.7-1.5 7.6-3 10.9-4.6"/>
+    <path class="cls-1" d="m60.6 53.5c-2.9 1.1-9.2 2.4-11.7 9.7 2.6-6.5 10.1-9.2 16-10.2l5.7-1.5c-4.9 1.1-8.1 1.4-10 2z"/>
+    <path class="cls-1" d="m60.5 66.7c1.7-7.8 9.1-10.1 14-9.8-3-0.3-12.8 1.7-14 9.8z"/>
+    <path class="cls-1" d="m67.1 65c3.6-6 9.8-7 13-7-3.4-0.4-10.4 1.9-13 7z"/>
+    <path class="cls-3" d="m79.5 62c8.6-2.1 14.1 3.2 17.5 3.2l2.1 0.4c2.3 0.5 5.5-0.5 6.9-3.1"/>
+    <path class="cls-6" d="m70.6 70.1c4.4 6.6 15.4 7 23.3 9.4 3.8 1.2 7.7 4 9.1 5l2.6 2-2.9-2c-10.2-6.4-26.3-6.5-32.1-14.4z"/>
+    <path class="cls-6" d="m81.4 81.1c14 3.6 22.2 8.1 29.2 16.4 3.6 4.5 6.9 10.6 9.1 18.5l-1.8-6c-3.5-9-10.9-18-25.3-25.3l-11.2-3.6z"/>
+    <path class="cls-6" d="m84.4 81.6c9.1 2.1 16 4.3 24.6 11.9l0.1 0.2 0.3 0.2 1.1 1.1-1.5-1.5c-2-2.5-6.5-6.3-9.5-8.5-4.8-2.9-13-2.9-15.1-3.4z"/>
+    <path class="cls-8" d="m78.7 68.6c1.5 5.5 6.7 6.8 14 9l0.4 0.1-1.1-0.3-0.4-0.2c-4.4-1.5-10.5-2.3-12.9-7.3v-1.3z"/>
+    <path class="cls-6" d="m82.2 74.5c7.9 3.7 13.2 6.5 17.4 10.6-2.7-2.5-11.5-6.5-17.4-10.6z"/>
+    <path class="cls-9" d="m63.2 25.9c-1.5 1.6-1 3.5-0.2 4-1.3-1.4 0.2-4 0.2-4z"/>
+    <path class="cls-1" d="m64.5 21.9c-0.5 1.7-0.5 5-1 7.2 1.1-2.1 1.2-5.1 1-7.2z"/>
+    <path class="cls-1" d="m62.2 25.6c-0.8-6.1 5.3-15.7 12.3-19.7-4.9 3.7-11.5 12.1-12.1 19.7h-0.2z"/>
+    <path class="cls-1" d="m62.2 34.5c1.2-2 2.9-3 3.8-7.9-0.4 2.8-2.5 5-3.8 7.9z"/>
+    <path class="cls-1" d="m71.1 28 3.5-5.1-0.2 1.1c1.6-2.9 0.7-9 0.7-9 0.4 8-2.5 10.6-5 13.5"/>
+    <path class="cls-1" d="m74.6 23-1.4 2.5-0.6 1.4c1-1.3 2.5-3.3 2.4-6l-0.4 2.1z"/>
+    <path class="cls-8" d="m75.9 22.6c-0.7 2.9-2.4 5.3-3.4 6.1 2-1 3.5-4.1 3.6-6.7l-0.2 0.6z"/>
+    <path class="cls-1" d="m87 23.6-3.3 1.3 0.9-0.3 2.4-1z"/>
+    <path class="cls-1" d="m82.1 23 3.4-4 2-1.9-1.8 1.3-3.6 4.6z"/>
+    <path class="cls-3" d="m93 38.9c-0.4 7.6 8.9 8.6 16.4 14.2l0.2 0.3c1.8 1.1 2.4 0.7 2.5 1.2 1 0.4 1 1.4-1.1 4l-2.3 1.8"/>
+    <path class="cls-13" d="m93 46.4"/>
+    <path class="cls-2" d="m93.1 46.1"/>
+    <path class="cls-2" d="m106 61.9"/>
+    <path class="cls-2" d="m93.1 42.1"/>
+    <path class="cls-2" d="m92.7 41.6"/>
+    <path class="cls-dog-head" d="m103.9 62.6c2-0.4 4.8-2.5 5.1-4l-5-6.2-8.6-4.4-1.8-8-1.1-3.5-2.5-3.5-5.4-4.1-6.6-4.9-1 1.9-1.4 2.8-7-0.7-4.2 3.9-1.7 2.5-0.8-0.4-5.7 0.4 0.9 2.6 2 4.4 6.6-2 9.3-4.4 8.6-0.1 5 3.7 1.4 8 3 0.4 2.9-0.4 4.2 2.8 5 3.1 1.8 5.5-3 4.6z"/>
+    <path class="cls-1" d="m86 34.9c2.2 1 3.6 2.6 3.5 4.1 0.6-1.6-1.1-3.5-3.5-4.1z"/>
+    <path class="cls-8" d="m81.4 35c3.3-0.4 5.2 0.4 6.7 1.7-0.6-0.7-1-2.2-6.7-1.7z"/>
+    <path class="cls-1" d="m78.7 41.4c3.2 0.6 6.2-1.9 6.7-1.9 1-0.5 2.6 1.1 3.6 0.5-2.5 1.6-6 1.6-7 1.6h-3.3z"/>
+    <path class="cls-1" d="m81.6 41.6c1.1 0.1 3 2.5 4.8 2.9l1.8-0.4 1.8 1-1.9-1.6h-1.9l-1.2-0.5-1.9-1.4h-1.5z"/>
+    <path class="cls-8" d="m82.7 41.6c3.3-1.2 5.3-1.6 5.7-1.2v1.2l0.1-1.5-0.8-0.6c-1.6 0-1.8 1.5-5 2.1z"/>
+    <path class="cls-8" d="m85 41.2c0 1.4 0.6 1.8 2.1 2.7l-0.1-1.3-0.4-0.9-1.6-0.5z"/>
+    <path class="cls-9" d="m87.6 41.1-1.1 0.3 0.4 1.2 1.1-0.6-0.4-0.9z"/>
+    <path class="cls-8" d="m86.7 44.1 1.8-0.5 0.6-1.5 0.3 0.5 0.6 1.4-1.6 0.1h-1.7z"/>
+    <path class="cls-0" d="m102.7 62.9c4 0.1 6.7-2.7 6.7-4.3-0.4-1-1.7-2-1.7-3.1-0.1-1.4 1.4-2.9 3.3-1.6l-2.1-1.5-4.9-2.4-10.6-3.9 1.5 3.5 6.1 4 2.9 5.4-1.2 3.9z"/>
+    <path class="cls-0" d="m105.4 52.9 3.7 4.5c0.5 0.2 2-1.8 2-2.4 0.1-0.6-3.7-1-3.7-1l-2-1.1z"/>
+    <path class="cls-2" d="m106 52.6c-2 1.4 1 7.8 4 5"/>
+    <path class="cls-0" d="m88.4 36c1.3 1 1.1 2.6 0.3 4.6l1.5-0.1v-2.9l-1.8-1.6z"/>
+    <path class="cls-1" d="m87.5 35c1.7 1.4 2.9 2.7 1.1 5.6l1.4-2-0.4-1.5-2.1-2.1z"/>
+    <path class="cls-11" d="m53.9 140c9.6-9 17.8-12.1 13.2-22.3-3.4-4.6-6-4.6-9.1-3.3-2.8 1.5-7 4.5-9.5 0l-0.5-0.4 0.4-0.1c1.7 3.1 4.8 3 7.8 1.1 3.8-2.4 9.2-2.4 11.8 2 5.7 9.5-5.5 16.1-14.1 23z"/>
+    <path class="cls-5" d="m66 76.6c7.5 5.5 14.1 4.6 25.2 11.4 12.8 7.6 24.9 19.5 26.5 36.1 1.2 10.9-1.6 25.4-13.1 37.9 7.1-7.1 11.3-21.8 9.9-35.8-1.8-16.6-13.1-28.2-20.6-33.2-9.5-6.6-16.7-8-27.5-14l-0.4-2.4z"/>
+    <path class="cls-14" d="m58 84c-3.9-0.4-8-2.1-11.4-4.5v0.1c0.5 3.4 2.9 7.4 3.9 9.3l0.6 0.1 0.3-0.3-1.7-2.7 1.8 1.4-2-2.3-2.3-4.6c2.8 2.1 5.9 3.1 9.8 4.1"/>
+    <path class="cls-5" d="m59 84c-5.1 1.9-12 7-12.5 12.9-0.3 2.5 1.5 3.8-0.5 7.1l-2.4 4.6c1.6-1.2 4.5-0.2 1.4 2.5l0.4 0.9 1.2 1.1 1.5 0.5 3.3 0.3-2.8 0.3c-2-0.3-2.6-0.8-3.6-2.7l-1.4-1.6c-0.6-0.9-0.6-1.3-0.2-2.2l2-3.8c1.7-3 0.7-3.3 0.8-6.9 0.4-4.4 9-13 12.8-13z"/>
+    <path class="cls-4" d="m43.5 141.4c-5-5.5-12.9-7.3-19.6-6-10.7 1.5-18.4 10.1-19 19.5 0.7-10 7.2-18.8 17.2-20.8 6.4-1.5 17-1.2 21.4 7.3z"/>
+    <path class="cls-4" d="m20 137c-5 1-16.1 6.9-16 20.5 0.1 6.5 2.6 13.9 8.9 18.5-4.9-4.5-6.4-10-6.9-16 0.1-7.4 2-14 9.6-18.1-1.6 0.6-10.5 5.2-8.6 19.1 0.1-11.5 5.9-16.9 12.5-20.5"/>
+    <path class="cls-4" d="m36.1 134.6c-4.6-3-8.4-3.7-14-3.2l-0.2 0.1 0.6-0.1h0.2-0.2l-0.4 0.1c6-0.5 10.5 0.9 14 3.1z"/>
+    <path class="cls-5" d="m31.1 143.5c-8.1 4.2-6.6 15.1 1.4 21 4 3.5 10.9 6 15.2 7.1l5.8 1.5c-4 0-11.3-1.7-15.4-3.6-3.1-1.4-7.5-4-10-7.8-4.9-6.7-5.4-14.7 3-18.2z"/>
+    <path class="cls-4" d="m36.1 136.6c-10.5-2.7-18.6 5.8-18 16.5-0.2-12 9.4-18.1 18-16.5z"/>
+    <path class="cls-5" d="m14.5 162.2c0.4 9.7 11.5 22.2 31 21.7-8.8 1-30.8-1.7-31-21.7z"/>
+    <path class="cls-4" d="m14.6 150c-6.6 7.4-5.1 22.6 5.4 30.5 3.6 3.4 8.4 6.5 16 7.5-11.4-1.6-21.3-6.9-24.8-17-2.2-5.5-4-14 3.4-21z"/>
+    <path class="cls-4" d="m10.5 153.7c-3 5.8-1.5 14.8 0.2 18.4-1.1-1.6-3.7-7.1-2.2-14.5l2-3.9z"/>
+    <path class="cls-4" d="m33 138c-9-2-15.8 8-13.4 5 3.9-4.9 10.6-6.3 13.4-5z"/>
+    <path class="cls-4" d="m28.5 184.7c9.2 4.3 26.5 7 45-5.3-8.4 5.6-26.1 14.6-45 5.3z"/>
+    <path class="cls-4" d="m47.7 191c12.3 0 27.9-4.4 41.7-17 11.7-10.5 18.7-17 23.3-35-1 14.9-9.3 25.1-21.3 35-9.2 7-19.2 15.6-36.9 16.9l-6.8 0.1z"/>
+    <path class="cls-4" d="m91.4 172.9c4.6-3.4 8.7-7.9 12.1-10.4l-2.5 3.4-3 2.8-6.6 4.2z"/>
+    <path class="cls-5" d="m72.5 170.5c-7.3 4-19.1 5.9-26.9 2.5 9.3 2.5 18.9 1.5 26.9-2.5z"/>
+    <path class="cls-5" d="m69.5 177.2c10.9-2.8 23.2-10.2 29.9-20.8l0.5-0.8 0.5-0.7 0.3-0.5-0.7 1.2h-0.1l-0.5 0.8c-4.3 7.6-17.8 18-29.9 20.8z"/>
+    <path class="cls-5" d="m77.1 179c9.6-3.4 21.8-14.4 25.4-21.1-2.6 4.7-16.5 18.1-25.4 21.1z"/>
+    <path class="cls-5" d="m93.9 171.6 6.1-4.6 1.6-1.6 2.4-2.9-3.3 4.1-6.8 5z"/>
+    <path class="cls-5" d="m103.6 151.6c-4.2 9.4-12.6 16.3-17.9 18.9 7.8-4.5 14.3-11.5 17.9-18.9z"/>
+    <path class="cls-5" d="m103 161 3.6-4.3-3 4.4-0.6-0.1z"/>
+    <path class="cls-5" d="m101.4 163.5 3.2-3.4-2.7 3.5-0.5-0.1z"/>
+    <path class="cls-5" d="m54 140c11-6 23-6.3 28.6-13.1 7.8-7.5 5.4-23.3-9.7-29.2l-5.5-3 5.2 2.3c11.8 3.7 17 14 14.8 22.9-3.8 14.1-17.3 13.7-30.8 20.6-16.9 8.5-21.5 23.5-14.7 29.9l-0.9-0.3c-6-6.2-2.5-21.5 13-30.1z"/>
+    <path class="cls-4" d="m43.5 110c2-0.4 1.9-2 2.4-1l-0.4 1.2-1.5 0.4-0.5-0.6z"/>
+    <path class="cls-5" d="m58.9 83.6-0.9 4.4 1.1-2v-4.4l-0.2-10.1c3.2 1.5 8 4.9 11.1 7 2 1.5 5.4 5.1 5.9 8.1-0.8-2.6-4-5-9.5-9l-6.8-5.2-0.7 11.2z"/>
+    <path class="cls-4" d="m65.5 76c7 7.1 6 10.1 4.5 12.4l1.6-1-0.9 2.3 0.4 1.8-2.5-1.6 1 0.5-0.7-2.3 1.1 1.1-1.1-3.2 1.2 0.9v-2l-0.6-1.3-4-5.6v-2z"/>
+    <path class="cls-6" d="m80.1 62.1 5.6-0.1 3.8 0.9 1.9 0.7 2.1 0.5c-3-0.4-6.6-2.7-13.4-2z"/>
+    <path class="cls-12" d="m45.6 93 0.5 5.6-0.5-1.1v-4.5z"/>
+    <path class="cls-12" d="m44.9 96 1.6 1.6-2-1.2 0.4-0.4z"/>
+    <path class="cls-5" d="m62.4 77c-1.9 6.6 0 10 1.1 11.6-2-1.5-3.6-5.2-1.1-11.6z"/>
+    <path class="cls-4" d="m63.4 88.6c-1.9-1.5-2.4-3.6-2.4-5.6 0.2 1.9 1 4 2.6 5.6h-0.2z"/>
+    <path class="cls-12" d="m53.5 85-3.6-2.6 4.2 2.2-0.6 0.4z"/>
+    <path class="cls-5" d="m53.4 89 2.1-3h1l-3.1 3z"/>
+    <path class="cls-5" d="m50.5 94.1c-1 1.9-0.6 2.9-0.1 3.6-0.4-2.7 1-3.7 0.1-3.6z"/>
+    <path class="cls-10" d="m52.2 98 0.3 3 1.5-0.5 1.4-2.4 1.1-0.5-3.4-0.2-0.9 0.6z"/>
+    <path class="cls-5" d="m55.9 97.6-3-0.2-0.4 1.5 0.4-0.2 0.6-0.7 2.4-0.4z"/>
+    <path class="cls-4" d="m52 98.9-0.5 2.8-0.5 0.8 0.6-0.5c0.8-0.9 0.4-3.1 0.4-3.1z"/>
+    <path class="cls-11" d="m52.5 97.9c-0.5 1.1 0 1.5 0.5 1.1 0.5-0.5 0.4-1.4-0.5-1.1z"/>
+    <path class="cls-5" d="m62.5 105.6c6.4-0.5 14-0.1 17 5.9-2.6-4-8-6.5-17-5.9z"/>
+    <path class="cls-5" d="m56.1 109.6c6.4-1.5 18.6 0.5 20.1 8.8-1.6-7.4-13.3-10.4-20.1-8.8z"/>
+    <path class="cls-5" d="m52.7 112.6c4.4-1.6 6.5-0.6 10.9 0.4l-4-0.8c-2.6-0.2-4.5-0.3-6.9 0.4z"/>
+    <path class="cls-5" d="m54.6 112 4.1-1.4 5.8-0.1-3.5 0.5c-1.4-0.5-4.4 0.5-6.4 1z"/>
+    <path class="cls-5" d="m59 111.1c5.2 0.4 9 2.5 10.4 5.8-2.3-4-8-5.4-10.4-5.8z"/>
+    <path class="cls-5" d="m64.1 108.9 2.8-0.4 7.6 2-4.9-1-5.5-0.6z"/>
+    <path class="cls-5" d="m68.9 104.5c3.1-0.1 6.5 0.5 7.7 1l-2.6-0.5h-5v-0.5h-0.1z"/>
+    <path class="cls-5" d="m69.4 100.6c5.1-0.1 9.5 2.4 11.1 5.8-1.9-3-5.3-5.8-11.1-5.8z"/>
+    <path class="cls-5" d="m61.5 130.6c3.2-2.7 5.5-7.1 4.7-11 1.3 4.5-1.2 7.4-4.7 11z"/>
+    <path class="cls-3" d="m71 69.5c-2.5-5.5 3-12.8 14-10.9"/>
+    <path class="cls-1" d="m109 52.6v1h1.1l-0.2 0.5 0.6 0.4-1.8 0.5 1.3 0.1 0.1 0.3 1.5-0.7-2.6-2.1z"/>
+  </g>
+</svg>
