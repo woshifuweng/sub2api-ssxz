@@ -205,7 +205,7 @@ describe('AppSectionShell', () => {
       '/app/available-channels',
       '/app/usage',
       '/app/purchase',
-      '/app/keys?guide=clients',
+      '/app/docs',
       '/app/profile'
     ]
 

@@ -185,7 +185,7 @@ const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName 
   { label: t('nav.models'), to: '/app/available-channels', icon: 'calculator' },
   { label: t('nav.usage'), to: '/app/usage', icon: 'chartBar' },
   { label: t('nav.billing'), to: '/app/purchase', icon: 'creditCard' },
-  { label: t('nav.docs'), to: '/app/keys?guide=clients', icon: 'book' },
+  { label: t('nav.docs'), to: '/app/docs', icon: 'book' },
   ...(appStore.cachedPublicSettings?.affiliate_enabled
     ? [{ label: t('nav.affiliate'), to: '/app/affiliate', icon: 'users' as IconName }]
     : []),

@@ -149,7 +149,7 @@ describe('AppSidebar', () => {
       '/app/available-channels',
       '/app/usage',
       '/app/purchase',
-      '/app/keys?guide=clients',
+      '/app/docs',
       '/app/profile'
     ])
     expect(wrapper.text()).toContain('DashboardChatImageAPI KeysModelsUsageBillingDocsAccount')

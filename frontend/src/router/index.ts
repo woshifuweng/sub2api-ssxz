@@ -287,6 +287,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/app/docs',
+    name: 'AppDocs',
+    component: () => import('@/views/user/DocsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: '文档',
+      appSection: 'docs',
+      titleSiteName: 'SSXZ AI'
+    }
+  },
+  {
     path: '/app/profile',
     name: 'AppProfile',
     component: () => import('@/views/user/ProfileView.vue'),

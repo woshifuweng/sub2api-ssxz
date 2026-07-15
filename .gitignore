@@ -139,6 +139,13 @@ docs/*
 !docs/operations/
 docs/operations/*
 !docs/operations/DATABASE_DISASTER_RECOVERY_RUNBOOK.md
+!docs/教程/
+docs/教程/*
+!docs/教程/CC-Switch一键接入SSXZ.md
+!docs/教程/assets/
+docs/教程/assets/*
+!docs/教程/assets/cc-switch/
+!docs/教程/assets/cc-switch/*.png
 .serena/
 .codex/
 frontend/coverage/

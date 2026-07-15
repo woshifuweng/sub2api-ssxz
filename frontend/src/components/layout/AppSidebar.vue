@@ -460,7 +460,7 @@ const userNavItems = computed((): NavItem[] => [
   { path: '/app/available-channels', label: t('nav.models'), icon: ChannelIcon },
   { path: '/app/usage', label: t('nav.usage'), icon: ChartIcon },
   { path: '/app/purchase', label: t('nav.billing'), icon: RechargeSubscriptionIcon },
-  { path: '/app/keys?guide=clients', label: t('nav.docs'), icon: GlobeIcon },
+  { path: '/app/docs', label: t('nav.docs'), icon: GlobeIcon },
   ...(affiliateEnabled.value ? [{ path: '/app/affiliate', label: t('nav.affiliate'), icon: UsersIcon }] : []),
   { path: '/app/profile', label: t('nav.account'), icon: UserIcon }
 ])
