@@ -63,6 +63,16 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/docs',
+    name: 'PublicDocs',
+    component: () => import('@/views/public/PublicDocsView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: '文档',
+      titleSiteName: 'SSXZ AI'
+    }
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/auth/LoginView.vue'),
@@ -713,6 +723,7 @@ const navigationLoading = useNavigationLoadingState()
 let routePrefetch: ReturnType<typeof useRoutePrefetch> | null = null
 const BACKEND_MODE_ALLOWED_PATHS = [
   '/login',
+  '/docs',
   '/key-usage',
   '/setup',
   '/app/dashboard',

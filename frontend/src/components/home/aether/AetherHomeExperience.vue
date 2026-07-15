@@ -46,26 +46,20 @@
           >
             {{ section.name }}
           </button>
-          <button
-            type="button"
-            class="aether-nav__docs"
-            @click="docsOpen = true"
-          >
+          <RouterLink to="/docs" class="aether-nav__docs">
             文档
-          </button>
+          </RouterLink>
         </nav>
 
         <div class="aether-header__actions">
-          <FoundationButton
+          <RouterLink
+            to="/docs"
             class="aether-header__docs-mobile"
-            variant="ghost"
-            size="icon"
-            title="接入文档"
-            aria-label="打开接入文档"
-            @click="docsOpen = true"
+            title="公开接入文档"
+            aria-label="打开公开接入文档"
           >
             <BookOpen aria-hidden="true" />
-          </FoundationButton>
+          </RouterLink>
           <div class="aether-locale">
             <LocaleSwitcher />
           </div>
@@ -664,6 +658,20 @@ onUnmounted(() => {
 
 .aether-header__docs-mobile {
   display: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  color: hsl(var(--muted-foreground));
+  text-decoration: none;
+  transition: color 160ms ease, background-color 160ms ease;
+}
+
+.aether-header__docs-mobile:hover,
+.aether-header__docs-mobile:focus-visible {
+  color: hsl(var(--foreground));
+  background: hsl(var(--accent));
 }
 
 .aether-nav button:hover,

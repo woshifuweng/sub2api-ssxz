@@ -32,12 +32,7 @@
         </aside>
 
         <FoundationCard class="docs-card">
-          <article
-            id="cc-switch-guide"
-            data-testid="cc-switch-guide"
-            class="docs-article"
-            v-html="guideHtml"
-          />
+          <CcSwitchGuide />
         </FoundationCard>
       </div>
     </FoundationProvider>
@@ -45,30 +40,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { BookOpen, KeyRound } from '@lucide/vue'
+import CcSwitchGuide from '@/components/docs/CcSwitchGuide.vue'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import { FoundationCard, FoundationProvider } from '@/components/foundation'
-import { renderRichContent } from '@/utils/sanitize'
-import guideMarkdown from '../../../../docs/教程/CC-Switch一键接入SSXZ.md?raw'
-import downloadImage from '../../../../docs/教程/assets/cc-switch/01-official-download-windows-macos.png'
-import mainWindowImage from '../../../../docs/教程/assets/cc-switch/02-cc-switch-main-window.png'
-import importButtonImage from '../../../../docs/教程/assets/cc-switch/03-ssxz-import-to-ccs-button.png'
-import browserPromptImage from '../../../../docs/教程/assets/cc-switch/04-browser-open-cc-switch-dialog.png'
-import importConfirmationImage from '../../../../docs/教程/assets/cc-switch/05-cc-switch-import-confirmation.png'
-import selectedProviderImage from '../../../../docs/教程/assets/cc-switch/06-ssxz-selected-redacted.png'
-import successImage from '../../../../docs/教程/assets/cc-switch/07-claude-code-success-history.png'
-
-const guideAssets: Record<string, string> = {
-  './assets/cc-switch/01-official-download-windows-macos.png': downloadImage,
-  './assets/cc-switch/02-cc-switch-main-window.png': mainWindowImage,
-  './assets/cc-switch/03-ssxz-import-to-ccs-button.png': importButtonImage,
-  './assets/cc-switch/04-browser-open-cc-switch-dialog.png': browserPromptImage,
-  './assets/cc-switch/05-cc-switch-import-confirmation.png': importConfirmationImage,
-  './assets/cc-switch/06-ssxz-selected-redacted.png': selectedProviderImage,
-  './assets/cc-switch/07-claude-code-success-history.png': successImage
-}
 
 function getInitialTheme(): 'light' | 'dark' {
   if (typeof document === 'undefined') return 'dark'
@@ -76,13 +53,6 @@ function getInitialTheme(): 'light' | 'dark' {
 }
 
 const theme = ref<'light' | 'dark'>(getInitialTheme())
-const guideHtml = computed(() => {
-  const source = Object.entries(guideAssets).reduce(
-    (content, [assetPath, assetUrl]) => content.split(assetPath).join(assetUrl),
-    guideMarkdown
-  )
-  return renderRichContent(source)
-})
 
 let themeObserver: MutationObserver | null = null
 
@@ -200,93 +170,6 @@ onBeforeUnmount(() => {
   padding: clamp(1rem, 3vw, 2.25rem);
 }
 
-.docs-article {
-  min-width: 0;
-  color: hsl(var(--foreground));
-}
-
-.docs-article :deep(h1),
-.docs-article :deep(h2) {
-  text-wrap: balance;
-}
-
-.docs-article :deep(h1) {
-  margin: 0;
-  font-size: clamp(1.5rem, 3vw, 2.25rem);
-  line-height: 1.2;
-}
-
-.docs-article :deep(h2) {
-  margin: 2.25rem 0 0.75rem;
-  padding-top: 0.25rem;
-  font-size: 1.125rem;
-  line-height: 1.6rem;
-}
-
-.docs-article :deep(p),
-.docs-article :deep(li) {
-  color: hsl(var(--muted-foreground));
-  font-size: 0.875rem;
-  line-height: 1.75;
-}
-
-.docs-article :deep(p) {
-  margin: 0.75rem 0;
-}
-
-.docs-article :deep(ol),
-.docs-article :deep(ul) {
-  display: grid;
-  gap: 0.35rem;
-  margin: 0.75rem 0;
-  padding-left: 1.4rem;
-}
-
-.docs-article :deep(strong) {
-  color: hsl(var(--foreground));
-}
-
-.docs-article :deep(a) {
-  color: hsl(var(--foreground));
-  font-weight: 650;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.2rem;
-}
-
-.docs-article :deep(code) {
-  border: 1px solid hsl(var(--border));
-  border-radius: 0.25rem;
-  padding: 0.1rem 0.35rem;
-  color: hsl(var(--foreground));
-  background: hsl(var(--muted));
-  font-family: var(--font-mono, "Cascadia Code", monospace);
-  font-size: 0.8125rem;
-}
-
-.docs-article :deep(blockquote) {
-  margin: 1rem 0;
-  border-left: 3px solid hsl(var(--border));
-  padding: 0.25rem 0 0.25rem 1rem;
-  background: hsl(var(--muted) / 0.45);
-}
-
-.docs-article :deep(blockquote p) {
-  margin: 0.4rem 0;
-}
-
-.docs-article :deep(img) {
-  display: block;
-  width: auto;
-  max-width: 100%;
-  max-height: 42rem;
-  margin: 1rem auto 1.5rem;
-  border: 1px solid hsl(var(--border));
-  border-radius: var(--radius);
-  background: hsl(var(--muted));
-  box-shadow: 0 8px 24px hsl(var(--shadow));
-  object-fit: contain;
-}
-
 @media (max-width: 840px) {
   .docs-layout {
     grid-template-columns: 1fr;
@@ -315,8 +198,5 @@ onBeforeUnmount(() => {
     padding: 1rem;
   }
 
-  .docs-article :deep(h1) {
-    font-size: 1.5rem;
-  }
 }
 </style>

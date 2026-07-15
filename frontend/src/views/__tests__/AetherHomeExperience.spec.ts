@@ -53,6 +53,10 @@ describe('Aether-derived home structure', () => {
     expect(home).not.toContain('backdrop-filter: blur(4px)')
     expect(home).not.toContain('v-if="docUrl"')
     expect(home).toContain('docsOpen = true')
+    expect(home).toContain('<RouterLink to="/docs" class="aether-nav__docs">')
+    expect(home).toMatch(
+      /<RouterLink\s+to="\/docs"\s+class="aether-header__docs-mobile"[\s\S]*?aria-label="打开公开接入文档"/
+    )
     expect(home).toContain('linear-gradient(var(--aether-hero-grid) 1px, transparent 1px)')
     expect(home).toMatch(
       /\.aether-home\s*\{[^}]*background-image:\s*linear-gradient\(var\(--aether-hero-grid\)/s

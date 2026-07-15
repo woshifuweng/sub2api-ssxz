@@ -70,4 +70,12 @@ describe('DocsView', () => {
     expect(routerSource).toContain("component: () => import('@/views/user/DocsView.vue')")
     expect(routerSource).toMatch(/path: '\/app\/docs'[\s\S]*requiresAuth: true[\s\S]*requiresAdmin: false/)
   })
+
+  it('registers a separate public documentation route without authentication', () => {
+    const routerSource = readFileSync('src/router/index.ts', 'utf-8')
+
+    expect(routerSource).toContain("path: '/docs'")
+    expect(routerSource).toContain("component: () => import('@/views/public/PublicDocsView.vue')")
+    expect(routerSource).toMatch(/path: '\/docs'[\s\S]*requiresAuth: false/)
+  })
 })
