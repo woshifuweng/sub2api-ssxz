@@ -74,7 +74,7 @@ describe('AdminOperationsSummary', () => {
     })
 
     expect(wrapper.get('[data-testid="operations-metric-customers"]').text()).toContain('0')
-    expect(wrapper.get('[data-testid="operations-metric-spend"]').text()).toContain('$0.0000')
+    expect(wrapper.get('[data-testid="operations-metric-spend"]').text()).toContain('$0.00')
     expect(wrapper.text()).toContain('admin.dashboard.operations.zeroCustomers')
   })
 })

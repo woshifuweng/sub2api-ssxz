@@ -32,8 +32,7 @@
       </div>
 
       <div class="auth-orbit-core">
-        <Waypoints aria-hidden="true" />
-        <span>SSXZ</span>
+        <BrandLogo variant="mark" size="4.5rem" :theme="theme" />
       </div>
     </div>
 
@@ -48,9 +47,15 @@
 
 <script setup lang="ts">
 import type { CSSProperties } from 'vue'
-import { Waypoints } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
+import BrandLogo from '@/components/common/BrandLogo.vue'
 import ModelIcon from '@/components/common/ModelIcon.vue'
+
+withDefaults(defineProps<{
+  theme?: 'light' | 'dark'
+}>(), {
+  theme: 'light'
+})
 
 const { t } = useI18n()
 
@@ -212,29 +217,11 @@ function nodeStyle(index: number, total: number, radius: string): CSSProperties 
   top: 50%;
   left: 50%;
   display: grid;
-  width: 5rem;
-  height: 5rem;
+  width: 5.5rem;
+  height: 5.5rem;
   place-items: center;
-  border: 1px solid hsl(var(--input));
-  border-radius: 50%;
-  color: hsl(var(--primary-foreground));
-  background: hsl(var(--primary));
-  box-shadow:
-    0 0 0 0.75rem hsl(var(--brand-accent) / 0.08),
-    0 0 2.25rem hsl(var(--brand-accent) / 0.2);
+  color: hsl(var(--foreground));
   transform: translate(-50%, -50%);
-}
-
-.auth-orbit-core svg {
-  width: 1.25rem;
-  height: 1.25rem;
-  stroke-width: 1.7;
-}
-
-.auth-orbit-core span {
-  margin-top: -0.75rem;
-  font-size: 0.625rem;
-  font-weight: 750;
 }
 
 .auth-orbit-ripple {

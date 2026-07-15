@@ -28,7 +28,7 @@
           @click="scrollToSection(SECTIONS.HOME)"
         >
           <span class="aether-brand__mark">
-            <img :src="ssxzStaticLogo" alt="" width="120" height="194" />
+            <BrandLogo variant="mark" size="2.875rem" :theme="theme" />
           </span>
           <span class="aether-brand__copy">
             <strong>SSXZ</strong>
@@ -302,6 +302,7 @@
 import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ArrowRight, BookOpen, ChevronDown, Code2, Moon, Sparkles, Sun, Terminal } from '@lucide/vue'
+import BrandLogo from '@/components/common/BrandLogo.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import { FoundationButton } from '@/components/foundation'
 import CliSection from './CliSection.vue'
@@ -339,8 +340,6 @@ const emit = defineEmits<{
   copy: [text: string]
   'toggle-theme': []
 }>()
-
-const ssxzStaticLogo = '/brand/ssxz-cat-dog-static.svg'
 
 const scrollContainer = ref<HTMLElement | null>(null)
 const docsOpen = ref(false)
@@ -611,19 +610,6 @@ onUnmounted(() => {
   border: 0;
   border-radius: 0;
   background: transparent;
-}
-
-.aether-brand__mark img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  object-fit: contain;
-  filter: brightness(0) saturate(100%);
-}
-
-.aether-home--dark .aether-brand__mark img {
-  filter: brightness(0) saturate(100%) invert(1);
 }
 
 .aether-brand__copy {

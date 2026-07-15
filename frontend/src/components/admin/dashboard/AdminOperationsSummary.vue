@@ -159,6 +159,7 @@ import type {
   DashboardOperationsTopCustomer
 } from '@/api/admin/dashboard'
 import Icon from '@/components/icons/Icon.vue'
+import { formatCurrency } from '@/utils/format'
 
 const props = defineProps<{
   summary: DashboardOperationsSummary | null
@@ -181,12 +182,7 @@ const rangeOptions = computed(() => [
   { value: '30d' as const, label: t('admin.dashboard.operations.days30') }
 ])
 
-const formatMoney = (value = 0): string => {
-  if (value >= 1000) return `$${(value / 1000).toFixed(2)}K`
-  if (value >= 1) return `$${value.toFixed(2)}`
-  if (value >= 0.01) return `$${value.toFixed(3)}`
-  return `$${value.toFixed(4)}`
-}
+const formatMoney = (value = 0): string => formatCurrency(value)
 
 const formatInteger = (value = 0): string => Math.max(0, value).toLocaleString()
 

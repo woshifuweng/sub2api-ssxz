@@ -2,12 +2,12 @@
   <FoundationProvider :theme="theme">
     <main class="auth-portal-page">
       <section class="auth-portal-frame">
-        <AuthOrbitVisual class="auth-portal-visual" />
+        <AuthOrbitVisual class="auth-portal-visual" :theme="theme" />
 
         <div class="auth-portal-panel">
           <header class="auth-portal-header">
             <RouterLink to="/home" class="auth-portal-brand" :aria-label="siteName">
-              <span class="auth-portal-brand-mark"><Waypoints aria-hidden="true" /></span>
+              <BrandLogo class="auth-portal-brand-mark" variant="mark" size="2.5rem" :theme="theme" />
               <span class="auth-portal-brand-copy">
                 <strong>{{ siteName }}</strong>
                 <small>{{ siteSubtitle }}</small>
@@ -62,10 +62,11 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { Moon, Sun, Waypoints } from '@lucide/vue'
+import { Moon, Sun } from '@lucide/vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import AuthOrbitVisual from '@/components/auth/AuthOrbitVisual.vue'
+import BrandLogo from '@/components/common/BrandLogo.vue'
 import { FoundationButton, FoundationProvider } from '@/components/foundation'
 import { useAppStore } from '@/stores'
 import { DEFAULT_SITE_NAME, normalizeSiteSubtitle } from '@/utils/brand'
@@ -182,22 +183,7 @@ onUnmounted(() => {
 }
 
 .auth-portal-brand-mark {
-  display: inline-flex;
-  width: 2rem;
-  height: 2rem;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid hsl(var(--border));
-  border-radius: var(--radius);
-  color: hsl(var(--primary-foreground));
-  background: hsl(var(--primary));
-}
-
-.auth-portal-brand-mark svg {
-  width: 1rem;
-  height: 1rem;
-  stroke-width: 1.8;
+  color: hsl(var(--foreground));
 }
 
 .auth-portal-brand-copy {

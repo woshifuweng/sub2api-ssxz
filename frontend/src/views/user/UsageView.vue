@@ -54,12 +54,18 @@
               <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                 {{ t('usage.totalCost') }}
               </p>
-              <p class="text-xl font-bold text-green-600 dark:text-green-400">
-                ${{ (usageStats?.total_actual_cost || 0).toFixed(4) }}
+              <p
+                class="text-xl font-bold text-green-600 dark:text-green-400"
+                :title="formatCurrencyTitle(usageStats?.total_actual_cost || 0)"
+              >
+                {{ formatCurrency(usageStats?.total_actual_cost || 0) }}
               </p>
               <p class="text-xs text-gray-500 dark:text-gray-400">
                 {{ t('usage.actualCost') }} /
-                <span class="line-through">${{ (usageStats?.total_cost || 0).toFixed(4) }}</span>
+                <span
+                  class="line-through"
+                  :title="formatCurrencyTitle(usageStats?.total_cost || 0)"
+                >{{ formatCurrency(usageStats?.total_cost || 0) }}</span>
                 {{ t('usage.standardCost') }}
               </p>
             </div>
@@ -495,7 +501,12 @@ import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Icon from '@/components/icons/Icon.vue'
 import type { UsageLog, ApiKey, UsageQueryParams, UsageStatsResponse } from '@/types'
 import type { Column } from '@/components/common/types'
-import { formatDateTime, formatReasoningEffort } from '@/utils/format'
+import {
+  formatCurrency,
+  formatCurrencyTitle,
+  formatDateTime,
+  formatReasoningEffort
+} from '@/utils/format'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { formatTokenPricePerMillion } from '@/utils/usagePricing'
 import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'

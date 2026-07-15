@@ -63,12 +63,9 @@ describe('Aether-derived home structure', () => {
     expect(home).toMatch(
       /\.aether-brand__mark\s*\{[^}]*width: 2\.875rem;[^}]*border: 0;[^}]*background: transparent;/s
     )
-    expect(home).toMatch(
-      /\.aether-brand__mark img\s*\{[^}]*filter: brightness\(0\) saturate\(100%\);/s
-    )
-    expect(home).toMatch(
-      /\.aether-home--dark \.aether-brand__mark img\s*\{[^}]*invert\(1\);/s
-    )
+    expect(home).toContain('<BrandLogo variant="mark" size="2.875rem" :theme="theme" />')
+    expect(home).not.toContain('.aether-brand__mark img')
+    expect(home).not.toContain('filter: brightness(0)')
     expect(home).not.toContain('drop-shadow')
     expect(home).not.toContain('#c9a55b')
     expect(home).toContain("mask: url('/brand/ssxz-cat-dog-static.svg')")
@@ -109,14 +106,17 @@ describe('Aether-derived home structure', () => {
 
   it('draws the SSXZ vector artwork without falling back to the PNG', () => {
     const brandLogo = readSource('src/components/home/aether/SsxzBrandLogo.vue')
+    const sharedBrandLogo = readSource('src/components/common/BrandLogo.vue')
     const animatedLogo = readSource('public/brand/ssxz-cat-dog-line-draw.svg')
     const staticLogo = readSource('public/brand/ssxz-cat-dog-static.svg')
 
-    expect(brandLogo).toContain('ssxz-cat-dog-line-draw.svg')
-    expect(brandLogo).toContain('ssxz-cat-dog-static.svg')
+    expect(brandLogo).toContain('<BrandLogo variant="animated" size="100%" :theme="theme" />')
     expect(brandLogo).toContain("theme: 'light' | 'dark'")
-    expect(brandLogo.match(/:style="\{ colorScheme: theme \}"/g)).toHaveLength(2)
-    expect(brandLogo).toContain('ssxz-brand-logo__artwork--static')
+    expect(sharedBrandLogo).toContain('ssxz-cat-dog-line-draw.svg')
+    expect(sharedBrandLogo).toContain('ssxz-cat-dog-static.svg')
+    expect(sharedBrandLogo).toContain('brand-logo__artwork--static')
+    expect(sharedBrandLogo).toContain("variant?: 'mark' | 'animated'")
+    expect(sharedBrandLogo).toContain("mask: url('/brand/ssxz-cat-dog-static.svg')")
     expect(brandLogo).not.toMatch(/\.png/i)
     expect(brandLogo).not.toContain('AETHER_')
     expect(animatedLogo).toContain('created with Arrow by QuiverAI')

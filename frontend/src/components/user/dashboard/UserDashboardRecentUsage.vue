@@ -1,57 +1,215 @@
 <template>
-  <div class="card">
-    <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-      <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('dashboard.recentUsage') }}</h2>
-      <span class="badge badge-gray">{{ t('dashboard.last7Days') }}</span>
-    </div>
-    <div class="p-6">
-      <div v-if="loading" class="flex items-center justify-center py-12">
+  <section class="dashboard-list-panel">
+    <header class="dashboard-list-panel__header">
+      <div>
+        <p>调用记录</p>
+        <h2>{{ t('dashboard.recentUsage') }}</h2>
+      </div>
+      <span>{{ t('dashboard.last7Days') }}</span>
+    </header>
+
+    <div class="dashboard-list-panel__content">
+      <div v-if="loading" class="dashboard-list-panel__loading">
         <LoadingSpinner size="lg" />
       </div>
-      <div v-else-if="data.length === 0" class="py-8">
+      <div v-else-if="data.length === 0" class="dashboard-list-panel__empty">
         <EmptyState :title="t('dashboard.noUsageRecords')" :description="t('dashboard.startUsingApi')" />
       </div>
-      <div v-else class="space-y-3">
-        <div v-for="log in data" :key="log.id" class="flex items-center justify-between rounded-xl bg-gray-50 p-4 transition-colors hover:bg-gray-100 dark:bg-dark-800/50 dark:hover:bg-dark-800">
-          <div class="flex items-center gap-4">
-            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/30">
-              <Icon name="beaker" size="md" class="text-primary-600 dark:text-primary-400" />
-            </div>
-            <div>
-              <p class="text-sm font-medium text-gray-900 dark:text-white">{{ log.model }}</p>
-              <p class="text-xs text-gray-500 dark:text-dark-400">{{ formatDateTime(log.created_at) }}</p>
-            </div>
+      <div v-else class="dashboard-usage-list">
+        <article v-for="log in data" :key="log.id" class="dashboard-usage-row">
+          <span class="dashboard-usage-row__icon" aria-hidden="true">
+            <ModelIcon :model="log.model" size="18px" />
+          </span>
+          <div class="dashboard-usage-row__model">
+            <strong>{{ log.model }}</strong>
+            <span>{{ formatDateTime(log.created_at) }}</span>
           </div>
-          <div class="text-right">
-            <p class="text-sm font-semibold">
-              <span class="text-green-600 dark:text-green-400" :title="t('dashboard.actual')">${{ formatCost(log.actual_cost) }}</span>
-              <span class="font-normal text-gray-400 dark:text-gray-500" :title="t('dashboard.standard')"> / ${{ formatCost(log.total_cost) }}</span>
-            </p>
-            <p class="text-xs text-gray-500 dark:text-dark-400">{{ (log.input_tokens + log.output_tokens).toLocaleString() }} tokens</p>
+          <div class="dashboard-usage-row__tokens">
+            <span>Token</span>
+            <strong>{{ (log.input_tokens + log.output_tokens).toLocaleString() }}</strong>
           </div>
-        </div>
+          <div class="dashboard-usage-row__cost">
+            <span>{{ t('dashboard.actual') }} / {{ t('dashboard.standard') }}</span>
+            <strong :title="`${formatCurrencyTitle(log.actual_cost)}；标准 ${formatCurrencyExact(log.total_cost)}`">{{ formatCurrency(log.actual_cost) }} <small>/ {{ formatCurrency(log.total_cost) }}</small></strong>
+          </div>
+        </article>
 
-        <router-link to="/app/usage" class="flex items-center justify-center gap-2 py-3 text-sm font-medium text-primary-600 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
+        <router-link to="/app/usage" class="dashboard-list-panel__link">
           {{ t('dashboard.viewAllUsage') }}
-          <Icon name="arrowRight" size="sm" />
+          <ArrowRight />
         </router-link>
       </div>
     </div>
-  </div>
+  </section>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import { ArrowRight } from '@lucide/vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import Icon from '@/components/icons/Icon.vue'
-import { formatDateTime } from '@/utils/format'
+import ModelIcon from '@/components/common/ModelIcon.vue'
+import { formatCurrency, formatCurrencyExact, formatCurrencyTitle, formatDateTime } from '@/utils/format'
 import type { UsageLog } from '@/types'
 
 defineProps<{
   data: UsageLog[]
   loading: boolean
 }>()
+
 const { t } = useI18n()
-const formatCost = (c: number) => c.toFixed(4)
 </script>
+
+<style scoped>
+.dashboard-list-panel {
+  min-width: 0;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  color: hsl(var(--foreground));
+  background: hsl(var(--card));
+  box-shadow: 0 1px 2px hsl(var(--shadow));
+}
+
+.dashboard-list-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 4.25rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.dashboard-list-panel__header p,
+.dashboard-list-panel__header h2 {
+  margin: 0;
+}
+
+.dashboard-list-panel__header p,
+.dashboard-list-panel__header > span,
+.dashboard-usage-row span {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.6875rem;
+  line-height: 1rem;
+}
+
+.dashboard-list-panel__header h2 {
+  margin-top: 0.1rem;
+  font-size: 0.875rem;
+  font-weight: 650;
+  line-height: 1.25rem;
+}
+
+.dashboard-list-panel__header > span {
+  border: 1px solid hsl(var(--border));
+  border-radius: 999px;
+  padding: 0.18rem 0.55rem;
+  background: hsl(var(--muted));
+  font-weight: 600;
+}
+
+.dashboard-list-panel__content {
+  padding: 0 1rem 0.75rem;
+}
+
+.dashboard-list-panel__loading,
+.dashboard-list-panel__empty {
+  display: flex;
+  min-height: 18rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.dashboard-usage-list {
+  display: grid;
+}
+
+.dashboard-usage-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1.2fr) minmax(5rem, 0.55fr) minmax(8rem, 0.7fr);
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 4.5rem;
+  border-bottom: 1px solid hsl(var(--border) / 0.68);
+}
+
+.dashboard-usage-row:hover {
+  background: hsl(var(--muted) / 0.45);
+}
+
+.dashboard-usage-row__icon {
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--muted));
+}
+
+.dashboard-usage-row__model,
+.dashboard-usage-row__tokens,
+.dashboard-usage-row__cost {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+}
+
+.dashboard-usage-row__model strong {
+  overflow: hidden;
+  font-size: 0.75rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-usage-row__tokens,
+.dashboard-usage-row__cost {
+  text-align: right;
+}
+
+.dashboard-usage-row__tokens strong,
+.dashboard-usage-row__cost strong {
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.dashboard-usage-row__cost small {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+.dashboard-list-panel__link {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  color: hsl(var(--foreground));
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.dashboard-list-panel__link svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  stroke-width: 1.8;
+}
+
+@media (max-width: 640px) {
+  .dashboard-usage-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding: 0.75rem 0;
+  }
+
+  .dashboard-usage-row__tokens {
+    display: none;
+  }
+
+  .dashboard-usage-row__cost {
+    min-width: 7rem;
+  }
+}
+</style>

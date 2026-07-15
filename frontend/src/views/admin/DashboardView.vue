@@ -123,14 +123,14 @@
                 <p class="text-xs">
                   <span
                     class="text-amber-600 dark:text-amber-400"
-                    :title="t('admin.dashboard.actual')"
-                    >${{ formatCost(stats.today_actual_cost) }}</span
+                    :title="`${t('admin.dashboard.actual')}: ${formatCurrencyExact(stats.today_actual_cost)}`"
+                    >{{ formatCurrency(stats.today_actual_cost) }}</span
                   >
                   <span
                     class="text-gray-400 dark:text-gray-500"
-                    :title="t('admin.dashboard.standard')"
+                    :title="`${t('admin.dashboard.standard')}: ${formatCurrencyExact(stats.today_cost)}`"
                   >
-                    / ${{ formatCost(stats.today_cost) }}</span
+                    / {{ formatCurrency(stats.today_cost) }}</span
                   >
                 </p>
               </div>
@@ -153,14 +153,14 @@
                 <p class="text-xs">
                   <span
                     class="text-primary-700 dark:text-primary-300"
-                    :title="t('admin.dashboard.actual')"
-                    >${{ formatCost(stats.total_actual_cost) }}</span
+                    :title="`${t('admin.dashboard.actual')}: ${formatCurrencyExact(stats.total_actual_cost)}`"
+                    >{{ formatCurrency(stats.total_actual_cost) }}</span
                   >
                   <span
                     class="text-gray-400 dark:text-gray-500"
-                    :title="t('admin.dashboard.standard')"
+                    :title="`${t('admin.dashboard.standard')}: ${formatCurrencyExact(stats.total_cost)}`"
                   >
-                    / ${{ formatCost(stats.total_cost) }}</span
+                    / {{ formatCurrency(stats.total_cost) }}</span
                   >
                 </p>
               </div>
@@ -315,6 +315,7 @@ import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Select from '@/components/common/Select.vue'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'
 import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
+import { formatCurrency, formatCurrencyExact } from '@/utils/format'
 
 import {
   Chart as ChartJS,
@@ -540,17 +541,6 @@ const formatTokens = (value: number | undefined): string => {
 
 const formatNumber = (value: number): string => {
   return value.toLocaleString()
-}
-
-const formatCost = (value: number): string => {
-  if (value >= 1000) {
-    return (value / 1000).toFixed(2) + 'K'
-  } else if (value >= 1) {
-    return value.toFixed(2)
-  } else if (value >= 0.01) {
-    return value.toFixed(3)
-  }
-  return value.toFixed(4)
 }
 
 const formatDuration = (ms: number): string => {

@@ -7,7 +7,7 @@
     ]"
   >
     <div class="sidebar-header">
-      <span class="ssxz-sidebar-wordmark" aria-label="SSXZ AI Gateway">SSXZ</span>
+      <BrandLogo class="ssxz-sidebar-logo" variant="mark" size="2.875rem" />
       <transition name="fade">
         <div v-if="!sidebarCollapsed" class="ssxz-sidebar-brand-copy">
           <span class="ssxz-sidebar-product">{{ siteName }}</span>
@@ -104,6 +104,7 @@
 import { computed, h, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import BrandLogo from '@/components/common/BrandLogo.vue'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import { sanitizeSvg } from '@/utils/sanitize'
 
@@ -591,17 +592,8 @@ onMounted(() => {
   fill: none;
 }
 
-.ssxz-sidebar-wordmark {
-  display: inline-flex;
-  min-width: 2.75rem;
-  min-height: 2rem;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--ssxz-border);
-  border-radius: var(--ssxz-radius-button);
+.ssxz-sidebar-logo {
   color: var(--ssxz-text);
-  font-size: 0.78rem;
-  font-weight: 760;
 }
 
 .ssxz-sidebar-brand-copy {

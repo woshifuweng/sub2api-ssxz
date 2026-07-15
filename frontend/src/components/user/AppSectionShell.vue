@@ -19,7 +19,7 @@
         :aria-label="t('appShell.backToDashboard')"
         @click="closeMobileNav"
       >
-        <span class="ssxz-brand-wordmark" aria-label="SSXZ AI Gateway">SSXZ</span>
+        <BrandLogo class="ssxz-brand-logo" variant="mark" size="2.875rem" />
         <span class="ssxz-brand-copy ssxz-sidebar-text">
           <span class="ssxz-brand-title">AI Gateway</span>
           <span class="ssxz-brand-subtitle">{{ t('appShell.developerConsole') }}</span>
@@ -84,7 +84,7 @@
             <ThemeToggle />
             <div v-if="authStore.isAuthenticated" class="relative">
               <div class="ssxz-account-cluster">
-                <span class="ssxz-balance-pill">{{ t('appShell.balance') }} ${{ userBalance }}</span>
+                <span class="ssxz-balance-pill" :title="userBalanceTitle">{{ t('appShell.balance') }} {{ userBalance }}</span>
                 <button type="button" class="ssxz-user-button" @click="userMenuOpen = !userMenuOpen">
                 <span class="ssxz-user-avatar">{{ userInitial }}</span>
                 <span class="hidden max-w-32 truncate sm:inline">{{ userLabel }}</span>
@@ -94,7 +94,7 @@
               <div v-if="userMenuOpen" class="ssxz-user-menu">
                 <div class="ssxz-menu-summary">
                   <strong>{{ userLabel }}</strong>
-                  <span>{{ t('appShell.balance') }} ${{ userBalance }}</span>
+                  <span :title="userBalanceTitle">{{ t('appShell.balance') }} {{ userBalance }}</span>
                 </div>
                 <button v-if="authStore.isAdmin" type="button" class="ssxz-menu-link" @click="openAdminConsole">
                   {{ t('appShell.adminConsole') }}
@@ -133,12 +133,14 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import BrandLogo from '@/components/common/BrandLogo.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import type { ChatConversation } from '@/api/chatWorkspace'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { getSafeLocalStorageItem, setSafeLocalStorageItem } from '@/utils/safeStorage'
+import { formatCurrency, formatCurrencyTitle } from '@/utils/format'
 
 type IconName = InstanceType<typeof Icon>['$props']['name']
 
@@ -192,7 +194,8 @@ const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName 
 
 const userLabel = computed(() => authStore.user?.username || authStore.user?.email?.split('@')[0] || t('appShell.accountFallback'))
 const userInitial = computed(() => userLabel.value.slice(0, 1).toUpperCase())
-const userBalance = computed(() => formatMoney(authStore.user?.balance || 0))
+const userBalance = computed(() => formatCurrency(authStore.user?.balance || 0))
+const userBalanceTitle = computed(() => formatCurrencyTitle(authStore.user?.balance || 0))
 const navToggleLabel = computed(() => {
   if (!isDesktopViewport.value) return mobileNavOpen.value ? t('appShell.closeNavigation') : t('appShell.openNavigation')
   return sidebarCollapsed.value ? t('appShell.expandSidebar') : t('appShell.collapseSidebar')
@@ -227,10 +230,6 @@ function openAdminConsole() {
 function handleHistorySelect(id: number) {
   emit('select-conversation', id)
   closeMobileNav()
-}
-
-function formatMoney(value: number) {
-  return Number(value || 0).toFixed(2)
 }
 
 function readSidebarCollapsed() {
@@ -329,18 +328,8 @@ watch(() => route.fullPath || route.path, closeMobileNav)
   background: color-mix(in srgb, var(--ssxz-primary) 8%, transparent);
 }
 
-.ssxz-brand-wordmark {
-  display: inline-flex;
-  min-width: 3rem;
-  min-height: 2rem;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--ssxz-radius-button);
-  border: 1px solid var(--ssxz-border);
+.ssxz-brand-logo {
   color: var(--ssxz-text);
-  font-size: 0.76rem;
-  font-weight: 760;
 }
 
 .ssxz-brand-copy {

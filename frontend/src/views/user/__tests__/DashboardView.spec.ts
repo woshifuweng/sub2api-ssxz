@@ -52,6 +52,14 @@ vi.mock('@/components/common/LoadingSpinner.vue', () => ({
   }
 }))
 
+vi.mock('@/components/foundation', () => ({
+  FoundationProvider: {
+    name: 'FoundationProvider',
+    props: ['theme'],
+    template: '<div data-testid="dashboard-foundation" :data-theme="theme"><slot /></div>'
+  }
+}))
+
 vi.mock('@/components/icons/Icon.vue', () => ({
   default: {
     name: 'Icon',
@@ -63,8 +71,8 @@ vi.mock('@/components/icons/Icon.vue', () => ({
 vi.mock('@/components/user/dashboard/UserDashboardStats.vue', () => ({
   default: {
     name: 'UserDashboardStats',
-    props: ['stats', 'balance', 'isSimple'],
-    template: '<section data-testid="dashboard-stats-child">{{ stats.total_requests }} {{ balance }} {{ String(isSimple) }}</section>'
+    props: ['stats', 'balance', 'isSimple', 'trend', 'todayTrend'],
+    template: '<section data-testid="dashboard-stats-child">{{ stats.total_requests }} {{ balance }} {{ String(isSimple) }} {{ trend.length }} {{ todayTrend.length }}</section>'
   }
 }))
 
@@ -145,24 +153,49 @@ describe('DashboardView', () => {
     }
     authStore.refreshUser.mockResolvedValue(authStore.user)
     usageAPI.getDashboardStats.mockResolvedValue(dashboardStatsFixture())
-    usageAPI.getDashboardTrend.mockResolvedValue({
-      trend: [
-        {
-          date: '2026-07-02',
-          requests: 27,
-          input_tokens: 120,
-          output_tokens: 80,
-          cache_creation_tokens: 0,
-          cache_read_tokens: 0,
-          total_tokens: 200,
-          cost: 1.5,
-          actual_cost: 1.25
-        }
-      ],
+    usageAPI.getDashboardTrend.mockImplementation((params?: { granularity?: string }) => Promise.resolve({
+      trend: params?.granularity === 'hour'
+        ? [
+            {
+              date: '2026-07-02T08:00:00',
+              requests: 7,
+              input_tokens: 30,
+              output_tokens: 20,
+              cache_creation_tokens: 0,
+              cache_read_tokens: 0,
+              total_tokens: 50,
+              cost: 0.4,
+              actual_cost: 0.3
+            },
+            {
+              date: '2026-07-02T09:00:00',
+              requests: 20,
+              input_tokens: 90,
+              output_tokens: 60,
+              cache_creation_tokens: 0,
+              cache_read_tokens: 0,
+              total_tokens: 150,
+              cost: 1.1,
+              actual_cost: 0.95
+            }
+          ]
+        : [
+            {
+              date: '2026-07-02',
+              requests: 27,
+              input_tokens: 120,
+              output_tokens: 80,
+              cache_creation_tokens: 0,
+              cache_read_tokens: 0,
+              total_tokens: 200,
+              cost: 1.5,
+              actual_cost: 1.25
+            }
+          ],
       start_date: '2026-06-26',
       end_date: '2026-07-02',
-      granularity: 'day'
-    })
+      granularity: params?.granularity || 'day'
+    }))
     usageAPI.getDashboardModels.mockResolvedValue({
       models: [
         {
@@ -200,10 +233,9 @@ describe('DashboardView', () => {
 
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="dashboard-foundation"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('user@example.com')
-    expect(wrapper.text()).toContain('$42.35')
-    expect(wrapper.text()).toContain('$1.25')
-    expect(wrapper.text()).toContain('27')
+    expect(wrapper.text()).toContain('42.35')
     expect(hrefs).toContain('/app/keys')
     expect(hrefs).toContain('/app/usage')
     expect(hrefs).toContain('/app/available-channels')
@@ -215,12 +247,15 @@ describe('DashboardView', () => {
     expect(hrefs).not.toContain('/app/chat')
     expect(wrapper.text()).not.toContain('模型测试入口')
     expect(wrapper.find('[data-testid="dashboard-stats-child"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="dashboard-stats-child"]').text()).toContain('12345 42.35 false 1 2')
+    expect(wrapper.find('.dashboard-command-panel__snapshot').exists()).toBe(false)
     expect(wrapper.find('[data-testid="dashboard-charts-child"]').text()).toContain('1 1')
     expect(wrapper.find('[data-testid="dashboard-recent-usage-child"]').text()).toContain('1')
     expect(wrapper.find('[data-testid="dashboard-quick-actions-child"]').exists()).toBe(true)
     expect(authStore.refreshUser).toHaveBeenCalledTimes(1)
     expect(usageAPI.getDashboardStats).toHaveBeenCalledTimes(1)
-    expect(usageAPI.getDashboardTrend).toHaveBeenCalledTimes(1)
+    expect(usageAPI.getDashboardTrend).toHaveBeenCalledTimes(2)
+    expect(usageAPI.getDashboardTrend).toHaveBeenCalledWith(expect.objectContaining({ granularity: 'hour' }))
     expect(usageAPI.getDashboardModels).toHaveBeenCalledTimes(1)
     expect(usageAPI.getByDateRange).toHaveBeenCalledTimes(1)
   })

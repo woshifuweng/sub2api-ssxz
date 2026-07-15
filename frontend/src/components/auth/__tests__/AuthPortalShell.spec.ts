@@ -89,23 +89,49 @@ describe('AuthPortalShell', () => {
     })
 
     expect(wrapper.get('.f0-foundation').attributes('data-theme')).toBe('light')
+    expect(wrapper.getComponent(AuthOrbitVisual).props('theme')).toBe('light')
     await wrapper.get('[data-testid="auth-theme-toggle"]').trigger('click')
     await flushPromises()
 
     expect(document.documentElement.classList.contains('dark')).toBe(true)
     expect(wrapper.get('.f0-foundation').attributes('data-theme')).toBe('dark')
+    expect(wrapper.getComponent(AuthOrbitVisual).props('theme')).toBe('dark')
     expect(localStorage.getItem('theme')).toBe('dark')
+  })
+
+  it('uses the shared SSXZ mark in the authentication header', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/home', component: { template: '<div />' } },
+        { path: '/login', component: { template: '<div />' } },
+        { path: '/register', component: { template: '<div />' } }
+      ]
+    })
+    await router.push('/login')
+    await router.isReady()
+
+    const wrapper = mount(AuthPortalShell, {
+      props: { activeTab: 'login' },
+      global: { plugins: [router], stubs: { AuthOrbitVisual: true } }
+    })
+
+    expect(wrapper.get('.auth-portal-brand [data-testid="brand-logo"]').exists()).toBe(true)
+    expect(wrapper.find('.auth-portal-brand-mark svg').exists()).toBe(false)
   })
 })
 
 describe('AuthOrbitVisual', () => {
   it('renders 18 known local AI brand icons without image or fallback nodes', () => {
-    const wrapper = mount(AuthOrbitVisual)
+    const wrapper = mount(AuthOrbitVisual, { props: { theme: 'dark' } })
 
     expect(wrapper.findAll('.auth-orbit-node')).toHaveLength(18)
     expect(wrapper.findAll('.model-icon')).toHaveLength(18)
     expect(wrapper.findAll('.model-icon-fallback')).toHaveLength(0)
     expect(wrapper.find('img').exists()).toBe(false)
+    expect(wrapper.get('.auth-orbit-core [data-testid="brand-logo"]').exists()).toBe(true)
+    expect(wrapper.get('.auth-orbit-core [data-testid="brand-logo"]').classes()).toContain('brand-logo--theme-dark')
+    expect(wrapper.get('.auth-orbit-core').text()).not.toContain('SSXZ')
   })
 
   it('keeps C2 free of the rejected React and blue-glow dependencies', () => {

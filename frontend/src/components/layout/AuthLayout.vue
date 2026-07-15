@@ -12,7 +12,7 @@
           <template v-if="settingsLoaded">
             <div class="auth-brand-lockup inline-flex items-center justify-center">
               <img v-if="approvedSiteLogo" :src="approvedSiteLogo" alt="SSXZ AI Gateway" class="auth-brand-image object-contain" />
-              <span v-else>SSXZ AI Gateway</span>
+              <BrandLogo v-else variant="mark" size="3.5rem" />
             </div>
             <h1>{{ siteName }}</h1>
             <p class="auth-subtitle">{{ siteSubtitle }}</p>
@@ -37,8 +37,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import BrandLogo from '@/components/common/BrandLogo.vue'
 import { useAppStore } from '@/stores'
-import { DEFAULT_SITE_NAME, normalizeSiteSubtitle } from '@/utils/brand'
+import { DEFAULT_SITE_NAME, normalizeSiteSubtitle, resolveCustomSiteLogo } from '@/utils/brand'
 import { sanitizeUrl } from '@/utils/url'
 
 withDefaults(defineProps<{ split?: boolean }>(), {
@@ -49,11 +50,7 @@ const appStore = useAppStore()
 
 const siteName = computed(() => appStore.siteName || DEFAULT_SITE_NAME)
 const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
-const approvedSiteLogo = computed(() => {
-  const value = siteLogo.value.trim()
-  if (!value || /(?:^|\/)logo\.png(?:$|\?)/i.test(value)) return ''
-  return value
-})
+const approvedSiteLogo = computed(() => resolveCustomSiteLogo(siteLogo.value))
 const siteSubtitle = computed(() => normalizeSiteSubtitle(appStore.cachedPublicSettings?.site_subtitle))
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
 

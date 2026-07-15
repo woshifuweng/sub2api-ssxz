@@ -63,15 +63,31 @@ export function formatCurrency(amount: number | null | undefined, currency: stri
 
   const locale = getLocale()
 
-  // For very small amounts, show more decimals
-  const fractionDigits = amount > 0 && amount < 0.01 ? 6 : 2
-
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: currency,
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits
+    currencyDisplay: 'narrowSymbol',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
   }).format(amount)
+}
+
+/**
+ * 格式化金额精确值，供详情或悬浮提示使用，不作为主界面默认精度。
+ */
+export function formatCurrencyExact(amount: number | null | undefined, currency: string = 'USD'): string {
+  const value = amount ?? 0
+  return new Intl.NumberFormat(getLocale(), {
+    style: 'currency',
+    currency,
+    currencyDisplay: 'narrowSymbol',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 8
+  }).format(value)
+}
+
+export function formatCurrencyTitle(amount: number | null | undefined, currency: string = 'USD'): string {
+  return `精确金额：${formatCurrencyExact(amount, currency)}`
 }
 
 /**
@@ -229,10 +245,10 @@ export function formatNumberLocaleString(num: number): string {
 /**
  * 格式化金额（固定小数位，不带货币符号）
  * @param amount 金额
- * @param fractionDigits 小数位数，默认 4
- * @returns 格式化后的字符串，如 "1.2345"
+ * @param fractionDigits 小数位数，默认 2
+ * @returns 格式化后的字符串，如 "1.23"
  */
-export function formatCostFixed(amount: number, fractionDigits: number = 4): string {
+export function formatCostFixed(amount: number, fractionDigits: number = 2): string {
   return amount.toFixed(fractionDigits)
 }
 

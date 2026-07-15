@@ -13,7 +13,7 @@
           </div>
           <div>
             <span>{{ t('usage.workbench.balanceTitle') }}</span>
-            <strong>{{ balanceText }}</strong>
+            <strong :title="balanceTitle">{{ balanceText }}</strong>
             <p :class="{ 'is-warning': balanceRefreshError }">{{ balanceDescriptionText }}</p>
           </div>
           <RouterLink to="/app/purchase" class="summary-action">
@@ -27,7 +27,7 @@
           </div>
           <div>
             <span>{{ t('usage.workbench.monthlyCostTitle') }}</span>
-            <strong>{{ monthlyCostText }}</strong>
+            <strong :title="monthlyCostTitle">{{ monthlyCostText }}</strong>
             <p>{{ monthlyUsageNote }}</p>
           </div>
         </article>
@@ -63,6 +63,7 @@
             v-for="item in monthlySeries"
             :key="item.key"
             class="chart-column"
+            :title="item.cost > 0 ? formatCostTitle(item.cost) : undefined"
           >
             <div class="chart-bar-track">
               <div class="chart-bar" :style="{ height: chartBarHeight(item) }" />
@@ -161,7 +162,7 @@
                   <span v-else>-</span>
                 </td>
                 <td>
-                  <span>{{ formatCost(row.actual_cost) }}</span>
+                  <span :title="formatCostTitle(row.actual_cost)">{{ formatCost(row.actual_cost) }}</span>
                   <small v-if="isNoCharge(row)" class="usage-cost-note">
                     {{ t('usage.workbench.noCharge') }}
                   </small>
@@ -187,6 +188,10 @@ import { usageAPI } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { useClipboard } from '@/composables/useClipboard'
 import type { TrendDataPoint, UsageLog, UsageStatsResponse } from '@/types'
+import {
+  formatCurrency as formatMoney,
+  formatCurrencyTitle as formatMoneyTitle
+} from '@/utils/format'
 
 interface MonthlyUsage {
   key: string
@@ -217,7 +222,8 @@ const todayKey = toDateKey(today)
 const monthStartKey = toDateKey(monthStart)
 const trendStartKey = toDateKey(trendStart)
 
-const balanceText = computed(() => formatCurrency(authStore.user?.balance || 0, 2))
+const balanceText = computed(() => formatMoney(authStore.user?.balance || 0))
+const balanceTitle = computed(() => formatMoneyTitle(authStore.user?.balance || 0))
 const balanceDescriptionText = computed(() => {
   if (balanceRefreshError.value) return t('usage.workbench.balanceRefreshError')
   return t('usage.workbench.balanceDescription')
@@ -229,8 +235,11 @@ const billingExplanationItems = computed(() => [
 ])
 const monthlyCostText = computed(() => {
   if (statsLoadError.value) return t('usage.workbench.unavailable')
-  return formatCurrency(usageStats.value?.total_actual_cost || 0, 4)
+  return formatMoney(usageStats.value?.total_actual_cost || 0)
 })
+const monthlyCostTitle = computed(() => (
+  statsLoadError.value ? undefined : formatMoneyTitle(usageStats.value?.total_actual_cost || 0)
+))
 const monthlyUsageNote = computed(() => {
   if (statsLoadError.value) return t('usage.workbench.statsLoadError')
 
@@ -343,7 +352,7 @@ function chartBarHeight(item: MonthlyUsage) {
 }
 
 function formatMonthlyValue(item: MonthlyUsage) {
-  if (item.cost > 0) return formatCurrency(item.cost, item.cost < 0.01 ? 6 : 4)
+  if (item.cost > 0) return formatMoney(item.cost)
   if (item.tokens > 0) return t('usage.workbench.tokenAmount', { count: formatNumber(item.tokens) })
   return t('usage.workbench.requestCount', { count: formatNumber(item.requests) })
 }
@@ -466,8 +475,11 @@ function formatLatency(value: number | null | undefined) {
 }
 
 function formatCost(value: number | null | undefined) {
-  const cost = Number(value || 0)
-  return formatCurrency(cost, cost > 0 && cost < 0.01 ? 6 : 4)
+  return formatMoney(Number(value || 0))
+}
+
+function formatCostTitle(value: number | null | undefined) {
+  return formatMoneyTitle(Number(value || 0))
 }
 
 function isNoCharge(row: UsageLog) {
@@ -480,10 +492,6 @@ function isZeroTokenCharged(row: UsageLog) {
     + Number(row.cache_creation_tokens || 0)
     + Number(row.cache_read_tokens || 0)
   return tokenTotal <= 0 && Number(row.actual_cost || 0) > 0
-}
-
-function formatCurrency(value: number, digits: number) {
-  return `$${Number(value || 0).toFixed(digits)}`
 }
 
 function formatNumber(value: number) {

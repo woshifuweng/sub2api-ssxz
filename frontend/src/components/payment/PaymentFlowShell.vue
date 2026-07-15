@@ -2,7 +2,7 @@
   <main class="payment-flow-shell">
     <header class="payment-flow-header">
       <RouterLink to="/app/purchase" class="payment-flow-brand" aria-label="返回补充额度">
-        <span class="payment-flow-brand-mark">S</span>
+        <BrandLogo class="payment-flow-brand-mark" variant="mark" size="2.5rem" />
         <span>
           <strong>SSXZ AI</strong>
           <small>{{ subtitle }}</small>
@@ -21,6 +21,7 @@
 
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
+import BrandLogo from '@/components/common/BrandLogo.vue'
 
 withDefaults(defineProps<{
   subtitle?: string
@@ -71,19 +72,11 @@ withDefaults(defineProps<{
 }
 
 .payment-flow-brand-mark {
-  display: grid;
-  width: 2rem;
-  height: 2rem;
-  place-items: center;
-  border-radius: 0.7rem;
-  background: #111827;
-  color: #ffffff;
-  font-weight: 800;
+  color: #111827;
 }
 
 :root.dark .payment-flow-brand-mark {
-  background: #f8fafc;
-  color: #0f1110;
+  color: #f8fafc;
 }
 
 .payment-flow-brand strong,

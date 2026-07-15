@@ -407,14 +407,20 @@
             <div class="text-sm">
               <div class="flex items-center gap-1.5">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('admin.users.today') }}:</span>
-                <span class="font-medium text-gray-900 dark:text-white">
-                  ${{ (usageStats[row.id]?.today_actual_cost ?? 0).toFixed(4) }}
+                <span
+                  class="font-medium text-gray-900 dark:text-white"
+                  :title="formatCurrencyTitle(usageStats[row.id]?.today_actual_cost ?? 0)"
+                >
+                  {{ formatCurrency(usageStats[row.id]?.today_actual_cost ?? 0) }}
                 </span>
               </div>
               <div class="mt-0.5 flex items-center gap-1.5">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('admin.users.total') }}:</span>
-                <span class="font-medium text-gray-900 dark:text-white">
-                  ${{ (usageStats[row.id]?.total_actual_cost ?? 0).toFixed(4) }}
+                <span
+                  class="font-medium text-gray-900 dark:text-white"
+                  :title="formatCurrencyTitle(usageStats[row.id]?.total_actual_cost ?? 0)"
+                >
+                  {{ formatCurrency(usageStats[row.id]?.total_actual_cost ?? 0) }}
                 </span>
               </div>
             </div>
@@ -782,7 +788,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
-import { formatDateTime } from '@/utils/format'
+import { formatCurrency, formatCurrencyTitle, formatDateTime } from '@/utils/format'
 import Icon from '@/components/icons/Icon.vue'
 
 const { t } = useI18n()
@@ -1639,9 +1645,7 @@ const openCustomerHandoffRequestDetails = () => withCustomerHandoffUser((user) =
 const formatCustomerHandoffUsage = (user: AdminUser) => {
   const stats = usageStats.value[user.id]
   if (!stats) return '加载中'
-  const today = (stats.today_actual_cost ?? 0).toFixed(4)
-  const total = (stats.total_actual_cost ?? 0).toFixed(4)
-  return `$${today} / $${total}`
+  return `${formatCurrency(stats.today_actual_cost ?? 0)} / ${formatCurrency(stats.total_actual_cost ?? 0)}`
 }
 
 const closeApiKeysModal = () => {

@@ -20,6 +20,8 @@ describe('PaymentFlowShell', () => {
     expect(text).toContain('返回补充额度')
     expect(text).toContain('支付处理中')
     expect(text).not.toContain('返回充值中心')
+    expect(wrapper.get('.payment-flow-brand [data-testid="brand-logo"]').exists()).toBe(true)
+    expect(wrapper.find('.payment-flow-brand-mark').text()).not.toBe('S')
 
     const links = wrapper.findAllComponents(RouterLinkStub)
     expect(links).toHaveLength(2)

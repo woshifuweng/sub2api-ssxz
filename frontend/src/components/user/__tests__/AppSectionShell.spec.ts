@@ -23,7 +23,8 @@ const { routeState, mocks, authState, appState } = vi.hoisted(() => ({
   }
 }))
 
-vi.mock('vue-i18n', () => ({
+vi.mock('vue-i18n', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('vue-i18n')>()),
   useI18n: () => ({
     t: (key: string) => ({
       'nav.dashboard': 'Dashboard',
@@ -179,12 +180,14 @@ describe('AppSectionShell', () => {
     expect(appSectionShellSource).not.toContain("document.documentElement.classList.add('dark')")
   })
 
-  it('uses dashboard as the brand destination without an invented logo symbol', () => {
+  it('uses dashboard as the brand destination with the shared SSXZ mark', () => {
     const wrapper = mountShell()
     const brand = wrapper.get('.ssxz-brand-link')
 
     expect(brand.attributes('href')).toBe('/app/dashboard')
-    expect(brand.text()).toContain('SSXZ')
+    expect(brand.find('[data-testid="brand-logo"]').exists()).toBe(true)
+    expect(brand.find('.brand-logo__mark').exists()).toBe(true)
+    expect(brand.find('.ssxz-brand-wordmark').exists()).toBe(false)
     expect(brand.find('svg').exists()).toBe(false)
     expect(brand.find('img').exists()).toBe(false)
   })

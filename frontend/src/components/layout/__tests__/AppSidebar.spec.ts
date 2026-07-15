@@ -165,11 +165,13 @@ describe('AppSidebar', () => {
     expect(wrapper.text()).toContain('Referral Rewards')
   })
 
-  it('uses a neutral text wordmark without an invented symbol', () => {
+  it('uses the shared SSXZ brand mark instead of the legacy text box', () => {
     const wrapper = mountSidebar()
     const header = wrapper.get('.sidebar-header')
 
-    expect(header.text()).toContain('SSXZ')
+    expect(header.find('[data-testid="brand-logo"]').exists()).toBe(true)
+    expect(header.find('.brand-logo__mark').exists()).toBe(true)
+    expect(header.find('.ssxz-sidebar-wordmark').exists()).toBe(false)
     expect(header.find('svg').exists()).toBe(false)
     expect(header.find('img').exists()).toBe(false)
   })

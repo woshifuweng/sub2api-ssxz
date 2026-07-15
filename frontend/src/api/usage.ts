@@ -43,6 +43,7 @@ export interface TrendParams {
   start_date?: string
   end_date?: string
   granularity?: 'day' | 'hour'
+  timezone?: string
 }
 
 export interface TrendResponse {

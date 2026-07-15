@@ -51,8 +51,11 @@
             <div class="grid gap-2 sm:grid-cols-2">
               <div>
                 <span class="text-gray-400">账户余额：</span>
-                <span :class="(user?.balance || 0) > 0 ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-300'">
-                  {{ (user?.balance || 0) > 0 ? `$${Number(user?.balance || 0).toFixed(2)}` : '余额不足' }}
+                <span
+                  :class="(user?.balance || 0) > 0 ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-300'"
+                  :title="formatCurrencyTitle(user?.balance || 0)"
+                >
+                  {{ (user?.balance || 0) > 0 ? formatCurrency(user?.balance || 0) : '余额不足' }}
                 </span>
               </div>
               <div>
@@ -61,7 +64,7 @@
               </div>
               <div>
                 <span class="text-gray-400">Key 额度：</span>
-                <span class="text-gray-700 dark:text-dark-100">{{ formatQuotaLine(key) }}</span>
+                <span class="text-gray-700 dark:text-dark-100" :title="formatQuotaTitle(key)">{{ formatQuotaLine(key) }}</span>
               </div>
               <div>
                 <span class="text-gray-400">限速：</span>
@@ -170,7 +173,7 @@ import { ref, computed, watch, onMounted, onUnmounted, type ComponentPublicInsta
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
-import { formatDateTime } from '@/utils/format'
+import { formatCurrency, formatCurrencyTitle, formatDateTime } from '@/utils/format'
 import type { AdminUser, AdminGroup, ApiKey } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
@@ -292,7 +295,12 @@ const keyReadiness = (key: ApiKey): KeyReadiness => {
 
 const formatQuotaLine = (key: ApiKey) => {
   if (key.quota <= 0) return '不额外限制'
-  return `$${key.quota_used?.toFixed(4) || '0.0000'} / $${key.quota.toFixed(2)}`
+  return `${formatCurrency(key.quota_used || 0)} / ${formatCurrency(key.quota)}`
+}
+
+const formatQuotaTitle = (key: ApiKey) => {
+  if (key.quota <= 0) return undefined
+  return `已用 ${formatCurrencyTitle(key.quota_used || 0)}；额度 ${formatCurrencyTitle(key.quota)}`
 }
 
 const formatRateLimitLine = (key: ApiKey) => {
