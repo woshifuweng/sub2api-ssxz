@@ -5,47 +5,47 @@ export default {
   theme: {
     extend: {
       colors: {
-        // SSXZ interaction color: one indigo scale across public and product surfaces.
+        // SSXZ interaction color: a neutral graphite scale shared by every product surface.
         primary: {
-          50: '#eef2ff',
-          100: '#e0e7ff',
-          200: '#c7d2fe',
-          300: '#a5b4fc',
-          400: '#818cf8',
-          500: '#6366f1',
-          600: '#5558df',
-          700: '#4547bd',
-          800: '#37399a',
-          900: '#30327a',
-          950: '#1e1f4d'
+          50: '#f7f8f8',
+          100: '#eceeef',
+          200: '#d8dcdf',
+          300: '#b8bec4',
+          400: '#89929b',
+          500: '#606b76',
+          600: '#48515b',
+          700: '#363d45',
+          800: '#252a30',
+          900: '#181b1f',
+          950: '#0e1012'
         },
-        // Detail accent: small cyan notes, links, and code highlights only.
+        // Detail accent: restrained cool steel for links, focus and data emphasis.
         accent: {
-          50: '#ecfeff',
-          100: '#cffafe',
-          200: '#a5f3fc',
-          300: '#67e8f9',
-          400: '#38bdf8',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1',
-          800: '#075985',
-          900: '#0c4a6e',
-          950: '#082f49'
+          50: '#f5f7f8',
+          100: '#e8ecef',
+          200: '#d5dce1',
+          300: '#b7c1c9',
+          400: '#8f9da9',
+          500: '#697987',
+          600: '#556273',
+          700: '#444f5d',
+          800: '#343d48',
+          900: '#29313a',
+          950: '#171c22'
         },
-        // 深色模式背景
+        // Neutral dark surfaces. Avoid blue/slate casts in dark mode.
         dark: {
-          50: '#f8fafc',
-          100: '#f1f5f9',
-          200: '#e2e8f0',
-          300: '#cbd5e1',
-          400: '#94a3b8',
-          500: '#64748b',
-          600: '#475569',
-          700: '#334155',
-          800: '#1e293b',
-          900: '#0f172a',
-          950: '#020617'
+          50: '#fafafa',
+          100: '#f4f4f5',
+          200: '#e4e4e7',
+          300: '#d4d4d8',
+          400: '#a1a1aa',
+          500: '#71717a',
+          600: '#52525b',
+          700: '#3f3f46',
+          800: '#27272a',
+          900: '#18181b',
+          950: '#09090b'
         }
       },
       fontFamily: {
@@ -67,19 +67,19 @@ export default {
       boxShadow: {
         glass: '0 8px 32px rgba(0, 0, 0, 0.08)',
         'glass-sm': '0 4px 16px rgba(0, 0, 0, 0.06)',
-        glow: '0 0 0 1px rgba(99, 102, 241, 0.18)',
-        'glow-lg': '0 0 0 1px rgba(99, 102, 241, 0.22)',
+        glow: '0 0 0 1px rgba(85, 98, 115, 0.18)',
+        'glow-lg': '0 0 0 1px rgba(85, 98, 115, 0.24)',
         card: '0 1px 2px rgba(0, 0, 0, 0.24)',
         'card-hover': '0 12px 32px rgba(0, 0, 0, 0.24)',
         'inner-glow': 'inset 0 1px 0 rgba(255, 255, 255, 0.04)'
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-primary': 'linear-gradient(180deg, #6366f1 0%, #5558df 100%)',
-        'gradient-dark': 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+        'gradient-primary': 'linear-gradient(180deg, #30343a 0%, #181a1e 100%)',
+        'gradient-dark': 'linear-gradient(135deg, #27272a 0%, #18181b 100%)',
         'gradient-glass':
           'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-        'mesh-gradient': 'linear-gradient(180deg, #0b1120 0%, #070b14 100%)'
+        'mesh-gradient': 'linear-gradient(180deg, #18191c 0%, #111214 100%)'
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-out',

@@ -111,7 +111,7 @@ const getIconColor = (type: string): string => {
     success: 'text-green-500',
     error: 'text-red-500',
     warning: 'text-yellow-500',
-    info: 'text-sky-400'
+    info: 'text-primary-400'
   }
   return colors[type] || colors.info
 }
@@ -131,7 +131,7 @@ const getProgressBarColor = (type: string): string => {
     success: 'bg-green-500',
     error: 'bg-red-500',
     warning: 'bg-yellow-500',
-    info: 'bg-sky-400'
+    info: 'bg-primary-400'
   }
   return colors[type] || colors.info
 }

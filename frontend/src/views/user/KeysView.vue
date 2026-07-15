@@ -188,7 +188,7 @@
                 v-if="row.ip_whitelist?.length > 0 || row.ip_blacklist?.length > 0"
                 name="shield"
                 size="sm"
-                class="text-blue-500"
+                class="text-primary-600 dark:text-primary-300"
                 :title="t('keys.ipRestrictionEnabled')"
               />
             </div>
@@ -431,7 +431,7 @@
                 @click="importToCcswitch(row)"
                 :title="t('keys.importToCcSwitch')"
                 data-testid="api-key-ccs-import"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 dark:text-blue-300 dark:hover:bg-blue-900/20 dark:hover:text-blue-200"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-primary-600 transition-colors hover:bg-primary-50 hover:text-primary-800 dark:text-primary-300 dark:hover:bg-primary-900/30 dark:hover:text-primary-100"
               >
                 <Icon name="upload" size="sm" />
                 <span class="text-xs">{{ t('keys.importToCcSwitch') }}</span>

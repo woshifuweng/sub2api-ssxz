@@ -71,8 +71,8 @@
     <template v-else-if="settlingOrder">
       <div class="card p-6">
         <div class="flex flex-col items-center space-y-4 py-4">
-          <div class="flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
-            <div class="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
+          <div class="flex h-16 w-16 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30">
+            <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
           </div>
           <p class="text-lg font-bold text-gray-900 dark:text-white">{{ t('payment.result.settling') }}</p>
           <p class="text-center text-sm text-gray-500 dark:text-gray-400">{{ t('payment.result.settlingHint') }}</p>

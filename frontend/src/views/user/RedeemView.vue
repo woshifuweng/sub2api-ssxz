@@ -229,9 +229,9 @@
                         ? 'bg-emerald-100 dark:bg-emerald-900/30'
                         : 'bg-red-100 dark:bg-red-900/30'
                       : isSubscriptionType(item.type)
-                        ? 'bg-purple-100 dark:bg-purple-900/30'
+                        ? 'bg-primary-100 dark:bg-primary-900/30'
                         : item.value >= 0
-                          ? 'bg-blue-100 dark:bg-blue-900/30'
+                          ? 'bg-accent-100 dark:bg-accent-900/30'
                           : 'bg-orange-100 dark:bg-orange-900/30'
                   ]"
                 >
@@ -249,7 +249,7 @@
                     v-else-if="isSubscriptionType(item.type)"
                     name="badge"
                     size="md"
-                    class="text-purple-600 dark:text-purple-400"
+                    class="text-primary-700 dark:text-primary-300"
                   />
                   <Icon
                     v-else
@@ -257,7 +257,7 @@
                     size="md"
                     :class="
                       item.value >= 0
-                        ? 'text-blue-600 dark:text-blue-400'
+                        ? 'text-accent-700 dark:text-accent-300'
                         : 'text-orange-600 dark:text-orange-400'
                     "
                   />
@@ -280,9 +280,9 @@
                         ? 'text-emerald-600 dark:text-emerald-400'
                         : 'text-red-600 dark:text-red-400'
                       : isSubscriptionType(item.type)
-                        ? 'text-purple-600 dark:text-purple-400'
+                        ? 'text-primary-700 dark:text-primary-300'
                         : item.value >= 0
-                          ? 'text-blue-600 dark:text-blue-400'
+                          ? 'text-accent-700 dark:text-accent-300'
                           : 'text-orange-600 dark:text-orange-400'
                   ]"
                 >

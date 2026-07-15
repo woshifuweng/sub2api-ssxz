@@ -143,7 +143,7 @@
   .btn-danger {
     background: var(--ssxz-error);
     border: 1px solid var(--ssxz-error);
-    color: var(--ssxz-action-text);
+    color: #fff;
     box-shadow: none;
   }
 
@@ -379,25 +379,25 @@
   .badge-primary {
     background: var(--ssxz-primary-soft);
     border-color: color-mix(in srgb, var(--ssxz-primary) 38%, transparent);
-    color: #a5b4fc;
+    color: var(--ssxz-accent-strong);
   }
 
   .badge-success {
     background: color-mix(in srgb, var(--ssxz-success) 12%, transparent);
     border-color: color-mix(in srgb, var(--ssxz-success) 34%, transparent);
-    color: #86efac;
+    color: var(--ssxz-success);
   }
 
   .badge-warning {
     background: color-mix(in srgb, var(--ssxz-warning) 12%, transparent);
     border-color: color-mix(in srgb, var(--ssxz-warning) 34%, transparent);
-    color: #fcd34d;
+    color: var(--ssxz-warning);
   }
 
   .badge-danger {
     background: color-mix(in srgb, var(--ssxz-error) 12%, transparent);
     border-color: color-mix(in srgb, var(--ssxz-error) 34%, transparent);
-    color: #fca5a5;
+    color: var(--ssxz-error);
   }
 
   .badge-gray {
@@ -408,7 +408,7 @@
   .badge-purple {
     background: var(--ssxz-primary-soft);
     border-color: color-mix(in srgb, var(--ssxz-primary) 30%, transparent);
-    color: #a5b4fc;
+    color: var(--ssxz-accent-strong);
   }
 
   /* ============ 下拉菜单 ============ */
@@ -771,8 +771,10 @@
   }
 
   .tour-info-box {
-    @apply rounded-md border-l-4 border-blue-500 bg-blue-50 px-3 py-2 text-xs text-blue-900;
-    @apply dark:border-blue-400 dark:bg-blue-950/40 dark:text-blue-200;
+    @apply rounded-md border-l-4 px-3 py-2 text-xs;
+    border-color: var(--ssxz-accent);
+    background: var(--ssxz-accent-soft);
+    color: var(--ssxz-text-secondary);
   }
 
   .tour-success-box {
@@ -832,31 +834,31 @@
   }
 }
 
-/* SSXZ Phase 1: final global design system. */
+/* SSXZ global design system: F0 monochrome base with semantic state colors. */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  --ssxz-bg: #070b14;
-  --ssxz-bg-subtle: #0b1120;
-  --ssxz-surface: #111827;
-  --ssxz-surface-raised: #172033;
-  --ssxz-surface-muted: #1b2538;
-  --ssxz-surface-code: #090d16;
+  --ssxz-bg: #f6f7f8;
+  --ssxz-bg-subtle: #f0f2f4;
+  --ssxz-surface: #ffffff;
+  --ssxz-surface-raised: #f7f8f9;
+  --ssxz-surface-muted: #eceff2;
+  --ssxz-surface-code: #f3f5f6;
   --ssxz-code-surface: var(--ssxz-surface-code);
-  --ssxz-border: #1f2937;
-  --ssxz-border-strong: #334155;
+  --ssxz-border: #dde1e5;
+  --ssxz-border-strong: #c4cad1;
 
-  --ssxz-text: #f1f5f9;
-  --ssxz-text-secondary: #cbd5e1;
-  --ssxz-text-muted: #94a3b8;
-  --ssxz-text-subtle: #64748b;
+  --ssxz-text: #17191d;
+  --ssxz-text-secondary: #3f4650;
+  --ssxz-text-muted: #66707c;
+  --ssxz-text-subtle: #88929e;
 
-  --ssxz-primary: #6366f1;
-  --ssxz-primary-hover: #7477f5;
-  --ssxz-primary-soft: rgb(99 102 241 / 0.14);
-  --ssxz-accent: #38bdf8;
-  --ssxz-accent-strong: #7dd3fc;
-  --ssxz-accent-soft: rgb(56 189 248 / 0.12);
+  --ssxz-primary: #181a1e;
+  --ssxz-primary-hover: #30343a;
+  --ssxz-primary-soft: rgb(24 26 30 / 0.08);
+  --ssxz-accent: #556273;
+  --ssxz-accent-strong: #374151;
+  --ssxz-accent-soft: rgb(85 98 115 / 0.1);
   --ssxz-success: #22c55e;
   --ssxz-warning: #f59e0b;
   --ssxz-danger: #ef4444;
@@ -875,28 +877,64 @@
   --ssxz-radius-button: 8px;
   --ssxz-radius-card: 10px;
   --ssxz-radius-dialog: 12px;
-  --ssxz-shadow-card: 0 1px 2px rgb(0 0 0 / 0.24);
-  --ssxz-shadow-sm: 0 8px 24px rgb(0 0 0 / 0.2);
-  --ssxz-shadow: 0 18px 48px rgb(0 0 0 / 0.3);
-  --ssxz-shadow-dialog: 0 24px 64px rgb(0 0 0 / 0.42);
+  --ssxz-shadow-card: 0 1px 2px rgb(17 24 39 / 0.06);
+  --ssxz-shadow-sm: 0 8px 24px rgb(17 24 39 / 0.08);
+  --ssxz-shadow: 0 18px 48px rgb(17 24 39 / 0.1);
+  --ssxz-shadow-dialog: 0 24px 64px rgb(17 24 39 / 0.14);
   --ssxz-shadow-lg: var(--ssxz-shadow-dialog);
-  --ssxz-focus-ring: 0 0 0 3px rgb(99 102 241 / 0.28);
+  --ssxz-focus-ring: 0 0 0 3px rgb(85 98 115 / 0.2);
 
   /* Backward-compatible semantic aliases used by existing PR360 page work. */
   --ssxz-action: var(--ssxz-primary);
   --ssxz-action-soft: var(--ssxz-primary-soft);
-  --ssxz-action-text: #f8fafc;
+  --ssxz-action-text: #ffffff;
   --ssxz-active: var(--ssxz-primary-soft);
   --ssxz-body: var(--ssxz-text-secondary);
   --ssxz-canvas: var(--ssxz-code-surface);
   --ssxz-disabled: var(--ssxz-surface-muted);
   --ssxz-focus: var(--ssxz-primary-hover);
-  --ssxz-glow-subtle: rgb(99 102 241 / 0.1);
+  --ssxz-glow-subtle: rgb(85 98 115 / 0.08);
   --ssxz-input: var(--ssxz-code-surface);
   --ssxz-subtle: var(--ssxz-text-subtle);
   --ssxz-surface-elevated: var(--ssxz-surface-raised);
   --ssxz-surface-subtle: var(--ssxz-bg-subtle);
   --ssxz-text-primary: var(--ssxz-text);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --ssxz-bg: #111214;
+  --ssxz-bg-subtle: #141619;
+  --ssxz-surface: #191b1e;
+  --ssxz-surface-raised: #22252a;
+  --ssxz-surface-muted: #292d32;
+  --ssxz-surface-code: #131416;
+  --ssxz-code-surface: var(--ssxz-surface-code);
+  --ssxz-border: #34383e;
+  --ssxz-border-strong: #4a5059;
+
+  --ssxz-text: #f3f4f6;
+  --ssxz-text-secondary: #c7cbd1;
+  --ssxz-text-muted: #9aa1ab;
+  --ssxz-text-subtle: #707985;
+
+  --ssxz-primary: #f3f4f6;
+  --ssxz-primary-hover: #e5e7eb;
+  --ssxz-primary-soft: rgb(243 244 246 / 0.09);
+  --ssxz-accent: #aab4c2;
+  --ssxz-accent-strong: #d1d5db;
+  --ssxz-accent-soft: rgb(170 180 194 / 0.1);
+
+  --ssxz-shadow-card: 0 1px 2px rgb(0 0 0 / 0.28);
+  --ssxz-shadow-sm: 0 8px 24px rgb(0 0 0 / 0.24);
+  --ssxz-shadow: 0 18px 48px rgb(0 0 0 / 0.34);
+  --ssxz-shadow-dialog: 0 24px 64px rgb(0 0 0 / 0.42);
+  --ssxz-shadow-lg: var(--ssxz-shadow-dialog);
+  --ssxz-focus-ring: 0 0 0 3px rgb(170 180 194 / 0.2);
+
+  --ssxz-action-text: #15171a;
+  --ssxz-glow-subtle: rgb(170 180 194 / 0.08);
 }
 
 html,
@@ -928,7 +966,7 @@ body::before {
 }
 
 ::selection {
-  background: rgb(99 102 241 / 0.32);
+  background: color-mix(in srgb, var(--ssxz-accent) 28%, transparent);
   color: var(--ssxz-text);
 }
 
@@ -964,8 +1002,8 @@ body::before {
 
 .sidebar-link-active {
   background: var(--ssxz-primary-soft) !important;
-  border-color: rgb(99 102 241 / 0.32) !important;
-  color: #a5b4fc !important;
+  border-color: color-mix(in srgb, var(--ssxz-primary) 28%, transparent) !important;
+  color: var(--ssxz-text) !important;
 }
 
 .sidebar-section-title {

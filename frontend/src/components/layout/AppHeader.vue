@@ -343,11 +343,11 @@ onBeforeUnmount(() => {
 }
 
 .header-balance-pill svg {
-  color: var(--ssxz-primary, #6366f1);
+  color: var(--ssxz-primary, #181a1e);
 }
 
 .header-user-avatar {
-  background: var(--ssxz-primary, #6366f1);
+  background: var(--ssxz-primary, #181a1e);
   color: #f8fafc;
 }
 
