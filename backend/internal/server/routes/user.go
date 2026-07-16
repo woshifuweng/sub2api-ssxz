@@ -15,10 +15,12 @@ func ExecutableUserRoutes(h *handler.Handlers) []gatewayctx.RouteDef {
 	if h == nil {
 		return nil
 	}
-	out := make([]gatewayctx.RouteDef, 0, 10)
+	out := make([]gatewayctx.RouteDef, 0, 12)
 	if h.User != nil {
 		out = append(out,
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/profile", Handler: h.User.GetProfileGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/avatar", Handler: h.User.GetAvatarGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
+			gatewayctx.RouteDef{Method: http.MethodPut, Path: "/api/v1/user/avatar", Handler: h.User.UpdateAvatarGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
 			gatewayctx.RouteDef{Method: http.MethodPut, Path: "/api/v1/user/password", Handler: h.User.ChangePasswordGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
 			gatewayctx.RouteDef{Method: http.MethodPut, Path: "/api/v1/user", Handler: h.User.UpdateProfileGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
 		)
@@ -110,6 +112,8 @@ func RegisterUserRoutes(
 		user := authenticated.Group("/user")
 		{
 			user.GET("/profile", h.User.GetProfile)
+			user.GET("/avatar", h.User.GetAvatar)
+			user.PUT("/avatar", h.User.UpdateAvatar)
 			user.PUT("/password", h.User.ChangePassword)
 			user.PUT("", h.User.UpdateProfile)
 

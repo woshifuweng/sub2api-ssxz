@@ -1472,6 +1472,7 @@ export default {
     memberSince: '注册时间',
     administrator: '管理员',
     user: '普通用户',
+    email: '邮箱',
     username: '用户名',
     enterUsername: '输入用户名',
     editProfile: '编辑个人资料',
@@ -1491,6 +1492,28 @@ export default {
     passwordTooShort: '密码至少需要 8 个字符',
     passwordChangeSuccess: '密码修改成功',
     passwordChangeFailed: '密码修改失败',
+    avatar: {
+      dialogTitle: '更换头像',
+      change: '更换头像',
+      chooseHint: '请选择一张图片',
+      fileLabel: '图片文件',
+      zoomLabel: '缩放',
+      cropHint: '头像会裁剪为圆形，并在浏览器中重新编码后上传。',
+      invalidType: '只支持 JPEG、PNG 或 WebP 图片。',
+      fileTooLarge: '图片不能超过 5MB。',
+      outputTooLarge: '图片压缩后仍超过 100KB，请选择更小的图片。',
+      saving: '保存中...',
+      save: '保存头像',
+      saved: '头像已更新',
+      saveFailed: '头像更新失败'
+    },
+    thirdParty: {
+      kicker: '第三方登录',
+      title: '已接通的登录方式',
+      linuxdoTitle: 'Linux.do',
+      linuxdoDescription: '可使用 Linux.do Connect 登录本站。',
+      connected: '已接通'
+    },
     // TOTP 2FA
     totp: {
       title: '双因素认证 (2FA)',

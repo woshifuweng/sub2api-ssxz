@@ -1470,6 +1470,7 @@ export default {
     memberSince: 'Member Since',
     administrator: 'Administrator',
     user: 'Standard User',
+    email: 'Email',
     username: 'Username',
     enterUsername: 'Enter username',
     editProfile: 'Edit Profile',
@@ -1489,6 +1490,28 @@ export default {
     passwordTooShort: 'Password must be at least 8 characters long',
     passwordChangeSuccess: 'Password changed successfully',
     passwordChangeFailed: 'Failed to change password',
+    avatar: {
+      dialogTitle: 'Change avatar',
+      change: 'Change avatar',
+      chooseHint: 'Choose an image to continue',
+      fileLabel: 'Image file',
+      zoomLabel: 'Zoom',
+      cropHint: 'The avatar is cropped to a circle and re-encoded in your browser before upload.',
+      invalidType: 'Only JPEG, PNG, or WebP images are supported.',
+      fileTooLarge: 'The image must be 5MB or smaller.',
+      outputTooLarge: 'The compressed image is still over 100KB. Choose a smaller image.',
+      saving: 'Saving...',
+      save: 'Save avatar',
+      saved: 'Avatar updated',
+      saveFailed: 'Failed to update avatar'
+    },
+    thirdParty: {
+      kicker: 'Third-party login',
+      title: 'Connected login methods',
+      linuxdoTitle: 'Linux.do',
+      linuxdoDescription: 'Use Linux.do Connect to sign in to this site.',
+      connected: 'Connected'
+    },
     // TOTP 2FA
     totp: {
       title: 'Two-Factor Authentication (2FA)',

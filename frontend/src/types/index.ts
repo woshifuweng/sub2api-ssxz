@@ -39,6 +39,12 @@ export interface User {
   updated_at: string
 }
 
+export interface UserAvatar {
+  url: string
+  content_type?: string
+  byte_size?: number
+}
+
 export interface AdminUser extends User {
   // 管理员备注（普通用户接口不返回）
   notes: string

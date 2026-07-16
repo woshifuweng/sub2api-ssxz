@@ -6,6 +6,7 @@
 import { apiClient } from './client'
 import type {
   User,
+  UserAvatar,
   ChangePasswordRequest,
   UserAffiliateDetail,
   AffiliateTransferResponse
@@ -50,6 +51,16 @@ export async function changePassword(
   return data
 }
 
+export async function getAvatar(): Promise<UserAvatar | null> {
+  const { data } = await apiClient.get<UserAvatar | null>('/user/avatar')
+  return data
+}
+
+export async function updateAvatar(avatar: string): Promise<UserAvatar | null> {
+  const { data } = await apiClient.put<UserAvatar | null>('/user/avatar', { avatar })
+  return data
+}
+
 export async function getAffiliateDetail(): Promise<UserAffiliateDetail> {
   const { data } = await apiClient.get<UserAffiliateDetail>('/user/aff')
   return data
@@ -64,6 +75,8 @@ export const userAPI = {
   getProfile,
   updateProfile,
   changePassword,
+  getAvatar,
+  updateAvatar,
   getAffiliateDetail,
   transferAffiliateQuota
 }

@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { authStore, authAPI, routeState } = vi.hoisted(() => ({
+const { authStore, appStore, authAPI, userAPI, routeState } = vi.hoisted(() => ({
   authStore: {
     user: {
       id: 8,
@@ -16,8 +16,16 @@ const { authStore, authAPI, routeState } = vi.hoisted(() => ({
       updated_at: '2026-05-01T00:00:00Z'
     }
   },
+  appStore: {
+    showSuccess: vi.fn(),
+    showError: vi.fn()
+  },
   authAPI: {
     getPublicSettings: vi.fn()
+  },
+  userAPI: {
+    getAvatar: vi.fn(),
+    updateAvatar: vi.fn()
   },
   routeState: {
     path: '/app/profile'
@@ -67,8 +75,13 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => authStore
 }))
 
+vi.mock('@/stores/app', () => ({
+  useAppStore: () => appStore
+}))
+
 vi.mock('@/api', () => ({
-  authAPI
+  authAPI,
+  userAPI
 }))
 
 vi.mock('@/components/user/AppSectionShell.vue', () => ({
@@ -127,6 +140,7 @@ describe('ProfileView', () => {
   beforeEach(() => {
     routeState.path = '/app/profile'
     authAPI.getPublicSettings.mockResolvedValue({})
+    userAPI.getAvatar.mockResolvedValue(null)
     vi.clearAllMocks()
   })
 

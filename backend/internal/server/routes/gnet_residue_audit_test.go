@@ -150,6 +150,8 @@ func TestExecutableProfileSecurityRoutesRequireUserAuthMiddleware(t *testing.T) 
 
 	for _, item := range []routeKey{
 		{method: http.MethodGet, path: "/api/v1/user/profile"},
+		{method: http.MethodGet, path: "/api/v1/user/avatar"},
+		{method: http.MethodPut, path: "/api/v1/user/avatar"},
 		{method: http.MethodPut, path: "/api/v1/user/password"},
 		{method: http.MethodPut, path: "/api/v1/user"},
 		{method: http.MethodGet, path: "/api/v1/user/totp/status"},

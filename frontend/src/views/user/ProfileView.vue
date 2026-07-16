@@ -20,7 +20,25 @@
           <span>{{ t('profile.workbench.basicInfoKicker') }}</span>
           <strong>{{ t('profile.workbench.accountInfoTitle') }}</strong>
         </div>
-        <ProfileInfoCard :user="user" />
+        <ProfileInfoCard
+          :user="user"
+          :avatar="avatar"
+          @change-avatar="avatarDialogOpen = true"
+        />
+      </section>
+
+      <section v-if="linuxdoOAuthEnabled" class="profile-panel profile-provider-panel">
+        <div class="profile-panel-heading">
+          <span>{{ t('profile.thirdParty.kicker') }}</span>
+          <strong>{{ t('profile.thirdParty.title') }}</strong>
+        </div>
+        <div class="profile-provider-row">
+          <div>
+            <strong>{{ t('profile.thirdParty.linuxdoTitle') }}</strong>
+            <p>{{ t('profile.thirdParty.linuxdoDescription') }}</p>
+          </div>
+          <span class="profile-provider-status">{{ t('profile.thirdParty.connected') }}</span>
+        </div>
       </section>
 
       <div v-if="contactInfo" class="profile-support-card">
@@ -54,23 +72,33 @@
         <ProfileTotpCard />
       </section>
     </div>
+
+    <AvatarCropDialog
+      :show="avatarDialogOpen"
+      :saving="avatarSaving"
+      @close="avatarDialogOpen = false"
+      @save="handleAvatarSave"
+    />
   </component>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, h, onMounted } from 'vue'; import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'; import { formatDate } from '@/utils/format'
+import { useAuthStore } from '@/stores/auth'; import { useAppStore } from '@/stores/app'; import { formatDate } from '@/utils/format'
 import { authAPI } from '@/api'; import AppLayout from '@/components/layout/AppLayout.vue'
+import { userAPI } from '@/api'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import ProfileInfoCard from '@/components/user/profile/ProfileInfoCard.vue'
 import ProfileEditForm from '@/components/user/profile/ProfileEditForm.vue'
 import ProfilePasswordForm from '@/components/user/profile/ProfilePasswordForm.vue'
 import ProfileTotpCard from '@/components/user/profile/ProfileTotpCard.vue'
+import AvatarCropDialog from '@/components/user/profile/AvatarCropDialog.vue'
+import type { UserAvatar } from '@/types'
 import { Icon } from '@/components/icons'
 
-const { t } = useI18n(); const authStore = useAuthStore(); const user = computed(() => authStore.user)
+const { t } = useI18n(); const authStore = useAuthStore(); const appStore = useAppStore(); const user = computed(() => authStore.user)
 const route = useRoute()
 const useWorkbenchShell = computed(() => route.path.startsWith('/app/'))
 const pageShell = computed(() => useWorkbenchShell.value ? AppSectionShell : AppLayout)
@@ -84,6 +112,10 @@ const pageShellProps = computed(() => useWorkbenchShell.value
   : {}
 )
 const contactInfo = ref('')
+const linuxdoOAuthEnabled = ref(false)
+const avatar = ref<UserAvatar | null>(null)
+const avatarDialogOpen = ref(false)
+const avatarSaving = ref(false)
 const accountStatusLabel = computed(() => user.value?.status === 'active'
   ? t('profile.statusActive')
   : t('profile.statusDisabled')
@@ -93,7 +125,34 @@ const WalletIcon = { render: () => h('svg', { fill: 'none', viewBox: '0 0 24 24'
 const StatusIcon = { render: () => h('svg', { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' }, [h('path', { d: 'M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z' })]) }
 const CalendarIcon = { render: () => h('svg', { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' }, [h('path', { d: 'M6.75 3v2.25M17.25 3v2.25' })]) }
 
-onMounted(async () => { try { const s = await authAPI.getPublicSettings(); contactInfo.value = s.contact_info || '' } catch { contactInfo.value = '' } })
+onMounted(async () => {
+  try {
+    const settings = await authAPI.getPublicSettings()
+    contactInfo.value = settings.contact_info || ''
+    linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled === true
+  } catch {
+    contactInfo.value = ''
+    linuxdoOAuthEnabled.value = false
+  }
+  try {
+    avatar.value = await userAPI.getAvatar()
+  } catch {
+    avatar.value = null
+  }
+})
+
+const handleAvatarSave = async (dataUrl: string) => {
+  avatarSaving.value = true
+  try {
+    avatar.value = await userAPI.updateAvatar(dataUrl)
+    avatarDialogOpen.value = false
+    appStore.showSuccess(t('profile.avatar.saved'))
+  } catch (error: any) {
+    appStore.showError(error?.message || t('profile.avatar.saveFailed'))
+  } finally {
+    avatarSaving.value = false
+  }
+}
 const formatCurrency = (v: number) => `$${v.toFixed(2)}`
 </script>
 
@@ -101,6 +160,8 @@ const formatCurrency = (v: number) => `$${v.toFixed(2)}`
 .profile-workbench {
   margin-inline: auto;
   max-width: 56rem;
+  min-width: 0;
+  width: 100%;
   display: grid;
   gap: 1rem;
 }
@@ -112,6 +173,7 @@ const formatCurrency = (v: number) => `$${v.toFixed(2)}`
 .profile-intro,
 .profile-panel,
 .profile-support-card {
+  min-width: 0;
   border: 1px solid var(--ssxz-border);
   background: color-mix(in srgb, var(--ssxz-surface-raised) 90%, transparent);
   box-shadow: var(--ssxz-shadow-sm);
@@ -141,6 +203,7 @@ const formatCurrency = (v: number) => `$${v.toFixed(2)}`
   color: var(--ssxz-text-secondary);
   font-size: 0.9rem;
   line-height: 1.7;
+  overflow-wrap: anywhere;
 }
 
 .profile-stat-grid {
@@ -164,6 +227,7 @@ const formatCurrency = (v: number) => `$${v.toFixed(2)}`
 
 .profile-panel-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
@@ -210,7 +274,41 @@ const formatCurrency = (v: number) => `$${v.toFixed(2)}`
   font-weight: 650;
 }
 
+.profile-provider-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+}
+
+.profile-provider-row strong {
+  color: var(--ssxz-text-primary);
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.profile-provider-row p {
+  margin-top: 0.25rem;
+  color: var(--ssxz-text-secondary);
+  font-size: 0.82rem;
+}
+
+.profile-provider-status {
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--ssxz-success) 32%, var(--ssxz-border));
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  color: var(--ssxz-success);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
 @media (max-width: 767px) {
+  .profile-panel-heading {
+    align-items: flex-start;
+  }
+
   .profile-stat-grid {
     grid-template-columns: 1fr;
   }

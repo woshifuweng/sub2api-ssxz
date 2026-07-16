@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
@@ -37,6 +40,48 @@ type UpdateProfileRequest struct {
 	Username *string `json:"username"`
 }
 
+type UpdateAvatarRequest struct {
+	Avatar string `json:"avatar"`
+}
+
+type AvatarResponse struct {
+	URL         string `json:"url"`
+	ContentType string `json:"content_type,omitempty"`
+	ByteSize    int    `json:"byte_size,omitempty"`
+}
+
+const maxAvatarRequestBytes = 150 * 1024
+
+func avatarResponse(avatar *service.UserAvatar) *AvatarResponse {
+	if avatar == nil {
+		return nil
+	}
+	return &AvatarResponse{
+		URL:         avatar.URL,
+		ContentType: avatar.ContentType,
+		ByteSize:    avatar.ByteSize,
+	}
+}
+
+func decodeAvatarRequest(c gatewayctx.GatewayContext, req *UpdateAvatarRequest) error {
+	if c == nil || c.Request() == nil || c.Request().Body == nil {
+		return errors.New("request body is required")
+	}
+	decoder := json.NewDecoder(io.LimitReader(c.Request().Body, maxAvatarRequestBytes))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(req); err != nil {
+		return err
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return errors.New("request body must contain one JSON object")
+		}
+		return err
+	}
+	return nil
+}
+
 // GetProfile handles getting user profile
 // GET /api/v1/users/me
 func (h *UserHandler) GetProfile(c *gin.Context) {
@@ -57,6 +102,61 @@ func (h *UserHandler) GetProfileGateway(c gatewayctx.GatewayContext) {
 	}
 
 	response.SuccessContext(gatewayJSONResponder{ctx: c}, dto.UserFromService(userData))
+}
+
+// GetAvatar returns the current user's avatar only.
+// GET /api/v1/user/avatar
+func (h *UserHandler) GetAvatar(c *gin.Context) {
+	h.GetAvatarGateway(gatewayctx.FromGin(c))
+}
+
+func (h *UserHandler) GetAvatarGateway(c gatewayctx.GatewayContext) {
+	subject, ok := middleware2.GetAuthSubjectFromGatewayContext(c)
+	if !ok {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
+		return
+	}
+
+	avatar, err := h.userService.GetAvatar(c.Request().Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, avatarResponse(avatar))
+}
+
+// UpdateAvatar changes or removes the current user's avatar. The target user
+// ID is always taken from the authenticated session, never from the payload.
+// PUT /api/v1/user/avatar
+func (h *UserHandler) UpdateAvatar(c *gin.Context) {
+	h.UpdateAvatarGateway(gatewayctx.FromGin(c))
+}
+
+func (h *UserHandler) UpdateAvatarGateway(c gatewayctx.GatewayContext) {
+	subject, ok := middleware2.GetAuthSubjectFromGatewayContext(c)
+	if !ok {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
+		return
+	}
+
+	var req UpdateAvatarRequest
+	if err := decodeAvatarRequest(c, &req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid avatar request: "+err.Error())
+		return
+	}
+	if req.Avatar != "" {
+		if err := service.ValidateUserAvatarUpload(req.Avatar); err != nil {
+			response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+			return
+		}
+	}
+
+	avatar, err := h.userService.SetAvatar(c.Request().Context(), subject.UserID, req.Avatar)
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, avatarResponse(avatar))
 }
 
 // ChangePassword handles changing user password
