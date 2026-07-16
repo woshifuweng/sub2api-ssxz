@@ -515,7 +515,7 @@ onBeforeUnmount(() => {
   border-radius: var(--radius);
   color: hsl(var(--foreground));
   background: hsl(var(--card));
-  box-shadow: 0 1px 2px hsl(var(--shadow));
+  box-shadow: var(--ssxz-shadow-card);
 }
 
 .dashboard-error {
@@ -647,7 +647,18 @@ onBeforeUnmount(() => {
   font-weight: 600;
   line-height: 1.1rem;
   white-space: nowrap;
-  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  box-shadow: 0 1px 2px hsl(var(--button-shadow)), 0 4px 10px hsl(var(--button-shadow-hover));
+  transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, color 150ms ease, transform 100ms ease;
+}
+
+.dashboard-link-button:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.dashboard-link-button:active {
+  transform: translateY(1px);
+  box-shadow: none;
 }
 
 .dashboard-link-button--primary {
@@ -670,6 +681,8 @@ onBeforeUnmount(() => {
 .dashboard-link-button:hover {
   background: hsl(var(--accent));
   color: hsl(var(--accent-foreground));
+  box-shadow: 0 2px 3px hsl(var(--button-shadow)), 0 6px 14px hsl(var(--button-shadow-hover));
+  transform: translateY(-1px);
 }
 
 .dashboard-link-button--primary:hover {

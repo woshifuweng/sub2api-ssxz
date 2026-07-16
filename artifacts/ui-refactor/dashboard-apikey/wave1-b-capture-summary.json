@@ -1,0 +1,94 @@
+[
+  {
+    "filename": "keys-create-dialog-dark.png",
+    "errors": [],
+    "url": "http://127.0.0.1:4178/app/keys",
+    "hasDialog": true
+  },
+  {
+    "filename": "keys-group-selector-dark.png",
+    "errors": [],
+    "url": "http://127.0.0.1:4178/app/keys",
+    "hasDialog": true
+  },
+  {
+    "filename": "keys-delete-dialog-dark.png",
+    "errors": [],
+    "url": "http://127.0.0.1:4178/app/keys",
+    "hasDialog": true
+  },
+  {
+    "filename": "keys-status-dialog-dark.png",
+    "errors": [],
+    "url": "http://127.0.0.1:4178/app/keys",
+    "hasDialog": true
+  },
+  {
+    "filename": "keys-edit-dialog-dark.png",
+    "errors": [],
+    "url": "http://127.0.0.1:4178/app/keys",
+    "hasDialog": true
+  },
+  {
+    "filename": "tour-first-dark.png",
+    "errors": [],
+    "popover": true,
+    "title": "欢迎使用 SSXZ AI",
+    "overlay": "rgba(0, 0, 0, 0.84)",
+    "panel": "rgb(27, 27, 27)"
+  },
+  {
+    "filename": "tour-middle-dark.png",
+    "errors": [],
+    "popover": true,
+    "title": "保存分组",
+    "overlay": "rgba(0, 0, 0, 0.84)",
+    "panel": "rgb(27, 27, 27)"
+  },
+  {
+    "filename": "keys-create-dialog-light.png",
+    "errors": [],
+    "url": "http://127.0.0.1:4178/app/keys",
+    "hasDialog": true
+  },
+  {
+    "filename": "keys-group-selector-light.png",
+    "errors": [],
+    "url": "http://127.0.0.1:4178/app/keys",
+    "hasDialog": true
+  },
+  {
+    "filename": "keys-delete-dialog-light.png",
+    "errors": [],
+    "url": "http://127.0.0.1:4178/app/keys",
+    "hasDialog": true
+  },
+  {
+    "filename": "keys-status-dialog-light.png",
+    "errors": [],
+    "url": "http://127.0.0.1:4178/app/keys",
+    "hasDialog": true
+  },
+  {
+    "filename": "keys-edit-dialog-light.png",
+    "errors": [],
+    "url": "http://127.0.0.1:4178/app/keys",
+    "hasDialog": true
+  },
+  {
+    "filename": "tour-first-light.png",
+    "errors": [],
+    "popover": true,
+    "title": "欢迎使用 SSXZ AI",
+    "overlay": "rgba(0, 0, 0, 0.84)",
+    "panel": "rgb(255, 255, 255)"
+  },
+  {
+    "filename": "tour-middle-light.png",
+    "errors": [],
+    "popover": true,
+    "title": "保存分组",
+    "overlay": "rgba(0, 0, 0, 0.84)",
+    "panel": "rgb(255, 255, 255)"
+  }
+]
