@@ -29,11 +29,19 @@ vi.mock('vue-i18n', async (importOriginal) => ({
     t: (key: string) => ({
       'nav.dashboard': 'Dashboard',
       'nav.chat': 'Chat',
+      'nav.modelTest': 'Model Test',
       'nav.image': 'Image',
       'nav.apiKeys': 'API Keys',
       'nav.models': 'Models',
       'nav.usage': 'Usage',
       'nav.billing': 'Billing',
+      'nav.orders': 'Orders',
+      'nav.redeem': 'Redeem',
+      'nav.channelStatus': 'Channel Status',
+      'nav.groupOverview': 'Overview',
+      'nav.groupUse': 'Use',
+      'nav.groupBilling': 'Billing',
+      'nav.groupAccount': 'Account',
       'nav.docs': 'Docs',
       'nav.affiliate': 'Referral Rewards',
       'nav.account': 'Account',
@@ -146,21 +154,24 @@ describe('AppSectionShell', () => {
     mockDesktopMedia(true)
   })
 
-  it('renders the approved nine-item user navigation', () => {
+  it('renders the user navigation without duplicating the top documentation link', () => {
     const wrapper = mountShell()
 
     expect(navButtons(wrapper).map((button) => button.text())).toEqual([
       'Dashboard',
-      'Chat',
-      'Image',
+      'Model Test',
       'API Keys',
       'Models',
       'Usage',
+      'Channel Status',
       'Billing',
-      'Docs',
+      'Orders',
+      'Redeem',
       'Account'
     ])
-    expect(wrapper.text()).not.toMatch(/Affiliate|Referral|Beta|Experiment/)
+    expect(wrapper.get('.ssxz-header-docs').attributes('href')).toBe('/docs')
+    expect(wrapper.get('.ssxz-header-docs').text()).toBe('Docs')
+    expect(wrapper.text()).not.toMatch(/Affiliate|Referral|Image|Beta|Experiment/)
     expect(wrapper.find('.ssxz-secondary-nav').exists()).toBe(false)
   })
 
@@ -200,12 +211,13 @@ describe('AppSectionShell', () => {
     const expectedRoutes = [
       '/app/dashboard',
       '/app/chat',
-      '/app/image',
       '/app/keys',
       '/app/available-channels',
       '/app/usage',
+      '/app/channel-status',
       '/app/purchase',
-      '/app/docs',
+      '/app/orders',
+      '/app/redeem',
       '/app/profile'
     ]
 
@@ -229,13 +241,13 @@ describe('AppSectionShell', () => {
   })
 
   it('marks Image active without marking Chat active', () => {
-    routeState.path = '/app/image'
-    routeState.fullPath = '/app/image'
+    routeState.path = '/app/channel-status'
+    routeState.fullPath = '/app/channel-status'
     const wrapper = mountShell()
     const buttons = navButtons(wrapper)
 
     expect(buttons[1].classes()).not.toContain('is-active')
-    expect(buttons[2].classes()).toContain('is-active')
+    expect(buttons[5].classes()).toContain('is-active')
   })
 
   it('keeps long history titles inside the sidebar hit target', async () => {

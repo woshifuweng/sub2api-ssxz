@@ -47,10 +47,20 @@ vi.mock('vue-i18n', () => ({
       'nav.usage': 'Usage',
       'nav.dashboard': 'Dashboard',
       'nav.chat': 'Chat',
+      'nav.modelTest': 'Model Test',
       'nav.image': 'Image',
       'nav.apiKeys': 'API Keys',
       'nav.models': 'Models',
       'nav.billing': 'Billing',
+      'nav.redeem': 'Redeem',
+      'nav.orders': 'Orders',
+      'nav.channelStatus': 'Channel Status',
+      'nav.groupOverview': 'Overview',
+      'nav.groupUse': 'Use',
+      'nav.groupInformation': 'Information',
+      'nav.groupBilling': 'Billing',
+      'nav.groupAccount': 'Account',
+      'nav.groupSystem': 'System',
       'nav.docs': 'Docs',
       'nav.account': 'Account',
       'nav.affiliate': 'Referral Rewards',
@@ -144,15 +154,23 @@ describe('AppSidebar', () => {
     expect(hrefs(wrapper)).toEqual([
       '/app/dashboard',
       '/app/chat',
-      '/app/image',
       '/app/keys',
       '/app/available-channels',
       '/app/usage',
+      '/app/channel-status',
       '/app/purchase',
-      '/app/docs',
+      '/app/orders',
+      '/app/redeem',
       '/app/profile'
     ])
-    expect(wrapper.text()).toContain('DashboardChatImageAPI KeysModelsUsageBillingDocsAccount')
+    for (const label of ['Dashboard', 'Model Test', 'API Keys', 'Models', 'Usage', 'Channel Status', 'Orders', 'Redeem', 'Account']) {
+      expect(wrapper.text()).toContain(label)
+    }
+    expect(wrapper.text()).toContain('Overview')
+    expect(wrapper.text()).toContain('Use')
+    expect(wrapper.text()).toContain('Billing')
+    expect(wrapper.text()).not.toContain('Image')
+    expect(wrapper.text()).not.toContain('Docs')
     expect(wrapper.text()).not.toMatch(/Affiliate|Referral|Beta|Experiment/)
   })
 

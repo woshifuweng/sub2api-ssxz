@@ -85,7 +85,9 @@ withDefaults(
 const { t } = useI18n()
 const route = useRoute()
 const appStore = useAppStore()
-const theme = ref<'light' | 'dark'>('light')
+const theme = ref<'light' | 'dark'>(
+  typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+)
 let themeObserver: MutationObserver | null = null
 
 const siteName = computed(() => appStore.siteName || DEFAULT_SITE_NAME)
@@ -262,6 +264,7 @@ onUnmounted(() => {
 .auth-portal-content {
   width: 100%;
   max-width: 24rem;
+  min-height: 25rem;
   margin: 0 auto auto;
 }
 
@@ -303,6 +306,7 @@ onUnmounted(() => {
   }
 
   .auth-portal-content {
+    min-height: 25rem;
     margin: 0 auto;
   }
 }

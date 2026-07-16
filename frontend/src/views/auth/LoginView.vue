@@ -1,6 +1,5 @@
 <template>
-  <AuthPortalShell active-tab="login" :show-register-tab="!backendModeEnabled">
-    <div class="auth-form-stack">
+  <div class="auth-form-stack">
       <header class="auth-form-heading">
         <h1>{{ t('auth.welcomeBack') }}</h1>
         <p>{{ t('auth.signInToAccount') }}</p>
@@ -93,8 +92,7 @@
           {{ isLoading ? t('auth.signingIn') : t('auth.signIn') }}
         </FoundationButton>
       </form>
-    </div>
-  </AuthPortalShell>
+  </div>
 
   <!-- 2FA Modal -->
   <TotpLoginModal
@@ -112,7 +110,6 @@ import { ref, reactive, onMounted } from 'vue'
 import { CircleAlert, Eye, EyeOff, LoaderCircle, LockKeyhole, LogIn, Mail } from '@lucide/vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import AuthPortalShell from '@/components/auth/AuthPortalShell.vue'
 import LinuxDoOAuthSection from '@/components/auth/LinuxDoOAuthSection.vue'
 import TotpLoginModal from '@/components/auth/TotpLoginModal.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
@@ -445,6 +442,12 @@ function handle2FACancel(): void {
 
 .auth-submit {
   width: 100%;
+  transform: none !important;
+}
+
+.auth-submit:hover,
+.auth-submit:active {
+  transform: none !important;
 }
 
 .auth-spinner {

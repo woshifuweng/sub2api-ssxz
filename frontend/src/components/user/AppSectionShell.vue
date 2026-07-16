@@ -27,19 +27,22 @@
       </RouterLink>
 
       <nav class="ssxz-primary-nav" :aria-label="t('appShell.primaryNavigation')">
-        <button
-          v-for="item in mainNavItems"
-          :key="item.to"
-          type="button"
-          class="ssxz-nav-item"
-          :class="{ 'is-active': isActive(item.to) }"
-          :title="item.label"
-          :aria-label="item.label"
-          @click="handlePrimaryNav(item.to)"
-        >
-          <Icon :name="item.icon" size="sm" />
-          <span class="ssxz-sidebar-text">{{ item.label }}</span>
-        </button>
+        <section v-for="group in mainNavGroups" :key="group.key" class="ssxz-nav-group">
+          <div class="ssxz-section-label ssxz-sidebar-text">{{ group.label }}</div>
+          <button
+            v-for="item in group.items"
+            :key="item.to"
+            type="button"
+            class="ssxz-nav-item"
+            :class="{ 'is-active': isActive(item.to) }"
+            :title="item.label"
+            :aria-label="item.label"
+            @click="handlePrimaryNav(item.to)"
+          >
+            <Icon :name="item.icon" size="sm" />
+            <span class="ssxz-sidebar-text">{{ item.label }}</span>
+          </button>
+        </section>
       </nav>
 
       <section v-if="showHistorySection" class="ssxz-history" :aria-label="t('appShell.conversationHistory')">
@@ -81,6 +84,15 @@
             <Icon name="menu" size="sm" />
           </button>
           <div class="flex items-center gap-2">
+            <RouterLink
+              to="/docs"
+              class="ssxz-header-docs"
+              :title="t('nav.docs')"
+              :aria-label="t('nav.docs')"
+            >
+              <Icon name="book" size="sm" />
+              <span class="hidden sm:inline">{{ t('nav.docs') }}</span>
+            </RouterLink>
             <ThemeToggle />
             <div v-if="authStore.isAuthenticated" class="relative">
               <div class="ssxz-account-cluster">
@@ -177,19 +189,42 @@ const mobileNavOpen = ref(false)
 const isDesktopViewport = ref(false)
 let desktopMediaQuery: MediaQueryList | null = null
 
-const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName }>>(() => [
-  { label: t('nav.dashboard'), to: '/app/dashboard', icon: 'home' },
-  { label: t('nav.chat'), to: '/app/chat', icon: 'chat' },
-  { label: t('nav.image'), to: '/app/image', icon: 'sparkles' },
-  { label: t('nav.apiKeys'), to: '/app/keys', icon: 'key' },
-  { label: t('nav.models'), to: '/app/available-channels', icon: 'calculator' },
-  { label: t('nav.usage'), to: '/app/usage', icon: 'chartBar' },
-  { label: t('nav.billing'), to: '/app/purchase', icon: 'creditCard' },
-  { label: t('nav.docs'), to: '/app/docs', icon: 'book' },
-  ...(appStore.cachedPublicSettings?.affiliate_enabled
-    ? [{ label: t('nav.affiliate'), to: '/app/affiliate', icon: 'users' as IconName }]
-    : []),
-  { label: t('nav.account'), to: '/app/profile', icon: 'userCircle' }
+const mainNavGroups = computed<Array<{ key: string; label: string; items: Array<{ label: string; to: string; icon: IconName }> }>>(() => [
+  {
+    key: 'overview',
+    label: t('nav.groupOverview'),
+    items: [{ label: t('nav.dashboard'), to: '/app/dashboard', icon: 'home' }]
+  },
+  {
+    key: 'use',
+    label: t('nav.groupUse'),
+    items: [
+      { label: t('nav.modelTest'), to: '/app/chat', icon: 'chat' },
+      { label: t('nav.apiKeys'), to: '/app/keys', icon: 'key' },
+      { label: t('nav.models'), to: '/app/available-channels', icon: 'calculator' },
+      { label: t('nav.usage'), to: '/app/usage', icon: 'chartBar' },
+      { label: t('nav.channelStatus'), to: '/app/channel-status', icon: 'chartBar' }
+    ]
+  },
+  {
+    key: 'billing',
+    label: t('nav.groupBilling'),
+    items: [
+      { label: t('nav.billing'), to: '/app/purchase', icon: 'creditCard' },
+      { label: t('nav.orders'), to: '/app/orders', icon: 'document' },
+      { label: t('nav.redeem'), to: '/app/redeem', icon: 'gift' }
+    ]
+  },
+  {
+    key: 'account',
+    label: t('nav.groupAccount'),
+    items: [
+      ...(appStore.cachedPublicSettings?.affiliate_enabled
+        ? [{ label: t('nav.affiliate'), to: '/app/affiliate', icon: 'users' as IconName }]
+        : []),
+      { label: t('nav.account'), to: '/app/profile', icon: 'userCircle' }
+    ]
+  }
 ])
 
 const userLabel = computed(() => authStore.user?.username || authStore.user?.email?.split('@')[0] || t('appShell.accountFallback'))
@@ -398,6 +433,24 @@ watch(() => route.fullPath || route.path, closeMobileNav)
   color: var(--ssxz-text);
 }
 
+.ssxz-header-docs {
+  display: inline-flex;
+  min-height: 2.2rem;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: var(--ssxz-radius-button);
+  color: var(--ssxz-body);
+  font-size: 0.82rem;
+  font-weight: 650;
+  padding: 0 0.65rem;
+}
+
+.ssxz-header-docs:hover,
+.ssxz-header-docs:focus-visible {
+  background: color-mix(in srgb, var(--ssxz-primary) 10%, transparent);
+  color: var(--ssxz-text);
+}
+
 .ssxz-user-menu {
   position: absolute;
   right: 0;
@@ -506,6 +559,17 @@ watch(() => route.fullPath || route.path, closeMobileNav)
 .ssxz-primary-nav {
   display: grid;
   gap: 0.45rem;
+}
+
+.ssxz-nav-group {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.ssxz-nav-group + .ssxz-nav-group {
+  margin-top: 0.7rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--ssxz-border);
 }
 
 .ssxz-app-shell :deep(.bg-white),

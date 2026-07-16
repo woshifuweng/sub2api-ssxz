@@ -1,6 +1,5 @@
 <template>
-  <AuthPortalShell active-tab="register">
-    <div class="auth-form-stack">
+  <div class="auth-form-stack">
       <header class="auth-form-heading">
         <h1>{{ t('auth.createAccount') }}</h1>
         <p>{{ t('auth.signUpToStart', { siteName }) }}</p>
@@ -117,8 +116,7 @@
           }}
         </FoundationButton>
       </form>
-    </div>
-  </AuthPortalShell>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -135,7 +133,6 @@ import {
 } from '@lucide/vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import AuthPortalShell from '@/components/auth/AuthPortalShell.vue'
 import LinuxDoOAuthSection from '@/components/auth/LinuxDoOAuthSection.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { FoundationButton, FoundationInput } from '@/components/foundation'
@@ -483,6 +480,12 @@ async function handleRegister(): Promise<void> {
 
 .auth-submit {
   width: 100%;
+  transform: none !important;
+}
+
+.auth-submit:hover,
+.auth-submit:active {
+  transform: none !important;
 }
 
 .auth-spinner {
