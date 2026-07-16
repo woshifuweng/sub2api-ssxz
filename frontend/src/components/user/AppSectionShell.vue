@@ -442,13 +442,13 @@ watch(() => route.fullPath || route.path, closeMobileNav)
   inset: 0;
   z-index: 25;
   border: 0;
-  background: rgb(2 6 23 / 0.58);
+  background: rgb(0 0 0 / 0.58);
   backdrop-filter: blur(2px);
 }
 
 .ssxz-mobile-nav-open .ssxz-app-sidebar {
   display: block;
-  box-shadow: 18px 0 50px rgb(2 6 23 / 0.35);
+  box-shadow: 18px 0 50px rgb(0 0 0 / 0.35);
 }
 
 @media (min-width: 1024px) {

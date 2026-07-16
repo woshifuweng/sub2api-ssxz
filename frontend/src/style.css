@@ -437,7 +437,8 @@
   /* ============ 模态框 ============ */
   .modal-overlay {
     @apply fixed inset-0 z-50;
-    background: rgb(3 7 18 / 0.72);
+    /* Keep the scrim neutral; steel blue belongs to action/focus accents only. */
+    background: rgb(0 0 0 / 0.72);
     backdrop-filter: blur(4px);
     @apply flex items-center justify-center p-2 sm:p-4;
   }
@@ -904,15 +905,16 @@
 .dark {
   color-scheme: dark;
 
-  --ssxz-bg: #111214;
-  --ssxz-bg-subtle: #141619;
-  --ssxz-surface: #191b1e;
-  --ssxz-surface-raised: #22252a;
-  --ssxz-surface-muted: #292d32;
-  --ssxz-surface-code: #131416;
+  /* Neutral grayscale surfaces keep the customer shell aligned with F0. */
+  --ssxz-bg: #111111;
+  --ssxz-bg-subtle: #151515;
+  --ssxz-surface: #1b1b1b;
+  --ssxz-surface-raised: #232323;
+  --ssxz-surface-muted: #2b2b2b;
+  --ssxz-surface-code: #151515;
   --ssxz-code-surface: var(--ssxz-surface-code);
-  --ssxz-border: #34383e;
-  --ssxz-border-strong: #4a5059;
+  --ssxz-border: #363636;
+  --ssxz-border-strong: #4a4a4a;
 
   --ssxz-text: #f3f4f6;
   --ssxz-text-secondary: #c7cbd1;

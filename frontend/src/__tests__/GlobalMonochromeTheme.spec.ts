@@ -19,6 +19,12 @@ describe('global monochrome theme', () => {
     expect(styles).toContain('--ssxz-success: #22c55e')
     expect(styles).toContain('--ssxz-warning: #f59e0b')
     expect(styles).toContain('--ssxz-error: #ef4444')
+    expect(styles).toContain('--ssxz-bg: #111111')
+    expect(styles).toContain('--ssxz-surface: #1b1b1b')
+    expect(styles).toContain('--ssxz-surface-raised: #232323')
+    expect(styles).toContain('--ssxz-surface-muted: #2b2b2b')
+    expect(styles).toContain('--ssxz-border: #363636')
+    expect(styles).toContain('background: rgb(0 0 0 / 0.72)')
 
     for (const legacyBrandColor of ['#6366f1', '#38bdf8', '99 102 241', '56 189 248']) {
       expect(styles).not.toContain(legacyBrandColor)
@@ -39,5 +45,13 @@ describe('global monochrome theme', () => {
     for (const source of customerActionSources) {
       expect(source).not.toMatch(/(?:blue|indigo|purple|violet|sky|cyan)-\d/)
     }
+  })
+
+  it('keeps the account shell scrim neutral instead of blue tinted', () => {
+    const shell = readSource('src/components/user/AppSectionShell.vue')
+
+    expect(shell).toContain('background: rgb(0 0 0 / 0.58)')
+    expect(shell).toContain('box-shadow: 18px 0 50px rgb(0 0 0 / 0.35)')
+    expect(shell).not.toContain('rgb(2 6 23')
   })
 })
