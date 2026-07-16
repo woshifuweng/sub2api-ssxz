@@ -175,7 +175,7 @@ const formatCurrency = (v: number) => `$${v.toFixed(2)}`
 .profile-support-card {
   min-width: 0;
   border: 1px solid var(--ssxz-border);
-  background: color-mix(in srgb, var(--ssxz-surface-raised) 90%, transparent);
+  background: var(--ssxz-surface-raised);
   box-shadow: var(--ssxz-shadow-sm);
 }
 
@@ -215,7 +215,7 @@ const formatCurrency = (v: number) => `$${v.toFixed(2)}`
 .profile-workbench--app :deep(.stat-card),
 .profile-workbench--app :deep(.card) {
   border-color: var(--ssxz-border);
-  background: color-mix(in srgb, var(--ssxz-surface-raised) 88%, transparent);
+  background: var(--ssxz-surface-raised);
   box-shadow: var(--ssxz-shadow-sm);
 }
 
