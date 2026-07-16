@@ -27,22 +27,19 @@
       </RouterLink>
 
       <nav class="ssxz-primary-nav" :aria-label="t('appShell.primaryNavigation')">
-        <section v-for="group in mainNavGroups" :key="group.key" class="ssxz-nav-group">
-          <div class="ssxz-section-label ssxz-sidebar-text">{{ group.label }}</div>
-          <button
-            v-for="item in group.items"
-            :key="item.to"
-            type="button"
-            class="ssxz-nav-item"
-            :class="{ 'is-active': isActive(item.to) }"
-            :title="item.label"
-            :aria-label="item.label"
-            @click="handlePrimaryNav(item.to)"
-          >
-            <Icon :name="item.icon" size="sm" />
-            <span class="ssxz-sidebar-text">{{ item.label }}</span>
-          </button>
-        </section>
+        <button
+          v-for="item in mainNavItems"
+          :key="item.to"
+          type="button"
+          class="ssxz-nav-item"
+          :class="{ 'is-active': isActive(item.to) }"
+          :title="item.label"
+          :aria-label="item.label"
+          @click="handlePrimaryNav(item.to)"
+        >
+          <Icon :name="item.icon" size="sm" />
+          <span class="ssxz-sidebar-text">{{ item.label }}</span>
+        </button>
       </nav>
 
       <section v-if="showHistorySection" class="ssxz-history" :aria-label="t('appShell.conversationHistory')">
@@ -189,42 +186,21 @@ const mobileNavOpen = ref(false)
 const isDesktopViewport = ref(false)
 let desktopMediaQuery: MediaQueryList | null = null
 
-const mainNavGroups = computed<Array<{ key: string; label: string; items: Array<{ label: string; to: string; icon: IconName }> }>>(() => [
-  {
-    key: 'overview',
-    label: t('nav.groupOverview'),
-    items: [{ label: t('nav.dashboard'), to: '/app/dashboard', icon: 'home' }]
-  },
-  {
-    key: 'use',
-    label: t('nav.groupUse'),
-    items: [
-      { label: t('nav.modelTest'), to: '/app/chat', icon: 'chat' },
-      { label: t('nav.apiKeys'), to: '/app/keys', icon: 'key' },
-      { label: t('nav.models'), to: '/app/available-channels', icon: 'calculator' },
-      { label: t('nav.usage'), to: '/app/usage', icon: 'chartBar' },
-      { label: t('nav.channelStatus'), to: '/app/channel-status', icon: 'chartBar' }
-    ]
-  },
-  {
-    key: 'billing',
-    label: t('nav.groupBilling'),
-    items: [
-      { label: t('nav.billing'), to: '/app/purchase', icon: 'creditCard' },
-      { label: t('nav.orders'), to: '/app/orders', icon: 'document' },
-      { label: t('nav.redeem'), to: '/app/redeem', icon: 'gift' }
-    ]
-  },
-  {
-    key: 'account',
-    label: t('nav.groupAccount'),
-    items: [
-      ...(appStore.cachedPublicSettings?.affiliate_enabled
-        ? [{ label: t('nav.affiliate'), to: '/app/affiliate', icon: 'users' as IconName }]
-        : []),
-      { label: t('nav.account'), to: '/app/profile', icon: 'userCircle' }
-    ]
-  }
+const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName }>>(() => [
+  { label: t('nav.dashboard'), to: '/app/dashboard', icon: 'home' },
+  { label: t('nav.modelTest'), to: '/app/chat', icon: 'chat' },
+  { label: t('nav.image'), to: '/app/image', icon: 'sparkles' },
+  { label: t('nav.apiKeys'), to: '/app/keys', icon: 'key' },
+  { label: t('nav.models'), to: '/app/available-channels', icon: 'calculator' },
+  { label: t('nav.usage'), to: '/app/usage', icon: 'chartBar' },
+  { label: t('nav.channelStatus'), to: '/app/channel-status', icon: 'chartBar' },
+  { label: t('nav.billing'), to: '/app/purchase', icon: 'creditCard' },
+  { label: t('nav.orders'), to: '/app/orders', icon: 'document' },
+  { label: t('nav.redeem'), to: '/app/redeem', icon: 'gift' },
+  ...(appStore.cachedPublicSettings?.affiliate_enabled
+    ? [{ label: t('nav.affiliate'), to: '/app/affiliate', icon: 'users' as IconName }]
+    : []),
+  { label: t('nav.account'), to: '/app/profile', icon: 'userCircle' }
 ])
 
 const userLabel = computed(() => authStore.user?.username || authStore.user?.email?.split('@')[0] || t('appShell.accountFallback'))
@@ -530,25 +506,32 @@ watch(() => route.fullPath || route.path, closeMobileNav)
 .ssxz-theme-toggle {
   display: inline-flex;
   box-sizing: border-box;
-  min-height: 2.55rem;
+  min-height: 3rem;
   min-width: 0;
   width: 100%;
   max-width: 100%;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.75rem;
   border-radius: 0.75rem;
   color: var(--ssxz-body);
-  font-size: 0.92rem;
-  line-height: 1.3;
-  padding: 0.55rem 0.7rem;
+  font-size: 0.9375rem;
+  font-synthesis: none;
+  font-weight: 500;
+  line-height: 1.35;
+  padding: 0.7rem 0.9rem;
   text-align: left;
 }
 
 .ssxz-nav-item:hover,
-.ssxz-theme-toggle:hover,
-.ssxz-nav-item.is-active {
-  background: color-mix(in srgb, var(--ssxz-primary) 10%, transparent);
+.ssxz-theme-toggle:hover {
+  background: color-mix(in srgb, var(--ssxz-primary) 16%, transparent);
   color: var(--ssxz-text);
+}
+
+.ssxz-nav-item.is-active {
+  background: var(--ssxz-primary);
+  color: var(--ssxz-action-text);
+  box-shadow: var(--ssxz-shadow-button-subtle);
 }
 
 .ssxz-nav-item svg,
@@ -558,18 +541,7 @@ watch(() => route.fullPath || route.path, closeMobileNav)
 
 .ssxz-primary-nav {
   display: grid;
-  gap: 0.45rem;
-}
-
-.ssxz-nav-group {
-  display: grid;
-  gap: 0.28rem;
-}
-
-.ssxz-nav-group + .ssxz-nav-group {
-  margin-top: 0.7rem;
-  padding-top: 0.65rem;
-  border-top: 1px solid var(--ssxz-border);
+  gap: 0.55rem;
 }
 
 .ssxz-app-shell :deep(.bg-white),

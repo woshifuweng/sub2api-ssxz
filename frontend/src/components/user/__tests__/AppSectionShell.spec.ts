@@ -160,6 +160,7 @@ describe('AppSectionShell', () => {
     expect(navButtons(wrapper).map((button) => button.text())).toEqual([
       'Dashboard',
       'Model Test',
+      'Image',
       'API Keys',
       'Models',
       'Usage',
@@ -171,7 +172,8 @@ describe('AppSectionShell', () => {
     ])
     expect(wrapper.get('.ssxz-header-docs').attributes('href')).toBe('/docs')
     expect(wrapper.get('.ssxz-header-docs').text()).toBe('Docs')
-    expect(wrapper.text()).not.toMatch(/Affiliate|Referral|Image|Beta|Experiment/)
+    expect(wrapper.text()).not.toMatch(/Affiliate|Referral|Beta|Experiment/)
+    expect(wrapper.findAll('.ssxz-nav-group')).toHaveLength(0)
     expect(wrapper.find('.ssxz-secondary-nav').exists()).toBe(false)
   })
 
@@ -211,6 +213,7 @@ describe('AppSectionShell', () => {
     const expectedRoutes = [
       '/app/dashboard',
       '/app/chat',
+      '/app/image',
       '/app/keys',
       '/app/available-channels',
       '/app/usage',
@@ -240,14 +243,14 @@ describe('AppSectionShell', () => {
     expect(mocks.push).toHaveBeenCalledWith('/app/chat')
   })
 
-  it('marks Image active without marking Chat active', () => {
+  it('marks Channel Status active without marking Model Test active', () => {
     routeState.path = '/app/channel-status'
     routeState.fullPath = '/app/channel-status'
     const wrapper = mountShell()
     const buttons = navButtons(wrapper)
 
-    expect(buttons[1].classes()).not.toContain('is-active')
-    expect(buttons[5].classes()).toContain('is-active')
+    expect(buttons.find((button) => button.text() === 'Model Test')?.classes()).not.toContain('is-active')
+    expect(buttons.find((button) => button.text() === 'Channel Status')?.classes()).toContain('is-active')
   })
 
   it('keeps long history titles inside the sidebar hit target', async () => {

@@ -154,6 +154,7 @@ describe('AppSidebar', () => {
     expect(hrefs(wrapper)).toEqual([
       '/app/dashboard',
       '/app/chat',
+      '/app/image',
       '/app/keys',
       '/app/available-channels',
       '/app/usage',
@@ -163,13 +164,10 @@ describe('AppSidebar', () => {
       '/app/redeem',
       '/app/profile'
     ])
-    for (const label of ['Dashboard', 'Model Test', 'API Keys', 'Models', 'Usage', 'Channel Status', 'Orders', 'Redeem', 'Account']) {
+    for (const label of ['Dashboard', 'Model Test', 'Image', 'API Keys', 'Models', 'Usage', 'Channel Status', 'Orders', 'Redeem', 'Account']) {
       expect(wrapper.text()).toContain(label)
     }
-    expect(wrapper.text()).toContain('Overview')
-    expect(wrapper.text()).toContain('Use')
-    expect(wrapper.text()).toContain('Billing')
-    expect(wrapper.text()).not.toContain('Image')
+    expect(wrapper.findAll('.sidebar-group-label')).toHaveLength(0)
     expect(wrapper.text()).not.toContain('Docs')
     expect(wrapper.text()).not.toMatch(/Affiliate|Referral|Beta|Experiment/)
   })

@@ -447,9 +447,9 @@ onBeforeUnmount(() => {
   --ssxz-text-secondary: #3f4650;
   --ssxz-text-muted: #66707c;
   --ssxz-text-subtle: #88929e;
-  --ssxz-primary: #181a1e;
-  --ssxz-primary-hover: #30343a;
-  --ssxz-primary-soft: rgb(24 26 30 / 0.08);
+  --ssxz-primary: #4f6882;
+  --ssxz-primary-hover: #415a73;
+  --ssxz-primary-soft: rgb(79 104 130 / 0.1);
   --ssxz-accent: #556273;
   --ssxz-accent-strong: #374151;
   --ssxz-accent-soft: rgb(85 98 115 / 0.1);
@@ -465,7 +465,7 @@ onBeforeUnmount(() => {
 .dashboard-shell--dark {
   --ssxz-bg: #111214;
   --ssxz-bg-subtle: #141619;
-  --ssxz-surface: #191b1e;
+  --ssxz-surface: #1b1b1b;
   --ssxz-surface-raised: #22252a;
   --ssxz-surface-muted: #292d32;
   --ssxz-surface-code: #131416;
@@ -476,9 +476,9 @@ onBeforeUnmount(() => {
   --ssxz-text-secondary: #c7cbd1;
   --ssxz-text-muted: #9aa1ab;
   --ssxz-text-subtle: #707985;
-  --ssxz-primary: #f3f4f6;
-  --ssxz-primary-hover: #e5e7eb;
-  --ssxz-primary-soft: rgb(243 244 246 / 0.09);
+  --ssxz-primary: #9db6ce;
+  --ssxz-primary-hover: #b3c7db;
+  --ssxz-primary-soft: rgb(157 182 206 / 0.12);
   --ssxz-accent: #aab4c2;
   --ssxz-accent-strong: #d1d5db;
   --ssxz-accent-soft: rgb(170 180 194 / 0.1);

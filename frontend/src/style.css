@@ -899,7 +899,7 @@
     "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --ssxz-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  --ssxz-sidebar-width: 248px;
+  --ssxz-sidebar-width: 240px;
   --ssxz-sidebar-collapsed-width: 72px;
   --ssxz-header-height: 56px;
   --ssxz-content-max: 1360px;
@@ -1030,20 +1030,29 @@ body::before {
 }
 
 .sidebar-link {
+  min-height: 3rem;
+  align-items: center;
+  gap: 0.75rem;
   border: 1px solid transparent;
   border-radius: var(--ssxz-radius-button);
   color: var(--ssxz-text-muted) !important;
+  font-size: 0.9375rem;
+  font-synthesis: none;
+  font-weight: 500;
+  line-height: 1.35;
+  padding: 0.7rem 0.9rem;
 }
 
 .sidebar-link:hover {
-  background: color-mix(in srgb, var(--ssxz-primary) 10%, transparent) !important;
+  background: color-mix(in srgb, var(--ssxz-primary) 16%, transparent) !important;
   color: var(--ssxz-text) !important;
 }
 
 .sidebar-link-active {
-  background: var(--ssxz-primary-soft) !important;
-  border-color: color-mix(in srgb, var(--ssxz-primary) 28%, transparent) !important;
-  color: var(--ssxz-text) !important;
+  background: var(--ssxz-primary) !important;
+  border-color: var(--ssxz-primary) !important;
+  box-shadow: var(--ssxz-shadow-button-subtle);
+  color: var(--ssxz-action-text) !important;
 }
 
 .sidebar-section-title {

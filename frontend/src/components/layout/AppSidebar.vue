@@ -20,10 +20,9 @@
     <nav class="sidebar-nav scrollbar-hide">
       <!-- Admin Console remains separate from the user workspace. -->
       <template v-if="isAdmin">
-        <div v-for="group in adminNavGroups" :key="group.key" class="sidebar-section">
-          <div v-if="!sidebarCollapsed" class="sidebar-group-label">{{ group.label }}</div>
+        <div class="sidebar-section">
           <router-link
-            v-for="item in group.items"
+            v-for="item in adminNavItems"
             :key="item.path"
             :to="item.path"
             class="sidebar-link mb-1"
@@ -52,10 +51,9 @@
 
       <!-- Regular User View -->
       <template v-else-if="!appStore.backendModeEnabled">
-        <div v-for="group in userNavGroups" :key="group.key" class="sidebar-section">
-          <div v-if="!sidebarCollapsed" class="sidebar-group-label">{{ group.label }}</div>
+        <div class="sidebar-section">
           <router-link
-            v-for="item in group.items"
+            v-for="item in userNavItems"
             :key="item.path"
             :to="item.path"
             class="sidebar-link mb-1"
@@ -115,12 +113,6 @@ interface NavItem {
   icon: unknown
   iconSvg?: string
   hideInSimpleMode?: boolean
-}
-
-interface NavGroup {
-  key: string
-  label: string
-  items: NavItem[]
 }
 
 const { t } = useI18n()
@@ -459,36 +451,19 @@ const paymentEnabled = computed(() => !!appStore.cachedPublicSettings?.payment_e
 const channelMonitorEnabled = computed(() => !!appStore.cachedPublicSettings?.channel_monitor_enabled)
 const affiliateEnabled = computed(() => !!appStore.cachedPublicSettings?.affiliate_enabled)
 // User navigation items (for regular users)
-const userNavGroups = computed((): NavGroup[] => [
-  { key: 'overview', label: t('nav.groupOverview'), items: [{ path: '/app/dashboard', label: t('nav.dashboard'), icon: DashboardIcon }] },
-  {
-    key: 'use',
-    label: t('nav.groupUse'),
-    items: [
-      { path: '/app/chat', label: t('nav.modelTest'), icon: ChartIcon },
-      { path: '/app/keys', label: t('nav.apiKeys'), icon: KeyIcon },
-      { path: '/app/available-channels', label: t('nav.models'), icon: ChannelIcon },
-      { path: '/app/usage', label: t('nav.usage'), icon: ChartIcon },
-      { path: '/app/channel-status', label: t('nav.channelStatus'), icon: SignalIcon }
-    ]
-  },
-  {
-    key: 'billing',
-    label: t('nav.groupBilling'),
-    items: [
-      { path: '/app/purchase', label: t('nav.billing'), icon: RechargeSubscriptionIcon },
-      { path: '/app/orders', label: t('nav.orders'), icon: OrderIcon },
-      { path: '/app/redeem', label: t('nav.redeem'), icon: TicketIcon }
-    ]
-  },
-  {
-    key: 'account',
-    label: t('nav.groupAccount'),
-    items: [
-      ...(affiliateEnabled.value ? [{ path: '/app/affiliate', label: t('nav.affiliate'), icon: UsersIcon }] : []),
-      { path: '/app/profile', label: t('nav.account'), icon: UserIcon }
-    ]
-  }
+const userNavItems = computed((): NavItem[] => [
+  { path: '/app/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
+  { path: '/app/chat', label: t('nav.modelTest'), icon: ChartIcon },
+  { path: '/app/image', label: t('nav.image'), icon: GiftIcon },
+  { path: '/app/keys', label: t('nav.apiKeys'), icon: KeyIcon },
+  { path: '/app/available-channels', label: t('nav.models'), icon: ChannelIcon },
+  { path: '/app/usage', label: t('nav.usage'), icon: ChartIcon },
+  { path: '/app/channel-status', label: t('nav.channelStatus'), icon: SignalIcon },
+  { path: '/app/purchase', label: t('nav.billing'), icon: RechargeSubscriptionIcon },
+  { path: '/app/orders', label: t('nav.orders'), icon: OrderIcon },
+  { path: '/app/redeem', label: t('nav.redeem'), icon: TicketIcon },
+  ...(affiliateEnabled.value ? [{ path: '/app/affiliate', label: t('nav.affiliate'), icon: UsersIcon }] : []),
+  { path: '/app/profile', label: t('nav.account'), icon: UserIcon }
 ])
 
 const customMenuItemsForAdmin = computed(() => {
@@ -546,18 +521,6 @@ const adminNavItems = computed((): NavItem[] => {
     baseItems.push({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
   }
   return baseItems
-})
-
-const adminNavGroups = computed((): NavGroup[] => {
-  const items = adminNavItems.value
-  const groups: NavGroup[] = [
-    { key: 'overview', label: t('nav.groupOverview'), items: items.filter(item => ['/admin/dashboard', '/admin/ops'].includes(item.path)) },
-    { key: 'use', label: t('nav.groupUse'), items: items.filter(item => ['/admin/users', '/admin/api-keys', '/admin/groups', '/admin/channels/pricing', '/admin/channels/monitor', '/admin/usage'].includes(item.path)) },
-    { key: 'information', label: t('nav.groupInformation'), items: items.filter(item => ['/admin/accounts', '/admin/announcements', '/admin/proxies'].includes(item.path)) },
-    { key: 'billing', label: t('nav.groupBilling'), items: items.filter(item => ['/admin/redeem', '/admin/promo-codes', '/admin/affiliates', '/admin/orders/settings', '/admin/orders/dashboard', '/admin/orders', '/admin/orders/plans'].includes(item.path)) },
-    { key: 'system', label: t('nav.groupSystem'), items: items.filter(item => item.path === '/admin/settings' || item.path.startsWith('/custom/')) }
-  ]
-  return groups.filter(group => group.items.length > 0)
 })
 
 function toggleSidebar() {
@@ -666,18 +629,4 @@ onMounted(() => {
   border-top: 1px solid var(--ssxz-border, rgb(255 255 255 / 0.1));
 }
 
-.sidebar-section + .sidebar-section {
-  margin-top: 0.7rem;
-  padding-top: 0.65rem;
-  border-top: 1px solid var(--ssxz-border, rgb(255 255 255 / 0.1));
-}
-
-.sidebar-group-label {
-  padding: 0.15rem 0.75rem 0.35rem;
-  color: var(--ssxz-text-muted, rgb(148 163 184));
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
 </style>
