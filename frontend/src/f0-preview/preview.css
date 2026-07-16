@@ -229,6 +229,38 @@ input {
   line-height: 1.25rem;
 }
 
+.f0-preview-icon-set {
+  display: grid;
+  gap: 0.875rem;
+}
+
+.f0-preview-icon-family {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.f0-preview-icon-family-label {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.f0-preview-icon-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 2rem;
+  color: hsl(var(--foreground));
+}
+
+.f0-preview-icon-row svg {
+  flex: 0 0 auto;
+}
+
+.f0-preview-provider-icons {
+  gap: 1.25rem;
+}
+
 .f0-preview-card-action {
   gap: 0.5rem;
 }

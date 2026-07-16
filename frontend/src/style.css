@@ -97,36 +97,47 @@
     @apply px-4 py-2 text-sm font-medium;
     min-height: 2.5rem;
     border-radius: var(--ssxz-radius-button, 8px);
-    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+    transition:
+      background-color 160ms ease,
+      border-color 160ms ease,
+      color 160ms ease,
+      box-shadow 160ms ease,
+      transform 120ms ease;
+    will-change: transform;
     @apply focus:outline-none disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn:focus-visible {
-    box-shadow: var(--ssxz-focus-ring);
+    outline: none;
+    box-shadow: var(--ssxz-shadow-button), var(--ssxz-focus-ring);
   }
 
   .btn-primary {
     background: var(--ssxz-primary);
     border: 1px solid var(--ssxz-primary);
     color: var(--ssxz-action-text);
-    box-shadow: none;
+    box-shadow: var(--ssxz-shadow-button);
   }
 
   .btn-primary:hover {
     background: var(--ssxz-primary-hover);
     border-color: var(--ssxz-primary-hover);
+    box-shadow: var(--ssxz-shadow-button-hover);
+    transform: translateY(-1px);
   }
 
   .btn-secondary {
     background: var(--ssxz-surface-raised);
     border: 1px solid var(--ssxz-border);
     color: var(--ssxz-text);
-    box-shadow: none;
+    box-shadow: var(--ssxz-shadow-button-subtle);
   }
 
   .btn-secondary:hover {
     background: color-mix(in srgb, var(--ssxz-surface-raised) 84%, white);
     border-color: var(--ssxz-border-strong);
+    box-shadow: var(--ssxz-shadow-button);
+    transform: translateY(-1px);
   }
 
   .btn-ghost {
@@ -138,13 +149,14 @@
   .btn-ghost:hover {
     background: var(--ssxz-surface-raised);
     color: var(--ssxz-text);
+    transform: translateY(-1px);
   }
 
   .btn-danger {
     background: var(--ssxz-error);
     border: 1px solid var(--ssxz-error);
     color: #fff;
-    box-shadow: none;
+    box-shadow: var(--ssxz-shadow-button-subtle);
   }
 
   .btn-success {
@@ -159,6 +171,21 @@
     border: 1px solid color-mix(in srgb, var(--ssxz-warning) 42%, transparent);
     color: #fcd34d;
     box-shadow: none;
+  }
+
+  .btn:not(:disabled):active {
+    transform: translateY(1px);
+    box-shadow: none;
+  }
+
+  .btn:disabled {
+    box-shadow: none;
+    transform: none;
+  }
+
+  .btn > svg,
+  .stat-icon > svg {
+    stroke-width: 1.75;
   }
 
   .btn-sm {
@@ -259,6 +286,7 @@
   .card-hover:hover {
     border-color: var(--ssxz-border-strong);
     background: var(--ssxz-surface-raised);
+    box-shadow: var(--ssxz-shadow-card-hover);
   }
 
   .card-glass {
@@ -294,8 +322,10 @@
     @apply text-xl;
   }
 
+  .stat-icon-neutral,
   .stat-icon-primary {
-    @apply bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400;
+    background: var(--ssxz-surface-muted);
+    color: var(--ssxz-text-secondary);
   }
 
   .stat-icon-success {
@@ -854,12 +884,12 @@
   --ssxz-text-muted: #66707c;
   --ssxz-text-subtle: #88929e;
 
-  --ssxz-primary: #181a1e;
-  --ssxz-primary-hover: #30343a;
-  --ssxz-primary-soft: rgb(24 26 30 / 0.08);
-  --ssxz-accent: #556273;
-  --ssxz-accent-strong: #374151;
-  --ssxz-accent-soft: rgb(85 98 115 / 0.1);
+  --ssxz-primary: #4f6882;
+  --ssxz-primary-hover: #415a73;
+  --ssxz-primary-soft: rgb(79 104 130 / 0.1);
+  --ssxz-accent: #617991;
+  --ssxz-accent-strong: #405b76;
+  --ssxz-accent-soft: rgb(97 121 145 / 0.1);
   --ssxz-success: #22c55e;
   --ssxz-warning: #f59e0b;
   --ssxz-danger: #ef4444;
@@ -878,12 +908,16 @@
   --ssxz-radius-button: 8px;
   --ssxz-radius-card: 10px;
   --ssxz-radius-dialog: 12px;
-  --ssxz-shadow-card: 0 1px 2px rgb(17 24 39 / 0.06);
+  --ssxz-shadow-button: 0 1px 2px rgb(17 24 39 / 0.12), 0 4px 10px rgb(17 24 39 / 0.06);
+  --ssxz-shadow-button-hover: 0 2px 3px rgb(17 24 39 / 0.14), 0 7px 16px rgb(17 24 39 / 0.1);
+  --ssxz-shadow-button-subtle: 0 1px 2px rgb(17 24 39 / 0.06);
+  --ssxz-shadow-card: 0 1px 2px rgb(17 24 39 / 0.08), 0 8px 22px rgb(17 24 39 / 0.05);
+  --ssxz-shadow-card-hover: 0 2px 4px rgb(17 24 39 / 0.1), 0 12px 28px rgb(17 24 39 / 0.08);
   --ssxz-shadow-sm: 0 8px 24px rgb(17 24 39 / 0.08);
   --ssxz-shadow: 0 18px 48px rgb(17 24 39 / 0.1);
   --ssxz-shadow-dialog: 0 24px 64px rgb(17 24 39 / 0.14);
   --ssxz-shadow-lg: var(--ssxz-shadow-dialog);
-  --ssxz-focus-ring: 0 0 0 3px rgb(85 98 115 / 0.2);
+  --ssxz-focus-ring: 0 0 0 3px rgb(97 121 145 / 0.28);
 
   /* Backward-compatible semantic aliases used by existing PR360 page work. */
   --ssxz-action: var(--ssxz-primary);
@@ -921,19 +955,23 @@
   --ssxz-text-muted: #9aa1ab;
   --ssxz-text-subtle: #707985;
 
-  --ssxz-primary: #f3f4f6;
-  --ssxz-primary-hover: #e5e7eb;
-  --ssxz-primary-soft: rgb(243 244 246 / 0.09);
-  --ssxz-accent: #aab4c2;
-  --ssxz-accent-strong: #d1d5db;
-  --ssxz-accent-soft: rgb(170 180 194 / 0.1);
+  --ssxz-primary: #9db6ce;
+  --ssxz-primary-hover: #b3c7db;
+  --ssxz-primary-soft: rgb(157 182 206 / 0.12);
+  --ssxz-accent: #a8bfd5;
+  --ssxz-accent-strong: #c7d8e8;
+  --ssxz-accent-soft: rgb(168 191 213 / 0.12);
 
-  --ssxz-shadow-card: 0 1px 2px rgb(0 0 0 / 0.28);
+  --ssxz-shadow-button: 0 1px 2px rgb(0 0 0 / 0.4), 0 5px 12px rgb(0 0 0 / 0.2);
+  --ssxz-shadow-button-hover: 0 2px 3px rgb(0 0 0 / 0.48), 0 8px 18px rgb(0 0 0 / 0.28);
+  --ssxz-shadow-button-subtle: 0 1px 2px rgb(0 0 0 / 0.28);
+  --ssxz-shadow-card: 0 1px 2px rgb(0 0 0 / 0.34), 0 10px 24px rgb(0 0 0 / 0.2);
+  --ssxz-shadow-card-hover: 0 2px 4px rgb(0 0 0 / 0.4), 0 14px 30px rgb(0 0 0 / 0.28);
   --ssxz-shadow-sm: 0 8px 24px rgb(0 0 0 / 0.24);
   --ssxz-shadow: 0 18px 48px rgb(0 0 0 / 0.34);
   --ssxz-shadow-dialog: 0 24px 64px rgb(0 0 0 / 0.42);
   --ssxz-shadow-lg: var(--ssxz-shadow-dialog);
-  --ssxz-focus-ring: 0 0 0 3px rgb(170 180 194 / 0.2);
+  --ssxz-focus-ring: 0 0 0 3px rgb(168 191 213 / 0.3);
 
   --ssxz-action-text: #15171a;
   --ssxz-glow-subtle: rgb(170 180 194 / 0.08);

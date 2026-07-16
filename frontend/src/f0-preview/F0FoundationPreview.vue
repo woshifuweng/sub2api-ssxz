@@ -145,6 +145,29 @@
             </FoundationCard>
 
             <div class="f0-preview-stack">
+              <FoundationCard title="图标规范" description="动作图标统一线性风格；供应商图标使用 ModelIcon。">
+                <div class="f0-preview-icon-set" data-testid="f0-icon-set" aria-label="图标规范样板">
+                  <div class="f0-preview-icon-family">
+                    <span class="f0-preview-icon-family-label">动作</span>
+                    <div class="f0-preview-icon-row">
+                      <Search :size="20" aria-hidden="true" />
+                      <Bell :size="20" aria-hidden="true" />
+                      <Settings :size="20" aria-hidden="true" />
+                      <ShieldCheck :size="20" aria-hidden="true" />
+                    </div>
+                  </div>
+                  <div class="f0-preview-icon-family">
+                    <span class="f0-preview-icon-family-label">供应商</span>
+                    <div class="f0-preview-icon-row f0-preview-provider-icons">
+                      <ModelIcon model="gpt-5.5" size="22px" />
+                      <ModelIcon model="claude-opus-4-8" size="22px" />
+                      <ModelIcon model="gemini-2.5-pro" size="22px" />
+                      <ModelIcon model="grok-4" size="22px" />
+                    </div>
+                  </div>
+                </div>
+              </FoundationCard>
+
               <FoundationCard title="输入与校验" description="标签、帮助文本和错误信息保持固定层级。">
                 <div class="f0-preview-form-grid">
                   <FoundationInput
@@ -276,6 +299,7 @@ import {
   Users
 } from '@lucide/vue'
 import { ref } from 'vue'
+import ModelIcon from '@/components/common/ModelIcon.vue'
 import {
   FoundationBadge,
   FoundationButton,

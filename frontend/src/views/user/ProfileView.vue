@@ -10,7 +10,7 @@
       </section>
 
       <div class="profile-stat-grid">
-        <StatCard :title="t('profile.accountBalance')" :value="formatCurrency(user?.balance || 0)" :icon="WalletIcon" icon-variant="success" />
+        <StatCard :title="t('profile.accountBalance')" :value="formatCurrency(user?.balance || 0)" :icon="WalletIcon" icon-variant="neutral" />
         <StatCard :title="t('profile.accountStatus')" :value="accountStatusLabel" :icon="StatusIcon" :icon-variant="user?.status === 'active' ? 'success' : 'danger'" />
         <StatCard :title="t('profile.memberSince')" :value="formatDate(user?.created_at || '', { year: 'numeric', month: 'long' })" :icon="CalendarIcon" icon-variant="primary" />
       </div>

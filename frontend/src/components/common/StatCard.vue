@@ -27,7 +27,7 @@ import type { Component } from 'vue'
 import Icon from '@/components/icons/Icon.vue'
 
 type ChangeType = 'up' | 'down' | 'neutral'
-type IconVariant = 'primary' | 'success' | 'warning' | 'danger'
+type IconVariant = 'neutral' | 'primary' | 'success' | 'warning' | 'danger'
 
 interface Props {
   title: string
@@ -62,6 +62,7 @@ const formattedChange = computed(() => {
 
 const iconClass = computed(() => {
   const classes: Record<IconVariant, string> = {
+    neutral: 'stat-icon-neutral',
     primary: 'stat-icon-primary',
     success: 'stat-icon-success',
     warning: 'stat-icon-warning',

@@ -5,7 +5,7 @@
   --card-foreground: 220 10% 9%;
   --popover: 0 0% 100%;
   --popover-foreground: 220 10% 9%;
-  --primary: 220 10% 10%;
+  --primary: 210 24% 38%;
   --primary-foreground: 0 0% 100%;
   --secondary: 210 9% 94%;
   --secondary-foreground: 220 10% 16%;
@@ -13,7 +13,7 @@
   --muted-foreground: 215 8% 42%;
   --accent: 210 10% 92%;
   --accent-foreground: 220 10% 16%;
-  --brand-accent: 210 14% 38%;
+  --brand-accent: 210 24% 38%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
   --success: 153 60% 38%;
@@ -22,9 +22,10 @@
   --warning-foreground: 26 70% 12%;
   --border: 210 8% 86%;
   --input: 210 9% 78%;
-  --ring: 210 16% 40%;
-  --shadow: 220 10% 10% / 0.06;
-  --button-shadow: 220 10% 10% / 0.18;
+  --ring: 210 24% 46%;
+  --shadow: 0 0% 10% / 0.08;
+  --button-shadow: 0 0% 10% / 0.14;
+  --button-shadow-hover: 0 0% 10% / 0.2;
   --radius: 0.5rem;
   min-height: 100%;
   color: hsl(var(--foreground));
@@ -36,32 +37,33 @@
 }
 
 .f0-foundation.f0-dark {
-  --background: 220 8% 7%;
-  --foreground: 210 8% 96%;
-  --card: 220 7% 10%;
-  --card-foreground: 210 8% 96%;
-  --popover: 220 7% 10%;
-  --popover-foreground: 210 8% 96%;
-  --primary: 0 0% 96%;
-  --primary-foreground: 220 10% 9%;
-  --secondary: 220 6% 16%;
-  --secondary-foreground: 210 8% 96%;
-  --muted: 220 6% 14%;
-  --muted-foreground: 215 7% 64%;
-  --accent: 220 6% 18%;
-  --accent-foreground: 210 8% 96%;
-  --brand-accent: 210 15% 68%;
+  --background: 0 0% 7%;
+  --foreground: 0 0% 96%;
+  --card: 0 0% 10%;
+  --card-foreground: 0 0% 96%;
+  --popover: 0 0% 10%;
+  --popover-foreground: 0 0% 96%;
+  --primary: 210 24% 72%;
+  --primary-foreground: 0 0% 9%;
+  --secondary: 0 0% 16%;
+  --secondary-foreground: 0 0% 96%;
+  --muted: 0 0% 14%;
+  --muted-foreground: 0 0% 64%;
+  --accent: 0 0% 18%;
+  --accent-foreground: 0 0% 96%;
+  --brand-accent: 210 24% 72%;
   --destructive: 0 65% 55%;
   --destructive-foreground: 0 0% 100%;
   --success: 153 52% 48%;
   --success-foreground: 154 65% 8%;
   --warning: 38 92% 55%;
   --warning-foreground: 30 70% 9%;
-  --border: 220 5% 21%;
-  --input: 220 6% 30%;
-  --ring: 210 18% 70%;
+  --border: 0 0% 21%;
+  --input: 0 0% 30%;
+  --ring: 210 24% 72%;
   --shadow: 0 0% 0% / 0.28;
-  --button-shadow: 0 0% 0% / 0.36;
+  --button-shadow: 0 0% 0% / 0.38;
+  --button-shadow-hover: 0 0% 0% / 0.48;
   color-scheme: dark;
 }
 
@@ -111,6 +113,8 @@
 .f0-button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+  box-shadow: none;
+  transform: none;
 }
 
 .f0-button--default {
@@ -119,22 +123,34 @@
   border-color: hsl(var(--primary));
   box-shadow:
     0 1px 2px hsl(var(--button-shadow)),
+    0 4px 10px hsl(var(--button-shadow-hover)),
     inset 0 1px 0 hsl(0 0% 100% / 0.16);
 }
 
 .f0-button--default:hover:not(:disabled) {
   background: hsl(var(--primary) / 0.9);
+  box-shadow:
+    0 2px 3px hsl(var(--button-shadow)),
+    0 6px 14px hsl(var(--button-shadow-hover)),
+    inset 0 1px 0 hsl(0 0% 100% / 0.18);
+  transform: translateY(-1px);
 }
 
 .f0-button--secondary {
   color: hsl(var(--secondary-foreground));
   background: hsl(var(--secondary));
   border-color: hsl(var(--border) / 0.72);
+  box-shadow: 0 1px 2px hsl(var(--shadow));
 }
 
 .f0-button--secondary:hover:not(:disabled),
 .f0-button--ghost:hover:not(:disabled) {
   background: hsl(var(--accent));
+}
+
+.f0-button--secondary:hover:not(:disabled) {
+  box-shadow: 0 3px 8px hsl(var(--shadow));
+  transform: translateY(-1px);
 }
 
 .f0-button--outline {
@@ -146,6 +162,8 @@
 
 .f0-button--outline:hover:not(:disabled) {
   background: hsl(var(--accent));
+  box-shadow: 0 3px 8px hsl(var(--shadow));
+  transform: translateY(-1px);
 }
 
 .f0-button--ghost {
@@ -166,6 +184,7 @@
 
 .f0-button--destructive:hover:not(:disabled) {
   background: hsl(var(--destructive) / 0.9);
+  transform: translateY(-1px);
 }
 
 .f0-button--sm {

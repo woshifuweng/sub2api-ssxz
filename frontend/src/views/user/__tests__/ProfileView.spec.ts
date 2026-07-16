@@ -109,8 +109,8 @@ vi.mock('@/components/layout/AppLayout.vue', () => ({
 vi.mock('@/components/common/StatCard.vue', () => ({
   default: {
     name: 'StatCard',
-    props: ['title', 'value'],
-    template: '<article class="stat-card-stub"><span>{{ title }}</span><strong>{{ value }}</strong></article>'
+    props: ['title', 'value', 'iconVariant'],
+    template: '<article class="stat-card-stub" :data-icon-variant="iconVariant"><span>{{ title }}</span><strong>{{ value }}</strong></article>'
   }
 }))
 
@@ -160,6 +160,7 @@ describe('ProfileView', () => {
     expect(text).toContain('Account status')
     expect(text).toContain('Active')
     expect(text).not.toContain('Concurrency Limit')
+    expect(wrapper.find('.stat-card-stub').attributes('data-icon-variant')).toBe('neutral')
   })
 
   it('keeps the legacy profile surface on /profile for compatibility', async () => {
