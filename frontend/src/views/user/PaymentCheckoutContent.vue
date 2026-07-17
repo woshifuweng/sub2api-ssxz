@@ -78,6 +78,17 @@
       </template>
       <!-- Tab content (select phase) -->
       <template v-else>
+        <div v-if="showPaymentTurnstile" class="card p-4" data-testid="payment-turnstile">
+          <TurnstileWidget
+            ref="turnstileRef"
+            :site-key="turnstileSiteKey"
+            theme="auto"
+            size="flexible"
+            @verify="handleTurnstileVerify"
+            @expire="handleTurnstileExpire"
+            @error="handleTurnstileError"
+          />
+        </div>
         <!-- Top-up Tab -->
         <template v-if="activeTab === 'recharge'">
           <!-- Recharge Account Card -->
@@ -328,6 +339,7 @@ import { platformAccentBarClass, platformBadgeLightClass, platformBadgeClass, pl
 import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
 import Icon from '@/components/icons/Icon.vue'
+import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import type { PaymentMethodOption } from '@/components/payment/PaymentMethodSelector.vue'
 import { buildPaymentErrorToastMessage, describePaymentScenarioError } from './paymentUx'
 import { hasWechatResumeQuery, parseWechatResumeRoute, stripWechatResumeQuery } from './paymentWechatResume'
@@ -410,6 +422,14 @@ const previewImage = ref('')
 
 const paymentPhase = ref<'select' | 'paying'>('select')
 const pendingCreateOrderIdempotency = ref<{ fingerprint: string; key: string } | null>(null)
+const turnstileEnabled = computed(() => appStore.cachedPublicSettings?.turnstile_enabled === true)
+const turnstileSiteKey = computed(() => appStore.cachedPublicSettings?.turnstile_site_key || '')
+const turnstileToken = ref('')
+const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
+const showPaymentTurnstile = computed(() => turnstileEnabled.value && !!turnstileSiteKey.value && paymentPhase.value === 'select' && (activeTab.value === 'recharge' ? validAmount.value > 0 : !!selectedPlan.value))
+const handleTurnstileVerify = (token: string) => { turnstileToken.value = token }
+const handleTurnstileExpire = () => { turnstileToken.value = '' }
+const handleTurnstileError = () => { turnstileToken.value = '' }
 
 interface CreateOrderOptions {
   openid?: string
@@ -821,6 +841,11 @@ async function confirmSubscribe() {
 }
 
 async function createOrder(orderAmount: number, orderType: OrderType, planId?: number, options: CreateOrderOptions = {}) {
+  if (turnstileEnabled.value && !turnstileToken.value) {
+    errorMessage.value = t('auth.completeVerification')
+    appStore.showError(errorMessage.value)
+    return
+  }
   submitting.value = true
   errorMessage.value = ''
   errorHintMessage.value = ''
@@ -834,6 +859,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       origin: typeof window !== 'undefined' ? window.location.origin : '',
       isMobile: isMobileDevice(),
       isWechatBrowser: typeof window !== 'undefined' && /MicroMessenger/i.test(window.navigator.userAgent),
+      turnstileToken: turnstileToken.value,
     })
     if (options.openid) {
       payload.openid = options.openid
@@ -845,6 +871,8 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
     const idempotencyKey = getCreateOrderIdempotencyKey(payload)
     const result = await paymentStore.createOrder(payload, { idempotencyKey }) as CreateOrderResult & { resume_token?: string }
     clearCreateOrderIdempotencyKey(payload)
+    turnstileRef.value?.reset()
+    turnstileToken.value = ''
     const openWindow = (url: string) => {
       const win = window.open(url, 'paymentPopup', getPaymentPopupFeatures())
       if (!win || win.closed) {
@@ -1043,6 +1071,7 @@ async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackCo
       origin: typeof window !== 'undefined' ? window.location.origin : '',
       isMobile: false,
       isWechatBrowser: false,
+      turnstileToken: turnstileToken.value,
     })
     const idempotencyKey = getCreateOrderIdempotencyKey(payload)
     const result = await paymentStore.createOrder(payload, { idempotencyKey }) as CreateOrderResult & { resume_token?: string }

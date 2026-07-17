@@ -71,6 +71,7 @@ export interface BuildCreateOrderPayloadInput {
   origin?: string
   isMobile: boolean
   isWechatBrowser: boolean
+  turnstileToken?: string
 }
 
 type CreateOrderFlowResult = CreateOrderResult & {
@@ -112,6 +113,10 @@ export function buildCreateOrderPayload(input: BuildCreateOrderPayloadInput): Cr
     payment_source: visibleMethod === 'wxpay' && input.isWechatBrowser
       ? 'wechat_in_app_resume'
       : 'hosted_redirect',
+  }
+
+  if (input.turnstileToken) {
+    payload.turnstile_token = input.turnstileToken
   }
 
   if (input.planId) {

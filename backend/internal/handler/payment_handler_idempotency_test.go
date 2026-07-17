@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -26,6 +27,7 @@ func TestPaymentHandlerCreateOrderIdempotencyReplayDoesNotCreateDuplicateOrder(t
 
 	var calls atomic.Int32
 	h := &PaymentHandler{
+		authService: service.NewAuthService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil),
 		createOrderFn: func(_ context.Context, req service.CreateOrderRequest) (*service.CreateOrderResponse, error) {
 			calls.Add(1)
 			return &service.CreateOrderResponse{
@@ -65,4 +67,33 @@ func TestPaymentHandlerCreateOrderIdempotencyReplayDoesNotCreateDuplicateOrder(t
 	require.Equal(t, "true", second.Header().Get("X-Idempotency-Replayed"))
 	require.Equal(t, int32(1), calls.Load(), "same payment order idempotency key should execute CreateOrder only once")
 	require.Contains(t, second.Body.String(), "payment-idempotent-order")
+}
+
+func TestPaymentHandlerCreateOrderBlocksBeforePaymentWhenTurnstileIsRequired(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var calls atomic.Int32
+	h := &PaymentHandler{
+		authService: service.NewAuthService(nil, nil, nil, nil, &config.Config{
+			Server:    config.ServerConfig{Mode: "release"},
+			Turnstile: config.TurnstileConfig{Required: true},
+		}, nil, nil, nil, nil, nil, nil),
+		createOrderFn: func(context.Context, service.CreateOrderRequest) (*service.CreateOrderResponse, error) {
+			calls.Add(1)
+			return &service.CreateOrderResponse{}, nil
+		},
+	}
+
+	router := gin.New()
+	router.Use(withUserSubject(42))
+	router.POST("/api/v1/payment/orders", func(c *gin.Context) {
+		h.CreateOrderGateway(gatewayctx.FromGin(c))
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/payment/orders", bytes.NewBufferString(`{"amount":10,"payment_type":"alipay","order_type":"balance"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.NotEqual(t, http.StatusOK, rec.Code)
+	require.Zero(t, calls.Load(), "payment service must not run before Turnstile validation")
 }

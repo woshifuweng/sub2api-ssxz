@@ -33,8 +33,9 @@ export type RedeemResult = RedeemHistoryItem
  * @param code - Redeem code string
  * @returns Redeemed code record returned by the backend
  */
-export async function redeem(code: string): Promise<RedeemResult> {
+export async function redeem(code: string, turnstileToken?: string): Promise<RedeemResult> {
   const payload: RedeemCodeRequest = { code }
+  if (turnstileToken) payload.turnstile_token = turnstileToken
 
   const { data } = await apiClient.post<RedeemResult>('/redeem', payload)
 

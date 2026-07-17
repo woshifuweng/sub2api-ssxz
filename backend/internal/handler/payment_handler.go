@@ -11,6 +11,7 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
@@ -25,16 +26,18 @@ type PaymentHandler struct {
 	channelService                  *service.ChannelService
 	paymentService                  *service.PaymentService
 	configService                   *service.PaymentConfigService
+	authService                     *service.AuthService
 	createOrderFn                   func(context.Context, service.CreateOrderRequest) (*service.CreateOrderResponse, error)
 	parseWeChatPaymentResumeTokenFn func(string) (*service.WeChatPaymentResumeClaims, error)
 }
 
 // NewPaymentHandler creates a new PaymentHandler.
-func NewPaymentHandler(paymentService *service.PaymentService, configService *service.PaymentConfigService, channelService *service.ChannelService) *PaymentHandler {
+func NewPaymentHandler(paymentService *service.PaymentService, configService *service.PaymentConfigService, channelService *service.ChannelService, authService *service.AuthService) *PaymentHandler {
 	h := &PaymentHandler{
 		channelService: channelService,
 		paymentService: paymentService,
 		configService:  configService,
+		authService:    authService,
 	}
 	if paymentService != nil {
 		h.createOrderFn = paymentService.CreateOrder
@@ -248,7 +251,8 @@ type CreateOrderRequest struct {
 	// IsMobile lets the frontend declare its mobile status directly. When
 	// nil we fall back to User-Agent heuristics (which miss iPadOS / some
 	// embedded browsers that strip the "Mobile" keyword).
-	IsMobile *bool `json:"is_mobile,omitempty"`
+	IsMobile       *bool  `json:"is_mobile,omitempty"`
+	TurnstileToken string `json:"turnstile_token"`
 }
 
 // CreateOrder creates a new payment order.
@@ -266,6 +270,10 @@ func (h *PaymentHandler) CreateOrderGateway(c gatewayctx.GatewayContext) {
 	var req CreateOrderRequest
 	if err := c.BindJSON(&req); err != nil {
 		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.authService.VerifyTurnstile(c.Request().Context(), req.TurnstileToken, ip.GetClientIPContext(c)); err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 	if strings.TrimSpace(req.WechatResumeToken) != "" {

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -15,6 +16,7 @@ import (
 // RedeemHandler handles redeem code-related requests
 type RedeemHandler struct {
 	redeemService *service.RedeemService
+	authService   *service.AuthService
 }
 
 type redeemGatewayResponder struct {
@@ -36,15 +38,17 @@ func (g redeemGatewayResponder) WriteJSON(status int, payload any) {
 }
 
 // NewRedeemHandler creates a new RedeemHandler
-func NewRedeemHandler(redeemService *service.RedeemService) *RedeemHandler {
+func NewRedeemHandler(redeemService *service.RedeemService, authService *service.AuthService) *RedeemHandler {
 	return &RedeemHandler{
 		redeemService: redeemService,
+		authService:   authService,
 	}
 }
 
 // RedeemRequest represents the redeem code request payload
 type RedeemRequest struct {
-	Code string `json:"code" binding:"required"`
+	Code           string `json:"code" binding:"required"`
+	TurnstileToken string `json:"turnstile_token"`
 }
 
 // RedeemResponse represents the redeem response
@@ -72,6 +76,10 @@ func (h *RedeemHandler) RedeemGateway(c gatewayctx.GatewayContext) {
 	var req RedeemRequest
 	if err := c.BindJSON(&req); err != nil {
 		response.ErrorContext(redeemGatewayResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.authService.VerifyTurnstile(c.Request().Context(), req.TurnstileToken, ip.GetClientIPContext(c)); err != nil {
+		response.ErrorFromContext(redeemGatewayResponder{ctx: c}, err)
 		return
 	}
 

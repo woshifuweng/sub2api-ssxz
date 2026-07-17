@@ -1266,6 +1266,7 @@ export interface GenerateRedeemCodesRequest {
 
 export interface RedeemCodeRequest {
   code: string
+  turnstile_token?: string
 }
 
 // ==================== Dashboard & Statistics ====================

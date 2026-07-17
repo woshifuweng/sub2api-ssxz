@@ -454,7 +454,6 @@ const affiliateEnabled = computed(() => !!appStore.cachedPublicSettings?.affilia
 const userNavItems = computed((): NavItem[] => [
   { path: '/app/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
   { path: '/app/chat', label: t('nav.modelTest'), icon: ChartIcon },
-  { path: '/app/image', label: t('nav.image'), icon: GiftIcon },
   { path: '/app/keys', label: t('nav.apiKeys'), icon: KeyIcon },
   { path: '/app/available-channels', label: t('nav.models'), icon: ChannelIcon },
   { path: '/app/usage', label: t('nav.usage'), icon: ChartIcon },

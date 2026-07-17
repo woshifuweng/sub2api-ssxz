@@ -160,7 +160,6 @@ describe('AppSectionShell', () => {
     expect(navButtons(wrapper).map((button) => button.text())).toEqual([
       'Dashboard',
       'Model Test',
-      'Image',
       'API Keys',
       'Models',
       'Usage',
@@ -213,7 +212,6 @@ describe('AppSectionShell', () => {
     const expectedRoutes = [
       '/app/dashboard',
       '/app/chat',
-      '/app/image',
       '/app/keys',
       '/app/available-channels',
       '/app/usage',

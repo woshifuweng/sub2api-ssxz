@@ -188,7 +188,6 @@ let desktopMediaQuery: MediaQueryList | null = null
 const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName }>>(() => [
   { label: t('nav.dashboard'), to: '/app/dashboard', icon: 'home' },
   { label: t('nav.modelTest'), to: '/app/chat', icon: 'chat' },
-  { label: t('nav.image'), to: '/app/image', icon: 'sparkles' },
   { label: t('nav.apiKeys'), to: '/app/keys', icon: 'key' },
   { label: t('nav.models'), to: '/app/available-channels', icon: 'calculator' },
   { label: t('nav.usage'), to: '/app/usage', icon: 'chartBar' },

@@ -506,7 +506,7 @@ export default {
     sendingCode: 'Sending...',
     clickToResend: 'Click to resend code',
     resendCode: 'Resend verification code',
-    sendCodeDesc: "We'll send a verification code to",
+    sendCodeDesc: 'We have sent a verification code to',
     codeSentSuccess: 'Verification code sent! Please check your inbox.',
     verifying: 'Verifying...',
     verifyAndCreate: 'Verify & Create Account',
