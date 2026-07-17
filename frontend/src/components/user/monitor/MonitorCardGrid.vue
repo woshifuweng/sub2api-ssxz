@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="channel-monitor-grid">
     <div
       v-if="loading && items.length === 0"
       class="grid gap-5 grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
@@ -7,7 +7,7 @@
       <div
         v-for="i in 6"
         :key="i"
-        class="p-5 rounded-2xl min-h-[280px] bg-white/70 dark:bg-dark-800/60 border border-gray-200/80 dark:border-dark-700/70 animate-pulse"
+        class="channel-monitor-skeleton min-h-[280px] animate-pulse"
       >
         <div class="flex items-start gap-3">
           <div class="w-9 h-9 rounded-xl bg-gray-200 dark:bg-dark-700"></div>
@@ -27,9 +27,14 @@
 
     <EmptyState
       v-else-if="items.length === 0"
+      class="channel-monitor-empty"
       :title="t('channelStatus.empty.title')"
       :description="emptyDescription || t('channelStatus.empty.description')"
-    />
+    >
+      <template #icon>
+        <Icon name="inbox" size="lg" aria-hidden="true" />
+      </template>
+    </EmptyState>
 
     <div
       v-else
@@ -52,6 +57,7 @@
 import { useI18n } from 'vue-i18n'
 import type { UserMonitorView, UserMonitorDetail } from '@/api/channelMonitor'
 import EmptyState from '@/components/common/EmptyState.vue'
+import Icon from '@/components/icons/Icon.vue'
 import MonitorCard from './MonitorCard.vue'
 
 const props = defineProps<{
@@ -80,3 +86,54 @@ function resolveAvailability(item: UserMonitorView): number | null {
   return props.window === '15d' ? primary.availability_15d ?? null : primary.availability_30d ?? null
 }
 </script>
+
+<style scoped>
+.channel-monitor-grid {
+  min-width: 0;
+}
+
+.channel-monitor-grid > :deep(.channel-monitor-empty) {
+  min-height: 17rem;
+  border-color: var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-surface-raised);
+  box-shadow: var(--ssxz-shadow-card);
+}
+
+.channel-monitor-empty :deep(.empty-state-visual) {
+  width: 3.75rem;
+  height: 3.75rem;
+  margin-bottom: 1.25rem;
+  border-color: var(--ssxz-border);
+  border-radius: 1rem;
+  color: var(--ssxz-text-muted);
+  background: var(--ssxz-surface-muted);
+}
+
+.channel-monitor-empty :deep(.empty-state-visual svg) {
+  width: 1.75rem;
+  height: 1.75rem;
+  stroke-width: 1.6;
+}
+
+.channel-monitor-empty :deep(.empty-state-title) {
+  margin-bottom: 0.5rem;
+  color: var(--ssxz-text);
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.channel-monitor-empty :deep(.empty-state-description) {
+  max-width: 28rem;
+  color: var(--ssxz-text-muted);
+  line-height: 1.7;
+}
+
+.channel-monitor-skeleton {
+  min-width: 0;
+  border-color: var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-surface-raised);
+  box-shadow: var(--ssxz-shadow-card);
+}
+</style>

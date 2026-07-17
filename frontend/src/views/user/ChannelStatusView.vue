@@ -67,7 +67,7 @@ const pageShellProps = computed(() => useWorkbenchShell.value
       title: t('channelStatus.title'),
       subtitle: t('channelStatus.description'),
       eyebrow: t('channelStatus.eyebrow'),
-      icon: 'radio'
+      icon: 'chartBar'
     }
   : {})
 

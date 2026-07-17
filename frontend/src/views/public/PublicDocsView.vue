@@ -37,11 +37,13 @@
       </header>
 
       <main class="public-docs-main">
-        <header class="public-docs-intro">
-          <span>接入文档</span>
-          <h1>用 SSXZ 连接你的 AI 开发工具</h1>
-          <p>按真实界面一步步完成配置。本文档公开可访问，不需要先登录。</p>
-        </header>
+        <PageHeader
+          class="public-docs-page-header"
+          eyebrow="接入文档"
+          icon="sparkles"
+          title="用 SSXZ 连接你的 AI 开发工具"
+          subtitle="按真实界面一步步完成配置。本文档公开可访问，不需要先登录。"
+        />
 
         <div class="public-docs-layout">
           <aside class="public-docs-index" aria-label="文档目录">
@@ -84,6 +86,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { BookOpen, KeyRound, Moon, Sun } from '@lucide/vue'
 import BrandLogo from '@/components/common/BrandLogo.vue'
+import PageHeader from '@/components/common/PageHeader.vue'
 import CcSwitchGuide from '@/components/docs/CcSwitchGuide.vue'
 import { FoundationButton, FoundationCard, FoundationProvider } from '@/components/foundation'
 import { setSafeLocalStorageItem } from '@/utils/safeStorage'
@@ -237,6 +240,16 @@ onBeforeUnmount(() => {
   margin-bottom: 2rem;
 }
 
+.public-docs-page-header :deep(.f0-page-header__title) {
+  font-family: "Noto Serif SC", "Source Han Serif SC", "STSong", serif;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.public-docs-page-header :deep(.f0-page-header__subtitle) {
+  max-width: 42rem;
+}
+
 .public-docs-intro > span,
 .public-docs-index > div span {
   color: hsl(var(--muted-foreground));
@@ -329,6 +342,11 @@ onBeforeUnmount(() => {
   padding: clamp(1rem, 3vw, 2.25rem);
 }
 
+/* The embedded tutorial image is source content, not a themed surface. */
+.public-docs-card :deep(img) {
+  filter: none;
+}
+
 .public-docs-footer {
   display: flex;
   width: min(100% - 2rem, 78rem);
@@ -387,7 +405,7 @@ onBeforeUnmount(() => {
     padding-top: 2rem;
   }
 
-  .public-docs-intro h1 {
+  .public-docs-page-header :deep(.f0-page-header__title) {
     font-size: 2rem;
   }
 

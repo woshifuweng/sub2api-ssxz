@@ -118,19 +118,17 @@
       </header>
 
       <div class="ssxz-app-main relative z-10">
-        <section class="ssxz-page-heading">
-          <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <div class="ssxz-eyebrow">
-                <Icon :name="icon" size="xs" />
-                {{ eyebrow }}
-              </div>
-              <h2 class="mt-3 text-2xl font-semibold tracking-normal sm:text-3xl">{{ title }}</h2>
-              <p class="mt-2 max-w-3xl text-sm leading-6 text-zinc-600 dark:text-zinc-200">{{ subtitle }}</p>
-            </div>
+        <PageHeader
+          class="ssxz-page-heading"
+          :title="title"
+          :subtitle="subtitle"
+          :eyebrow="eyebrow"
+          :icon="icon"
+        >
+          <template v-if="$slots.actions" #actions>
             <slot name="actions" />
-          </div>
-        </section>
+          </template>
+        </PageHeader>
 
         <slot />
       </div>
@@ -143,6 +141,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import BrandLogo from '@/components/common/BrandLogo.vue'
+import PageHeader from '@/components/common/PageHeader.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import type { ChatConversation } from '@/api/chatWorkspace'
