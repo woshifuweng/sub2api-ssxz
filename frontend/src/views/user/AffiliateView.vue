@@ -5,9 +5,12 @@
         <div class="h-8 w-8 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></div>
       </div>
 
-      <div v-else-if="errorMessage" class="card p-6 text-center">
-        <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('affiliate.loadFailedTitle') }}</h2>
-        <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500 dark:text-gray-400">
+      <div v-else-if="errorMessage" class="card affiliate-feedback-card p-6 text-center">
+        <div class="affiliate-feedback-card__icon" aria-hidden="true">
+          <Icon name="exclamationCircle" size="md" />
+        </div>
+        <h2 class="mt-3 text-base font-semibold text-[var(--ssxz-text)]">{{ t('affiliate.loadFailedTitle') }}</h2>
+        <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--ssxz-text-muted)]">
           {{ t('affiliate.loadFailedBody') }}
         </p>
         <button
@@ -22,39 +25,39 @@
 
       <template v-else-if="detail">
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div class="card p-5">
-            <p class="text-sm text-gray-500">{{ t('affiliate.currentRate') }}</p>
-            <p class="mt-2 text-2xl font-semibold text-primary-600">{{ formattedRate }}%</p>
-            <p class="mt-1 text-xs text-gray-500">{{ t('affiliate.rateHint') }}</p>
+          <div class="card affiliate-stat-card">
+            <p class="affiliate-stat-card__label">{{ t('affiliate.currentRate') }}</p>
+            <p class="affiliate-stat-card__value">{{ formattedRate }}%</p>
+            <p class="affiliate-stat-card__hint">{{ t('affiliate.rateHint') }}</p>
           </div>
-          <div class="card p-5">
-            <p class="text-sm text-gray-500">{{ t('affiliate.inviteCount') }}</p>
-            <p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ detail.aff_count }}</p>
-            <p class="mt-1 text-xs text-gray-500">{{ t('affiliate.inviteCountHint') }}</p>
+          <div class="card affiliate-stat-card">
+            <p class="affiliate-stat-card__label">{{ t('affiliate.inviteCount') }}</p>
+            <p class="affiliate-stat-card__value">{{ detail.aff_count }}</p>
+            <p class="affiliate-stat-card__hint">{{ t('affiliate.inviteCountHint') }}</p>
           </div>
-          <div class="card p-5">
-            <p class="text-sm text-gray-500">{{ t('affiliate.availableQuota') }}</p>
-            <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ formatCurrency(detail.aff_quota) }}</p>
-            <p class="mt-1 text-xs text-gray-500">{{ t('affiliate.availableQuotaHint') }}</p>
+          <div class="card affiliate-stat-card">
+            <p class="affiliate-stat-card__label">{{ t('affiliate.availableQuota') }}</p>
+            <p class="affiliate-stat-card__value">{{ formatCurrency(detail.aff_quota) }}</p>
+            <p class="affiliate-stat-card__hint">{{ t('affiliate.availableQuotaHint') }}</p>
           </div>
-          <div class="card p-5">
-            <p class="text-sm text-gray-500">{{ t('affiliate.totalRewards') }}</p>
-            <p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ formatCurrency(detail.aff_history_quota) }}</p>
-            <p v-if="detail.aff_frozen_quota > 0" class="mt-1 text-xs text-amber-600">
+          <div class="card affiliate-stat-card">
+            <p class="affiliate-stat-card__label">{{ t('affiliate.totalRewards') }}</p>
+            <p class="affiliate-stat-card__value">{{ formatCurrency(detail.aff_history_quota) }}</p>
+            <p v-if="detail.aff_frozen_quota > 0" class="affiliate-stat-card__pending">
               {{ t('affiliate.pending', { amount: formatCurrency(detail.aff_frozen_quota) }) }}
             </p>
           </div>
         </div>
 
-        <div class="card p-6">
-          <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('affiliate.exclusiveInvite') }}</h2>
-          <p class="mt-1 text-sm text-gray-500">{{ t('affiliate.inviteDescription') }}</p>
+        <div class="card affiliate-panel p-6">
+          <h2 class="text-base font-semibold text-[var(--ssxz-text)]">{{ t('affiliate.exclusiveInvite') }}</h2>
+          <p class="mt-1 text-sm text-[var(--ssxz-text-muted)]">{{ t('affiliate.inviteDescription') }}</p>
 
           <div class="mt-5 grid gap-4 md:grid-cols-2">
             <div class="space-y-2">
-              <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('affiliate.code') }}</p>
-              <div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900">
-                <code class="flex-1 truncate text-sm font-semibold text-gray-900 dark:text-white">{{ detail.aff_code }}</code>
+              <p class="text-sm font-medium text-[var(--ssxz-text-secondary)]">{{ t('affiliate.code') }}</p>
+              <div class="affiliate-copy-row">
+                <code class="flex-1 truncate text-sm font-semibold text-[var(--ssxz-text)]">{{ detail.aff_code }}</code>
                 <button class="btn btn-secondary btn-sm" data-testid="copy-affiliate-code" @click="copyValue(detail.aff_code, t('affiliate.codeCopied'))">
                   <Icon name="copy" size="sm" />
                   <span>{{ t('affiliate.copy') }}</span>
@@ -63,9 +66,9 @@
             </div>
 
             <div class="space-y-2">
-              <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('affiliate.link') }}</p>
-              <div class="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900">
-                <code class="flex-1 truncate text-sm text-gray-700 dark:text-gray-300">{{ inviteLink }}</code>
+              <p class="text-sm font-medium text-[var(--ssxz-text-secondary)]">{{ t('affiliate.link') }}</p>
+              <div class="affiliate-copy-row">
+                <code class="flex-1 truncate text-sm text-[var(--ssxz-text-secondary)]">{{ inviteLink }}</code>
                 <button class="btn btn-secondary btn-sm" data-testid="copy-affiliate-link" @click="copyValue(inviteLink, t('affiliate.linkCopied'))">
                   <Icon name="copy" size="sm" />
                   <span>{{ t('affiliate.copy') }}</span>
@@ -75,11 +78,11 @@
           </div>
         </div>
 
-        <div class="card p-6">
+        <div class="card affiliate-panel p-6">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('affiliate.settleTitle') }}</h3>
-              <p class="mt-1 text-sm text-gray-500">{{ t('affiliate.settleDescription') }}</p>
+              <h3 class="text-base font-semibold text-[var(--ssxz-text)]">{{ t('affiliate.settleTitle') }}</h3>
+              <p class="mt-1 text-sm text-[var(--ssxz-text-muted)]">{{ t('affiliate.settleDescription') }}</p>
             </div>
             <button class="btn btn-primary" :disabled="transferring || detail.aff_quota <= 0" @click="transferQuota">
               <Icon v-if="transferring" name="refresh" size="sm" class="animate-spin" />
@@ -89,16 +92,16 @@
           </div>
         </div>
 
-        <div class="card p-6">
-          <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('affiliate.recordsTitle') }}</h3>
-          <p class="mt-1 text-sm text-gray-500">{{ t('affiliate.recordsDescription') }}</p>
-          <div v-if="detail.invitees.length === 0" class="mt-4 rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-dark-700">
+        <div class="card affiliate-panel p-6">
+          <h3 class="text-base font-semibold text-[var(--ssxz-text)]">{{ t('affiliate.recordsTitle') }}</h3>
+          <p class="mt-1 text-sm text-[var(--ssxz-text-muted)]">{{ t('affiliate.recordsDescription') }}</p>
+          <div v-if="detail.invitees.length === 0" class="affiliate-empty-state mt-4">
             {{ t('affiliate.noRecords') }}
           </div>
           <div v-else class="mt-4 overflow-x-auto">
             <table class="w-full min-w-[560px] text-left text-sm">
               <thead>
-                <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700">
+                <tr class="border-b border-[var(--ssxz-border)] text-[var(--ssxz-text-muted)]">
                   <th class="px-3 py-2 font-medium">{{ t('affiliate.user') }}</th>
                   <th class="px-3 py-2 font-medium">{{ t('affiliate.name') }}</th>
                   <th class="px-3 py-2 text-right font-medium">{{ t('affiliate.creditedReward') }}</th>
@@ -106,11 +109,11 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="item in detail.invitees" :key="item.user_id" class="border-b border-gray-100 last:border-b-0 dark:border-dark-800">
-                  <td class="px-3 py-3 text-gray-900 dark:text-white">{{ item.email || '-' }}</td>
-                  <td class="px-3 py-3 text-gray-700 dark:text-gray-300">{{ item.username || '-' }}</td>
-                  <td class="px-3 py-3 text-right font-medium text-emerald-600">{{ formatCurrency(item.total_rebate) }}</td>
-                  <td class="px-3 py-3 text-gray-700 dark:text-gray-300">{{ formatDateTime(item.created_at) || '-' }}</td>
+                <tr v-for="item in detail.invitees" :key="item.user_id" class="border-b border-[var(--ssxz-border)] last:border-b-0">
+                  <td class="px-3 py-3 text-[var(--ssxz-text)]">{{ item.email || '-' }}</td>
+                  <td class="px-3 py-3 text-[var(--ssxz-text-secondary)]">{{ item.username || '-' }}</td>
+                  <td class="px-3 py-3 text-right font-medium text-[var(--ssxz-text)]">{{ formatCurrency(item.total_rebate) }}</td>
+                  <td class="px-3 py-3 text-[var(--ssxz-text-secondary)]">{{ formatDateTime(item.created_at) || '-' }}</td>
                 </tr>
               </tbody>
             </table>
@@ -210,3 +213,94 @@ onMounted(() => {
   void loadAffiliateDetail()
 })
 </script>
+
+<style scoped>
+.affiliate-stat-card {
+  min-height: 8.5rem;
+  padding: 1.25rem;
+}
+
+.affiliate-stat-card__label,
+.affiliate-stat-card__hint {
+  color: var(--ssxz-text-muted);
+}
+
+.affiliate-stat-card__label {
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.affiliate-stat-card__value {
+  margin-top: 0.55rem;
+  color: var(--ssxz-text);
+  font-size: 1.7rem;
+  font-weight: 760;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.affiliate-stat-card__hint,
+.affiliate-stat-card__pending {
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.affiliate-stat-card__pending {
+  color: var(--ssxz-warning);
+}
+
+.affiliate-panel {
+  min-width: 0;
+}
+
+.affiliate-copy-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-button);
+  background: var(--ssxz-surface-code);
+  padding: 0.5rem 0.65rem;
+}
+
+.affiliate-empty-state {
+  border: 1px dashed var(--ssxz-border-strong);
+  border-radius: var(--ssxz-radius-card);
+  color: var(--ssxz-text-muted);
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.affiliate-feedback-card {
+  border-left: 3px solid var(--ssxz-danger);
+}
+
+.affiliate-feedback-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--ssxz-danger) 14%, transparent);
+  color: var(--ssxz-danger);
+}
+
+@media (max-width: 640px) {
+  .affiliate-stat-card {
+    min-height: 0;
+    padding: 1rem;
+  }
+
+  .affiliate-copy-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .affiliate-copy-row .btn {
+    width: 100%;
+  }
+}
+</style>

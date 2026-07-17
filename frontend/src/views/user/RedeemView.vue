@@ -1,19 +1,19 @@
 <template>
   <component :is="pageShell" v-bind="pageShellProps">
     <div class="mx-auto max-w-2xl space-y-6">
-      <div class="card overflow-hidden">
-        <div class="bg-gradient-to-br from-primary-500 to-primary-600 px-6 py-8 text-center">
-          <div
-            class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm"
-          >
-            <Icon name="creditCard" size="xl" class="text-white" />
-          </div>
-          <p class="text-sm font-medium text-primary-100">{{ t('redeem.currentBalance') }}</p>
-          <p class="mt-2 text-4xl font-bold text-white">
+      <div class="card redeem-balance-card">
+        <div class="redeem-balance-card__icon" aria-hidden="true">
+          <Icon name="creditCard" size="lg" />
+        </div>
+        <div class="min-w-0">
+          <p class="redeem-balance-card__label">{{ t('redeem.currentBalance') }}</p>
+          <p class="redeem-balance-card__value">
             ${{ user?.balance?.toFixed(2) || '0.00' }}
           </p>
-          <p class="mt-2 text-sm text-primary-100">
-            {{ t('redeem.concurrency') }}: {{ user?.unlimited_concurrency ? '∞' : (user?.concurrency || 0) }} {{ t('redeem.requests') }}
+          <p class="redeem-balance-card__meta">
+            {{ t('redeem.concurrency') }}:
+            {{ user?.unlimited_concurrency ? '∞' : (user?.concurrency || 0) }}
+            {{ t('redeem.requests') }}
           </p>
         </div>
       </div>
@@ -49,27 +49,8 @@
               :disabled="!redeemCode.trim() || submitting"
               class="btn btn-primary w-full py-3"
             >
-              <svg
-                v-if="submitting"
-                class="-ml-1 mr-2 h-5 w-5 animate-spin"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  class="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  stroke-width="4"
-                />
-                <path
-                  class="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
-              </svg>
-              <Icon v-else name="checkCircle" size="md" class="mr-2" />
+              <Icon v-if="submitting" name="refresh" size="md" class="animate-spin" />
+              <Icon v-else name="checkCircle" size="md" />
               {{ submitting ? t('redeem.redeeming') : t('redeem.redeemButton') }}
             </button>
           </form>
@@ -79,20 +60,20 @@
       <transition name="fade">
         <div
           v-if="redeemResult"
-          class="card border-emerald-200 bg-emerald-50 dark:border-emerald-800/50 dark:bg-emerald-900/20"
+          class="card redeem-status-card redeem-status-card--success"
         >
           <div class="p-6">
             <div class="flex items-start gap-4">
               <div
-                class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/30"
+                class="redeem-status-card__icon redeem-status-card__icon--success"
               >
                 <Icon name="checkCircle" size="md" class="text-emerald-600 dark:text-emerald-400" />
               </div>
-              <div class="flex-1">
-                <h3 class="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+              <div class="min-w-0 flex-1">
+                <h3 class="redeem-status-card__title">
                   {{ t('redeem.redeemSuccess') }}
                 </h3>
-                <div class="mt-2 space-y-1 text-sm text-emerald-700 dark:text-emerald-400">
+                <div class="mt-2 space-y-1 text-sm text-[var(--ssxz-text-secondary)]">
                   <p class="font-medium">
                     {{ getRedeemResultMessage(redeemResult) }}
                   </p>
@@ -109,12 +90,12 @@
       <transition name="fade">
         <div
           v-if="errorMessage"
-          class="card border-red-200 bg-red-50 dark:border-red-800/50 dark:bg-red-900/20"
+          class="card redeem-status-card redeem-status-card--error"
         >
           <div class="p-6">
             <div class="flex items-start gap-4">
               <div
-                class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-red-100 dark:bg-red-900/30"
+                class="redeem-status-card__icon redeem-status-card__icon--error"
               >
                 <Icon
                   name="exclamationCircle"
@@ -122,11 +103,11 @@
                   class="text-red-600 dark:text-red-400"
                 />
               </div>
-              <div class="flex-1">
-                <h3 class="text-sm font-semibold text-red-800 dark:text-red-300">
+              <div class="min-w-0 flex-1">
+                <h3 class="redeem-status-card__title">
                   {{ t('redeem.redeemFailed') }}
                 </h3>
-                <p class="mt-2 text-sm text-red-700 dark:text-red-400">
+                <p class="mt-2 text-sm text-[var(--ssxz-text-secondary)]">
                   {{ errorMessage }}
                 </p>
               </div>
@@ -136,21 +117,21 @@
       </transition>
 
       <div
-        class="card border-primary-200 bg-primary-50 dark:border-primary-800/50 dark:bg-primary-900/20"
+        class="card redeem-info-card"
       >
         <div class="p-6">
           <div class="flex items-start gap-4">
             <div
-              class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/30"
+              class="redeem-info-card__icon"
             >
               <Icon name="infoCircle" size="md" class="text-primary-600 dark:text-primary-400" />
             </div>
-            <div class="flex-1">
-              <h3 class="text-sm font-semibold text-primary-800 dark:text-primary-300">
+            <div class="min-w-0 flex-1">
+              <h3 class="text-sm font-semibold text-[var(--ssxz-text)]">
                 {{ t('redeem.aboutCodes') }}
               </h3>
               <ul
-                class="mt-2 list-inside list-disc space-y-1 text-sm text-primary-700 dark:text-primary-400"
+                class="mt-2 list-inside list-disc space-y-1 text-sm text-[var(--ssxz-text-muted)]"
               >
                 <li>{{ t('redeem.codeRule1') }}</li>
                 <li>{{ t('redeem.codeRule2') }}</li>
@@ -158,7 +139,7 @@
                   {{ t('redeem.codeRule3') }}
                   <span
                     v-if="contactInfo"
-                    class="ml-1.5 inline-flex items-center rounded-md bg-primary-200/50 px-2 py-0.5 text-xs font-medium text-primary-800 dark:bg-primary-800/40 dark:text-primary-200"
+                    class="ml-1.5 inline-flex items-center rounded-md border border-[var(--ssxz-border)] bg-[var(--ssxz-surface-muted)] px-2 py-0.5 text-xs font-medium text-[var(--ssxz-text)]"
                   >
                     {{ contactInfo }}
                   </span>
@@ -178,21 +159,7 @@
         </div>
         <div class="p-6">
           <div v-if="loadingHistory" class="flex items-center justify-center py-8">
-            <svg class="h-6 w-6 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24">
-              <circle
-                class="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                stroke-width="4"
-              />
-              <path
-                class="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              />
-            </svg>
+            <Icon name="refresh" size="lg" class="animate-spin text-[var(--ssxz-accent)]" />
           </div>
 
           <div v-else-if="historyLoadFailed" class="empty-state py-8">
@@ -224,15 +191,7 @@
                 <div
                   :class="[
                     'flex h-10 w-10 items-center justify-center rounded-xl',
-                    isBalanceType(item.type)
-                      ? item.value >= 0
-                        ? 'bg-emerald-100 dark:bg-emerald-900/30'
-                        : 'bg-red-100 dark:bg-red-900/30'
-                      : isSubscriptionType(item.type)
-                        ? 'bg-primary-100 dark:bg-primary-900/30'
-                        : item.value >= 0
-                          ? 'bg-accent-100 dark:bg-accent-900/30'
-                          : 'bg-orange-100 dark:bg-orange-900/30'
+                    'bg-[var(--ssxz-surface-muted)]'
                   ]"
                 >
                   <Icon
@@ -240,25 +199,21 @@
                     name="dollar"
                     size="md"
                     :class="
-                      item.value >= 0
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : 'text-red-600 dark:text-red-400'
+                      'text-[var(--ssxz-text-secondary)]'
                     "
                   />
                   <Icon
                     v-else-if="isSubscriptionType(item.type)"
                     name="badge"
                     size="md"
-                    class="text-primary-700 dark:text-primary-300"
+                    class="text-[var(--ssxz-text-secondary)]"
                   />
                   <Icon
                     v-else
                     name="bolt"
                     size="md"
                     :class="
-                      item.value >= 0
-                        ? 'text-accent-700 dark:text-accent-300'
-                        : 'text-orange-600 dark:text-orange-400'
+                      'text-[var(--ssxz-text-secondary)]'
                     "
                   />
                 </div>
@@ -275,15 +230,7 @@
                 <p
                   :class="[
                     'text-sm font-semibold',
-                    isBalanceType(item.type)
-                      ? item.value >= 0
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : 'text-red-600 dark:text-red-400'
-                      : isSubscriptionType(item.type)
-                        ? 'text-primary-700 dark:text-primary-300'
-                        : item.value >= 0
-                          ? 'text-accent-700 dark:text-accent-300'
-                          : 'text-orange-600 dark:text-orange-400'
+                    'text-[var(--ssxz-text)]'
                   ]"
                 >
                   {{ formatHistoryValue(item) }}
@@ -484,6 +431,103 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.redeem-balance-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+}
+
+.redeem-balance-card__icon,
+.redeem-info-card__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 0.85rem;
+  background: var(--ssxz-surface-muted);
+  color: var(--ssxz-text-secondary);
+}
+
+.redeem-balance-card__label {
+  color: var(--ssxz-text-muted);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.redeem-balance-card__value {
+  margin-top: 0.15rem;
+  color: var(--ssxz-text);
+  font-size: clamp(1.8rem, 4vw, 2.35rem);
+  font-weight: 760;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.redeem-balance-card__meta {
+  margin-top: 0.35rem;
+  color: var(--ssxz-text-muted);
+  font-size: 0.78rem;
+}
+
+.redeem-status-card,
+.redeem-info-card {
+  padding: 1.25rem 1.5rem;
+}
+
+.redeem-status-card {
+  border-left-width: 3px;
+}
+
+.redeem-status-card--success {
+  border-left-color: var(--ssxz-success);
+}
+
+.redeem-status-card--error {
+  border-left-color: var(--ssxz-danger);
+}
+
+.redeem-status-card__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+}
+
+.redeem-status-card__icon--success {
+  background: color-mix(in srgb, var(--ssxz-success) 14%, transparent);
+  color: var(--ssxz-success);
+}
+
+.redeem-status-card__icon--error {
+  background: color-mix(in srgb, var(--ssxz-danger) 14%, transparent);
+  color: var(--ssxz-danger);
+}
+
+.redeem-status-card__title {
+  color: var(--ssxz-text);
+  font-size: 0.9rem;
+  font-weight: 720;
+}
+
+.redeem-info-card {
+  border-left: 3px solid var(--ssxz-border-strong);
+}
+
+@media (max-width: 640px) {
+  .redeem-balance-card,
+  .redeem-status-card,
+  .redeem-info-card {
+    padding: 1rem;
+  }
+}
+
 .fade-enter-active,
 .fade-leave-active {
   transition: all 0.3s ease;
