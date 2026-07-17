@@ -1027,7 +1027,11 @@ export default {
       imageAmountWithSize: '{count} 张 / {size}',
       tokenAmount: '{count} tokens',
       requestCount: '{count} 次',
-      monthLabel: '{month}月'
+      monthLabel: '{month}月',
+      modelFilterPlaceholder: '输入模型名称',
+      startDate: '开始日期',
+      endDate: '结束日期',
+      paginationSummary: '共 {total} 条记录'
     },
     costDetails: '成本明细',
     tokenDetails: 'Token 明细',

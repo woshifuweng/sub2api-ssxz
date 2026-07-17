@@ -2,39 +2,37 @@
   <component :is="pageShell" v-bind="pageShellProps">
     <TablePageLayout>
       <template #filters>
-        <div class="space-y-3">
-          <div class="rounded-xl border border-emerald-100 bg-emerald-50/80 p-4 text-sm text-emerald-950 dark:border-emerald-900/40 dark:bg-emerald-950/25 dark:text-emerald-100">
-            <p class="font-semibold">{{ t('availableChannels.userGuideTitle') }}</p>
-            <p class="mt-1 leading-6">{{ t('availableChannels.userGuideDescription') }}</p>
+        <div class="pricing-toolbar">
+          <div class="pricing-guide f0-card">
+            <div class="pricing-guide__icon"><Icon name="server" size="md" /></div>
+            <div>
+              <p>{{ t('availableChannels.userGuideTitle') }}</p>
+              <span>{{ t('availableChannels.userGuideDescription') }}</span>
+            </div>
           </div>
 
-          <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-            <div class="flex flex-1 flex-wrap items-center gap-3">
-              <div class="relative w-full sm:w-80">
+          <div class="pricing-actions">
+              <div class="pricing-search">
                 <Icon
                   name="search"
                   size="md"
-                  class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+                  class="pricing-search__icon"
                 />
                 <input
                   v-model="searchQuery"
                   type="text"
                   :placeholder="t('availableChannels.searchPlaceholder')"
-                  class="input pl-10"
+                  class="f0-input-control f0-input-control--leading"
                 />
               </div>
-            </div>
-
-            <div class="flex w-full flex-shrink-0 flex-wrap items-center justify-end gap-3 lg:w-auto">
               <button
                 @click="loadChannels"
                 :disabled="loading"
-                class="btn btn-secondary"
+                class="f0-button f0-button--outline f0-button--icon"
                 :title="t('common.refresh', 'Refresh')"
               >
                 <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
               </button>
-            </div>
           </div>
         </div>
       </template>
@@ -152,3 +150,69 @@ async function loadChannels() {
 
 onMounted(loadChannels)
 </script>
+
+<style scoped>
+.pricing-toolbar {
+  display: grid;
+  gap: 1rem;
+}
+
+.pricing-guide {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding: 1rem;
+}
+
+.pricing-guide__icon {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: var(--ssxz-radius-button);
+  background: var(--ssxz-surface-muted);
+  color: var(--ssxz-action);
+}
+
+.pricing-guide p {
+  margin: 0;
+  color: var(--ssxz-text-primary);
+  font-weight: 700;
+}
+
+.pricing-guide span {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--ssxz-text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.pricing-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.pricing-search {
+  position: relative;
+  width: min(100%, 24rem);
+}
+
+.pricing-search__icon {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 0.75rem;
+  color: var(--ssxz-text-muted);
+  transform: translateY(-50%);
+}
+
+@media (max-width: 640px) {
+  .pricing-actions,
+  .pricing-search {
+    width: 100%;
+  }
+}
+</style>

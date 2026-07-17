@@ -1,11 +1,14 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { usageAPI, authStore, copyToClipboard } = vi.hoisted(() => ({
+const { usageAPI, keysAPI, authStore, appStore, copyToClipboard } = vi.hoisted(() => ({
   usageAPI: {
     getStatsByDateRange: vi.fn(),
     query: vi.fn(),
     getDashboardTrend: vi.fn()
+  },
+  keysAPI: {
+    list: vi.fn()
   },
   authStore: {
     user: {
@@ -14,6 +17,10 @@ const { usageAPI, authStore, copyToClipboard } = vi.hoisted(() => ({
       email: 'real@example.com'
     },
     refreshUser: vi.fn()
+  },
+  appStore: {
+    showSuccess: vi.fn(),
+    showError: vi.fn()
   },
   copyToClipboard: vi.fn()
 }))
@@ -103,7 +110,12 @@ function translate(key: string, params?: Record<string, unknown>) {
 }
 
 vi.mock('@/api', () => ({
-  usageAPI
+  usageAPI,
+  keysAPI
+}))
+
+vi.mock('@/stores/app', () => ({
+  useAppStore: () => appStore
 }))
 
 vi.mock('@/stores/auth', () => ({
@@ -181,6 +193,10 @@ describe('AppUsageView', () => {
     usageAPI.getStatsByDateRange.mockReset()
     usageAPI.query.mockReset()
     usageAPI.getDashboardTrend.mockReset()
+    keysAPI.list.mockReset()
+    keysAPI.list.mockResolvedValue({ items: [], total: 0, pages: 0 })
+    appStore.showSuccess.mockReset()
+    appStore.showError.mockReset()
     copyToClipboard.mockReset()
     copyToClipboard.mockResolvedValue(true)
     authStore.refreshUser.mockReset()
@@ -290,7 +306,7 @@ describe('AppUsageView', () => {
     expect(text).toContain('Account balance')
     expect(text).toContain('$8.53')
     expect(text).toContain('Current-month spend')
-    expect(text).toContain('$1.2345')
+    expect(text).toContain('$1.23')
     expect(text).toContain('This month: 3 requests and 57 usage units.')
     expect(text).toContain('Monthly usage')
     expect(text).toContain('Real data')
@@ -317,8 +333,8 @@ describe('AppUsageView', () => {
     expect(tableText).toContain('Balance charge')
     expect(tableText).toContain('Subscription quota')
     expect(tableText).toContain('No balance charged')
-    expect(tableText).toContain('Actual charge $0.8800')
-    expect(tableText).toContain('Actual charge $0.3545')
+    expect(tableText).toContain('Actual charge $0.88')
+    expect(tableText).toContain('Actual charge $0.35')
     expect(tableText).toContain('No balance was deducted for this row.')
     expect(tableText).toContain('Processing time')
     expect(tableText).toContain('Longer processing')
@@ -581,5 +597,34 @@ describe('AppUsageView', () => {
     expect(text).toContain('Monthly trend is temporarily unavailable')
     expect(text).toContain('API failures are not presented as an empty trend')
     expect(text).not.toContain('No monthly usage data yet')
+  })
+
+  it('applies real model and API key filters without inventing a group filter', async () => {
+    mockZeroStats()
+    keysAPI.list.mockResolvedValue({
+      items: [{ id: 17, name: 'Client key' }],
+      total: 1,
+      pages: 1
+    })
+    usageAPI.query.mockResolvedValue({ items: [], total: 0, pages: 0 })
+    usageAPI.getDashboardTrend.mockResolvedValue({ trend: [] })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    wrapper.getComponent({ name: 'Select' }).vm.$emit('update:modelValue', 17)
+    await flushPromises()
+    const modelInput = wrapper.get('input[type="search"]')
+    await modelInput.setValue('gpt-5.5')
+    await modelInput.trigger('keyup.enter')
+    await flushPromises()
+
+    expect(usageAPI.query).toHaveBeenLastCalledWith(expect.objectContaining({
+      page: 1,
+      page_size: 8,
+      api_key_id: 17,
+      model: 'gpt-5.5'
+    }))
+    expect(usageAPI.query.mock.calls.at(-1)?.[0]).not.toHaveProperty('group_id')
   })
 })

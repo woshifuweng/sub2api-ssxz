@@ -1025,7 +1025,11 @@ export default {
       imageAmountWithSize: '{count} images / {size}',
       tokenAmount: '{count} tokens',
       requestCount: '{count} requests',
-      monthLabel: 'Month {month}'
+      monthLabel: 'Month {month}',
+      modelFilterPlaceholder: 'Enter model name',
+      startDate: 'Start date',
+      endDate: 'End date',
+      paginationSummary: '{total} records'
     },
     costDetails: 'Cost Breakdown',
     tokenDetails: 'Token Breakdown',

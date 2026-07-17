@@ -92,6 +92,45 @@
           </button>
         </header>
 
+        <div class="usage-filters" data-testid="usage-filters">
+          <label class="filter-field">
+            <span>{{ t('usage.apiKeyFilter') }}</span>
+            <Select
+              data-testid="usage-api-key-filter"
+              :model-value="filters.api_key_id"
+              :options="apiKeyOptions"
+              @update:model-value="updateApiKeyFilter"
+            />
+          </label>
+          <label class="filter-field">
+            <span>{{ t('usage.model') }}</span>
+            <input
+              v-model.trim="filters.model"
+              class="f0-input-control"
+              type="search"
+              :placeholder="t('usage.workbench.modelFilterPlaceholder')"
+              @keyup.enter="applyFilters"
+            />
+          </label>
+          <label class="filter-field">
+            <span>{{ t('usage.workbench.startDate') }}</span>
+            <input v-model="filters.start_date" class="f0-input-control" type="date" @change="applyFilters" />
+          </label>
+          <label class="filter-field">
+            <span>{{ t('usage.workbench.endDate') }}</span>
+            <input v-model="filters.end_date" class="f0-input-control" type="date" @change="applyFilters" />
+          </label>
+          <div class="filter-actions">
+            <button type="button" class="f0-button f0-button--outline" @click="resetFilters">
+              {{ t('common.reset') }}
+            </button>
+            <button type="button" class="f0-button f0-button--default" :disabled="exporting || totalRows === 0" @click="exportToCSV">
+              <Icon name="download" size="xs" />
+              {{ exporting ? t('usage.exporting') : t('usage.exportCsv') }}
+            </button>
+          </div>
+        </div>
+
         <div v-if="loading" class="usage-empty compact">
           <Icon name="sync" size="md" />
           <strong>{{ t('usage.workbench.loading') }}</strong>
@@ -110,7 +149,7 @@
         </div>
 
         <div v-else class="usage-table-wrap">
-          <table class="usage-table">
+          <table class="usage-table f0-table">
             <thead>
               <tr>
                 <th>{{ t('usage.workbench.createdAt') }}</th>
@@ -174,6 +213,18 @@
             </tbody>
           </table>
         </div>
+        <div v-if="!loading && totalRows > 0" class="usage-pagination">
+          <span>{{ t('usage.workbench.paginationSummary', { total: totalRows }) }}</span>
+          <div>
+            <button type="button" class="f0-button f0-button--outline f0-button--sm" :disabled="page <= 1" @click="changePage(page - 1)">
+              {{ t('pagination.previous') }}
+            </button>
+            <strong>{{ page }} / {{ totalPages }}</strong>
+            <button type="button" class="f0-button f0-button--outline f0-button--sm" :disabled="page >= totalPages" @click="changePage(page + 1)">
+              {{ t('pagination.next') }}
+            </button>
+          </div>
+        </div>
       </section>
     </section>
   </AppSectionShell>
@@ -184,10 +235,12 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { usageAPI } from '@/api'
+import Select from '@/components/common/Select.vue'
+import { keysAPI, usageAPI } from '@/api'
+import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useClipboard } from '@/composables/useClipboard'
-import type { TrendDataPoint, UsageLog, UsageStatsResponse } from '@/types'
+import type { ApiKey, TrendDataPoint, UsageLog, UsageQueryParams, UsageStatsResponse } from '@/types'
 import {
   formatCurrency as formatMoney,
   formatCurrencyTitle as formatMoneyTitle
@@ -203,6 +256,7 @@ interface MonthlyUsage {
 
 const { t } = useI18n()
 const authStore = useAuthStore()
+const appStore = useAppStore()
 const { copyToClipboard } = useClipboard()
 const usageRows = ref<UsageLog[]>([])
 const usageStats = ref<UsageStatsResponse | null>(null)
@@ -213,6 +267,12 @@ const statsLoadError = ref(false)
 const trendLoadError = ref(false)
 const balanceRefreshError = ref(false)
 const copiedSupportCode = ref<string | null>(null)
+const apiKeys = ref<ApiKey[]>([])
+const exporting = ref(false)
+const page = ref(1)
+const pageSize = 8
+const totalRows = ref(0)
+const totalPages = ref(1)
 
 const today = new Date()
 const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
@@ -221,6 +281,12 @@ const trendStart = new Date(today.getFullYear(), today.getMonth() - 5, 1)
 const todayKey = toDateKey(today)
 const monthStartKey = toDateKey(monthStart)
 const trendStartKey = toDateKey(trendStart)
+const filters = ref<UsageQueryParams>({
+  api_key_id: undefined,
+  model: '',
+  start_date: monthStartKey,
+  end_date: todayKey
+})
 
 const balanceText = computed(() => formatMoney(authStore.user?.balance || 0))
 const balanceTitle = computed(() => formatMoneyTitle(authStore.user?.balance || 0))
@@ -260,9 +326,14 @@ const isDemoUser = computed(() => {
 const usageDataBadge = computed(() =>
   isDemoUser.value ? t('usage.workbench.demoDataBadge') : t('usage.workbench.realDataBadge')
 )
+const apiKeyOptions = computed(() => [
+  { value: null, label: t('usage.allApiKeys') },
+  ...apiKeys.value.map((key) => ({ value: key.id, label: key.name }))
+])
 const chartMax = computed(() => Math.max(1, ...monthlySeries.value.map((item) => chartMetric(item))))
 
 onMounted(() => {
+  void loadApiKeys()
   void loadUsageOverview()
 })
 
@@ -274,12 +345,18 @@ async function loadUsageOverview() {
   balanceRefreshError.value = false
 
   const [statsResult, logsResult, trendResult, userResult] = await Promise.allSettled([
-    usageAPI.getStatsByDateRange(monthStartKey, todayKey),
+    usageAPI.getStatsByDateRange(
+      monthStartKey,
+      todayKey,
+      filters.value.api_key_id ? Number(filters.value.api_key_id) : undefined
+    ),
     usageAPI.query({
-      page: 1,
-      page_size: 8,
-      start_date: monthStartKey,
-      end_date: todayKey
+      page: page.value,
+      page_size: pageSize,
+      api_key_id: filters.value.api_key_id ? Number(filters.value.api_key_id) : undefined,
+      model: filters.value.model?.trim() || undefined,
+      start_date: filters.value.start_date || monthStartKey,
+      end_date: filters.value.end_date || todayKey
     }),
     usageAPI.getDashboardTrend({
       start_date: trendStartKey,
@@ -298,8 +375,12 @@ async function loadUsageOverview() {
 
   if (logsResult.status === 'fulfilled') {
     usageRows.value = Array.isArray(logsResult.value.items) ? logsResult.value.items : []
+    totalRows.value = Number(logsResult.value.total || 0)
+    totalPages.value = Math.max(1, Number(logsResult.value.pages || 1))
   } else {
     usageRows.value = []
+    totalRows.value = 0
+    totalPages.value = 1
     detailsLoadError.value = true
   }
 
@@ -315,6 +396,91 @@ async function loadUsageOverview() {
   }
 
   loading.value = false
+}
+
+async function loadApiKeys() {
+  try {
+    const response = await keysAPI.list(1, 100)
+    apiKeys.value = Array.isArray(response.items) ? response.items : []
+  } catch {
+    apiKeys.value = []
+  }
+}
+
+function applyFilters() {
+  page.value = 1
+  void loadUsageOverview()
+}
+
+function updateApiKeyFilter(value: string | number | boolean | null) {
+  filters.value.api_key_id = typeof value === 'number' ? value : undefined
+  applyFilters()
+}
+
+function resetFilters() {
+  filters.value = {
+    api_key_id: undefined,
+    model: '',
+    start_date: monthStartKey,
+    end_date: todayKey
+  }
+  applyFilters()
+}
+
+function changePage(nextPage: number) {
+  page.value = Math.min(Math.max(1, nextPage), totalPages.value)
+  void loadUsageOverview()
+}
+
+function escapeCSVValue(value: unknown) {
+  if (value == null) return ''
+  const raw = String(value)
+  const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw
+  return /[,"\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe
+}
+
+async function exportToCSV() {
+  if (totalRows.value === 0) return
+  exporting.value = true
+  try {
+    const rows: UsageLog[] = []
+    const exportPageSize = 100
+    const pages = Math.ceil(totalRows.value / exportPageSize)
+    for (let exportPage = 1; exportPage <= pages; exportPage += 1) {
+      const response = await usageAPI.query({
+        page: exportPage,
+        page_size: exportPageSize,
+        api_key_id: filters.value.api_key_id ? Number(filters.value.api_key_id) : undefined,
+        model: filters.value.model?.trim() || undefined,
+        start_date: filters.value.start_date,
+        end_date: filters.value.end_date
+      })
+      rows.push(...response.items)
+    }
+    const header = ['Time', 'Model', 'Endpoint', 'Input Tokens', 'Output Tokens', 'Standard Cost', 'Actual Cost', 'Support Code']
+    const body = rows.map((row) => [
+      row.created_at,
+      row.model,
+      resolveEndpoint(row),
+      row.input_tokens,
+      row.output_tokens,
+      row.total_cost,
+      row.actual_cost,
+      resolveSupportCode(row)
+    ].map(escapeCSVValue).join(','))
+    const blob = new Blob([[header.join(','), ...body].join('\n')], { type: 'text/csv;charset=utf-8' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `usage_${filters.value.start_date}_to_${filters.value.end_date}.csv`
+    link.click()
+    window.URL.revokeObjectURL(url)
+    appStore.showSuccess(t('usage.exportSuccess'))
+  } catch {
+    appStore.showError(t('usage.exportFailed'))
+  } finally {
+    exporting.value = false
+  }
 }
 
 function buildMonthlySeries(points: TrendDataPoint[]): MonthlyUsage[] {
@@ -537,6 +703,45 @@ function toDateKey(date: Date) {
   box-shadow: var(--ssxz-shadow);
 }
 
+.usage-filters {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) minmax(10rem, 1fr) minmax(9rem, 0.8fr) minmax(9rem, 0.8fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+  border-bottom: 1px solid var(--ssxz-border);
+  padding: 1rem;
+}
+
+.filter-field {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--ssxz-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.filter-actions,
+.usage-pagination,
+.usage-pagination > div {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.usage-pagination {
+  justify-content: space-between;
+  border-top: 1px solid var(--ssxz-border);
+  color: var(--ssxz-text-muted);
+  padding: 0.85rem 1rem;
+  font-size: 0.8rem;
+}
+
+.usage-pagination strong {
+  min-width: 4rem;
+  color: var(--ssxz-text-primary);
+  text-align: center;
+}
+
 .usage-summary-card {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -731,8 +936,8 @@ function toDateKey(date: Date) {
 .chart-bar {
   width: 100%;
   border-radius: 0.9rem 0.9rem 0 0;
-  background: linear-gradient(180deg, var(--ssxz-accent), var(--ssxz-action));
-  box-shadow: 0 -8px 24px color-mix(in srgb, var(--ssxz-action) 28%, transparent);
+  background: var(--ssxz-action);
+  box-shadow: 0 -6px 18px color-mix(in srgb, var(--ssxz-action) 18%, transparent);
 }
 
 .chart-column strong {
@@ -917,6 +1122,24 @@ function toDateKey(date: Date) {
 
   .panel-heading {
     flex-direction: column;
+  }
+
+  .usage-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-actions,
+  .filter-actions .f0-button {
+    width: 100%;
+  }
+
+  .usage-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .usage-pagination > div {
+    justify-content: space-between;
   }
 }
 </style>
