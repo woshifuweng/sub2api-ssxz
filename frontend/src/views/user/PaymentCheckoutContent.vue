@@ -1,18 +1,18 @@
 <template>
-  <div class="mx-auto max-w-6xl space-y-6">
+  <div class="payment-checkout mx-auto max-w-6xl space-y-6" data-testid="payment-checkout">
     <div v-if="loading" class="flex items-center justify-center py-20">
       <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
     </div>
     <template v-else>
-      <section v-if="paymentPhase === 'select' && !selectedPlan" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-700 dark:bg-dark-900">
+      <section v-if="paymentPhase === 'select' && !selectedPlan" class="checkout-overview rounded-2xl p-5">
         <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div>
             <div class="mb-3 flex flex-wrap items-center gap-2">
-              <span class="inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-950/40 dark:text-primary-300">
-                <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+              <span class="checkout-kicker inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold">
+                <span class="checkout-kicker-dot h-2 w-2 rounded-full"></span>
                 充值 / 订阅
               </span>
-              <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-gray-300">
+              <span class="checkout-balance rounded-full px-3 py-1 text-xs font-medium">
                 当前余额 ${{ user?.balance?.toFixed(2) || '0.00' }} 额度
               </span>
             </div>
@@ -21,7 +21,7 @@
             </h1>
             <p class="mt-3 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-400">
               余额可用于站内聊天、图片生成和 API Key / 第三方客户端调用，消费记录可在用量明细中查看。
-              充值支付使用人民币 ¥，到账后显示为账户 $ 额度。
+                补充额度支付使用人民币 ¥，到账后显示为账户 $ 额度。
             </p>
           </div>
 
@@ -30,7 +30,7 @@
               v-for="item in quickLinks"
               :key="item.to"
               :to="item.to"
-              class="rounded-xl border border-gray-200 bg-gray-50 p-3 transition hover:border-primary-300 hover:bg-primary-50 dark:border-dark-700 dark:bg-dark-800/70 dark:hover:border-primary-500/70 dark:hover:bg-primary-950/30"
+              class="checkout-link rounded-xl p-3 transition"
             >
               <Icon :name="item.icon" size="sm" class="mb-2 text-primary-500" />
               <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ item.title }}</p>
@@ -40,15 +40,15 @@
         </div>
 
         <div class="mt-5 grid gap-3 md:grid-cols-3">
-          <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-800/70">
+          <div class="checkout-note rounded-xl p-4">
             <p class="text-sm font-semibold text-gray-900 dark:text-white">账户额度</p>
             <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">适合按需使用。补充后可用于聊天、图片生成和第三方客户端调用。</p>
           </div>
-          <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-800/70">
+          <div class="checkout-note rounded-xl p-4">
             <p class="text-sm font-semibold text-gray-900 dark:text-white">权益订阅</p>
             <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">适合长期使用。可用范围、额度和有效期以页面说明为准。</p>
           </div>
-          <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-800/70">
+          <div class="checkout-note rounded-xl p-4">
             <p class="text-sm font-semibold text-gray-900 dark:text-white">图片生成</p>
             <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">图片生成消耗会根据所选模型、规格和数量计算，实际记录可在用量中心查看。</p>
           </div>
@@ -56,10 +56,10 @@
       </section>
 
       <!-- Tab Switcher (hide during payment and subscription confirm) -->
-      <div v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan" class="flex space-x-1 rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
+      <div v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan" class="checkout-tabs flex space-x-1 rounded-xl p-1">
         <button v-for="tab in tabs" :key="tab.key"
           class="flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all"
-          :class="activeTab === tab.key ? 'bg-white text-gray-900 shadow dark:bg-dark-700 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
+          :class="activeTab === tab.key ? 'checkout-tab-active' : 'checkout-tab-idle'"
           @click="activeTab = tab.key">{{ tab.label }}</button>
       </div>
       <!-- Payment in progress (shared by recharge and subscription) -->
@@ -84,7 +84,7 @@
           <div class="card p-5">
             <p class="text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
             <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
-            <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: ${{ user?.balance?.toFixed(2) || '0.00' }} 额度</p>
+            <p class="mt-0.5 text-sm font-medium text-gray-600 dark:text-gray-300">{{ t('payment.currentBalance') }}: ${{ user?.balance?.toFixed(2) || '0.00' }} 额度</p>
           </div>
           <div v-if="enabledMethods.length === 0" class="card py-16 text-center">
             <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
@@ -121,7 +121,7 @@
               </div>
               <div v-if="feeRate > 0" class="flex justify-between border-t border-gray-200 pt-2 dark:border-dark-600">
                 <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
-                <span class="text-lg font-bold text-primary-600 dark:text-primary-400">¥{{ totalAmount.toFixed(2) }}</span>
+                <span class="text-lg font-bold text-gray-900 dark:text-white">¥{{ totalAmount.toFixed(2) }}</span>
               </div>
               <div class="flex justify-between" :class="{ 'border-t border-gray-200 pt-2 dark:border-dark-600': feeRate <= 0 }">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.creditedBalance') }}</span>
@@ -213,7 +213,7 @@
                 </div>
                 <div class="flex justify-between border-t border-gray-200 pt-2 dark:border-dark-600">
                   <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
-                  <span class="text-lg font-bold text-primary-600 dark:text-primary-400">¥{{ subTotalAmount.toFixed(2) }}</span>
+                  <span class="text-lg font-bold text-gray-900 dark:text-white">¥{{ subTotalAmount.toFixed(2) }}</span>
                 </div>
               </div>
             </div>
@@ -643,7 +643,7 @@ const creditedAmount = computed(() => Math.round((validAmount.value * balanceRec
 const checkoutHelpText = computed(() => {
   const text = checkout.value.help_text?.trim() || ''
   if (text === 'Recharge adds account balance. Usage and fee records follow backend ledger data.') {
-    return '充值会增加账户额度，用量和扣费记录以系统记录为准。'
+    return '补充额度会增加账户额度，用量和扣费记录以系统记录为准。'
   }
   return text
 })
@@ -768,13 +768,8 @@ watch(() => [validAmount.value, selectedMethod.value] as const, ([amt, method]) 
   if (available) selectedMethod.value = available
 })
 
-// Payment button class: follows selected payment method color
+// Provider branding stays on the method icon; the primary action follows F0.
 const paymentButtonClass = computed(() => {
-  const m = selectedMethod.value
-  if (!m) return 'btn-primary'
-  if (m.includes('alipay')) return 'btn-alipay'
-  if (m.includes('wxpay')) return 'btn-wxpay'
-  if (m === 'stripe') return 'btn-stripe'
   return 'btn-primary'
 })
 
@@ -1203,3 +1198,60 @@ onMounted(async () => {
   subscriptionStore.fetchActiveSubscriptions().catch(() => {})
 })
 </script>
+
+<style scoped>
+.payment-checkout {
+  color: var(--ssxz-text-primary);
+}
+
+.payment-checkout :deep(.card),
+.checkout-overview {
+  border: 1px solid var(--ssxz-border);
+  background: var(--ssxz-surface);
+  box-shadow: var(--ssxz-shadow);
+}
+
+.checkout-kicker {
+  background: var(--ssxz-action-soft);
+  color: var(--ssxz-action);
+}
+
+.checkout-kicker-dot {
+  background: var(--ssxz-action);
+}
+
+.checkout-balance,
+.checkout-tabs,
+.checkout-note {
+  background: var(--ssxz-surface-muted);
+  color: var(--ssxz-text-secondary);
+}
+
+.checkout-link {
+  border: 1px solid var(--ssxz-border);
+  background: var(--ssxz-surface-raised);
+}
+
+.checkout-link:hover {
+  border-color: var(--ssxz-border-strong);
+  background: var(--ssxz-action-soft);
+}
+
+.checkout-tab-active {
+  background: var(--ssxz-surface-raised);
+  color: var(--ssxz-text-primary);
+  box-shadow: var(--ssxz-shadow-soft);
+}
+
+.checkout-tab-idle {
+  color: var(--ssxz-text-muted);
+}
+
+.checkout-tab-idle:hover {
+  color: var(--ssxz-text-primary);
+}
+
+.payment-checkout :deep(.modal-overlay) {
+  background: rgb(0 0 0 / 68%);
+}
+</style>

@@ -1,6 +1,6 @@
 <template>
   <AppSectionShell
-    title="我的订单"
+    title="账户记录"
     subtitle="查看充值、兑换、订单状态和账户额度变化。"
     eyebrow="账户计费"
     icon="creditCard"
@@ -69,21 +69,21 @@
 
         <div v-if="loading" class="orders-empty compact">
           <Icon name="sync" size="md" />
-          <strong>正在加载我的订单</strong>
+          <strong>正在加载账户记录</strong>
         </div>
 
         <div v-else-if="loadError" class="orders-empty compact">
           <Icon name="exclamationTriangle" size="md" />
           <strong>{{ loadError }}</strong>
-          <span>订单记录正在更新，请稍后刷新。如果刚完成支付，到账可能需要一点时间。</span>
+          <span>账户记录正在更新，请稍后刷新。如果刚完成支付，到账可能需要一点时间。</span>
         </div>
 
         <div v-else-if="orders.length === 0" class="orders-empty compact">
           <Icon name="inbox" size="md" />
-          <strong>暂无订单记录</strong>
+          <strong>暂无账户记录</strong>
           <span>完成充值、兑换或额度调整后，记录会显示在这里。</span>
           <div class="empty-actions">
-            <RouterLink v-if="purchaseEnabled" to="/app/purchase" class="empty-action">充值 / 订阅</RouterLink>
+            <RouterLink v-if="purchaseEnabled" to="/app/purchase" class="empty-action">补充额度</RouterLink>
             <RouterLink to="/app/redeem" class="empty-action secondary">使用兑换码</RouterLink>
           </div>
         </div>
@@ -263,12 +263,12 @@ const purchaseEnabled = computed(() => (
 const balanceText = computed(() => `$${Number(authStore.user?.balance || 0).toFixed(2)}`)
 const orderCountText = computed(() => String(totalOrders.value || orders.value.length))
 const disabledOrdersTitle = computed(() => (
-  purchaseEnabled.value ? '当前账号可查看已有订单记录' : '当前可用方式：兑换码'
+  purchaseEnabled.value ? '当前账号可查看已有账户记录' : '当前可用方式：兑换码'
 ))
 const disabledOrdersDescription = computed(() => (
   purchaseEnabled.value
-    ? '已有订单和账户变化会保留在我的订单中；如需充值，可先查看可用方式。'
-    : '可继续使用已有额度，或通过兑换码补充账户额度；已有订单记录仍可在这里查看。'
+    ? '已有订单和账户变化会保留在账户记录中；如需充值，可先查看补充额度方式。'
+    : '可继续使用已有额度，或通过兑换码补充账户额度；已有账户记录仍可在这里查看。'
 ))
 const totalPages = computed(() => Math.max(1, Math.ceil(totalOrders.value / pagination.page_size)))
 const statusFilters = [
@@ -310,7 +310,7 @@ async function loadOrders() {
     orders.value = []
     totalOrders.value = 0
     pagination.total = 0
-    loadError.value = '订单记录暂时无法加载'
+    loadError.value = '账户记录暂时无法加载'
   } finally {
     loading.value = false
   }

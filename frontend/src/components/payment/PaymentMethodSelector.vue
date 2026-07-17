@@ -10,12 +10,12 @@
         type="button"
         :disabled="!method.available"
         :class="[
-          'relative flex h-[60px] flex-col items-center justify-center rounded-lg border px-3 transition-all sm:flex-1',
+          'payment-method relative flex h-[64px] flex-col items-center justify-center rounded-lg px-3 transition-all sm:flex-1',
           !method.available
-            ? 'cursor-not-allowed border-gray-200 bg-gray-50 opacity-50 dark:border-dark-700 dark:bg-dark-800/50'
+            ? 'payment-method-disabled cursor-not-allowed opacity-50'
             : selected === method.type
-              ? methodSelectedClass(method.type)
-              : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-200 dark:hover:border-dark-500',
+              ? 'payment-method-selected'
+              : 'payment-method-idle',
         ]"
         @click="method.available && emit('select', method.type)"
       >
@@ -82,10 +82,29 @@ function methodIcon(type: string): string {
   return METHOD_ICONS[type] || alipayIcon
 }
 
-function methodSelectedClass(type: string): string {
-  if (type.includes('alipay')) return 'border-[#02A9F1] bg-blue-50 text-gray-900 shadow-sm dark:bg-blue-950 dark:text-gray-100'
-  if (type.includes('wxpay')) return 'border-[#09BB07] bg-green-50 text-gray-900 shadow-sm dark:bg-green-950 dark:text-gray-100'
-  if (type === 'stripe') return 'border-[#676BE5] bg-indigo-50 text-gray-900 shadow-sm dark:bg-indigo-950 dark:text-gray-100'
-  return 'border-primary-500 bg-primary-50 text-gray-900 shadow-sm dark:bg-primary-950 dark:text-gray-100'
-}
 </script>
+
+<style scoped>
+.payment-method {
+  border: 1px solid var(--ssxz-border);
+  background: var(--ssxz-surface-raised);
+  color: var(--ssxz-text-secondary);
+}
+
+.payment-method-idle:hover {
+  border-color: var(--ssxz-border-strong);
+  background: var(--ssxz-surface-muted);
+  color: var(--ssxz-text-primary);
+}
+
+.payment-method-selected {
+  border-color: var(--ssxz-action);
+  background: var(--ssxz-action-soft);
+  color: var(--ssxz-text-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ssxz-action) 18%, transparent);
+}
+
+.payment-method-disabled {
+  background: var(--ssxz-surface-muted);
+}
+</style>
