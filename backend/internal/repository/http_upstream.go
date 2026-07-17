@@ -243,7 +243,7 @@ func (s *httpUpstreamService) DoWithTLS(req *http.Request, proxyURL string, acco
 	slog.Debug("tls_fingerprint_using_profile", "account_id", accountID, "profile_key", profileKey, "profile", profile.Name, "grease", profile.EnableGREASE)
 
 	// 获取或创建带 TLS 指纹的客户端
-	entry, err := s.acquireClientWithTLS(req, proxyURL, accountID, accountConcurrency, profile)
+	entry, err := s.acquireClientWithTLS(req, proxyURL, accountID, accountConcurrency, profileKey, profile)
 	if err != nil {
 		slog.Debug("tls_fingerprint_acquire_client_failed", "account_id", accountID, "error", err)
 		return nil, err
@@ -271,13 +271,13 @@ func (s *httpUpstreamService) DoWithTLS(req *http.Request, proxyURL string, acco
 }
 
 // acquireClientWithTLS 获取或创建带 TLS 指纹的客户端
-func (s *httpUpstreamService) acquireClientWithTLS(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile) (*upstreamClientEntry, error) {
-	return s.getClientEntryWithTLS(req, proxyURL, accountID, accountConcurrency, profile, true, true)
+func (s *httpUpstreamService) acquireClientWithTLS(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, profileKey string, profile *tlsfingerprint.Profile) (*upstreamClientEntry, error) {
+	return s.getClientEntryWithTLS(req, proxyURL, accountID, accountConcurrency, profileKey, profile, true, true)
 }
 
 // getClientEntryWithTLS 获取或创建带 TLS 指纹的客户端条目
 // TLS 指纹客户端使用独立的缓存键，与普通客户端隔离
-func (s *httpUpstreamService) getClientEntryWithTLS(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile, markInFlight bool, enforceLimit bool) (*upstreamClientEntry, error) {
+func (s *httpUpstreamService) getClientEntryWithTLS(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, profileKey string, profile *tlsfingerprint.Profile, markInFlight bool, enforceLimit bool) (*upstreamClientEntry, error) {
 	isolation := s.getIsolationMode()
 	proxyKey, parsedProxy, err := normalizeProxyURL(proxyURL)
 	if err != nil {
@@ -285,7 +285,10 @@ func (s *httpUpstreamService) getClientEntryWithTLS(req *http.Request, proxyURL 
 	}
 	settings := s.resolvePoolSettingsForRequest(req, isolation, accountConcurrency)
 	// TLS 指纹客户端使用独立的缓存键，加 "tls:" 前缀
-	cacheKey := "tls:" + buildCacheKey(isolation, proxyKey, accountID)
+	cacheKey := "tls:" + buildTLSCacheKey(
+		buildCacheKey(isolation, proxyKey, accountID),
+		buildTLSProfileCacheToken(profileKey, profile),
+	)
 	poolKey := s.buildPoolKey(isolation, accountConcurrency, settings) + ":tls"
 
 	now := time.Now()
@@ -789,6 +792,28 @@ func buildCacheKey(isolation, proxyKey string, accountID int64) string {
 //   - string: 标准化的代理键（空返回 "direct"）
 //   - *url.URL: 解析后的 URL（空返回 nil）
 //   - error: 非空代理 URL 解析失败时返回错误（禁止回退到直连）
+func buildTLSCacheKey(baseKey, profileKey string) string {
+	profileKey = strings.TrimSpace(profileKey)
+	if profileKey == "" {
+		profileKey = tlsfingerprint.DefaultProfileName
+	}
+	return baseKey + "|profile:" + profileKey
+}
+
+func buildTLSProfileCacheToken(profileKey string, profile *tlsfingerprint.Profile) string {
+	if profile == nil {
+		return profileKey
+	}
+	return fmt.Sprintf(
+		"%s|grease:%t|cipher:%v|curves:%v|points:%v",
+		strings.TrimSpace(profileKey),
+		profile.EnableGREASE,
+		profile.CipherSuites,
+		profile.Curves,
+		profile.PointFormats,
+	)
+}
+
 func normalizeProxyURL(raw string) (string, *url.URL, error) {
 	_, parsed, err := proxyurl.Parse(raw)
 	if err != nil {

@@ -36,19 +36,19 @@ type SchedulerAdmissionTester interface {
 // TokenRefreshService OAuth token自动刷新服务
 // 定期检查并刷新即将过期的token
 type TokenRefreshService struct {
-	accountRepo      AccountRepository
-	refreshers       []TokenRefresher
-	executors        []OAuthRefreshExecutor // 与 refreshers 一一对应的 executor（带 CacheKey）
-	refreshPolicy    BackgroundRefreshPolicy
-	cfg              *config.TokenRefreshConfig
-	rateLimitService *RateLimitService
-	cacheInvalidator TokenCacheInvalidator
-	schedulerCache   SchedulerCache   // 用于同步更新调度器缓存，解决 token 刷新后缓存不一致问题
-	tempUnschedCache TempUnschedCache // 用于清除 Redis 中的临时不可调度缓存
-	refreshAPI       *OAuthRefreshAPI // 统一刷新 API
-	admissionCh      chan int64
-	admissionMu      sync.Mutex
-	admissionLastRun map[int64]time.Time
+	accountRepo          AccountRepository
+	refreshers           []TokenRefresher
+	executors            []OAuthRefreshExecutor // 与 refreshers 一一对应的 executor（带 CacheKey）
+	refreshPolicy        BackgroundRefreshPolicy
+	cfg                  *config.TokenRefreshConfig
+	rateLimitService     *RateLimitService
+	cacheInvalidator     TokenCacheInvalidator
+	schedulerCache       SchedulerCache   // 用于同步更新调度器缓存，解决 token 刷新后缓存不一致问题
+	tempUnschedCache     TempUnschedCache // 用于清除 Redis 中的临时不可调度缓存
+	refreshAPI           *OAuthRefreshAPI // 统一刷新 API
+	admissionCh          chan int64
+	admissionMu          sync.Mutex
+	admissionLastRun     map[int64]time.Time
 	openAIAdmissionProbe func(ctx context.Context, account *Account) error
 
 	// OpenAI privacy: 刷新成功后检查并设置 training opt-out
@@ -89,6 +89,7 @@ func NewTokenRefreshService(
 	claudeRefresher := NewClaudeTokenRefresher(oauthService)
 	geminiRefresher := NewGeminiTokenRefresher(geminiOAuthService)
 	agRefresher := NewAntigravityTokenRefresher(antigravityOAuthService)
+	kiroRefresher := NewKiroTokenRefresher()
 
 	// 注册平台特定的刷新器（TokenRefresher 接口）
 	s.refreshers = []TokenRefresher{
@@ -96,6 +97,7 @@ func NewTokenRefreshService(
 		openAIRefresher,
 		geminiRefresher,
 		agRefresher,
+		kiroRefresher,
 	}
 
 	// 注册对应的 OAuthRefreshExecutor（带 CacheKey 方法）
@@ -104,6 +106,7 @@ func NewTokenRefreshService(
 		openAIRefresher,
 		geminiRefresher,
 		agRefresher,
+		kiroRefresher,
 	}
 
 	return s
@@ -645,8 +648,7 @@ func (s *TokenRefreshService) refreshWithRetry(ctx context.Context, account *Acc
 			newCredentials, err = refresher.Refresh(ctx, account)
 			if newCredentials != nil {
 				newCredentials["_token_version"] = time.Now().UnixMilli()
-				account.Credentials = newCredentials
-				if saveErr := s.accountRepo.Update(ctx, account); saveErr != nil {
+				if saveErr := persistAccountCredentials(ctx, s.accountRepo, account, newCredentials); saveErr != nil {
 					return fmt.Errorf("failed to save credentials: %w", saveErr)
 				}
 			}

@@ -1896,6 +1896,20 @@ type mockConcurrencyCache struct {
 	skipDefaultLoad     bool
 }
 
+func normalizeMockAccountLoadInfo(load *AccountLoadInfo, maxConcurrency int) *AccountLoadInfo {
+	if load == nil {
+		return nil
+	}
+	normalized := *load
+	if normalized.LoadRate > 0 && normalized.CurrentConcurrency == 0 && normalized.WaitingCount == 0 && maxConcurrency > 0 {
+		normalized.CurrentConcurrency = (normalized.LoadRate*maxConcurrency + 99) / 100
+		if normalized.CurrentConcurrency <= 0 {
+			normalized.CurrentConcurrency = 1
+		}
+	}
+	return &normalized
+}
+
 func (m *mockConcurrencyCache) AcquireAccountSlot(ctx context.Context, accountID int64, maxConcurrency int, requestID string) (bool, error) {
 	m.acquireAccountCalls++
 	if m.acquireResults != nil {
@@ -1968,7 +1982,7 @@ func (m *mockConcurrencyCache) GetAccountsLoadBatch(ctx context.Context, account
 	if m.skipDefaultLoad && m.loadMap != nil {
 		for _, acc := range accounts {
 			if load, ok := m.loadMap[acc.ID]; ok {
-				result[acc.ID] = load
+				result[acc.ID] = normalizeMockAccountLoadInfo(load, acc.MaxConcurrency)
 			}
 		}
 		return result, nil
@@ -1976,7 +1990,7 @@ func (m *mockConcurrencyCache) GetAccountsLoadBatch(ctx context.Context, account
 	for _, acc := range accounts {
 		if m.loadMap != nil {
 			if load, ok := m.loadMap[acc.ID]; ok {
-				result[acc.ID] = load
+				result[acc.ID] = normalizeMockAccountLoadInfo(load, acc.MaxConcurrency)
 				continue
 			}
 		}

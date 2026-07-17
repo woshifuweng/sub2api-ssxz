@@ -105,6 +105,8 @@ var ProviderSet = wire.NewSet(
 	NewRedeemCache,
 	NewUpdateCache,
 	NewTaskStateCache,
+	ProvideAccountImportAccountStore,
+	ProvideAccountImportBatchRepository,
 	NewGeminiTokenCache,
 	NewSchedulerCache,
 	NewSchedulerOutboxRepository,

@@ -69,10 +69,10 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	subscriptionService := service.NewSubscriptionService(groupRepository, userSubscriptionRepository, billingCacheService, client, configConfig)
 	authService := service.NewAuthService(client, userRepository, redeemCodeRepository, refreshTokenCache, configConfig, settingService, emailService, turnstileService, emailQueueService, promoService, subscriptionService)
 	userService := service.NewUserService(userRepository, apiKeyAuthCacheInvalidator, billingCache)
-	affiliateRepository := repository.NewAffiliateRepository(client, db)
-	affiliateService := service.NewAffiliateService(affiliateRepository, settingService, apiKeyAuthCacheInvalidator, billingCacheService)
 	redeemCache := repository.NewRedeemCache(redisClient)
 	redeemService := service.NewRedeemService(redeemCodeRepository, userRepository, subscriptionService, redeemCache, billingCacheService, client, apiKeyAuthCacheInvalidator)
+	affiliateRepository := repository.NewAffiliateRepository(client, db)
+	affiliateService := service.NewAffiliateService(affiliateRepository, settingService, apiKeyAuthCacheInvalidator, billingCacheService)
 	secretEncryptor, err := repository.NewAESEncryptor(configConfig)
 	if err != nil {
 		return nil, err
@@ -93,7 +93,6 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	announcementHandler := handler.NewAnnouncementHandler(announcementService)
 	channelMonitorRepository := repository.NewChannelMonitorRepository(client, db)
 	channelMonitorService := service.ProvideChannelMonitorService(channelMonitorRepository, secretEncryptor)
-	channelMonitorRunner := service.ProvideChannelMonitorRunner(channelMonitorService, settingService)
 	channelMonitorUserHandler := handler.NewChannelMonitorUserHandler(channelMonitorService, apiKeyService, settingService)
 	dashboardAggregationRepository := repository.NewDashboardAggregationRepository(db)
 	dashboardStatsCache := repository.NewDashboardCache(redisClient, configConfig)
@@ -117,7 +116,6 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	concurrencyCache := repository.ProvideConcurrencyCache(redisClient, configConfig)
 	concurrencyService := service.ProvideConcurrencyService(concurrencyCache, accountRepository, configConfig)
 	adminUserHandler := admin.NewUserHandler(adminService, concurrencyService)
-	affiliateHandler := admin.NewAffiliateHandler(affiliateService, adminService)
 	sessionLimitCache := repository.ProvideSessionLimitCache(redisClient, configConfig)
 	rpmCache := repository.NewRPMCache(redisClient)
 	groupCapacityService := service.NewGroupCapacityService(accountRepository, groupRepository, concurrencyService, sessionLimitCache, rpmCache)
@@ -222,6 +220,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	tlsFingerprintProfileService := service.NewTLSFingerprintProfileService(tlsFingerprintProfileRepository, tlsFingerprintProfileCache)
 	tlsFingerprintProfileHandler := admin.NewTLSFingerprintProfileHandler(tlsFingerprintProfileService)
 	adminAPIKeyHandler := admin.NewAdminAPIKeyHandler(adminService)
+	affiliateHandler := admin.NewAffiliateHandler(affiliateService, adminService)
 	scheduledTestPlanRepository := repository.NewScheduledTestPlanRepository(db)
 	scheduledTestResultRepository := repository.NewScheduledTestResultRepository(db)
 	scheduledTestService := service.ProvideScheduledTestService(scheduledTestPlanRepository, scheduledTestResultRepository)
@@ -266,10 +265,12 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	imageStudioHandler := handler.NewImageStudioHandler(apiKeyService, subscriptionService, openAIGatewayHandler, configConfig, soraGenerationService, soraMediaStorage)
 	chatStudioHandler := handler.NewChatStudioHandler(apiKeyService, subscriptionService, openAIGatewayHandler, configConfig)
 	chatWorkspaceRepository := repository.NewChatWorkspaceRepository(db)
+	workspaceSelectedModelCatalogChannelLister := service.ProvideWorkspaceSelectedModelCatalogChannelLister(channelService)
 	workspaceSub2APITextBridge := handler.NewWorkspaceSub2APITextBridge(apiKeyService, subscriptionService, openAIGatewayHandler, configConfig)
-	workspaceWebSearchTool := service.ProvideWorkspaceWebSearchTool(configConfig)
-	workspaceToolService := service.NewWorkspaceToolService(configConfig, workspaceWebSearchTool)
-	chatWorkspaceService := service.ProvideChatWorkspaceServiceWithSub2APITextBridge(chatWorkspaceRepository, configConfig, channelService, workspaceSub2APITextBridge, workspaceToolService)
+	webSearchTool := service.ProvideWorkspaceWebSearchTool(configConfig)
+	workspaceToolService := service.NewWorkspaceToolService(configConfig, webSearchTool)
+	workspaceWebSearchService := service.ProvideWorkspaceWebSearchService(workspaceToolService)
+	chatWorkspaceService := service.ProvideChatWorkspaceServiceWithSub2APITextBridge(chatWorkspaceRepository, configConfig, workspaceSelectedModelCatalogChannelLister, workspaceSub2APITextBridge, workspaceWebSearchService)
 	chatWorkspaceHandler := handler.NewChatWorkspaceHandler(chatWorkspaceService)
 	idempotencyCache := repository.NewIdempotencyCache(redisClient)
 	idempotencyCoordinator := service.ProvideIdempotencyCoordinator(idempotencyRepository, idempotencyCache, configConfig)
@@ -289,12 +290,16 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	opsCleanupService := service.ProvideOpsCleanupService(opsRepository, db, redisClient, configConfig, channelMonitorService)
 	opsScheduledReportService := service.ProvideOpsScheduledReportService(opsService, userService, emailService, redisClient, configConfig)
 	soraMediaCleanupService := service.ProvideSoraMediaCleanupService(soraMediaStorage, configConfig)
+	accountImportAccountStore := repository.ProvideAccountImportAccountStore(client, db, schedulerCache)
+	accountImportBatchRepository := repository.ProvideAccountImportBatchRepository(redisClient)
+	accountImportService := service.ProvideAccountImportService(accountImportAccountStore, accountImportBatchRepository, proxyRepository, groupRepository, soraAccountRepository, schedulerSnapshotService, configConfig)
 	accountExpiryService := service.ProvideAccountExpiryService(accountRepository)
 	accountModelsRefreshService := service.ProvideAccountModelsRefreshService(accountRepository, accountTestService)
 	subscriptionExpiryService := service.ProvideSubscriptionExpiryService(userSubscriptionRepository)
+	channelMonitorRunner := service.ProvideChannelMonitorRunner(channelMonitorService, settingService)
 	scheduledTestRunnerService := service.ProvideScheduledTestRunnerService(scheduledTestPlanRepository, scheduledTestService, accountTestService, rateLimitService, configConfig)
 	proxyMaintenanceRunnerService := service.ProvideProxyMaintenanceRunnerService(proxyMaintenanceService, configConfig)
-	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, soraMediaCleanupService, schedulerSnapshotService, tokenRefreshService, accountExpiryService, accountModelsRefreshService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, gatewayService, openAIGatewayService, channelMonitorRunner, scheduledTestRunnerService, proxyMaintenanceRunnerService, backupService)
+	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, soraMediaCleanupService, schedulerSnapshotService, accountImportService, tokenRefreshService, accountExpiryService, accountModelsRefreshService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, gatewayService, openAIGatewayService, channelMonitorRunner, scheduledTestRunnerService, proxyMaintenanceRunnerService, backupService)
 	application := &Application{
 		Server:  httpServer,
 		Cleanup: v,
@@ -361,9 +366,6 @@ func initializeCoordinatorApplication(buildInfo handler.BuildInfo) (*Coordinator
 		return nil, err
 	}
 	billingService := service.NewBillingService(configConfig, pricingService)
-	channelRepository := repository.NewChannelRepository(db)
-	channelService := service.NewChannelService(channelRepository, groupRepository, nil, pricingService)
-	modelPricingResolver := service.NewModelPricingResolver(channelService, billingService)
 	billingCache := repository.NewBillingCache(redisClient)
 	apiKeyRepository := repository.NewAPIKeyRepository(client, db)
 	billingCacheService := service.NewBillingCacheService(billingCache, userRepository, userSubscriptionRepository, apiKeyRepository, configConfig)
@@ -387,6 +389,12 @@ func initializeCoordinatorApplication(buildInfo handler.BuildInfo) (*Coordinator
 	emailService := service.NewEmailService(settingRepository, emailCache)
 	balanceNotifyService := service.ProvideBalanceNotifyService(emailService, settingRepository, accountRepository)
 	gatewayService := service.ProvideGatewayService(accountRepository, groupRepository, usageLogRepository, usageBillingRepository, userRepository, userSubscriptionRepository, userGroupRateRepository, gatewayCache, configConfig, schedulerSnapshotService, concurrencyService, billingService, rateLimitService, billingCacheService, identityService, httpUpstream, deferredService, claudeTokenProvider, sessionLimitCache, rpmCache, digestSessionStore, settingService, proxyRepository, proxyLatencyCache, kiroTokenProvider, kiroGatewayService, balanceNotifyService)
+	channelRepository := repository.NewChannelRepository(db)
+	apiKeyCache := repository.NewAPIKeyCache(redisClient)
+	apiKeyService := service.NewAPIKeyService(apiKeyRepository, userRepository, groupRepository, userSubscriptionRepository, userGroupRateRepository, apiKeyCache, configConfig)
+	apiKeyAuthCacheInvalidator := service.ProvideAPIKeyAuthCacheInvalidator(apiKeyService)
+	channelService := service.NewChannelService(channelRepository, groupRepository, apiKeyAuthCacheInvalidator, pricingService)
+	modelPricingResolver := service.NewModelPricingResolver(channelService, billingService)
 	openAITokenProvider := service.ProvideOpenAITokenProvider(accountRepository, geminiTokenCache, openAIOAuthService, oAuthRefreshAPI)
 	openAIGatewayService := service.NewOpenAIGatewayService(accountRepository, groupRepository, usageLogRepository, usageBillingRepository, userRepository, userSubscriptionRepository, userGroupRateRepository, gatewayCache, configConfig, schedulerSnapshotService, concurrencyService, billingService, modelPricingResolver, rateLimitService, billingCacheService, httpUpstream, deferredService, openAITokenProvider)
 	geminiTokenProvider := service.ProvideGeminiTokenProvider(accountRepository, geminiTokenCache, geminiOAuthService, oAuthRefreshAPI)
@@ -402,15 +410,14 @@ func initializeCoordinatorApplication(buildInfo handler.BuildInfo) (*Coordinator
 		return nil, err
 	}
 	channelMonitorService := service.ProvideChannelMonitorService(channelMonitorRepository, secretEncryptor)
-	channelMonitorRunner := service.ProvideChannelMonitorRunner(channelMonitorService, settingService)
 	opsCleanupService := service.ProvideOpsCleanupService(opsRepository, db, redisClient, configConfig, channelMonitorService)
-	apiKeyCache := repository.NewAPIKeyCache(redisClient)
-	apiKeyService := service.NewAPIKeyService(apiKeyRepository, userRepository, groupRepository, userSubscriptionRepository, userGroupRateRepository, apiKeyCache, configConfig)
-	apiKeyAuthCacheInvalidator := service.ProvideAPIKeyAuthCacheInvalidator(apiKeyService)
 	userService := service.NewUserService(userRepository, apiKeyAuthCacheInvalidator, billingCache)
 	opsScheduledReportService := service.ProvideOpsScheduledReportService(opsService, userService, emailService, redisClient, configConfig)
 	soraMediaStorage := service.ProvideSoraMediaStorage(configConfig)
 	soraMediaCleanupService := service.ProvideSoraMediaCleanupService(soraMediaStorage, configConfig)
+	accountImportAccountStore := repository.ProvideAccountImportAccountStore(client, db, schedulerCache)
+	accountImportBatchRepository := repository.ProvideAccountImportBatchRepository(redisClient)
+	accountImportService := service.ProvideAccountImportService(accountImportAccountStore, accountImportBatchRepository, proxyRepository, groupRepository, soraAccountRepository, schedulerSnapshotService, configConfig)
 	accountExpiryService := service.ProvideAccountExpiryService(accountRepository)
 	accountTestService := service.NewAccountTestService(accountRepository, geminiTokenProvider, openAITokenProvider, antigravityGatewayService, openAIGatewayService, httpUpstream, configConfig)
 	accountModelsRefreshService := service.ProvideAccountModelsRefreshService(accountRepository, accountTestService)
@@ -424,6 +431,7 @@ func initializeCoordinatorApplication(buildInfo handler.BuildInfo) (*Coordinator
 	emailQueueService := service.ProvideEmailQueueService(emailService)
 	usageRecordWorkerPool := service.NewUsageRecordWorkerPool(configConfig)
 	subscriptionService := service.NewSubscriptionService(groupRepository, userSubscriptionRepository, billingCacheService, client, configConfig)
+	channelMonitorRunner := service.ProvideChannelMonitorRunner(channelMonitorService, settingService)
 	scheduledTestPlanRepository := repository.NewScheduledTestPlanRepository(db)
 	scheduledTestResultRepository := repository.NewScheduledTestResultRepository(db)
 	scheduledTestService := service.ProvideScheduledTestService(scheduledTestPlanRepository, scheduledTestResultRepository)
@@ -438,7 +446,7 @@ func initializeCoordinatorApplication(buildInfo handler.BuildInfo) (*Coordinator
 	backupObjectStoreFactory := repository.NewS3BackupStoreFactory()
 	dbDumper := repository.NewPgDumper(configConfig)
 	backupService := service.ProvideBackupService(settingRepository, configConfig, secretEncryptor, backupObjectStoreFactory, dbDumper)
-	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, soraMediaCleanupService, schedulerSnapshotService, tokenRefreshService, accountExpiryService, accountModelsRefreshService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, gatewayService, openAIGatewayService, channelMonitorRunner, scheduledTestRunnerService, proxyMaintenanceRunnerService, backupService)
+	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, soraMediaCleanupService, schedulerSnapshotService, accountImportService, tokenRefreshService, accountExpiryService, accountModelsRefreshService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, gatewayService, openAIGatewayService, channelMonitorRunner, scheduledTestRunnerService, proxyMaintenanceRunnerService, backupService)
 	coordinatorApplication := &CoordinatorApplication{
 		Cleanup: v,
 	}
@@ -479,6 +487,7 @@ func provideCleanup(
 	opsSystemLogSink *service.OpsSystemLogSink,
 	soraMediaCleanup *service.SoraMediaCleanupService,
 	schedulerSnapshot *service.SchedulerSnapshotService,
+	accountImport *service.AccountImportService,
 	tokenRefresh *service.TokenRefreshService,
 	accountExpiry *service.AccountExpiryService,
 	accountModelsRefresh *service.AccountModelsRefreshService,
@@ -556,6 +565,12 @@ func provideCleanup(
 			{"SchedulerSnapshotService", func() error {
 				if schedulerSnapshot != nil {
 					schedulerSnapshot.Stop()
+				}
+				return nil
+			}},
+			{"AccountImportService", func() error {
+				if accountImport != nil {
+					accountImport.Stop()
 				}
 				return nil
 			}},

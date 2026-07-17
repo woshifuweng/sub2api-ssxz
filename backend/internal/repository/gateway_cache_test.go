@@ -18,6 +18,16 @@ func TestGatewayCacheGetSessionAccountIDUsesLocalCache(t *testing.T) {
 	require.Equal(t, int64(42), accountID)
 }
 
+func TestGatewayCacheDeleteSessionAccountIDRemovesLocalCache(t *testing.T) {
+	cache := NewGatewayCache(nil).(*gatewayCache)
+	key := buildSessionKey(1, "session-b")
+	cache.cacheSessionAccountID(key, 99, time.Second)
+
+	cache.localCache.Delete(key)
+	_, ok := cache.getLocalSessionAccountID(key)
+	require.False(t, ok)
+}
+
 func TestNormalizeGatewayCacheTTL(t *testing.T) {
 	require.Equal(t, gatewayCacheLocalMaxTTL, normalizeGatewayCacheTTL(0))
 	require.Equal(t, gatewayCacheLocalMaxTTL, normalizeGatewayCacheTTL(5*time.Second))

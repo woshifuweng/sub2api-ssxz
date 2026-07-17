@@ -257,58 +257,46 @@ func TestOpenAIEnsureForwardErrorResponse_DoesNotOverrideWrittenResponse(t *test
 	assert.Equal(t, "already written", w.Body.String())
 }
 
-func TestApplyOpenAIRemoteCompactFailoverPolicy_DisablesSwitching(t *testing.T) {
+func TestApplyOpenAIRemoteCompactFailoverPolicy_DisablesSameAccountRetryOnly(t *testing.T) {
 	policy := openAIFailoverPolicy{
 		MaxSwitches:           3,
 		AllowSameAccountRetry: true,
 	}
 
 	got := applyOpenAIRemoteCompactFailoverPolicy(policy, true)
-	require.Equal(t, 0, got.MaxSwitches)
+	require.Equal(t, 3, got.MaxSwitches)
 	require.False(t, got.AllowSameAccountRetry)
 
 	unchanged := applyOpenAIRemoteCompactFailoverPolicy(policy, false)
 	require.Equal(t, policy, unchanged)
 }
 
-func TestShouldRetryOpenAIRemoteCompactSilently(t *testing.T) {
-	t.Run("retries_proxy_timeout_once_without_previous_response_id", func(t *testing.T) {
-		err := &service.UpstreamFailoverError{
-			StatusCode:           http.StatusBadGateway,
-			TempUnscheduleReason: "upstream request failed via proxy/network (auto temp-unschedule 20m)",
-			FailedProxyID:        123,
-			ResponseBody:         []byte(`context deadline exceeded`),
-		}
-		require.True(t, shouldRetryOpenAIRemoteCompactSilently(err, "", 0))
+func TestShouldSwitchOpenAIRemoteCompactAccount(t *testing.T) {
+	t.Run("switches_for_401_429_502", func(t *testing.T) {
+		require.True(t, shouldSwitchOpenAIRemoteCompactAccount(&service.UpstreamFailoverError{
+			StatusCode: http.StatusUnauthorized,
+		}, "", 0, 2))
+		require.True(t, shouldSwitchOpenAIRemoteCompactAccount(&service.UpstreamFailoverError{
+			StatusCode: http.StatusTooManyRequests,
+		}, "", 0, 2))
+		require.True(t, shouldSwitchOpenAIRemoteCompactAccount(&service.UpstreamFailoverError{
+			StatusCode: http.StatusBadGateway,
+		}, "", 0, 2))
 	})
 
-	t.Run("does_not_retry_when_previous_response_id_present", func(t *testing.T) {
-		err := &service.UpstreamFailoverError{
-			StatusCode:           http.StatusGatewayTimeout,
-			TempUnscheduleReason: "upstream request failed via proxy/network (auto temp-unschedule 20m)",
-			ResponseBody:         []byte(`context deadline exceeded`),
-		}
-		require.False(t, shouldRetryOpenAIRemoteCompactSilently(err, "resp_abc123", 0))
+	t.Run("does_not_switch_when_previous_response_id_present", func(t *testing.T) {
+		require.False(t, shouldSwitchOpenAIRemoteCompactAccount(&service.UpstreamFailoverError{
+			StatusCode: http.StatusUnauthorized,
+		}, "resp_123", 0, 2))
 	})
 
-	t.Run("does_not_retry_after_hidden_retry_already_used", func(t *testing.T) {
-		err := &service.UpstreamFailoverError{
-			StatusCode:           http.StatusGatewayTimeout,
-			TempUnscheduleReason: "upstream request failed via proxy/network (auto temp-unschedule 20m)",
-			ResponseBody:         []byte(`context deadline exceeded`),
-		}
-		require.False(t, shouldRetryOpenAIRemoteCompactSilently(err, "", 1))
-	})
-
-	t.Run("does_not_retry_for_auth_or_semantic_errors", func(t *testing.T) {
-		require.False(t, shouldRetryOpenAIRemoteCompactSilently(&service.UpstreamFailoverError{
-			StatusCode:   http.StatusUnauthorized,
-			ResponseBody: []byte(`{"error":{"code":"token_invalidated"}}`),
-		}, "", 0))
-		require.False(t, shouldRetryOpenAIRemoteCompactSilently(&service.UpstreamFailoverError{
-			StatusCode:   554,
-			ResponseBody: []byte(`{"error":{"message":"remote compact failed for large context"}}`),
-		}, "", 0))
+	t.Run("does_not_switch_when_exhausted_or_semantic_error", func(t *testing.T) {
+		require.False(t, shouldSwitchOpenAIRemoteCompactAccount(&service.UpstreamFailoverError{
+			StatusCode: http.StatusBadRequest,
+		}, "", 0, 2))
+		require.False(t, shouldSwitchOpenAIRemoteCompactAccount(&service.UpstreamFailoverError{
+			StatusCode: http.StatusUnauthorized,
+		}, "", 2, 2))
 	})
 }
 
@@ -332,6 +320,48 @@ func TestHandleRemoteCompactFailure_PreservesUpstreamStatusAndMessage(t *testing
 	require.True(t, ok)
 	require.Equal(t, "upstream_error", errorObj["type"])
 	require.Equal(t, "remote compact failed for large context", errorObj["message"])
+}
+
+func TestHandleRemoteCompactFailure_MasksTransientUpstream429(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/compact", nil)
+
+	h := &OpenAIGatewayHandler{}
+	h.handleRemoteCompactFailure(c, &service.UpstreamFailoverError{
+		StatusCode:   http.StatusTooManyRequests,
+		ResponseBody: []byte(`{"error":{"message":"upstream rate limited"}}`),
+	}, false)
+
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	var parsed map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &parsed)
+	require.NoError(t, err)
+	errorObj, ok := parsed["error"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "api_error", errorObj["type"])
+	require.Equal(t, "Service temporarily unavailable", errorObj["message"])
+}
+
+func TestHandleRemoteCompactFailure_WritesErrorBodyWhenCompactResponseAlreadyStarted(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/compact", nil)
+	c.Status(http.StatusOK)
+	_, err := c.Writer.Write([]byte("\n"))
+	require.NoError(t, err)
+
+	h := &OpenAIGatewayHandler{}
+	h.handleRemoteCompactFailure(c, &service.UpstreamFailoverError{
+		StatusCode:   http.StatusGatewayTimeout,
+		ResponseBody: []byte(`{"error":{"message":"upstream timed out"}}`),
+	}, false)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.True(t, strings.HasPrefix(w.Body.String(), "\n"))
+	require.Contains(t, w.Body.String(), `"message":"Service temporarily unavailable"`)
 }
 
 func TestShouldLogOpenAIForwardFailureAsWarn(t *testing.T) {
@@ -362,6 +392,15 @@ func TestShouldLogOpenAIForwardFailureAsWarn(t *testing.T) {
 		c.String(http.StatusForbidden, "already written")
 		require.True(t, shouldLogOpenAIForwardFailureAsWarn(c, false))
 	})
+}
+
+func TestMapUpstreamError_MasksTransient429(t *testing.T) {
+	h := &OpenAIGatewayHandler{}
+
+	status, errType, message := h.mapUpstreamError(http.StatusTooManyRequests)
+	require.Equal(t, http.StatusServiceUnavailable, status)
+	require.Equal(t, "api_error", errType)
+	require.Equal(t, "Service temporarily unavailable", message)
 }
 
 func TestOpenAIRecoverResponsesPanic_WritesFallbackResponse(t *testing.T) {

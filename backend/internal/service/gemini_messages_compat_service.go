@@ -873,9 +873,15 @@ func (s *GeminiMessagesCompatService) forwardWithContext(ctx context.Context, c 
 					AccountName:        account.Name,
 					UpstreamStatusCode: resp.StatusCode,
 					UpstreamRequestID:  upstreamReqID,
-					Kind:               "retry",
-					Message:            upstreamMsg,
-					Detail:             upstreamDetail,
+					UpstreamURL: func() string {
+						if resp != nil && resp.Request != nil && resp.Request.URL != nil {
+							return safeUpstreamURL(resp.Request.URL.String())
+						}
+						return ""
+					}(),
+					Kind:    "retry",
+					Message: upstreamMsg,
+					Detail:  upstreamDetail,
 				})
 
 				logger.LegacyPrintf("service.gemini_messages_compat", "Gemini account %d: upstream status %d, retry %d/%d", account.ID, resp.StatusCode, attempt, geminiMaxRetries)
@@ -1112,6 +1118,9 @@ func (s *GeminiMessagesCompatService) forwardNativeWithContext(ctx context.Conte
 	mappedModel := originalModel
 	if account.Type == AccountTypeAPIKey {
 		mappedModel = account.GetMappedModel(originalModel)
+	}
+	if mappedModel != "" && mappedModel != originalModel {
+		SetOpsUpstreamModelContext(c, mappedModel)
 	}
 
 	proxyURL := ""

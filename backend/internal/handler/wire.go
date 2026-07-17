@@ -177,6 +177,8 @@ var ProviderSet = wire.NewSet(
 	NewAvailableChannelHandler,
 	NewImageStudioHandler,
 	NewChatStudioHandler,
+	NewWorkspaceSub2APITextBridge,
+	wire.Bind(new(service.WorkspaceSub2APITextBridge), new(*WorkspaceSub2APITextBridge)),
 	NewChatWorkspaceHandler,
 
 	// Admin handlers

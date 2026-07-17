@@ -4359,6 +4359,12 @@ func isClaudeCodeRequestContext(ctx context.Context, c gatewayctx.GatewayContext
 // systemIncludesClaudeCodePrompt 检查 system 中是否已包含 Claude Code 提示词
 // 使用前缀匹配支持多种变体（标准版、Agent SDK 版等）
 func systemIncludesClaudeCodePrompt(system any) bool {
+	if raw, ok := system.(json.RawMessage); ok {
+		var decoded any
+		if json.Unmarshal(raw, &decoded) == nil {
+			return systemIncludesClaudeCodePrompt(decoded)
+		}
+	}
 	switch v := system.(type) {
 	case string:
 		return hasClaudeCodePrefix(v)
@@ -4387,6 +4393,12 @@ func hasClaudeCodePrefix(text string) bool {
 // injectClaudeCodePrompt 在 system 开头注入 Claude Code 提示词
 // 处理 null、字符串、数组三种格式
 func injectClaudeCodePrompt(body []byte, system any) []byte {
+	if raw, ok := system.(json.RawMessage); ok {
+		var decoded any
+		if json.Unmarshal(raw, &decoded) == nil {
+			system = decoded
+		}
+	}
 	claudeCodeBlock, err := marshalAnthropicSystemTextBlock(claudeCodeSystemPrompt, true)
 	if err != nil {
 		logger.LegacyPrintf("service.gateway", "Warning: failed to build Claude Code prompt block: %v", err)

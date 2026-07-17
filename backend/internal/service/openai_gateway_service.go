@@ -2007,6 +2007,28 @@ func (s *OpenAIGatewayService) resolveFreshSchedulableOpenAIAccount(ctx context.
 	return fresh
 }
 
+func (s *OpenAIGatewayService) recheckSelectedOpenAIAccountFromDB(ctx context.Context, account *Account, requestedModel string) *Account {
+	if account == nil {
+		return nil
+	}
+	if s.schedulerSnapshot == nil || s.accountRepo == nil {
+		return account
+	}
+
+	latest, err := s.accountRepo.GetByID(ctx, account.ID)
+	if err != nil || latest == nil {
+		return nil
+	}
+	syncOpenAICodexRateLimitFromExtra(ctx, s.accountRepo, latest, time.Now())
+	if !latest.IsSchedulable() || !latest.IsOpenAI() || s.isOpenAICircuitBlocked(latest) {
+		return nil
+	}
+	if requestedModel != "" && !latest.IsModelSupported(requestedModel) {
+		return nil
+	}
+	return latest
+}
+
 func (s *OpenAIGatewayService) getSchedulableAccount(ctx context.Context, accountID int64) (*Account, error) {
 	var (
 		account *Account
@@ -2809,6 +2831,7 @@ func (s *OpenAIGatewayService) forwardWithContext(ctx context.Context, c gateway
 		} else {
 			upstreamReq, cancelQuickFail = withProxyQuickFailRequest(upstreamReq, proxyURL)
 		}
+		startOpenAICompactKeepaliveContext(c, account, false)
 		resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 		c.SetValue(OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 		if err != nil {
@@ -3049,6 +3072,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthroughContext(
 		} else {
 			upstreamReq, cancelQuickFail = withProxyQuickFailRequest(upstreamReq, proxyURL)
 		}
+		startOpenAICompactKeepaliveContext(c, account, false)
 		resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 		if c != nil {
 			c.SetValue(OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())

@@ -2199,6 +2199,11 @@ func (h *AccountHandler) GetAvailableModelsGateway(c gatewayctx.GatewayContext) 
 		return
 	}
 
+	if account.Platform == service.PlatformKiro {
+		response.SuccessContext(gatewayJSONResponder{ctx: c}, kiro.DefaultModels)
+		return
+	}
+
 	// Handle Claude/Anthropic accounts
 	if len(fetchedModelIDs) > 0 {
 		response.SuccessContext(gatewayJSONResponder{ctx: c}, buildClaudeModelsFromIDs(fetchedModelIDs))

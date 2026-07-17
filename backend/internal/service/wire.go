@@ -819,7 +819,7 @@ var ProviderSet = wire.NewSet(
 	ProvideSoraMediaCleanupService,
 	NewSoraQuotaService,
 	NewSoraGenerationService,
-	ProvideChatWorkspaceService,
+	ProvideChatWorkspaceServiceWithSub2APITextBridge,
 	ProvideSoraSDKClient,
 	wire.Bind(new(SoraClient), new(*SoraSDKClient)),
 	NewSoraGatewayService,
@@ -865,6 +865,7 @@ var ProviderSet = wire.NewSet(
 	ProvideConcurrencyService,
 	ProvideWorkspaceWebSearchTool,
 	NewWorkspaceToolService,
+	ProvideWorkspaceWebSearchService,
 	ProvideUserMessageQueueService,
 	NewUsageRecordWorkerPool,
 	ProvideSchedulerSnapshotServiceWithAdmission,
@@ -895,6 +896,7 @@ var ProviderSet = wire.NewSet(
 	ProvideProxyMaintenanceRunnerService,
 	NewGroupCapacityService,
 	NewChannelService,
+	ProvideWorkspaceSelectedModelCatalogChannelLister,
 	NewModelPricingResolver,
 	ProvidePaymentConfigService,
 	NewPaymentService,
@@ -904,3 +906,11 @@ var ProviderSet = wire.NewSet(
 	ProvideChannelMonitorRunner,
 	NewChannelMonitorRequestTemplateService,
 )
+
+func ProvideWorkspaceSelectedModelCatalogChannelLister(channelService *ChannelService) WorkspaceSelectedModelCatalogChannelLister {
+	return channelService
+}
+
+func ProvideWorkspaceWebSearchService(toolService *WorkspaceToolService) WorkspaceWebSearchService {
+	return toolService
+}

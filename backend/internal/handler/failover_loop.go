@@ -126,13 +126,6 @@ func (s *FailoverState) HandleFailoverError(
 	return FailoverContinue
 }
 
-// HandleSelectionExhausted 处理选号失败（所有候选账号都在排除列表中）时的退避重试决策。
-// 对最近一次上游临时错误（429/5xx/529）执行一次池级退避后重试：
-// 清除排除列表、等待短暂退避后重新选号。
-//
-// 返回 FailoverContinue 时，调用方应设置 SingleAccountRetry context 并 continue。
-// 返回 FailoverExhausted 时，调用方应返回错误响应。
-// 返回 FailoverCanceled 时，调用方应直接 return。
 func shouldRetrySelectionExhausted(failoverErr *service.UpstreamFailoverError) bool {
 	if failoverErr == nil {
 		return false
@@ -145,6 +138,13 @@ func shouldRetrySelectionExhausted(failoverErr *service.UpstreamFailoverError) b
 	}
 }
 
+// HandleSelectionExhausted 处理选号失败（所有候选账号都在排除列表中）时的退避重试决策。
+// 对最近一次上游临时错误（429/5xx/529）执行一次池级退避后重试：
+// 清除排除列表、等待短暂退避后重新选号。
+//
+// 返回 FailoverContinue 时，调用方应设置 SingleAccountRetry context 并 continue。
+// 返回 FailoverExhausted 时，调用方应返回错误响应。
+// 返回 FailoverCanceled 时，调用方应直接 return。
 func (s *FailoverState) HandleSelectionExhausted(ctx context.Context) FailoverAction {
 	if shouldRetrySelectionExhausted(s.LastFailoverErr) && s.SwitchCount <= s.MaxSwitches {
 

@@ -1358,6 +1358,9 @@ func (s *AntigravityGatewayService) ForwardContext(ctx context.Context, c gatewa
 	}
 	thinkingEnabled := claudeReq.Thinking != nil && (claudeReq.Thinking.Type == "enabled" || claudeReq.Thinking.Type == "adaptive")
 	mappedModel = applyThinkingModelSuffix(mappedModel, thinkingEnabled)
+	if mappedModel != "" && mappedModel != originalModel {
+		SetOpsUpstreamModelContext(c, mappedModel)
+	}
 	billingModel := mappedModel
 	SetOpsUpstreamModelContext(c, mappedModel)
 
@@ -1436,9 +1439,15 @@ func (s *AntigravityGatewayService) ForwardContext(ctx context.Context, c gatewa
 				AccountName:        account.Name,
 				UpstreamStatusCode: resp.StatusCode,
 				UpstreamRequestID:  resp.Header.Get("x-request-id"),
-				Kind:               "signature_error",
-				Message:            upstreamMsg,
-				Detail:             upstreamDetail,
+				UpstreamURL: func() string {
+					if resp != nil && resp.Request != nil && resp.Request.URL != nil {
+						return safeUpstreamURL(resp.Request.URL.String())
+					}
+					return ""
+				}(),
+				Kind:    "signature_error",
+				Message: upstreamMsg,
+				Detail:  upstreamDetail,
 			})
 
 			retryStages := []struct {
@@ -2083,6 +2092,8 @@ func (s *AntigravityGatewayService) ForwardGeminiContext(ctx context.Context, tr
 	mappedModel := s.getMappedModel(account, originalModel)
 	if mappedModel == "" {
 		return nil, s.writeGoogleErrorContext(transportCtx, http.StatusForbidden, fmt.Sprintf("model %s not in whitelist", originalModel))
+	}
+	if mappedModel != "" && mappedModel != originalModel {
 	}
 	billingModel := mappedModel
 

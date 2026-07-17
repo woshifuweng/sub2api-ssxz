@@ -57,6 +57,7 @@ var schedulerNeutralExtraKeyPrefixes = []string{
 	"codex_5h_",
 	"codex_7d_",
 	"passive_usage_",
+	"_import_",
 }
 
 const (
@@ -416,6 +417,17 @@ func (r *accountRepository) Update(ctx context.Context, account *service.Account
 	// 普通账号编辑（如 model_mapping / credentials）也需要立即刷新单账号快照，
 	// 否则网关在 outbox worker 延迟或异常时仍可能读到旧配置。
 	r.syncSchedulerAccountSnapshot(ctx, account.ID)
+	return nil
+}
+
+func (r *accountRepository) UpdateCredentials(ctx context.Context, id int64, credentials map[string]any) error {
+	_, err := r.client.Account.UpdateOneID(id).
+		SetCredentials(normalizeJSONMap(credentials)).
+		Save(ctx)
+	if err != nil {
+		return translatePersistenceError(err, service.ErrAccountNotFound, nil)
+	}
+	r.syncSchedulerAccountSnapshot(ctx, id)
 	return nil
 }
 
@@ -826,7 +838,13 @@ func (r *accountRepository) BindGroups(ctx context.Context, accountID int64, gro
 
 	if len(groupIDs) == 0 {
 		if tx != nil {
-			return tx.Commit()
+			if err := tx.Commit(); err != nil {
+				return err
+			}
+		}
+		payload := buildSchedulerGroupPayload(existingGroupIDs)
+		if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventAccountGroupsChanged, &accountID, nil, payload); err != nil {
+			logger.LegacyPrintf("repository.account", "[SchedulerOutbox] enqueue clear groups failed: account=%d err=%v", accountID, err)
 		}
 		return nil
 	}

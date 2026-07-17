@@ -61,6 +61,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		opsSystemLogSinkSvc,
 		nil, // soraMediaCleanup
 		schedulerSnapshotSvc,
+		nil, // accountImport
 		tokenRefreshSvc,
 		accountExpirySvc,
 		nil, // accountModelsRefresh

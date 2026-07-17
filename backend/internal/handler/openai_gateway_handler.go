@@ -56,7 +56,6 @@ func applyOpenAIRemoteCompactFailoverPolicy(policy openAIFailoverPolicy, remoteC
 	if !remoteCompact {
 		return policy
 	}
-	policy.MaxSwitches = 0
 	policy.AllowSameAccountRetry = false
 	return policy
 }
@@ -98,6 +97,42 @@ func shouldRetryOpenAIRemoteCompactSilently(
 	default:
 		return false
 	}
+}
+
+func shouldSwitchOpenAIRemoteCompactAccount(
+	failoverErr *service.UpstreamFailoverError,
+	previousResponseID string,
+	switchCount int,
+	maxSwitches int,
+) bool {
+	if failoverErr == nil || maxSwitches <= 0 || switchCount >= maxSwitches {
+		return false
+	}
+	if strings.TrimSpace(previousResponseID) != "" {
+		return false
+	}
+
+	statusCode := failoverErr.StatusCode
+	switch statusCode {
+	case http.StatusUnauthorized, http.StatusTooManyRequests, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout, 529:
+		return true
+	}
+	if statusCode >= 500 {
+		return true
+	}
+
+	reason := strings.ToLower(strings.TrimSpace(failoverErr.TempUnscheduleReason))
+	bodyText := strings.ToLower(strings.TrimSpace(string(failoverErr.ResponseBody)))
+	return failoverErr.FailedProxyID > 0 ||
+		strings.Contains(reason, "proxy") ||
+		strings.Contains(reason, "network") ||
+		strings.Contains(reason, "timeout") ||
+		strings.Contains(bodyText, "context deadline exceeded") ||
+		strings.Contains(bodyText, "timeout") ||
+		strings.Contains(bodyText, "connection refused") ||
+		strings.Contains(bodyText, "connection reset") ||
+		strings.Contains(bodyText, "socks connect") ||
+		strings.Contains(bodyText, "eof")
 }
 
 func resolveOpenAIForwardDefaultMappedModel(apiKey *service.APIKey, fallbackModel string) string {
@@ -719,7 +754,7 @@ func (h *OpenAIGatewayHandler) ResponsesGateway(transportCtx gatewayctx.GatewayC
 						_ = h.gatewayService.ClearStickySessionForAccount(transportCtx.Context(), selectedAPIKey.GroupID, sessionHash, account.ID)
 						h.gatewayService.TempUnscheduleRetryableError(transportCtx.Context(), account.ID, failoverErr)
 					}
-					if shouldRetryOpenAIRemoteCompactSilently(failoverErr, previousResponseID, switchCount) {
+					if shouldSwitchOpenAIRemoteCompactAccount(failoverErr, previousResponseID, switchCount, maxAccountSwitches) {
 						h.gatewayService.RecordOpenAIAccountSwitch()
 						failedAccountIDs[account.ID] = struct{}{}
 						lastFailoverErr = failoverErr

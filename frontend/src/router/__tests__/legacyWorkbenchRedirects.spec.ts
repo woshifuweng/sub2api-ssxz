@@ -47,14 +47,14 @@ describe('legacy user routes', () => {
     ['/app/chat', '模型测试入口'],
     ['/app/image', '图片内测入口'],
     ['/app/usage', '使用记录'],
-    ['/app/purchase', '补充额度'],
-    ['/app/orders', '账户记录'],
+    ['/app/purchase', '充值 / 订阅'],
+    ['/app/orders', '我的订单'],
     ['/app/redeem', '兑换码'],
-    ['/app/affiliate', '推广中心'],
-    ['/app/available-channels', 'Available Channels'],
-    ['/app/channel-status', 'Channel Status'],
+    ['/app/affiliate', '邀请返利'],
+    ['/app/available-channels', '模型价格'],
+    ['/app/channel-status', '通道状态'],
     ['/app/keys', 'API Key / 第三方接入'],
-    ['/app/profile', 'Account Settings'],
+    ['/app/profile', '个人资料'],
   ])('uses SSXZ AI as the user workbench document title site name for %s', (path, title) => {
     const route = router.resolve(path)
 
