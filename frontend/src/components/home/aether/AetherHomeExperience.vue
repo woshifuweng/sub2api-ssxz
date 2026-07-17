@@ -75,10 +75,11 @@
             <Moon v-else aria-hidden="true" />
           </FoundationButton>
           <RouterLink
-            :to="isAuthenticated ? dashboardPath : '/login'"
+            v-if="!isAuthenticated"
+            to="/login"
             class="aether-header__login"
           >
-            {{ isAuthenticated ? '控制台' : '登录' }}
+            登录
           </RouterLink>
           <RouterLink :to="primaryCtaPath" class="f0-button f0-button--default aether-header__cta">
             {{ isAuthenticated ? '进入控制台' : '开始使用' }}

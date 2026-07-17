@@ -63,7 +63,10 @@ function mountHeader() {
     global: {
       stubs: {
         VersionBadge: VersionBadgeStub,
-        RouterLink: true
+        RouterLink: {
+          props: ['to'],
+          template: '<a class="router-link-stub" :href="to"><slot /></a>'
+        }
       }
     }
   })
@@ -85,5 +88,12 @@ describe('AppHeader version control', () => {
     const wrapper = mountHeader()
 
     expect(wrapper.find('[data-testid="version-badge"]').exists()).toBe(false)
+  })
+
+  it('keeps the public documentation in the top header without relying on doc_url', () => {
+    appState.docUrl = ''
+    const wrapper = mountHeader()
+
+    expect(wrapper.get('.header-action-link').attributes('href')).toBe('/docs')
   })
 })

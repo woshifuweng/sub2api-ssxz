@@ -57,6 +57,8 @@ describe('Aether-derived home structure', () => {
     expect(home).toMatch(
       /<RouterLink\s+to="\/docs"\s+class="aether-header__docs-mobile"[\s\S]*?aria-label="打开公开接入文档"/
     )
+    expect(home).toMatch(/v-if="!isAuthenticated"\s+to="\/login"\s+class="aether-header__login"/)
+    expect(home).not.toContain("{{ isAuthenticated ? '控制台' : '登录' }}")
     expect(home).toContain('linear-gradient(var(--aether-hero-grid) 1px, transparent 1px)')
     expect(home).toMatch(
       /\.aether-home\s*\{[^}]*background-image:\s*linear-gradient\(var\(--aether-hero-grid\)/s
