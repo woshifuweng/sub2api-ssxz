@@ -25,7 +25,12 @@
           class="auth-orbit-node"
           :style="nodeStyle(index, ring.models.length, ring.radius)"
         >
-          <span class="auth-orbit-node-face">
+          <span
+            :class="[
+              'auth-orbit-node-face',
+              { 'auth-orbit-node-face--dark-icon': darkOrbitModels.has(model) }
+            ]"
+          >
             <ModelIcon :model="model" size="20px" />
           </span>
         </span>
@@ -58,6 +63,8 @@ withDefaults(defineProps<{
 })
 
 const { t } = useI18n()
+
+const darkOrbitModels = new Set(['gpt-5.5', 'grok-4', 'kimi-k2'])
 
 const orbitRings = [
   {
@@ -200,11 +207,23 @@ function nodeStyle(index: number, total: number, radius: string): CSSProperties 
   justify-content: center;
   border: 1px solid hsl(var(--border));
   border-radius: 50%;
-  color: hsl(220 10% 9%);
-  background: hsl(0 0% 98%);
+  color: hsl(var(--foreground));
+  background: transparent;
   box-shadow: 0 5px 16px hsl(var(--shadow));
   transform: translate(-50%, -50%) rotate(calc(var(--orbit-angle) * -1));
   animation: auth-orbit-counter-spin var(--orbit-duration) linear infinite reverse;
+}
+
+.auth-orbit-node-face :deep(.model-icon path) {
+  paint-order: stroke fill;
+  stroke: hsl(var(--foreground) / 0.38);
+  stroke-width: 0.45px;
+  vector-effect: non-scaling-stroke;
+}
+
+.auth-orbit-node-face--dark-icon :deep(.model-icon path) {
+  stroke: hsl(var(--foreground) / 0.82);
+  stroke-width: 0.9px;
 }
 
 .auth-orbit-ring--reverse .auth-orbit-node-face {

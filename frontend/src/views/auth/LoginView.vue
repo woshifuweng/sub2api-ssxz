@@ -52,24 +52,34 @@
               </FoundationButton>
             </template>
           </FoundationInput>
-          <RouterLink
-            v-if="passwordResetEnabled && !backendModeEnabled"
-            to="/forgot-password"
-            class="auth-form-link auth-forgot-link"
-          >
-            {{ t('auth.forgotPassword') }}
-          </RouterLink>
+          <div class="auth-forgot-slot">
+            <RouterLink
+              to="/forgot-password"
+              :class="[
+                'auth-form-link auth-forgot-link',
+                { 'auth-slot-hidden': !passwordResetEnabled || backendModeEnabled }
+              ]"
+              :aria-hidden="!passwordResetEnabled || backendModeEnabled ? 'true' : undefined"
+              :tabindex="!passwordResetEnabled || backendModeEnabled ? -1 : undefined"
+            >
+              {{ t('auth.forgotPassword') }}
+            </RouterLink>
+          </div>
         </div>
 
-        <div v-if="turnstileEnabled && turnstileSiteKey" class="auth-turnstile">
-          <TurnstileWidget
-            ref="turnstileRef"
-            :site-key="turnstileSiteKey"
-            @verify="onTurnstileVerify"
-            @expire="onTurnstileExpire"
-            @error="onTurnstileError"
-          />
-          <p v-if="errors.turnstile" class="auth-field-error">{{ errors.turnstile }}</p>
+        <div class="auth-code-slot auth-code-slot--placeholder" aria-hidden="true"></div>
+
+        <div class="auth-turnstile-slot">
+          <div v-if="turnstileEnabled && turnstileSiteKey" class="auth-turnstile">
+            <TurnstileWidget
+              ref="turnstileRef"
+              :site-key="turnstileSiteKey"
+              @verify="onTurnstileVerify"
+              @expire="onTurnstileExpire"
+              @error="onTurnstileError"
+            />
+            <p v-if="errors.turnstile" class="auth-field-error">{{ errors.turnstile }}</p>
+          </div>
         </div>
 
         <Transition name="fade">
@@ -346,16 +356,15 @@ function handle2FACancel(): void {
   transform: translateY(-8px);
 }
 
-.auth-form-stack,
-.auth-form {
-  display: grid;
-}
-
 .auth-form-stack {
+  display: flex;
+  flex-direction: column;
   gap: 1.5rem;
 }
 
 .auth-form {
+  display: flex;
+  flex-direction: column;
   gap: 1.25rem;
 }
 
@@ -381,7 +390,14 @@ function handle2FACancel(): void {
 
 .auth-password-field {
   display: grid;
+  min-height: 5.125rem;
   gap: 0.5rem;
+}
+
+.auth-forgot-slot {
+  display: flex;
+  min-height: 1.125rem;
+  justify-content: flex-end;
 }
 
 .auth-form-link {
@@ -396,7 +412,20 @@ function handle2FACancel(): void {
 }
 
 .auth-forgot-link {
-  justify-self: end;
+  align-self: flex-start;
+}
+
+.auth-slot-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.auth-code-slot {
+  min-height: 4.75rem;
+}
+
+.auth-turnstile-slot {
+  min-height: 4.0625rem;
 }
 
 .auth-turnstile {

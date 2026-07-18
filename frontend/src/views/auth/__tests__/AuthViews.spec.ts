@@ -1,6 +1,8 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import LoginView from '../LoginView.vue'
 import RegisterView from '../RegisterView.vue'
 import { clearAuthPortalDraft, useAuthPortalDraft } from '@/composables/useAuthPortalDraft'
@@ -125,6 +127,52 @@ afterEach(() => {
 })
 
 describe('LoginView C2 integration', () => {
+  it('reserves the late settings slots without fixing the whole authentication card height', () => {
+    const loginSource = readFileSync(resolve(process.cwd(), 'src/views/auth/LoginView.vue'), 'utf8')
+    const registerSource = readFileSync(resolve(process.cwd(), 'src/views/auth/RegisterView.vue'), 'utf8')
+
+    for (const source of [loginSource, registerSource]) {
+      expect(source).toContain('class="auth-turnstile-slot"')
+      expect(source).toMatch(/\.auth-code-slot\s*\{[^}]*min-height:\s*4\.75rem;/s)
+      expect(source).toMatch(/\.auth-turnstile-slot\s*\{[^}]*min-height:\s*4\.0625rem;/s)
+      expect(source).not.toMatch(/\.auth-form-stack\s*\{[^}]*min-height:/s)
+      expect(source).not.toMatch(/\.auth-submit\s*\{[^}]*margin-top:\s*auto;/s)
+    }
+
+    expect(loginSource).toContain('class="auth-code-slot auth-code-slot--placeholder"')
+    expect(loginSource).toContain("'auth-slot-hidden': !passwordResetEnabled || backendModeEnabled")
+    expect(registerSource).not.toContain('<Transition name="auth-invite"')
+  })
+
+  it('keeps forgot-password and Turnstile space reserved while public settings resolve', async () => {
+    let resolveSettings: (value: ReturnType<typeof publicSettings>) => void = () => undefined
+    mocks.getPublicSettings.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSettings = resolve
+      })
+    )
+
+    const wrapper = mountLogin()
+
+    expect(wrapper.get('.auth-forgot-slot').exists()).toBe(true)
+    expect(wrapper.get('.auth-forgot-link').classes()).toContain('auth-slot-hidden')
+    expect(wrapper.get('.auth-code-slot').exists()).toBe(true)
+    expect(wrapper.get('.auth-turnstile-slot').exists()).toBe(true)
+    expect(wrapper.find('.auth-turnstile').exists()).toBe(false)
+
+    resolveSettings(
+      publicSettings({
+        password_reset_enabled: true,
+        turnstile_enabled: true,
+        turnstile_site_key: 'test-site-key'
+      })
+    )
+    await flushPromises()
+
+    expect(wrapper.get('.auth-forgot-link').classes()).not.toContain('auth-slot-hidden')
+    expect(wrapper.get('.auth-turnstile-slot .auth-turnstile').exists()).toBe(true)
+  })
+
   it('keeps email and password in memory while switching to registration', async () => {
     const login = mountLogin()
     await flushPromises()

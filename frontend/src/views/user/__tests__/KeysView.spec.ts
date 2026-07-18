@@ -381,6 +381,30 @@ describe('KeysView workbench surface', () => {
     )
   })
 
+  it('keeps all row actions visible in one icon row', async () => {
+    keysAPI.list.mockResolvedValue({
+      items: [apiKeyFixture()],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const actions = wrapper.get('.keys-row-actions')
+    const persistentButtons = actions.findAll(':scope > button')
+    expect(persistentButtons).toHaveLength(5)
+    expect(persistentButtons.map((button) => button.attributes('aria-label'))).toEqual([
+      'keys.useKey',
+      'keys.importToCcSwitch',
+      'common.edit',
+      'keys.disable',
+      'common.delete'
+    ])
+    expect(persistentButtons.every((button) => button.get('.sr-only').exists())).toBe(true)
+    expect(actions.find('.keys-more-actions').exists()).toBe(false)
+  })
+
   it('keeps the pagination section when API keys exist', async () => {
     keysAPI.list.mockResolvedValue({
       items: [apiKeyFixture()],

@@ -157,4 +157,23 @@ describe('AuthOrbitVisual', () => {
     }
     expect(linuxDoSource).not.toContain('<svg')
   })
+
+  it('keeps orbit provider icons transparent on the outline-dark surface', () => {
+    const orbitSource = readFileSync(
+      resolve(process.cwd(), 'src/components/auth/AuthOrbitVisual.vue'),
+      'utf8'
+    )
+
+    expect(orbitSource).toMatch(
+      /\.auth-orbit-node-face\s*\{[^}]*background:\s*transparent;/s
+    )
+    expect(orbitSource).toMatch(
+      /\.auth-orbit-node-face :deep\(\.model-icon path\)\s*\{[^}]*paint-order:\s*stroke fill;/s
+    )
+    expect(orbitSource).toContain("const darkOrbitModels = new Set(['gpt-5.5', 'grok-4', 'kimi-k2'])")
+    expect(orbitSource).toMatch(
+      /\.auth-orbit-node-face--dark-icon :deep\(\.model-icon path\)\s*\{[^}]*stroke-width:\s*0\.9px;/s
+    )
+    expect(orbitSource).not.toContain('background: hsl(0 0% 98%);')
+  })
 })

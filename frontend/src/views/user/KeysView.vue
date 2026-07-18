@@ -386,58 +386,68 @@
           </template>
 
           <template #cell-actions="{ row }">
-            <div class="flex items-center gap-1">
-              <!-- Use Key Button -->
+            <div class="keys-row-actions">
+              <!-- Connection Tutorial Button -->
               <button
+                type="button"
                 @click="openUseKeyModal(row)"
-                :title="t('keys.connectionGuideTitle')"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-primary-50 hover:text-primary-600 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
+                :title="t('keys.useKey')"
+                :aria-label="t('keys.useKey')"
+                class="keys-action-button"
               >
                 <Icon name="terminal" size="sm" />
-                <span class="text-xs">{{ t('keys.useKey') }}</span>
+                <span class="sr-only">{{ t('keys.useKey') }}</span>
               </button>
-              <!-- Import to CC Switch Button -->
+              <!-- Import to CCS Button -->
               <button
                 v-if="!publicSettings?.hide_ccs_import_button"
+                type="button"
+                data-testid="api-key-ccs-import"
                 @click="importToCcswitch(row)"
                 :title="t('keys.importToCcSwitch')"
-                data-testid="api-key-ccs-import"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-primary-600 transition-colors hover:bg-primary-50 hover:text-primary-800 dark:text-primary-300 dark:hover:bg-primary-900/30 dark:hover:text-primary-100"
+                :aria-label="t('keys.importToCcSwitch')"
+                class="keys-action-button"
               >
                 <Icon name="upload" size="sm" />
-                <span class="text-xs">{{ t('keys.importToCcSwitch') }}</span>
+                <span class="sr-only">{{ t('keys.importToCcSwitch') }}</span>
+              </button>
+              <!-- Edit Button -->
+              <button
+                @click="editKey(row)"
+                :title="t('common.edit')"
+                :aria-label="t('common.edit')"
+                class="keys-action-button"
+              >
+                <Icon name="edit" size="sm" />
+                <span class="sr-only">{{ t('common.edit') }}</span>
               </button>
               <!-- Toggle Status Button -->
               <button
                 @click="confirmToggleKeyStatus(row)"
                 :disabled="statusUpdatingKeyId === row.id"
+                :title="row.status === 'active' ? t('keys.disable') : t('keys.enable')"
+                :aria-label="row.status === 'active' ? t('keys.disable') : t('keys.enable')"
                 :class="[
-                  'flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors',
+                  'keys-action-button',
                   statusUpdatingKeyId === row.id ? 'cursor-not-allowed opacity-50' : '',
                   row.status === 'active'
-                    ? 'text-gray-500 hover:bg-yellow-50 hover:text-yellow-600 dark:hover:bg-yellow-900/20 dark:hover:text-yellow-400'
-                    : 'text-gray-500 hover:bg-primary-50 hover:text-primary-600 dark:hover:bg-primary-900/20 dark:hover:text-primary-400'
+                    ? 'keys-action-button--warning'
+                    : 'keys-action-button--primary'
                 ]"
               >
                 <Icon v-if="row.status === 'active'" name="ban" size="sm" />
                 <Icon v-else name="checkCircle" size="sm" />
-                <span class="text-xs">{{ row.status === 'active' ? t('keys.disable') : t('keys.enable') }}</span>
-              </button>
-              <!-- Edit Button -->
-              <button
-                @click="editKey(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
-              >
-                <Icon name="edit" size="sm" />
-                <span class="text-xs">{{ t('common.edit') }}</span>
+                <span class="sr-only">{{ row.status === 'active' ? t('keys.disable') : t('keys.enable') }}</span>
               </button>
               <!-- Delete Button -->
               <button
                 @click="confirmDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                :title="t('common.delete')"
+                :aria-label="t('common.delete')"
+                class="keys-action-button keys-action-button--danger"
               >
                 <Icon name="trash" size="sm" />
-                <span class="text-xs">{{ t('common.delete') }}</span>
+                <span class="sr-only">{{ t('common.delete') }}</span>
               </button>
             </div>
           </template>
@@ -1370,7 +1380,7 @@ const allColumns = computed<Column[]>(() => [
   { key: 'expires_at', label: t('keys.expiresAt'), sortable: true },
   { key: 'last_used_at', label: t('keys.lastUsedAt'), sortable: true },
   { key: 'created_at', label: t('keys.created'), sortable: true },
-  { key: 'actions', label: t('common.actions'), sortable: false }
+  { key: 'actions', label: t('common.actions'), sortable: false, class: 'keys-actions-column' }
 ])
 
 const DEFAULT_HIDDEN_COLUMNS = ['rate_limit', 'last_used_at']
@@ -2525,6 +2535,70 @@ onUnmounted(() => {
   border-color: color-mix(in srgb, var(--ssxz-border) 62%, transparent);
   color: var(--ssxz-body);
   white-space: normal;
+}
+
+.keys-page-surface--workbench :deep(.keys-actions-column) {
+  width: 12.5rem;
+  min-width: 12.5rem;
+}
+
+.keys-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.keys-action-button {
+  display: inline-flex;
+  width: 2.15rem;
+  height: 2.15rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 0.65rem;
+  color: var(--ssxz-text-muted);
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.12s ease;
+}
+
+.keys-action-button:hover {
+  border-color: var(--ssxz-border-strong);
+  background: var(--ssxz-surface-muted);
+  color: var(--ssxz-text-primary);
+}
+
+.keys-action-button:active {
+  transform: translateY(1px);
+}
+
+.keys-action-button:focus-visible {
+  outline: 2px solid var(--ssxz-action);
+  outline-offset: 2px;
+}
+
+.keys-action-button:disabled {
+  cursor: not-allowed;
+}
+
+.keys-action-button--primary:hover {
+  color: var(--ssxz-action);
+}
+
+.keys-action-button--warning:hover {
+  color: hsl(var(--warning));
+}
+
+.keys-action-button--danger:hover {
+  border-color: hsl(var(--destructive) / 0.3);
+  background: hsl(var(--destructive) / 0.08);
+  color: hsl(var(--destructive));
 }
 
 .keys-page-surface--workbench :deep(.empty-state) {

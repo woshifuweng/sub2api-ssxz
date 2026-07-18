@@ -34,36 +34,37 @@
           <template #leading><Mail aria-hidden="true" /></template>
         </FoundationInput>
 
-        <FoundationInput
-          id="password"
-          v-model="formData.password"
-          :type="showPassword ? 'text' : 'password'"
-          name="password"
-          autocomplete="new-password"
-          required
-          :label="t('auth.passwordLabel')"
-          :placeholder="t('auth.createPasswordPlaceholder')"
-          :help="errors.password ? undefined : t('auth.passwordHint')"
-          :error="errors.password"
-          :disabled="isLoading"
-        >
-          <template #leading><LockKeyhole aria-hidden="true" /></template>
-          <template #trailing>
-            <FoundationButton
-              variant="ghost"
-              size="icon"
-              :aria-label="showPassword ? t('auth.hidePassword') : t('auth.showPassword')"
-              @mousedown.prevent
-              @click="showPassword = !showPassword"
-            >
-              <EyeOff v-if="showPassword" aria-hidden="true" />
-              <Eye v-else aria-hidden="true" />
-            </FoundationButton>
-          </template>
-        </FoundationInput>
+        <div class="auth-password-field">
+          <FoundationInput
+            id="password"
+            v-model="formData.password"
+            :type="showPassword ? 'text' : 'password'"
+            name="password"
+            autocomplete="new-password"
+            required
+            :label="t('auth.passwordLabel')"
+            :placeholder="t('auth.createPasswordPlaceholder')"
+            :help="errors.password ? undefined : t('auth.passwordHint')"
+            :error="errors.password"
+            :disabled="isLoading"
+          >
+            <template #leading><LockKeyhole aria-hidden="true" /></template>
+            <template #trailing>
+              <FoundationButton
+                variant="ghost"
+                size="icon"
+                :aria-label="showPassword ? t('auth.hidePassword') : t('auth.showPassword')"
+                @mousedown.prevent
+                @click="showPassword = !showPassword"
+              >
+                <EyeOff v-if="showPassword" aria-hidden="true" />
+                <Eye v-else aria-hidden="true" />
+              </FoundationButton>
+            </template>
+          </FoundationInput>
+        </div>
 
-        <Transition name="auth-invite" appear>
-          <div class="auth-code-field">
+        <div class="auth-code-slot auth-code-field">
           <FoundationInput
             id="affiliate_code"
             v-model="formData.affiliate_code"
@@ -76,18 +77,19 @@
           >
             <template #leading><KeyRound aria-hidden="true" /></template>
           </FoundationInput>
-          </div>
-        </Transition>
+        </div>
 
-        <div v-if="turnstileEnabled && turnstileSiteKey" class="auth-turnstile">
-          <TurnstileWidget
-            ref="turnstileRef"
-            :site-key="turnstileSiteKey"
-            @verify="onTurnstileVerify"
-            @expire="onTurnstileExpire"
-            @error="onTurnstileError"
-          />
-          <p v-if="errors.turnstile" class="auth-field-error">{{ errors.turnstile }}</p>
+        <div class="auth-turnstile-slot">
+          <div v-if="turnstileEnabled && turnstileSiteKey" class="auth-turnstile">
+            <TurnstileWidget
+              ref="turnstileRef"
+              :site-key="turnstileSiteKey"
+              @verify="onTurnstileVerify"
+              @expire="onTurnstileExpire"
+              @error="onTurnstileError"
+            />
+            <p v-if="errors.turnstile" class="auth-field-error">{{ errors.turnstile }}</p>
+          </div>
         </div>
 
         <Transition name="fade">
@@ -367,17 +369,15 @@ async function handleRegister(): Promise<void> {
   transform: translateY(-8px);
 }
 
-.auth-form-stack,
-.auth-form,
-.auth-code-field {
-  display: grid;
-}
-
 .auth-form-stack {
+  display: flex;
+  flex-direction: column;
   gap: 1.5rem;
 }
 
 .auth-form {
+  display: flex;
+  flex-direction: column;
   gap: 1.25rem;
 }
 
@@ -386,30 +386,21 @@ async function handleRegister(): Promise<void> {
 }
 
 .auth-code-field {
+  display: flex;
+  flex-direction: column;
   gap: 0.5rem;
 }
 
-.auth-invite-enter-active,
-.auth-invite-leave-active {
-  overflow: hidden;
-  transition:
-    max-height 220ms ease,
-    opacity 180ms ease,
-    transform 220ms ease;
+.auth-password-field {
+  min-height: 5.125rem;
 }
 
-.auth-invite-enter-from,
-.auth-invite-leave-to {
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(-0.5rem);
+.auth-code-slot {
+  min-height: 4.75rem;
 }
 
-.auth-invite-enter-to,
-.auth-invite-leave-from {
-  max-height: 6rem;
-  opacity: 1;
-  transform: translateY(0);
+.auth-turnstile-slot {
+  min-height: 4.0625rem;
 }
 
 .auth-form-heading h1 {
@@ -496,10 +487,4 @@ async function handleRegister(): Promise<void> {
   to { transform: rotate(360deg); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .auth-invite-enter-active,
-  .auth-invite-leave-active {
-    transition: none;
-  }
-}
 </style>
