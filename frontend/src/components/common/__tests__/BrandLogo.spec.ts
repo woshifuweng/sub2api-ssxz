@@ -25,7 +25,7 @@ describe('BrandLogo', () => {
     const images = wrapper.findAll('img')
 
     expect(images).toHaveLength(2)
-    expect(images[0].attributes('src')).toBe('/brand/ssxz-cat-dog-line-draw.svg')
+    expect(images[0].attributes('src')).toBe('/brand/ssxz-cat-dog-line-draw-safari-safe.svg')
     expect(images[1].attributes('src')).toBe('/brand/ssxz-cat-dog-static.svg')
     expect(images.every((image) => image.attributes('style')?.includes('color-scheme: light'))).toBe(true)
   })

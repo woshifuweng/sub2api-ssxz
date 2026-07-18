@@ -11,7 +11,7 @@
       :aria-label="t('appShell.closeNavigation')"
       @click="closeMobileNav"
     />
-    <aside class="ssxz-app-sidebar fixed inset-y-0 left-0 z-30 border-r px-3 py-4">
+    <aside class="ssxz-app-sidebar fixed inset-y-0 left-0 z-30 border-r px-4 py-4">
       <RouterLink
         to="/app/dashboard"
         class="ssxz-brand-link mb-6"
@@ -187,7 +187,6 @@ let desktopMediaQuery: MediaQueryList | null = null
 
 const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName }>>(() => [
   { label: t('nav.dashboard'), to: '/app/dashboard', icon: 'home' },
-  { label: t('nav.modelTest'), to: '/app/chat', icon: 'chat' },
   { label: t('nav.apiKeys'), to: '/app/keys', icon: 'key' },
   { label: t('nav.models'), to: '/app/available-channels', icon: 'calculator' },
   { label: t('nav.usage'), to: '/app/usage', icon: 'chartBar' },
@@ -318,8 +317,9 @@ watch(() => route.fullPath || route.path, closeMobileNav)
 .ssxz-app-sidebar {
   width: var(--ssxz-sidebar-width);
   border-color: var(--ssxz-border);
-  background: var(--ssxz-surface);
+  background: var(--ssxz-bg);
   color: var(--ssxz-body);
+  transition: width 200ms ease, transform 200ms ease, box-shadow 200ms ease;
 }
 
 .ssxz-brand-link {
@@ -360,6 +360,7 @@ watch(() => route.fullPath || route.path, closeMobileNav)
 .ssxz-app-content {
   position: relative;
   z-index: 1;
+  transition: margin-left 200ms ease;
 }
 
 .ssxz-app-header {
@@ -449,9 +450,10 @@ watch(() => route.fullPath || route.path, closeMobileNav)
 
 .ssxz-user-avatar {
   align-items: center;
-  background: var(--ssxz-primary);
+  background: transparent;
+  border: 1.5px solid var(--ssxz-placeholder-border);
   border-radius: 999px;
-  color: var(--ssxz-action-text);
+  color: var(--ssxz-text);
   display: inline-flex;
   font-size: 0.75rem;
   font-weight: 760;
@@ -493,11 +495,33 @@ watch(() => route.fullPath || route.path, closeMobileNav)
 
   .ssxz-sidebar-collapsed .ssxz-app-sidebar {
     width: var(--ssxz-sidebar-collapsed-width);
+    padding-right: 0.4375rem !important;
+    padding-left: 0.4375rem !important;
   }
 
   .ssxz-sidebar-collapsed .ssxz-sidebar-text {
-    display: none;
+    width: 0;
+    max-width: 0;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-0.35rem);
   }
+
+  .ssxz-sidebar-collapsed .ssxz-brand-link,
+  .ssxz-sidebar-collapsed .ssxz-nav-item {
+    justify-content: center;
+    gap: 0;
+    padding-right: 0;
+    padding-left: 0;
+  }
+}
+
+.ssxz-sidebar-text {
+  max-width: 12rem;
+  white-space: nowrap;
+  opacity: 1;
+  transition: max-width 160ms ease, opacity 120ms ease, transform 160ms ease;
 }
 
 .ssxz-nav-item,
@@ -527,9 +551,9 @@ watch(() => route.fullPath || route.path, closeMobileNav)
 }
 
 .ssxz-nav-item.is-active {
-  background: var(--ssxz-primary);
-  color: var(--ssxz-action-text);
-  box-shadow: var(--ssxz-shadow-button-subtle);
+  background: transparent;
+  color: var(--ssxz-text);
+  box-shadow: inset 0 0 0 1px var(--ssxz-nav-active-border);
 }
 
 .ssxz-nav-item svg,
@@ -540,6 +564,14 @@ watch(() => route.fullPath || route.path, closeMobileNav)
 .ssxz-primary-nav {
   display: grid;
   gap: 0.55rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ssxz-app-sidebar,
+  .ssxz-app-content,
+  .ssxz-sidebar-text {
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .ssxz-app-shell :deep(.bg-white),
@@ -608,7 +640,7 @@ watch(() => route.fullPath || route.path, closeMobileNav)
 .ssxz-app-shell :deep(a.hover\:bg-emerald-700:hover),
 .ssxz-app-shell :deep(button.hover\:bg-emerald-700:hover),
 .ssxz-app-shell :deep([class*='bg-gradient-to']) {
-  background: var(--ssxz-primary) !important;
+  background: var(--ssxz-action) !important;
   color: var(--ssxz-action-text) !important;
 }
 

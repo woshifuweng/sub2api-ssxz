@@ -5,7 +5,7 @@
 
     <!-- Main Content Area -->
     <div
-      class="ssxz-admin-main relative min-h-screen transition-all duration-300"
+      class="ssxz-admin-main relative min-h-screen transition-all duration-200"
       :class="{ 'is-collapsed': sidebarCollapsed }"
     >
       <!-- Header -->

@@ -99,10 +99,6 @@
             <div class="affiliate-empty-state__icon"><Icon name="users" size="lg" /></div>
             <strong>{{ t('affiliate.noRecordsTitle', '暂无邀请记录') }}</strong>
             <span>{{ t('affiliate.noRecords') }}</span>
-            <button class="btn btn-primary btn-sm" @click="copyValue(inviteLink, t('affiliate.linkCopied'))">
-              <Icon name="copy" size="sm" />
-              {{ t('affiliate.copyInviteLink', '复制邀请链接') }}
-            </button>
           </div>
           <div v-else class="mt-4 overflow-x-auto">
             <table class="w-full min-w-[560px] text-left text-sm">

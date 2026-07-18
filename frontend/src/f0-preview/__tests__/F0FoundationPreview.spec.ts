@@ -102,10 +102,11 @@ describe('F0FoundationPreview', () => {
       /\.f0-foundation\.f0-dark \{([\s\S]*?)\n\}/
     )?.[1]
     expect(darkThemeBlock).toBeDefined()
-    expect(darkThemeBlock).toContain('--primary: 210 24% 72%;')
+    expect(darkThemeBlock).toContain('--primary: 240 5% 96%;')
     expect(darkThemeBlock).toContain('--brand-accent: 210 24% 72%;')
-    expect(darkThemeBlock).toContain('--background: 0 0% 7%;')
-    expect(darkThemeBlock).toContain('--card: 0 0% 10%;')
+    expect(darkThemeBlock).toContain('--background: 240 8.3% 4.7%;')
+    expect(darkThemeBlock).toContain('--card: 0 0% 0% / 0;')
+    expect(darkThemeBlock).toContain('--border: 240 7% 18%;')
     expect(darkThemeBlock).toContain('--button-shadow-hover: 0 0% 0% / 0.48;')
     expect(darkThemeBlock).not.toMatch(/\b(?:height|padding|gap):/)
     expect(packageSource.dependencies['@lucide/vue']).toBe('1.24.0')

@@ -453,7 +453,6 @@ const affiliateEnabled = computed(() => !!appStore.cachedPublicSettings?.affilia
 // User navigation items (for regular users)
 const userNavItems = computed((): NavItem[] => [
   { path: '/app/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
-  { path: '/app/chat', label: t('nav.modelTest'), icon: ChartIcon },
   { path: '/app/keys', label: t('nav.apiKeys'), icon: KeyIcon },
   { path: '/app/available-channels', label: t('nav.models'), icon: ChannelIcon },
   { path: '/app/usage', label: t('nav.usage'), icon: ChartIcon },
@@ -622,6 +621,31 @@ onMounted(() => {
 
 .ssxz-sidebar-collapsed {
   width: var(--ssxz-sidebar-collapsed-width, 72px);
+}
+
+.ssxz-sidebar-collapsed .sidebar-header {
+  justify-content: center;
+  padding-right: 0.4375rem;
+  padding-left: 0.4375rem;
+}
+
+.ssxz-sidebar-collapsed :deep(.sidebar-nav) {
+  padding-right: 0.4375rem;
+  padding-left: 0.4375rem;
+}
+
+.ssxz-sidebar-collapsed :deep(.sidebar-link) {
+  justify-content: center;
+  gap: 0;
+  padding-right: 0;
+  padding-left: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ssxz-sidebar-expanded,
+  .ssxz-sidebar-collapsed {
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .ssxz-sidebar-footer {

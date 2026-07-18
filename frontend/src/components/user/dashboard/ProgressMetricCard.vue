@@ -135,6 +135,7 @@ function formatSeriesValue(value: number): string {
 
 <style scoped>
 .progress-metric-card {
+  height: 100%;
   min-width: 0;
 }
 

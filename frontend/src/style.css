@@ -113,28 +113,28 @@
   }
 
   .btn-primary {
-    background: var(--ssxz-primary);
-    border: 1px solid var(--ssxz-primary);
+    background: var(--ssxz-action);
+    border: 1px solid var(--ssxz-action);
     color: var(--ssxz-action-text);
     box-shadow: var(--ssxz-shadow-button);
   }
 
   .btn-primary:hover {
-    background: var(--ssxz-primary-hover);
-    border-color: var(--ssxz-primary-hover);
+    background: var(--ssxz-action-hover);
+    border-color: var(--ssxz-action-hover);
     box-shadow: var(--ssxz-shadow-button-hover);
     transform: translateY(-1px);
   }
 
   .btn-secondary {
-    background: var(--ssxz-surface-raised);
-    border: 1px solid var(--ssxz-border);
+    background: transparent;
+    border: 1px solid var(--ssxz-border-strong);
     color: var(--ssxz-text);
     box-shadow: var(--ssxz-shadow-button-subtle);
   }
 
   .btn-secondary:hover {
-    background: color-mix(in srgb, var(--ssxz-surface-raised) 84%, white);
+    background: color-mix(in srgb, var(--ssxz-text) 6%, transparent);
     border-color: var(--ssxz-border-strong);
     box-shadow: var(--ssxz-shadow-button);
     transform: translateY(-1px);
@@ -890,19 +890,24 @@
   --ssxz-accent: #617991;
   --ssxz-accent-strong: #405b76;
   --ssxz-accent-soft: rgb(97 121 145 / 0.1);
+  --ssxz-action: #17191d;
+  --ssxz-action-hover: #262a30;
+  --ssxz-action-text: #ffffff;
+  --ssxz-nav-active-border: #c4cad1;
+  --ssxz-placeholder-border: #272b31;
   --ssxz-success: #22c55e;
   --ssxz-warning: #f59e0b;
   --ssxz-danger: #ef4444;
   --ssxz-error: #ef4444;
 
-  --ssxz-font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
-    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --ssxz-font-sans: Inter, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui,
+    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --ssxz-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  --ssxz-sidebar-width: 240px;
-  --ssxz-sidebar-collapsed-width: 72px;
+  --ssxz-sidebar-width: 208px;
+  --ssxz-sidebar-collapsed-width: 60px;
   --ssxz-header-height: 56px;
-  --ssxz-content-max: 1360px;
+  --ssxz-content-max: 1540px;
   --ssxz-space-page-x: 24px;
   --ssxz-space-page-y: 24px;
   --ssxz-radius-button: 8px;
@@ -920,9 +925,7 @@
   --ssxz-focus-ring: 0 0 0 3px rgb(97 121 145 / 0.28);
 
   /* Backward-compatible semantic aliases used by existing PR360 page work. */
-  --ssxz-action: var(--ssxz-primary);
   --ssxz-action-soft: var(--ssxz-primary-soft);
-  --ssxz-action-text: #ffffff;
   --ssxz-active: var(--ssxz-primary-soft);
   --ssxz-body: var(--ssxz-text-secondary);
   --ssxz-canvas: var(--ssxz-code-surface);
@@ -939,21 +942,21 @@
 .dark {
   color-scheme: dark;
 
-  /* Neutral grayscale surfaces keep the customer shell aligned with F0. */
-  --ssxz-bg: #111111;
-  --ssxz-bg-subtle: #151515;
-  --ssxz-surface: #1b1b1b;
-  --ssxz-surface-raised: #232323;
-  --ssxz-surface-muted: #2b2b2b;
-  --ssxz-surface-code: #151515;
+  /* Outline-first neutral palette: hierarchy comes from hairlines, not filled cards. */
+  --ssxz-bg: #0b0b0d;
+  --ssxz-bg-subtle: #0b0b0d;
+  --ssxz-surface: transparent;
+  --ssxz-surface-raised: #0b0b0d;
+  --ssxz-surface-muted: #111115;
+  --ssxz-surface-code: #111115;
   --ssxz-code-surface: var(--ssxz-surface-code);
-  --ssxz-border: #363636;
-  --ssxz-border-strong: #4a4a4a;
+  --ssxz-border: #2a2a30;
+  --ssxz-border-strong: #33333a;
 
-  --ssxz-text: #f3f4f6;
-  --ssxz-text-secondary: #c7cbd1;
-  --ssxz-text-muted: #9aa1ab;
-  --ssxz-text-subtle: #707985;
+  --ssxz-text: #f4f4f5;
+  --ssxz-text-secondary: #70707a;
+  --ssxz-text-muted: #70707a;
+  --ssxz-text-subtle: #55555d;
 
   --ssxz-primary: #9db6ce;
   --ssxz-primary-hover: #b3c7db;
@@ -961,6 +964,11 @@
   --ssxz-accent: #a8bfd5;
   --ssxz-accent-strong: #c7d8e8;
   --ssxz-accent-soft: rgb(168 191 213 / 0.12);
+  --ssxz-action: #f4f4f5;
+  --ssxz-action-hover: #e4e4e7;
+  --ssxz-action-text: #0b0b0d;
+  --ssxz-nav-active-border: #33333a;
+  --ssxz-placeholder-border: #e4e4e7;
 
   --ssxz-shadow-button: 0 1px 2px rgb(0 0 0 / 0.4), 0 5px 12px rgb(0 0 0 / 0.2);
   --ssxz-shadow-button-hover: 0 2px 3px rgb(0 0 0 / 0.48), 0 8px 18px rgb(0 0 0 / 0.28);
@@ -973,7 +981,6 @@
   --ssxz-shadow-lg: var(--ssxz-shadow-dialog);
   --ssxz-focus-ring: 0 0 0 3px rgb(168 191 213 / 0.3);
 
-  --ssxz-action-text: #15171a;
   --ssxz-glow-subtle: rgb(170 180 194 / 0.08);
 }
 
@@ -988,6 +995,8 @@ body,
 
 body {
   color: var(--ssxz-text);
+  font-variant-numeric: tabular-nums;
+  font-synthesis: none;
 }
 
 body::before {
@@ -1019,9 +1028,10 @@ body::before {
 .ssxz-admin-shell .sidebar,
 .sidebar {
   width: var(--ssxz-sidebar-width);
-  background: var(--ssxz-surface) !important;
+  background: var(--ssxz-bg) !important;
   border-color: var(--ssxz-border) !important;
   color: var(--ssxz-text-secondary);
+  transition: width 200ms ease, transform 300ms ease;
 }
 
 .sidebar-header {
@@ -1049,10 +1059,10 @@ body::before {
 }
 
 .sidebar-link-active {
-  background: var(--ssxz-primary) !important;
-  border-color: var(--ssxz-primary) !important;
-  box-shadow: var(--ssxz-shadow-button-subtle);
-  color: var(--ssxz-action-text) !important;
+  background: transparent !important;
+  border-color: var(--ssxz-nav-active-border) !important;
+  box-shadow: inset 0 0 0 1px var(--ssxz-nav-active-border);
+  color: var(--ssxz-text) !important;
 }
 
 .sidebar-section-title {

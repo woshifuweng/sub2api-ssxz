@@ -151,6 +151,8 @@ describe('AffiliateView', () => {
     expect(wrapper.text()).toContain('当前活动比例')
     expect(wrapper.text()).toContain('实际奖励以系统记录为准')
     expect(wrapper.text()).toContain('INVITE123')
+    expect(wrapper.find('.affiliate-empty-state .btn').exists()).toBe(false)
+    expect(wrapper.findAll('[data-testid="copy-affiliate-link"]')).toHaveLength(1)
     expect(userAPI.getAffiliateDetail).toHaveBeenCalledTimes(1)
   })
 

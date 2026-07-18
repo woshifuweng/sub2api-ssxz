@@ -2385,7 +2385,7 @@ onUnmounted(() => {
 
 .keys-page-surface--workbench {
   margin-inline: auto;
-  max-width: 78rem;
+  max-width: 100%;
 }
 
 .keys-access-row {

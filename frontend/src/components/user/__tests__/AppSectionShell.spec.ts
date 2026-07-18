@@ -159,7 +159,6 @@ describe('AppSectionShell', () => {
 
     expect(navButtons(wrapper).map((button) => button.text())).toEqual([
       'Dashboard',
-      'Model Test',
       'API Keys',
       'Models',
       'Usage',
@@ -211,7 +210,6 @@ describe('AppSectionShell', () => {
     const buttons = navButtons(wrapper)
     const expectedRoutes = [
       '/app/dashboard',
-      '/app/chat',
       '/app/keys',
       '/app/available-channels',
       '/app/usage',
@@ -230,24 +228,13 @@ describe('AppSectionShell', () => {
     expect(mocks.push.mock.calls.map(([destination]) => destination)).toEqual(expectedRoutes)
   })
 
-  it('starts a new chat through the Chat navigation item', async () => {
-    routeState.path = '/app/image'
-    routeState.fullPath = '/app/image'
-    const wrapper = mountShell()
-
-    await navButtons(wrapper)[1].trigger('click')
-
-    expect(wrapper.emitted('new-chat')).toHaveLength(1)
-    expect(mocks.push).toHaveBeenCalledWith('/app/chat')
-  })
-
-  it('marks Channel Status active without marking Model Test active', () => {
+  it('hides Model Test from navigation while keeping other routes active', () => {
     routeState.path = '/app/channel-status'
     routeState.fullPath = '/app/channel-status'
     const wrapper = mountShell()
     const buttons = navButtons(wrapper)
 
-    expect(buttons.find((button) => button.text() === 'Model Test')?.classes()).not.toContain('is-active')
+    expect(buttons.some((button) => button.text() === 'Model Test')).toBe(false)
     expect(buttons.find((button) => button.text() === 'Channel Status')?.classes()).toContain('is-active')
   })
 

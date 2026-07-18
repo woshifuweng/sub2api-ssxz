@@ -181,8 +181,12 @@ const formatDuration = (value: number) =>
 .dashboard-metrics {
   display: grid;
   grid-template-columns: repeat(8, minmax(0, 1fr));
-  align-items: start;
+  align-items: stretch;
   gap: 0.75rem;
+}
+
+.dashboard-metrics > * {
+  height: 100%;
 }
 
 .dashboard-balance-support {

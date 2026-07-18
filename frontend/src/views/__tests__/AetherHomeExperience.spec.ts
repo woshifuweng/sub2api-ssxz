@@ -113,12 +113,12 @@ describe('Aether-derived home structure', () => {
   it('draws the SSXZ vector artwork without falling back to the PNG', () => {
     const brandLogo = readSource('src/components/home/aether/SsxzBrandLogo.vue')
     const sharedBrandLogo = readSource('src/components/common/BrandLogo.vue')
-    const animatedLogo = readSource('public/brand/ssxz-cat-dog-line-draw.svg')
+    const animatedLogo = readSource('public/brand/ssxz-cat-dog-line-draw-safari-safe.svg')
     const staticLogo = readSource('public/brand/ssxz-cat-dog-static.svg')
 
     expect(brandLogo).toContain('<BrandLogo variant="animated" size="100%" :theme="theme" />')
     expect(brandLogo).toContain("theme: 'light' | 'dark'")
-    expect(sharedBrandLogo).toContain('ssxz-cat-dog-line-draw.svg')
+    expect(sharedBrandLogo).toContain('ssxz-cat-dog-line-draw-safari-safe.svg')
     expect(sharedBrandLogo).toContain('ssxz-cat-dog-static.svg')
     expect(sharedBrandLogo).toContain('brand-logo__artwork--static')
     expect(sharedBrandLogo).toContain("variant?: 'mark' | 'animated'")
@@ -131,6 +131,7 @@ describe('Aether-derived home structure', () => {
     expect(animatedLogo).toContain('class="ssxz-color"')
     expect(animatedLogo).toContain('ssxz-color-form')
     expect(animatedLogo).toContain('ssxz-color-breathe')
+    expect(animatedLogo).not.toMatch(/mix-blend-mode|filter\s*:/)
     expect(animatedLogo).toContain('stroke-dashoffset: 1')
     expect(animatedLogo).toContain('prefers-reduced-motion: reduce')
     expect(animatedLogo.match(/pathLength="1"/g)).toHaveLength(108)

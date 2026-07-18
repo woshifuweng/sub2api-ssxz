@@ -49,7 +49,7 @@ const props = withDefaults(defineProps<{
   label: 'SSXZ 双S猫狗交缠 Logo'
 })
 
-const animatedLogoUrl = '/brand/ssxz-cat-dog-line-draw.svg'
+const animatedLogoUrl = '/brand/ssxz-cat-dog-line-draw-safari-safe.svg'
 const staticLogoUrl = '/brand/ssxz-cat-dog-static.svg'
 
 const brandStyle = computed<CSSProperties>(() => ({

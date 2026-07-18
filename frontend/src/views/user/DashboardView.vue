@@ -280,71 +280,10 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.dashboard-shell--light {
-  --ssxz-bg: #f6f7f8;
-  --ssxz-bg-subtle: #f0f2f4;
-  --ssxz-surface: #ffffff;
-  --ssxz-surface-raised: #f7f8f9;
-  --ssxz-surface-muted: #eceff2;
-  --ssxz-surface-code: #f3f5f6;
-  --ssxz-code-surface: var(--ssxz-surface-code);
-  --ssxz-border: #dde1e5;
-  --ssxz-border-strong: #c4cad1;
-  --ssxz-text: #17191d;
-  --ssxz-text-secondary: #3f4650;
-  --ssxz-text-muted: #66707c;
-  --ssxz-text-subtle: #88929e;
-  --ssxz-primary: #4f6882;
-  --ssxz-primary-hover: #415a73;
-  --ssxz-primary-soft: rgb(79 104 130 / 0.1);
-  --ssxz-accent: #556273;
-  --ssxz-accent-strong: #374151;
-  --ssxz-accent-soft: rgb(85 98 115 / 0.1);
-  --ssxz-action-text: #ffffff;
-  --ssxz-body: var(--ssxz-text-secondary);
-  --ssxz-subtle: var(--ssxz-text-subtle);
-  --ssxz-shadow-card: 0 1px 2px rgb(17 24 39 / 0.06);
-  --ssxz-shadow-sm: 0 8px 24px rgb(17 24 39 / 0.08);
-  --ssxz-shadow: 0 18px 48px rgb(17 24 39 / 0.1);
-  --ssxz-focus-ring: 0 0 0 3px rgb(85 98 115 / 0.2);
-}
-
-.dashboard-shell--dark {
-  --ssxz-bg: #111214;
-  --ssxz-bg-subtle: #141619;
-  --ssxz-surface: #1b1b1b;
-  --ssxz-surface-raised: #22252a;
-  --ssxz-surface-muted: #292d32;
-  --ssxz-surface-code: #131416;
-  --ssxz-code-surface: var(--ssxz-surface-code);
-  --ssxz-border: #34383e;
-  --ssxz-border-strong: #4a5059;
-  --ssxz-text: #f3f4f6;
-  --ssxz-text-secondary: #c7cbd1;
-  --ssxz-text-muted: #9aa1ab;
-  --ssxz-text-subtle: #707985;
-  --ssxz-primary: #9db6ce;
-  --ssxz-primary-hover: #b3c7db;
-  --ssxz-primary-soft: rgb(157 182 206 / 0.12);
-  --ssxz-accent: #aab4c2;
-  --ssxz-accent-strong: #d1d5db;
-  --ssxz-accent-soft: rgb(170 180 194 / 0.1);
-  --ssxz-action-text: #15171a;
-  --ssxz-body: var(--ssxz-text-secondary);
-  --ssxz-subtle: var(--ssxz-text-subtle);
-  --ssxz-shadow-card: 0 1px 2px rgb(0 0 0 / 0.28);
-  --ssxz-shadow-sm: 0 8px 24px rgb(0 0 0 / 0.24);
-  --ssxz-shadow: 0 18px 48px rgb(0 0 0 / 0.34);
-  --ssxz-focus-ring: 0 0 0 3px rgb(170 180 194 / 0.2);
-}
 
 .dashboard-foundation {
   min-height: 0;
   background: transparent;
-}
-
-.dashboard-shell :deep(.ssxz-app-main) {
-  width: min(100%, 1540px);
 }
 
 .dashboard-workspace {

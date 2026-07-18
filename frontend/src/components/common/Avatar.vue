@@ -58,7 +58,7 @@ const ariaLabel = computed(() => props.name?.trim() || props.label)
   flex: 0 0 auto;
   place-items: center;
   overflow: hidden;
-  border: 1px solid var(--ssxz-border-strong, #aab4c0);
+  border: 1.5px solid var(--ssxz-placeholder-border, #272b31);
   border-radius: 999px;
   background: var(--ssxz-surface-raised, #edf1f5);
   color: var(--ssxz-text-primary, #1d2530);
@@ -68,13 +68,13 @@ const ariaLabel = computed(() => props.name?.trim() || props.label)
 }
 
 .ssxz-avatar--fallback {
-  background: linear-gradient(145deg, #dfe5eb 0%, #aeb9c5 100%);
-  color: #344150;
+  background: transparent;
+  color: var(--ssxz-text-secondary, #3f4650);
 }
 
 :global(.dark) .ssxz-avatar--fallback {
-  background: linear-gradient(145deg, #6e7b89 0%, #303b49 100%);
-  color: #f4f7fa;
+  background: transparent;
+  color: var(--ssxz-text, #f4f4f5);
 }
 
 .ssxz-avatar__image {

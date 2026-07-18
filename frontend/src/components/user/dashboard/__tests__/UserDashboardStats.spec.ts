@@ -1,5 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 vi.mock('vue-i18n', async (importOriginal) => ({
   ...(await importOriginal<typeof import('vue-i18n')>()),
@@ -105,6 +107,15 @@ function mountStats(isSimple = false) {
 }
 
 describe('UserDashboardStats', () => {
+  it('stretches every KPI card to the same grid-row height', () => {
+    const gridSource = readFileSync(resolve(process.cwd(), 'src/components/user/dashboard/UserDashboardStats.vue'), 'utf8')
+    const cardSource = readFileSync(resolve(process.cwd(), 'src/components/user/dashboard/ProgressMetricCard.vue'), 'utf8')
+
+    expect(gridSource).toMatch(/\.dashboard-metrics\s*\{[\s\S]*align-items:\s*stretch;/)
+    expect(gridSource).toMatch(/\.dashboard-metrics\s*>\s*\*\s*\{[\s\S]*height:\s*100%;/)
+    expect(cardSource).toMatch(/\.progress-metric-card\s*\{[\s\S]*height:\s*100%;/)
+  })
+
   it('keeps all eight native metric groups and their real supporting values', () => {
     const wrapper = mountStats()
 

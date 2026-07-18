@@ -81,31 +81,18 @@
 @keyframes ssxz-color-form {
   0% {
     opacity: 0;
-    filter: brightness(.76) drop-shadow(0 0 0 rgb(246 214 170 / 0));
     transform: scale(.992);
   }
   100% {
     opacity: 1;
-    filter:
-      brightness(1)
-      drop-shadow(0 0 .9px rgb(246 214 170 / 28%))
-      drop-shadow(0 0 1.2px rgb(39 143 255 / 12%));
     transform: scale(1);
   }
 }
 @keyframes ssxz-color-breathe {
   0%, 100% {
-    filter:
-      brightness(1)
-      drop-shadow(0 0 .8px rgb(246 214 170 / 22%))
-      drop-shadow(0 0 1px rgb(39 143 255 / 10%));
     transform: scale(1);
   }
   50% {
-    filter:
-      brightness(1.035)
-      drop-shadow(0 0 1.4px rgb(246 214 170 / 32%))
-      drop-shadow(0 0 1.8px rgb(39 143 255 / 16%));
     transform: scale(1.008);
   }
 }
@@ -115,7 +102,6 @@
   .ssxz-color {
     opacity: 1;
     animation: none;
-    filter: none;
     transform: none;
   }
 }

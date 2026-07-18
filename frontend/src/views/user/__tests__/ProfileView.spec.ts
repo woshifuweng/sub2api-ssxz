@@ -35,6 +35,8 @@ const { authStore, appStore, authAPI, userAPI, routeState } = vi.hoisted(() => (
 const messages: Record<string, string> = {
   'profile.accountBalance': 'Account balance',
   'profile.accountStatus': 'Account status',
+  'profile.administrator': 'Administrator',
+  'profile.user': 'User',
   'profile.statusActive': 'Active',
   'profile.statusDisabled': 'Disabled',
   'profile.memberSince': 'Member since',
@@ -52,7 +54,10 @@ const messages: Record<string, string> = {
   'profile.workbench.loginProtectionKicker': 'Login protection',
   'profile.workbench.changePasswordTitle': 'Change password',
   'profile.workbench.twoFactorKicker': 'Two-factor verification',
-  'profile.workbench.securityTitle': 'Account security'
+  'profile.workbench.securityTitle': 'Account security',
+  'profile.avatar.uploadTitle': 'Choose an avatar image',
+  'profile.avatar.uploadHint': 'JPEG, PNG, or WebP up to 5MB',
+  'profile.avatar.change': 'Change avatar'
 }
 
 vi.mock('vue-i18n', () => ({
@@ -106,16 +111,12 @@ vi.mock('@/components/layout/AppLayout.vue', () => ({
   }
 }))
 
-vi.mock('@/components/common/StatCard.vue', () => ({
+vi.mock('@/components/common/Avatar.vue', () => ({
   default: {
-    name: 'StatCard',
-    props: ['title', 'value', 'iconVariant'],
-    template: '<article class="stat-card-stub" :data-icon-variant="iconVariant"><span>{{ title }}</span><strong>{{ value }}</strong></article>'
+    name: 'Avatar',
+    props: ['src', 'name', 'size'],
+    template: '<span class="avatar-stub" :data-name="name" :data-size="size" />'
   }
-}))
-
-vi.mock('@/components/user/profile/ProfileInfoCard.vue', () => ({
-  default: { name: 'ProfileInfoCard', template: '<section />' }
 }))
 
 vi.mock('@/components/user/profile/ProfileEditForm.vue', () => ({
@@ -152,15 +153,23 @@ describe('ProfileView', () => {
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(true)
     expect(text).toContain('My account')
     expect(text).toContain('Account settings')
-    expect(text).toContain('Manage your login information and security verification')
+    expect(text).toContain('Test User')
+    expect(text).toContain('user@example.test')
+    expect(text).toContain('User')
     expect(text).toContain('Basic info')
-    expect(text).toContain('Edit profile')
+    expect(text).toContain('Account information')
+    expect(text).toContain('Choose an avatar image')
+    expect(text).toContain('Change avatar')
     expect(text).toContain('Change password')
     expect(text).toContain('Account security')
+    expect(text).toContain('Account balance')
+    expect(text).toContain('$49.40')
     expect(text).toContain('Account status')
     expect(text).toContain('Active')
     expect(text).not.toContain('Concurrency Limit')
-    expect(wrapper.find('.stat-card-stub').attributes('data-icon-variant')).toBe('neutral')
+    expect(wrapper.findAll('.profile-hero-card__stats > div')).toHaveLength(3)
+    expect(wrapper.find('.profile-identity-grid').exists()).toBe(true)
+    expect(wrapper.findAll('.avatar-stub')).toHaveLength(2)
   })
 
   it('keeps the legacy profile surface on /profile for compatibility', async () => {
