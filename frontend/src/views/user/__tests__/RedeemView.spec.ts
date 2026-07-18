@@ -37,7 +37,13 @@ vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string, params?: Record<string, unknown>) => {
       const translations: Record<string, string> = {
-        'redeem.errors.REDEEM_CODE_NOT_FOUND': 'Redeem code does not exist or has expired.',
+        'redeem.errors.REDEEM_CODE_NOT_FOUND': '兑换码不存在或已失效，请检查后重试。',
+        'redeem.errors.REDEEM_CODE_USED': '该兑换码已被使用。',
+        'redeem.errors.REDEEM_RATE_LIMITED': '失败次数过多，请稍后再试。',
+        'redeem.errors.REDEEM_CODE_LOCKED': '该兑换码正在处理中，请稍后重试。',
+        'redeem.errors.REDEEM_CODE_INVALID': '该兑换码无效，请核对后再试。',
+        'auth.completeVerification': '请完成验证',
+        'redeem.failedToRedeem': '兑换失败，请检查兑换码后重试。',
         'redeem.historyLoadFailed': 'Failed to load redeem history. Please retry.',
         'redeem.retryHistory': 'Reload',
         'redeem.balanceRedeemResult': `Credited $${params?.amount ?? '0.00'} balance.`,
@@ -176,9 +182,117 @@ describe('RedeemView', () => {
 
     expect(redeemAPI.redeem).toHaveBeenCalledTimes(1)
     expect((wrapper.get('input#code').element as HTMLInputElement).value).toBe('BAD-CODE')
-    expect(wrapper.text()).toContain('Redeem code does not exist or has expired.')
+    expect(wrapper.text()).toContain('兑换码不存在或已失效，请检查后重试。')
     expect(wrapper.text()).not.toContain('redeem code not found')
     expect(appStore.showError).toHaveBeenCalledWith('redeem.redeemFailed')
+  })
+
+  it('maps the production interceptor 404 shape without exposing its raw message', async () => {
+    redeemAPI.redeem.mockRejectedValue({
+      status: 404,
+      code: 404,
+      message: 'redeem code not found'
+    })
+
+    const wrapper = mount(RedeemView)
+    await flushPromises()
+
+    await wrapper.get('input#code').setValue('MISSING-CODE')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('兑换码不存在或已失效，请检查后重试。')
+    expect(wrapper.text()).not.toContain('redeem code not found')
+  })
+
+  it('maps the production interceptor 409 shape without exposing its raw message', async () => {
+    redeemAPI.redeem.mockRejectedValue({
+      status: 409,
+      code: 409,
+      message: 'redeem code already used'
+    })
+
+    const wrapper = mount(RedeemView)
+    await flushPromises()
+
+    await wrapper.get('input#code').setValue('USED-CODE')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('该兑换码已被使用。')
+    expect(wrapper.text()).not.toContain('redeem code already used')
+  })
+
+  it('maps stable expired, disabled, Turnstile, rate-limit and lock reasons', async () => {
+    const cases = [
+      ['REDEEM_CODE_EXPIRED', '兑换码不存在或已失效，请检查后重试。'],
+      ['REDEEM_CODE_DISABLED', '兑换码不存在或已失效，请检查后重试。'],
+      ['REDEEM_CODE_INACTIVE', '兑换码不存在或已失效，请检查后重试。'],
+      ['TURNSTILE_VERIFICATION_FAILED', '请完成验证'],
+      ['REDEEM_RATE_LIMITED', '失败次数过多，请稍后再试。'],
+      ['REDEEM_CODE_LOCKED', '该兑换码正在处理中，请稍后重试。']
+    ] as const
+
+    for (const [reason, expected] of cases) {
+      redeemAPI.redeem.mockRejectedValueOnce({
+        status: 400,
+        reason,
+        message: `internal ${reason}`
+      })
+
+      const wrapper = mount(RedeemView)
+      await flushPromises()
+      await wrapper.get('input#code').setValue('TEST-CODE')
+      await wrapper.get('form').trigger('submit.prevent')
+      await flushPromises()
+
+      expect(wrapper.text()).toContain(expected)
+      expect(wrapper.text()).not.toContain(`internal ${reason}`)
+      wrapper.unmount()
+    }
+  })
+
+  it('maps the production interceptor 429 shape to a friendly rate-limit message', async () => {
+    redeemAPI.redeem.mockRejectedValue({
+      status: 429,
+      code: 429,
+      message: 'too many failed attempts, please try again later'
+    })
+
+    const wrapper = mount(RedeemView)
+    await flushPromises()
+
+    await wrapper.get('input#code').setValue('RATE-LIMITED')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('失败次数过多，请稍后再试。')
+    expect(wrapper.text()).not.toContain('too many failed attempts')
+  })
+
+  it('never exposes raw network, server or unknown error details', async () => {
+    const cases = [
+      { status: 0, message: 'Network error. Please check your connection.' },
+      { status: 500, reason: 'INTERNAL_FAILURE', message: 'database stack trace' },
+      new Error('unexpected internal exception')
+    ]
+
+    for (const error of cases) {
+      redeemAPI.redeem.mockRejectedValueOnce(error)
+
+      const wrapper = mount(RedeemView)
+      await flushPromises()
+      await wrapper.get('input#code').setValue('UNKNOWN-FAILURE')
+      await wrapper.get('form').trigger('submit.prevent')
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('兑换失败，请检查兑换码后重试。')
+      expect(wrapper.text()).not.toContain('Network error')
+      expect(wrapper.text()).not.toContain('database stack trace')
+      expect(wrapper.text()).not.toContain('unexpected internal exception')
+      expect(wrapper.text()).not.toContain('INTERNAL_FAILURE')
+      wrapper.unmount()
+    }
   })
 
   it('prevents duplicate redeem submissions while a request is pending', async () => {

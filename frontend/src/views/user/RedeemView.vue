@@ -294,7 +294,7 @@ import Icon from '@/components/icons/Icon.vue'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useSubscriptionStore } from '@/stores/subscriptions'
-import { extractI18nErrorMessage } from '@/utils/apiError'
+import { extractApiErrorCode } from '@/utils/apiError'
 import { formatDateTime } from '@/utils/format'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 
@@ -330,6 +330,40 @@ const turnstileEnabled = ref(false)
 const turnstileSiteKey = ref('')
 const turnstileToken = ref('')
 const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
+
+const redeemErrorKeyByReason: Record<string, string> = {
+  REDEEM_CODE_NOT_FOUND: 'redeem.errors.REDEEM_CODE_NOT_FOUND',
+  REDEEM_CODE_USED: 'redeem.errors.REDEEM_CODE_USED',
+  REDEEM_CODE_EXPIRED: 'redeem.errors.REDEEM_CODE_NOT_FOUND',
+  REDEEM_CODE_DISABLED: 'redeem.errors.REDEEM_CODE_NOT_FOUND',
+  REDEEM_CODE_INACTIVE: 'redeem.errors.REDEEM_CODE_NOT_FOUND',
+  REDEEM_RATE_LIMITED: 'redeem.errors.REDEEM_RATE_LIMITED',
+  REDEEM_CODE_LOCKED: 'redeem.errors.REDEEM_CODE_LOCKED',
+  REDEEM_CODE_INVALID: 'redeem.errors.REDEEM_CODE_INVALID',
+  TURNSTILE_VERIFICATION_FAILED: 'auth.completeVerification'
+}
+
+const getRedeemErrorMessage = (error: unknown) => {
+  const reason = extractApiErrorCode(error)
+  if (reason && redeemErrorKeyByReason[reason]) {
+    return t(redeemErrorKeyByReason[reason])
+  }
+
+  const status = error && typeof error === 'object' && 'status' in error
+    ? Number((error as { status?: unknown }).status)
+    : 0
+  if (status === 404) {
+    return t('redeem.errors.REDEEM_CODE_NOT_FOUND')
+  }
+  if (status === 409) {
+    return t('redeem.errors.REDEEM_CODE_USED')
+  }
+  if (status === 429) {
+    return t('redeem.errors.REDEEM_RATE_LIMITED')
+  }
+
+  return t('redeem.failedToRedeem')
+}
 
 const handleTurnstileVerify = (token: string) => { turnstileToken.value = token }
 const handleTurnstileExpire = () => { turnstileToken.value = '' }
@@ -436,12 +470,7 @@ const handleRedeem = async () => {
     await fetchHistory()
     appStore.showSuccess(t('redeem.codeRedeemSuccess'))
   } catch (error) {
-    errorMessage.value = extractI18nErrorMessage(
-      error,
-      t,
-      'redeem.errors',
-      t('redeem.failedToRedeem')
-    )
+    errorMessage.value = getRedeemErrorMessage(error)
     appStore.showError(t('redeem.redeemFailed'))
   } finally {
     submitting.value = false
