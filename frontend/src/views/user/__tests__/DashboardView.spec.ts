@@ -227,28 +227,26 @@ describe('DashboardView', () => {
     })
   })
 
-  it('renders the real operating entry with balance, usage, channel, order, and API key links', async () => {
+  it('keeps real dashboard data while removing duplicated workbench and service directory layers', async () => {
     const wrapper = mountView()
     await flushPromises()
 
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="dashboard-foundation"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('user@example.com')
+    expect(wrapper.text()).not.toContain('账户工作台')
+    expect(wrapper.text()).not.toContain('管理常用功能')
     expect(wrapper.text()).toContain('42.35')
     expect(hrefs).toContain('/app/keys')
     expect(hrefs).toContain('/app/usage')
-    expect(hrefs).toContain('/app/available-channels')
-    expect(hrefs).toContain('/app/channel-status')
     expect(hrefs).toContain('/app/purchase')
-    expect(hrefs).toContain('/app/orders')
-    expect(hrefs).toContain('/app/redeem')
-    expect(hrefs).toContain('/app/affiliate')
     expect(hrefs).not.toContain('/app/chat')
     expect(wrapper.text()).not.toContain('模型测试入口')
+    expect(wrapper.get('[data-testid="dashboard-onboarding"]').element.tagName).toBe('DETAILS')
+    expect(wrapper.get('[data-testid="dashboard-onboarding"]').attributes('open')).toBeUndefined()
+    expect(wrapper.text()).toContain('首次接入指南')
     expect(wrapper.find('[data-testid="dashboard-stats-child"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="dashboard-stats-child"]').text()).toContain('12345 42.35 false 1 2')
-    expect(wrapper.find('.dashboard-command-panel__snapshot').exists()).toBe(false)
     expect(wrapper.find('[data-testid="dashboard-charts-child"]').text()).toContain('1 1')
     expect(wrapper.find('[data-testid="dashboard-recent-usage-child"]').text()).toContain('1')
     expect(wrapper.find('[data-testid="dashboard-quick-actions-child"]').exists()).toBe(true)
@@ -258,37 +256,6 @@ describe('DashboardView', () => {
     expect(usageAPI.getDashboardTrend).toHaveBeenCalledWith(expect.objectContaining({ granularity: 'hour' }))
     expect(usageAPI.getDashboardModels).toHaveBeenCalledTimes(1)
     expect(usageAPI.getByDateRange).toHaveBeenCalledTimes(1)
-  })
-
-  it('hides the channel status shortcut when channel monitoring is disabled', async () => {
-    appStore.cachedPublicSettings = {
-      channel_monitor_enabled: false,
-      payment_enabled: true,
-      affiliate_enabled: false
-    }
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
-    expect(hrefs).not.toContain('/app/channel-status')
-  })
-
-  it('shows invite rebate as a commercial shortcut without legacy promo wording', async () => {
-    appStore.cachedPublicSettings = {
-      channel_monitor_enabled: true,
-      payment_enabled: true,
-      affiliate_enabled: true
-    }
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
-    expect(hrefs).toContain('/app/affiliate')
-    expect(wrapper.text()).not.toContain('推广中心')
-    expect(wrapper.text()).toContain('邀请返利')
-    expect(wrapper.text()).toContain('查看返利')
   })
 
   it('keeps recharge and order language consistent when online payment is disabled', async () => {
@@ -303,7 +270,6 @@ describe('DashboardView', () => {
 
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
     expect(hrefs).not.toContain('/app/purchase')
-    expect(hrefs).toContain('/app/orders')
     expect(wrapper.text()).not.toContain('购买套餐')
     expect(wrapper.text()).not.toContain('去充值')
     expect(wrapper.text()).not.toContain('充值和订单')

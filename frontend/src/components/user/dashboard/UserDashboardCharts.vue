@@ -32,7 +32,10 @@
     </div>
 
     <div class="dashboard-chart-grid">
-      <div class="dashboard-chart-panel dashboard-model-panel">
+      <div
+        class="dashboard-chart-panel dashboard-model-panel"
+        :class="{ 'dashboard-chart-panel--empty': !loading && models.length === 0 }"
+      >
         <div v-if="loading" class="dashboard-chart-loading">
           <LoadingSpinner size="md" />
         </div>
@@ -43,10 +46,9 @@
           </div>
           <span>{{ models.length }} 个模型</span>
         </div>
-        <div class="dashboard-model-panel__body">
+        <div v-if="models.length > 0" class="dashboard-model-panel__body">
           <div class="dashboard-doughnut">
             <Doughnut v-if="modelData" :data="modelData" :options="doughnutOptions" />
-            <div v-else class="dashboard-chart-empty">{{ t('dashboard.noDataAvailable') }}</div>
           </div>
           <div class="dashboard-model-table-wrap">
             <table class="dashboard-model-table">
@@ -75,6 +77,10 @@
               </tbody>
             </table>
           </div>
+        </div>
+        <div v-else class="dashboard-chart-empty">
+          <strong>暂无模型用量</strong>
+          <span>完成一次模型调用后，这里会显示用量构成。</span>
         </div>
       </div>
 
@@ -256,6 +262,7 @@ const doughnutOptions = computed<ChartOptions<'doughnut'>>(() => ({
 .dashboard-chart-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: 0.75rem;
 }
 
@@ -265,6 +272,10 @@ const doughnutOptions = computed<ChartOptions<'doughnut'>>(() => ({
   min-height: 20rem;
   overflow: hidden;
   padding: 1rem;
+}
+
+.dashboard-chart-panel--empty {
+  min-height: 10rem;
 }
 
 .dashboard-chart-loading {
@@ -313,12 +324,29 @@ const doughnutOptions = computed<ChartOptions<'doughnut'>>(() => ({
 }
 
 .dashboard-chart-empty {
-  display: flex;
-  height: 100%;
+  display: grid;
+  min-height: 5rem;
   align-items: center;
   justify-content: center;
+  align-content: center;
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+  border: 1px dashed hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--muted) / 0.28);
   color: hsl(var(--muted-foreground));
   font-size: 0.75rem;
+  text-align: center;
+}
+
+.dashboard-chart-empty strong {
+  color: hsl(var(--foreground));
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.dashboard-chart-empty span {
+  font-size: 0.6875rem;
 }
 
 .dashboard-model-table-wrap {

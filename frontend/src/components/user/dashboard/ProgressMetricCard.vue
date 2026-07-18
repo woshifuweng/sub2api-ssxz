@@ -15,12 +15,15 @@
       </div>
     </div>
 
-    <div v-if="hasSeries" class="progress-metric-card__trend" aria-hidden="true">
-      <p v-if="trendLabel" class="progress-metric-card__trend-label">{{ trendLabel }}</p>
+    <div
+      v-if="hasSeries"
+      class="progress-metric-card__trend"
+      :aria-label="trendLabel || `${label}趋势`"
+    >
       <div class="progress-metric-card__chart">
         <Line :data="chartData" :options="chartOptions" />
       </div>
-      <dl class="progress-metric-card__summary">
+      <dl class="progress-metric-card__summary progress-metric-card__summary--sr-only">
         <div>
           <dt>低位</dt>
           <dd>{{ formatSeriesValue(summary.low) }}</dd>
@@ -132,14 +135,14 @@ function formatSeriesValue(value: number): string {
 
 <style scoped>
 .progress-metric-card {
-  min-height: 13.25rem;
+  min-width: 0;
 }
 
 .progress-metric-card :deep(.f0-card-content) {
   display: flex;
-  min-height: 13.25rem;
+  min-height: 8.75rem;
   flex-direction: column;
-  padding: 1rem;
+  padding: 0.8rem;
 }
 
 .progress-metric-card__header,
@@ -156,8 +159,8 @@ function formatSeriesValue(value: number): string {
 
 .progress-metric-card__icon {
   display: inline-flex;
-  width: 2rem;
-  height: 2rem;
+  width: 1.75rem;
+  height: 1.75rem;
   align-items: center;
   justify-content: center;
   border: 1px solid hsl(var(--border));
@@ -167,8 +170,8 @@ function formatSeriesValue(value: number): string {
 }
 
 .progress-metric-card__icon :deep(svg) {
-  width: 1rem;
-  height: 1rem;
+  width: 0.9rem;
+  height: 0.9rem;
   stroke-width: 1.8;
 }
 
@@ -185,7 +188,7 @@ function formatSeriesValue(value: number): string {
 }
 
 .progress-metric-card__body {
-  margin-top: 1rem;
+  margin-top: 0.65rem;
 }
 
 .progress-metric-card__label,
@@ -200,43 +203,54 @@ function formatSeriesValue(value: number): string {
 }
 
 .progress-metric-card__value {
-  margin-top: 0.25rem;
+  margin-top: 0.15rem;
   color: hsl(var(--foreground));
-  font-size: clamp(1.45rem, 2vw, 1.8rem);
+  font-size: clamp(1.25rem, 1.55vw, 1.6rem);
   font-weight: 700;
-  line-height: 2.1rem;
+  line-height: 1.8rem;
 }
 
 .progress-metric-card__details {
-  min-height: 1.25rem;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.65rem;
+  display: grid;
+  min-width: 0;
+  min-height: 1rem;
+  gap: 0.15rem;
   margin-top: 0.3rem;
   font-size: 0.6875rem;
   line-height: 1rem;
 }
 
-.progress-metric-card__trend {
-  margin-top: auto;
-  padding-top: 0.8rem;
+.progress-metric-card__details :deep(> *) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.progress-metric-card__trend-label {
-  margin: 0 0 0.25rem;
-  color: hsl(var(--muted-foreground));
-  font-size: 0.625rem;
-  font-weight: 600;
-  line-height: 0.9rem;
+.progress-metric-card__trend {
+  margin-top: auto;
+  padding-top: 0.5rem;
 }
 
 .progress-metric-card__chart {
-  height: 2.75rem;
+  height: 2.1rem;
 }
 
 .progress-metric-card__summary {
   justify-content: space-between;
   gap: 0.5rem;
-  margin: 0.35rem 0 0;
+  margin: 0.2rem 0 0;
+}
+
+.progress-metric-card__summary--sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 .progress-metric-card__summary div {
@@ -252,7 +266,7 @@ function formatSeriesValue(value: number): string {
 
 .progress-metric-card__support {
   margin-top: auto;
-  padding-top: 0.8rem;
+  padding-top: 0.5rem;
 }
 
 .progress-metric-card__summary dd {
@@ -261,9 +275,8 @@ function formatSeriesValue(value: number): string {
 }
 
 @media (max-width: 640px) {
-  .progress-metric-card,
   .progress-metric-card :deep(.f0-card-content) {
-    min-height: 12rem;
+    min-height: 8.75rem;
   }
 }
 </style>

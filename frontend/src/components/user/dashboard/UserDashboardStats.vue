@@ -20,7 +20,6 @@
           <div class="dashboard-balance-support__track" aria-hidden="true">
             <span :style="{ width: `${activeKeyRate}%` }" />
           </div>
-          <p>有效 Key 状态取自当前账户实时数据。</p>
         </div>
       </template>
     </ProgressMetricCard>
@@ -181,7 +180,8 @@ const formatDuration = (value: number) =>
 <style scoped>
 .dashboard-metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  align-items: start;
   gap: 0.75rem;
 }
 
@@ -219,22 +219,16 @@ const formatDuration = (value: number) =>
   background: hsl(var(--foreground));
 }
 
-.dashboard-balance-support p {
-  margin: 0;
-  color: hsl(var(--muted-foreground));
-  font-size: 0.625rem;
-  line-height: 0.95rem;
+@media (max-width: 1600px) {
+  .dashboard-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 900px) {
   .dashboard-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 640px) {
-  .dashboard-metrics {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
 </style>

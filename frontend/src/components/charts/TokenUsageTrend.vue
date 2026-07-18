@@ -2,7 +2,8 @@
   <section
     :class="[
       'token-usage-trend',
-      variant === 'foundation' ? 'token-usage-trend--foundation' : 'card p-4'
+      variant === 'foundation' ? 'token-usage-trend--foundation' : 'card p-4',
+      { 'token-usage-trend--empty': variant === 'foundation' && !loading && trendData.length === 0 }
     ]"
   >
     <header :class="{ 'token-usage-trend__header': variant === 'foundation' }">
@@ -20,7 +21,8 @@
       <Line :data="chartData" :options="lineOptions" />
     </div>
     <div v-else class="token-usage-trend__state token-usage-trend__state--empty">
-      {{ t('admin.dashboard.noDataAvailable') }}
+      <strong>暂无 Token 趋势</strong>
+      <span>完成一次模型调用后，这里会显示输入与输出变化。</span>
     </div>
   </section>
 </template>
@@ -218,8 +220,27 @@ function formatCost(value: number): string {
 }
 
 .token-usage-trend__state--empty {
+  display: grid;
+  align-content: center;
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+  border: 1px dashed hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--muted) / 0.28);
   color: #6b7280;
   font-size: 0.75rem;
+  text-align: center;
+}
+
+.token-usage-trend__state--empty strong {
+  color: hsl(var(--foreground));
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.token-usage-trend__state--empty span {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.6875rem;
 }
 
 .token-usage-trend--foundation {
@@ -231,6 +252,10 @@ function formatCost(value: number): string {
   color: hsl(var(--foreground));
   background: hsl(var(--card));
   box-shadow: 0 1px 2px hsl(var(--shadow));
+}
+
+.token-usage-trend--foundation.token-usage-trend--empty {
+  min-height: 10rem;
 }
 
 .token-usage-trend--foundation .token-usage-trend__header {
@@ -263,5 +288,10 @@ function formatCost(value: number): string {
 .token-usage-trend--foundation .token-usage-trend__state {
   height: 15rem;
   padding-top: 0.75rem;
+}
+
+.token-usage-trend--foundation.token-usage-trend--empty .token-usage-trend__state {
+  height: 5rem;
+  padding-top: 0;
 }
 </style>
