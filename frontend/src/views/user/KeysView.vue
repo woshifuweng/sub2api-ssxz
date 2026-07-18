@@ -1,108 +1,40 @@
 <template>
   <component :is="pageShell" v-bind="pageShellProps">
     <div :class="['keys-page-surface', { 'keys-page-surface--workbench': useWorkbenchShell }]">
-      <section
-        v-if="useWorkbenchShell"
-        class="keys-client-guide"
-        :aria-label="t('keys.workbenchGuide.ariaLabel')"
+      <TablePageLayout
+        :class="[
+          { 'keys-workbench-layout': useWorkbenchShell },
+          { 'keys-workbench-layout--no-pagination': useWorkbenchShell && pagination.total === 0 }
+        ]"
       >
-        <div class="keys-guide-copy">
-          <span class="keys-guide-eyebrow">{{ t('keys.workbenchGuide.eyebrow') }}</span>
-          <h3>{{ t('keys.workbenchGuide.title') }}</h3>
-          <p>
-            {{ t('keys.workbenchGuide.description') }}
-          </p>
-          <div class="keys-guide-base">
-            <span>{{ t('keys.workbenchGuide.baseUrlLabel') }}</span>
-            <code>{{ openAICompatibleBaseUrl }}</code>
-            <button
-              type="button"
-              class="keys-guide-copy-button"
-              data-testid="keys-guide-copy-base-url"
-              :title="
-                baseUrlCopied
-                  ? t('keys.workbenchGuide.baseUrlCopied')
-                  : t('keys.workbenchGuide.copyBaseUrl')
-              "
-              @click="copyBaseUrl"
-            >
-              <Icon v-if="baseUrlCopied" name="check" size="sm" :stroke-width="2" />
-              <Icon v-else name="clipboard" size="sm" />
-            </button>
-          </div>
-          <ol class="keys-guide-steps" :aria-label="t('keys.workbenchGuide.stepsAriaLabel')">
-            <li>
-              <span>1</span>
-              <div>
-                <strong>{{ t('keys.workbenchGuide.stepCreateTitle') }}</strong>
-                <p>{{ t('keys.workbenchGuide.stepCreateDescription') }}</p>
-              </div>
-            </li>
-            <li>
-              <span>2</span>
-              <div>
-                <strong>{{ t('keys.workbenchGuide.stepCopyTitle') }}</strong>
-                <p>{{ t('keys.workbenchGuide.stepCopyDescription') }}</p>
-              </div>
-            </li>
-            <li>
-              <span>3</span>
-              <div>
-                <strong>{{ t('keys.workbenchGuide.stepConfigureTitle') }}</strong>
-                <p>{{ t('keys.workbenchGuide.stepConfigureDescription') }}</p>
-              </div>
-            </li>
-          </ol>
-          <p class="keys-guide-note">
-            {{ t('keys.workbenchGuide.ccsImportNote') }}
-          </p>
-        </div>
-        <div class="keys-guide-cards" :aria-label="t('keys.workbenchGuide.clientsAriaLabel')">
-          <article>
-            <strong>OpenAI-compatible</strong>
-            <span>客户端统一填写 Base URL、API Key 和 Model，模型以后端配置为准。</span>
-          </article>
-          <article>
-            <strong>Cherry Studio</strong>
-            <span>选择 OpenAI-compatible 配置方式接入，适合日常对话和模型切换。</span>
-          </article>
-          <article>
-            <strong>Chatbox</strong>
-            <span>适合轻量聊天和测试接口，填写本站 Base URL 与 Key 即可。</span>
-          </article>
-          <article>
-            <strong>CC Switch</strong>
-            <span>导入完整 Key 后可生成客户端配置，无法导入时请先新建并保存完整 Key。</span>
-          </article>
-        </div>
-      </section>
-
-      <TablePageLayout :class="{ 'keys-workbench-layout': useWorkbenchShell }">
       <template #filters>
         <div class="space-y-3">
-          <div class="keys-client-callout rounded-xl border p-4 text-sm">
-            <p class="font-semibold">{{ t('keys.clientAccessTitle') }}</p>
-            <p class="mt-1 leading-6">{{ t('keys.clientAccessDescription') }}</p>
-            <p class="mt-1 leading-6">{{ t('keys.clientReadinessHint') }}</p>
-            <div class="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold">
-              <span>
-                {{ t('keys.clientTroubleshootingHint') }}
-              </span>
-              <a
-                href="/app/available-channels"
-                class="keys-client-chip"
+          <div class="keys-access-row">
+            <div class="keys-access-base" data-testid="keys-base-url-row">
+              <span>{{ t('keys.workbenchGuide.baseUrlLabel') }}</span>
+              <code>{{ openAICompatibleBaseUrl }}</code>
+              <button
+                type="button"
+                class="keys-access-copy"
+                data-testid="keys-guide-copy-base-url"
+                :title="
+                  baseUrlCopied
+                    ? t('keys.workbenchGuide.baseUrlCopied')
+                    : t('keys.workbenchGuide.copyBaseUrl')
+                "
+                @click="copyBaseUrl"
               >
-                {{ t('keys.viewAvailableModels') }}
-              </a>
-              <a
-                href="/app/channel-status"
-                class="keys-client-chip"
-              >
-                {{ t('keys.viewServiceStatus') }}
-              </a>
+                <Icon v-if="baseUrlCopied" name="check" size="sm" :stroke-width="2" />
+                <Icon v-else name="clipboard" size="sm" />
+              </button>
             </div>
+            <a href="/docs" class="keys-doc-link">
+              <Icon name="document" size="sm" aria-hidden="true" />
+              <span>{{ t('home.viewDocs') }}</span>
+              <Icon name="chevronRight" size="sm" aria-hidden="true" />
+            </a>
           </div>
-          <div class="flex flex-wrap items-center gap-3">
+          <div class="keys-filter-row">
             <SearchInput
               v-model="filterSearch"
               :placeholder="t('keys.searchPlaceholder')"
@@ -127,25 +59,64 @@
 
       <template #actions>
         <div class="flex justify-end gap-3">
-        <button
-          @click="loadApiKeys"
-          :disabled="loading"
-          class="btn btn-secondary"
-          :title="t('common.refresh')"
-        >
-          <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-        </button>
-        <button
-          @click="openCreateModal"
-          :disabled="groups.length === 0"
-          class="btn btn-primary"
-          data-tour="keys-create-btn"
-          :title="groups.length === 0 ? t('keys.noAvailableGroups') : t('keys.createKey')"
-        >
-          <Icon name="plus" size="md" class="mr-2" />
-          {{ t('keys.createKey') }}
-        </button>
-      </div>
+          <button
+            @click="loadApiKeys"
+            :disabled="loading"
+            class="btn btn-secondary"
+            :title="t('common.refresh')"
+          >
+            <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+          </button>
+          <div ref="columnDropdownRef" class="relative">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-testid="keys-column-settings-trigger"
+              :title="t('admin.users.columnSettings')"
+              :aria-label="t('admin.users.columnSettings')"
+              :aria-expanded="showColumnDropdown"
+              @click.stop="showColumnDropdown = !showColumnDropdown"
+            >
+              <Icon name="grid" size="sm" class="mr-2" />
+              <span>{{ t('admin.users.columnSettings') }}</span>
+            </button>
+            <div
+              v-if="showColumnDropdown"
+              class="keys-column-menu"
+              data-testid="keys-column-settings-menu"
+              role="menu"
+            >
+              <button
+                v-for="column in toggleableColumns"
+                :key="column.key"
+                type="button"
+                class="keys-column-menu__item"
+                role="menuitemcheckbox"
+                :data-column-key="column.key"
+                :aria-checked="isColumnVisible(column.key)"
+                @click="toggleColumn(column.key)"
+              >
+                <span>{{ column.label }}</span>
+                <Icon
+                  v-if="isColumnVisible(column.key)"
+                  name="check"
+                  size="sm"
+                  :stroke-width="2"
+                />
+              </button>
+            </div>
+          </div>
+          <button
+            @click="openCreateModal"
+            :disabled="groups.length === 0"
+            class="btn btn-primary"
+            data-tour="keys-create-btn"
+            :title="groups.length === 0 ? t('keys.noAvailableGroups') : t('keys.createKey')"
+          >
+            <Icon name="plus" size="md" class="mr-2" />
+            {{ t('keys.createKey') }}
+          </button>
+        </div>
       </template>
 
       <template #table>
@@ -1334,7 +1305,7 @@
 </template>
 
 <script setup lang="ts">
-	import { ref, computed, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
+	import { ref, reactive, computed, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
 	import { useI18n } from 'vue-i18n'
 	import { useRoute } from 'vue-router'
 	import { useAppStore } from '@/stores/app'
@@ -1381,26 +1352,65 @@ const useWorkbenchShell = computed(() => route.path.startsWith('/app/'))
 const pageShell = computed(() => useWorkbenchShell.value ? AppSectionShell : AppLayout)
 const pageShellProps = computed(() => useWorkbenchShell.value
   ? {
-      title: 'API Key / 第三方接入',
-      subtitle: '创建和管理自己的 API Key，用于 CC Switch、Cherry Studio、Chatbox 等第三方客户端。',
-      eyebrow: '第三方客户端',
+      title: 'API Key',
+      subtitle: '创建和管理用于客户端接入的 API Key。',
+      eyebrow: '',
       icon: 'key'
     }
   : {}
 )
 
-const columns = computed<Column[]>(() => [
+const allColumns = computed<Column[]>(() => [
   { key: 'name', label: t('common.name'), sortable: true },
   { key: 'key', label: t('keys.apiKey'), sortable: false },
   { key: 'group', label: t('keys.group'), sortable: false },
   { key: 'usage', label: t('keys.usage'), sortable: false },
   { key: 'rate_limit', label: t('keys.rateLimitColumn'), sortable: false },
-  { key: 'expires_at', label: t('keys.expiresAt'), sortable: true },
   { key: 'status', label: t('common.status'), sortable: true },
+  { key: 'expires_at', label: t('keys.expiresAt'), sortable: true },
   { key: 'last_used_at', label: t('keys.lastUsedAt'), sortable: true },
   { key: 'created_at', label: t('keys.created'), sortable: true },
   { key: 'actions', label: t('common.actions'), sortable: false }
 ])
+
+const DEFAULT_HIDDEN_COLUMNS = ['rate_limit', 'last_used_at']
+const HIDDEN_COLUMNS_STORAGE_KEY = 'ssxz-api-key-hidden-columns-v1'
+const hiddenColumns = reactive<Set<string>>(new Set())
+
+const toggleableColumns = computed(() =>
+  allColumns.value.filter(column => !['name', 'key', 'actions'].includes(column.key))
+)
+
+const columns = computed<Column[]>(() =>
+  allColumns.value.filter(column => !hiddenColumns.has(column.key))
+)
+
+const loadSavedColumns = () => {
+  hiddenColumns.clear()
+  try {
+    const saved = localStorage.getItem(HIDDEN_COLUMNS_STORAGE_KEY)
+    const columnKeys = new Set(allColumns.value.map(column => column.key))
+    const parsed = saved ? JSON.parse(saved) : DEFAULT_HIDDEN_COLUMNS
+    if (!Array.isArray(parsed)) throw new Error('Invalid API key column settings')
+    parsed
+      .filter((key): key is string => typeof key === 'string' && columnKeys.has(key))
+      .forEach(key => hiddenColumns.add(key))
+  } catch {
+    DEFAULT_HIDDEN_COLUMNS.forEach(key => hiddenColumns.add(key))
+  }
+}
+
+const saveColumns = () => {
+  localStorage.setItem(HIDDEN_COLUMNS_STORAGE_KEY, JSON.stringify([...hiddenColumns]))
+}
+
+const toggleColumn = (key: string) => {
+  if (hiddenColumns.has(key)) hiddenColumns.delete(key)
+  else hiddenColumns.add(key)
+  saveColumns()
+}
+
+const isColumnVisible = (key: string) => !hiddenColumns.has(key)
 
 const apiKeys = ref<ApiKey[]>([])
 const groups = ref<Group[]>([])
@@ -1444,6 +1454,8 @@ const statusUpdatingKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
 const dropdownRef = ref<HTMLElement | null>(null)
+const columnDropdownRef = ref<HTMLElement | null>(null)
+const showColumnDropdown = ref(false)
 const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
 const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
 let abortController: AbortController | null = null
@@ -1988,6 +2000,9 @@ const closeGroupSelector = (event: MouseEvent) => {
     groupSelectorKeyId.value = null
     dropdownPosition.value = null
   }
+  if (!columnDropdownRef.value?.contains(target)) {
+    showColumnDropdown.value = false
+  }
 }
 
 const confirmDelete = (key: ApiKey) => {
@@ -2346,6 +2361,7 @@ function formatResetTime(resetAt: string | null): string {
 }
 
 onMounted(() => {
+  loadSavedColumns()
   loadApiKeys()
   loadGroups()
   loadUserGroupRates()
@@ -2372,68 +2388,35 @@ onUnmounted(() => {
   max-width: 78rem;
 }
 
-.keys-client-guide {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(20rem, 0.75fr);
+.keys-access-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1rem;
-  border: 1px solid var(--ssxz-border);
-  border-radius: 1.35rem;
-  background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--ssxz-action-soft) 44%, transparent), transparent 42%),
-    color-mix(in srgb, var(--ssxz-surface-raised) 91%, transparent);
-  box-shadow: var(--ssxz-shadow-sm);
-  padding: 1rem;
-}
-
-.keys-guide-copy {
   min-width: 0;
+  padding: 0.1rem 0.15rem 0.15rem;
 }
 
-.keys-guide-eyebrow {
-  color: var(--ssxz-action);
-  font-size: 0.78rem;
-  font-weight: 900;
-}
-
-.keys-guide-copy h3 {
-  margin: 0.32rem 0 0;
-  color: var(--ssxz-text-primary);
-  font-size: clamp(1.15rem, 2vw, 1.55rem);
-  font-weight: 950;
-  letter-spacing: 0;
-}
-
-.keys-guide-copy p {
-  max-width: 45rem;
-  margin: 0.5rem 0 0;
-  color: var(--ssxz-text-secondary);
-  font-size: 0.9rem;
-  line-height: 1.7;
-}
-
-.keys-guide-base {
+.keys-access-base {
   display: flex;
   min-width: 0;
-  width: fit-content;
   max-width: 100%;
   align-items: center;
   gap: 0.55rem;
-  margin-top: 0.9rem;
   border: 1px solid var(--ssxz-border);
   border-radius: 999px;
   background: color-mix(in srgb, var(--ssxz-input) 88%, transparent);
-  padding: 0.48rem 0.7rem;
+  padding: 0.42rem 0.65rem;
 }
 
-.keys-guide-base > span {
+.keys-access-base > span {
   flex: 0 0 auto;
   color: var(--ssxz-text-muted);
   font-size: 0.76rem;
-  font-weight: 850;
+  font-weight: 650;
 }
 
-.keys-guide-base code {
+.keys-access-base code {
   min-width: 0;
   overflow: hidden;
   color: var(--ssxz-text-primary);
@@ -2442,7 +2425,7 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.keys-guide-copy-button {
+.keys-access-copy {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -2456,88 +2439,31 @@ onUnmounted(() => {
     color 0.16s ease;
 }
 
-.keys-guide-copy-button:hover {
+.keys-access-copy:hover {
   background: var(--ssxz-surface);
   color: var(--ssxz-text-primary);
 }
 
-.keys-guide-steps {
-  display: grid;
-  gap: 0.55rem;
-  margin: 0.9rem 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.keys-guide-steps li {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.6rem;
-  align-items: flex-start;
-}
-
-.keys-guide-steps li > span {
+.keys-doc-link {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
-  justify-content: center;
-  width: 1.35rem;
-  height: 1.35rem;
-  border-radius: 999px;
-  background: var(--ssxz-action-soft);
+  gap: 0.4rem;
   color: var(--ssxz-action);
-  font-size: 0.72rem;
-  font-weight: 900;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  transition: color 0.16s ease;
 }
 
-.keys-guide-steps strong {
-  display: block;
+.keys-doc-link:hover {
   color: var(--ssxz-text-primary);
-  font-size: 0.8rem;
-  font-weight: 900;
 }
 
-.keys-guide-steps p {
-  margin-top: 0.12rem;
-  font-size: 0.78rem;
-  line-height: 1.55;
-}
-
-.keys-guide-note {
-  margin-top: 1rem;
-  border-radius: 0.75rem;
-  border: 1px solid color-mix(in srgb, var(--ssxz-action) 30%, transparent);
-  background: color-mix(in srgb, var(--ssxz-action-soft) 70%, transparent);
-  padding: 0.75rem 0.9rem;
-  color: var(--ssxz-text-secondary);
-  font-size: 0.8rem;
-  line-height: 1.65;
-}
-
-.keys-guide-cards {
-  display: grid;
-  gap: 0.65rem;
-}
-
-.keys-guide-cards article {
-  border: 1px solid var(--ssxz-border);
-  border-radius: 1rem;
-  background: color-mix(in srgb, var(--ssxz-surface) 86%, transparent);
-  padding: 0.78rem;
-}
-
-.keys-guide-cards strong {
-  display: block;
-  color: var(--ssxz-text-primary);
-  font-size: 0.9rem;
-  font-weight: 900;
-}
-
-.keys-guide-cards span {
-  display: block;
-  margin-top: 0.25rem;
-  color: var(--ssxz-text-secondary);
-  font-size: 0.78rem;
-  line-height: 1.55;
+.keys-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .keys-page-surface--workbench :deep(.table-page-layout) {
@@ -2562,6 +2488,11 @@ onUnmounted(() => {
   box-shadow: none;
 }
 
+.keys-page-surface--workbench
+  :deep(.keys-workbench-layout--no-pagination > .layout-section-fixed:last-child) {
+  display: none;
+}
+
 .keys-page-surface--workbench :deep(.table-scroll-container) {
   height: auto;
   min-height: 22rem;
@@ -2571,8 +2502,15 @@ onUnmounted(() => {
   box-shadow: var(--ssxz-shadow-sm);
 }
 
+.keys-page-surface--workbench :deep(table) {
+  width: 100%;
+  min-width: 100%;
+  table-layout: fixed;
+}
+
 .keys-page-surface--workbench :deep(.table-scroll-container .table-wrapper) {
   max-height: none;
+  overflow-x: hidden;
 }
 
 .keys-page-surface--workbench :deep(.table-scroll-container th) {
@@ -2580,11 +2518,38 @@ onUnmounted(() => {
   color: var(--ssxz-subtle);
   font-size: 0.78rem;
   letter-spacing: 0;
+  white-space: nowrap;
 }
 
 .keys-page-surface--workbench :deep(.table-scroll-container td) {
   border-color: color-mix(in srgb, var(--ssxz-border) 62%, transparent);
   color: var(--ssxz-body);
+  white-space: normal;
+}
+
+.keys-page-surface--workbench :deep(.empty-state) {
+  padding: 3.5rem 1rem;
+}
+
+.keys-page-surface--workbench :deep(.empty-state-visual) {
+  border-color: color-mix(in srgb, var(--ssxz-action) 24%, var(--ssxz-border));
+  background: color-mix(in srgb, var(--ssxz-action-soft) 72%, var(--ssxz-surface-muted));
+}
+
+.keys-page-surface--workbench :deep(.empty-state-icon) {
+  color: var(--ssxz-action);
+}
+
+.keys-page-surface--workbench :deep(.empty-state-title) {
+  color: var(--ssxz-text-primary);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.keys-page-surface--workbench :deep(.empty-state-description) {
+  max-width: 24rem;
+  margin-inline: auto;
+  color: var(--ssxz-text-secondary);
 }
 
 .keys-page-surface--workbench :deep(.btn-primary) {
@@ -2597,6 +2562,42 @@ onUnmounted(() => {
   border-color: var(--ssxz-border);
   background: color-mix(in srgb, var(--ssxz-surface-raised) 86%, transparent);
   color: var(--ssxz-body);
+}
+
+.keys-column-menu {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  z-index: 50;
+  width: 13rem;
+  overflow: hidden;
+  padding: 0.4rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 0.85rem;
+  background: var(--ssxz-surface-raised);
+  box-shadow: var(--ssxz-shadow-dialog);
+}
+
+.keys-column-menu__item {
+  display: flex;
+  width: 100%;
+  min-height: 2.35rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.6rem;
+  color: var(--ssxz-text-secondary);
+  font-size: 0.82rem;
+  text-align: left;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.keys-column-menu__item:hover,
+.keys-column-menu__item:focus-visible {
+  background: var(--ssxz-primary-soft);
+  color: var(--ssxz-text);
+  outline: none;
 }
 
 .keys-page-surface--workbench :deep(input),
@@ -2639,14 +2640,19 @@ onUnmounted(() => {
 }
 
 @media (max-width: 767px) {
-  .keys-client-guide {
-    grid-template-columns: 1fr;
-    border-radius: 1rem;
-    padding: 0.85rem;
+  .keys-access-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-inline: 0;
   }
 
-  .keys-guide-base {
+  .keys-access-base {
     width: 100%;
+  }
+
+  .keys-doc-link {
+    padding-inline: 0.15rem;
   }
 
   .keys-page-surface--workbench :deep(.layout-section-fixed) {

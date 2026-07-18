@@ -110,7 +110,10 @@ vi.mock('@/components/common/DataTable.vue', () => ({
     name: 'DataTable',
     props: ['columns', 'data', 'loading'],
     template: `
-      <div data-testid="data-table">
+      <div
+        data-testid="data-table"
+        :data-column-keys="columns.map((column) => column.key).join(',')"
+      >
         <div v-for="row in data" :key="row.id" data-testid="data-row">
           <slot name="cell-key" :value="row.key" :row="row" />
           <slot name="cell-actions" :row="row" />
@@ -320,6 +323,7 @@ function groupFixture(overrides: Record<string, unknown> = {}) {
 
 describe('KeysView workbench surface', () => {
   beforeEach(() => {
+    localStorage.clear()
     routeState.path = '/app/keys'
     keysAPI.list.mockResolvedValue({ items: [], total: 0, pages: 0 })
     authAPI.getPublicSettings.mockResolvedValue({ api_base_url: 'https://example.test', site_name: 'SSXZ AI' })
@@ -339,23 +343,11 @@ describe('KeysView workbench surface', () => {
     expect(wrapper.find('[data-testid="app-layout"]').exists()).toBe(false)
     expect(wrapper.find('.keys-page-surface--workbench').exists()).toBe(true)
     expect(wrapper.find('.keys-workbench-layout').exists()).toBe(true)
-    expect(wrapper.text()).toContain('keys.clientAccessTitle')
-    expect(wrapper.text()).toContain('keys.clientReadinessHint')
-    expect(wrapper.text()).toContain('keys.clientTroubleshootingHint')
-    expect(wrapper.find('a[href="/app/available-channels"]').text()).toContain(
-      'keys.viewAvailableModels'
-    )
-    expect(wrapper.find('a[href="/app/channel-status"]').text()).toContain(
-      'keys.viewServiceStatus'
-    )
-    expect(wrapper.text()).toContain('keys.workbenchGuide.title')
-    expect(wrapper.text()).toContain('keys.workbenchGuide.stepCreateTitle')
-    expect(wrapper.text()).toContain('keys.workbenchGuide.stepCopyTitle')
-    expect(wrapper.text()).toContain('keys.workbenchGuide.stepConfigureTitle')
-    expect(wrapper.text()).toContain('keys.workbenchGuide.ccsImportNote')
-    expect(wrapper.text()).toContain('CC Switch')
-    expect(wrapper.text()).toContain('Cherry Studio')
-    expect(wrapper.text()).toContain('Chatbox')
+    expect(wrapper.find('.keys-workbench-layout--no-pagination').exists()).toBe(true)
+    expect(wrapper.find('.keys-client-guide').exists()).toBe(false)
+    expect(wrapper.find('.keys-client-callout').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="keys-base-url-row"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/docs"]').text()).toContain('home.viewDocs')
     expect(wrapper.text()).toContain('https://example.test/v1')
 
     await wrapper.get('[data-testid="keys-guide-copy-base-url"]').trigger('click')
@@ -365,6 +357,41 @@ describe('KeysView workbench surface', () => {
       'https://example.test/v1',
       'keys.workbenchGuide.baseUrlCopied'
     )
+  })
+
+  it('shows eight primary columns by default and keeps advanced columns in column settings', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const table = wrapper.get('[data-testid="data-table"]')
+    expect(table.attributes('data-column-keys')).toBe(
+      'name,key,group,usage,status,expires_at,created_at,actions'
+    )
+
+    await wrapper.get('[data-testid="keys-column-settings-trigger"]').trigger('click')
+
+    const rateLimitOption = wrapper.get('[data-column-key="rate_limit"]')
+    const lastUsedOption = wrapper.get('[data-column-key="last_used_at"]')
+    expect(rateLimitOption.attributes('aria-checked')).toBe('false')
+    expect(lastUsedOption.attributes('aria-checked')).toBe('false')
+
+    await rateLimitOption.trigger('click')
+    expect(table.attributes('data-column-keys')).toBe(
+      'name,key,group,usage,rate_limit,status,expires_at,created_at,actions'
+    )
+  })
+
+  it('keeps the pagination section when API keys exist', async () => {
+    keysAPI.list.mockResolvedValue({
+      items: [apiKeyFixture()],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('.keys-workbench-layout--no-pagination').exists()).toBe(false)
   })
 
   it('keeps API key creation disabled until an available group exists', async () => {
