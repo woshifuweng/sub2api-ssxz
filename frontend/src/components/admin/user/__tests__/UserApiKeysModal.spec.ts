@@ -123,6 +123,23 @@ describe('UserApiKeysModal readiness summary', () => {
     adminAPI.groups.getAll.mockResolvedValue([])
   })
 
+  it('mounts safely while the modal is closed', () => {
+    expect(() => mount(UserApiKeysModal, {
+      props: {
+        show: false,
+        user: null
+      },
+      global: {
+        stubs: {
+          BaseDialog: true,
+          GroupBadge: true,
+          GroupOptionItem: true,
+          Teleport: true
+        }
+      }
+    })).not.toThrow()
+  })
+
   it('marks an active funded grouped key as deliverable', async () => {
     adminAPI.users.getUserApiKeys.mockResolvedValue({
       items: [makeKey()],

@@ -381,7 +381,7 @@ const openGroupSelector = (key: ApiKey) => {
   }
 }
 
-const closeGroupSelector = () => {
+function closeGroupSelector() {
   groupSelectorKeyId.value = null
   dropdownPosition.value = null
 }
