@@ -163,7 +163,7 @@ const formatCurrency = (v: number) => `$${v.toFixed(2)}`
   min-width: 0;
   width: 100%;
   display: grid;
-  gap: 1rem;
+  gap: 1.5rem;
 }
 
 .profile-workbench--app {
@@ -176,12 +176,12 @@ const formatCurrency = (v: number) => `$${v.toFixed(2)}`
   min-width: 0;
   border: 1px solid var(--ssxz-border);
   background: var(--ssxz-surface-raised);
-  box-shadow: var(--ssxz-shadow-sm);
+  box-shadow: var(--ssxz-shadow-card);
 }
 
 .profile-intro {
-  border-radius: 1.35rem;
-  padding: 1.15rem;
+  border-radius: var(--ssxz-radius-card);
+  padding: 1.25rem;
 }
 
 .profile-intro span,
@@ -216,13 +216,13 @@ const formatCurrency = (v: number) => `$${v.toFixed(2)}`
 .profile-workbench--app :deep(.card) {
   border-color: var(--ssxz-border);
   background: var(--ssxz-surface-raised);
-  box-shadow: var(--ssxz-shadow-sm);
+  box-shadow: var(--ssxz-shadow-card);
 }
 
 .profile-panel,
 .profile-support-card {
   overflow: hidden;
-  border-radius: 1.25rem;
+  border-radius: var(--ssxz-radius-card);
 }
 
 .profile-panel-heading {
@@ -232,7 +232,7 @@ const formatCurrency = (v: number) => `$${v.toFixed(2)}`
   justify-content: space-between;
   gap: 1rem;
   border-bottom: 1px solid var(--ssxz-border);
-  padding: 0.95rem 1rem;
+  padding: 1rem 1.25rem;
 }
 
 .profile-panel-heading strong {
@@ -249,7 +249,7 @@ const formatCurrency = (v: number) => `$${v.toFixed(2)}`
 }
 
 .profile-support-card {
-  padding: 1rem;
+  padding: 1.25rem;
 }
 
 .profile-support-icon {
@@ -257,7 +257,7 @@ const formatCurrency = (v: number) => `$${v.toFixed(2)}`
   width: 2.6rem;
   height: 2.6rem;
   place-items: center;
-  border-radius: 0.9rem;
+  border-radius: var(--ssxz-radius-button);
   background: color-mix(in srgb, var(--ssxz-action-soft) 75%, transparent);
   color: var(--ssxz-action);
 }

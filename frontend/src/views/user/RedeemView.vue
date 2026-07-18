@@ -1,6 +1,6 @@
 <template>
   <component :is="pageShell" v-bind="pageShellProps">
-    <div class="mx-auto max-w-2xl space-y-6">
+    <div class="redeem-workbench">
       <div class="card redeem-balance-card">
         <div class="redeem-balance-card__icon" aria-hidden="true">
           <Icon name="creditCard" size="lg" />
@@ -18,7 +18,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card redeem-form-card">
         <div class="p-6">
           <form @submit.prevent="handleRedeem" class="space-y-5">
             <div>
@@ -163,9 +163,9 @@
         </div>
       </div>
 
-      <div class="card">
-        <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+      <div class="card redeem-history-card">
+        <div class="redeem-section-heading">
+          <h2>
             {{ t('redeem.recentActivity') }}
           </h2>
         </div>
@@ -174,19 +174,18 @@
             <Icon name="refresh" size="lg" class="animate-spin text-[var(--ssxz-accent)]" />
           </div>
 
-          <div v-else-if="historyLoadFailed" class="empty-state py-8">
-            <div
-              class="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 dark:bg-red-900/20"
-            >
-              <Icon name="exclamationCircle" size="xl" class="text-red-500 dark:text-red-400" />
+          <div v-else-if="historyLoadFailed" class="redeem-empty">
+            <div class="redeem-empty__icon is-error">
+              <Icon name="exclamationCircle" size="xl" />
             </div>
-            <p class="text-sm text-gray-600 dark:text-dark-300">
+            <h3>{{ t('redeem.historyLoadFailedTitle', '记录暂时无法加载') }}</h3>
+            <p>
               {{ t('redeem.historyLoadFailed') }}
             </p>
             <button
               type="button"
               data-testid="redeem-history-retry"
-              class="btn btn-secondary mt-4"
+              class="btn btn-secondary btn-sm"
               @click="fetchHistory"
             >
               {{ t('redeem.retryHistory') }}
@@ -197,7 +196,7 @@
             <div
               v-for="item in history"
               :key="item.id"
-              class="flex items-center justify-between rounded-xl bg-gray-50 p-4 dark:bg-dark-800"
+              class="redeem-history-item"
             >
               <div class="flex items-center gap-4">
                 <div
@@ -267,15 +266,17 @@
             </div>
           </div>
 
-          <div v-else class="empty-state py-8">
-            <div
-              class="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-dark-800"
-            >
-              <Icon name="clock" size="xl" class="text-gray-400 dark:text-dark-500" />
+          <div v-else class="redeem-empty">
+            <div class="redeem-empty__icon">
+              <Icon name="clock" size="xl" />
             </div>
-            <p class="text-sm text-gray-500 dark:text-dark-400">
+            <h3>{{ t('redeem.noHistoryTitle', '暂无兑换记录') }}</h3>
+            <p>
               {{ t('redeem.historyWillAppear') }}
             </p>
+            <a href="#code" class="btn btn-primary btn-sm">
+              {{ t('redeem.redeemButton') }}
+            </a>
           </div>
         </div>
       </div>
@@ -491,11 +492,23 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.redeem-workbench {
+  display: grid;
+  width: min(100%, 52rem);
+  margin-inline: auto;
+  gap: 1.5rem;
+}
+
+.redeem-workbench :deep(.card) {
+  background: var(--ssxz-surface-raised);
+  box-shadow: var(--ssxz-shadow-card);
+}
+
 .redeem-balance-card {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 1.25rem 1.5rem;
+  padding: 1.5rem;
 }
 
 .redeem-balance-card__icon,
@@ -535,7 +548,7 @@ onMounted(async () => {
 
 .redeem-status-card,
 .redeem-info-card {
-  padding: 1.25rem 1.5rem;
+  padding: 1.5rem;
 }
 
 .redeem-status-card {
@@ -580,11 +593,85 @@ onMounted(async () => {
   border-left: 3px solid var(--ssxz-border-strong);
 }
 
+.redeem-form-card,
+.redeem-history-card {
+  overflow: hidden;
+}
+
+.redeem-section-heading {
+  border-bottom: 1px solid var(--ssxz-border);
+  padding: 1rem 1.5rem;
+}
+
+.redeem-section-heading h2 {
+  margin: 0;
+  color: var(--ssxz-text);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.redeem-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-surface);
+  padding: 1rem;
+}
+
+.redeem-empty {
+  display: grid;
+  min-height: 14rem;
+  place-items: center;
+  align-content: center;
+  gap: 0.75rem;
+  color: var(--ssxz-text-muted);
+  text-align: center;
+}
+
+.redeem-empty__icon {
+  display: grid;
+  width: 3.75rem;
+  height: 3.75rem;
+  place-items: center;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-primary-soft);
+  color: var(--ssxz-action);
+}
+
+.redeem-empty__icon.is-error {
+  background: color-mix(in srgb, var(--ssxz-danger) 12%, var(--ssxz-surface));
+  color: var(--ssxz-danger);
+}
+
+.redeem-empty h3 {
+  margin: 0;
+  color: var(--ssxz-text);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.redeem-empty p {
+  max-width: 28rem;
+  margin: 0;
+  color: var(--ssxz-text-muted);
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+
 @media (max-width: 640px) {
   .redeem-balance-card,
   .redeem-status-card,
   .redeem-info-card {
     padding: 1rem;
+  }
+
+  .redeem-history-item {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 

@@ -16,8 +16,8 @@
             <strong>{{ balanceText }}</strong>
             <p>余额可用于站内聊天、图片生成和 API Key / 第三方接入调用。</p>
           </div>
-          <RouterLink v-if="purchaseEnabled" to="/app/purchase" class="summary-action">充值 / 订阅</RouterLink>
-          <RouterLink v-else to="/app/redeem" class="summary-action">兑换码</RouterLink>
+          <RouterLink v-if="purchaseEnabled" to="/app/purchase" class="btn btn-primary summary-action">充值 / 订阅</RouterLink>
+          <RouterLink v-else to="/app/redeem" class="btn btn-primary summary-action">兑换码</RouterLink>
         </article>
 
         <article class="orders-summary-card">
@@ -52,7 +52,7 @@
                 {{ option.label }}
               </option>
             </select>
-            <button type="button" class="refresh-button" :disabled="loading" @click="loadOrders">
+            <button type="button" class="btn btn-secondary btn-sm refresh-button" :disabled="loading" @click="loadOrders">
               <Icon name="refresh" size="xs" />
               刷新
             </button>
@@ -60,31 +60,31 @@
         </header>
 
         <div v-if="!paymentEnabled" class="orders-disabled-note">
-          <Icon name="creditCard" size="lg" />
+          <div class="orders-empty__icon"><Icon name="creditCard" size="lg" /></div>
           <strong>{{ disabledOrdersTitle }}</strong>
           <span>{{ disabledOrdersDescription }}</span>
-          <RouterLink v-if="purchaseEnabled" to="/app/purchase" class="empty-action">查看充值方式</RouterLink>
-          <RouterLink v-else to="/app/redeem" class="empty-action">使用兑换码</RouterLink>
+          <RouterLink v-if="purchaseEnabled" to="/app/purchase" class="btn btn-primary btn-sm empty-action">查看充值方式</RouterLink>
+          <RouterLink v-else to="/app/redeem" class="btn btn-primary btn-sm empty-action">使用兑换码</RouterLink>
         </div>
 
         <div v-if="loading" class="orders-empty compact">
-          <Icon name="sync" size="md" />
+          <div class="orders-empty__icon"><Icon name="sync" size="md" /></div>
           <strong>正在加载账户记录</strong>
         </div>
 
         <div v-else-if="loadError" class="orders-empty compact">
-          <Icon name="exclamationTriangle" size="md" />
+          <div class="orders-empty__icon is-warning"><Icon name="exclamationTriangle" size="md" /></div>
           <strong>{{ loadError }}</strong>
           <span>账户记录正在更新，请稍后刷新。如果刚完成支付，到账可能需要一点时间。</span>
         </div>
 
         <div v-else-if="orders.length === 0" class="orders-empty compact">
-          <Icon name="inbox" size="md" />
+          <div class="orders-empty__icon"><Icon name="inbox" size="md" /></div>
           <strong>暂无账户记录</strong>
           <span>完成充值、兑换或额度调整后，记录会显示在这里。</span>
           <div class="empty-actions">
-            <RouterLink v-if="purchaseEnabled" to="/app/purchase" class="empty-action">补充额度</RouterLink>
-            <RouterLink to="/app/redeem" class="empty-action secondary">使用兑换码</RouterLink>
+            <RouterLink v-if="purchaseEnabled" to="/app/purchase" class="btn btn-primary btn-sm empty-action">补充额度</RouterLink>
+            <RouterLink to="/app/redeem" class="btn btn-secondary btn-sm empty-action">使用兑换码</RouterLink>
           </div>
         </div>
 
@@ -170,12 +170,12 @@
         <p class="dialog-copy">取消后该订单不会继续等待支付。如仍需充值，请重新创建订单。</p>
         <template #footer>
           <div class="dialog-actions">
-            <button type="button" class="secondary-button" :disabled="actionLoading" @click="cancelTargetId = null">
+            <button type="button" class="btn btn-secondary" :disabled="actionLoading" @click="cancelTargetId = null">
               关闭
             </button>
             <button
               type="button"
-              class="danger-button"
+              class="btn btn-danger"
               data-testid="confirm-cancel-order"
               :disabled="actionLoading"
               @click="confirmCancel"
@@ -210,12 +210,12 @@
         </div>
         <template #footer>
           <div class="dialog-actions">
-            <button type="button" class="secondary-button" :disabled="actionLoading" @click="refundTarget = null">
+            <button type="button" class="btn btn-secondary" :disabled="actionLoading" @click="refundTarget = null">
               关闭
             </button>
             <button
               type="button"
-              class="primary-button"
+              class="btn btn-primary"
               data-testid="confirm-refund-request"
               :disabled="actionLoading || !refundReason.trim()"
               @click="confirmRefund"
@@ -424,7 +424,7 @@ function formatPaymentType(type: string) {
 <style scoped>
 .orders-workbench {
   display: grid;
-  gap: 1rem;
+  gap: 1.5rem;
 }
 
 .orders-summary-grid {
@@ -436,8 +436,8 @@ function formatPaymentType(type: string) {
 .orders-summary-card,
 .orders-panel {
   border: 1px solid var(--ssxz-border);
-  background: var(--ssxz-surface);
-  box-shadow: var(--ssxz-shadow);
+  background: var(--ssxz-surface-raised);
+  box-shadow: var(--ssxz-shadow-card);
 }
 
 .orders-summary-card {
@@ -445,8 +445,8 @@ function formatPaymentType(type: string) {
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.85rem;
   align-items: center;
-  border-radius: 1.25rem;
-  padding: 1rem;
+  border-radius: var(--ssxz-radius-card);
+  padding: 1.25rem;
 }
 
 .summary-icon {
@@ -454,7 +454,7 @@ function formatPaymentType(type: string) {
   width: 2.45rem;
   height: 2.45rem;
   place-items: center;
-  border-radius: 0.85rem;
+  border-radius: var(--ssxz-radius-button);
   background: color-mix(in srgb, var(--ssxz-action-soft) 78%, transparent);
   color: var(--ssxz-action);
 }
@@ -482,16 +482,6 @@ function formatPaymentType(type: string) {
 
 .summary-action,
 .empty-action {
-  display: inline-flex;
-  min-height: 2.35rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: var(--ssxz-action);
-  color: var(--ssxz-action-text);
-  font-size: 0.84rem;
-  font-weight: 850;
-  padding: 0 0.9rem;
   text-decoration: none;
 }
 
@@ -502,16 +492,11 @@ function formatPaymentType(type: string) {
   gap: 0.55rem;
 }
 
-.empty-action.secondary {
-  background: color-mix(in srgb, var(--ssxz-action) 12%, transparent);
-  color: var(--ssxz-action);
-}
-
 .orders-panel {
   display: grid;
-  gap: 1rem;
-  border-radius: 1.25rem;
-  padding: 1rem;
+  gap: 1.25rem;
+  border-radius: var(--ssxz-radius-card);
+  padding: 1.25rem;
 }
 
 .panel-heading {
@@ -552,8 +537,8 @@ function formatPaymentType(type: string) {
 .status-filter {
   min-height: 2.25rem;
   border: 1px solid var(--ssxz-border);
-  border-radius: 0.7rem;
-  background: var(--ssxz-surface-subtle);
+  border-radius: var(--ssxz-radius-button);
+  background: var(--ssxz-surface);
   color: var(--ssxz-text-secondary);
   font-size: 0.82rem;
   font-weight: 750;
@@ -561,17 +546,7 @@ function formatPaymentType(type: string) {
 }
 
 .refresh-button {
-  display: inline-flex;
-  min-height: 2.25rem;
-  align-items: center;
-  gap: 0.35rem;
-  border: 1px solid var(--ssxz-border);
-  border-radius: 999px;
-  background: var(--ssxz-surface-subtle);
-  color: var(--ssxz-text-secondary);
-  font-size: 0.82rem;
-  font-weight: 800;
-  padding: 0 0.8rem;
+  flex: 0 0 auto;
 }
 
 .refresh-button:disabled {
@@ -585,9 +560,9 @@ function formatPaymentType(type: string) {
   place-items: center;
   align-content: center;
   gap: 0.6rem;
-  border: 1px dashed var(--ssxz-border);
-  border-radius: 1rem;
-  background: var(--ssxz-surface-subtle);
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-surface);
   color: var(--ssxz-text-secondary);
   padding: 2rem;
   text-align: center;
@@ -601,7 +576,7 @@ function formatPaymentType(type: string) {
   display: grid;
   gap: 0.45rem;
   border: 1px solid color-mix(in srgb, var(--ssxz-action) 26%, var(--ssxz-border));
-  border-radius: 1rem;
+  border-radius: var(--ssxz-radius-card);
   background: color-mix(in srgb, var(--ssxz-action-soft) 45%, var(--ssxz-surface));
   color: var(--ssxz-text-secondary);
   padding: 0.95rem 1rem;
@@ -623,6 +598,22 @@ function formatPaymentType(type: string) {
   justify-self: start;
 }
 
+.orders-empty__icon {
+  display: grid;
+  width: 3.5rem;
+  height: 3.5rem;
+  place-items: center;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-primary-soft);
+  color: var(--ssxz-action);
+}
+
+.orders-empty__icon.is-warning {
+  background: color-mix(in srgb, var(--ssxz-warning) 12%, var(--ssxz-surface));
+  color: var(--ssxz-warning);
+}
+
 .orders-empty strong {
   color: var(--ssxz-text-primary);
   font-size: 1rem;
@@ -638,7 +629,8 @@ function formatPaymentType(type: string) {
 .orders-table-wrap {
   overflow-x: auto;
   border: 1px solid var(--ssxz-border);
-  border-radius: 1rem;
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-surface);
 }
 
 .orders-table {

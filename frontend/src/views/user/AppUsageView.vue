@@ -16,7 +16,7 @@
             <strong :title="balanceTitle">{{ balanceText }}</strong>
             <p :class="{ 'is-warning': balanceRefreshError }">{{ balanceDescriptionText }}</p>
           </div>
-          <RouterLink to="/app/purchase" class="summary-action">
+          <RouterLink to="/app/purchase" class="btn btn-primary summary-action">
             {{ t('usage.workbench.recharge') }}
           </RouterLink>
         </article>
@@ -53,7 +53,7 @@
         </header>
 
         <div v-if="trendLoadError" class="usage-empty">
-          <Icon name="exclamationTriangle" size="lg" />
+          <div class="usage-empty__icon is-warning"><Icon name="exclamationTriangle" size="lg" /></div>
           <strong>{{ t('usage.workbench.trendLoadError') }}</strong>
           <span>{{ t('usage.workbench.trendLoadErrorHint') }}</span>
         </div>
@@ -74,9 +74,12 @@
         </div>
 
         <div v-else class="usage-empty">
-          <Icon name="chartBar" size="lg" />
+          <div class="usage-empty__icon"><Icon name="chartBar" size="lg" /></div>
           <strong>{{ t('usage.workbench.noMonthlyUsageTitle') }}</strong>
           <span>{{ t('usage.workbench.noMonthlyUsageDescription') }}</span>
+          <RouterLink to="/app/keys" class="btn btn-primary btn-sm">
+            {{ t('usage.workbench.manageKeys', '管理 API Key') }}
+          </RouterLink>
         </div>
       </section>
 
@@ -86,7 +89,7 @@
             <h3>{{ t('usage.workbench.usageDetailsTitle') }}</h3>
             <p>{{ t('usage.workbench.usageDetailsDescription') }}</p>
           </div>
-          <button type="button" class="refresh-button" :disabled="loading" @click="loadUsageOverview">
+          <button type="button" class="btn btn-secondary btn-sm refresh-button" :disabled="loading" @click="loadUsageOverview">
             <Icon name="refresh" size="xs" />
             {{ t('usage.workbench.refresh') }}
           </button>
@@ -121,10 +124,10 @@
             <input v-model="filters.end_date" class="f0-input-control" type="date" @change="applyFilters" />
           </label>
           <div class="filter-actions">
-            <button type="button" class="f0-button f0-button--outline" @click="resetFilters">
+            <button type="button" class="btn btn-secondary" @click="resetFilters">
               {{ t('common.reset') }}
             </button>
-            <button type="button" class="f0-button f0-button--default" :disabled="exporting || totalRows === 0" @click="exportToCSV">
+            <button type="button" class="btn btn-primary" :disabled="exporting || totalRows === 0" @click="exportToCSV">
               <Icon name="download" size="xs" />
               {{ exporting ? t('usage.exporting') : t('usage.exportCsv') }}
             </button>
@@ -132,20 +135,23 @@
         </div>
 
         <div v-if="loading" class="usage-empty compact">
-          <Icon name="sync" size="md" />
+          <div class="usage-empty__icon"><Icon name="sync" size="md" /></div>
           <strong>{{ t('usage.workbench.loading') }}</strong>
         </div>
 
         <div v-else-if="detailsLoadError" class="usage-empty compact">
-          <Icon name="exclamationTriangle" size="md" />
+          <div class="usage-empty__icon is-warning"><Icon name="exclamationTriangle" size="md" /></div>
           <strong>{{ t('usage.workbench.detailsLoadError') }}</strong>
           <span>{{ t('usage.workbench.detailsLoadErrorHint') }}</span>
         </div>
 
         <div v-else-if="usageRows.length === 0" class="usage-empty compact">
-          <Icon name="inbox" size="md" />
+          <div class="usage-empty__icon"><Icon name="inbox" size="md" /></div>
           <strong>{{ t('usage.workbench.noDetailsTitle') }}</strong>
           <span>{{ t('usage.workbench.noDetailsDescription') }}</span>
+          <RouterLink to="/app/keys" class="btn btn-primary btn-sm">
+            {{ t('usage.workbench.manageKeys', '管理 API Key') }}
+          </RouterLink>
         </div>
 
         <div v-else class="usage-table-wrap">
@@ -216,11 +222,11 @@
         <div v-if="!loading && totalRows > 0" class="usage-pagination">
           <span>{{ t('usage.workbench.paginationSummary', { total: totalRows }) }}</span>
           <div>
-            <button type="button" class="f0-button f0-button--outline f0-button--sm" :disabled="page <= 1" @click="changePage(page - 1)">
+            <button type="button" class="btn btn-secondary btn-sm" :disabled="page <= 1" @click="changePage(page - 1)">
               {{ t('pagination.previous') }}
             </button>
             <strong>{{ page }} / {{ totalPages }}</strong>
-            <button type="button" class="f0-button f0-button--outline f0-button--sm" :disabled="page >= totalPages" @click="changePage(page + 1)">
+            <button type="button" class="btn btn-secondary btn-sm" :disabled="page >= totalPages" @click="changePage(page + 1)">
               {{ t('pagination.next') }}
             </button>
           </div>
@@ -686,7 +692,7 @@ function toDateKey(date: Date) {
 <style scoped>
 .usage-workbench {
   display: grid;
-  gap: 1rem;
+  gap: 1.5rem;
 }
 
 .usage-summary-grid {
@@ -699,8 +705,8 @@ function toDateKey(date: Date) {
 .usage-panel,
 .usage-explainer {
   border: 1px solid var(--ssxz-border);
-  background: var(--ssxz-surface);
-  box-shadow: var(--ssxz-shadow);
+  background: var(--ssxz-surface-raised);
+  box-shadow: var(--ssxz-shadow-card);
 }
 
 .usage-filters {
@@ -747,8 +753,8 @@ function toDateKey(date: Date) {
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.85rem;
   align-items: center;
-  border-radius: 1.25rem;
-  padding: 1rem;
+  border-radius: var(--ssxz-radius-card);
+  padding: 1.25rem;
 }
 
 .summary-icon {
@@ -756,7 +762,7 @@ function toDateKey(date: Date) {
   width: 2.45rem;
   height: 2.45rem;
   place-items: center;
-  border-radius: 0.85rem;
+  border-radius: var(--ssxz-radius-button);
   background: color-mix(in srgb, var(--ssxz-action-soft) 78%, transparent);
   color: var(--ssxz-action);
 }
@@ -793,8 +799,6 @@ function toDateKey(date: Date) {
   font-weight: 750;
 }
 
-.summary-action,
-.refresh-button,
 .panel-badge {
   display: inline-flex;
   align-items: center;
@@ -805,15 +809,13 @@ function toDateKey(date: Date) {
 }
 
 .summary-action {
-  min-height: 2.15rem;
-  background: var(--ssxz-action);
-  color: var(--ssxz-action-text);
-  padding: 0 0.86rem;
+  justify-self: end;
+  text-decoration: none;
 }
 
 .usage-panel {
   overflow: hidden;
-  border-radius: 1.25rem;
+  border-radius: var(--ssxz-radius-card);
 }
 
 .usage-explainer {
@@ -821,8 +823,8 @@ function toDateKey(date: Date) {
   grid-template-columns: minmax(0, 1fr) minmax(18rem, 1.4fr);
   gap: 1rem;
   align-items: start;
-  border-radius: 1.25rem;
-  padding: 1rem;
+  border-radius: var(--ssxz-radius-card);
+  padding: 1.25rem;
 }
 
 .usage-explainer strong {
@@ -880,17 +882,7 @@ function toDateKey(date: Date) {
 }
 
 .refresh-button {
-  gap: 0.35rem;
-  min-height: 2.1rem;
-  border: 1px solid var(--ssxz-border);
-  background: var(--ssxz-surface-subtle);
-  color: var(--ssxz-text-secondary);
-  padding: 0 0.72rem;
-}
-
-.refresh-button:hover:not(:disabled) {
-  border-color: var(--ssxz-border-strong);
-  color: var(--ssxz-text-primary);
+  flex: 0 0 auto;
 }
 
 .refresh-button:disabled {
@@ -934,10 +926,11 @@ function toDateKey(date: Date) {
 }
 
 .chart-bar {
-  width: 100%;
+  width: min(100%, 4.25rem);
+  margin-inline: auto;
   border-radius: 0.9rem 0.9rem 0 0;
-  background: var(--ssxz-action);
-  box-shadow: 0 -6px 18px color-mix(in srgb, var(--ssxz-action) 18%, transparent);
+  background: color-mix(in srgb, var(--ssxz-text-muted) 72%, var(--ssxz-surface));
+  box-shadow: 0 -6px 18px rgb(0 0 0 / 12%);
 }
 
 .chart-column strong {
@@ -957,6 +950,9 @@ function toDateKey(date: Date) {
   align-content: center;
   gap: 0.45rem;
   color: var(--ssxz-text-muted);
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-surface);
   padding: 1.4rem;
   text-align: center;
 }
@@ -965,8 +961,20 @@ function toDateKey(date: Date) {
   min-height: 10rem;
 }
 
-.usage-empty svg {
+.usage-empty__icon {
+  display: grid;
+  width: 3.5rem;
+  height: 3.5rem;
+  place-items: center;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-primary-soft);
   color: var(--ssxz-action);
+}
+
+.usage-empty__icon.is-warning {
+  background: color-mix(in srgb, var(--ssxz-warning) 12%, var(--ssxz-surface));
+  color: var(--ssxz-warning);
 }
 
 .usage-empty strong {
@@ -1129,7 +1137,7 @@ function toDateKey(date: Date) {
   }
 
   .filter-actions,
-  .filter-actions .f0-button {
+  .filter-actions .btn {
     width: 100%;
   }
 

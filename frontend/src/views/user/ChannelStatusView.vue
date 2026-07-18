@@ -1,28 +1,45 @@
 <template>
   <component :is="pageShell" v-bind="pageShellProps">
-    <MonitorHero
-      :overall-status="overallStatus"
-      :interval-seconds="DEFAULT_INTERVAL_SECONDS"
-      :window="currentWindow"
-      :loading="loading"
-      :auto-refresh="autoRefresh"
-      @update:window="handleWindowChange"
-      @refresh="manualReload"
-    />
+    <div class="channel-status-workbench">
+      <MonitorHero
+        :overall-status="overallStatus"
+        :interval-seconds="DEFAULT_INTERVAL_SECONDS"
+        :window="currentWindow"
+        :loading="loading"
+        :auto-refresh="autoRefresh"
+        @update:window="handleWindowChange"
+        @refresh="manualReload"
+      />
 
-    <p class="mb-4 text-xs leading-5 text-gray-500 dark:text-gray-400">
-      {{ t('channelStatus.disclaimer') }}
-    </p>
+      <p class="channel-status-disclaimer">
+        {{ t('channelStatus.disclaimer') }}
+      </p>
 
-    <MonitorCardGrid
-      :items="items"
-      :window="currentWindow"
-      :countdown-seconds="countdown"
-      :loading="loading"
-      :detail-cache="detailCache"
-      :empty-description="emptyDescription"
-      @card-click="openDetail"
-    />
+      <MonitorCardGrid
+        v-if="loading || items.length > 0"
+        :items="items"
+        :window="currentWindow"
+        :countdown-seconds="countdown"
+        :loading="loading"
+        :detail-cache="detailCache"
+        :empty-description="emptyDescription"
+        @card-click="openDetail"
+      />
+      <div v-else class="f0-card channel-status-empty">
+        <div class="channel-status-empty__icon"><Icon name="inbox" size="lg" /></div>
+        <strong>{{ t('channelStatus.empty.title') }}</strong>
+        <span>{{ emptyDescription }}</span>
+        <button
+          v-if="!channelMonitorDisabled"
+          type="button"
+          class="btn btn-primary btn-sm"
+          @click="manualReload"
+        >
+          <Icon name="refresh" size="sm" />
+          {{ t('common.refresh', '刷新') }}
+        </button>
+      </div>
+    </div>
 
     <MonitorDetailDialog
       :show="showDetail"
@@ -53,6 +70,7 @@ import MonitorHero, {
 } from '@/components/user/monitor/MonitorHero.vue'
 import MonitorCardGrid from '@/components/user/monitor/MonitorCardGrid.vue'
 import MonitorDetailDialog from '@/components/user/MonitorDetailDialog.vue'
+import Icon from '@/components/icons/Icon.vue'
 import { DEFAULT_INTERVAL_SECONDS, STATUS_OPERATIONAL } from '@/constants/channelMonitor'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
 
@@ -205,3 +223,62 @@ onBeforeUnmount(() => {
   if (abortController) abortController.abort()
 })
 </script>
+
+<style scoped>
+.channel-status-workbench {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.channel-status-disclaimer {
+  margin: -0.5rem 0 0;
+  color: var(--ssxz-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.channel-status-workbench :deep(.channel-monitor-toolbar) {
+  margin-bottom: 0;
+  background: var(--ssxz-surface-raised);
+}
+
+.channel-status-workbench :deep(.channel-monitor-empty) {
+  min-height: 18rem;
+}
+
+.channel-status-empty {
+  display: grid;
+  min-height: 18rem;
+  place-items: center;
+  align-content: center;
+  gap: 0.65rem;
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-surface-raised);
+  box-shadow: var(--ssxz-shadow-card);
+  padding: 2rem;
+  text-align: center;
+}
+
+.channel-status-empty__icon {
+  display: grid;
+  width: 3.5rem;
+  height: 3.5rem;
+  place-items: center;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-primary-soft);
+  color: var(--ssxz-action);
+}
+
+.channel-status-empty strong {
+  color: var(--ssxz-text-primary);
+  font-size: 1rem;
+}
+
+.channel-status-empty span {
+  max-width: 44rem;
+  color: var(--ssxz-text-muted);
+  font-size: 0.84rem;
+  line-height: 1.6;
+}
+</style>

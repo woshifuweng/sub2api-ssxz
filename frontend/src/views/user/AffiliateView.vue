@@ -1,7 +1,7 @@
 <template>
   <component :is="pageShell" v-bind="pageShellProps">
-    <div class="space-y-6">
-      <div v-if="loading" class="flex justify-center py-12">
+    <div class="affiliate-workbench">
+      <div v-if="loading" class="card affiliate-loading-state">
         <div class="h-8 w-8 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></div>
       </div>
 
@@ -96,7 +96,13 @@
           <h3 class="text-base font-semibold text-[var(--ssxz-text)]">{{ t('affiliate.recordsTitle') }}</h3>
           <p class="mt-1 text-sm text-[var(--ssxz-text-muted)]">{{ t('affiliate.recordsDescription') }}</p>
           <div v-if="detail.invitees.length === 0" class="affiliate-empty-state mt-4">
-            {{ t('affiliate.noRecords') }}
+            <div class="affiliate-empty-state__icon"><Icon name="users" size="lg" /></div>
+            <strong>{{ t('affiliate.noRecordsTitle', '暂无邀请记录') }}</strong>
+            <span>{{ t('affiliate.noRecords') }}</span>
+            <button class="btn btn-primary btn-sm" @click="copyValue(inviteLink, t('affiliate.linkCopied'))">
+              <Icon name="copy" size="sm" />
+              {{ t('affiliate.copyInviteLink', '复制邀请链接') }}
+            </button>
           </div>
           <div v-else class="mt-4 overflow-x-auto">
             <table class="w-full min-w-[560px] text-left text-sm">
@@ -215,8 +221,24 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.affiliate-workbench {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.affiliate-workbench :deep(.card) {
+  background: var(--ssxz-surface-raised);
+  box-shadow: var(--ssxz-shadow-card);
+}
+
+.affiliate-loading-state {
+  display: grid;
+  min-height: 14rem;
+  place-items: center;
+}
+
 .affiliate-stat-card {
-  min-height: 8.5rem;
+  min-height: 8rem;
   padding: 1.25rem;
 }
 
@@ -266,11 +288,40 @@ onMounted(() => {
 }
 
 .affiliate-empty-state {
-  border: 1px dashed var(--ssxz-border-strong);
+  display: grid;
+  min-height: 14rem;
+  place-items: center;
+  align-content: center;
+  gap: 0.75rem;
+  border: 1px solid var(--ssxz-border);
   border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-surface);
   color: var(--ssxz-text-muted);
   padding: 1.5rem;
   text-align: center;
+}
+
+.affiliate-empty-state__icon {
+  display: grid;
+  width: 3.75rem;
+  height: 3.75rem;
+  place-items: center;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-primary-soft);
+  color: var(--ssxz-action);
+}
+
+.affiliate-empty-state strong {
+  color: var(--ssxz-text);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.affiliate-empty-state span {
+  max-width: 28rem;
+  font-size: 0.875rem;
+  line-height: 1.65;
 }
 
 .affiliate-feedback-card {

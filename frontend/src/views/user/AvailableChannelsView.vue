@@ -28,7 +28,7 @@
               <button
                 @click="loadChannels"
                 :disabled="loading"
-                class="f0-button f0-button--outline f0-button--icon"
+                class="btn btn-secondary btn-icon"
                 :title="t('common.refresh', 'Refresh')"
               >
                 <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
@@ -39,6 +39,7 @@
 
       <template #table>
         <AvailableChannelsTable
+          v-show="loading || filteredChannels.length > 0"
           :columns="columnLabels"
           :rows="filteredChannels"
           :loading="loading"
@@ -48,6 +49,15 @@
           :no-models-label="t('availableChannels.noModels')"
           :empty-label="emptyLabel"
         />
+        <div v-if="!loading && filteredChannels.length === 0" class="f0-card pricing-empty-state">
+          <div class="pricing-empty-state__icon"><Icon name="inbox" size="lg" /></div>
+          <strong>{{ emptyLabel }}</strong>
+          <span>{{ t('availableChannels.emptyDescription', '当前账号暂时没有可用模型，可稍后刷新或检查 API Key 所属分组。') }}</span>
+          <button type="button" class="btn btn-primary btn-sm" @click="loadChannels">
+            <Icon name="refresh" size="sm" />
+            {{ t('common.refresh', '刷新') }}
+          </button>
+        </div>
       </template>
     </TablePageLayout>
   </component>
@@ -154,14 +164,16 @@ onMounted(loadChannels)
 <style scoped>
 .pricing-toolbar {
   display: grid;
-  gap: 1rem;
+  gap: 1.5rem;
 }
 
 .pricing-guide {
   display: flex;
   align-items: flex-start;
   gap: 0.8rem;
-  padding: 1rem;
+  padding: 1.25rem;
+  background: var(--ssxz-surface-raised);
+  box-shadow: var(--ssxz-shadow-card);
 }
 
 .pricing-guide__icon {
@@ -193,6 +205,81 @@ onMounted(loadChannels)
   display: flex;
   justify-content: space-between;
   gap: 0.75rem;
+}
+
+:deep(.table-page-layout) {
+  gap: 1.5rem;
+  height: auto;
+}
+
+:deep(.layout-section-scrollable) {
+  min-height: 18rem;
+}
+
+:deep(.table-scroll-container) {
+  overflow: visible;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:deep(.pricing-table-frame) {
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-surface-raised);
+  box-shadow: var(--ssxz-shadow-card);
+}
+
+:deep(.pricing-empty) {
+  height: 16rem;
+  color: var(--ssxz-text-muted);
+}
+
+:deep(.pricing-empty svg) {
+  width: 3.5rem;
+  height: 3.5rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-primary-soft);
+  color: var(--ssxz-action);
+  padding: 0.85rem;
+}
+
+.pricing-empty-state {
+  display: grid;
+  min-height: 18rem;
+  place-items: center;
+  align-content: center;
+  gap: 0.65rem;
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-surface-raised);
+  box-shadow: var(--ssxz-shadow-card);
+  padding: 2rem;
+  text-align: center;
+}
+
+.pricing-empty-state__icon {
+  display: grid;
+  width: 3.5rem;
+  height: 3.5rem;
+  place-items: center;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-primary-soft);
+  color: var(--ssxz-action);
+}
+
+.pricing-empty-state strong {
+  color: var(--ssxz-text-primary);
+  font-size: 1rem;
+}
+
+.pricing-empty-state span {
+  max-width: 36rem;
+  color: var(--ssxz-text-muted);
+  font-size: 0.84rem;
+  line-height: 1.6;
 }
 
 .pricing-search {
