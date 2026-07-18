@@ -573,6 +573,11 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.sidebar {
+  background: var(--ssxz-bg);
+  border-color: var(--ssxz-border);
+}
+
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.2s ease;

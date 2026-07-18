@@ -1,24 +1,18 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
-      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 class="text-xl font-semibold text-gray-900 dark:text-white">支付配置</h1>
-          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            管理充值入口、支付方式和支付渠道。订单入账以后端账本为准。
-          </p>
-        </div>
-        <div class="flex items-center gap-2">
-          <button type="button" class="btn btn-secondary" :disabled="loading" @click="loadAll">
-            <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-            刷新
-          </button>
-          <button type="button" class="btn btn-primary" :disabled="savingConfig || loading" @click="saveConfig">
-            保存配置
-          </button>
-        </div>
-      </div>
+    <AdminPageHeader title="支付配置" description="支付渠道接入与参数设置">
+      <template #actions>
+        <button type="button" class="btn btn-secondary" :disabled="loading" @click="loadAll">
+          <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+          刷新
+        </button>
+        <button type="button" class="btn btn-primary" :disabled="savingConfig || loading" @click="saveConfig">
+          保存配置
+        </button>
+      </template>
+    </AdminPageHeader>
 
+    <div class="space-y-6">
       <div v-if="loading && !configLoaded" class="flex items-center justify-center py-12">
         <LoadingSpinner />
       </div>
@@ -182,6 +176,7 @@ import { useAppStore } from '@/stores/app'
 import { adminPaymentAPI, type AdminPaymentConfig, type UpdatePaymentConfigRequest } from '@/api/admin/payment'
 import type { ProviderInstance } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'

@@ -1,5 +1,7 @@
 <template>
   <AppLayout>
+    <AdminPageHeader title="分组 / 价格" description="管理密钥分组及渠道定价策略" />
+
     <TablePageLayout>
       <template #filters>
         <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
@@ -1839,6 +1841,7 @@ import { adminAPI } from '@/api/admin'
 import type { AdminGroup, GroupPlatform, SubscriptionType } from '@/types'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'

@@ -50,8 +50,8 @@ defineExpose({ replayTour })
 
 <style scoped>
 .ssxz-admin-shell {
-  background: var(--ssxz-bg, #070b14);
-  color: var(--ssxz-text, #f1f5f9);
+  background: var(--ssxz-bg);
+  color: var(--ssxz-text);
 }
 
 .ssxz-admin-main {

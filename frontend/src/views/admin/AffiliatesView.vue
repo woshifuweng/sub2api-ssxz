@@ -1,22 +1,16 @@
 <template>
   <AppLayout>
+    <AdminPageHeader title="推广返利" description="邀请推广数据与返利设置">
+      <template #actions>
+        <button class="btn btn-secondary btn-sm" :disabled="loading" @click="loadEntries">
+          <Icon name="refresh" size="sm" :class="loading ? 'animate-spin' : ''" />
+          刷新
+        </button>
+      </template>
+    </AdminPageHeader>
+
     <div class="space-y-6">
       <section class="card">
-        <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-          <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h1 class="text-lg font-semibold text-gray-900 dark:text-white">推广返利管理</h1>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                管理推广码、专属比例和推广数据，用来核对谁拉了谁、充值多少、返点多少、还剩多少可结算。
-              </p>
-            </div>
-            <button class="btn btn-secondary btn-sm" :disabled="loading" @click="loadEntries">
-              <Icon name="refresh" size="sm" :class="loading ? 'animate-spin' : ''" />
-              刷新
-            </button>
-          </div>
-        </div>
-
         <div class="grid gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div class="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200 lg:col-span-2">
             数据来自已有邀请关系、订单和返利账本；普通用户只看到自己的推广码、邀请记录和可结算额度。
@@ -239,6 +233,7 @@ import type {
 } from '@/api/admin/affiliate'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'

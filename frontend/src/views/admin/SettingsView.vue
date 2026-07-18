@@ -1,5 +1,7 @@
 <template>
   <AppLayout>
+    <AdminPageHeader title="站点设置" description="全局参数、注册策略与认证配置" />
+
     <div class="mx-auto max-w-4xl space-y-6">
       <!-- Loading State -->
       <div v-if="loading" class="flex items-center justify-center py-12">
@@ -2194,6 +2196,7 @@ import type {
 } from '@/api/admin/settings'
 import type { AdminGroup } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import Icon from '@/components/icons/Icon.vue'
 import Select from '@/components/common/Select.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'

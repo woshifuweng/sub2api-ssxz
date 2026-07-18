@@ -1,5 +1,7 @@
 <template>
   <AppLayout>
+    <AdminPageHeader title="通道监控" description="实时通道可用性与健康检测" />
+
     <TablePageLayout>
       <template #filters>
         <MonitorFiltersBar
@@ -126,6 +128,7 @@ import type {
 } from '@/api/admin/channelMonitor'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'

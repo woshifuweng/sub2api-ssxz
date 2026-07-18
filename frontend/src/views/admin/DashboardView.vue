@@ -1,5 +1,7 @@
 <template>
   <AppLayout>
+    <AdminPageHeader title="管理控制台" description="系统概况与实时统计数据" />
+
     <div class="space-y-6">
       <!-- Loading State -->
       <div v-if="loading" class="flex items-center justify-center py-12">
@@ -308,6 +310,7 @@ import type {
   DashboardOperationsSummary
 } from '@/api/admin/dashboard'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import AdminOperationsSummary from '@/components/admin/dashboard/AdminOperationsSummary.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'

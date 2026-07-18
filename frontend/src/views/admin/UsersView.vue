@@ -1,5 +1,7 @@
 <template>
   <AppLayout>
+    <AdminPageHeader title="用户管理" description="查看全站用户账号与余额" />
+
     <TablePageLayout>
       <!-- Single Row: Search, Filters, and Actions -->
       <template #filters>
@@ -799,6 +801,7 @@ import type { AdminUser, AdminGroup, ApiKey, UserAttributeDefinition } from '@/t
 import type { BatchUserUsageStats } from '@/api/admin/dashboard'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'

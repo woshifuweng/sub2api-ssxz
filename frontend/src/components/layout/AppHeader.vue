@@ -313,9 +313,9 @@ onBeforeUnmount(() => {
 <style scoped>
 .app-header-shell {
   min-height: var(--ssxz-header-height, 56px);
-  background: var(--ssxz-surface, #111827);
-  border-color: var(--ssxz-border, #1f2937);
-  color: var(--ssxz-text, #f1f5f9);
+  background: var(--ssxz-surface-raised);
+  border-color: var(--ssxz-border);
+  color: var(--ssxz-text);
 }
 
 .app-header-inner {

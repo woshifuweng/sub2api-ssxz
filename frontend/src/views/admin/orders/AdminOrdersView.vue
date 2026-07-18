@@ -1,5 +1,7 @@
 <template>
   <AppLayout>
+    <AdminPageHeader title="订单管理" description="全站订单查询与处理" />
+
     <div class="space-y-4">
       <!-- Filters -->
       <div class="card p-4">
@@ -135,6 +137,7 @@ import { extractI18nErrorMessage } from '@/utils/apiError'
 import { formatOrderDateTime } from '@/components/payment/orderUtils'
 import type { PaymentOrder } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'

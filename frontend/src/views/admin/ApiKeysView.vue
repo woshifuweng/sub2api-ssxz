@@ -1,5 +1,10 @@
 <template>
   <AppLayout>
+    <AdminPageHeader
+      title="全站 API Key"
+      description="查看全站密钥状态、所属分组与实际消耗"
+    />
+
     <TablePageLayout class="api-key-inventory-page">
       <template #actions>
         <div
@@ -325,6 +330,7 @@ import type { Column } from '@/components/common/types'
 import type { SelectOption } from '@/components/common/Select.vue'
 
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
