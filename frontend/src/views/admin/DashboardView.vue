@@ -2,7 +2,7 @@
   <AppLayout>
     <AdminPageHeader title="管理控制台" description="系统概况与实时统计数据" />
 
-    <div class="space-y-6">
+    <div class="space-y-6 admin-b1-outline-scope">
       <!-- Loading State -->
       <div v-if="loading" class="flex items-center justify-center py-12">
         <LoadingSpinner />
@@ -755,4 +755,15 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.admin-b1-outline-scope :deep(.card),
+.admin-b1-outline-scope :deep(.token-usage-trend),
+.admin-b1-outline-scope :deep([data-testid='operations-summary']) {
+  background: transparent !important;
+  border: 1px solid var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b1-outline-scope :deep([data-testid='operations-summary'] [class*='border-']) {
+  border-color: var(--ssxz-border) !important;
+}
 </style>

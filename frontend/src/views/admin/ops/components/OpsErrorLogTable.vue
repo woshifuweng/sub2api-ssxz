@@ -1,5 +1,5 @@
 <template>
-  <div class="flex h-full min-h-0 flex-col bg-white dark:bg-dark-900">
+  <div class="admin-b5-outline-panel flex h-full min-h-0 flex-col bg-white dark:bg-dark-900">
     <!-- Loading State -->
     <div v-if="loading" class="flex flex-1 items-center justify-center py-10">
       <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"></div>

@@ -2,7 +2,7 @@
   <AppLayout>
     <AdminPageHeader title="订阅管理" description="订阅套餐与用户订阅状态" />
 
-    <TablePageLayout>
+    <TablePageLayout class="admin-b4-outline-scope">
       <template #filters>
         <!-- Top Toolbar: Left (search + filters) / Right (actions) -->
         <div class="flex flex-wrap items-start justify-between gap-4">
@@ -1410,5 +1410,21 @@ onUnmounted(() => {
 
 .reset-info {
   @apply flex items-center gap-1 pl-12 text-[10px] text-blue-600 dark:text-blue-400;
+}
+</style>
+
+<style scoped>
+.admin-b4-outline-scope :deep(.table-scroll-container),
+.admin-b4-outline-scope :deep(.table-wrapper),
+.admin-b4-outline-scope :deep(.table-wrapper table),
+.admin-b4-outline-scope :deep(.table-wrapper tbody) {
+  background: transparent !important;
+  border-color: var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b4-outline-scope :deep(thead),
+.admin-b4-outline-scope :deep(.table-header) {
+  background: var(--ssxz-surface-raised) !important;
 }
 </style>

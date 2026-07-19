@@ -2,7 +2,7 @@
   <AppLayout>
     <AdminPageHeader title="订单管理" description="全站订单查询与处理" />
 
-    <div class="space-y-4">
+    <div class="space-y-4 admin-b4-outline-scope">
       <!-- Filters -->
       <div class="card p-4">
         <div class="flex flex-wrap items-center gap-3">
@@ -126,6 +126,23 @@
     <AdminRefundDialog :show="showRefundDialog" :order="selectedOrder" :submitting="refundSubmitting" @confirm="handleRefund" @cancel="showRefundDialog = false" />
   </AppLayout>
 </template>
+
+<style scoped>
+.admin-b4-outline-scope :deep(.card),
+.admin-b4-outline-scope :deep(.table-scroll-container),
+.admin-b4-outline-scope :deep(.table-wrapper),
+.admin-b4-outline-scope :deep(.table-wrapper table),
+.admin-b4-outline-scope :deep(.table-wrapper tbody) {
+  background: transparent !important;
+  border-color: var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b4-outline-scope :deep(thead),
+.admin-b4-outline-scope :deep(.table-header) {
+  background: var(--ssxz-surface-raised) !important;
+}
+</style>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from 'vue'

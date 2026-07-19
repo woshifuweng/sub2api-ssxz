@@ -2,7 +2,7 @@
   <AppLayout>
     <AdminPageHeader title="上游账号" description="上游供应商账号池管理" />
 
-    <TablePageLayout>
+    <TablePageLayout class="admin-b2-outline-scope">
       <template #filters>
         <div class="flex flex-wrap-reverse items-start justify-between gap-3">
           <AccountTableFilters
@@ -1553,3 +1553,19 @@ onUnmounted(() => {
   clearExportTaskPollTimer()
 })
 </script>
+
+<style scoped>
+.admin-b2-outline-scope :deep(.table-scroll-container),
+.admin-b2-outline-scope :deep(.table-wrapper),
+.admin-b2-outline-scope :deep(.table-wrapper table),
+.admin-b2-outline-scope :deep(.table-wrapper tbody) {
+  background: transparent !important;
+  border-color: var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b2-outline-scope :deep(thead),
+.admin-b2-outline-scope :deep(.table-header) {
+  background: var(--ssxz-surface-raised) !important;
+}
+</style>

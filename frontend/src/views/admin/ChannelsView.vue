@@ -2,7 +2,7 @@
   <AppLayout>
     <AdminPageHeader title="通道定价" description="上游渠道配置与倍率管理" />
 
-    <TablePageLayout>
+    <TablePageLayout class="admin-b2-outline-scope">
       <template #filters>
         <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
           <!-- Left: Search + Filters -->
@@ -1514,5 +1514,19 @@ onUnmounted(() => {
 
 .channel-tab-inactive {
   @apply border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300;
+}
+
+.admin-b2-outline-scope :deep(.table-scroll-container),
+.admin-b2-outline-scope :deep(.table-wrapper),
+.admin-b2-outline-scope :deep(.table-wrapper table),
+.admin-b2-outline-scope :deep(.table-wrapper tbody) {
+  background: transparent !important;
+  border-color: var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b2-outline-scope :deep(thead),
+.admin-b2-outline-scope :deep(.table-header) {
+  background: var(--ssxz-surface-raised) !important;
 }
 </style>

@@ -1201,11 +1201,11 @@ export default {
     stripeNotConfigured: 'Stripe is not configured',
     stripeLoadFailed: 'Failed to load Stripe',
     stripeSuccessProcessing: 'Stripe payment succeeded. Confirming the order.',
-    providerManagement: 'Payment provider management',
-    providerManagementDesc: 'Configure payment providers for balance recharge and subscriptions.',
-    createProvider: 'Create provider',
+    providerManagement: 'Payment Provider Management',
+    providerManagementDesc: 'Manage connected payment provider configurations',
+    createProvider: 'Add Provider',
     editProvider: 'Edit provider',
-    noProviders: 'No payment providers',
+    noProviders: 'No payment providers yet. Add your first provider to start accepting payments.',
     providerName: 'Provider name',
     providerKey: 'Provider key',
     providerConfig: 'Provider config',
@@ -5419,6 +5419,12 @@ export default {
 
     // Settings
     settings: {
+      payment: {
+        providerManagement: 'Payment Provider Management',
+        providerManagementDesc: 'Manage connected payment provider configurations',
+        noProviders: 'No payment providers yet. Add your first provider to start accepting payments.',
+        createProvider: 'Add Provider'
+      },
       title: 'System Settings',
       description: 'Manage registration, email verification, default values, and SMTP settings',
       tabs: {

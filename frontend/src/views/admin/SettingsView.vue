@@ -2,7 +2,7 @@
   <AppLayout>
     <AdminPageHeader title="站点设置" description="全局参数、注册策略与认证配置" />
 
-    <div class="mx-auto max-w-4xl space-y-6">
+    <div class="mx-auto max-w-4xl space-y-6 admin-b4-settings-scope">
       <!-- Loading State -->
       <div v-if="loading" class="flex items-center justify-center py-12">
         <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"></div>
@@ -3281,5 +3281,22 @@ onMounted(() => {
 .settings-tab-active .settings-tab-icon {
   @apply bg-primary-500/15 text-primary-600
          dark:bg-primary-400/15 dark:text-primary-400;
+}
+</style>
+
+<style scoped>
+.admin-b4-settings-scope :deep(.card) {
+  background: transparent !important;
+  border-color: var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b4-settings-scope :deep(thead),
+.admin-b4-settings-scope :deep(.table-header) {
+  background: var(--ssxz-surface-raised) !important;
+}
+
+.admin-b4-settings-scope :deep(tbody) {
+  background: transparent !important;
 }
 </style>

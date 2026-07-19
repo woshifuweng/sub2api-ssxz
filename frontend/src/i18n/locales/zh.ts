@@ -1204,10 +1204,10 @@ export default {
     stripeLoadFailed: 'Stripe 加载失败',
     stripeSuccessProcessing: 'Stripe 支付成功，正在确认订单。',
     providerManagement: '支付渠道管理',
-    providerManagementDesc: '配置充值和订阅可用的支付渠道。',
-    createProvider: '新建支付渠道',
+    providerManagementDesc: '管理接入的支付服务商配置',
+    createProvider: '添加服务商',
     editProvider: '编辑支付渠道',
-    noProviders: '暂无支付渠道',
+    noProviders: '暂无支付渠道，添加第一个支付服务商以开始收款。',
     providerName: '渠道名称',
     providerKey: '渠道标识',
     providerConfig: '渠道配置',
@@ -5582,6 +5582,12 @@ export default {
 
     // Settings
     settings: {
+      payment: {
+        providerManagement: '支付渠道管理',
+        providerManagementDesc: '管理接入的支付服务商配置',
+        noProviders: '暂无支付渠道，添加第一个支付服务商以开始收款。',
+        createProvider: '添加服务商'
+      },
       title: '系统设置',
       description: '管理注册、邮箱验证、默认值和 SMTP 设置',
       tabs: {

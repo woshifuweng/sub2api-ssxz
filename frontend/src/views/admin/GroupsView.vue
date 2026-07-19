@@ -2,7 +2,7 @@
   <AppLayout>
     <AdminPageHeader title="分组 / 价格" description="管理密钥分组及渠道定价策略" />
 
-    <TablePageLayout>
+    <TablePageLayout class="admin-b4-outline-scope">
       <template #filters>
         <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
           <!-- Left: fuzzy search + filters (can wrap to multiple lines) -->
@@ -1831,6 +1831,22 @@
     />
   </AppLayout>
 </template>
+
+<style scoped>
+.admin-b4-outline-scope :deep(.table-scroll-container),
+.admin-b4-outline-scope :deep(.table-wrapper),
+.admin-b4-outline-scope :deep(.table-wrapper table),
+.admin-b4-outline-scope :deep(.table-wrapper tbody) {
+  background: transparent !important;
+  border-color: var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b4-outline-scope :deep(thead),
+.admin-b4-outline-scope :deep(.table-header) {
+  background: var(--ssxz-surface-raised) !important;
+}
+</style>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'

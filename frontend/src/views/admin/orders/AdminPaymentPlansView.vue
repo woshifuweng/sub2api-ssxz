@@ -9,7 +9,7 @@
       </template>
     </AdminPageHeader>
 
-    <div class="space-y-4">
+    <div class="space-y-4 admin-b4-outline-scope">
       <!-- Plans Table -->
       <DataTable :columns="planColumns" :data="plans" :loading="plansLoading">
         <template #cell-name="{ value, row }">
@@ -73,6 +73,23 @@
     <ConfirmDialog :show="showDeletePlanDialog" :title="t('payment.admin.deletePlan')" :message="t('payment.admin.deletePlanConfirm')" :confirm-text="t('common.delete')" danger @confirm="handleDeletePlan" @cancel="showDeletePlanDialog = false" />
   </AppLayout>
 </template>
+
+<style scoped>
+.admin-b4-outline-scope :deep(.card),
+.admin-b4-outline-scope :deep(.table-scroll-container),
+.admin-b4-outline-scope :deep(.table-wrapper),
+.admin-b4-outline-scope :deep(.table-wrapper table),
+.admin-b4-outline-scope :deep(.table-wrapper tbody) {
+  background: transparent !important;
+  border-color: var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b4-outline-scope :deep(thead),
+.admin-b4-outline-scope :deep(.table-header) {
+  background: var(--ssxz-surface-raised) !important;
+}
+</style>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'

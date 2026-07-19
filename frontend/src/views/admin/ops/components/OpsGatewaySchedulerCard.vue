@@ -68,7 +68,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex h-full flex-col rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
+  <div class="admin-b5-outline-panel flex h-full flex-col rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
     <div class="mb-4 flex items-center justify-between">
       <div>
         <h3 class="text-sm font-bold text-gray-900 dark:text-white">Gateway Scheduler</h3>

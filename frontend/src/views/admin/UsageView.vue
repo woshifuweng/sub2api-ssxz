@@ -2,7 +2,7 @@
   <AppLayout>
     <AdminPageHeader title="使用记录" description="全站 API 调用日志与消费明细" />
 
-    <div class="space-y-6">
+    <div class="space-y-6 admin-b1-outline-scope">
       <UsageStatsCards :stats="usageStats" />
       <!-- Charts Section -->
       <div class="space-y-4">
@@ -578,3 +578,16 @@ watch(modelDistributionSource, (source) => {
   void loadModelStats(source)
 })
 </script>
+
+<style scoped>
+.admin-b1-outline-scope :deep(.card),
+.admin-b1-outline-scope :deep(.token-usage-trend) {
+  background: transparent !important;
+  border: 1px solid var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b1-outline-scope :deep(.table-wrapper) {
+  background: transparent !important;
+}
+</style>

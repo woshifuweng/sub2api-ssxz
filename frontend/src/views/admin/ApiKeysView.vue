@@ -5,7 +5,7 @@
       description="查看全站密钥状态、所属分组与实际消耗"
     />
 
-    <TablePageLayout class="api-key-inventory-page">
+    <TablePageLayout class="api-key-inventory-page admin-b1-outline-scope">
       <template #actions>
         <div
           class="mb-2 grid grid-cols-2 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-900 xl:grid-cols-5"
@@ -670,6 +670,14 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.admin-b1-outline-scope :deep(.card),
+.admin-b1-outline-scope :deep(.table-scroll-container),
+.admin-b1-outline-scope :deep(.table-wrapper) {
+  background: transparent !important;
+  border-color: var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
 .api-key-inventory-page :deep(.table-wrapper .table-body > tr + tr) {
   border-top-color: rgb(148 163 184 / 0.1) !important;
 }

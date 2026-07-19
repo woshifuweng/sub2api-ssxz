@@ -12,7 +12,7 @@
       </template>
     </AdminPageHeader>
 
-    <div class="space-y-6">
+    <div class="space-y-6 admin-b4-outline-scope">
       <div v-if="loading && !configLoaded" class="flex items-center justify-center py-12">
         <LoadingSpinner />
       </div>
@@ -169,6 +169,24 @@
     </div>
   </AppLayout>
 </template>
+
+<style scoped>
+.admin-b4-outline-scope :deep(.card),
+.admin-b4-outline-scope :deep(.table-scroll-container),
+.admin-b4-outline-scope :deep(.table-wrapper),
+.admin-b4-outline-scope :deep(.table-wrapper table),
+.admin-b4-outline-scope :deep(.table-wrapper tbody),
+.admin-b4-outline-scope :deep(.group.relative.rounded-lg.border) {
+  background: transparent !important;
+  border-color: var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b4-outline-scope :deep(thead),
+.admin-b4-outline-scope :deep(.table-header) {
+  background: var(--ssxz-surface-raised) !important;
+}
+</style>
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'

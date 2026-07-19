@@ -2,7 +2,7 @@
   <AppLayout>
     <AdminPageHeader title="用户管理" description="查看全站用户账号与余额" />
 
-    <TablePageLayout>
+    <TablePageLayout class="admin-b2-outline-scope">
       <!-- Single Row: Search, Filters, and Actions -->
       <template #filters>
         <div class="flex flex-wrap items-center gap-3">
@@ -1764,3 +1764,19 @@ onUnmounted(() => {
   abortController?.abort()
 })
 </script>
+
+<style scoped>
+.admin-b2-outline-scope :deep(.table-scroll-container),
+.admin-b2-outline-scope :deep(.table-wrapper),
+.admin-b2-outline-scope :deep(.table-wrapper table),
+.admin-b2-outline-scope :deep(.table-wrapper tbody) {
+  background: transparent !important;
+  border-color: var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b2-outline-scope :deep(thead),
+.admin-b2-outline-scope :deep(.table-header) {
+  background: var(--ssxz-surface-raised) !important;
+}
+</style>

@@ -1,6 +1,6 @@
 <template>
   <component :is="isFullscreen ? 'div' : AppLayout" :class="isFullscreen ? 'flex min-h-screen flex-col justify-center bg-gray-50 dark:bg-dark-950' : ''">
-    <div :class="[isFullscreen ? 'p-4 md:p-6' : '', 'space-y-6 pb-12']">
+    <div :class="[isFullscreen ? 'p-4 md:p-6' : '', 'admin-b5-ops-scope space-y-6 pb-12']">
       <AdminPageHeader
         v-if="!isFullscreen"
         title="运行监控"
@@ -954,3 +954,11 @@ watch([lazyRuntimeCards, runtimeCardsSection], () => {
   resetRuntimeCardsObserver()
 })
 </script>
+
+<style scoped>
+.admin-b5-ops-scope :deep(.admin-b5-outline-panel) {
+  background: transparent !important;
+  border: 1px solid var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+</style>

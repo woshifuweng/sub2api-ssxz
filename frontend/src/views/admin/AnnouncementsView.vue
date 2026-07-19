@@ -2,7 +2,7 @@
   <AppLayout>
     <AdminPageHeader title="公告管理" description="发布与管理站内公告" />
 
-    <TablePageLayout>
+    <TablePageLayout class="admin-b3-outline-scope">
       <template #filters>
         <div class="flex flex-wrap items-center gap-3">
           <!-- Left: Search + Filters -->
@@ -236,6 +236,22 @@
     />
   </AppLayout>
 </template>
+
+<style scoped>
+.admin-b3-outline-scope :deep(.table-scroll-container),
+.admin-b3-outline-scope :deep(.table-wrapper),
+.admin-b3-outline-scope :deep(.table-wrapper table),
+.admin-b3-outline-scope :deep(.table-wrapper tbody) {
+  background: transparent !important;
+  border-color: var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b3-outline-scope :deep(thead),
+.admin-b3-outline-scope :deep(.table-header) {
+  background: var(--ssxz-surface-raised) !important;
+}
+</style>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'

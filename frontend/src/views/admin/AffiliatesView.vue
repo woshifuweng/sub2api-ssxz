@@ -10,7 +10,7 @@
     </AdminPageHeader>
 
     <div class="space-y-6">
-      <section class="card">
+      <section class="card admin-b3-outline-card">
         <div class="grid gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div class="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200 lg:col-span-2">
             数据来自已有邀请关系、订单和返利账本；普通用户只看到自己的推广码、邀请记录和可结算额度。
@@ -125,7 +125,7 @@
         </div>
       </section>
 
-      <TablePageLayout>
+      <TablePageLayout class="admin-b3-outline-scope">
         <template #filters>
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <input
@@ -219,6 +219,28 @@
     </div>
   </AppLayout>
 </template>
+
+<style scoped>
+.admin-b3-outline-card {
+  background: transparent !important;
+  border: 1px solid var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b3-outline-scope :deep(.table-scroll-container),
+.admin-b3-outline-scope :deep(.table-wrapper),
+.admin-b3-outline-scope :deep(.table-wrapper table),
+.admin-b3-outline-scope :deep(.table-wrapper tbody) {
+  background: transparent !important;
+  border-color: var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b3-outline-scope :deep(thead),
+.admin-b3-outline-scope :deep(.table-header) {
+  background: var(--ssxz-surface-raised) !important;
+}
+</style>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'

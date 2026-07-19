@@ -154,7 +154,7 @@ function onNextPage() {
 </script>
 
 <template>
-  <section class="card p-4 md:p-5">
+  <section class="admin-b5-outline-panel card p-4 md:p-5">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
       <h3 class="text-sm font-bold text-gray-900 dark:text-white">
         {{ t('admin.ops.openaiTokenStats.title') }}
