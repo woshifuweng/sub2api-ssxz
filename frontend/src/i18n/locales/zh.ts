@@ -4613,13 +4613,17 @@ export default {
       unread: '未读',
       searchUsers: '搜索用户...',
       failedToLoad: '加载公告失败',
+      noAnnouncements: '暂无公告',
+      noAnnouncementsDescription: '创建您的第一条公告，向用户发布重要信息。',
+      createFirstAnnouncement: '创建您的第一条公告',
+      retry: '重试',
+      retryHint: '公告暂时无法加载，请重试。',
       failedToCreate: '创建公告失败',
       failedToUpdate: '更新公告失败',
       failedToDelete: '删除公告失败',
       failedToLoadReadStatus: '加载已读情况失败',
       deleteConfirm: '确定要删除该公告吗？此操作无法撤销。'
     },
-
     // Promo Codes
     promo: {
       title: '优惠码管理',

@@ -21,7 +21,7 @@
       >
         <BrandLogo class="ssxz-brand-logo" variant="mark" size="2.875rem" />
         <span class="ssxz-brand-copy ssxz-sidebar-text">
-          <span class="ssxz-brand-title">AI Gateway</span>
+          <span class="ssxz-brand-title">SSXZ AI</span>
           <span class="ssxz-brand-subtitle">{{ t('appShell.developerConsole') }}</span>
         </span>
       </RouterLink>

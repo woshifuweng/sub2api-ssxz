@@ -134,9 +134,17 @@
 
           <template #empty>
             <EmptyState
-              :title="t('empty.noData')"
-              :description="t('admin.announcements.failedToLoad')"
-              :action-text="t('admin.announcements.createAnnouncement')"
+              v-if="announcementsLoadError"
+              :title="t('admin.announcements.failedToLoad')"
+              :description="t('admin.announcements.retryHint')"
+              :action-text="t('admin.announcements.retry')"
+              @action="loadAnnouncements"
+            />
+            <EmptyState
+              v-else
+              :title="t('admin.announcements.noAnnouncements')"
+              :description="t('admin.announcements.noAnnouncementsDescription')"
+              :action-text="t('admin.announcements.createFirstAnnouncement')"
               @action="openCreateDialog"
             />
           </template>
@@ -282,6 +290,7 @@ const appStore = useAppStore()
 
 const announcements = ref<Announcement[]>([])
 const loading = ref(false)
+const announcementsLoadError = ref(false)
 
 const filters = reactive({
   status: '',
@@ -342,6 +351,7 @@ let currentController: AbortController | null = null
 async function loadAnnouncements() {
   if (currentController) currentController.abort()
   currentController = new AbortController()
+  announcementsLoadError.value = false
 
   try {
     loading.value = true
@@ -357,6 +367,7 @@ async function loadAnnouncements() {
     pagination.page_size = res.page_size
   } catch (error: any) {
     if (currentController.signal.aborted || error?.name === 'AbortError') return
+    announcementsLoadError.value = true
     console.error('Error loading announcements:', error)
     appStore.showError(error.response?.data?.detail || t('admin.announcements.failedToLoad'))
   } finally {

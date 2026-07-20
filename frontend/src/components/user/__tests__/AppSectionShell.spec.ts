@@ -201,6 +201,9 @@ describe('AppSectionShell', () => {
     expect(brand.find('.ssxz-brand-wordmark').exists()).toBe(false)
     expect(brand.find('svg').exists()).toBe(false)
     expect(brand.find('img').exists()).toBe(false)
+    expect(brand.get('.ssxz-brand-title').text()).toBe('SSXZ AI')
+    expect(brand.text()).not.toContain('AI Gateway')
+    expect(brand.get('.ssxz-brand-subtitle').text()).toBe('Developer Console')
   })
 
   it('keeps all user navigation inside the approved app routes', async () => {
