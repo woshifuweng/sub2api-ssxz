@@ -15,16 +15,17 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@airwallex/components-sdk": "^1.30.2",
     "@lobehub/icons": "^4.0.2",
+    "@lucide/vue": "1.24.0",
     "@stripe/stripe-js": "^9.0.1",
     "@tanstack/vue-virtual": "^3.13.23",
     "@vueuse/core": "^10.7.0",
-    "axios": "^1.18.0",
+    "axios": "^1.17.0",
     "chart.js": "^4.4.1",
-    "dompurify": "^3.3.1",
+    "dompurify": "^3.4.12",
     "driver.js": "^1.4.0",
     "file-saver": "^2.0.5",
+    "highlight.js": "11.11.1",
     "marked": "^17.0.1",
     "pinia": "^2.1.7",
     "qrcode": "^1.5.4",
@@ -36,7 +37,6 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@intlify/message-compiler": "9.14.5",
     "@types/dompurify": "^3.0.5",
     "@types/file-saver": "^2.0.7",
     "@types/mdx": "^2.0.13",
@@ -61,8 +61,10 @@
   },
   "pnpm": {
     "overrides": {
-      "js-cookie": "3.0.7",
-      "form-data@<4.0.6": ">=4.0.6"
+      "form-data": "4.0.6",
+      "js-cookie": "3.0.8",
+      "lodash": "4.18.1",
+      "lodash-es": "4.18.1"
     }
   }
 }

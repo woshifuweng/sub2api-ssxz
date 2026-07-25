@@ -11,14 +11,14 @@
           :key="amt"
           type="button"
           :class="[
-            'rounded-lg border-2 px-4 py-3 text-center font-medium transition-colors',
+            'amount-choice rounded-lg px-4 py-3 text-center font-medium transition-colors',
             modelValue === amt
-              ? 'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/40 dark:text-primary-300'
-              : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-200 dark:hover:border-dark-500',
+              ? 'amount-choice-selected'
+              : 'amount-choice-idle',
           ]"
           @click="selectAmount(amt)"
         >
-          {{ amt }}
+          ¥{{ amt }}
         </button>
       </div>
     </div>
@@ -30,7 +30,7 @@
       </label>
       <div class="relative">
         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-500">
-          $
+          ¥
         </span>
         <input
           type="text"
@@ -109,3 +109,25 @@ watch(() => props.modelValue, (v) => {
   }
 }, { immediate: true })
 </script>
+
+<style scoped>
+.amount-choice {
+  min-height: 3rem;
+  border: 1px solid var(--ssxz-border);
+  background: var(--ssxz-surface-raised);
+  color: var(--ssxz-text-secondary);
+}
+
+.amount-choice-idle:hover {
+  border-color: var(--ssxz-border-strong);
+  background: var(--ssxz-surface-muted);
+  color: var(--ssxz-text-primary);
+}
+
+.amount-choice-selected {
+  border-color: var(--ssxz-action);
+  background: var(--ssxz-action-soft);
+  color: var(--ssxz-action);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ssxz-action) 18%, transparent);
+}
+</style>

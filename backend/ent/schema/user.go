@@ -54,6 +54,8 @@ func (User) Fields() []ent.Field {
 			Default(0),
 		field.Int("concurrency").
 			Default(5),
+		field.Bool("unlimited_concurrency").
+			Default(false),
 		field.String("status").
 			MaxLen(20).
 			Default(domain.StatusActive),
@@ -110,6 +112,10 @@ func (User) Fields() []ent.Field {
 			Default("[]"),
 		field.Float("total_recharged").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
+			Default(0),
+		field.Int64("sora_storage_quota_bytes").
+			Default(0),
+		field.Int64("sora_storage_used_bytes").
 			Default(0),
 
 		// 用户级每分钟请求数上限（0 = 不限制）。仅当所在分组未设置 rpm_limit 时作为兜底生效。

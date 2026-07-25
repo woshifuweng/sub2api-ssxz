@@ -9,7 +9,18 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const stickySessionPrefix = "sticky_session:"
+const (
+	stickySessionPrefix         = "sticky_session:"
+	gatewayCacheLocalMaxTTL     = time.Second
+	gatewayCacheCleanupInterval = time.Minute
+	gatewayCacheMinRefreshGap   = time.Second
+	gatewayCacheMaxRefreshGap   = 30 * time.Second
+)
+
+type gatewayCacheEntry struct {
+	AccountID                 int64
+	NextRemoteRefreshUnixNano int64
+}
 
 type gatewayCache struct {
 	rdb *redis.Client

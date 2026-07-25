@@ -171,6 +171,20 @@ func (_u *UserUpdate) AddConcurrency(v int) *UserUpdate {
 	return _u
 }
 
+// SetUnlimitedConcurrency sets the "unlimited_concurrency" field.
+func (_u *UserUpdate) SetUnlimitedConcurrency(v bool) *UserUpdate {
+	_u.mutation.SetUnlimitedConcurrency(v)
+	return _u
+}
+
+// SetNillableUnlimitedConcurrency sets the "unlimited_concurrency" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableUnlimitedConcurrency(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetUnlimitedConcurrency(*v)
+	}
+	return _u
+}
+
 // SetStatus sets the "status" field.
 func (_u *UserUpdate) SetStatus(v string) *UserUpdate {
 	_u.mutation.SetStatus(v)
@@ -408,6 +422,48 @@ func (_u *UserUpdate) SetNillableTotalRecharged(v *float64) *UserUpdate {
 // AddTotalRecharged adds value to the "total_recharged" field.
 func (_u *UserUpdate) AddTotalRecharged(v float64) *UserUpdate {
 	_u.mutation.AddTotalRecharged(v)
+	return _u
+}
+
+// SetSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field.
+func (_u *UserUpdate) SetSoraStorageQuotaBytes(v int64) *UserUpdate {
+	_u.mutation.ResetSoraStorageQuotaBytes()
+	_u.mutation.SetSoraStorageQuotaBytes(v)
+	return _u
+}
+
+// SetNillableSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableSoraStorageQuotaBytes(v *int64) *UserUpdate {
+	if v != nil {
+		_u.SetSoraStorageQuotaBytes(*v)
+	}
+	return _u
+}
+
+// AddSoraStorageQuotaBytes adds value to the "sora_storage_quota_bytes" field.
+func (_u *UserUpdate) AddSoraStorageQuotaBytes(v int64) *UserUpdate {
+	_u.mutation.AddSoraStorageQuotaBytes(v)
+	return _u
+}
+
+// SetSoraStorageUsedBytes sets the "sora_storage_used_bytes" field.
+func (_u *UserUpdate) SetSoraStorageUsedBytes(v int64) *UserUpdate {
+	_u.mutation.ResetSoraStorageUsedBytes()
+	_u.mutation.SetSoraStorageUsedBytes(v)
+	return _u
+}
+
+// SetNillableSoraStorageUsedBytes sets the "sora_storage_used_bytes" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableSoraStorageUsedBytes(v *int64) *UserUpdate {
+	if v != nil {
+		_u.SetSoraStorageUsedBytes(*v)
+	}
+	return _u
+}
+
+// AddSoraStorageUsedBytes adds value to the "sora_storage_used_bytes" field.
+func (_u *UserUpdate) AddSoraStorageUsedBytes(v int64) *UserUpdate {
+	_u.mutation.AddSoraStorageUsedBytes(v)
 	return _u
 }
 
@@ -1030,6 +1086,9 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedConcurrency(); ok {
 		_spec.AddField(user.FieldConcurrency, field.TypeInt, value)
 	}
+	if value, ok := _u.mutation.UnlimitedConcurrency(); ok {
+		_spec.SetField(user.FieldUnlimitedConcurrency, field.TypeBool, value)
+	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(user.FieldStatus, field.TypeString, value)
 	}
@@ -1092,6 +1151,18 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedTotalRecharged(); ok {
 		_spec.AddField(user.FieldTotalRecharged, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.SoraStorageQuotaBytes(); ok {
+		_spec.SetField(user.FieldSoraStorageQuotaBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedSoraStorageQuotaBytes(); ok {
+		_spec.AddField(user.FieldSoraStorageQuotaBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.SoraStorageUsedBytes(); ok {
+		_spec.SetField(user.FieldSoraStorageUsedBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedSoraStorageUsedBytes(); ok {
+		_spec.AddField(user.FieldSoraStorageUsedBytes, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(user.FieldRpmLimit, field.TypeInt, value)
@@ -1847,6 +1918,20 @@ func (_u *UserUpdateOne) AddConcurrency(v int) *UserUpdateOne {
 	return _u
 }
 
+// SetUnlimitedConcurrency sets the "unlimited_concurrency" field.
+func (_u *UserUpdateOne) SetUnlimitedConcurrency(v bool) *UserUpdateOne {
+	_u.mutation.SetUnlimitedConcurrency(v)
+	return _u
+}
+
+// SetNillableUnlimitedConcurrency sets the "unlimited_concurrency" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableUnlimitedConcurrency(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetUnlimitedConcurrency(*v)
+	}
+	return _u
+}
+
 // SetStatus sets the "status" field.
 func (_u *UserUpdateOne) SetStatus(v string) *UserUpdateOne {
 	_u.mutation.SetStatus(v)
@@ -2084,6 +2169,48 @@ func (_u *UserUpdateOne) SetNillableTotalRecharged(v *float64) *UserUpdateOne {
 // AddTotalRecharged adds value to the "total_recharged" field.
 func (_u *UserUpdateOne) AddTotalRecharged(v float64) *UserUpdateOne {
 	_u.mutation.AddTotalRecharged(v)
+	return _u
+}
+
+// SetSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field.
+func (_u *UserUpdateOne) SetSoraStorageQuotaBytes(v int64) *UserUpdateOne {
+	_u.mutation.ResetSoraStorageQuotaBytes()
+	_u.mutation.SetSoraStorageQuotaBytes(v)
+	return _u
+}
+
+// SetNillableSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableSoraStorageQuotaBytes(v *int64) *UserUpdateOne {
+	if v != nil {
+		_u.SetSoraStorageQuotaBytes(*v)
+	}
+	return _u
+}
+
+// AddSoraStorageQuotaBytes adds value to the "sora_storage_quota_bytes" field.
+func (_u *UserUpdateOne) AddSoraStorageQuotaBytes(v int64) *UserUpdateOne {
+	_u.mutation.AddSoraStorageQuotaBytes(v)
+	return _u
+}
+
+// SetSoraStorageUsedBytes sets the "sora_storage_used_bytes" field.
+func (_u *UserUpdateOne) SetSoraStorageUsedBytes(v int64) *UserUpdateOne {
+	_u.mutation.ResetSoraStorageUsedBytes()
+	_u.mutation.SetSoraStorageUsedBytes(v)
+	return _u
+}
+
+// SetNillableSoraStorageUsedBytes sets the "sora_storage_used_bytes" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableSoraStorageUsedBytes(v *int64) *UserUpdateOne {
+	if v != nil {
+		_u.SetSoraStorageUsedBytes(*v)
+	}
+	return _u
+}
+
+// AddSoraStorageUsedBytes adds value to the "sora_storage_used_bytes" field.
+func (_u *UserUpdateOne) AddSoraStorageUsedBytes(v int64) *UserUpdateOne {
+	_u.mutation.AddSoraStorageUsedBytes(v)
 	return _u
 }
 
@@ -2736,6 +2863,9 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	if value, ok := _u.mutation.AddedConcurrency(); ok {
 		_spec.AddField(user.FieldConcurrency, field.TypeInt, value)
 	}
+	if value, ok := _u.mutation.UnlimitedConcurrency(); ok {
+		_spec.SetField(user.FieldUnlimitedConcurrency, field.TypeBool, value)
+	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(user.FieldStatus, field.TypeString, value)
 	}
@@ -2798,6 +2928,18 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.AddedTotalRecharged(); ok {
 		_spec.AddField(user.FieldTotalRecharged, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.SoraStorageQuotaBytes(); ok {
+		_spec.SetField(user.FieldSoraStorageQuotaBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedSoraStorageQuotaBytes(); ok {
+		_spec.AddField(user.FieldSoraStorageQuotaBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.SoraStorageUsedBytes(); ok {
+		_spec.SetField(user.FieldSoraStorageUsedBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedSoraStorageUsedBytes(); ok {
+		_spec.AddField(user.FieldSoraStorageUsedBytes, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(user.FieldRpmLimit, field.TypeInt, value)

@@ -38,7 +38,7 @@ type openaiNonStreamingResult struct {
 	imageOutputSizes []string
 }
 
-func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel string) (*openaiStreamingResult, error) {
+func (s *OpenAIGatewayService) handleStreamingResponseWeiShaw(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel string) (*openaiStreamingResult, error) {
 	return s.handleStreamingResponseWithReasoning(ctx, resp, c, account, startTime, originalModel, mappedModel, "")
 }
 
@@ -61,7 +61,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 
 	// Set SSE response headers
 	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
+	c.Header("Cache-Control", "no-cache, no-transform")
 	c.Header("Connection", "keep-alive")
 	c.Header("X-Accel-Buffering", "no")
 
@@ -82,7 +82,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 		// These headers describe this gateway's SSE stream and are stable across
 		// account attempts. Keep them authoritative over upstream values.
 		c.Header("Content-Type", "text/event-stream")
-		c.Header("Cache-Control", "no-cache")
+		c.Header("Cache-Control", "no-cache, no-transform")
 		c.Header("Connection", "keep-alive")
 		c.Header("X-Accel-Buffering", "no")
 	}
@@ -326,6 +326,10 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 		}
 		flushPending("Client disconnected during final flush, returning collected usage")
 		if !sawTerminalEvent {
+			if openAIStreamClientOutputStarted(c, clientOutputStarted) || firstTokenMs != nil {
+				s.openaiRelayMetrics.recordIncompleteClose(true)
+				return resultWithUsage(), fmt.Errorf("stream usage incomplete: missing terminal event")
+			}
 			return resultWithUsage(), fmt.Errorf("stream usage incomplete: missing terminal event")
 		}
 		if sawFailedEvent {
@@ -736,7 +740,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 
 // extractOpenAISSEDataLine 低开销提取 SSE `data:` 行内容。
 // 兼容 `data: xxx` 与 `data:xxx` 两种格式。
-func extractOpenAISSEDataLine(line string) (string, bool) {
+func extractOpenAISSEDataLineWeiShaw(line string) (string, bool) {
 	if !strings.HasPrefix(line, "data:") {
 		return "", false
 	}
@@ -820,7 +824,7 @@ func openAICompatPayloadWithEventType(payload, eventType string) string {
 	return patched
 }
 
-func (s *OpenAIGatewayService) replaceModelInSSELine(line, fromModel, toModel string) string {
+func (s *OpenAIGatewayService) replaceModelInSSELineWeiShaw(line, fromModel, toModel string) string {
 	data, ok := extractOpenAISSEDataLine(line)
 	if !ok {
 		return line
@@ -851,7 +855,7 @@ func (s *OpenAIGatewayService) replaceModelInSSELine(line, fromModel, toModel st
 }
 
 // correctToolCallsInResponseBody 修正响应体中的工具调用
-func (s *OpenAIGatewayService) correctToolCallsInResponseBody(body []byte) []byte {
+func (s *OpenAIGatewayService) correctToolCallsInResponseBodyWeiShaw(body []byte) []byte {
 	if len(body) == 0 {
 		return body
 	}
@@ -944,11 +948,11 @@ func dedupeRepeatedJSONArgumentString(arguments string) (string, bool) {
 	return first, true
 }
 
-func (s *OpenAIGatewayService) parseSSEUsage(data string, usage *OpenAIUsage) {
+func (s *OpenAIGatewayService) parseSSEUsageWeiShaw(data string, usage *OpenAIUsage) {
 	s.parseSSEUsageBytes([]byte(data), usage)
 }
 
-func (s *OpenAIGatewayService) parseSSEUsageBytes(data []byte, usage *OpenAIUsage) {
+func (s *OpenAIGatewayService) parseSSEUsageBytesWeiShaw(data []byte, usage *OpenAIUsage) {
 	if usage == nil || len(data) == 0 || bytes.Equal(data, []byte("[DONE]")) {
 		return
 	}
@@ -967,7 +971,7 @@ func (s *OpenAIGatewayService) parseSSEUsageBytes(data []byte, usage *OpenAIUsag
 	}
 }
 
-func extractOpenAIUsageFromJSONBytes(body []byte) (OpenAIUsage, bool) {
+func extractOpenAIUsageFromJSONBytesWeiShaw(body []byte) (OpenAIUsage, bool) {
 	if len(body) == 0 || !gjson.ValidBytes(body) {
 		return OpenAIUsage{}, false
 	}
@@ -1098,6 +1102,61 @@ func openAICacheCreationTokensFromUsage(value gjson.Result) int {
 }
 
 func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, originalModel, mappedModel string) (*openaiNonStreamingResult, error) {
+	if account != nil && shouldApplyOpenAICodexOAuthTransform(account) && isOpenAIResponsesCompactPath(c) {
+		keepalive := getOpenAICompactKeepalive(c)
+		if keepalive == nil || !keepalive.emittedAny() {
+			responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
+			c.Header("Cache-Control", "no-cache, no-transform")
+			c.Header("X-Accel-Buffering", "no")
+			c.Header("Content-Type", "application/json; charset=utf-8")
+			c.Status(resp.StatusCode)
+		}
+		if keepalive == nil {
+			keepalive = startOpenAICompactKeepalive(c, account, false)
+		}
+		result, err := s.readOpenAICompactBufferedResponse(ctx, resp, c, account)
+		stopOpenAICompactKeepalive(c)
+		if err != nil {
+			if keepalive != nil && keepalive.emittedAny() {
+				msg := "Upstream compact request failed"
+				var protocolErr *openAICompactProtocolError
+				if errors.As(err, &protocolErr) {
+					msg = protocolErr.Message()
+				} else if trimmed := strings.TrimSpace(err.Error()); trimmed != "" {
+					msg = sanitizeUpstreamErrorMessage(trimmed)
+				}
+				_, _ = c.Writer.Write([]byte(`{"error":{"type":"upstream_error","message":` + strconv.Quote(msg) + `}}`))
+				return nil, fmt.Errorf("compact failed after keepalive write: %w", err)
+			}
+			var protocolErr *openAICompactProtocolError
+			if errors.As(err, &protocolErr) {
+				return nil, s.writeOpenAINonStreamingProtocolError(resp, c, protocolErr.Message())
+			}
+			return nil, err
+		}
+		if result == nil {
+			return nil, fmt.Errorf("compact response is empty")
+		}
+		body := s.rewriteOpenAIResponseBody(result.body, mappedModel, originalModel)
+		writeOpenAICompactProgressHeaders(c.Writer.Header(), result.meta)
+		c.Header("Content-Type", "application/json; charset=utf-8")
+		if !writeOpenAICompactSSEBridge(c, resp.StatusCode, body) {
+			if keepalive == nil || !keepalive.emittedAny() {
+				c.Data(resp.StatusCode, "application/json; charset=utf-8", body)
+			} else {
+				_, _ = c.Writer.Write(body)
+			}
+		}
+		usage := result.usage
+		return &openaiNonStreamingResult{
+			OpenAIUsage:      &usage,
+			usage:            &usage,
+			responseID:       extractOpenAIResponseIDFromJSONBytes(body),
+			imageCount:       countOpenAIResponseImageOutputsFromJSONBytes(body),
+			imageOutputSizes: collectOpenAIResponseImageOutputSizesFromJSONBytes(body),
+		}, nil
+	}
+
 	body, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
 	if err != nil {
 		return nil, err
@@ -1175,7 +1234,7 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 	}, nil
 }
 
-func isEventStreamResponse(header http.Header) bool {
+func isEventStreamResponseWeiShaw(header http.Header) bool {
 	contentType := strings.ToLower(header.Get("Content-Type"))
 	return strings.Contains(contentType, "text/event-stream")
 }
@@ -1269,7 +1328,7 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 	}, nil
 }
 
-func extractOpenAISSETerminalEvent(body string) (string, []byte, bool) {
+func extractOpenAISSETerminalEventWeiShaw(body string) (string, []byte, bool) {
 	var terminalType string
 	var terminalPayload []byte
 	forEachOpenAISSEDataPayload(body, func(data []byte) {
@@ -1289,7 +1348,7 @@ func extractOpenAISSETerminalEvent(body string) (string, []byte, bool) {
 	return "", nil, false
 }
 
-func extractOpenAISSEErrorMessage(payload []byte) string {
+func extractOpenAISSEErrorMessageWeiShaw(payload []byte) string {
 	if len(payload) == 0 {
 		return ""
 	}
@@ -1353,7 +1412,7 @@ func sanitizeOpenAIResponseFailedEventForClient(payload []byte, eventType string
 	return updated, !bytes.Equal(updated, payload)
 }
 
-func (s *OpenAIGatewayService) writeOpenAINonStreamingProtocolError(resp *http.Response, c *gin.Context, message string) error {
+func (s *OpenAIGatewayService) writeOpenAINonStreamingProtocolErrorWeiShaw(resp *http.Response, c *gin.Context, message string) error {
 	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
 	if message == "" {
 		message = "Upstream returned an invalid non-streaming response"
@@ -1376,7 +1435,7 @@ func (s *OpenAIGatewayService) writeOpenAINonStreamingProtocolError(resp *http.R
 	return fmt.Errorf("non-streaming openai protocol error: %s", message)
 }
 
-func extractCodexFinalResponse(body string) ([]byte, bool) {
+func extractCodexFinalResponseWeiShaw(body string) ([]byte, bool) {
 	var finalResponse []byte
 	forEachOpenAISSEDataPayload(body, func(data []byte) {
 		if finalResponse != nil {
@@ -1636,7 +1695,7 @@ func findRawCompactionItemFromSSE(bodyText string) (json.RawMessage, bool) {
 // item types such as compaction — Codex remote compact v2 then fails with
 // "expected exactly one compaction output item, got 0" (#3887).
 // Returns (nil, false) if nothing could be reconstructed.
-func reconstructResponseOutputFromSSE(bodyText string) ([]byte, bool) {
+func reconstructResponseOutputFromSSEWeiShaw(bodyText string) ([]byte, bool) {
 	if outputJSON, ok := collectRawResponsesOutputItemsFromSSE(bodyText); ok {
 		return outputJSON, true
 	}
@@ -1681,7 +1740,7 @@ func buildResponsesOutputJSON(acc *apicompat.BufferedResponseAccumulator, imageO
 	return outputJSON, true
 }
 
-func extractImageGenerationOutputFromSSEData(data []byte, seen map[string]struct{}) (json.RawMessage, bool) {
+func extractImageGenerationOutputFromSSEDataWeiShaw(data []byte, seen map[string]struct{}) (json.RawMessage, bool) {
 	if len(data) == 0 || !gjson.ValidBytes(data) {
 		return nil, false
 	}
@@ -1708,7 +1767,7 @@ func extractImageGenerationOutputFromSSEData(data []byte, seen map[string]struct
 	return json.RawMessage(item.Raw), true
 }
 
-func (s *OpenAIGatewayService) parseSSEUsageFromBody(body string) *OpenAIUsage {
+func (s *OpenAIGatewayService) parseSSEUsageFromBodyWeiShaw(body string) *OpenAIUsage {
 	usage := &OpenAIUsage{}
 	forEachOpenAISSEDataPayload(body, func(data []byte) {
 		s.parseSSEUsageBytes(data, usage)
@@ -1716,7 +1775,7 @@ func (s *OpenAIGatewayService) parseSSEUsageFromBody(body string) *OpenAIUsage {
 	return usage
 }
 
-func (s *OpenAIGatewayService) replaceModelInSSEBody(body, fromModel, toModel string) string {
+func (s *OpenAIGatewayService) replaceModelInSSEBodyWeiShaw(body, fromModel, toModel string) string {
 	lines := strings.Split(body, "\n")
 	for i, line := range lines {
 		if _, ok := extractOpenAISSEDataLine(line); !ok {

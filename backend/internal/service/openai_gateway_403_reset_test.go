@@ -44,5 +44,7 @@ func TestOpenAIGatewayServiceRecordUsage_ResetsOpenAI403CounterForZeroUsage(t *t
 
 	require.NoError(t, err)
 	require.Equal(t, []int64{777}, counter.resetCalls)
-	require.Equal(t, 1, usageRepo.calls)
+	// Production intentionally drops empty usage rows, but a successful upstream
+	// response must still clear the account's consecutive-403 counter.
+	require.Zero(t, usageRepo.calls)
 }

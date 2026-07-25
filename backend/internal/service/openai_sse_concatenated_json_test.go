@@ -362,6 +362,9 @@ func assertOpenAISSEFrames(t *testing.T, body string, expectedTypes []string) {
 		if !ok {
 			continue
 		}
+		if frame.Data == "[DONE]" {
+			continue
+		}
 		require.True(t, json.Valid([]byte(frame.Data)), "each downstream SSE frame must contain exactly one JSON document")
 		var event struct {
 			Type string `json:"type"`
@@ -373,6 +376,10 @@ func assertOpenAISSEFrames(t *testing.T, body string, expectedTypes []string) {
 		eventTypes = append(eventTypes, event.Type)
 	}
 	if frame, ok := parser.Finish(); ok {
+		if frame.Data == "[DONE]" {
+			require.Equal(t, expectedTypes, eventTypes)
+			return
+		}
 		require.True(t, json.Valid([]byte(frame.Data)))
 		var event struct {
 			Type string `json:"type"`

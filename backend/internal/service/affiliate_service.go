@@ -17,6 +17,7 @@ var (
 	ErrAffiliateCodeTaken       = infraerrors.Conflict("AFFILIATE_CODE_TAKEN", "affiliate code already in use")
 	ErrAffiliateAlreadyBound    = infraerrors.Conflict("AFFILIATE_ALREADY_BOUND", "affiliate inviter already bound")
 	ErrAffiliateQuotaEmpty      = infraerrors.BadRequest("AFFILIATE_QUOTA_EMPTY", "no affiliate quota available to transfer")
+	ErrAffiliateDisabled        = infraerrors.NotFound("AFFILIATE_DISABLED", "affiliate feature is disabled")
 )
 
 const (
@@ -125,13 +126,19 @@ type AffiliateAdminFilter struct {
 
 // AffiliateAdminEntry 专属用户列表条目
 type AffiliateAdminEntry struct {
-	UserID               int64    `json:"user_id"`
-	Email                string   `json:"email"`
-	Username             string   `json:"username"`
-	AffCode              string   `json:"aff_code"`
-	AffCodeCustom        bool     `json:"aff_code_custom"`
-	AffRebateRatePercent *float64 `json:"aff_rebate_rate_percent,omitempty"`
-	AffCount             int      `json:"aff_count"`
+	UserID                 int64    `json:"user_id"`
+	Email                  string   `json:"email"`
+	Username               string   `json:"username"`
+	AffCode                string   `json:"aff_code"`
+	AffCodeCustom          bool     `json:"aff_code_custom"`
+	AffRebateRatePercent   *float64 `json:"aff_rebate_rate_percent,omitempty"`
+	AffCount               int      `json:"aff_count"`
+	AffQuota               float64  `json:"aff_quota"`
+	AffFrozenQuota         float64  `json:"aff_frozen_quota"`
+	AffHistoryQuota        float64  `json:"aff_history_quota"`
+	AccruedRebateTotal     float64  `json:"accrued_rebate_total"`
+	TransferredRebateTotal float64  `json:"transferred_rebate_total"`
+	InviteeRechargeTotal   float64  `json:"invitee_recharge_total"`
 }
 
 type AffiliateRecordFilter struct {
@@ -239,6 +246,9 @@ func (s *AffiliateService) EnsureUserAffiliate(ctx context.Context, userID int64
 }
 
 func (s *AffiliateService) GetAffiliateDetail(ctx context.Context, userID int64) (*AffiliateDetail, error) {
+	if !s.IsEnabled(ctx) {
+		return nil, ErrAffiliateDisabled
+	}
 	// Lazy thaw: move any matured frozen quota to available before reading.
 	if s != nil && s.repo != nil {
 		// best-effort: thaw failure is non-fatal
@@ -411,6 +421,9 @@ func (s *AffiliateService) globalRebateRatePercent(ctx context.Context) float64 
 func (s *AffiliateService) TransferAffiliateQuota(ctx context.Context, userID int64) (float64, float64, error) {
 	if s == nil || s.repo == nil {
 		return 0, 0, infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "affiliate service unavailable")
+	}
+	if !s.IsEnabled(ctx) {
+		return 0, 0, ErrAffiliateDisabled
 	}
 
 	transferred, balance, err := s.repo.TransferQuotaToBalance(ctx, userID)

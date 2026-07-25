@@ -1,16 +1,50 @@
 /**
  * Admin Ops API endpoints (vNext)
- * - Error logs list/detail
+ * - Error logs list/detail + retry (client/upstream)
  * - Dashboard overview (raw path)
  */
 
-import { apiClient, buildGatewayUrl } from '../client'
+import { apiClient } from '../client'
 import type { PaginatedResponse } from '@/types'
 
+export type OpsRetryMode = 'client' | 'upstream'
 export type OpsQueryMode = 'auto' | 'raw' | 'preagg'
 
 export interface OpsRequestOptions {
   signal?: AbortSignal
+}
+
+export interface OpsRetryRequest {
+  mode: OpsRetryMode
+  pinned_account_id?: number
+  force?: boolean
+}
+
+export interface OpsRetryAttempt {
+  id: number
+  created_at: string
+  requested_by_user_id: number
+  source_error_id: number
+  mode: string
+  pinned_account_id?: number | null
+  pinned_account_name?: string
+
+  status: string
+  started_at?: string | null
+  finished_at?: string | null
+  duration_ms?: number | null
+
+  success?: boolean | null
+  http_status_code?: number | null
+  upstream_request_id?: string | null
+  used_account_id?: number | null
+  used_account_name?: string
+  response_preview?: string | null
+  response_truncated?: boolean | null
+
+  result_request_id?: string | null
+  result_error_id?: number | null
+  error_message?: string | null
 }
 
 export type OpsUpstreamErrorEvent = {
@@ -20,9 +54,31 @@ export type OpsUpstreamErrorEvent = {
   account_name?: string
   upstream_status_code?: number
   upstream_request_id?: string
+  upstream_request_body?: string
   kind?: string
   message?: string
   detail?: string
+}
+
+export interface OpsRetryResult {
+  attempt_id: number
+  mode: OpsRetryMode
+  status: 'running' | 'succeeded' | 'failed' | string
+
+  pinned_account_id?: number | null
+  used_account_id?: number | null
+
+  http_status_code: number
+  upstream_request_id: string
+
+  response_preview: string
+  response_truncated: boolean
+
+  error_message: string
+
+  started_at: string
+  finished_at: string
+  duration_ms: number
 }
 
 export interface OpsDashboardOverview {
@@ -107,7 +163,7 @@ export interface OpsThroughputTrendResponse {
 
 export type OpsRequestKind = 'success' | 'error'
 export type OpsRequestDetailsKind = OpsRequestKind | 'all'
-export type OpsRequestDetailsSort = 'created_at_desc' | 'duration_desc'
+export type OpsRequestDetailsSort = 'created_at_desc' | 'duration_desc' | 'first_token_desc'
 
 export interface OpsRequestDetail {
   kind: OpsRequestKind
@@ -117,6 +173,7 @@ export interface OpsRequestDetail {
   platform?: string
   model?: string
   duration_ms?: number | null
+  first_token_ms?: number | null
   status_code?: number | null
 
   error_id?: number | null
@@ -338,7 +395,128 @@ export interface OpsUserConcurrencyStatsResponse {
   timestamp?: string
 }
 
-export async function getConcurrencyStats(platform?: string, groupId?: number | null): Promise<OpsConcurrencyStatsResponse> {
+export interface GatewaySchedulerRuntimeEntry {
+  account_id: number
+  platform: string
+  priority: number
+  current_concurrency: number
+  waiting_count: number
+  load_rate: number
+  ready_tier: number
+  ttft_ewma_ms?: number | null
+  error_rate_ewma: number
+  sticky_hits: number
+  load_balance_hits: number
+  switches: number
+  last_selected_at?: string | null
+}
+
+export interface GatewaySchedulerRuntimeMetrics {
+  select_total: number
+  sticky_session_hit_total: number
+  load_balance_select_total: number
+  account_switch_total: number
+  scheduler_latency_ms_total: number
+  scheduler_latency_ms_avg: number
+  sticky_hit_ratio: number
+  account_switch_rate: number
+  load_skew_avg: number
+  runtime_stats_account_count: number
+}
+
+export interface HTTPUpstreamMetricsSnapshot {
+  isolation_mode: string
+  active_clients: number
+  cache_hit_total: number
+  cache_miss_total: number
+  client_create_total: number
+  evict_idle_total: number
+  evict_lru_total: number
+  evict_config_change_total: number
+  limit_reject_total: number
+}
+
+export interface GatewaySchedulerRuntimeResponse {
+  metrics: GatewaySchedulerRuntimeMetrics
+  transport: HTTPUpstreamMetricsSnapshot
+  active_scheduling_accounts: number
+  pool_accounts_total: number
+  items: GatewaySchedulerRuntimeEntry[]
+  timestamp: string
+}
+
+export interface OpenAIWSRuntimeResponse {
+  acquire_total: number
+  reuse_total: number
+  create_total: number
+  queue_wait_ms_total: number
+  conn_pick_ms_total: number
+  scale_up_total: number
+  scale_down_total: number
+  prewarm_success_total: number
+  prewarm_fallback_total: number
+  fallback_reason_counts: Record<string, number>
+  retry?: {
+    retry_attempts_total?: number
+    retry_backoff_ms_total?: number
+    retry_exhausted_total?: number
+    non_retryable_fast_fallback_total?: number
+  }
+  passthrough?: Record<string, number>
+  relay?: {
+    incomplete_close_total?: number
+    client_write_blocked_total?: number
+    final_flush_fail_total?: number
+    first_token_after_header_ms_total?: number
+    first_token_after_header_count?: number
+    stream_closed_after_content_total?: number
+  }
+  circuits?: {
+    open_proxy_count?: number
+    open_account_count?: number
+    proxies?: Array<Record<string, any>>
+    accounts?: Array<Record<string, any>>
+  }
+  transport?: {
+    proxy_client_cache_hits?: number
+    proxy_client_cache_misses?: number
+    transport_reuse_ratio?: number
+    http1_dial_total?: number
+    http2_dial_total?: number
+    fallback_to_http1_total?: number
+  }
+  gnet_http1?: {
+    http1_classified_total?: number
+    h2c_classified_total?: number
+    sidecar_classified_total?: number
+    classify_error_total?: number
+    enqueue_drop_total?: number
+    http1_enqueue_drop_total?: number
+    h2c_enqueue_drop_total?: number
+    sidecar_enqueue_drop_total?: number
+    response_total?: number
+    buffered_response_total?: number
+    inline_buffer_hit_total?: number
+    heap_buffer_spill_total?: number
+    content_length_auto_total?: number
+    chunked_fallback_total?: number
+    chunked_flush_total?: number
+    chunked_header_total?: number
+    direct_write_after_flush_total?: number
+    async_write_total?: number
+    buffered_response_ratio?: number
+    inline_buffer_hit_ratio?: number
+    chunked_fallback_ratio?: number
+    http1_classification_ratio?: number
+  }
+  timestamp: string
+}
+
+export async function getConcurrencyStats(
+  platform?: string,
+  groupId?: number | null,
+  options?: { includeAccount?: boolean; accountLimit?: number }
+): Promise<OpsConcurrencyStatsResponse> {
   const params: Record<string, any> = {}
   if (platform) {
     params.platform = platform
@@ -346,13 +524,39 @@ export async function getConcurrencyStats(platform?: string, groupId?: number | 
   if (typeof groupId === 'number' && groupId > 0) {
     params.group_id = groupId
   }
+  if (typeof options?.includeAccount === 'boolean') {
+    params.include_account = options.includeAccount
+  }
+  if (typeof options?.accountLimit === 'number' && options.accountLimit > 0) {
+    params.account_limit = options.accountLimit
+  }
 
   const { data } = await apiClient.get<OpsConcurrencyStatsResponse>('/admin/ops/concurrency', { params })
   return data
 }
 
-export async function getUserConcurrencyStats(): Promise<OpsUserConcurrencyStatsResponse> {
-  const { data } = await apiClient.get<OpsUserConcurrencyStatsResponse>('/admin/ops/user-concurrency')
+export async function getUserConcurrencyStats(limit?: number): Promise<OpsUserConcurrencyStatsResponse> {
+  const params: Record<string, any> = {}
+  if (typeof limit === 'number' && limit > 0) {
+    params.limit = limit
+  }
+  const { data } = await apiClient.get<OpsUserConcurrencyStatsResponse>('/admin/ops/user-concurrency', { params })
+  return data
+}
+
+export async function getGatewaySchedulerRuntime(platform?: string, groupId?: number | null, limit?: number): Promise<GatewaySchedulerRuntimeResponse> {
+  const params: Record<string, any> = {}
+  if (platform) params.platform = platform
+  if (typeof groupId === 'number' && groupId > 0) params.group_id = groupId
+  if (typeof limit === 'number' && limit > 0) params.limit = limit
+  const { data } = await apiClient.get<GatewaySchedulerRuntimeResponse>('/admin/ops/gateway-scheduler', { params })
+  return data
+}
+
+export async function getOpenAIWSRuntime(platform?: string): Promise<OpenAIWSRuntimeResponse> {
+  const params: Record<string, any> = {}
+  if (platform) params.platform = platform
+  const { data } = await apiClient.get<OpenAIWSRuntimeResponse>('/admin/ops/openai-ws-runtime', { params })
   return data
 }
 
@@ -400,13 +604,23 @@ export interface OpsAccountAvailabilityStatsResponse {
   timestamp?: string
 }
 
-export async function getAccountAvailabilityStats(platform?: string, groupId?: number | null): Promise<OpsAccountAvailabilityStatsResponse> {
+export async function getAccountAvailabilityStats(
+  platform?: string,
+  groupId?: number | null,
+  options?: { includeAccount?: boolean; accountLimit?: number }
+): Promise<OpsAccountAvailabilityStatsResponse> {
   const params: Record<string, any> = {}
   if (platform) {
     params.platform = platform
   }
   if (typeof groupId === 'number' && groupId > 0) {
     params.group_id = groupId
+  }
+  if (typeof options?.includeAccount === 'boolean') {
+    params.include_account = options.includeAccount
+  }
+  if (typeof options?.accountLimit === 'number' && options.accountLimit > 0) {
+    params.account_limit = options.accountLimit
   }
   const { data } = await apiClient.get<OpsAccountAvailabilityStatsResponse>('/admin/ops/account-availability', { params })
   return data
@@ -593,10 +807,9 @@ export function subscribeQPS(onMessage: (data: any) => void, options: SubscribeQ
 
     isConnecting = true
     setStatus(hasConnectedOnce ? 'reconnecting' : 'connecting')
-    const wsBaseUrl = options.wsBaseUrl || import.meta.env.VITE_WS_BASE_URL
-    const wsURL = wsBaseUrl
-      ? new URL(`${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${wsBaseUrl}/api/v1/admin/ops/ws/qps`)
-      : new URL(buildGatewayUrl('/api/v1/admin/ops/ws/qps').replace(/^http/, 'ws'))
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsBaseUrl = options.wsBaseUrl || import.meta.env.VITE_WS_BASE_URL || window.location.host
+    const wsURL = new URL(`${protocol}//${wsBaseUrl}/api/v1/admin/ops/ws/qps`)
 
     // Do NOT put admin JWT in the URL query string (it can leak via access logs, proxies, etc).
     // Browsers cannot set Authorization headers for WebSockets, so we pass the token via
@@ -677,6 +890,8 @@ export type MetricType =
   | 'success_rate'
   | 'error_rate'
   | 'upstream_error_rate'
+  | 'p95_latency_ms'
+  | 'p99_latency_ms'
   | 'cpu_usage_percent'
   | 'memory_usage_percent'
   | 'concurrency_queue_depth'
@@ -686,7 +901,6 @@ export type MetricType =
   | 'account_rate_limited_count'
   | 'account_error_count'
   | 'account_error_ratio'
-  | 'account_temp_unscheduled_count'
   | 'overload_account_count'
 export type Operator = '>' | '>=' | '<' | '<=' | '==' | '!='
 
@@ -780,15 +994,9 @@ export interface OpsAlertRuntimeSettings {
   thresholds: OpsMetricThresholds // 指标阈值配置
 }
 
-export interface OpsOpenAIAccountQuotaAutoPauseSettings {
-  default_threshold_5h: number // 0~1，0 表示不启用全局默认 5h 阈值
-  default_threshold_7d: number // 0~1，0 表示不启用全局默认 7d 阈值
-}
-
 export interface OpsAdvancedSettings {
   data_retention: OpsDataRetentionSettings
   aggregation: OpsAggregationSettings
-  openai_account_quota_auto_pause: OpsOpenAIAccountQuotaAutoPauseSettings
   ignore_count_tokens_errors: boolean
   ignore_context_canceled: boolean
   ignore_no_available_accounts: boolean
@@ -798,6 +1006,9 @@ export interface OpsAdvancedSettings {
   display_alert_events: boolean
   auto_refresh_enabled: boolean
   auto_refresh_interval_seconds: number
+  lazy_runtime_cards: boolean
+  realtime_summary_limit: number
+  pause_refresh_when_hidden: boolean
 }
 
 export interface OpsDataRetentionSettings {
@@ -828,14 +1039,12 @@ export interface OpsRuntimeLogConfig {
 export interface OpsSystemLog {
   id: number
   created_at: string
-  host: string
   level: string
   component: string
   message: string
   request_id?: string
   client_request_id?: string
   user_id?: number | null
-  api_key_id?: number | null
   account_id?: number | null
   platform?: string
   model?: string
@@ -850,13 +1059,11 @@ export interface OpsSystemLogQuery {
   time_range?: '5m' | '30m' | '1h' | '6h' | '24h' | '7d' | '30d'
   start_time?: string
   end_time?: string
-  host?: string
   level?: string
   component?: string
   request_id?: string
   client_request_id?: string
   user_id?: number | null
-  api_key_id?: number | null
   account_id?: number | null
   platform?: string
   model?: string
@@ -866,13 +1073,11 @@ export interface OpsSystemLogQuery {
 export interface OpsSystemLogCleanupRequest {
   start_time?: string
   end_time?: string
-  host?: string
   level?: string
   component?: string
   request_id?: string
   client_request_id?: string
   user_id?: number | null
-  api_key_id?: number | null
   account_id?: number | null
   platform?: string
   model?: string
@@ -903,10 +1108,19 @@ export interface OpsErrorLog {
   status_code: number
   platform: string
   model: string
+  inbound_endpoint?: string
+  upstream_endpoint?: string
+  requested_model?: string
+  upstream_model?: string
+  request_type?: number | null
+
+  is_retryable: boolean
+  retry_count: number
 
   resolved: boolean
   resolved_at?: string | null
   resolved_by_user_id?: number | null
+  resolved_retry_id?: number | null
 
   client_request_id: string
   request_id: string
@@ -915,9 +1129,6 @@ export interface OpsErrorLog {
   user_id?: number | null
   user_email: string
   api_key_id?: number | null
-  // 关联 api_key 名称（后端 LEFT JOIN api_keys；软删保留 name，故已删 key 仍有原名）。
-  api_key_name?: string
-  api_key_deleted?: boolean
   account_id?: number | null
   account_name: string
   group_id?: number | null
@@ -926,19 +1137,11 @@ export interface OpsErrorLog {
   client_ip?: string | null
   request_path?: string
   stream?: boolean
-
-  // Error observability context (endpoint + model mapping)
-  inbound_endpoint?: string
-  upstream_endpoint?: string
-  requested_model?: string
-  upstream_model?: string
-  request_type?: number | null
-  user_agent?: string
-
 }
 
 export interface OpsErrorDetail extends OpsErrorLog {
   error_body: string
+  user_agent: string
 
   // Upstream context (optional; enriched by gateway services)
   upstream_status_code?: number | null
@@ -952,10 +1155,11 @@ export interface OpsErrorDetail extends OpsErrorLog {
   response_latency_ms?: number | null
   time_to_first_token_ms?: number | null
 
-  is_business_limited: boolean
+  request_body: string
+  request_body_truncated: boolean
+  request_body_bytes?: number | null
 
-  // Bound (non-deleted) key prefix, snapshotted at error time
-  api_key_prefix?: string | null
+  is_business_limited: boolean
 }
 
 export type OpsErrorLogsResponse = PaginatedResponse<OpsErrorLog>
@@ -1090,14 +1294,8 @@ export type OpsErrorListQueryParams = {
   platform?: string
   group_id?: number | null
   account_id?: number | null
-  user_id?: number
-  api_key_id?: number
-  // 模型过滤：后端以 COALESCE(requested_model, model) 精确匹配（admin 路径）。
-  model?: string
 
   phase?: string
-  // 分类(用户侧粗分类码,如 auth/rate_limit/upstream),后端反查为 phase/type ANY 条件
-  category?: string
   error_owner?: string
   error_source?: string
   resolved?: string
@@ -1106,10 +1304,6 @@ export type OpsErrorListQueryParams = {
   q?: string
   status_codes?: string
   status_codes_other?: string
-
-  // 服务端排序,列白名单见后端 opsErrorLogsOrderBy(created_at/model/status_code)
-  sort_by?: string
-  sort_order?: 'asc' | 'desc'
 }
 
 // Legacy unified endpoints
@@ -1120,6 +1314,16 @@ export async function listErrorLogs(params: OpsErrorListQueryParams): Promise<Op
 
 export async function getErrorLogDetail(id: number): Promise<OpsErrorDetail> {
   const { data } = await apiClient.get<OpsErrorDetail>(`/admin/ops/errors/${id}`)
+  return data
+}
+
+export async function retryErrorRequest(id: number, req: OpsRetryRequest): Promise<OpsRetryResult> {
+  const { data } = await apiClient.post<OpsRetryResult>(`/admin/ops/errors/${id}/retry`, req)
+  return data
+}
+
+export async function listRetryAttempts(errorId: number, limit = 50): Promise<OpsRetryAttempt[]> {
+  const { data } = await apiClient.get<OpsRetryAttempt[]>(`/admin/ops/errors/${errorId}/retries`, { params: { limit } })
   return data
 }
 
@@ -1145,6 +1349,21 @@ export async function getRequestErrorDetail(id: number): Promise<OpsErrorDetail>
 
 export async function getUpstreamErrorDetail(id: number): Promise<OpsErrorDetail> {
   const { data } = await apiClient.get<OpsErrorDetail>(`/admin/ops/upstream-errors/${id}`)
+  return data
+}
+
+export async function retryRequestErrorClient(id: number): Promise<OpsRetryResult> {
+  const { data } = await apiClient.post<OpsRetryResult>(`/admin/ops/request-errors/${id}/retry-client`, {})
+  return data
+}
+
+export async function retryRequestErrorUpstreamEvent(id: number, idx: number): Promise<OpsRetryResult> {
+  const { data } = await apiClient.post<OpsRetryResult>(`/admin/ops/request-errors/${id}/upstream-errors/${idx}/retry`, {})
+  return data
+}
+
+export async function retryUpstreamError(id: number): Promise<OpsRetryResult> {
+  const { data } = await apiClient.post<OpsRetryResult>(`/admin/ops/upstream-errors/${id}/retry`, {})
   return data
 }
 
@@ -1315,6 +1534,8 @@ export const opsAPI = {
   getOpenAITokenStats,
   getConcurrencyStats,
   getUserConcurrencyStats,
+  getGatewaySchedulerRuntime,
+  getOpenAIWSRuntime,
   getAccountAvailabilityStats,
   getRealtimeTrafficSummary,
   subscribeQPS,
@@ -1322,6 +1543,8 @@ export const opsAPI = {
   // Legacy unified endpoints
   listErrorLogs,
   getErrorLogDetail,
+  retryErrorRequest,
+  listRetryAttempts,
   updateErrorResolved,
 
   // New split endpoints
@@ -1329,6 +1552,9 @@ export const opsAPI = {
   listUpstreamErrors,
   getRequestErrorDetail,
   getUpstreamErrorDetail,
+  retryRequestErrorClient,
+  retryRequestErrorUpstreamEvent,
+  retryUpstreamError,
   updateRequestErrorResolved,
   updateUpstreamErrorResolved,
   listRequestErrorUpstreamErrors,

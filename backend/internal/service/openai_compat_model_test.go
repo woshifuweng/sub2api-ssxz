@@ -1743,7 +1743,7 @@ func TestHandleAnthropicBufferedStreamingResponse_OverridesUpstreamContentType(t
 	}
 
 	result, err := svc.handleAnthropicBufferedStreamingResponse(
-		resp, c, &Account{}, "claude-sonnet-4-5", "gpt-5.4", "gpt-5.4", time.Now(),
+		resp, c, "claude-sonnet-4-5", "gpt-5.4", time.Now(),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, result)

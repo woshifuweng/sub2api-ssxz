@@ -45,6 +45,14 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	// users: columns required by repository queries
 	requireColumn(t, tx, "users", "username", "character varying", 100, false)
 	requireColumn(t, tx, "users", "notes", "text", 0, false)
+	requireColumn(t, tx, "users", "signup_source", "character varying", 32, false)
+	requireColumn(t, tx, "users", "last_login_at", "timestamp with time zone", 0, true)
+	requireColumn(t, tx, "users", "last_active_at", "timestamp with time zone", 0, true)
+	requireColumn(t, tx, "users", "balance_notify_enabled", "boolean", 0, false)
+	requireColumn(t, tx, "users", "balance_notify_threshold_type", "character varying", 0, false)
+	requireColumn(t, tx, "users", "balance_notify_threshold", "numeric", 0, true)
+	requireColumn(t, tx, "users", "balance_notify_extra_emails", "text", 0, false)
+	requireColumn(t, tx, "users", "total_recharged", "numeric", 0, false)
 
 	// accounts: schedulable and rate-limit fields
 	requireColumn(t, tx, "accounts", "notes", "text", 0, true)
@@ -57,6 +65,8 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 
 	// api_keys: key length should be 128
 	requireColumn(t, tx, "api_keys", "key", "character varying", 128, false)
+	requireColumn(t, tx, "api_keys", "group_ids", "ARRAY", 0, false)
+	requireColumn(t, tx, "api_keys", "allowed_models", "jsonb", 0, false)
 
 	// redeem_codes: subscription fields
 	requireColumn(t, tx, "redeem_codes", "group_id", "bigint", 0, true)
@@ -138,6 +148,14 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	requireColumn(t, tx, "ops_ingress_reject_aggregates", "request_count", "bigint", 0, false)
 	requireIndex(t, tx, "ops_ingress_reject_aggregates", "idx_ops_ingress_reject_aggregates_bucket")
 	requireIndex(t, tx, "ops_ingress_reject_aggregates", "idx_ops_ingress_reject_aggregates_ip_bucket")
+	// tls_fingerprint_profiles table should exist
+	var tlsFPProfilesRegclass sql.NullString
+	require.NoError(t, tx.QueryRowContext(context.Background(), "SELECT to_regclass('public.tls_fingerprint_profiles')").Scan(&tlsFPProfilesRegclass))
+	require.True(t, tlsFPProfilesRegclass.Valid, "expected tls_fingerprint_profiles table to exist")
+	requireColumn(t, tx, "tls_fingerprint_profiles", "name", "character varying", 100, false)
+	requireColumn(t, tx, "tls_fingerprint_profiles", "enable_grease", "boolean", 0, false)
+	requireColumn(t, tx, "tls_fingerprint_profiles", "created_at", "timestamp with time zone", 0, false)
+	requireColumn(t, tx, "tls_fingerprint_profiles", "updated_at", "timestamp with time zone", 0, false)
 
 	// user_allowed_groups table should exist
 	var uagRegclass sql.NullString
@@ -157,6 +175,39 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 
 	// user_allowed_groups: created_at should be timestamptz
 	requireColumn(t, tx, "user_allowed_groups", "created_at", "timestamp with time zone", 0, false)
+
+	// admin_audit_logs: append-only evidence for privileged mutations (migration 138)
+	var adminAuditRegclass sql.NullString
+	require.NoError(t, tx.QueryRowContext(context.Background(), "SELECT to_regclass('public.admin_audit_logs')").Scan(&adminAuditRegclass))
+	require.True(t, adminAuditRegclass.Valid, "expected admin_audit_logs table to exist")
+	requireColumn(t, tx, "admin_audit_logs", "actor_user_id", "bigint", 0, false)
+	requireColumn(t, tx, "admin_audit_logs", "before_values", "jsonb", 0, false)
+	requireColumn(t, tx, "admin_audit_logs", "after_values", "jsonb", 0, false)
+	requireColumn(t, tx, "admin_audit_logs", "created_at", "timestamp with time zone", 0, false)
+	requireIndex(t, tx, "admin_audit_logs", "idx_admin_audit_logs_created_at")
+	requireIndex(t, tx, "admin_audit_logs", "idx_admin_audit_logs_actor_created")
+	requireIndex(t, tx, "admin_audit_logs", "idx_admin_audit_logs_resource_created")
+
+	// Production customizations re-numbered to migrations 186-198 on the Wei-Shaw base.
+	requireColumn(t, tx, "users", "unlimited_concurrency", "boolean", 0, false)
+	requireColumn(t, tx, "scheduled_test_plans", "paused_at", "timestamp with time zone", 0, true)
+	requireColumn(t, tx, "scheduled_test_plans", "max_failures_before_pause", "integer", 0, false)
+	requireTable(t, tx, "admin_task_states")
+	requireIndex(t, tx, "admin_task_states", "idx_admin_task_states_status_updated")
+	requireTable(t, tx, "proxy_maintenance_plans")
+	requireTable(t, tx, "proxy_maintenance_results")
+	requireIndex(t, tx, "proxy_maintenance_plans", "idx_proxy_maintenance_plans_due")
+	requireIndex(t, tx, "proxy_maintenance_results", "idx_proxy_maintenance_results_plan_created")
+	requireTable(t, tx, "workspace_conversations")
+	requireTable(t, tx, "workspace_messages")
+	requireTable(t, tx, "chat_conversations")
+	requireTable(t, tx, "chat_messages")
+	requireTable(t, tx, "chat_image_tasks")
+	requireTable(t, tx, "chat_assets")
+	requireTable(t, tx, "sora_accounts")
+	requireTable(t, tx, "sora_generations")
+	requireColumn(t, tx, "users", "sora_storage_quota_bytes", "bigint", 0, false)
+	requireColumn(t, tx, "usage_logs", "media_type", "character varying", 16, true)
 }
 
 func TestMigrationsRunner_AuthIdentityAndPaymentSchemaStayAligned(t *testing.T) {
@@ -203,6 +254,18 @@ SELECT EXISTS (
 `, table, index).Scan(&exists)
 	require.NoError(t, err, "query pg_indexes for %s.%s", table, index)
 	require.True(t, exists, "expected index %s on %s", index, table)
+}
+
+func requireTable(t *testing.T, tx *sql.Tx, table string) {
+	t.Helper()
+
+	var regclass sql.NullString
+	require.NoError(t, tx.QueryRowContext(
+		context.Background(),
+		"SELECT to_regclass($1)",
+		"public."+table,
+	).Scan(&regclass))
+	require.Truef(t, regclass.Valid, "expected table %s to exist", table)
 }
 
 func requireIndexAbsent(t *testing.T, tx *sql.Tx, table, index string) {

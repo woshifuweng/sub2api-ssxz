@@ -3,6 +3,8 @@ package handler
 import (
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -258,8 +260,22 @@ func InboundEndpointMiddleware() gin.HandlerFunc {
 			path = c.FullPath()
 		}
 		c.Set(ctxKeyInboundEndpoint, NormalizeInboundEndpoint(path))
+		ApplyInboundEndpointContext(gatewayctx.FromGin(c))
 		c.Next()
 	}
+}
+
+func ApplyInboundEndpointContext(c gatewayctx.GatewayContext) {
+	if c == nil {
+		return
+	}
+	path := c.Path()
+	if path == "" {
+		if req := c.Request(); req != nil && req.URL != nil {
+			path = req.URL.Path
+		}
+	}
+	c.SetValue(ctxKeyInboundEndpoint, NormalizeInboundEndpoint(path))
 }
 
 // ──────────────────────────────────────────────────────────
@@ -275,19 +291,23 @@ func InboundEndpointMiddleware() gin.HandlerFunc {
 // otherwise mis-normalize concrete requests like "/v1/responses/compact"
 // to the root Responses endpoint).
 func GetInboundEndpoint(c *gin.Context) string {
-	if v, ok := c.Get(ctxKeyInboundEndpoint); ok {
+	return GetInboundEndpointContext(gatewayctx.FromGin(c))
+}
+
+func GetInboundEndpointContext(c gatewayctx.GatewayContext) string {
+	if c == nil {
+		return NormalizeInboundEndpoint("")
+	}
+	if v, ok := c.Value(ctxKeyInboundEndpoint); ok {
 		if s, ok := v.(string); ok && s != "" {
 			return s
 		}
 	}
 	// Fallback: normalize on the fly.
-	path := ""
-	if c != nil {
-		if c.Request != nil && c.Request.URL != nil {
-			path = c.Request.URL.Path
-		}
-		if path == "" {
-			path = c.FullPath()
+	path := c.Path()
+	if path == "" {
+		if req := c.Request(); req != nil && req.URL != nil {
+			path = req.URL.Path
 		}
 	}
 	return NormalizeInboundEndpoint(path)
@@ -297,10 +317,46 @@ func GetInboundEndpoint(c *gin.Context) string {
 // and the account platform. Handlers call this after scheduling an
 // account, passing account.Platform.
 func GetUpstreamEndpoint(c *gin.Context, platform string) string {
-	inbound := GetInboundEndpoint(c)
+	return GetUpstreamEndpointContext(gatewayctx.FromGin(c), platform)
+}
+
+func GetUpstreamEndpointContext(c gatewayctx.GatewayContext, platform string) string {
+	inbound := GetInboundEndpointContext(c)
 	rawPath := ""
-	if c != nil && c.Request != nil && c.Request.URL != nil {
-		rawPath = c.Request.URL.Path
+	if c != nil {
+		if req := c.Request(); req != nil && req.URL != nil {
+			rawPath = req.URL.Path
+		}
 	}
 	return DeriveUpstreamEndpoint(inbound, rawPath, platform)
+}
+
+// resolveOpenAIUpstreamEndpoint returns the endpoint that was actually used by
+// the forwarding path. The forwarding result is authoritative because an
+// OpenAI-compatible account may select Chat Completions instead of Responses.
+func resolveOpenAIUpstreamEndpoint(c *gin.Context, account *service.Account, result *service.OpenAIForwardResult) string {
+	if result != nil {
+		if endpoint := strings.TrimSpace(result.UpstreamEndpoint); endpoint != "" {
+			return endpoint
+		}
+	}
+	if endpoint := service.GetActualOpenAIUpstreamEndpoint(c); endpoint != "" {
+		return endpoint
+	}
+	return resolveOpenAIUpstreamEndpointContext(gatewayctx.FromGin(c), account, result)
+}
+
+func resolveOpenAIUpstreamEndpointContext(c gatewayctx.GatewayContext, account *service.Account, result *service.OpenAIForwardResult) string {
+	if result != nil {
+		if endpoint := strings.TrimSpace(result.UpstreamEndpoint); endpoint != "" {
+			return endpoint
+		}
+	}
+	if account == nil {
+		return GetUpstreamEndpointContext(c, "")
+	}
+	if account.Type == service.AccountTypeAPIKey && !openai_compat.ShouldUseResponsesAPI(account.Extra) {
+		return EndpointChatCompletions
+	}
+	return GetUpstreamEndpointContext(c, account.Platform)
 }

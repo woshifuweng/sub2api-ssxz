@@ -1,6 +1,8 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <AdminPageHeader title="兑换码管理" description="批量生成与查看兑换码" />
+
+    <TablePageLayout class="admin-b3-outline-scope">
       <template #filters>
         <div class="flex flex-wrap items-center gap-3">
           <!-- Left: Search + Filters -->
@@ -39,15 +41,6 @@
             <button @click="handleExportCodes" class="btn btn-secondary">
               {{ t('admin.redeem.exportCsv') }}
             </button>
-            <button
-              data-test="batch-update-open"
-              @click="openBatchUpdateDialog"
-              :disabled="selectedCount === 0 || batchUpdating"
-              class="btn btn-secondary"
-            >
-              <Icon name="edit" size="md" class="mr-2" />
-              {{ t('admin.redeem.batchUpdate') }}
-            </button>
             <button @click="showGenerateDialog = true" class="btn btn-primary">
               {{ t('admin.redeem.generateCodes') }}
             </button>
@@ -56,37 +49,7 @@
       </template>
 
       <template #table>
-        <DataTable
-          :columns="columns"
-          :data="codes"
-          :loading="loading"
-          :server-side-sort="true"
-          default-sort-key="id"
-          default-sort-order="desc"
-          @sort="handleSort"
-        >
-          <template #header-select>
-            <input
-              data-test="select-all-codes"
-              type="checkbox"
-              class="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-              :checked="allVisibleSelected"
-              @click.stop
-              @change="toggleSelectAllVisible($event)"
-            />
-          </template>
-
-          <template #cell-select="{ row }">
-            <input
-              data-test="select-code"
-              type="checkbox"
-              class="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-              :checked="selectedCodeIds.has(row.id)"
-              @click.stop
-              @change="toggleSelectRow(row.id, $event)"
-            />
-          </template>
-
+        <DataTable :columns="columns" :data="codes" :loading="loading">
           <template #cell-code="{ value }">
             <div class="flex items-center space-x-2">
               <code class="font-mono text-sm text-gray-900 dark:text-gray-100">{{ value }}</code>
@@ -168,19 +131,6 @@
             }}</span>
           </template>
 
-          <template #cell-expires_at="{ value, row }">
-            <span
-              :class="[
-                'text-sm',
-                row.status === 'expired'
-                  ? 'text-red-600 dark:text-red-400'
-                  : 'text-gray-500 dark:text-dark-400'
-              ]"
-            >
-              {{ value ? formatDateTime(value) : t('admin.redeem.neverExpires') }}
-            </span>
-          </template>
-
           <template #cell-actions="{ row }">
             <div class="flex items-center space-x-2">
               <button
@@ -205,31 +155,6 @@
       </template>
 
       <template #pagination>
-        <div
-          v-if="selectedCount > 0"
-          class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-primary-50 p-3 dark:bg-primary-900/20"
-        >
-          <span class="text-sm font-medium text-primary-900 dark:text-primary-100">
-            {{ t('admin.redeem.selectedCount', { count: selectedCount }) }}
-          </span>
-          <div class="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              class="text-xs font-medium text-primary-700 hover:text-primary-800 dark:text-primary-300 dark:hover:text-primary-200"
-              @click="clearSelectedCodes"
-            >
-              {{ t('admin.redeem.clearSelection') }}
-            </button>
-            <button
-              type="button"
-              class="btn btn-primary btn-sm"
-              @click="openBatchUpdateDialog"
-            >
-              {{ t('admin.redeem.batchUpdate') }}
-            </button>
-          </div>
-        </div>
-
         <Pagination
           v-if="pagination.total > 0"
           :page="pagination.page"
@@ -357,35 +282,6 @@
               </div>
             </template>
             <div>
-              <label class="input-label">{{ t('admin.redeem.codeExpiry') }}</label>
-              <div class="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                <button
-                  v-for="option in redeemCodeExpiryOptions"
-                  :key="option.value"
-                  type="button"
-                  @click="generateForm.expiry_option = option.value"
-                  :class="[
-                    'rounded-lg border px-3 py-2 text-sm transition-colors',
-                    generateForm.expiry_option === option.value
-                      ? 'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/20 dark:text-primary-300'
-                      : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-dark-600 dark:text-gray-300 dark:hover:bg-dark-700'
-                  ]"
-                >
-                  {{ option.label }}
-                </button>
-              </div>
-              <input
-                v-if="generateForm.expiry_option === 'custom'"
-                v-model.number="generateForm.custom_expiry_days"
-                type="number"
-                min="1"
-                max="3650"
-                required
-                class="input mt-2"
-                :placeholder="t('admin.redeem.customExpiryDays')"
-              />
-            </div>
-            <div>
               <label class="input-label">{{ t('admin.redeem.count') }}</label>
               <input
                 v-model.number="generateForm.count"
@@ -402,117 +298,6 @@
               </button>
               <button type="submit" :disabled="generating" class="btn btn-primary">
                 {{ generating ? t('admin.redeem.generating') : t('admin.redeem.generate') }}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </Teleport>
-
-    <!-- Batch Update Dialog -->
-    <Teleport to="body">
-      <div
-        v-if="showBatchUpdateDialog"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
-      >
-        <div class="fixed inset-0 bg-black/50" @click="closeBatchUpdateDialog"></div>
-        <div
-          class="relative z-10 w-full max-w-lg rounded-xl bg-white p-6 shadow-xl dark:bg-dark-800"
-        >
-          <h2 class="mb-1 text-lg font-semibold text-gray-900 dark:text-white">
-            {{ t('admin.redeem.batchUpdateTitle') }}
-          </h2>
-          <p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
-            {{ t('admin.redeem.selectedCount', { count: selectedCount }) }}
-          </p>
-
-          <form data-test="batch-update-form" class="space-y-4" @submit.prevent="handleBatchUpdate">
-            <div class="space-y-2">
-              <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                <input
-                  data-test="batch-field-status"
-                  v-model="batchUpdateForm.update_status"
-                  type="checkbox"
-                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                />
-                {{ t('admin.redeem.batchFields.status') }}
-              </label>
-              <Select
-                v-if="batchUpdateForm.update_status"
-                v-model="batchUpdateForm.status"
-                data-test="batch-status-select"
-                :options="batchStatusOptions"
-              />
-            </div>
-
-            <div class="space-y-2">
-              <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                <input
-                  v-model="batchUpdateForm.update_expires_at"
-                  type="checkbox"
-                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                />
-                {{ t('admin.redeem.batchFields.expiresAt') }}
-              </label>
-              <template v-if="batchUpdateForm.update_expires_at">
-                <Select v-model="batchUpdateForm.expires_mode" :options="batchExpiryModeOptions" />
-                <input
-                  v-if="batchUpdateForm.expires_mode === 'custom'"
-                  v-model="batchUpdateForm.expires_at_local"
-                  type="datetime-local"
-                  class="input"
-                />
-              </template>
-            </div>
-
-            <div class="space-y-2">
-              <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                <input
-                  data-test="batch-field-notes"
-                  v-model="batchUpdateForm.update_notes"
-                  type="checkbox"
-                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                />
-                {{ t('admin.redeem.batchFields.notes') }}
-              </label>
-              <textarea
-                v-if="batchUpdateForm.update_notes"
-                data-test="batch-notes-input"
-                v-model="batchUpdateForm.notes"
-                rows="3"
-                class="input"
-                :placeholder="t('admin.redeem.batchNotesPlaceholder')"
-              ></textarea>
-            </div>
-
-            <div class="space-y-2">
-              <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                <input
-                  v-model="batchUpdateForm.update_group_id"
-                  type="checkbox"
-                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                />
-                {{ t('admin.redeem.batchFields.group') }}
-              </label>
-              <Select
-                v-if="batchUpdateForm.update_group_id"
-                v-model="batchUpdateForm.group_id"
-                :options="batchGroupOptions"
-                :placeholder="t('admin.redeem.selectGroupPlaceholder')"
-              />
-            </div>
-
-            <div class="flex justify-end gap-3 pt-2">
-              <button type="button" @click="closeBatchUpdateDialog" class="btn btn-secondary">
-                {{ t('common.cancel') }}
-              </button>
-              <button
-                data-test="batch-update-submit"
-                type="submit"
-                :disabled="batchUpdating"
-                class="btn btn-primary"
-              >
-                {{ batchUpdating ? t('common.submitting') : t('admin.redeem.batchUpdate') }}
               </button>
             </div>
           </form>
@@ -607,25 +392,35 @@
   </AppLayout>
 </template>
 
+<style scoped>
+.admin-b3-outline-scope :deep(.table-scroll-container),
+.admin-b3-outline-scope :deep(.table-wrapper),
+.admin-b3-outline-scope :deep(.table-wrapper table),
+.admin-b3-outline-scope :deep(.table-wrapper tbody) {
+  background: transparent !important;
+  border-color: var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b3-outline-scope :deep(thead),
+.admin-b3-outline-scope :deep(.table-header) {
+  background: var(--ssxz-surface-raised) !important;
+}
+</style>
+
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useClipboard } from '@/composables/useClipboard'
-import { useTableSelection } from '@/composables/useTableSelection'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { adminAPI } from '@/api/admin'
 import { formatDateTime } from '@/utils/format'
-import type {
-  RedeemCode,
-  RedeemCodeType,
-  Group,
-  GroupPlatform,
-  SubscriptionType,
-  BatchUpdateRedeemCodeFields
-} from '@/types'
+import type { RedeemCode, RedeemCodeType, Group, GroupPlatform, SubscriptionType } from '@/types'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -638,6 +433,7 @@ import Icon from '@/components/icons/Icon.vue'
 const { t } = useI18n()
 const appStore = useAppStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
+const route = useRoute()
 
 interface GroupOption {
   value: number
@@ -667,11 +463,6 @@ const subscriptionGroupOptions = computed(() => {
     }))
 })
 
-const batchGroupOptions = computed(() => [
-  { value: null, label: t('admin.redeem.clearGroup') },
-  ...subscriptionGroupOptions.value
-])
-
 const generatedCodesText = computed(() => {
   return generatedCodes.value.map((code) => code.code).join('\n')
 })
@@ -698,12 +489,14 @@ const closeResultDialog = () => {
 }
 
 const copyGeneratedCodes = async () => {
-  const success = await clipboardCopy(generatedCodesText.value, t('admin.redeem.copied'))
-  if (success) {
+  try {
+    await navigator.clipboard.writeText(generatedCodesText.value)
     copiedAll.value = true
     setTimeout(() => {
       copiedAll.value = false
     }, 2000)
+  } catch (error) {
+    appStore.showError(t('admin.redeem.failedToCopy'))
   }
 }
 
@@ -720,14 +513,12 @@ const downloadGeneratedCodes = () => {
 }
 
 const columns = computed<Column[]>(() => [
-  { key: 'select', label: '' },
   { key: 'code', label: t('admin.redeem.columns.code') },
   { key: 'type', label: t('admin.redeem.columns.type'), sortable: true },
   { key: 'value', label: t('admin.redeem.columns.value'), sortable: true },
   { key: 'status', label: t('admin.redeem.columns.status'), sortable: true },
   { key: 'used_by', label: t('admin.redeem.columns.usedBy') },
   { key: 'used_at', label: t('admin.redeem.columns.usedAt'), sortable: true },
-  { key: 'expires_at', label: t('admin.redeem.columns.expiresAt'), sortable: true },
   { key: 'actions', label: t('admin.redeem.columns.actions') }
 ])
 
@@ -750,24 +541,12 @@ const filterStatusOptions = computed(() => [
   { value: '', label: t('admin.redeem.allStatus') },
   { value: 'unused', label: t('admin.redeem.unused') },
   { value: 'used', label: t('admin.redeem.used') },
-  { value: 'expired', label: t('admin.redeem.status.expired') },
-  { value: 'disabled', label: t('admin.redeem.status.disabled') }
-])
-
-const batchStatusOptions = computed(() => [
-  { value: 'unused', label: t('admin.redeem.status.unused') },
-  { value: 'disabled', label: t('admin.redeem.status.disabled') }
-])
-
-const batchExpiryModeOptions = computed(() => [
-  { value: 'clear', label: t('admin.redeem.neverExpires') },
-  { value: 'custom', label: t('admin.redeem.customExpiry') }
+  { value: 'expired', label: t('admin.redeem.status.expired') }
 ])
 
 const codes = ref<RedeemCode[]>([])
 const loading = ref(false)
 const generating = ref(false)
-const batchUpdating = ref(false)
 const searchQuery = ref('')
 const filters = reactive({
   type: '',
@@ -779,63 +558,31 @@ const pagination = reactive({
   total: 0,
   pages: 0
 })
-const sortState = reactive({
-  sort_by: 'id',
-  sort_order: 'desc' as 'asc' | 'desc'
-})
 
 let abortController: AbortController | null = null
 
 const showDeleteDialog = ref(false)
 const showDeleteUnusedDialog = ref(false)
-const showBatchUpdateDialog = ref(false)
 const deletingCode = ref<RedeemCode | null>(null)
 const copiedCode = ref<string | null>(null)
-
-const {
-  selectedSet: selectedCodeIds,
-  selectedCount,
-  allVisibleSelected,
-  select,
-  deselect,
-  clear: clearSelectedCodes,
-  toggleVisible
-} = useTableSelection<RedeemCode>({
-  rows: codes,
-  getId: (code) => code.id
-})
-
-const batchUpdateForm = reactive({
-  update_status: false,
-  status: 'disabled' as 'unused' | 'disabled',
-  update_expires_at: false,
-  expires_mode: 'clear' as 'clear' | 'custom',
-  expires_at_local: '',
-  update_notes: false,
-  notes: '',
-  update_group_id: false,
-  group_id: null as number | null
-})
-
-type RedeemCodeExpiryOption = 'never' | '1' | '3' | '7' | 'custom'
-
-const redeemCodeExpiryOptions = computed<{ value: RedeemCodeExpiryOption; label: string }[]>(() => [
-  { value: 'never', label: t('admin.redeem.neverExpires') },
-  { value: '1', label: t('admin.redeem.expiryPresetDays', { days: 1 }) },
-  { value: '3', label: t('admin.redeem.expiryPresetDays', { days: 3 }) },
-  { value: '7', label: t('admin.redeem.expiryPresetDays', { days: 7 }) },
-  { value: 'custom', label: t('admin.redeem.customExpiry') }
-])
 
 const generateForm = reactive({
   type: 'balance' as RedeemCodeType,
   value: 10,
   count: 1,
   group_id: null as number | null,
-  validity_days: 30,
-  expiry_option: 'never' as RedeemCodeExpiryOption,
-  custom_expiry_days: 7
+  validity_days: 30
 })
+
+const getSingleQueryValue = (value: string | null | Array<string | null> | undefined): string | undefined => {
+  if (Array.isArray(value)) return value.find((item): item is string => typeof item === 'string' && item.length > 0)
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+const getInitialInvestigationKeyword = () =>
+  getSingleQueryValue(route.query.search) ||
+  getSingleQueryValue(route.query.user) ||
+  getSingleQueryValue(route.query.user_id)
 
 // 监听类型变化，邀请码类型时自动设置 value 为 0
 watch(
@@ -849,14 +596,6 @@ watch(
   }
 )
 
-const buildRedeemQueryFilters = () => ({
-  type: (filters.type || undefined) as RedeemCodeType | undefined,
-  status: (filters.status || undefined) as 'used' | 'expired' | 'unused' | 'disabled' | undefined,
-  search: searchQuery.value || undefined,
-  sort_by: sortState.sort_by,
-  sort_order: sortState.sort_order
-})
-
 const loadCodes = async () => {
   if (abortController) {
     abortController.abort()
@@ -868,7 +607,11 @@ const loadCodes = async () => {
     const response = await adminAPI.redeem.list(
       pagination.page,
       pagination.page_size,
-      buildRedeemQueryFilters(),
+      {
+        type: filters.type as RedeemCodeType,
+        status: filters.status as any,
+        search: searchQuery.value || undefined
+      },
       {
         signal: currentController.signal
       }
@@ -917,116 +660,10 @@ const handlePageSizeChange = (pageSize: number) => {
   loadCodes()
 }
 
-const handleSort = (key: string, order: 'asc' | 'desc') => {
-  sortState.sort_by = key
-  sortState.sort_order = order
-  pagination.page = 1
-  loadCodes()
-}
-
-const toggleSelectRow = (id: number, event: Event) => {
-  const target = event.target as HTMLInputElement
-  if (target.checked) {
-    select(id)
-    return
-  }
-  deselect(id)
-}
-
-const toggleSelectAllVisible = (event: Event) => {
-  const target = event.target as HTMLInputElement
-  toggleVisible(target.checked)
-}
-
-const getRedeemCodeExpiresInDays = () => {
-  if (generateForm.expiry_option === 'never') {
-    return undefined
-  }
-  if (generateForm.expiry_option === 'custom') {
-    if (
-      !Number.isFinite(generateForm.custom_expiry_days) ||
-      generateForm.custom_expiry_days < 1
-    ) {
-      return null
-    }
-    return Math.floor(generateForm.custom_expiry_days)
-  }
-  return Number(generateForm.expiry_option)
-}
-
-const toDatetimeLocalInputValue = (date: Date) => {
-  const pad = (value: number) => String(value).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
-    date.getHours()
-  )}:${pad(date.getMinutes())}`
-}
-
-const resetBatchUpdateForm = () => {
-  batchUpdateForm.update_status = false
-  batchUpdateForm.status = 'disabled'
-  batchUpdateForm.update_expires_at = false
-  batchUpdateForm.expires_mode = 'clear'
-  batchUpdateForm.expires_at_local = toDatetimeLocalInputValue(
-    new Date(Date.now() + 24 * 60 * 60 * 1000)
-  )
-  batchUpdateForm.update_notes = false
-  batchUpdateForm.notes = ''
-  batchUpdateForm.update_group_id = false
-  batchUpdateForm.group_id = null
-}
-
-const openBatchUpdateDialog = () => {
-  if (selectedCount.value === 0) {
-    appStore.showInfo(t('admin.redeem.selectCodesFirst'))
-    return
-  }
-  resetBatchUpdateForm()
-  showBatchUpdateDialog.value = true
-}
-
-const closeBatchUpdateDialog = () => {
-  showBatchUpdateDialog.value = false
-}
-
-const buildBatchUpdateFields = (): BatchUpdateRedeemCodeFields | null => {
-  const fields: BatchUpdateRedeemCodeFields = {}
-
-  if (batchUpdateForm.update_status) {
-    fields.status = batchUpdateForm.status
-  }
-  if (batchUpdateForm.update_expires_at) {
-    if (batchUpdateForm.expires_mode === 'clear') {
-      fields.expires_at = null
-    } else {
-      const expiresAt = new Date(batchUpdateForm.expires_at_local)
-      if (!batchUpdateForm.expires_at_local || Number.isNaN(expiresAt.getTime())) {
-        appStore.showError(t('admin.redeem.expiryDaysRequired'))
-        return null
-      }
-      fields.expires_at = expiresAt.toISOString()
-    }
-  }
-  if (batchUpdateForm.update_notes) {
-    fields.notes = batchUpdateForm.notes
-  }
-  if (batchUpdateForm.update_group_id) {
-    fields.group_id =
-      batchUpdateForm.group_id == null ? null : Number(batchUpdateForm.group_id)
-  }
-
-  return Object.keys(fields).length > 0 ? fields : null
-}
-
 const handleGenerateCodes = async () => {
   // 订阅类型必须选择分组
   if (generateForm.type === 'subscription' && !generateForm.group_id) {
     appStore.showError(t('admin.redeem.groupRequired'))
-    return
-  }
-
-  const expiresInDays = getRedeemCodeExpiresInDays()
-  if (expiresInDays === null) {
-    appStore.showError(t('admin.redeem.expiryDaysRequired'))
     return
   }
 
@@ -1037,8 +674,7 @@ const handleGenerateCodes = async () => {
       generateForm.type,
       generateForm.value,
       generateForm.type === 'subscription' ? generateForm.group_id : undefined,
-      generateForm.type === 'subscription' ? generateForm.validity_days : undefined,
-      expiresInDays
+      generateForm.type === 'subscription' ? generateForm.validity_days : undefined
     )
     showGenerateDialog.value = false
     generatedCodes.value = result
@@ -1046,8 +682,6 @@ const handleGenerateCodes = async () => {
     // 重置表单
     generateForm.group_id = null
     generateForm.validity_days = 30
-    generateForm.expiry_option = 'never'
-    generateForm.custom_expiry_days = 7
     loadCodes()
   } catch (error: any) {
     appStore.showError(error.response?.data?.detail || t('admin.redeem.failedToGenerate'))
@@ -1069,7 +703,10 @@ const copyToClipboard = async (text: string) => {
 
 const handleExportCodes = async () => {
   try {
-    const blob = await adminAPI.redeem.exportCodes(buildRedeemQueryFilters())
+    const blob = await adminAPI.redeem.exportCodes({
+      type: filters.type as RedeemCodeType,
+      status: filters.status as any
+    })
 
     // Create download link
     const url = window.URL.createObjectURL(blob)
@@ -1130,43 +767,6 @@ const confirmDeleteUnused = async () => {
   }
 }
 
-const handleBatchUpdate = async () => {
-  const ids = Array.from(selectedCodeIds.value)
-  if (ids.length === 0) {
-    appStore.showInfo(t('admin.redeem.selectCodesFirst'))
-    return
-  }
-
-  const hasSelectedFields =
-    batchUpdateForm.update_status ||
-    batchUpdateForm.update_expires_at ||
-    batchUpdateForm.update_notes ||
-    batchUpdateForm.update_group_id
-  if (!hasSelectedFields) {
-    appStore.showError(t('admin.redeem.noBatchFieldsSelected'))
-    return
-  }
-
-  const fields = buildBatchUpdateFields()
-  if (!fields) {
-    return
-  }
-
-  batchUpdating.value = true
-  try {
-    const result = await adminAPI.redeem.batchUpdate(ids, fields)
-    appStore.showSuccess(t('admin.redeem.batchUpdateSuccess', { count: result.updated }))
-    showBatchUpdateDialog.value = false
-    clearSelectedCodes()
-    loadCodes()
-  } catch (error: any) {
-    appStore.showError(error.response?.data?.detail || t('admin.redeem.failedToBatchUpdate'))
-    console.error('Error batch updating codes:', error)
-  } finally {
-    batchUpdating.value = false
-  }
-}
-
 // 加载订阅类型分组
 const loadSubscriptionGroups = async () => {
   try {
@@ -1178,6 +778,10 @@ const loadSubscriptionGroups = async () => {
 }
 
 onMounted(() => {
+  const keyword = getInitialInvestigationKeyword()
+  if (keyword) {
+    searchQuery.value = keyword
+  }
   loadCodes()
   loadSubscriptionGroups()
 })

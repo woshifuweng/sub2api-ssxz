@@ -80,6 +80,7 @@ type OpsErrorLogDetail struct {
 	OpsErrorLog
 
 	ErrorBody string `json:"error_body"`
+	UserAgent string `json:"user_agent"`
 
 	// Upstream context (optional)
 	UpstreamStatusCode   *int   `json:"upstream_status_code,omitempty"`
@@ -94,8 +95,20 @@ type OpsErrorLogDetail struct {
 	ResponseLatencyMs  *int64 `json:"response_latency_ms"`
 	TimeToFirstTokenMs *int64 `json:"time_to_first_token_ms"`
 
+	// Retry context
+	RequestBody          string `json:"request_body"`
+	RequestBodyTruncated bool   `json:"request_body_truncated"`
+	RequestBodyBytes     *int   `json:"request_body_bytes"`
+	RequestHeaders       string `json:"request_headers,omitempty"`
+
 	// vNext metric semantics
 	IsBusinessLimited bool `json:"is_business_limited"`
+
+	// Deleted key owner info is populated for invalid keys that were deleted earlier.
+	AttemptedKeyPrefix    string `json:"attempted_key_prefix,omitempty"`
+	DeletedKeyOwnerUserID *int64 `json:"deleted_key_owner_user_id,omitempty"`
+	DeletedKeyOwnerEmail  string `json:"deleted_key_owner_email,omitempty"`
+	DeletedKeyName        string `json:"deleted_key_name,omitempty"`
 
 	// Bound (non-deleted) key prefix, snapshotted at error time.
 	APIKeyPrefix string `json:"api_key_prefix,omitempty"`
@@ -126,6 +139,10 @@ type OpsErrorLogFilter struct {
 	// by admin drill-down from the usage page).
 	UserID   *int64
 	APIKeyID *int64
+
+	// MatchDeletedKeyOwner widens user ownership to errors attributed to a deleted key.
+	// It is only enabled by the user-facing error endpoint; admin queries retain exact scope.
+	MatchDeletedKeyOwner bool
 
 	// Model matches against requested_model first, then model.
 	Model string

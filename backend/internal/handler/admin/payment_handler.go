@@ -1,11 +1,12 @@
 package admin
 
 import (
+	"net/http"
 	"strconv"
-	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -30,18 +31,22 @@ func NewPaymentHandler(paymentService *service.PaymentService, configService *se
 // GetDashboard returns payment dashboard statistics.
 // GET /api/v1/admin/payment/dashboard
 func (h *PaymentHandler) GetDashboard(c *gin.Context) {
+	h.GetDashboardGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) GetDashboardGateway(c gatewayctx.GatewayContext) {
 	days := 30
-	if d := c.Query("days"); d != "" {
+	if d := c.QueryValue("days"); d != "" {
 		if v, err := strconv.Atoi(d); err == nil && v > 0 {
 			days = v
 		}
 	}
-	stats, err := h.paymentService.GetDashboardStats(c.Request.Context(), days)
+	stats, err := h.paymentService.GetDashboardStats(c.Request().Context(), days)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Success(c, stats)
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, stats)
 }
 
 // --- Orders ---
@@ -49,171 +54,121 @@ func (h *PaymentHandler) GetDashboard(c *gin.Context) {
 // ListOrders returns a paginated list of all payment orders.
 // GET /api/v1/admin/payment/orders
 func (h *PaymentHandler) ListOrders(c *gin.Context) {
-	page, pageSize := response.ParsePagination(c)
+	h.ListOrdersGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) ListOrdersGateway(c gatewayctx.GatewayContext) {
+	page, pageSize := response.ParsePaginationValues(c)
 	var userID int64
-	if uid := c.Query("user_id"); uid != "" {
+	if uid := c.QueryValue("user_id"); uid != "" {
 		if v, err := strconv.ParseInt(uid, 10, 64); err == nil {
 			userID = v
 		}
 	}
-	orders, total, err := h.paymentService.AdminListOrders(c.Request.Context(), userID, service.OrderListParams{
+	orders, total, err := h.paymentService.AdminListOrders(c.Request().Context(), userID, service.OrderListParams{
 		Page:        page,
 		PageSize:    pageSize,
-		Status:      c.Query("status"),
-		OrderType:   c.Query("order_type"),
-		PaymentType: c.Query("payment_type"),
-		Keyword:     c.Query("keyword"),
+		Status:      c.QueryValue("status"),
+		OrderType:   c.QueryValue("order_type"),
+		PaymentType: c.QueryValue("payment_type"),
+		Keyword:     c.QueryValue("keyword"),
 	})
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Paginated(c, sanitizeAdminPaymentOrdersForResponse(orders), int64(total), page, pageSize)
+	response.PaginatedContext(gatewayJSONResponder{ctx: c}, sanitizeAdminPaymentOrdersForResponse(orders), int64(total), page, pageSize)
 }
 
 // GetOrderDetail returns detailed information about a single order.
 // GET /api/v1/admin/payment/orders/:id
 func (h *PaymentHandler) GetOrderDetail(c *gin.Context) {
-	orderID, ok := parseIDParam(c, "id")
+	h.GetOrderDetailGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) GetOrderDetailGateway(c gatewayctx.GatewayContext) {
+	orderID, ok := parseIDParamGateway(c, "id")
 	if !ok {
 		return
 	}
-	order, err := h.paymentService.GetOrderByID(c.Request.Context(), orderID)
+	order, err := h.paymentService.GetOrderByID(c.Request().Context(), orderID)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	auditLogs, _ := h.paymentService.GetOrderAuditLogs(c.Request.Context(), orderID)
-	response.Success(c, gin.H{"order": sanitizeAdminPaymentOrderForResponse(order), "auditLogs": auditLogs})
+	auditLogs, _ := h.paymentService.GetOrderAuditLogs(c.Request().Context(), orderID)
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, gin.H{"order": sanitizeAdminPaymentOrderForResponse(order), "auditLogs": auditLogs})
 }
 
 // CancelOrder cancels a pending order (admin).
 // POST /api/v1/admin/payment/orders/:id/cancel
 func (h *PaymentHandler) CancelOrder(c *gin.Context) {
-	orderID, ok := parseIDParam(c, "id")
+	h.CancelOrderGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) CancelOrderGateway(c gatewayctx.GatewayContext) {
+	orderID, ok := parseIDParamGateway(c, "id")
 	if !ok {
 		return
 	}
-	msg, err := h.paymentService.AdminCancelOrder(c.Request.Context(), orderID)
+	operator := adminAuditOperatorFromGateway(c)
+	msg, err := h.paymentService.AdminCancelOrder(c.Request().Context(), orderID, operator)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		logAdminAudit("payment", "cancel_order failed operator=%s order_id=%d error_reason=%s", operator, orderID, adminAuditErrorReason(err))
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Success(c, gin.H{"message": msg})
+	logAdminAudit("payment", "cancel_order succeeded operator=%s order_id=%d result=%s", operator, orderID, msg)
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, gin.H{"message": msg})
 }
 
 // RetryFulfillment retries fulfillment for a paid order.
 // POST /api/v1/admin/payment/orders/:id/retry
 func (h *PaymentHandler) RetryFulfillment(c *gin.Context) {
-	orderID, ok := parseIDParam(c, "id")
+	h.RetryFulfillmentGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) RetryFulfillmentGateway(c gatewayctx.GatewayContext) {
+	orderID, ok := parseIDParamGateway(c, "id")
 	if !ok {
 		return
 	}
-	if err := h.paymentService.RetryFulfillment(c.Request.Context(), orderID); err != nil {
-		response.ErrorFrom(c, err)
+	operator := adminAuditOperatorFromGateway(c)
+	if err := h.paymentService.RetryFulfillment(c.Request().Context(), orderID, operator); err != nil {
+		logAdminAudit("payment", "retry_fulfillment failed operator=%s order_id=%d error_reason=%s", operator, orderID, adminAuditErrorReason(err))
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Success(c, gin.H{"message": "fulfillment retried"})
+	logAdminAudit("payment", "retry_fulfillment succeeded operator=%s order_id=%d", operator, orderID)
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, gin.H{"message": "fulfillment retried"})
 }
 
-type AdminPaymentOrderResult struct {
-	ID                  int64      `json:"id"`
-	UserID              int64      `json:"user_id"`
-	UserEmail           string     `json:"user_email,omitempty"`
-	UserName            string     `json:"user_name,omitempty"`
-	UserNotes           *string    `json:"user_notes,omitempty"`
-	Amount              float64    `json:"amount"`
-	PayAmount           float64    `json:"pay_amount"`
-	FeeRate             float64    `json:"fee_rate"`
-	Currency            string     `json:"currency"`
-	RechargeCode        string     `json:"recharge_code,omitempty"`
-	OutTradeNo          string     `json:"out_trade_no"`
-	PaymentType         string     `json:"payment_type"`
-	PaymentTradeNo      string     `json:"payment_trade_no,omitempty"`
-	PayURL              *string    `json:"pay_url,omitempty"`
-	QRCode              *string    `json:"qr_code,omitempty"`
-	QRCodeImg           *string    `json:"qr_code_img,omitempty"`
-	OrderType           string     `json:"order_type"`
-	PlanID              *int64     `json:"plan_id,omitempty"`
-	SubscriptionGroupID *int64     `json:"subscription_group_id,omitempty"`
-	SubscriptionDays    *int       `json:"subscription_days,omitempty"`
-	ProviderInstanceID  *string    `json:"provider_instance_id,omitempty"`
-	ProviderKey         *string    `json:"provider_key,omitempty"`
-	Status              string     `json:"status"`
-	RefundAmount        float64    `json:"refund_amount"`
-	RefundReason        *string    `json:"refund_reason,omitempty"`
-	RefundAt            *time.Time `json:"refund_at,omitempty"`
-	ForceRefund         bool       `json:"force_refund,omitempty"`
-	RefundRequestedAt   *time.Time `json:"refund_requested_at,omitempty"`
-	RefundRequestReason *string    `json:"refund_request_reason,omitempty"`
-	RefundRequestedBy   *string    `json:"refund_requested_by,omitempty"`
-	ExpiresAt           time.Time  `json:"expires_at"`
-	PaidAt              *time.Time `json:"paid_at,omitempty"`
-	CompletedAt         *time.Time `json:"completed_at,omitempty"`
-	FailedAt            *time.Time `json:"failed_at,omitempty"`
-	FailedReason        *string    `json:"failed_reason,omitempty"`
-	ClientIP            string     `json:"client_ip,omitempty"`
-	SrcHost             string     `json:"src_host,omitempty"`
-	SrcURL              *string    `json:"src_url,omitempty"`
-	CreatedAt           time.Time  `json:"created_at"`
-	UpdatedAt           time.Time  `json:"updated_at"`
+type adminPaymentOrderResponse struct {
+	*dbent.PaymentOrder
+	Currency string `json:"currency"`
 }
 
-func sanitizeAdminPaymentOrdersForResponse(orders []*dbent.PaymentOrder) []*AdminPaymentOrderResult {
-	out := make([]*AdminPaymentOrderResult, 0, len(orders))
+func sanitizeAdminPaymentOrdersForResponse(orders []*dbent.PaymentOrder) []*adminPaymentOrderResponse {
+	if len(orders) == 0 {
+		return []*adminPaymentOrderResponse{}
+	}
+	out := make([]*adminPaymentOrderResponse, 0, len(orders))
 	for _, order := range orders {
-		if item := sanitizeAdminPaymentOrderForResponse(order); item != nil {
-			out = append(out, item)
-		}
+		out = append(out, sanitizeAdminPaymentOrderForResponse(order))
 	}
 	return out
 }
 
-func sanitizeAdminPaymentOrderForResponse(order *dbent.PaymentOrder) *AdminPaymentOrderResult {
+func sanitizeAdminPaymentOrderForResponse(order *dbent.PaymentOrder) *adminPaymentOrderResponse {
 	if order == nil {
 		return nil
 	}
-	return &AdminPaymentOrderResult{
-		ID:                  order.ID,
-		UserID:              order.UserID,
-		UserEmail:           order.UserEmail,
-		UserName:            order.UserName,
-		UserNotes:           order.UserNotes,
-		Amount:              order.Amount,
-		PayAmount:           order.PayAmount,
-		FeeRate:             order.FeeRate,
-		Currency:            service.PaymentOrderCurrency(order),
-		RechargeCode:        order.RechargeCode,
-		OutTradeNo:          order.OutTradeNo,
-		PaymentType:         order.PaymentType,
-		PaymentTradeNo:      order.PaymentTradeNo,
-		PayURL:              order.PayURL,
-		QRCode:              order.QrCode,
-		QRCodeImg:           order.QrCodeImg,
-		OrderType:           order.OrderType,
-		PlanID:              order.PlanID,
-		SubscriptionGroupID: order.SubscriptionGroupID,
-		SubscriptionDays:    order.SubscriptionDays,
-		ProviderInstanceID:  order.ProviderInstanceID,
-		ProviderKey:         order.ProviderKey,
-		Status:              order.Status,
-		RefundAmount:        order.RefundAmount,
-		RefundReason:        order.RefundReason,
-		RefundAt:            order.RefundAt,
-		ForceRefund:         order.ForceRefund,
-		RefundRequestedAt:   order.RefundRequestedAt,
-		RefundRequestReason: order.RefundRequestReason,
-		RefundRequestedBy:   order.RefundRequestedBy,
-		ExpiresAt:           order.ExpiresAt,
-		PaidAt:              order.PaidAt,
-		CompletedAt:         order.CompletedAt,
-		FailedAt:            order.FailedAt,
-		FailedReason:        order.FailedReason,
-		ClientIP:            order.ClientIP,
-		SrcHost:             order.SrcHost,
-		SrcURL:              order.SrcURL,
-		CreatedAt:           order.CreatedAt,
-		UpdatedAt:           order.UpdatedAt,
+	currency, _ := order.ProviderSnapshot["currency"].(string)
+	cloned := *order
+	cloned.ProviderSnapshot = nil
+	return &adminPaymentOrderResponse{
+		PaymentOrder: &cloned,
+		Currency:     currency,
 	}
 }
 
@@ -228,49 +183,43 @@ type AdminProcessRefundRequest struct {
 // ProcessRefund processes a refund for an order (admin).
 // POST /api/v1/admin/payment/orders/:id/refund
 func (h *PaymentHandler) ProcessRefund(c *gin.Context) {
-	orderID, ok := parseIDParam(c, "id")
+	h.ProcessRefundGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) ProcessRefundGateway(c gatewayctx.GatewayContext) {
+	orderID, ok := parseIDParamGateway(c, "id")
 	if !ok {
 		return
 	}
 
 	var req AdminProcessRefundRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	if err := c.BindJSON(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
 
-	plan, earlyResult, err := h.paymentService.PrepareRefund(c.Request.Context(), orderID, req.Amount, req.Reason, req.Force, req.DeductBalance)
+	operator := adminAuditOperatorFromGateway(c)
+	plan, earlyResult, err := h.paymentService.PrepareRefund(c.Request().Context(), orderID, req.Amount, req.Reason, req.Force, req.DeductBalance)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		logAdminAudit("payment", "refund_prepare failed operator=%s order_id=%d amount=%.2f force=%t deduct_balance=%t error_reason=%s", operator, orderID, req.Amount, req.Force, req.DeductBalance, adminAuditErrorReason(err))
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 	if earlyResult != nil {
-		response.Success(c, earlyResult)
+		logAdminAudit("payment", "refund_prepare returned operator=%s order_id=%d amount=%.2f require_force=%t", operator, orderID, req.Amount, earlyResult.RequireForce)
+		response.SuccessContext(gatewayJSONResponder{ctx: c}, earlyResult)
 		return
 	}
 
-	result, err := h.paymentService.ExecuteRefund(c.Request.Context(), plan)
+	plan.AdminOperator = operator
+	result, err := h.paymentService.ExecuteRefund(c.Request().Context(), plan)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		logAdminAudit("payment", "refund failed operator=%s order_id=%d amount=%.2f force=%t deduct_balance=%t error_reason=%s", operator, orderID, req.Amount, req.Force, req.DeductBalance, adminAuditErrorReason(err))
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Success(c, result)
-}
-
-// QueryAndFinalizeRefund queries the provider refund status and finalizes a pending refund.
-// POST /api/v1/admin/payment/orders/:id/refund/query
-func (h *PaymentHandler) QueryAndFinalizeRefund(c *gin.Context) {
-	orderID, ok := parseIDParam(c, "id")
-	if !ok {
-		return
-	}
-
-	result, err := h.paymentService.QueryAndFinalizeRefund(c.Request.Context(), orderID)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	response.Success(c, result)
+	logAdminAudit("payment", "refund succeeded operator=%s order_id=%d amount=%.2f force=%t deduct_balance=%t", operator, orderID, req.Amount, req.Force, req.DeductBalance)
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, result)
 }
 
 // --- Subscription Plans ---
@@ -278,62 +227,78 @@ func (h *PaymentHandler) QueryAndFinalizeRefund(c *gin.Context) {
 // ListPlans returns all subscription plans.
 // GET /api/v1/admin/payment/plans
 func (h *PaymentHandler) ListPlans(c *gin.Context) {
-	plans, err := h.configService.ListPlans(c.Request.Context())
+	h.ListPlansGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) ListPlansGateway(c gatewayctx.GatewayContext) {
+	plans, err := h.configService.ListPlans(c.Request().Context())
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Success(c, plans)
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, plans)
 }
 
 // CreatePlan creates a new subscription plan.
 // POST /api/v1/admin/payment/plans
 func (h *PaymentHandler) CreatePlan(c *gin.Context) {
+	h.CreatePlanGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) CreatePlanGateway(c gatewayctx.GatewayContext) {
 	var req service.CreatePlanRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	if err := c.BindJSON(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
-	plan, err := h.configService.CreatePlan(c.Request.Context(), req)
+	plan, err := h.configService.CreatePlan(c.Request().Context(), req)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Created(c, plan)
+	response.CreatedContext(gatewayJSONResponder{ctx: c}, plan)
 }
 
 // UpdatePlan updates an existing subscription plan.
 // PUT /api/v1/admin/payment/plans/:id
 func (h *PaymentHandler) UpdatePlan(c *gin.Context) {
-	id, ok := parseIDParam(c, "id")
+	h.UpdatePlanGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) UpdatePlanGateway(c gatewayctx.GatewayContext) {
+	id, ok := parseIDParamGateway(c, "id")
 	if !ok {
 		return
 	}
 	var req service.UpdatePlanRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	if err := c.BindJSON(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
-	plan, err := h.configService.UpdatePlan(c.Request.Context(), id, req)
+	plan, err := h.configService.UpdatePlan(c.Request().Context(), id, req)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Success(c, plan)
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, plan)
 }
 
 // DeletePlan deletes a subscription plan.
 // DELETE /api/v1/admin/payment/plans/:id
 func (h *PaymentHandler) DeletePlan(c *gin.Context) {
-	id, ok := parseIDParam(c, "id")
+	h.DeletePlanGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) DeletePlanGateway(c gatewayctx.GatewayContext) {
+	id, ok := parseIDParamGateway(c, "id")
 	if !ok {
 		return
 	}
-	if err := h.configService.DeletePlan(c.Request.Context(), id); err != nil {
-		response.ErrorFrom(c, err)
+	if err := h.configService.DeletePlan(c.Request().Context(), id); err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Success(c, gin.H{"message": "deleted"})
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, gin.H{"message": "deleted"})
 }
 
 // --- Provider Instances ---
@@ -341,73 +306,97 @@ func (h *PaymentHandler) DeletePlan(c *gin.Context) {
 // ListProviders returns all payment provider instances.
 // GET /api/v1/admin/payment/providers
 func (h *PaymentHandler) ListProviders(c *gin.Context) {
-	providers, err := h.configService.ListProviderInstancesWithConfig(c.Request.Context())
+	h.ListProvidersGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) ListProvidersGateway(c gatewayctx.GatewayContext) {
+	providers, err := h.configService.ListProviderInstancesWithConfig(c.Request().Context())
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Success(c, providers)
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, providers)
 }
 
 // CreateProvider creates a new payment provider instance.
 // POST /api/v1/admin/payment/providers
 func (h *PaymentHandler) CreateProvider(c *gin.Context) {
+	h.CreateProviderGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) CreateProviderGateway(c gatewayctx.GatewayContext) {
 	var req service.CreateProviderInstanceRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	if err := c.BindJSON(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
-	inst, err := h.configService.CreateProviderInstance(c.Request.Context(), req)
+	inst, err := h.configService.CreateProviderInstance(c.Request().Context(), req)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	h.paymentService.RefreshProviders(c.Request.Context())
-	response.Created(c, inst)
+	h.paymentService.RefreshProviders(c.Request().Context())
+	response.CreatedContext(gatewayJSONResponder{ctx: c}, inst)
 }
 
 // UpdateProvider updates an existing payment provider instance.
 // PUT /api/v1/admin/payment/providers/:id
 func (h *PaymentHandler) UpdateProvider(c *gin.Context) {
-	id, ok := parseIDParam(c, "id")
+	h.UpdateProviderGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) UpdateProviderGateway(c gatewayctx.GatewayContext) {
+	id, ok := parseIDParamGateway(c, "id")
 	if !ok {
 		return
 	}
 	var req service.UpdateProviderInstanceRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	if err := c.BindJSON(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
-	inst, err := h.configService.UpdateProviderInstance(c.Request.Context(), id, req)
+	inst, err := h.configService.UpdateProviderInstance(c.Request().Context(), id, req)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	h.paymentService.RefreshProviders(c.Request.Context())
-	response.Success(c, inst)
+	h.paymentService.RefreshProviders(c.Request().Context())
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, inst)
 }
 
 // DeleteProvider deletes a payment provider instance.
 // DELETE /api/v1/admin/payment/providers/:id
 func (h *PaymentHandler) DeleteProvider(c *gin.Context) {
-	id, ok := parseIDParam(c, "id")
+	h.DeleteProviderGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) DeleteProviderGateway(c gatewayctx.GatewayContext) {
+	id, ok := parseIDParamGateway(c, "id")
 	if !ok {
 		return
 	}
-	if err := h.configService.DeleteProviderInstance(c.Request.Context(), id); err != nil {
-		response.ErrorFrom(c, err)
+	if err := h.configService.DeleteProviderInstance(c.Request().Context(), id); err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	h.paymentService.RefreshProviders(c.Request.Context())
-	response.Success(c, gin.H{"message": "deleted"})
+	h.paymentService.RefreshProviders(c.Request().Context())
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, gin.H{"message": "deleted"})
 }
 
 // parseIDParam parses an int64 path parameter.
 // Returns the parsed ID and true on success; on failure it writes a BadRequest response and returns false.
 func parseIDParam(c *gin.Context, paramName string) (int64, bool) {
-	id, err := strconv.ParseInt(c.Param(paramName), 10, 64)
+	return parseIDParamGateway(gatewayctx.FromGin(c), paramName)
+}
+
+func parseIDParamGateway(c gatewayctx.GatewayContext, paramName string) (int64, bool) {
+	value := ""
+	if c != nil {
+		value = c.PathParam(paramName)
+	}
+	id, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
-		response.BadRequest(c, "Invalid "+paramName)
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid "+paramName)
 		return 0, false
 	}
 	return id, true
@@ -418,25 +407,33 @@ func parseIDParam(c *gin.Context, paramName string) (int64, bool) {
 // GetConfig returns the payment configuration (admin view).
 // GET /api/v1/admin/payment/config
 func (h *PaymentHandler) GetConfig(c *gin.Context) {
-	cfg, err := h.configService.GetPaymentConfig(c.Request.Context())
+	h.GetConfigGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) GetConfigGateway(c gatewayctx.GatewayContext) {
+	cfg, err := h.configService.GetPaymentConfig(c.Request().Context())
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Success(c, cfg)
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, cfg)
 }
 
 // UpdateConfig updates the payment configuration.
 // PUT /api/v1/admin/payment/config
 func (h *PaymentHandler) UpdateConfig(c *gin.Context) {
+	h.UpdateConfigGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) UpdateConfigGateway(c gatewayctx.GatewayContext) {
 	var req service.UpdatePaymentConfigRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	if err := c.BindJSON(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
-	if err := h.configService.UpdatePaymentConfig(c.Request.Context(), req); err != nil {
-		response.ErrorFrom(c, err)
+	if err := h.configService.UpdatePaymentConfig(c.Request().Context(), req); err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Success(c, gin.H{"message": "updated"})
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, gin.H{"message": "updated"})
 }

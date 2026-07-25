@@ -1,9 +1,11 @@
 package middleware
 
 import (
+	"net/http"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -13,18 +15,23 @@ import (
 // Must be placed AFTER JWT auth middleware so that the user role is available in context.
 func BackendModeUserGuard(settingService *service.SettingService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if settingService == nil || !settingService.IsBackendModeEnabled(c.Request.Context()) {
+		if ApplyBackendModeUserGuardContext(settingService, gatewayctx.FromGin(c)) {
 			c.Next()
-			return
 		}
-		role, _ := GetUserRoleFromContext(c)
-		if role == "admin" {
-			c.Next()
-			return
-		}
-		response.Forbidden(c, "Backend mode is active. User self-service is disabled.")
-		c.Abort()
 	}
+}
+
+func ApplyBackendModeUserGuardContext(settingService *service.SettingService, c gatewayctx.GatewayContext) bool {
+	if settingService == nil || c == nil || !settingService.IsBackendModeEnabled(c.Request().Context()) {
+		return true
+	}
+	role, _ := GetUserRoleFromGatewayContext(c)
+	if role == "admin" {
+		return true
+	}
+	c.WriteJSON(http.StatusForbidden, response.Response{Code: http.StatusForbidden, Message: "Backend mode is active. User self-service is disabled."})
+	c.Abort()
+	return false
 }
 
 func backendModeAllowsAuthPath(path string) bool {
@@ -67,20 +74,24 @@ func backendModeAllowsAuthPath(path string) bool {
 }
 
 // BackendModeAuthGuard selectively blocks auth endpoints when backend mode is enabled.
-// Allows the minimal auth surface admins still need in backend mode, including
-// OAuth callbacks and pending continuations. Handler-level backend mode checks
-// still enforce admin-only login and forbid self-service registration.
+// OAuth callbacks and pending continuations remain available so that flows
+// started before backend mode was enabled can complete their handler-level checks.
 func BackendModeAuthGuard(settingService *service.SettingService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if settingService == nil || !settingService.IsBackendModeEnabled(c.Request.Context()) {
+		if ApplyBackendModeAuthGuardContext(settingService, gatewayctx.FromGin(c)) {
 			c.Next()
-			return
 		}
-		if backendModeAllowsAuthPath(c.Request.URL.Path) {
-			c.Next()
-			return
-		}
-		response.Forbidden(c, "Backend mode is active. Registration and self-service auth flows are disabled.")
-		c.Abort()
 	}
+}
+
+func ApplyBackendModeAuthGuardContext(settingService *service.SettingService, c gatewayctx.GatewayContext) bool {
+	if settingService == nil || c == nil || !settingService.IsBackendModeEnabled(c.Request().Context()) {
+		return true
+	}
+	if backendModeAllowsAuthPath(c.Path()) {
+		return true
+	}
+	c.WriteJSON(http.StatusForbidden, response.Response{Code: http.StatusForbidden, Message: "Backend mode is active. Registration and self-service auth flows are disabled."})
+	c.Abort()
+	return false
 }

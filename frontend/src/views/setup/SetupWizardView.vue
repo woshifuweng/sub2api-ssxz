@@ -38,7 +38,7 @@
                 <span v-else>{{ index + 1 }}</span>
               </div>
               <span
-                class="ml-2 hidden text-sm font-medium sm:inline"
+                class="ml-2 text-sm font-medium"
                 :class="
                   currentStep >= index
                     ? 'text-gray-900 dark:text-white'
@@ -50,7 +50,7 @@
             </div>
             <div
               v-if="index < steps.length - 1"
-              class="mx-2 h-0.5 w-6 sm:mx-3 sm:w-12"
+              class="mx-3 h-0.5 w-12"
               :class="currentStep > index ? 'bg-primary-500' : 'bg-gray-200 dark:bg-dark-700'"
             ></div>
           </template>
@@ -70,7 +70,7 @@
             </p>
           </div>
 
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="input-label">{{ t('setup.database.host') }}</label>
               <input
@@ -103,7 +103,7 @@
             <Toggle v-model="formData.redis.enable_tls" />
           </div>
 
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="input-label">{{ t('setup.database.username') }}</label>
               <input
@@ -124,14 +124,14 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="input-label">{{ t('setup.database.databaseName') }}</label>
               <input
                 v-model="formData.database.dbname"
                 type="text"
                 class="input"
-                placeholder="sub2api"
+                placeholder="ssxz"
               />
             </div>
             <div>
@@ -195,7 +195,7 @@
             </p>
           </div>
 
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="input-label">{{ t('setup.redis.host') }}</label>
               <input
@@ -216,16 +216,7 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label class="input-label">{{ t('setup.redis.username') }}</label>
-              <input
-                v-model="formData.redis.username"
-                type="text"
-                class="input"
-                :placeholder="t('setup.redis.usernamePlaceholder')"
-              />
-            </div>
+          <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="input-label">{{ t('setup.redis.password') }}</label>
               <input
@@ -502,7 +493,6 @@
 import { ref, reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { testDatabase, testRedis, install, type InstallRequest } from '@/api/setup'
-import { buildGatewayUrl } from '@/api/client'
 import Select from '@/components/common/Select.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -545,13 +535,12 @@ const formData = reactive<InstallRequest>({
     port: 5432,
     user: 'postgres',
     password: '',
-    dbname: 'sub2api',
+    dbname: 'ssxz',
     sslmode: 'disable'
   },
   redis: {
     host: 'localhost',
     port: 6379,
-    username: '',
     password: '',
     db: 0,
     enable_tls: false
@@ -655,7 +644,7 @@ async function waitForServiceRestart() {
     try {
       // Use setup status endpoint as it tells us the real mode
       // Service might return 404 or connection refused while restarting
-      const response = await fetch(buildGatewayUrl('/setup/status'), {
+      const response = await fetch('/setup/status', {
         method: 'GET',
         cache: 'no-store'
       })

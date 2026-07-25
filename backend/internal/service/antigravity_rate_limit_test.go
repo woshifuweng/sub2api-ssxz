@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/stretchr/testify/require"
@@ -41,7 +42,7 @@ func (r *recordingOKUpstream) Do(req *http.Request, proxyURL string, accountID i
 	}, nil
 }
 
-func (r *recordingOKUpstream) DoWithTLS(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile) (*http.Response, error) {
+func (r *recordingOKUpstream) DoWithTLS(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, _ *tlsfingerprint.Profile) (*http.Response, error) {
 	return r.Do(req, proxyURL, accountID, accountConcurrency)
 }
 
@@ -62,7 +63,7 @@ func (s *stubAntigravityUpstream) Do(req *http.Request, proxyURL string, account
 	}, nil
 }
 
-func (s *stubAntigravityUpstream) DoWithTLS(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile) (*http.Response, error) {
+func (s *stubAntigravityUpstream) DoWithTLS(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, _ *tlsfingerprint.Profile) (*http.Response, error) {
 	return s.Do(req, proxyURL, accountID, accountConcurrency)
 }
 
@@ -87,6 +88,7 @@ type stubAntigravityAccountRepo struct {
 	rateCalls           []rateLimitCall
 	modelRateLimitCalls []modelRateLimitCall
 	extraUpdateCalls    []extraUpdateCall
+	deletedIDs          []int64
 }
 
 func (s *stubAntigravityAccountRepo) SetRateLimited(ctx context.Context, id int64, resetAt time.Time) error {
@@ -94,13 +96,18 @@ func (s *stubAntigravityAccountRepo) SetRateLimited(ctx context.Context, id int6
 	return nil
 }
 
-func (s *stubAntigravityAccountRepo) SetModelRateLimit(ctx context.Context, id int64, modelKey string, resetAt time.Time, reason ...string) error {
+func (s *stubAntigravityAccountRepo) SetModelRateLimit(ctx context.Context, id int64, modelKey string, resetAt time.Time) error {
 	s.modelRateLimitCalls = append(s.modelRateLimitCalls, modelRateLimitCall{accountID: id, modelKey: modelKey, resetAt: resetAt})
 	return nil
 }
 
 func (s *stubAntigravityAccountRepo) UpdateExtra(ctx context.Context, id int64, updates map[string]any) error {
 	s.extraUpdateCalls = append(s.extraUpdateCalls, extraUpdateCall{accountID: id, updates: updates})
+	return nil
+}
+
+func (s *stubAntigravityAccountRepo) Delete(ctx context.Context, id int64) error {
+	s.deletedIDs = append(s.deletedIDs, id)
 	return nil
 }
 
@@ -223,6 +230,30 @@ func TestHandleUpstreamError_429_NonModelRateLimit_UsesMappedModelKey(t *testing
 	require.Nil(t, result)
 	require.Len(t, repo.modelRateLimitCalls, 1)
 	require.Equal(t, "claude-opus-4-6-thinking", repo.modelRateLimitCalls[0].modelKey)
+}
+
+func TestHandleUpstreamError_429_AutoDeleteSkipsModelRateLimit(t *testing.T) {
+	repo := &stubAntigravityAccountRepo{}
+	settings := NewSettingService(&hotSettingRepoStub{
+		values: map[string]string{
+			SettingKeyAutoDelete429Accounts: "true",
+		},
+	}, &config.Config{})
+	rateSvc := NewRateLimitService(repo, nil, nil, nil, nil)
+	rateSvc.SetSettingService(settings)
+
+	svc := &AntigravityGatewayService{
+		accountRepo:      repo,
+		rateLimitService: rateSvc,
+	}
+	account := &Account{ID: 21, Name: "acc-21", Platform: PlatformAntigravity}
+
+	result := svc.handleUpstreamError(context.Background(), "[test]", account, http.StatusTooManyRequests, http.Header{}, buildGeminiRateLimitBody("5s"), "claude-sonnet-4-5", 0, "", false)
+
+	require.Nil(t, result)
+	require.Equal(t, []int64{account.ID}, repo.deletedIDs)
+	require.Empty(t, repo.modelRateLimitCalls)
+	require.Empty(t, repo.rateCalls)
 }
 
 // TestHandleUpstreamError_503_ModelCapacityExhausted 测试 503 模型容量不足场景
@@ -821,51 +852,6 @@ func TestSetModelRateLimitByModelName_NotConvertToScope(t *testing.T) {
 	require.NotEqual(t, "claude_sonnet", call.modelKey, "should NOT be scope")
 }
 
-func TestSetAntigravityModelRateLimits_GeminiWritesFamilyScope(t *testing.T) {
-	repo := &stubAntigravityAccountRepo{}
-	svc := &AntigravityGatewayService{}
-	account := &Account{ID: 789, Platform: PlatformAntigravity}
-	resetAt := time.Now().Add(30 * time.Second)
-
-	success := svc.setAntigravityModelRateLimits(
-		context.Background(),
-		repo,
-		account,
-		"gemini-3-pro",
-		"[test]",
-		429,
-		resetAt,
-		false,
-	)
-
-	require.True(t, success)
-	require.Len(t, repo.modelRateLimitCalls, 2)
-	require.Equal(t, "gemini-3-pro", repo.modelRateLimitCalls[0].modelKey)
-	require.Equal(t, antigravityGeminiModelRateLimitKey, repo.modelRateLimitCalls[1].modelKey)
-}
-
-func TestSetAntigravityModelRateLimits_ClaudeDoesNotWriteGeminiScope(t *testing.T) {
-	repo := &stubAntigravityAccountRepo{}
-	svc := &AntigravityGatewayService{}
-	account := &Account{ID: 790, Platform: PlatformAntigravity}
-	resetAt := time.Now().Add(30 * time.Second)
-
-	success := svc.setAntigravityModelRateLimits(
-		context.Background(),
-		repo,
-		account,
-		"claude-sonnet-4-5",
-		"[test]",
-		429,
-		resetAt,
-		false,
-	)
-
-	require.True(t, success)
-	require.Len(t, repo.modelRateLimitCalls, 1)
-	require.Equal(t, "claude-sonnet-4-5", repo.modelRateLimitCalls[0].modelKey)
-}
-
 func TestAntigravityRetryLoop_PreCheck_SwitchesWhenRateLimited(t *testing.T) {
 	upstream := &recordingOKUpstream{}
 	account := &Account{
@@ -1168,54 +1154,4 @@ func TestSchedulerSnapshotService_UpdateAccountInCache(t *testing.T) {
 
 		require.ErrorIs(t, err, expectedErr)
 	})
-}
-func TestNormalizeAntigravityModelName(t *testing.T) {
-	tests := []struct {
-		name     string
-		model    string
-		expected string
-	}{
-		{
-			name:     "plain model name",
-			model:    "gemini-1.5-pro",
-			expected: "gemini-1.5-pro",
-		},
-		{
-			name:     "models/ prefix",
-			model:    "models/gemini-1.5-pro",
-			expected: "gemini-1.5-pro",
-		},
-		{
-			name:     "publishers/google/models/ prefix",
-			model:    "publishers/google/models/gemini-1.5-pro",
-			expected: "gemini-1.5-pro",
-		},
-		{
-			name:     "projects/.../publishers/google/models/ path",
-			model:    "projects/my-proj/locations/us-central1/publishers/google/models/gemini-2.5-flash",
-			expected: "gemini-2.5-flash",
-		},
-		{
-			name:     "publishers/anthropic/models/ prefix",
-			model:    "publishers/anthropic/models/claude-sonnet-4-5",
-			expected: "claude-sonnet-4-5",
-		},
-		{
-			name:     "projects/.../publishers/anthropic/models/ path",
-			model:    "projects/my-proj/locations/global/publishers/anthropic/models/claude-sonnet-4-5",
-			expected: "claude-sonnet-4-5",
-		},
-		{
-			name:     "mixed case and spaces",
-			model:    "  Models/Gemini-1.5-Pro  ",
-			expected: "gemini-1.5-pro",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := normalizeAntigravityModelName(tt.model)
-			require.Equal(t, tt.expected, actual)
-		})
-	}
 }

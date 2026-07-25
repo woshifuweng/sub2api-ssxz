@@ -63,4 +63,7 @@ const (
 
 	// ClaudeCodeVersion stores the extracted Claude Code version from User-Agent (e.g. "2.1.22")
 	ClaudeCodeVersion Key = "ctx_claude_code_version"
+
+	// TLSFingerprintProfileID carries the preferred TLS fingerprint profile for an upstream request.
+	TLSFingerprintProfileID Key = "ctx_tls_fingerprint_profile_id"
 )

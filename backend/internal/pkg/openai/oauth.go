@@ -17,6 +17,8 @@ import (
 const (
 	// OAuth Client ID for OpenAI (Codex CLI official)
 	ClientID = "app_EMoamEEZ73f0CkXaXp7hrann"
+	// OAuth Client ID for Sora mobile flow (aligned with sora2api)
+	SoraClientID = "app_LlGpXReQgckcGGUo2JrYvtJK"
 
 	// OAuth endpoints
 	AuthorizeURL = "https://auth.openai.com/oauth/authorize"
@@ -37,6 +39,8 @@ const (
 const (
 	// OAuthPlatformOpenAI uses OpenAI Codex-compatible OAuth client.
 	OAuthPlatformOpenAI = "openai"
+	// OAuthPlatformSora uses Sora OAuth client.
+	OAuthPlatformSora = "sora"
 )
 
 // OAuthSession stores OAuth flow state for OpenAI
@@ -208,7 +212,12 @@ func BuildAuthorizationURLForPlatform(state, codeChallenge, redirectURI, platfor
 
 // OAuthClientConfigByPlatform returns oauth client_id and whether codex simplified flow should be enabled.
 func OAuthClientConfigByPlatform(platform string) (clientID string, codexFlow bool) {
-	return ClientID, true
+	switch strings.ToLower(strings.TrimSpace(platform)) {
+	case OAuthPlatformSora:
+		return ClientID, false
+	default:
+		return ClientID, true
+	}
 }
 
 // TokenRequest represents the token exchange request body
@@ -261,6 +270,21 @@ type OpenAIAuthClaims struct {
 	UserID           string              `json:"user_id"`
 	POID             string              `json:"poid"` // organization ID in access_token JWT
 	Organizations    []OrganizationClaim `json:"organizations"`
+}
+
+type OpenAIProfileClaims struct {
+	Email string `json:"email"`
+	Name  string `json:"name"`
+}
+
+type AccessTokenClaims struct {
+	Sub        string               `json:"sub"`
+	Email      string               `json:"email"`
+	ClientID   string               `json:"client_id"`
+	Exp        int64                `json:"exp"`
+	Iat        int64                `json:"iat"`
+	OpenAIAuth *OpenAIAuthClaims    `json:"https://api.openai.com/auth,omitempty"`
+	Profile    *OpenAIProfileClaims `json:"https://api.openai.com/profile,omitempty"`
 }
 
 // OrganizationClaim represents an organization in the ID Token
@@ -351,6 +375,41 @@ func DecodeIDToken(idToken string) (*IDTokenClaims, error) {
 	return &claims, nil
 }
 
+func DecodeAccessToken(accessToken string) (*AccessTokenClaims, error) {
+	var claims AccessTokenClaims
+	if err := decodeJWTClaimsNoVerify(accessToken, &claims); err != nil {
+		return nil, err
+	}
+	return &claims, nil
+}
+
+func decodeJWTClaimsNoVerify[T any](token string, out *T) error {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return fmt.Errorf("invalid JWT format: expected 3 parts, got %d", len(parts))
+	}
+
+	payload := parts[1]
+	switch len(payload) % 4 {
+	case 2:
+		payload += "=="
+	case 3:
+		payload += "="
+	}
+
+	decoded, err := base64.URLEncoding.DecodeString(payload)
+	if err != nil {
+		decoded, err = base64.StdEncoding.DecodeString(payload)
+		if err != nil {
+			return fmt.Errorf("failed to decode JWT payload: %w", err)
+		}
+	}
+	if err := json.Unmarshal(decoded, out); err != nil {
+		return fmt.Errorf("failed to parse JWT claims: %w", err)
+	}
+	return nil
+}
+
 // ParseIDToken parses the ID Token JWT and extracts claims.
 // 注意：当前仅解码 payload 并校验 exp，未验证 JWT 签名。
 // 生产环境如需用 ID Token 做授权决策，应通过 OpenAI 的 JWKS 端点验证签名：
@@ -409,5 +468,30 @@ func (c *IDTokenClaims) GetUserInfo() *UserInfo {
 		}
 	}
 
+	return info
+}
+
+// GetUserInfo extracts user info from access token claims.
+func (c *AccessTokenClaims) GetUserInfo() *UserInfo {
+	info := &UserInfo{Email: c.Email}
+	if c.Profile != nil && strings.TrimSpace(info.Email) == "" {
+		info.Email = c.Profile.Email
+	}
+	if c.OpenAIAuth != nil {
+		info.ChatGPTAccountID = c.OpenAIAuth.ChatGPTAccountID
+		info.ChatGPTUserID = c.OpenAIAuth.ChatGPTUserID
+		info.PlanType = c.OpenAIAuth.ChatGPTPlanType
+		info.UserID = c.OpenAIAuth.UserID
+		info.Organizations = c.OpenAIAuth.Organizations
+		for _, org := range c.OpenAIAuth.Organizations {
+			if org.IsDefault {
+				info.OrganizationID = org.ID
+				break
+			}
+		}
+		if info.OrganizationID == "" && len(c.OpenAIAuth.Organizations) > 0 {
+			info.OrganizationID = c.OpenAIAuth.Organizations[0].ID
+		}
+	}
 	return info
 }

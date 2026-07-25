@@ -70,12 +70,10 @@ func TestHandleChatStreamingResponse_ClassifiesHTTP2ReadError(t *testing.T) {
 	result, err := svc.handleChatStreamingResponse(
 		resp,
 		c,
-		&Account{ID: 1, Name: "openai-oauth", Platform: PlatformOpenAI},
 		"gpt-5.6-sol",
 		"gpt-5.6-sol",
-		"gpt-5.6-sol",
+		false,
 		time.Now(),
-		0,
 	)
 
 	require.Error(t, err)

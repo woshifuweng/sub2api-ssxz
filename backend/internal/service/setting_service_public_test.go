@@ -19,7 +19,10 @@ func (s *settingPublicRepoStub) Get(ctx context.Context, key string) (*Setting, 
 }
 
 func (s *settingPublicRepoStub) GetValue(ctx context.Context, key string) (string, error) {
-	panic("unexpected GetValue call")
+	if value, ok := s.values[key]; ok {
+		return value, nil
+	}
+	return "", ErrSettingNotFound
 }
 
 func (s *settingPublicRepoStub) Set(ctx context.Context, key, value string) error {
@@ -163,4 +166,177 @@ func TestSettingService_GetPublicSettings_FallsBackToConfigForWeChatOAuthCapabil
 	require.True(t, settings.WeChatOAuthOpenEnabled)
 	require.False(t, settings.WeChatOAuthMPEnabled)
 	require.False(t, settings.WeChatOAuthMobileEnabled)
+}
+
+func TestSettingService_AvailableChannelsDefaultUsesStoredSetting(t *testing.T) {
+	repo := &settingPublicRepoStub{
+		values: map[string]string{
+			settingKeyAvailableChannelsEnabled: "false",
+		},
+	}
+	svc := NewSettingService(repo, &config.Config{})
+
+	runtime := svc.GetAvailableChannelsRuntime(context.Background())
+	require.False(t, runtime.Enabled)
+
+	settings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.False(t, settings.AvailableChannelsEnabled)
+}
+
+func TestSettingService_PublicSettingsExposeWebSearchUnavailableByDefault(t *testing.T) {
+	repo := &settingPublicRepoStub{values: map[string]string{}}
+	svc := NewSettingService(repo, &config.Config{
+		Workspace: config.WorkspaceConfig{
+			WebSearch: config.WorkspaceWebSearchConfig{
+				Provider:   "jina",
+				Enabled:    false,
+				KillSwitch: true,
+			},
+		},
+	})
+
+	settings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.False(t, settings.WebSearch.Available)
+	require.Equal(t, "jina", settings.WebSearch.Provider)
+}
+
+func TestSettingService_AvailableChannelsStagingOverrideRequiresNonProduction(t *testing.T) {
+	repo := &settingPublicRepoStub{
+		values: map[string]string{
+			settingKeyAvailableChannelsEnabled: "false",
+		},
+	}
+	svc := NewSettingService(repo, &config.Config{
+		Log: config.LogConfig{Environment: "production"},
+		Workspace: config.WorkspaceConfig{
+			AvailableChannels: config.WorkspaceAvailableChannelsConfig{
+				StagingOverrideEnabled: true,
+			},
+		},
+	})
+
+	runtime := svc.GetAvailableChannelsRuntime(context.Background())
+	require.False(t, runtime.Enabled)
+
+	settings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.False(t, settings.AvailableChannelsEnabled)
+}
+
+func TestSettingService_AvailableChannelsStagingOverrideEnablesRuntimeAndPublicSettings(t *testing.T) {
+	repo := &settingPublicRepoStub{
+		values: map[string]string{
+			settingKeyAvailableChannelsEnabled: "false",
+		},
+	}
+	svc := NewSettingService(repo, &config.Config{
+		Log: config.LogConfig{Environment: "production"},
+		Workspace: config.WorkspaceConfig{
+			TextProvider: config.WorkspaceTextProviderConfig{
+				Environment: "staging",
+			},
+			AvailableChannels: config.WorkspaceAvailableChannelsConfig{
+				StagingOverrideEnabled: true,
+			},
+		},
+	})
+
+	runtime := svc.GetAvailableChannelsRuntime(context.Background())
+	require.True(t, runtime.Enabled)
+
+	settings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.True(t, settings.AvailableChannelsEnabled)
+}
+
+func TestSettingService_SoraClientStagingOverrideRequiresNonProduction(t *testing.T) {
+	repo := &settingPublicRepoStub{
+		values: map[string]string{
+			SettingKeySoraClientEnabled: "false",
+		},
+	}
+	svc := NewSettingService(repo, &config.Config{
+		Log: config.LogConfig{Environment: "production"},
+		Workspace: config.WorkspaceConfig{
+			SoraClient: config.WorkspaceSoraClientConfig{
+				StagingOverrideEnabled: true,
+			},
+		},
+	})
+
+	settings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.False(t, settings.SoraClientEnabled)
+}
+
+func TestSettingService_SoraClientStagingOverrideEnablesPublicSettings(t *testing.T) {
+	repo := &settingPublicRepoStub{
+		values: map[string]string{
+			SettingKeySoraClientEnabled: "false",
+		},
+	}
+	svc := NewSettingService(repo, &config.Config{
+		Log: config.LogConfig{Environment: "production"},
+		Workspace: config.WorkspaceConfig{
+			TextProvider: config.WorkspaceTextProviderConfig{
+				Environment: "staging",
+			},
+			SoraClient: config.WorkspaceSoraClientConfig{
+				StagingOverrideEnabled: true,
+			},
+		},
+	})
+
+	settings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.True(t, settings.SoraClientEnabled)
+}
+
+func TestSettingService_PublicSettingsInjectionPreservesUnionAndSanitizesValues(t *testing.T) {
+	repo := &settingPublicRepoStub{
+		values: map[string]string{
+			SettingKeyForceEmailOnThirdPartySignup: "true",
+			SettingKeyHomeContent:                  `<section onclick="alert(1)"><script>alert(2)</script>safe</section>`,
+			SettingKeyPurchaseSubscriptionURL:      "https://example.com/subscribe",
+			SettingKeyPurchaseLinkCNY10:            "https://example.com/10",
+			SettingKeyPurchaseLinkCNY30:            "javascript:alert(1)",
+			SettingKeyPurchaseLinkCNY100:           "https://example.com/100",
+			SettingKeySoraClientEnabled:            "true",
+		},
+	}
+	svc := NewSettingService(repo, &config.Config{
+		Workspace: config.WorkspaceConfig{
+			WebSearch: config.WorkspaceWebSearchConfig{
+				Enabled:  true,
+				Provider: "jina",
+			},
+		},
+	})
+
+	publicSettings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.True(t, publicSettings.ForceEmailOnThirdPartySignup)
+	require.Equal(t, "https://example.com/subscribe", publicSettings.PurchaseSubscriptionURL)
+	require.Equal(t, "https://example.com/10", publicSettings.PurchaseLinkCNY10)
+	require.Empty(t, publicSettings.PurchaseLinkCNY30)
+	require.Equal(t, "https://example.com/100", publicSettings.PurchaseLinkCNY100)
+	require.True(t, publicSettings.SoraClientEnabled)
+	require.Equal(t, PublicWorkspaceWebSearchSettings{Available: true, Provider: "jina"}, publicSettings.WebSearch)
+	require.NotContains(t, publicSettings.HomeContent, "<script")
+	require.NotContains(t, publicSettings.HomeContent, "onclick")
+
+	rawInjection, err := svc.GetPublicSettingsForInjection(context.Background())
+	require.NoError(t, err)
+	injection, ok := rawInjection.(*PublicSettingsInjectionPayload)
+	require.True(t, ok, "unexpected injection payload type %T", rawInjection)
+	require.Equal(t, publicSettings.ForceEmailOnThirdPartySignup, injection.ForceEmailOnThirdPartySignup)
+	require.Equal(t, publicSettings.PurchaseSubscriptionURL, injection.PurchaseSubscriptionURL)
+	require.Equal(t, publicSettings.PurchaseLinkCNY10, injection.PurchaseLinkCNY10)
+	require.Equal(t, publicSettings.PurchaseLinkCNY30, injection.PurchaseLinkCNY30)
+	require.Equal(t, publicSettings.PurchaseLinkCNY100, injection.PurchaseLinkCNY100)
+	require.Equal(t, publicSettings.SoraClientEnabled, injection.SoraClientEnabled)
+	require.Equal(t, publicSettings.WebSearch, injection.WebSearch)
+	require.Equal(t, publicSettings.HomeContent, injection.HomeContent)
 }

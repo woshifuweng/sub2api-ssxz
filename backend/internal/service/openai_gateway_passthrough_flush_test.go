@@ -112,16 +112,18 @@ func TestOpenAIStreamingPassthroughFlushesAtCompleteEventBoundaries(t *testing.T
 	terminalEvent := "event: response.completed\n" +
 		`data: {"type":"response.completed","response":{"id":"resp_flush","usage":{"input_tokens":3,"output_tokens":2,"total_tokens":5}}}` + "\n\n"
 	upstream := firstEvent + heartbeat + terminalEvent
+	downstream := upstream + "data: [DONE]\n\n"
 
 	result, recorder, writer, err := runPassthroughFlushTest(t, io.NopCloser(strings.NewReader(upstream)), -1)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Equal(t, upstream, recorder.Body.String())
+	require.Equal(t, downstream, recorder.Body.String())
 	require.Equal(t, []int{
 		len(firstEvent),
 		len(firstEvent) + len(heartbeat),
 		len(upstream),
+		len(downstream),
 	}, writer.flushBodyLengths)
 	require.Equal(t, 3, result.usage.InputTokens)
 	require.Equal(t, 2, result.usage.OutputTokens)
@@ -134,28 +136,30 @@ func TestOpenAIStreamingPassthroughKeepsPreamblePendingUntilFirstOutputBoundary(
 	firstOutput := `data: {"type":"response.output_text.delta","delta":"ready"}` + "\n\n"
 	terminalEvent := `data: {"type":"response.completed","response":{"id":"resp_pending","usage":{"input_tokens":4,"output_tokens":1,"total_tokens":5}}}` + "\n\n"
 	upstream := preamble + firstOutput + terminalEvent
+	downstream := upstream + "data: [DONE]\n\n"
 
 	_, recorder, writer, err := runPassthroughFlushTest(t, io.NopCloser(strings.NewReader(upstream)), -1)
 
 	require.NoError(t, err)
-	require.Equal(t, upstream, recorder.Body.String())
+	require.Equal(t, downstream, recorder.Body.String())
 	require.Equal(t, []int{
 		len(preamble) + len(firstOutput),
 		len(upstream),
+		len(downstream),
 	}, writer.flushBodyLengths)
 }
 
 func TestOpenAIStreamingPassthroughFlushesTerminalEventAtEOFWithoutBlankLine(t *testing.T) {
 	upstream := "event: response.completed\n" +
 		`data: {"type":"response.completed","response":{"id":"resp_eof","usage":{"input_tokens":5,"output_tokens":2,"total_tokens":7}}}`
-	wantBody := upstream + "\n"
+	wantBody := upstream + "\n\ndata: [DONE]\n\n"
 
 	result, recorder, writer, err := runPassthroughFlushTest(t, io.NopCloser(strings.NewReader(upstream)), -1)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, wantBody, recorder.Body.String())
-	require.Equal(t, []int{len(wantBody)}, writer.flushBodyLengths)
+	require.Equal(t, []int{len(upstream) + 1, len(wantBody)}, writer.flushBodyLengths)
 	require.Equal(t, 5, result.usage.InputTokens)
 	require.Equal(t, 2, result.usage.OutputTokens)
 }

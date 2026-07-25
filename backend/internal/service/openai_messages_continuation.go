@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
@@ -142,13 +143,21 @@ func isOpenAICompatPreviousResponseUnsupported(statusCode int, upstreamMsg strin
 }
 
 func openAICompatSessionResponseKey(c *gin.Context, account *Account, promptCacheKey string) string {
-	key := strings.TrimSpace(promptCacheKey)
-	if account == nil || key == "" {
-		return ""
-	}
 	apiKeyID := int64(0)
 	if c != nil {
 		apiKeyID = getAPIKeyIDFromContext(c)
+	}
+	return openAICompatSessionResponseKeyForAPIKey(account, apiKeyID, promptCacheKey)
+}
+
+func openAICompatSessionResponseKeyContext(c gatewayctx.GatewayContext, account *Account, promptCacheKey string) string {
+	return openAICompatSessionResponseKeyForAPIKey(account, getAPIKeyIDFromGatewayContext(c), promptCacheKey)
+}
+
+func openAICompatSessionResponseKeyForAPIKey(account *Account, apiKeyID int64, promptCacheKey string) string {
+	key := strings.TrimSpace(promptCacheKey)
+	if account == nil || key == "" {
+		return ""
 	}
 	return strings.Join([]string{
 		strconv.FormatInt(account.ID, 10),
@@ -157,11 +166,18 @@ func openAICompatSessionResponseKey(c *gin.Context, account *Account, promptCach
 	}, "\x00")
 }
 
+func (s *OpenAIGatewayService) getOpenAICompatSessionResponseIDContext(_ context.Context, c gatewayctx.GatewayContext, account *Account, promptCacheKey string) string {
+	return s.getOpenAICompatSessionResponseIDByKey(openAICompatSessionResponseKeyContext(c, account, promptCacheKey))
+}
+
 func (s *OpenAIGatewayService) getOpenAICompatSessionResponseID(_ context.Context, c *gin.Context, account *Account, promptCacheKey string) string {
+	return s.getOpenAICompatSessionResponseIDByKey(openAICompatSessionResponseKey(c, account, promptCacheKey))
+}
+
+func (s *OpenAIGatewayService) getOpenAICompatSessionResponseIDByKey(key string) string {
 	if s == nil {
 		return ""
 	}
-	key := openAICompatSessionResponseKey(c, account, promptCacheKey)
 	if key == "" {
 		return ""
 	}
@@ -188,11 +204,18 @@ func (s *OpenAIGatewayService) getOpenAICompatSessionResponseID(_ context.Contex
 	return strings.TrimSpace(binding.ResponseID)
 }
 
+func (s *OpenAIGatewayService) bindOpenAICompatSessionResponseIDContext(_ context.Context, c gatewayctx.GatewayContext, account *Account, promptCacheKey, responseID string) {
+	s.bindOpenAICompatSessionResponseIDByKey(openAICompatSessionResponseKeyContext(c, account, promptCacheKey), responseID)
+}
+
 func (s *OpenAIGatewayService) bindOpenAICompatSessionResponseID(_ context.Context, c *gin.Context, account *Account, promptCacheKey, responseID string) {
+	s.bindOpenAICompatSessionResponseIDByKey(openAICompatSessionResponseKey(c, account, promptCacheKey), responseID)
+}
+
+func (s *OpenAIGatewayService) bindOpenAICompatSessionResponseIDByKey(key, responseID string) {
 	if s == nil {
 		return
 	}
-	key := openAICompatSessionResponseKey(c, account, promptCacheKey)
 	id := strings.TrimSpace(responseID)
 	if key == "" || id == "" {
 		return
@@ -215,11 +238,18 @@ func (s *OpenAIGatewayService) bindOpenAICompatSessionResponseID(_ context.Conte
 	s.openaiCompatSessionResponses.Store(key, binding)
 }
 
+func (s *OpenAIGatewayService) deleteOpenAICompatSessionResponseIDContext(_ context.Context, c gatewayctx.GatewayContext, account *Account, promptCacheKey string) {
+	s.deleteOpenAICompatSessionResponseIDByKey(openAICompatSessionResponseKeyContext(c, account, promptCacheKey))
+}
+
 func (s *OpenAIGatewayService) deleteOpenAICompatSessionResponseID(_ context.Context, c *gin.Context, account *Account, promptCacheKey string) {
+	s.deleteOpenAICompatSessionResponseIDByKey(openAICompatSessionResponseKey(c, account, promptCacheKey))
+}
+
+func (s *OpenAIGatewayService) deleteOpenAICompatSessionResponseIDByKey(key string) {
 	if s == nil {
 		return
 	}
-	key := openAICompatSessionResponseKey(c, account, promptCacheKey)
 	if key == "" {
 		return
 	}
@@ -241,11 +271,18 @@ func (s *OpenAIGatewayService) deleteOpenAICompatSessionResponseID(_ context.Con
 	s.openaiCompatSessionResponses.Store(key, binding)
 }
 
+func (s *OpenAIGatewayService) disableOpenAICompatSessionContinuationContext(_ context.Context, c gatewayctx.GatewayContext, account *Account, promptCacheKey string) {
+	s.disableOpenAICompatSessionContinuationByKey(openAICompatSessionResponseKeyContext(c, account, promptCacheKey))
+}
+
 func (s *OpenAIGatewayService) disableOpenAICompatSessionContinuation(_ context.Context, c *gin.Context, account *Account, promptCacheKey string) {
+	s.disableOpenAICompatSessionContinuationByKey(openAICompatSessionResponseKey(c, account, promptCacheKey))
+}
+
+func (s *OpenAIGatewayService) disableOpenAICompatSessionContinuationByKey(key string) {
 	if s == nil {
 		return
 	}
-	key := openAICompatSessionResponseKey(c, account, promptCacheKey)
 	if key == "" {
 		return
 	}
@@ -261,11 +298,18 @@ func (s *OpenAIGatewayService) disableOpenAICompatSessionContinuation(_ context.
 	s.openaiCompatSessionResponses.Store(key, binding)
 }
 
+func (s *OpenAIGatewayService) isOpenAICompatSessionContinuationDisabledContext(_ context.Context, c gatewayctx.GatewayContext, account *Account, promptCacheKey string) bool {
+	return s.isOpenAICompatSessionContinuationDisabledByKey(openAICompatSessionResponseKeyContext(c, account, promptCacheKey))
+}
+
 func (s *OpenAIGatewayService) isOpenAICompatSessionContinuationDisabled(_ context.Context, c *gin.Context, account *Account, promptCacheKey string) bool {
+	return s.isOpenAICompatSessionContinuationDisabledByKey(openAICompatSessionResponseKey(c, account, promptCacheKey))
+}
+
+func (s *OpenAIGatewayService) isOpenAICompatSessionContinuationDisabledByKey(key string) bool {
 	if s == nil {
 		return false
 	}
-	key := openAICompatSessionResponseKey(c, account, promptCacheKey)
 	if key == "" {
 		return false
 	}
@@ -285,11 +329,18 @@ func (s *OpenAIGatewayService) isOpenAICompatSessionContinuationDisabled(_ conte
 	return binding.ContinuationDisabled
 }
 
+func (s *OpenAIGatewayService) getOpenAICompatSessionTurnStateContext(_ context.Context, c gatewayctx.GatewayContext, account *Account, promptCacheKey string) string {
+	return s.getOpenAICompatSessionTurnStateByKey(openAICompatSessionResponseKeyContext(c, account, promptCacheKey))
+}
+
 func (s *OpenAIGatewayService) getOpenAICompatSessionTurnState(_ context.Context, c *gin.Context, account *Account, promptCacheKey string) string {
+	return s.getOpenAICompatSessionTurnStateByKey(openAICompatSessionResponseKey(c, account, promptCacheKey))
+}
+
+func (s *OpenAIGatewayService) getOpenAICompatSessionTurnStateByKey(key string) string {
 	if s == nil {
 		return ""
 	}
-	key := openAICompatSessionResponseKey(c, account, promptCacheKey)
 	if key == "" {
 		return ""
 	}
@@ -308,11 +359,18 @@ func (s *OpenAIGatewayService) getOpenAICompatSessionTurnState(_ context.Context
 	return strings.TrimSpace(binding.TurnState)
 }
 
+func (s *OpenAIGatewayService) bindOpenAICompatSessionTurnStateContext(_ context.Context, c gatewayctx.GatewayContext, account *Account, promptCacheKey, turnState string) {
+	s.bindOpenAICompatSessionTurnStateByKey(openAICompatSessionResponseKeyContext(c, account, promptCacheKey), turnState)
+}
+
 func (s *OpenAIGatewayService) bindOpenAICompatSessionTurnState(_ context.Context, c *gin.Context, account *Account, promptCacheKey, turnState string) {
+	s.bindOpenAICompatSessionTurnStateByKey(openAICompatSessionResponseKey(c, account, promptCacheKey), turnState)
+}
+
+func (s *OpenAIGatewayService) bindOpenAICompatSessionTurnStateByKey(key, turnState string) {
 	if s == nil {
 		return
 	}
-	key := openAICompatSessionResponseKey(c, account, promptCacheKey)
 	state := strings.TrimSpace(turnState)
 	if key == "" || state == "" {
 		return

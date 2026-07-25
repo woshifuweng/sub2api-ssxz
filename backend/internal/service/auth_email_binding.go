@@ -40,9 +40,6 @@ func (s *AuthService) BindEmailIdentity(
 	if err := s.VerifyOAuthEmailCode(ctx, normalizedEmail, verifyCode); err != nil {
 		return nil, err
 	}
-	if err := s.validateRegistrationEmailPolicy(ctx, normalizedEmail); err != nil {
-		return nil, err
-	}
 
 	currentUser, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {

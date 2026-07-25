@@ -18,7 +18,7 @@ import (
 )
 
 // Forward forwards request to OpenAI API
-func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (*OpenAIForwardResult, error) {
+func (s *OpenAIGatewayService) ForwardWeiShaw(ctx context.Context, c *gin.Context, account *Account, body []byte) (*OpenAIForwardResult, error) {
 	clearGrokResponsesClientToolMapping(c)
 	startTime := time.Now()
 	// 固定渠道映射后的请求级 canonical body；账号 normalize/strip 不得改写跨 failover hint。
@@ -267,7 +267,12 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		if modelForNormalize == "" {
 			modelForNormalize = requestView.Model
 		}
-		upstreamModel = normalizeOpenAIModelForUpstream(account, modelForNormalize)
+		upstreamModel = modelForNormalize
+		if account.Type == AccountTypeOAuth {
+			if normalizedModel, known := normalizeKnownCodexModel(modelForNormalize); known {
+				upstreamModel = normalizedModel
+			}
+		}
 		if upstreamModel != "" && upstreamModel != modelForNormalize {
 			logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Upstream model resolved: %s -> %s (account: %s, type: %s, isCodexCLI: %v)", modelForNormalize, upstreamModel, account.Name, account.Type, isCodexCLI)
 			reqModel = upstreamModel
@@ -360,6 +365,9 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		if decodeErr != nil {
 			return nil, decodeErr
 		}
+		resolvedModelBeforeCodexTransform := upstreamModel
+		_, knownResolvedCodexModel := normalizeKnownCodexModel(resolvedModelBeforeCodexTransform)
+		preserveResolvedModel := billingModel != requestView.Model || !knownResolvedCodexModel
 		codexResult := codexTransformResult{}
 		if compatMessagesBridge {
 			codexResult = applyCodexOAuthTransformWithOptions(decoded, codexOAuthTransformOptions{IsCodexCLI: isCodexCLI, IsCompact: isCompactRequest, SkipDefaultInstructions: true, PreserveToolCallIDs: true})
@@ -375,7 +383,10 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		if !isCompactRequest && applyCodexClientMetadata(decoded, account) {
 			markDecodedModified()
 		}
-		if codexResult.NormalizedModel != "" {
+		if preserveResolvedModel {
+			decoded["model"] = resolvedModelBeforeCodexTransform
+			upstreamModel = resolvedModelBeforeCodexTransform
+		} else if codexResult.NormalizedModel != "" {
 			upstreamModel = codexResult.NormalizedModel
 		}
 		if codexResult.PromptCacheKey != "" {
@@ -513,8 +524,9 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		imageInputSize = imageCfg.InputSize
 	}
 
-	// Get access token
-	token, _, err := s.GetAccessToken(ctx, account)
+	// Agent Identity signs each upstream request and does not carry a reusable
+	// OAuth access token; all other account types use the regular token path.
+	token, err := s.getOpenAIRequestAccessToken(ctx, account)
 	if err != nil {
 		return nil, err
 	}
@@ -960,7 +972,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	}
 }
 
-func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Context, account *Account, body []byte, token string, isStream bool, promptCacheKey string, isCodexCLI bool) (*http.Request, error) {
+func (s *OpenAIGatewayService) buildUpstreamRequestWeiShaw(ctx context.Context, c *gin.Context, account *Account, body []byte, token string, isStream bool, promptCacheKey string, isCodexCLI bool) (*http.Request, error) {
 	// Determine target URL based on account type
 	var targetURL string
 	switch account.Type {
@@ -1032,7 +1044,7 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 			req.Header.Del("originator")
 		} else {
 			req.Header.Set("OpenAI-Beta", "responses=experimental")
-			req.Header.Set("originator", resolveOpenAIUpstreamOriginator(c, isCodexCLI))
+			req.Header.Set("originator", resolveOpenAIUpstreamOriginatorLegacy(c, isCodexCLI))
 		}
 		apiKeyID := getAPIKeyIDFromContext(c)
 		if isOpenAIResponsesCompactPath(c) {

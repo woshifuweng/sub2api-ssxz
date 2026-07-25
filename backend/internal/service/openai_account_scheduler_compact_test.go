@@ -9,11 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestOpenAIGatewayService_SelectAccountWithScheduler_CompactPrefersSupportedOverUnknown
-// 验证 compact 调度时显式支持 (tier=2) 优先于未探测 (tier=1)。
 func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactPrefersSupportedOverUnknown(t *testing.T) {
-	resetOpenAIAdvancedSchedulerSettingCacheForTest()
-
 	ctx := context.Background()
 	groupID := int64(91001)
 	accounts := []Account{
@@ -25,7 +21,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactPrefersSupported
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    0,
-			Extra:       map[string]any{}, // unknown
+			Extra:       map[string]any{},
 		},
 		{
 			ID:          71002,
@@ -35,19 +31,16 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactPrefersSupported
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    0,
-			Extra:       map[string]any{"openai_compact_supported": true}, // tier=2
+			Extra:       map[string]any{"openai_compact_supported": true},
 		},
 	}
-	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
 	svc := &OpenAIGatewayService{
-		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:              &schedulerTestGatewayCache{},
-		cfg:                cfg,
-		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+		accountRepo: stubOpenAIAccountRepo{accounts: accounts},
+		cache:       &stubGatewayCache{},
+		cfg:         &config.Config{},
 	}
 
-	selection, _, err := svc.SelectAccountWithScheduler(
+	selection, decision, err := svc.SelectAccountWithSchedulerWithCompact(
 		ctx,
 		&groupID,
 		"",
@@ -60,14 +53,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactPrefersSupported
 	require.NoError(t, err)
 	require.NotNil(t, selection)
 	require.NotNil(t, selection.Account)
-	require.Equal(t, int64(71002), selection.Account.ID, "compact-supported account should win over unknown")
+	require.Equal(t, int64(71002), selection.Account.ID)
+	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
+	require.Equal(t, 2, decision.CandidateCount)
 }
 
-// TestOpenAIGatewayService_SelectAccountWithScheduler_CompactRejectsExplicitlyUnsupported
-// 验证 force_off / 已探测不支持 (tier=0) 的账号不会被 compact 请求选中。
-func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactRejectsExplicitlyUnsupported(t *testing.T) {
-	resetOpenAIAdvancedSchedulerSettingCacheForTest()
-
+func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactRejectsUnsupported(t *testing.T) {
 	ctx := context.Background()
 	groupID := int64(91002)
 	accounts := []Account{
@@ -88,20 +79,17 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactRejectsExplicitl
 			Status:      StatusActive,
 			Schedulable: true,
 			Concurrency: 1,
-			Priority:    0,
+			Priority:    1,
 			Extra:       map[string]any{"openai_compact_supported": false},
 		},
 	}
-	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
 	svc := &OpenAIGatewayService{
-		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:              &schedulerTestGatewayCache{},
-		cfg:                cfg,
-		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+		accountRepo: stubOpenAIAccountRepo{accounts: accounts},
+		cache:       &stubGatewayCache{},
+		cfg:         &config.Config{},
 	}
 
-	selection, _, err := svc.SelectAccountWithScheduler(
+	selection, _, err := svc.SelectAccountWithSchedulerWithCompact(
 		ctx,
 		&groupID,
 		"",
@@ -112,15 +100,11 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactRejectsExplicitl
 		true,
 	)
 	require.Error(t, err)
-	require.True(t, errors.Is(err, ErrNoAvailableCompactAccounts), "compact-only accounts should rejected explicitly unsupported and return compact error")
+	require.True(t, errors.Is(err, ErrNoAvailableCompactAccounts))
 	require.Nil(t, selection)
 }
 
-// TestOpenAIGatewayService_SelectAccountWithScheduler_CompactFallsBackToUnknown
-// 验证当没有"已知支持"账号时，compact 请求会回退到"未探测"账号。
-func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactFallsBackToUnknown(t *testing.T) {
-	resetOpenAIAdvancedSchedulerSettingCacheForTest()
-
+func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactStickyUnsupportedFallsBack(t *testing.T) {
 	ctx := context.Background()
 	groupID := int64(91003)
 	accounts := []Account{
@@ -132,7 +116,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactFallsBackToUnkno
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    0,
-			Extra:       map[string]any{"openai_compact_supported": false}, // tier=0
+			Extra:       map[string]any{"openai_compact_supported": false},
 		},
 		{
 			ID:          71021,
@@ -141,24 +125,24 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactFallsBackToUnkno
 			Status:      StatusActive,
 			Schedulable: true,
 			Concurrency: 1,
-			Priority:    0,
-			Extra:       map[string]any{}, // unknown -> tier=1
+			Priority:    1,
+			Extra:       map[string]any{"openai_compact_supported": true},
 		},
 	}
-	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	cache := &stubGatewayCache{
+		sessionBindings: map[string]int64{"openai:compact_sticky": 71020},
+	}
 	svc := &OpenAIGatewayService{
-		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:              &schedulerTestGatewayCache{},
-		cfg:                cfg,
-		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+		accountRepo: stubOpenAIAccountRepo{accounts: accounts},
+		cache:       cache,
+		cfg:         &config.Config{},
 	}
 
-	selection, _, err := svc.SelectAccountWithScheduler(
+	selection, decision, err := svc.SelectAccountWithSchedulerWithCompact(
 		ctx,
 		&groupID,
 		"",
-		"",
+		"compact_sticky",
 		"gpt-5.4",
 		nil,
 		OpenAIUpstreamTransportAny,
@@ -167,52 +151,54 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactFallsBackToUnkno
 	require.NoError(t, err)
 	require.NotNil(t, selection)
 	require.NotNil(t, selection.Account)
-	require.Equal(t, int64(71021), selection.Account.ID, "unknown account should be picked when no supported account available")
+	require.Equal(t, int64(71021), selection.Account.ID)
+	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
+	require.Equal(t, 1, cache.deletedSessions["openai:compact_sticky"])
+	require.Equal(t, int64(71021), cache.sessionBindings["openai:compact_sticky"])
 }
 
-// TestOpenAIGatewayService_SelectAccountWithScheduler_CompactAllowsGrok verifies
-// that OpenAI-compatible compact routing does not reject Grok accounts.
-func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactAllowsGrok(t *testing.T) {
-	resetOpenAIAdvancedSchedulerSettingCacheForTest()
-
+func TestOpenAIGatewayService_SelectAccountWithScheduler_NonCompactCanUseUnsupported(t *testing.T) {
 	ctx := context.Background()
 	groupID := int64(91004)
 	accounts := []Account{
 		{
 			ID:          71030,
-			Platform:    PlatformGrok,
-			Type:        AccountTypeOAuth,
+			Platform:    PlatformOpenAI,
+			Type:        AccountTypeAPIKey,
 			Status:      StatusActive,
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    0,
-			Credentials: map[string]any{
-				"model_mapping": map[string]any{"grok-4.5": "grok-4.5"},
-			},
+			Extra:       map[string]any{"openai_compact_supported": false},
+		},
+		{
+			ID:          71031,
+			Platform:    PlatformOpenAI,
+			Type:        AccountTypeAPIKey,
+			Status:      StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Priority:    10,
+			Extra:       map[string]any{"openai_compact_supported": true},
 		},
 	}
-	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	cache := &stubGatewayCache{
+		sessionBindings: map[string]int64{"openai:normal_sticky": 71030},
+	}
 	svc := &OpenAIGatewayService{
-		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:              &schedulerTestGatewayCache{},
-		cfg:                cfg,
-		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+		accountRepo: stubOpenAIAccountRepo{accounts: accounts},
+		cache:       cache,
+		cfg:         &config.Config{},
 	}
 
-	selection, _, err := svc.SelectAccountWithSchedulerForCapability(
+	selection, _, err := svc.SelectAccountWithScheduler(
 		ctx,
 		&groupID,
 		"",
-		"",
-		"grok-4.5",
+		"normal_sticky",
+		"gpt-5.4",
 		nil,
 		OpenAIUpstreamTransportAny,
-		OpenAIEndpointCapabilityChatCompletions,
-		true,
-		false,
-		true,
-		PlatformGrok,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, selection)
@@ -220,7 +206,6 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactAllowsGrok(t *te
 	require.Equal(t, int64(71030), selection.Account.ID)
 }
 
-// TestOpenAICompactSupportTier 验证 tier 分类逻辑。
 func TestOpenAICompactSupportTier(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -229,18 +214,16 @@ func TestOpenAICompactSupportTier(t *testing.T) {
 	}{
 		{name: "nil", account: nil, want: 0},
 		{name: "non openai", account: &Account{Platform: PlatformAnthropic}, want: 0},
-		{name: "grok", account: &Account{Platform: PlatformGrok}, want: 2},
 		{name: "openai unknown", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{}}, want: 1},
 		{name: "openai supported", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_supported": true}}, want: 2},
 		{name: "openai unsupported", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_supported": false}}, want: 0},
 		{name: "force on", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": OpenAICompactModeForceOn}}, want: 2},
 		{name: "force off overrides probe true", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": OpenAICompactModeForceOff, "openai_compact_supported": true}}, want: 0},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := openAICompactSupportTier(tt.account); got != tt.want {
-				t.Fatalf("openAICompactSupportTier(...) = %d, want %d", got, tt.want)
-			}
+			require.Equal(t, tt.want, openAICompactSupportTier(tt.account))
 		})
 	}
 }

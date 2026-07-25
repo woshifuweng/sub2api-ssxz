@@ -21,10 +21,12 @@ func testConfig() *config.Config {
 
 // mockAccountRepoForPlatform 单平台测试用的 mock
 type mockAccountRepoForPlatform struct {
-	accounts         []Account
-	accountsByID     map[int64]*Account
-	listPlatformFunc func(ctx context.Context, platform string) ([]Account, error)
-	getByIDCalls     int
+	accounts               []Account
+	accountsByID           map[int64]*Account
+	listPlatformFunc       func(ctx context.Context, platform string) ([]Account, error)
+	listGroupPlatformFunc  func(ctx context.Context, groupID int64, platform string) ([]Account, error)
+	listGroupPlatformsFunc func(ctx context.Context, groupID int64, platforms []string) ([]Account, error)
+	getByIDCalls           int
 }
 
 func (m *mockAccountRepoForPlatform) GetByID(ctx context.Context, id int64) (*Account, error) {
@@ -67,6 +69,9 @@ func (m *mockAccountRepoForPlatform) ListSchedulableByPlatform(ctx context.Conte
 }
 
 func (m *mockAccountRepoForPlatform) ListSchedulableByGroupIDAndPlatform(ctx context.Context, groupID int64, platform string) ([]Account, error) {
+	if m.listGroupPlatformFunc != nil {
+		return m.listGroupPlatformFunc(ctx, groupID, platform)
+	}
 	return m.ListSchedulableByPlatform(ctx, platform)
 }
 
@@ -148,6 +153,9 @@ func (m *mockAccountRepoForPlatform) ListSchedulableByPlatforms(ctx context.Cont
 	return result, nil
 }
 func (m *mockAccountRepoForPlatform) ListSchedulableByGroupIDAndPlatforms(ctx context.Context, groupID int64, platforms []string) ([]Account, error) {
+	if m.listGroupPlatformsFunc != nil {
+		return m.listGroupPlatformsFunc(ctx, groupID, platforms)
+	}
 	return m.ListSchedulableByPlatforms(ctx, platforms)
 }
 func (m *mockAccountRepoForPlatform) ListSchedulableUngroupedByPlatform(ctx context.Context, platform string) ([]Account, error) {
@@ -2149,6 +2157,14 @@ func (m *mockConcurrencyCache) GetUsersLoadBatch(ctx context.Context, users []Us
 	return result, nil
 }
 
+func gatewayTestLoad(accountID int64, currentConcurrency, waitingCount int) *AccountLoadInfo {
+	return &AccountLoadInfo{
+		AccountID:          accountID,
+		CurrentConcurrency: currentConcurrency,
+		WaitingCount:       waitingCount,
+	}
+}
+
 // TestGatewayService_SelectAccountWithLoadAwareness tests load-aware account selection
 func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 	ctx := context.Background()
@@ -2784,8 +2800,8 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 
 		concurrencyCache := &mockConcurrencyCache{
 			loadMap: map[int64]*AccountLoadInfo{
-				1: {AccountID: 1, LoadRate: 80},
-				2: {AccountID: 2, LoadRate: 20},
+				1: gatewayTestLoad(1, 4, 0),
+				2: gatewayTestLoad(2, 1, 0),
 			},
 		}
 
@@ -2842,8 +2858,8 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		concurrencyCache := &mockConcurrencyCache{
 			acquireResults: map[int64]bool{1: false, 2: false},
 			loadMap: map[int64]*AccountLoadInfo{
-				1: {AccountID: 1, LoadRate: 10},
-				2: {AccountID: 2, LoadRate: 20},
+				1: gatewayTestLoad(1, 0, 0),
+				2: gatewayTestLoad(2, 1, 0),
 			},
 		}
 
@@ -2899,9 +2915,9 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 
 		concurrencyCache := &mockConcurrencyCache{
 			loadMap: map[int64]*AccountLoadInfo{
-				1: {AccountID: 1, LoadRate: 100},
-				2: {AccountID: 2, LoadRate: 100},
-				3: {AccountID: 3, LoadRate: 0},
+				1: gatewayTestLoad(1, 5, 0),
+				2: gatewayTestLoad(2, 5, 0),
+				3: gatewayTestLoad(3, 0, 0),
 			},
 		}
 
@@ -2989,8 +3005,8 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 
 		concurrencyCache := &mockConcurrencyCache{
 			loadMap: map[int64]*AccountLoadInfo{
-				1: {AccountID: 1, LoadRate: 10},
-				2: {AccountID: 2, LoadRate: 10},
+				1: gatewayTestLoad(1, 0, 0),
+				2: gatewayTestLoad(2, 0, 0),
 			},
 		}
 
@@ -3193,8 +3209,8 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		concurrencyCache := &mockConcurrencyCache{
 			acquireResults: map[int64]bool{1: false, 2: false},
 			loadMap: map[int64]*AccountLoadInfo{
-				1: {AccountID: 1, LoadRate: 10},
-				2: {AccountID: 2, LoadRate: 20},
+				1: gatewayTestLoad(1, 0, 0),
+				2: gatewayTestLoad(2, 1, 0),
 			},
 		}
 
@@ -3231,7 +3247,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 
 		concurrencyCache := &mockConcurrencyCache{
 			loadMap: map[int64]*AccountLoadInfo{
-				1: {AccountID: 1, LoadRate: 50},
+				1: gatewayTestLoad(1, 2, 1),
 			},
 			skipDefaultLoad: true,
 		}
@@ -3438,4 +3454,129 @@ func TestGatewayService_ResolveGatewayGroup_DetectsFallbackCycle(t *testing.T) {
 	require.Nil(t, gotGroup)
 	require.Nil(t, gotID)
 	require.Contains(t, err.Error(), "fallback group cycle")
+}
+
+func TestGatewayService_SelectAccountForModelWithExclusions_UsesSchedulingFallbackGroup(t *testing.T) {
+	ctx := context.Background()
+	primaryGroupID := int64(40)
+	fallbackGroupID := int64(41)
+
+	repo := &mockAccountRepoForPlatform{
+		listGroupPlatformsFunc: func(ctx context.Context, groupID int64, platforms []string) ([]Account, error) {
+			switch groupID {
+			case primaryGroupID:
+				return []Account{}, nil
+			case fallbackGroupID:
+				return []Account{
+					{ID: 101, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Priority: 1},
+				}, nil
+			default:
+				return nil, nil
+			}
+		},
+		accountsByID: map[int64]*Account{
+			101: &Account{ID: 101, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Priority: 1},
+		},
+	}
+	cache := &mockGatewayCacheForPlatform{}
+	groupRepo := &mockGroupRepoForGateway{
+		groups: map[int64]*Group{
+			primaryGroupID: {
+				ID:              primaryGroupID,
+				Platform:        PlatformAnthropic,
+				Status:          StatusActive,
+				Hydrated:        true,
+				FallbackGroupID: &fallbackGroupID,
+			},
+			fallbackGroupID: {
+				ID:       fallbackGroupID,
+				Platform: PlatformAnthropic,
+				Status:   StatusActive,
+				Hydrated: true,
+			},
+		},
+	}
+
+	svc := &GatewayService{
+		accountRepo: repo,
+		groupRepo:   groupRepo,
+		cache:       cache,
+		cfg:         testConfig(),
+	}
+
+	account, err := svc.SelectAccountForModelWithExclusions(ctx, &primaryGroupID, "group-fallback", "claude-3-5-sonnet-20241022", nil)
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	require.Equal(t, int64(101), account.ID)
+	require.Equal(t, int64(101), cache.sessionBindings["group-fallback"])
+}
+
+func TestGatewayService_SelectAccountWithLoadAwareness_PrefersFallbackGroupOverPrimaryWaitPlan(t *testing.T) {
+	ctx := context.Background()
+	primaryGroupID := int64(42)
+	fallbackGroupID := int64(43)
+
+	repo := &mockAccountRepoForPlatform{
+		listGroupPlatformsFunc: func(ctx context.Context, groupID int64, platforms []string) ([]Account, error) {
+			switch groupID {
+			case primaryGroupID:
+				return []Account{
+					{ID: 201, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Priority: 1, Concurrency: 1},
+				}, nil
+			case fallbackGroupID:
+				return []Account{
+					{ID: 202, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Priority: 1, Concurrency: 1},
+				}, nil
+			default:
+				return nil, nil
+			}
+		},
+		accountsByID: map[int64]*Account{
+			201: &Account{ID: 201, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Priority: 1, Concurrency: 1},
+			202: &Account{ID: 202, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Priority: 1, Concurrency: 1},
+		},
+	}
+	cache := &mockGatewayCacheForPlatform{}
+	groupRepo := &mockGroupRepoForGateway{
+		groups: map[int64]*Group{
+			primaryGroupID: {
+				ID:              primaryGroupID,
+				Platform:        PlatformAnthropic,
+				Status:          StatusActive,
+				Hydrated:        true,
+				FallbackGroupID: &fallbackGroupID,
+			},
+			fallbackGroupID: {
+				ID:       fallbackGroupID,
+				Platform: PlatformAnthropic,
+				Status:   StatusActive,
+				Hydrated: true,
+			},
+		},
+	}
+	concurrencyCache := &mockConcurrencyCache{
+		acquireResults: map[int64]bool{
+			201: false,
+			202: true,
+		},
+	}
+
+	svc := &GatewayService{
+		accountRepo:        repo,
+		groupRepo:          groupRepo,
+		cache:              cache,
+		cfg:                testConfig(),
+		concurrencyService: NewConcurrencyService(concurrencyCache),
+	}
+
+	result, err := svc.SelectAccountWithLoadAwareness(ctx, &primaryGroupID, "group-wait-fallback", "claude-3-5-sonnet-20241022", nil, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.Account)
+	require.Nil(t, result.WaitPlan)
+	require.Equal(t, int64(202), result.Account.ID)
+	require.Equal(t, int64(202), cache.sessionBindings["group-wait-fallback"])
+	if result.ReleaseFunc != nil {
+		result.ReleaseFunc()
+	}
 }

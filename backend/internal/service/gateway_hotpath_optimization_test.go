@@ -475,8 +475,8 @@ func TestGetAvailableModels_UsesShortCacheAndSupportsInvalidation(t *testing.T) 
 					Platform: PlatformAnthropic,
 					Credentials: map[string]any{
 						"model_mapping": map[string]any{
-							"claude-3-5-sonnet": "claude-3-5-sonnet",
-							"claude-3-5-haiku":  "claude-3-5-haiku",
+							"claude-opus-4-6":   "claude-opus-4-6",
+							"claude-sonnet-4-6": "claude-sonnet-4-6",
 						},
 					},
 				},
@@ -500,7 +500,7 @@ func TestGetAvailableModels_UsesShortCacheAndSupportsInvalidation(t *testing.T) 
 	}
 
 	models1 := svc.GetAvailableModels(context.Background(), &groupID, PlatformAnthropic)
-	require.Equal(t, []string{"claude-3-5-haiku", "claude-3-5-sonnet"}, models1)
+	require.Equal(t, []string{"claude-opus-4-6", "claude-sonnet-4-6"}, models1)
 	require.Equal(t, int64(1), repo.listByGroupCalls.Load())
 
 	// TTL 内再次请求应命中缓存，不回源。
@@ -515,24 +515,58 @@ func TestGetAvailableModels_UsesShortCacheAndSupportsInvalidation(t *testing.T) 
 			Platform: PlatformAnthropic,
 			Credentials: map[string]any{
 				"model_mapping": map[string]any{
-					"claude-3-7-sonnet": "claude-3-7-sonnet",
+					"claude-opus-4-8": "claude-opus-4-8",
 				},
 			},
 		},
 	}
 	models3 := svc.GetAvailableModels(context.Background(), &groupID, PlatformAnthropic)
-	require.Equal(t, []string{"claude-3-5-haiku", "claude-3-5-sonnet"}, models3)
+	require.Equal(t, []string{"claude-opus-4-6", "claude-sonnet-4-6"}, models3)
 	require.Equal(t, int64(1), repo.listByGroupCalls.Load())
 
 	svc.InvalidateAvailableModelsCache(&groupID, PlatformAnthropic)
 	models4 := svc.GetAvailableModels(context.Background(), &groupID, PlatformAnthropic)
-	require.Equal(t, []string{"claude-3-7-sonnet"}, models4)
+	require.Equal(t, []string{"claude-opus-4-8"}, models4)
 	require.Equal(t, int64(2), repo.listByGroupCalls.Load())
 
 	hit, miss, store := GatewayModelsListCacheStats()
 	require.Equal(t, int64(2), hit)
 	require.Equal(t, int64(2), miss)
 	require.Equal(t, int64(2), store)
+}
+
+func TestGetAvailableModels_PrefersFetchedModelsOverModelMapping(t *testing.T) {
+	resetGatewayHotpathStatsForTest()
+
+	groupID := int64(10)
+	repo := &modelsListAccountRepoStub{
+		byGroup: map[int64][]Account{
+			groupID: {
+				{
+					ID:       1,
+					Platform: PlatformAnthropic,
+					Credentials: map[string]any{
+						"model_mapping": map[string]any{
+							"claude-legacy": "claude-legacy",
+						},
+					},
+					Extra: map[string]any{
+						AccountExtraFetchedModelsKey: []any{"claude-sonnet-5", "claude-fable-5"},
+					},
+				},
+			},
+		},
+	}
+
+	svc := &GatewayService{
+		accountRepo:        repo,
+		modelsListCache:    gocache.New(time.Minute, time.Minute),
+		modelsListCacheTTL: time.Minute,
+	}
+
+	models := svc.GetAvailableModels(context.Background(), &groupID, PlatformAnthropic)
+	require.Equal(t, []string{"claude-fable-5", "claude-sonnet-5"}, models)
+	require.Equal(t, int64(1), repo.listByGroupCalls.Load())
 }
 
 func TestGetAvailableModels_ErrorAndGlobalListBranches(t *testing.T) {
@@ -578,6 +612,35 @@ func TestGetAvailableModels_ErrorAndGlobalListBranches(t *testing.T) {
 	models := svcOK.GetAvailableModels(context.Background(), nil, "")
 	require.Equal(t, []string{"claude-3-5-sonnet", "gemini-2.5-pro"}, models)
 	require.Equal(t, int64(1), okRepo.listAllCalls.Load())
+}
+
+func TestGetAvailableModels_PrefersFetchedModelsOverStaticMapping(t *testing.T) {
+	repo := &modelsListAccountRepoStub{
+		all: []Account{
+			{
+				ID:       1,
+				Platform: PlatformOpenAI,
+				Credentials: map[string]any{
+					"model_mapping": map[string]any{
+						"gpt-4.1": "gpt-4.1",
+					},
+				},
+				Extra: map[string]any{
+					AccountExtraFetchedModelsKey: []any{"gpt-5.5", "gpt-5.4-mini"},
+				},
+			},
+		},
+	}
+	svc := &GatewayService{
+		accountRepo:        repo,
+		modelsListCache:    gocache.New(time.Minute, time.Minute),
+		modelsListCacheTTL: time.Minute,
+	}
+
+	models := svc.GetAvailableModels(context.Background(), nil, PlatformOpenAI)
+
+	require.Equal(t, []string{"gpt-5.4-mini", "gpt-5.5"}, models)
+	require.Equal(t, int64(1), repo.listAllCalls.Load())
 }
 
 func TestGatewayHotpathHelpers_CacheTTLAndStickyContext(t *testing.T) {
@@ -732,7 +795,7 @@ func TestSelectAccountWithLoadAwareness_StickyReadReuse(t *testing.T) {
 			modelsListCacheTTL: time.Minute,
 		}
 
-		result, err := svc.SelectAccountWithLoadAwareness(baseCtx, nil, "sess-hash", "", nil, "", int64(0))
+		result, err := svc.SelectAccountWithLoadAwareness(baseCtx, nil, "sess-hash", "", nil, "", 0)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
@@ -754,7 +817,7 @@ func TestSelectAccountWithLoadAwareness_StickyReadReuse(t *testing.T) {
 
 		ctx := context.WithValue(baseCtx, ctxkey.PrefetchedStickyAccountID, account.ID)
 		ctx = context.WithValue(ctx, ctxkey.PrefetchedStickyGroupID, int64(0))
-		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "sess-hash", "", nil, "", int64(0))
+		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "sess-hash", "", nil, "", 0)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
@@ -776,7 +839,7 @@ func TestSelectAccountWithLoadAwareness_StickyReadReuse(t *testing.T) {
 
 		ctx := context.WithValue(baseCtx, ctxkey.PrefetchedStickyAccountID, int64(999))
 		ctx = context.WithValue(ctx, ctxkey.PrefetchedStickyGroupID, int64(77))
-		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "sess-hash", "", nil, "", int64(0))
+		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "sess-hash", "", nil, "", 0)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)

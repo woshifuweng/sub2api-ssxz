@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
-	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -245,7 +244,7 @@ func (s *OpenAIGatewayService) openAIFirstOutputTimeout(reasoningEffort string) 
 
 func (s *OpenAIGatewayService) newOpenAIFirstOutputTimeoutError(
 	ctx context.Context,
-	c *gin.Context,
+	c any,
 	account *Account,
 	startTime time.Time,
 	originalModel string,
@@ -261,7 +260,7 @@ func (s *OpenAIGatewayService) newOpenAIFirstOutputTimeoutError(
 		account.ID, originalModel, reasoningEffort, phase, elapsed, timeout,
 	)
 	requestID := strings.TrimSpace(responseHeaders.Get("x-request-id"))
-	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+	appendOpsUpstreamErrorAny(c, OpsUpstreamErrorEvent{
 		Platform: account.Platform, AccountID: account.ID, AccountName: account.Name,
 		UpstreamStatusCode: http.StatusGatewayTimeout, UpstreamRequestID: requestID,
 		Kind: "first_output_timeout", Message: "OpenAI upstream produced no semantic output before the deadline",

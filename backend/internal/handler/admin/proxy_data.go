@@ -2,131 +2,125 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
 // ExportData exports proxy-only data for migration.
 func (h *ProxyHandler) ExportData(c *gin.Context) {
-	ctx := c.Request.Context()
+	h.ExportDataGateway(gatewayctx.FromGin(c))
+}
 
-	selectedIDs, err := parseProxyIDs(c)
+func (h *ProxyHandler) ExportDataGateway(c gatewayctx.GatewayContext) {
+	ctx := c.Request().Context()
+
+	selectedIDs, err := parseProxyIDsRequest(c.Request())
 	if err != nil {
-		response.BadRequest(c, err.Error())
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	var proxies []service.Proxy
 	if len(selectedIDs) > 0 {
 		proxies, err = h.getProxiesByIDs(ctx, selectedIDs)
-		if err != nil {
-			response.ErrorFrom(c, err)
-			return
-		}
 	} else {
-		protocol := c.Query("protocol")
-		status := c.Query("status")
-		search := strings.TrimSpace(c.Query("search"))
-		sortBy := c.DefaultQuery("sort_by", "id")
-		sortOrder := c.DefaultQuery("sort_order", "desc")
+		protocol := c.QueryValue("protocol")
+		status := c.QueryValue("status")
+		search := strings.TrimSpace(c.QueryValue("search"))
 		if len(search) > 100 {
 			search = search[:100]
 		}
-
-		proxies, err = h.listProxiesFiltered(ctx, protocol, status, search, sortBy, sortOrder)
-		if err != nil {
-			response.ErrorFrom(c, err)
-			return
-		}
+		proxies, err = h.listProxiesFiltered(
+			ctx,
+			protocol,
+			status,
+			search,
+			c.QueryValue("sort_by"),
+			c.QueryValue("sort_order"),
+		)
 	}
-
-	// 构建 id→name 映射，用于导出备用代理 name
-	proxyNameByID := make(map[int64]string, len(proxies))
-	for i := range proxies {
-		proxyNameByID[proxies[i].ID] = proxies[i].Name
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
 	}
 
 	dataProxies := make([]DataProxy, 0, len(proxies))
 	for i := range proxies {
 		p := proxies[i]
 		key := buildProxyKey(p.Protocol, p.Host, p.Port, p.Username, p.Password)
-
-		var expiresAt *int64
-		if p.ExpiresAt != nil {
-			v := p.ExpiresAt.Unix()
-			expiresAt = &v
-		}
-		var backupProxyName string
-		if p.BackupProxyID != nil {
-			backupProxyName = proxyNameByID[*p.BackupProxyID]
-		}
 		dataProxies = append(dataProxies, DataProxy{
-			ProxyKey:        key,
-			Name:            p.Name,
-			Protocol:        p.Protocol,
-			Host:            p.Host,
-			Port:            p.Port,
-			Username:        p.Username,
-			Password:        p.Password,
-			Status:          p.Status,
-			ExpiresAt:       expiresAt,
-			FallbackMode:    p.FallbackMode,
-			BackupProxyName: backupProxyName,
-			ExpiryWarnDays:  p.ExpiryWarnDays,
+			ProxyKey: key,
+			Name:     p.Name,
+			Protocol: p.Protocol,
+			Host:     p.Host,
+			Port:     p.Port,
+			Username: p.Username,
+			Password: p.Password,
+			Status:   p.Status,
 		})
 	}
 
-	payload := DataPayload{
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, DataPayload{
 		ExportedAt: time.Now().UTC().Format(time.RFC3339),
 		Proxies:    dataProxies,
 		Accounts:   []DataAccount{},
-	}
-
-	response.Success(c, payload)
+	})
 }
 
 // ImportData imports proxy-only data for migration.
 func (h *ProxyHandler) ImportData(c *gin.Context) {
+	h.ImportDataGateway(gatewayctx.FromGin(c))
+}
+
+func (h *ProxyHandler) ImportDataGateway(c gatewayctx.GatewayContext) {
 	type ProxyImportRequest struct {
 		Data DataPayload `json:"data"`
 	}
 
 	var req ProxyImportRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	contentType := ""
+	if request := c.Request(); request != nil {
+		contentType = request.Header.Get("Content-Type")
+	}
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(contentType)), "multipart/form-data") {
+		payload, err := parseImportPayloadFromMultipartRequest(c.Request())
+		if err != nil {
+			response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, err.Error())
+			return
+		}
+		req.Data = payload
+	} else if err := json.NewDecoder(c.Request().Body).Decode(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
 
 	if err := validateDataHeader(req.Data); err != nil {
-		response.BadRequest(c, err.Error())
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	ctx := c.Request.Context()
+	ctx := c.Request().Context()
 	result := DataImportResult{}
-
-	existingProxies, err := h.listProxiesFiltered(ctx, "", "", "", "id", "desc")
+	existingProxies, err := h.listProxiesFiltered(ctx, "", "", "", "", "")
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
 	proxyByKey := make(map[string]service.Proxy, len(existingProxies))
-	// proxyNameToID 用于 backup_proxy_name 反查：DB 已有 + 本批次新建均会写入
-	proxyNameToID := make(map[string]int64, len(existingProxies))
 	for i := range existingProxies {
 		p := existingProxies[i]
-		key := buildProxyKey(p.Protocol, p.Host, p.Port, p.Username, p.Password)
-		proxyByKey[key] = p
-		if p.Name != "" {
-			proxyNameToID[p.Name] = p.ID
-		}
+		proxyByKey[buildProxyKey(p.Protocol, p.Host, p.Port, p.Username, p.Password)] = p
 	}
 
 	latencyProbeIDs := make([]int64, 0, len(req.Data.Proxies))
@@ -140,10 +134,7 @@ func (h *ProxyHandler) ImportData(c *gin.Context) {
 		if err := validateDataProxy(item); err != nil {
 			result.ProxyFailed++
 			result.Errors = append(result.Errors, DataImportError{
-				Kind:     "proxy",
-				Name:     item.Name,
-				ProxyKey: key,
-				Message:  err.Error(),
+				Kind: "proxy", Name: item.Name, ProxyKey: key, Message: err.Error(),
 			})
 			continue
 		}
@@ -152,43 +143,9 @@ func (h *ProxyHandler) ImportData(c *gin.Context) {
 		if existing, ok := proxyByKey[key]; ok {
 			result.ProxyReused++
 			if normalizedStatus != "" && normalizedStatus != existing.Status {
-				// 已存在代理同步 status 时，同时保留/覆盖导入 item 的完整字段，
-				// 避免 UpdateProxy 零值覆盖有效期/fallback 配置。
-				var existingExpiresAt *time.Time
-				if item.ExpiresAt != nil {
-					t := time.Unix(*item.ExpiresAt, 0).UTC()
-					existingExpiresAt = &t
-				}
-				existingFallbackMode := item.FallbackMode
-				if existingFallbackMode == "" {
-					existingFallbackMode = service.FallbackModeNone
-				}
-				var existingBackupProxyID *int64
-				if item.BackupProxyName != "" {
-					if bid, ok := proxyNameToID[item.BackupProxyName]; ok {
-						existingBackupProxyID = &bid
-					}
-				}
-				updateInput := &service.UpdateProxyInput{
-					Status:         normalizedStatus,
-					ExpiresAt:      existingExpiresAt,
-					FallbackMode:   existingFallbackMode,
-					BackupProxyID:  existingBackupProxyID,
-					ExpiryWarnDays: item.ExpiryWarnDays,
-					// 保留已存在代理的网络配置字段
-					Name:     existing.Name,
-					Protocol: existing.Protocol,
-					Host:     existing.Host,
-					Port:     existing.Port,
-					Username: existing.Username,
-					Password: existing.Password,
-				}
-				if _, err := h.adminService.UpdateProxy(ctx, existing.ID, updateInput); err != nil {
+				if _, err := h.adminService.UpdateProxy(ctx, existing.ID, &service.UpdateProxyInput{Status: normalizedStatus}); err != nil {
 					result.Errors = append(result.Errors, DataImportError{
-						Kind:     "proxy",
-						Name:     item.Name,
-						ProxyKey: key,
-						Message:  "update status failed: " + err.Error(),
+						Kind: "proxy", Name: item.Name, ProxyKey: key, Message: "update status failed: " + err.Error(),
 					})
 				}
 			}
@@ -196,84 +153,31 @@ func (h *ProxyHandler) ImportData(c *gin.Context) {
 			continue
 		}
 
-		// 解析 expires_at（unix 秒 → *time.Time）
-		var expiresAt *time.Time
-		if item.ExpiresAt != nil {
-			t := time.Unix(*item.ExpiresAt, 0).UTC()
-			expiresAt = &t
-		}
-
-		// 解析 backup_proxy_name → backup_proxy_id
-		fallbackMode := item.FallbackMode
-		var backupProxyID *int64
-		if item.BackupProxyName != "" {
-			if bid, ok := proxyNameToID[item.BackupProxyName]; ok {
-				backupProxyID = &bid
-			} else {
-				// 查不到备用代理：降级 fallback_mode=none，记录 warning
-				fallbackMode = service.FallbackModeNone
-				result.Errors = append(result.Errors, DataImportError{
-					Kind:     "proxy",
-					Name:     item.Name,
-					ProxyKey: key,
-					Message:  fmt.Sprintf("backup_proxy_name %q not found, fallback_mode downgraded to none", item.BackupProxyName),
-				})
-			}
-		}
-
 		created, err := h.adminService.CreateProxy(ctx, &service.CreateProxyInput{
-			Name:           defaultProxyName(item.Name),
-			Protocol:       item.Protocol,
-			Host:           item.Host,
-			Port:           item.Port,
-			Username:       item.Username,
-			Password:       item.Password,
-			ExpiresAt:      expiresAt,
-			FallbackMode:   fallbackMode,
-			BackupProxyID:  backupProxyID,
-			ExpiryWarnDays: item.ExpiryWarnDays,
+			Name:     defaultProxyName(item.Name),
+			Protocol: item.Protocol,
+			Host:     item.Host,
+			Port:     item.Port,
+			Username: item.Username,
+			Password: item.Password,
 		})
 		if err != nil {
 			result.ProxyFailed++
 			result.Errors = append(result.Errors, DataImportError{
-				Kind:     "proxy",
-				Name:     item.Name,
-				ProxyKey: key,
-				Message:  err.Error(),
+				Kind: "proxy", Name: item.Name, ProxyKey: key, Message: err.Error(),
 			})
 			continue
 		}
 		result.ProxyCreated++
 		proxyByKey[key] = *created
-		// 把新建代理的 name 也加入反查表，供后续批内代理引用
-		if created.Name != "" {
-			proxyNameToID[created.Name] = created.ID
-		}
 
 		if normalizedStatus != "" && normalizedStatus != created.Status {
-			// 新建后同步 status 时，传入完整字段，避免零值覆盖刚创建的有效期/fallback 配置。
-			if _, err := h.adminService.UpdateProxy(ctx, created.ID, &service.UpdateProxyInput{
-				Status:         normalizedStatus,
-				ExpiresAt:      expiresAt,
-				FallbackMode:   fallbackMode,
-				BackupProxyID:  backupProxyID,
-				ExpiryWarnDays: item.ExpiryWarnDays,
-				Name:           created.Name,
-				Protocol:       created.Protocol,
-				Host:           created.Host,
-				Port:           created.Port,
-				Username:       created.Username,
-				Password:       created.Password,
-			}); err != nil {
+			if _, err := h.adminService.UpdateProxy(ctx, created.ID, &service.UpdateProxyInput{Status: normalizedStatus}); err != nil {
 				result.Errors = append(result.Errors, DataImportError{
-					Kind:     "proxy",
-					Name:     item.Name,
-					ProxyKey: key,
-					Message:  "update status failed: " + err.Error(),
+					Kind: "proxy", Name: item.Name, ProxyKey: key, Message: "update status failed: " + err.Error(),
 				})
 			}
 		}
-		// CreateProxy already triggers a latency probe, avoid double probing here.
 	}
 
 	if len(latencyProbeIDs) > 0 {
@@ -285,7 +189,7 @@ func (h *ProxyHandler) ImportData(c *gin.Context) {
 		}()
 	}
 
-	response.Success(c, result)
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, result)
 }
 
 func (h *ProxyHandler) getProxiesByIDs(ctx context.Context, ids []int64) ([]service.Proxy, error) {
@@ -303,10 +207,27 @@ func parseProxyIDs(c *gin.Context) ([]int64, error) {
 			values = []string{raw}
 		}
 	}
+	return parseProxyIDValues(values)
+}
+
+func parseProxyIDsRequest(req *http.Request) ([]int64, error) {
+	if req == nil || req.URL == nil {
+		return nil, nil
+	}
+	values := req.URL.Query()["ids"]
+	if len(values) == 0 {
+		raw := strings.TrimSpace(req.URL.Query().Get("ids"))
+		if raw != "" {
+			values = []string{raw}
+		}
+	}
+	return parseProxyIDValues(values)
+}
+
+func parseProxyIDValues(values []string) ([]int64, error) {
 	if len(values) == 0 {
 		return nil, nil
 	}
-
 	ids := make([]int64, 0, len(values))
 	for _, item := range values {
 		for _, part := range strings.Split(item, ",") {
@@ -324,15 +245,28 @@ func parseProxyIDs(c *gin.Context) ([]int64, error) {
 	return ids, nil
 }
 
-func (h *ProxyHandler) listProxiesFiltered(ctx context.Context, protocol, status, search, sortBy, sortOrder string) ([]service.Proxy, error) {
+func (h *ProxyHandler) listProxiesFiltered(
+	ctx context.Context,
+	protocol, status, search, sortBy, sortOrder string,
+) ([]service.Proxy, error) {
 	page := 1
-	pageSize := dataPageCap
-	var out []service.Proxy
+	pageSize := pagination.PaginationParams{Page: 1, PageSize: dataPageCap}.Limit()
+	out := make([]service.Proxy, 0)
 	sortBy = strings.TrimSpace(sortBy)
+	sortOrder = strings.TrimSpace(sortOrder)
+	if sortBy == "" {
+		sortBy = "id"
+	}
+	if sortOrder == "" {
+		sortOrder = "desc"
+	}
 	useAccountCountSort := strings.EqualFold(sortBy, "account_count")
+
 	for {
 		if useAccountCountSort {
-			items, total, err := h.adminService.ListProxiesWithAccountCount(ctx, page, pageSize, protocol, status, search, sortBy, sortOrder)
+			items, total, err := h.adminService.ListProxiesWithAccountCount(
+				ctx, page, pageSize, protocol, status, search, sortBy, sortOrder,
+			)
 			if err != nil {
 				return nil, err
 			}
@@ -343,7 +277,9 @@ func (h *ProxyHandler) listProxiesFiltered(ctx context.Context, protocol, status
 				break
 			}
 		} else {
-			items, total, err := h.adminService.ListProxies(ctx, page, pageSize, protocol, status, search, sortBy, sortOrder)
+			items, total, err := h.adminService.ListProxies(
+				ctx, page, pageSize, protocol, status, search, sortBy, sortOrder,
+			)
 			if err != nil {
 				return nil, err
 			}

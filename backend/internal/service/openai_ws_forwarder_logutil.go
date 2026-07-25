@@ -19,7 +19,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func normalizeOpenAIWSLogValue(value string) string {
+func normalizeOpenAIWSLogValueWeiShaw(value string) string {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
 		return "-"
@@ -27,7 +27,7 @@ func normalizeOpenAIWSLogValue(value string) string {
 	return openAIWSLogValueReplacer.Replace(trimmed)
 }
 
-func truncateOpenAIWSLogValue(value string, maxLen int) string {
+func truncateOpenAIWSLogValueWeiShaw(value string, maxLen int) string {
 	normalized := normalizeOpenAIWSLogValue(value)
 	if normalized == "-" || maxLen <= 0 {
 		return normalized
@@ -38,14 +38,14 @@ func truncateOpenAIWSLogValue(value string, maxLen int) string {
 	return normalized[:maxLen] + "..."
 }
 
-func openAIWSHeaderValueForLog(headers http.Header, key string) string {
+func openAIWSHeaderValueForLogWeiShaw(headers http.Header, key string) string {
 	if headers == nil {
 		return "-"
 	}
 	return truncateOpenAIWSLogValue(headers.Get(key), openAIWSHeaderValueMaxLen)
 }
 
-func hasOpenAIWSHeader(headers http.Header, key string) bool {
+func hasOpenAIWSHeaderWeiShaw(headers http.Header, key string) bool {
 	if headers == nil {
 		return false
 	}
@@ -89,7 +89,7 @@ func resolveOpenAIWSSessionHeaders(c *gin.Context, promptCacheKey string) openAI
 	return resolution
 }
 
-func shouldLogOpenAIWSEvent(idx int, eventType string) bool {
+func shouldLogOpenAIWSEventWeiShaw(idx int, eventType string) bool {
 	if idx <= openAIWSEventLogHeadLimit {
 		return true
 	}
@@ -102,7 +102,7 @@ func shouldLogOpenAIWSEvent(idx int, eventType string) bool {
 	return false
 }
 
-func shouldLogOpenAIWSBufferedEvent(idx int) bool {
+func shouldLogOpenAIWSBufferedEventWeiShaw(idx int) bool {
 	if idx <= openAIWSBufferLogHeadLimit {
 		return true
 	}
@@ -112,7 +112,7 @@ func shouldLogOpenAIWSBufferedEvent(idx int) bool {
 	return false
 }
 
-func openAIWSEventMayContainModel(eventType string) bool {
+func openAIWSEventMayContainModelWeiShaw(eventType string) bool {
 	switch eventType {
 	case "response.created",
 		"response.in_progress",
@@ -144,7 +144,7 @@ func openAIWSEventMayContainModel(eventType string) bool {
 	}
 }
 
-func openAIWSEventMayContainToolCalls(eventType string) bool {
+func openAIWSEventMayContainToolCallsWeiShaw(eventType string) bool {
 	eventType = strings.TrimSpace(eventType)
 	if eventType == "" {
 		return false
@@ -160,7 +160,7 @@ func openAIWSEventMayContainToolCalls(eventType string) bool {
 	}
 }
 
-func openAIWSEventShouldParseUsage(eventType string) bool {
+func openAIWSEventShouldParseUsageWeiShaw(eventType string) bool {
 	switch strings.TrimSpace(eventType) {
 	case "response.completed", "response.done", "response.failed", "response.incomplete", "response.cancelled", "response.canceled":
 		return true
@@ -169,7 +169,7 @@ func openAIWSEventShouldParseUsage(eventType string) bool {
 	}
 }
 
-func parseOpenAIWSEventEnvelope(message []byte) (eventType string, responseID string, response gjson.Result) {
+func parseOpenAIWSEventEnvelopeWeiShaw(message []byte) (eventType string, responseID string, response gjson.Result) {
 	if len(message) == 0 {
 		return "", "", gjson.Result{}
 	}
@@ -183,7 +183,7 @@ func parseOpenAIWSEventEnvelope(message []byte) (eventType string, responseID st
 	return eventType, responseID, values[3]
 }
 
-func openAIWSMessageLikelyContainsToolCalls(message []byte) bool {
+func openAIWSMessageLikelyContainsToolCallsWeiShaw(message []byte) bool {
 	if len(message) == 0 {
 		return false
 	}
@@ -192,7 +192,7 @@ func openAIWSMessageLikelyContainsToolCalls(message []byte) bool {
 		bytes.Contains(message, []byte(`"function_call"`))
 }
 
-func parseOpenAIWSResponseUsageFromCompletedEvent(message []byte, usage *OpenAIUsage) {
+func parseOpenAIWSResponseUsageFromCompletedEventWeiShaw(message []byte, usage *OpenAIUsage) {
 	if usage == nil || len(message) == 0 {
 		return
 	}
@@ -201,7 +201,7 @@ func parseOpenAIWSResponseUsageFromCompletedEvent(message []byte, usage *OpenAIU
 	}
 }
 
-func parseOpenAIWSErrorEventFields(message []byte) (code string, errType string, errMessage string) {
+func parseOpenAIWSErrorEventFieldsWeiShaw(message []byte) (code string, errType string, errMessage string) {
 	if len(message) == 0 {
 		return "", "", ""
 	}
@@ -209,21 +209,21 @@ func parseOpenAIWSErrorEventFields(message []byte) (code string, errType string,
 	return strings.TrimSpace(values[0].String()), strings.TrimSpace(values[1].String()), strings.TrimSpace(values[2].String())
 }
 
-func summarizeOpenAIWSErrorEventFieldsFromRaw(codeRaw, errTypeRaw, errMessageRaw string) (code string, errType string, errMessage string) {
+func summarizeOpenAIWSErrorEventFieldsFromRawWeiShaw(codeRaw, errTypeRaw, errMessageRaw string) (code string, errType string, errMessage string) {
 	code = truncateOpenAIWSLogValue(codeRaw, openAIWSLogValueMaxLen)
 	errType = truncateOpenAIWSLogValue(errTypeRaw, openAIWSLogValueMaxLen)
 	errMessage = truncateOpenAIWSLogValue(errMessageRaw, openAIWSLogValueMaxLen)
 	return code, errType, errMessage
 }
 
-func summarizeOpenAIWSErrorEventFields(message []byte) (code string, errType string, errMessage string) {
+func summarizeOpenAIWSErrorEventFieldsWeiShaw(message []byte) (code string, errType string, errMessage string) {
 	if len(message) == 0 {
 		return "-", "-", "-"
 	}
 	return summarizeOpenAIWSErrorEventFieldsFromRaw(parseOpenAIWSErrorEventFields(message))
 }
 
-func summarizeOpenAIWSPayloadKeySizes(payload map[string]any, topN int) string {
+func summarizeOpenAIWSPayloadKeySizesWeiShaw(payload map[string]any, topN int) string {
 	if len(payload) == 0 {
 		return "-"
 	}
@@ -254,7 +254,7 @@ func summarizeOpenAIWSPayloadKeySizes(payload map[string]any, topN int) string {
 	return strings.Join(parts, ",")
 }
 
-func estimateOpenAIWSPayloadValueSize(value any, depth int) int {
+func estimateOpenAIWSPayloadValueSizeWeiShaw(value any, depth int) int {
 	if depth <= 0 {
 		return -1
 	}
@@ -324,7 +324,7 @@ func estimateOpenAIWSPayloadValueSize(value any, depth int) int {
 	}
 }
 
-func openAIWSPayloadString(payload map[string]any, key string) string {
+func openAIWSPayloadStringWeiShaw(payload map[string]any, key string) string {
 	if len(payload) == 0 {
 		return ""
 	}
@@ -344,14 +344,14 @@ func openAIWSPayloadString(payload map[string]any, key string) string {
 	}
 }
 
-func openAIWSPayloadStringFromRaw(payload []byte, key string) string {
+func openAIWSPayloadStringFromRawWeiShaw(payload []byte, key string) string {
 	if len(payload) == 0 || strings.TrimSpace(key) == "" {
 		return ""
 	}
 	return strings.TrimSpace(gjson.GetBytes(payload, key).String())
 }
 
-func openAIWSPayloadBoolFromRaw(payload []byte, key string, defaultValue bool) bool {
+func openAIWSPayloadBoolFromRawWeiShaw(payload []byte, key string, defaultValue bool) bool {
 	if len(payload) == 0 || strings.TrimSpace(key) == "" {
 		return defaultValue
 	}
@@ -365,11 +365,11 @@ func openAIWSPayloadBoolFromRaw(payload []byte, key string, defaultValue bool) b
 	return value.Bool()
 }
 
-func openAIWSSessionHashesFromID(sessionID string) (string, string) {
+func openAIWSSessionHashesFromIDWeiShaw(sessionID string) (string, string) {
 	return deriveOpenAISessionHashes(sessionID)
 }
 
-func extractOpenAIWSImageURL(value any) string {
+func extractOpenAIWSImageURLWeiShaw(value any) string {
 	switch v := value.(type) {
 	case string:
 		return strings.TrimSpace(v)
@@ -381,7 +381,7 @@ func extractOpenAIWSImageURL(value any) string {
 	return ""
 }
 
-func summarizeOpenAIWSInput(input any) string {
+func summarizeOpenAIWSInputWeiShaw(input any) string {
 	items, ok := input.([]any)
 	if !ok || len(items) == 0 {
 		return "-"
@@ -464,7 +464,7 @@ func summarizeOpenAIWSInput(input any) string {
 	)
 }
 
-func dropOpenAIWSPayloadKey(payload map[string]any, key string, removed *[]string) {
+func dropOpenAIWSPayloadKeyWeiShaw(payload map[string]any, key string, removed *[]string) {
 	if len(payload) == 0 || strings.TrimSpace(key) == "" {
 		return
 	}
@@ -478,7 +478,7 @@ func dropOpenAIWSPayloadKey(payload map[string]any, key string, removed *[]strin
 // applyOpenAIWSRetryPayloadStrategy 在 WS 连续失败时仅移除无语义字段，
 // 避免重试成功却改变原始请求语义。
 // 注意：prompt_cache_key 不应在重试中移除；它常用于会话稳定标识（session_id 兜底）。
-func applyOpenAIWSRetryPayloadStrategy(payload map[string]any, attempt int) (strategy string, removedKeys []string) {
+func applyOpenAIWSRetryPayloadStrategyWeiShaw(payload map[string]any, attempt int) (strategy string, removedKeys []string) {
 	if len(payload) == 0 {
 		return "empty", nil
 	}
@@ -498,22 +498,22 @@ func applyOpenAIWSRetryPayloadStrategy(payload map[string]any, attempt int) (str
 	return "trim_optional_fields", removed
 }
 
-func logOpenAIWSModeInfo(format string, args ...any) {
+func logOpenAIWSModeInfoWeiShaw(format string, args ...any) {
 	logger.LegacyPrintf("service.openai_gateway", "[OpenAI WS Mode][openai_ws_mode=true] "+format, args...)
 }
 
-func isOpenAIWSModeDebugEnabled() bool {
+func isOpenAIWSModeDebugEnabledWeiShaw() bool {
 	return logger.L().Core().Enabled(zap.DebugLevel)
 }
 
-func logOpenAIWSModeDebug(format string, args ...any) {
+func logOpenAIWSModeDebugWeiShaw(format string, args ...any) {
 	if !isOpenAIWSModeDebugEnabled() {
 		return
 	}
 	logger.LegacyPrintf("service.openai_gateway", "[debug] [OpenAI WS Mode][openai_ws_mode=true] "+format, args...)
 }
 
-func logOpenAIWSBindResponseAccountWarn(groupID, accountID int64, responseID string, err error) {
+func logOpenAIWSBindResponseAccountWarnWeiShaw(groupID, accountID int64, responseID string, err error) {
 	if err == nil {
 		return
 	}
@@ -526,7 +526,7 @@ func logOpenAIWSBindResponseAccountWarn(groupID, accountID int64, responseID str
 	)
 }
 
-func summarizeOpenAIWSReadCloseError(err error) (status string, reason string) {
+func summarizeOpenAIWSReadCloseErrorWeiShaw(err error) (status string, reason string) {
 	if err == nil {
 		return "-", "-"
 	}
@@ -546,7 +546,7 @@ func summarizeOpenAIWSReadCloseError(err error) (status string, reason string) {
 	return normalizeOpenAIWSLogValue(closeStatus), closeReason
 }
 
-func unwrapOpenAIWSDialBaseError(err error) error {
+func unwrapOpenAIWSDialBaseErrorWeiShaw(err error) error {
 	if err == nil {
 		return nil
 	}
@@ -557,7 +557,7 @@ func unwrapOpenAIWSDialBaseError(err error) error {
 	return err
 }
 
-func openAIWSDialRespHeaderForLog(err error, key string) string {
+func openAIWSDialRespHeaderForLogWeiShaw(err error, key string) string {
 	var dialErr *openAIWSDialError
 	if !errors.As(err, &dialErr) || dialErr == nil || dialErr.ResponseHeaders == nil {
 		return "-"
@@ -565,7 +565,7 @@ func openAIWSDialRespHeaderForLog(err error, key string) string {
 	return truncateOpenAIWSLogValue(dialErr.ResponseHeaders.Get(key), openAIWSHeaderValueMaxLen)
 }
 
-func classifyOpenAIWSDialError(err error) string {
+func classifyOpenAIWSDialErrorWeiShaw(err error) string {
 	if err == nil {
 		return "-"
 	}
@@ -607,7 +607,7 @@ func classifyOpenAIWSDialError(err error) string {
 	}
 }
 
-func summarizeOpenAIWSDialError(err error) (
+func summarizeOpenAIWSDialErrorWeiShaw(err error) (
 	statusCode int,
 	dialClass string,
 	closeStatus string,
@@ -640,7 +640,7 @@ func summarizeOpenAIWSDialError(err error) (
 	return
 }
 
-func isOpenAIWSClientDisconnectError(err error) bool {
+func isOpenAIWSClientDisconnectErrorWeiShaw(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -664,7 +664,7 @@ func isOpenAIWSClientDisconnectError(err error) bool {
 		strings.Contains(message, "an established connection was aborted")
 }
 
-func classifyOpenAIWSReadFallbackReason(err error) string {
+func classifyOpenAIWSReadFallbackReasonWeiShaw(err error) string {
 	if err == nil {
 		return "read_event"
 	}
@@ -678,7 +678,7 @@ func classifyOpenAIWSReadFallbackReason(err error) string {
 	}
 }
 
-func sortedKeys(m map[string]any) []string {
+func sortedKeysWeiShaw(m map[string]any) []string {
 	if len(m) == 0 {
 		return nil
 	}

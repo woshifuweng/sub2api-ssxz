@@ -17,19 +17,23 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-func (s *OpenAIGatewayService) validateUpstreamBaseURL(raw string) (string, error) {
-	if s.cfg != nil && !s.cfg.Security.URLAllowlist.Enabled {
-		normalized, err := urlvalidator.ValidateURLFormat(raw, s.cfg.Security.URLAllowlist.AllowInsecureHTTP)
-		if err != nil {
-			return "", fmt.Errorf("invalid base_url: %w", err)
+func (s *OpenAIGatewayService) validateUpstreamBaseURLWeiShaw(raw string) (string, error) {
+	allowInsecureHTTP := false
+	opts := urlvalidator.ValidationOptions{}
+	if s.cfg != nil {
+		urlAllowlist := s.cfg.Security.URLAllowlist
+		allowInsecureHTTP = urlAllowlist.AllowInsecureHTTP
+		var allowedHosts []string
+		if urlAllowlist.Enabled && urlAllowlist.EnforceUpstreamHosts {
+			allowedHosts = urlAllowlist.UpstreamHosts
 		}
-		return normalized, nil
+		opts = urlvalidator.ValidationOptions{
+			AllowedHosts:     allowedHosts,
+			RequireAllowlist: urlAllowlist.Enabled && urlAllowlist.EnforceUpstreamHosts,
+			AllowPrivate:     !urlAllowlist.Enabled || urlAllowlist.AllowPrivateHosts,
+		}
 	}
-	normalized, err := urlvalidator.ValidateHTTPSURL(raw, urlvalidator.ValidationOptions{
-		AllowedHosts:     s.cfg.Security.URLAllowlist.UpstreamHosts,
-		RequireAllowlist: true,
-		AllowPrivate:     s.cfg.Security.URLAllowlist.AllowPrivateHosts,
-	})
+	normalized, err := urlvalidator.ValidateHTTPURL(raw, allowInsecureHTTP, opts)
 	if err != nil {
 		return "", fmt.Errorf("invalid base_url: %w", err)
 	}
@@ -41,11 +45,11 @@ func (s *OpenAIGatewayService) validateUpstreamBaseURL(raw string) (string, erro
 // - base 以其他版本段结尾（如 /v4）：追加 /responses
 // - base 已是 /responses：原样返回
 // - 其他情况：追加 /v1/responses
-func buildOpenAIResponsesURL(base string) string {
+func buildOpenAIResponsesURLWeiShaw(base string) string {
 	return buildOpenAIEndpointURL(base, "/v1/responses")
 }
 
-func trimOpenAIEncryptedReasoningItems(reqBody map[string]any) bool {
+func trimOpenAIEncryptedReasoningItemsWeiShaw(reqBody map[string]any) bool {
 	if len(reqBody) == 0 {
 		return false
 	}
@@ -125,7 +129,7 @@ func trimOpenAIEncryptedReasoningItems(reqBody map[string]any) bool {
 	}
 }
 
-func sanitizeEncryptedReasoningInputItem(item any) (next any, changed bool, keep bool) {
+func sanitizeEncryptedReasoningInputItemWeiShaw(item any) (next any, changed bool, keep bool) {
 	inputItem, ok := item.(map[string]any)
 	if !ok {
 		return item, false, true
@@ -156,24 +160,24 @@ func sanitizeEncryptedReasoningInputItem(item any) (next any, changed bool, keep
 	return inputItem, true, true
 }
 
-func IsOpenAIResponsesCompactPathForTest(c *gin.Context) bool {
+func IsOpenAIResponsesCompactPathForTestWeiShaw(c *gin.Context) bool {
 	return isOpenAIResponsesCompactPath(c)
 }
 
-func OpenAICompactSessionSeedKeyForTest() string {
+func OpenAICompactSessionSeedKeyForTestWeiShaw() string {
 	return openAICompactSessionSeedKey
 }
 
-func NormalizeOpenAICompactRequestBodyForTest(body []byte) ([]byte, bool, error) {
+func NormalizeOpenAICompactRequestBodyForTestWeiShaw(body []byte) ([]byte, bool, error) {
 	return normalizeOpenAICompactRequestBody(body)
 }
 
-func isOpenAIResponsesCompactPath(c *gin.Context) bool {
+func isOpenAIResponsesCompactPathWeiShaw(c *gin.Context) bool {
 	suffix := strings.TrimSpace(openAIResponsesRequestPathSuffix(c))
 	return suffix == "/compact" || strings.HasPrefix(suffix, "/compact/")
 }
 
-func normalizeOpenAICompactRequestBody(body []byte) ([]byte, bool, error) {
+func normalizeOpenAICompactRequestBodyWeiShaw(body []byte) ([]byte, bool, error) {
 	if len(body) == 0 {
 		return body, false, nil
 	}
@@ -234,7 +238,7 @@ func normalizeOpenAICodexCompactReasoningEffort(body []byte, effectiveModel stri
 	return normalized, true, nil
 }
 
-func resolveOpenAICompactSessionID(c *gin.Context) string {
+func resolveOpenAICompactSessionIDWeiShaw(c *gin.Context) string {
 	if c != nil {
 		if sessionID := strings.TrimSpace(c.GetHeader("session_id")); sessionID != "" {
 			return sessionID
@@ -251,7 +255,7 @@ func resolveOpenAICompactSessionID(c *gin.Context) string {
 	return uuid.NewString()
 }
 
-func openAIResponsesRequestPathSuffix(c *gin.Context) string {
+func openAIResponsesRequestPathSuffixWeiShaw(c *gin.Context) string {
 	if c == nil || c.Request == nil || c.Request.URL == nil {
 		return ""
 	}
@@ -273,7 +277,7 @@ func openAIResponsesRequestPathSuffix(c *gin.Context) string {
 	return suffix
 }
 
-func appendOpenAIResponsesRequestPathSuffix(baseURL, suffix string) string {
+func appendOpenAIResponsesRequestPathSuffixWeiShaw(baseURL, suffix string) string {
 	trimmedBase := strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	trimmedSuffix := strings.TrimSpace(suffix)
 	if trimmedBase == "" || trimmedSuffix == "" {
@@ -282,7 +286,7 @@ func appendOpenAIResponsesRequestPathSuffix(baseURL, suffix string) string {
 	return trimmedBase + trimmedSuffix
 }
 
-func (s *OpenAIGatewayService) replaceModelInResponseBody(body []byte, fromModel, toModel string) []byte {
+func (s *OpenAIGatewayService) replaceModelInResponseBodyWeiShaw(body []byte, fromModel, toModel string) []byte {
 	// 使用 gjson/sjson 精确替换 model 字段，避免全量 JSON 反序列化
 	if m := gjson.GetBytes(body, "model"); m.Exists() && m.Str == fromModel {
 		newBody, err := sjson.SetBytes(body, "model", toModel)
@@ -314,7 +318,7 @@ func getOpenAIReasoningEffortFromReqBody(reqBody map[string]any, requestedModel 
 	return "", false
 }
 
-func deriveOpenAIReasoningEffortFromModel(model string) string {
+func deriveOpenAIReasoningEffortFromModelWeiShaw(model string) string {
 	if strings.TrimSpace(model) == "" {
 		return ""
 	}
@@ -547,7 +551,7 @@ func deleteOpenAIRequestMapPath(reqBody map[string]any, path string) {
 	}
 }
 
-func extractOpenAIRequestMetaFromBody(body []byte) (model string, stream bool, promptCacheKey string) {
+func extractOpenAIRequestMetaFromBodyWeiShaw(body []byte) (model string, stream bool, promptCacheKey string) {
 	view := newOpenAIRequestView(body)
 	return view.Model, view.Stream, view.PromptCacheKey
 }
@@ -555,7 +559,7 @@ func extractOpenAIRequestMetaFromBody(body []byte) (model string, stream bool, p
 // normalizeOpenAIPassthroughOAuthBody 将透传 OAuth 请求体收敛为旧链路关键行为：
 // 1) 删除 ChatGPT internal API 不支持的顶层 Responses 参数
 // 2) store=false 3) 非 compact 保持 stream=true；compact 强制 stream=false
-func normalizeOpenAIPassthroughOAuthBody(body []byte, compact bool) ([]byte, bool, error) {
+func normalizeOpenAIPassthroughOAuthBodyWeiShaw(body []byte, compact bool) ([]byte, bool, error) {
 	if len(body) == 0 {
 		return body, false, nil
 	}
@@ -614,7 +618,7 @@ func normalizeOpenAIPassthroughOAuthBody(body []byte, compact bool) ([]byte, boo
 	return normalized, changed, nil
 }
 
-func detectOpenAIPassthroughInstructionsRejectReason(reqModel string, body []byte) string {
+func detectOpenAIPassthroughInstructionsRejectReasonWeiShaw(reqModel string, body []byte) string {
 	model := strings.ToLower(strings.TrimSpace(reqModel))
 	if !strings.Contains(model, "codex") {
 		return ""
@@ -657,7 +661,7 @@ func extractOpenAIReasoningEffortFromBody(body []byte, modelCandidates ...string
 	return &value
 }
 
-func extractOpenAIServiceTier(reqBody map[string]any) *string {
+func extractOpenAIServiceTierWeiShaw(reqBody map[string]any) *string {
 	if reqBody == nil {
 		return nil
 	}
@@ -668,14 +672,14 @@ func extractOpenAIServiceTier(reqBody map[string]any) *string {
 	return normalizeOpenAIServiceTier(raw)
 }
 
-func extractOpenAIServiceTierFromBody(body []byte) *string {
+func extractOpenAIServiceTierFromBodyWeiShaw(body []byte) *string {
 	if len(body) == 0 {
 		return nil
 	}
 	return normalizeOpenAIServiceTier(gjson.GetBytes(body, "service_tier").String())
 }
 
-func normalizeOpenAIServiceTier(raw string) *string {
+func normalizeOpenAIServiceTierWeiShaw(raw string) *string {
 	value := strings.ToLower(strings.TrimSpace(raw))
 	if value == "" {
 		return nil
@@ -683,12 +687,8 @@ func normalizeOpenAIServiceTier(raw string) *string {
 	if value == "fast" {
 		value = "priority"
 	}
-	// 放过 OpenAI 官方文档定义的所有合法 tier 值：priority/flex/auto/default/scale。
-	// 对 Codex 客户端零影响（Codex 只发 priority 或 flex，见 codex-rs/core/src/client.rs），
-	// 但能让直连 OpenAI SDK 的用户透传 auto/default/scale 以便抓包/调试。
-	// 真未知值仍返回 nil，由 normalizeResponsesBodyServiceTier 从 body 中删除。
 	switch value {
-	case "priority", "flex", "auto", "default", "scale":
+	case "priority", "flex":
 		return &value
 	default:
 		return nil
@@ -1275,7 +1275,7 @@ func extractOpenAIReasoningEffort(reqBody map[string]any, modelCandidates ...str
 	return &value
 }
 
-func normalizeOpenAIReasoningEffort(raw string) string {
+func normalizeOpenAIReasoningEffortWeiShaw(raw string) string {
 	value := strings.ToLower(strings.TrimSpace(raw))
 	if value == "" {
 		return ""

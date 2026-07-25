@@ -8,6 +8,7 @@ import (
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	"github.com/Wei-Shaw/sub2api/ent/apikey"
 	"github.com/Wei-Shaw/sub2api/ent/enttest"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -31,6 +32,9 @@ func newAPIKeyRepoSQLite(t *testing.T) (*apiKeyRepository, *dbent.Client) {
 	drv := entsql.OpenDB(dialect.SQLite, db)
 	client := enttest.NewClient(t, enttest.WithOptions(dbent.Driver(drv)))
 	t.Cleanup(func() { _ = client.Close() })
+
+	_, err = db.Exec("ALTER TABLE api_keys ADD COLUMN group_ids TEXT")
+	require.NoError(t, err)
 
 	return &apiKeyRepository{client: client, sql: db}, client
 }
@@ -158,7 +162,9 @@ func TestAPIKeyRepository_CreateWithLastUsedAt(t *testing.T) {
 	require.NotNil(t, key.LastUsedAt)
 	require.WithinDuration(t, lastUsed, *key.LastUsedAt, time.Second)
 
-	got, err := repo.GetByID(ctx, key.ID)
+	got, err := client.APIKey.Query().
+		Where(apikey.IDEQ(key.ID)).
+		Only(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, got.LastUsedAt)
 	require.WithinDuration(t, lastUsed, *got.LastUsedAt, time.Second)
@@ -177,14 +183,18 @@ func TestAPIKeyRepository_UpdateLastUsed(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, key))
 
-	before, err := repo.GetByID(ctx, key.ID)
+	before, err := client.APIKey.Query().
+		Where(apikey.IDEQ(key.ID)).
+		Only(ctx)
 	require.NoError(t, err)
 	require.Nil(t, before.LastUsedAt)
 
 	target := time.Now().UTC().Add(2 * time.Minute).Truncate(time.Second)
 	require.NoError(t, repo.UpdateLastUsed(ctx, key.ID, target))
 
-	after, err := repo.GetByID(ctx, key.ID)
+	after, err := client.APIKey.Query().
+		Where(apikey.IDEQ(key.ID)).
+		Only(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, after.LastUsedAt)
 	require.WithinDuration(t, target, *after.LastUsedAt, time.Second)
@@ -225,6 +235,53 @@ func TestAPIKeyRepository_UpdateLastUsedDBError(t *testing.T) {
 	require.NoError(t, client.Close())
 	err := repo.UpdateLastUsed(ctx, key.ID, time.Now().UTC())
 	require.Error(t, err)
+}
+
+func TestAPIKeyRepository_InactiveStatusPredicateIncludesDisabledKeys(t *testing.T) {
+	repo, _ := newAPIKeyRepoSQLite(t)
+	ctx := context.Background()
+	user := mustCreateAPIKeyRepoUser(t, ctx, repo.client, "inactive-filter@test.com")
+
+	active := &service.APIKey{
+		UserID: user.ID,
+		Key:    "sk-inactive-filter-active",
+		Name:   "Active",
+		Status: service.StatusActive,
+	}
+	require.NoError(t, repo.Create(ctx, active))
+
+	inactive := &service.APIKey{
+		UserID: user.ID,
+		Key:    "sk-inactive-filter-inactive",
+		Name:   "Inactive",
+		Status: "inactive",
+	}
+	require.NoError(t, repo.Create(ctx, inactive))
+
+	disabled := &service.APIKey{
+		UserID: user.ID,
+		Key:    "sk-inactive-filter-disabled",
+		Name:   "Disabled",
+		Status: service.StatusAPIKeyDisabled,
+	}
+	require.NoError(t, repo.Create(ctx, disabled))
+
+	keys, err := repo.activeQuery().
+		Where(
+			apikey.UserIDEQ(user.ID),
+			apiKeyUserStatusPredicate("inactive"),
+		).
+		All(ctx)
+	require.NoError(t, err)
+	require.Len(t, keys, 2)
+
+	statusesByName := map[string]string{}
+	for _, key := range keys {
+		statusesByName[key.Name] = key.Status
+	}
+	require.Equal(t, "inactive", statusesByName["Inactive"])
+	require.Equal(t, service.StatusAPIKeyDisabled, statusesByName["Disabled"])
+	require.NotContains(t, statusesByName, "Active")
 }
 
 func TestAPIKeyRepository_CreateDuplicateKey(t *testing.T) {

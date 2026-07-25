@@ -32,7 +32,7 @@ const (
 	maxRetryElapsed = 10 * time.Second
 )
 
-func (s *GatewayService) shouldRetryUpstreamError(account *Account, statusCode int) bool {
+func (s *GatewayService) shouldRetryUpstreamErrorWeiShaw(account *Account, statusCode int) bool {
 	// OAuth/Setup Token 账号：仅 403 重试
 	if account.IsOAuth() {
 		return statusCode == 403
@@ -43,7 +43,7 @@ func (s *GatewayService) shouldRetryUpstreamError(account *Account, statusCode i
 }
 
 // shouldFailoverUpstreamError determines whether an upstream error should trigger account failover.
-func (s *GatewayService) shouldFailoverUpstreamError(statusCode int) bool {
+func (s *GatewayService) shouldFailoverUpstreamErrorWeiShaw(statusCode int) bool {
 	switch statusCode {
 	case 401, 403, 429, 529:
 		return true
@@ -52,7 +52,7 @@ func (s *GatewayService) shouldFailoverUpstreamError(statusCode int) bool {
 	}
 }
 
-func retryBackoffDelay(attempt int) time.Duration {
+func retryBackoffDelayWeiShaw(attempt int) time.Duration {
 	// attempt 从 1 开始，表示第 attempt 次请求刚失败，需要等待后进行第 attempt+1 次请求。
 	if attempt <= 0 {
 		return retryBaseDelay
@@ -64,7 +64,7 @@ func retryBackoffDelay(attempt int) time.Duration {
 	return delay
 }
 
-func sleepWithContext(ctx context.Context, d time.Duration) error {
+func sleepWithContextWeiShaw(ctx context.Context, d time.Duration) error {
 	if d <= 0 {
 		return nil
 	}
@@ -87,7 +87,7 @@ func sleepWithContext(ctx context.Context, d time.Duration) error {
 }
 
 // Forward 转发请求到Claude API
-func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, parsed *ParsedRequest) (*ForwardResult, error) {
+func (s *GatewayService) ForwardWeiShaw(ctx context.Context, c *gin.Context, account *Account, parsed *ParsedRequest) (*ForwardResult, error) {
 	startTime := time.Now()
 	if parsed == nil {
 		return nil, fmt.Errorf("parse request: empty request")

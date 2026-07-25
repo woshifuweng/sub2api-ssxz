@@ -1636,6 +1636,37 @@ func (s *UsageLogRepoSuite) TestListWithFilters_ApiKeyFilter() {
 	s.Require().Equal(int64(1), page.Total)
 }
 
+func (s *UsageLogRepoSuite) TestListWithFilters_RequestIDFilter() {
+	user := mustCreateUser(s.T(), s.client, &service.User{Email: "filtersrequestid@test.com"})
+	apiKey := mustCreateApiKey(s.T(), s.client, &service.APIKey{UserID: user.ID, Key: "sk-filtersrequestid", Name: "k"})
+	account := mustCreateAccount(s.T(), s.client, &service.Account{Name: "acc-filtersrequestid"})
+
+	target := s.createUsageLog(user, apiKey, account, 10, 20, 0.5, time.Now())
+	s.createUsageLog(user, apiKey, account, 15, 25, 0.6, time.Now())
+
+	filters := usagestats.UsageLogFilters{RequestID: target.RequestID}
+	logs, page, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, filters)
+	s.Require().NoError(err, "ListWithFilters requestID")
+	s.Require().Len(logs, 1)
+	s.Require().Equal(target.RequestID, logs[0].RequestID)
+	s.Require().Equal(int64(1), page.Total)
+}
+
+func (s *UsageLogRepoSuite) TestGetStatsWithFilters_RequestIDFilter() {
+	user := mustCreateUser(s.T(), s.client, &service.User{Email: "statsrequestid@test.com"})
+	apiKey := mustCreateApiKey(s.T(), s.client, &service.APIKey{UserID: user.ID, Key: "sk-statsrequestid", Name: "k"})
+	account := mustCreateAccount(s.T(), s.client, &service.Account{Name: "acc-statsrequestid"})
+
+	target := s.createUsageLog(user, apiKey, account, 10, 20, 0.5, time.Now())
+	s.createUsageLog(user, apiKey, account, 15, 25, 0.6, time.Now())
+
+	stats, err := s.repo.GetStatsWithFilters(s.ctx, usagestats.UsageLogFilters{RequestID: target.RequestID})
+	s.Require().NoError(err, "GetStatsWithFilters requestID")
+	s.Require().Equal(int64(1), stats.TotalRequests)
+	s.Require().Equal(int64(30), stats.TotalTokens)
+	s.Require().InEpsilon(0.5, stats.TotalActualCost, 0.0001)
+}
+
 func (s *UsageLogRepoSuite) TestListWithFilters_TimeRange() {
 	user := mustCreateUser(s.T(), s.client, &service.User{Email: "filterstime@test.com"})
 	apiKey := mustCreateApiKey(s.T(), s.client, &service.APIKey{UserID: user.ID, Key: "sk-filterstime", Name: "k"})

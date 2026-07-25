@@ -21,17 +21,17 @@ import (
 )
 
 // SelectAccount 选择账号（粘性会话+优先级）
-func (s *GatewayService) SelectAccount(ctx context.Context, groupID *int64, sessionHash string) (*Account, error) {
+func (s *GatewayService) SelectAccountWeiShaw(ctx context.Context, groupID *int64, sessionHash string) (*Account, error) {
 	return s.SelectAccountForModel(ctx, groupID, sessionHash, "")
 }
 
 // SelectAccountForModel 选择支持指定模型的账号（粘性会话+优先级+模型映射）
-func (s *GatewayService) SelectAccountForModel(ctx context.Context, groupID *int64, sessionHash string, requestedModel string) (*Account, error) {
+func (s *GatewayService) SelectAccountForModelWeiShaw(ctx context.Context, groupID *int64, sessionHash string, requestedModel string) (*Account, error) {
 	return s.SelectAccountForModelWithExclusions(ctx, groupID, sessionHash, requestedModel, nil)
 }
 
 // SelectAccountForModelWithExclusions selects an account supporting the requested model while excluding specified accounts.
-func (s *GatewayService) SelectAccountForModelWithExclusions(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*Account, error) {
+func (s *GatewayService) SelectAccountForModelWithExclusionsWeiShaw(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*Account, error) {
 	// 优先检查 context 中的强制平台（/antigravity 路由）
 	var platform string
 	forcePlatform, hasForcePlatform := ctx.Value(ctxkey.ForcePlatform).(string)
@@ -765,7 +765,7 @@ func (s *GatewayService) tryAcquireByLegacyOrder(ctx context.Context, candidates
 	return nil, false, nil
 }
 
-func (s *GatewayService) schedulingConfig() config.GatewaySchedulingConfig {
+func (s *GatewayService) schedulingConfigWeiShaw() config.GatewaySchedulingConfig {
 	if s.cfg != nil {
 		return s.cfg.Gateway.Scheduling
 	}
@@ -779,7 +779,7 @@ func (s *GatewayService) schedulingConfig() config.GatewaySchedulingConfig {
 	}
 }
 
-func (s *GatewayService) withGroupContext(ctx context.Context, group *Group) context.Context {
+func (s *GatewayService) withGroupContextWeiShaw(ctx context.Context, group *Group) context.Context {
 	if !IsGroupContextValid(group) {
 		return ctx
 	}
@@ -789,14 +789,14 @@ func (s *GatewayService) withGroupContext(ctx context.Context, group *Group) con
 	return context.WithValue(ctx, ctxkey.Group, group)
 }
 
-func (s *GatewayService) groupFromContext(ctx context.Context, groupID int64) *Group {
+func (s *GatewayService) groupFromContextWeiShaw(ctx context.Context, groupID int64) *Group {
 	if group, ok := ctx.Value(ctxkey.Group).(*Group); ok && IsGroupContextValid(group) && group.ID == groupID {
 		return group
 	}
 	return nil
 }
 
-func (s *GatewayService) resolveGroupByID(ctx context.Context, groupID int64) (*Group, error) {
+func (s *GatewayService) resolveGroupByIDWeiShaw(ctx context.Context, groupID int64) (*Group, error) {
 	if group := s.groupFromContext(ctx, groupID); group != nil {
 		return group, nil
 	}
@@ -807,11 +807,11 @@ func (s *GatewayService) resolveGroupByID(ctx context.Context, groupID int64) (*
 	return group, nil
 }
 
-func (s *GatewayService) ResolveGroupByID(ctx context.Context, groupID int64) (*Group, error) {
+func (s *GatewayService) ResolveGroupByIDWeiShaw(ctx context.Context, groupID int64) (*Group, error) {
 	return s.resolveGroupByID(ctx, groupID)
 }
 
-func (s *GatewayService) routingAccountIDsForRequest(ctx context.Context, groupID *int64, requestedModel string, platform string) []int64 {
+func (s *GatewayService) routingAccountIDsForRequestWeiShaw(ctx context.Context, groupID *int64, requestedModel string, platform string) []int64 {
 	if groupID == nil || requestedModel == "" || platform != PlatformAnthropic {
 		return nil
 	}
@@ -837,7 +837,7 @@ func (s *GatewayService) routingAccountIDsForRequest(ctx context.Context, groupI
 	return ids
 }
 
-func (s *GatewayService) resolveGatewayGroup(ctx context.Context, groupID *int64) (*Group, *int64, error) {
+func (s *GatewayService) resolveGatewayGroupWeiShaw(ctx context.Context, groupID *int64) (*Group, *int64, error) {
 	if groupID == nil {
 		return nil, nil, nil
 	}
@@ -870,7 +870,7 @@ func (s *GatewayService) resolveGatewayGroup(ctx context.Context, groupID *int64
 // 如果分组启用了 claude_code_only 且请求不是来自 Claude Code 客户端：
 //   - 有降级分组：返回降级分组的 ID
 //   - 无降级分组：返回 ErrClaudeCodeOnly 错误
-func (s *GatewayService) checkClaudeCodeRestriction(ctx context.Context, groupID *int64) (*Group, *int64, error) {
+func (s *GatewayService) checkClaudeCodeRestrictionWeiShaw(ctx context.Context, groupID *int64) (*Group, *int64, error) {
 	if groupID == nil {
 		return nil, groupID, nil
 	}
@@ -888,7 +888,7 @@ func (s *GatewayService) checkClaudeCodeRestriction(ctx context.Context, groupID
 	return group, resolvedID, nil
 }
 
-func (s *GatewayService) resolvePlatform(ctx context.Context, groupID *int64, group *Group) (string, bool, error) {
+func (s *GatewayService) resolvePlatformWeiShaw(ctx context.Context, groupID *int64, group *Group) (string, bool, error) {
 	forcePlatform, hasForcePlatform := ctx.Value(ctxkey.ForcePlatform).(string)
 	if hasForcePlatform && forcePlatform != "" {
 		return forcePlatform, true, nil
@@ -906,7 +906,7 @@ func (s *GatewayService) resolvePlatform(ctx context.Context, groupID *int64, gr
 	return PlatformAnthropic, false, nil
 }
 
-func (s *GatewayService) listSchedulableAccounts(ctx context.Context, groupID *int64, platform string, hasForcePlatform bool) ([]Account, bool, error) {
+func (s *GatewayService) listSchedulableAccountsWeiShaw(ctx context.Context, groupID *int64, platform string, hasForcePlatform bool) ([]Account, bool, error) {
 	if s.schedulerSnapshot != nil {
 		accounts, useMixed, err := s.schedulerSnapshot.ListSchedulableAccounts(ctx, groupID, platform, hasForcePlatform)
 		if err == nil {
@@ -1012,7 +1012,7 @@ func (s *GatewayService) listSchedulableAccounts(ctx context.Context, groupID *i
 // IsSingleAntigravityAccountGroup 检查指定分组是否只有一个 antigravity 平台的可调度账号。
 // 用于 Handler 层在首次请求时提前设置 SingleAccountRetry context，
 // 避免单账号分组收到 503 时错误地设置模型限流标记导致后续请求连续快速失败。
-func (s *GatewayService) IsSingleAntigravityAccountGroup(ctx context.Context, groupID *int64) bool {
+func (s *GatewayService) IsSingleAntigravityAccountGroupWeiShaw(ctx context.Context, groupID *int64) bool {
 	accounts, _, err := s.listSchedulableAccounts(ctx, groupID, PlatformAntigravity, true)
 	if err != nil {
 		return false
@@ -1020,7 +1020,7 @@ func (s *GatewayService) IsSingleAntigravityAccountGroup(ctx context.Context, gr
 	return len(accounts) == 1
 }
 
-func (s *GatewayService) isAccountAllowedForPlatform(account *Account, platform string, useMixed bool) bool {
+func (s *GatewayService) isAccountAllowedForPlatformWeiShaw(account *Account, platform string, useMixed bool) bool {
 	if account == nil {
 		return false
 	}
@@ -1033,23 +1033,32 @@ func (s *GatewayService) isAccountAllowedForPlatform(account *Account, platform 
 	return account.Platform == platform
 }
 
-func (s *GatewayService) isAccountSchedulableForSelection(account *Account) bool {
+func (s *GatewayService) isAccountSchedulableForSelectionWeiShaw(account *Account) bool {
 	if account == nil {
 		return false
+	}
+	if account.Platform == PlatformSora {
+		return s.isSoraAccountSchedulable(account)
 	}
 	return account.IsSchedulable()
 }
 
-func (s *GatewayService) isAccountSchedulableForModelSelection(ctx context.Context, account *Account, requestedModel string) bool {
+func (s *GatewayService) isAccountSchedulableForModelSelectionWeiShaw(ctx context.Context, account *Account, requestedModel string) bool {
 	if account == nil {
 		return false
+	}
+	if account.Platform == PlatformSora {
+		if !s.isSoraAccountSchedulable(account) {
+			return false
+		}
+		return account.GetRateLimitRemainingTimeWithContext(ctx, requestedModel) <= 0
 	}
 	return account.IsSchedulableForModelWithContext(ctx, requestedModel)
 }
 
 // isAccountInGroup checks if the account belongs to the specified group.
 // When groupID is nil, returns true only for ungrouped accounts (no group assignments).
-func (s *GatewayService) isAccountInGroup(account *Account, groupID *int64) bool {
+func (s *GatewayService) isAccountInGroupWeiShaw(account *Account, groupID *int64) bool {
 	if account == nil {
 		return false
 	}
@@ -1065,7 +1074,7 @@ func (s *GatewayService) isAccountInGroup(account *Account, groupID *int64) bool
 	return false
 }
 
-func (s *GatewayService) tryAcquireAccountSlot(ctx context.Context, accountID int64, maxConcurrency int) (*AcquireResult, error) {
+func (s *GatewayService) tryAcquireAccountSlotWeiShaw(ctx context.Context, accountID int64, maxConcurrency int) (*AcquireResult, error) {
 	if s.concurrencyService == nil {
 		return &AcquireResult{Acquired: true, ReleaseFunc: func() {}}, nil
 	}
@@ -1080,7 +1089,7 @@ type windowCostPrefetchContextKeyType struct{}
 
 var windowCostPrefetchContextKey = windowCostPrefetchContextKeyType{}
 
-func windowCostFromPrefetchContext(ctx context.Context, accountID int64) (float64, bool) {
+func windowCostFromPrefetchContextWeiShaw(ctx context.Context, accountID int64) (float64, bool) {
 	if ctx == nil || accountID <= 0 {
 		return 0, false
 	}
@@ -1092,7 +1101,7 @@ func windowCostFromPrefetchContext(ctx context.Context, accountID int64) (float6
 	return v, exists
 }
 
-func (s *GatewayService) withWindowCostPrefetch(ctx context.Context, accounts []Account) context.Context {
+func (s *GatewayService) withWindowCostPrefetchWeiShaw(ctx context.Context, accounts []Account) context.Context {
 	if ctx == nil || len(accounts) == 0 || s.sessionLimitCache == nil || s.usageLogRepo == nil {
 		return ctx
 	}
@@ -1197,7 +1206,7 @@ func (s *GatewayService) withWindowCostPrefetch(ctx context.Context, accounts []
 
 // isAccountSchedulableForQuota 检查账号是否在配额限制内
 // 适用于配置了 quota_limit 的 apikey 和 bedrock 类型账号
-func (s *GatewayService) isAccountSchedulableForQuota(account *Account) bool {
+func (s *GatewayService) isAccountSchedulableForQuotaWeiShaw(account *Account) bool {
 	if !account.IsAPIKeyOrBedrock() {
 		return true
 	}
@@ -1207,7 +1216,7 @@ func (s *GatewayService) isAccountSchedulableForQuota(account *Account) bool {
 // isAccountSchedulableForWindowCost 检查账号是否可根据窗口费用进行调度
 // 仅适用于 Anthropic OAuth/SetupToken 账号
 // 返回 true 表示可调度，false 表示不可调度
-func (s *GatewayService) isAccountSchedulableForWindowCost(ctx context.Context, account *Account, isSticky bool) bool {
+func (s *GatewayService) isAccountSchedulableForWindowCostWeiShaw(ctx context.Context, account *Account, isSticky bool) bool {
 	// 只检查 Anthropic OAuth/SetupToken 账号
 	if !account.IsAnthropicOAuthOrSetupToken() {
 		return true
@@ -1270,7 +1279,7 @@ type rpmPrefetchContextKeyType struct{}
 
 var rpmPrefetchContextKey = rpmPrefetchContextKeyType{}
 
-func rpmFromPrefetchContext(ctx context.Context, accountID int64) (int, bool) {
+func rpmFromPrefetchContextWeiShaw(ctx context.Context, accountID int64) (int, bool) {
 	if v, ok := ctx.Value(rpmPrefetchContextKey).(map[int64]int); ok {
 		count, found := v[accountID]
 		return count, found
@@ -1279,7 +1288,7 @@ func rpmFromPrefetchContext(ctx context.Context, accountID int64) (int, bool) {
 }
 
 // withRPMPrefetch 批量预取所有候选账号的 RPM 计数
-func (s *GatewayService) withRPMPrefetch(ctx context.Context, accounts []Account) context.Context {
+func (s *GatewayService) withRPMPrefetchWeiShaw(ctx context.Context, accounts []Account) context.Context {
 	if s.rpmCache == nil {
 		return ctx
 	}
@@ -1303,7 +1312,7 @@ func (s *GatewayService) withRPMPrefetch(ctx context.Context, accounts []Account
 
 // isAccountSchedulableForRPM 检查账号是否可根据 RPM 进行调度
 // 仅适用于 Anthropic OAuth/SetupToken 账号
-func (s *GatewayService) isAccountSchedulableForRPM(ctx context.Context, account *Account, isSticky bool) bool {
+func (s *GatewayService) isAccountSchedulableForRPMWeiShaw(ctx context.Context, account *Account, isSticky bool) bool {
 	if !account.IsAnthropicOAuthOrSetupToken() {
 		return true
 	}
@@ -1339,7 +1348,7 @@ func (s *GatewayService) isAccountSchedulableForRPM(ctx context.Context, account
 // 已知 TOCTOU 竞态：调度时读取 RPM 计数与此处递增之间存在时间窗口，
 // 高并发下可能短暂超出 RPM 限制。这是与 WindowCost 一致的 soft-limit
 // 设计权衡——可接受的少量超额优于加锁带来的延迟和复杂度。
-func (s *GatewayService) IncrementAccountRPM(ctx context.Context, accountID int64) error {
+func (s *GatewayService) IncrementAccountRPMWeiShaw(ctx context.Context, accountID int64) error {
 	if s.rpmCache == nil {
 		return nil
 	}
@@ -1351,7 +1360,7 @@ func (s *GatewayService) IncrementAccountRPM(ctx context.Context, accountID int6
 // 仅适用于 Anthropic OAuth/SetupToken 账号
 // sessionID: 会话标识符（使用粘性会话的 hash）
 // 返回 true 表示允许（在限制内或会话已存在），false 表示拒绝（超出限制且是新会话）
-func (s *GatewayService) checkAndRegisterSession(ctx context.Context, account *Account, sessionID string) bool {
+func (s *GatewayService) checkAndRegisterSessionWeiShaw(ctx context.Context, account *Account, sessionID string) bool {
 	// 只检查 Anthropic OAuth/SetupToken 账号
 	if !account.IsAnthropicOAuthOrSetupToken() {
 		return true
@@ -1376,7 +1385,7 @@ func (s *GatewayService) checkAndRegisterSession(ctx context.Context, account *A
 	return allowed
 }
 
-func (s *GatewayService) getSchedulableAccount(ctx context.Context, accountID int64) (*Account, error) {
+func (s *GatewayService) getSchedulableAccountWeiShaw(ctx context.Context, accountID int64) (*Account, error) {
 	if s.schedulerSnapshot != nil {
 		return s.schedulerSnapshot.GetAccount(ctx, accountID)
 	}
@@ -1411,7 +1420,7 @@ func (s *GatewayService) newSelectionResult(ctx context.Context, account *Accoun
 }
 
 // filterByMinPriority 过滤出优先级最小的账号集合
-func filterByMinPriority(accounts []accountWithLoad) []accountWithLoad {
+func filterByMinPriorityWeiShaw(accounts []accountWithLoad) []accountWithLoad {
 	if len(accounts) == 0 {
 		return accounts
 	}
@@ -1431,7 +1440,7 @@ func filterByMinPriority(accounts []accountWithLoad) []accountWithLoad {
 }
 
 // filterByMinLoadRate 过滤出负载率最低的账号集合
-func filterByMinLoadRate(accounts []accountWithLoad) []accountWithLoad {
+func filterByMinLoadRateWeiShaw(accounts []accountWithLoad) []accountWithLoad {
 	if len(accounts) == 0 {
 		return accounts
 	}
@@ -1485,7 +1494,7 @@ func filterBySoonestReset(accounts []accountWithLoad) []accountWithLoad {
 
 // selectByLRU 从集合中选择最久未用的账号
 // 如果有多个账号具有相同的最小 LastUsedAt，则随机选择一个
-func selectByLRU(accounts []accountWithLoad, preferOAuth bool) *accountWithLoad {
+func selectByLRUWeiShaw(accounts []accountWithLoad, preferOAuth bool) *accountWithLoad {
 	if len(accounts) == 0 {
 		return nil
 	}
@@ -1543,7 +1552,7 @@ func selectByLRU(accounts []accountWithLoad, preferOAuth bool) *accountWithLoad 
 	return &accounts[selectedIdx]
 }
 
-func sortAccountsByPriorityAndLastUsed(accounts []*Account, preferOAuth bool) {
+func sortAccountsByPriorityAndLastUsedWeiShaw(accounts []*Account, preferOAuth bool) {
 	sort.SliceStable(accounts, func(i, j int) bool {
 		a, b := accounts[i], accounts[j]
 		if a.Priority != b.Priority {
@@ -1568,7 +1577,7 @@ func sortAccountsByPriorityAndLastUsed(accounts []*Account, preferOAuth bool) {
 
 // shuffleWithinSortGroups 对排序后的 accountWithLoad 切片，按 (Priority, LoadRate, LastUsedAt) 分组后组内随机打乱。
 // 防止并发请求读取同一快照时，确定性排序导致所有请求命中相同账号。
-func shuffleWithinSortGroups(accounts []accountWithLoad) {
+func shuffleWithinSortGroupsWeiShaw(accounts []accountWithLoad) {
 	if len(accounts) <= 1 {
 		return
 	}
@@ -1588,7 +1597,7 @@ func shuffleWithinSortGroups(accounts []accountWithLoad) {
 }
 
 // sameAccountWithLoadGroup 判断两个 accountWithLoad 是否属于同一排序组
-func sameAccountWithLoadGroup(a, b accountWithLoad) bool {
+func sameAccountWithLoadGroupWeiShaw(a, b accountWithLoad) bool {
 	if a.account.Priority != b.account.Priority {
 		return false
 	}
@@ -1604,7 +1613,7 @@ func sameAccountWithLoadGroup(a, b accountWithLoad) bool {
 // 因此这里采用"组内分区 + 分区内 shuffle"的方式：
 // - 先把同组账号按 (OAuth / 非 OAuth) 拆成两段，保持 OAuth 段在前；
 // - 再分别在各段内随机打散，避免热点。
-func shuffleWithinPriorityAndLastUsed(accounts []*Account, preferOAuth bool) {
+func shuffleWithinPriorityAndLastUsedWeiShaw(accounts []*Account, preferOAuth bool) {
 	if len(accounts) <= 1 {
 		return
 	}
@@ -1644,7 +1653,7 @@ func shuffleWithinPriorityAndLastUsed(accounts []*Account, preferOAuth bool) {
 }
 
 // sameAccountGroup 判断两个 Account 是否属于同一排序组（Priority + LastUsedAt）
-func sameAccountGroup(a, b *Account) bool {
+func sameAccountGroupWeiShaw(a, b *Account) bool {
 	if a.Priority != b.Priority {
 		return false
 	}
@@ -1652,7 +1661,7 @@ func sameAccountGroup(a, b *Account) bool {
 }
 
 // sameLastUsedAt 判断两个 LastUsedAt 是否相同（精度到秒）
-func sameLastUsedAt(a, b *time.Time) bool {
+func sameLastUsedAtWeiShaw(a, b *time.Time) bool {
 	switch {
 	case a == nil && b == nil:
 		return true
@@ -1665,7 +1674,7 @@ func sameLastUsedAt(a, b *time.Time) bool {
 
 // sortCandidatesForFallback 根据配置选择排序策略
 // mode: "last_used"(按最后使用时间) 或 "random"(随机)
-func (s *GatewayService) sortCandidatesForFallback(accounts []*Account, preferOAuth bool, mode string) {
+func (s *GatewayService) sortCandidatesForFallbackWeiShaw(accounts []*Account, preferOAuth bool, mode string) {
 	if mode == "random" {
 		// 先按优先级排序，然后在同优先级内随机打乱
 		sortAccountsByPriorityOnly(accounts, preferOAuth)
@@ -1677,7 +1686,7 @@ func (s *GatewayService) sortCandidatesForFallback(accounts []*Account, preferOA
 }
 
 // sortAccountsByPriorityOnly 仅按优先级排序
-func sortAccountsByPriorityOnly(accounts []*Account, preferOAuth bool) {
+func sortAccountsByPriorityOnlyWeiShaw(accounts []*Account, preferOAuth bool) {
 	sort.SliceStable(accounts, func(i, j int) bool {
 		a, b := accounts[i], accounts[j]
 		if a.Priority != b.Priority {
@@ -1691,7 +1700,7 @@ func sortAccountsByPriorityOnly(accounts []*Account, preferOAuth bool) {
 }
 
 // shuffleWithinPriority 在同优先级内随机打乱顺序
-func shuffleWithinPriority(accounts []*Account) {
+func shuffleWithinPriorityWeiShaw(accounts []*Account) {
 	if len(accounts) <= 1 {
 		return
 	}
@@ -1714,7 +1723,7 @@ func shuffleWithinPriority(accounts []*Account) {
 }
 
 // selectAccountForModelWithPlatform 选择单平台账户（完全隔离）
-func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, platform string) (*Account, error) {
+func (s *GatewayService) selectAccountForModelWithPlatformWeiShaw(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, platform string) (*Account, error) {
 	preferOAuth := platform == PlatformGemini
 	routingAccountIDs := s.routingAccountIDsForRequest(ctx, groupID, requestedModel, platform)
 
@@ -1974,7 +1983,7 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 
 // selectAccountWithMixedScheduling 选择账户（支持混合调度）
 // 查询原生平台账户 + 启用 mixed_scheduling 的 antigravity 账户
-func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, nativePlatform string) (*Account, error) {
+func (s *GatewayService) selectAccountWithMixedSchedulingWeiShaw(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, nativePlatform string) (*Account, error) {
 	preferOAuth := nativePlatform == PlatformGemini
 	routingAccountIDs := s.routingAccountIDsForRequest(ctx, groupID, requestedModel, nativePlatform)
 
@@ -2251,7 +2260,7 @@ type selectionFailureDiagnosis struct {
 	Detail   string
 }
 
-func (s *GatewayService) logDetailedSelectionFailure(
+func (s *GatewayService) logDetailedSelectionFailureWeiShaw(
 	ctx context.Context,
 	groupID *int64,
 	sessionHash string,
@@ -2283,7 +2292,7 @@ func (s *GatewayService) logDetailedSelectionFailure(
 	return stats
 }
 
-func (s *GatewayService) collectSelectionFailureStats(
+func (s *GatewayService) collectSelectionFailureStatsWeiShaw(
 	ctx context.Context,
 	accounts []Account,
 	requestedModel string,
@@ -2321,7 +2330,7 @@ func (s *GatewayService) collectSelectionFailureStats(
 	return stats
 }
 
-func (s *GatewayService) diagnoseSelectionFailure(
+func (s *GatewayService) diagnoseSelectionFailureWeiShaw(
 	ctx context.Context,
 	acc *Account,
 	requestedModel string,
@@ -2360,7 +2369,7 @@ func (s *GatewayService) diagnoseSelectionFailure(
 	return selectionFailureDiagnosis{Category: "eligible"}
 }
 
-func isPlatformFilteredForSelection(acc *Account, platform string, allowMixedScheduling bool) bool {
+func isPlatformFilteredForSelectionWeiShaw(acc *Account, platform string, allowMixedScheduling bool) bool {
 	if acc == nil {
 		return true
 	}
@@ -2376,7 +2385,7 @@ func isPlatformFilteredForSelection(acc *Account, platform string, allowMixedSch
 	return acc.Platform != platform
 }
 
-func appendSelectionFailureSampleID(samples []int64, id int64) []int64 {
+func appendSelectionFailureSampleIDWeiShaw(samples []int64, id int64) []int64 {
 	const limit = 5
 	if len(samples) >= limit {
 		return samples
@@ -2384,7 +2393,7 @@ func appendSelectionFailureSampleID(samples []int64, id int64) []int64 {
 	return append(samples, id)
 }
 
-func appendSelectionFailureRateSample(samples []string, accountID int64, remaining time.Duration) []string {
+func appendSelectionFailureRateSampleWeiShaw(samples []string, accountID int64, remaining time.Duration) []string {
 	const limit = 5
 	if len(samples) >= limit {
 		return samples
@@ -2392,7 +2401,7 @@ func appendSelectionFailureRateSample(samples []string, accountID int64, remaini
 	return append(samples, fmt.Sprintf("%d(%s)", accountID, remaining))
 }
 
-func summarizeSelectionFailureStats(stats selectionFailureStats) string {
+func summarizeSelectionFailureStatsWeiShaw(stats selectionFailureStats) string {
 	return fmt.Sprintf(
 		"total=%d eligible=%d excluded=%d unschedulable=%d platform_filtered=%d model_unsupported=%d model_rate_limited=%d",
 		stats.Total,
@@ -2407,7 +2416,7 @@ func summarizeSelectionFailureStats(stats selectionFailureStats) string {
 
 // isModelSupportedByAccountWithContext 根据账户平台检查模型支持（带 context）
 // 对于 Antigravity 平台，会先获取映射后的最终模型名（包括 thinking 后缀）再检查支持
-func (s *GatewayService) isModelSupportedByAccountWithContext(ctx context.Context, account *Account, requestedModel string) bool {
+func (s *GatewayService) isModelSupportedByAccountWithContextWeiShaw(ctx context.Context, account *Account, requestedModel string) bool {
 	if account.Platform == PlatformAntigravity {
 		if strings.TrimSpace(requestedModel) == "" {
 			return true
@@ -2431,7 +2440,10 @@ func (s *GatewayService) isModelSupportedByAccountWithContext(ctx context.Contex
 }
 
 // isModelSupportedByAccount 根据账户平台检查模型支持（无 context，用于非 Antigravity 平台）
-func (s *GatewayService) isModelSupportedByAccount(account *Account, requestedModel string) bool {
+func (s *GatewayService) isModelSupportedByAccountWeiShaw(account *Account, requestedModel string) bool {
+	if account.Platform == PlatformSora {
+		return s.isSoraModelSupportedByAccount(account, requestedModel)
+	}
 	if account.Platform == PlatformAntigravity {
 		if strings.TrimSpace(requestedModel) == "" {
 			return true

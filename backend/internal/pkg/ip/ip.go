@@ -85,6 +85,16 @@ func GetClientIP(c *gin.Context) string {
 	return normalizeIP(c.ClientIP())
 }
 
+// GetClientIPContext resolves the client address from transport-neutral
+// gateway contexts. The gateway layer already applies the configured trusted
+// proxy policy before exposing ClientIP.
+func GetClientIPContext(c interface{ ClientIP() string }) string {
+	if c == nil {
+		return ""
+	}
+	return normalizeIP(c.ClientIP())
+}
+
 func resolveCustomForwardedClientIP(c *gin.Context, headers []string) (string, string) {
 	if c == nil {
 		return "", ""

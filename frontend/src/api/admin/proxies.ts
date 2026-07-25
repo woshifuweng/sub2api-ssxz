@@ -27,10 +27,8 @@ export async function list(
   pageSize: number = 20,
   filters?: {
     protocol?: string
-    status?: 'active' | 'inactive' | 'expired'
+    status?: 'active' | 'inactive'
     search?: string
-    sort_by?: string
-    sort_order?: 'asc' | 'desc'
   },
   options?: {
     signal?: AbortSignal
@@ -227,31 +225,46 @@ export async function exportData(options?: {
   ids?: number[]
   filters?: {
     protocol?: string
-    status?: 'active' | 'inactive' | 'expired'
+    status?: 'active' | 'inactive'
     search?: string
-    sort_by?: string
-    sort_order?: 'asc' | 'desc'
   }
 }): Promise<AdminDataPayload> {
   const params: Record<string, string> = {}
   if (options?.ids && options.ids.length > 0) {
     params.ids = options.ids.join(',')
   } else if (options?.filters) {
-    const { protocol, status, search, sort_by, sort_order } = options.filters
+    const { protocol, status, search } = options.filters
     if (protocol) params.protocol = protocol
     if (status) params.status = status
     if (search) params.search = search
-    if (sort_by) params.sort_by = sort_by
-    if (sort_order) params.sort_order = sort_order
   }
   const { data } = await apiClient.get<AdminDataPayload>('/admin/proxies/data', { params })
   return data
 }
 
 export async function importData(payload: {
-  data: AdminDataPayload
+  file?: File
+  data?: AdminDataPayload
 }): Promise<AdminDataImportResult> {
-  const { data } = await apiClient.post<AdminDataImportResult>('/admin/proxies/data', payload)
+  if (payload.file) {
+    const formData = new FormData()
+    formData.append('file', payload.file)
+    const { data } = await apiClient.post<AdminDataImportResult>('/admin/proxies/data', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      },
+      timeout: 0,
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity
+    })
+    return data
+  }
+
+  const { data } = await apiClient.post<AdminDataImportResult>('/admin/proxies/data', payload, {
+    timeout: 0,
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity
+  })
   return data
 }
 

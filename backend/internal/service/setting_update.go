@@ -16,7 +16,7 @@ import (
 )
 
 // UpdateSettings 更新系统设置
-func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSettings) error {
+func (s *SettingService) UpdateSettingsLegacy(ctx context.Context, settings *SystemSettings) error {
 	updates, err := s.buildSystemSettingsUpdates(ctx, settings)
 	if err != nil {
 		return err
@@ -604,7 +604,7 @@ func (s *SettingService) defaultRewriteMessageCacheControl() bool {
 	return false
 }
 
-func (s *SettingService) validateDefaultSubscriptionGroups(ctx context.Context, items []DefaultSubscriptionSetting) error {
+func (s *SettingService) validateDefaultSubscriptionGroupsLegacy(ctx context.Context, items []DefaultSubscriptionSetting) error {
 	if len(items) == 0 {
 		return nil
 	}

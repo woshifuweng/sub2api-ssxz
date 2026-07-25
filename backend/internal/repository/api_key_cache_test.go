@@ -3,7 +3,10 @@
 package repository
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -43,4 +46,17 @@ func TestApiKeyRateLimitKey(t *testing.T) {
 			require.Equal(t, tc.expected, got)
 		})
 	}
+}
+
+func TestApiKeyAuthCacheKeyHashesRawKey(t *testing.T) {
+	raw := "sk-live-secret-value"
+	sum := sha256.Sum256([]byte(raw))
+	expected := apiKeyAuthCachePrefix + hex.EncodeToString(sum[:])
+
+	got := apiKeyAuthCacheKey(raw)
+
+	require.Equal(t, expected, got)
+	require.Len(t, strings.TrimPrefix(got, apiKeyAuthCachePrefix), 64)
+	require.NotContains(t, got, raw)
+	require.Equal(t, got, apiKeyAuthCacheKey(raw))
 }

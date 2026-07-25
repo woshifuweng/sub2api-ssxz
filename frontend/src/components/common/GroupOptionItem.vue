@@ -24,25 +24,16 @@
 
     <!-- Right: rate pill + checkmark (vertically centered to first row) -->
     <div class="flex shrink-0 items-center gap-2 pt-0.5">
-      <div class="flex shrink-0 flex-col items-end gap-1">
-        <!-- Rate pill (platform color) -->
-        <span v-if="rateMultiplier !== undefined" :class="['inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold', ratePillClass]">
-          <template v-if="hasCustomRate">
-            <span class="mr-1 line-through opacity-50">{{ rateMultiplier }}x</span>
-            <span class="font-bold">{{ userRateMultiplier }}x</span>
-          </template>
-          <template v-else>
-            {{ rateMultiplier }}x {{ t('admin.groups.rateLabel') }}
-          </template>
-        </span>
-        <span
-          v-if="hasPeakRate"
-          class="inline-flex items-center whitespace-nowrap rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
-          :title="peakRateTitle"
-        >
-          {{ peakRateText }}
-        </span>
-      </div>
+      <!-- Rate pill (platform color) -->
+      <span v-if="rateMultiplier !== undefined" :class="['inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold', ratePillClass]">
+        <template v-if="hasCustomRate">
+          <span class="mr-1 line-through opacity-50">{{ rateMultiplier }}x</span>
+          <span class="font-bold">{{ userRateMultiplier }}x</span>
+        </template>
+        <template v-else>
+          {{ t('common.rateMultiplier', { rate: rateMultiplier }) }}
+        </template>
+      </span>
       <!-- Checkmark -->
       <svg
         v-if="showCheckmark && selected"
@@ -63,10 +54,6 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import GroupBadge from './GroupBadge.vue'
 import type { SubscriptionType, GroupPlatform } from '@/types'
-import { useAppStore } from '@/stores/app'
-import { formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
-
-const { t } = useI18n()
 
 interface Props {
   name: string
@@ -74,10 +61,6 @@ interface Props {
   subscriptionType?: SubscriptionType
   rateMultiplier?: number
   userRateMultiplier?: number | null
-  peakRateEnabled?: boolean
-  peakStart?: string
-  peakEnd?: string
-  peakRateMultiplier?: number
   description?: string | null
   selected?: boolean
   showCheckmark?: boolean
@@ -87,9 +70,10 @@ const props = withDefaults(defineProps<Props>(), {
   subscriptionType: 'standard',
   selected: false,
   showCheckmark: true,
-  userRateMultiplier: null,
-  peakRateEnabled: false
+  userRateMultiplier: null
 })
+
+const { t } = useI18n()
 
 // Whether user has a custom rate different from default
 const hasCustomRate = computed(() => {
@@ -101,39 +85,21 @@ const hasCustomRate = computed(() => {
   )
 })
 
-const appStore = useAppStore()
-
-const hasPeakRate = computed(() => {
-  return Boolean(props.peakRateEnabled && props.peakStart && props.peakEnd)
-})
-
-const peakRateText = computed(() => {
-  return formatPeakRateWindow(
-    {
-      peak_rate_enabled: props.peakRateEnabled,
-      peak_start: props.peakStart,
-      peak_end: props.peakEnd,
-      peak_rate_multiplier: props.peakRateMultiplier
-    },
-    serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset)
-  )
-})
-
-const peakRateTitle = computed(() => {
-  return t('common.peakRateTooltip', { window: peakRateText.value })
-})
-
 // Rate pill color matches platform badge color
 const ratePillClass = computed(() => {
   switch (props.platform) {
     case 'anthropic':
       return 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
+    case 'kiro':
+      return 'bg-cyan-50 text-cyan-700 dark:bg-cyan-900/20 dark:text-cyan-400'
     case 'openai':
       return 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'
     case 'gemini':
       return 'bg-sky-50 text-sky-700 dark:bg-sky-900/20 dark:text-sky-400'
-    default: // antigravity and others
-      return 'bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-400'
+    case 'sora':
+      return 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-400'
+    default:
+      return 'bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400'
   }
 })
 </script>

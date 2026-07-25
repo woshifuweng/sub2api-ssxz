@@ -33,6 +33,8 @@ const (
 	FieldFrozenBalance = "frozen_balance"
 	// FieldConcurrency holds the string denoting the concurrency field in the database.
 	FieldConcurrency = "concurrency"
+	// FieldUnlimitedConcurrency holds the string denoting the unlimited_concurrency field in the database.
+	FieldUnlimitedConcurrency = "unlimited_concurrency"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
 	// FieldUsername holds the string denoting the username field in the database.
@@ -61,6 +63,10 @@ const (
 	FieldBalanceNotifyExtraEmails = "balance_notify_extra_emails"
 	// FieldTotalRecharged holds the string denoting the total_recharged field in the database.
 	FieldTotalRecharged = "total_recharged"
+	// FieldSoraStorageQuotaBytes holds the string denoting the sora_storage_quota_bytes field in the database.
+	FieldSoraStorageQuotaBytes = "sora_storage_quota_bytes"
+	// FieldSoraStorageUsedBytes holds the string denoting the sora_storage_used_bytes field in the database.
+	FieldSoraStorageUsedBytes = "sora_storage_used_bytes"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
@@ -203,6 +209,7 @@ var Columns = []string{
 	FieldBalance,
 	FieldFrozenBalance,
 	FieldConcurrency,
+	FieldUnlimitedConcurrency,
 	FieldStatus,
 	FieldUsername,
 	FieldNotes,
@@ -217,6 +224,8 @@ var Columns = []string{
 	FieldBalanceNotifyThreshold,
 	FieldBalanceNotifyExtraEmails,
 	FieldTotalRecharged,
+	FieldSoraStorageQuotaBytes,
+	FieldSoraStorageUsedBytes,
 	FieldRpmLimit,
 }
 
@@ -264,6 +273,8 @@ var (
 	DefaultFrozenBalance float64
 	// DefaultConcurrency holds the default value on creation for the "concurrency" field.
 	DefaultConcurrency int
+	// DefaultUnlimitedConcurrency holds the default value on creation for the "unlimited_concurrency" field.
+	DefaultUnlimitedConcurrency bool
 	// DefaultStatus holds the default value on creation for the "status" field.
 	DefaultStatus string
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
@@ -288,6 +299,10 @@ var (
 	DefaultBalanceNotifyExtraEmails string
 	// DefaultTotalRecharged holds the default value on creation for the "total_recharged" field.
 	DefaultTotalRecharged float64
+	// DefaultSoraStorageQuotaBytes holds the default value on creation for the "sora_storage_quota_bytes" field.
+	DefaultSoraStorageQuotaBytes int64
+	// DefaultSoraStorageUsedBytes holds the default value on creation for the "sora_storage_used_bytes" field.
+	DefaultSoraStorageUsedBytes int64
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
 )
@@ -343,6 +358,11 @@ func ByFrozenBalance(opts ...sql.OrderTermOption) OrderOption {
 // ByConcurrency orders the results by the concurrency field.
 func ByConcurrency(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldConcurrency, opts...).ToFunc()
+}
+
+// ByUnlimitedConcurrency orders the results by the unlimited_concurrency field.
+func ByUnlimitedConcurrency(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUnlimitedConcurrency, opts...).ToFunc()
 }
 
 // ByStatus orders the results by the status field.
@@ -413,6 +433,16 @@ func ByBalanceNotifyExtraEmails(opts ...sql.OrderTermOption) OrderOption {
 // ByTotalRecharged orders the results by the total_recharged field.
 func ByTotalRecharged(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldTotalRecharged, opts...).ToFunc()
+}
+
+// BySoraStorageQuotaBytes orders the results by the sora_storage_quota_bytes field.
+func BySoraStorageQuotaBytes(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSoraStorageQuotaBytes, opts...).ToFunc()
+}
+
+// BySoraStorageUsedBytes orders the results by the sora_storage_used_bytes field.
+func BySoraStorageUsedBytes(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSoraStorageUsedBytes, opts...).ToFunc()
 }
 
 // ByRpmLimit orders the results by the rpm_limit field.

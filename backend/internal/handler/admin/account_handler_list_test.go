@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,8 +14,50 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestAccountListCacheSeparatesBehaviorAffectingFilters(t *testing.T) {
+	accountListSnapshotCache = newSnapshotCache(5 * time.Second)
+	handler := &AccountHandler{}
+	loads := 0
+	load := func(context.Context) ([]AccountWithConcurrency, int64, error) {
+		loads++
+		return []AccountWithConcurrency{}, 0, nil
+	}
+
+	queries := []struct {
+		privacyMode           string
+		sortBy                string
+		sortOrder             string
+		includeSchedulerScore bool
+	}{
+		{privacyMode: "", sortBy: "name", sortOrder: "asc"},
+		{privacyMode: "private", sortBy: "name", sortOrder: "asc"},
+		{privacyMode: "", sortBy: "created_at", sortOrder: "asc"},
+		{privacyMode: "", sortBy: "name", sortOrder: "desc"},
+		{privacyMode: "", sortBy: "name", sortOrder: "asc", includeSchedulerScore: true},
+	}
+	for _, query := range queries {
+		_, hit, err := handler.getAccountListCached(
+			context.Background(), 1, 20, "openai", "apikey", "active", "",
+			query.privacyMode, query.sortBy, query.sortOrder, 0, false,
+			query.includeSchedulerScore, load,
+		)
+		require.NoError(t, err)
+		require.False(t, hit)
+	}
+	require.Equal(t, len(queries), loads)
+
+	_, hit, err := handler.getAccountListCached(
+		context.Background(), 1, 20, "openai", "apikey", "active", "",
+		"", "name", "asc", 0, false, false, load,
+	)
+	require.NoError(t, err)
+	require.True(t, hit)
+	require.Equal(t, len(queries), loads)
+}
+
 func setupAccountListRouter() (*gin.Engine, *stubAdminService) {
 	gin.SetMode(gin.TestMode)
+	accountListSnapshotCache = newSnapshotCache(5 * time.Second)
 	router := gin.New()
 	adminSvc := newStubAdminService()
 	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)

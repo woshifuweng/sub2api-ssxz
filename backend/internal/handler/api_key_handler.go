@@ -3,6 +3,7 @@ package handler
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -19,6 +21,24 @@ import (
 // APIKeyHandler handles API key-related requests
 type APIKeyHandler struct {
 	apiKeyService *service.APIKeyService
+}
+
+type apiKeyGatewayResponder struct {
+	ctx gatewayctx.GatewayContext
+}
+
+func (g apiKeyGatewayResponder) Request() *http.Request {
+	if g.ctx == nil {
+		return nil
+	}
+	return g.ctx.Request()
+}
+
+func (g apiKeyGatewayResponder) WriteJSON(status int, payload any) {
+	if g.ctx == nil {
+		return
+	}
+	g.ctx.WriteJSON(status, payload)
 }
 
 // NewAPIKeyHandler creates a new APIKeyHandler
@@ -32,6 +52,8 @@ func NewAPIKeyHandler(apiKeyService *service.APIKeyService) *APIKeyHandler {
 type CreateAPIKeyRequest struct {
 	Name          string   `json:"name" binding:"required"`
 	GroupID       *int64   `json:"group_id"`        // nullable
+	GroupIDs      []int64  `json:"group_ids"`       // optional multi-group binding
+	AllowedModels []string `json:"allowed_models"`  // optional model allowlist
 	CustomKey     *string  `json:"custom_key"`      // 可选的自定义key
 	IPWhitelist   []string `json:"ip_whitelist"`    // IP 白名单
 	IPBlacklist   []string `json:"ip_blacklist"`    // IP 黑名单
@@ -46,14 +68,16 @@ type CreateAPIKeyRequest struct {
 
 // UpdateAPIKeyRequest represents the update API key request payload
 type UpdateAPIKeyRequest struct {
-	Name        string    `json:"name"`
-	GroupID     *int64    `json:"group_id"`
-	Status      string    `json:"status" binding:"omitempty,oneof=active inactive"`
-	IPWhitelist *[]string `json:"ip_whitelist"` // IP 白名单（nil 不修改，空数组清空）
-	IPBlacklist *[]string `json:"ip_blacklist"` // IP 黑名单（nil 不修改，空数组清空）
-	Quota       *float64  `json:"quota"`        // 配额限制 (USD), 0=无限制
-	ExpiresAt   *string   `json:"expires_at"`   // 过期时间 (ISO 8601)
-	ResetQuota  *bool     `json:"reset_quota"`  // 重置已用配额
+	Name          string    `json:"name"`
+	GroupID       *int64    `json:"group_id"`
+	GroupIDs      *[]int64  `json:"group_ids"`
+	AllowedModels *[]string `json:"allowed_models"`
+	Status        string    `json:"status" binding:"omitempty,oneof=active inactive"`
+	IPWhitelist   *[]string `json:"ip_whitelist"` // nil = no change, empty array = clear
+	IPBlacklist   *[]string `json:"ip_blacklist"` // nil = no change, empty array = clear
+	Quota         *float64  `json:"quota"`        // 配额限制 (USD), 0=无限制
+	ExpiresAt     *string   `json:"expires_at"`   // 过期时间 (ISO 8601)
+	ResetQuota    *bool     `json:"reset_quota"`  // 重置已用配额
 
 	// Rate limit fields (nil = no change, 0 = unlimited)
 	RateLimit5h         *float64 `json:"rate_limit_5h"`
@@ -65,39 +89,38 @@ type UpdateAPIKeyRequest struct {
 // List handles listing user's API keys with pagination
 // GET /api/v1/api-keys
 func (h *APIKeyHandler) List(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	h.ListGateway(gatewayctx.FromGin(c))
+}
+
+func (h *APIKeyHandler) ListGateway(c gatewayctx.GatewayContext) {
+	subject, ok := middleware2.GetAuthSubjectFromGatewayContext(c)
 	if !ok {
-		response.Unauthorized(c, "User not authenticated")
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
 
-	page, pageSize := response.ParsePagination(c)
-	params := pagination.PaginationParams{
-		Page:      page,
-		PageSize:  pageSize,
-		SortBy:    c.DefaultQuery("sort_by", "created_at"),
-		SortOrder: c.DefaultQuery("sort_order", "desc"),
-	}
+	page, pageSize := response.ParsePaginationValues(c)
+	params := pagination.PaginationParams{Page: page, PageSize: pageSize}
 
 	// Parse filter parameters
 	var filters service.APIKeyListFilters
-	if search := strings.TrimSpace(c.Query("search")); search != "" {
+	if search := strings.TrimSpace(c.QueryValue("search")); search != "" {
 		if len(search) > 100 {
 			search = search[:100]
 		}
 		filters.Search = search
 	}
-	filters.Status = c.Query("status")
-	if groupIDStr := c.Query("group_id"); groupIDStr != "" {
+	filters.Status = c.QueryValue("status")
+	if groupIDStr := c.QueryValue("group_id"); groupIDStr != "" {
 		gid, err := strconv.ParseInt(groupIDStr, 10, 64)
 		if err == nil {
 			filters.GroupID = &gid
 		}
 	}
 
-	keys, result, err := h.apiKeyService.List(c.Request.Context(), subject.UserID, params, filters)
+	keys, result, err := h.apiKeyService.List(c.Request().Context(), subject.UserID, params, filters)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(apiKeyGatewayResponder{ctx: c}, err)
 		return
 	}
 
@@ -105,57 +128,101 @@ func (h *APIKeyHandler) List(c *gin.Context) {
 	for i := range keys {
 		out = append(out, *dto.APIKeyFromService(&keys[i]))
 	}
-	response.Paginated(c, out, result.Total, page, pageSize)
+	response.PaginatedContext(apiKeyGatewayResponder{ctx: c}, out, result.Total, page, pageSize)
 }
 
 // GetByID handles getting a single API key
 // GET /api/v1/api-keys/:id
 func (h *APIKeyHandler) GetByID(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	h.GetByIDGateway(gatewayctx.FromGin(c))
+}
+
+func (h *APIKeyHandler) GetByIDGateway(c gatewayctx.GatewayContext) {
+	subject, ok := middleware2.GetAuthSubjectFromGatewayContext(c)
 	if !ok {
-		response.Unauthorized(c, "User not authenticated")
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
 
-	keyID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	keyID, err := strconv.ParseInt(c.PathParam("id"), 10, 64)
 	if err != nil {
-		response.BadRequest(c, "Invalid key ID")
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusBadRequest, "Invalid key ID")
 		return
 	}
 
-	key, err := h.apiKeyService.GetByID(c.Request.Context(), keyID)
+	key, err := h.apiKeyService.GetByID(c.Request().Context(), keyID)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(apiKeyGatewayResponder{ctx: c}, err)
 		return
 	}
 
 	// 验证所有权
 	if key.UserID != subject.UserID {
-		response.NotFound(c, "API key not found")
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusForbidden, "Not authorized to access this key")
 		return
 	}
 
-	response.Success(c, dto.APIKeyFromService(key))
+	response.SuccessContext(apiKeyGatewayResponder{ctx: c}, dto.APIKeyFromService(key))
+}
+
+// Reveal returns the plaintext value for an API key owned by the authenticated user.
+// POST /api/v1/keys/:id/reveal
+func (h *APIKeyHandler) Reveal(c *gin.Context) {
+	h.RevealGateway(gatewayctx.FromGin(c))
+}
+
+func (h *APIKeyHandler) RevealGateway(c gatewayctx.GatewayContext) {
+	subject, ok := middleware2.GetAuthSubjectFromGatewayContext(c)
+	if !ok {
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
+		return
+	}
+
+	keyID, err := strconv.ParseInt(c.PathParam("id"), 10, 64)
+	if err != nil {
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusBadRequest, "Invalid key ID")
+		return
+	}
+
+	key, err := h.apiKeyService.GetByID(c.Request().Context(), keyID)
+	if err != nil {
+		response.ErrorFromContext(apiKeyGatewayResponder{ctx: c}, err)
+		return
+	}
+	if key.UserID != subject.UserID {
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusForbidden, "Not authorized to access this key")
+		return
+	}
+
+	c.SetHeader("Cache-Control", "no-store")
+	c.SetHeader("Pragma", "no-cache")
+	response.SuccessContext(apiKeyGatewayResponder{ctx: c}, gin.H{"key": key.Key})
 }
 
 // Create handles creating a new API key
 // POST /api/v1/api-keys
 func (h *APIKeyHandler) Create(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	h.CreateGateway(gatewayctx.FromGin(c))
+}
+
+func (h *APIKeyHandler) CreateGateway(c gatewayctx.GatewayContext) {
+	subject, ok := middleware2.GetAuthSubjectFromGatewayContext(c)
 	if !ok {
-		response.Unauthorized(c, "User not authenticated")
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
 
 	var req CreateAPIKeyRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	if err := c.BindJSON(&req); err != nil {
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
 
 	svcReq := service.CreateAPIKeyRequest{
 		Name:          req.Name,
 		GroupID:       req.GroupID,
+		GroupIDs:      req.GroupIDs,
+		AllowedModels: req.AllowedModels,
 		CustomKey:     req.CustomKey,
 		IPWhitelist:   req.IPWhitelist,
 		IPBlacklist:   req.IPBlacklist,
@@ -174,39 +241,52 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		svcReq.RateLimit7d = *req.RateLimit7d
 	}
 
-	executeUserIdempotentJSON(c, "user.api_keys.create", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+	executeUserIdempotentGatewayJSONWithStoredResponse(c, "user.api_keys.create", req, service.DefaultWriteIdempotencyTTL(), sanitizeAPIKeyCreateStoredResponse, func(ctx context.Context) (any, error) {
 		key, err := h.apiKeyService.Create(ctx, subject.UserID, svcReq)
 		if err != nil {
 			return nil, err
 		}
-		return dto.APIKeyFromService(key), nil
+		return dto.APIKeyFromServiceWithPlaintextKey(key), nil
 	})
+}
+
+func sanitizeAPIKeyCreateStoredResponse(data any) any {
+	key, ok := data.(*dto.APIKey)
+	if !ok {
+		return data
+	}
+	return dto.APIKeyForSafeReplay(key)
 }
 
 // Update handles updating an API key
 // PUT /api/v1/api-keys/:id
 func (h *APIKeyHandler) Update(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	h.UpdateGateway(gatewayctx.FromGin(c))
+}
+
+func (h *APIKeyHandler) UpdateGateway(c gatewayctx.GatewayContext) {
+	subject, ok := middleware2.GetAuthSubjectFromGatewayContext(c)
 	if !ok {
-		response.Unauthorized(c, "User not authenticated")
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
 
-	keyID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	keyID, err := strconv.ParseInt(c.PathParam("id"), 10, 64)
 	if err != nil {
-		response.BadRequest(c, "Invalid key ID")
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusBadRequest, "Invalid key ID")
 		return
 	}
 
 	var req UpdateAPIKeyRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	if err := c.BindJSON(&req); err != nil {
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
 
 	svcReq := service.UpdateAPIKeyRequest{
 		IPWhitelist:         req.IPWhitelist,
 		IPBlacklist:         req.IPBlacklist,
+		AllowedModels:       req.AllowedModels,
 		Quota:               req.Quota,
 		ResetQuota:          req.ResetQuota,
 		RateLimit5h:         req.RateLimit5h,
@@ -218,6 +298,7 @@ func (h *APIKeyHandler) Update(c *gin.Context) {
 		svcReq.Name = &req.Name
 	}
 	svcReq.GroupID = req.GroupID
+	svcReq.GroupIDs = req.GroupIDs
 	if req.Status != "" {
 		svcReq.Status = &req.Status
 	}
@@ -230,58 +311,66 @@ func (h *APIKeyHandler) Update(c *gin.Context) {
 		} else {
 			t, err := time.Parse(time.RFC3339, *req.ExpiresAt)
 			if err != nil {
-				response.BadRequest(c, "Invalid expires_at format: "+err.Error())
+				response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusBadRequest, "Invalid expires_at format: "+err.Error())
 				return
 			}
 			svcReq.ExpiresAt = &t
 		}
 	}
 
-	key, err := h.apiKeyService.Update(c.Request.Context(), keyID, subject.UserID, svcReq)
+	key, err := h.apiKeyService.Update(c.Request().Context(), keyID, subject.UserID, svcReq)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(apiKeyGatewayResponder{ctx: c}, err)
 		return
 	}
 
-	response.Success(c, dto.APIKeyFromService(key))
+	response.SuccessContext(apiKeyGatewayResponder{ctx: c}, dto.APIKeyFromService(key))
 }
 
 // Delete handles deleting an API key
 // DELETE /api/v1/api-keys/:id
 func (h *APIKeyHandler) Delete(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	h.DeleteGateway(gatewayctx.FromGin(c))
+}
+
+func (h *APIKeyHandler) DeleteGateway(c gatewayctx.GatewayContext) {
+	subject, ok := middleware2.GetAuthSubjectFromGatewayContext(c)
 	if !ok {
-		response.Unauthorized(c, "User not authenticated")
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
 
-	keyID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	keyID, err := strconv.ParseInt(c.PathParam("id"), 10, 64)
 	if err != nil {
-		response.BadRequest(c, "Invalid key ID")
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusBadRequest, "Invalid key ID")
 		return
 	}
 
-	err = h.apiKeyService.Delete(c.Request.Context(), keyID, subject.UserID)
+	err = h.apiKeyService.Delete(c.Request().Context(), keyID, subject.UserID)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(apiKeyGatewayResponder{ctx: c}, err)
 		return
 	}
 
-	response.Success(c, gin.H{"message": "API key deleted successfully"})
+	response.SuccessContext(apiKeyGatewayResponder{ctx: c}, gin.H{"message": "API key deleted successfully"})
 }
 
 // GetAvailableGroups 获取用户可以绑定的分组列表
 // GET /api/v1/groups/available
 func (h *APIKeyHandler) GetAvailableGroups(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	h.GetAvailableGroupsGateway(gatewayctx.FromGin(c))
+}
+
+func (h *APIKeyHandler) GetAvailableGroupsGateway(c gatewayctx.GatewayContext) {
+	subject, ok := middleware2.GetAuthSubjectFromGatewayContext(c)
 	if !ok {
-		response.Unauthorized(c, "User not authenticated")
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
 
-	groups, err := h.apiKeyService.GetAvailableGroups(c.Request.Context(), subject.UserID)
+	groups, err := h.apiKeyService.GetAvailableGroups(c.Request().Context(), subject.UserID)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(apiKeyGatewayResponder{ctx: c}, err)
 		return
 	}
 
@@ -289,23 +378,27 @@ func (h *APIKeyHandler) GetAvailableGroups(c *gin.Context) {
 	for i := range groups {
 		out = append(out, *dto.GroupFromService(&groups[i]))
 	}
-	response.Success(c, out)
+	response.SuccessContext(apiKeyGatewayResponder{ctx: c}, out)
 }
 
 // GetUserGroupRates 获取当前用户的专属分组倍率配置
 // GET /api/v1/groups/rates
 func (h *APIKeyHandler) GetUserGroupRates(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	h.GetUserGroupRatesGateway(gatewayctx.FromGin(c))
+}
+
+func (h *APIKeyHandler) GetUserGroupRatesGateway(c gatewayctx.GatewayContext) {
+	subject, ok := middleware2.GetAuthSubjectFromGatewayContext(c)
 	if !ok {
-		response.Unauthorized(c, "User not authenticated")
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
 
-	rates, err := h.apiKeyService.GetUserGroupRates(c.Request.Context(), subject.UserID)
+	rates, err := h.apiKeyService.GetUserGroupRates(c.Request().Context(), subject.UserID)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(apiKeyGatewayResponder{ctx: c}, err)
 		return
 	}
 
-	response.Success(c, rates)
+	response.SuccessContext(apiKeyGatewayResponder{ctx: c}, rates)
 }

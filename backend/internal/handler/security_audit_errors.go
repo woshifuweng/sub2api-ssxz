@@ -9,6 +9,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/googleapi"
 	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
@@ -29,6 +30,18 @@ func (h *OpenAIGatewayHandler) openAISecurityAuditError(c *gin.Context, decision
 	c.JSON(securityAuditStatus(decision), gin.H{"error": gin.H{
 		"type": errType, "code": securityAuditErrorCode(decision), "message": securityAuditMessage(decision),
 	}})
+}
+
+func (h *OpenAIGatewayHandler) openAISecurityAuditErrorContext(c gatewayctx.GatewayContext, decision *securityaudit.Decision) {
+	if decision == nil {
+		return
+	}
+	h.errorResponseGateway(c, securityAuditStatus(decision), func() string {
+		if decision.Kind == securityaudit.DecisionBlock {
+			return "permission_error"
+		}
+		return "api_error"
+	}(), securityAuditMessage(decision))
 }
 
 func (h *GatewayHandler) openAISecurityAuditError(c *gin.Context, decision *securityaudit.Decision) {
@@ -78,6 +91,18 @@ func (h *GatewayHandler) anthropicSecurityAuditError(c *gin.Context, decision *s
 	}})
 }
 
+func (h *GatewayHandler) anthropicSecurityAuditErrorContext(c gatewayctx.GatewayContext, decision *securityaudit.Decision) {
+	if decision == nil {
+		return
+	}
+	h.errorResponseGateway(c, securityAuditStatus(decision), func() string {
+		if decision.Kind == securityaudit.DecisionBlock {
+			return "permission_error"
+		}
+		return "api_error"
+	}(), securityAuditMessage(decision))
+}
+
 func (h *OpenAIGatewayHandler) anthropicSecurityAuditError(c *gin.Context, decision *securityaudit.Decision) {
 	if decision == nil {
 		return
@@ -93,6 +118,17 @@ func (h *OpenAIGatewayHandler) anthropicSecurityAuditError(c *gin.Context, decis
 	c.JSON(securityAuditStatus(decision), gin.H{"type": "error", "error": gin.H{
 		"type": errType, "code": securityAuditErrorCode(decision), "message": securityAuditMessage(decision),
 	}})
+}
+
+func (h *OpenAIGatewayHandler) anthropicSecurityAuditErrorContext(c gatewayctx.GatewayContext, decision *securityaudit.Decision) {
+	if decision == nil {
+		return
+	}
+	errType := "api_error"
+	if decision.Kind == securityaudit.DecisionBlock {
+		errType = "permission_error"
+	}
+	h.anthropicErrorResponseContext(c, securityAuditStatus(decision), errType, securityAuditMessage(decision))
 }
 
 func googleSecurityAuditError(c *gin.Context, decision *securityaudit.Decision) {
@@ -140,6 +176,34 @@ func writeSecurityAuditWSError(ctx context.Context, conn *coderws.Conn, decision
 	})
 	if err != nil {
 		return
+	}
+	writeCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	_ = conn.Write(writeCtx, coderws.MessageText, payload)
+}
+
+func writeContentModerationWSError(ctx context.Context, conn *coderws.Conn, decision *service.ContentModerationDecision) {
+	if conn == nil || decision == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	message := strings.TrimSpace(decision.Message)
+	if message == "" {
+		message = "content moderation blocked this request"
+	}
+	payload, err := json.Marshal(gin.H{
+		"event_id": "evt_content_moderation_blocked",
+		"type":     "error",
+		"error": gin.H{
+			"type":    "invalid_request_error",
+			"code":    contentModerationErrorCode(decision),
+			"message": message,
+		},
+	})
+	if err != nil {
+		payload = []byte(`{"event_id":"evt_content_moderation_blocked","type":"error","error":{"type":"invalid_request_error","code":"content_policy_violation","message":"content moderation blocked this request"}}`)
 	}
 	writeCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()

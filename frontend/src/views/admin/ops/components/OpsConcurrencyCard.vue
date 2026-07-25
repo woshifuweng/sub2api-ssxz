@@ -29,6 +29,10 @@ const realtimeEnabled = computed(() => {
   return (concurrency.value?.enabled ?? true) && (availability.value?.enabled ?? true)
 })
 
+function extractErrorMessage(err: any): string {
+  return err?.response?.data?.detail || err?.message || t('admin.ops.concurrency.loadFailed')
+}
+
 function safeNumber(n: unknown): number {
   return typeof n === 'number' && Number.isFinite(n) ? n : 0
 }
@@ -265,20 +269,45 @@ async function loadData() {
   try {
     if (showByUser.value) {
       // 用户视图模式只加载用户并发数据
-      const userData = await opsAPI.getUserConcurrencyStats()
+      const userData = await opsAPI.getUserConcurrencyStats(80)
       userConcurrency.value = userData
     } else {
       // 常规模式加载账号/平台/分组数据
-      const [concData, availData] = await Promise.all([
-        opsAPI.getConcurrencyStats(props.platformFilter, props.groupIdFilter),
-        opsAPI.getAccountAvailabilityStats(props.platformFilter, props.groupIdFilter)
+      const includeAccountDetail = displayDimension.value === 'account'
+      const accountLimit = includeAccountDetail ? 80 : 0
+      const [concResult, availResult] = await Promise.allSettled([
+        opsAPI.getConcurrencyStats(props.platformFilter, props.groupIdFilter, {
+          includeAccount: includeAccountDetail,
+          accountLimit
+        }),
+        opsAPI.getAccountAvailabilityStats(props.platformFilter, props.groupIdFilter, {
+          includeAccount: includeAccountDetail,
+          accountLimit
+        })
       ])
-      concurrency.value = concData
-      availability.value = availData
+      const failures: string[] = []
+
+      if (concResult.status === 'fulfilled') {
+        concurrency.value = concResult.value
+      } else {
+        concurrency.value = null
+        failures.push(`concurrency: ${extractErrorMessage(concResult.reason)}`)
+      }
+
+      if (availResult.status === 'fulfilled') {
+        availability.value = availResult.value
+      } else {
+        availability.value = null
+        failures.push(`availability: ${extractErrorMessage(availResult.reason)}`)
+      }
+
+      if (failures.length > 0) {
+        errorMessage.value = failures.join(' | ')
+      }
     }
   } catch (err: any) {
     console.error('[OpsConcurrencyCard] Failed to load data', err)
-    errorMessage.value = err?.response?.data?.detail || t('admin.ops.concurrency.loadFailed')
+    errorMessage.value = extractErrorMessage(err)
   } finally {
     loading.value = false
   }
@@ -341,7 +370,7 @@ watch(
 </script>
 
 <template>
-  <div class="flex h-full flex-col rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
+<div class="admin-b5-outline-panel flex h-full flex-col rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
     <!-- 头部 -->
     <div class="mb-4 flex shrink-0 items-center justify-between gap-3">
       <h3 class="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">

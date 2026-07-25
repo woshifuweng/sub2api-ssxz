@@ -1,7 +1,9 @@
 package dto
 
 import (
+	"encoding/json"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -27,28 +29,86 @@ func TestPublicSettingsInjectionPayload_SchemaDoesNotDrift(t *testing.T) {
 	injection := jsonTags(reflect.TypeOf(service.PublicSettingsInjectionPayload{}))
 	dtoKeys := jsonTags(reflect.TypeOf(PublicSettings{}))
 
-	// Fields that legitimately live only on the DTO. Keep tiny; document each.
-	dtoOnlyFields := map[string]string{
-		// sora_client_enabled is an upstream-only field the fork does not surface.
-		"sora_client_enabled": "upstream-only field, not used on this fork",
-		// force_email_on_third_party_signup lives on the DTO but is not injected via SSR.
-		"force_email_on_third_party_signup": "auth-source default, not a feature flag",
-	}
-
 	var missing []string
 	for key := range dtoKeys {
 		if _, ok := injection[key]; ok {
 			continue
 		}
-		if _, allowed := dtoOnlyFields[key]; allowed {
-			continue
-		}
 		missing = append(missing, key)
 	}
+	sort.Strings(missing)
 	if len(missing) > 0 {
 		t.Fatalf("service.PublicSettingsInjectionPayload is missing JSON fields present on dto.PublicSettings: %s\n"+
-			"add the field to PublicSettingsInjectionPayload (and GetPublicSettingsForInjection), or "+
-			"document the exclusion in dtoOnlyFields with a reason.", strings.Join(missing, ", "))
+			"add the field to PublicSettingsInjectionPayload and GetPublicSettingsForInjection.", strings.Join(missing, ", "))
+	}
+
+	var extra []string
+	for key := range injection {
+		if _, ok := dtoKeys[key]; !ok {
+			extra = append(extra, key)
+		}
+	}
+	sort.Strings(extra)
+	if len(extra) > 0 {
+		t.Fatalf("service.PublicSettingsInjectionPayload exposes JSON fields absent from dto.PublicSettings: %s", strings.Join(extra, ", "))
+	}
+}
+
+func TestPublicSettingsInjectionPayload_JSONShapeAndSecretBoundary(t *testing.T) {
+	payload := service.PublicSettingsInjectionPayload{
+		ForceEmailOnThirdPartySignup: true,
+		PurchaseLinkCNY10:            "https://example.com/10",
+		PurchaseLinkCNY30:            "https://example.com/30",
+		PurchaseLinkCNY100:           "https://example.com/100",
+		SoraClientEnabled:            true,
+		WebSearch: service.PublicWorkspaceWebSearchSettings{
+			Available: true,
+			Provider:  "jina",
+		},
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal public settings injection payload: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatalf("unmarshal public settings injection payload: %v", err)
+	}
+	for _, key := range []string{
+		"force_email_on_third_party_signup",
+		"purchase_link_cny_10",
+		"purchase_link_cny_30",
+		"purchase_link_cny_100",
+		"sora_client_enabled",
+		"web_search",
+	} {
+		if _, ok := decoded[key]; !ok {
+			t.Fatalf("public settings injection JSON is missing %q", key)
+		}
+	}
+	webSearch, ok := decoded["web_search"].(map[string]any)
+	if !ok {
+		t.Fatalf("web_search has unexpected JSON shape: %#v", decoded["web_search"])
+	}
+	if _, ok := webSearch["available"]; !ok {
+		t.Fatal("web_search.available is missing")
+	}
+	if _, ok := webSearch["provider"]; !ok {
+		t.Fatal("web_search.provider is missing")
+	}
+
+	for _, forbidden := range []string{
+		"turnstile_secret_key",
+		"smtp_password",
+		"oauth_client_secret",
+		"secret_access_key",
+		"jwt_secret",
+		"upstream_api_key",
+	} {
+		if strings.Contains(string(raw), `"`+forbidden+`"`) {
+			t.Fatalf("public settings injection leaked forbidden field %q", forbidden)
+		}
 	}
 }
 

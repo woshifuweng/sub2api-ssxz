@@ -13,7 +13,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
-	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/Wei-Shaw/sub2api/internal/repository"
 	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
 	"github.com/Wei-Shaw/sub2api/internal/server"
@@ -30,6 +29,10 @@ type Application struct {
 	Cleanup     func()
 }
 
+type CoordinatorApplication struct {
+	Cleanup func()
+}
+
 func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	wire.Build(
 		// Infrastructure layer ProviderSets
@@ -39,7 +42,6 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 		repository.ProviderSet,
 		service.ProviderSet,
 		securityaudit.ProviderSet,
-		payment.ProviderSet,
 		middleware.ProviderSet,
 		handler.ProviderSet,
 
@@ -61,14 +63,28 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	return nil, nil
 }
 
+func initializeCoordinatorApplication(buildInfo handler.BuildInfo) (*CoordinatorApplication, error) {
+	wire.Build(
+		config.ProviderSet,
+		repository.ProviderSet,
+		service.ProviderSet,
+		securityaudit.ProviderSet,
+		providePrivacyClientFactory,
+		provideCleanup,
+		wire.Struct(new(CoordinatorApplication), "Cleanup"),
+	)
+	return nil, nil
+}
+
 func providePrivacyClientFactory() service.PrivacyClientFactory {
 	return repository.CreatePrivacyReqClient
 }
 
 func provideServiceBuildInfo(buildInfo handler.BuildInfo) service.BuildInfo {
 	return service.BuildInfo{
-		Version:   buildInfo.Version,
-		BuildType: buildInfo.BuildType,
+		Version:     buildInfo.Version,
+		BuildType:   buildInfo.BuildType,
+		ReleaseRepo: buildInfo.ReleaseRepo,
 	}
 }
 
@@ -105,10 +121,10 @@ func provideCleanup(
 	antigravityOAuth *service.AntigravityOAuthService,
 	grokOAuth *service.GrokOAuthService,
 	openAIGateway *service.OpenAIGatewayService,
+	channelMonitorRunner *service.ChannelMonitorRunner,
 	scheduledTestRunner *service.ScheduledTestRunnerService,
 	backupSvc *service.BackupService,
 	paymentOrderExpiry *service.PaymentOrderExpiryService,
-	channelMonitorRunner *service.ChannelMonitorRunner,
 	quotaFlusher *service.UserPlatformQuotaUsageFlusher,
 	upstreamBillingProbe *service.UpstreamBillingProbeService,
 	auditLog *service.AuditLogService,
@@ -292,6 +308,12 @@ func provideCleanup(
 			{"OpenAIWSPool", func() error {
 				if openAIGateway != nil {
 					openAIGateway.CloseOpenAIWSPool()
+				}
+				return nil
+			}},
+			{"ChannelMonitorRunner", func() error {
+				if channelMonitorRunner != nil {
+					channelMonitorRunner.Stop()
 				}
 				return nil
 			}},

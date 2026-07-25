@@ -9,19 +9,20 @@ import (
 )
 
 type User struct {
-	ID            int64      `json:"id"`
-	Email         string     `json:"email"`
-	Username      string     `json:"username"`
-	Role          string     `json:"role"`
-	Balance       float64    `json:"balance"`
-	FrozenBalance float64    `json:"frozen_balance"`
-	Concurrency   int        `json:"concurrency"`
-	Status        string     `json:"status"`
-	AllowedGroups []int64    `json:"allowed_groups"`
-	LastActiveAt  *time.Time `json:"last_active_at,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
-	DeletedAt     *time.Time `json:"deleted_at,omitempty"`
+	ID                   int64      `json:"id"`
+	Email                string     `json:"email"`
+	Username             string     `json:"username"`
+	Role                 string     `json:"role"`
+	Balance              float64    `json:"balance"`
+	FrozenBalance        float64    `json:"frozen_balance"`
+	Concurrency          int        `json:"concurrency"`
+	UnlimitedConcurrency bool       `json:"unlimited_concurrency"`
+	Status               string     `json:"status"`
+	AllowedGroups        []int64    `json:"allowed_groups"`
+	LastActiveAt         *time.Time `json:"last_active_at,omitempty"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+	DeletedAt            *time.Time `json:"deleted_at,omitempty"`
 
 	// 余额不足通知
 	BalanceNotifyEnabled       bool               `json:"balance_notify_enabled"`
@@ -46,25 +47,29 @@ type AdminUser struct {
 	LastUsedAt *time.Time `json:"last_used_at"`
 	// GroupRates 用户专属分组倍率配置
 	// map[groupID]rateMultiplier
-	GroupRates map[int64]float64 `json:"group_rates,omitempty"`
+	GroupRates            map[int64]float64 `json:"group_rates,omitempty"`
+	SoraStorageQuotaBytes int64             `json:"sora_storage_quota_bytes"`
+	SoraStorageUsedBytes  int64             `json:"sora_storage_used_bytes"`
 }
 
 type APIKey struct {
-	ID          int64      `json:"id"`
-	UserID      int64      `json:"user_id"`
-	Key         string     `json:"key"`
-	Name        string     `json:"name"`
-	GroupID     *int64     `json:"group_id"`
-	Status      string     `json:"status"`
-	IPWhitelist []string   `json:"ip_whitelist"`
-	IPBlacklist []string   `json:"ip_blacklist"`
-	LastUsedAt  *time.Time `json:"last_used_at"`
-	LastUsedIP  *string    `json:"last_used_ip"`
-	Quota       float64    `json:"quota"`      // Quota limit in USD (0 = unlimited)
-	QuotaUsed   float64    `json:"quota_used"` // Used quota amount in USD
-	ExpiresAt   *time.Time `json:"expires_at"` // Expiration time (nil = never expires)
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ID            int64      `json:"id"`
+	UserID        int64      `json:"user_id"`
+	Key           string     `json:"key"`
+	Name          string     `json:"name"`
+	GroupID       *int64     `json:"group_id"`
+	GroupIDs      []int64    `json:"group_ids,omitempty"`
+	AllowedModels []string   `json:"allowed_models"`
+	Status        string     `json:"status"`
+	IPWhitelist   []string   `json:"ip_whitelist"`
+	IPBlacklist   []string   `json:"ip_blacklist"`
+	LastUsedAt    *time.Time `json:"last_used_at"`
+	LastUsedIP    *string    `json:"last_used_ip"`
+	Quota         float64    `json:"quota"`      // Quota limit in USD (0 = unlimited)
+	QuotaUsed     float64    `json:"quota_used"` // Used quota amount in USD
+	ExpiresAt     *time.Time `json:"expires_at"` // Expiration time (nil = never expires)
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 	// CurrentConcurrency is the real-time active request count for this API key.
 	CurrentConcurrency int `json:"current_concurrency"`
 
@@ -82,8 +87,9 @@ type APIKey struct {
 	Reset1dAt     *time.Time `json:"reset_1d_at,omitempty"`
 	Reset7dAt     *time.Time `json:"reset_7d_at,omitempty"`
 
-	User  *User  `json:"user,omitempty"`
-	Group *Group `json:"group,omitempty"`
+	User   *User   `json:"user,omitempty"`
+	Group  *Group  `json:"group,omitempty"`
+	Groups []Group `json:"groups,omitempty"`
 }
 
 type Group struct {
@@ -110,16 +116,20 @@ type Group struct {
 	VideoRateIndependent         bool    `json:"video_rate_independent"`
 	VideoRateMultiplier          float64 `json:"video_rate_multiplier"`
 	// 高峰时段倍率配置
-	PeakRateEnabled    bool     `json:"peak_rate_enabled"`
-	PeakStart          string   `json:"peak_start"`
-	PeakEnd            string   `json:"peak_end"`
-	PeakRateMultiplier float64  `json:"peak_rate_multiplier"`
-	ImagePrice1K       *float64 `json:"image_price_1k"`
-	ImagePrice2K       *float64 `json:"image_price_2k"`
-	ImagePrice4K       *float64 `json:"image_price_4k"`
-	VideoPrice480P     *float64 `json:"video_price_480p"`
-	VideoPrice720P     *float64 `json:"video_price_720p"`
-	VideoPrice1080P    *float64 `json:"video_price_1080p"`
+	PeakRateEnabled            bool     `json:"peak_rate_enabled"`
+	PeakStart                  string   `json:"peak_start"`
+	PeakEnd                    string   `json:"peak_end"`
+	PeakRateMultiplier         float64  `json:"peak_rate_multiplier"`
+	ImagePrice1K               *float64 `json:"image_price_1k"`
+	ImagePrice2K               *float64 `json:"image_price_2k"`
+	ImagePrice4K               *float64 `json:"image_price_4k"`
+	SoraImagePrice360          *float64 `json:"sora_image_price_360"`
+	SoraImagePrice540          *float64 `json:"sora_image_price_540"`
+	SoraVideoPricePerRequest   *float64 `json:"sora_video_price_per_request"`
+	SoraVideoPricePerRequestHD *float64 `json:"sora_video_price_per_request_hd"`
+	VideoPrice480P             *float64 `json:"video_price_480p"`
+	VideoPrice720P             *float64 `json:"video_price_720p"`
+	VideoPrice1080P            *float64 `json:"video_price_1080p"`
 	// Codex alpha/search 网页搜索单次价格（USD/次）；null 表示使用默认价 0.01
 	WebSearchPricePerCall *float64 `json:"web_search_price_per_call"`
 
@@ -131,6 +141,9 @@ type Group struct {
 
 	// OpenAI Messages 调度开关（用户侧需要此字段判断是否展示 Claude Code 教程）
 	AllowMessagesDispatch bool `json:"allow_messages_dispatch"`
+
+	// Sora 存储配额
+	SoraStorageQuotaBytes int64 `json:"sora_storage_quota_bytes"`
 
 	// 账号过滤控制（仅 OpenAI/Antigravity 平台有效）
 	RequireOAuthOnly  bool `json:"require_oauth_only"`
@@ -214,6 +227,12 @@ type Account struct {
 	SessionWindowEnd    *time.Time `json:"session_window_end"`
 	SessionWindowStatus string     `json:"session_window_status"`
 
+	SyncState            string `json:"sync_state,omitempty"`
+	SyncProgress         int    `json:"sync_progress,omitempty"`
+	SyncMessage          string `json:"sync_message,omitempty"`
+	SyncBatchID          string `json:"sync_batch_id,omitempty"`
+	DuplicateOfAccountID *int64 `json:"duplicate_of_account_id,omitempty"`
+
 	// 5h窗口费用控制（仅 Anthropic OAuth/SetupToken 账号有效）
 	// 从 extra 字段提取，方便前端显示和编辑
 	WindowCostLimit         *float64 `json:"window_cost_limit,omitempty"`
@@ -233,8 +252,9 @@ type Account struct {
 
 	// TLS指纹伪装（仅 Anthropic OAuth/SetupToken 账号有效）
 	// 从 extra 字段提取，方便前端显示和编辑
-	EnableTLSFingerprint    *bool  `json:"enable_tls_fingerprint,omitempty"`
-	TLSFingerprintProfileID *int64 `json:"tls_fingerprint_profile_id,omitempty"`
+	EnableTLSFingerprint        *bool  `json:"enable_tls_fingerprint,omitempty"`
+	TLSFingerprintProfileID     *int64 `json:"tls_fingerprint_profile_id,omitempty"`
+	IgnorePauseSchedulingErrors *bool  `json:"ignore_pause_scheduling_errors,omitempty"`
 
 	// 会话ID伪装（仅 Anthropic OAuth/SetupToken 账号有效）
 	// 启用后将在15分钟内固定 metadata.user_id 中的 session ID
@@ -371,6 +391,7 @@ type ProxyAccountSummary struct {
 	Name     string  `json:"name"`
 	Platform string  `json:"platform"`
 	Type     string  `json:"type"`
+	Status   string  `json:"status,omitempty"`
 	Notes    *string `json:"notes,omitempty"`
 }
 
@@ -460,9 +481,9 @@ type BatchUpdateRedeemCodesRequest struct {
 // UsageLog 是普通用户接口使用的 usage log DTO（不包含管理员字段）。
 type UsageLog struct {
 	ID        int64  `json:"id"`
-	UserID    int64  `json:"user_id"`
-	APIKeyID  int64  `json:"api_key_id"`
-	AccountID int64  `json:"account_id"`
+	UserID    int64  `json:"user_id,omitempty"`
+	APIKeyID  int64  `json:"api_key_id,omitempty"`
+	AccountID int64  `json:"account_id,omitempty"`
 	RequestID string `json:"request_id"`
 	Model     string `json:"model"`
 	// ServiceTier records the OpenAI service tier used for billing, e.g. "priority" / "flex".
@@ -475,8 +496,8 @@ type UsageLog struct {
 	// UpstreamEndpoint is the normalized upstream endpoint path, e.g. /v1/responses.
 	UpstreamEndpoint *string `json:"upstream_endpoint,omitempty"`
 
-	GroupID        *int64 `json:"group_id"`
-	SubscriptionID *int64 `json:"subscription_id"`
+	GroupID        *int64 `json:"group_id,omitempty"`
+	SubscriptionID *int64 `json:"subscription_id,omitempty"`
 
 	InputTokens         int `json:"input_tokens"`
 	OutputTokens        int `json:"output_tokens"`
@@ -516,7 +537,7 @@ type UsageLog struct {
 	MediaType          *string        `json:"media_type"`
 
 	// User-Agent
-	UserAgent *string `json:"user_agent"`
+	UserAgent *string `json:"user_agent,omitempty"`
 	// IPAddress is visible to the owner of the usage record.
 	IPAddress *string `json:"ip_address,omitempty"`
 

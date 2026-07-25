@@ -14,13 +14,13 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-func (s *OpenAIGatewayService) isOpenAIWSGeneratePrewarmEnabled() bool {
+func (s *OpenAIGatewayService) isOpenAIWSGeneratePrewarmEnabledWeiShaw() bool {
 	return s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIWS.PrewarmGenerateEnabled
 }
 
 // performOpenAIWSGeneratePrewarm 在 WSv2 下执行可选的 generate=false 预热。
 // 预热默认关闭，仅在配置开启后生效；失败时按可恢复错误回退到 HTTP。
-func (s *OpenAIGatewayService) performOpenAIWSGeneratePrewarm(
+func (s *OpenAIGatewayService) performOpenAIWSGeneratePrewarmWeiShaw(
 	ctx context.Context,
 	lease *openAIWSConnLease,
 	decision OpenAIWSProtocolDecision,
@@ -180,11 +180,11 @@ func (s *OpenAIGatewayService) performOpenAIWSGeneratePrewarm(
 	return nil
 }
 
-func payloadAsJSON(payload map[string]any) string {
+func payloadAsJSONWeiShaw(payload map[string]any) string {
 	return string(payloadAsJSONBytes(payload))
 }
 
-func payloadAsJSONBytes(payload map[string]any) []byte {
+func payloadAsJSONBytesWeiShaw(payload map[string]any) []byte {
 	if len(payload) == 0 {
 		return []byte("{}")
 	}
@@ -195,7 +195,7 @@ func payloadAsJSONBytes(payload map[string]any) []byte {
 	return body
 }
 
-func isOpenAIWSTerminalEvent(eventType string) bool {
+func isOpenAIWSTerminalEventWeiShaw(eventType string) bool {
 	switch strings.TrimSpace(eventType) {
 	case "response.completed", "response.done", "response.failed", "response.incomplete", "response.cancelled", "response.canceled":
 		return true
@@ -296,7 +296,7 @@ func (s *OpenAIGatewayService) handleOpenAIWSDialTransientFailure(ctx context.Co
 	s.handleOpenAIAccountUpstreamError(ctx, account, dialErr.StatusCode, dialErr.ResponseHeaders, dialErr.ResponseBody, canonicalModel)
 }
 
-func isOpenAIWSTokenEvent(eventType string) bool {
+func isOpenAIWSTokenEventWeiShaw(eventType string) bool {
 	eventType = strings.TrimSpace(eventType)
 	if eventType == "" {
 		return false
@@ -320,7 +320,7 @@ func isOpenAIWSTokenEvent(eventType string) bool {
 	return false
 }
 
-func replaceOpenAIWSMessageModel(message []byte, fromModel, toModel string) []byte {
+func replaceOpenAIWSMessageModelWeiShaw(message []byte, fromModel, toModel string) []byte {
 	if len(message) == 0 {
 		return message
 	}
@@ -350,7 +350,7 @@ func replaceOpenAIWSMessageModel(message []byte, fromModel, toModel string) []by
 	return updated
 }
 
-func populateOpenAIUsageFromResponseJSON(body []byte, usage *OpenAIUsage) {
+func populateOpenAIUsageFromResponseJSONWeiShaw(body []byte, usage *OpenAIUsage) {
 	if usage == nil || len(body) == 0 {
 		return
 	}
@@ -545,7 +545,7 @@ func (s *OpenAIGatewayService) resolveAccountByPreviousResponseIDForCapability(
 	return accountID, account, responseID, store
 }
 
-func classifyOpenAIWSAcquireError(err error) string {
+func classifyOpenAIWSAcquireErrorWeiShaw(err error) string {
 	if err == nil {
 		return "acquire_conn"
 	}
@@ -576,7 +576,7 @@ func classifyOpenAIWSAcquireError(err error) string {
 	return "acquire_conn"
 }
 
-func isOpenAIWSRateLimitError(codeRaw, errTypeRaw, msgRaw string) bool {
+func isOpenAIWSRateLimitErrorWeiShaw(codeRaw, errTypeRaw, msgRaw string) bool {
 	code := strings.ToLower(strings.TrimSpace(codeRaw))
 	errType := strings.ToLower(strings.TrimSpace(errTypeRaw))
 	msg := strings.ToLower(strings.TrimSpace(msgRaw))
@@ -596,7 +596,7 @@ func isOpenAIWSRateLimitError(codeRaw, errTypeRaw, msgRaw string) bool {
 	return false
 }
 
-func (s *OpenAIGatewayService) persistOpenAIWSRateLimitSignal(ctx context.Context, account *Account, headers http.Header, responseBody []byte, codeRaw, errTypeRaw, msgRaw string) {
+func (s *OpenAIGatewayService) persistOpenAIWSRateLimitSignalWeiShaw(ctx context.Context, account *Account, headers http.Header, responseBody []byte, codeRaw, errTypeRaw, msgRaw string) {
 	if s == nil || s.rateLimitService == nil || account == nil || account.Platform != PlatformOpenAI {
 		return
 	}
@@ -606,7 +606,7 @@ func (s *OpenAIGatewayService) persistOpenAIWSRateLimitSignal(ctx context.Contex
 	s.handleOpenAIAccountUpstreamError(ctx, account, http.StatusTooManyRequests, headers, responseBody)
 }
 
-func classifyOpenAIWSErrorEventFromRaw(codeRaw, errTypeRaw, msgRaw string) (string, bool) {
+func classifyOpenAIWSErrorEventFromRawWeiShaw(codeRaw, errTypeRaw, msgRaw string) (string, bool) {
 	code := strings.ToLower(strings.TrimSpace(codeRaw))
 	errType := strings.ToLower(strings.TrimSpace(errTypeRaw))
 	msg := strings.ToLower(strings.TrimSpace(msgRaw))
@@ -652,14 +652,14 @@ func classifyOpenAIWSErrorEventFromRaw(codeRaw, errTypeRaw, msgRaw string) (stri
 	return "event_error", false
 }
 
-func classifyOpenAIWSErrorEvent(message []byte) (string, bool) {
+func classifyOpenAIWSErrorEventWeiShaw(message []byte) (string, bool) {
 	if len(message) == 0 {
 		return "event_error", false
 	}
 	return classifyOpenAIWSErrorEventFromRaw(parseOpenAIWSErrorEventFields(message))
 }
 
-func openAIWSErrorHTTPStatusFromRaw(codeRaw, errTypeRaw string) int {
+func openAIWSErrorHTTPStatusFromRawWeiShaw(codeRaw, errTypeRaw string) int {
 	code := strings.ToLower(strings.TrimSpace(codeRaw))
 	errType := strings.ToLower(strings.TrimSpace(errTypeRaw))
 	switch {
@@ -683,7 +683,7 @@ func openAIWSErrorHTTPStatusFromRaw(codeRaw, errTypeRaw string) int {
 	}
 }
 
-func openAIWSErrorHTTPStatus(message []byte) int {
+func openAIWSErrorHTTPStatusWeiShaw(message []byte) int {
 	if len(message) == 0 {
 		return http.StatusBadGateway
 	}
@@ -691,7 +691,7 @@ func openAIWSErrorHTTPStatus(message []byte) int {
 	return openAIWSErrorHTTPStatusFromRaw(codeRaw, errTypeRaw)
 }
 
-func (s *OpenAIGatewayService) openAIWSFallbackCooldown() time.Duration {
+func (s *OpenAIGatewayService) openAIWSFallbackCooldownWeiShaw() time.Duration {
 	if s == nil || s.cfg == nil {
 		return 30 * time.Second
 	}
@@ -702,7 +702,7 @@ func (s *OpenAIGatewayService) openAIWSFallbackCooldown() time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
-func (s *OpenAIGatewayService) isOpenAIWSFallbackCooling(accountID int64) bool {
+func (s *OpenAIGatewayService) isOpenAIWSFallbackCoolingWeiShaw(accountID int64) bool {
 	if s == nil || accountID <= 0 {
 		return false
 	}
@@ -726,7 +726,7 @@ func (s *OpenAIGatewayService) isOpenAIWSFallbackCooling(accountID int64) bool {
 	return false
 }
 
-func (s *OpenAIGatewayService) markOpenAIWSFallbackCooling(accountID int64, _ string) {
+func (s *OpenAIGatewayService) markOpenAIWSFallbackCoolingWeiShaw(accountID int64, _ string) {
 	if s == nil || accountID <= 0 {
 		return
 	}
@@ -737,7 +737,7 @@ func (s *OpenAIGatewayService) markOpenAIWSFallbackCooling(accountID int64, _ st
 	s.openaiWSFallbackUntil.Store(accountID, time.Now().Add(cooldown))
 }
 
-func (s *OpenAIGatewayService) clearOpenAIWSFallbackCooling(accountID int64) {
+func (s *OpenAIGatewayService) clearOpenAIWSFallbackCoolingWeiShaw(accountID int64) {
 	if s == nil || accountID <= 0 {
 		return
 	}

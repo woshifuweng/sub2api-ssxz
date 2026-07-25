@@ -181,6 +181,10 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyHideCcsImportButton,
 		SettingKeyPurchaseSubscriptionEnabled,
 		SettingKeyPurchaseSubscriptionURL,
+		SettingKeyPurchaseLinkCNY10,
+		SettingKeyPurchaseLinkCNY30,
+		SettingKeyPurchaseLinkCNY100,
+		SettingKeySoraClientEnabled,
 		SettingKeyTableDefaultPageSize,
 		SettingKeyTablePageSizeOptions,
 		SettingKeyCustomMenuItems,
@@ -279,6 +283,19 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 	if v, err := strconv.ParseFloat(settings[SettingKeyBalanceLowNotifyThreshold], 64); err == nil && v >= 0 {
 		balanceLowNotifyThreshold = v
 	}
+	availableChannelsEnabled := settings[SettingKeyAvailableChannelsEnabled] == "true"
+	if runtime, ok := s.getAvailableChannelsRuntimeOverride(); ok {
+		availableChannelsEnabled = runtime.Enabled
+	}
+	soraClientEnabled := settings[SettingKeySoraClientEnabled] == "true"
+	if enabled, ok := s.getSoraClientRuntimeOverride(); ok {
+		soraClientEnabled = enabled
+	}
+	webSearchSettings := PublicWorkspaceWebSearchSettings{}
+	if s != nil && s.cfg != nil {
+		webSearchSettings.Provider = strings.TrimSpace(s.cfg.Workspace.WebSearch.Provider)
+		webSearchSettings.Available = s.cfg.Workspace.WebSearch.Enabled && !s.cfg.Workspace.WebSearch.KillSwitch
+	}
 
 	return &PublicSettings{
 		RegistrationEnabled:              settings[SettingKeyRegistrationEnabled] == "true",
@@ -302,10 +319,14 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		APIBaseURL:                       settings[SettingKeyAPIBaseURL],
 		ContactInfo:                      settings[SettingKeyContactInfo],
 		DocURL:                           settings[SettingKeyDocURL],
-		HomeContent:                      settings[SettingKeyHomeContent],
+		HomeContent:                      sanitizePublicHomeContent(settings[SettingKeyHomeContent]),
 		HideCcsImportButton:              settings[SettingKeyHideCcsImportButton] == "true",
 		PurchaseSubscriptionEnabled:      settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
-		PurchaseSubscriptionURL:          strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
+		PurchaseSubscriptionURL:          sanitizePublicEmbeddedURL(settings[SettingKeyPurchaseSubscriptionURL]),
+		PurchaseLinkCNY10:                sanitizePublicEmbeddedURL(settings[SettingKeyPurchaseLinkCNY10]),
+		PurchaseLinkCNY30:                sanitizePublicEmbeddedURL(settings[SettingKeyPurchaseLinkCNY30]),
+		PurchaseLinkCNY100:               sanitizePublicEmbeddedURL(settings[SettingKeyPurchaseLinkCNY100]),
+		SoraClientEnabled:                soraClientEnabled,
 		TableDefaultPageSize:             tableDefaultPageSize,
 		TablePageSizeOptions:             tablePageSizeOptions,
 		CustomMenuItems:                  settings[SettingKeyCustomMenuItems],
@@ -330,7 +351,9 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		ChannelMonitorEnabled:                !isFalseSettingValue(settings[SettingKeyChannelMonitorEnabled]),
 		ChannelMonitorDefaultIntervalSeconds: parseChannelMonitorInterval(settings[SettingKeyChannelMonitorDefaultIntervalSeconds]),
 
-		AvailableChannelsEnabled: settings[SettingKeyAvailableChannelsEnabled] == "true",
+		AvailableChannelsEnabled: availableChannelsEnabled,
+
+		WebSearch: webSearchSettings,
 
 		AffiliateEnabled: settings[SettingKeyAffiliateEnabled] == "true",
 
@@ -441,6 +464,7 @@ func (s *SettingService) IsUserErrorViewAllowed(ctx context.Context) bool {
 type PublicSettingsInjectionPayload struct {
 	RegistrationEnabled              bool                     `json:"registration_enabled"`
 	EmailVerifyEnabled               bool                     `json:"email_verify_enabled"`
+	ForceEmailOnThirdPartySignup     bool                     `json:"force_email_on_third_party_signup"`
 	RegistrationEmailSuffixWhitelist []string                 `json:"registration_email_suffix_whitelist"`
 	PromoCodeEnabled                 bool                     `json:"promo_code_enabled"`
 	PasswordResetEnabled             bool                     `json:"password_reset_enabled"`
@@ -463,6 +487,9 @@ type PublicSettingsInjectionPayload struct {
 	HideCcsImportButton              bool                     `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled      bool                     `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL          string                   `json:"purchase_subscription_url"`
+	PurchaseLinkCNY10                string                   `json:"purchase_link_cny_10"`
+	PurchaseLinkCNY30                string                   `json:"purchase_link_cny_30"`
+	PurchaseLinkCNY100               string                   `json:"purchase_link_cny_100"`
 	TableDefaultPageSize             int                      `json:"table_default_page_size"`
 	TablePageSizeOptions             []int                    `json:"table_page_size_options"`
 	CustomMenuItems                  json.RawMessage          `json:"custom_menu_items"`
@@ -477,6 +504,7 @@ type PublicSettingsInjectionPayload struct {
 	OIDCOAuthProviderName            string                   `json:"oidc_oauth_provider_name"`
 	GitHubOAuthEnabled               bool                     `json:"github_oauth_enabled"`
 	GoogleOAuthEnabled               bool                     `json:"google_oauth_enabled"`
+	SoraClientEnabled                bool                     `json:"sora_client_enabled"`
 	BackendModeEnabled               bool                     `json:"backend_mode_enabled"`
 	PaymentEnabled                   bool                     `json:"payment_enabled"`
 	Version                          string                   `json:"version"`
@@ -491,12 +519,13 @@ type PublicSettingsInjectionPayload struct {
 	// Feature flags — MUST match the opt-in/opt-out registry in
 	// frontend/src/utils/featureFlags.ts. Missing a field here is the bug
 	// that hid the "可用渠道" menu on page refresh.
-	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
-	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
-	AvailableChannelsEnabled             bool `json:"available_channels_enabled"`
-	AffiliateEnabled                     bool `json:"affiliate_enabled"`
-	RiskControlEnabled                   bool `json:"risk_control_enabled"`
-	AllowUserViewErrorRequests           bool `json:"allow_user_view_error_requests"`
+	ChannelMonitorEnabled                bool                             `json:"channel_monitor_enabled"`
+	ChannelMonitorDefaultIntervalSeconds int                              `json:"channel_monitor_default_interval_seconds"`
+	AvailableChannelsEnabled             bool                             `json:"available_channels_enabled"`
+	WebSearch                            PublicWorkspaceWebSearchSettings `json:"web_search"`
+	AffiliateEnabled                     bool                             `json:"affiliate_enabled"`
+	RiskControlEnabled                   bool                             `json:"risk_control_enabled"`
+	AllowUserViewErrorRequests           bool                             `json:"allow_user_view_error_requests"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -510,6 +539,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 	return &PublicSettingsInjectionPayload{
 		RegistrationEnabled:              settings.RegistrationEnabled,
 		EmailVerifyEnabled:               settings.EmailVerifyEnabled,
+		ForceEmailOnThirdPartySignup:     settings.ForceEmailOnThirdPartySignup,
 		RegistrationEmailSuffixWhitelist: settings.RegistrationEmailSuffixWhitelist,
 		PromoCodeEnabled:                 settings.PromoCodeEnabled,
 		PasswordResetEnabled:             settings.PasswordResetEnabled,
@@ -532,6 +562,9 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		HideCcsImportButton:              settings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:      settings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:          settings.PurchaseSubscriptionURL,
+		PurchaseLinkCNY10:                settings.PurchaseLinkCNY10,
+		PurchaseLinkCNY30:                settings.PurchaseLinkCNY30,
+		PurchaseLinkCNY100:               settings.PurchaseLinkCNY100,
 		TableDefaultPageSize:             settings.TableDefaultPageSize,
 		TablePageSizeOptions:             settings.TablePageSizeOptions,
 		CustomMenuItems:                  filterUserVisibleMenuItems(settings.CustomMenuItems),
@@ -546,6 +579,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		OIDCOAuthProviderName:            settings.OIDCOAuthProviderName,
 		GitHubOAuthEnabled:               settings.GitHubOAuthEnabled,
 		GoogleOAuthEnabled:               settings.GoogleOAuthEnabled,
+		SoraClientEnabled:                settings.SoraClientEnabled,
 		BackendModeEnabled:               settings.BackendModeEnabled,
 		PaymentEnabled:                   settings.PaymentEnabled,
 		Version:                          s.version,
@@ -559,6 +593,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		ChannelMonitorEnabled:                settings.ChannelMonitorEnabled,
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
 		AvailableChannelsEnabled:             settings.AvailableChannelsEnabled,
+		WebSearch:                            settings.WebSearch,
 		AffiliateEnabled:                     settings.AffiliateEnabled,
 		RiskControlEnabled:                   settings.RiskControlEnabled,
 		AllowUserViewErrorRequests:           settings.AllowUserViewErrorRequests,

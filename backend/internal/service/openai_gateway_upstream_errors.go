@@ -17,7 +17,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func logOpenAIInstructionsRequiredDebug(
+func logOpenAIInstructionsRequiredDebugWeiShaw(
 	ctx context.Context,
 	c *gin.Context,
 	account *Account,
@@ -62,7 +62,7 @@ func logOpenAIInstructionsRequiredDebug(
 	logger.FromContext(ctx).With(fields...).Warn("OpenAI 上游返回 Instructions are required，已记录请求详情用于排查")
 }
 
-func isOpenAIInstructionsRequiredError(upstreamStatusCode int, upstreamMsg string, upstreamBody []byte) bool {
+func isOpenAIInstructionsRequiredErrorWeiShaw(upstreamStatusCode int, upstreamMsg string, upstreamBody []byte) bool {
 	if upstreamStatusCode != http.StatusBadRequest {
 		return false
 	}
@@ -116,7 +116,7 @@ func isOpenAIInstructionsRequiredError(upstreamStatusCode int, upstreamMsg strin
 	return false
 }
 
-func isOpenAITransientProcessingError(upstreamStatusCode int, upstreamMsg string, upstreamBody []byte) bool {
+func isOpenAITransientProcessingErrorWeiShaw(upstreamStatusCode int, upstreamMsg string, upstreamBody []byte) bool {
 	if upstreamStatusCode != http.StatusBadRequest && upstreamStatusCode != http.StatusServiceUnavailable {
 		return false
 	}
@@ -209,7 +209,7 @@ func isOpenAIContextWindowError(upstreamMsg string, upstreamBody []byte) bool {
 	return match(string(upstreamBody))
 }
 
-func (s *OpenAIGatewayService) shouldFailoverUpstreamError(statusCode int) bool {
+func (s *OpenAIGatewayService) shouldFailoverUpstreamErrorWeiShaw(statusCode int) bool {
 	switch statusCode {
 	case 401, 402, 403, 429, 529:
 		return true
@@ -218,7 +218,7 @@ func (s *OpenAIGatewayService) shouldFailoverUpstreamError(statusCode int) bool 
 	}
 }
 
-func (s *OpenAIGatewayService) shouldFailoverOpenAIUpstreamResponse(statusCode int, upstreamMsg string, upstreamBody []byte) bool {
+func (s *OpenAIGatewayService) shouldFailoverOpenAIUpstreamResponseWeiShaw(statusCode int, upstreamMsg string, upstreamBody []byte) bool {
 	if isOpenAIContextWindowError(upstreamMsg, upstreamBody) {
 		return false
 	}
@@ -533,7 +533,7 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 
 // compatErrorWriter is the signature for format-specific error writers used by
 // the compat paths (Chat Completions and Anthropic Messages).
-type compatErrorWriter func(c *gin.Context, statusCode int, errType, message string)
+type compatErrorWriterLegacy func(c *gin.Context, statusCode int, errType, message string)
 
 // handleCompatErrorResponse is the shared non-failover error handler for the
 // Chat Completions and Anthropic Messages compat paths. It mirrors the logic of

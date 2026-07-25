@@ -11,6 +11,8 @@ import (
 
 	coderws "github.com/coder/websocket"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 type passthroughTestFrame struct {
@@ -254,9 +256,34 @@ func TestRelay_UpstreamDisconnect(t *testing.T) {
 	defer cancel()
 
 	result, relayExit := Relay(ctx, clientConn, upstreamConn, firstPayload, RelayOptions{})
-	// 上游 EOF 属于 disconnect，标记为 graceful
-	require.Nil(t, relayExit, "上游 EOF 应被视为 graceful disconnect")
+	require.NotNil(t, relayExit, "upstream EOF without a terminal event must remain observable")
+	require.Contains(t, []string{"read_upstream", "read_client", "client_disconnected"}, relayExit.Stage)
 	require.Equal(t, "gpt-4o", result.RequestModel)
+	require.Empty(t, result.TerminalEventType)
+}
+
+func TestRelay_UpstreamProtocolStreamWithoutTerminalGracefullyCompletesAfterContent(t *testing.T) {
+	t.Parallel()
+
+	clientConn := newPassthroughTestFrameConn(nil, false)
+	upstreamConn := newPassthroughTestFrameConn([]passthroughTestFrame{
+		{
+			msgType: coderws.MessageText,
+			payload: []byte(`{"type":"response.output_text.delta","delta":"hello"}`),
+		},
+	}, true)
+
+	firstPayload := []byte(`{"type":"response.create","model":"gpt-4o","input":[]}`)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	result, relayExit := Relay(ctx, clientConn, upstreamConn, firstPayload, RelayOptions{})
+	require.Nil(t, relayExit)
+	require.Empty(t, result.TerminalEventType)
+
+	clientWrites := clientConn.Writes()
+	require.Len(t, clientWrites, 1)
+	require.Equal(t, coderws.MessageText, clientWrites[0].msgType)
 }
 
 func TestRelay_ClientDisconnect(t *testing.T) {
@@ -472,6 +499,66 @@ func TestRelay_OnTurnComplete_PerTerminalEvent(t *testing.T) {
 	require.Equal(t, 5, result.Usage.OutputTokens)
 }
 
+func TestRelay_BeforeClientFrameStopsFrameBeforeUpstreamWrite(t *testing.T) {
+	t.Parallel()
+
+	secondPayload := []byte(`{"type":"response.create","model":"gpt-5.1","input":[]}`)
+	clientConn := newPassthroughTestFrameConn([]passthroughTestFrame{
+		{msgType: coderws.MessageText, payload: secondPayload},
+	}, false)
+	upstreamConn := newPassthroughTestFrameConn(nil, false)
+
+	firstPayload := []byte(`{"type":"response.create","model":"gpt-5.1","input":[]}`)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	var checked int
+	_, relayExit := Relay(ctx, clientConn, upstreamConn, firstPayload, RelayOptions{
+		BeforeClientFrame: func(msgType coderws.MessageType, payload []byte) error {
+			checked++
+			require.Equal(t, coderws.MessageText, msgType)
+			require.JSONEq(t, string(secondPayload), string(payload))
+			return errors.New("billing check failed")
+		},
+	})
+	require.NotNil(t, relayExit)
+	require.Equal(t, "before_client_frame", relayExit.Stage)
+	require.Contains(t, relayExit.Err.Error(), "billing")
+	require.Equal(t, 1, checked)
+
+	writes := upstreamConn.Writes()
+	require.Len(t, writes, 1)
+	require.JSONEq(t, string(firstPayload), string(writes[0].payload))
+}
+
+func TestRelay_TransformClientFrameMutatesPayloadBeforeValidationAndUpstreamWrite(t *testing.T) {
+	t.Parallel()
+
+	secondPayload := []byte(`{"type":"response.create","model":"gpt-5.1","input":[]}`)
+	clientConn := newPassthroughTestFrameConn([]passthroughTestFrame{
+		{msgType: coderws.MessageText, payload: secondPayload},
+	}, false)
+	upstreamConn := newPassthroughTestFrameConn(nil, false)
+	firstPayload := []byte(`{"type":"response.create","model":"gpt-5.1","input":[],"max_output_tokens":32}`)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	_, _ = Relay(ctx, clientConn, upstreamConn, firstPayload, RelayOptions{
+		TransformClientFrame: func(_ coderws.MessageType, payload []byte) ([]byte, error) {
+			return sjson.SetBytes(payload, "max_output_tokens", 64)
+		},
+		BeforeClientFrame: func(_ coderws.MessageType, payload []byte) error {
+			require.Equal(t, int64(64), gjson.GetBytes(payload, "max_output_tokens").Int())
+			return nil
+		},
+	})
+
+	writes := upstreamConn.Writes()
+	require.GreaterOrEqual(t, len(writes), 2)
+	require.Equal(t, int64(64), gjson.GetBytes(writes[1].payload, "max_output_tokens").Int())
+}
+
 func TestRelay_OnTurnComplete_ProvidesTurnMetrics(t *testing.T) {
 	t.Parallel()
 
@@ -598,7 +685,12 @@ func TestRelay_PreservesFirstMessageType(t *testing.T) {
 	t.Parallel()
 
 	clientConn := newPassthroughTestFrameConn(nil, false)
-	upstreamConn := newPassthroughTestFrameConn(nil, true)
+	upstreamConn := newPassthroughTestFrameConn([]passthroughTestFrame{
+		{
+			msgType: coderws.MessageText,
+			payload: []byte(`{"type":"response.completed","response":{"id":"resp_binary_first","usage":{"input_tokens":1,"output_tokens":1}}}`),
+		},
+	}, true)
 
 	firstPayload := []byte(`{"type":"response.create","model":"gpt-4o","input":[]}`)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)

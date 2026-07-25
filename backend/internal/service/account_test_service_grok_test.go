@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -69,7 +70,7 @@ func TestAccountTestService_TestAccountConnection_GrokUsesXAIResponses(t *testin
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/13/test", nil)
 
-	err := svc.TestAccountConnection(c, account.ID, "grok", "", AccountTestModeDefault)
+	err := svc.TestAccountConnection(gatewayctx.FromGin(c), account.ID, "grok", "")
 	require.NoError(t, err)
 
 	require.Equal(t, "https://cli-chat-proxy.grok.com/v1/responses", upstream.lastReq.URL.String())
@@ -121,7 +122,7 @@ func TestAccountTestService_TestAccountConnection_GrokDefaultsEmptyModelTo45(t *
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/16/test", nil)
 
-	err := svc.TestAccountConnection(c, account.ID, "", "", AccountTestModeDefault)
+	err := svc.TestAccountConnection(gatewayctx.FromGin(c), account.ID, "", "")
 
 	require.NoError(t, err)
 	require.Equal(t, grokDefaultResponsesModel, gjson.GetBytes(upstream.lastBody, "model").String())
@@ -161,7 +162,7 @@ func TestAccountTestService_Grok429PersistsRateLimitReset(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/14/test", nil)
 
-	err := svc.TestAccountConnection(c, account.ID, "grok", "", AccountTestModeDefault)
+	err := svc.TestAccountConnection(gatewayctx.FromGin(c), account.ID, "grok", "")
 
 	require.Error(t, err)
 	require.Equal(t, 1, repo.rateLimitedCalls)
@@ -193,7 +194,7 @@ func TestAccountTestService_Grok429WithoutQuotaHeadersUsesFallback(t *testing.T)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/15/test", nil)
 	before := time.Now()
 
-	err := svc.TestAccountConnection(c, account.ID, "grok", "", AccountTestModeDefault)
+	err := svc.TestAccountConnection(gatewayctx.FromGin(c), account.ID, "grok", "")
 
 	require.Error(t, err)
 	require.Equal(t, 1, repo.rateLimitedCalls)

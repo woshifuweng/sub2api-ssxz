@@ -45,3 +45,106 @@ func TestAPIKeyFromService_MapsNilLastUsedAt(t *testing.T) {
 	require.Nil(t, out.LastUsedAt)
 	require.Nil(t, out.LastUsedIP)
 }
+
+func TestAPIKeyFromService_MasksKeyByDefault(t *testing.T) {
+	src := &service.APIKey{
+		ID:     1,
+		UserID: 2,
+		Key:    "sk-test-secret-value-123456",
+		Name:   "Masked",
+		Status: service.StatusActive,
+	}
+
+	out := APIKeyFromService(src)
+	require.NotNil(t, out)
+	require.Equal(t, "sk-test-...3456", out.Key)
+	require.NotContains(t, out.Key, "secret-value")
+	require.NotEqual(t, src.Key, out.Key)
+}
+
+func TestAPIKeyFromService_MasksShortKeyByDefault(t *testing.T) {
+	src := &service.APIKey{
+		ID:     1,
+		UserID: 2,
+		Key:    "short-key",
+		Name:   "ShortMasked",
+		Status: service.StatusActive,
+	}
+
+	out := APIKeyFromService(src)
+	require.NotNil(t, out)
+	require.Equal(t, "[redacted]", out.Key)
+}
+
+func TestAPIKeyFromServiceWithPlaintextKey_ReturnsFullKeyForCreateOnly(t *testing.T) {
+	src := &service.APIKey{
+		ID:     1,
+		UserID: 2,
+		Key:    "sk-test-secret-value-123456",
+		Name:   "Create",
+		Status: service.StatusActive,
+	}
+
+	out := APIKeyFromServiceWithPlaintextKey(src)
+	require.NotNil(t, out)
+	require.Equal(t, src.Key, out.Key)
+}
+
+func TestAPIKeyFromService_NormalizesDisabledStatusToInactive(t *testing.T) {
+	src := &service.APIKey{
+		ID:     1,
+		UserID: 2,
+		Key:    "sk-test-secret-value-123456",
+		Name:   "Disabled",
+		Status: service.StatusAPIKeyDisabled,
+	}
+
+	out := APIKeyFromService(src)
+	require.NotNil(t, out)
+	require.Equal(t, "inactive", out.Status)
+}
+
+func TestAPIKeyForSafeReplay_MasksPlaintextCreateKey(t *testing.T) {
+	src := &APIKey{
+		ID:            1,
+		UserID:        2,
+		Key:           "sk-test-secret-value-123456",
+		Name:          "Create",
+		Status:        service.StatusActive,
+		GroupIDs:      []int64{1, 2},
+		AllowedModels: []string{"gpt-image-2"},
+		IPWhitelist:   []string{"203.0.113.10"},
+		IPBlacklist:   []string{"198.51.100.20"},
+	}
+
+	out := APIKeyForSafeReplay(src)
+	require.NotNil(t, out)
+	require.Equal(t, "sk-test-...3456", out.Key)
+	require.NotContains(t, out.Key, "secret-value")
+	require.Equal(t, src.ID, out.ID)
+	require.Equal(t, src.Name, out.Name)
+
+	out.GroupIDs[0] = 99
+	out.AllowedModels[0] = "mutated"
+	out.IPWhitelist[0] = "mutated"
+	out.IPBlacklist[0] = "mutated"
+
+	require.Equal(t, []int64{1, 2}, src.GroupIDs)
+	require.Equal(t, []string{"gpt-image-2"}, src.AllowedModels)
+	require.Equal(t, []string{"203.0.113.10"}, src.IPWhitelist)
+	require.Equal(t, []string{"198.51.100.20"}, src.IPBlacklist)
+}
+
+func TestAPIKeyForSafeReplay_NormalizesDisabledStatusToInactive(t *testing.T) {
+	src := &APIKey{
+		ID:     1,
+		UserID: 2,
+		Key:    "sk-test-secret-value-123456",
+		Name:   "DisabledReplay",
+		Status: service.StatusAPIKeyDisabled,
+	}
+
+	out := APIKeyForSafeReplay(src)
+	require.NotNil(t, out)
+	require.Equal(t, "inactive", out.Status)
+}

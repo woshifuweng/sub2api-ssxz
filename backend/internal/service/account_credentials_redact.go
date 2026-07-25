@@ -21,7 +21,7 @@ var sensitiveCredentialKeySet = func() map[string]struct{} {
 }()
 
 // IsSensitiveCredentialKey 判断指定键是否为敏感凭证子键。
-func IsSensitiveCredentialKey(key string) bool {
+func isSensitiveCredentialKeyLegacy(key string) bool {
 	_, ok := sensitiveCredentialKeySet[key]
 	return ok
 }

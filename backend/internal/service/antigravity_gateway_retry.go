@@ -30,7 +30,7 @@ type antigravityRetryLoopParams struct {
 	accessToken     string
 	action          string
 	body            []byte
-	c               *gin.Context
+	c               any
 	httpUpstream    HTTPUpstream
 	settingService  *SettingService
 	accountRepo     AccountRepository // 用于智能重试的模型级别限流
@@ -531,7 +531,7 @@ urlFallbackLoop:
 			}
 			if err != nil {
 				safeErr := sanitizeUpstreamErrorMessage(err.Error())
-				appendOpsUpstreamError(p.c, OpsUpstreamErrorEvent{
+				appendOpsUpstreamErrorAny(p.c, OpsUpstreamErrorEvent{
 					Platform:           p.account.Platform,
 					AccountID:          p.account.ID,
 					AccountName:        p.account.Name,
@@ -553,7 +553,7 @@ urlFallbackLoop:
 					continue
 				}
 				logger.LegacyPrintf("service.antigravity_gateway", "%s status=request_failed retries_exhausted error=%v", p.prefix, err)
-				setOpsUpstreamError(p.c, 0, safeErr, "")
+				setOpsUpstreamErrorAny(p.c, 0, safeErr, "")
 				return nil, fmt.Errorf("upstream request failed after retries: %w", err)
 			}
 
@@ -608,7 +608,7 @@ urlFallbackLoop:
 					if attempt < antigravityMaxRetries {
 						upstreamMsg := strings.TrimSpace(extractAntigravityErrorMessage(respBody))
 						upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
-						appendOpsUpstreamError(p.c, OpsUpstreamErrorEvent{
+						appendOpsUpstreamErrorAny(p.c, OpsUpstreamErrorEvent{
 							Platform:           p.account.Platform,
 							AccountID:          p.account.ID,
 							AccountName:        p.account.Name,
@@ -643,7 +643,7 @@ urlFallbackLoop:
 					if attempt < antigravityMaxRetries {
 						upstreamMsg := strings.TrimSpace(extractAntigravityErrorMessage(respBody))
 						upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
-						appendOpsUpstreamError(p.c, OpsUpstreamErrorEvent{
+						appendOpsUpstreamErrorAny(p.c, OpsUpstreamErrorEvent{
 							Platform:           p.account.Platform,
 							AccountID:          p.account.ID,
 							AccountName:        p.account.Name,

@@ -12,7 +12,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 )
 
-func (s *GatewayService) getUserGroupRateMultiplier(ctx context.Context, userID, groupID int64, groupDefaultMultiplier float64) float64 {
+func (s *GatewayService) getUserGroupRateMultiplierWeiShaw(ctx context.Context, userID, groupID int64, groupDefaultMultiplier float64) float64 {
 	if s == nil {
 		return groupDefaultMultiplier
 	}
@@ -121,7 +121,7 @@ func (p *postUsageBillingParams) shouldUpdateAccountQuota() bool {
 // postUsageBilling is the legacy fallback billing path used when the unified
 // billing repo is unavailable (nil). Production uses applyUsageBilling → repo.Apply
 // for atomic billing. This path only runs in tests or degraded mode.
-func postUsageBilling(ctx context.Context, p *postUsageBillingParams, deps *billingDeps) {
+func postUsageBillingWeiShaw(ctx context.Context, p *postUsageBillingParams, deps *billingDeps) {
 	billingCtx, cancel := detachedBillingContext(ctx)
 	defer cancel()
 
@@ -192,7 +192,7 @@ func postUsageBilling(ctx context.Context, p *postUsageBillingParams, deps *bill
 	// by the caller after recording the usage log.
 }
 
-func resolveUsageBillingRequestID(ctx context.Context, upstreamRequestID string) string {
+func resolveUsageBillingRequestIDWeiShaw(ctx context.Context, upstreamRequestID string) string {
 	if ctx != nil {
 		if clientRequestID, _ := ctx.Value(ctxkey.ClientRequestID).(string); strings.TrimSpace(clientRequestID) != "" {
 			return "client:" + strings.TrimSpace(clientRequestID)
@@ -207,7 +207,7 @@ func resolveUsageBillingRequestID(ctx context.Context, upstreamRequestID string)
 	return "generated:" + generateRequestID()
 }
 
-func resolveUsageBillingPayloadFingerprint(ctx context.Context, requestPayloadHash string) string {
+func resolveUsageBillingPayloadFingerprintWeiShaw(ctx context.Context, requestPayloadHash string) string {
 	if payloadHash := strings.TrimSpace(requestPayloadHash); payloadHash != "" {
 		return payloadHash
 	}
@@ -222,7 +222,7 @@ func resolveUsageBillingPayloadFingerprint(ctx context.Context, requestPayloadHa
 	return ""
 }
 
-func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsageBillingParams) *UsageBillingCommand {
+func buildUsageBillingCommandWeiShaw(requestID string, usageLog *UsageLog, p *postUsageBillingParams) *UsageBillingCommand {
 	if p == nil || p.Cost == nil || p.APIKey == nil || p.User == nil || p.Account == nil {
 		return nil
 	}
@@ -279,7 +279,7 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 	return cmd
 }
 
-func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog, p *postUsageBillingParams, deps *billingDeps, repo UsageBillingRepository) (bool, error) {
+func applyUsageBillingWeiShaw(ctx context.Context, requestID string, usageLog *UsageLog, p *postUsageBillingParams, deps *billingDeps, repo UsageBillingRepository) (bool, error) {
 	if p == nil || deps == nil {
 		return false, nil
 	}
@@ -462,7 +462,7 @@ func notifyAccountQuota(p *postUsageBillingParams, deps *billingDeps, result *Us
 	deps.balanceNotifyService.CheckAccountQuotaAfterIncrement(context.Background(), p.Account, accountCost, quotaState)
 }
 
-func detachedBillingContext(ctx context.Context) (context.Context, context.CancelFunc) {
+func detachedBillingContextWeiShaw(ctx context.Context) (context.Context, context.CancelFunc) {
 	base := context.Background()
 	if ctx != nil {
 		base = context.WithoutCancel(ctx)
@@ -470,7 +470,7 @@ func detachedBillingContext(ctx context.Context) (context.Context, context.Cance
 	return context.WithTimeout(base, postUsageBillingTimeout)
 }
 
-func detachStreamUpstreamContext(ctx context.Context, stream bool) (context.Context, context.CancelFunc) {
+func detachStreamUpstreamContextWeiShaw(ctx context.Context, stream bool) (context.Context, context.CancelFunc) {
 	if ctx == nil {
 		return context.Background(), func() {}
 	}
@@ -494,25 +494,27 @@ type billingDeps struct {
 	userSubRepo           UserSubscriptionRepository
 	billingCacheService   *BillingCacheService
 	deferredService       *DeferredService
+	billingShortfallAlert BillingShortfallNotifier
 	balanceNotifyService  *BalanceNotifyService
 	userPlatformQuotaRepo UserPlatformQuotaRepository
 	cfg                   *config.Config
 }
 
-func (s *GatewayService) billingDeps() *billingDeps {
+func (s *GatewayService) billingDepsWeiShaw() *billingDeps {
 	return &billingDeps{
 		accountRepo:           s.accountRepo,
 		userRepo:              s.userRepo,
 		userSubRepo:           s.userSubRepo,
 		billingCacheService:   s.billingCacheService,
 		deferredService:       s.deferredService,
+		billingShortfallAlert: s.billingShortfallAlert,
 		balanceNotifyService:  s.balanceNotifyService,
 		userPlatformQuotaRepo: s.userPlatformQuotaRepo,
 		cfg:                   s.cfg,
 	}
 }
 
-func writeUsageLogBestEffort(ctx context.Context, repo UsageLogRepository, usageLog *UsageLog, logKey string) {
+func writeUsageLogBestEffortWeiShaw(ctx context.Context, repo UsageLogRepository, usageLog *UsageLog, logKey string) {
 	if repo == nil || usageLog == nil {
 		return
 	}
@@ -552,7 +554,7 @@ type recordUsageOpts struct {
 }
 
 // RecordUsage 记录使用量并扣费（或更新订阅用量）
-func (s *GatewayService) RecordUsage(ctx context.Context, input *RecordUsageInput) error {
+func (s *GatewayService) RecordUsageWeiShaw(ctx context.Context, input *RecordUsageInput) error {
 	return s.recordUsageCore(ctx, &recordUsageCoreInput{
 		Result:             input.Result,
 		APIKey:             input.APIKey,
@@ -593,7 +595,7 @@ type RecordUsageLongContextInput struct {
 }
 
 // RecordUsageWithLongContext 记录使用量并扣费，支持长上下文双倍计费（用于 Gemini）
-func (s *GatewayService) RecordUsageWithLongContext(ctx context.Context, input *RecordUsageLongContextInput) error {
+func (s *GatewayService) RecordUsageWithLongContextWeiShaw(ctx context.Context, input *RecordUsageLongContextInput) error {
 	return s.recordUsageCore(ctx, &recordUsageCoreInput{
 		Result:             input.Result,
 		APIKey:             input.APIKey,

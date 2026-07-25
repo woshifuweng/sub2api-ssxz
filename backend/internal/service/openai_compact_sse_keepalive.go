@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/gin-gonic/gin"
 )
 
@@ -158,16 +159,22 @@ func StopOpenAICompactSSEKeepaliveCommitted(c *gin.Context) bool {
 // 一旦在上游等待期间发过心跳，上游 429/5xx 就不再换号（#3887 加固审计）。
 // 仅心跳字节时归一化为 -1（gin 的"未写出"哨兵值），与提交前的快照可比。
 func OpenAICompactKeepaliveAdjustedWrittenSize(c *gin.Context) int {
-	if c == nil || c.Writer == nil {
+	return OpenAICompactKeepaliveAdjustedWrittenSizeContext(gatewayctx.FromGin(c))
+}
+
+// OpenAICompactKeepaliveAdjustedWrittenSizeContext is the transport-neutral
+// form used by both Gin and native gateway handlers.
+func OpenAICompactKeepaliveAdjustedWrittenSizeContext(c gatewayctx.GatewayContext) int {
+	if c == nil {
 		return -1
 	}
-	value, ok := c.Get(openAICompactSSEKeepaliveKey)
+	value, ok := c.Value(openAICompactSSEKeepaliveKey)
 	if !ok {
-		return c.Writer.Size()
+		return c.ResponseSize()
 	}
 	k, ok := value.(*openAICompactSSEKeepalive)
 	if !ok || k == nil {
-		return c.Writer.Size()
+		return c.ResponseSize()
 	}
 	k.mu.Lock()
 	defer k.mu.Unlock()

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -189,17 +190,17 @@ func TestOpenAIImagesJSONKeepalive_HeartbeatBeforeForwardStillFailsOver(t *testi
 	c.Request = req
 
 	svc := &OpenAIGatewayService{
+		cfg: &config.Config{Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{Enabled: false},
+		}},
 		httpUpstream: &httpUpstreamRecorder{
 			resp: &http.Response{
-				StatusCode: http.StatusOK,
+				StatusCode: http.StatusBadGateway,
 				Header: http.Header{
-					"Content-Type": []string{"text/event-stream"},
+					"Content-Type": []string{"application/json"},
 					"X-Request-Id": []string{"req_img_heartbeat_failover"},
 				},
-				Body: io.NopCloser(strings.NewReader(
-					"data: {\"type\":\"response.created\",\"response\":{\"created_at\":1710000021}}\n\n" +
-						"data: {\"type\":\"error\",\"error\":{\"type\":\"server_error\",\"code\":\"server_error\",\"message\":\"The image service is temporarily unavailable.\"}}\n\n",
-				)),
+				Body: io.NopCloser(strings.NewReader(`{"error":{"type":"server_error","message":"The image service is temporarily unavailable."}}`)),
 			},
 		},
 	}
@@ -213,11 +214,11 @@ func TestOpenAIImagesJSONKeepalive_HeartbeatBeforeForwardStillFailsOver(t *testi
 
 	account := &Account{
 		ID:       22,
-		Name:     "openai-oauth-heartbeat-failover",
+		Name:     "openai-apikey-heartbeat-failover",
 		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
+		Type:     AccountTypeAPIKey,
 		Credentials: map[string]any{
-			"access_token": "token-123",
+			"api_key": "test-upstream-key",
 		},
 	}
 

@@ -6,7 +6,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Toast, ToastType, PublicSettings } from '@/types'
-import { i18n } from '@/i18n'
+import { DEFAULT_SITE_NAME, normalizeSiteName } from '@/utils/brand'
 import {
   checkUpdates as checkUpdatesAPI,
   type VersionInfo,
@@ -14,26 +14,32 @@ import {
 } from '@/api/admin/system'
 import { getPublicSettings as fetchPublicSettingsAPI } from '@/api/auth'
 
+type ToastOptions = {
+  title?: string
+  subtitle?: string
+  progress?: number
+}
+
+type ToastPatch = Partial<Omit<Toast, 'id'>>
+
 export const useAppStore = defineStore('app', () => {
   // ==================== State ====================
 
   const sidebarCollapsed = ref<boolean>(false)
   const mobileOpen = ref<boolean>(false)
-  const sidebarScrollTop = ref<number>(0)
   const loading = ref<boolean>(false)
   const toasts = ref<Toast[]>([])
 
   // Public settings cache state
   const publicSettingsLoaded = ref<boolean>(false)
   const publicSettingsLoading = ref<boolean>(false)
-  const siteName = ref<string>('Sub2API')
+  const siteName = ref<string>(DEFAULT_SITE_NAME)
   const siteLogo = ref<string>('')
   const siteVersion = ref<string>('')
   const contactInfo = ref<string>('')
   const apiBaseUrl = ref<string>('')
   const docUrl = ref<string>('')
   const cachedPublicSettings = ref<PublicSettings | null>(null)
-  let publicSettingsRequest: Promise<PublicSettings | null> | null = null
 
   // Version cache state
   const versionLoaded = ref<boolean>(false)
@@ -104,14 +110,21 @@ export const useAppStore = defineStore('app', () => {
    * @param type - Type of toast (success, error, info, warning)
    * @param message - Toast message content
    * @param duration - Auto-dismiss duration in ms (undefined = no auto-dismiss)
+   * @param options - Optional title/subtitle/progress metadata
    * @returns Toast ID for manual dismissal
    */
-  function showToast(type: ToastType, message: string, duration?: number): string {
+  function showToast(type: ToastType, message: string, duration?: number, options?: ToastOptions): string {
     const id = `toast-${++toastIdCounter}`
+    const normalizedProgress = typeof options?.progress === 'number'
+      ? Math.min(100, Math.max(0, Math.round(options.progress)))
+      : undefined
     const toast: Toast = {
       id,
       type,
       message,
+      title: options?.title,
+      subtitle: options?.subtitle,
+      progress: normalizedProgress,
       duration,
       startTime: duration !== undefined ? Date.now() : undefined
     }
@@ -120,12 +133,48 @@ export const useAppStore = defineStore('app', () => {
 
     // Auto-dismiss if duration is specified
     if (duration !== undefined) {
-      setTimeout(() => {
-        hideToast(id)
-      }, duration)
+      scheduleToastAutoDismiss(id, duration)
     }
 
     return id
+  }
+
+  function scheduleToastAutoDismiss(id: string, duration: number): void {
+    if (duration <= 0) return
+    setTimeout(() => {
+      hideToast(id)
+    }, duration)
+  }
+
+  /**
+   * Update an existing toast in place.
+   * Useful for long-running tasks that need progress/status updates.
+   */
+  function updateToast(id: string, patch: ToastPatch): boolean {
+    const index = toasts.value.findIndex((t) => t.id === id)
+    if (index === -1) return false
+
+    const current = toasts.value[index]
+    const next: Toast = {
+      ...current,
+      ...patch
+    }
+
+    if (typeof patch.progress === 'number') {
+      next.progress = Math.min(100, Math.max(0, Math.round(patch.progress)))
+    }
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'duration')) {
+      if (typeof patch.duration === 'number') {
+        next.startTime = Date.now()
+        scheduleToastAutoDismiss(id, patch.duration)
+      } else {
+        next.startTime = undefined
+      }
+    }
+
+    toasts.value[index] = next
+    return true
   }
 
   /**
@@ -212,10 +261,7 @@ export const useAppStore = defineStore('app', () => {
     try {
       return await operation()
     } catch (error) {
-      const message =
-        errorMessage ||
-        (error as { message?: string }).message ||
-        i18n.global.t('common.unknownError')
+      const message = errorMessage || (error as { message?: string }).message || 'An error occurred'
       showError(message)
       return null
     } finally {
@@ -290,11 +336,8 @@ export const useAppStore = defineStore('app', () => {
    * Apply settings to store state (internal helper to avoid code duplication)
    */
   function applySettings(config: PublicSettings): void {
-    if (typeof window !== 'undefined') {
-      window.__APP_CONFIG__ = { ...config }
-    }
     cachedPublicSettings.value = config
-    siteName.value = config.site_name || 'Sub2API'
+    siteName.value = normalizeSiteName(config.site_name)
     siteLogo.value = config.site_logo || ''
     siteVersion.value = config.version || ''
     contactInfo.value = config.contact_info || ''
@@ -303,103 +346,92 @@ export const useAppStore = defineStore('app', () => {
     publicSettingsLoaded.value = true
   }
 
+  function hasWebSearchConfig(
+    config: PublicSettings | null | undefined
+  ): config is PublicSettings & { web_search: NonNullable<PublicSettings['web_search']> } {
+    return !!config?.web_search && typeof config.web_search.available === 'boolean'
+  }
+
   /**
    * Fetch public settings (uses cache unless force=true)
    * @param force - Force refresh from API
    */
-  function fetchPublicSettings(force = false): Promise<PublicSettings | null> {
-    // An active request always wins over cache/force semantics so every caller observes
-    // the same refresh result and no older request can overwrite a newer one.
-    if (publicSettingsRequest) {
-      return publicSettingsRequest
-    }
-
+  async function fetchPublicSettings(force = false): Promise<PublicSettings | null> {
     // Check for injected config from server (eliminates flash)
     if (!publicSettingsLoaded.value && !force && window.__APP_CONFIG__) {
       applySettings(window.__APP_CONFIG__)
-      return Promise.resolve(window.__APP_CONFIG__)
+      if (hasWebSearchConfig(window.__APP_CONFIG__)) {
+        return window.__APP_CONFIG__
+      }
     }
 
     // Return cached data if available and not forcing refresh
     if (publicSettingsLoaded.value && !force) {
-      if (cachedPublicSettings.value) {
-        return Promise.resolve({ ...cachedPublicSettings.value })
+      if (hasWebSearchConfig(cachedPublicSettings.value)) {
+        return { ...cachedPublicSettings.value }
       }
-      return Promise.resolve({
-        registration_enabled: false,
-        email_verify_enabled: false,
-        force_email_on_third_party_signup: false,
-        registration_email_suffix_whitelist: [],
-        promo_code_enabled: true,
-        password_reset_enabled: false,
-        invitation_code_enabled: false,
-        turnstile_enabled: false,
-        turnstile_site_key: '',
-        site_name: siteName.value,
-        site_logo: siteLogo.value,
-        site_subtitle: '',
-        api_base_url: apiBaseUrl.value,
-        contact_info: contactInfo.value,
-        doc_url: docUrl.value,
-        home_content: '',
-        hide_ccs_import_button: false,
-        payment_enabled: false,
-        table_default_page_size: 20,
-        table_page_size_options: [10, 20, 50, 100],
-        custom_menu_items: [],
-        custom_endpoints: [],
-        linuxdo_oauth_enabled: false,
-        wechat_oauth_enabled: false,
-        wechat_oauth_open_enabled: false,
-        wechat_oauth_mp_enabled: false,
-        wechat_oauth_mobile_enabled: false,
-        oidc_oauth_enabled: false,
-        oidc_oauth_provider_name: 'OIDC',
-        github_oauth_enabled: false,
-        google_oauth_enabled: false,
-        backend_mode_enabled: false,
-        version: siteVersion.value,
-        balance_low_notify_enabled: false,
-        account_quota_notify_enabled: false,
-        balance_low_notify_threshold: 0,
-        channel_monitor_enabled: true,
-        channel_monitor_default_interval_seconds: 60,
-        available_channels_enabled: false,
-        risk_control_enabled: false,
-        service_quota_enabled: false,
-        affiliate_enabled: false,
-        allow_user_view_error_requests: false,
-      })
+      if (!cachedPublicSettings.value) {
+        return {
+          registration_enabled: false,
+          email_verify_enabled: false,
+          registration_email_suffix_whitelist: [],
+          promo_code_enabled: true,
+          password_reset_enabled: false,
+          invitation_code_enabled: false,
+          turnstile_enabled: false,
+          turnstile_site_key: '',
+          site_name: siteName.value,
+          site_logo: siteLogo.value,
+          site_subtitle: '',
+          api_base_url: apiBaseUrl.value,
+          contact_info: contactInfo.value,
+          doc_url: docUrl.value,
+          home_content: '',
+          hide_ccs_import_button: false,
+          purchase_subscription_enabled: false,
+          purchase_subscription_url: '',
+          purchase_link_cny_10: '',
+          purchase_link_cny_30: '',
+          purchase_link_cny_100: '',
+          payment_enabled: false,
+          custom_menu_items: [],
+          linuxdo_oauth_enabled: false,
+          wechat_oauth_enabled: false,
+          wechat_oauth_open_enabled: false,
+          wechat_oauth_mp_enabled: false,
+          wechat_oauth_mobile_enabled: false,
+          oidc_oauth_enabled: false,
+          oidc_oauth_provider_name: '',
+          sora_client_enabled: false,
+          channel_monitor_enabled: false,
+          channel_monitor_default_interval_seconds: 60,
+          available_channels_enabled: false,
+          web_search: {
+            available: false
+          },
+          affiliate_enabled: false,
+          backend_mode_enabled: false,
+          version: siteVersion.value
+        }
+      }
+    }
+
+    // Prevent duplicate requests
+    if (publicSettingsLoading.value) {
+      return null
     }
 
     publicSettingsLoading.value = true
-    let apiRequest: Promise<PublicSettings>
     try {
-      apiRequest = fetchPublicSettingsAPI()
+      const data = await fetchPublicSettingsAPI()
+      applySettings(data)
+      return data
     } catch (error) {
       console.error('Failed to fetch public settings:', error)
+      return null
+    } finally {
       publicSettingsLoading.value = false
-      return Promise.resolve(null)
     }
-
-    const request = apiRequest
-      .then((data) => {
-        applySettings(data)
-        return data
-      })
-      .catch((error) => {
-        console.error('Failed to fetch public settings:', error)
-        return null
-      })
-      .finally(() => {
-        if (publicSettingsRequest === request) {
-          publicSettingsRequest = null
-          publicSettingsLoading.value = false
-        }
-      })
-
-    publicSettingsRequest = request
-    return request
   }
 
   /**
@@ -429,7 +461,6 @@ export const useAppStore = defineStore('app', () => {
     // State
     sidebarCollapsed,
     mobileOpen,
-    sidebarScrollTop,
     loading,
     toasts,
 
@@ -463,6 +494,7 @@ export const useAppStore = defineStore('app', () => {
     setMobileOpen,
     setLoading,
     showToast,
+    updateToast,
     showSuccess,
     showError,
     showInfo,

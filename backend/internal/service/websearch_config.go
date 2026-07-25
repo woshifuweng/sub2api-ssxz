@@ -215,6 +215,10 @@ func (s *SettingService) SetWebSearchManagerBuilder(ctx context.Context, builder
 	s.rebuildWebSearchManager(ctx)
 }
 
+func (s *SettingService) SetProxyRepository(repo ProxyRepository) {
+	s.proxyRepo = repo
+}
+
 // rebuildWebSearchManager reads the current config, resolves proxy URLs, and invokes the builder.
 func (s *SettingService) rebuildWebSearchManager(ctx context.Context) {
 	if s.webSearchManagerBuilder == nil {

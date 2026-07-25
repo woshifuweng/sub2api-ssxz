@@ -167,15 +167,6 @@ export interface UserBreakdownParams {
   endpoint?: string
   endpoint_type?: 'inbound' | 'upstream' | 'path'
   limit?: number
-  // Sort column for the ranking (allowlisted server-side; falls back to actual_cost)
-  sort_by?: 'total_tokens' | 'input_tokens' | 'output_tokens' | 'cache_tokens' | 'requests' | 'cost' | 'actual_cost'
-  // Additional filter conditions
-  user_id?: number
-  api_key_id?: number
-  account_id?: number
-  request_type?: UsageRequestType
-  stream?: boolean
-  billing_type?: number | null
 }
 
 export interface UserBreakdownResponse {
@@ -242,6 +233,55 @@ export interface UserSpendingRankingParams
   limit?: number
 }
 
+export interface DashboardOperationsTopCustomer {
+  user_id: number
+  email: string
+  username: string
+  actual_cost: number
+  requests: number
+  active_keys: number
+}
+
+export type DashboardOperationsRange = 'today' | '7d' | '30d'
+export type DashboardOperationsDrilldown =
+  | 'users'
+  | 'usage'
+  | 'orders'
+  | 'apiKeys'
+  | 'affiliates'
+  | 'customer'
+
+export interface DashboardOperationsSummary {
+  start_date: string
+  end_date: string
+  new_customers: number
+  customer_actual_cost: number
+  invitee_recharge_amount: number
+  rebate_pending: number
+  rebate_available: number
+  rebate_transferred: number
+  active_customers: number
+  active_api_keys: number
+  top_customers: DashboardOperationsTopCustomer[]
+}
+
+export interface DashboardOperationsParams {
+  start_date: string
+  end_date: string
+  timezone?: string
+  limit?: number
+}
+
+export async function getOperationsSummary(
+  params: DashboardOperationsParams
+): Promise<DashboardOperationsSummary> {
+  const { data } = await apiClient.get<DashboardOperationsSummary>(
+    '/admin/dashboard/operations-summary',
+    { params }
+  )
+  return data
+}
+
 /**
  * Get user usage trend data
  * @param params - Query parameters for filtering
@@ -268,17 +308,10 @@ export async function getUserSpendingRanking(
   return data
 }
 
-export interface PlatformUsage {
-  platform: string
-  today_actual_cost: number
-  total_actual_cost: number
-}
-
 export interface BatchUserUsageStats {
   user_id: number
   today_actual_cost: number
   total_actual_cost: number
-  by_platform?: PlatformUsage[]
 }
 
 export interface BatchUsersUsageResponse {
@@ -334,6 +367,7 @@ export const dashboardAPI = {
   getApiKeyUsageTrend,
   getUserUsageTrend,
   getUserSpendingRanking,
+  getOperationsSummary,
   getBatchUsersUsage,
   getBatchApiKeysUsage
 }

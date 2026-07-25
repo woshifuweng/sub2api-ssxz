@@ -2,10 +2,10 @@
 package middleware
 
 import (
-	"crypto/subtle"
 	"errors"
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -95,10 +95,26 @@ func isWebSocketUpgradeRequest(c *gin.Context) bool {
 }
 
 func extractJWTFromWebSocketSubprotocol(c *gin.Context) string {
+	return extractJWTFromWebSocketSubprotocolContext(gatewayctx.FromGin(c))
+}
+
+func isWebSocketUpgradeRequestContext(c gatewayctx.GatewayContext) bool {
+	if c == nil || c.Request() == nil {
+		return false
+	}
+	upgrade := strings.ToLower(strings.TrimSpace(c.HeaderValue("Upgrade")))
+	if upgrade != "websocket" {
+		return false
+	}
+	connection := strings.ToLower(c.HeaderValue("Connection"))
+	return strings.Contains(connection, "upgrade")
+}
+
+func extractJWTFromWebSocketSubprotocolContext(c gatewayctx.GatewayContext) string {
 	if c == nil {
 		return ""
 	}
-	raw := strings.TrimSpace(c.GetHeader("Sec-WebSocket-Protocol"))
+	raw := strings.TrimSpace(c.HeaderValue("Sec-WebSocket-Protocol"))
 	if raw == "" {
 		return ""
 	}
@@ -117,6 +133,54 @@ func extractJWTFromWebSocketSubprotocol(c *gin.Context) string {
 	return ""
 }
 
+func ApplyAdminAuthContext(
+	authService *service.AuthService,
+	userService *service.UserService,
+	settingService *service.SettingService,
+	auditService *service.AuditLogService,
+	c gatewayctx.GatewayContext,
+) bool {
+	if c == nil {
+		return false
+	}
+
+	if isWebSocketUpgradeRequestContext(c) {
+		if token := extractJWTFromWebSocketSubprotocolContext(c); token != "" {
+			if !validateJWTForAdminContext(c, token, authService, userService, settingService, auditService) {
+				return false
+			}
+			return true
+		}
+	}
+
+	apiKey := c.HeaderValue("x-api-key")
+	if apiKey != "" {
+		if !validateAdminAPIKeyContext(c, apiKey, settingService, userService) {
+			return false
+		}
+		return true
+	}
+
+	authHeader := c.HeaderValue("Authorization")
+	if authHeader != "" {
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
+			token := strings.TrimSpace(parts[1])
+			if token == "" {
+				AbortWithErrorContext(c, 401, "UNAUTHORIZED", "Authorization required")
+				return false
+			}
+			if !validateJWTForAdminContext(c, token, authService, userService, settingService, auditService) {
+				return false
+			}
+			return true
+		}
+	}
+
+	AbortWithErrorContext(c, 401, "UNAUTHORIZED", "Authorization required")
+	return false
+}
+
 // validateAdminAPIKey 验证管理员 API Key
 func validateAdminAPIKey(
 	c *gin.Context,
@@ -124,32 +188,54 @@ func validateAdminAPIKey(
 	settingService *service.SettingService,
 	userService *service.UserService,
 ) bool {
-	storedKey, err := settingService.GetAdminAPIKey(c.Request.Context())
+	return validateAdminAPIKeyContext(gatewayctx.FromGin(c), key, settingService, userService)
+}
+
+func validateAdminAPIKeyContext(
+	c gatewayctx.GatewayContext,
+	key string,
+	settingService *service.SettingService,
+	userService *service.UserService,
+) bool {
+	binding, err := settingService.ValidateAdminAPIKey(c.Request().Context(), key)
 	if err != nil {
-		AbortWithError(c, 500, "INTERNAL_ERROR", "Internal server error")
+		AbortWithErrorContext(c, 500, "INTERNAL_ERROR", "Internal server error")
 		return false
 	}
 
 	// 未配置或不匹配，统一返回相同错误（避免信息泄露）
-	if storedKey == "" || subtle.ConstantTimeCompare([]byte(key), []byte(storedKey)) != 1 {
-		AbortWithError(c, 401, "INVALID_ADMIN_KEY", "Invalid admin API key")
+	if binding == nil {
+		AbortWithErrorContext(c, 401, "INVALID_ADMIN_KEY", "Invalid admin API key")
 		return false
 	}
 
-	// 获取真实的管理员用户
-	admin, err := userService.GetFirstAdmin(c.Request.Context())
-	if err != nil {
-		AbortWithError(c, 500, "INTERNAL_ERROR", "No admin user found")
-		return false
+	var admin *service.User
+	if binding.Legacy {
+		admin, err = userService.GetFirstAdmin(c.Request().Context())
+		if err != nil {
+			AbortWithErrorContext(c, 500, "INTERNAL_ERROR", "No admin user found")
+			return false
+		}
+	} else {
+		admin, err = userService.GetByID(c.Request().Context(), binding.AdminUserID)
+		if err != nil || admin == nil || !admin.IsActive() || !admin.IsAdmin() {
+			AbortWithErrorContext(c, 401, "INVALID_ADMIN_KEY", "Invalid admin API key")
+			return false
+		}
+		if binding.AdminTokenVersion > 0 && admin.TokenVersion != binding.AdminTokenVersion {
+			AbortWithErrorContext(c, 401, "INVALID_ADMIN_KEY", "Invalid admin API key")
+			return false
+		}
 	}
 
-	c.Set(string(ContextKeyUser), AuthSubject{
-		UserID:      admin.ID,
-		Concurrency: admin.Concurrency,
+	c.SetValue(string(ContextKeyUser), AuthSubject{
+		UserID:          admin.ID,
+		Concurrency:     admin.Concurrency,
+		AllowedGroupIDs: cloneAuthSubjectGroupIDs(admin.AllowedGroups),
 	})
-	c.Set(string(ContextKeyUserRole), admin.Role)
-	c.Set(ContextKeyAuthEmail, admin.Email)
-	c.Set("auth_method", "admin_api_key")
+	c.SetValue(string(ContextKeyUserRole), admin.Role)
+	c.SetValue(ContextKeyAuthEmail, admin.Email)
+	c.SetValue("auth_method", "admin_api_key")
 	return true
 }
 
@@ -162,7 +248,6 @@ func validateJWTForAdmin(
 	settingService *service.SettingService,
 	auditService *service.AuditLogService,
 ) bool {
-	// 验证 JWT token
 	claims, err := authService.ValidateToken(token)
 	if err != nil {
 		if errors.Is(err, service.ErrTokenExpired) {
@@ -173,44 +258,100 @@ func validateJWTForAdmin(
 		return false
 	}
 
-	// 从数据库获取用户
 	user, err := userService.GetByID(c.Request.Context(), claims.UserID)
 	if err != nil {
 		AbortWithError(c, 401, "USER_NOT_FOUND", "User not found")
 		return false
 	}
-
-	// 检查用户状态
 	if !user.IsActive() {
 		AbortWithError(c, 401, "USER_INACTIVE", "User account is not active")
 		return false
 	}
-
-	// 校验 TokenVersion，确保管理员改密后旧 token 失效
 	if claims.TokenVersion != user.TokenVersion {
 		AbortWithError(c, 401, "TOKEN_REVOKED", "Token has been revoked (password changed)")
 		return false
 	}
 
-	// 会话绑定校验：IP/UA 任一变化即撤销会话（功能可在系统设置中关闭）
+	// 会话绑定校验（Wei-Shaw v0.1.163移植）
 	if !enforceSessionBinding(c, authService, settingService, auditService, claims) {
 		return false
 	}
 
-	// 检查管理员权限
 	if !user.IsAdmin() {
 		AbortWithError(c, 403, "FORBIDDEN", "Admin access required")
 		return false
 	}
 
 	c.Set(string(ContextKeyUser), AuthSubject{
-		UserID:      user.ID,
-		Concurrency: user.Concurrency,
+		UserID:          user.ID,
+		Concurrency:     user.Concurrency,
+		AllowedGroupIDs: cloneAuthSubjectGroupIDs(user.AllowedGroups),
 	})
 	c.Set(string(ContextKeyUserRole), user.Role)
 	c.Set(ContextKeyAuthEmail, user.Email)
 	c.Set(ContextKeySessionID, claims.SessionID)
 	c.Set("auth_method", "jwt")
+
+	return true
+}
+
+func validateJWTForAdminContext(
+	c gatewayctx.GatewayContext,
+	token string,
+	authService *service.AuthService,
+	userService *service.UserService,
+	settingService *service.SettingService,
+	auditService *service.AuditLogService,
+) bool {
+	// 验证 JWT token
+	claims, err := authService.ValidateToken(token)
+	if err != nil {
+		if errors.Is(err, service.ErrTokenExpired) {
+			AbortWithErrorContext(c, 401, "TOKEN_EXPIRED", "Token has expired")
+			return false
+		}
+		AbortWithErrorContext(c, 401, "INVALID_TOKEN", "Invalid token")
+		return false
+	}
+
+	// 从数据库获取用户
+	user, err := userService.GetByID(c.Request().Context(), claims.UserID)
+	if err != nil {
+		AbortWithErrorContext(c, 401, "USER_NOT_FOUND", "User not found")
+		return false
+	}
+
+	// 检查用户状态
+	if !user.IsActive() {
+		AbortWithErrorContext(c, 401, "USER_INACTIVE", "User account is not active")
+		return false
+	}
+
+	// 校验 TokenVersion，确保管理员改密后旧 token 失效
+	if claims.TokenVersion != user.TokenVersion {
+		AbortWithErrorContext(c, 401, "TOKEN_REVOKED", "Token has been revoked (password changed)")
+		return false
+	}
+
+	// 检查管理员权限
+	if !enforceSessionBindingContext(c, authService, settingService, auditService, claims) {
+		return false
+	}
+
+	if !user.IsAdmin() {
+		AbortWithErrorContext(c, 403, "FORBIDDEN", "Admin access required")
+		return false
+	}
+
+	c.SetValue(string(ContextKeyUser), AuthSubject{
+		UserID:          user.ID,
+		Concurrency:     user.Concurrency,
+		AllowedGroupIDs: cloneAuthSubjectGroupIDs(user.AllowedGroups),
+	})
+	c.SetValue(string(ContextKeyUserRole), user.Role)
+	c.SetValue(ContextKeyAuthEmail, user.Email)
+	c.SetValue(ContextKeySessionID, claims.SessionID)
+	c.SetValue("auth_method", "jwt")
 
 	return true
 }

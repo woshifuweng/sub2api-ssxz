@@ -25,25 +25,13 @@
         <!-- Setup Token icon -->
         <Icon v-else-if="type === 'setup-token'" name="shield" size="xs" />
         <!-- API Key icon -->
-        <Icon v-else-if="type === 'service_account'" name="cloud" size="xs" />
         <Icon v-else name="key" size="xs" />
         <span>{{ typeLabel }}</span>
       </span>
     </div>
     <!-- Row 2: Plan type + Privacy mode (only if either exists) -->
     <div v-if="planLabel || privacyBadge" class="inline-flex items-center overflow-hidden rounded-md">
-      <span v-if="planLabel" :class="['inline-flex items-center gap-1 px-1.5 py-1', planBadgeClass]">
-        <GrokFreeIcon
-          v-if="isGrokFreePlan"
-          data-testid="grok-free-plan-icon"
-        />
-        <Icon
-          v-else-if="planIconName"
-          :name="planIconName"
-          size="xs"
-          data-testid="grok-plan-icon"
-          aria-hidden="true"
-        />
+      <span v-if="planLabel" :class="['inline-flex items-center gap-1 px-1.5 py-1', typeClass]">
         <span>{{ planLabel }}</span>
       </span>
       <span
@@ -57,10 +45,6 @@
         <span>{{ privacyBadge.label }}</span>
       </span>
     </div>
-    <!-- Row 3: Subscription expiration (non-free paid accounts only) -->
-    <div v-if="expiresLabel" class="text-[10px] leading-tight text-gray-400 dark:text-gray-500 pl-0.5" :title="subscriptionExpiresAt">
-      {{ expiresLabel }}
-    </div>
   </div>
 </template>
 
@@ -68,7 +52,6 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AccountPlatform, AccountType } from '@/types'
-import GrokFreeIcon from './GrokFreeIcon.vue'
 import PlatformIcon from './PlatformIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
 
@@ -77,31 +60,22 @@ const { t } = useI18n()
 interface Props {
   platform: AccountPlatform
   type: AccountType
-  authMode?: string
   planType?: string
   privacyMode?: string
-  subscriptionExpiresAt?: string
 }
 
 const props = defineProps<Props>()
 
 const platformLabel = computed(() => {
   if (props.platform === 'anthropic') return 'Anthropic'
+  if (props.platform === 'kiro') return 'Kiro'
   if (props.platform === 'openai') return 'OpenAI'
   if (props.platform === 'antigravity') return 'Antigravity'
-  if (props.platform === 'grok') return 'Grok'
+  if (props.platform === 'sora') return 'Sora'
   return 'Gemini'
 })
 
-const normalizedAuthMode = computed(() =>
-  (props.authMode || '').trim().toLowerCase().replace(/[\s_-]+/g, '')
-)
-
 const typeLabel = computed(() => {
-  if (props.platform === 'openai' && props.type === 'oauth') {
-    if (normalizedAuthMode.value === 'agentidentity') return 'Agent Identity'
-    if (normalizedAuthMode.value === 'personalaccesstoken') return 'PAT'
-  }
   switch (props.type) {
     case 'oauth':
       return 'OAuth'
@@ -111,20 +85,15 @@ const typeLabel = computed(() => {
       return 'Key'
     case 'bedrock':
       return 'AWS'
-    case 'service_account':
-      return 'Vertex'
     default:
       return props.type
   }
 })
 
-const normalizedPlanType = computed(() =>
-  (props.planType || '').trim().toLowerCase().replace(/[\s_-]+/g, '')
-)
-
 const planLabel = computed(() => {
-  if (!normalizedPlanType.value) return ''
-  switch (normalizedPlanType.value) {
+  if (!props.planType) return ''
+  const lower = props.planType.toLowerCase()
+  switch (lower) {
     case 'plus':
       return 'Plus'
     case 'team':
@@ -133,33 +102,10 @@ const planLabel = computed(() => {
     case 'pro':
       return 'Pro'
     case 'free':
-    case 'basic':
-      return props.platform === 'grok' ? 'Grok Free' : 'Free'
-    case 'supergrok':
-      return 'SuperGrok'
-    case 'supergrokheavy':
-      return 'SuperGrok Heavy'
-    case 'abnormal':
-      return t('admin.accounts.subscriptionAbnormal')
+      return 'Free'
     default:
       return props.planType
   }
-})
-
-const isGrokFreePlan = computed(() =>
-  props.platform === 'grok' &&
-  (normalizedPlanType.value === 'free' || normalizedPlanType.value === 'basic')
-)
-
-const planIconName = computed<'bolt' | null>(() => {
-  if (props.platform !== 'grok') return null
-  if (
-    normalizedPlanType.value === 'supergrok' ||
-    normalizedPlanType.value === 'supergrokheavy'
-  ) {
-    return 'bolt'
-  }
-  return null
 })
 
 const platformClass = computed(() => {
@@ -169,13 +115,16 @@ const platformClass = computed(() => {
   if (props.platform === 'openai') {
     return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
   }
+  if (props.platform === 'kiro') {
+    return 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400'
+  }
   if (props.platform === 'antigravity') {
     return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
   }
-  if (props.platform === 'grok') {
-    return 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+  if (props.platform === 'sora') {
+    return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
   }
-  return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+  return 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
 })
 
 const typeClass = computed(() => {
@@ -185,59 +134,30 @@ const typeClass = computed(() => {
   if (props.platform === 'openai') {
     return 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
   }
+  if (props.platform === 'kiro') {
+    return 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400'
+  }
   if (props.platform === 'antigravity') {
     return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'
   }
-  if (props.platform === 'grok') {
-    return 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
+  if (props.platform === 'sora') {
+    return 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'
   }
-  return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+  return 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
 })
 
-const planBadgeClass = computed(() => {
-  if (normalizedPlanType.value === 'abnormal') {
-    return 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-  }
-  return typeClass.value
-})
-
-// Subscription expiration label (non-free only)
-const expiresLabel = computed(() => {
-  if (!props.subscriptionExpiresAt || !props.planType) return ''
-  if (normalizedPlanType.value === 'free' || normalizedPlanType.value === 'basic') return ''
-  try {
-    const d = new Date(props.subscriptionExpiresAt)
-    if (isNaN(d.getTime())) return ''
-    const yyyy = d.getFullYear()
-    const mm = String(d.getMonth() + 1).padStart(2, '0')
-    const dd = String(d.getDate()).padStart(2, '0')
-    return `${t('admin.accounts.subscriptionExpires')} ${yyyy}-${mm}-${dd}`
-  } catch {
-    return ''
-  }
-})
-
-// Privacy badge — shows different states for OpenAI/Antigravity OAuth privacy setting
+// Privacy badge — shows different states for OpenAI OAuth training setting
 const privacyBadge = computed(() => {
-  if (props.type !== 'oauth' || !props.privacyMode) return null
-  // 支持 OpenAI 和 Antigravity 平台
-  if (props.platform !== 'openai' && props.platform !== 'antigravity') return null
-
+  if (props.platform !== 'openai' || props.type !== 'oauth' || !props.privacyMode) return null
   const shieldCheck = 'M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z'
   const shieldX = 'M12 9v3.75m0-10.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285zM12 18h.008v.008H12V18z'
   switch (props.privacyMode) {
-    // OpenAI states
     case 'training_off':
-      return { label: 'Private', icon: shieldCheck, title: t('admin.accounts.privacyTrainingOff'), class: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' }
+      return { label: 'Privacy', icon: shieldCheck, title: t('admin.accounts.privacyTrainingOff'), class: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' }
     case 'training_set_cf_blocked':
       return { label: 'CF', icon: shieldX, title: t('admin.accounts.privacyCfBlocked'), class: 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400' }
     case 'training_set_failed':
       return { label: 'Fail', icon: shieldX, title: t('admin.accounts.privacyFailed'), class: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' }
-    // Antigravity states
-    case 'privacy_set':
-      return { label: 'Private', icon: shieldCheck, title: t('admin.accounts.privacyAntigravitySet'), class: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' }
-    case 'privacy_set_failed':
-      return { label: 'Fail', icon: shieldX, title: t('admin.accounts.privacyAntigravityFailed'), class: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' }
     default:
       return null
   }

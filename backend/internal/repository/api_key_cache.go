@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,7 +27,8 @@ func apiKeyRateLimitKey(userID int64) string {
 }
 
 func apiKeyAuthCacheKey(key string) string {
-	return fmt.Sprintf("%s%s", apiKeyAuthCachePrefix, key)
+	sum := sha256.Sum256([]byte(key))
+	return apiKeyAuthCachePrefix + hex.EncodeToString(sum[:])
 }
 
 type apiKeyCache struct {

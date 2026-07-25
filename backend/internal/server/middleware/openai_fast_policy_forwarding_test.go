@@ -7,8 +7,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
@@ -60,10 +62,11 @@ func TestAPIKeyAuthForwardsUserScopedOpenAIFastPolicyToUpstream(t *testing.T) {
 		value: string(settingsJSON),
 	}, cfg)
 	gatewayService := service.NewOpenAIGatewayService(
-		nil, nil, nil, nil, nil, nil, nil, cfg,
-		nil, nil, nil, nil, nil, &openAIFastPolicyForwardingHTTPUpstream{client: upstreamServer.Client()},
-		nil, nil, nil, nil, nil, nil, settingService, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, cfg,
+		nil, nil, nil, nil, nil, nil, &openAIFastPolicyForwardingHTTPUpstream{client: upstreamServer.Client()},
+		nil, nil,
 	)
+	setOpenAIGatewaySettingServiceForTest(t, gatewayService, settingService)
 
 	groupID := int64(101)
 	group := &service.Group{
@@ -129,6 +132,16 @@ func TestAPIKeyAuthForwardsUserScopedOpenAIFastPolicyToUpstream(t *testing.T) {
 	otherUserBody := <-upstreamBodies
 	require.Equal(t, service.OpenAIFastTierPriority, gjson.GetBytes(allowedUserBody, "service_tier").String())
 	require.False(t, gjson.GetBytes(otherUserBody, "service_tier").Exists())
+}
+
+// The current public constructor no longer accepts the optional setting
+// service. Keep this cross-package forwarding test focused on policy behavior
+// without adding a production-only setter solely for tests.
+func setOpenAIGatewaySettingServiceForTest(t *testing.T, gateway *service.OpenAIGatewayService, settings *service.SettingService) {
+	t.Helper()
+	field := reflect.ValueOf(gateway).Elem().FieldByName("settingService")
+	require.True(t, field.IsValid() && field.CanAddr(), "OpenAIGatewayService.settingService must remain addressable")
+	reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Set(reflect.ValueOf(settings))
 }
 
 func newOpenAIFastPolicyForwardingAPIKey(id int64, key string, userID, groupID int64, group *service.Group) *service.APIKey {

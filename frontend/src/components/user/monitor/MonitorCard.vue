@@ -1,14 +1,13 @@
 <template>
   <button
     type="button"
-    class="group text-left p-5 rounded-2xl min-h-[280px] w-full bg-white/70 backdrop-blur-xl border border-gray-200/80 shadow-card dark:bg-dark-800/60 dark:border-dark-700/70 hover:-translate-y-1 hover:shadow-card-hover dark:hover:border-primary-500/30 hover:border-gray-300 transition-all duration-300 ease-out flex flex-col"
+    class="channel-monitor-card group text-left p-5 min-h-[280px] w-full flex flex-col"
     @click="emit('click')"
   >
     <!-- Header: icon + name/model + status chip -->
     <div class="flex items-start gap-3">
       <span
-        class="w-9 h-9 rounded-xl ring-1 ring-black/5 dark:ring-white/10 grid place-items-center flex-shrink-0"
-        :class="[providerGradient(item.provider), providerTintClass]"
+        class="channel-monitor-provider-mark w-9 h-9 rounded-xl grid place-items-center flex-shrink-0"
       >
         <ProviderIcon :provider="item.provider" :size="20" />
       </span>
@@ -18,7 +17,7 @@
         </div>
         <div class="mt-0.5 flex items-center gap-1.5 min-w-0">
           <span
-            class="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium flex-shrink-0"
+            class="channel-monitor-provider-badge inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium flex-shrink-0"
             :class="providerBadgeClass(item.provider)"
           >
             {{ providerLabel(item.provider) }}
@@ -28,7 +27,7 @@
           </span>
           <span
             v-if="item.group_name"
-            class="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300 flex-shrink-0"
+            class="channel-monitor-group inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium flex-shrink-0"
           >
             {{ item.group_name }}
           </span>
@@ -55,7 +54,7 @@
     />
 
     <!-- Divider -->
-    <div class="mt-4 border-t border-gray-100 dark:border-dark-700/60"></div>
+    <div class="channel-monitor-divider mt-4"></div>
 
     <!-- Availability row -->
     <MonitorAvailabilityRow
@@ -78,19 +77,11 @@ import { useI18n } from 'vue-i18n'
 import type { UserMonitorView } from '@/api/channelMonitor'
 import {
   useChannelMonitorFormat,
-  providerGradient,
 } from '@/composables/useChannelMonitorFormat'
 import ProviderIcon from './ProviderIcon.vue'
 import MonitorMetricPair from './MonitorMetricPair.vue'
 import MonitorAvailabilityRow from './MonitorAvailabilityRow.vue'
 import MonitorTimeline from './MonitorTimeline.vue'
-
-const PROVIDER_TINT: Record<string, string> = {
-  openai: 'text-emerald-600 dark:text-emerald-300',
-  anthropic: 'text-orange-600 dark:text-orange-300',
-  gemini: 'text-sky-600 dark:text-sky-300',
-  grok: 'text-zinc-700 dark:text-zinc-200',
-}
 
 const props = defineProps<{
   item: UserMonitorView
@@ -112,13 +103,9 @@ const {
   formatLatency,
 } = useChannelMonitorFormat()
 
-const providerTintClass = computed(() =>
-  PROVIDER_TINT[props.item.provider] ?? 'text-gray-500 dark:text-gray-300'
-)
-
 const availabilityLabel = computed(() => {
   const win = t(`channelStatus.windowTab.${props.window}`)
-  return `${t('monitorCommon.availabilityPrefix')} · ${win}`
+  return t('monitorCommon.windowAvailabilityLabel', { window: win })
 })
 
 const extraModelsCountLabel = computed(() => {
@@ -127,3 +114,42 @@ const extraModelsCountLabel = computed(() => {
   return t('monitorCommon.extraModelsCount', { n: count })
 })
 </script>
+
+<style scoped>
+.channel-monitor-card {
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  color: var(--ssxz-text);
+  background: var(--ssxz-surface-raised);
+  box-shadow: var(--ssxz-shadow-card);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.channel-monitor-card:hover {
+  border-color: var(--ssxz-border-strong);
+  box-shadow: var(--ssxz-shadow-card-hover);
+  transform: translateY(-1px);
+}
+
+.channel-monitor-card:focus-visible {
+  outline: 2px solid var(--ssxz-primary);
+  outline-offset: 2px;
+}
+
+.channel-monitor-provider-mark {
+  color: var(--ssxz-text-muted);
+  background: var(--ssxz-surface-muted);
+  box-shadow: inset 0 0 0 1px var(--ssxz-border);
+}
+
+.channel-monitor-card :deep(.channel-monitor-provider-badge),
+.channel-monitor-card :deep(.channel-monitor-group) {
+  color: var(--ssxz-text-muted);
+  background: var(--ssxz-surface-muted);
+  border: 1px solid var(--ssxz-border);
+}
+
+.channel-monitor-divider {
+  border-top: 1px solid var(--ssxz-border);
+}
+</style>

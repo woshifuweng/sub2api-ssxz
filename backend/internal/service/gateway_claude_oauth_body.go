@@ -37,7 +37,7 @@ type anthropicMetadataPayload struct {
 
 // replaceModelInBody 替换请求体中的model字段
 // 优先使用定点修改，尽量保持客户端原始字段顺序。
-func (s *GatewayService) replaceModelInBody(body []byte, newModel string) []byte {
+func (s *GatewayService) replaceModelInBodyWeiShaw(body []byte, newModel string) []byte {
 	return ReplaceModelInBody(body, newModel)
 }
 
@@ -50,7 +50,7 @@ type claudeOAuthNormalizeOptions struct {
 // sanitizeSystemText rewrites only the fixed OpenCode identity sentence (if present).
 // We intentionally avoid broad keyword replacement in system prompts to prevent
 // accidentally changing user-provided instructions.
-func sanitizeSystemText(text string) string {
+func sanitizeSystemTextWeiShaw(text string) string {
 	if text == "" {
 		return text
 	}
@@ -65,7 +65,7 @@ func sanitizeSystemText(text string) string {
 	return text
 }
 
-func marshalAnthropicSystemTextBlock(text string, includeCacheControl bool) ([]byte, error) {
+func marshalAnthropicSystemTextBlockWeiShaw(text string, includeCacheControl bool) ([]byte, error) {
 	block := anthropicSystemTextBlockPayload{
 		Type: "text",
 		Text: text,
@@ -90,11 +90,11 @@ func marshalAnthropicSystemTextBlockWithCacheControl(text string, cacheControl a
 	return json.Marshal(block)
 }
 
-func marshalAnthropicMetadata(userID string) ([]byte, error) {
+func marshalAnthropicMetadataWeiShaw(userID string) ([]byte, error) {
 	return json.Marshal(anthropicMetadataPayload{UserID: userID})
 }
 
-func buildJSONArrayRaw(items [][]byte) []byte {
+func buildJSONArrayRawWeiShaw(items [][]byte) []byte {
 	if len(items) == 0 {
 		return []byte("[]")
 	}
@@ -117,7 +117,7 @@ func buildJSONArrayRaw(items [][]byte) []byte {
 	return buf
 }
 
-func setJSONValueBytes(body []byte, path string, value any) ([]byte, bool) {
+func setJSONValueBytesWeiShaw(body []byte, path string, value any) ([]byte, bool) {
 	next, err := sjson.SetBytes(body, path, value)
 	if err != nil {
 		return body, false
@@ -125,7 +125,7 @@ func setJSONValueBytes(body []byte, path string, value any) ([]byte, bool) {
 	return next, true
 }
 
-func setJSONRawBytes(body []byte, path string, raw []byte) ([]byte, bool) {
+func setJSONRawBytesWeiShaw(body []byte, path string, raw []byte) ([]byte, bool) {
 	next, err := sjson.SetRawBytes(body, path, raw)
 	if err != nil {
 		return body, false
@@ -133,7 +133,7 @@ func setJSONRawBytes(body []byte, path string, raw []byte) ([]byte, bool) {
 	return next, true
 }
 
-func deleteJSONPathBytes(body []byte, path string) ([]byte, bool) {
+func deleteJSONPathBytesWeiShaw(body []byte, path string) ([]byte, bool) {
 	next, err := sjson.DeleteBytes(body, path)
 	if err != nil {
 		return body, false
@@ -141,7 +141,7 @@ func deleteJSONPathBytes(body []byte, path string) ([]byte, bool) {
 	return next, true
 }
 
-func normalizeClaudeOAuthSystemBody(body []byte, opts claudeOAuthNormalizeOptions) ([]byte, bool) {
+func normalizeClaudeOAuthSystemBodyWeiShaw(body []byte, opts claudeOAuthNormalizeOptions) ([]byte, bool) {
 	sys := gjson.GetBytes(body, "system")
 	if !sys.Exists() {
 		return body, false
@@ -191,7 +191,7 @@ func normalizeClaudeOAuthSystemBody(body []byte, opts claudeOAuthNormalizeOption
 	return out, modified
 }
 
-func ensureClaudeOAuthMetadataUserID(body []byte, userID string) ([]byte, bool) {
+func ensureClaudeOAuthMetadataUserIDWeiShaw(body []byte, userID string) ([]byte, bool) {
 	if strings.TrimSpace(userID) == "" {
 		return body, false
 	}
@@ -507,11 +507,11 @@ func sessionContextDiscriminator(sc *SessionContext) string {
 }
 
 // GenerateSessionUUID creates a deterministic UUID4 from a seed string.
-func GenerateSessionUUID(seed string) string {
+func GenerateSessionUUIDWeiShaw(seed string) string {
 	return generateSessionUUID(seed)
 }
 
-func generateSessionUUID(seed string) string {
+func generateSessionUUIDWeiShaw(seed string) string {
 	if seed == "" {
 		return uuid.NewString()
 	}
@@ -543,7 +543,7 @@ func normalizeSystemParam(system any) any {
 
 // systemIncludesClaudeCodePrompt 检查 system 中是否已包含 Claude Code 提示词
 // 使用前缀匹配支持多种变体（标准版、Agent SDK 版等）
-func systemIncludesClaudeCodePrompt(system any) bool {
+func systemIncludesClaudeCodePromptWeiShaw(system any) bool {
 	system = normalizeSystemParam(system)
 	switch v := system.(type) {
 	case string:
@@ -561,7 +561,7 @@ func systemIncludesClaudeCodePrompt(system any) bool {
 }
 
 // hasClaudeCodePrefix 检查文本是否以 Claude Code 提示词的特征前缀开头
-func hasClaudeCodePrefix(text string) bool {
+func hasClaudeCodePrefixWeiShaw(text string) bool {
 	for _, prefix := range claudeCodePromptPrefixes {
 		if strings.HasPrefix(text, prefix) {
 			return true
@@ -572,7 +572,7 @@ func hasClaudeCodePrefix(text string) bool {
 
 // injectClaudeCodePrompt 在 system 开头注入 Claude Code 提示词
 // 处理 null、字符串、数组三种格式
-func injectClaudeCodePrompt(body []byte, system any) []byte {
+func injectClaudeCodePromptWeiShaw(body []byte, system any) []byte {
 	system = normalizeSystemParam(system)
 	claudeCodeBlock, err := marshalAnthropicSystemTextBlock(claudeCodeSystemPrompt, true)
 	if err != nil {

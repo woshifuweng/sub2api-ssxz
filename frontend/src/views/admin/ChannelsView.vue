@@ -1,6 +1,8 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <AdminPageHeader title="通道定价" description="上游渠道配置与倍率管理" />
+
+    <TablePageLayout class="admin-b2-outline-scope">
       <template #filters>
         <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
           <!-- Left: Search + Filters -->
@@ -339,36 +341,6 @@
               </div>
             </div>
 
-            <!-- Codex Image Generation Bridge (OpenAI only) -->
-            <div v-if="section.platform === 'openai'" class="border-t border-gray-200 pt-3 dark:border-dark-600">
-              <div class="flex items-center justify-between gap-4">
-                <div>
-                  <label class="text-xs font-medium text-gray-700 dark:text-gray-300">
-                    {{ t('admin.channels.form.codexImageGenerationBridge') }}
-                  </label>
-                  <p class="mt-0.5 text-[11px] text-amber-600 dark:text-amber-400">
-                    {{ t('admin.channels.form.codexImageGenerationBridgeHint') }}
-                  </p>
-                </div>
-                <Toggle v-model="section.codex_image_generation_bridge" />
-              </div>
-            </div>
-
-            <!-- Bedrock CC Compatibility (Anthropic only) -->
-            <div v-if="section.platform === 'anthropic'" class="border-t border-gray-200 pt-3 dark:border-dark-600">
-              <div class="flex items-center justify-between gap-4">
-                <div>
-                  <label class="text-xs font-medium text-gray-700 dark:text-gray-300">
-                    {{ t('admin.channels.form.bedrockCCCompat') }}
-                  </label>
-                  <p class="mt-0.5 text-[11px] text-amber-600 dark:text-amber-400">
-                    {{ t('admin.channels.form.bedrockCCCompatHint') }}
-                  </p>
-                </div>
-                <Toggle v-model="section.bedrock_cc_compat" />
-              </div>
-            </div>
-
             <!-- Model Mapping -->
             <div>
               <div class="mb-1 flex items-center justify-between">
@@ -421,19 +393,9 @@
             <div>
               <div class="mb-1 flex items-center justify-between">
                 <label class="input-label text-xs mb-0">{{ t('admin.channels.form.modelPricing', 'Model Pricing') }}</label>
-                <div class="flex items-center gap-2">
-                  <button
-                    type="button"
-                    @click="syncLatestModels(sIdx)"
-                    :disabled="syncingPlatform === section.platform"
-                    class="text-xs text-gray-500 hover:text-primary-600 disabled:opacity-50"
-                  >
-                    {{ syncingPlatform === section.platform ? t('admin.channels.form.syncingModels') : t('admin.channels.form.syncLatestModels') }}
-                  </button>
-                  <button type="button" @click="addPricingEntry(sIdx)" class="text-xs text-primary-600 hover:text-primary-700">
-                    + {{ t('common.add', 'Add') }}
-                  </button>
-                </div>
+                <button type="button" @click="addPricingEntry(sIdx)" class="text-xs text-primary-600 hover:text-primary-700">
+                  + {{ t('common.add', 'Add') }}
+                </button>
               </div>
               <div
                 v-if="section.model_pricing.length === 0"
@@ -637,6 +599,7 @@ import type { AdminGroup, GroupPlatform } from '@/types'
 import type { Column } from '@/components/common/types'
 import { platformTextClass, platformBadgeLightClass } from '@/utils/platformColors'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -683,8 +646,6 @@ interface PlatformSection {
   model_mapping: Record<string, string>
   model_pricing: PricingFormEntry[]
   web_search_emulation: boolean
-  codex_image_generation_bridge: boolean
-  bedrock_cc_compat: boolean
   account_stats_pricing_rules: FormPricingRule[]
 }
 
@@ -760,7 +721,7 @@ const form = reactive({
 let abortController: AbortController | null = null
 
 // ── Platform config ──
-const platformOrder: GroupPlatform[] = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok']
+const platformOrder: GroupPlatform[] = ['anthropic', 'openai', 'gemini', 'antigravity']
 
 // ── Helpers ──
 function formatDate(value: string): string {
@@ -780,8 +741,6 @@ function addPlatformSection(platform: GroupPlatform) {
     model_mapping: {},
     model_pricing: [],
     web_search_emulation: false,
-    codex_image_generation_bridge: false,
-    bedrock_cc_compat: false,
     account_stats_pricing_rules: [],
   })
 }
@@ -855,50 +814,10 @@ function addPricingEntry(sectionIdx: number) {
     output_price: null,
     cache_write_price: null,
     cache_read_price: null,
-    image_input_price: null,
     image_output_price: null,
     per_request_price: null,
     intervals: []
   })
-}
-
-const syncingPlatform = ref<string | null>(null)
-
-async function syncLatestModels(sectionIdx: number) {
-  const platform = form.platforms[sectionIdx].platform
-  if (syncingPlatform.value) return
-  syncingPlatform.value = platform
-  try {
-    const result = await adminAPI.channels.syncPricingModels(platform)
-    // Collect all model names already present in this platform's pricing entries
-    const existingModels = new Set<string>()
-    for (const entry of form.platforms[sectionIdx].model_pricing) {
-      for (const m of entry.models) existingModels.add(m)
-    }
-    const newModels = result.models.filter(m => !existingModels.has(m))
-    if (newModels.length === 0) {
-      appStore.showSuccess(t('admin.channels.form.syncModelsAlreadyUpToDate'))
-      return
-    }
-    // Add new models as a single new pricing entry (user fills in prices)
-    form.platforms[sectionIdx].model_pricing.push({
-      models: newModels,
-      billing_mode: 'token',
-      input_price: null,
-      output_price: null,
-      cache_write_price: null,
-      cache_read_price: null,
-      image_input_price: null,
-      image_output_price: null,
-      per_request_price: null,
-      intervals: []
-    })
-    appStore.showSuccess(t('admin.channels.form.syncModelsSuccess', { count: newModels.length }))
-  } catch (error) {
-    appStore.showError(extractApiErrorMessage(error, t('admin.channels.form.syncModelsError')))
-  } finally {
-    syncingPlatform.value = null
-  }
 }
 
 function updatePricingEntry(sectionIdx: number, idx: number, updated: PricingFormEntry) {
@@ -953,7 +872,6 @@ function addRulePricingEntry(sectionIdx: number, ruleIndex: number) {
     output_price: null,
     cache_write_price: null,
     cache_read_price: null,
-    image_input_price: null,
     image_output_price: null,
     per_request_price: null,
     intervals: []
@@ -1069,7 +987,6 @@ function accountStatsRulesToAPI(): AccountStatsPricingRule[] {
             output_price: mTokToPerToken(p.output_price),
             cache_write_price: mTokToPerToken(p.cache_write_price),
             cache_read_price: mTokToPerToken(p.cache_read_price),
-            image_input_price: mTokToPerToken(p.image_input_price),
             image_output_price: mTokToPerToken(p.image_output_price),
             per_request_price: p.per_request_price != null && p.per_request_price !== '' ? Number(p.per_request_price) : null,
             intervals: formIntervalsToAPI(p.intervals || [])
@@ -1110,7 +1027,6 @@ function formToAPI(): { group_ids: number[], model_pricing: ChannelModelPricing[
         output_price: mTokToPerToken(entry.output_price),
         cache_write_price: mTokToPerToken(entry.cache_write_price),
         cache_read_price: mTokToPerToken(entry.cache_read_price),
-        image_input_price: mTokToPerToken(entry.image_input_price),
         image_output_price: mTokToPerToken(entry.image_output_price),
         per_request_price: entry.per_request_price != null && entry.per_request_price !== '' ? Number(entry.per_request_price) : null,
         intervals: formIntervalsToAPI(entry.intervals || [])
@@ -1132,32 +1048,6 @@ function formToAPI(): { group_ids: number[], model_pricing: ChannelModelPricing[
     featuresConfig.web_search_emulation = wsEmulation
   } else {
     delete featuresConfig.web_search_emulation
-  }
-
-  const codexImageGenerationBridge: Record<string, boolean> = {}
-  for (const section of form.platforms) {
-    if (!section.enabled) continue
-    if (section.platform === 'openai') {
-      codexImageGenerationBridge[section.platform] = !!section.codex_image_generation_bridge
-    }
-  }
-  if (Object.keys(codexImageGenerationBridge).length > 0) {
-    featuresConfig.codex_image_generation_bridge = codexImageGenerationBridge
-  } else {
-    delete featuresConfig.codex_image_generation_bridge
-  }
-
-  const bedrockCCCompat: Record<string, boolean> = {}
-  for (const section of form.platforms) {
-    if (!section.enabled) continue
-    if (section.platform === 'anthropic') {
-      bedrockCCCompat[section.platform] = !!section.bedrock_cc_compat
-    }
-  }
-  if (Object.keys(bedrockCCCompat).length > 0) {
-    featuresConfig.bedrock_cc_compat = bedrockCCCompat
-  } else {
-    delete featuresConfig.bedrock_cc_compat
   }
 
   return { group_ids, model_pricing, model_mapping, features_config: featuresConfig }
@@ -1199,7 +1089,6 @@ function apiToForm(channel: Channel): PlatformSection[] {
         output_price: perTokenToMTok(p.output_price),
         cache_write_price: perTokenToMTok(p.cache_write_price),
         cache_read_price: perTokenToMTok(p.cache_read_price),
-        image_input_price: perTokenToMTok(p.image_input_price),
         image_output_price: perTokenToMTok(p.image_output_price),
         per_request_price: p.per_request_price,
         intervals: apiIntervalsToForm(p.intervals || [])
@@ -1209,9 +1098,6 @@ function apiToForm(channel: Channel): PlatformSection[] {
     const fc = channel.features_config
     const wsEmulation = fc?.web_search_emulation as Record<string, boolean> | undefined
     const webSearchEnabled = wsEmulation?.[platform] === true
-    const codexImageGenerationBridge = fc?.codex_image_generation_bridge as Record<string, boolean> | undefined
-    const codexImageGenerationBridgeEnabled = codexImageGenerationBridge?.[platform] === true
-    const bedrockCCCompatEnabled = fc?.bedrock_cc_compat === true
 
     sections.push({
       platform,
@@ -1221,8 +1107,6 @@ function apiToForm(channel: Channel): PlatformSection[] {
       model_mapping: { ...mapping },
       model_pricing: pricing,
       web_search_emulation: webSearchEnabled,
-      codex_image_generation_bridge: codexImageGenerationBridgeEnabled,
-      bedrock_cc_compat: bedrockCCCompatEnabled,
       account_stats_pricing_rules: [],
     })
   }
@@ -1388,7 +1272,6 @@ function distributeRulesToPlatforms(apiRules: AccountStatsPricingRule[]) {
         output_price: perTokenToMTok(p.output_price),
         cache_write_price: perTokenToMTok(p.cache_write_price),
         cache_read_price: perTokenToMTok(p.cache_read_price),
-        image_input_price: perTokenToMTok(p.image_input_price),
         image_output_price: perTokenToMTok(p.image_output_price),
         per_request_price: p.per_request_price,
         intervals: apiIntervalsToForm(p.intervals || [])
@@ -1464,9 +1347,8 @@ async function handleSubmit() {
     }
     const pricingConflict = findModelConflict(allModels)
     if (pricingConflict) {
-      appStore.showError(
-        t('admin.channels.modelConflict',
-          { model1: pricingConflict[0], model2: pricingConflict[1] })
+        appStore.showError(
+        t('admin.channels.modelConflict', { model1: pricingConflict[0], model2: pricingConflict[1] })
       )
       activeTab.value = section.platform
       return
@@ -1477,8 +1359,7 @@ async function handleSubmit() {
       const mappingConflict = findModelConflict(mappingKeys)
       if (mappingConflict) {
         appStore.showError(
-          t('admin.channels.mappingConflict',
-            { model1: mappingConflict[0], model2: mappingConflict[1] })
+          t('admin.channels.mappingConflict', { model1: mappingConflict[0], model2: mappingConflict[1] })
         )
         activeTab.value = section.platform
         return
@@ -1503,7 +1384,7 @@ async function handleSubmit() {
   for (const section of form.platforms.filter(s => s.enabled)) {
     for (const entry of section.model_pricing) {
       if (!entry.intervals || entry.intervals.length === 0) continue
-      const intervalErr = validateIntervals(entry.intervals, entry.billing_mode, t)
+      const intervalErr = validateIntervals(entry.intervals)
       if (intervalErr) {
         const platformLabel = t('admin.groups.platforms.' + section.platform, section.platform)
         const modelLabel = entry.models.join(', ') || t('admin.channels.form.unnamed')
@@ -1633,5 +1514,19 @@ onUnmounted(() => {
 
 .channel-tab-inactive {
   @apply border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300;
+}
+
+.admin-b2-outline-scope :deep(.table-scroll-container),
+.admin-b2-outline-scope :deep(.table-wrapper),
+.admin-b2-outline-scope :deep(.table-wrapper table),
+.admin-b2-outline-scope :deep(.table-wrapper tbody) {
+  background: transparent !important;
+  border-color: var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b2-outline-scope :deep(thead),
+.admin-b2-outline-scope :deep(.table-header) {
+  background: var(--ssxz-surface-raised) !important;
 }
 </style>

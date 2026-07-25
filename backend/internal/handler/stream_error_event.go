@@ -2,11 +2,10 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
-	"net/http"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -35,6 +34,38 @@ type responsesFailedEvent struct {
 	Response responsesFailedBody `json:"response"`
 }
 
+type legacyStreamError struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}
+
+type legacyStreamErrorEvent struct {
+	Type  string            `json:"type"`
+	Error legacyStreamError `json:"error"`
+}
+
+func writeLegacyStreamErrorContext(c gatewayctx.GatewayContext, event, errType, message string) {
+	payload := legacyStreamErrorEvent{
+		Type: "error",
+		Error: legacyStreamError{
+			Type:    errType,
+			Message: message,
+		},
+	}
+	if event == "" {
+		_ = gatewayctx.WriteSSEData(c, payload)
+		return
+	}
+	_ = gatewayctx.WriteSSEEvent(c, event, payload)
+}
+
+func responseUsesSSEContext(c gatewayctx.GatewayContext) bool {
+	if c == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(c.Header().Get("Content-Type")), "text/event-stream")
+}
+
 // writeResponsesFailedSSE emits a `response.failed` SSE event in the OpenAI
 // Responses API protocol after the stream has already started.
 //
@@ -53,17 +84,20 @@ type responsesFailedEvent struct {
 // 此时 caller 也无法回退到 JSON（HTTP 200 已固化），通常意味着连接已经损坏，
 // 应当让请求处理函数 return，由上层关闭连接。
 func writeResponsesFailedSSE(c *gin.Context, errType, message string) bool {
-	flusher, ok := c.Writer.(http.Flusher)
-	if !ok {
+	return writeResponsesFailedSSEContext(gatewayctx.FromGin(c), errType, message)
+}
+
+func writeResponsesFailedSSEContext(c gatewayctx.GatewayContext, errType, message string) bool {
+	if c == nil {
 		return false
 	}
 
 	payload, err := json.Marshal(responsesFailedEvent{
 		Type: "response.failed",
 		Response: responsesFailedBody{
-			ID:     synthesizeResponseID(c),
+			ID:     synthesizeResponseIDContext(c),
 			Object: "response",
-			Model:  requestModel(c),
+			Model:  requestModelContext(c),
 			Status: "failed",
 			Output: []any{},
 			Error: responsesFailedError{
@@ -73,15 +107,10 @@ func writeResponsesFailedSSE(c *gin.Context, errType, message string) bool {
 		},
 	})
 	if err != nil {
-		_ = c.Error(err)
-		return true
+		return false
 	}
 
-	if _, err := fmt.Fprintf(c.Writer, "event: response.failed\ndata: %s\n\n", payload); err != nil {
-		_ = c.Error(err)
-		return true
-	}
-	flusher.Flush()
+	_ = gatewayctx.WriteSSEEvent(c, "response.failed", json.RawMessage(payload))
 	return true
 }
 
@@ -107,12 +136,16 @@ func writeResponsesFailedSSE(c *gin.Context, errType, message string) bool {
 // strings.Contains(p, "/responses/") 分支同样能覆盖这些通配路由，
 // 不需要额外处理通配符本身。
 func inboundIsResponses(c *gin.Context) bool {
+	return inboundIsResponsesContext(gatewayctx.FromGin(c))
+}
+
+func inboundIsResponsesContext(c gatewayctx.GatewayContext) bool {
 	if c == nil {
 		return false
 	}
-	p := strings.TrimRight(c.FullPath(), "/")
-	if p == "" && c.Request != nil && c.Request.URL != nil {
-		p = strings.TrimRight(c.Request.URL.Path, "/")
+	p := strings.TrimRight(c.Path(), "/")
+	if p == "" && c.Request() != nil && c.Request().URL != nil {
+		p = strings.TrimRight(c.Request().URL.Path, "/")
 	}
 	if p == "" {
 		return false
@@ -124,8 +157,12 @@ func inboundIsResponses(c *gin.Context) bool {
 // 优先复用 server 端生成的 request_id（存在 request.Context 里，由 request_logger 写入），
 // 以便客户端报错能与 server 日志关联；缺失时回退 uuid。
 func synthesizeResponseID(c *gin.Context) string {
-	if c != nil && c.Request != nil {
-		if rid, ok := c.Request.Context().Value(ctxkey.RequestID).(string); ok {
+	return synthesizeResponseIDContext(gatewayctx.FromGin(c))
+}
+
+func synthesizeResponseIDContext(c gatewayctx.GatewayContext) string {
+	if c != nil && c.Request() != nil {
+		if rid, ok := c.Request().Context().Value(ctxkey.RequestID).(string); ok {
 			if rid = strings.TrimSpace(rid); rid != "" {
 				return "resp_" + strings.ReplaceAll(rid, "-", "")
 			}
@@ -137,10 +174,14 @@ func synthesizeResponseID(c *gin.Context) string {
 // requestModel 取当前请求的 inbound model（由 setOpsRequestContext 写入）。
 // 缺失时返回 ""；caller 据此决定是否忽略该字段。
 func requestModel(c *gin.Context) string {
+	return requestModelContext(gatewayctx.FromGin(c))
+}
+
+func requestModelContext(c gatewayctx.GatewayContext) string {
 	if c == nil {
 		return ""
 	}
-	if v, ok := c.Get(opsModelKey); ok {
+	if v, ok := c.Value(opsModelKey); ok {
 		if s, ok := v.(string); ok {
 			return strings.TrimSpace(s)
 		}

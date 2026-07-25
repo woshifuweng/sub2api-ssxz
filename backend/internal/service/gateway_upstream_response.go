@@ -162,7 +162,7 @@ func matchSignaturePatterns(respBody []byte, patterns []string) bool {
 
 // isThinkingBlockSignatureError 检测是否是thinking block相关错误
 // 这类错误可以通过过滤thinking blocks并重试来解决
-func (s *GatewayService) isThinkingBlockSignatureError(respBody []byte) bool {
+func (s *GatewayService) isThinkingBlockSignatureErrorWeiShaw(respBody []byte) bool {
 	msg := strings.ToLower(strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
 	if msg == "" {
 		return false
@@ -209,7 +209,7 @@ func (s *GatewayService) isThinkingBlockSignatureError(respBody []byte) bool {
 	return false
 }
 
-func (s *GatewayService) shouldFailoverOn400(respBody []byte) bool {
+func (s *GatewayService) shouldFailoverOn400WeiShaw(respBody []byte) bool {
 	// 只对"可能是兼容性差异导致"的 400 允许切换，避免无意义重试。
 	// 默认保守：无法识别则不切换。
 	msg := strings.ToLower(strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
@@ -281,11 +281,11 @@ func sanitizeStreamError(err error) string {
 
 // ExtractUpstreamErrorMessage 从上游响应体中提取错误消息
 // 支持 Claude 风格的错误格式：{"type":"error","error":{"type":"...","message":"..."}}
-func ExtractUpstreamErrorMessage(body []byte) string {
+func ExtractUpstreamErrorMessageWeiShaw(body []byte) string {
 	return extractUpstreamErrorMessage(body)
 }
 
-func extractUpstreamErrorMessage(body []byte) string {
+func extractUpstreamErrorMessageWeiShaw(body []byte) string {
 	// Claude 风格：{"type":"error","error":{"type":"...","message":"..."}}
 	if m := gjson.GetBytes(body, "error.message").String(); strings.TrimSpace(m) != "" {
 		inner := strings.TrimSpace(m)
@@ -307,7 +307,7 @@ func extractUpstreamErrorMessage(body []byte) string {
 	return gjson.GetBytes(body, "message").String()
 }
 
-func extractUpstreamErrorCode(body []byte) string {
+func extractUpstreamErrorCodeWeiShaw(body []byte) string {
 	if code := strings.TrimSpace(gjson.GetBytes(body, "error.code").String()); code != "" {
 		return code
 	}
@@ -330,7 +330,7 @@ func extractUpstreamErrorCode(body []byte) string {
 	return ""
 }
 
-func isCountTokensUnsupported404(statusCode int, body []byte) bool {
+func isCountTokensUnsupported404WeiShaw(statusCode int, body []byte) bool {
 	if statusCode != http.StatusNotFound {
 		return false
 	}
@@ -516,7 +516,7 @@ func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Res
 	return nil, fmt.Errorf("upstream error: %d message=%s", resp.StatusCode, upstreamMsg)
 }
 
-func (s *GatewayService) handleRetryExhaustedSideEffects(ctx context.Context, resp *http.Response, account *Account) {
+func (s *GatewayService) handleRetryExhaustedSideEffectsWeiShaw(ctx context.Context, resp *http.Response, account *Account) {
 	body, _ := s.readUpstreamErrorBody(resp)
 	statusCode := resp.StatusCode
 
@@ -542,7 +542,7 @@ func (s *GatewayService) handleFailoverSideEffects(ctx context.Context, resp *ht
 // handleRetryExhaustedError 处理重试耗尽后的错误
 // OAuth 403：标记账号异常
 // API Key 未配置错误码：仅返回错误，不标记账号
-func (s *GatewayService) handleRetryExhaustedError(ctx context.Context, resp *http.Response, c *gin.Context, account *Account) (*ForwardResult, error) {
+func (s *GatewayService) handleRetryExhaustedErrorWeiShaw(ctx context.Context, resp *http.Response, c *gin.Context, account *Account) (*ForwardResult, error) {
 	MarkResponseCommitted(c)
 	// Capture upstream error body before side-effects consume the stream.
 	respBody, _ := s.readUpstreamErrorBody(resp)
@@ -645,7 +645,7 @@ type streamingResult struct {
 	clientDisconnect bool // 客户端是否在流式传输过程中断开
 }
 
-func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel string, mimicClaudeCode bool) (*streamingResult, error) {
+func (s *GatewayService) handleStreamingResponseWeiShaw(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel string, mimicClaudeCode bool) (*streamingResult, error) {
 	// 更新5h窗口状态
 	s.rateLimitService.UpdateSessionWindow(ctx, account, resp.Header)
 
@@ -1096,7 +1096,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 
 }
 
-func (s *GatewayService) parseSSEUsage(data string, usage *ClaudeUsage) {
+func (s *GatewayService) parseSSEUsageWeiShaw(data string, usage *ClaudeUsage) {
 	if usage == nil {
 		return
 	}
@@ -1126,7 +1126,7 @@ type sseUsagePatch struct {
 	hasCacheCreation1h       bool
 }
 
-func (s *GatewayService) extractSSEUsagePatch(event map[string]any) *sseUsagePatch {
+func (s *GatewayService) extractSSEUsagePatchWeiShaw(event map[string]any) *sseUsagePatch {
 	if len(event) == 0 {
 		return nil
 	}
@@ -1204,7 +1204,7 @@ func (s *GatewayService) extractSSEUsagePatch(event map[string]any) *sseUsagePat
 	return nil
 }
 
-func mergeSSEUsagePatch(usage *ClaudeUsage, patch *sseUsagePatch) {
+func mergeSSEUsagePatchWeiShaw(usage *ClaudeUsage, patch *sseUsagePatch) {
 	if usage == nil || patch == nil {
 		return
 	}
@@ -1229,7 +1229,7 @@ func mergeSSEUsagePatch(usage *ClaudeUsage, patch *sseUsagePatch) {
 	}
 }
 
-func parseSSEUsageInt(value any) (int, bool) {
+func parseSSEUsageIntWeiShaw(value any) (int, bool) {
 	switch v := value.(type) {
 	case float64:
 		return int(v), true
@@ -1258,7 +1258,7 @@ func parseSSEUsageInt(value any) (int, bool) {
 
 // applyCacheTTLOverride 将所有 cache creation tokens 归入指定的 TTL 类型。
 // target 为 "5m" 或 "1h"。返回 true 表示发生了变更。
-func applyCacheTTLOverride(usage *ClaudeUsage, target string) bool {
+func applyCacheTTLOverrideWeiShaw(usage *ClaudeUsage, target string) bool {
 	// Fallback: 如果只有聚合字段但无 5m/1h 明细，将聚合字段归入 5m 默认类别
 	if usage.CacheCreation5mTokens == 0 && usage.CacheCreation1hTokens == 0 && usage.CacheCreationInputTokens > 0 {
 		usage.CacheCreation5mTokens = usage.CacheCreationInputTokens
@@ -1287,7 +1287,7 @@ func applyCacheTTLOverride(usage *ClaudeUsage, target string) bool {
 
 // rewriteCacheCreationJSON 在 JSON usage 对象中重写 cache_creation 嵌套对象的 TTL 分类。
 // usageObj 是 usage JSON 对象（map[string]any）。
-func rewriteCacheCreationJSON(usageObj map[string]any, target string) bool {
+func rewriteCacheCreationJSONWeiShaw(usageObj map[string]any, target string) bool {
 	ccObj, ok := usageObj["cache_creation"].(map[string]any)
 	if !ok {
 		return false
@@ -1328,7 +1328,7 @@ func (s *GatewayService) resolveCacheTTLUsageOverrideTarget(ctx context.Context,
 	return "", false
 }
 
-func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, originalModel, mappedModel string) (*ClaudeUsage, error) {
+func (s *GatewayService) handleNonStreamingResponseWeiShaw(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, originalModel, mappedModel string) (*ClaudeUsage, error) {
 	// 更新5h窗口状态
 	s.rateLimitService.UpdateSessionWindow(ctx, account, resp.Header)
 
@@ -1405,7 +1405,7 @@ func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *h
 
 // replaceModelInResponseBody 替换响应体中的model字段
 // 使用 gjson/sjson 精确替换，避免全量 JSON 反序列化
-func (s *GatewayService) replaceModelInResponseBody(body []byte, fromModel, toModel string) []byte {
+func (s *GatewayService) replaceModelInResponseBodyWeiShaw(body []byte, fromModel, toModel string) []byte {
 	if m := gjson.GetBytes(body, "model"); m.Exists() && m.Str == fromModel {
 		newBody, err := sjson.SetBytes(body, "model", toModel)
 		if err != nil {
@@ -1418,7 +1418,7 @@ func (s *GatewayService) replaceModelInResponseBody(body []byte, fromModel, toMo
 
 // reconcileCachedTokens 兼容 Kimi 等上游：
 // 将 OpenAI 风格的 cached_tokens 映射到 Claude 标准的 cache_read_input_tokens
-func reconcileCachedTokens(usage map[string]any) bool {
+func reconcileCachedTokensWeiShaw(usage map[string]any) bool {
 	if usage == nil {
 		return false
 	}

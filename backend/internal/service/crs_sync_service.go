@@ -1253,8 +1253,8 @@ func defaultName(name, id string) string {
 }
 
 func clampPriority(priority int) int {
-	if priority < 1 || priority > 100 {
-		return 50
+	if priority < 0 || priority > 100 {
+		return 1
 	}
 	return priority
 }

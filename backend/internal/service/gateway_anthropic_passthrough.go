@@ -34,7 +34,7 @@ type anthropicPassthroughForwardInput struct {
 	StartTime     time.Time
 }
 
-func (s *GatewayService) forwardAnthropicAPIKeyPassthrough(
+func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWeiShaw(
 	ctx context.Context,
 	c *gin.Context,
 	account *Account,
@@ -53,7 +53,7 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthrough(
 	})
 }
 
-func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
+func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInputWeiShaw(
 	ctx context.Context,
 	c *gin.Context,
 	account *Account,
@@ -108,6 +108,7 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 			}
 			input.Body = input.Parsed.Body.Bytes()
 		}
+		setOpsUpstreamRequestBody(c, wireBody)
 
 		resp, err = s.httpUpstream.DoWithTLS(upstreamReq, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 		if err != nil {
@@ -126,14 +127,7 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 				Kind:               "request_error",
 				Message:            safeErr,
 			})
-			c.JSON(http.StatusBadGateway, gin.H{
-				"type": "error",
-				"error": gin.H{
-					"type":    "upstream_error",
-					"message": "Upstream request failed",
-				},
-			})
-			return nil, fmt.Errorf("upstream request failed: %s", safeErr)
+			return nil, newProxyRequestFailoverError(account, proxyURL, err)
 		}
 
 		// 透传分支禁止 400 请求体降级重试（该重试会改写请求体）
@@ -363,7 +357,7 @@ func (s *GatewayService) buildUpstreamRequestAnthropicAPIKeyPassthrough(
 	return req, body, nil
 }
 
-func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
+func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthroughWeiShaw(
 	ctx context.Context,
 	resp *http.Response,
 	c *gin.Context,
@@ -596,7 +590,7 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 	}
 }
 
-func extractAnthropicSSEDataLine(line string) (string, bool) {
+func extractAnthropicSSEDataLineWeiShaw(line string) (string, bool) {
 	if !strings.HasPrefix(line, "data:") {
 		return "", false
 	}
@@ -610,7 +604,7 @@ func extractAnthropicSSEDataLine(line string) (string, bool) {
 	return line[start:], true
 }
 
-func (s *GatewayService) parseSSEUsagePassthrough(data string, usage *ClaudeUsage) {
+func (s *GatewayService) parseSSEUsagePassthroughWeiShaw(data string, usage *ClaudeUsage) {
 	if usage == nil || data == "" || data == "[DONE]" {
 		return
 	}
@@ -681,7 +675,7 @@ func (s *GatewayService) parseSSEUsagePassthrough(data string, usage *ClaudeUsag
 	}
 }
 
-func parseClaudeUsageFromResponseBody(body []byte) *ClaudeUsage {
+func parseClaudeUsageFromResponseBodyWeiShaw(body []byte) *ClaudeUsage {
 	usage := &ClaudeUsage{}
 	if len(body) == 0 {
 		return usage
@@ -760,7 +754,7 @@ func (s *GatewayService) invalidNonStreamingJSONFailoverError(
 	}
 }
 
-func (s *GatewayService) handleNonStreamingResponseAnthropicAPIKeyPassthrough(
+func (s *GatewayService) handleNonStreamingResponseAnthropicAPIKeyPassthroughWeiShaw(
 	ctx context.Context,
 	resp *http.Response,
 	c *gin.Context,
@@ -812,7 +806,7 @@ func classifyAnthropicResponseInputAsCacheRead(body []byte, usage *ClaudeUsage) 
 	return classified, nil
 }
 
-func writeAnthropicPassthroughResponseHeaders(dst http.Header, src http.Header, filter *responseheaders.CompiledHeaderFilter) {
+func writeAnthropicPassthroughResponseHeadersWeiShaw(dst http.Header, src http.Header, filter *responseheaders.CompiledHeaderFilter) {
 	if dst == nil || src == nil {
 		return
 	}

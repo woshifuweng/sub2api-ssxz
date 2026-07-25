@@ -52,6 +52,14 @@ func (b *billingCacheWorkerStub) InvalidateSubscriptionCache(ctx context.Context
 	return nil
 }
 
+func (b *billingCacheWorkerStub) PublishSubscriptionCacheInvalidation(ctx context.Context, cacheKey string) error {
+	return nil
+}
+
+func (b *billingCacheWorkerStub) SubscribeSubscriptionCacheInvalidation(ctx context.Context, handler func(cacheKey string)) error {
+	return nil
+}
+
 func (b *billingCacheWorkerStub) GetAPIKeyRateLimit(ctx context.Context, keyID int64) (*APIKeyRateLimitCacheData, error) {
 	return nil, errors.New("not implemented")
 }
@@ -98,7 +106,7 @@ func (b *billingCacheWorkerStub) BatchGetUserPlatformQuotaCache(ctx context.Cont
 
 func TestBillingCacheServiceQueueHighLoad(t *testing.T) {
 	cache := &billingCacheWorkerStub{}
-	svc := NewBillingCacheService(cache, nil, nil, nil, nil, nil, &config.Config{}, nil)
+	svc := NewBillingCacheService(cache, nil, nil, nil, &config.Config{})
 	t.Cleanup(svc.Stop)
 
 	start := time.Now()
@@ -120,7 +128,7 @@ func TestBillingCacheServiceQueueHighLoad(t *testing.T) {
 
 func TestBillingCacheServiceEnqueueAfterStopReturnsFalse(t *testing.T) {
 	cache := &billingCacheWorkerStub{}
-	svc := NewBillingCacheService(cache, nil, nil, nil, nil, nil, &config.Config{}, nil)
+	svc := NewBillingCacheService(cache, nil, nil, nil, &config.Config{})
 	svc.Stop()
 
 	enqueued := svc.enqueueCacheWrite(cacheWriteTask{
@@ -129,4 +137,104 @@ func TestBillingCacheServiceEnqueueAfterStopReturnsFalse(t *testing.T) {
 		amount: 1,
 	})
 	require.False(t, enqueued)
+}
+
+type billingEligibilityUserRepoStub struct {
+	UserRepository
+	user *User
+}
+
+func (s *billingEligibilityUserRepoStub) GetByID(context.Context, int64) (*User, error) {
+	return s.user, nil
+}
+
+type billingEligibilitySubRepoStub struct {
+	UserSubscriptionRepository
+	sub *UserSubscription
+}
+
+func (s *billingEligibilitySubRepoStub) GetActiveByUserIDAndGroupID(context.Context, int64, int64) (*UserSubscription, error) {
+	return s.sub, nil
+}
+
+type billingEligibilityRateLimitLoaderStub struct {
+	data *APIKeyRateLimitData
+}
+
+func (s *billingEligibilityRateLimitLoaderStub) GetRateLimitData(context.Context, int64) (*APIKeyRateLimitData, error) {
+	return s.data, nil
+}
+
+func TestBillingCacheServiceCheckBillingEligibilityForCostRejectsBalanceOverdraft(t *testing.T) {
+	svc := &BillingCacheService{
+		userRepo: &billingEligibilityUserRepoStub{user: &User{ID: 1, Balance: 1}},
+		cfg:      &config.Config{},
+	}
+
+	err := svc.CheckBillingEligibilityForCost(context.Background(), &User{ID: 1}, nil, nil, nil, 2)
+
+	require.ErrorIs(t, err, ErrInsufficientBalance)
+}
+
+func TestBillingCacheServiceCheckBillingEligibilityForCostRejectsAPIKeyQuotaOverage(t *testing.T) {
+	svc := &BillingCacheService{
+		userRepo: &billingEligibilityUserRepoStub{user: &User{ID: 1, Balance: 10}},
+		cfg:      &config.Config{},
+	}
+	apiKey := &APIKey{
+		ID:        2,
+		Quota:     5,
+		QuotaUsed: 4.5,
+	}
+
+	err := svc.CheckBillingEligibilityForCost(context.Background(), &User{ID: 1}, apiKey, nil, nil, 1)
+
+	require.ErrorIs(t, err, ErrAPIKeyQuotaExhausted)
+}
+
+func TestBillingCacheServiceCheckBillingEligibilityForCostRejectsAPIKeyRateLimitOverage(t *testing.T) {
+	windowStart := time.Now()
+	svc := &BillingCacheService{
+		userRepo: &billingEligibilityUserRepoStub{user: &User{ID: 1, Balance: 10}},
+		apiKeyRateLimitLoader: &billingEligibilityRateLimitLoaderStub{
+			data: &APIKeyRateLimitData{
+				Usage5h:       4.5,
+				Window5hStart: &windowStart,
+			},
+		},
+		cfg: &config.Config{},
+	}
+	apiKey := &APIKey{
+		ID:          2,
+		RateLimit5h: 5,
+	}
+
+	err := svc.CheckBillingEligibilityForCost(context.Background(), &User{ID: 1}, apiKey, nil, nil, 1)
+
+	require.ErrorIs(t, err, ErrAPIKeyRateLimit5hExceeded)
+}
+
+func TestBillingCacheServiceCheckBillingEligibilityForCostRejectsSubscriptionLimitOverage(t *testing.T) {
+	dailyLimit := 5.0
+	group := &Group{
+		ID:               3,
+		SubscriptionType: SubscriptionTypeSubscription,
+		DailyLimitUSD:    &dailyLimit,
+	}
+	sub := &UserSubscription{
+		ID:            4,
+		UserID:        1,
+		GroupID:       group.ID,
+		Status:        SubscriptionStatusActive,
+		ExpiresAt:     time.Now().Add(time.Hour),
+		DailyUsageUSD: 4.5,
+	}
+	svc := &BillingCacheService{
+		subRepo: &billingEligibilitySubRepoStub{sub: sub},
+		cfg:     &config.Config{},
+	}
+
+	err := svc.CheckBillingEligibilityForCost(context.Background(), &User{ID: 1}, nil, group, sub, 1)
+
+	require.ErrorIs(t, err, ErrDailyLimitExceeded)
 }

@@ -23,7 +23,7 @@ var monitorBlockedHostnames = map[string]struct{}{
 
 // CIDR 列表：包含所有需要拒绝的 IPv4/IPv6 段。
 // 解析时只 panic 一次（启动时确认），生产路径只做 Contains。
-var monitorBlockedCIDRs = mustParseCIDRs([]string{
+var monitorBlockedCIDRs = mustParseMonitorCIDRs([]string{
 	"127.0.0.0/8",    // IPv4 loopback
 	"10.0.0.0/8",     // RFC1918
 	"172.16.0.0/12",  // RFC1918
@@ -44,7 +44,7 @@ var monitorDialer = &net.Dialer{
 }
 
 // mustParseCIDRs 在包初始化时解析 CIDR 字符串，失败 panic。
-func mustParseCIDRs(cidrs []string) []*net.IPNet {
+func mustParseMonitorCIDRs(cidrs []string) []*net.IPNet {
 	out := make([]*net.IPNet, 0, len(cidrs))
 	for _, c := range cidrs {
 		_, n, err := net.ParseCIDR(c)

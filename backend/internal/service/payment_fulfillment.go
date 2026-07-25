@@ -334,9 +334,6 @@ func (s *PaymentService) doBalance(ctx context.Context, o *dbent.PaymentOrder, l
 
 	switch action {
 	case redeemActionSkipCompleted:
-		if err := s.applyAffiliateRebateForOrder(ctx, o); err != nil {
-			return err
-		}
 		// Code already created and redeemed — just mark completed
 		return s.markCompleted(ctx, o, lease, "RECHARGE_SUCCESS")
 	case redeemActionCreate:
@@ -349,9 +346,6 @@ func (s *PaymentService) doBalance(ctx context.Context, o *dbent.PaymentOrder, l
 	}
 	if _, err := s.redeemService.Redeem(ContextSkipRedeemAffiliate(ctx), o.UserID, o.RechargeCode); err != nil {
 		return fmt.Errorf("redeem balance: %w", err)
-	}
-	if err := s.applyAffiliateRebateForOrder(ctx, o); err != nil {
-		return err
 	}
 	return s.markCompleted(ctx, o, lease, "RECHARGE_SUCCESS")
 }
@@ -505,9 +499,6 @@ func (s *PaymentService) doSub(ctx context.Context, o *dbent.PaymentOrder, lease
 	if err := s.ensurePaymentSubscriptionAssigned(ctx, o, gid, days); err != nil {
 		return err
 	}
-	if err := s.applyAffiliateRebateForOrder(ctx, o); err != nil {
-		return err
-	}
 	return s.markCompleted(ctx, o, lease, "SUBSCRIPTION_SUCCESS")
 }
 
@@ -638,6 +629,7 @@ func (s *PaymentService) applyAffiliateRebateForOrder(ctx context.Context, o *db
 	txCtx := dbent.NewTxContext(ctx, tx)
 	claimed, err := s.tryClaimAffiliateRebateAudit(txCtx, tx.Client(), o.ID, baseAmount)
 	if err != nil {
+		_ = tx.Rollback()
 		s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_FAILED", "system", map[string]any{
 			"error": err.Error(),
 		})
@@ -650,6 +642,7 @@ func (s *PaymentService) applyAffiliateRebateForOrder(ctx context.Context, o *db
 	sourceOrderID := o.ID
 	rebateAmount, err := s.affiliateService.AccrueInviteRebateForOrder(txCtx, o.UserID, baseAmount, &sourceOrderID)
 	if err != nil {
+		_ = tx.Rollback()
 		s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_FAILED", "system", map[string]any{
 			"error": err.Error(),
 		})
@@ -661,6 +654,7 @@ func (s *PaymentService) applyAffiliateRebateForOrder(ctx context.Context, o *db
 			"baseAmount": baseAmount,
 			"reason":     "no inviter bound or rebate amount <= 0",
 		}); err != nil {
+			_ = tx.Rollback()
 			s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_FAILED", "system", map[string]any{
 				"error": err.Error(),
 			})
@@ -679,6 +673,7 @@ func (s *PaymentService) applyAffiliateRebateForOrder(ctx context.Context, o *db
 		"baseAmount":   baseAmount,
 		"rebateAmount": rebateAmount,
 	}); err != nil {
+		_ = tx.Rollback()
 		s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_FAILED", "system", map[string]any{
 			"error": err.Error(),
 		})
@@ -823,7 +818,7 @@ func (s *PaymentService) markFailed(ctx context.Context, oid int64, lease *payme
 	}
 }
 
-func (s *PaymentService) RetryFulfillment(ctx context.Context, oid int64) error {
+func (s *PaymentService) RetryFulfillment(ctx context.Context, oid int64, operator ...string) error {
 	o, err := s.entClient.PaymentOrder.Get(ctx, oid)
 	if err != nil {
 		return infraerrors.NotFound("NOT_FOUND", "order not found")
@@ -840,6 +835,10 @@ func (s *PaymentService) RetryFulfillment(ctx context.Context, oid int64) error 
 	if o.Status != OrderStatusFailed && o.Status != OrderStatusPaid && o.Status != OrderStatusRecharging {
 		return infraerrors.BadRequest("INVALID_STATUS", "only paid, failed, and recoverable recharging orders can retry")
 	}
-	s.writeAuditLog(ctx, oid, "RECHARGE_RETRY", "admin", map[string]any{"detail": "admin manual retry"})
+	op := ""
+	if len(operator) > 0 {
+		op = operator[0]
+	}
+	s.writeAuditLog(ctx, oid, "RECHARGE_RETRY", normalizePaymentAdminOperator(op), map[string]any{"detail": "admin manual retry"})
 	return s.executeFulfillment(ctx, oid)
 }

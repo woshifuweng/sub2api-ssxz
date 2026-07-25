@@ -292,7 +292,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	return forwardResult, nil
 }
 
-func logOpenAIPassthroughInstructionsRejected(
+func logOpenAIPassthroughInstructionsRejectedWeiShaw(
 	ctx context.Context,
 	c *gin.Context,
 	account *Account,
@@ -323,7 +323,7 @@ func logOpenAIPassthroughInstructionsRejected(
 	logger.FromContext(ctx).With(fields...).Warn("OpenAI passthrough 本地拦截：Codex 请求缺少有效 instructions")
 }
 
-func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
+func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthroughWeiShaw(
 	ctx context.Context,
 	c *gin.Context,
 	account *Account,
@@ -593,6 +593,9 @@ func (s *OpenAIGatewayService) handleFailoverErrorResponsePassthrough(
 		Detail:               upstreamDetail,
 		UpstreamResponseBody: upstreamDetail,
 	})
+	if c != nil {
+		c.Set(OpenAIPassthroughFailoverKey, true)
+	}
 	return newOpenAIUpstreamFailoverError(
 		resp.StatusCode,
 		resp.Header,
@@ -669,7 +672,7 @@ func (s *OpenAIGatewayService) handleErrorResponsePassthrough(
 	return fmt.Errorf("upstream error: %d (client response sanitized)", resp.StatusCode)
 }
 
-func isOpenAIPassthroughAllowedRequestHeader(lowerKey string, allowTimeoutHeaders bool) bool {
+func isOpenAIPassthroughAllowedRequestHeaderWeiShaw(lowerKey string, allowTimeoutHeaders bool) bool {
 	if lowerKey == "" {
 		return false
 	}
@@ -679,7 +682,7 @@ func isOpenAIPassthroughAllowedRequestHeader(lowerKey string, allowTimeoutHeader
 	return openaiPassthroughAllowedHeaders[lowerKey]
 }
 
-func isOpenAIPassthroughTimeoutHeader(lowerKey string) bool {
+func isOpenAIPassthroughTimeoutHeaderWeiShaw(lowerKey string) bool {
 	switch lowerKey {
 	case "x-stainless-timeout", "x-stainless-read-timeout", "x-stainless-connect-timeout", "x-request-timeout", "request-timeout", "grpc-timeout":
 		return true
@@ -688,11 +691,11 @@ func isOpenAIPassthroughTimeoutHeader(lowerKey string) bool {
 	}
 }
 
-func (s *OpenAIGatewayService) isOpenAIPassthroughTimeoutHeadersAllowed() bool {
+func (s *OpenAIGatewayService) isOpenAIPassthroughTimeoutHeadersAllowedWeiShaw() bool {
 	return s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIPassthroughAllowTimeoutHeaders
 }
 
-func collectOpenAIPassthroughTimeoutHeaders(h http.Header) []string {
+func collectOpenAIPassthroughTimeoutHeadersWeiShaw(h http.Header) []string {
 	if h == nil {
 		return nil
 	}
@@ -734,7 +737,7 @@ func openAIStreamClientOutputStarted(c *gin.Context, localStarted bool) bool {
 	return c != nil && c.Writer != nil && c.Writer.Written()
 }
 
-func openAIStreamEventIsPreamble(eventType string) bool {
+func openAIStreamEventIsPreambleWeiShaw(eventType string) bool {
 	switch strings.TrimSpace(eventType) {
 	case "response.created", "response.in_progress":
 		return true
@@ -743,7 +746,7 @@ func openAIStreamEventIsPreamble(eventType string) bool {
 	}
 }
 
-func openAIStreamDataStartsClientOutput(data, eventType string) bool {
+func openAIStreamDataStartsClientOutputWeiShaw(data, eventType string) bool {
 	trimmed := strings.TrimSpace(data)
 	if trimmed == "" {
 		return false
@@ -856,7 +859,7 @@ func applyOpenAIStreamFailedErrorPassthroughRule(
 	)
 }
 
-func openAIStreamFailedEventShouldFailover(payload []byte, message string) bool {
+func openAIStreamFailedEventShouldFailoverWeiShaw(payload []byte, message string) bool {
 	if isOpenAIContextWindowError(message, payload) {
 		return false
 	}
@@ -1000,6 +1003,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	pendingLines := make([]string, 0, 8)
 	// flushPending 表示已写入但未到 SSE 空行边界的脏状态；defer 兜底函数退出前的残留，断连后不再 Flush。
 	flushPending := false
+	lastOutputLineBlank := true
 	flushPendingOutput := func() {
 		if clientDisconnected || !flushPending {
 			return
@@ -1015,6 +1019,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 				logger.LegacyPrintf("service.openai_gateway", "[OpenAI passthrough] Client disconnected during streaming, continue draining upstream for usage: account=%d", account.ID)
 				return false
 			}
+			lastOutputLineBlank = pending == ""
 		}
 		pendingLines = pendingLines[:0]
 		return true
@@ -1027,7 +1032,6 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	}
 	scanBuf := getSSEScannerBuf64K()
 	scanner.Buffer(scanBuf[:0], maxLineSize)
-	defer putSSEScannerBuf64K(scanBuf)
 	documentScanner := newOpenAISSEJSONDocumentScanner(scanner)
 
 	needModelReplace := strings.TrimSpace(originalModel) != "" && strings.TrimSpace(mappedModel) != "" && strings.TrimSpace(originalModel) != strings.TrimSpace(mappedModel)
@@ -1041,8 +1045,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 		}
 	}
 
-	for documentScanner.Scan() {
-		line := documentScanner.Text()
+	processLine := func(line string) error {
 		lineStartsClientOutput := false
 		forceFlushFailedEvent := false
 		if data, ok := extractOpenAISSEDataLine(line); ok {
@@ -1068,7 +1071,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			if trimmedData != "[DONE]" {
 				restoredData, restoreErr := restoreOpenAIResponsesNamespacePayload(c, dataBytes)
 				if restoreErr != nil {
-					return resultWithUsage(), fmt.Errorf("restore OpenAI passthrough namespace response: %w", restoreErr)
+					return fmt.Errorf("restore OpenAI passthrough namespace response: %w", restoreErr)
 				}
 				if !bytes.Equal(restoredData, dataBytes) {
 					dataBytes = restoredData
@@ -1106,11 +1109,10 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 								"message": errMsg,
 							},
 						})
-						return resultWithUsage(), fmt.Errorf("upstream response failed: passthrough rule matched message=%s", errMsg)
+						return fmt.Errorf("upstream response failed: passthrough rule matched message=%s", errMsg)
 					}
 					if openAIStreamFailedEventShouldFailover(dataBytes, failedMessage) {
-						return resultWithUsage(),
-							s.newOpenAIStreamFailoverError(c, account, true, upstreamRequestID, dataBytes, failedMessage)
+						return s.newOpenAIStreamFailoverError(c, account, true, upstreamRequestID, dataBytes, failedMessage)
 					}
 				}
 				forceFlushFailedEvent = true
@@ -1146,11 +1148,11 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 		if !clientDisconnected {
 			if !clientOutputStarted && !lineStartsClientOutput {
 				pendingLines = append(pendingLines, line)
-				continue
+				return nil
 			}
 			if !clientOutputStarted && len(pendingLines) > 0 {
 				if !writePendingLines() {
-					continue
+					return nil
 				}
 			}
 			if _, err := fmt.Fprintln(w, line); err != nil {
@@ -1159,9 +1161,65 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			} else {
 				clientOutputStarted = true
 				flushPending = true
+				lastOutputLineBlank = line == ""
 				if line == "" {
 					flushPendingOutput()
 				}
+			}
+		}
+		return nil
+	}
+
+	keepaliveInterval := time.Duration(0)
+	if s.cfg != nil && s.cfg.Gateway.StreamKeepaliveInterval > 0 {
+		keepaliveInterval = time.Duration(s.cfg.Gateway.StreamKeepaliveInterval) * time.Second
+	}
+	if keepaliveInterval <= 0 {
+		defer putSSEScannerBuf64K(scanBuf)
+		for documentScanner.Scan() {
+			if err := processLine(documentScanner.Text()); err != nil {
+				return resultWithUsage(), err
+			}
+		}
+	} else {
+		type scanEvent struct {
+			line string
+		}
+		events := make(chan scanEvent, 16)
+		done := make(chan struct{})
+		defer close(done)
+		go func() {
+			defer close(events)
+			defer putSSEScannerBuf64K(scanBuf)
+			for documentScanner.Scan() {
+				select {
+				case events <- scanEvent{line: documentScanner.Text()}:
+				case <-done:
+					return
+				}
+			}
+		}()
+		ticker := time.NewTicker(keepaliveInterval)
+		defer ticker.Stop()
+		for events != nil {
+			select {
+			case event, ok := <-events:
+				if !ok {
+					events = nil
+					continue
+				}
+				if err := processLine(event.line); err != nil {
+					return resultWithUsage(), err
+				}
+			case <-ticker.C:
+				if clientDisconnected || !clientOutputStarted || flushPending {
+					continue
+				}
+				if _, err := io.WriteString(w, ":\n\n"); err != nil {
+					clientDisconnected = true
+					continue
+				}
+				flusher.Flush()
 			}
 		}
 	}
@@ -1211,7 +1269,30 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			return resultWithUsage(),
 				s.newOpenAIStreamFailoverError(c, account, true, upstreamRequestID, nil, "OpenAI stream ended before a terminal event")
 		}
-		return resultWithUsage(), errors.New("stream usage incomplete: missing terminal event")
+		flushPendingOutput()
+		payload := buildOpenAIStreamFailedEventPayload(
+			upstreamRequestID,
+			originalModel,
+			"stream_disconnected",
+			"stream disconnected before completion",
+			usage,
+		)
+		_, _ = fmt.Fprintf(w, "data: %s\n\ndata: [DONE]\n\n", payload)
+		flusher.Flush()
+		return resultWithUsage(), nil
+	}
+	if !clientDisconnected && sawTerminalEvent && !sawDone {
+		flushPendingOutput()
+		doneFrame := "data: [DONE]\n\n"
+		if !lastOutputLineBlank {
+			doneFrame = "\n" + doneFrame
+		}
+		if _, err := io.WriteString(w, doneFrame); err != nil {
+			clientDisconnected = true
+		} else {
+			sawDone = true
+			flusher.Flush()
+		}
 	}
 
 	return resultWithUsage(), nil
@@ -1224,6 +1305,64 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 	originalModel string,
 	mappedModel string,
 ) (*openaiNonStreamingResultPassthrough, error) {
+	if isOpenAIResponsesCompactPath(c) {
+		keepalive := getOpenAICompactKeepalive(c)
+		if keepalive == nil || !keepalive.emittedAny() {
+			writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
+			c.Header("Cache-Control", "no-cache, no-transform")
+			c.Header("X-Accel-Buffering", "no")
+			c.Header("Content-Type", "application/json; charset=utf-8")
+			c.Status(resp.StatusCode)
+		}
+		if keepalive == nil {
+			keepalive = startOpenAICompactKeepalive(c, nil, false)
+		}
+		result, err := s.readOpenAICompactBufferedResponse(ctx, resp, c, nil)
+		stopOpenAICompactKeepalive(c)
+		if err != nil {
+			if keepalive != nil && keepalive.emittedAny() {
+				msg := "Upstream compact response failed"
+				var protocolErr *openAICompactProtocolError
+				if errors.As(err, &protocolErr) {
+					msg = protocolErr.Message()
+				} else if trimmed := strings.TrimSpace(err.Error()); trimmed != "" {
+					msg = sanitizeUpstreamErrorMessage(trimmed)
+				}
+				_, _ = c.Writer.Write([]byte(`{"error":{"type":"upstream_error","message":` + strconv.Quote(msg) + `}}`))
+				return nil, fmt.Errorf("compact passthrough failed after keepalive write: %w", err)
+			}
+			var protocolErr *openAICompactProtocolError
+			if errors.As(err, &protocolErr) {
+				return nil, s.writeOpenAINonStreamingProtocolError(resp, c, protocolErr.Message())
+			}
+			return nil, err
+		}
+		if result == nil {
+			return nil, fmt.Errorf("compact response is empty")
+		}
+		body := result.body
+		if originalModel != "" && mappedModel != "" && originalModel != mappedModel {
+			body = s.replaceModelInResponseBody(body, mappedModel, originalModel)
+		}
+		writeOpenAICompactProgressHeaders(c.Writer.Header(), result.meta)
+		c.Header("Content-Type", "application/json; charset=utf-8")
+		if !writeOpenAICompactSSEBridge(c, resp.StatusCode, body) {
+			if keepalive == nil || !keepalive.emittedAny() {
+				c.Data(resp.StatusCode, "application/json; charset=utf-8", body)
+			} else {
+				_, _ = c.Writer.Write(body)
+			}
+		}
+		usage := result.usage
+		return &openaiNonStreamingResultPassthrough{
+			OpenAIUsage:      &usage,
+			usage:            &usage,
+			responseID:       extractOpenAIResponseIDFromJSONBytes(body),
+			imageCount:       countOpenAIResponseImageOutputsFromJSONBytes(body),
+			imageOutputSizes: collectOpenAIResponseImageOutputSizesFromJSONBytes(body),
+		}, nil
+	}
+
 	body, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
 	if err != nil {
 		return nil, err
@@ -1347,7 +1486,7 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 	}, nil
 }
 
-func writeOpenAIPassthroughResponseHeaders(dst http.Header, src http.Header, filter *responseheaders.CompiledHeaderFilter) {
+func writeOpenAIPassthroughResponseHeadersWeiShaw(dst http.Header, src http.Header, filter *responseheaders.CompiledHeaderFilter) {
 	if dst == nil || src == nil {
 		return
 	}

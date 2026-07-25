@@ -637,9 +637,10 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 
 	var result *OpenAIForwardResult
 	if clientStream {
-		result, err = s.handleChatStreamingResponse(resp, c, account, originalModel, billingModel, upstreamModel, startTime, len(body))
+		includeUsage := chatReq.StreamOptions != nil && chatReq.StreamOptions.IncludeUsage
+		result, err = s.handleChatStreamingResponse(resp, c, originalModel, billingModel, includeUsage, startTime)
 	} else {
-		result, err = s.handleChatBufferedStreamingResponse(resp, c, account, originalModel, billingModel, upstreamModel, startTime)
+		result, err = s.handleChatBufferedStreamingResponse(resp, c, originalModel, billingModel, startTime)
 	}
 	if result != nil {
 		result.UpstreamEndpoint = grokChatResponsesEndpoint

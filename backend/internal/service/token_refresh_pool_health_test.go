@@ -176,6 +176,19 @@ type productionPathRateRepo struct {
 	accounts map[int64]*Account
 }
 
+func snapshotOAuthRefreshAccount(account *Account) *Account {
+	if account == nil {
+		return nil
+	}
+	snapshot := *account
+	snapshot.Credentials = shallowCopyMap(account.Credentials)
+	snapshot.Extra = shallowCopyMap(account.Extra)
+	snapshot.AccountGroups = append([]AccountGroup(nil), account.AccountGroups...)
+	snapshot.GroupIDs = append([]int64(nil), account.GroupIDs...)
+	snapshot.Groups = append([]*Group(nil), account.Groups...)
+	return &snapshot
+}
+
 func (r *productionPathRateRepo) GetByID(_ context.Context, id int64) (*Account, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

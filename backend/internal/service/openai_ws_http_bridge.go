@@ -503,11 +503,14 @@ func resolveGrokWSCacheIdentity(c *gin.Context, account *Account, payload []byte
 func resolveGrokWSUpstreamModel(account *Account, body []byte, originalModel string) string {
 	upstreamModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
 	if account != nil && originalModel != "" {
-		if mappedModel := normalizeOpenAIModelForUpstream(account, account.GetMappedModel(originalModel)); mappedModel != "" {
-			upstreamModel = mappedModel
+		mappedModel, matched := account.ResolveMappedModel(originalModel)
+		if matched {
+			upstreamModel = strings.TrimSpace(mappedModel)
+		} else {
+			upstreamModel = strings.TrimSpace(originalModel)
 		}
 	}
-	if upstreamModel == "" {
+	if upstreamModel == "" || strings.EqualFold(upstreamModel, "grok") {
 		upstreamModel = grokDefaultResponsesModel
 	}
 	return upstreamModel

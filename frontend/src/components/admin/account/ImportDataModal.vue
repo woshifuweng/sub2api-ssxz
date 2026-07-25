@@ -19,23 +19,13 @@
       <div>
         <label class="input-label">{{ t('admin.accounts.dataImportFile') }}</label>
         <div
-          class="flex items-center justify-between gap-3 rounded-lg border border-dashed px-4 py-3 transition-colors"
-          :class="dragActive
-            ? 'border-primary-400 bg-primary-50/70 dark:border-primary-500 dark:bg-primary-900/20'
-            : 'border-gray-300 bg-gray-50 dark:border-dark-600 dark:bg-dark-800'"
-          @dragenter.prevent="handleDragEnter"
-          @dragover.prevent
-          @dragleave.prevent="handleDragLeave"
-          @drop.prevent="handleDrop"
+          class="flex items-center justify-between gap-3 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-3 dark:border-dark-600 dark:bg-dark-800"
         >
           <div class="min-w-0">
-            <div class="truncate text-sm text-gray-700 dark:text-dark-200" :title="fileListTitle">
-              {{ selectedFilesLabel || t('admin.accounts.dataImportSelectFile') }}
+            <div class="truncate text-sm text-gray-700 dark:text-dark-200">
+              {{ fileName || t('admin.accounts.dataImportSelectFile') }}
             </div>
-            <div class="text-xs text-gray-500 dark:text-dark-400">
-              JSON (.json)
-              <span v-if="files.length > 1"> · {{ fileListTitle }}</span>
-            </div>
+            <div class="text-xs text-gray-500 dark:text-dark-400">JSON (.json)</div>
           </div>
           <button type="button" class="btn btn-secondary shrink-0" @click="openFilePicker">
             {{ t('common.chooseFile') }}
@@ -46,9 +36,18 @@
           type="file"
           class="hidden"
           accept="application/json,.json"
-          multiple
           @change="handleFileChange"
         />
+      </div>
+
+      <div v-if="groups.length > 0" class="space-y-2">
+        <div class="text-sm text-gray-700 dark:text-dark-200">
+          {{ t('admin.accounts.importBindGroups') }}
+        </div>
+        <div class="text-xs text-gray-500 dark:text-dark-400">
+          {{ t('admin.accounts.importBindGroupsHint') }}
+        </div>
+        <GroupSelector v-model="selectedGroupIDs" :groups="groups" />
       </div>
 
       <div
@@ -59,7 +58,7 @@
           {{ t('admin.accounts.dataImportResult') }}
         </div>
         <div class="text-sm text-gray-700 dark:text-dark-300">
-          {{ t('admin.accounts.dataImportResultSummary', result) }}
+          {{ buildResultSummary(result) }}
         </div>
 
         <div v-if="errorItems.length" class="mt-2">
@@ -96,15 +95,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import GroupSelector from '@/components/common/GroupSelector.vue'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
-import type { AdminDataImportResult, AdminDataPayload } from '@/types'
+import type { AdminDataImportResult, AdminDataImportTask, AdminDataImportUploadSession, AdminGroup } from '@/types'
 
 interface Props {
   show: boolean
+  groups?: AdminGroup[]
 }
 
 interface Emits {
@@ -119,19 +120,14 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 const importing = ref(false)
-const files = ref<File[]>([])
-const dragDepth = ref(0)
-const dragActive = computed(() => dragDepth.value > 0)
-const hasCreatedData = ref(false)
+const file = ref<File | null>(null)
 const result = ref<AdminDataImportResult | null>(null)
+const selectedGroupIDs = ref<number[]>([])
 
 const fileInput = ref<HTMLInputElement | null>(null)
-const selectedFilesLabel = computed(() => {
-  if (files.value.length === 0) return ''
-  if (files.value.length === 1) return files.value[0]?.name || ''
-  return t('admin.accounts.selectedCount', { count: files.value.length })
-})
-const fileListTitle = computed(() => files.value.map((item) => item.name).join(', '))
+const fileName = computed(() => file.value?.name || '')
+const groups = computed(() => props.groups || [])
+let pollTimer: ReturnType<typeof setTimeout> | null = null
 
 const errorItems = computed(() => result.value?.errors || [])
 
@@ -139,10 +135,9 @@ watch(
   () => props.show,
   (open) => {
     if (open) {
-      files.value = []
-      dragDepth.value = 0
-      hasCreatedData.value = false
+      file.value = null
       result.value = null
+      selectedGroupIDs.value = []
       if (fileInput.value) {
         fileInput.value.value = ''
       }
@@ -156,171 +151,206 @@ const openFilePicker = () => {
 
 const handleFileChange = (event: Event) => {
   const target = event.target as HTMLInputElement
-  setSelectedFiles(target.files)
-  target.value = ''
+  file.value = target.files?.[0] || null
 }
 
 const handleClose = () => {
   if (importing.value) return
-  if (hasCreatedData.value) {
-    hasCreatedData.value = false
-    emit('imported')
-  }
   emit('close')
 }
 
-const isJsonFile = (sourceFile: File) => {
-  const name = sourceFile.name.toLowerCase()
-  return name.endsWith('.json') || sourceFile.type === 'application/json'
+const clearPollTimer = () => {
+  if (pollTimer) {
+    clearTimeout(pollTimer)
+    pollTimer = null
+  }
 }
 
-const setSelectedFiles = (sourceFiles: FileList | File[] | null | undefined) => {
-  if (importing.value) return
-  const incoming = Array.from(sourceFiles || [])
-  const picked = incoming.filter(isJsonFile)
-  if (!picked.length) {
-    appStore.showError(t('admin.accounts.dataImportSelectFile'))
-    return
+const buildTaskSubtitle = (task: AdminDataImportTask) => {
+  if (task.total > 0) {
+    return `${task.current}/${task.total}`
   }
-  if (picked.length < incoming.length) {
-    appStore.showWarning(
-      t('admin.accounts.dataImportIgnoredFiles', { count: incoming.length - picked.length })
-    )
-  }
-  files.value = picked
-  result.value = null
+  return task.stage || task.status
 }
 
-const handleDragEnter = () => {
-  if (importing.value) return
-  dragDepth.value += 1
+const buildTaskMessage = (task: AdminDataImportTask) => {
+  return task.message || task.stage || task.status
 }
 
-const handleDragLeave = () => {
-  dragDepth.value = Math.max(0, dragDepth.value - 1)
+const buildResultSummary = (summary: AdminDataImportResult) => {
+  if ((summary.account_enqueued || 0) > 0 || (summary.placeholder_created || 0) > 0) {
+    return t('admin.accounts.dataImportFastPathSummary', {
+      account_enqueued: summary.account_enqueued || 0,
+      placeholder_created: summary.placeholder_created || 0,
+      account_failed: summary.account_failed || 0,
+      proxy_failed: summary.proxy_failed || 0,
+    })
+  }
+  return t('admin.accounts.dataImportResultSummary', summary as unknown as Record<string, unknown>)
 }
 
-const handleDrop = (event: DragEvent) => {
-  dragDepth.value = 0
-  if (importing.value) return
-  setSelectedFiles(event.dataTransfer?.files)
+const uploadFileByChunks = async (
+  file: File,
+  session: AdminDataImportUploadSession,
+  toastID: string
+) => {
+  let currentOffset = session.received_bytes || 0
+  const chunkSize = Math.max(256 * 1024, session.chunk_size || 4 * 1024 * 1024)
+
+  while (currentOffset < file.size) {
+    const nextOffset = Math.min(file.size, currentOffset + chunkSize)
+    const chunk = file.slice(currentOffset, nextOffset)
+    try {
+      const updated = await adminAPI.accounts.uploadImportChunk({
+        session_id: session.session_id,
+        offset: currentOffset,
+        chunk,
+        onUploadProgress: (chunkProgress) => {
+          const uploaded = currentOffset + Math.round((chunk.size * chunkProgress) / 100)
+          const overall = Math.min(100, Math.max(0, Math.round((uploaded / file.size) * 100)))
+          appStore.updateToast(toastID, {
+            title: t('admin.accounts.dataImportTitle'),
+            subtitle: `${overall}%`,
+            message: t('admin.accounts.dataImportUploading'),
+            progress: overall
+          })
+        }
+      })
+      currentOffset = updated.received_bytes
+    } catch {
+      const resumed = await adminAPI.accounts.getImportUploadSession(session.session_id)
+      if ((resumed.received_bytes || 0) <= currentOffset) {
+        throw new Error(t('admin.accounts.dataImportUploadStalled'))
+      }
+      currentOffset = resumed.received_bytes || 0
+    }
+  }
 }
 
-const readFileAsText = async (sourceFile: File): Promise<string> => {
-  if (typeof sourceFile.text === 'function') {
-    return sourceFile.text()
-  }
+const scheduleTaskPoll = (taskID: string, toastID: string) => {
+  clearPollTimer()
+  pollTimer = setTimeout(async () => {
+    try {
+      const task = await adminAPI.accounts.getImportTask(taskID)
+      appStore.updateToast(toastID, {
+        title: t('admin.accounts.dataImportTitle'),
+        subtitle: buildTaskSubtitle(task),
+        message: buildTaskMessage(task),
+        progress: task.progress
+      })
 
-  if (typeof sourceFile.arrayBuffer === 'function') {
-    const buffer = await sourceFile.arrayBuffer()
-    return new TextDecoder().decode(buffer)
-  }
+      if (task.status === 'completed') {
+        result.value = task.result || null
+        const summary = task.result || {
+          batch_id: undefined,
+          proxy_created: 0,
+          proxy_reused: 0,
+          proxy_failed: 0,
+          account_enqueued: 0,
+          placeholder_created: 0,
+          account_created: 0,
+          account_skipped: 0,
+          account_failed: 0
+        }
+        const msgParams: Record<string, unknown> = {
+          account_enqueued: summary.account_enqueued || 0,
+          placeholder_created: summary.placeholder_created || 0,
+          account_created: summary.account_created,
+          account_skipped: summary.account_skipped,
+          account_failed: summary.account_failed,
+          proxy_created: summary.proxy_created,
+          proxy_reused: summary.proxy_reused,
+          proxy_failed: summary.proxy_failed,
+        }
+        const fastPathCompleted = (summary.account_enqueued || 0) > 0 || (summary.placeholder_created || 0) > 0
+        appStore.updateToast(toastID, {
+          type: summary.account_failed > 0 || summary.proxy_failed > 0 ? 'warning' : 'success',
+          subtitle: buildTaskSubtitle(task),
+          message: fastPathCompleted
+            ? t('admin.accounts.dataImportFastPathToast', {
+              account_enqueued: summary.account_enqueued || 0,
+              placeholder_created: summary.placeholder_created || 0,
+              account_failed: summary.account_failed || 0,
+            })
+            : summary.account_failed > 0 || summary.proxy_failed > 0
+              ? t('admin.accounts.dataImportCompletedWithErrors', msgParams)
+              : t('admin.accounts.dataImportSuccess', msgParams),
+          progress: 100,
+          duration: 5000
+        })
+        emit('imported')
+        clearPollTimer()
+        return
+      }
 
-  return await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result ?? ''))
-    reader.onerror = () => reject(reader.error || new Error('Failed to read file'))
-    reader.readAsText(sourceFile)
-  })
-}
+      if (task.status === 'failed') {
+        appStore.updateToast(toastID, {
+          type: 'error',
+          subtitle: buildTaskSubtitle(task),
+          message: task.message || t('admin.accounts.dataImportFailed'),
+          progress: task.progress,
+          duration: 6000
+        })
+        clearPollTimer()
+        return
+      }
 
-const SUPPORTED_DATA_TYPES = ['sub2api-data', 'sub2api-bundle']
-const SUPPORTED_DATA_VERSION = 1
-
-// 与后端 validateDataHeader 对齐:合并前逐文件校验,避免坏文件混入合并 payload 后
-// 报错无法定位来源,或绕过后端本会对单文件做的 type/version 检查。
-const isValidDataPayload = (payload: unknown): payload is AdminDataPayload => {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false
-  const candidate = payload as Record<string, unknown>
-  if (
-    candidate.type !== undefined &&
-    candidate.type !== '' &&
-    !SUPPORTED_DATA_TYPES.includes(candidate.type as string)
-  ) {
-    return false
-  }
-  if (
-    candidate.version !== undefined &&
-    candidate.version !== 0 &&
-    candidate.version !== SUPPORTED_DATA_VERSION
-  ) {
-    return false
-  }
-  return Array.isArray(candidate.proxies) && Array.isArray(candidate.accounts)
-}
-
-const mergeDataPayloads = (payloads: AdminDataPayload[]): AdminDataPayload => {
-  const [firstPayload] = payloads
-  if (payloads.length === 1 && firstPayload) return firstPayload
-
-  return {
-    type: payloads.find((item) => typeof item.type === 'string')?.type,
-    version: payloads.find((item) => typeof item.version === 'number')?.version,
-    exported_at: new Date().toISOString(),
-    proxies: payloads.flatMap((item) => item.proxies),
-    accounts: payloads.flatMap((item) => item.accounts),
-    skipped_shadows: payloads.reduce((sum, item) => {
-      const count = Number(item.skipped_shadows || 0)
-      return Number.isFinite(count) ? sum + count : sum
-    }, 0)
-  }
+      scheduleTaskPoll(taskID, toastID)
+    } catch (error: any) {
+      appStore.updateToast(toastID, {
+        type: 'error',
+        message: error?.message || t('admin.accounts.dataImportFailed'),
+        duration: 6000
+      })
+      clearPollTimer()
+    }
+  }, 1200)
 }
 
 const handleImport = async () => {
-  if (files.value.length === 0) {
+  if (!file.value) {
     appStore.showError(t('admin.accounts.dataImportSelectFile'))
     return
   }
 
   importing.value = true
+  const toastID = appStore.showToast('info', t('admin.accounts.dataImportUploading'), undefined, {
+    title: t('admin.accounts.dataImportTitle'),
+    subtitle: '0%',
+    progress: 0
+  })
   try {
-    const dataPayloads: AdminDataPayload[] = []
-    for (const sourceFile of files.value) {
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(await readFileAsText(sourceFile))
-      } catch {
-        appStore.showError(
-          t('admin.accounts.dataImportParseFailedFile', { name: sourceFile.name })
-        )
-        return
-      }
-      if (!isValidDataPayload(parsed)) {
-        appStore.showError(t('admin.accounts.dataImportInvalidFile', { name: sourceFile.name }))
-        return
-      }
-      dataPayloads.push(parsed)
-    }
-    const dataPayload = mergeDataPayloads(dataPayloads)
-
-    const res = await adminAPI.accounts.importData({
-      data: dataPayload,
+    const uploadSession = await adminAPI.accounts.createImportUploadSession({
+      filename: file.value.name,
+      total_bytes: file.value.size,
+      group_ids: selectedGroupIDs.value,
       skip_default_group_bind: true
     })
-
-    result.value = res
-
-    const msgParams: Record<string, unknown> = {
-      account_created: res.account_created,
-      account_failed: res.account_failed,
-      proxy_created: res.proxy_created,
-      proxy_reused: res.proxy_reused,
-      proxy_failed: res.proxy_failed,
-    }
-    if (res.account_failed > 0 || res.proxy_failed > 0) {
-      // 部分成功也创建了数据;弹窗关闭时通过 imported 通知父组件刷新列表
-      if (res.account_created > 0 || res.proxy_created > 0) {
-        hasCreatedData.value = true
-      }
-      appStore.showError(t('admin.accounts.dataImportCompletedWithErrors', msgParams))
-    } else {
-      appStore.showSuccess(t('admin.accounts.dataImportSuccess', msgParams))
-      emit('imported')
-    }
+    await uploadFileByChunks(file.value, uploadSession, toastID)
+    const task = await adminAPI.accounts.finalizeImportUploadSession(uploadSession.session_id)
+    appStore.updateToast(toastID, {
+      type: 'info',
+      title: t('admin.accounts.dataImportTitle'),
+      subtitle: buildTaskSubtitle(task),
+      message: buildTaskMessage(task),
+      progress: task.progress
+    })
+    emit('close')
+    scheduleTaskPoll(task.task_id, toastID)
   } catch (error: any) {
-    appStore.showError(error?.message || t('admin.accounts.dataImportFailed'))
+    const message = String(error?.response?.data?.message || error?.message || '')
+    if (message.toLowerCase().includes('invalid import file') || message.toLowerCase().includes('unexpected token')) {
+      appStore.showError(t('admin.accounts.dataImportParseFailed'))
+    } else {
+      appStore.showError(message || t('admin.accounts.dataImportFailed'))
+    }
+    appStore.hideToast(toastID)
   } finally {
     importing.value = false
   }
 }
+
+onUnmounted(() => {
+  clearPollTimer()
+})
 </script>

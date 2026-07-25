@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"go.uber.org/zap"
 )
@@ -198,6 +199,19 @@ func failoverClientGone(c *gin.Context) bool {
 	}
 	if !c.Writer.Written() {
 		c.Status(statusClientClosedRequest)
+	}
+	return true
+}
+
+func failoverClientGoneContext(c gatewayctx.GatewayContext) bool {
+	if c == nil || c.Context().Err() == nil {
+		return false
+	}
+	if ginContext, ok := c.Native().(*gin.Context); ok {
+		return failoverClientGone(ginContext)
+	}
+	if !c.ResponseWritten() {
+		c.SetStatus(statusClientClosedRequest)
 	}
 	return true
 }

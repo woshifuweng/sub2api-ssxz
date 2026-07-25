@@ -5,12 +5,12 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/service"
-
 	"github.com/gin-gonic/gin"
 )
 
-// NewJWTAuthMiddleware 创建 JWT 认证中间件
+// NewJWTAuthMiddleware creates the Gin adapter for the shared JWT policy.
 func NewJWTAuthMiddleware(
 	authService *service.AuthService,
 	userService *service.UserService,
@@ -28,7 +28,6 @@ type userActivityToucher interface {
 	TouchLastActiveForUser(ctx context.Context, user *service.User)
 }
 
-// jwtAuth JWT认证中间件实现
 func jwtAuth(
 	authService *service.AuthService,
 	userService jwtUserReader,
@@ -37,75 +36,90 @@ func jwtAuth(
 	auditService *service.AuditLogService,
 ) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 从Authorization header中提取token
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			AbortWithError(c, 401, "UNAUTHORIZED", "Authorization header is required")
-			return
+		if ApplyJWTAuthContext(
+			authService,
+			userService,
+			activityToucher,
+			settingService,
+			auditService,
+			gatewayctx.FromGin(c),
+		) {
+			c.Next()
 		}
-
-		// 验证Bearer scheme
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			AbortWithError(c, 401, "INVALID_AUTH_HEADER", "Authorization header format must be 'Bearer {token}'")
-			return
-		}
-
-		tokenString := strings.TrimSpace(parts[1])
-		if tokenString == "" {
-			AbortWithError(c, 401, "EMPTY_TOKEN", "Token cannot be empty")
-			return
-		}
-
-		// 验证token
-		claims, err := authService.ValidateToken(tokenString)
-		if err != nil {
-			if errors.Is(err, service.ErrTokenExpired) {
-				AbortWithError(c, 401, "TOKEN_EXPIRED", "Token has expired")
-				return
-			}
-			AbortWithError(c, 401, "INVALID_TOKEN", "Invalid token")
-			return
-		}
-
-		// 从数据库获取最新的用户信息
-		user, err := userService.GetByID(c.Request.Context(), claims.UserID)
-		if err != nil {
-			AbortWithError(c, 401, "USER_NOT_FOUND", "User not found")
-			return
-		}
-
-		// 检查用户状态
-		if !user.IsActive() {
-			AbortWithError(c, 401, "USER_INACTIVE", "User account is not active")
-			return
-		}
-
-		// Security: Validate TokenVersion to ensure token hasn't been invalidated
-		// This check ensures tokens issued before a password change are rejected
-		if claims.TokenVersion != user.TokenVersion {
-			AbortWithError(c, 401, "TOKEN_REVOKED", "Token has been revoked (password changed)")
-			return
-		}
-
-		// 会话绑定校验：IP/UA 任一变化即撤销会话（功能可在系统设置中关闭）
-		if !enforceSessionBinding(c, authService, settingService, auditService, claims) {
-			return
-		}
-
-		c.Set(string(ContextKeyUser), AuthSubject{
-			UserID:      user.ID,
-			Concurrency: user.Concurrency,
-		})
-		c.Set(string(ContextKeyUserRole), user.Role)
-		c.Set(ContextKeyAuthEmail, user.Email)
-		c.Set(ContextKeySessionID, claims.SessionID)
-		if activityToucher != nil {
-			activityToucher.TouchLastActiveForUser(c.Request.Context(), user)
-		}
-
-		c.Next()
 	}
+}
+
+// ApplyJWTAuthContext applies the same JWT, token-version, and session-binding
+// policy to Gin and native gateway contexts.
+func ApplyJWTAuthContext(
+	authService *service.AuthService,
+	userService jwtUserReader,
+	activityToucher userActivityToucher,
+	settingService *service.SettingService,
+	auditService *service.AuditLogService,
+	c gatewayctx.GatewayContext,
+) bool {
+	if c == nil || c.Request() == nil {
+		return false
+	}
+
+	authHeader := c.HeaderValue("Authorization")
+	if authHeader == "" {
+		AbortWithErrorContext(c, 401, "UNAUTHORIZED", "Authorization header is required")
+		return false
+	}
+
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		AbortWithErrorContext(c, 401, "INVALID_AUTH_HEADER", "Authorization header format must be 'Bearer {token}'")
+		return false
+	}
+
+	tokenString := strings.TrimSpace(parts[1])
+	if tokenString == "" {
+		AbortWithErrorContext(c, 401, "EMPTY_TOKEN", "Token cannot be empty")
+		return false
+	}
+
+	claims, err := authService.ValidateToken(tokenString)
+	if err != nil {
+		if errors.Is(err, service.ErrTokenExpired) {
+			AbortWithErrorContext(c, 401, "TOKEN_EXPIRED", "Token has expired")
+			return false
+		}
+		AbortWithErrorContext(c, 401, "INVALID_TOKEN", "Invalid token")
+		return false
+	}
+
+	user, err := userService.GetByID(c.Request().Context(), claims.UserID)
+	if err != nil {
+		AbortWithErrorContext(c, 401, "USER_NOT_FOUND", "User not found")
+		return false
+	}
+	if !user.IsActive() {
+		AbortWithErrorContext(c, 401, "USER_INACTIVE", "User account is not active")
+		return false
+	}
+	if claims.TokenVersion != user.TokenVersion {
+		AbortWithErrorContext(c, 401, "TOKEN_REVOKED", "Token has been revoked (password changed)")
+		return false
+	}
+	if !enforceSessionBindingContext(c, authService, settingService, auditService, claims) {
+		return false
+	}
+
+	c.SetValue(string(ContextKeyUser), AuthSubject{
+		UserID:          user.ID,
+		Concurrency:     user.Concurrency,
+		AllowedGroupIDs: cloneAuthSubjectGroupIDs(user.AllowedGroups),
+	})
+	c.SetValue(string(ContextKeyUserRole), user.Role)
+	c.SetValue(ContextKeyAuthEmail, user.Email)
+	c.SetValue(ContextKeySessionID, claims.SessionID)
+	if activityToucher != nil {
+		activityToucher.TouchLastActiveForUser(c.Request().Context(), user)
+	}
+	return true
 }
 
 // Deprecated: prefer GetAuthSubjectFromContext in auth_subject.go.

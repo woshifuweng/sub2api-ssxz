@@ -2,11 +2,11 @@ package admin
 
 import (
 	"context"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/Wei-Shaw/sub2api/internal/service"
 )
 
 type stubAdminService struct {
@@ -34,6 +34,12 @@ type stubAdminService struct {
 	updateAccountErr                    error
 	bulkUpdateAccountErr                error
 	lastBulkUpdateAccountInput          *service.BulkUpdateAccountsInput
+	lastBalanceNotes                    string
+	adminAPIKeyListParams               service.AdminAPIKeyListParams
+	adminAPIKeyList                     *service.AdminAPIKeyListResult
+	adminAPIKeyListErr                  error
+	adminAPIKeyActorID                  int64
+	adminAPIKeyMutations                int
 	getAccountResult                    *service.Account
 	updateAccountCalls                  int
 	updateAccountExtraCalls             int
@@ -188,6 +194,7 @@ func (s *stubAdminService) DeleteUser(ctx context.Context, id int64) error {
 }
 
 func (s *stubAdminService) UpdateUserBalance(ctx context.Context, userID int64, balance float64, operation string, notes string) (*service.User, error) {
+	s.lastBalanceNotes = notes
 	user := service.User{ID: userID, Balance: balance, Status: service.StatusActive}
 	return &user, nil
 }
@@ -588,7 +595,7 @@ func (s *stubAdminService) BatchDeleteProxies(ctx context.Context, ids []int64) 
 }
 
 func (s *stubAdminService) GetProxyAccounts(ctx context.Context, proxyID int64) ([]service.ProxyAccountSummary, error) {
-	return []service.ProxyAccountSummary{{ID: 1, Name: "account"}}, nil
+	return []service.ProxyAccountSummary{{ID: 1, Name: "account", Status: service.StatusActive}}, nil
 }
 
 func (s *stubAdminService) CheckProxyExists(ctx context.Context, host string, port int, username, password string) (bool, error) {
@@ -745,4 +752,69 @@ func (s *stubAdminService) CreateShadow(ctx context.Context, parentID int64, opt
 }
 
 // Ensure stub implements interface.
+
+// Ensure stub implements interface.
+
 var _ service.AdminService = (*stubAdminService)(nil)
+
+func (s *stubAdminService) ListAdminAPIKeys(_ context.Context, params service.AdminAPIKeyListParams) (*service.AdminAPIKeyListResult, error) {
+	s.adminAPIKeyListParams = params
+	if s.adminAPIKeyListErr != nil {
+		return nil, s.adminAPIKeyListErr
+	}
+	if s.adminAPIKeyList != nil {
+		return s.adminAPIKeyList, nil
+	}
+	return &service.AdminAPIKeyListResult{}, nil
+}
+
+func (s *stubAdminService) GetProxyUsageStats(ctx context.Context, proxyID int64) (*usagestats.UsageStats, error) {
+	return &usagestats.UsageStats{TotalRequests: 12}, nil
+}
+
+func (s *stubAdminService) AdminSetAPIKeyEnabled(_ context.Context, keyID int64, enabled bool, actorUserID int64) (*service.APIKey, error) {
+	s.adminAPIKeyActorID = actorUserID
+	s.adminAPIKeyMutations++
+	for i := range s.apiKeys {
+		if s.apiKeys[i].ID == keyID {
+			if enabled {
+				s.apiKeys[i].Status = service.StatusAPIKeyActive
+			} else {
+				s.apiKeys[i].Status = service.StatusAPIKeyDisabled
+			}
+			key := s.apiKeys[i]
+			return &key, nil
+		}
+	}
+	return nil, service.ErrAPIKeyNotFound
+}
+
+func (s *stubAdminService) AdminChangeAPIKeyGroup(_ context.Context, keyID, groupID, actorUserID int64) (*service.AdminUpdateAPIKeyGroupIDResult, error) {
+	s.adminAPIKeyActorID = actorUserID
+	s.adminAPIKeyMutations++
+	for i := range s.apiKeys {
+		if s.apiKeys[i].ID == keyID {
+			if groupID == 0 {
+				s.apiKeys[i].GroupID = nil
+			} else {
+				gid := groupID
+				s.apiKeys[i].GroupID = &gid
+			}
+			key := s.apiKeys[i]
+			return &service.AdminUpdateAPIKeyGroupIDResult{APIKey: &key}, nil
+		}
+	}
+	return nil, service.ErrAPIKeyNotFound
+}
+
+func (s *stubAdminService) AdminDeleteAPIKey(_ context.Context, keyID, actorUserID int64) error {
+	s.adminAPIKeyActorID = actorUserID
+	s.adminAPIKeyMutations++
+	for i := range s.apiKeys {
+		if s.apiKeys[i].ID == keyID {
+			s.apiKeys = append(s.apiKeys[:i], s.apiKeys[i+1:]...)
+			return nil
+		}
+	}
+	return service.ErrAPIKeyNotFound
+}

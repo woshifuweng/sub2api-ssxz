@@ -59,17 +59,18 @@ function createStreamResponse(lines: string[]) {
   } as Response
 }
 
-function mountModal(account: Record<string, unknown> = {
-  id: 42,
-  name: 'Gemini Image Test',
-  platform: 'gemini',
-  type: 'apikey',
-  status: 'active'
-}) {
+function mountModal(overrides?: { account?: Record<string, unknown> }) {
   return mount(AccountTestModal, {
     props: {
       show: false,
-      account
+      account: {
+        id: 42,
+        name: 'Gemini Image Test',
+        platform: 'gemini',
+        type: 'apikey',
+        status: 'active',
+        ...overrides?.account
+      }
     } as any,
     global: {
       stubs: {
@@ -145,28 +146,27 @@ describe('AccountTestModal', () => {
     expect(preview.attributes('src')).toBe('data:image/png;base64,QUJD')
   })
 
-  it('grok 账号测试默认选择 Grok 模型', async () => {
-    getAvailableModels.mockResolvedValue([
-      { id: 'grok-4.3', display_name: 'Grok 4.3' },
-      { id: 'grok-build-0.1', display_name: 'Grok Build 0.1' }
+  it('openai 生图模型测试会自动带上默认提示词', async () => {
+    getAvailableModels.mockResolvedValueOnce([
+      { id: 'gpt-image-1', display_name: 'GPT Image 1' },
+      { id: 'gpt-4.1', display_name: 'GPT 4.1' }
     ])
-    global.fetch = vi.fn().mockResolvedValue(
-      createStreamResponse([
-        'data: {"type":"test_start","model":"grok-4.3"}\n',
-        'data: {"type":"content","text":"ok"}\n',
-        'data: {"type":"test_complete","success":true}\n'
-      ])
-    ) as any
 
     const wrapper = mountModal({
-      id: 13,
-      name: 'Grok Account',
-      platform: 'grok',
-      type: 'oauth',
-      status: 'active'
+      account: {
+        id: 43,
+        name: 'OpenAI Image Test',
+        platform: 'openai'
+      }
     })
     await wrapper.setProps({ show: true })
     await flushPromises()
+
+    const promptInput = wrapper.find('textarea.textarea-stub')
+    expect(promptInput.exists()).toBe(true)
+    expect((promptInput.element as HTMLTextAreaElement).value).toBe(
+      'Generate a cute orange cat astronaut sticker on a clean pastel background.'
+    )
 
     const buttons = wrapper.findAll('button')
     const startButton = buttons.find((button) => button.text().includes('admin.accounts.startTest'))
@@ -174,46 +174,12 @@ describe('AccountTestModal', () => {
 
     await startButton!.trigger('click')
     await flushPromises()
+    await flushPromises()
 
-    expect(global.fetch).toHaveBeenCalledTimes(1)
     const [, request] = (global.fetch as any).mock.calls[0]
     expect(JSON.parse(request.body)).toEqual({
-      model_id: 'grok-4.3',
-      prompt: ''
-    })
-  })
-
-  it('OpenAI Compact 探测会携带 compact 测试模式', async () => {
-    getAvailableModels.mockResolvedValue([
-      { id: 'gpt-5.4', display_name: 'GPT-5.4' }
-    ])
-    global.fetch = vi.fn().mockResolvedValue(
-      createStreamResponse([
-        'data: {"type":"test_complete","success":true}\n'
-      ])
-    ) as any
-
-    const wrapper = mountModal({
-      id: 42,
-      name: 'OpenAI OAuth',
-      platform: 'openai',
-      type: 'oauth',
-      status: 'active'
-    })
-    await wrapper.setProps({ show: true })
-    await flushPromises()
-
-    ;(wrapper.vm as any).selectedModelId = 'gpt-5.4'
-    ;(wrapper.vm as any).testMode = 'compact'
-    await (wrapper.vm as any).startTest()
-    await flushPromises()
-
-    expect(global.fetch).toHaveBeenCalledTimes(1)
-    const [, request] = (global.fetch as any).mock.calls[0]
-    expect(JSON.parse(request.body)).toMatchObject({
-      model_id: 'gpt-5.4',
-      prompt: '',
-      mode: 'compact'
+      model_id: 'gpt-image-1',
+      prompt: 'Generate a cute orange cat astronaut sticker on a clean pastel background.'
     })
   })
 })

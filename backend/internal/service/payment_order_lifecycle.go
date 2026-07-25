@@ -12,8 +12,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
+	"github.com/Wei-Shaw/sub2api/internal/payment/provider"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/servertiming"
 )
 
 // --- Cancel & Expire ---
@@ -26,13 +26,7 @@ const (
 	rateLimitModeFixed         = "fixed"
 	checkPaidResultAlreadyPaid = "already_paid"
 	checkPaidResultCancelled   = "cancelled"
-
-	pendingWxpayReconcileLimit = 20
 )
-
-type checkPaidOptions struct {
-	cancelIfUnpaid bool
-}
 
 func (s *PaymentService) checkCancelRateLimit(ctx context.Context, userID int64, cfg *PaymentConfig) error {
 	if !cfg.CancelRateLimitEnabled || cfg.CancelRateLimitMax <= 0 {
@@ -110,7 +104,7 @@ func (s *PaymentService) CancelOrder(ctx context.Context, orderID, userID int64)
 	return s.cancelCore(ctx, o, OrderStatusCancelled, fmt.Sprintf("user:%d", userID), "user cancelled order")
 }
 
-func (s *PaymentService) AdminCancelOrder(ctx context.Context, orderID int64) (string, error) {
+func (s *PaymentService) AdminCancelOrder(ctx context.Context, orderID int64, operator ...string) (string, error) {
 	o, err := s.entClient.PaymentOrder.Get(ctx, orderID)
 	if err != nil {
 		return "", infraerrors.NotFound("NOT_FOUND", "order not found")
@@ -118,7 +112,11 @@ func (s *PaymentService) AdminCancelOrder(ctx context.Context, orderID int64) (s
 	if o.Status != OrderStatusPending {
 		return "", infraerrors.BadRequest("INVALID_STATUS", "order cannot be cancelled in current status")
 	}
-	return s.cancelCore(ctx, o, OrderStatusCancelled, "admin", "admin cancelled order")
+	op := ""
+	if len(operator) > 0 {
+		op = operator[0]
+	}
+	return s.cancelCore(ctx, o, OrderStatusCancelled, normalizePaymentAdminOperator(op), "admin cancelled order")
 }
 
 func (s *PaymentService) cancelCore(ctx context.Context, o *dbent.PaymentOrder, fs, op, ad string) (string, error) {
@@ -142,14 +140,6 @@ func (s *PaymentService) cancelCore(ctx context.Context, o *dbent.PaymentOrder, 
 }
 
 func (s *PaymentService) checkPaid(ctx context.Context, o *dbent.PaymentOrder) string {
-	return s.checkPaidWithOptions(ctx, o, checkPaidOptions{cancelIfUnpaid: true})
-}
-
-func (s *PaymentService) reconcilePaid(ctx context.Context, o *dbent.PaymentOrder) string {
-	return s.checkPaidWithOptions(ctx, o, checkPaidOptions{})
-}
-
-func (s *PaymentService) checkPaidWithOptions(ctx context.Context, o *dbent.PaymentOrder, opts checkPaidOptions) string {
 	prov, err := s.getOrderProvider(ctx, o)
 	if err != nil {
 		return ""
@@ -158,9 +148,7 @@ func (s *PaymentService) checkPaidWithOptions(ctx context.Context, o *dbent.Paym
 	if queryRef == "" {
 		return ""
 	}
-	finishProviderCall := servertiming.ObserveDependency(ctx, "payment")
 	resp, err := prov.QueryOrder(ctx, queryRef)
-	finishProviderCall()
 	if err != nil {
 		slog.Warn("query upstream failed", "orderID", o.ID, "error", err)
 		return ""
@@ -198,13 +186,8 @@ func (s *PaymentService) checkPaidWithOptions(ctx context.Context, o *dbent.Paym
 		}
 		return checkPaidResultAlreadyPaid
 	}
-	if !opts.cancelIfUnpaid {
-		return ""
-	}
 	if cp, ok := prov.(payment.CancelableProvider); ok {
-		finishProviderCall := servertiming.ObserveDependency(ctx, "payment")
 		_ = cp.CancelPayment(ctx, queryRef)
-		finishProviderCall()
 	}
 	return ""
 }
@@ -213,9 +196,7 @@ func requeryPaidOrderOnce(ctx context.Context, prov payment.Provider, queryRef s
 	if prov == nil || strings.TrimSpace(queryRef) == "" {
 		return nil, false
 	}
-	finishProviderCall := servertiming.ObserveDependency(ctx, "payment")
 	resp, err := prov.QueryOrder(ctx, queryRef)
-	finishProviderCall()
 	if err != nil {
 		slog.Warn("query upstream retry failed", "queryRef", queryRef, "error", err)
 		return nil, false
@@ -291,7 +272,7 @@ func (s *PaymentService) VerifyOrderByOutTradeNo(ctx context.Context, outTradeNo
 	}
 	// Only verify orders that are still pending or recently expired
 	if o.Status == OrderStatusPending || o.Status == OrderStatusExpired {
-		result := s.reconcilePaid(ctx, o)
+		result := s.checkPaid(ctx, o)
 		if result == checkPaidResultAlreadyPaid {
 			// Reload order to get updated status
 			o, err = s.entClient.PaymentOrder.Get(ctx, o.ID)
@@ -301,37 +282,6 @@ func (s *PaymentService) VerifyOrderByOutTradeNo(ctx context.Context, outTradeNo
 		}
 	}
 	return o, nil
-}
-
-// ReconcilePendingWxpayOrders actively checks recent pending WeChat orders so
-// missed provider notifications do not wait until order expiry to fulfill.
-func (s *PaymentService) ReconcilePendingWxpayOrders(ctx context.Context) (int, error) {
-	now := time.Now()
-	orders, err := s.entClient.PaymentOrder.Query().
-		Where(
-			paymentorder.StatusEQ(OrderStatusPending),
-			paymentorder.ExpiresAtGT(now),
-			paymentorder.Or(
-				paymentorder.PaymentTypeEQ(payment.TypeWxpay),
-				paymentorder.PaymentTypeHasPrefix(payment.TypeWxpay+"_"),
-				paymentorder.ProviderKeyEQ(payment.TypeWxpay),
-				paymentorder.ProviderKeyHasPrefix(payment.TypeWxpay+"_"),
-			),
-		).
-		Order(dbent.Asc(paymentorder.FieldCreatedAt)).
-		Limit(pendingWxpayReconcileLimit).
-		All(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("query pending wxpay orders: %w", err)
-	}
-
-	recovered := 0
-	for _, order := range orders {
-		if s.reconcilePaid(ctx, order) == checkPaidResultAlreadyPaid {
-			recovered++
-		}
-	}
-	return recovered, nil
 }
 
 // VerifyOrderPublic returns the currently persisted public order state without
@@ -460,7 +410,7 @@ func (s *PaymentService) createProviderFromInstance(ctx context.Context, inst *d
 	}
 
 	instID := strconv.FormatInt(int64(inst.ID), 10)
-	prov, err := createPaymentProviderFromInstance(inst.ProviderKey, instID, cfg)
+	prov, err := provider.CreateProvider(inst.ProviderKey, instID, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("create provider from instance: %w", err)
 	}

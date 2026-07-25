@@ -8,6 +8,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -37,13 +38,17 @@ func (h *SettingHandler) SetNotificationEmailService(notificationEmailService *s
 // GetPublicSettings 获取公开设置
 // GET /api/v1/settings/public
 func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
-	settings, err := h.settingService.GetPublicSettings(c.Request.Context())
+	h.GetPublicSettingsGateway(gatewayctx.FromGin(c))
+}
+
+func (h *SettingHandler) GetPublicSettingsGateway(c gatewayctx.GatewayContext) {
+	settings, err := h.settingService.GetPublicSettings(c.Request().Context())
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayResponder{ctx: c}, err)
 		return
 	}
 
-	response.Success(c, dto.PublicSettings{
+	response.SuccessContext(gatewayResponder{ctx: c}, dto.PublicSettings{
 		RegistrationEnabled:              settings.RegistrationEnabled,
 		EmailVerifyEnabled:               settings.EmailVerifyEnabled,
 		ForceEmailOnThirdPartySignup:     settings.ForceEmailOnThirdPartySignup,
@@ -69,6 +74,9 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		HideCcsImportButton:              settings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:      settings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:          settings.PurchaseSubscriptionURL,
+		PurchaseLinkCNY10:                settings.PurchaseLinkCNY10,
+		PurchaseLinkCNY30:                settings.PurchaseLinkCNY30,
+		PurchaseLinkCNY100:               settings.PurchaseLinkCNY100,
 		TableDefaultPageSize:             settings.TableDefaultPageSize,
 		TablePageSizeOptions:             settings.TablePageSizeOptions,
 		CustomMenuItems:                  dto.ParseUserVisibleMenuItems(settings.CustomMenuItems),
@@ -81,6 +89,7 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		WeChatOAuthMobileEnabled:         settings.WeChatOAuthMobileEnabled,
 		OIDCOAuthEnabled:                 settings.OIDCOAuthEnabled,
 		OIDCOAuthProviderName:            settings.OIDCOAuthProviderName,
+		SoraClientEnabled:                settings.SoraClientEnabled,
 		GitHubOAuthEnabled:               settings.GitHubOAuthEnabled,
 		GoogleOAuthEnabled:               settings.GoogleOAuthEnabled,
 		BackendModeEnabled:               settings.BackendModeEnabled,
@@ -97,6 +106,11 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
 
 		AvailableChannelsEnabled: settings.AvailableChannelsEnabled,
+
+		WebSearch: dto.WebSearchSetting{
+			Available: settings.WebSearch.Available,
+			Provider:  settings.WebSearch.Provider,
+		},
 
 		AffiliateEnabled: settings.AffiliateEnabled,
 
@@ -137,4 +151,22 @@ func publicLoginAgreementDocumentsToDTO(items []service.LoginAgreementDocument) 
 		})
 	}
 	return result
+}
+
+type gatewayResponder struct {
+	ctx gatewayctx.GatewayContext
+}
+
+func (g gatewayResponder) Request() *http.Request {
+	if g.ctx == nil {
+		return nil
+	}
+	return g.ctx.Request()
+}
+
+func (g gatewayResponder) WriteJSON(status int, payload any) {
+	if g.ctx == nil {
+		return
+	}
+	g.ctx.WriteJSON(status, payload)
 }

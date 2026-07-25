@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/gin-gonic/gin"
 	"github.com/imroc/req/v3"
 	"github.com/stretchr/testify/require"
@@ -63,7 +64,7 @@ func TestAccountTestServiceSkipsShadow(t *testing.T) {
 	svc := &AccountTestService{accountRepo: repo}
 	c := newShadowTestGinCtx()
 
-	err := svc.TestAccountConnection(c, 200, "", "", "")
+	err := svc.TestAccountConnection(gatewayctx.FromGin(c), 200, "", "")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "resolve spark shadow parent")
 }

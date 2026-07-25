@@ -35,6 +35,8 @@ type User struct {
 	FrozenBalance float64 `json:"frozen_balance,omitempty"`
 	// Concurrency holds the value of the "concurrency" field.
 	Concurrency int `json:"concurrency,omitempty"`
+	// UnlimitedConcurrency holds the value of the "unlimited_concurrency" field.
+	UnlimitedConcurrency bool `json:"unlimited_concurrency,omitempty"`
 	// Status holds the value of the "status" field.
 	Status string `json:"status,omitempty"`
 	// Username holds the value of the "username" field.
@@ -63,6 +65,10 @@ type User struct {
 	BalanceNotifyExtraEmails string `json:"balance_notify_extra_emails,omitempty"`
 	// TotalRecharged holds the value of the "total_recharged" field.
 	TotalRecharged float64 `json:"total_recharged,omitempty"`
+	// SoraStorageQuotaBytes holds the value of the "sora_storage_quota_bytes" field.
+	SoraStorageQuotaBytes int64 `json:"sora_storage_quota_bytes,omitempty"`
+	// SoraStorageUsedBytes holds the value of the "sora_storage_used_bytes" field.
+	SoraStorageUsedBytes int64 `json:"sora_storage_used_bytes,omitempty"`
 	// RpmLimit holds the value of the "rpm_limit" field.
 	RpmLimit int `json:"rpm_limit,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -237,11 +243,11 @@ func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case user.FieldTotpEnabled, user.FieldBalanceNotifyEnabled:
+		case user.FieldUnlimitedConcurrency, user.FieldTotpEnabled, user.FieldBalanceNotifyEnabled:
 			values[i] = new(sql.NullBool)
 		case user.FieldBalance, user.FieldFrozenBalance, user.FieldBalanceNotifyThreshold, user.FieldTotalRecharged:
 			values[i] = new(sql.NullFloat64)
-		case user.FieldID, user.FieldConcurrency, user.FieldRpmLimit:
+		case user.FieldID, user.FieldConcurrency, user.FieldSoraStorageQuotaBytes, user.FieldSoraStorageUsedBytes, user.FieldRpmLimit:
 			values[i] = new(sql.NullInt64)
 		case user.FieldEmail, user.FieldPasswordHash, user.FieldRole, user.FieldStatus, user.FieldUsername, user.FieldNotes, user.FieldTotpSecretEncrypted, user.FieldSignupSource, user.FieldBalanceNotifyThresholdType, user.FieldBalanceNotifyExtraEmails:
 			values[i] = new(sql.NullString)
@@ -322,6 +328,12 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field concurrency", values[i])
 			} else if value.Valid {
 				_m.Concurrency = int(value.Int64)
+			}
+		case user.FieldUnlimitedConcurrency:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field unlimited_concurrency", values[i])
+			} else if value.Valid {
+				_m.UnlimitedConcurrency = value.Bool
 			}
 		case user.FieldStatus:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -411,6 +423,18 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field total_recharged", values[i])
 			} else if value.Valid {
 				_m.TotalRecharged = value.Float64
+			}
+		case user.FieldSoraStorageQuotaBytes:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field sora_storage_quota_bytes", values[i])
+			} else if value.Valid {
+				_m.SoraStorageQuotaBytes = value.Int64
+			}
+		case user.FieldSoraStorageUsedBytes:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field sora_storage_used_bytes", values[i])
+			} else if value.Valid {
+				_m.SoraStorageUsedBytes = value.Int64
 			}
 		case user.FieldRpmLimit:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -553,6 +577,9 @@ func (_m *User) String() string {
 	builder.WriteString("concurrency=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Concurrency))
 	builder.WriteString(", ")
+	builder.WriteString("unlimited_concurrency=")
+	builder.WriteString(fmt.Sprintf("%v", _m.UnlimitedConcurrency))
+	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(_m.Status)
 	builder.WriteString(", ")
@@ -604,6 +631,12 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("total_recharged=")
 	builder.WriteString(fmt.Sprintf("%v", _m.TotalRecharged))
+	builder.WriteString(", ")
+	builder.WriteString("sora_storage_quota_bytes=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SoraStorageQuotaBytes))
+	builder.WriteString(", ")
+	builder.WriteString("sora_storage_used_bytes=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SoraStorageUsedBytes))
 	builder.WriteString(", ")
 	builder.WriteString("rpm_limit=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RpmLimit))

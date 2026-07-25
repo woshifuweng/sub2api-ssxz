@@ -1,18 +1,23 @@
 package service
 
-import "testing"
+import (
+	"testing"
 
-func TestAPIKeyService_RejectsV10AuthSnapshotWithoutModelsListConfig(t *testing.T) {
+	"github.com/stretchr/testify/require"
+)
+
+func TestAPIKeyService_AuthSnapshotPreservesCurrentModelAndGroupScope(t *testing.T) {
 	groupID := int64(9)
 	svc := &APIKeyService{}
 
-	apiKey, ok, err := svc.applyAuthCacheEntry("k-legacy-models-list", &APIKeyAuthCacheEntry{
+	apiKey, ok, err := svc.applyAuthCacheEntry("k-current-scope", &APIKeyAuthCacheEntry{
 		Snapshot: &APIKeyAuthSnapshot{
-			Version:  10,
-			APIKeyID: 1,
-			UserID:   2,
-			GroupID:  &groupID,
-			Status:   StatusActive,
+			APIKeyID:      1,
+			UserID:        2,
+			GroupID:       &groupID,
+			GroupIDs:      []int64{groupID, 10},
+			AllowedModels: []string{"gpt-5.5", "claude-opus-4-8"},
+			Status:        StatusActive,
 			User: APIKeyAuthUserSnapshot{
 				ID:          2,
 				Status:      StatusActive,
@@ -31,31 +36,17 @@ func TestAPIKeyService_RejectsV10AuthSnapshotWithoutModelsListConfig(t *testing.
 		},
 	})
 
-	if err != nil {
-		t.Fatalf("expected stale snapshot to be ignored without error, got %v", err)
-	}
-	if ok {
-		t.Fatalf("expected v10 auth snapshot to be rejected after models_list_config was added")
-	}
-	if apiKey != nil {
-		t.Fatalf("expected no API key from stale snapshot, got %#v", apiKey)
-	}
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.NotNil(t, apiKey)
+	require.Equal(t, []int64{groupID, 10}, apiKey.GroupIDs)
+	require.Equal(t, []string{"gpt-5.5", "claude-opus-4-8"}, apiKey.AllowedModels)
 }
 
-func TestAPIKeyService_RejectsV15AuthSnapshotWithoutReasoningEffortPolicy(t *testing.T) {
-	svc := &APIKeyService{}
+func TestAPIKeyService_AuthCacheEntryWithoutSnapshotFallsBackToRepository(t *testing.T) {
+	apiKey, ok, err := (&APIKeyService{}).applyAuthCacheEntry("k-missing-snapshot", &APIKeyAuthCacheEntry{})
 
-	apiKey, ok, err := svc.applyAuthCacheEntry("k-legacy-reasoning-mappings", &APIKeyAuthCacheEntry{
-		Snapshot: &APIKeyAuthSnapshot{Version: 15},
-	})
-
-	if err != nil {
-		t.Fatalf("expected stale snapshot to be ignored without error, got %v", err)
-	}
-	if ok {
-		t.Fatal("expected v15 auth snapshot to be rejected after reasoning effort policy was added")
-	}
-	if apiKey != nil {
-		t.Fatalf("expected no API key from stale snapshot, got %#v", apiKey)
-	}
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Nil(t, apiKey)
 }

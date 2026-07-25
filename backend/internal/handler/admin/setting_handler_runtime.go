@@ -1,10 +1,12 @@
 package admin
 
 import (
+	"net/http"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -28,7 +30,25 @@ func (h *SettingHandler) GetAdminAPIKey(c *gin.Context) {
 // RegenerateAdminAPIKey 生成/重新生成管理员 API Key
 // POST /api/v1/admin/settings/admin-api-key/regenerate
 func (h *SettingHandler) RegenerateAdminAPIKey(c *gin.Context) {
-	key, err := h.settingService.GenerateAdminAPIKey(c.Request.Context())
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok || subject.UserID <= 0 {
+		response.Error(c, http.StatusUnauthorized, "Admin access required")
+		return
+	}
+	if h.userService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "User service unavailable")
+		return
+	}
+	admin, err := h.userService.GetByID(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if !admin.IsAdmin() {
+		response.Error(c, http.StatusForbidden, "Admin access required")
+		return
+	}
+	key, err := h.settingService.GenerateAdminAPIKey(c.Request.Context(), admin.ID, admin.TokenVersion)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

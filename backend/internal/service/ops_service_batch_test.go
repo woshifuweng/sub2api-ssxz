@@ -127,7 +127,7 @@ func TestOpsServiceRecordErrorPersistsExplicitAccountAuthStatusZero(t *testing.T
 				Reason: string(GrokCredentialReasonRevoked), Message: "Grok OAuth credentials require account action",
 			},
 		},
-	})
+	}, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, captured)

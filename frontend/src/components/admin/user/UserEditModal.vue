@@ -30,31 +30,27 @@
         <input v-model="form.username" type="text" class="input" />
       </div>
       <div>
-        <label class="input-label">{{ t('admin.users.form.roleLabel') }}</label>
-        <select v-model="form.role" class="input">
-          <option value="user">{{ t('admin.users.roles.user') }}</option>
-          <option value="admin">{{ t('admin.users.roles.admin') }}</option>
-        </select>
-      </div>
-      <div>
         <label class="input-label">{{ t('admin.users.notes') }}</label>
         <textarea v-model="form.notes" rows="3" class="input"></textarea>
       </div>
       <div>
         <label class="input-label">{{ t('admin.users.columns.concurrency') }}</label>
-        <input v-model.number="form.concurrency" type="number" class="input" />
+        <input v-model.number="form.concurrency" type="number" class="input" :disabled="form.unlimited_concurrency" />
       </div>
+      <label class="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-dark-600 dark:text-gray-300">
+        <input v-model="form.unlimited_concurrency" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+        <div>
+          <div class="font-medium">{{ t('admin.users.unlimitedConcurrency') }}</div>
+          <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.users.unlimitedConcurrencyHint') }}</div>
+        </div>
+      </label>
       <div>
-        <label class="input-label">{{ t('admin.users.form.rpmLimit') }}</label>
-        <input
-          v-model.number="form.rpm_limit"
-          type="number"
-          min="0"
-          step="1"
-          class="input"
-          :placeholder="t('admin.users.form.rpmLimitPlaceholder')"
-        />
-        <p class="input-hint">{{ t('admin.users.form.rpmLimitHint') }}</p>
+        <label class="input-label">{{ t('admin.users.soraStorageQuota') }}</label>
+        <div class="flex items-center gap-2">
+          <input v-model.number="form.sora_storage_quota_gb" type="number" min="0" step="0.1" class="input" placeholder="0" />
+          <span class="shrink-0 text-sm text-gray-500">GB</span>
+        </div>
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.users.soraStorageQuotaHint') }}</p>
       </div>
       <UserAttributeForm v-model="form.customAttributes" :user-id="user?.id" />
     </form>
@@ -67,9 +63,6 @@
       </div>
     </template>
   </BaseDialog>
-
-  <!-- 角色提升为管理员时后端要求 step-up 2FA，弹出 TOTP 验证后自动重试 -->
-  <TotpStepUpDialog :controller="stepUp" />
 </template>
 
 <script setup lang="ts">
@@ -82,19 +75,17 @@ import type { AdminUser, UserAttributeValuesMap } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import UserAttributeForm from '@/components/user/UserAttributeForm.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from '@/composables/useStepUp'
-import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 
 const props = defineProps<{ show: boolean, user: AdminUser | null }>()
 const emit = defineEmits(['close', 'success'])
 const { t } = useI18n(); const appStore = useAppStore(); const { copyToClipboard } = useClipboard()
 
 const submitting = ref(false); const passwordCopied = ref(false)
-const form = reactive({ email: '', password: '', username: '', notes: '', role: 'user', concurrency: 1, rpm_limit: 0, customAttributes: {} as UserAttributeValuesMap })
+const form = reactive({ email: '', password: '', username: '', notes: '', concurrency: 1, unlimited_concurrency: false, sora_storage_quota_gb: 0, customAttributes: {} as UserAttributeValuesMap })
 
 watch(() => props.user, (u) => {
   if (u) {
-    Object.assign(form, { email: u.email, password: '', username: u.username || '', notes: u.notes || '', role: u.role || 'user', concurrency: u.concurrency, rpm_limit: u.rpm_limit ?? 0, customAttributes: {} })
+    Object.assign(form, { email: u.email, password: '', username: u.username || '', notes: u.notes || '', concurrency: u.concurrency, unlimited_concurrency: u.unlimited_concurrency === true, sora_storage_quota_gb: Number(((u.sora_storage_quota_bytes || 0) / (1024 * 1024 * 1024)).toFixed(2)), customAttributes: {} })
     passwordCopied.value = false
   }
 }, { immediate: true })
@@ -109,40 +100,26 @@ const copyPassword = async () => {
     passwordCopied.value = true; setTimeout(() => passwordCopied.value = false, 2000)
   }
 }
-const stepUp = useStepUp()
-
 const handleUpdateUser = async () => {
   if (!props.user) return
   if (!form.email.trim()) {
     appStore.showError(t('admin.users.emailRequired'))
     return
   }
-  if (form.concurrency < 1) {
+  if (!form.unlimited_concurrency && form.concurrency < 1) {
     appStore.showError(t('admin.users.concurrencyMin'))
     return
   }
-  const userId = props.user.id
   submitting.value = true
   try {
-    const data: any = { email: form.email, username: form.username, notes: form.notes, role: form.role, concurrency: form.concurrency, rpm_limit: form.rpm_limit }
+    const data: any = { email: form.email, username: form.username, notes: form.notes, concurrency: form.concurrency, unlimited_concurrency: form.unlimited_concurrency, sora_storage_quota_bytes: Math.round((form.sora_storage_quota_gb || 0) * 1024 * 1024 * 1024) }
     if (form.password.trim()) data.password = form.password.trim()
-    // 提升为管理员属敏感操作：后端返回 STEP_UP_REQUIRED 时弹 TOTP 验证并重试
-    await stepUp.run(() => adminAPI.users.update(userId, data))
-    if (Object.keys(form.customAttributes).length > 0) await adminAPI.userAttributes.updateUserAttributeValues(userId, form.customAttributes)
+    await adminAPI.users.update(props.user.id, data)
+    if (Object.keys(form.customAttributes).length > 0) await adminAPI.userAttributes.updateUserAttributeValues(props.user.id, form.customAttributes)
     appStore.showSuccess(t('admin.users.userUpdated'))
     emit('success'); emit('close')
   } catch (e: any) {
-    if (isStepUpCancelled(e)) {
-      // 用户主动取消二次验证：静默返回，表单保持打开。
-    } else if (isStepUpBlocked(e)) {
-      appStore.showError(
-        stepUpBlockReason(e) === 'STEP_UP_ADMIN_API_KEY_FORBIDDEN'
-          ? t('stepUp.adminApiKeyForbidden')
-          : t('stepUp.notEnabled')
-      )
-    } else {
-      appStore.showError(e?.message || t('admin.users.failedToUpdate'))
-    }
+    appStore.showError(e.response?.data?.detail || t('admin.users.failedToUpdate'))
   } finally { submitting.value = false }
 }
 </script>

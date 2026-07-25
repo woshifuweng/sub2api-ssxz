@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"math"
+	"strconv"
 	"strings"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -185,6 +187,20 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 		}
 		result.NewBalance = &newBalance
 		result.BalanceOverdrafted = !sufficient
+		newBalance, charged, shortfall, err := settleUsageBillingBalance(ctx, tx, cmd.UserID, cmd.BalanceCost)
+		if err != nil {
+			return err
+		}
+		result.NewBalance = &newBalance
+		result.BalanceCharged = charged
+		result.BalanceShortfall = shortfall
+		result.BalanceExhausted = newBalance <= 0
+
+		rebate, err := accrueUsageAffiliateRebate(ctx, tx, cmd.UserID, charged)
+		if err != nil {
+			return err
+		}
+		result.AffiliateRebate = rebate
 	}
 
 	if cmd.APIKeyQuotaCost > 0 {
@@ -210,6 +226,189 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 	}
 
 	return nil
+}
+
+type usageAffiliateSettings struct {
+	enabled      bool
+	ratePercent  float64
+	freezeHours  int
+	durationDays int
+	perUserCap   float64
+}
+
+func accrueUsageAffiliateRebate(ctx context.Context, tx *sql.Tx, inviteeUserID int64, chargedAmount float64) (float64, error) {
+	if tx == nil || inviteeUserID <= 0 || chargedAmount <= 0 || math.IsNaN(chargedAmount) || math.IsInf(chargedAmount, 0) {
+		return 0, nil
+	}
+
+	settings, err := loadUsageAffiliateSettings(ctx, tx)
+	if err != nil {
+		return 0, err
+	}
+	if !settings.enabled || settings.ratePercent <= 0 {
+		return 0, nil
+	}
+
+	var inviterID int64
+	var customRate sql.NullFloat64
+	var eligible bool
+	err = tx.QueryRowContext(ctx, `
+		SELECT invitee.inviter_id,
+		       inviter.aff_rebate_rate_percent::double precision,
+		       ($2 <= 0 OR invitee.created_at + ($2 * INTERVAL '1 day') >= NOW()) AS eligible
+		FROM user_affiliates invitee
+		JOIN user_affiliates inviter ON inviter.user_id = invitee.inviter_id
+		WHERE invitee.user_id = $1
+		FOR UPDATE OF inviter
+	`, inviteeUserID, settings.durationDays).Scan(&inviterID, &customRate, &eligible)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	if !eligible || inviterID <= 0 {
+		return 0, nil
+	}
+
+	ratePercent := settings.ratePercent
+	if customRate.Valid {
+		ratePercent = clampUsageAffiliateRate(customRate.Float64)
+	}
+	rebate := roundUsageAffiliateAmount(chargedAmount * ratePercent / 100)
+	if rebate <= 0 {
+		return 0, nil
+	}
+
+	if settings.perUserCap > 0 {
+		var accrued float64
+		if err := tx.QueryRowContext(ctx, `
+			SELECT COALESCE(SUM(amount), 0)::double precision
+			FROM user_affiliate_ledger
+			WHERE user_id = $1 AND source_user_id = $2 AND action = 'accrue'
+		`, inviterID, inviteeUserID).Scan(&accrued); err != nil {
+			return 0, err
+		}
+		remaining := roundUsageAffiliateAmount(settings.perUserCap - accrued)
+		if remaining <= 0 {
+			return 0, nil
+		}
+		if rebate > remaining {
+			rebate = remaining
+		}
+	}
+
+	quotaColumn := "aff_quota"
+	if settings.freezeHours > 0 {
+		quotaColumn = "aff_frozen_quota"
+	}
+	res, err := tx.ExecContext(ctx, `
+		UPDATE user_affiliates
+		SET `+quotaColumn+` = `+quotaColumn+` + $1,
+		    aff_history_quota = aff_history_quota + $1,
+		    updated_at = NOW()
+		WHERE user_id = $2
+	`, rebate, inviterID)
+	if err != nil {
+		return 0, err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	if affected == 0 {
+		return 0, nil
+	}
+
+	if settings.freezeHours > 0 {
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO user_affiliate_ledger
+				(user_id, action, amount, source_user_id, frozen_until, created_at, updated_at)
+			VALUES ($1, 'accrue', $2, $3, NOW() + make_interval(hours => $4), NOW(), NOW())
+		`, inviterID, rebate, inviteeUserID, settings.freezeHours)
+	} else {
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO user_affiliate_ledger
+				(user_id, action, amount, source_user_id, created_at, updated_at)
+			VALUES ($1, 'accrue', $2, $3, NOW(), NOW())
+		`, inviterID, rebate, inviteeUserID)
+	}
+	if err != nil {
+		return 0, err
+	}
+	return rebate, nil
+}
+
+func loadUsageAffiliateSettings(ctx context.Context, tx *sql.Tx) (usageAffiliateSettings, error) {
+	settings := usageAffiliateSettings{
+		ratePercent: service.AffiliateRebateRateDefault,
+	}
+	rows, err := tx.QueryContext(ctx, `
+		SELECT key, value
+		FROM settings
+		WHERE key IN ($1, $2, $3, $4, $5)
+	`,
+		service.SettingKeyAffiliateEnabled,
+		service.SettingKeyAffiliateRebateRate,
+		service.SettingKeyAffiliateRebateFreezeHours,
+		service.SettingKeyAffiliateRebateDurationDays,
+		service.SettingKeyAffiliateRebatePerInviteeCap,
+	)
+	if err != nil {
+		return settings, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			return settings, err
+		}
+		switch key {
+		case service.SettingKeyAffiliateEnabled:
+			settings.enabled = strings.EqualFold(strings.TrimSpace(value), "true")
+		case service.SettingKeyAffiliateRebateRate:
+			if parsed, err := strconv.ParseFloat(strings.TrimSpace(value), 64); err == nil {
+				settings.ratePercent = clampUsageAffiliateRate(parsed)
+			}
+		case service.SettingKeyAffiliateRebateFreezeHours:
+			if parsed, err := strconv.Atoi(strings.TrimSpace(value)); err == nil && parsed >= 0 {
+				if parsed > service.AffiliateRebateFreezeHoursMax {
+					parsed = service.AffiliateRebateFreezeHoursMax
+				}
+				settings.freezeHours = parsed
+			}
+		case service.SettingKeyAffiliateRebateDurationDays:
+			if parsed, err := strconv.Atoi(strings.TrimSpace(value)); err == nil && parsed >= 0 {
+				if parsed > service.AffiliateRebateDurationDaysMax {
+					parsed = service.AffiliateRebateDurationDaysMax
+				}
+				settings.durationDays = parsed
+			}
+		case service.SettingKeyAffiliateRebatePerInviteeCap:
+			if parsed, err := strconv.ParseFloat(strings.TrimSpace(value), 64); err == nil && parsed >= 0 {
+				settings.perUserCap = parsed
+			}
+		}
+	}
+	return settings, rows.Err()
+}
+
+func clampUsageAffiliateRate(value float64) float64 {
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return service.AffiliateRebateRateDefault
+	}
+	if value < service.AffiliateRebateRateMin {
+		return service.AffiliateRebateRateMin
+	}
+	if value > service.AffiliateRebateRateMax {
+		return service.AffiliateRebateRateMax
+	}
+	return value
+}
+
+func roundUsageAffiliateAmount(value float64) float64 {
+	return math.Round(value*1e8) / 1e8
 }
 
 func incrementUsageBillingSubscription(ctx context.Context, tx *sql.Tx, subscriptionID int64, costUSD float64) error {
@@ -411,6 +610,52 @@ func userExistsForBilling(ctx context.Context, tx *sql.Tx, userID int64) (bool, 
 		return false, err
 	}
 	return true, nil
+}
+
+func settleUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, amount float64) (newBalance, charged, shortfall float64, err error) {
+	var oldBalance float64
+	err = tx.QueryRowContext(ctx, `
+		SELECT balance
+		FROM users
+		WHERE id = $1 AND deleted_at IS NULL
+		FOR UPDATE
+	`, userID).Scan(&oldBalance)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, 0, 0, service.ErrUserNotFound
+	}
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	available := oldBalance
+	if available < 0 {
+		available = 0
+	}
+	charged = amount
+	if charged > available {
+		charged = available
+	}
+	if charged < 0 {
+		charged = 0
+	}
+	newBalance = available - charged
+	if newBalance < 1e-9 {
+		newBalance = 0
+	}
+	shortfall = amount - charged
+	if shortfall < 1e-9 {
+		shortfall = 0
+	}
+
+	if _, err = tx.ExecContext(ctx, `
+		UPDATE users
+		SET balance = $1,
+			updated_at = NOW()
+		WHERE id = $2 AND deleted_at IS NULL
+	`, newBalance, userID); err != nil {
+		return 0, 0, 0, err
+	}
+	return newBalance, charged, shortfall, nil
 }
 
 func incrementUsageBillingAPIKeyQuota(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount float64) (bool, error) {

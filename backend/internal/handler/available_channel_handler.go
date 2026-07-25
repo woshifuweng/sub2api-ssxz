@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"net/http"
 	"sort"
+	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -41,28 +44,29 @@ func NewAvailableChannelHandler(
 
 // featureEnabled 返回 available-channels 开关是否启用。默认关闭（opt-in）。
 func (h *AvailableChannelHandler) featureEnabled(c *gin.Context) bool {
+	return h.featureEnabledGateway(gatewayctx.FromGin(c))
+}
+
+func (h *AvailableChannelHandler) featureEnabledGateway(c gatewayctx.GatewayContext) bool {
 	if h.settingService == nil {
 		return false
 	}
-	return h.settingService.GetAvailableChannelsRuntime(c.Request.Context()).Enabled
+	return h.settingService.GetAvailableChannelsRuntime(c.Request().Context()).Enabled
 }
 
 // userAvailableGroup 用户可见的分组概要（白名单字段）。
 //
 // 前端据此区分专属 vs 公开分组（IsExclusive）、订阅 vs 标准分组（SubscriptionType，
-// 订阅视觉加深），并展示默认倍率与高峰倍率规则；用户专属倍率前端走
+// 订阅视觉加深），并用 RateMultiplier 作为默认倍率；用户专属倍率前端走
 // /groups/rates，和 API 密钥页面保持一致。
 type userAvailableGroup struct {
-	ID                 int64   `json:"id"`
-	Name               string  `json:"name"`
-	Platform           string  `json:"platform"`
-	SubscriptionType   string  `json:"subscription_type"`
-	RateMultiplier     float64 `json:"rate_multiplier"`
-	PeakRateEnabled    bool    `json:"peak_rate_enabled"`
-	PeakStart          string  `json:"peak_start"`
-	PeakEnd            string  `json:"peak_end"`
-	PeakRateMultiplier float64 `json:"peak_rate_multiplier"`
-	IsExclusive        bool    `json:"is_exclusive"`
+	ID               int64   `json:"id"`
+	Name             string  `json:"name"`
+	Description      string  `json:"description,omitempty"`
+	Platform         string  `json:"platform"`
+	SubscriptionType string  `json:"subscription_type"`
+	RateMultiplier   float64 `json:"rate_multiplier"`
+	IsExclusive      bool    `json:"is_exclusive"`
 }
 
 // userSupportedModelPricing 用户可见的定价字段白名单。
@@ -72,7 +76,6 @@ type userSupportedModelPricing struct {
 	OutputPrice      *float64                 `json:"output_price"`
 	CacheWritePrice  *float64                 `json:"cache_write_price"`
 	CacheReadPrice   *float64                 `json:"cache_read_price"`
-	ImageInputPrice  *float64                 `json:"image_input_price"`
 	ImageOutputPrice *float64                 `json:"image_output_price"`
 	PerRequestPrice  *float64                 `json:"per_request_price"`
 	Intervals        []userPricingIntervalDTO `json:"intervals"`
@@ -92,9 +95,21 @@ type userPricingIntervalDTO struct {
 
 // userSupportedModel 用户可见的支持模型条目。
 type userSupportedModel struct {
-	Name     string                     `json:"name"`
-	Platform string                     `json:"platform"`
-	Pricing  *userSupportedModelPricing `json:"pricing"`
+	Name               string                     `json:"name"`
+	Platform           string                     `json:"platform"`
+	Pricing            *userSupportedModelPricing `json:"pricing"`
+	ContextLength      *int                       `json:"context_length,omitempty"`
+	MaxOutputTokens    *int                       `json:"max_output_tokens,omitempty"`
+	PricingStatus      string                     `json:"pricing_status,omitempty"`
+	UsageSupport       []string                   `json:"usage_support,omitempty"`
+	Capabilities       []string                   `json:"capabilities,omitempty"`
+	ProviderLabel      string                     `json:"provider_label,omitempty"`
+	Provider           string                     `json:"provider,omitempty"`
+	CapabilitySource   string                     `json:"capability_source,omitempty"`
+	ModelCatalogSource string                     `json:"model_catalog_source,omitempty"`
+	Fake               bool                       `json:"fake,omitempty"`
+	TestOnly           bool                       `json:"test_only,omitempty"`
+	StagingOnly        bool                       `json:"staging_only,omitempty"`
 }
 
 // userChannelPlatformSection 单渠道内某个平台的子视图：用户可见的分组 + 该平台
@@ -119,22 +134,26 @@ type userAvailableChannel struct {
 // List 列出当前用户可见的「可用渠道」。
 // GET /api/v1/channels/available
 func (h *AvailableChannelHandler) List(c *gin.Context) {
-	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	h.ListGateway(gatewayctx.FromGin(c))
+}
+
+func (h *AvailableChannelHandler) ListGateway(c gatewayctx.GatewayContext) {
+	subject, ok := middleware.GetAuthSubjectFromGatewayContext(c)
 	if !ok {
-		response.Unauthorized(c, "User not authenticated")
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
 		return
 	}
 
 	// Feature 未启用时返回空数组（不暴露渠道信息）。检查放在认证之后，
 	// 保持与未开关前的 401 行为一致：未登录先 401，登录后再按开关决定。
-	if !h.featureEnabled(c) {
-		response.Success(c, []userAvailableChannel{})
+	if !h.featureEnabledGateway(c) {
+		response.SuccessContext(gatewayJSONResponder{ctx: c}, []userAvailableChannel{})
 		return
 	}
 
-	userGroups, err := h.apiKeyService.GetAvailableGroups(c.Request.Context(), subject.UserID)
+	userGroups, err := h.apiKeyService.GetAvailableGroups(c.Request().Context(), subject.UserID)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 	allowedGroupIDs := make(map[int64]struct{}, len(userGroups))
@@ -142,9 +161,9 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 		allowedGroupIDs[userGroups[i].ID] = struct{}{}
 	}
 
-	channels, err := h.channelService.ListAvailable(c.Request.Context())
+	channels, err := h.channelService.ListAvailable(c.Request().Context())
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
@@ -157,7 +176,7 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 		if len(visibleGroups) == 0 {
 			continue
 		}
-		sections := buildPlatformSections(ch, visibleGroups)
+		sections := buildPlatformSections(ch, visibleGroups, h.settingService, subject.UserID)
 		if len(sections) == 0 {
 			continue
 		}
@@ -167,8 +186,68 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 			Platforms:   sections,
 		})
 	}
+	if fakeModel := h.settingService.GetWorkspaceImageFakeModelExposure(subject.UserID); fakeModel.Enabled {
+		out = appendWorkspaceImageFakeModelChannel(out, fakeModel)
+	}
 
-	response.Success(c, out)
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, out)
+}
+
+func appendWorkspaceImageFakeModelChannel(
+	channels []userAvailableChannel,
+	fakeModel service.WorkspaceImageFakeModelExposure,
+) []userAvailableChannel {
+	if !fakeModel.Enabled {
+		return channels
+	}
+	platform := fakeModel.Platform
+	if platform == "" {
+		platform = fakeModel.ProviderLabel
+	}
+	if platform == "" {
+		platform = service.WorkspaceImageProviderFakeLabel
+	}
+	return append(channels, userAvailableChannel{
+		Name:        "Workspace Image Fake",
+		Description: "Staging-only fake image generation model for workspace validation.",
+		Platforms: []userChannelPlatformSection{{
+			Platform: platform,
+			Groups: []userAvailableGroup{{
+				ID:               0,
+				Name:             "Workspace Image Fake",
+				Platform:         platform,
+				SubscriptionType: "test",
+				RateMultiplier:   1,
+				IsExclusive:      true,
+			}},
+			SupportedModels: []userSupportedModel{{
+				Name:               fakeModel.Model,
+				Platform:           platform,
+				Pricing:            nil,
+				Capabilities:       workspaceCapabilityStringsForUserDTO(fakeModel.Capabilities),
+				ProviderLabel:      fakeModel.ProviderLabel,
+				Provider:           fakeModel.ProviderLabel,
+				CapabilitySource:   fakeModel.CapabilitySource,
+				ModelCatalogSource: fakeModel.ModelCatalogSource,
+				Fake:               fakeModel.Fake,
+				TestOnly:           fakeModel.TestOnly,
+			}},
+		}},
+	})
+}
+
+func workspaceCapabilityStringsForUserDTO(capabilities []service.WorkspaceModelCapability) []string {
+	if len(capabilities) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(capabilities))
+	for _, capability := range capabilities {
+		if capability == "" {
+			continue
+		}
+		out = append(out, string(capability))
+	}
+	return out
 }
 
 // buildPlatformSections 把一个渠道按 visibleGroups 的平台集合拆成有序的 section 列表：
@@ -177,6 +256,8 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 func buildPlatformSections(
 	ch service.AvailableChannel,
 	visibleGroups []userAvailableGroup,
+	settingService *service.SettingService,
+	userID int64,
 ) []userChannelPlatformSection {
 	groupsByPlatform := make(map[string][]userAvailableGroup, 4)
 	for _, g := range visibleGroups {
@@ -201,7 +282,7 @@ func buildPlatformSections(
 		sections = append(sections, userChannelPlatformSection{
 			Platform:        platform,
 			Groups:          groupsByPlatform[platform],
-			SupportedModels: toUserSupportedModels(ch.SupportedModels, platformSet),
+			SupportedModels: toUserSupportedModels(ch.SupportedModels, platformSet, settingService, userID),
 		})
 	}
 	return sections
@@ -218,16 +299,13 @@ func filterUserVisibleGroups(
 			continue
 		}
 		visible = append(visible, userAvailableGroup{
-			ID:                 g.ID,
-			Name:               g.Name,
-			Platform:           g.Platform,
-			SubscriptionType:   g.SubscriptionType,
-			RateMultiplier:     g.RateMultiplier,
-			PeakRateEnabled:    g.PeakRateEnabled,
-			PeakStart:          g.PeakStart,
-			PeakEnd:            g.PeakEnd,
-			PeakRateMultiplier: g.PeakRateMultiplier,
-			IsExclusive:        g.IsExclusive,
+			ID:               g.ID,
+			Name:             g.Name,
+			Description:      g.Description,
+			Platform:         g.Platform,
+			SubscriptionType: g.SubscriptionType,
+			RateMultiplier:   g.RateMultiplier,
+			IsExclusive:      g.IsExclusive,
 		})
 	}
 	return visible
@@ -239,6 +317,8 @@ func filterUserVisibleGroups(
 func toUserSupportedModels(
 	src []service.SupportedModel,
 	allowedPlatforms map[string]struct{},
+	settingService *service.SettingService,
+	userID int64,
 ) []userSupportedModel {
 	out := make([]userSupportedModel, 0, len(src))
 	for i := range src {
@@ -248,13 +328,113 @@ func toUserSupportedModels(
 				continue
 			}
 		}
-		out = append(out, userSupportedModel{
-			Name:     m.Name,
+		model := userSupportedModel{
+			Name:          m.Name,
+			Platform:      m.Platform,
+			Pricing:       toUserPricing(m.Pricing),
+			PricingStatus: userModelPricingStatus(m.Pricing),
+			UsageSupport:  userModelUsageSupport(m.Pricing),
+		}
+		if m.Pricing != nil {
+			model.ContextLength = m.Pricing.ContextLength
+			model.MaxOutputTokens = m.Pricing.MaxOutputTokens
+		}
+		metadata := service.ResolveWorkspaceModelCapabilities(m.Name, service.WorkspaceModelCapabilityHints{
 			Platform: m.Platform,
-			Pricing:  toUserPricing(m.Pricing),
 		})
+		if !workspaceUserDTOCapabilitiesContain(metadata.Capabilities, service.WorkspaceModelCapabilityImageGeneration) {
+			if settingService == nil {
+				model.Capabilities = workspaceCapabilityStringsForUserDTO(metadata.Capabilities)
+				model.Provider = m.Platform
+				model.CapabilitySource = metadata.CapabilitySource
+				model.ModelCatalogSource = service.WorkspaceModelCatalogSourceRealChannel
+			} else if textMetadata := settingService.GetWorkspaceTextRealChannelModelExposure(userID, m); textMetadata.Model != "" {
+				model.Capabilities = workspaceCapabilityStringsForUserDTO(textMetadata.Capabilities)
+				model.ProviderLabel = textMetadata.ProviderLabel
+				model.Provider = textMetadata.Provider
+				model.CapabilitySource = textMetadata.CapabilitySource
+				model.ModelCatalogSource = textMetadata.ModelCatalogSource
+			}
+		}
+		if settingService != nil {
+			realMetadata := settingService.GetWorkspaceImageRealChannelModelExposure(userID, m)
+			if realMetadata.Model != "" {
+				model.Capabilities = workspaceCapabilityStringsForUserDTO(realMetadata.Capabilities)
+				model.ProviderLabel = realMetadata.ProviderLabel
+				model.Provider = realMetadata.Provider
+				model.CapabilitySource = realMetadata.CapabilitySource
+				model.ModelCatalogSource = realMetadata.ModelCatalogSource
+				model.StagingOnly = realMetadata.StagingOnly
+			} else if workspaceImageStudioCatalogModelAllowed(m, metadata) {
+				model.Capabilities = workspaceCapabilityStringsForUserDTO(metadata.Capabilities)
+				model.Provider = service.WorkspaceImageRealModelProvider
+				model.CapabilitySource = metadata.CapabilitySource
+				model.ModelCatalogSource = service.WorkspaceModelCatalogSourceRealChannel
+			}
+		}
+		out = append(out, model)
 	}
 	return out
+}
+
+func workspaceImageStudioCatalogModelAllowed(model service.SupportedModel, metadata service.WorkspaceModelCapabilityMetadata) bool {
+	if model.Pricing == nil {
+		return false
+	}
+	if !strings.EqualFold(strings.TrimSpace(model.Platform), service.PlatformOpenAI) {
+		return false
+	}
+	if !workspaceUserDTOCapabilitiesContain(metadata.Capabilities, service.WorkspaceModelCapabilityImageGeneration) {
+		return false
+	}
+	return workspaceImageStudioPricingConfigured(model.Pricing)
+}
+
+func workspaceImageStudioPricingConfigured(pricing *service.ChannelModelPricing) bool {
+	if pricing == nil {
+		return false
+	}
+	if pricing.BillingMode == service.BillingModeImage {
+		return true
+	}
+	if pricing.ImageOutputPrice != nil || pricing.PerRequestPrice != nil {
+		return true
+	}
+	return len(pricing.Intervals) > 0
+}
+
+func workspaceUserDTOCapabilitiesContain(capabilities []service.WorkspaceModelCapability, target service.WorkspaceModelCapability) bool {
+	for _, capability := range capabilities {
+		if capability == target {
+			return true
+		}
+	}
+	return false
+}
+
+func userModelPricingStatus(p *service.ChannelModelPricing) string {
+	if p == nil {
+		return service.WorkspaceSelectedModelPricingMissing
+	}
+	return service.WorkspaceSelectedModelPricingConfigured
+}
+
+func userModelUsageSupport(p *service.ChannelModelPricing) []string {
+	if p == nil {
+		return nil
+	}
+	switch p.BillingMode {
+	case service.BillingModeImage:
+		out := []string{"image_count"}
+		if len(p.Intervals) > 0 {
+			out = append(out, "image_size")
+		}
+		return out
+	case service.BillingModePerRequest:
+		return []string{"request"}
+	default:
+		return []string{"token"}
+	}
 }
 
 // toUserPricing 将 service 层定价转换为用户 DTO；入参为 nil 时返回 nil。
@@ -285,7 +465,6 @@ func toUserPricing(p *service.ChannelModelPricing) *userSupportedModelPricing {
 		OutputPrice:      p.OutputPrice,
 		CacheWritePrice:  p.CacheWritePrice,
 		CacheReadPrice:   p.CacheReadPrice,
-		ImageInputPrice:  p.ImageInputPrice,
 		ImageOutputPrice: p.ImageOutputPrice,
 		PerRequestPrice:  p.PerRequestPrice,
 		Intervals:        intervals,

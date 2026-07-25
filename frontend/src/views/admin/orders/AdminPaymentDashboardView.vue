@@ -1,8 +1,7 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
-      <!-- Header with Day Switcher -->
-      <div class="flex items-center justify-end">
+    <AdminPageHeader title="订单概览" description="收款统计与近期订单数据">
+      <template #actions>
         <div class="flex items-center gap-2">
           <div class="flex rounded-lg border border-gray-200 dark:border-dark-600">
             <button
@@ -22,8 +21,10 @@
             <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
           </button>
         </div>
-      </div>
+      </template>
+    </AdminPageHeader>
 
+    <div class="space-y-6 admin-b4-outline-scope">
       <!-- Dashboard Content -->
       <div v-if="loading" class="flex items-center justify-center py-12">
         <LoadingSpinner />
@@ -67,6 +68,23 @@
   </AppLayout>
 </template>
 
+<style scoped>
+.admin-b4-outline-scope :deep(.card),
+.admin-b4-outline-scope :deep(.table-scroll-container),
+.admin-b4-outline-scope :deep(.table-wrapper),
+.admin-b4-outline-scope :deep(.table-wrapper table),
+.admin-b4-outline-scope :deep(.table-wrapper tbody) {
+  background: transparent !important;
+  border-color: var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b4-outline-scope :deep(thead),
+.admin-b4-outline-scope :deep(.table-header) {
+  background: var(--ssxz-surface-raised) !important;
+}
+</style>
+
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -75,6 +93,7 @@ import { adminPaymentAPI } from '@/api/admin/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import type { DashboardStats } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'
 import OrderStatsCards from '@/components/admin/payment/OrderStatsCards.vue'

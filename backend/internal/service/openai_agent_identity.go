@@ -392,6 +392,17 @@ func (s *OpenAIGatewayService) buildOpenAIAuthenticationHeaders(ctx context.Cont
 	return headers, nil
 }
 
+// getOpenAIRequestAccessToken keeps the established token flow for OAuth and
+// API-key accounts while allowing Agent Identity requests to authenticate with
+// a freshly signed assertion in buildOpenAIAuthenticationHeaders.
+func (s *OpenAIGatewayService) getOpenAIRequestAccessToken(ctx context.Context, account *Account) (string, error) {
+	if s.isAgentIdentityAccount(ctx, account) {
+		return "", nil
+	}
+	token, _, err := s.GetAccessToken(ctx, account)
+	return token, err
+}
+
 func buildAgentIdentityAuthenticationHeaders(ctx context.Context, repo AccountRepository, wsInvalidator agentIdentityWSConnectionInvalidator, taskMu *sync.Mutex, account *Account) (http.Header, error) {
 	if account == nil || !account.IsOpenAIAgentIdentity() {
 		return nil, errors.New("agent identity account is required")

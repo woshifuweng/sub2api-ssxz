@@ -68,7 +68,6 @@ func TestCollectConcurrencyQueueDepthUsesProjectionAndPreservesFallbackResult(t 
 	projectionRepo := &opsMetricsProjectionRepo{accounts: accounts, accountLoads: accountLoads}
 	projectionCache := &opsMetricsLoadCache{loads: loads}
 	projectionConcurrency := NewConcurrencyService(projectionCache)
-	projectionConcurrency.SetAccountLoadBatchCacheTTL(0)
 	projectionCollector := &OpsMetricsCollector{
 		accountRepo:        projectionRepo,
 		concurrencyService: projectionConcurrency,
@@ -77,7 +76,6 @@ func TestCollectConcurrencyQueueDepthUsesProjectionAndPreservesFallbackResult(t 
 	fallbackRepo := &opsMetricsFallbackRepo{accounts: accounts}
 	fallbackCache := &opsMetricsLoadCache{loads: loads}
 	fallbackConcurrency := NewConcurrencyService(fallbackCache)
-	fallbackConcurrency.SetAccountLoadBatchCacheTTL(0)
 	fallbackCollector := &OpsMetricsCollector{
 		accountRepo:        fallbackRepo,
 		concurrencyService: fallbackConcurrency,
@@ -115,7 +113,6 @@ func BenchmarkOpsMetricsCollectorCollectConcurrencyQueueDepth(b *testing.B) {
 	repo := &opsMetricsProjectionRepo{accounts: accounts, accountLoads: accountLoads}
 	cache := &opsMetricsLoadCache{loads: map[int64]*AccountLoadInfo{}}
 	concurrency := NewConcurrencyService(cache)
-	concurrency.SetAccountLoadBatchCacheTTL(0)
 	collector := &OpsMetricsCollector{accountRepo: repo, concurrencyService: concurrency}
 
 	b.ReportAllocs()

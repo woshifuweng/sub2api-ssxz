@@ -6,20 +6,13 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
 import type { ApiResponse } from '@/types'
 import { getLocale } from '@/i18n'
-import {
-  ADMIN_UI_REQUEST_HEADER,
-  USER_UI_REQUEST_HEADER,
-  shouldMarkAdminUIRequest,
-  shouldMarkUserUIRequest,
-} from './adminUIRequest'
-import { getAPIBaseURL } from './url'
-export { buildApiUrl, buildGatewayUrl } from './url'
 
 // ==================== Axios Instance Configuration ====================
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+
 export const apiClient: AxiosInstance = axios.create({
-  baseURL: getAPIBaseURL(),
-  withCredentials: true,
+  baseURL: API_BASE_URL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json'
@@ -61,6 +54,16 @@ const getUserTimezone = (): string => {
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData && config.headers) {
+      const headers = config.headers as Record<string, unknown> & { delete?: (name: string) => void }
+      if (typeof headers.delete === 'function') {
+        headers.delete('Content-Type')
+        headers.delete('content-type')
+      }
+      delete headers['Content-Type']
+      delete headers['content-type']
+    }
+
     // Attach token from localStorage
     const token = localStorage.getItem('auth_token')
     if (token && config.headers) {
@@ -78,16 +81,6 @@ apiClient.interceptors.request.use(
         config.params = {}
       }
       config.params.timezone = getUserTimezone()
-    }
-
-    if (config.headers) {
-      const requestURL = String(config.url || '')
-      if (shouldMarkAdminUIRequest(requestURL)) {
-        config.headers[ADMIN_UI_REQUEST_HEADER] = '1'
-      }
-      if (shouldMarkUserUIRequest(requestURL)) {
-        config.headers[USER_UI_REQUEST_HEADER] = '1'
-      }
     }
 
     return config
@@ -109,13 +102,10 @@ apiClient.interceptors.response.use(
         response.data = apiResponse.data
       } else {
         // API error
-        const resp = apiResponse as unknown as Record<string, unknown>
         return Promise.reject({
           status: response.status,
           code: apiResponse.code,
-          message: apiResponse.message || 'Unknown error',
-          reason: resp.reason,
-          metadata: resp.metadata,
+          message: apiResponse.message || 'Unknown error'
         })
       }
     }
@@ -164,23 +154,6 @@ apiClient.interceptors.response.use(
         })
       }
 
-      if (status === 423 && apiData.code === 'ADMIN_COMPLIANCE_ACK_REQUIRED') {
-        try {
-          window.dispatchEvent(new CustomEvent('admin-compliance-required', {
-            detail: apiData.metadata || {}
-          }))
-        } catch {
-          // ignore event failures
-        }
-
-        return Promise.reject({
-          status,
-          code: apiData.code,
-          message: apiData.message || error.message,
-          metadata: apiData.metadata,
-        })
-      }
-
       // 401: Try to refresh the token if we have a refresh token
       // This handles TOKEN_EXPIRED, INVALID_TOKEN, TOKEN_REVOKED, etc.
       if (status === 401 && !originalRequest._retry) {
@@ -219,11 +192,9 @@ apiClient.interceptors.response.use(
           try {
             // Call refresh endpoint directly to avoid circular dependency
             const refreshResponse = await axios.post(
-              `${getAPIBaseURL()}/auth/refresh`,
+              `${API_BASE_URL}/auth/refresh`,
               { refresh_token: refreshToken },
-              // 显式设置超时：裸 axios 默认无限等待，若刷新请求挂起会导致 isRefreshing
-              // 永远为 true，所有排队的 401 重试请求永久卡死，页面 loading 无法恢复。
-              { headers: { 'Content-Type': 'application/json' }, timeout: 30000 }
+              { headers: { 'Content-Type': 'application/json' } }
             )
 
             const refreshData = refreshResponse.data as ApiResponse<{
@@ -306,10 +277,8 @@ apiClient.interceptors.response.use(
       return Promise.reject({
         status,
         code: apiData.code,
-        reason: apiData.reason,
         error: apiData.error,
-        message: apiData.message || apiData.detail || error.message,
-        metadata: apiData.metadata,
+        message: apiData.message || apiData.detail || error.message
       })
     }
 

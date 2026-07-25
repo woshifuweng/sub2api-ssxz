@@ -115,13 +115,21 @@ func (s *openAIAccountModelTransientState) recordFailure(accountID int64, model 
 }
 
 func (s *openAIAccountModelTransientState) recordSuccess(accountID int64, model string) {
-	key, ok := openAIAccountModelTransientKey(accountID, model)
-	if s == nil || !ok {
+	if s == nil || accountID <= 0 {
 		return
 	}
+	model = normalizeOpenAIAccountModelTransientModel(model)
 	s.mu.Lock()
-	delete(s.entries, key)
-	s.mu.Unlock()
+	defer s.mu.Unlock()
+	if model == "" {
+		for key := range s.entries {
+			if key.AccountID == accountID {
+				delete(s.entries, key)
+			}
+		}
+		return
+	}
+	delete(s.entries, openAIAccountModelKey{AccountID: accountID, Model: model})
 }
 
 func (s *openAIAccountModelTransientState) isBlocked(accountID int64, model string, now time.Time) bool {

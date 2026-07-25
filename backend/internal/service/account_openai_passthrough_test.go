@@ -47,6 +47,45 @@ func TestAccount_IsOpenAIPassthroughEnabled(t *testing.T) {
 		}
 		require.False(t, account.IsOpenAIPassthroughEnabled())
 	})
+
+	t.Run("chatweb 模式自动开启 passthrough", func(t *testing.T) {
+		account := &Account{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeOAuth,
+			Extra: map[string]any{
+				"openai_auth_mode": OpenAIAuthModeChatWeb,
+			},
+		}
+		require.True(t, account.IsOpenAIChatWebMode())
+		require.True(t, account.IsOpenAIPassthroughEnabled())
+	})
+
+	t.Run("session_token 自动识别为 chatweb 模式", func(t *testing.T) {
+		account := &Account{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeOAuth,
+			Credentials: map[string]any{
+				"session_token": "st-live",
+			},
+		}
+		require.True(t, account.IsOpenAIChatWebMode())
+		require.True(t, account.IsOpenAIPassthroughEnabled())
+	})
+
+	t.Run("显式 oauth_codex 优先于 session_token 启发式", func(t *testing.T) {
+		account := &Account{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeOAuth,
+			Credentials: map[string]any{
+				"session_token": "st-live",
+			},
+			Extra: map[string]any{
+				"openai_auth_mode": OpenAIAuthModeOAuthCodex,
+			},
+		}
+		require.False(t, account.IsOpenAIChatWebMode())
+		require.False(t, account.IsOpenAIPassthroughEnabled())
+	})
 }
 
 func TestAccount_IsOpenAIOAuthPassthroughEnabled(t *testing.T) {
@@ -132,6 +171,18 @@ func TestAccount_IsCodexCLIOnlyEnabled(t *testing.T) {
 			},
 		}
 		require.False(t, otherPlatform.IsCodexCLIOnlyEnabled())
+	})
+
+	t.Run("chatweb 模式忽略 codex_cli_only", func(t *testing.T) {
+		account := &Account{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeOAuth,
+			Extra: map[string]any{
+				"openai_auth_mode": OpenAIAuthModeChatWeb,
+				"codex_cli_only":   true,
+			},
+		}
+		require.False(t, account.IsCodexCLIOnlyEnabled())
 	})
 }
 

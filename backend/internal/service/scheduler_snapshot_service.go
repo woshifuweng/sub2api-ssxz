@@ -124,6 +124,7 @@ type SchedulerSnapshotService struct {
 	accountRepo                  AccountRepository
 	groupRepo                    GroupRepository
 	cfg                          *config.Config
+	admissionTester              SchedulerAdmissionTester
 	stopCh                       chan struct{}
 	stopOnce                     sync.Once
 	wg                           sync.WaitGroup
@@ -218,22 +219,23 @@ func (s *SchedulerSnapshotService) ListSchedulableAccounts(ctx context.Context, 
 		cached, hit, err := s.cache.GetSnapshot(ctx, bucket)
 		if err != nil {
 			logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] cache read failed: bucket=%s err=%v", bucket.String(), err)
-		} else if hit {
-			return derefAccounts(cached), useMixed, nil
-		}
-		token, err := s.cache.CaptureBucketWriteToken(ctx, bucket)
-		if err != nil {
-			if errors.Is(err, ErrSchedulerBucketRetired) || errors.Is(err, ErrSchedulerBucketWriteFenced) {
-				slog.Debug("[Scheduler] cache publish fenced", "bucket", bucket.String())
-			} else {
-				logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] cache publish token failed: bucket=%s err=%v", bucket.String(), err)
-			}
 		} else {
-			writeToken = token
-			canPublish = true
+			if hit {
+				return derefAccounts(cached), useMixed, nil
+			}
+			token, err := s.cache.CaptureBucketWriteToken(ctx, bucket)
+			if err != nil {
+				if errors.Is(err, ErrSchedulerBucketRetired) || errors.Is(err, ErrSchedulerBucketWriteFenced) {
+					slog.Debug("[Scheduler] cache publish fenced", "bucket", bucket.String())
+				} else {
+					logger.LegacyPrintf("service.scheduler_snapshot", "[Scheduler] cache publish token failed: bucket=%s err=%v", bucket.String(), err)
+				}
+			} else {
+				writeToken = token
+				canPublish = true
+			}
 		}
 	}
-
 	if err := s.guardFallback(ctx); err != nil {
 		return nil, useMixed, err
 	}
@@ -270,6 +272,9 @@ func (s *SchedulerSnapshotService) GetAccount(ctx context.Context, accountID int
 		} else if account != nil {
 			return account, nil
 		}
+	}
+	if s.accountRepo == nil {
+		return nil, nil
 	}
 
 	if err := s.guardFallback(ctx); err != nil {

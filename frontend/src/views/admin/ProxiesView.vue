@@ -1,6 +1,8 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <AdminPageHeader title="代理 IP" description="代理服务器地址配置" />
+
+    <TablePageLayout class="admin-b3-outline-scope">
       <template #filters>
         <div class="flex flex-wrap items-center gap-3">
           <!-- Left: Search + Filters -->
@@ -65,6 +67,23 @@
               {{ t('admin.proxies.batchQualityCheck') }}
             </button>
             <button
+              @click="handleAutoMaintenanceRun"
+              :disabled="maintenanceRunning || loading"
+              class="btn btn-secondary"
+              :title="t('admin.proxies.autoMaintenance.runNow')"
+            >
+              <Icon name="play" size="md" class="mr-2" />
+              {{ maintenanceRunning ? t('common.loading') : t('admin.proxies.autoMaintenance.runNow') }}
+            </button>
+            <button
+              @click="openMaintenanceDialog"
+              class="btn btn-secondary"
+              :title="t('admin.proxies.autoMaintenance.managePlans')"
+            >
+              <Icon name="clock" size="md" class="mr-2" />
+              {{ t('admin.proxies.autoMaintenance.managePlans') }}
+            </button>
+            <button
               @click="openBatchDelete"
               :disabled="selectedCount === 0"
               class="btn btn-danger"
@@ -89,15 +108,7 @@
 
       <template #table>
         <div ref="proxyTableRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <DataTable
-          :columns="columns"
-          :data="proxies"
-          :loading="loading"
-          :server-side-sort="true"
-          default-sort-key="id"
-          default-sort-order="desc"
-          @sort="handleSort"
-        >
+        <DataTable :columns="columns" :data="proxies" :loading="loading">
           <template #header-select>
             <input
               type="checkbox"
@@ -125,7 +136,7 @@
           <template #cell-protocol="{ value }">
             <span
               v-if="value"
-              :class="['badge', value.startsWith('socks5') ? 'badge-primary' : 'badge-gray']"
+              :class="['badge', value.startsWith('socks') ? 'badge-primary' : 'badge-gray']"
             >
               {{ value.toUpperCase() }}
             </span>
@@ -244,25 +255,8 @@
             </div>
           </template>
 
-          <template #cell-expiry="{ row }">
-            <span v-if="!row.expires_at" class="text-sm text-gray-400">{{ t('admin.proxies.neverExpires') }}</span>
-            <div v-else class="flex flex-col text-xs">
-              <span class="text-gray-700 dark:text-gray-200">{{ formatDateTime(row.expires_at) }}</span>
-              <span :class="expiryBadgeClass(row)">{{ expiryLabel(row) }}</span>
-            </div>
-          </template>
-
-          <template #cell-created_at="{ row }">
-            <span class="text-xs text-gray-600 dark:text-gray-300">{{ formatDateTime(row.created_at) }}</span>
-          </template>
-
           <template #cell-status="{ value }">
-            <span
-              :class="[
-                'badge',
-                value === 'active' ? 'badge-success' : value === 'expired' ? 'badge-danger' : 'badge-danger'
-              ]"
-            >
+            <span :class="['badge', value === 'active' ? 'badge-success' : 'badge-danger']">
               {{ t('admin.accounts.status.' + value) }}
             </span>
           </template>
@@ -374,50 +368,45 @@
       @close="closeCreateModal"
     >
       <!-- Tab Switch -->
-      <div
-        class="mb-6 flex items-center justify-between gap-3 border-b border-gray-200 dark:border-dark-600"
-      >
-        <div class="flex min-w-0 shrink-0">
-          <button
-            type="button"
-            @click="createMode = 'standard'"
-            :class="[
-              '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
-              createMode === 'standard'
-                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-            ]"
+      <div class="mb-6 flex border-b border-gray-200 dark:border-dark-600">
+        <button
+          type="button"
+          @click="createMode = 'standard'"
+          :class="[
+            '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+            createMode === 'standard'
+              ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+          ]"
+        >
+          <Icon name="plus" size="sm" class="mr-1.5 inline" />
+          {{ t('admin.proxies.standardAdd') }}
+        </button>
+        <button
+          type="button"
+          @click="createMode = 'batch'"
+          :class="[
+            '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
+            createMode === 'batch'
+              ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+          ]"
+        >
+          <svg
+            class="mr-1.5 inline h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="1.5"
           >
-            <Icon name="plus" size="sm" class="mr-1.5 inline" />
-            {{ t('admin.proxies.standardAdd') }}
-          </button>
-          <button
-            type="button"
-            @click="createMode = 'batch'"
-            :class="[
-              '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
-              createMode === 'batch'
-                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-            ]"
-          >
-            <svg
-              class="mr-1.5 inline h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.5"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z"
-              />
-            </svg>
-            {{ t('admin.proxies.batchAdd') }}
-          </button>
-        </div>
-        <ProxyAdBanner />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z"
+            />
+          </svg>
+          {{ t('admin.proxies.batchAdd') }}
+        </button>
       </div>
 
       <!-- Standard Add Form -->
@@ -491,41 +480,6 @@
               <Icon :name="createPasswordVisible ? 'eyeOff' : 'eye'" size="md" />
             </button>
           </div>
-        </div>
-        <div>
-          <label class="input-label">{{ t('admin.proxies.expiresAt') }}</label>
-          <div class="mb-2 flex flex-wrap gap-2">
-            <button
-              v-for="d in EXPIRY_PRESETS"
-              :key="d"
-              type="button"
-              class="btn btn-sm"
-              :class="createForm.expires_at === addDaysToBase('', d) ? 'btn-primary' : 'btn-secondary'"
-              @click="createExpiresDays = d"
-            >
-              {{ t('admin.proxies.nDays', { days: d }) }}
-            </button>
-          </div>
-          <input
-            v-model.number="createExpiresDays"
-            type="number"
-            min="0"
-            class="input mb-2"
-            :placeholder="t('admin.proxies.expiryDaysPlaceholder')"
-          />
-          <input v-model="createForm.expires_at" type="date" class="input" />
-        </div>
-        <div>
-          <label class="input-label">{{ t('admin.proxies.fallbackMode') }}</label>
-          <Select v-model="createForm.fallback_mode" :options="[
-            { label: t('admin.proxies.fallbackNone'), value: 'none' },
-            { label: t('admin.proxies.fallbackProxy'), value: 'proxy' },
-            { label: t('admin.proxies.fallbackDirect'), value: 'direct' },
-          ]" />
-        </div>
-        <div v-if="createForm.fallback_mode === 'proxy'">
-          <label class="input-label">{{ t('admin.proxies.backupProxy') }}</label>
-          <Select v-model="createForm.backup_proxy_id" :options="backupProxyOptions()" />
         </div>
 
       </form>
@@ -725,41 +679,6 @@
           <label class="input-label">{{ t('admin.proxies.status') }}</label>
           <Select v-model="editForm.status" :options="editStatusOptions" />
         </div>
-        <div>
-          <label class="input-label">{{ t('admin.proxies.expiresAt') }}</label>
-          <div class="mb-2 flex flex-wrap gap-2">
-            <button
-              v-for="d in EXPIRY_PRESETS"
-              :key="d"
-              type="button"
-              class="btn btn-sm"
-              :class="editForm.expires_at === addDaysToBase(editBaseDate, d) ? 'btn-primary' : 'btn-secondary'"
-              @click="editExpiresDays = d"
-            >
-              {{ t('admin.proxies.nDays', { days: d }) }}
-            </button>
-          </div>
-          <input
-            v-model.number="editExpiresDays"
-            type="number"
-            min="0"
-            class="input mb-2"
-            :placeholder="t('admin.proxies.expiryDaysPlaceholder')"
-          />
-          <input v-model="editForm.expires_at" type="date" class="input" />
-        </div>
-        <div>
-          <label class="input-label">{{ t('admin.proxies.fallbackMode') }}</label>
-          <Select v-model="editForm.fallback_mode" :options="[
-            { label: t('admin.proxies.fallbackNone'), value: 'none' },
-            { label: t('admin.proxies.fallbackProxy'), value: 'proxy' },
-            { label: t('admin.proxies.fallbackDirect'), value: 'direct' },
-          ]" />
-        </div>
-        <div v-if="editForm.fallback_mode === 'proxy'">
-          <label class="input-label">{{ t('admin.proxies.backupProxy') }}</label>
-          <Select v-model="editForm.backup_proxy_id" :options="backupProxyOptions(editingProxy?.id)" />
-        </div>
 
       </form>
 
@@ -841,6 +760,117 @@
     />
 
     <BaseDialog
+      :show="showMaintenanceDialog"
+      :title="t('admin.proxies.autoMaintenance.title')"
+      width="wide"
+      @close="closeMaintenanceDialog"
+    >
+      <div class="space-y-5">
+        <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-600 dark:bg-dark-700">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <div class="text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.proxies.autoMaintenance.runScopeTitle') }}</div>
+              <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.proxies.autoMaintenance.runScopeHint', { count: selectedCount }) }}</div>
+            </div>
+            <button class="btn btn-primary btn-sm" :disabled="maintenanceRunning" @click="handleAutoMaintenanceRun">
+              {{ maintenanceRunning ? t('common.loading') : t('admin.proxies.autoMaintenance.runNow') }}
+            </button>
+          </div>
+          <div v-if="lastMaintenanceResult" class="text-xs text-gray-600 dark:text-gray-300">
+            {{ lastMaintenanceResult.summary }}
+          </div>
+        </div>
+
+        <div class="grid gap-5 lg:grid-cols-[1.2fr,1fr]">
+          <div class="space-y-4">
+            <div class="rounded-lg border border-gray-200 p-4 dark:border-dark-600">
+              <div class="mb-3 text-sm font-medium text-gray-900 dark:text-white">{{ editingMaintenanceId ? t('admin.proxies.autoMaintenance.editPlan') : t('admin.proxies.autoMaintenance.createPlan') }}</div>
+              <div class="grid gap-3">
+                <input v-model.trim="maintenanceForm.name" class="input w-full" :placeholder="t('admin.proxies.autoMaintenance.planName')" />
+                <input v-model.trim="maintenanceForm.cron_expression" class="input w-full" :placeholder="t('admin.proxies.autoMaintenance.cronPlaceholder')" />
+                <textarea v-model="maintenanceForm.source_proxy_ids" class="input min-h-[88px] w-full" :placeholder="t('admin.proxies.autoMaintenance.sourceProxyIdsPlaceholder')"></textarea>
+                <div class="grid grid-cols-2 gap-3">
+                  <input v-model.number="maintenanceForm.max_results" type="number" min="1" class="input w-full" :placeholder="t('admin.proxies.autoMaintenance.maxResults')" />
+                  <input v-model.number="maintenanceForm.max_failures_before_pause" type="number" min="1" class="input w-full" :placeholder="t('admin.proxies.autoMaintenance.maxFailures')" />
+                </div>
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  <input v-model="maintenanceForm.enabled" type="checkbox" />
+                  <span>{{ t('admin.proxies.autoMaintenance.enabled') }}</span>
+                </label>
+              </div>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <button class="btn btn-primary btn-sm" :disabled="maintenanceSaving" @click="saveMaintenancePlan">
+                  {{ maintenanceSaving ? t('common.loading') : (editingMaintenanceId ? t('common.save') : t('common.create')) }}
+                </button>
+                <button v-if="editingMaintenanceId" class="btn btn-secondary btn-sm" @click="resetMaintenanceForm">
+                  {{ t('common.cancel') }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-lg border border-gray-200 p-4 dark:border-dark-600">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <div class="text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.proxies.autoMaintenance.plans') }}</div>
+              <button class="btn btn-secondary btn-sm" :disabled="maintenanceLoadingPlans" @click="loadMaintenancePlans">
+                {{ maintenanceLoadingPlans ? t('common.loading') : t('common.refresh') }}
+              </button>
+            </div>
+            <div v-if="maintenancePlans.length === 0" class="text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.proxies.autoMaintenance.noPlans') }}
+            </div>
+            <div v-else class="space-y-3">
+              <div v-for="plan in maintenancePlans" :key="plan.id" class="rounded-lg border border-gray-200 p-3 text-sm dark:border-dark-600">
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <div class="font-medium text-gray-900 dark:text-white">{{ plan.name || t('admin.proxies.autoMaintenance.defaultPlanName') }}</div>
+                    <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ plan.cron_expression }}</div>
+                    <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t('admin.proxies.autoMaintenance.nextRun') }}: {{ plan.next_run_at || '-' }}
+                    </div>
+                  </div>
+                  <span class="badge" :class="plan.enabled ? 'badge-success' : 'badge-gray'">
+                    {{ plan.enabled ? t('common.enabled') : t('common.disabled') }}
+                  </span>
+                </div>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <button class="btn btn-secondary btn-xs" @click="editMaintenancePlan(plan)">{{ t('common.edit') }}</button>
+                  <button class="btn btn-secondary btn-xs" @click="toggleMaintenancePlan(plan, !plan.enabled)">
+                    {{ plan.enabled ? t('common.disable') : t('common.enable') }}
+                  </button>
+                  <button class="btn btn-danger btn-xs" @click="deleteMaintenancePlan(plan.id)">{{ t('common.delete') }}</button>
+                  <button class="btn btn-secondary btn-xs" @click="loadMaintenanceResults(plan.id)">{{ t('admin.proxies.autoMaintenance.results') }}</button>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="maintenanceResults.length > 0" class="mt-5 border-t border-gray-200 pt-4 dark:border-dark-700">
+              <div class="mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.proxies.autoMaintenance.results') }}</div>
+              <div class="space-y-2">
+                <div v-for="result in maintenanceResults" :key="result.id" class="rounded-lg border border-gray-200 p-3 text-xs dark:border-dark-600">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="font-medium text-gray-900 dark:text-white">{{ result.summary }}</span>
+                    <span class="badge" :class="result.status === 'success' ? 'badge-success' : result.status === 'partial' ? 'badge-warning' : 'badge-danger'">
+                      {{ result.status }}
+                    </span>
+                  </div>
+                  <div class="mt-1 text-gray-500 dark:text-gray-400">
+                    {{ t('admin.proxies.autoMaintenance.resultStats', { checked: result.checked_proxies, healthy: result.healthy_proxies, failed: result.failed_proxies, moved: result.moved_accounts }) }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <div class="flex justify-end">
+          <button class="btn btn-secondary" @click="closeMaintenanceDialog">{{ t('common.close') }}</button>
+        </div>
+      </template>
+    </BaseDialog>
+
+    <BaseDialog
       :show="showQualityReportDialog"
       :title="t('admin.proxies.qualityReportTitle')"
       width="normal"
@@ -881,21 +911,21 @@
           <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-dark-700">
             <thead class="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-dark-800 dark:text-dark-400">
               <tr>
-                <th class="whitespace-nowrap px-3 py-2 text-left">{{ t('admin.proxies.qualityTableTarget') }}</th>
-                <th class="whitespace-nowrap px-3 py-2 text-left">{{ t('admin.proxies.qualityTableStatus') }}</th>
-                <th class="whitespace-nowrap px-3 py-2 text-left">HTTP</th>
-                <th class="whitespace-nowrap px-3 py-2 text-left">{{ t('admin.proxies.qualityTableLatency') }}</th>
+                <th class="px-3 py-2 text-left">{{ t('admin.proxies.qualityTableTarget') }}</th>
+                <th class="px-3 py-2 text-left">{{ t('admin.proxies.qualityTableStatus') }}</th>
+                <th class="px-3 py-2 text-left">HTTP</th>
+                <th class="px-3 py-2 text-left">{{ t('admin.proxies.qualityTableLatency') }}</th>
                 <th class="px-3 py-2 text-left">{{ t('admin.proxies.qualityTableMessage') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-900">
               <tr v-for="item in qualityReport.items" :key="item.target">
-                <td class="whitespace-nowrap px-3 py-2 text-gray-900 dark:text-white">{{ qualityTargetLabel(item.target) }}</td>
-                <td class="whitespace-nowrap px-3 py-2">
-                  <span class="badge whitespace-nowrap" :class="qualityStatusClass(item.status)">{{ qualityStatusLabel(item.status) }}</span>
+                <td class="px-3 py-2 text-gray-900 dark:text-white">{{ qualityTargetLabel(item.target) }}</td>
+                <td class="px-3 py-2">
+                  <span class="badge" :class="qualityStatusClass(item.status)">{{ qualityStatusLabel(item.status) }}</span>
                 </td>
-                <td class="whitespace-nowrap px-3 py-2 text-gray-600 dark:text-gray-300">{{ item.http_status ?? '-' }}</td>
-                <td class="whitespace-nowrap px-3 py-2 text-gray-600 dark:text-gray-300">
+                <td class="px-3 py-2 text-gray-600 dark:text-gray-300">{{ item.http_status ?? '-' }}</td>
+                <td class="px-3 py-2 text-gray-600 dark:text-gray-300">
                   {{ typeof item.latency_ms === 'number' ? `${item.latency_ms}ms` : '-' }}
                 </td>
                 <td class="px-3 py-2 text-gray-600 dark:text-gray-300">
@@ -963,6 +993,22 @@
   </AppLayout>
 </template>
 
+<style scoped>
+.admin-b3-outline-scope :deep(.table-scroll-container),
+.admin-b3-outline-scope :deep(.table-wrapper),
+.admin-b3-outline-scope :deep(.table-wrapper table),
+.admin-b3-outline-scope :deep(.table-wrapper tbody) {
+  background: transparent !important;
+  border-color: var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b3-outline-scope :deep(thead),
+.admin-b3-outline-scope :deep(.table-header) {
+  background: var(--ssxz-surface-raised) !important;
+}
+</style>
+
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -971,6 +1017,7 @@ import { adminAPI } from '@/api/admin'
 import type { Proxy, ProxyAccountSummary, ProxyProtocol, ProxyQualityCheckResult } from '@/types'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -978,16 +1025,14 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ImportDataModal from '@/components/admin/proxy/ImportDataModal.vue'
+import type { ProxyMaintenancePlan, ProxyMaintenanceResult } from '@/types'
 import Select from '@/components/common/Select.vue'
-import ProxyAdBanner from '@/components/common/ProxyAdBanner.vue'
 import Icon from '@/components/icons/Icon.vue'
 import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { useSwipeSelect } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
-import { formatDateTime } from '@/utils/format'
-import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -1002,8 +1047,6 @@ const columns = computed<Column[]>(() => [
   { key: 'location', label: t('admin.proxies.columns.location'), sortable: false },
   { key: 'account_count', label: t('admin.proxies.columns.accounts'), sortable: true },
   { key: 'latency', label: t('admin.proxies.columns.latency'), sortable: false },
-  { key: 'expiry', label: t('admin.proxies.columns.expiry'), sortable: true },
-  { key: 'created_at', label: t('admin.proxies.columns.createdAt'), sortable: true },
   { key: 'status', label: t('admin.proxies.columns.status'), sortable: true },
   { key: 'actions', label: t('admin.proxies.columns.actions'), sortable: false }
 ])
@@ -1013,6 +1056,7 @@ const protocolOptions = computed(() => [
   { value: '', label: t('admin.proxies.allProtocols') },
   { value: 'http', label: 'HTTP' },
   { value: 'https', label: 'HTTPS' },
+  { value: 'socks4', label: 'SOCKS4' },
   { value: 'socks5', label: 'SOCKS5' },
   { value: 'socks5h', label: 'SOCKS5H' }
 ])
@@ -1020,14 +1064,14 @@ const protocolOptions = computed(() => [
 const statusOptions = computed(() => [
   { value: '', label: t('admin.proxies.allStatus') },
   { value: 'active', label: t('admin.accounts.status.active') },
-  { value: 'inactive', label: t('admin.accounts.status.inactive') },
-  { value: 'expired', label: t('admin.proxies.expired') }
+  { value: 'inactive', label: t('admin.accounts.status.inactive') }
 ])
 
 // Form options
 const protocolSelectOptions = computed(() => [
   { value: 'http', label: t('admin.proxies.protocols.http') },
   { value: 'https', label: t('admin.proxies.protocols.https') },
+  { value: 'socks4', label: t('admin.proxies.protocols.socks4') },
   { value: 'socks5', label: t('admin.proxies.protocols.socks5') },
   { value: 'socks5h', label: t('admin.proxies.protocols.socks5h') }
 ])
@@ -1052,10 +1096,6 @@ const pagination = reactive({
   total: 0,
   pages: 0
 })
-const sortState = reactive({
-  sort_by: 'id',
-  sort_order: 'desc' as 'asc' | 'desc'
-})
 
 const showCreateModal = ref(false)
 const createPasswordVisible = ref(false)
@@ -1063,6 +1103,7 @@ const showEditModal = ref(false)
 const editPasswordVisible = ref(false)
 const editPasswordDirty = ref(false)
 const showImportData = ref(false)
+const showMaintenanceDialog = ref(false)
 const showDeleteDialog = ref(false)
 const showBatchDeleteDialog = ref(false)
 const showExportDataDialog = ref(false)
@@ -1073,6 +1114,9 @@ const testingProxyIds = ref<Set<number>>(new Set())
 const qualityCheckingProxyIds = ref<Set<number>>(new Set())
 const batchTesting = ref(false)
 const batchQualityChecking = ref(false)
+const maintenanceRunning = ref(false)
+const maintenanceLoadingPlans = ref(false)
+const maintenanceSaving = ref(false)
 const proxyTableRef = ref<HTMLElement | null>(null)
 const {
   selectedSet: selectedProxyIds,
@@ -1083,8 +1127,7 @@ const {
   deselect,
   clear: clearSelectedProxies,
   removeMany: removeSelectedProxies,
-  toggleVisible,
-  batchUpdate
+  toggleVisible
 } = useTableSelection<Proxy>({
   rows: proxies,
   getId: (proxy) => proxy.id
@@ -1092,8 +1135,7 @@ const {
 useSwipeSelect(proxyTableRef, {
   isSelected,
   select,
-  deselect,
-  batchUpdate
+  deselect
 })
 const accountsProxy = ref<Proxy | null>(null)
 const proxyAccounts = ref<ProxyAccountSummary[]>([])
@@ -1103,6 +1145,19 @@ const deletingProxy = ref<Proxy | null>(null)
 const showQualityReportDialog = ref(false)
 const qualityReportProxy = ref<Proxy | null>(null)
 const qualityReport = ref<ProxyQualityCheckResult | null>(null)
+const maintenancePlans = ref<ProxyMaintenancePlan[]>([])
+const maintenanceResults = ref<ProxyMaintenanceResult[]>([])
+const editingMaintenanceId = ref<number | null>(null)
+const lastMaintenanceResult = ref<ProxyMaintenanceResult | null>(null)
+let maintenanceTaskPollTimer: ReturnType<typeof setTimeout> | null = null
+const maintenanceForm = reactive({
+  name: '',
+  cron_expression: '*/30 * * * *',
+  enabled: true,
+  source_proxy_ids: '',
+  max_results: 50,
+  max_failures_before_pause: 3
+})
 
 // Batch import state
 const createMode = ref<'standard' | 'batch'>('standard')
@@ -1127,11 +1182,7 @@ const createForm = reactive({
   host: '',
   port: 8080,
   username: '',
-  password: '',
-  expires_at: '' as string,
-  fallback_mode: 'none' as 'none' | 'proxy' | 'direct',
-  backup_proxy_id: null as number | null,
-  expiry_warn_days: 7 as number,
+  password: ''
 })
 
 const editForm = reactive({
@@ -1141,21 +1192,8 @@ const editForm = reactive({
   port: 8080,
   username: '',
   password: '',
-  status: 'active' as 'active' | 'inactive' | 'expired',
-  expires_at: '' as string,
-  fallback_mode: 'none' as 'none' | 'proxy' | 'direct',
-  backup_proxy_id: null as number | null,
-  expiry_warn_days: 7 as number,
+  status: 'active' as 'active' | 'inactive'
 })
-
-const allProxiesForBackup = ref<Proxy[]>([])
-const loadBackupProxyOptions = async () => {
-  allProxiesForBackup.value = await adminAPI.proxies.getAllWithCount()
-}
-const backupProxyOptions = (excludeId?: number) =>
-  allProxiesForBackup.value
-    .filter(p => p.id !== excludeId)
-    .map(p => ({ label: `${p.name} (${p.host}:${p.port})`, value: p.id }))
 
 let abortController: AbortController | null = null
 
@@ -1179,14 +1217,6 @@ const toggleSelectAllVisible = (event: Event) => {
   toggleVisible(target.checked)
 }
 
-const buildProxyQueryFilters = () => ({
-  protocol: filters.protocol || undefined,
-  status: (filters.status || undefined) as 'active' | 'inactive' | 'expired' | undefined,
-  search: searchQuery.value || undefined,
-  sort_by: sortState.sort_by,
-  sort_order: sortState.sort_order
-})
-
 const loadProxies = async () => {
   if (abortController) {
     abortController.abort()
@@ -1195,12 +1225,11 @@ const loadProxies = async () => {
   abortController = currentAbortController
   loading.value = true
   try {
-    const response = await adminAPI.proxies.list(
-      pagination.page,
-      pagination.page_size,
-      buildProxyQueryFilters(),
-      { signal: currentAbortController.signal }
-    )
+    const response = await adminAPI.proxies.list(pagination.page, pagination.page_size, {
+      protocol: filters.protocol || undefined,
+      status: filters.status as any,
+      search: searchQuery.value || undefined
+    }, { signal: currentAbortController.signal })
     if (currentAbortController.signal.aborted || abortController !== currentAbortController) {
       return
     }
@@ -1241,13 +1270,6 @@ const handlePageSizeChange = (pageSize: number) => {
   loadProxies()
 }
 
-const handleSort = (key: string, order: 'asc' | 'desc') => {
-  sortState.sort_by = key
-  sortState.sort_order = order
-  pagination.page = 1
-  loadProxies()
-}
-
 const closeCreateModal = () => {
   showCreateModal.value = false
   createMode.value = 'standard'
@@ -1257,10 +1279,6 @@ const closeCreateModal = () => {
   createForm.port = 8080
   createForm.username = ''
   createForm.password = ''
-  createForm.expires_at = ''
-  createForm.fallback_mode = 'none'
-  createForm.backup_proxy_id = null
-  createForm.expiry_warn_days = 7
   createPasswordVisible.value = false
   batchInput.value = ''
   batchParseResult.total = 0
@@ -1288,8 +1306,8 @@ const parseProxyUrl = (
   const trimmed = line.trim()
   if (!trimmed) return null
 
-  // Regex to parse proxy URL (supports http, https, socks5, socks5h)
-  const regex = /^(https?|socks5h?):\/\/(?:([^:@]+):([^@]+)@)?([^:]+):(\d+)$/i
+  // Regex to parse proxy URL (supports http, https, socks4, socks5, socks5h)
+  const regex = /^(https?|socks4|socks5h?):\/\/(?:([^:@]+):([^@]+)@)?([^:]+):(\d+)$/i
   const match = trimmed.match(regex)
 
   if (!match) return null
@@ -1385,11 +1403,7 @@ const handleCreateProxy = async () => {
       host: createForm.host.trim(),
       port: createForm.port,
       username: createForm.username.trim() || null,
-      password: createForm.password.trim() || null,
-      expires_at: createForm.expires_at ? Math.floor(new Date(createForm.expires_at).getTime() / 1000) : null,
-      fallback_mode: createForm.fallback_mode,
-      backup_proxy_id: createForm.fallback_mode === 'proxy' ? createForm.backup_proxy_id : null,
-      expiry_warn_days: createForm.expiry_warn_days,
+      password: createForm.password.trim() || null
     })
     appStore.showSuccess(t('admin.proxies.proxyCreated'))
     closeCreateModal()
@@ -1410,11 +1424,7 @@ const handleEdit = (proxy: Proxy) => {
   editForm.port = proxy.port
   editForm.username = proxy.username || ''
   editForm.password = proxy.password || ''
-  editForm.status = proxy.status === 'expired' ? 'inactive' : proxy.status
-  editForm.expires_at = proxy.expires_at ? proxy.expires_at.slice(0, 10) : ''
-  editForm.fallback_mode = proxy.fallback_mode || 'none'
-  editForm.backup_proxy_id = proxy.backup_proxy_id ?? null
-  editForm.expiry_warn_days = proxy.expiry_warn_days ?? 7
+  editForm.status = proxy.status
   editPasswordVisible.value = false
   editPasswordDirty.value = false
   showEditModal.value = true
@@ -1450,11 +1460,7 @@ const handleUpdateProxy = async () => {
       host: editForm.host.trim(),
       port: editForm.port,
       username: editForm.username.trim() || null,
-      status: editForm.status,
-      expires_at: editForm.expires_at ? Math.floor(new Date(editForm.expires_at).getTime() / 1000) : null,
-      fallback_mode: editForm.fallback_mode,
-      backup_proxy_id: editForm.fallback_mode === 'proxy' ? editForm.backup_proxy_id : null,
-      expiry_warn_days: editForm.expiry_warn_days,
+      status: editForm.status
     }
 
     // Only include password if user actually modified the field
@@ -1700,59 +1706,6 @@ const qualityStatusLabel = (status: string) => {
   return t('admin.proxies.qualityStatusFail')
 }
 
-// 有效期「选天数」⇄ 日历联动:天数自 base 起算(创建=今天;编辑=代理创建日),本地日历日 round-trip 稳定;canonical 仍是 expires_at 日期串
-const EXPIRY_PRESETS = [7, 30, 90, 180]
-const toLocalDateStr = (dt: Date): string => {
-  const y = dt.getFullYear()
-  const m = String(dt.getMonth() + 1).padStart(2, '0')
-  const d = String(dt.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-// base 为空 → 今天本地 00:00;否则该日期本地 00:00
-const baseDateOrToday = (baseDateStr: string): Date => {
-  const base = baseDateStr ? new Date(`${baseDateStr}T00:00:00`) : new Date()
-  base.setHours(0, 0, 0, 0)
-  return base
-}
-// base + N 天 → 本地 YYYY-MM-DD;N≤0/空 → '' 表示永不过期
-const addDaysToBase = (baseDateStr: string, n: number | null): string => {
-  const days = Number(n)
-  if (!days || days <= 0) return ''
-  const dt = baseDateOrToday(baseDateStr)
-  dt.setDate(dt.getDate() + days)
-  return toLocalDateStr(dt)
-}
-// target 相对 base 的整天数(本地日历差,避免时区/时刻抖动)
-const daysFromBase = (baseDateStr: string, targetDateStr: string): number | null => {
-  if (!targetDateStr) return null
-  const target = new Date(`${targetDateStr}T00:00:00`)
-  return Math.round((target.getTime() - baseDateOrToday(baseDateStr).getTime()) / 86400000)
-}
-// 编辑时有效期自「代理创建日」起算;创建时无 created_at → base='' 用今天
-const editBaseDate = computed(() =>
-  editingProxy.value?.created_at ? editingProxy.value.created_at.slice(0, 10) : '',
-)
-const createExpiresDays = computed<number | null>({
-  get: () => daysFromBase('', createForm.expires_at),
-  set: (v) => {
-    createForm.expires_at = addDaysToBase('', v)
-  },
-})
-const editExpiresDays = computed<number | null>({
-  get: () => daysFromBase(editBaseDate.value, editForm.expires_at),
-  set: (v) => {
-    editForm.expires_at = addDaysToBase(editBaseDate.value, v)
-  },
-})
-
-const expiryLabel = (row: Proxy): string => {
-  const { key, params } = proxyExpiryLabelKey(row.expires_at, row.status)
-  return params ? t(key, params) : t(key)
-}
-
-const expiryBadgeClass = (row: Proxy): string =>
-  proxyExpiryBadgeClass(row.expires_at, row.status)
-
 const qualityOverallClass = (status?: string) => {
   if (status === 'healthy') return 'badge-success'
   if (status === 'warn') return 'badge-warning'
@@ -1777,8 +1730,8 @@ const qualityTargetLabel = (target: string) => {
       return 'Anthropic'
     case 'gemini':
       return 'Gemini'
-    case 'grok':
-      return 'Grok'
+    case 'sora':
+      return 'Sora'
     default:
       return target
   }
@@ -1797,9 +1750,7 @@ const fetchAllProxiesForBatch = async (): Promise<Proxy[]> => {
       {
         protocol: filters.protocol || undefined,
         status: filters.status as any,
-        search: searchQuery.value || undefined,
-        sort_by: sortState.sort_by,
-        sort_order: sortState.sort_order
+        search: searchQuery.value || undefined
       }
     )
     result.push(...response.items)
@@ -1893,6 +1844,199 @@ const handleBatchQualityCheck = async () => {
   }
 }
 
+const parseMaintenanceProxyIds = () => {
+  return maintenanceForm.source_proxy_ids
+    .split(/[\s,]+/)
+    .map((item) => Number(item.trim()))
+    .filter((item) => Number.isFinite(item) && item > 0)
+}
+
+const clearMaintenanceTaskPollTimer = () => {
+  if (maintenanceTaskPollTimer) {
+    clearTimeout(maintenanceTaskPollTimer)
+    maintenanceTaskPollTimer = null
+  }
+}
+
+const scheduleMaintenanceTaskPoll = (taskID: string, toastID: string) => {
+  clearMaintenanceTaskPollTimer()
+  maintenanceTaskPollTimer = setTimeout(async () => {
+    try {
+      const task = await adminAPI.proxyMaintenance.getTask(taskID)
+      appStore.updateToast(toastID, {
+        title: t('admin.proxies.autoMaintenance.runNow'),
+        subtitle: task.stage || task.status,
+        message: task.message || task.status,
+        progress: task.progress
+      })
+
+      if (task.status === 'completed') {
+        lastMaintenanceResult.value = task.result || null
+        if (task.result) {
+          maintenanceResults.value = [task.result, ...maintenanceResults.value].slice(0, 10)
+        }
+        appStore.updateToast(toastID, {
+          type: task.result?.status === 'success' ? 'success' : task.result?.status === 'partial' ? 'warning' : 'error',
+          title: t('admin.proxies.autoMaintenance.runNow'),
+          subtitle: task.stage || task.status,
+          message: task.message || task.result?.summary || task.status,
+          progress: 100,
+          duration: 5000
+        })
+        await loadProxies()
+        clearMaintenanceTaskPollTimer()
+        maintenanceRunning.value = false
+        return
+      }
+
+      if (task.status === 'failed') {
+        appStore.updateToast(toastID, {
+          type: 'error',
+          title: t('admin.proxies.autoMaintenance.runNow'),
+          subtitle: task.stage || task.status,
+          message: task.message || t('admin.proxies.autoMaintenance.runFailed'),
+          progress: 100,
+          duration: 6000
+        })
+        clearMaintenanceTaskPollTimer()
+        maintenanceRunning.value = false
+        return
+      }
+
+      scheduleMaintenanceTaskPoll(taskID, toastID)
+    } catch (error: any) {
+      appStore.updateToast(toastID, {
+        type: 'error',
+        title: t('admin.proxies.autoMaintenance.runNow'),
+        message: error?.message || t('admin.proxies.autoMaintenance.runFailed'),
+        duration: 6000
+      })
+      clearMaintenanceTaskPollTimer()
+      maintenanceRunning.value = false
+    }
+  }, 1200)
+}
+
+const resetMaintenanceForm = () => {
+  editingMaintenanceId.value = null
+  maintenanceForm.name = ''
+  maintenanceForm.cron_expression = '*/30 * * * *'
+  maintenanceForm.enabled = true
+  maintenanceForm.source_proxy_ids = ''
+  maintenanceForm.max_results = 50
+  maintenanceForm.max_failures_before_pause = 3
+}
+
+const loadMaintenancePlans = async () => {
+  maintenanceLoadingPlans.value = true
+  try {
+    maintenancePlans.value = await adminAPI.proxyMaintenance.listPlans()
+  } catch (error: any) {
+    appStore.showError(error?.message || t('errors.networkError'))
+  } finally {
+    maintenanceLoadingPlans.value = false
+  }
+}
+
+const loadMaintenanceResults = async (planId: number) => {
+  try {
+    maintenanceResults.value = await adminAPI.proxyMaintenance.listResults(planId, 10)
+  } catch (error: any) {
+    appStore.showError(error?.message || t('errors.networkError'))
+  }
+}
+
+const openMaintenanceDialog = async () => {
+  showMaintenanceDialog.value = true
+  maintenanceResults.value = []
+  await loadMaintenancePlans()
+}
+
+const closeMaintenanceDialog = () => {
+  showMaintenanceDialog.value = false
+  maintenanceResults.value = []
+  resetMaintenanceForm()
+}
+
+const editMaintenancePlan = (plan: ProxyMaintenancePlan) => {
+  editingMaintenanceId.value = plan.id
+  maintenanceForm.name = plan.name || ''
+  maintenanceForm.cron_expression = plan.cron_expression
+  maintenanceForm.enabled = plan.enabled
+  maintenanceForm.source_proxy_ids = (plan.source_proxy_ids || []).join(',')
+  maintenanceForm.max_results = plan.max_results || 50
+  maintenanceForm.max_failures_before_pause = plan.max_failures_before_pause || 3
+}
+
+const saveMaintenancePlan = async () => {
+  maintenanceSaving.value = true
+  try {
+    const payload = {
+      name: maintenanceForm.name.trim() || undefined,
+      cron_expression: maintenanceForm.cron_expression.trim(),
+      enabled: maintenanceForm.enabled,
+      source_proxy_ids: parseMaintenanceProxyIds(),
+      max_results: maintenanceForm.max_results,
+      max_failures_before_pause: maintenanceForm.max_failures_before_pause
+    }
+    if (editingMaintenanceId.value) {
+      await adminAPI.proxyMaintenance.updatePlan(editingMaintenanceId.value, payload)
+      appStore.showSuccess(t('admin.proxies.autoMaintenance.updateSuccess'))
+    } else {
+      await adminAPI.proxyMaintenance.createPlan(payload)
+      appStore.showSuccess(t('admin.proxies.autoMaintenance.createSuccess'))
+    }
+    resetMaintenanceForm()
+    await loadMaintenancePlans()
+  } catch (error: any) {
+    appStore.showError(error?.message || t('errors.networkError'))
+  } finally {
+    maintenanceSaving.value = false
+  }
+}
+
+const toggleMaintenancePlan = async (plan: ProxyMaintenancePlan, enabled: boolean) => {
+  try {
+    await adminAPI.proxyMaintenance.updatePlan(plan.id, { enabled })
+    await loadMaintenancePlans()
+  } catch (error: any) {
+    appStore.showError(error?.message || t('errors.networkError'))
+  }
+}
+
+const deleteMaintenancePlan = async (planId: number) => {
+  if (!window.confirm(t('admin.proxies.autoMaintenance.deleteConfirm'))) return
+  try {
+    await adminAPI.proxyMaintenance.delete(planId)
+    appStore.showSuccess(t('admin.proxies.autoMaintenance.deleteSuccess'))
+    if (editingMaintenanceId.value === planId) {
+      resetMaintenanceForm()
+    }
+    maintenanceResults.value = []
+    await loadMaintenancePlans()
+  } catch (error: any) {
+    appStore.showError(error?.message || t('errors.networkError'))
+  }
+}
+
+const handleAutoMaintenanceRun = async () => {
+  if (maintenanceRunning.value) return
+  maintenanceRunning.value = true
+  try {
+    const sourceProxyIds = selectedCount.value > 0 ? Array.from(selectedProxyIds.value) : []
+    const task = await adminAPI.proxyMaintenance.runNow(sourceProxyIds)
+    const toastID = appStore.showToast('info', task.message || task.status, undefined, {
+      title: t('admin.proxies.autoMaintenance.runNow'),
+      subtitle: task.stage || task.status,
+      progress: task.progress
+    })
+    scheduleMaintenanceTaskPoll(task.task_id, toastID)
+  } catch (error: any) {
+    appStore.showError(error?.message || t('admin.proxies.autoMaintenance.runFailed'))
+    maintenanceRunning.value = false
+  }
+}
+
 const formatExportTimestamp = () => {
   const now = new Date()
   const pad2 = (value: number) => String(value).padStart(2, '0')
@@ -1907,7 +2051,11 @@ const handleExportData = async () => {
       selectedCount.value > 0
         ? { ids: Array.from(selectedProxyIds.value) }
         : {
-            filters: buildProxyQueryFilters()
+            filters: {
+              protocol: filters.protocol || undefined,
+              status: (filters.status || undefined) as 'active' | 'inactive' | undefined,
+              search: searchQuery.value || undefined
+            }
           }
     )
     const timestamp = formatExportTimestamp()
@@ -2057,7 +2205,6 @@ function closeCopyMenu() {
 
 onMounted(() => {
   loadProxies()
-  loadBackupProxyOptions()
   document.addEventListener('click', closeCopyMenu)
 })
 
@@ -2065,5 +2212,6 @@ onUnmounted(() => {
   clearTimeout(searchTimeout)
   abortController?.abort()
   document.removeEventListener('click', closeCopyMenu)
+  clearMaintenanceTaskPollTimer()
 })
 </script>

@@ -604,7 +604,30 @@ func (c *schedulerCache) DeleteAccount(ctx context.Context, accountID int64) err
 		return nil
 	}
 	id := strconv.FormatInt(accountID, 10)
-	return c.rdb.Del(ctx, schedulerAccountKey(id), schedulerAccountMetaKey(id), schedulerLastUsedKey(id)).Err()
+	if err := c.rdb.Del(ctx, schedulerAccountKey(id), schedulerAccountMetaKey(id), schedulerLastUsedKey(id)).Err(); err != nil {
+		return err
+	}
+	return c.deleteAccountFromActiveSnapshots(ctx, id)
+}
+
+func (c *schedulerCache) deleteAccountFromActiveSnapshots(ctx context.Context, accountID string) error {
+	buckets, err := c.ListBuckets(ctx)
+	if err != nil {
+		return err
+	}
+	for _, bucket := range buckets {
+		activeVersion, err := c.rdb.Get(ctx, schedulerBucketKey(schedulerActivePrefix, bucket)).Result()
+		if err == redis.Nil || activeVersion == "" {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if err := c.rdb.ZRem(ctx, schedulerSnapshotKey(bucket, activeVersion), accountID).Err(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *schedulerCache) UpdateLastUsed(ctx context.Context, updates map[int64]time.Time) error {

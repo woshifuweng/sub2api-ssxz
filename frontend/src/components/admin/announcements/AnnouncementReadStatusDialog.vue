@@ -21,15 +21,7 @@
         </button>
       </div>
 
-      <DataTable
-        :columns="columns"
-        :data="items"
-        :loading="loading"
-        :server-side-sort="true"
-        default-sort-key="email"
-        default-sort-order="asc"
-        @sort="handleSort"
-      >
+      <DataTable :columns="columns" :data="items" :loading="loading">
         <template #cell-email="{ value }">
           <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
         </template>
@@ -70,7 +62,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
@@ -106,54 +98,23 @@ const pagination = reactive({
   pages: 0
 })
 
-const sortState = reactive({
-  sort_by: 'email',
-  sort_order: 'asc' as 'asc' | 'desc'
-})
-
 const items = ref<AnnouncementUserReadStatus[]>([])
 
 const columns = computed<Column[]>(() => [
-  { key: 'email', label: t('common.email'), sortable: true },
-  { key: 'username', label: t('admin.users.columns.username'), sortable: true },
-  { key: 'balance', label: t('common.balance'), sortable: true },
+  { key: 'email', label: t('common.email') },
+  { key: 'username', label: t('admin.users.columns.username') },
+  { key: 'balance', label: t('common.balance') },
   { key: 'eligible', label: t('admin.announcements.eligible') },
   { key: 'read_at', label: t('admin.announcements.readAt') }
 ])
 
 let currentController: AbortController | null = null
-let searchDebounceTimer: number | null = null
-
-function resetDialogState() {
-  loading.value = false
-  search.value = ''
-  items.value = []
-  pagination.page = 1
-  pagination.total = 0
-  pagination.pages = 0
-  sortState.sort_by = 'email'
-  sortState.sort_order = 'asc'
-}
-
-function cancelPendingLoad(resetState = false) {
-  if (searchDebounceTimer) {
-    window.clearTimeout(searchDebounceTimer)
-    searchDebounceTimer = null
-  }
-  currentController?.abort()
-  currentController = null
-  if (resetState) {
-    resetDialogState()
-  }
-}
 
 async function load() {
   if (!props.show || !props.announcementId) return
 
-  currentController?.abort()
-  const requestController = new AbortController()
-  currentController = requestController
-  const { signal } = requestController
+  if (currentController) currentController.abort()
+  currentController = new AbortController()
 
   try {
     loading.value = true
@@ -161,15 +122,8 @@ async function load() {
       props.announcementId,
       pagination.page,
       pagination.page_size,
-      {
-        search: search.value,
-        sort_by: sortState.sort_by,
-        sort_order: sortState.sort_order
-      },
-      { signal }
+      search.value
     )
-
-    if (signal.aborted || currentController !== requestController) return
 
     items.value = res.items
     pagination.total = res.total
@@ -177,21 +131,11 @@ async function load() {
     pagination.page = res.page
     pagination.page_size = res.page_size
   } catch (error: any) {
-    if (
-      signal.aborted ||
-      currentController !== requestController ||
-      error?.name === 'AbortError' ||
-      error?.code === 'ERR_CANCELED'
-    ) {
-      return
-    }
+    if (currentController.signal.aborted || error?.name === 'AbortError') return
     console.error('Failed to load read status:', error)
     appStore.showError(error.response?.data?.detail || t('admin.announcements.failedToLoadReadStatus'))
   } finally {
-    if (currentController === requestController) {
-      loading.value = false
-      currentController = null
-    }
+    loading.value = false
   }
 }
 
@@ -206,13 +150,7 @@ function handlePageSizeChange(pageSize: number) {
   load()
 }
 
-function handleSort(key: string, order: 'asc' | 'desc') {
-  sortState.sort_by = key
-  sortState.sort_order = order
-  pagination.page = 1
-  load()
-}
-
+let searchDebounceTimer: number | null = null
 function handleSearch() {
   if (searchDebounceTimer) window.clearTimeout(searchDebounceTimer)
   searchDebounceTimer = window.setTimeout(() => {
@@ -222,17 +160,13 @@ function handleSearch() {
 }
 
 function handleClose() {
-  cancelPendingLoad(true)
   emit('close')
 }
 
 watch(
   () => props.show,
   (v) => {
-    if (!v) {
-      cancelPendingLoad(true)
-      return
-    }
+    if (!v) return
     pagination.page = 1
     load()
   }
@@ -247,7 +181,7 @@ watch(
   }
 )
 
-onUnmounted(() => {
-  cancelPendingLoad()
+onMounted(() => {
+  // noop
 })
 </script>

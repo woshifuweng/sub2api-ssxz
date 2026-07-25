@@ -125,6 +125,112 @@ func TestAdminAuthJWTValidatesTokenVersion(t *testing.T) {
 
 type stubUserRepo struct {
 	getByID func(ctx context.Context, id int64) (*service.User, error)
+func TestAdminAuthAPIKeyRespectsBoundAdminTokenVersion(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	admin := &service.User{
+		ID:           7,
+		Email:        "admin@example.com",
+		Role:         service.RoleAdmin,
+		Status:       service.StatusActive,
+		TokenVersion: 3,
+		Concurrency:  2,
+	}
+	repo := &settingRepoStub{values: map[string]string{}}
+	settingService := service.NewSettingService(repo, &config.Config{})
+	key, err := settingService.GenerateAdminAPIKey(context.Background(), admin.ID, admin.TokenVersion)
+	require.NoError(t, err)
+
+	userRepo := &stubUserRepo{
+		getByID: func(ctx context.Context, id int64) (*service.User, error) {
+			if id != admin.ID {
+				return nil, service.ErrUserNotFound
+			}
+			clone := *admin
+			return &clone, nil
+		},
+		getFirstAdmin: func(ctx context.Context) (*service.User, error) {
+			clone := *admin
+			return &clone, nil
+		},
+		update: func(ctx context.Context, user *service.User) error {
+			*admin = *user
+			return nil
+		},
+	}
+	userService := service.NewUserService(userRepo, nil, nil)
+
+	router := gin.New()
+	router.Use(gin.HandlerFunc(NewAdminAuthMiddleware(nil, userService, settingService)))
+	router.GET("/t", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	t.Run("bound_admin_allows", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/t", nil)
+		req.Header.Set("x-api-key", key)
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("token_version_change_revokes_key", func(t *testing.T) {
+		admin.TokenVersion++
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/t", nil)
+		req.Header.Set("x-api-key", key)
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusUnauthorized, w.Code)
+		require.Contains(t, w.Body.String(), "INVALID_ADMIN_KEY")
+	})
+
+	t.Run("revoke_all_sessions_revokes_key", func(t *testing.T) {
+		authService := service.NewAuthService(nil, userRepo, nil, nil, &config.Config{JWT: config.JWTConfig{Secret: "test-secret"}}, nil, nil, nil, nil, nil, nil)
+		require.NoError(t, authService.RevokeAllUserSessions(context.Background(), admin.ID))
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/t", nil)
+		req.Header.Set("x-api-key", key)
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusUnauthorized, w.Code)
+		require.Contains(t, w.Body.String(), "INVALID_ADMIN_KEY")
+	})
+}
+
+func TestAdminAuthAPIKeyRejectsLegacyUnboundKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &settingRepoStub{
+		values: map[string]string{
+			service.SettingKeyAdminAPIKey: "admin-legacy-test-key",
+		},
+	}
+	settingService := service.NewSettingService(repo, &config.Config{})
+	userService := service.NewUserService(&stubUserRepo{
+		getFirstAdmin: func(ctx context.Context) (*service.User, error) {
+			return &service.User{ID: 1, Role: service.RoleAdmin, Status: service.StatusActive}, nil
+		},
+	}, nil, nil)
+
+	router := gin.New()
+	router.Use(gin.HandlerFunc(NewAdminAuthMiddleware(nil, userService, settingService)))
+	router.GET("/t", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/t", nil)
+	req.Header.Set("x-api-key", "admin-legacy-test-key")
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	require.Contains(t, w.Body.String(), "INVALID_ADMIN_KEY")
+}
+
+type stubUserRepo struct {
+	getByID       func(ctx context.Context, id int64) (*service.User, error)
+	getFirstAdmin func(ctx context.Context) (*service.User, error)
+	update        func(ctx context.Context, user *service.User) error
 }
 
 func (s *stubUserRepo) Create(ctx context.Context, user *service.User) error {
@@ -147,7 +253,10 @@ func (s *stubUserRepo) GetFirstAdmin(ctx context.Context) (*service.User, error)
 }
 
 func (s *stubUserRepo) Update(ctx context.Context, user *service.User) error {
-	panic("unexpected Update call")
+	if s.update == nil {
+		panic("unexpected Update call")
+	}
+	return s.update(ctx, user)
 }
 
 func (s *stubUserRepo) Delete(ctx context.Context, id int64) error {

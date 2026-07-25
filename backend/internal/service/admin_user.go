@@ -661,14 +661,7 @@ func (s *adminServiceImpl) GetUserRPMStatus(ctx context.Context, userID int64) (
 }
 
 func (s *adminServiceImpl) GetUserUsageStats(ctx context.Context, userID int64, period string) (any, error) {
-	// Return mock data for now
-	return map[string]any{
-		"period":          period,
-		"total_requests":  0,
-		"total_cost":      0.0,
-		"total_tokens":    0,
-		"avg_duration_ms": 0,
-	}, nil
+	return s.GetUserUsageStatsLegacy(ctx, userID, period)
 }
 
 // GetUserBalanceHistory returns paginated balance/concurrency change records for a user.

@@ -111,7 +111,7 @@ func (s *OpenAIGatewayService) ResolveUserGroupRateMultiplier(ctx context.Contex
 }
 
 // RecordUsage records usage and deducts balance
-func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRecordUsageInput) error {
+func (s *OpenAIGatewayService) RecordUsageWeiShaw(ctx context.Context, input *OpenAIRecordUsageInput) error {
 	if input == nil {
 		return errors.New("openai usage input is nil")
 	}
@@ -485,7 +485,7 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageTokenCost(
 	serviceTier string,
 	longContextBillingEnabled bool,
 ) (*CostBreakdown, error) {
-	if s.resolver != nil && apiKey.Group != nil {
+	if s.modelPricingResolver != nil && apiKey.Group != nil {
 		gid := apiKey.Group.ID
 		return s.billingService.CalculateCostUnified(CostInput{
 			Ctx:                       ctx,
@@ -495,7 +495,7 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageTokenCost(
 			RequestCount:              1,
 			RateMultiplier:            multiplier,
 			ServiceTier:               serviceTier,
-			Resolver:                  s.resolver,
+			Resolver:                  s.modelPricingResolver,
 			LongContextBillingEnabled: &longContextBillingEnabled,
 		})
 	}
@@ -516,6 +516,25 @@ func (s *OpenAIGatewayService) calculateOpenAIImageCost(
 	multiplier float64,
 ) *CostBreakdown {
 	sizeTier := NormalizeImageBillingTierOrDefault(result.ImageSize)
+	if resolved := s.resolveOpenAIChannelPricing(ctx, billingModel, apiKey); resolved != nil &&
+		(resolved.Mode == BillingModePerRequest || resolved.Mode == BillingModeImage) {
+		gid := apiKey.Group.ID
+		cost, err := s.billingService.CalculateCostUnified(CostInput{
+			Ctx:            ctx,
+			Model:          billingModel,
+			GroupID:        &gid,
+			RequestCount:   result.ImageCount,
+			SizeTier:       sizeTier,
+			RateMultiplier: multiplier,
+			Resolver:       s.modelPricingResolver,
+			Resolved:       resolved,
+		})
+		if err == nil {
+			return cost
+		}
+		logger.LegacyPrintf("service.openai_gateway", "Calculate image channel cost failed: %v", err)
+	}
+
 	groupConfig := imagePriceConfigFromAPIKey(apiKey)
 	if apiKeyHasConfiguredImagePrice(apiKey, sizeTier) {
 		return s.billingService.CalculateImageCost(billingModel, sizeTier, result.ImageCount, groupConfig, multiplier)
@@ -527,25 +546,6 @@ func (s *OpenAIGatewayService) calculateOpenAIImageCost(
 			return s.billingService.CalculateImageCost(billingModel, sizeTier, result.ImageCount, groupConfig, multiplier)
 		}
 	}
-	if resolved := s.resolveOpenAIChannelPricing(ctx, billingModel, apiKey); resolved != nil &&
-		(resolved.Mode == BillingModePerRequest || resolved.Mode == BillingModeImage) {
-		gid := apiKey.Group.ID
-		cost, err := s.billingService.CalculateCostUnified(CostInput{
-			Ctx:            ctx,
-			Model:          billingModel,
-			GroupID:        &gid,
-			RequestCount:   result.ImageCount,
-			SizeTier:       sizeTier,
-			RateMultiplier: multiplier,
-			Resolver:       s.resolver,
-			Resolved:       resolved,
-		})
-		if err == nil {
-			return cost
-		}
-		logger.LegacyPrintf("service.openai_gateway", "Calculate image channel cost failed: %v", err)
-	}
-
 	return s.billingService.CalculateImageCost(billingModel, sizeTier, result.ImageCount, groupConfig, multiplier)
 }
 
@@ -584,7 +584,7 @@ func (s *OpenAIGatewayService) calculateOpenAIVideoCost(
 			RequestCount:   videoCount,
 			SizeTier:       resolution,
 			RateMultiplier: multiplier,
-			Resolver:       s.resolver,
+			Resolver:       s.modelPricingResolver,
 			Resolved:       resolved,
 		})
 		if err == nil {
@@ -635,11 +635,11 @@ func groupMediaPricingLooksIncomplete(group *Group) bool {
 }
 
 func (s *OpenAIGatewayService) resolveOpenAIChannelPricing(ctx context.Context, billingModel string, apiKey *APIKey) *ResolvedPricing {
-	if s.resolver == nil || apiKey == nil || apiKey.Group == nil {
+	if s.modelPricingResolver == nil || apiKey == nil || apiKey.Group == nil {
 		return nil
 	}
 	gid := apiKey.Group.ID
-	resolved := s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid})
+	resolved := s.modelPricingResolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid})
 	if resolved.Source == PricingSourceChannel {
 		return resolved
 	}
@@ -648,7 +648,7 @@ func (s *OpenAIGatewayService) resolveOpenAIChannelPricing(ctx context.Context, 
 
 // ParseCodexRateLimitHeaders extracts Codex usage limits from response headers.
 // Exported for use in ratelimit_service when handling OpenAI 429 responses.
-func ParseCodexRateLimitHeaders(headers http.Header) *OpenAICodexUsageSnapshot {
+func ParseCodexRateLimitHeadersWeiShaw(headers http.Header) *OpenAICodexUsageSnapshot {
 	snapshot := &OpenAICodexUsageSnapshot{}
 	hasData := false
 
@@ -714,7 +714,7 @@ func ParseCodexRateLimitHeaders(headers http.Header) *OpenAICodexUsageSnapshot {
 	return snapshot
 }
 
-func codexSnapshotBaseTime(snapshot *OpenAICodexUsageSnapshot, fallback time.Time) time.Time {
+func codexSnapshotBaseTimeWeiShaw(snapshot *OpenAICodexUsageSnapshot, fallback time.Time) time.Time {
 	if snapshot == nil {
 		return fallback
 	}
@@ -728,7 +728,7 @@ func codexSnapshotBaseTime(snapshot *OpenAICodexUsageSnapshot, fallback time.Tim
 	return base
 }
 
-func codexResetAtRFC3339(base time.Time, resetAfterSeconds *int) *string {
+func codexResetAtRFC3339WeiShaw(base time.Time, resetAfterSeconds *int) *string {
 	if resetAfterSeconds == nil {
 		return nil
 	}
@@ -740,7 +740,7 @@ func codexResetAtRFC3339(base time.Time, resetAfterSeconds *int) *string {
 	return &resetAt
 }
 
-func buildCodexUsageExtraUpdates(snapshot *OpenAICodexUsageSnapshot, fallbackNow time.Time) map[string]any {
+func buildCodexUsageExtraUpdatesWeiShaw(snapshot *OpenAICodexUsageSnapshot, fallbackNow time.Time) map[string]any {
 	if snapshot == nil {
 		return nil
 	}
@@ -808,7 +808,7 @@ func buildCodexUsageExtraUpdates(snapshot *OpenAICodexUsageSnapshot, fallbackNow
 // ⚠️ 调用方必须排除 spark 影子账号(account.IsShadow()):影子的 codex_* 仅由 QueryUsage
 // (/wham/usage bengalfox 道)更新,不能被全局头口径污染(外审第7轮 P1)。本函数仅持 accountID,
 // 无法在此自检影子,故守卫前置到各调用点。
-func (s *OpenAIGatewayService) updateCodexUsageSnapshot(ctx context.Context, accountID int64, snapshot *OpenAICodexUsageSnapshot) {
+func (s *OpenAIGatewayService) updateCodexUsageSnapshotWeiShaw(ctx context.Context, accountID int64, snapshot *OpenAICodexUsageSnapshot) {
 	if snapshot == nil {
 		return
 	}
@@ -832,7 +832,7 @@ func (s *OpenAIGatewayService) updateCodexUsageSnapshot(ctx context.Context, acc
 	}()
 }
 
-func (s *OpenAIGatewayService) UpdateCodexUsageSnapshotFromHeaders(ctx context.Context, accountID int64, headers http.Header) {
+func (s *OpenAIGatewayService) UpdateCodexUsageSnapshotFromHeadersWeiShaw(ctx context.Context, accountID int64, headers http.Header) {
 	if accountID <= 0 || headers == nil {
 		return
 	}

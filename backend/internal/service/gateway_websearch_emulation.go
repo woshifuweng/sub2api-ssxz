@@ -32,7 +32,7 @@ const (
 	tokenEstimateDivisor       = 4
 
 	// featureKeyWebSearchEmulation is the key used in Account.Extra and Channel.FeaturesConfig.
-	featureKeyWebSearchEmulation = "web_search_emulation"
+	featureKeyWebSearchEmulationLegacy = "web_search_emulation"
 )
 
 // webSearchManagerPtr stores *websearch.Manager atomically for concurrent safety.

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { resolveCompletedSetupRedirectPath } from '@/router/setupRedirect'
 
 // Mock 导航加载状态
 vi.mock('@/composables/useNavigationLoading', () => {
@@ -53,8 +52,41 @@ interface MockAuthState {
   isAdmin: boolean
   isSimpleMode: boolean
   backendModeEnabled: boolean
-  hasPendingAuthSession: boolean
-  setupNeedsSetup?: boolean
+  paymentEnabled?: boolean
+  affiliateEnabled?: boolean
+}
+
+const backendModeAllowedPaths = [
+  '/login',
+  '/key-usage',
+  '/setup',
+  '/app/dashboard',
+  '/app/image',
+  '/app/usage',
+  '/app/purchase',
+  '/app/orders',
+  '/app/redeem',
+  '/app/channel-status',
+  '/app/keys',
+  '/app/profile',
+  '/app/affiliate',
+  '/app/chat',
+  '/usage',
+  '/purchase',
+  '/orders',
+  '/profile',
+  '/payment/qrcode',
+  '/payment/result',
+  '/payment/stripe',
+  '/payment/stripe-popup'
+]
+
+function isBackendModeAllowedPath(path: string): boolean {
+  if (path === '/' || path === '/home') {
+    return true
+  }
+
+  return backendModeAllowedPaths.some((allowedPath) => path === allowedPath || path.startsWith(allowedPath))
 }
 
 /**
@@ -68,10 +100,6 @@ function simulateGuard(
   const requiresAuth = toMeta.requiresAuth !== false
   const requiresAdmin = toMeta.requiresAdmin === true
 
-  if (toPath === '/setup' && authState.setupNeedsSetup === false) {
-    return resolveCompletedSetupRedirectPath(authState.isAuthenticated, authState.isAdmin)
-  }
-
   // 不需要认证的路由
   if (!requiresAuth) {
     if (
@@ -81,23 +109,10 @@ function simulateGuard(
       if (authState.backendModeEnabled && !authState.isAdmin) {
         return null
       }
-      return authState.isAdmin ? '/admin/dashboard' : '/dashboard'
+      return authState.isAdmin ? '/admin/dashboard' : '/app/dashboard'
     }
     if (authState.backendModeEnabled && !authState.isAuthenticated) {
-      const allowed = ['/login', '/key-usage', '/setup', '/payment/result']
-      const callbackPaths = [
-        '/auth/callback',
-        '/auth/linuxdo/callback',
-        '/auth/oidc/callback',
-        '/auth/wechat/callback',
-        '/auth/wechat/payment/callback',
-      ]
-      const pendingAuthPaths = ['/register', '/email-verify']
-      const isAllowed =
-        allowed.some((path) => toPath === path || toPath.startsWith(path)) ||
-        callbackPaths.includes(toPath) ||
-        (authState.hasPendingAuthSession && pendingAuthPaths.includes(toPath))
-      if (!isAllowed) {
+      if (!isBackendModeAllowedPath(toPath)) {
         return '/login'
       }
     }
@@ -111,20 +126,27 @@ function simulateGuard(
 
   // 需要管理员但不是管理员
   if (requiresAdmin && !authState.isAdmin) {
-    return '/dashboard'
+    return '/app/dashboard'
   }
 
   // 简易模式限制
+  if (toMeta.requiresPayment && !(authState.paymentEnabled ?? true)) {
+    return authState.isAdmin ? '/admin/dashboard' : '/app/dashboard'
+  }
+
+  if (toPath.startsWith('/app/affiliate') && !(authState.affiliateEnabled ?? true)) {
+    return '/app/dashboard'
+  }
+
   if (authState.isSimpleMode) {
     const restrictedPaths = [
       '/admin/groups',
       '/admin/subscriptions',
       '/admin/redeem',
       '/subscriptions',
-      '/redeem',
     ]
     if (restrictedPaths.some((path) => toPath.startsWith(path))) {
-      return authState.isAdmin ? '/admin/dashboard' : '/dashboard'
+      return authState.isAdmin ? '/admin/dashboard' : '/app/dashboard'
     }
   }
 
@@ -133,20 +155,7 @@ function simulateGuard(
     if (authState.isAuthenticated && authState.isAdmin) {
       return null
     }
-    const allowed = ['/login', '/key-usage', '/setup', '/payment/result']
-    const callbackPaths = [
-      '/auth/callback',
-      '/auth/linuxdo/callback',
-      '/auth/oidc/callback',
-      '/auth/wechat/callback',
-      '/auth/wechat/payment/callback',
-    ]
-    const pendingAuthPaths = ['/register', '/email-verify']
-    const isAllowed =
-      allowed.some((path) => toPath === path || toPath.startsWith(path)) ||
-      callbackPaths.includes(toPath) ||
-      (authState.hasPendingAuthSession && pendingAuthPaths.includes(toPath))
-    if (!isAllowed) {
+    if (!isBackendModeAllowedPath(toPath)) {
       return '/login'
     }
   }
@@ -167,7 +176,6 @@ describe('路由守卫逻辑', () => {
       isAdmin: false,
       isSimpleMode: false,
       backendModeEnabled: false,
-      hasPendingAuthSession: false,
     }
 
     it('访问需要认证的页面重定向到 /login', () => {
@@ -199,17 +207,16 @@ describe('路由守卫逻辑', () => {
       isAdmin: false,
       isSimpleMode: false,
       backendModeEnabled: false,
-      hasPendingAuthSession: false,
     }
 
-    it('访问 /login 重定向到 /dashboard', () => {
+    it('访问 /login 重定向到 /app/dashboard', () => {
       const redirect = simulateGuard('/login', { requiresAuth: false }, authState)
-      expect(redirect).toBe('/dashboard')
+      expect(redirect).toBe('/app/dashboard')
     })
 
-    it('访问 /register 重定向到 /dashboard', () => {
+    it('访问 /register 重定向到 /app/dashboard', () => {
       const redirect = simulateGuard('/register', { requiresAuth: false }, authState)
-      expect(redirect).toBe('/dashboard')
+      expect(redirect).toBe('/app/dashboard')
     })
 
     it('访问 /dashboard 允许通过', () => {
@@ -217,14 +224,29 @@ describe('路由守卫逻辑', () => {
       expect(redirect).toBeNull()
     })
 
-    it('访问管理页面被拒绝，重定向到 /dashboard', () => {
+    it('访问管理页面被拒绝，重定向到 /app/dashboard', () => {
       const redirect = simulateGuard('/admin/dashboard', { requiresAdmin: true }, authState)
-      expect(redirect).toBe('/dashboard')
+      expect(redirect).toBe('/app/dashboard')
     })
 
     it('访问 /admin/users 被拒绝', () => {
       const redirect = simulateGuard('/admin/users', { requiresAdmin: true }, authState)
-      expect(redirect).toBe('/dashboard')
+      expect(redirect).toBe('/app/dashboard')
+    })
+
+    it('allows /orders when payment is disabled so the page can degrade safely', () => {
+      const redirect = simulateGuard('/orders', {}, { ...authState, paymentEnabled: false })
+      expect(redirect).toBeNull()
+    })
+
+    it('allows /app/orders when payment is disabled so the workbench page can degrade safely', () => {
+      const redirect = simulateGuard('/app/orders', {}, { ...authState, paymentEnabled: false })
+      expect(redirect).toBeNull()
+    })
+
+    it('keeps payment flow pages guarded when payment is disabled', () => {
+      const redirect = simulateGuard('/payment/qrcode', { requiresPayment: true }, { ...authState, paymentEnabled: false })
+      expect(redirect).toBe('/app/dashboard')
     })
   })
 
@@ -236,7 +258,6 @@ describe('路由守卫逻辑', () => {
       isAdmin: true,
       isSimpleMode: false,
       backendModeEnabled: false,
-      hasPendingAuthSession: false,
     }
 
     it('访问 /login 重定向到 /admin/dashboard', () => {
@@ -258,28 +279,26 @@ describe('路由守卫逻辑', () => {
   // --- 简易模式 ---
 
   describe('简易模式受限路由', () => {
-    it('普通用户简易模式访问 /subscriptions 重定向到 /dashboard', () => {
+    it('普通用户简易模式可访问 /app/purchase 作为工作台充值订阅入口', () => {
       const authState: MockAuthState = {
         isAuthenticated: true,
         isAdmin: false,
         isSimpleMode: true,
         backendModeEnabled: false,
-        hasPendingAuthSession: false,
       }
-      const redirect = simulateGuard('/subscriptions', {}, authState)
-      expect(redirect).toBe('/dashboard')
+      const redirect = simulateGuard('/app/purchase', {}, authState)
+      expect(redirect).toBeNull()
     })
 
-    it('普通用户简易模式访问 /redeem 重定向到 /dashboard', () => {
+    it('普通用户简易模式可访问 /app/redeem 作为兑换入口', () => {
       const authState: MockAuthState = {
         isAuthenticated: true,
         isAdmin: false,
         isSimpleMode: true,
         backendModeEnabled: false,
-        hasPendingAuthSession: false,
       }
-      const redirect = simulateGuard('/redeem', {}, authState)
-      expect(redirect).toBe('/dashboard')
+      const redirect = simulateGuard('/app/redeem', {}, authState)
+      expect(redirect).toBeNull()
     })
 
     it('管理员简易模式访问 /admin/groups 重定向到 /admin/dashboard', () => {
@@ -288,7 +307,6 @@ describe('路由守卫逻辑', () => {
         isAdmin: true,
         isSimpleMode: true,
         backendModeEnabled: false,
-        hasPendingAuthSession: false,
       }
       const redirect = simulateGuard('/admin/groups', { requiresAdmin: true }, authState)
       expect(redirect).toBe('/admin/dashboard')
@@ -300,7 +318,6 @@ describe('路由守卫逻辑', () => {
         isAdmin: true,
         isSimpleMode: true,
         backendModeEnabled: false,
-        hasPendingAuthSession: false,
       }
       const redirect = simulateGuard(
         '/admin/subscriptions',
@@ -316,7 +333,6 @@ describe('路由守卫逻辑', () => {
         isAdmin: false,
         isSimpleMode: true,
         backendModeEnabled: false,
-        hasPendingAuthSession: false,
       }
       const redirect = simulateGuard('/dashboard', {}, authState)
       expect(redirect).toBeNull()
@@ -328,24 +344,62 @@ describe('路由守卫逻辑', () => {
         isAdmin: false,
         isSimpleMode: true,
         backendModeEnabled: false,
-        hasPendingAuthSession: false,
       }
       const redirect = simulateGuard('/keys', {}, authState)
       expect(redirect).toBeNull()
     })
+
+    it('allows workbench utility routes in simple mode', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isSimpleMode: true,
+        backendModeEnabled: false,
+        affiliateEnabled: true,
+      }
+
+      expect(simulateGuard('/app/purchase', {}, authState)).toBeNull()
+      expect(simulateGuard('/app/orders', {}, authState)).toBeNull()
+      expect(simulateGuard('/app/redeem', {}, authState)).toBeNull()
+      expect(simulateGuard('/app/keys', {}, authState)).toBeNull()
+      expect(simulateGuard('/app/profile', {}, authState)).toBeNull()
+      expect(simulateGuard('/app/affiliate', {}, authState)).toBeNull()
+    })
+
+    it('redirects /app/affiliate when affiliate is disabled', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: false,
+        affiliateEnabled: false,
+      }
+
+      expect(simulateGuard('/app/affiliate', {}, authState)).toBe('/app/dashboard')
+    })
   })
 
   describe('Backend Mode', () => {
-    it('unauthenticated: /home redirects to /login', () => {
+    it('unauthenticated: /home remains available as the public landing page', () => {
       const authState: MockAuthState = {
         isAuthenticated: false,
         isAdmin: false,
         isSimpleMode: false,
         backendModeEnabled: true,
-        hasPendingAuthSession: false,
       }
       const redirect = simulateGuard('/home', { requiresAuth: false }, authState)
-      expect(redirect).toBe('/login')
+      expect(redirect).toBeNull()
+    })
+
+    it('unauthenticated: / remains available as the public landing page', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: false,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: true,
+      }
+      const redirect = simulateGuard('/', { requiresAuth: false }, authState)
+      expect(redirect).toBeNull()
     })
 
     it('unauthenticated: /login is allowed', () => {
@@ -354,7 +408,6 @@ describe('路由守卫逻辑', () => {
         isAdmin: false,
         isSimpleMode: false,
         backendModeEnabled: true,
-        hasPendingAuthSession: false,
       }
       const redirect = simulateGuard('/login', { requiresAuth: false }, authState)
       expect(redirect).toBeNull()
@@ -366,7 +419,6 @@ describe('路由守卫逻辑', () => {
         isAdmin: false,
         isSimpleMode: false,
         backendModeEnabled: true,
-        hasPendingAuthSession: false,
       }
       const redirect = simulateGuard('/key-usage', { requiresAuth: false }, authState)
       expect(redirect).toBeNull()
@@ -378,36 +430,21 @@ describe('路由守卫逻辑', () => {
         isAdmin: false,
         isSimpleMode: false,
         backendModeEnabled: true,
-        hasPendingAuthSession: false,
       }
       const redirect = simulateGuard('/setup', { requiresAuth: false }, authState)
       expect(redirect).toBeNull()
     })
 
-    it('unauthenticated: initialized /setup redirects to /login', () => {
+    it('unauthenticated: Stripe payment pages are allowed for hard navigation', () => {
       const authState: MockAuthState = {
         isAuthenticated: false,
         isAdmin: false,
         isSimpleMode: false,
         backendModeEnabled: true,
-        hasPendingAuthSession: false,
-        setupNeedsSetup: false,
       }
-      const redirect = simulateGuard('/setup', { requiresAuth: false }, authState)
-      expect(redirect).toBe('/login')
-    })
 
-    it('admin: initialized /setup redirects to /admin/dashboard', () => {
-      const authState: MockAuthState = {
-        isAuthenticated: true,
-        isAdmin: true,
-        isSimpleMode: false,
-        backendModeEnabled: true,
-        hasPendingAuthSession: false,
-        setupNeedsSetup: false,
-      }
-      const redirect = simulateGuard('/setup', { requiresAuth: false }, authState)
-      expect(redirect).toBe('/admin/dashboard')
+      expect(simulateGuard('/payment/stripe', { requiresAuth: false }, authState)).toBeNull()
+      expect(simulateGuard('/payment/stripe-popup', { requiresAuth: false }, authState)).toBeNull()
     })
 
     it('admin: /admin/dashboard is allowed', () => {
@@ -416,7 +453,6 @@ describe('路由守卫逻辑', () => {
         isAdmin: true,
         isSimpleMode: false,
         backendModeEnabled: true,
-        hasPendingAuthSession: false,
       }
       const redirect = simulateGuard('/admin/dashboard', { requiresAdmin: true }, authState)
       expect(redirect).toBeNull()
@@ -428,22 +464,86 @@ describe('路由守卫逻辑', () => {
         isAdmin: true,
         isSimpleMode: false,
         backendModeEnabled: true,
-        hasPendingAuthSession: false,
       }
       const redirect = simulateGuard('/login', { requiresAuth: false }, authState)
       expect(redirect).toBe('/admin/dashboard')
     })
 
-    it('non-admin authenticated: /dashboard redirects to /login', () => {
+    it('non-admin authenticated: /dashboard remains blocked in backend mode before legacy redirect resolution', () => {
       const authState: MockAuthState = {
         isAuthenticated: true,
         isAdmin: false,
         isSimpleMode: false,
         backendModeEnabled: true,
-        hasPendingAuthSession: false,
       }
       const redirect = simulateGuard('/dashboard', {}, authState)
       expect(redirect).toBe('/login')
+    })
+
+    it('non-admin authenticated: /app/dashboard is allowed as the primary operating entry', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: true,
+      }
+      const redirect = simulateGuard('/app/dashboard', {}, authState)
+      expect(redirect).toBeNull()
+    })
+
+    it('non-admin authenticated: /app/image remains allowed as the secondary image beta entry', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: true,
+      }
+      const redirect = simulateGuard('/app/image', {}, authState)
+      expect(redirect).toBeNull()
+    })
+
+    it('non-admin authenticated: /app/chat remains available as the chat helper entry', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: true,
+      }
+      const redirect = simulateGuard('/app/chat', {}, authState)
+      expect(redirect).toBeNull()
+    })
+
+    it('non-admin authenticated: /app/purchase remains available as the workbench recharge entry', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: true,
+      }
+      const redirect = simulateGuard('/app/purchase', {}, authState)
+      expect(redirect).toBeNull()
+    })
+
+    it('non-admin authenticated: /app/orders remains available as the workbench order entry', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: true,
+      }
+      const redirect = simulateGuard('/app/orders', {}, authState)
+      expect(redirect).toBeNull()
+    })
+
+    it('non-admin authenticated: /app/affiliate remains available as the workbench affiliate entry', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: true,
+      }
+      const redirect = simulateGuard('/app/affiliate', {}, authState)
+      expect(redirect).toBeNull()
     })
 
     it('non-admin authenticated: /login is allowed (no redirect loop)', () => {
@@ -452,7 +552,6 @@ describe('路由守卫逻辑', () => {
         isAdmin: false,
         isSimpleMode: false,
         backendModeEnabled: true,
-        hasPendingAuthSession: false,
       }
       const redirect = simulateGuard('/login', { requiresAuth: false }, authState)
       expect(redirect).toBeNull()
@@ -464,70 +563,9 @@ describe('路由守卫逻辑', () => {
         isAdmin: false,
         isSimpleMode: false,
         backendModeEnabled: true,
-        hasPendingAuthSession: false,
       }
       const redirect = simulateGuard('/key-usage', { requiresAuth: false }, authState)
       expect(redirect).toBeNull()
-    })
-
-    it('unauthenticated: callback routes are allowed', () => {
-      const authState: MockAuthState = {
-        isAuthenticated: false,
-        isAdmin: false,
-        isSimpleMode: false,
-        backendModeEnabled: true,
-        hasPendingAuthSession: false,
-      }
-      const redirect = simulateGuard('/auth/wechat/callback', { requiresAuth: false }, authState)
-      expect(redirect).toBeNull()
-    })
-
-    it('unauthenticated: WeChat payment callback route is allowed', () => {
-      const authState: MockAuthState = {
-        isAuthenticated: false,
-        isAdmin: false,
-        isSimpleMode: false,
-        backendModeEnabled: true,
-        hasPendingAuthSession: false,
-      }
-      const redirect = simulateGuard('/auth/wechat/payment/callback', { requiresAuth: false }, authState)
-      expect(redirect).toBeNull()
-    })
-
-    it('unauthenticated: /payment/result is allowed', () => {
-      const authState: MockAuthState = {
-        isAuthenticated: false,
-        isAdmin: false,
-        isSimpleMode: false,
-        backendModeEnabled: true,
-        hasPendingAuthSession: false,
-      }
-      const redirect = simulateGuard('/payment/result', { requiresAuth: false }, authState)
-      expect(redirect).toBeNull()
-    })
-
-    it('unauthenticated: /register is allowed when a pending auth session exists', () => {
-      const authState: MockAuthState = {
-        isAuthenticated: false,
-        isAdmin: false,
-        isSimpleMode: false,
-        backendModeEnabled: true,
-        hasPendingAuthSession: true,
-      }
-      const redirect = simulateGuard('/register', { requiresAuth: false }, authState)
-      expect(redirect).toBeNull()
-    })
-
-    it('unauthenticated: /email-verify is blocked without a pending auth session', () => {
-      const authState: MockAuthState = {
-        isAuthenticated: false,
-        isAdmin: false,
-        isSimpleMode: false,
-        backendModeEnabled: true,
-        hasPendingAuthSession: false,
-      }
-      const redirect = simulateGuard('/email-verify', { requiresAuth: false }, authState)
-      expect(redirect).toBe('/login')
     })
   })
 })

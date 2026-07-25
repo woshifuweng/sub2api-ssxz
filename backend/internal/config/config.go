@@ -10,6 +10,7 @@ import (
 	"net/textproto"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -19,8 +20,13 @@ import (
 )
 
 const (
-	RunModeStandard = "standard"
-	RunModeSimple   = "simple"
+	RunModeStandard          = "standard"
+	RunModeSimple            = "simple"
+	ProcessModeSingle        = "single"
+	ProcessModeMasterWorker  = "master_worker"
+	ServerRuntimeModeNetHTTP = "nethttp"
+	ServerRuntimeModeHybrid  = "hybrid"
+	ServerRuntimeModeGnet    = "gnet"
 )
 
 // 使用量记录队列溢出策略
@@ -82,6 +88,7 @@ type Config struct {
 	Default                 DefaultConfig                 `mapstructure:"default"`
 	RateLimit               RateLimitConfig               `mapstructure:"rate_limit"`
 	Pricing                 PricingConfig                 `mapstructure:"pricing"`
+	Workspace               WorkspaceConfig               `mapstructure:"workspace"`
 	Gateway                 GatewayConfig                 `mapstructure:"gateway"`
 	APIKeyAuth              APIKeyAuthCacheConfig         `mapstructure:"api_key_auth_cache"`
 	SubscriptionCache       SubscriptionCacheConfig       `mapstructure:"subscription_cache"`
@@ -90,14 +97,138 @@ type Config struct {
 	DashboardAgg            DashboardAggregationConfig    `mapstructure:"dashboard_aggregation"`
 	UsageCleanup            UsageCleanupConfig            `mapstructure:"usage_cleanup"`
 	Concurrency             ConcurrencyConfig             `mapstructure:"concurrency"`
+	Process                 ProcessConfig                 `mapstructure:"process"`
 	TokenRefresh            TokenRefreshConfig            `mapstructure:"token_refresh"`
 	RunMode                 string                        `mapstructure:"run_mode" yaml:"run_mode"`
 	Timezone                string                        `mapstructure:"timezone"` // e.g. "Asia/Shanghai", "UTC"
+	Sora                    SoraConfig                    `mapstructure:"sora"`
 	Gemini                  GeminiConfig                  `mapstructure:"gemini"`
+	OpenAI                  OpenAIConfig                  `mapstructure:"openai"`
 	Update                  UpdateConfig                  `mapstructure:"update"`
 	Idempotency             IdempotencyConfig             `mapstructure:"idempotency"`
+	AccountImport           AccountImportConfig           `mapstructure:"account_import"`
 	BatchImage              BatchImageConfig              `mapstructure:"batch_image"`
 	ImageStorage            ImageStorageConfig            `mapstructure:"image_storage"`
+	Rust                    RustConfig                    `mapstructure:"rust"`
+}
+
+// RustConfig configures the optional Rust sidecar and in-process FFI hooks.
+type RustConfig struct {
+	Sidecar RustSidecarConfig `mapstructure:"sidecar"`
+	FFI     RustFFIConfig     `mapstructure:"ffi"`
+}
+
+type ProcessConfig struct {
+	Mode                           string `mapstructure:"mode"`
+	WorkerCount                    int    `mapstructure:"worker_count"`
+	GracefulShutdownTimeoutSeconds int    `mapstructure:"graceful_shutdown_timeout_seconds"`
+	WorkerReadyTimeoutSeconds      int    `mapstructure:"worker_ready_timeout_seconds"`
+	ReloadTimeoutSeconds           int    `mapstructure:"reload_timeout_seconds"`
+	RespawnBackoffMS               int    `mapstructure:"respawn_backoff_ms"`
+	LogReopenSignalEnabled         bool   `mapstructure:"log_reopen_signal_enabled"`
+	ConfigReloadSignalEnabled      bool   `mapstructure:"config_reload_signal_enabled"`
+	EnableCPUAffinity              bool   `mapstructure:"enable_cpu_affinity"`
+}
+
+type OpenAIConfig struct {
+	ChatWeb OpenAIChatWebConfig `mapstructure:"chatweb"`
+}
+
+type OpenAIChatWebConfig struct {
+	CurlCFFISidecar OpenAIChatWebCurlCFFISidecarConfig `mapstructure:"curl_cffi_sidecar"`
+}
+
+type OpenAIChatWebCurlCFFISidecarConfig struct {
+	Enabled             bool   `mapstructure:"enabled"`
+	BaseURL             string `mapstructure:"base_url"`
+	Impersonate         string `mapstructure:"impersonate"`
+	TimeoutSeconds      int    `mapstructure:"timeout_seconds"`
+	SessionReuseEnabled bool   `mapstructure:"session_reuse_enabled"`
+	SessionTTLSeconds   int    `mapstructure:"session_ttl_seconds"`
+}
+
+// RustSidecarConfig controls external Rust protocol sidecar integration.
+type RustSidecarConfig struct {
+	Enabled                   bool     `mapstructure:"enabled"`
+	AutoStart                 bool     `mapstructure:"auto_start"`
+	BinaryPath                string   `mapstructure:"binary_path"`
+	Args                      []string `mapstructure:"args"`
+	SocketPath                string   `mapstructure:"socket_path"`
+	UpstreamSocketPath        string   `mapstructure:"upstream_socket_path"`
+	RequestTimeoutSeconds     int      `mapstructure:"request_timeout_seconds"`
+	UpgradeIdleTimeoutSeconds int      `mapstructure:"upgrade_idle_timeout_seconds"`
+	WebSocketMaxMessageBytes  int      `mapstructure:"websocket_max_message_bytes"`
+	HealthcheckTimeoutSeconds int      `mapstructure:"healthcheck_timeout_seconds"`
+	FailClosed                bool     `mapstructure:"fail_closed"`
+	H2CDelegateEnabled        bool     `mapstructure:"h2c_delegate_enabled"`
+	ResponsesWSEnabled        bool     `mapstructure:"responses_ws_enabled"`
+}
+
+// RustFFIConfig controls optional in-process Rust acceleration hooks.
+type RustFFIConfig struct {
+	Enabled            bool   `mapstructure:"enabled"`
+	LibraryPath        string `mapstructure:"library_path"`
+	HashEnabled        bool   `mapstructure:"hash_enabled"`
+	StreamingEnabled   bool   `mapstructure:"streaming_enabled"`
+	CompressionEnabled bool   `mapstructure:"compression_enabled"`
+}
+
+type SoraConfig struct {
+	Client  SoraClientConfig  `mapstructure:"client"`
+	Storage SoraStorageConfig `mapstructure:"storage"`
+}
+
+type SoraClientConfig struct {
+	BaseURL                            string                    `mapstructure:"base_url"`
+	TimeoutSeconds                     int                       `mapstructure:"timeout_seconds"`
+	MaxRetries                         int                       `mapstructure:"max_retries"`
+	CloudflareChallengeCooldownSeconds int                       `mapstructure:"cloudflare_challenge_cooldown_seconds"`
+	PollIntervalSeconds                int                       `mapstructure:"poll_interval_seconds"`
+	MaxPollAttempts                    int                       `mapstructure:"max_poll_attempts"`
+	RecentTaskLimit                    int                       `mapstructure:"recent_task_limit"`
+	RecentTaskLimitMax                 int                       `mapstructure:"recent_task_limit_max"`
+	Debug                              bool                      `mapstructure:"debug"`
+	UseOpenAITokenProvider             bool                      `mapstructure:"use_openai_token_provider"`
+	Headers                            map[string]string         `mapstructure:"headers"`
+	UserAgent                          string                    `mapstructure:"user_agent"`
+	DisableTLSFingerprint              bool                      `mapstructure:"disable_tls_fingerprint"`
+	CurlCFFISidecar                    SoraCurlCFFISidecarConfig `mapstructure:"curl_cffi_sidecar"`
+}
+
+type SoraCurlCFFISidecarConfig struct {
+	Enabled             bool   `mapstructure:"enabled"`
+	BaseURL             string `mapstructure:"base_url"`
+	Impersonate         string `mapstructure:"impersonate"`
+	TimeoutSeconds      int    `mapstructure:"timeout_seconds"`
+	SessionReuseEnabled bool   `mapstructure:"session_reuse_enabled"`
+	SessionTTLSeconds   int    `mapstructure:"session_ttl_seconds"`
+}
+
+type SoraStorageConfig struct {
+	Type                   string                   `mapstructure:"type"`
+	LocalPath              string                   `mapstructure:"local_path"`
+	FallbackToUpstream     bool                     `mapstructure:"fallback_to_upstream"`
+	MaxConcurrentDownloads int                      `mapstructure:"max_concurrent_downloads"`
+	DownloadTimeoutSeconds int                      `mapstructure:"download_timeout_seconds"`
+	MaxDownloadBytes       int64                    `mapstructure:"max_download_bytes"`
+	Debug                  bool                     `mapstructure:"debug"`
+	Cleanup                SoraStorageCleanupConfig `mapstructure:"cleanup"`
+}
+
+type SoraStorageCleanupConfig struct {
+	Enabled       bool   `mapstructure:"enabled"`
+	Schedule      string `mapstructure:"schedule"`
+	RetentionDays int    `mapstructure:"retention_days"`
+}
+
+type AccountImportConfig struct {
+	WorkerCount      int           `mapstructure:"worker_count"`
+	ChunkSize        int           `mapstructure:"chunk_size"`
+	QueueTTL         time.Duration `mapstructure:"queue_ttl"`
+	MaxFastPathRows  int           `mapstructure:"max_fast_path_rows"`
+	ClaimTTL         time.Duration `mapstructure:"claim_ttl"`
+	RecoveryInterval time.Duration `mapstructure:"recovery_interval"`
+	MaxChunkAttempts int           `mapstructure:"max_chunk_attempts"`
 }
 
 type LogConfig struct {
@@ -155,6 +286,7 @@ type GeminiTierQuotaConfig struct {
 }
 
 type UpdateConfig struct {
+	Repo string `mapstructure:"repo"`
 	// ProxyURL 用于访问 GitHub 的代理地址
 	// 支持 http/https/socks5/socks5h 协议
 	// 例如: "http://127.0.0.1:7890", "socks5://127.0.0.1:1080"
@@ -660,6 +792,7 @@ type ServerConfig struct {
 	Host                     string    `mapstructure:"host"`
 	Port                     int       `mapstructure:"port"`
 	Mode                     string    `mapstructure:"mode"`                  // debug/release
+	RuntimeMode              string    `mapstructure:"runtime_mode"`          // nethttp/hybrid/gnet
 	EnableServerTiming       bool      `mapstructure:"enable_server_timing"`  // Admin UI Server-Timing response header
 	FrontendURL              string    `mapstructure:"frontend_url"`          // 前端基础 URL，用于生成邮件中的外部链接
 	ReadHeaderTimeout        int       `mapstructure:"read_header_timeout"`   // 读取请求头超时（秒）
@@ -786,11 +919,12 @@ func (c *Config) SetTrustForwardedIPForAPIKeyACL(enabled bool) {
 }
 
 type URLAllowlistConfig struct {
-	Enabled           bool     `mapstructure:"enabled"`
-	UpstreamHosts     []string `mapstructure:"upstream_hosts"`
-	PricingHosts      []string `mapstructure:"pricing_hosts"`
-	CRSHosts          []string `mapstructure:"crs_hosts"`
-	AllowPrivateHosts bool     `mapstructure:"allow_private_hosts"`
+	Enabled              bool     `mapstructure:"enabled"`
+	UpstreamHosts        []string `mapstructure:"upstream_hosts"`
+	PricingHosts         []string `mapstructure:"pricing_hosts"`
+	CRSHosts             []string `mapstructure:"crs_hosts"`
+	AllowPrivateHosts    bool     `mapstructure:"allow_private_hosts"`
+	EnforceUpstreamHosts bool     `mapstructure:"enforce_upstream_hosts"`
 	// 关闭 URL 白名单校验时，是否允许 http URL（默认只允许 https）
 	AllowInsecureHTTP bool `mapstructure:"allow_insecure_http"`
 }
@@ -870,6 +1004,16 @@ const (
 
 // GatewayConfig API网关相关配置
 type GatewayConfig struct {
+	SoraStreamTimeoutSeconds  int `mapstructure:"sora_stream_timeout_seconds"`
+	SoraRequestTimeoutSeconds int `mapstructure:"sora_request_timeout_seconds"`
+	// SoraMaxBodySize limits Sora request bodies; zero falls back to MaxBodySize.
+	SoraMaxBodySize              int64                  `mapstructure:"sora_max_body_size"`
+	SoraStreamMode               string                 `mapstructure:"sora_stream_mode"`
+	SoraModelFilters             SoraModelFiltersConfig `mapstructure:"sora_model_filters"`
+	SoraMediaSigningKey          string                 `mapstructure:"sora_media_signing_key"`
+	SoraMediaSignedURLTTLSeconds int                    `mapstructure:"sora_media_signed_url_ttl_seconds"`
+	// SoraMediaRequireAPIKey requires API-key authentication for /sora/media.
+	SoraMediaRequireAPIKey bool `mapstructure:"sora_media_require_api_key"`
 	// 等待上游响应头的超时时间（秒），0表示无超时
 	// 注意：这不影响流式数据传输，只控制等待响应头的时间
 	ResponseHeaderTimeout int `mapstructure:"response_header_timeout"`
@@ -995,6 +1139,50 @@ type GatewayConfig struct {
 	// UserMessageQueue: 用户消息串行队列配置
 	// 对 role:"user" 的真实用户消息实施账号级串行化 + RPM 自适应延迟
 	UserMessageQueue UserMessageQueueConfig `mapstructure:"user_message_queue"`
+
+	// OpenAI contains HTTP streaming and upstream health-prefetch settings.
+	OpenAI GatewayOpenAIConfig `mapstructure:"openai"`
+}
+
+type SoraModelFiltersConfig struct {
+	HidePromptEnhance bool `mapstructure:"hide_prompt_enhance"`
+}
+
+// GatewayOpenAIConfig contains OpenAI HTTP streaming stabilization settings.
+type GatewayOpenAIConfig struct {
+	Streaming             GatewayOpenAIStreamingConfig             `mapstructure:"streaming"`
+	ProxyCircuitBreaker   GatewayOpenAIProxyCircuitBreakerConfig   `mapstructure:"proxy_circuit_breaker"`
+	AccountCircuitBreaker GatewayOpenAIAccountCircuitBreakerConfig `mapstructure:"account_circuit_breaker"`
+	HealthPrefetch        GatewayOpenAIHealthPrefetchConfig        `mapstructure:"health_prefetch"`
+}
+
+type GatewayOpenAIStreamingConfig struct {
+	ConnectQuickFailMS        int `mapstructure:"connect_quick_fail_ms"`
+	HeaderQuickFailMS         int `mapstructure:"header_quick_fail_ms"`
+	StreamIdleTimeoutMS       int `mapstructure:"stream_idle_timeout_ms"`
+	LargeBodyThresholdBytes   int `mapstructure:"large_body_threshold_bytes"`
+	XLargeBodyThresholdBytes  int `mapstructure:"xlarge_body_threshold_bytes"`
+	HugeBodyThresholdBytes    int `mapstructure:"huge_body_threshold_bytes"`
+	HTTPStreamFlushBatchSize  int `mapstructure:"http_stream_flush_batch_size"`
+	HTTPStreamFlushIntervalMS int `mapstructure:"http_stream_flush_interval_ms"`
+}
+
+type GatewayOpenAIProxyCircuitBreakerConfig struct {
+	FailureThreshold int `mapstructure:"failure_threshold"`
+	CooldownMS       int `mapstructure:"cooldown_ms"`
+}
+
+type GatewayOpenAIAccountCircuitBreakerConfig struct {
+	CooldownMS int `mapstructure:"cooldown_ms"`
+}
+
+type GatewayOpenAIHealthPrefetchConfig struct {
+	Enabled         bool `mapstructure:"enabled"`
+	TopN            int  `mapstructure:"top_n"`
+	WorkerCount     int  `mapstructure:"worker_count"`
+	QueueSize       int  `mapstructure:"queue_size"`
+	CooldownSeconds int  `mapstructure:"cooldown_seconds"`
+	TimeoutMS       int  `mapstructure:"timeout_ms"`
 }
 
 // GatewayOpenAIHTTP2Config OpenAI HTTP 上游协议配置。
@@ -1064,6 +1252,8 @@ type GatewayOpenAIWSConfig struct {
 	ModeRouterV2Enabled bool `mapstructure:"mode_router_v2_enabled"`
 	// IngressModeDefault: ingress 默认模式（off/ctx_pool/passthrough/http_bridge）
 	IngressModeDefault string `mapstructure:"ingress_mode_default"`
+	// DialHTTPVersion selects the upstream WS handshake HTTP version (auto/1.1/2).
+	DialHTTPVersion string `mapstructure:"dial_http_version"`
 	// ClientFirstMessageTimeoutSeconds bounds the total time to read and decompress
 	// the first client response.create message after the WebSocket upgrade.
 	ClientFirstMessageTimeoutSeconds int `mapstructure:"client_first_message_timeout_seconds"`
@@ -1095,6 +1285,8 @@ type GatewayOpenAIWSConfig struct {
 	StoreDisabledForceNewConn bool `mapstructure:"store_disabled_force_new_conn"`
 	// PrewarmGenerateEnabled: 是否启用 WSv2 generate=false 预热（默认 false）
 	PrewarmGenerateEnabled bool `mapstructure:"prewarm_generate_enabled"`
+	// PrewarmGenerateTimeoutMS bounds the background generate=false probe.
+	PrewarmGenerateTimeoutMS int `mapstructure:"prewarm_generate_timeout_ms"`
 	// ClientReadLimitBytes: 入站客户端 WS 单帧读取上限。
 	ClientReadLimitBytes int64 `mapstructure:"client_read_limit_bytes"`
 	// HTTPBridgeEnabled: 首包过大时，保持客户端 WS，改用 HTTP Responses 上游。
@@ -1176,6 +1368,10 @@ type GatewayOpenAIWSSchedulerScoreWeights struct {
 	PreviousResponse float64 `mapstructure:"previous_response"`
 	SessionSticky    float64 `mapstructure:"session_sticky"`
 }
+
+// GatewaySchedulerScoreWeights is kept as the stable name used by the
+// gateway scheduler while the Wei-Shaw base uses the more specific name.
+type GatewaySchedulerScoreWeights = GatewayOpenAIWSSchedulerScoreWeights
 
 func (w GatewayOpenAIWSSchedulerScoreWeights) BaseWeightSum() float64 {
 	return w.Priority + w.Load + w.Queue + w.ErrorRate + w.TTFT + w.Reset + w.QuotaHeadroom + w.UpstreamCost
@@ -1294,11 +1490,16 @@ type GatewaySchedulingConfig struct {
 
 	// 兜底层账户选择策略: "last_used"(按最后使用时间排序，默认) 或 "random"(随机)
 	FallbackSelectionMode string `mapstructure:"fallback_selection_mode"`
+	FairWaitQueueEnabled  bool   `mapstructure:"fair_wait_queue_enabled"`
 
 	// PreferSoonestReset 开启后，负载感知选择会优先选用「会话窗口最早重置」的账号
 	// （use-it-or-lose-it：先用尽即将重置的账号，保留重置时间还很久的账号）。
 	// 默认 false，保持原有「优先级 → 负载率 → LRU」行为不变。
-	PreferSoonestReset bool `mapstructure:"prefer_soonest_reset"`
+	PreferSoonestReset    bool                         `mapstructure:"prefer_soonest_reset"`
+	LBTopK                int                          `mapstructure:"lb_top_k"`
+	RuntimeStatsAlpha     float64                      `mapstructure:"runtime_stats_alpha"`
+	RuntimeSyncBatchMS    int                          `mapstructure:"runtime_sync_batch_ms"`
+	SchedulerScoreWeights GatewaySchedulerScoreWeights `mapstructure:"scheduler_score_weights"`
 
 	// 负载计算
 	LoadBatchEnabled    bool `mapstructure:"load_batch_enabled"`
@@ -1337,6 +1538,18 @@ type GatewaySchedulingConfig struct {
 
 func (s *ServerConfig) Address() string {
 	return fmt.Sprintf("%s:%d", s.Host, s.Port)
+}
+
+func NormalizeServerRuntimeMode(raw string) string {
+	mode := strings.ToLower(strings.TrimSpace(raw))
+	switch mode {
+	case ServerRuntimeModeHybrid, ServerRuntimeModeGnet:
+		return mode
+	case "", ServerRuntimeModeNetHTTP:
+		return ServerRuntimeModeNetHTTP
+	default:
+		return mode
+	}
 }
 
 // DatabaseConfig 数据库连接配置
@@ -1681,10 +1894,15 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	}
 
 	cfg.RunMode = NormalizeRunMode(cfg.RunMode)
+	cfg.Process.Mode = strings.ToLower(strings.TrimSpace(cfg.Process.Mode))
+	if cfg.Process.Mode == "" {
+		cfg.Process.Mode = ProcessModeSingle
+	}
 	cfg.Server.Mode = strings.ToLower(strings.TrimSpace(cfg.Server.Mode))
 	if cfg.Server.Mode == "" {
 		cfg.Server.Mode = "debug"
 	}
+	cfg.Server.RuntimeMode = NormalizeServerRuntimeMode(cfg.Server.RuntimeMode)
 	cfg.Server.FrontendURL = strings.TrimSpace(cfg.Server.FrontendURL)
 	cfg.JWT.Secret = strings.TrimSpace(cfg.JWT.Secret)
 	cfg.LinuxDo.ClientID = strings.TrimSpace(cfg.LinuxDo.ClientID)
@@ -1815,6 +2033,7 @@ func setDefaults() {
 	viper.SetDefault("server.host", "0.0.0.0")
 	viper.SetDefault("server.port", 8080)
 	viper.SetDefault("server.mode", "release")
+	viper.SetDefault("server.runtime_mode", ServerRuntimeModeNetHTTP)
 	viper.SetDefault("server.enable_server_timing", false)
 	viper.SetDefault("server.frontend_url", "")
 	viper.SetDefault("server.read_header_timeout", 10) // 10秒读取请求头
@@ -2316,6 +2535,17 @@ func setDefaults() {
 	viper.SetDefault("gateway.tls_fingerprint.enabled", true)
 	viper.SetDefault("concurrency.ping_interval", 10)
 
+	// Process model
+	viper.SetDefault("process.mode", ProcessModeSingle)
+	viper.SetDefault("process.worker_count", 0)
+	viper.SetDefault("process.graceful_shutdown_timeout_seconds", 30)
+	viper.SetDefault("process.worker_ready_timeout_seconds", 20)
+	viper.SetDefault("process.reload_timeout_seconds", 60)
+	viper.SetDefault("process.respawn_backoff_ms", 2000)
+	viper.SetDefault("process.log_reopen_signal_enabled", true)
+	viper.SetDefault("process.config_reload_signal_enabled", true)
+	viper.SetDefault("process.enable_cpu_affinity", false)
+
 	// TokenRefresh
 	viper.SetDefault("token_refresh.enabled", true)
 	viper.SetDefault("token_refresh.check_interval_minutes", 5)        // 每5分钟检查一次
@@ -2426,6 +2656,32 @@ func setEnvReachableDefaults() {
 }
 
 func (c *Config) Validate() error {
+	switch c.Process.Mode {
+	case ProcessModeSingle, ProcessModeMasterWorker:
+	case "":
+		return fmt.Errorf("process.mode is required")
+	default:
+		return fmt.Errorf("process.mode must be one of: %s/%s", ProcessModeSingle, ProcessModeMasterWorker)
+	}
+	if c.Process.WorkerCount < 0 {
+		return fmt.Errorf("process.worker_count must be non-negative")
+	}
+	if c.Process.GracefulShutdownTimeoutSeconds <= 0 {
+		return fmt.Errorf("process.graceful_shutdown_timeout_seconds must be positive")
+	}
+	if c.Process.WorkerReadyTimeoutSeconds <= 0 {
+		return fmt.Errorf("process.worker_ready_timeout_seconds must be positive")
+	}
+	if c.Process.ReloadTimeoutSeconds <= 0 {
+		return fmt.Errorf("process.reload_timeout_seconds must be positive")
+	}
+	if c.Process.RespawnBackoffMS < 0 {
+		return fmt.Errorf("process.respawn_backoff_ms must be non-negative")
+	}
+	if c.Process.Mode == ProcessModeMasterWorker && c.Process.EnableCPUAffinity && runtime.GOOS != "linux" {
+		slog.Warn("process.enable_cpu_affinity is only effective on linux; ignoring on current platform", "goos", runtime.GOOS)
+	}
+
 	forwardedClientIPHeaders, err := NormalizeForwardedClientIPHeaders(c.Security.ForwardedClientIPHeaders)
 	if err != nil {
 		return fmt.Errorf("security.forwarded_client_ip_headers: %w", err)
@@ -2563,6 +2819,11 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("server.frontend_url invalid: must not include userinfo")
 		}
 		warnIfInsecureURL("server.frontend_url", c.Server.FrontendURL)
+	}
+	switch c.Server.RuntimeMode {
+	case ServerRuntimeModeNetHTTP, ServerRuntimeModeHybrid, ServerRuntimeModeGnet:
+	default:
+		return fmt.Errorf("server.runtime_mode must be one of: %s/%s/%s", ServerRuntimeModeNetHTTP, ServerRuntimeModeHybrid, ServerRuntimeModeGnet)
 	}
 	if c.JWT.ExpireHour <= 0 {
 		return fmt.Errorf("jwt.expire_hour must be positive")
@@ -3556,4 +3817,96 @@ func warnIfInsecureURL(field, raw string) {
 	if strings.EqualFold(u.Scheme, "http") {
 		slog.Warn("url uses http scheme; use https in production to avoid token leakage", "field", field)
 	}
+}
+
+type WorkspaceConfig struct {
+	TextProvider      WorkspaceTextProviderConfig      `mapstructure:"text_provider"`
+	ImageExecution    WorkspaceImageExecutionConfig    `mapstructure:"image_execution"`
+	ImageRealProvider WorkspaceImageRealProviderConfig `mapstructure:"image_real_provider"`
+	AvailableChannels WorkspaceAvailableChannelsConfig `mapstructure:"available_channels"`
+	SoraClient        WorkspaceSoraClientConfig        `mapstructure:"sora_client"`
+	WebSearch         WorkspaceWebSearchConfig         `mapstructure:"web_search"`
+}
+
+type WorkspaceTextProviderConfig struct {
+	Enabled                 bool                                      `mapstructure:"enabled"`
+	KillSwitch              bool                                      `mapstructure:"kill_switch"`
+	StagingOnly             bool                                      `mapstructure:"staging_only"`
+	Environment             string                                    `mapstructure:"environment"`
+	TestProviderLabel       string                                    `mapstructure:"test_provider_label"`
+	LowCostModelAllowlist   []string                                  `mapstructure:"low_cost_model_allowlist"`
+	MaxRequestsPerTestRun   int                                       `mapstructure:"max_requests_per_test_run"`
+	BillingEligibilityKnown bool                                      `mapstructure:"billing_eligibility_known"`
+	BillingEligible         bool                                      `mapstructure:"billing_eligible"`
+	BillingPolicy           string                                    `mapstructure:"billing_policy"`
+	UsagePolicy             string                                    `mapstructure:"usage_policy"`
+	FailurePolicy           string                                    `mapstructure:"failure_policy"`
+	BetaAllowlist           WorkspaceTextProviderBetaConfig           `mapstructure:"beta_allowlist"`
+	BetaRequestCaps         WorkspaceTextProviderBetaRequestCapConfig `mapstructure:"beta_request_caps"`
+	OpenAICompatible        WorkspaceOpenAICompatibleConfig           `mapstructure:"openai_compatible"`
+}
+
+type WorkspaceTextProviderBetaConfig struct {
+	Enabled               bool     `mapstructure:"enabled"`
+	AllowedUserIDs        []int64  `mapstructure:"allowed_user_ids"`
+	AllowedGroupIDs       []int64  `mapstructure:"allowed_group_ids"`
+	AllowedProviderLabels []string `mapstructure:"allowed_provider_labels"`
+	AllowedModels         []string `mapstructure:"allowed_models"`
+}
+
+type WorkspaceTextProviderBetaRequestCapConfig struct {
+	DailyRequestCap    int `mapstructure:"daily_request_cap"`
+	TestRunRequestCap  int `mapstructure:"test_run_request_cap"`
+	ProviderRequestCap int `mapstructure:"provider_request_cap"`
+	ModelRequestCap    int `mapstructure:"model_request_cap"`
+}
+
+type WorkspaceOpenAICompatibleConfig struct {
+	BaseURL        string `mapstructure:"base_url"`
+	Model          string `mapstructure:"model"`
+	APIKey         string `mapstructure:"api_key"`
+	TimeoutSeconds int    `mapstructure:"timeout_seconds"`
+}
+
+type WorkspaceImageExecutionConfig struct {
+	Enabled               bool     `mapstructure:"enabled"`
+	KillSwitch            bool     `mapstructure:"kill_switch"`
+	FakeProviderEnabled   bool     `mapstructure:"fake_provider_enabled"`
+	AllowedUserIDs        []int64  `mapstructure:"allowed_user_ids"`
+	AllowedModels         []string `mapstructure:"allowed_models"`
+	AllowedProviderLabels []string `mapstructure:"allowed_provider_labels"`
+	MaxRequestsPerTestRun int      `mapstructure:"max_requests_per_test_run"`
+}
+
+type WorkspaceImageRealProviderConfig struct {
+	Enabled               bool     `mapstructure:"enabled"`
+	KillSwitch            bool     `mapstructure:"kill_switch"`
+	StagingOnly           bool     `mapstructure:"staging_only"`
+	Environment           string   `mapstructure:"environment"`
+	ProviderLabel         string   `mapstructure:"provider_label"`
+	AllowedUserIDs        []int64  `mapstructure:"allowed_user_ids"`
+	AllowedModels         []string `mapstructure:"allowed_models"`
+	AllowedProviderLabels []string `mapstructure:"allowed_provider_labels"`
+	MaxRequestsPerTestRun int      `mapstructure:"max_requests_per_test_run"`
+}
+
+type WorkspaceAvailableChannelsConfig struct {
+	StagingOverrideEnabled bool `mapstructure:"staging_override_enabled"`
+}
+
+type WorkspaceSoraClientConfig struct {
+	StagingOverrideEnabled bool `mapstructure:"staging_override_enabled"`
+}
+
+type WorkspaceWebSearchConfig struct {
+	Enabled               bool    `mapstructure:"enabled"`
+	KillSwitch            bool    `mapstructure:"kill_switch"`
+	Provider              string  `mapstructure:"provider"`
+	APIKey                string  `mapstructure:"api_key"`
+	AllowedUserIDs        []int64 `mapstructure:"allowed_user_ids"`
+	MaxResults            int     `mapstructure:"max_results"`
+	MaxReadURLs           int     `mapstructure:"max_read_urls"`
+	TimeoutMS             int     `mapstructure:"timeout_ms"`
+	DailyCapPerUser       int     `mapstructure:"daily_cap_per_user"`
+	MaxContentLengthBytes int64   `mapstructure:"max_content_length_bytes"`
 }

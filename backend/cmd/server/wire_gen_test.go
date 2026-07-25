@@ -52,11 +52,11 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 	cleanup := provideCleanup(
 		nil, // entClient
 		nil, // redis
-		&service.OpsMetricsCollector{},
-		&service.OpsAggregationService{},
-		&service.OpsAlertEvaluatorService{},
-		&service.OpsCleanupService{},
-		&service.OpsScheduledReportService{},
+		nil, // opsMetricsCollector
+		nil, // opsAggregation
+		nil, // opsAlertEvaluator
+		nil, // opsCleanup
+		nil, // opsScheduledReport
 		opsSystemLogSinkSvc,
 		nil, // opsService
 		nil, // opsIngressRejectAggregator
@@ -67,25 +67,25 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		accountExpirySvc,
 		proxyExpirySvc,
 		subscriptionExpirySvc,
-		&service.UsageCleanupService{},
+		nil, // usageCleanup
 		idempotencyCleanupSvc,
 		&service.BatchImageCleanupService{},
 		nil, // batchImageWorker
 		pricingSvc,
 		emailQueueSvc,
 		billingCacheSvc,
-		&service.UsageRecordWorkerPool{},
-		&service.SubscriptionService{},
+		nil, // usageRecordWorkerPool
+		nil, // subscriptionService
 		oauthSvc,
 		openAIOAuthSvc,
 		geminiOAuthSvc,
 		antigravityOAuthSvc,
 		nil, // grokOAuth
 		nil, // openAIGateway
+		nil, // channelMonitorRunner
 		nil, // scheduledTestRunner
 		nil, // backupSvc
 		nil, // paymentOrderExpiry
-		nil, // channelMonitorRunner
 		nil, // quotaFlusher
 		nil, // upstreamBillingProbe
 		nil, // auditLog

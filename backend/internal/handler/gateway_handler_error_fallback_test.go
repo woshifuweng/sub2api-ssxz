@@ -42,6 +42,7 @@ func TestGatewayEnsureForwardErrorResponse_AppendsSSEAfterWritten(t *testing.T) 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	c.Header("Content-Type", "text/event-stream")
 	c.String(http.StatusTeapot, "already written")
 
 	h := &GatewayHandler{}
@@ -60,6 +61,7 @@ func TestGatewayEnsureForwardErrorResponse_ResponsesRouteAfterWrittenEmitsRespon
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, EndpointResponses, nil)
+	c.Header("Content-Type", "text/event-stream")
 	_, _ = c.Writer.WriteString(":\n\n")
 
 	h := &GatewayHandler{}

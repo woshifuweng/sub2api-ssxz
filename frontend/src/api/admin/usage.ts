@@ -14,12 +14,10 @@ export interface AdminUsageStatsResponse {
   total_input_tokens: number
   total_output_tokens: number
   total_cache_tokens: number
-  total_cache_creation_tokens: number
-  total_cache_read_tokens: number
   total_tokens: number
   total_cost: number
   total_actual_cost: number
-  total_account_cost: number
+  total_account_cost?: number
   average_duration_ms: number
   endpoints?: EndpointStat[]
   upstream_endpoints?: EndpointStat[]
@@ -29,7 +27,6 @@ export interface AdminUsageStatsResponse {
 export interface SimpleUser {
   id: number
   email: string
-  deleted: boolean
 }
 
 export interface SimpleApiKey {
@@ -83,13 +80,6 @@ export interface CreateUsageCleanupTaskRequest {
 export interface AdminUsageQueryParams extends UsageQueryParams {
   user_id?: number
   exact_total?: boolean
-  billing_mode?: string
-  sort_by?: string
-  sort_order?: 'asc' | 'desc'
-  // 错误请求 tab 专属筛选(仅传给错误列表接口;共用同一 filters 对象)
-  error_phase?: string | null
-  error_category?: string | null
-  status_code?: number | null
 }
 
 // ==================== API Functions ====================
@@ -121,13 +111,13 @@ export async function getStats(params: {
   account_id?: number
   group_id?: number
   model?: string
+  request_id?: string
   request_type?: UsageRequestType
   stream?: boolean
   period?: string
   start_date?: string
   end_date?: string
   timezone?: string
-  nocache?: number
 }): Promise<AdminUsageStatsResponse> {
   const { data } = await apiClient.get<AdminUsageStatsResponse>('/admin/usage/stats', {
     params

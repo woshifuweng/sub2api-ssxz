@@ -442,6 +442,10 @@ func (s *AuthService) IsEmailVerifyEnabled(ctx context.Context) bool {
 
 // Login 用户登录，返回JWT token
 func (s *AuthService) Login(ctx context.Context, email, password string) (string, *User, error) {
+	if s == nil || s.userRepo == nil {
+		return "", nil, ErrServiceUnavailable
+	}
+
 	// 查找用户
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
@@ -1440,8 +1444,8 @@ func (s *AuthService) ResetPassword(ctx context.Context, email, token, newPasswo
 		return ErrServiceUnavailable
 	}
 
-	// Also revoke all refresh tokens for this user
-	if err := s.RevokeAllUserSessions(ctx, user.ID); err != nil {
+	// TokenVersion was already bumped above; only purge refresh tokens here.
+	if err := s.revokeAllUserRefreshTokens(ctx, user.ID); err != nil {
 		logger.LegacyPrintf("service.auth", "[Auth] Failed to revoke refresh tokens for user %d: %v", user.ID, err)
 		// Don't return error - password was already changed successfully
 	}
@@ -1542,14 +1546,14 @@ func (s *AuthService) generateRefreshToken(ctx context.Context, user *User, fami
 
 	// 添加到用户Token集合
 	if err := s.refreshTokenCache.AddToUserTokenSet(ctx, user.ID, tokenHash, ttl); err != nil {
-		logger.LegacyPrintf("service.auth", "[Auth] Failed to add token to user set: %v", err)
-		// 不影响主流程
+		_ = s.refreshTokenCache.DeleteRefreshToken(ctx, tokenHash)
+		return "", fmt.Errorf("add refresh token to user set: %w", err)
 	}
 
 	// 添加到家族Token集合
 	if err := s.refreshTokenCache.AddToFamilyTokenSet(ctx, familyID, tokenHash, ttl); err != nil {
-		logger.LegacyPrintf("service.auth", "[Auth] Failed to add token to family set: %v", err)
-		// 不影响主流程
+		_ = s.refreshTokenCache.DeleteRefreshToken(ctx, tokenHash)
+		return "", fmt.Errorf("add refresh token to family set: %w", err)
 	}
 
 	return rawToken, nil
@@ -1574,8 +1578,18 @@ func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string)
 	data, err := s.refreshTokenCache.GetRefreshToken(ctx, tokenHash)
 	if err != nil {
 		if errors.Is(err, ErrRefreshTokenNotFound) {
-			// Token不存在，可能是已被使用（Token轮转）或已过期
-			logger.LegacyPrintf("service.auth", "[Auth] Refresh token not found, possible reuse attack")
+			familyID, consumed, consumedErr := s.refreshTokenCache.GetConsumedRefreshTokenFamily(ctx, tokenHash)
+			if consumedErr != nil {
+				logger.LegacyPrintf("service.auth", "[Auth] Error checking consumed refresh token marker: %v", consumedErr)
+				return nil, ErrServiceUnavailable
+			}
+			if consumed {
+				if revokeErr := s.refreshTokenCache.DeleteTokenFamily(ctx, familyID); revokeErr != nil {
+					logger.LegacyPrintf("service.auth", "[Auth] Failed to revoke replayed refresh token family %s: %v", familyID, revokeErr)
+				}
+				logger.LegacyPrintf("service.auth", "[Auth] Refresh token replay detected for family %s", familyID)
+				return nil, ErrRefreshTokenReused
+			}
 			return nil, ErrRefreshTokenInvalid
 		}
 		logger.LegacyPrintf("service.auth", "[Auth] Error getting refresh token: %v", err)
@@ -1625,10 +1639,19 @@ func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string)
 		}
 	}
 
-	// Token轮转：立即使旧Token失效
+	ttl := time.Until(data.ExpiresAt)
+	if ttl < 0 {
+		ttl = 0
+	}
+
+	// Remove the old token and retain a consumed marker for replay detection.
 	if err := s.refreshTokenCache.DeleteRefreshToken(ctx, tokenHash); err != nil {
 		logger.LegacyPrintf("service.auth", "[Auth] Failed to delete old refresh token: %v", err)
-		// 继续处理，不影响主流程
+		return nil, ErrServiceUnavailable
+	}
+	if err := s.refreshTokenCache.StoreConsumedRefreshTokenFamily(ctx, tokenHash, data.FamilyID, ttl); err != nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Failed to store consumed refresh token marker: %v", err)
+		return nil, ErrServiceUnavailable
 	}
 
 	// 生成新的Token对，保持同一个家族ID
@@ -1664,33 +1687,43 @@ func (s *AuthService) RevokeSessionFamily(ctx context.Context, familyID string) 
 	return s.refreshTokenCache.DeleteTokenFamily(ctx, familyID)
 }
 
-// RevokeAllUserSessions 撤销用户的所有会话（所有Refresh Token）
-// 用于密码更改或用户主动登出所有设备
-func (s *AuthService) RevokeAllUserSessions(ctx context.Context, userID int64) error {
+func (s *AuthService) revokeAllUserRefreshTokens(ctx context.Context, userID int64) error {
 	if s.refreshTokenCache == nil {
-		return nil // No-op if cache not configured
+		return nil
 	}
 	return s.refreshTokenCache.DeleteUserRefreshTokens(ctx, userID)
+}
+
+// RevokeAllUserSessions invalidates access tokens immediately and purges
+// refresh tokens on a best-effort basis.
+func (s *AuthService) RevokeAllUserSessions(ctx context.Context, userID int64) error {
+	if s.userRepo == nil {
+		return ErrServiceUnavailable
+	}
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			return ErrUserNotFound
+		}
+		logger.LegacyPrintf("service.auth", "[Auth] Database error loading user for session revoke: %v", err)
+		return ErrServiceUnavailable
+	}
+	user.TokenVersion++
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Database error updating token version for user %d: %v", userID, err)
+		return ErrServiceUnavailable
+	}
+	if err := s.revokeAllUserRefreshTokens(ctx, userID); err != nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Failed to purge refresh tokens for user %d after token version bump: %v", userID, err)
+	}
+	return nil
 }
 
 // RevokeAllUserTokens invalidates both stateless access tokens and refresh sessions.
 // Access/refresh token verification both depend on TokenVersion, so bumping it provides
 // immediate revocation even if refresh-token cache cleanup later fails.
 func (s *AuthService) RevokeAllUserTokens(ctx context.Context, userID int64) error {
-	user, err := s.userRepo.GetByID(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("get user: %w", err)
-	}
-
-	user.TokenVersion++
-	if err := s.userRepo.Update(ctx, user); err != nil {
-		return fmt.Errorf("update user: %w", err)
-	}
-
-	if err := s.RevokeAllUserSessions(ctx, userID); err != nil {
-		logger.LegacyPrintf("service.auth", "[Auth] Failed to revoke refresh sessions after token invalidation for user %d: %v", userID, err)
-	}
-	return nil
+	return s.RevokeAllUserSessions(ctx, userID)
 }
 
 // hashToken 计算Token的SHA256哈希

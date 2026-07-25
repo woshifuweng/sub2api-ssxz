@@ -6,6 +6,10 @@
 import { apiClient } from './client'
 import type { ApiKey, CreateApiKeyRequest, UpdateApiKeyRequest, PaginatedResponse } from '@/types'
 
+interface CreateApiKeyOptions {
+  idempotencyKey?: string
+}
+
 /**
  * List all API keys for current user
  * @param page - Page number (default: 1)
@@ -17,13 +21,7 @@ import type { ApiKey, CreateApiKeyRequest, UpdateApiKeyRequest, PaginatedRespons
 export async function list(
   page: number = 1,
   pageSize: number = 10,
-  filters?: {
-    search?: string
-    status?: string
-    group_id?: number | string
-    sort_by?: string
-    sort_order?: 'asc' | 'desc'
-  },
+  filters?: { search?: string; status?: string; group_id?: number | string },
   options?: {
     signal?: AbortSignal
   }
@@ -45,6 +43,11 @@ export async function getById(id: number): Promise<ApiKey> {
   return data
 }
 
+export async function reveal(id: number): Promise<{ key: string }> {
+  const { data } = await apiClient.post<{ key: string }>(`/keys/${id}/reveal`)
+  return data
+}
+
 /**
  * Create new API key
  * @param name - Key name
@@ -55,21 +58,31 @@ export async function getById(id: number): Promise<ApiKey> {
  * @param quota - Optional quota limit in USD (0 = unlimited)
  * @param expiresInDays - Optional days until expiry (undefined = never expires)
  * @param rateLimitData - Optional rate limit fields
+ * @param options - Optional request options
  * @returns Created API key
  */
 export async function create(
   name: string,
   groupId?: number | null,
+  groupIds?: number[],
+  allowedModels?: string[],
   customKey?: string,
   ipWhitelist?: string[],
   ipBlacklist?: string[],
   quota?: number,
   expiresInDays?: number,
-  rateLimitData?: { rate_limit_5h?: number; rate_limit_1d?: number; rate_limit_7d?: number }
+  rateLimitData?: { rate_limit_5h?: number; rate_limit_1d?: number; rate_limit_7d?: number },
+  options?: CreateApiKeyOptions
 ): Promise<ApiKey> {
   const payload: CreateApiKeyRequest = { name }
-  if (groupId !== undefined) {
+  if (groupIds && groupIds.length > 0) {
+    payload.group_ids = groupIds
+    payload.group_id = groupIds[0] ?? null
+  } else if (groupId !== undefined) {
     payload.group_id = groupId
+  }
+  if (allowedModels && allowedModels.length > 0) {
+    payload.allowed_models = allowedModels
   }
   if (customKey) {
     payload.custom_key = customKey
@@ -96,7 +109,13 @@ export async function create(
     payload.rate_limit_7d = rateLimitData.rate_limit_7d
   }
 
-  const { data } = await apiClient.post<ApiKey>('/keys', payload)
+  const idempotencyKey = options?.idempotencyKey?.trim()
+  const requestConfig = idempotencyKey
+    ? { headers: { 'Idempotency-Key': idempotencyKey } }
+    : undefined
+  const { data } = requestConfig
+    ? await apiClient.post<ApiKey>('/keys', payload, requestConfig)
+    : await apiClient.post<ApiKey>('/keys', payload)
   return data
 }
 
@@ -134,6 +153,7 @@ export async function toggleStatus(id: number, status: 'active' | 'inactive'): P
 export const keysAPI = {
   list,
   getById,
+  reveal,
   create,
   update,
   delete: deleteKey,

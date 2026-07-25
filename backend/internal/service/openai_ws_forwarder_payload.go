@@ -25,7 +25,7 @@ func validateOpenAIWSBearerToken(account *Account, token string) error {
 	return nil
 }
 
-func (s *OpenAIGatewayService) buildOpenAIResponsesWSURL(account *Account) (string, error) {
+func (s *OpenAIGatewayService) buildOpenAIResponsesWSURLWeiShaw(account *Account) (string, error) {
 	if account == nil {
 		return "", errors.New("account is nil")
 	}
@@ -125,7 +125,7 @@ func (s *OpenAIGatewayService) buildOpenAIWSHeaders(
 		if err := resolveAndSetOpenAIChatGPTAccountHeaders(ctx, s.accountRepo, headers, account); err != nil {
 			return nil, sessionResolution, fmt.Errorf("resolve chatgpt account headers: %w", err)
 		}
-		headers.Set("originator", resolveOpenAIUpstreamOriginator(c, isCodexCLI))
+		headers.Set("originator", resolveOpenAIUpstreamOriginatorLegacy(c, isCodexCLI))
 	}
 
 	betaValue := openAIWSBetaV2Value
@@ -162,7 +162,7 @@ func (s *OpenAIGatewayService) buildOpenAIWSHeaders(
 	return headers, sessionResolution, nil
 }
 
-func (s *OpenAIGatewayService) buildOpenAIWSCreatePayload(reqBody map[string]any, account *Account) map[string]any {
+func (s *OpenAIGatewayService) buildOpenAIWSCreatePayloadWeiShaw(reqBody map[string]any, account *Account) map[string]any {
 	// OpenAI WS Mode 协议：response.create 字段与 HTTP /responses 基本一致。
 	// 保留 stream 字段（与 Codex CLI 一致），仅移除 background。
 	payload := make(map[string]any, len(reqBody)+1)
@@ -183,7 +183,7 @@ func (s *OpenAIGatewayService) buildOpenAIWSCreatePayload(reqBody map[string]any
 	return payload
 }
 
-func setOpenAIWSTurnMetadata(payload map[string]any, turnMetadata string) {
+func setOpenAIWSTurnMetadataWeiShaw(payload map[string]any, turnMetadata string) {
 	if len(payload) == 0 {
 		return
 	}
@@ -210,7 +210,7 @@ func setOpenAIWSTurnMetadata(payload map[string]any, turnMetadata string) {
 	}
 }
 
-func (s *OpenAIGatewayService) isOpenAIWSStoreRecoveryAllowed(account *Account) bool {
+func (s *OpenAIGatewayService) isOpenAIWSStoreRecoveryAllowedWeiShaw(account *Account) bool {
 	if account != nil && account.IsOpenAIWSAllowStoreRecoveryEnabled() {
 		return true
 	}
@@ -220,7 +220,7 @@ func (s *OpenAIGatewayService) isOpenAIWSStoreRecoveryAllowed(account *Account) 
 	return false
 }
 
-func (s *OpenAIGatewayService) isOpenAIWSStoreDisabledInRequest(reqBody map[string]any, account *Account) bool {
+func (s *OpenAIGatewayService) isOpenAIWSStoreDisabledInRequestWeiShaw(reqBody map[string]any, account *Account) bool {
 	if account != nil && account.Type == AccountTypeOAuth && !s.isOpenAIWSStoreRecoveryAllowed(account) {
 		return true
 	}
@@ -238,7 +238,7 @@ func (s *OpenAIGatewayService) isOpenAIWSStoreDisabledInRequest(reqBody map[stri
 	return !storeEnabled
 }
 
-func (s *OpenAIGatewayService) isOpenAIWSStoreDisabledInRequestRaw(reqBody []byte, account *Account) bool {
+func (s *OpenAIGatewayService) isOpenAIWSStoreDisabledInRequestRawWeiShaw(reqBody []byte, account *Account) bool {
 	if account != nil && account.Type == AccountTypeOAuth && !s.isOpenAIWSStoreRecoveryAllowed(account) {
 		return true
 	}
@@ -255,7 +255,7 @@ func (s *OpenAIGatewayService) isOpenAIWSStoreDisabledInRequestRaw(reqBody []byt
 	return !storeValue.Bool()
 }
 
-func (s *OpenAIGatewayService) openAIWSStoreDisabledConnMode() string {
+func (s *OpenAIGatewayService) openAIWSStoreDisabledConnModeWeiShaw() string {
 	if s == nil || s.cfg == nil {
 		return openAIWSStoreDisabledConnModeStrict
 	}
@@ -274,7 +274,7 @@ func (s *OpenAIGatewayService) openAIWSStoreDisabledConnMode() string {
 	}
 }
 
-func shouldForceNewConnOnStoreDisabled(mode, lastFailureReason string) bool {
+func shouldForceNewConnOnStoreDisabledWeiShaw(mode, lastFailureReason string) bool {
 	switch mode {
 	case openAIWSStoreDisabledConnModeOff:
 		return false
@@ -291,11 +291,11 @@ func shouldForceNewConnOnStoreDisabled(mode, lastFailureReason string) bool {
 	}
 }
 
-func dropPreviousResponseIDFromRawPayload(payload []byte) ([]byte, bool, error) {
+func dropPreviousResponseIDFromRawPayloadWeiShaw(payload []byte) ([]byte, bool, error) {
 	return dropPreviousResponseIDFromRawPayloadWithDeleteFn(payload, sjson.DeleteBytes)
 }
 
-func dropPreviousResponseIDFromRawPayloadWithDeleteFn(
+func dropPreviousResponseIDFromRawPayloadWithDeleteFnWeiShaw(
 	payload []byte,
 	deleteFn func([]byte, string) ([]byte, error),
 ) ([]byte, bool, error) {
@@ -321,7 +321,7 @@ func dropPreviousResponseIDFromRawPayloadWithDeleteFn(
 	return updated, !gjson.GetBytes(updated, "previous_response_id").Exists(), nil
 }
 
-func setPreviousResponseIDToRawPayload(payload []byte, previousResponseID string) ([]byte, error) {
+func setPreviousResponseIDToRawPayloadWeiShaw(payload []byte, previousResponseID string) ([]byte, error) {
 	normalizedPrevID := strings.TrimSpace(previousResponseID)
 	if len(payload) == 0 || normalizedPrevID == "" {
 		return payload, nil
@@ -370,7 +370,23 @@ func shouldInferIngressFunctionCallOutputPreviousResponseID(
 	return strings.TrimSpace(expectedPreviousResponseID) != ""
 }
 
-func alignStoreDisabledPreviousResponseID(
+func shouldInferIngressFunctionCallOutputPreviousResponseIDLegacy(
+	storeDisabled bool,
+	turn int,
+	hasFunctionCallOutput bool,
+	currentPreviousResponseID string,
+	expectedPreviousResponseID string,
+) bool {
+	if !storeDisabled || turn <= 1 || !hasFunctionCallOutput {
+		return false
+	}
+	if strings.TrimSpace(currentPreviousResponseID) != "" {
+		return false
+	}
+	return strings.TrimSpace(expectedPreviousResponseID) != ""
+}
+
+func alignStoreDisabledPreviousResponseIDWeiShaw(
 	payload []byte,
 	expectedPreviousResponseID string,
 ) ([]byte, bool, error) {
@@ -400,7 +416,7 @@ func alignStoreDisabledPreviousResponseID(
 	return updated, true, nil
 }
 
-func cloneOpenAIWSPayloadBytes(payload []byte) []byte {
+func cloneOpenAIWSPayloadBytesWeiShaw(payload []byte) []byte {
 	if len(payload) == 0 {
 		return nil
 	}
@@ -409,7 +425,7 @@ func cloneOpenAIWSPayloadBytes(payload []byte) []byte {
 	return cloned
 }
 
-func cloneOpenAIWSRawMessages(items []json.RawMessage) []json.RawMessage {
+func cloneOpenAIWSRawMessagesWeiShaw(items []json.RawMessage) []json.RawMessage {
 	if items == nil {
 		return nil
 	}
@@ -420,7 +436,7 @@ func cloneOpenAIWSRawMessages(items []json.RawMessage) []json.RawMessage {
 	return cloned
 }
 
-func normalizeOpenAIWSJSONForCompare(raw []byte) ([]byte, error) {
+func normalizeOpenAIWSJSONForCompareWeiShaw(raw []byte) ([]byte, error) {
 	trimmed := bytes.TrimSpace(raw)
 	if len(trimmed) == 0 {
 		return nil, errors.New("json is empty")
@@ -432,7 +448,7 @@ func normalizeOpenAIWSJSONForCompare(raw []byte) ([]byte, error) {
 	return json.Marshal(decoded)
 }
 
-func normalizeOpenAIWSJSONForCompareOrRaw(raw []byte) []byte {
+func normalizeOpenAIWSJSONForCompareOrRawWeiShaw(raw []byte) []byte {
 	normalized, err := normalizeOpenAIWSJSONForCompare(raw)
 	if err != nil {
 		return bytes.TrimSpace(raw)
@@ -440,7 +456,7 @@ func normalizeOpenAIWSJSONForCompareOrRaw(raw []byte) []byte {
 	return normalized
 }
 
-func normalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID(payload []byte) ([]byte, error) {
+func normalizeOpenAIWSPayloadWithoutInputAndPreviousResponseIDWeiShaw(payload []byte) ([]byte, error) {
 	if len(payload) == 0 {
 		return nil, errors.New("payload is empty")
 	}
@@ -453,7 +469,7 @@ func normalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID(payload []byte) (
 	return json.Marshal(decoded)
 }
 
-func openAIWSExtractNormalizedInputSequence(payload []byte) ([]json.RawMessage, bool, error) {
+func openAIWSExtractNormalizedInputSequenceWeiShaw(payload []byte) ([]json.RawMessage, bool, error) {
 	if len(payload) == 0 {
 		return nil, false, nil
 	}
@@ -479,7 +495,7 @@ func openAIWSExtractNormalizedInputSequence(payload []byte) ([]json.RawMessage, 
 	return []json.RawMessage{json.RawMessage(inputValue.Raw)}, true, nil
 }
 
-func openAIWSInputIsPrefixExtended(previousPayload, currentPayload []byte) (bool, error) {
+func openAIWSInputIsPrefixExtendedWeiShaw(previousPayload, currentPayload []byte) (bool, error) {
 	previousItems, previousExists, prevErr := openAIWSExtractNormalizedInputSequence(previousPayload)
 	if prevErr != nil {
 		return false, prevErr
@@ -511,7 +527,7 @@ func openAIWSInputIsPrefixExtended(previousPayload, currentPayload []byte) (bool
 	return true, nil
 }
 
-func openAIWSRawItemsHasPrefix(items []json.RawMessage, prefix []json.RawMessage) bool {
+func openAIWSRawItemsHasPrefixWeiShaw(items []json.RawMessage, prefix []json.RawMessage) bool {
 	if len(prefix) == 0 {
 		return true
 	}
@@ -591,7 +607,7 @@ func openAIWSRawPayloadHasToolCallOutput(payload []byte) bool {
 	return false
 }
 
-func buildOpenAIWSReplayInputSequence(
+func buildOpenAIWSReplayInputSequenceWeiShaw(
 	previousFullInput []json.RawMessage,
 	previousFullInputExists bool,
 	currentPayload []byte,
@@ -619,7 +635,7 @@ func buildOpenAIWSReplayInputSequence(
 	return merged, true, nil
 }
 
-func setOpenAIWSPayloadInputSequence(
+func setOpenAIWSPayloadInputSequenceWeiShaw(
 	payload []byte,
 	fullInput []json.RawMessage,
 	fullInputExists bool,
@@ -639,7 +655,7 @@ func setOpenAIWSPayloadInputSequence(
 	return sjson.SetRawBytes(payload, "input", inputRaw)
 }
 
-func shouldKeepIngressPreviousResponseID(
+func shouldKeepIngressPreviousResponseIDWeiShaw(
 	previousPayload []byte,
 	currentPayload []byte,
 	lastTurnResponseID string,

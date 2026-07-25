@@ -14,6 +14,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
+	openaipkg "github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 )
@@ -64,6 +65,15 @@ type Account struct {
 	GroupIDs      []int64
 	Groups        []*Group
 
+	// Import/sync state is persisted in extra using reserved internal keys,
+	// then hydrated into these explicit fields for API responses and workers.
+	SyncState            string
+	SyncProgress         int
+	SyncMessage          string
+	SyncBatchID          string
+	DuplicateOfAccountID *int64
+	DedupFingerprint     string
+
 	// model_mapping 热路径缓存（非持久化字段）
 	modelMappingCache               map[string]string
 	modelMappingCacheReady          bool
@@ -84,6 +94,32 @@ type Account struct {
 type OpenAIEndpointCapability string
 
 const openAILongContextBillingEnabledKey = "openai_long_context_billing_enabled"
+
+const (
+	AccountSyncStatePending   = "pending"
+	AccountSyncStateSyncing   = "syncing"
+	AccountSyncStateCompleted = "completed"
+	AccountSyncStateFailed    = "failed"
+	AccountSyncStateDuplicate = "duplicate"
+)
+
+const (
+	AccountExtraSyncStateKey        = "_import_sync_state"
+	AccountExtraSyncProgressKey     = "_import_sync_progress"
+	AccountExtraSyncMessageKey      = "_import_sync_message"
+	AccountExtraSyncBatchIDKey      = "_import_sync_batch_id"
+	AccountExtraDuplicateOfKey      = "_import_duplicate_of_account_id"
+	AccountExtraDedupFingerprintKey = "_import_dedup_fingerprint"
+)
+
+var accountInternalExtraKeys = map[string]struct{}{
+	AccountExtraSyncStateKey:        {},
+	AccountExtraSyncProgressKey:     {},
+	AccountExtraSyncMessageKey:      {},
+	AccountExtraSyncBatchIDKey:      {},
+	AccountExtraDuplicateOfKey:      {},
+	AccountExtraDedupFingerprintKey: {},
+}
 
 const (
 	OpenAIEndpointCapabilityChatCompletions OpenAIEndpointCapability = "chat_completions"
@@ -339,6 +375,45 @@ func (a *Account) GetCredentialAsTime(key string) *time.Time {
 		return &t
 	}
 	return nil
+}
+
+func IsAccountInternalExtraKey(key string) bool {
+	_, ok := accountInternalExtraKeys[strings.TrimSpace(key)]
+	return ok
+}
+
+func CopyExtraPreservingInternal(current, next map[string]any) map[string]any {
+	out := make(map[string]any)
+	for k, v := range next {
+		out[k] = v
+	}
+	for k, v := range current {
+		if !IsAccountInternalExtraKey(k) {
+			continue
+		}
+		if _, exists := out[k]; exists {
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
+func FilterAccountInternalExtra(extra map[string]any) map[string]any {
+	if len(extra) == 0 {
+		if extra == nil {
+			return nil
+		}
+		return map[string]any{}
+	}
+	out := make(map[string]any, len(extra))
+	for k, v := range extra {
+		if IsAccountInternalExtraKey(k) {
+			continue
+		}
+		out[k] = v
+	}
+	return out
 }
 
 // GetCredentialAsInt64 解析凭证中的 int64 字段
@@ -769,6 +844,57 @@ func resolveRequestedModelInMapping(mapping map[string]string, requestedModel st
 	return matchWildcardMappingResult(mapping, requestedModel)
 }
 
+func maybeNormalizeOpenAIModelCandidate(model string) (string, bool) {
+	trimmed := strings.TrimSpace(model)
+	if trimmed == "" {
+		return "", false
+	}
+
+	lower := strings.ToLower(trimmed)
+	if !strings.Contains(lower, "gpt") && !strings.Contains(lower, "codex") {
+		return "", false
+	}
+
+	normalized := strings.TrimSpace(normalizeCodexModel(trimmed))
+	if normalized == "" {
+		return "", false
+	}
+	return normalized, true
+}
+
+func buildOpenAIModelLookupCandidates(requestedModel string) []string {
+	appendUnique := func(out []string, seen map[string]struct{}, value string) []string {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return out
+		}
+		if _, exists := seen[value]; exists {
+			return out
+		}
+		seen[value] = struct{}{}
+		return append(out, value)
+	}
+
+	seen := make(map[string]struct{}, 4)
+	candidates := make([]string, 0, 4)
+	candidates = appendUnique(candidates, seen, requestedModel)
+
+	baseModel := ""
+	if base, _, stripped := splitOpenAIModelReasoningVariant(requestedModel); stripped {
+		baseModel = strings.TrimSpace(base)
+		candidates = appendUnique(candidates, seen, baseModel)
+	}
+
+	if normalized, ok := maybeNormalizeOpenAIModelCandidate(requestedModel); ok {
+		candidates = appendUnique(candidates, seen, normalized)
+	}
+	if normalizedBase, ok := maybeNormalizeOpenAIModelCandidate(baseModel); ok {
+		candidates = appendUnique(candidates, seen, normalizedBase)
+	}
+
+	return candidates
+}
+
 // IsModelSupported 检查模型是否在 model_mapping 中（支持通配符）
 // 如果未配置 mapping，返回 true（允许所有模型）。
 //
@@ -785,8 +911,15 @@ func (a *Account) IsModelSupported(requestedModel string) bool {
 		}
 		return true // 无映射 = 允许所有
 	}
-	if mappingSupportsRequestedModel(mapping, requestedModel) {
-		return true
+	for _, candidate := range buildOpenAIModelLookupCandidates(requestedModel) {
+		if _, exists := mapping[candidate]; exists {
+			return true
+		}
+		for pattern := range mapping {
+			if matchWildcard(pattern, candidate) {
+				return true
+			}
+		}
 	}
 	normalized := normalizeRequestedModelForLookup(a.Platform, requestedModel)
 	return normalized != requestedModel && mappingSupportsRequestedModel(mapping, normalized)
@@ -806,12 +939,8 @@ func (a *Account) ResolveMappedModel(requestedModel string) (mappedModel string,
 	if len(mapping) == 0 {
 		return requestedModel, false
 	}
-	if mappedModel, matched := resolveRequestedModelInMapping(mapping, requestedModel); matched {
-		return mappedModel, true
-	}
-	normalized := normalizeRequestedModelForLookup(a.Platform, requestedModel)
-	if normalized != requestedModel {
-		if mappedModel, matched := resolveRequestedModelInMapping(mapping, normalized); matched {
+	for _, candidate := range buildOpenAIModelLookupCandidates(requestedModel) {
+		if mappedModel, matched := resolveRequestedModelInMapping(mapping, candidate); matched {
 			return mappedModel, true
 		}
 	}
@@ -1194,6 +1323,108 @@ func (a *Account) IsInterceptWarmupEnabled() bool {
 	return false
 }
 
+func (a *Account) ApplySyncMetadataFromExtra() {
+	if a == nil {
+		return
+	}
+	a.SyncState = strings.TrimSpace(a.getExtraString(AccountExtraSyncStateKey))
+	a.SyncProgress = clampAccountSyncProgress(ParseExtraInt(a.getExtraValue(AccountExtraSyncProgressKey)))
+	a.SyncMessage = strings.TrimSpace(a.getExtraString(AccountExtraSyncMessageKey))
+	a.SyncBatchID = strings.TrimSpace(a.getExtraString(AccountExtraSyncBatchIDKey))
+	a.DedupFingerprint = strings.TrimSpace(a.getExtraString(AccountExtraDedupFingerprintKey))
+
+	if raw := strings.TrimSpace(a.getExtraString(AccountExtraDuplicateOfKey)); raw != "" {
+		if parsed, err := strconv.ParseInt(raw, 10, 64); err == nil && parsed > 0 {
+			a.DuplicateOfAccountID = &parsed
+		}
+	} else if value, ok := a.getExtraValue(AccountExtraDuplicateOfKey).(float64); ok && value > 0 {
+		parsed := int64(value)
+		a.DuplicateOfAccountID = &parsed
+	}
+}
+
+func (a *Account) SetSyncMetadata(state string, progress int, message, batchID string, duplicateOf *int64) {
+	if a == nil {
+		return
+	}
+	if a.Extra == nil {
+		a.Extra = make(map[string]any)
+	}
+	progress = clampAccountSyncProgress(progress)
+	state = strings.TrimSpace(state)
+	message = strings.TrimSpace(message)
+	batchID = strings.TrimSpace(batchID)
+
+	if state == "" {
+		delete(a.Extra, AccountExtraSyncStateKey)
+		a.SyncState = ""
+	} else {
+		a.Extra[AccountExtraSyncStateKey] = state
+		a.SyncState = state
+	}
+	a.Extra[AccountExtraSyncProgressKey] = progress
+	a.SyncProgress = progress
+
+	if message == "" {
+		delete(a.Extra, AccountExtraSyncMessageKey)
+		a.SyncMessage = ""
+	} else {
+		a.Extra[AccountExtraSyncMessageKey] = message
+		a.SyncMessage = message
+	}
+
+	if batchID == "" {
+		delete(a.Extra, AccountExtraSyncBatchIDKey)
+		a.SyncBatchID = ""
+	} else {
+		a.Extra[AccountExtraSyncBatchIDKey] = batchID
+		a.SyncBatchID = batchID
+	}
+
+	if duplicateOf != nil && *duplicateOf > 0 {
+		a.Extra[AccountExtraDuplicateOfKey] = *duplicateOf
+		id := *duplicateOf
+		a.DuplicateOfAccountID = &id
+	} else {
+		delete(a.Extra, AccountExtraDuplicateOfKey)
+		a.DuplicateOfAccountID = nil
+	}
+}
+
+func (a *Account) SetDedupFingerprint(fingerprint string) {
+	if a == nil {
+		return
+	}
+	fingerprint = strings.TrimSpace(fingerprint)
+	if a.Extra == nil {
+		a.Extra = make(map[string]any)
+	}
+	if fingerprint == "" {
+		delete(a.Extra, AccountExtraDedupFingerprintKey)
+		a.DedupFingerprint = ""
+		return
+	}
+	a.Extra[AccountExtraDedupFingerprintKey] = fingerprint
+	a.DedupFingerprint = fingerprint
+}
+
+func (a *Account) getExtraValue(key string) any {
+	if a == nil || a.Extra == nil {
+		return nil
+	}
+	return a.Extra[key]
+}
+
+func clampAccountSyncProgress(progress int) int {
+	if progress < 0 {
+		return 0
+	}
+	if progress > 100 {
+		return 100
+	}
+	return progress
+}
+
 func (a *Account) IsBedrock() bool {
 	return a.Platform == PlatformAnthropic && a.Type == AccountTypeBedrock
 }
@@ -1225,6 +1456,40 @@ func (a *Account) IsAnthropic() bool {
 
 func (a *Account) IsOpenAIOAuth() bool {
 	return a.IsOpenAI() && a.Type == AccountTypeOAuth
+}
+
+const (
+	OpenAIAuthModeOAuthCodex = "oauth_codex"
+	OpenAIAuthModeChatWeb    = "chatweb"
+)
+
+func (a *Account) ResolveOpenAIAuthMode() string {
+	if !a.IsOpenAIOAuth() {
+		return OpenAIAuthModeOAuthCodex
+	}
+	if a.Extra != nil {
+		if mode, ok := a.Extra["openai_auth_mode"].(string); ok {
+			switch strings.ToLower(strings.TrimSpace(mode)) {
+			case OpenAIAuthModeChatWeb:
+				return OpenAIAuthModeChatWeb
+			case "", OpenAIAuthModeOAuthCodex:
+				return OpenAIAuthModeOAuthCodex
+			default:
+				return OpenAIAuthModeOAuthCodex
+			}
+		}
+		if enabled, ok := a.Extra["openai_chatweb_mode"].(bool); ok && enabled {
+			return OpenAIAuthModeChatWeb
+		}
+	}
+	if strings.TrimSpace(a.GetOpenAISessionToken()) != "" && strings.TrimSpace(a.GetOpenAIRefreshToken()) == "" {
+		return OpenAIAuthModeChatWeb
+	}
+	return OpenAIAuthModeOAuthCodex
+}
+
+func (a *Account) IsOpenAIChatWebMode() bool {
+	return a.IsOpenAIOAuth() && a.ResolveOpenAIAuthMode() == OpenAIAuthModeChatWeb
 }
 
 func (a *Account) IsOpenAIChatGPTSubscription() bool {
@@ -1276,6 +1541,13 @@ func (a *Account) GetOpenAIRefreshToken() string {
 		return ""
 	}
 	return a.GetCredential("refresh_token")
+}
+
+func (a *Account) GetOpenAISessionToken() string {
+	if !a.IsOpenAIOAuth() {
+		return ""
+	}
+	return a.GetCredential("session_token")
 }
 
 // GetGrokBaseURL selects the upstream used by Grok text and Responses traffic.
@@ -1363,7 +1635,46 @@ func (a *Account) GetChatGPTAccountID() string {
 	if !a.IsOpenAIOAuth() {
 		return ""
 	}
-	return a.GetCredential("chatgpt_account_id")
+	if value := a.GetCredential("chatgpt_account_id"); value != "" {
+		return value
+	}
+	if claims, err := openaipkg.DecodeAccessToken(a.GetOpenAIAccessToken()); err == nil && claims != nil {
+		return strings.TrimSpace(claims.GetUserInfo().ChatGPTAccountID)
+	}
+	return ""
+}
+
+func (a *Account) GetOpenAIDeviceID() string {
+	if !a.IsOpenAIOAuth() {
+		return ""
+	}
+	return strings.TrimSpace(a.GetExtraString("openai_device_id"))
+}
+
+func (a *Account) GetOpenAISessionID() string {
+	if !a.IsOpenAIOAuth() {
+		return ""
+	}
+	return strings.TrimSpace(a.GetExtraString("openai_session_id"))
+}
+
+// SupportsOpenAIImageCapability reports whether this account can serve the
+// current Images API implementation on this branch.
+func (a *Account) SupportsOpenAIImageCapability(capability OpenAIImagesCapability) bool {
+	if capability == "" {
+		return true
+	}
+	if a == nil || !a.IsOpenAI() {
+		return false
+	}
+	switch capability {
+	case OpenAIImagesCapabilityBasic, OpenAIImagesCapabilityChatWebEdit:
+		return a.Type == AccountTypeAPIKey || a.IsOpenAIChatWebMode()
+	case OpenAIImagesCapabilityNative:
+		return a.Type == AccountTypeAPIKey
+	default:
+		return a.Type == AccountTypeAPIKey
+	}
 }
 
 func (a *Account) IsChatGPTAccountFedRAMP() bool {
@@ -1392,20 +1703,6 @@ func (a *Account) IsChatGPTAccountFedRAMP() bool {
 	default:
 		return false
 	}
-}
-
-func (a *Account) GetOpenAIDeviceID() string {
-	if !a.IsOpenAIOAuth() {
-		return ""
-	}
-	return strings.TrimSpace(a.GetExtraString("openai_device_id"))
-}
-
-func (a *Account) GetOpenAISessionID() string {
-	if !a.IsOpenAIOAuth() {
-		return ""
-	}
-	return strings.TrimSpace(a.GetExtraString("openai_session_id"))
 }
 
 func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapability) bool {
@@ -1565,33 +1862,30 @@ func (a *Account) openAIEndpointCapabilitySet() (map[string]bool, bool) {
 	return result, true
 }
 
-func (a *Account) SupportsOpenAIImageCapability(capability OpenAIImagesCapability) bool {
-	if capability == "" {
-		return true
-	}
-	if !a.IsOpenAI() {
-		return false
-	}
-	switch capability {
-	case OpenAIImagesCapabilityBasic, OpenAIImagesCapabilityNative:
-		return a.Type == AccountTypeOAuth || a.Type == AccountTypeAPIKey
-	default:
-		return true
-	}
-}
-
 func (a *Account) GetChatGPTUserID() string {
 	if !a.IsOpenAIOAuth() {
 		return ""
 	}
-	return a.GetCredential("chatgpt_user_id")
+	if value := a.GetCredential("chatgpt_user_id"); value != "" {
+		return value
+	}
+	if claims, err := openaipkg.DecodeAccessToken(a.GetOpenAIAccessToken()); err == nil && claims != nil {
+		return strings.TrimSpace(claims.GetUserInfo().ChatGPTUserID)
+	}
+	return ""
 }
 
 func (a *Account) GetOpenAIOrganizationID() string {
 	if !a.IsOpenAIOAuth() {
 		return ""
 	}
-	return a.GetCredential("organization_id")
+	if value := a.GetCredential("organization_id"); value != "" {
+		return value
+	}
+	if claims, err := openaipkg.DecodeAccessToken(a.GetOpenAIAccessToken()); err == nil && claims != nil {
+		return strings.TrimSpace(claims.GetUserInfo().OrganizationID)
+	}
+	return ""
 }
 
 func (a *Account) GetOpenAITokenExpiresAt() *time.Time {
@@ -1648,7 +1942,13 @@ func (a *Account) IsOveragesEnabled() bool {
 // 兼容字段：accounts.extra.openai_oauth_passthrough（历史 OAuth 开关）。
 // 字段缺失或类型不正确时，按 false（关闭）处理。
 func (a *Account) IsOpenAIPassthroughEnabled() bool {
-	if a == nil || !a.IsOpenAI() || a.Extra == nil {
+	if a == nil || !a.IsOpenAI() {
+		return false
+	}
+	if a.IsOpenAIChatWebMode() {
+		return true
+	}
+	if a.Extra == nil {
 		return false
 	}
 	if enabled, ok := a.Extra["openai_passthrough"].(bool); ok {
@@ -1744,6 +2044,9 @@ func normalizeOpenAIWSIngressDefaultMode(mode string) string {
 func (a *Account) ResolveOpenAIResponsesWebSocketV2Mode(defaultMode string) string {
 	resolvedDefault := normalizeOpenAIWSIngressDefaultMode(defaultMode)
 	if a == nil || !a.IsOpenAI() {
+		return OpenAIWSIngressModeOff
+	}
+	if a.IsOpenAIChatWebMode() {
 		return OpenAIWSIngressModeOff
 	}
 	if a.Extra == nil {
@@ -1884,7 +2187,7 @@ func (a *Account) GetWebSearchEmulationMode() string {
 // 字段：accounts.extra.codex_cli_only。
 // 字段缺失或类型不正确时，按 false（关闭）处理。
 func (a *Account) IsCodexCLIOnlyEnabled() bool {
-	if a == nil || !a.IsOpenAIOAuth() || a.Extra == nil {
+	if a == nil || !a.IsOpenAIOAuth() || a.Extra == nil || a.IsOpenAIChatWebMode() {
 		return false
 	}
 	enabled, ok := a.Extra["codex_cli_only"].(bool)
@@ -1932,6 +2235,18 @@ func (a *Account) IsTLSFingerprintEnabled() bool {
 		return false
 	}
 	if v, ok := a.Extra["enable_tls_fingerprint"]; ok {
+		if enabled, ok := v.(bool); ok {
+			return enabled
+		}
+	}
+	return false
+}
+
+func (a *Account) IgnorePauseSchedulingErrors() bool {
+	if a == nil || a.Extra == nil {
+		return false
+	}
+	if v, ok := a.Extra["ignore_pause_scheduling_errors"]; ok {
 		if enabled, ok := v.(bool); ok {
 			return enabled
 		}
@@ -2088,6 +2403,75 @@ func (a *Account) GetQuotaWeeklyUsed() float64 {
 	return a.getExtraFloat64("quota_weekly_used")
 }
 
+func (a *Account) GetQuotaNotifyDailyEnabled() bool {
+	if a == nil || a.Extra == nil {
+		return false
+	}
+	if v, ok := a.Extra["quota_notify_daily_enabled"]; ok {
+		if b, ok := v.(bool); ok {
+			return b
+		}
+	}
+	return false
+}
+
+func (a *Account) GetQuotaNotifyDailyThreshold() float64 {
+	return a.getExtraFloat64("quota_notify_daily_threshold")
+}
+
+func (a *Account) GetQuotaNotifyDailyThresholdType() string {
+	if t := strings.TrimSpace(a.getExtraString("quota_notify_daily_threshold_type")); t != "" {
+		return t
+	}
+	return "fixed"
+}
+
+func (a *Account) GetQuotaNotifyWeeklyEnabled() bool {
+	if a == nil || a.Extra == nil {
+		return false
+	}
+	if v, ok := a.Extra["quota_notify_weekly_enabled"]; ok {
+		if b, ok := v.(bool); ok {
+			return b
+		}
+	}
+	return false
+}
+
+func (a *Account) GetQuotaNotifyWeeklyThreshold() float64 {
+	return a.getExtraFloat64("quota_notify_weekly_threshold")
+}
+
+func (a *Account) GetQuotaNotifyWeeklyThresholdType() string {
+	if t := strings.TrimSpace(a.getExtraString("quota_notify_weekly_threshold_type")); t != "" {
+		return t
+	}
+	return "fixed"
+}
+
+func (a *Account) GetQuotaNotifyTotalEnabled() bool {
+	if a == nil || a.Extra == nil {
+		return false
+	}
+	if v, ok := a.Extra["quota_notify_total_enabled"]; ok {
+		if b, ok := v.(bool); ok {
+			return b
+		}
+	}
+	return false
+}
+
+func (a *Account) GetQuotaNotifyTotalThreshold() float64 {
+	return a.getExtraFloat64("quota_notify_total_threshold")
+}
+
+func (a *Account) GetQuotaNotifyTotalThresholdType() string {
+	if t := strings.TrimSpace(a.getExtraString("quota_notify_total_threshold_type")); t != "" {
+		return t
+	}
+	return "fixed"
+}
+
 // getExtraFloat64 从 Extra 中读取指定 key 的 float64 值
 func (a *Account) getExtraFloat64(key string) float64 {
 	if a.Extra == nil {
@@ -2216,51 +2600,6 @@ func (a *Account) QuotaNotifyConfig(dim string) (enabled bool, threshold float64
 	threshold = a.getExtraFloat64("quota_notify_" + dim + "_threshold")
 	thresholdType = a.getExtraStringDefault("quota_notify_"+dim+"_threshold_type", thresholdTypeFixed)
 	return
-}
-
-func (a *Account) GetQuotaNotifyDailyEnabled() bool {
-	e, _, _ := a.QuotaNotifyConfig(quotaDimDaily)
-	return e
-}
-
-func (a *Account) GetQuotaNotifyDailyThreshold() float64 {
-	_, t, _ := a.QuotaNotifyConfig(quotaDimDaily)
-	return t
-}
-
-func (a *Account) GetQuotaNotifyDailyThresholdType() string {
-	_, _, tt := a.QuotaNotifyConfig(quotaDimDaily)
-	return tt
-}
-
-func (a *Account) GetQuotaNotifyWeeklyEnabled() bool {
-	e, _, _ := a.QuotaNotifyConfig(quotaDimWeekly)
-	return e
-}
-
-func (a *Account) GetQuotaNotifyWeeklyThreshold() float64 {
-	_, t, _ := a.QuotaNotifyConfig(quotaDimWeekly)
-	return t
-}
-
-func (a *Account) GetQuotaNotifyWeeklyThresholdType() string {
-	_, _, tt := a.QuotaNotifyConfig(quotaDimWeekly)
-	return tt
-}
-
-func (a *Account) GetQuotaNotifyTotalEnabled() bool {
-	e, _, _ := a.QuotaNotifyConfig(quotaDimTotal)
-	return e
-}
-
-func (a *Account) GetQuotaNotifyTotalThreshold() float64 {
-	_, t, _ := a.QuotaNotifyConfig(quotaDimTotal)
-	return t
-}
-
-func (a *Account) GetQuotaNotifyTotalThresholdType() string {
-	_, _, tt := a.QuotaNotifyConfig(quotaDimTotal)
-	return tt
 }
 
 // nextFixedDailyReset 计算在 after 之后的下一个每日固定重置时间点

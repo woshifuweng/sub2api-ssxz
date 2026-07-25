@@ -30,11 +30,7 @@ const colors = computed(() => ({
   text: isDarkMode.value ? '#9ca3af' : '#6b7280'
 }))
 
-const totalSlaErrors = computed(() =>
-  (props.data?.items ?? []).reduce((total, item) => total + Number(item.sla || 0), 0)
-)
-
-const hasData = computed(() => totalSlaErrors.value > 0)
+const hasData = computed(() => (props.data?.total ?? 0) > 0)
 
 const state = computed<ChartState>(() => {
   if (hasData.value) return 'ready'
@@ -58,7 +54,7 @@ const categories = computed<ErrorCategory[]>(() => {
 
   for (const item of props.data.items || []) {
     const code = Number(item.status_code || 0)
-    const count = Number(item.sla || 0)
+    const count = Number(item.total || 0)
     if (!Number.isFinite(code) || !Number.isFinite(count)) continue
 
     if ([502, 503, 504].includes(code)) upstream += count
@@ -109,7 +105,7 @@ const options = computed(() => ({
 </script>
 
 <template>
-  <div class="flex h-full flex-col rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
+  <div class="admin-b5-outline-panel flex h-full flex-col rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
     <div class="mb-4 flex items-center justify-between">
       <h3 class="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
         <svg class="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">

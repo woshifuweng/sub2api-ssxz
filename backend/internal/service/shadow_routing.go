@@ -29,9 +29,14 @@ func parentHealthyForShadow(account *Account, lookup func(int64) *Account) bool 
 // 在 codexModelMap 注册后此处自动跟随。
 func sparkModelVariants() []string {
 	out := make([]string, 0, 1)
-	for alias, target := range codexModelMap {
+	seen := make(map[string]struct{}, 1)
+	for _, target := range codexModelMap {
 		if target == "gpt-5.3-codex-spark" {
-			out = append(out, alias)
+			if _, ok := seen[target]; ok {
+				continue
+			}
+			seen[target] = struct{}{}
+			out = append(out, target)
 		}
 	}
 	return out

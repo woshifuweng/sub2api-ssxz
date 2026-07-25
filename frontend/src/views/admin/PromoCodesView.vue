@@ -1,6 +1,8 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <AdminPageHeader title="优惠码管理" description="优惠码生成与使用统计" />
+
+    <TablePageLayout class="admin-b3-outline-scope">
       <template #filters>
         <div class="flex flex-wrap items-center gap-3">
           <!-- Left: Search + Filters -->
@@ -39,15 +41,7 @@
       </template>
 
       <template #table>
-        <DataTable
-          :columns="columns"
-          :data="codes"
-          :loading="loading"
-          :server-side-sort="true"
-          default-sort-key="created_at"
-          default-sort-order="desc"
-          @sort="handleSort"
-        >
+        <DataTable :columns="columns" :data="codes" :loading="loading">
           <template #cell-code="{ value }">
             <div class="flex items-center space-x-2">
               <code class="font-mono text-sm text-gray-900 dark:text-gray-100">{{ value }}</code>
@@ -357,6 +351,7 @@
             :page="usagesPage"
             :total="usagesTotal"
             :page-size="usagesPageSize"
+            :page-size-options="[10, 20, 50]"
             @update:page="handleUsagesPageChange"
             @update:page-size="(size: number) => { usagesPageSize = size; usagesPage = 1; loadUsages() }"
           />
@@ -385,6 +380,22 @@
   </AppLayout>
 </template>
 
+<style scoped>
+.admin-b3-outline-scope :deep(.table-scroll-container),
+.admin-b3-outline-scope :deep(.table-wrapper),
+.admin-b3-outline-scope :deep(.table-wrapper table),
+.admin-b3-outline-scope :deep(.table-wrapper tbody) {
+  background: transparent !important;
+  border-color: var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b3-outline-scope :deep(thead),
+.admin-b3-outline-scope :deep(.table-header) {
+  background: var(--ssxz-surface-raised) !important;
+}
+</style>
+
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -392,10 +403,11 @@ import { useAppStore } from '@/stores/app'
 import { useClipboard } from '@/composables/useClipboard'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { adminAPI } from '@/api/admin'
-import { formatDateTime, formatDateTimeLocalInput } from '@/utils/format'
+import { formatDateTime } from '@/utils/format'
 import type { PromoCode, PromoCodeUsage } from '@/types'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -424,10 +436,6 @@ const pagination = reactive({
   page: 1,
   page_size: getPersistedPageSize(),
   total: 0
-})
-const sortState = reactive({
-  sort_by: 'created_at',
-  sort_order: 'desc' as 'asc' | 'desc'
 })
 
 // Dialogs
@@ -525,29 +533,19 @@ const loadCodes = async () => {
       pagination.page_size,
       {
         status: filters.status || undefined,
-        search: searchQuery.value || undefined,
-        sort_by: sortState.sort_by,
-        sort_order: sortState.sort_order
-      },
-      { signal: currentController.signal }
+        search: searchQuery.value || undefined
+      }
     )
-    if (currentController.signal.aborted || abortController !== currentController) return
+    if (currentController.signal.aborted) return
 
     codes.value = response.items
     pagination.total = response.total
   } catch (error: any) {
-    if (
-      currentController.signal.aborted ||
-      abortController !== currentController ||
-      error?.name === 'AbortError' ||
-      error?.code === 'ERR_CANCELED'
-    ) {
-      return
-    }
+    if (currentController.signal.aborted || error?.name === 'AbortError') return
     appStore.showError(t('admin.promo.failedToLoad'))
     console.error('Error loading promo codes:', error)
   } finally {
-    if (abortController === currentController) {
+    if (abortController === currentController && !currentController.signal.aborted) {
       loading.value = false
       abortController = null
     }
@@ -570,13 +568,6 @@ const handlePageChange = (page: number) => {
 
 const handlePageSizeChange = (pageSize: number) => {
   pagination.page_size = pageSize
-  pagination.page = 1
-  loadCodes()
-}
-
-const handleSort = (key: string, order: 'asc' | 'desc') => {
-  sortState.sort_by = key
-  sortState.sort_order = order
   pagination.page = 1
   loadCodes()
 }
@@ -628,9 +619,7 @@ const handleEdit = (code: PromoCode) => {
   editForm.bonus_amount = code.bonus_amount
   editForm.max_uses = code.max_uses
   editForm.status = code.status
-  editForm.expires_at_str = code.expires_at
-    ? formatDateTimeLocalInput(Math.floor(new Date(code.expires_at).getTime() / 1000))
-    : ''
+  editForm.expires_at_str = code.expires_at ? new Date(code.expires_at).toISOString().slice(0, 16) : ''
   editForm.notes = code.notes || ''
   showEditDialog.value = true
 }

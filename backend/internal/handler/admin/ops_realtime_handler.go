@@ -1,9 +1,8 @@
 package admin
 
 import (
-	"context"
-	"errors"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -11,6 +10,12 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
+)
+
+var (
+	opsConcurrencySnapshotCache     = newSnapshotCache(10 * time.Second)
+	opsUserConcurrencySnapshotCache = newSnapshotCache(10 * time.Second)
+	opsAvailabilitySnapshotCache    = newSnapshotCache(10 * time.Second)
 )
 
 // GetConcurrencyStats returns real-time concurrency usage aggregated by platform/group/account.
@@ -46,26 +51,45 @@ func (h *OpsHandler) GetConcurrencyStats(c *gin.Context) {
 		}
 		groupID = &id
 	}
-
-	platform, group, account, collectedAt, err := h.opsService.GetConcurrencyStats(c.Request.Context(), platformFilter, groupID)
-	if err != nil {
-		if isOpsRealtimeRequestCanceled(c, err) {
+	includeAccount := parseBoolQueryWithDefault(c.Query("include_account"), true)
+	accountLimit := 0
+	if v := strings.TrimSpace(c.Query("account_limit")); v != "" {
+		parsed, err := strconv.Atoi(v)
+		if err != nil || parsed < 0 {
+			response.BadRequest(c, "Invalid account_limit")
 			return
 		}
+		accountLimit = parsed
+	}
+
+	cacheKey := "concurrency:" + platformFilter + ":" + strconv.FormatBool(includeAccount) + ":" + strconv.Itoa(accountLimit)
+	if groupID != nil {
+		cacheKey += ":" + strconv.FormatInt(*groupID, 10)
+	}
+	entry, _, err := opsConcurrencySnapshotCache.GetOrLoad(cacheKey, func() (any, error) {
+		platform, group, account, collectedAt, loadErr := h.opsService.GetConcurrencyStats(c.Request.Context(), platformFilter, groupID, includeAccount)
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		if includeAccount && accountLimit > 0 {
+			account = limitAccountConcurrencyMap(account, accountLimit)
+		}
+		payload := gin.H{
+			"enabled":  true,
+			"platform": platform,
+			"group":    group,
+			"account":  account,
+		}
+		if collectedAt != nil {
+			payload["timestamp"] = collectedAt.UTC()
+		}
+		return payload, nil
+	})
+	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-
-	payload := gin.H{
-		"enabled":  true,
-		"platform": platform,
-		"group":    group,
-		"account":  account,
-	}
-	if collectedAt != nil {
-		payload["timestamp"] = collectedAt.UTC()
-	}
-	response.Success(c, payload)
+	response.Success(c, entry.Payload)
 }
 
 // GetUserConcurrencyStats returns real-time concurrency usage for all active users.
@@ -89,23 +113,39 @@ func (h *OpsHandler) GetUserConcurrencyStats(c *gin.Context) {
 		return
 	}
 
-	users, collectedAt, err := h.opsService.GetUserConcurrencyStats(c.Request.Context())
-	if err != nil {
-		if isOpsRealtimeRequestCanceled(c, err) {
+	userLimit := 0
+	if v := strings.TrimSpace(c.Query("limit")); v != "" {
+		parsed, err := strconv.Atoi(v)
+		if err != nil || parsed < 0 {
+			response.BadRequest(c, "Invalid limit")
 			return
 		}
+		userLimit = parsed
+	}
+
+	cacheKey := "user_concurrency:" + strconv.Itoa(userLimit)
+	entry, _, err := opsUserConcurrencySnapshotCache.GetOrLoad(cacheKey, func() (any, error) {
+		users, collectedAt, loadErr := h.opsService.GetUserConcurrencyStats(c.Request.Context())
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		if userLimit > 0 {
+			users = limitUserConcurrencyMap(users, userLimit)
+		}
+		payload := gin.H{
+			"enabled": true,
+			"user":    users,
+		}
+		if collectedAt != nil {
+			payload["timestamp"] = collectedAt.UTC()
+		}
+		return payload, nil
+	})
+	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-
-	payload := gin.H{
-		"enabled": true,
-		"user":    users,
-	}
-	if collectedAt != nil {
-		payload["timestamp"] = collectedAt.UTC()
-	}
-	response.Success(c, payload)
+	response.Success(c, entry.Payload)
 }
 
 // GetAccountAvailability returns account availability statistics.
@@ -145,39 +185,135 @@ func (h *OpsHandler) GetAccountAvailability(c *gin.Context) {
 		}
 		groupID = &id
 	}
-
-	platformStats, groupStats, accountStats, collectedAt, err := h.opsService.GetAccountAvailabilityStats(c.Request.Context(), platform, groupID)
-	if err != nil {
-		if isOpsRealtimeRequestCanceled(c, err) {
+	includeAccount := parseBoolQueryWithDefault(c.Query("include_account"), true)
+	accountLimit := 0
+	if v := strings.TrimSpace(c.Query("account_limit")); v != "" {
+		parsed, err := strconv.Atoi(v)
+		if err != nil || parsed < 0 {
+			response.BadRequest(c, "Invalid account_limit")
 			return
 		}
+		accountLimit = parsed
+	}
+
+	cacheKey := "availability:" + platform + ":" + strconv.FormatBool(includeAccount) + ":" + strconv.Itoa(accountLimit)
+	if groupID != nil {
+		cacheKey += ":" + strconv.FormatInt(*groupID, 10)
+	}
+	entry, _, err := opsAvailabilitySnapshotCache.GetOrLoad(cacheKey, func() (any, error) {
+		platformStats, groupStats, accountStats, collectedAt, loadErr := h.opsService.GetAccountAvailabilityStats(c.Request.Context(), platform, groupID, includeAccount)
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		if includeAccount && accountLimit > 0 {
+			accountStats = limitAccountAvailabilityMap(accountStats, accountLimit)
+		}
+		payload := gin.H{
+			"enabled":  true,
+			"platform": platformStats,
+			"group":    groupStats,
+			"account":  accountStats,
+		}
+		if collectedAt != nil {
+			payload["timestamp"] = collectedAt.UTC()
+		}
+		return payload, nil
+	})
+	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-
-	payload := gin.H{
-		"enabled":  true,
-		"platform": platformStats,
-		"group":    groupStats,
-		"account":  accountStats,
-	}
-	if collectedAt != nil {
-		payload["timestamp"] = collectedAt.UTC()
-	}
-	response.Success(c, payload)
+	response.Success(c, entry.Payload)
 }
 
-func isOpsRealtimeRequestCanceled(c *gin.Context, err error) bool {
-	if err == nil {
-		return false
+func limitAccountConcurrencyMap(src map[int64]*service.AccountConcurrencyInfo, limit int) map[int64]*service.AccountConcurrencyInfo {
+	if limit <= 0 || len(src) <= limit {
+		return src
 	}
-	if errors.Is(err, context.Canceled) {
-		return true
+	rows := make([]*service.AccountConcurrencyInfo, 0, len(src))
+	for _, item := range src {
+		if item != nil {
+			rows = append(rows, item)
+		}
 	}
-	if c != nil && c.Request != nil && errors.Is(c.Request.Context().Err(), context.Canceled) {
-		return true
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].LoadPercentage != rows[j].LoadPercentage {
+			return rows[i].LoadPercentage > rows[j].LoadPercentage
+		}
+		if rows[i].WaitingInQueue != rows[j].WaitingInQueue {
+			return rows[i].WaitingInQueue > rows[j].WaitingInQueue
+		}
+		return rows[i].AccountID < rows[j].AccountID
+	})
+	if len(rows) > limit {
+		rows = rows[:limit]
 	}
-	return strings.Contains(err.Error(), "canceling statement due to user request")
+	out := make(map[int64]*service.AccountConcurrencyInfo, len(rows))
+	for _, item := range rows {
+		out[item.AccountID] = item
+	}
+	return out
+}
+
+func limitUserConcurrencyMap(src map[int64]*service.UserConcurrencyInfo, limit int) map[int64]*service.UserConcurrencyInfo {
+	if limit <= 0 || len(src) <= limit {
+		return src
+	}
+	rows := make([]*service.UserConcurrencyInfo, 0, len(src))
+	for _, item := range src {
+		if item != nil {
+			rows = append(rows, item)
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].LoadPercentage != rows[j].LoadPercentage {
+			return rows[i].LoadPercentage > rows[j].LoadPercentage
+		}
+		if rows[i].WaitingInQueue != rows[j].WaitingInQueue {
+			return rows[i].WaitingInQueue > rows[j].WaitingInQueue
+		}
+		return rows[i].UserID < rows[j].UserID
+	})
+	if len(rows) > limit {
+		rows = rows[:limit]
+	}
+	out := make(map[int64]*service.UserConcurrencyInfo, len(rows))
+	for _, item := range rows {
+		out[item.UserID] = item
+	}
+	return out
+}
+
+func limitAccountAvailabilityMap(src map[int64]*service.AccountAvailability, limit int) map[int64]*service.AccountAvailability {
+	if limit <= 0 || len(src) <= limit {
+		return src
+	}
+	rows := make([]*service.AccountAvailability, 0, len(src))
+	for _, item := range src {
+		if item != nil {
+			rows = append(rows, item)
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].HasError != rows[j].HasError {
+			return rows[i].HasError
+		}
+		if rows[i].IsRateLimited != rows[j].IsRateLimited {
+			return rows[i].IsRateLimited
+		}
+		if rows[i].IsAvailable != rows[j].IsAvailable {
+			return !rows[i].IsAvailable
+		}
+		return rows[i].AccountID < rows[j].AccountID
+	})
+	if len(rows) > limit {
+		rows = rows[:limit]
+	}
+	out := make(map[int64]*service.AccountAvailability, len(rows))
+	for _, item := range rows {
+		out[item.AccountID] = item
+	}
+	return out
 }
 
 func parseOpsRealtimeWindow(v string) (time.Duration, string, bool) {
@@ -260,9 +396,6 @@ func (h *OpsHandler) GetRealtimeTrafficSummary(c *gin.Context) {
 
 	summary, err := h.opsService.GetRealtimeTrafficSummary(c.Request.Context(), filter)
 	if err != nil {
-		if isOpsRealtimeRequestCanceled(c, err) {
-			return
-		}
 		response.ErrorFrom(c, err)
 		return
 	}
@@ -274,4 +407,68 @@ func (h *OpsHandler) GetRealtimeTrafficSummary(c *gin.Context) {
 		"summary":   summary,
 		"timestamp": endTime,
 	})
+}
+
+// GetGatewaySchedulerRuntime returns generic Gateway scheduler runtime metrics.
+// GET /api/v1/admin/ops/gateway-scheduler
+func (h *OpsHandler) GetGatewaySchedulerRuntime(c *gin.Context) {
+	if h.opsService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Ops service not available")
+		return
+	}
+	if err := h.opsService.RequireMonitoringEnabled(c.Request.Context()); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	platform := strings.TrimSpace(c.Query("platform"))
+	limit := 6
+	if v := strings.TrimSpace(c.Query("limit")); v != "" {
+		parsed, err := strconv.Atoi(v)
+		if err != nil || parsed <= 0 {
+			response.BadRequest(c, "Invalid limit")
+			return
+		}
+		if parsed > 100 {
+			parsed = 100
+		}
+		limit = parsed
+	}
+	var groupID *int64
+	if v := strings.TrimSpace(c.Query("group_id")); v != "" {
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || id <= 0 {
+			response.BadRequest(c, "Invalid group_id")
+			return
+		}
+		groupID = &id
+	}
+
+	data, err := h.opsService.GetGatewaySchedulerRuntime(c.Request.Context(), platform, groupID, limit)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, data)
+}
+
+// GetOpenAIWSRuntime returns OpenAI WS runtime diagnostics.
+// GET /api/v1/admin/ops/openai-ws-runtime
+func (h *OpsHandler) GetOpenAIWSRuntime(c *gin.Context) {
+	if h.opsService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Ops service not available")
+		return
+	}
+	if err := h.opsService.RequireMonitoringEnabled(c.Request.Context()); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	platform := strings.TrimSpace(c.Query("platform"))
+	data, err := h.opsService.GetOpenAIWSRuntime(c.Request.Context(), platform)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, data)
 }

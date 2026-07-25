@@ -337,7 +337,7 @@ func (s *GatewayService) buildUpstreamRequestAnthropicVertex(
 
 // getBetaHeader 处理anthropic-beta header
 // 对于OAuth账号，需要确保包含oauth-2025-04-20
-func (s *GatewayService) getBetaHeader(modelID string, clientBetaHeader string) string {
+func (s *GatewayService) getBetaHeaderWeiShaw(modelID string, clientBetaHeader string) string {
 	// 如果客户端传了anthropic-beta
 	if clientBetaHeader != "" {
 		// 已包含oauth beta则直接返回
@@ -382,7 +382,7 @@ func (s *GatewayService) getBetaHeader(modelID string, clientBetaHeader string) 
 	return claude.DefaultBetaHeader
 }
 
-func requestNeedsBetaFeatures(body []byte) bool {
+func requestNeedsBetaFeaturesWeiShaw(body []byte) bool {
 	tools := gjson.GetBytes(body, "tools")
 	if tools.Exists() && tools.IsArray() && len(tools.Array()) > 0 {
 		return true
@@ -394,7 +394,7 @@ func requestNeedsBetaFeatures(body []byte) bool {
 	return false
 }
 
-func defaultAPIKeyBetaHeader(body []byte) string {
+func defaultAPIKeyBetaHeaderWeiShaw(body []byte) string {
 	modelID := gjson.GetBytes(body, "model").String()
 	if strings.Contains(strings.ToLower(modelID), "haiku") {
 		return claude.APIKeyHaikuBetaHeader
@@ -419,7 +419,7 @@ func applyClaudeOAuthHeaderDefaults(req *http.Request) {
 	}
 }
 
-func mergeAnthropicBeta(required []string, incoming string) string {
+func mergeAnthropicBetaWeiShaw(required []string, incoming string) string {
 	seen := make(map[string]struct{}, len(required)+8)
 	out := make([]string, 0, len(required)+8)
 
@@ -444,7 +444,7 @@ func mergeAnthropicBeta(required []string, incoming string) string {
 	return strings.Join(out, ",")
 }
 
-func mergeAnthropicBetaDropping(required []string, incoming string, drop map[string]struct{}) string {
+func mergeAnthropicBetaDroppingWeiShaw(required []string, incoming string, drop map[string]struct{}) string {
 	merged := mergeAnthropicBeta(required, incoming)
 	if merged == "" || len(drop) == 0 {
 		return merged
@@ -575,14 +575,14 @@ func (s *GatewayService) computeFinalCountTokensAnthropicBeta(
 }
 
 // stripBetaTokens removes the given beta tokens from a comma-separated header value.
-func stripBetaTokens(header string, tokens []string) string {
+func stripBetaTokensWeiShaw(header string, tokens []string) string {
 	if header == "" || len(tokens) == 0 {
 		return header
 	}
 	return stripBetaTokensWithSet(header, buildBetaTokenSet(tokens))
 }
 
-func stripBetaTokensWithSet(header string, drop map[string]struct{}) string {
+func stripBetaTokensWithSetWeiShaw(header string, drop map[string]struct{}) string {
 	if header == "" || len(drop) == 0 {
 		return header
 	}
@@ -609,7 +609,7 @@ type BetaBlockedError struct {
 	Message string
 }
 
-func (e *BetaBlockedError) Error() string { return e.Message }
+func (e *BetaBlockedError) ErrorWeiShaw() string { return e.Message }
 
 // betaPolicyResult holds the evaluated result of beta policy rules for a single request.
 type betaPolicyResult struct {
@@ -655,7 +655,7 @@ func (s *GatewayService) evaluateBetaPolicy(ctx context.Context, betaHeader stri
 
 // mergeDropSets merges the static defaultDroppedBetasSet with dynamic policy filter tokens.
 // Returns defaultDroppedBetasSet directly when policySet is empty (zero allocation).
-func mergeDropSets(policySet map[string]struct{}, extra ...string) map[string]struct{} {
+func mergeDropSetsWeiShaw(policySet map[string]struct{}, extra ...string) map[string]struct{} {
 	if len(policySet) == 0 && len(extra) == 0 {
 		return defaultDroppedBetasSet
 	}
@@ -691,7 +691,7 @@ func (s *GatewayService) getBetaPolicyFilterSet(ctx context.Context, c *gin.Cont
 }
 
 // betaPolicyScopeMatches checks whether a rule's scope matches the current account type.
-func betaPolicyScopeMatches(scope string, isOAuth bool, isBedrock bool) bool {
+func betaPolicyScopeMatchesWeiShaw(scope string, isOAuth bool, isBedrock bool) bool {
 	switch scope {
 	case BetaPolicyScopeAll:
 		return true
@@ -734,7 +734,7 @@ func resolveRuleAction(rule BetaPolicyRule, model string) (action, errorMessage 
 }
 
 // droppedBetaSet returns claude.DroppedBetas as a set, with optional extra tokens.
-func droppedBetaSet(extra ...string) map[string]struct{} {
+func droppedBetaSetWeiShaw(extra ...string) map[string]struct{} {
 	m := make(map[string]struct{}, len(defaultDroppedBetasSet)+len(extra))
 	for t := range defaultDroppedBetasSet {
 		m[t] = struct{}{}
@@ -746,7 +746,7 @@ func droppedBetaSet(extra ...string) map[string]struct{} {
 }
 
 // containsBetaToken checks if a comma-separated header value contains the given token.
-func containsBetaToken(header, token string) bool {
+func containsBetaTokenWeiShaw(header, token string) bool {
 	if header == "" || token == "" {
 		return false
 	}
@@ -758,7 +758,7 @@ func containsBetaToken(header, token string) bool {
 	return false
 }
 
-func filterBetaTokens(tokens []string, filterSet map[string]struct{}) []string {
+func filterBetaTokensWeiShaw(tokens []string, filterSet map[string]struct{}) []string {
 	if len(tokens) == 0 || len(filterSet) == 0 {
 		return tokens
 	}
@@ -771,7 +771,7 @@ func filterBetaTokens(tokens []string, filterSet map[string]struct{}) []string {
 	return kept
 }
 
-func (s *GatewayService) resolveBedrockBetaTokensForRequest(
+func (s *GatewayService) resolveBedrockBetaTokensForRequestWeiShaw(
 	ctx context.Context,
 	account *Account,
 	betaHeader string,
@@ -830,7 +830,7 @@ func (s *GatewayService) checkBetaPolicyBlockForTokens(ctx context.Context, toke
 	return nil
 }
 
-func buildBetaTokenSet(tokens []string) map[string]struct{} {
+func buildBetaTokenSetWeiShaw(tokens []string) map[string]struct{} {
 	m := make(map[string]struct{}, len(tokens))
 	for _, t := range tokens {
 		if t == "" {
@@ -846,7 +846,7 @@ var defaultDroppedBetasSet = buildBetaTokenSet(claude.DroppedBetas)
 // applyClaudeCodeMimicHeaders forces "Claude Code-like" request headers.
 // This mirrors opencode-anthropic-auth behavior: do not trust downstream
 // headers when using Claude Code-scoped OAuth credentials.
-func applyClaudeCodeMimicHeaders(req *http.Request, isStream bool) {
+func applyClaudeCodeMimicHeadersWeiShaw(req *http.Request, isStream bool) {
 	if req == nil {
 		return
 	}
@@ -872,7 +872,7 @@ func applyClaudeCodeMimicHeaders(req *http.Request, isStream bool) {
 	}
 }
 
-func truncateForLog(b []byte, maxBytes int) string {
+func truncateForLogWeiShaw(b []byte, maxBytes int) string {
 	if maxBytes <= 0 {
 		maxBytes = 2048
 	}
@@ -899,7 +899,7 @@ func (s *GatewayService) buildCustomRelayURL(baseURL, path string, account *Acco
 	return u
 }
 
-func (s *GatewayService) validateUpstreamBaseURL(raw string) (string, error) {
+func (s *GatewayService) validateUpstreamBaseURLWeiShaw(raw string) (string, error) {
 	if s.cfg != nil && !s.cfg.Security.URLAllowlist.Enabled {
 		normalized, err := urlvalidator.ValidateURLFormat(raw, s.cfg.Security.URLAllowlist.AllowInsecureHTTP)
 		if err != nil {
@@ -907,10 +907,22 @@ func (s *GatewayService) validateUpstreamBaseURL(raw string) (string, error) {
 		}
 		return normalized, nil
 	}
-	normalized, err := urlvalidator.ValidateHTTPSURL(raw, urlvalidator.ValidationOptions{
-		AllowedHosts:     s.cfg.Security.URLAllowlist.UpstreamHosts,
-		RequireAllowlist: true,
-		AllowPrivate:     s.cfg.Security.URLAllowlist.AllowPrivateHosts,
+	allowInsecureHTTP := false
+	allowedHosts := []string(nil)
+	requireAllowlist := false
+	allowPrivate := false
+	if s.cfg != nil {
+		allowInsecureHTTP = s.cfg.Security.URLAllowlist.AllowInsecureHTTP
+		allowPrivate = s.cfg.Security.URLAllowlist.AllowPrivateHosts
+		if s.cfg.Security.URLAllowlist.EnforceUpstreamHosts {
+			allowedHosts = s.cfg.Security.URLAllowlist.UpstreamHosts
+			requireAllowlist = true
+		}
+	}
+	normalized, err := urlvalidator.ValidateHTTPURL(raw, allowInsecureHTTP, urlvalidator.ValidationOptions{
+		AllowedHosts:     allowedHosts,
+		RequireAllowlist: requireAllowlist,
+		AllowPrivate:     allowPrivate,
 	})
 	if err != nil {
 		return "", fmt.Errorf("invalid base_url: %w", err)

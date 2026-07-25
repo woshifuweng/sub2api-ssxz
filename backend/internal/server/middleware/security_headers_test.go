@@ -82,6 +82,34 @@ func TestGetNonceFromContext(t *testing.T) {
 }
 
 func TestSecurityHeaders(t *testing.T) {
+	t.Run("sets_hsts_only_in_release_mode", func(t *testing.T) {
+		previousMode := gin.Mode()
+		t.Cleanup(func() { gin.SetMode(previousMode) })
+
+		for _, tt := range []struct {
+			name       string
+			mode       string
+			wantHeader string
+		}{
+			{name: "release", mode: gin.ReleaseMode, wantHeader: "max-age=31536000"},
+			{name: "debug", mode: gin.DebugMode},
+			{name: "test", mode: gin.TestMode},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				gin.SetMode(tt.mode)
+				middleware := SecurityHeaders(config.CSPConfig{Enabled: false}, nil)
+
+				w := httptest.NewRecorder()
+				c, _ := gin.CreateTestContext(w)
+				c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+
+				middleware(c)
+
+				assert.Equal(t, tt.wantHeader, w.Header().Get("Strict-Transport-Security"))
+			})
+		}
+	})
+
 	t.Run("sets_basic_security_headers", func(t *testing.T) {
 		cfg := config.CSPConfig{Enabled: false}
 		middleware := SecurityHeaders(cfg, nil)
@@ -192,6 +220,7 @@ func TestSecurityHeaders(t *testing.T) {
 		assert.NotEmpty(t, csp)
 		// Default policy should contain these elements
 		assert.Contains(t, csp, "default-src 'self'")
+		assert.Contains(t, csp, "img-src 'self' data: blob: https:")
 	})
 
 	t.Run("uses_default_policy_when_whitespace_only", func(t *testing.T) {
@@ -210,6 +239,7 @@ func TestSecurityHeaders(t *testing.T) {
 		csp := w.Header().Get("Content-Security-Policy")
 		assert.NotEmpty(t, csp)
 		assert.Contains(t, csp, "default-src 'self'")
+		assert.Contains(t, csp, "img-src 'self' data: blob: https:")
 	})
 
 	t.Run("multiple_nonce_placeholders_replaced", func(t *testing.T) {
@@ -294,6 +324,9 @@ func TestEnhanceCSPPolicy(t *testing.T) {
 
 		assert.Contains(t, enhanced, NonceTemplate)
 		assert.Contains(t, enhanced, CloudflareInsightsDomain)
+		assert.Contains(t, enhanced, StripeJSDomain)
+		assert.Contains(t, enhanced, StripeAPIDomain)
+		assert.Contains(t, enhanced, StripeHooksDomain)
 	})
 
 	t.Run("does_not_duplicate_nonce_placeholder", func(t *testing.T) {

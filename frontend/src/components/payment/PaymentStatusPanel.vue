@@ -22,11 +22,11 @@
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ paidOrder.amount.toFixed(2) }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ paidOrder.order_type === 'balance' ? '$' : '¥' }}{{ paidOrder.amount.toFixed(2) }}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(paidOrder.pay_amount, paidOrder.currency) }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">¥{{ paidOrder.pay_amount.toFixed(2) }}</span>
               </div>
             </div>
           </div>
@@ -67,6 +67,36 @@
       </div>
     </template>
 
+    <!-- Paid, waiting for backend fulfillment -->
+    <template v-else-if="settlingOrder">
+      <div class="card p-6">
+        <div class="flex flex-col items-center space-y-4 py-4">
+          <div class="flex h-16 w-16 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30">
+            <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
+          </div>
+          <p class="text-lg font-bold text-gray-900 dark:text-white">{{ t('payment.result.settling') }}</p>
+          <p class="text-center text-sm text-gray-500 dark:text-gray-400">{{ t('payment.result.settlingHint') }}</p>
+          <div class="w-full rounded-xl bg-gray-50 p-4 dark:bg-dark-800">
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderId') }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">#{{ settlingOrder.id }}</span>
+              </div>
+              <div v-if="settlingOrder.out_trade_no" class="flex justify-between">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderNo') }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ settlingOrder.out_trade_no }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.status') }}</span>
+                <OrderStatusBadge :status="settlingOrder.status" />
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary" @click="handleDone">{{ t('common.confirm') }}</button>
+        </div>
+      </div>
+    </template>
+
     <!-- ═══ Active States: QR or Popup waiting ═══ -->
 
     <!-- QR Code Mode -->
@@ -79,7 +109,7 @@
             <!-- Brand logo overlay -->
             <div class="pointer-events-none absolute inset-0 flex items-center justify-center">
               <span :class="['rounded-full p-2 shadow ring-2 ring-white', qrLogoBgClass]">
-                <img :src="qrLogoIcon" alt="" class="h-5 w-5 brightness-0 invert" />
+                <img :src="isAlipay ? alipayIcon : wxpayIcon" alt="" class="h-5 w-5 brightness-0 invert" />
               </span>
             </div>
           </div>
@@ -128,14 +158,13 @@ import { usePaymentStore } from '@/stores/payment'
 import { useAppStore } from '@/stores'
 import { paymentAPI } from '@/api/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
-import { getPaymentPopupFeatures, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from '@/components/payment/providerConfig'
-import { currencySymbol, formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
+import { getPaymentPopupFeatures } from '@/components/payment/providerConfig'
 import type { PaymentOrder } from '@/types/payment'
 import Icon from '@/components/icons/Icon.vue'
+import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
 import QRCode from 'qrcode'
 import alipayIcon from '@/assets/icons/alipay.svg'
 import wxpayIcon from '@/assets/icons/wxpay.svg'
-import paymentIcon from '@/assets/icons/payment.svg'
 
 const props = defineProps<{
   orderId: number
@@ -144,15 +173,13 @@ const props = defineProps<{
   paymentType: string
   payUrl?: string
   orderType?: string
-  currency?: string
 }>()
 
 type PaymentOutcome = 'success' | 'cancelled' | 'expired'
 
 const emit = defineEmits<{ done: []; success: []; settled: [outcome: PaymentOutcome] }>()
 
-const i18n = useI18n()
-const { t } = i18n
+const { t } = useI18n()
 const paymentStore = usePaymentStore()
 const appStore = useAppStore()
 
@@ -161,30 +188,16 @@ const qrUrl = ref('')
 const remainingSeconds = ref(0)
 const cancelling = ref(false)
 const paidOrder = ref<PaymentOrder | null>(null)
-const paymentCurrency = computed(() => normalizePaymentCurrency(props.currency))
-const creditedAmountSymbol = currencySymbol('USD')
-const localeCode = computed(() => {
-  const raw = i18n.locale as unknown
-  if (typeof raw === 'string') return raw
-  if (raw && typeof raw === 'object' && 'value' in raw) {
-    return String((raw as { value?: string }).value || '')
-  }
-  return undefined
-})
+const settlingOrder = ref<PaymentOrder | null>(null)
 
 // Terminal outcome: null = still active, 'success' | 'cancelled' | 'expired'
 const outcome = ref<PaymentOutcome | null>(null)
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let countdownTimer: ReturnType<typeof setInterval> | null = null
-let verifyAttempts = 0
-let lastVerifyAt = 0
 
-const VERIFY_RETRY_INTERVAL_MS = 15000
-const VERIFY_RETRY_MAX_ATTEMPTS = 6
-
-const isAlipay = computed(() => isBuiltInAlipayMethod(props.paymentType))
-const isWxpay = computed(() => isBuiltInWxpayMethod(props.paymentType))
+const isAlipay = computed(() => props.paymentType.includes('alipay'))
+const isWxpay = computed(() => props.paymentType.includes('wxpay'))
 
 const qrBorderClass = computed(() => {
   if (isAlipay.value) return 'border-[#00AEEF] bg-blue-50 dark:border-[#00AEEF]/70 dark:bg-blue-950/20'
@@ -196,12 +209,6 @@ const qrLogoBgClass = computed(() => {
   if (isAlipay.value) return 'bg-[#00AEEF]'
   if (isWxpay.value) return 'bg-[#2BB741]'
   return 'bg-gray-400'
-})
-
-const qrLogoIcon = computed(() => {
-  if (isAlipay.value) return alipayIcon
-  if (isWxpay.value) return wxpayIcon
-  return paymentIcon
 })
 
 const scanTitle = computed(() => {
@@ -222,12 +229,12 @@ const countdownDisplay = computed(() => {
   return m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0')
 })
 
-function formatGatewayAmount(value: number, currency?: string | null): string {
-  return formatPaymentAmount(value, currency || paymentCurrency.value, localeCode.value)
+function isCompletedStatus(status: string | null | undefined): boolean {
+  return status === 'COMPLETED'
 }
 
-function isSuccessStatus(status: string | null | undefined): boolean {
-  return status === 'COMPLETED' || status === 'PAID' || status === 'RECHARGING'
+function isSettlingStatus(status: string | null | undefined): boolean {
+  return status === 'PAID' || status === 'RECHARGING'
 }
 
 function reopenPopup() {
@@ -254,54 +261,24 @@ async function renderQR() {
   })
 }
 
-async function tryRecoverPendingOrder(order: PaymentOrder): Promise<PaymentOrder> {
-  if (!isWxpay.value) return order
-  const outTradeNo = String(order.out_trade_no || '').trim()
-  if (!outTradeNo) return order
-  const normalizedStatus = String(order.status || '').trim().toUpperCase()
-  if (normalizedStatus !== 'PENDING') return order
-  const now = Date.now()
-  if (verifyAttempts >= VERIFY_RETRY_MAX_ATTEMPTS || now - lastVerifyAt < VERIFY_RETRY_INTERVAL_MS) {
-    return order
-  }
-
-  lastVerifyAt = now
-  verifyAttempts += 1
-  try {
-    const result = await paymentAPI.verifyOrder(outTradeNo)
-    return result.data ?? order
-  } catch {
-    return order
-  }
-}
-
-let pollInFlight = false
 async function pollStatus() {
   if (!props.orderId || outcome.value) return
-  // 防重入：接口（含 verifyOrder 二次确认）响应慢于 3 秒轮询间隔时避免并发重叠请求。
-  if (pollInFlight) return
-  pollInFlight = true
-  try {
-    let order = await paymentStore.pollOrderStatus(props.orderId)
-    if (!order) return
-    // 已进入终态则不再处理迟到的响应。
-    if (outcome.value) return
-    order = await tryRecoverPendingOrder(order)
-    if (outcome.value) return
-    if (isSuccessStatus(order.status)) {
-      cleanup()
-      paidOrder.value = order
-      setOutcome('success')
-      emit('success')
-    } else if (order.status === 'CANCELLED') {
-      cleanup()
-      setOutcome('cancelled')
-    } else if (order.status === 'EXPIRED' || order.status === 'FAILED') {
-      cleanup()
-      setOutcome('expired')
-    }
-  } finally {
-    pollInFlight = false
+  const order = await paymentStore.pollOrderStatus(props.orderId)
+  if (!order) return
+  if (isCompletedStatus(order.status)) {
+    cleanup()
+    paidOrder.value = order
+    setOutcome('success')
+    emit('success')
+  } else if (isSettlingStatus(order.status)) {
+    settlingOrder.value = order
+    clearCountdownTimer()
+  } else if (order.status === 'CANCELLED') {
+    cleanup()
+    setOutcome('cancelled')
+  } else if (order.status === 'EXPIRED' || order.status === 'FAILED') {
+    cleanup()
+    setOutcome('expired')
   }
 }
 
@@ -330,15 +307,20 @@ async function handleCancel() {
 
 function handleDone() { cleanup(); emit('done') }
 
+function clearCountdownTimer() {
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+}
+
 function cleanup() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
-  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null }
+  clearCountdownTimer()
 }
 
 // Initialize on mount
 qrUrl.value = props.qrCode
-verifyAttempts = 0
-lastVerifyAt = 0
 let seconds = 30 * 60
 if (props.expiresAt) {
   seconds = Math.floor((new Date(props.expiresAt).getTime() - Date.now()) / 1000)

@@ -197,6 +197,16 @@ func appendRequestTypeOrStreamQueryFilter(query string, args []any, requestType 
 	return query, args
 }
 
+func appendUsageLogRequestIDWhereCondition(conditions []string, args []any, requestID string) ([]string, []any) {
+	requestID = strings.TrimSpace(requestID)
+	if requestID == "" {
+		return conditions, args
+	}
+	conditions = append(conditions, fmt.Sprintf("request_id = $%d", len(args)+1))
+	args = append(args, requestID)
+	return conditions, args
+}
+
 // buildRequestTypeFilterCondition 在 request_type 过滤时兼容 legacy 字段，避免历史数据漏查。
 func buildRequestTypeFilterCondition(startArgIndex int, requestType int16) (string, []any) {
 	return buildRequestTypeFilterConditionWithAlias(startArgIndex, requestType, "")

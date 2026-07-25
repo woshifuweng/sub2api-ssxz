@@ -1,13 +1,11 @@
 package admin
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/rustbridge/ffi"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -82,6 +80,17 @@ func (c *snapshotCache) GetOrLoad(key string, load func() (any, error)) (snapsho
 	if load == nil {
 		return snapshotCacheEntry{}, false, nil
 	}
+	var stale snapshotCacheEntry
+	var hasStale bool
+	if c != nil && key != "" {
+		now := time.Now()
+		c.mu.RLock()
+		if entry, ok := c.items[key]; ok {
+			stale = entry
+			hasStale = !entry.ExpiresAt.IsZero() && now.After(entry.ExpiresAt)
+		}
+		c.mu.RUnlock()
+	}
 	if entry, ok := c.Get(key); ok {
 		return entry, true, nil
 	}
@@ -99,6 +108,9 @@ func (c *snapshotCache) GetOrLoad(key string, load func() (any, error)) (snapsho
 		}
 		payload, err := load()
 		if err != nil {
+			if hasStale {
+				return snapshotCacheLoadResult{Entry: stale, Hit: true}, nil
+			}
 			return nil, err
 		}
 		return snapshotCacheLoadResult{Entry: c.Set(key, payload), Hit: false}, nil
@@ -114,12 +126,7 @@ func (c *snapshotCache) GetOrLoad(key string, load func() (any, error)) (snapsho
 }
 
 func buildETagFromAny(payload any) string {
-	raw, err := json.Marshal(payload)
-	if err != nil {
-		return ""
-	}
-	sum := sha256.Sum256(raw)
-	return "\"" + hex.EncodeToString(sum[:]) + "\""
+	return ffi.BuildETagFromAny(payload)
 }
 
 func parseBoolQueryWithDefault(raw string, def bool) bool {

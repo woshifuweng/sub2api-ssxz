@@ -4,8 +4,10 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -78,6 +80,285 @@ func TestUsageBillingRepositoryApply_DeduplicatesBalanceBilling(t *testing.T) {
 	var dedupCount int
 	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM usage_billing_dedup WHERE request_id = $1 AND api_key_id = $2", requestID, apiKey.ID).Scan(&dedupCount))
 	require.Equal(t, 1, dedupCount)
+}
+
+func TestUsageBillingRepositoryApply_AccruesConsumptionAffiliateRebateExactlyOnce(t *testing.T) {
+	ctx := context.Background()
+	client := testEntClient(t)
+	repo := NewUsageBillingRepository(client, integrationDB)
+	setUsageAffiliateSettings(t, ctx, map[string]string{
+		service.SettingKeyAffiliateEnabled:             "true",
+		service.SettingKeyAffiliateRebateRate:          "5",
+		service.SettingKeyAffiliateRebateFreezeHours:   "0",
+		service.SettingKeyAffiliateRebateDurationDays:  "0",
+		service.SettingKeyAffiliateRebatePerInviteeCap: "0",
+	})
+
+	inviter := mustCreateUser(t, client, &service.User{
+		Email:        fmt.Sprintf("usage-affiliate-inviter-%d@example.com", time.Now().UnixNano()),
+		PasswordHash: "hash",
+	})
+	invitee := mustCreateUser(t, client, &service.User{
+		Email:        fmt.Sprintf("usage-affiliate-invitee-%d@example.com", time.Now().UnixNano()),
+		PasswordHash: "hash",
+		Balance:      10,
+	})
+	insertUsageAffiliateProfile(t, ctx, inviter.ID, nil)
+	insertUsageAffiliateProfile(t, ctx, invitee.ID, &inviter.ID)
+	apiKey := mustCreateApiKey(t, client, &service.APIKey{
+		UserID: invitee.ID,
+		Key:    "sk-usage-affiliate-" + uuid.NewString(),
+		Name:   "usage-affiliate",
+	})
+
+	cmd := &service.UsageBillingCommand{
+		RequestID:   "usage-affiliate-" + uuid.NewString(),
+		APIKeyID:    apiKey.ID,
+		UserID:      invitee.ID,
+		BalanceCost: 2,
+	}
+	result, err := repo.Apply(ctx, cmd)
+	require.NoError(t, err)
+	require.True(t, result.Applied)
+	require.InDelta(t, 2, result.BalanceCharged, 0.00000001)
+	require.InDelta(t, 0.1, result.AffiliateRebate, 0.00000001)
+
+	duplicate, err := repo.Apply(ctx, cmd)
+	require.NoError(t, err)
+	require.False(t, duplicate.Applied)
+	require.Zero(t, duplicate.AffiliateRebate)
+
+	var available, history float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `
+		SELECT aff_quota::double precision, aff_history_quota::double precision
+		FROM user_affiliates WHERE user_id = $1
+	`, inviter.ID).Scan(&available, &history))
+	require.InDelta(t, 0.1, available, 0.00000001)
+	require.InDelta(t, 0.1, history, 0.00000001)
+
+	var ledgerCount int
+	var ledgerAmount float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `
+		SELECT COUNT(*), COALESCE(SUM(amount), 0)::double precision
+		FROM user_affiliate_ledger
+		WHERE user_id = $1 AND source_user_id = $2 AND action = 'accrue'
+	`, inviter.ID, invitee.ID).Scan(&ledgerCount, &ledgerAmount))
+	require.Equal(t, 1, ledgerCount)
+	require.InDelta(t, 0.1, ledgerAmount, 0.00000001)
+}
+
+func TestUsageBillingRepositoryApply_AffiliateRebateUsesCollectedBalanceNotShortfall(t *testing.T) {
+	ctx := context.Background()
+	client := testEntClient(t)
+	repo := NewUsageBillingRepository(client, integrationDB)
+	setUsageAffiliateSettings(t, ctx, map[string]string{
+		service.SettingKeyAffiliateEnabled:             "true",
+		service.SettingKeyAffiliateRebateRate:          "5",
+		service.SettingKeyAffiliateRebateFreezeHours:   "0",
+		service.SettingKeyAffiliateRebateDurationDays:  "0",
+		service.SettingKeyAffiliateRebatePerInviteeCap: "0",
+	})
+
+	inviter := mustCreateUser(t, client, &service.User{
+		Email:        fmt.Sprintf("usage-affiliate-shortfall-inviter-%d@example.com", time.Now().UnixNano()),
+		PasswordHash: "hash",
+	})
+	invitee := mustCreateUser(t, client, &service.User{
+		Email:        fmt.Sprintf("usage-affiliate-shortfall-invitee-%d@example.com", time.Now().UnixNano()),
+		PasswordHash: "hash",
+		Balance:      1,
+	})
+	insertUsageAffiliateProfile(t, ctx, inviter.ID, nil)
+	insertUsageAffiliateProfile(t, ctx, invitee.ID, &inviter.ID)
+	apiKey := mustCreateApiKey(t, client, &service.APIKey{
+		UserID: invitee.ID,
+		Key:    "sk-usage-affiliate-shortfall-" + uuid.NewString(),
+		Name:   "usage-affiliate-shortfall",
+	})
+
+	result, err := repo.Apply(ctx, &service.UsageBillingCommand{
+		RequestID:   "usage-affiliate-shortfall-" + uuid.NewString(),
+		APIKeyID:    apiKey.ID,
+		UserID:      invitee.ID,
+		BalanceCost: 2,
+	})
+	require.NoError(t, err)
+	require.True(t, result.Applied)
+	require.InDelta(t, 1, result.BalanceCharged, 0.00000001)
+	require.InDelta(t, 1, result.BalanceShortfall, 0.00000001)
+	require.InDelta(t, 0.05, result.AffiliateRebate, 0.00000001)
+}
+
+func setUsageAffiliateSettings(t *testing.T, ctx context.Context, values map[string]string) {
+	t.Helper()
+
+	previous := make(map[string]string, len(values))
+	present := make(map[string]bool, len(values))
+	for key := range values {
+		var value string
+		err := integrationDB.QueryRowContext(ctx, "SELECT value FROM settings WHERE key = $1", key).Scan(&value)
+		if err == nil {
+			previous[key] = value
+			present[key] = true
+		} else {
+			require.ErrorIs(t, err, sql.ErrNoRows)
+		}
+	}
+
+	for key, value := range values {
+		_, err := integrationDB.ExecContext(ctx, `
+			INSERT INTO settings (key, value, updated_at)
+			VALUES ($1, $2, NOW())
+			ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+		`, key, value)
+		require.NoError(t, err)
+	}
+
+	t.Cleanup(func() {
+		for key := range values {
+			if !present[key] {
+				_, err := integrationDB.ExecContext(context.Background(), "DELETE FROM settings WHERE key = $1", key)
+				require.NoError(t, err)
+				continue
+			}
+			_, err := integrationDB.ExecContext(context.Background(), `
+				INSERT INTO settings (key, value, updated_at)
+				VALUES ($1, $2, NOW())
+				ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+			`, key, previous[key])
+			require.NoError(t, err)
+		}
+	})
+}
+
+func insertUsageAffiliateProfile(t *testing.T, ctx context.Context, userID int64, inviterID *int64) {
+	t.Helper()
+	code := strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
+	_, err := integrationDB.ExecContext(ctx, `
+		INSERT INTO user_affiliates (user_id, aff_code, inviter_id, created_at, updated_at)
+		VALUES ($1, $2, $3, NOW(), NOW())
+	`, userID, code, inviterID)
+	require.NoError(t, err)
+}
+
+func TestUsageBillingRepositoryApply_SettlesBalanceShortfallWithoutLeavingReusableBalance(t *testing.T) {
+	ctx := context.Background()
+	client := testEntClient(t)
+	repo := NewUsageBillingRepository(client, integrationDB)
+
+	user := mustCreateUser(t, client, &service.User{
+		Email:        fmt.Sprintf("usage-billing-no-overdraft-user-%d@example.com", time.Now().UnixNano()),
+		PasswordHash: "hash",
+		Balance:      1,
+	})
+	apiKey := mustCreateApiKey(t, client, &service.APIKey{
+		UserID: user.ID,
+		Key:    "sk-usage-billing-no-overdraft-" + uuid.NewString(),
+		Name:   "billing-no-overdraft",
+		Quota:  10,
+	})
+	requestID := uuid.NewString()
+
+	cmd := &service.UsageBillingCommand{
+		RequestID:           requestID,
+		APIKeyID:            apiKey.ID,
+		UserID:              user.ID,
+		BalanceCost:         1.25,
+		APIKeyQuotaCost:     1.25,
+		APIKeyRateLimitCost: 1.25,
+	}
+	result, err := repo.Apply(ctx, cmd)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.True(t, result.Applied)
+	require.True(t, result.BalanceExhausted)
+	require.NotNil(t, result.NewBalance)
+	require.InDelta(t, 0, *result.NewBalance, 0.000001)
+	require.InDelta(t, 1, result.BalanceCharged, 0.000001)
+	require.InDelta(t, 0.25, result.BalanceShortfall, 0.000001)
+
+	var balance float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT balance FROM users WHERE id = $1", user.ID).Scan(&balance))
+	require.InDelta(t, 0, balance, 0.000001)
+
+	var quotaUsed float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT quota_used FROM api_keys WHERE id = $1", apiKey.ID).Scan(&quotaUsed))
+	require.InDelta(t, 1.25, quotaUsed, 0.000001)
+
+	var usage5h float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT usage_5h FROM api_keys WHERE id = $1", apiKey.ID).Scan(&usage5h))
+	require.InDelta(t, 1.25, usage5h, 0.000001)
+
+	var dedupCount int
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM usage_billing_dedup WHERE request_id = $1 AND api_key_id = $2", requestID, apiKey.ID).Scan(&dedupCount))
+	require.Equal(t, 1, dedupCount)
+
+	duplicate, err := repo.Apply(ctx, cmd)
+	require.NoError(t, err)
+	require.NotNil(t, duplicate)
+	require.False(t, duplicate.Applied)
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT balance FROM users WHERE id = $1", user.ID).Scan(&balance))
+	require.InDelta(t, 0, balance, 0.000001)
+}
+
+func TestUsageBillingRepositoryApply_ConcurrentShortfallsNeverGoNegativeOrDoubleApply(t *testing.T) {
+	ctx := context.Background()
+	client := testEntClient(t)
+	repo := NewUsageBillingRepository(client, integrationDB)
+
+	user := mustCreateUser(t, client, &service.User{
+		Email:        fmt.Sprintf("usage-billing-concurrent-shortfall-%d@example.com", time.Now().UnixNano()),
+		PasswordHash: "hash",
+		Balance:      1,
+	})
+	apiKey := mustCreateApiKey(t, client, &service.APIKey{
+		UserID: user.ID,
+		Key:    "sk-usage-billing-concurrent-shortfall-" + uuid.NewString(),
+		Name:   "billing-concurrent-shortfall",
+	})
+
+	const requestCount = 5
+	type applyOutcome struct {
+		result *service.UsageBillingApplyResult
+		err    error
+	}
+	outcomes := make(chan applyOutcome, requestCount)
+	var wg sync.WaitGroup
+	for i := 0; i < requestCount; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			result, err := repo.Apply(ctx, &service.UsageBillingCommand{
+				RequestID:   fmt.Sprintf("concurrent-shortfall-%d-%s", index, uuid.NewString()),
+				APIKeyID:    apiKey.ID,
+				UserID:      user.ID,
+				BalanceCost: 0.4,
+			})
+			outcomes <- applyOutcome{result: result, err: err}
+		}(i)
+	}
+	wg.Wait()
+	close(outcomes)
+
+	var chargedTotal float64
+	var shortfallTotal float64
+	for outcome := range outcomes {
+		require.NoError(t, outcome.err)
+		require.NotNil(t, outcome.result)
+		require.True(t, outcome.result.Applied)
+		chargedTotal += outcome.result.BalanceCharged
+		shortfallTotal += outcome.result.BalanceShortfall
+	}
+	require.InDelta(t, 1, chargedTotal, 0.000001)
+	require.InDelta(t, 1, shortfallTotal, 0.000001)
+
+	var balance float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT balance FROM users WHERE id = $1", user.ID).Scan(&balance))
+	require.InDelta(t, 0, balance, 0.000001)
+
+	var dedupCount int
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM usage_billing_dedup WHERE api_key_id = $1 AND request_id LIKE 'concurrent-shortfall-%'", apiKey.ID).Scan(&dedupCount))
+	require.Equal(t, requestCount, dedupCount)
 }
 
 func TestUsageBillingRepositoryApply_DeduplicatesSubscriptionBilling(t *testing.T) {

@@ -11,6 +11,8 @@ import (
 	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -19,9 +21,82 @@ import (
 func setupAPIKeyHandler(adminSvc service.AdminService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 42})
+		c.Set(string(middleware.ContextKeyUserRole), service.RoleAdmin)
+		c.Next()
+	})
 	h := NewAdminAPIKeyHandler(adminSvc)
+	router.GET("/api/v1/admin/api-keys", h.List)
 	router.PUT("/api/v1/admin/api-keys/:id", h.UpdateGroup)
+	router.PATCH("/api/v1/admin/api-keys/:id/status", h.SetEnabled)
+	router.DELETE("/api/v1/admin/api-keys/:id", h.Delete)
 	return router
+}
+
+func TestAdminAPIKeyHandler_ListMasksSecretsAndForwardsFilters(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	groupID := int64(12)
+	rawKey := "sk-admin-inventory-secret-1234567890"
+	svc := newStubAdminService()
+	svc.adminAPIKeyList = &service.AdminAPIKeyListResult{
+		Items: []service.AdminAPIKeyListItem{{
+			APIKey: service.APIKey{
+				ID: 41, UserID: 9, Key: rawKey, Name: "customer-key", GroupID: &groupID,
+				Status: service.StatusAPIKeyActive, Quota: 10, QuotaUsed: 1.25,
+				LastUsedAt: &now, CreatedAt: now, UpdatedAt: now,
+				User:  &service.User{ID: 9, Email: "customer@example.com", Username: "customer", Balance: 8.75},
+				Group: &service.Group{ID: groupID, Name: "Claude CCMAX", Platform: service.PlatformAnthropic, RateMultiplier: 1.2},
+			},
+			TodayActualCost: 0.3, Last30DaysActualCost: 2.4, TotalActualCost: 6.8,
+		}},
+		Pagination: pagination.PaginationResult{Total: 1, Page: 2, PageSize: 25, Pages: 1},
+		Summary:    service.AdminAPIKeyListSummary{Total: 1, Active: 1, Last30DaysActualCost: 2.4},
+	}
+	router := setupAPIKeyHandler(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/api-keys?page=2&page_size=25&search=customer&user_id=9&group_id=12&status=active&sort_by=total_actual_cost&sort_order=asc", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotContains(t, rec.Body.String(), rawKey)
+	require.Contains(t, rec.Body.String(), "sk-admin...7890")
+	require.Equal(t, "customer", svc.adminAPIKeyListParams.Filters.Search)
+	require.Equal(t, int64(9), *svc.adminAPIKeyListParams.Filters.UserID)
+	require.Equal(t, int64(12), *svc.adminAPIKeyListParams.Filters.GroupID)
+	require.Equal(t, "active", svc.adminAPIKeyListParams.Filters.Status)
+	require.Equal(t, service.AdminAPIKeySortTotalActualCost, svc.adminAPIKeyListParams.Pagination.SortBy)
+	require.Equal(t, "asc", svc.adminAPIKeyListParams.Pagination.SortOrder)
+	require.Contains(t, rec.Body.String(), `"last_30_days_actual_cost":2.4`)
+}
+
+func TestAdminAPIKeyHandler_ListRejectsInvalidFilters(t *testing.T) {
+	router := setupAPIKeyHandler(newStubAdminService())
+
+	for _, target := range []string{
+		"/api/v1/admin/api-keys?user_id=bad",
+		"/api/v1/admin/api-keys?group_id=-1",
+		"/api/v1/admin/api-keys?status=unknown",
+	} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, target, nil)
+		router.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusBadRequest, rec.Code, target)
+	}
+}
+
+func TestAdminAPIKeyHandler_ListNormalizesUnsafeSort(t *testing.T) {
+	svc := newStubAdminService()
+	router := setupAPIKeyHandler(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/api-keys?sort_by=created_at%20DESC%3BDELETE&sort_order=sideways", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, service.AdminAPIKeySortLastUsedAt, svc.adminAPIKeyListParams.Pagination.SortBy)
+	require.Equal(t, "desc", svc.adminAPIKeyListParams.Pagination.SortOrder)
 }
 
 func TestAdminAPIKeyHandler_UpdateGroup_InvalidID(t *testing.T) {
@@ -47,6 +122,19 @@ func TestAdminAPIKeyHandler_UpdateGroup_InvalidJSON(t *testing.T) {
 
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	require.Contains(t, rec.Body.String(), "Invalid request")
+}
+
+func TestAdminAPIKeyHandler_UpdateGroupRejectsUnknownFields(t *testing.T) {
+	svc := newStubAdminService()
+	router := setupAPIKeyHandler(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/api-keys/10", bytes.NewBufferString(`{"group_id":2,"quota":999}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Zero(t, svc.adminAPIKeyMutations)
 }
 
 func TestAdminAPIKeyHandler_UpdateGroup_KeyNotFound(t *testing.T) {
@@ -174,7 +262,7 @@ func TestAdminAPIKeyHandler_UpdateGroup_ServiceError(t *testing.T) {
 }
 
 // H2: empty body → group_id is nil → no-op, returns original key
-func TestAdminAPIKeyHandler_UpdateGroup_EmptyBody_NoChange(t *testing.T) {
+func TestAdminAPIKeyHandler_UpdateGroup_EmptyBodyRejected(t *testing.T) {
 	router := setupAPIKeyHandler(newStubAdminService())
 
 	rec := httptest.NewRecorder()
@@ -182,19 +270,50 @@ func TestAdminAPIKeyHandler_UpdateGroup_EmptyBody_NoChange(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
 
-	var resp struct {
-		Code int `json:"code"`
-		Data struct {
-			APIKey struct {
-				ID int64 `json:"id"`
-			} `json:"api_key"`
-		} `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	require.Equal(t, 0, resp.Code)
-	require.Equal(t, int64(10), resp.Data.APIKey.ID)
+func TestAdminAPIKeyHandler_SetEnabledRejectsPrivilegeFields(t *testing.T) {
+	svc := newStubAdminService()
+	router := setupAPIKeyHandler(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/admin/api-keys/10/status", bytes.NewBufferString(`{"enabled":false,"user_id":99}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Zero(t, svc.adminAPIKeyMutations)
+}
+
+func TestAdminAPIKeyHandler_SetEnabledUsesAuthenticatedAdminIdentity(t *testing.T) {
+	svc := newStubAdminService()
+	svc.apiKeys[0].Key = "sk-admin-response-must-stay-masked-7890"
+	router := setupAPIKeyHandler(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/admin/api-keys/10/status", bytes.NewBufferString(`{"enabled":false}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(42), svc.adminAPIKeyActorID)
+	require.Equal(t, service.StatusAPIKeyDisabled, svc.apiKeys[0].Status)
+	require.NotContains(t, rec.Body.String(), "sk-admin-response-must-stay-masked-7890")
+	require.Contains(t, rec.Body.String(), "sk-admin...7890")
+}
+
+func TestAdminAPIKeyHandler_DeleteUsesAuthenticatedAdminIdentity(t *testing.T) {
+	svc := newStubAdminService()
+	router := setupAPIKeyHandler(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/api-keys/10", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(42), svc.adminAPIKeyActorID)
+	require.Empty(t, svc.apiKeys)
 }
 
 // M2: service returns GROUP_NOT_ACTIVE → handler maps to 400
@@ -238,5 +357,9 @@ type failingUpdateGroupService struct {
 }
 
 func (f *failingUpdateGroupService) AdminUpdateAPIKeyGroupID(_ context.Context, _ int64, _ *int64) (*service.AdminUpdateAPIKeyGroupIDResult, error) {
+	return nil, f.err
+}
+
+func (f *failingUpdateGroupService) AdminChangeAPIKeyGroup(_ context.Context, _, _, _ int64) (*service.AdminUpdateAPIKeyGroupIDResult, error) {
 	return nil, f.err
 }

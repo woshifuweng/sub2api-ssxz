@@ -3,8 +3,6 @@ package service
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -439,18 +437,6 @@ func TestOpenAIAgentIdentityCompatRoutesRecoverInvalidTaskOnce(t *testing.T) {
 			require.Equal(t, "task-compat-new", account.GetCredential("task_id"))
 		})
 	}
-}
-
-func decodeAgentAssertionTask(t *testing.T, header string) string {
-	t.Helper()
-	encoded := strings.TrimPrefix(header, "AgentAssertion ")
-	decoded, err := base64.RawURLEncoding.DecodeString(encoded)
-	require.NoError(t, err)
-	var envelope struct {
-		TaskID string `json:"task_id"`
-	}
-	require.NoError(t, json.Unmarshal(decoded, &envelope))
-	return envelope.TaskID
 }
 
 type agentIdentityForwardRepo struct {

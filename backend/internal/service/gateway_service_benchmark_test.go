@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 	"testing"
@@ -191,7 +192,11 @@ func BenchmarkOpenAIResponses_LargeInputFunctionCallValidation(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				validation := ValidateFunctionCallOutputContextBytes(body)
+				var reqBody map[string]any
+				if err := json.Unmarshal(body, &reqBody); err != nil {
+					b.Fatalf("decode tool continuation body: %v", err)
+				}
+				validation := ValidateFunctionCallOutputContext(reqBody)
 				if !validation.HasFunctionCallOutput || !validation.HasItemReferenceForAllCallIDs {
 					b.Fatalf("工具续链校验结果异常: %+v", validation)
 				}

@@ -14,7 +14,7 @@ import (
 )
 
 // IsRegistrationEnabled 检查是否开放注册
-func (s *SettingService) IsRegistrationEnabled(ctx context.Context) bool {
+func (s *SettingService) IsRegistrationEnabledLegacy(ctx context.Context) bool {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyRegistrationEnabled)
 	if err != nil {
 		// 安全默认：如果设置不存在或查询出错，默认关闭注册
@@ -24,7 +24,7 @@ func (s *SettingService) IsRegistrationEnabled(ctx context.Context) bool {
 }
 
 // IsEmailVerifyEnabled 检查是否开启邮件验证
-func (s *SettingService) IsEmailVerifyEnabled(ctx context.Context) bool {
+func (s *SettingService) IsEmailVerifyEnabledLegacy(ctx context.Context) bool {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyEmailVerifyEnabled)
 	if err != nil {
 		return false
@@ -33,7 +33,7 @@ func (s *SettingService) IsEmailVerifyEnabled(ctx context.Context) bool {
 }
 
 // GetRegistrationEmailSuffixWhitelist returns normalized registration email suffix whitelist.
-func (s *SettingService) GetRegistrationEmailSuffixWhitelist(ctx context.Context) []string {
+func (s *SettingService) GetRegistrationEmailSuffixWhitelistLegacy(ctx context.Context) []string {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyRegistrationEmailSuffixWhitelist)
 	if err != nil {
 		return []string{}
@@ -42,7 +42,7 @@ func (s *SettingService) GetRegistrationEmailSuffixWhitelist(ctx context.Context
 }
 
 // IsPromoCodeEnabled 检查是否启用优惠码功能
-func (s *SettingService) IsPromoCodeEnabled(ctx context.Context) bool {
+func (s *SettingService) IsPromoCodeEnabledLegacy(ctx context.Context) bool {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyPromoCodeEnabled)
 	if err != nil {
 		return true // 默认启用
@@ -51,7 +51,7 @@ func (s *SettingService) IsPromoCodeEnabled(ctx context.Context) bool {
 }
 
 // IsInvitationCodeEnabled 检查是否启用邀请码注册功能
-func (s *SettingService) IsInvitationCodeEnabled(ctx context.Context) bool {
+func (s *SettingService) IsInvitationCodeEnabledLegacy(ctx context.Context) bool {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyInvitationCodeEnabled)
 	if err != nil {
 		return false // 默认关闭
@@ -69,7 +69,7 @@ func (s *SettingService) GetCustomMenuItemsRaw(ctx context.Context) string {
 }
 
 // IsAffiliateEnabled 检查是否启用邀请返利功能（总开关）
-func (s *SettingService) IsAffiliateEnabled(ctx context.Context) bool {
+func (s *SettingService) IsAffiliateEnabledLegacy(ctx context.Context) bool {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyAffiliateEnabled)
 	if err != nil {
 		return false // 默认关闭
@@ -90,7 +90,7 @@ func (s *SettingService) IsAffiliateAdminRechargeEnabled(ctx context.Context) bo
 // GetAffiliateRebateRatePercent 读取并 clamp 全局返利比例。
 // 解析失败、缺失或越界都回退到 AffiliateRebateRateDefault — 该比例从不抛错，
 // 调用方只关心一个可用的数值。
-func (s *SettingService) GetAffiliateRebateRatePercent(ctx context.Context) float64 {
+func (s *SettingService) GetAffiliateRebateRatePercentLegacy(ctx context.Context) float64 {
 	raw, err := s.settingRepo.GetValue(ctx, SettingKeyAffiliateRebateRate)
 	if err != nil {
 		return AffiliateRebateRateDefault
@@ -104,7 +104,7 @@ func (s *SettingService) GetAffiliateRebateRatePercent(ctx context.Context) floa
 
 // GetAffiliateRebateFreezeHours 返回返利冻结期（小时）。
 // 返回 0 表示不冻结（向后兼容）。
-func (s *SettingService) GetAffiliateRebateFreezeHours(ctx context.Context) int {
+func (s *SettingService) GetAffiliateRebateFreezeHoursLegacy(ctx context.Context) int {
 	raw, err := s.settingRepo.GetValue(ctx, SettingKeyAffiliateRebateFreezeHours)
 	if err != nil {
 		return AffiliateRebateFreezeHoursDefault
@@ -121,7 +121,7 @@ func (s *SettingService) GetAffiliateRebateFreezeHours(ctx context.Context) int 
 
 // GetAffiliateRebateDurationDays 返回返利有效期（天）。
 // 返回 0 表示永久有效。
-func (s *SettingService) GetAffiliateRebateDurationDays(ctx context.Context) int {
+func (s *SettingService) GetAffiliateRebateDurationDaysLegacy(ctx context.Context) int {
 	raw, err := s.settingRepo.GetValue(ctx, SettingKeyAffiliateRebateDurationDays)
 	if err != nil {
 		return AffiliateRebateDurationDaysDefault
@@ -138,7 +138,7 @@ func (s *SettingService) GetAffiliateRebateDurationDays(ctx context.Context) int
 
 // GetAffiliateRebatePerInviteeCap 返回单人返利上限。
 // 返回 0 表示无上限。
-func (s *SettingService) GetAffiliateRebatePerInviteeCap(ctx context.Context) float64 {
+func (s *SettingService) GetAffiliateRebatePerInviteeCapLegacy(ctx context.Context) float64 {
 	raw, err := s.settingRepo.GetValue(ctx, SettingKeyAffiliateRebatePerInviteeCap)
 	if err != nil {
 		return AffiliateRebatePerInviteeCapDefault
@@ -152,7 +152,7 @@ func (s *SettingService) GetAffiliateRebatePerInviteeCap(ctx context.Context) fl
 
 // IsPasswordResetEnabled 检查是否启用密码重置功能
 // 要求：必须同时开启邮件验证
-func (s *SettingService) IsPasswordResetEnabled(ctx context.Context) bool {
+func (s *SettingService) IsPasswordResetEnabledLegacy(ctx context.Context) bool {
 	// Password reset requires email verification to be enabled
 	if !s.IsEmailVerifyEnabled(ctx) {
 		return false
@@ -165,7 +165,7 @@ func (s *SettingService) IsPasswordResetEnabled(ctx context.Context) bool {
 }
 
 // IsTotpEnabled 检查是否启用 TOTP 双因素认证功能
-func (s *SettingService) IsTotpEnabled(ctx context.Context) bool {
+func (s *SettingService) IsTotpEnabledLegacy(ctx context.Context) bool {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyTotpEnabled)
 	if err != nil {
 		return false // 默认关闭
@@ -175,7 +175,7 @@ func (s *SettingService) IsTotpEnabled(ctx context.Context) bool {
 
 // IsTotpEncryptionKeyConfigured 检查 TOTP 加密密钥是否已手动配置
 // 只有手动配置了密钥才允许在管理后台启用 TOTP 功能
-func (s *SettingService) IsTotpEncryptionKeyConfigured() bool {
+func (s *SettingService) IsTotpEncryptionKeyConfiguredLegacy() bool {
 	return s.cfg.Totp.EncryptionKeyConfigured
 }
 
@@ -230,7 +230,7 @@ func parseAuditLogRetentionDays(value string) int {
 }
 
 // GetSiteName 获取网站名称
-func (s *SettingService) GetSiteName(ctx context.Context) string {
+func (s *SettingService) GetSiteNameLegacy(ctx context.Context) string {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeySiteName)
 	if err != nil || value == "" {
 		return "Sub2API"
@@ -239,7 +239,7 @@ func (s *SettingService) GetSiteName(ctx context.Context) string {
 }
 
 // GetDefaultConcurrency 获取默认并发量
-func (s *SettingService) GetDefaultConcurrency(ctx context.Context) int {
+func (s *SettingService) GetDefaultConcurrencyLegacy(ctx context.Context) int {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyDefaultConcurrency)
 	if err != nil {
 		return s.cfg.Default.UserConcurrency
@@ -251,7 +251,7 @@ func (s *SettingService) GetDefaultConcurrency(ctx context.Context) int {
 }
 
 // GetDefaultBalance 获取默认余额
-func (s *SettingService) GetDefaultBalance(ctx context.Context) float64 {
+func (s *SettingService) GetDefaultBalanceLegacy(ctx context.Context) float64 {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyDefaultBalance)
 	if err != nil {
 		return s.cfg.Default.UserBalance
@@ -275,7 +275,7 @@ func (s *SettingService) GetDefaultUserRPMLimit(ctx context.Context) int {
 }
 
 // GetDefaultSubscriptions 获取新用户默认订阅配置列表。
-func (s *SettingService) GetDefaultSubscriptions(ctx context.Context) []DefaultSubscriptionSetting {
+func (s *SettingService) GetDefaultSubscriptionsLegacy(ctx context.Context) []DefaultSubscriptionSetting {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyDefaultSubscriptions)
 	if err != nil {
 		return nil
@@ -391,7 +391,7 @@ func (s *SettingService) UpdateAuthSourceDefaultSettings(ctx context.Context, se
 }
 
 // IsTurnstileEnabled 检查是否启用 Turnstile 验证
-func (s *SettingService) IsTurnstileEnabled(ctx context.Context) bool {
+func (s *SettingService) IsTurnstileEnabledLegacy(ctx context.Context) bool {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyTurnstileEnabled)
 	if err != nil {
 		return false
@@ -400,7 +400,7 @@ func (s *SettingService) IsTurnstileEnabled(ctx context.Context) bool {
 }
 
 // GetTurnstileSecretKey 获取 Turnstile Secret Key
-func (s *SettingService) GetTurnstileSecretKey(ctx context.Context) string {
+func (s *SettingService) GetTurnstileSecretKeyLegacy(ctx context.Context) string {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyTurnstileSecretKey)
 	if err != nil {
 		return ""
@@ -409,7 +409,7 @@ func (s *SettingService) GetTurnstileSecretKey(ctx context.Context) string {
 }
 
 // IsIdentityPatchEnabled 检查是否启用身份补丁（Claude -> Gemini systemInstruction 注入）
-func (s *SettingService) IsIdentityPatchEnabled(ctx context.Context) bool {
+func (s *SettingService) IsIdentityPatchEnabledLegacy(ctx context.Context) bool {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyEnableIdentityPatch)
 	if err != nil {
 		// 默认开启，保持兼容
@@ -419,7 +419,7 @@ func (s *SettingService) IsIdentityPatchEnabled(ctx context.Context) bool {
 }
 
 // GetIdentityPatchPrompt 获取自定义身份补丁提示词（为空表示使用内置默认模板）
-func (s *SettingService) GetIdentityPatchPrompt(ctx context.Context) string {
+func (s *SettingService) GetIdentityPatchPromptLegacy(ctx context.Context) string {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyIdentityPatchPrompt)
 	if err != nil {
 		return ""
@@ -428,7 +428,7 @@ func (s *SettingService) GetIdentityPatchPrompt(ctx context.Context) string {
 }
 
 // GenerateAdminAPIKey 生成新的管理员 API Key
-func (s *SettingService) GenerateAdminAPIKey(ctx context.Context) (string, error) {
+func (s *SettingService) GenerateAdminAPIKeyLegacy(ctx context.Context) (string, error) {
 	// 生成 32 字节随机数 = 64 位十六进制字符
 	bytes := make([]byte, 32)
 	if _, err := rand.Read(bytes); err != nil {
@@ -447,7 +447,7 @@ func (s *SettingService) GenerateAdminAPIKey(ctx context.Context) (string, error
 
 // GetAdminAPIKeyStatus 获取管理员 API Key 状态
 // 返回脱敏的 key、是否存在、错误
-func (s *SettingService) GetAdminAPIKeyStatus(ctx context.Context) (maskedKey string, exists bool, err error) {
+func (s *SettingService) GetAdminAPIKeyStatusLegacy(ctx context.Context) (maskedKey string, exists bool, err error) {
 	key, err := s.settingRepo.GetValue(ctx, SettingKeyAdminAPIKey)
 	if err != nil {
 		if errors.Is(err, ErrSettingNotFound) {
@@ -483,12 +483,12 @@ func (s *SettingService) GetAdminAPIKey(ctx context.Context) (string, error) {
 }
 
 // DeleteAdminAPIKey 删除管理员 API Key
-func (s *SettingService) DeleteAdminAPIKey(ctx context.Context) error {
+func (s *SettingService) DeleteAdminAPIKeyLegacy(ctx context.Context) error {
 	return s.settingRepo.Delete(ctx, SettingKeyAdminAPIKey)
 }
 
 // IsModelFallbackEnabled 检查是否启用模型兜底机制
-func (s *SettingService) IsModelFallbackEnabled(ctx context.Context) bool {
+func (s *SettingService) IsModelFallbackEnabledLegacy(ctx context.Context) bool {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyEnableModelFallback)
 	if err != nil {
 		return false // Default: disabled
@@ -497,7 +497,7 @@ func (s *SettingService) IsModelFallbackEnabled(ctx context.Context) bool {
 }
 
 // GetFallbackModel 获取指定平台的兜底模型
-func (s *SettingService) GetFallbackModel(ctx context.Context, platform string) string {
+func (s *SettingService) GetFallbackModelLegacy(ctx context.Context, platform string) string {
 	var key string
 	var defaultModel string
 
@@ -526,7 +526,7 @@ func (s *SettingService) GetFallbackModel(ctx context.Context, platform string) 
 }
 
 // GetOverloadCooldownSettings 获取529过载冷却配置
-func (s *SettingService) GetOverloadCooldownSettings(ctx context.Context) (*OverloadCooldownSettings, error) {
+func (s *SettingService) GetOverloadCooldownSettingsLegacy(ctx context.Context) (*OverloadCooldownSettings, error) {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyOverloadCooldownSettings)
 	if err != nil {
 		if errors.Is(err, ErrSettingNotFound) {
@@ -555,7 +555,7 @@ func (s *SettingService) GetOverloadCooldownSettings(ctx context.Context) (*Over
 }
 
 // SetOverloadCooldownSettings 设置529过载冷却配置
-func (s *SettingService) SetOverloadCooldownSettings(ctx context.Context, settings *OverloadCooldownSettings) error {
+func (s *SettingService) SetOverloadCooldownSettingsLegacy(ctx context.Context, settings *OverloadCooldownSettings) error {
 	if settings == nil {
 		return fmt.Errorf("settings cannot be nil")
 	}
@@ -626,7 +626,7 @@ func (s *SettingService) SetRateLimit429CooldownSettings(ctx context.Context, se
 }
 
 // GetStreamTimeoutSettings 获取流超时处理配置
-func (s *SettingService) GetStreamTimeoutSettings(ctx context.Context) (*StreamTimeoutSettings, error) {
+func (s *SettingService) GetStreamTimeoutSettingsLegacy(ctx context.Context) (*StreamTimeoutSettings, error) {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyStreamTimeoutSettings)
 	if err != nil {
 		if errors.Is(err, ErrSettingNotFound) {
@@ -719,7 +719,7 @@ func (s *SettingService) SetRectifierSettings(ctx context.Context, settings *Rec
 }
 
 // IsSignatureRectifierEnabled 判断签名整流是否启用（总开关 && 签名子开关）
-func (s *SettingService) IsSignatureRectifierEnabled(ctx context.Context) bool {
+func (s *SettingService) IsSignatureRectifierEnabledLegacy(ctx context.Context) bool {
 	settings, err := s.GetRectifierSettings(ctx)
 	if err != nil {
 		return true // fail-open: 查询失败时默认启用
@@ -728,7 +728,7 @@ func (s *SettingService) IsSignatureRectifierEnabled(ctx context.Context) bool {
 }
 
 // IsBudgetRectifierEnabled 判断 Budget 整流是否启用（总开关 && Budget 子开关）
-func (s *SettingService) IsBudgetRectifierEnabled(ctx context.Context) bool {
+func (s *SettingService) IsBudgetRectifierEnabledLegacy(ctx context.Context) bool {
 	settings, err := s.GetRectifierSettings(ctx)
 	if err != nil {
 		return true // fail-open: 查询失败时默认启用
@@ -737,7 +737,7 @@ func (s *SettingService) IsBudgetRectifierEnabled(ctx context.Context) bool {
 }
 
 // GetBetaPolicySettings 获取 Beta 策略配置
-func (s *SettingService) GetBetaPolicySettings(ctx context.Context) (*BetaPolicySettings, error) {
+func (s *SettingService) GetBetaPolicySettingsLegacy(ctx context.Context) (*BetaPolicySettings, error) {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyBetaPolicySettings)
 	if err != nil {
 		if errors.Is(err, ErrSettingNotFound) {
@@ -758,7 +758,7 @@ func (s *SettingService) GetBetaPolicySettings(ctx context.Context) (*BetaPolicy
 }
 
 // SetBetaPolicySettings 设置 Beta 策略配置
-func (s *SettingService) SetBetaPolicySettings(ctx context.Context, settings *BetaPolicySettings) error {
+func (s *SettingService) SetBetaPolicySettingsLegacy(ctx context.Context, settings *BetaPolicySettings) error {
 	if settings == nil {
 		return fmt.Errorf("settings cannot be nil")
 	}
@@ -804,6 +804,9 @@ func (s *SettingService) SetBetaPolicySettings(ctx context.Context, settings *Be
 
 // GetOpenAIFastPolicySettings 获取 OpenAI fast 策略配置
 func (s *SettingService) GetOpenAIFastPolicySettings(ctx context.Context) (*OpenAIFastPolicySettings, error) {
+	if s == nil || s.settingRepo == nil {
+		return DefaultOpenAIFastPolicySettings(), nil
+	}
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyOpenAIFastPolicySettings)
 	if err != nil {
 		if errors.Is(err, ErrSettingNotFound) {
@@ -892,7 +895,7 @@ func (s *SettingService) SetOpenAIFastPolicySettings(ctx context.Context, settin
 }
 
 // SetStreamTimeoutSettings 设置流超时处理配置
-func (s *SettingService) SetStreamTimeoutSettings(ctx context.Context, settings *StreamTimeoutSettings) error {
+func (s *SettingService) SetStreamTimeoutSettingsLegacy(ctx context.Context, settings *StreamTimeoutSettings) error {
 	if settings == nil {
 		return fmt.Errorf("settings cannot be nil")
 	}
@@ -932,6 +935,9 @@ func (s *SettingService) GetDefaultPlatformQuotas(ctx context.Context) (map[stri
 	out := make(map[string]*DefaultPlatformQuotaSetting, len(AllowedQuotaPlatforms))
 	for _, platform := range AllowedQuotaPlatforms {
 		out[platform] = &DefaultPlatformQuotaSetting{}
+	}
+	if s == nil || s.settingRepo == nil {
+		return out, nil
 	}
 	raw, err := s.settingRepo.GetValue(ctx, SettingKeyDefaultPlatformQuotas)
 	if err != nil || raw == "" {

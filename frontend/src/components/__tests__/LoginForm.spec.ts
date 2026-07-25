@@ -65,7 +65,7 @@ const LoginFormTestComponent = defineComponent({
           return
         }
 
-        mockPush('/dashboard')
+        mockPush('/app/dashboard')
       } catch (error: any) {
         errorMessage.value = error.message || '登录失败'
       } finally {
@@ -109,7 +109,7 @@ describe('LoginForm 核心逻辑', () => {
       email: 'test@example.com',
       password: 'password123',
     })
-    expect(mockPush).toHaveBeenCalledWith('/dashboard')
+    expect(mockPush).toHaveBeenCalledWith('/app/dashboard')
   })
 
   it('登录失败时显示错误信息', async () => {

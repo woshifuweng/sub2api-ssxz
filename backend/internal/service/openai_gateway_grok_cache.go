@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -30,6 +31,15 @@ var claudeCodeSessionSuffixPattern = regexp.MustCompile(`_session_([a-f0-9-]+)$`
 func extractClaudeCodeSessionID(c *gin.Context, body []byte) string {
 	if c != nil {
 		if seed := strings.TrimSpace(c.GetHeader(claudeCodeSessionHeader)); seed != "" {
+			return seed
+		}
+	}
+	return extractClaudeCodeSessionIDFromPayload(body)
+}
+
+func extractClaudeCodeSessionIDContext(c gatewayctx.GatewayContext, body []byte) string {
+	if c != nil {
+		if seed := strings.TrimSpace(c.HeaderValue(claudeCodeSessionHeader)); seed != "" {
 			return seed
 		}
 	}

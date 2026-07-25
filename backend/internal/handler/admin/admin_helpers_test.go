@@ -1,13 +1,16 @@
 package admin
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strconv"
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -209,6 +212,68 @@ func TestOpsAlertRuleValidation(t *testing.T) {
 
 	require.True(t, isPercentOrRateMetric("error_rate"))
 	require.False(t, isPercentOrRateMetric("concurrency_queue_depth"))
+
+	for _, metricType := range []string{"p95_latency_ms", "p99_latency_ms"} {
+		raw["metric_type"] = json.RawMessage(strconv.Quote(metricType))
+		raw["threshold"] = json.RawMessage(`3000`)
+		validated, err = validateOpsAlertRulePayload(raw)
+		require.NoError(t, err)
+		require.Equal(t, metricType, validated.MetricType)
+	}
+}
+
+func TestAffiliateSettingsAreAcceptedAndAudited(t *testing.T) {
+	var req UpdateSettingsRequest
+	err := json.Unmarshal([]byte(`{
+		"affiliate_enabled": true,
+		"affiliate_rebate_rate": 12.5,
+		"affiliate_rebate_freeze_hours": 24,
+		"affiliate_rebate_duration_days": 90,
+		"affiliate_rebate_per_invitee_cap": 50
+	}`), &req)
+	require.NoError(t, err)
+	require.NotNil(t, req.AffiliateEnabled)
+	require.True(t, *req.AffiliateEnabled)
+	require.Equal(t, 12.5, *req.AffiliateRebateRate)
+	require.Equal(t, 24, *req.AffiliateRebateFreezeHours)
+	require.Equal(t, 90, *req.AffiliateRebateDurationDays)
+	require.Equal(t, 50.0, *req.AffiliateRebatePerInviteeCap)
+
+	before := &service.SystemSettings{}
+	after := &service.SystemSettings{
+		AffiliateEnabled:             *req.AffiliateEnabled,
+		AffiliateRebateRate:          *req.AffiliateRebateRate,
+		AffiliateRebateFreezeHours:   *req.AffiliateRebateFreezeHours,
+		AffiliateRebateDurationDays:  *req.AffiliateRebateDurationDays,
+		AffiliateRebatePerInviteeCap: *req.AffiliateRebatePerInviteeCap,
+	}
+	require.ElementsMatch(t, []string{
+		"affiliate_enabled",
+		"affiliate_rebate_rate",
+		"affiliate_rebate_freeze_hours",
+		"affiliate_rebate_duration_days",
+		"affiliate_rebate_per_invitee_cap",
+	}, diffSettings(before, after, &service.AuthSourceDefaultSettings{}, &service.AuthSourceDefaultSettings{}, req))
+}
+
+func TestBuildSystemSettingsDTOExposesAffiliateSettings(t *testing.T) {
+	handler := &SettingHandler{
+		settingService: service.NewSettingService(nil, &config.Config{}),
+	}
+
+	settingsDTO := handler.buildSystemSettingsDTO(context.Background(), &service.SystemSettings{
+		AffiliateEnabled:             true,
+		AffiliateRebateRate:          12.5,
+		AffiliateRebateFreezeHours:   24,
+		AffiliateRebateDurationDays:  90,
+		AffiliateRebatePerInviteeCap: 50,
+	}, false)
+
+	require.True(t, settingsDTO.AffiliateEnabled)
+	require.Equal(t, 12.5, settingsDTO.AffiliateRebateRate)
+	require.Equal(t, 24, settingsDTO.AffiliateRebateFreezeHours)
+	require.Equal(t, 90, settingsDTO.AffiliateRebateDurationDays)
+	require.Equal(t, 50.0, settingsDTO.AffiliateRebatePerInviteeCap)
 }
 
 func TestOpsWSHelpers(t *testing.T) {

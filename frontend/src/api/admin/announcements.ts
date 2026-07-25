@@ -17,16 +17,10 @@ export async function list(
   filters?: {
     status?: string
     search?: string
-    sort_by?: string
-    sort_order?: 'asc' | 'desc'
-  },
-  options?: {
-    signal?: AbortSignal
   }
 ): Promise<BasePaginationResponse<Announcement>> {
   const { data } = await apiClient.get<BasePaginationResponse<Announcement>>('/admin/announcements', {
-    params: { page, page_size: pageSize, ...filters },
-    signal: options?.signal
+    params: { page, page_size: pageSize, ...filters }
   })
   return data
 }
@@ -55,21 +49,11 @@ export async function getReadStatus(
   id: number,
   page: number = 1,
   pageSize: number = 20,
-  filters?: {
-    search?: string
-    sort_by?: string
-    sort_order?: 'asc' | 'desc'
-  },
-  options?: {
-    signal?: AbortSignal
-  }
+  search: string = ''
 ): Promise<BasePaginationResponse<AnnouncementUserReadStatus>> {
   const { data } = await apiClient.get<BasePaginationResponse<AnnouncementUserReadStatus>>(
     `/admin/announcements/${id}/read-status`,
-    {
-      params: { page, page_size: pageSize, ...filters },
-      signal: options?.signal
-    }
+    { params: { page, page_size: pageSize, search } }
   )
   return data
 }

@@ -52,7 +52,7 @@ func explicitOpenAIHeaderSessionID(c *gin.Context) string {
 
 // ExtractSessionID extracts the raw session ID from headers or body without hashing.
 // Used by ForwardAsAnthropic to pass as prompt_cache_key for upstream cache.
-func (s *OpenAIGatewayService) ExtractSessionID(c *gin.Context, body []byte) string {
+func (s *OpenAIGatewayService) ExtractSessionIDWeiShaw(c *gin.Context, body []byte) string {
 	return explicitOpenAIRequestSessionID(c, body)
 }
 
@@ -111,7 +111,7 @@ func (s *OpenAIGatewayService) GenerateExplicitSessionHash(c *gin.Context, body 
 //  5. Header: x-grok-conv-id (Grok groups only)
 //  6. Body:   prompt_cache_key
 //  7. Body:   content-based fallback (model + system + tools + first user message)
-func (s *OpenAIGatewayService) GenerateSessionHash(c *gin.Context, body []byte) string {
+func (s *OpenAIGatewayService) GenerateSessionHashWeiShaw(c *gin.Context, body []byte) string {
 	if c == nil {
 		return ""
 	}
@@ -132,7 +132,7 @@ func (s *OpenAIGatewayService) GenerateSessionHash(c *gin.Context, body []byte) 
 // GenerateSessionHashWithFallback 先按常规信号生成会话哈希；
 // 当未携带 session_id/conversation_id/prompt_cache_key 时，使用 fallbackSeed 生成稳定哈希。
 // 该方法用于 WS ingress，避免会话信号缺失时发生跨账号漂移。
-func (s *OpenAIGatewayService) GenerateSessionHashWithFallback(c *gin.Context, body []byte, fallbackSeed string) string {
+func (s *OpenAIGatewayService) GenerateSessionHashWithFallbackWeiShaw(c *gin.Context, body []byte, fallbackSeed string) string {
 	sessionHash := s.GenerateSessionHash(c, body)
 	if sessionHash != "" {
 		return sessionHash
@@ -148,7 +148,7 @@ func (s *OpenAIGatewayService) GenerateSessionHashWithFallback(c *gin.Context, b
 	return currentHash
 }
 
-func resolveOpenAIUpstreamOriginator(c *gin.Context, isOfficialClient bool) string {
+func resolveOpenAIUpstreamOriginatorLegacy(c *gin.Context, isOfficialClient bool) string {
 	if c != nil {
 		if originator := strings.TrimSpace(c.GetHeader("originator")); originator != "" {
 			return originator
@@ -161,7 +161,7 @@ func resolveOpenAIUpstreamOriginator(c *gin.Context, isOfficialClient bool) stri
 }
 
 // BindStickySession sets session -> account binding with standard TTL.
-func (s *OpenAIGatewayService) BindStickySession(ctx context.Context, groupID *int64, sessionHash string, accountID int64) error {
+func (s *OpenAIGatewayService) BindStickySessionWeiShaw(ctx context.Context, groupID *int64, sessionHash string, accountID int64) error {
 	if sessionHash == "" || accountID <= 0 {
 		return nil
 	}
@@ -173,18 +173,18 @@ func (s *OpenAIGatewayService) BindStickySession(ctx context.Context, groupID *i
 }
 
 // SelectAccount selects an OpenAI account with sticky session support
-func (s *OpenAIGatewayService) SelectAccount(ctx context.Context, groupID *int64, sessionHash string) (*Account, error) {
+func (s *OpenAIGatewayService) SelectAccountWeiShaw(ctx context.Context, groupID *int64, sessionHash string) (*Account, error) {
 	return s.SelectAccountForModel(ctx, groupID, sessionHash, "")
 }
 
 // SelectAccountForModel selects an account supporting the requested model
-func (s *OpenAIGatewayService) SelectAccountForModel(ctx context.Context, groupID *int64, sessionHash string, requestedModel string) (*Account, error) {
+func (s *OpenAIGatewayService) SelectAccountForModelWeiShaw(ctx context.Context, groupID *int64, sessionHash string, requestedModel string) (*Account, error) {
 	return s.SelectAccountForModelWithExclusions(ctx, groupID, sessionHash, requestedModel, nil)
 }
 
 // SelectAccountForModelWithExclusions selects an account supporting the requested model while excluding specified accounts.
 // SelectAccountForModelWithExclusions 选择支持指定模型的账号，同时排除指定的账号。
-func (s *OpenAIGatewayService) SelectAccountForModelWithExclusions(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*Account, error) {
+func (s *OpenAIGatewayService) SelectAccountForModelWithExclusionsWeiShaw(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*Account, error) {
 	return s.selectAccountForModelWithExclusions(s.withOpenAIQuotaAutoPauseContext(ctx), groupID, PlatformOpenAI, sessionHash, requestedModel, excludedIDs, false, 0, "", false)
 }
 
@@ -810,7 +810,7 @@ func (s *OpenAIGatewayService) selectBestAccount(ctx context.Context, groupID *i
 //
 // isBetterAccount checks if candidate is better than current.
 // Rules: higher priority (lower value) wins; same priority: never used > least recently used.
-func (s *OpenAIGatewayService) isBetterAccount(candidate, current *Account) bool {
+func (s *OpenAIGatewayService) isBetterAccountWeiShaw(candidate, current *Account) bool {
 	// 优先级更高（数值更小）
 	// Higher priority (lower value)
 	if candidate.Priority < current.Priority {
@@ -839,7 +839,7 @@ func (s *OpenAIGatewayService) isBetterAccount(candidate, current *Account) bool
 }
 
 // SelectAccountWithLoadAwareness selects an account with load-awareness and wait plan.
-func (s *OpenAIGatewayService) SelectAccountWithLoadAwareness(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*AccountSelectionResult, error) {
+func (s *OpenAIGatewayService) SelectAccountWithLoadAwarenessWeiShaw(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*AccountSelectionResult, error) {
 	return s.selectAccountWithLoadAwareness(s.withOpenAIQuotaAutoPauseContext(ctx), groupID, PlatformOpenAI, sessionHash, requestedModel, excludedIDs, false, "", true)
 }
 
@@ -1190,6 +1190,9 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 }
 
 func (s *OpenAIGatewayService) listSchedulableAccounts(ctx context.Context, groupID *int64, platform string) ([]Account, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	platform = normalizeOpenAICompatiblePlatform(platform)
 	if s.schedulerSnapshot != nil {
 		accounts, _, err := s.schedulerSnapshot.ListSchedulableAccounts(ctx, groupID, platform, false)
@@ -1210,7 +1213,7 @@ func (s *OpenAIGatewayService) listSchedulableAccounts(ctx context.Context, grou
 	return accounts, nil
 }
 
-func (s *OpenAIGatewayService) tryAcquireAccountSlot(ctx context.Context, accountID int64, maxConcurrency int) (*AcquireResult, error) {
+func (s *OpenAIGatewayService) tryAcquireAccountSlotWeiShaw(ctx context.Context, accountID int64, maxConcurrency int) (*AcquireResult, error) {
 	if s.concurrencyService == nil {
 		return &AcquireResult{Acquired: true, ReleaseFunc: func() {}}, nil
 	}
@@ -1296,10 +1299,13 @@ func (s *OpenAIGatewayService) openAIAccountMatchesSchedulingGroup(account *Acco
 	if s != nil && s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		return account != nil
 	}
+	if s != nil && s.openAIAdvancedSchedulerSettingRepo() == nil {
+		return account != nil
+	}
 	return openAIStickyAccountMatchesGroup(account, groupID)
 }
 
-func (s *OpenAIGatewayService) getSchedulableAccount(ctx context.Context, accountID int64) (*Account, error) {
+func (s *OpenAIGatewayService) getSchedulableAccountWeiShaw(ctx context.Context, accountID int64) (*Account, error) {
 	var (
 		account *Account
 		err     error
@@ -1350,7 +1356,7 @@ func (s *OpenAIGatewayService) newAcquiredSelectionResult(ctx context.Context, a
 	return selection, err
 }
 
-func (s *OpenAIGatewayService) schedulingConfig() config.GatewaySchedulingConfig {
+func (s *OpenAIGatewayService) schedulingConfigWeiShaw() config.GatewaySchedulingConfig {
 	if s.cfg != nil {
 		return s.cfg.Gateway.Scheduling
 	}

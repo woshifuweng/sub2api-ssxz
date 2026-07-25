@@ -1,5 +1,5 @@
 <template>
-  <AppLayout>
+  <PaymentFlowShell>
     <div class="mx-auto flex max-w-md flex-col items-center space-y-6 py-8">
       <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
         {{ qrUrl ? scanTitle : t('payment.qr.payInNewWindow') }}
@@ -13,7 +13,7 @@
       </p>
       <div v-if="expired" class="text-center">
         <p class="text-lg font-medium text-red-500">{{ t('payment.qr.expired') }}</p>
-        <button class="btn btn-primary mt-4" @click="router.push('/purchase')">{{ t('payment.result.backToRecharge') }}</button>
+        <button class="btn btn-primary mt-4" @click="router.push('/app/purchase')">{{ t('payment.result.backToRecharge') }}</button>
       </div>
       <div v-else class="text-center">
         <p class="text-sm text-gray-500 dark:text-gray-400">{{ qrUrl ? t('payment.qr.expiresIn') : t('payment.qr.payInNewWindowHint') }}</p>
@@ -29,19 +29,18 @@
         {{ cancelling ? t('common.processing') : t('payment.qr.cancelOrder') }}
       </button>
     </div>
-  </AppLayout>
+  </PaymentFlowShell>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import AppLayout from '@/components/layout/AppLayout.vue'
+import PaymentFlowShell from '@/components/payment/PaymentFlowShell.vue'
 import { usePaymentStore } from '@/stores/payment'
 import { paymentAPI } from '@/api/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import { useAppStore } from '@/stores'
-import { isBuiltInAlipayMethod, isBuiltInWxpayMethod } from '@/components/payment/providerConfig'
 import QRCode from 'qrcode'
 import alipayIcon from '@/assets/icons/alipay.svg'
 import wxpayIcon from '@/assets/icons/wxpay.svg'
@@ -70,8 +69,8 @@ const countdownDisplay = computed(() => {
   return m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0')
 })
 
-const isAlipay = computed(() => isBuiltInAlipayMethod(paymentType.value))
-const isWxpay = computed(() => isBuiltInWxpayMethod(paymentType.value))
+const isAlipay = computed(() => paymentType.value.includes('alipay'))
+const isWxpay = computed(() => paymentType.value.includes('wxpay'))
 
 const scanTitle = computed(() => {
   if (isAlipay.value) return t('payment.qr.scanAlipay')
@@ -132,26 +131,16 @@ async function renderQR() {
   }
 }
 
-let pollInFlight = false
 async function pollStatus() {
   if (!orderId.value) return
-  // 防重入：接口响应慢于 3 秒轮询间隔时避免并发重叠请求与重复跳转。
-  if (pollInFlight) return
-  pollInFlight = true
-  try {
-    const order = await paymentStore.pollOrderStatus(orderId.value)
-    if (!order) return
-    // 定时器已被 cleanup 清除时不再执行终态跳转（响应可能在 cleanup 后才回来）。
-    if (!pollTimer) return
-    if (order.status === 'COMPLETED' || order.status === 'PAID') {
-      cleanup()
-      router.push({ path: '/payment/result', query: { order_id: String(orderId.value), status: 'success' } })
-    } else if (order.status === 'EXPIRED' || order.status === 'CANCELLED' || order.status === 'FAILED') {
-      cleanup()
-      expired.value = true
-    }
-  } finally {
-    pollInFlight = false
+  const order = await paymentStore.pollOrderStatus(orderId.value)
+  if (!order) return
+  if (order.status === 'COMPLETED' || order.status === 'PAID') {
+    cleanup()
+    router.push({ path: '/payment/result', query: { order_id: String(orderId.value), status: 'success' } })
+  } else if (order.status === 'EXPIRED' || order.status === 'CANCELLED' || order.status === 'FAILED') {
+    cleanup()
+    expired.value = true
   }
 }
 
@@ -176,7 +165,7 @@ async function handleCancel() {
   try {
     await paymentAPI.cancelOrder(orderId.value)
     cleanup()
-    router.push('/purchase')
+    router.push('/app/purchase')
   } catch (err: unknown) {
     appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
   } finally {

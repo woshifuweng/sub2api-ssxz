@@ -17,7 +17,7 @@ import (
 
 // ForwardCountTokens 转发 count_tokens 请求到上游 API
 // 特点：不记录使用量、仅支持非流式响应
-func (s *GatewayService) ForwardCountTokens(ctx context.Context, c *gin.Context, account *Account, parsed *ParsedRequest) error {
+func (s *GatewayService) ForwardCountTokensWeiShaw(ctx context.Context, c *gin.Context, account *Account, parsed *ParsedRequest) error {
 	if parsed == nil {
 		s.countTokensError(c, http.StatusBadRequest, "invalid_request_error", "Request body is empty")
 		return fmt.Errorf("parse request: empty request")
@@ -244,7 +244,7 @@ func (s *GatewayService) ForwardCountTokens(ctx context.Context, c *gin.Context,
 	return nil
 }
 
-func (s *GatewayService) forwardCountTokensAnthropicAPIKeyPassthrough(ctx context.Context, c *gin.Context, account *Account, body []byte) error {
+func (s *GatewayService) forwardCountTokensAnthropicAPIKeyPassthroughWeiShaw(ctx context.Context, c *gin.Context, account *Account, body []byte) error {
 	token, tokenType, err := s.GetAccessToken(ctx, account)
 	if err != nil {
 		s.countTokensError(c, http.StatusBadGateway, "upstream_error", "Failed to get access token")
@@ -359,7 +359,7 @@ func (s *GatewayService) forwardCountTokensAnthropicAPIKeyPassthrough(ctx contex
 	return nil
 }
 
-func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthrough(
+func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthroughWeiShaw(
 	ctx context.Context,
 	c *gin.Context,
 	account *Account,
@@ -595,7 +595,7 @@ func sanitizeCountTokensRequestBody(body []byte) []byte {
 }
 
 // countTokensError 返回 count_tokens 错误响应
-func (s *GatewayService) countTokensError(c *gin.Context, status int, errType, message string) {
+func (s *GatewayService) countTokensErrorWeiShaw(c *gin.Context, status int, errType, message string) {
 	c.JSON(status, gin.H{
 		"type": "error",
 		"error": gin.H{
