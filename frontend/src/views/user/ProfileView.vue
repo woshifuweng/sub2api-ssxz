@@ -142,7 +142,7 @@ const accountStatusLabel = computed(() => user.value?.status === 'active'
 onMounted(async () => {
   try {
     const settings = await authAPI.getPublicSettings()
-    contactInfo.value = settings.contact_info || ''
+    contactInfo.value = (settings.contact_info || '').trim()
     linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled === true
   } catch {
     contactInfo.value = ''
