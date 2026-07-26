@@ -20,6 +20,8 @@ const (
 	captureBatchImageHoldSQL    = `(?s)UPDATE users\s+SET balance = balance\s+\+ CASE WHEN \$1 > \$2 THEN \$1 - \$2 ELSE 0 END\s+- CASE WHEN \$2 > \$1 THEN \$2 - \$1 ELSE 0 END,\s+frozen_balance = COALESCE\(frozen_balance, 0\) - \$1,\s+updated_at = NOW\(\)\s+WHERE id = \$3 AND deleted_at IS NULL AND COALESCE\(frozen_balance, 0\) >= \$1\s+RETURNING balance, frozen_balance`
 	releaseBatchImageHoldSQL    = `(?s)UPDATE users\s+SET balance = balance \+ \$1,\s+frozen_balance = COALESCE\(frozen_balance, 0\) - \$1,\s+updated_at = NOW\(\)\s+WHERE id = \$2 AND deleted_at IS NULL AND COALESCE\(frozen_balance, 0\) >= \$1\s+RETURNING balance, frozen_balance`
 	userExistsForBillingSQL     = `(?s)SELECT 1\s+FROM users\s+WHERE id = \$1 AND deleted_at IS NULL`
+	settleBalanceSelectSQL      = `(?s)SELECT balance\s+FROM users\s+WHERE id = \$1 AND deleted_at IS NULL\s+FOR UPDATE`
+	settleBalanceUpdateSQL      = `(?s)UPDATE users\s+SET balance = \$1,\s+updated_at = NOW\(\)\s+WHERE id = \$2 AND deleted_at IS NULL`
 )
 
 func TestDeductUsageBillingBalance_UsesSufficientBalanceGuard(t *testing.T) {
@@ -78,12 +80,15 @@ func TestApplyUsageBillingEffects_FlagsBalanceOverdraft(t *testing.T) {
 	mock.ExpectBegin()
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
-	mock.ExpectQuery(conditionalBalanceDeductSQL).
-		WithArgs(10.0, int64(42)).
-		WillReturnError(sql.ErrNoRows)
-	mock.ExpectQuery(overdraftBalanceDeductSQL).
-		WithArgs(10.0, int64(42)).
+	// 余额扣减必须且只能发生一次，由 settleUsageBillingBalance 完成。
+	// 若 applyUsageBillingEffects 再调用 deductUsageBillingBalance，
+	// 这里会出现未预期的 UPDATE ... balance = balance - $1 而使本用例失败。
+	mock.ExpectQuery(settleBalanceSelectSQL).
+		WithArgs(int64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(-5.0))
+	mock.ExpectExec(settleBalanceUpdateSQL).
+		WithArgs(0.0, int64(42)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	result := &service.UsageBillingApplyResult{Applied: true}
@@ -93,8 +98,49 @@ func TestApplyUsageBillingEffects_FlagsBalanceOverdraft(t *testing.T) {
 	}, result)
 	require.NoError(t, err)
 	require.NotNil(t, result.NewBalance)
-	require.InDelta(t, -5.0, *result.NewBalance, 0.000001)
+	// settle 把余额夹在 [0, balance]，不会写出负余额
+	require.InDelta(t, 0.0, *result.NewBalance, 0.000001)
+	require.InDelta(t, 0.0, result.BalanceCharged, 0.000001)
+	require.InDelta(t, 10.0, result.BalanceShortfall, 0.000001)
 	require.True(t, result.BalanceOverdrafted)
+	require.True(t, result.BalanceExhausted)
+	require.NoError(t, tx.Commit())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestApplyUsageBillingEffects_ChargesBalanceExactlyOnce 是本次 double-charge 事故的回归防线：
+// 余额充足时，一个事务内对 users.balance 的写入必须恰好一条，且余额恰好减少一倍 cost。
+func TestApplyUsageBillingEffects_ChargesBalanceExactlyOnce(t *testing.T) {
+	ctx := context.Background()
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	mock.ExpectBegin()
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	mock.ExpectQuery(settleBalanceSelectSQL).
+		WithArgs(int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(10.0))
+	mock.ExpectExec(settleBalanceUpdateSQL).
+		WithArgs(7.5, int64(42)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery(`(?s)SELECT key, value\s+FROM settings`).
+		WillReturnRows(sqlmock.NewRows([]string{"key", "value"}))
+	mock.ExpectCommit()
+
+	result := &service.UsageBillingApplyResult{Applied: true}
+	err = (&usageBillingRepository{}).applyUsageBillingEffects(ctx, tx, &service.UsageBillingCommand{
+		UserID:      42,
+		BalanceCost: 2.5,
+	}, result)
+	require.NoError(t, err)
+	require.NotNil(t, result.NewBalance)
+	require.InDelta(t, 7.5, *result.NewBalance, 0.000001)
+	require.InDelta(t, 2.5, result.BalanceCharged, 0.000001)
+	require.InDelta(t, 0.0, result.BalanceShortfall, 0.000001)
+	require.False(t, result.BalanceOverdrafted)
+	require.False(t, result.BalanceExhausted)
 	require.NoError(t, tx.Commit())
 	require.NoError(t, mock.ExpectationsWereMet())
 }

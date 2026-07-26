@@ -181,12 +181,9 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 	}
 
 	if cmd.BalanceCost > 0 {
-		newBalance, sufficient, err := deductUsageBillingBalance(ctx, tx, cmd.UserID, cmd.BalanceCost)
-		if err != nil {
-			return err
-		}
-		result.NewBalance = &newBalance
-		result.BalanceOverdrafted = !sufficient
+		// 余额只能由 settleUsageBillingBalance 扣减一次：它在同一事务内 FOR UPDATE
+		// 读取余额、把扣款夹在 [0, balance] 并返回 charged/shortfall。此处不得再调用
+		// deductUsageBillingBalance，否则同一笔费用会被扣两次。
 		newBalance, charged, shortfall, err := settleUsageBillingBalance(ctx, tx, cmd.UserID, cmd.BalanceCost)
 		if err != nil {
 			return err
@@ -194,6 +191,7 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 		result.NewBalance = &newBalance
 		result.BalanceCharged = charged
 		result.BalanceShortfall = shortfall
+		result.BalanceOverdrafted = shortfall > 0
 		result.BalanceExhausted = newBalance <= 0
 
 		rebate, err := accrueUsageAffiliateRebate(ctx, tx, cmd.UserID, charged)
