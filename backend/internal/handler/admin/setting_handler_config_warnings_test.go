@@ -70,6 +70,7 @@ func TestUpdateSettingsReturnsConfigWarningsWithoutBlockingSave(t *testing.T) {
 	h := newSettingWarningTestHandler(t, map[string]string{})
 
 	rec, warnings := updateSettingsWarnings(t, h, map[string]any{
+		"email_verify_enabled":   true, // 状态 A：重置真正生效，此刻正在丢邮件
 		"password_reset_enabled": true,
 		"frontend_url":           "",
 		"contact_info":           "",
@@ -77,14 +78,14 @@ func TestUpdateSettingsReturnsConfigWarningsWithoutBlockingSave(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.ElementsMatch(t, []string{
-		SettingWarningPasswordResetMissingFrontendURL,
+		SettingWarningPasswordResetLinkUnresolvable,
 		SettingWarningContactInfoEmpty,
 	}, warningCodes(warnings))
 
+	// 契约：只回 code + field，不回任何面向用户的文案（文案属于前端 i18n）。
 	for _, w := range warnings {
-		require.NotEmpty(t, w.Message, "warning %s must carry a readable message", w.Code)
 		switch w.Code {
-		case SettingWarningPasswordResetMissingFrontendURL:
+		case SettingWarningPasswordResetLinkUnresolvable:
 			require.Equal(t, "frontend_url", w.Field)
 		case SettingWarningContactInfoEmpty:
 			require.Equal(t, "contact_info", w.Field)
@@ -92,8 +93,9 @@ func TestUpdateSettingsReturnsConfigWarningsWithoutBlockingSave(t *testing.T) {
 	}
 }
 
-// 命中：email_verify_enabled=false 时 updatedSettings.PasswordResetEnabled 会被取与成 false，
-// 提示必须仍然基于管理员本次的原始意图给出 —— 这正是前端输入框被 v-if 隐藏的组合。
+// 状态 B（潜伏）：email_verify_enabled=false 时生效值被取与成 false，重置接口直接 403、
+// 没有任何邮件在丢。提示仍要基于原始存储值给出，但必须用 LATENT 码 ——
+// 套用状态 A 的「用户收不到邮件」在这里是假的。
 func TestUpdateSettingsWarnsWhenPasswordResetOnWithEmailVerifyOff(t *testing.T) {
 	h := newSettingWarningTestHandler(t, map[string]string{})
 
@@ -105,7 +107,7 @@ func TestUpdateSettingsWarnsWhenPasswordResetOnWithEmailVerifyOff(t *testing.T) 
 	})
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, []string{SettingWarningPasswordResetMissingFrontendURL}, warningCodes(warnings))
+	require.Equal(t, []string{SettingWarningPasswordResetLinkUnresolvableLatent}, warningCodes(warnings))
 }
 
 // 不命中：frontend_url 已配置且 contact_info 非空 —— warnings 为空数组，不是 null。
@@ -161,13 +163,14 @@ func TestUpdateSettingsSkipsFrontendURLWarningWhenConfigFileProvidesFallback(t *
 // 纯函数层面的边界：仅空白字符等同未配置。
 func TestCollectSettingConfigWarningsTreatsBlankAsEmpty(t *testing.T) {
 	warnings := collectSettingConfigWarnings(settingConfigWarningInput{
-		PasswordResetEnabled: true,
-		FrontendURL:          "   ",
-		ContactInfo:          "\t\n",
+		PasswordResetStored:   true,
+		EmailVerifyEnabled:    true,
+		ResolvedResetLinkBase: "   ",
+		ContactInfo:           "\t\n",
 	})
 
 	require.ElementsMatch(t, []string{
-		SettingWarningPasswordResetMissingFrontendURL,
+		SettingWarningPasswordResetLinkUnresolvable,
 		SettingWarningContactInfoEmpty,
 	}, warningCodes(warnings))
 }

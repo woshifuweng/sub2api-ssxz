@@ -1784,6 +1784,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		PromoCodeEnabled:                                       updatedSettings.PromoCodeEnabled,
 		PasswordResetEnabled:                                   updatedSettings.PasswordResetEnabled,
 		PasswordResetEnabledStored:                             updatedSettings.PasswordResetEnabledStored,
+		PasswordResetLinkBase:                                  h.settingService.ResolvePasswordResetLinkBase(c.Request.Context(), c.GetHeader("Origin")),
 		FrontendURL:                                            updatedSettings.FrontendURL,
 		InvitationCodeEnabled:                                  updatedSettings.InvitationCodeEnabled,
 		TotpEnabled:                                            updatedSettings.TotpEnabled,
@@ -2018,15 +2019,17 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	responseData := systemSettingsResponseData(payload, updatedAuthSourceDefaults)
 	// 非阻断的配置提示：保存已经落库成功，这里只是在成功响应里附带可读警告，
 	// 让管理台能提示「保存成功但该功能会静默失效」，绝不改变状态码或既有字段。
-	// password_reset_enabled 用落库后的原始存储值 PasswordResetEnabledStored，
-	// 而不是 updatedSettings.PasswordResetEnabled（后者与 email_verify_enabled 取与，
-	// 「邮件验证关 + 密码重置开」这种最危险的组合反而拿不到提示）。
-	// 与 payload 里回给前端的 password_reset_enabled_stored 同源，保证提示与渲染判据一致。
-	// frontend_url 走 GetFrontendURL 拿生效值（DB 优先、fallback 配置文件），避免误报。
+	// PasswordResetStored 用落库后的原始存储值，而不是 updatedSettings.PasswordResetEnabled
+	// （后者与 email_verify_enabled 取与，「邮箱验证关 + 密码重置开」这种最危险的组合
+	// 反而拿不到提示）。EmailVerifyEnabled 用来区分状态 A（正在失败）与状态 B（潜伏）。
+	// ResolvedResetLinkBase 走 ResolvePasswordResetLinkBase 拿**解析结果**，
+	// 与发信链路同一个入口 —— 不能拿 settings.frontend_url 原始值代替，
+	// 那会漏掉配置文件回落与 Origin 兜底，在已配好的部署上误报成故障。
 	responseData["warnings"] = collectSettingConfigWarnings(settingConfigWarningInput{
-		PasswordResetEnabled: updatedSettings.PasswordResetEnabledStored,
-		FrontendURL:          h.settingService.GetFrontendURL(c.Request.Context()),
-		ContactInfo:          updatedSettings.ContactInfo,
+		PasswordResetStored:   updatedSettings.PasswordResetEnabledStored,
+		EmailVerifyEnabled:    updatedSettings.EmailVerifyEnabled,
+		ResolvedResetLinkBase: h.settingService.ResolvePasswordResetLinkBase(c.Request.Context(), c.GetHeader("Origin")),
+		ContactInfo:           updatedSettings.ContactInfo,
 	})
 	response.Success(c, responseData)
 }

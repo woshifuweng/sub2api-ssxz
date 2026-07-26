@@ -210,3 +210,43 @@ func TestForgotPasswordGateway_UntrustedOrMissingOriginDegradesToGenericSuccess(
 		})
 	}
 }
+
+// 重置功能关闭时必须在校验 Turnstile **之前**就拒绝：否则每次请求都白跑一趟
+// Cloudflare 并消耗一个一次性 token。这里用一个必然失败的 Turnstile token 来定位顺序 ——
+// 若门禁排在 Turnstile 之后，返回的会是 Turnstile 的错误而不是 PASSWORD_RESET_DISABLED。
+func TestForgotPasswordGateway_RejectsBeforeTurnstileWhenPasswordResetDisabled(t *testing.T) {
+	existing := &service.User{
+		ID:     1,
+		Email:  "existing@example.com",
+		Status: service.StatusActive,
+	}
+	userRepo := &authHandlerUserRepoStub{
+		usersByID:    map[int64]*service.User{existing.ID: existing},
+		usersByEmail: map[string]*service.User{existing.Email: existing},
+	}
+	cfg := &config.Config{
+		Server: config.ServerConfig{Mode: "release"},
+		// Required=true 让 VerifyTurnstile 在「已启用但未配 secret」时确定性地
+		// 返回 ErrTurnstileNotConfigured。没有这一项 VerifyTurnstile 会直接放行，
+		// 本用例就会无论门禁在前在后都通过 —— 那样它什么也没验证。
+		Turnstile: config.TurnstileConfig{Required: true},
+	}
+	settingRepo := &authHandlerSettingRepoStub{values: map[string]string{
+		service.SettingKeyEmailVerifyEnabled: "true",
+		// 重置开关关闭
+		service.SettingKeyPasswordResetEnabled: "false",
+		service.SettingKeyFrontendURL:          "https://configured.example.com",
+		// Turnstile 打开但**不配 secret** —— 一旦真的走到校验必然返回
+		// TURNSTILE_NOT_CONFIGURED，与 PASSWORD_RESET_DISABLED 可区分，
+		// 借此定位门禁与 Turnstile 的先后顺序
+		service.SettingKeyTurnstileEnabled: "true",
+	}}
+	settingSvc := service.NewSettingService(settingRepo, cfg)
+	authSvc := service.NewAuthService(nil, userRepo, nil, nil, cfg, settingSvc, nil, nil, nil, nil, nil, nil, nil)
+	handler := NewAuthHandler(cfg, authSvc, nil, settingSvc, nil, nil, nil, nil, nil)
+
+	code, envelope := runForgotPasswordRequest(t, handler, existing.Email, "https://app.example.com", nil)
+
+	require.Equal(t, http.StatusForbidden, code)
+	require.Contains(t, envelope.Reason, "PASSWORD_RESET_DISABLED")
+}

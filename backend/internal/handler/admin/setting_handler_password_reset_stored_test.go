@@ -155,10 +155,62 @@ func TestUpdateSettings_StoredAndWarningsAgreeInLatentState(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, true, data["password_reset_enabled_stored"])
+	// 状态 B 下解析结果也必须是空串，与告警同源。
+	require.Equal(t, "", data["password_reset_link_base"])
 
 	encoded, err := json.Marshal(data["warnings"])
 	require.NoError(t, err)
 	var warnings []SettingConfigWarning
 	require.NoError(t, json.Unmarshal(encoded, &warnings))
-	require.Equal(t, []string{SettingWarningPasswordResetMissingFrontendURL}, warningCodes(warnings))
+	// 邮箱验证关闭 → 潜伏码，不是「正在失败」码
+	require.Equal(t, []string{SettingWarningPasswordResetLinkUnresolvableLatent}, warningCodes(warnings))
+}
+
+// 状态 A：邮箱验证开着、重置开着、解析不出链接 —— 此刻正在静默丢邮件。
+func TestUpdateSettings_WarnsUnresolvableWhenResetIsLive(t *testing.T) {
+	h, _ := newPasswordResetStoredHandler(t, map[string]string{})
+
+	rec, data := putSettingsData(t, h, map[string]any{
+		"email_verify_enabled":   true,
+		"password_reset_enabled": true,
+		"frontend_url":           "",
+		"contact_info":           "support@example.com",
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "", data["password_reset_link_base"])
+
+	encoded, err := json.Marshal(data["warnings"])
+	require.NoError(t, err)
+	var warnings []SettingConfigWarning
+	require.NoError(t, json.Unmarshal(encoded, &warnings))
+	require.Equal(t, []string{SettingWarningPasswordResetLinkUnresolvable}, warningCodes(warnings))
+}
+
+// 回归：DB 里 frontend_url 为空但 config.yaml 配了 server.frontend_url 时，
+// 解析结果非空 → 一条告警都不该有。这正是「前端拿原始值自行推断」会误报的场景。
+func TestUpdateSettings_NoWarningWhenConfigFileProvidesResetLinkBase(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repo := &settingHandlerRepoStub{values: map[string]string{}}
+	svc := service.NewSettingService(repo, &config.Config{
+		Default: config.DefaultConfig{UserConcurrency: 5},
+		Server:  config.ServerConfig{FrontendURL: "https://fallback.example.com"},
+	})
+	h := NewSettingHandler(svc, nil, nil, nil, nil, nil, nil)
+
+	rec, data := putSettingsData(t, h, map[string]any{
+		"email_verify_enabled":   true,
+		"password_reset_enabled": true,
+		"frontend_url":           "",
+		"contact_info":           "support@example.com",
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "https://fallback.example.com", data["password_reset_link_base"])
+
+	encoded, err := json.Marshal(data["warnings"])
+	require.NoError(t, err)
+	var warnings []SettingConfigWarning
+	require.NoError(t, json.Unmarshal(encoded, &warnings))
+	require.Empty(t, warnings)
 }

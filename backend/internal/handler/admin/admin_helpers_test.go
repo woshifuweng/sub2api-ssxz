@@ -267,7 +267,7 @@ func TestBuildSystemSettingsDTOExposesAffiliateSettings(t *testing.T) {
 		AffiliateRebateFreezeHours:   24,
 		AffiliateRebateDurationDays:  90,
 		AffiliateRebatePerInviteeCap: 50,
-	}, false)
+	}, false, "")
 
 	require.True(t, settingsDTO.AffiliateEnabled)
 	require.Equal(t, 12.5, settingsDTO.AffiliateRebateRate)

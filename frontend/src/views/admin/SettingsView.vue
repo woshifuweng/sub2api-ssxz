@@ -2520,7 +2520,25 @@ function syncPasswordResetStored(settings: {
 // （开关不渲染，无人能改它），跨越 email_verify 开关切换时也不会失真。
 const passwordResetIntended = computed(() => form.password_reset_enabled)
 
-const frontendUrlMissing = computed(() => !(form.frontend_url || '').trim())
+// 后端解析出的重置链接基址（service.ResolvePasswordResetBaseURL 的结果）。
+// 空串表示「按当前配置根本解析不出链接、发信会被静默跳过」。
+// 这是唯一可信的判据 —— 前端**不复刻**那条回落链路（DB → 配置文件 → Origin + CORS 白名单），
+// 因为前端既拿不到请求 Origin 也拿不到 CORS 白名单，复刻必然漂移成第二个事实来源。
+const passwordResetLinkBase = ref('')
+
+function syncPasswordResetLinkBase(settings: { password_reset_link_base?: string }) {
+  passwordResetLinkBase.value = (settings.password_reset_link_base ?? '').trim()
+}
+
+// 「重置链接解析不出来」的判断：
+// - 表单里已经填了合法地址 → 保存后必然可解析，不告警（乐观，避免边填边报错）；
+// - 表单为空 → 以后端解析结果为准。后端可能通过 config.yaml 回落或 Origin 兜底解析成功，
+//   那种部署下 DB 的 frontend_url 为空是正常的，不该报「客户收不到邮件」。
+const frontendUrlMissing = computed(() => {
+  const typed = (form.frontend_url || '').trim()
+  if (typed !== '') return false
+  return passwordResetLinkBase.value === ''
+})
 
 // 状态 A「正在静默失败」：邮箱验证开着、密码重置开着、frontend_url 为空。
 // 此刻客户点重置就收不到邮件，页面还显示发送成功 —— 紧急措辞成立。
@@ -2742,6 +2760,7 @@ async function loadSettings() {
     // Object.assign 只能把取与后的 password_reset_enabled 灌进 form，
     // 原始存储值必须单独留一份，否则邮箱验证关闭时告警判据就没了。
     syncPasswordResetStored(settings)
+    syncPasswordResetLinkBase(settings)
     form.backend_mode_enabled = settings.backend_mode_enabled
     form.default_subscriptions = Array.isArray(settings.default_subscriptions)
       ? settings.default_subscriptions
@@ -2920,6 +2939,7 @@ async function saveSettings() {
     // Object.assign 会把 form.password_reset_enabled 刷成取与后的值；
     // 告警判据必须跟着落库的原始值走，否则保存成功那一刻告警就凭空消失，而 DB 里隐患还在。
     syncPasswordResetStored(updated)
+    syncPasswordResetLinkBase(updated)
     registrationEmailSuffixWhitelistTags.value = normalizeRegistrationEmailSuffixDomains(
       updated.registration_email_suffix_whitelist
     )
