@@ -243,6 +243,9 @@ func RegisterUserRoutes(
 			}
 		}
 
-		registerUserFeatureRoutes(authenticated, h)
+		// 注意：/user/aff、/user/aff/transfer、/channels/available、
+		// /channel-monitors 等路由已在上方内联注册（生产版本，路由更全）。
+		// registerUserFeatureRoutes 是换底座时引入的等价辅助函数，与内联注册重复，
+		// 会导致 gin "handlers are already registered" panic，故不再调用。
 	}
 }

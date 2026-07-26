@@ -575,8 +575,12 @@ func registerContentModerationRoutes(admin *gin.RouterGroup, h *handler.Handlers
 		// 代理自动维护计划
 		registerProxyMaintenanceRoutes(admin, h)
 
-		// TLS 指纹 / 渠道 / 渠道监控补充能力
-		registerAdminFeatureRoutes(admin, h)
+		// 注意：/affiliates、/tls-fingerprint-profiles、/channels、
+		// /channel-monitors、/channel-monitor-templates 等路由已由上方
+		// registerAffiliateRoutes / registerTLSFingerprintProfileRoutes /
+		// registerChannelRoutes / registerChannelMonitorRoutes 内联注册（生产版本，路由更全）。
+		// registerAdminFeatureRoutes 是换底座时引入的等价辅助函数，与内联注册重复，
+		// 会导致 gin "handlers are already registered" panic，故不再调用。
 	}
 }
 
