@@ -1046,7 +1046,7 @@
     <BaseDialog
       :show="!!createdKeyToReveal"
       :title="t('keys.createdKeyReveal.title')"
-      width="normal"
+      width="wide"
       :close-on-escape="false"
       :close-on-click-outside="false"
       @close="acknowledgeCreatedKey"
@@ -1119,6 +1119,59 @@
           >
             {{ t('keys.createdKeyReveal.primaryActionHint') }}
           </p>
+        </div>
+
+        <div
+          class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-dark-600 dark:bg-dark-800"
+          data-testid="created-key-quick-start"
+        >
+          <p class="text-sm font-medium text-gray-900 dark:text-white">
+            {{ t('keys.createdKeyReveal.quickStart.title') }}
+          </p>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {{ t('keys.createdKeyReveal.quickStart.description') }}
+          </p>
+
+          <div class="mt-2 border-b border-gray-200 dark:border-dark-600">
+            <nav class="-mb-px flex space-x-4" aria-label="Quick start examples">
+              <button
+                v-for="tab in createdKeyExampleTabs"
+                :key="tab.id"
+                type="button"
+                :data-testid="`created-key-example-tab-${tab.id}`"
+                :class="[
+                  'whitespace-nowrap border-b-2 px-1 py-2 text-sm font-medium transition-colors',
+                  createdKeyExampleTab === tab.id
+                    ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                ]"
+                @click="createdKeyExampleTab = tab.id"
+              >
+                {{ tab.label }}
+              </button>
+            </nav>
+          </div>
+
+          <div class="mt-3 flex justify-end">
+            <button
+              type="button"
+              class="btn btn-secondary shrink-0"
+              data-testid="created-key-example-copy"
+              @click="copyCreatedKeyExample"
+            >
+              <Icon v-if="createdKeyExampleCopied" name="check" size="sm" :stroke-width="2" />
+              <Icon v-else name="clipboard" size="sm" />
+              {{
+                createdKeyExampleCopied
+                  ? t('keys.createdKeyReveal.quickStart.copied')
+                  : t('keys.createdKeyReveal.quickStart.copyAll')
+              }}
+            </button>
+          </div>
+          <pre
+            class="mt-2 max-h-56 overflow-auto whitespace-pre rounded-lg bg-gray-900 p-4 font-mono text-xs leading-5 text-gray-100 dark:bg-dark-950"
+            data-testid="created-key-example-code"
+          >{{ activeCreatedKeyExample }}</pre>
         </div>
       </div>
 
@@ -1430,6 +1483,7 @@ const now = ref(new Date())
 let resetTimer: ReturnType<typeof setInterval> | null = null
 let createdKeyCopyTimer: ReturnType<typeof setTimeout> | null = null
 let baseUrlCopyTimer: ReturnType<typeof setTimeout> | null = null
+let createdKeyExampleCopyTimer: ReturnType<typeof setTimeout> | null = null
 const usageStats = ref<Record<string, BatchApiKeyUsageStats>>({})
 const userGroupRates = ref<Record<number, number>>({})
 
@@ -1460,6 +1514,9 @@ const copiedKeyId = ref<number | null>(null)
 const createdKeyToReveal = ref<ApiKey | null>(null)
 const createdKeyCopied = ref(false)
 const baseUrlCopied = ref(false)
+type CreatedKeyExampleTabId = 'curl' | 'python' | 'cherry'
+const createdKeyExampleTab = ref<CreatedKeyExampleTabId>('curl')
+const createdKeyExampleCopied = ref(false)
 const statusUpdatingKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
@@ -1473,6 +1530,74 @@ const apiBaseUrl = computed(() => resolveUserFacingApiBaseUrl(publicSettings.val
 const openAICompatibleBaseUrl = computed(() => {
   const trimmed = apiBaseUrl.value.replace(/\/+$/, '')
   return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
+})
+
+const createdKeyExampleTabs: Array<{ id: CreatedKeyExampleTabId; label: string }> = [
+  { id: 'curl', label: 'curl' },
+  { id: 'python', label: 'Python' },
+  { id: 'cherry', label: 'Cherry Studio' }
+]
+
+const createdKeyExampleModel = computed(() => {
+  const allowed = createdKeyToReveal.value?.allowed_models
+  const first = Array.isArray(allowed) ? allowed.find((model) => !!model?.trim()) : undefined
+  return first?.trim() || 'gpt-5.5'
+})
+
+const createdKeyCurlExample = computed(() => {
+  const base = openAICompatibleBaseUrl.value
+  const key = createdKeyToReveal.value?.key ?? ''
+  return [
+    `curl -X POST "${base}/chat/completions" \\`,
+    '  -H "Content-Type: application/json" \\',
+    `  -H "Authorization: Bearer ${key}" \\`,
+    "  -d '{",
+    `    "model": "${createdKeyExampleModel.value}",`,
+    '    "messages": [{"role": "user", "content": "Hello"}]',
+    "  }'"
+  ].join('\n')
+})
+
+const createdKeyPythonExample = computed(() => {
+  const base = openAICompatibleBaseUrl.value
+  const key = createdKeyToReveal.value?.key ?? ''
+  return [
+    'from openai import OpenAI',
+    '',
+    'client = OpenAI(',
+    `    base_url="${base}",`,
+    `    api_key="${key}"`,
+    ')',
+    '',
+    'response = client.chat.completions.create(',
+    `    model="${createdKeyExampleModel.value}",`,
+    '    messages=[{"role": "user", "content": "Hello"}]',
+    ')',
+    'print(response.choices[0].message.content)'
+  ].join('\n')
+})
+
+const createdKeyCherryExample = computed(() => {
+  const base = openAICompatibleBaseUrl.value
+  const key = createdKeyToReveal.value?.key ?? ''
+  return [
+    t('keys.createdKeyReveal.quickStart.cherryHeading'),
+    t('keys.createdKeyReveal.quickStart.cherryProvider'),
+    `${t('keys.createdKeyReveal.quickStart.cherryBaseUrl')}${base}`,
+    `${t('keys.createdKeyReveal.quickStart.cherryApiKey')}${key}`,
+    `${t('keys.createdKeyReveal.quickStart.cherryModel')}${createdKeyExampleModel.value}`
+  ].join('\n')
+})
+
+const activeCreatedKeyExample = computed(() => {
+  switch (createdKeyExampleTab.value) {
+    case 'python':
+      return createdKeyPythonExample.value
+    case 'cherry':
+      return createdKeyCherryExample.value
+    default:
+      return createdKeyCurlExample.value
+  }
 })
 
 function resolveUserFacingApiBaseUrl(configuredUrl?: string | null) {
@@ -1818,12 +1943,33 @@ const copyBaseUrl = async () => {
   }
 }
 
+const copyCreatedKeyExample = async () => {
+  const text = activeCreatedKeyExample.value
+  if (!createdKeyToReveal.value || !text) return
+
+  const success = await clipboardCopy(text, t('keys.createdKeyReveal.quickStart.exampleCopied'))
+  if (success) {
+    createdKeyExampleCopied.value = true
+    if (createdKeyExampleCopyTimer) clearTimeout(createdKeyExampleCopyTimer)
+    createdKeyExampleCopyTimer = setTimeout(() => {
+      createdKeyExampleCopied.value = false
+      createdKeyExampleCopyTimer = null
+    }, 1200)
+  }
+}
+
 const acknowledgeCreatedKey = () => {
   createdKeyToReveal.value = null
   createdKeyCopied.value = false
+  createdKeyExampleTab.value = 'curl'
+  createdKeyExampleCopied.value = false
   if (createdKeyCopyTimer) {
     clearTimeout(createdKeyCopyTimer)
     createdKeyCopyTimer = null
+  }
+  if (createdKeyExampleCopyTimer) {
+    clearTimeout(createdKeyExampleCopyTimer)
+    createdKeyExampleCopyTimer = null
   }
 }
 

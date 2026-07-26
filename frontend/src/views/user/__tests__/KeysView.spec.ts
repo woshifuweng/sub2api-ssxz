@@ -971,6 +971,67 @@ describe('KeysView workbench surface', () => {
     openSpy.mockRestore()
   })
 
+  it('shows copy-ready quick start examples in the created key dialog', async () => {
+    const createdKey = 'sk-created-full-key-only-shown-once'
+    userGroupsAPI.getAvailable.mockResolvedValue([groupFixture()])
+    keysAPI.create.mockResolvedValue(apiKeyFixture({
+      id: 2,
+      name: 'client-key',
+      key: createdKey,
+      group_id: 1,
+      group_ids: [1],
+      group: { platform: 'openai', allow_messages_dispatch: false }
+    }))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const createButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('keys.createKey'))
+    expect(createButton).toBeTruthy()
+    await createButton!.trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-tour="key-form-name"]').setValue('client-key')
+    await wrapper.get('form#key-form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="created-key-quick-start"]').exists()).toBe(true)
+    const codeBlock = () => wrapper.get('[data-testid="created-key-example-code"]').text()
+
+    expect(codeBlock()).toContain('curl -X POST "https://example.test/v1/chat/completions"')
+    expect(codeBlock()).toContain(`Authorization: Bearer ${createdKey}`)
+    expect(codeBlock()).toContain('"model": "gpt-5.5"')
+
+    await wrapper.get('[data-testid="created-key-example-copy"]').trigger('click')
+    await flushPromises()
+    const curlCopied = String(clipboardCopy.mock.calls.at(-1)?.[0])
+    expect(clipboardCopy).toHaveBeenLastCalledWith(
+      expect.any(String),
+      'keys.createdKeyReveal.quickStart.exampleCopied'
+    )
+    expect(curlCopied).toContain('curl -X POST "https://example.test/v1/chat/completions"')
+    expect(curlCopied).toContain(createdKey)
+
+    await wrapper.get('[data-testid="created-key-example-tab-python"]').trigger('click')
+    await flushPromises()
+    expect(codeBlock()).toContain('from openai import OpenAI')
+    expect(codeBlock()).toContain('base_url="https://example.test/v1"')
+    expect(codeBlock()).toContain(`api_key="${createdKey}"`)
+
+    await wrapper.get('[data-testid="created-key-example-tab-cherry"]').trigger('click')
+    await flushPromises()
+    expect(codeBlock()).toContain('keys.createdKeyReveal.quickStart.cherryProvider')
+    expect(codeBlock()).toContain(`keys.createdKeyReveal.quickStart.cherryApiKey${createdKey}`)
+
+    await wrapper.get('[data-testid="created-key-example-copy"]').trigger('click')
+    await flushPromises()
+    const cherryCopied = String(clipboardCopy.mock.calls.at(-1)?.[0])
+    expect(cherryCopied).toContain(createdKey)
+    expect(cherryCopied).toContain('https://example.test/v1')
+  })
+
   it('ignores duplicate create submits while the first request is pending', async () => {
     userGroupsAPI.getAvailable.mockResolvedValue([groupFixture()])
     let resolveCreate!: (value: unknown) => void
