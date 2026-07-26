@@ -5627,6 +5627,8 @@ export default {
         frontendUrlHint: 'Used to generate password reset links in emails. Example: https://example.com',
         frontendUrlMissingWarning:
           'Password reset is enabled but the frontend URL is empty: customers who request a reset never receive the email, even though the page tells them it was sent. Enter the site address your users actually open (including http:// or https://, e.g. https://example.com) — not your API domain.',
+        frontendUrlLatentWarning:
+          'Password reset is switched on in your configuration, but email verification is currently off, so password reset is not in effect yet — no reset emails are being lost right now. The risk is the empty frontend URL: the moment you enable email verification, reset emails start failing silently (customers receive nothing while the page reports success). Fill in the site address your users actually open now (including http:// or https://, e.g. https://example.com) — not your API domain.',
         frontendUrlInvalidHint:
           'Invalid frontend URL. It must be an absolute address starting with http:// or https://, e.g. https://example.com. Saving will be rejected.',
         frontendUrlInvalidError:

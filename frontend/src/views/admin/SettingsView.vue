@@ -972,16 +972,17 @@
               </div>
               <Toggle v-model="form.password_reset_enabled" />
             </div>
-            <!-- Frontend URL - shown whenever password reset is enabled, regardless of
-                 email verification, because password reset silently fails without it -->
+            <!-- Frontend URL - 判据用 passwordResetIntended（基于 password_reset_enabled_stored），
+                 不能用 form.password_reset_enabled：后者是与 email_verify_enabled 取与后的生效值，
+                 邮箱验证关闭时恒为 false，会把「配置开着但未生效」的隐患整块藏起来 -->
             <div
-              v-if="form.password_reset_enabled"
+              v-if="passwordResetIntended"
               class="border-t border-gray-100 pt-4 dark:border-dark-700"
             >
-              <!-- Password reset is enabled but frontend URL is missing: reset mails are
-                   silently skipped by the backend while the user still sees "success" -->
+              <!-- 状态 A：正在静默失败 —— 邮箱验证开着、重置开着、前端地址为空，
+                   客户此刻点重置就收不到邮件，页面却显示发送成功 -->
               <div
-                v-if="frontendUrlMissingForPasswordReset"
+                v-if="passwordResetSilentlyFailing"
                 data-testid="settings-frontend-url-missing-warning"
                 class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
               >
@@ -993,6 +994,25 @@
                   />
                   <p class="ml-3 text-sm text-amber-700 dark:text-amber-300">
                     {{ t('admin.settings.registration.frontendUrlMissingWarning') }}
+                  </p>
+                </div>
+              </div>
+
+              <!-- 状态 B：潜伏 —— 重置在 DB 里是开的，但邮箱验证关着，功能当前未生效，
+                   所以现在并没有在静默失败。文案必须与状态 A 区分，不能报未发生的故障 -->
+              <div
+                v-else-if="passwordResetLatentlyMisconfigured"
+                data-testid="settings-frontend-url-latent-warning"
+                class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
+              >
+                <div class="flex items-start">
+                  <Icon
+                    name="exclamationTriangle"
+                    size="md"
+                    class="mt-0.5 flex-shrink-0 text-amber-500"
+                  />
+                  <p class="ml-3 text-sm text-amber-700 dark:text-amber-300">
+                    {{ t('admin.settings.registration.frontendUrlLatentWarning') }}
                   </p>
                 </div>
               </div>
@@ -2477,10 +2497,39 @@ function isValidHttpUrl(url: string): boolean {
   }
 }
 
-// Password reset silently no-ops on the backend when frontend_url is empty and the request
-// Origin is not trusted: the customer sees "email sent" but never receives anything.
-const frontendUrlMissingForPasswordReset = computed(
-  () => form.password_reset_enabled && !(form.frontend_url || '').trim()
+// DB 里 password_reset_enabled 的原始存储值（未与 email_verify_enabled 取与）。
+// 后端返回的 form.password_reset_enabled 是取与后的生效值：邮箱验证关闭时恒为 false，
+// 因此它**不能**用来判断「密码重置是否被配置过」。老后端不返回 stored 字段时回退到生效值。
+const passwordResetEnabledStored = ref(false)
+
+function syncPasswordResetStored(settings: {
+  password_reset_enabled: boolean
+  password_reset_enabled_stored?: boolean
+}) {
+  passwordResetEnabledStored.value =
+    settings.password_reset_enabled_stored ?? settings.password_reset_enabled
+}
+
+// 管理员对「忘记密码」的真实意图：
+// - 邮箱验证开启时开关就在页面上，form.password_reset_enabled 是实时可编辑的意图，以它为准；
+// - 邮箱验证关闭时开关根本不渲染，form.password_reset_enabled 又被后端取与成了 false，
+//   只有 stored 还留着 DB 里的原始值 —— 这正是坑 A 的组合。
+const passwordResetIntended = computed(() =>
+  form.email_verify_enabled ? form.password_reset_enabled : passwordResetEnabledStored.value
+)
+
+const frontendUrlMissing = computed(() => !(form.frontend_url || '').trim())
+
+// 状态 A「正在静默失败」：邮箱验证开着、密码重置开着、frontend_url 为空。
+// 此刻客户点重置就收不到邮件，页面还显示发送成功 —— 紧急措辞成立。
+const passwordResetSilentlyFailing = computed(
+  () => passwordResetIntended.value && form.email_verify_enabled && frontendUrlMissing.value
+)
+
+// 状态 B「潜伏」：密码重置存的是 true，但邮箱验证关着，重置功能因取与而未生效。
+// 此刻**没有**在静默失败，不能套用状态 A 的文案；一旦开启邮箱验证才会立刻开始静默失败。
+const passwordResetLatentlyMisconfigured = computed(
+  () => passwordResetIntended.value && !form.email_verify_enabled && frontendUrlMissing.value
 )
 
 const frontendUrlFormatInvalid = computed(() => {
@@ -2688,6 +2737,9 @@ async function loadSettings() {
   try {
     const settings = await adminAPI.settings.getSettings()
     Object.assign(form, settings)
+    // Object.assign 只能把取与后的 password_reset_enabled 灌进 form，
+    // 原始存储值必须单独留一份，否则邮箱验证关闭时告警判据就没了。
+    syncPasswordResetStored(settings)
     form.backend_mode_enabled = settings.backend_mode_enabled
     form.default_subscriptions = Array.isArray(settings.default_subscriptions)
       ? settings.default_subscriptions
@@ -2803,7 +2855,13 @@ async function saveSettings() {
       ),
       promo_code_enabled: form.promo_code_enabled,
       invitation_code_enabled: form.invitation_code_enabled,
-      password_reset_enabled: form.password_reset_enabled,
+      // 邮箱验证关闭时「忘记密码」开关根本不渲染，而 form.password_reset_enabled 是后端
+      // 取与后的 false —— 直接回传会把 DB 里存着的 true 抹掉（管理员没碰过这个开关，
+      // 只是来填了个前端地址，配置却被静默改写）。开关不可见时原样回传存储值。
+      // 生效语义不受影响：后端仍与 email_verify_enabled 取与。
+      password_reset_enabled: form.email_verify_enabled
+        ? form.password_reset_enabled
+        : passwordResetEnabledStored.value,
       totp_enabled: form.totp_enabled,
       default_balance: form.default_balance,
       default_concurrency: form.default_concurrency,
@@ -2860,6 +2918,9 @@ async function saveSettings() {
     }
     const updated = await adminAPI.settings.updateSettings(payload)
     Object.assign(form, updated)
+    // Object.assign 会把 form.password_reset_enabled 刷成取与后的值；
+    // 告警判据必须跟着落库的原始值走，否则保存成功那一刻告警就凭空消失，而 DB 里隐患还在。
+    syncPasswordResetStored(updated)
     registrationEmailSuffixWhitelistTags.value = normalizeRegistrationEmailSuffixDomains(
       updated.registration_email_suffix_whitelist
     )

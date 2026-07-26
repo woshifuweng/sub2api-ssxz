@@ -21,6 +21,12 @@ export interface SystemSettings {
   registration_email_suffix_whitelist: string[]
   promo_code_enabled: boolean
   password_reset_enabled: boolean
+  /**
+   * 只读观测字段：password_reset_enabled 的原始存储值，未与 email_verify_enabled 取与。
+   * password_reset_enabled 本身是取与后的生效值，邮箱验证关闭时恒为 false，
+   * 无法区分「没开」与「开了但当前未生效」。老后端不返回该字段，读取时需要回退。
+   */
+  password_reset_enabled_stored?: boolean
   frontend_url: string
   invitation_code_enabled: boolean
   totp_enabled: boolean // TOTP 双因素认证

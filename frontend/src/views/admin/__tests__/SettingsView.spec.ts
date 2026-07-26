@@ -86,6 +86,7 @@ describe('admin SettingsView', () => {
     registration_email_suffix_whitelist: [],
     promo_code_enabled: true,
     password_reset_enabled: false,
+    password_reset_enabled_stored: false,
     frontend_url: '',
     invitation_code_enabled: false,
     totp_enabled: false,
@@ -205,59 +206,120 @@ describe('admin SettingsView', () => {
   }
 
   const RESET_WARNING = '[data-testid="settings-frontend-url-missing-warning"]'
+  const RESET_LATENT_WARNING = '[data-testid="settings-frontend-url-latent-warning"]'
   const FRONTEND_URL_INPUT = '[data-testid="settings-frontend-url-input"]'
   const FRONTEND_URL_FORMAT_HINT = '[data-testid="settings-frontend-url-format-hint"]'
   const CONTACT_INFO_HINT = '[data-testid="settings-contact-info-missing-hint"]'
 
-  it('warns when password reset is enabled but frontend URL is empty', async () => {
-    const wrapper = await mountView({
-      email_verify_enabled: true,
-      password_reset_enabled: true,
-      frontend_url: ''
-    })
+  /**
+   * 构造一个「真实 API 可能返回」的密码重置相关响应片段。
+   *
+   * 后端 parseSettings 把 password_reset_enabled 与 email_verify_enabled 取与后才回传，
+   * 所以 { email_verify_enabled: false, password_reset_enabled: true } 这种组合
+   * **永远不会**出现在真实响应里。之前的用例直接手写了这个不可能的形状，
+   * 缺陷仍在时也会绿。这里由 helper 强制取与，让假 fixture 无法被构造出来。
+   */
+  function passwordResetApiShape(options: {
+    emailVerify: boolean
+    /** DB 里 password_reset_enabled 的原始存储值 */
+    storedPasswordReset: boolean
+    frontendUrl?: string
+  }) {
+    return {
+      email_verify_enabled: options.emailVerify,
+      // 生效值：后端一定是取与后的结果
+      password_reset_enabled: options.emailVerify && options.storedPasswordReset,
+      // 观测值：原始存储值，不取与
+      password_reset_enabled_stored: options.storedPasswordReset,
+      frontend_url: options.frontendUrl ?? ''
+    }
+  }
+
+  // 状态 A「正在静默失败」：邮箱验证开 + 重置开 + 前端地址空。
+  it('warns that password reset is silently failing right now (state A)', async () => {
+    const wrapper = await mountView(
+      passwordResetApiShape({ emailVerify: true, storedPasswordReset: true })
+    )
 
     expect(wrapper.find(RESET_WARNING).exists()).toBe(true)
+    // 状态 B 的「尚未生效」文案在这里是错的，绝不能同时出现
+    expect(wrapper.find(RESET_LATENT_WARNING).exists()).toBe(false)
     expect(wrapper.find(FRONTEND_URL_INPUT).exists()).toBe(true)
   })
 
-  it('still warns when email verification is disabled but password reset is enabled', async () => {
-    const wrapper = await mountView({
-      email_verify_enabled: false,
-      password_reset_enabled: true,
-      frontend_url: ''
-    })
+  // 状态 B「潜伏」：DB 里存着 true，但邮箱验证关闭 —— 真实响应里 password_reset_enabled 是 false。
+  // 这是坑 A 的回归用例：只要渲染判据回到 form.password_reset_enabled，这条必然变红。
+  it('warns about the latent misconfiguration when email verification is off (state B)', async () => {
+    const wrapper = await mountView(
+      passwordResetApiShape({ emailVerify: false, storedPasswordReset: true })
+    )
 
-    // Regression: the warning and the input must not be hidden by the email-verify condition
-    expect(wrapper.find(RESET_WARNING).exists()).toBe(true)
+    expect(wrapper.find(RESET_LATENT_WARNING).exists()).toBe(true)
+    // 此刻并没有在静默失败，状态 A 的紧急文案属于误报
+    expect(wrapper.find(RESET_WARNING).exists()).toBe(false)
     expect(wrapper.find(FRONTEND_URL_INPUT).exists()).toBe(true)
   })
 
-  it('hides the frontend URL warning once a URL is configured', async () => {
-    const wrapper = await mountView({
-      email_verify_enabled: false,
-      password_reset_enabled: true,
-      frontend_url: 'https://example.com'
-    })
+  it('hides the frontend URL warning once a URL is configured (state A)', async () => {
+    const wrapper = await mountView(
+      passwordResetApiShape({
+        emailVerify: true,
+        storedPasswordReset: true,
+        frontendUrl: 'https://example.com'
+      })
+    )
 
     expect(wrapper.find(FRONTEND_URL_INPUT).exists()).toBe(true)
     expect(wrapper.find(RESET_WARNING).exists()).toBe(false)
+    expect(wrapper.find(RESET_LATENT_WARNING).exists()).toBe(false)
     expect(wrapper.find(FRONTEND_URL_FORMAT_HINT).exists()).toBe(false)
   })
 
-  it('does not warn about the frontend URL when password reset is disabled', async () => {
+  it('hides the frontend URL warning once a URL is configured (state B)', async () => {
+    const wrapper = await mountView(
+      passwordResetApiShape({
+        emailVerify: false,
+        storedPasswordReset: true,
+        frontendUrl: 'https://example.com'
+      })
+    )
+
+    expect(wrapper.find(FRONTEND_URL_INPUT).exists()).toBe(true)
+    expect(wrapper.find(RESET_WARNING).exists()).toBe(false)
+    expect(wrapper.find(RESET_LATENT_WARNING).exists()).toBe(false)
+  })
+
+  it('does not warn about the frontend URL when password reset was never enabled', async () => {
+    const wrapper = await mountView(
+      passwordResetApiShape({ emailVerify: true, storedPasswordReset: false })
+    )
+
+    expect(wrapper.find(RESET_WARNING).exists()).toBe(false)
+    expect(wrapper.find(RESET_LATENT_WARNING).exists()).toBe(false)
+    expect(wrapper.find(FRONTEND_URL_INPUT).exists()).toBe(false)
+  })
+
+  // 老后端不返回 password_reset_enabled_stored 时必须回退到生效值，而不是当成 false 把整块藏掉。
+  it('falls back to the effective value when the backend omits the stored field', async () => {
     const wrapper = await mountView({
-      password_reset_enabled: false,
+      email_verify_enabled: true,
+      password_reset_enabled: true,
+      password_reset_enabled_stored: undefined,
       frontend_url: ''
     })
 
-    expect(wrapper.find(RESET_WARNING).exists()).toBe(false)
+    expect(wrapper.find(RESET_WARNING).exists()).toBe(true)
+    expect(wrapper.find(FRONTEND_URL_INPUT).exists()).toBe(true)
   })
 
   it('flags a malformed frontend URL inline instead of clearing it', async () => {
-    const wrapper = await mountView({
-      password_reset_enabled: true,
-      frontend_url: 'example.com'
-    })
+    const wrapper = await mountView(
+      passwordResetApiShape({
+        emailVerify: true,
+        storedPasswordReset: true,
+        frontendUrl: 'example.com'
+      })
+    )
 
     expect(wrapper.find(FRONTEND_URL_FORMAT_HINT).exists()).toBe(true)
 
@@ -268,6 +330,47 @@ describe('admin SettingsView', () => {
     expect(settingsAPI.updateSettings).not.toHaveBeenCalled()
     expect(showError).toHaveBeenCalledWith('admin.settings.registration.frontendUrlInvalidError')
     expect((wrapper.find(FRONTEND_URL_INPUT).element as HTMLInputElement).value).toBe('example.com')
+  })
+
+  // 保存后失真：Object.assign(form, updated) 会把 password_reset_enabled 刷成取与后的 false。
+  // 告警必须跟着落库的原始值走，保存成功不能让状态 B 的提示凭空消失。
+  it('keeps the latent warning visible after a successful save (state B)', async () => {
+    settingsAPI.updateSettings.mockImplementation(async (payload: any) => ({
+      ...baseSettings(),
+      ...payload,
+      // 真实后端的响应形状：生效值取与，stored 是刚落库的原始值
+      password_reset_enabled: Boolean(payload.email_verify_enabled && payload.password_reset_enabled),
+      password_reset_enabled_stored: Boolean(payload.password_reset_enabled)
+    }))
+
+    const wrapper = await mountView(
+      passwordResetApiShape({ emailVerify: false, storedPasswordReset: true })
+    )
+    expect(wrapper.find(RESET_LATENT_WARNING).exists()).toBe(true)
+
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(settingsAPI.updateSettings).toHaveBeenCalledTimes(1)
+    expect(showSuccess).toHaveBeenCalled()
+    expect(wrapper.find(RESET_LATENT_WARNING).exists()).toBe(true)
+    expect(wrapper.find(FRONTEND_URL_INPUT).exists()).toBe(true)
+  })
+
+  // 「忘记密码」开关在邮箱验证关闭时根本不渲染，管理员碰不到它。
+  // 保存别的字段时不得把 DB 里存着的 true 悄悄改写成 false。
+  it('does not clobber the stored password reset flag when its toggle is not rendered', async () => {
+    await mountView(passwordResetApiShape({ emailVerify: false, storedPasswordReset: true }))
+
+    const wrapper = await mountView(
+      passwordResetApiShape({ emailVerify: false, storedPasswordReset: true })
+    )
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(settingsAPI.updateSettings).toHaveBeenCalled()
+    const payload = settingsAPI.updateSettings.mock.calls.at(-1)?.[0] as Record<string, unknown>
+    expect(payload.password_reset_enabled).toBe(true)
   })
 
   it('hints when contact info is empty and hides the hint once filled', async () => {
