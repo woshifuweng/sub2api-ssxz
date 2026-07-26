@@ -71,7 +71,9 @@ ORDER BY u.id;
 SQL
 
 snapshot() {
-    sudo -u postgres psql -d "$DB_NAME" -X -t -A -c "$RESIDUAL_SQL" | sed '/^$/d'
+    # cd /tmp：postgres 用户读不到 root 的 cwd，不切换会每次刷
+    # "could not change directory to /root" 警告，进 cron 后变成纯噪声
+    (cd /tmp && sudo -u postgres psql -d "$DB_NAME" -X -t -A -c "$RESIDUAL_SQL") | sed '/^$/d'
 }
 
 case "$MODE" in
