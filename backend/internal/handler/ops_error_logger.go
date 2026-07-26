@@ -1098,59 +1098,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 		}
 		applyOpsLatencyFieldsFromContext(c, entry)
 
-		// Capture upstream error context set by gateway services (if present).
-		// This does NOT affect the client response; it enriches Ops troubleshooting data.
-		{
-			if v, ok := c.Get(service.OpsUpstreamStatusCodeKey); ok {
-				switch t := v.(type) {
-				case int:
-					if t > 0 {
-						code := t
-						entry.UpstreamStatusCode = &code
-					}
-				case int64:
-					if t > 0 {
-						code := int(t)
-						entry.UpstreamStatusCode = &code
-					}
-				}
-			}
-			if v, ok := c.Get(service.OpsUpstreamErrorMessageKey); ok {
-				if s, ok := v.(string); ok {
-					if msg := strings.TrimSpace(s); msg != "" {
-						entry.UpstreamErrorMessage = &msg
-					}
-				}
-			}
-			if v, ok := c.Get(service.OpsUpstreamErrorDetailKey); ok {
-				if s, ok := v.(string); ok {
-					if detail := strings.TrimSpace(s); detail != "" {
-						entry.UpstreamErrorDetail = &detail
-					}
-				}
-			}
-			if v, ok := c.Get(service.OpsUpstreamErrorsKey); ok {
-				if events, ok := v.([]*service.OpsUpstreamErrorEvent); ok && len(events) > 0 {
-					entry.UpstreamErrors = events
-					// Best-effort backfill the single upstream fields from the last event when missing.
-					last := events[len(events)-1]
-					if last != nil {
-						if entry.UpstreamStatusCode == nil && last.UpstreamStatusCode > 0 {
-							code := last.UpstreamStatusCode
-							entry.UpstreamStatusCode = &code
-						}
-						if entry.UpstreamErrorMessage == nil && strings.TrimSpace(last.Message) != "" {
-							msg := strings.TrimSpace(last.Message)
-							entry.UpstreamErrorMessage = &msg
-						}
-						if entry.UpstreamErrorDetail == nil && strings.TrimSpace(last.Detail) != "" {
-							detail := strings.TrimSpace(last.Detail)
-							entry.UpstreamErrorDetail = &detail
-						}
-					}
-				}
-			}
-		}
+		applyOpsUpstreamFieldsFromContext(c, entry)
 
 		if apiKey != nil {
 			entry.APIKeyID = &apiKey.ID
@@ -1820,4 +1768,62 @@ func shouldSkipOpsErrorLog(ctx context.Context, ops *service.OpsService, message
 
 func shouldSkipOpsErrorLogForCyber(c *gin.Context) bool {
 	return service.GetOpsCyberPolicy(c) != nil
+}
+
+// applyOpsUpstreamFieldsFromContext captures upstream error context set by gateway
+// services (if present). It never affects the client response; it only enriches Ops
+// troubleshooting data on the error-log entry.
+func applyOpsUpstreamFieldsFromContext(c *gin.Context, entry *service.OpsInsertErrorLogInput) {
+	if c == nil || entry == nil {
+		return
+	}
+	if v, ok := c.Get(service.OpsUpstreamStatusCodeKey); ok {
+		switch t := v.(type) {
+		case int:
+			if t > 0 {
+				code := t
+				entry.UpstreamStatusCode = &code
+			}
+		case int64:
+			if t > 0 {
+				code := int(t)
+				entry.UpstreamStatusCode = &code
+			}
+		}
+	}
+	if v, ok := c.Get(service.OpsUpstreamErrorMessageKey); ok {
+		if s, ok := v.(string); ok {
+			if msg := strings.TrimSpace(s); msg != "" {
+				entry.UpstreamErrorMessage = &msg
+			}
+		}
+	}
+	if v, ok := c.Get(service.OpsUpstreamErrorDetailKey); ok {
+		if s, ok := v.(string); ok {
+			if detail := strings.TrimSpace(s); detail != "" {
+				entry.UpstreamErrorDetail = &detail
+			}
+		}
+	}
+	if v, ok := c.Get(service.OpsUpstreamErrorsKey); ok {
+		if events, ok := v.([]*service.OpsUpstreamErrorEvent); ok && len(events) > 0 {
+			entry.UpstreamErrors = events
+			// Best-effort backfill the single upstream fields from the last event when missing.
+			last := events[len(events)-1]
+			if last != nil {
+				if entry.UpstreamStatusCode == nil && last.UpstreamStatusCode > 0 {
+					code := last.UpstreamStatusCode
+					entry.UpstreamStatusCode = &code
+				}
+				if entry.UpstreamErrorMessage == nil && strings.TrimSpace(last.Message) != "" {
+					msg := strings.TrimSpace(last.Message)
+					entry.UpstreamErrorMessage = &msg
+				}
+				if entry.UpstreamErrorDetail == nil && strings.TrimSpace(last.Detail) != "" {
+					detail := strings.TrimSpace(last.Detail)
+					entry.UpstreamErrorDetail = &detail
+				}
+			}
+		}
+	}
 }
