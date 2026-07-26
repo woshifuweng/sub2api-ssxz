@@ -9,8 +9,9 @@ describe('usage workbench locale copy', () => {
       zh.usage.workbench.subtitle,
       zh.usage.workbench.balanceDescription,
       zh.usage.workbench.balanceRefreshError,
-      zh.usage.workbench.billingExplanationDescription,
-      zh.usage.workbench.billingExplanationItems.failureNoCharge,
+      zh.usage.workbench.usageDetailsDescription,
+      zh.usage.workbench.feeTooltip,
+      zh.usage.workbench.noCharge,
       zh.usage.workbench.billingBalance,
       zh.usage.workbench.billingSubscription,
       zh.usage.workbench.billingNoCharge,
@@ -22,7 +23,7 @@ describe('usage workbench locale copy', () => {
 
     expect(copy).toContain('用量')
     expect(copy).toContain('第三方')
-    expect(copy).toContain('最终扣费结果')
+    expect(copy).toContain('失败或未完成的请求不扣费')
     expect(copy).toContain('未扣费')
     expect(copy).toContain('余额扣费')
     expect(copy).toContain('订阅额度')
@@ -38,8 +39,9 @@ describe('usage workbench locale copy', () => {
       en.usage.workbench.subtitle,
       en.usage.workbench.balanceDescription,
       en.usage.workbench.balanceRefreshError,
-      en.usage.workbench.billingExplanationDescription,
-      en.usage.workbench.billingExplanationItems.failureNoCharge,
+      en.usage.workbench.usageDetailsDescription,
+      en.usage.workbench.feeTooltip,
+      en.usage.workbench.noCharge,
       en.usage.workbench.billingBalance,
       en.usage.workbench.billingSubscription,
       en.usage.workbench.billingNoCharge,
@@ -52,7 +54,7 @@ describe('usage workbench locale copy', () => {
     expect(copy).toContain('usage')
     expect(copy).toContain('third-party')
     expect(copy).toContain('stale')
-    expect(copy).toContain('final charge result')
+    expect(copy).toContain('are not charged')
     expect(copy).toContain('no charge')
     expect(copy).toContain('Balance charge')
     expect(copy).toContain('Subscription quota')

@@ -22,7 +22,7 @@
         </div>
 
         <div v-if="detailed" class="progress-metric-card__controls">
-          <label v-if="periodOptions.length" class="progress-metric-card__period-select">
+          <label v-if="periodOptions.length && period === undefined" class="progress-metric-card__period-select">
             <span class="sr-only">{{ periodSelectLabel }}</span>
             <select v-model="selectedPeriod" data-testid="metric-period-select">
               <option v-for="option in periodOptions" :key="option.value" :value="option.value">
@@ -30,7 +30,7 @@
               </option>
             </select>
           </label>
-          <div class="progress-metric-card__view-toggle" role="group" :aria-label="viewToggleLabel">
+          <div v-if="!hideViewToggle" class="progress-metric-card__view-toggle" role="group" :aria-label="viewToggleLabel">
             <button
               type="button"
               :class="{ 'is-active': selectedView === 'curve' }"
@@ -88,10 +88,6 @@
             { 'progress-metric-card__summary--sr-only': !detailed }
           ]"
         >
-          <div>
-            <dt>{{ lowLabel }}</dt>
-            <dd>{{ formatSeriesValue(summary.low) }}</dd>
-          </div>
           <div>
             <dt>{{ averageLabel }}</dt>
             <dd>{{ formatSeriesValue(summary.average) }}</dd>
@@ -152,13 +148,14 @@ const props = withDefaults(defineProps<{
   detailed?: boolean
   periodOptions?: MetricPeriodOption[]
   defaultPeriod?: string
+  period?: string
   defaultView?: MetricView
+  hideViewToggle?: boolean
   showStats?: boolean
   periodSelectLabel?: string
   viewToggleLabel?: string
   curveViewLabel?: string
   barViewLabel?: string
-  lowLabel?: string
   averageLabel?: string
   peakLabel?: string
   to?: string
@@ -173,13 +170,14 @@ const props = withDefaults(defineProps<{
   detailed: false,
   periodOptions: () => [],
   defaultPeriod: '',
+  period: undefined,
   defaultView: 'curve',
+  hideViewToggle: false,
   showStats: true,
   periodSelectLabel: '选择统计周期',
   viewToggleLabel: '切换图表样式',
   curveViewLabel: '曲线图',
   barViewLabel: '柱状图',
-  lowLabel: '低位',
   averageLabel: '均值',
   peakLabel: '峰值',
   to: undefined
@@ -197,8 +195,10 @@ const normalizedPoints = computed(() => props.series
   }))
   .filter((point) => Number.isFinite(point.value)))
 
+const activePeriod = computed(() => props.period ?? selectedPeriod.value)
+
 const selectedPeriodOption = computed(() => (
-  props.periodOptions.find((option) => option.value === selectedPeriod.value)
+  props.periodOptions.find((option) => option.value === activePeriod.value)
     || props.periodOptions[props.periodOptions.length - 1]
 ))
 
@@ -215,10 +215,9 @@ const hasSeries = computed(() => (
 ))
 
 const summary = computed(() => {
-  if (!hasSeries.value) return { low: 0, average: 0, peak: 0 }
+  if (!hasSeries.value) return { average: 0, peak: 0 }
   const values = normalizedSeries.value
   return {
-    low: Math.min(...values),
     average: values.reduce((sum, value) => sum + value, 0) / values.length,
     peak: Math.max(...values)
   }

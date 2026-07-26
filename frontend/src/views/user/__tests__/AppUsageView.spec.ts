@@ -38,11 +38,6 @@ const messages: Record<string, string> = {
   'usage.workbench.noRealUsageNote': 'No usage records this month.',
   'usage.workbench.monthlyUsageSummary': 'This month: {requests} requests and {tokens} usage units.',
   'usage.workbench.statsLoadError': 'Monthly usage stats are temporarily unavailable. Refresh to retry.',
-  'usage.workbench.billingExplanationTitle': 'Billing explanation',
-  'usage.workbench.billingExplanationDescription': 'Usage records show the final charge result. Completed calls display the charged amount; failed or unfinished requests are not shown as charged.',
-  'usage.workbench.billingExplanationItems.successCharged': 'Completed calls show the final charge in usage details.',
-  'usage.workbench.billingExplanationItems.failureNoCharge': 'Failed or unfinished requests show as no charge, or do not create a charge record.',
-  'usage.workbench.billingExplanationItems.zeroCost': 'A $0.0000 fee means no balance was deducted for this row.',
   'usage.workbench.monthlyUsageTitle': 'Monthly usage',
   'usage.workbench.monthlyUsageDescription': 'Empty data is not filled with fake bars.',
   'usage.workbench.realDataBadge': 'Real data',
@@ -59,10 +54,6 @@ const messages: Record<string, string> = {
   'usage.workbench.period90Days': 'Past 90 days',
   'usage.workbench.periodAll': 'All available days',
   'usage.workbench.periodSelectLabel': 'Select reporting period',
-  'usage.workbench.viewToggleLabel': 'Switch chart view',
-  'usage.workbench.curveView': 'Curve view',
-  'usage.workbench.barView': 'Bar view',
-  'usage.workbench.low': 'Low',
   'usage.workbench.average': 'Average',
   'usage.workbench.peak': 'Peak',
   'usage.workbench.noMonthlyUsageTitle': 'No monthly usage data yet',
@@ -104,7 +95,14 @@ const messages: Record<string, string> = {
   'usage.workbench.supportCodeCopied': 'Support code copied',
   'usage.workbench.copy': 'Copy',
   'usage.workbench.copied': 'Copied',
+  'usage.workbench.duration': 'Duration',
   'usage.workbench.fee': 'Fee',
+  'usage.workbench.feeTooltip': 'Only completed calls are charged; a $0.0000 fee means no balance was deducted for this row.',
+  'usage.workbench.expandRow': 'Show details',
+  'usage.workbench.collapseRow': 'Hide details',
+  'usage.workbench.detailNote': 'Note',
+  'usage.workbench.tokenBreakdown': 'Input {input} · Output {output} · Cache write {cacheWrite} · Cache read {cacheRead}',
+  'usage.tokenDetails': 'Token breakdown',
   'usage.workbench.noCharge': 'No charge',
   'usage.workbench.zeroTokenCharged': 'Image / fixed-fee item',
   'usage.workbench.usageKindImage': 'Image generation',
@@ -366,53 +364,79 @@ describe('AppUsageView', () => {
     expect(text).toContain('Daily token usage')
     expect(wrapper.findAll('[data-testid^="usage-trend-"]')).toHaveLength(3)
     expect(wrapper.findAll('[data-testid="usage-metric-line"]')).toHaveLength(3)
+    expect(wrapper.find('[data-testid="metric-period-select"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="metric-view-bar"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="usage-period-toggle-30d"]').classes()).toContain('is-active')
     expect(text).toContain('Real data')
-    expect(text).toContain('Billing explanation')
-    expect(text).toContain('Usage records show the final charge result')
-    expect(text).toContain('Completed calls display the charged amount')
-    expect(text).toContain('Failed or unfinished requests show as no charge')
     expect(text).toContain('Usage details')
+
     const tableText = wrapper.get('table').text()
-    expect(tableText).toContain('Image generation')
-    expect(tableText).toContain('Third-party access')
-    expect(tableText).toContain('Chat')
-    expect(tableText).toContain('Endpoint')
-    expect(tableText).toContain('Source')
-    expect(tableText).toContain('/v1/images/generations')
-    expect(tableText).toContain('/v1/chat/completions')
+    expect(tableText).toContain('Created at')
+    expect(tableText).toContain('Model')
+    expect(tableText).toContain('Usage')
+    expect(tableText).toContain('Duration')
+    expect(tableText).toContain('Fee')
     expect(text).toContain('gpt-image-2')
     expect(text).toContain('2 images / 1024x1024')
-    expect(tableText).toContain('Image / fixed-fee item')
     expect(text).toContain('deepseek-v4-flash')
-    expect(text).toContain('$0.0000')
-    expect(text).toContain('No charge')
-    expect(tableText).toContain('Billing')
-    expect(tableText).toContain('Balance charge')
-    expect(tableText).toContain('Subscription quota')
-    expect(tableText).toContain('No balance charged')
-    expect(tableText).toContain('Actual charge $0.88')
-    expect(tableText).toContain('Actual charge $0.35')
-    expect(tableText).toContain('No balance was deducted for this row.')
-    expect(tableText).toContain('Processing time')
-    expect(tableText).toContain('Longer processing')
-    expect(tableText).toContain('Started in 507 ms; total time 3m 28s')
-    expect(tableText).toContain('did more checking or used more steps')
-    expect(tableText).toContain('lighter model, lower reasoning effort')
-    expect(tableText).toContain('Slightly slower start')
-    expect(tableText).toContain('Started in 6.2 s; total time 6.4 s')
-    expect(tableText).toContain('task complexity, or extra processing steps')
-    expect(tableText).toContain('Normal')
-    expect(tableText).toContain('Started in 123 ms; total time 987 ms')
-    expect(tableText).toContain('Support code')
-    expect(tableText).toContain('req-image')
-    expect(tableText).toContain('req-no-charge')
-    expect(tableText).toContain('req-chat')
+    expect(tableText).toContain('$0.00')
+    expect(tableText).toContain('3m 28s')
+    expect(tableText).toContain('6.4 s')
+    expect(tableText).toContain('987 ms')
+    expect(tableText).not.toContain('Endpoint')
+    expect(tableText).not.toContain('/v1/images/generations')
+    expect(tableText).not.toContain('req-image')
     expect(tableText).not.toContain('upstream account')
     expect(tableText).not.toContain('web search')
     expect(tableText).not.toContain('tool calls')
+
+    const rows = wrapper.findAll('tr.usage-row')
+    expect(rows).toHaveLength(3)
+
+    await rows[0].trigger('click')
+    expect(wrapper.findAll('tr.usage-detail-row')).toHaveLength(1)
+    let detailText = wrapper.get('tr.usage-detail-row').text()
+    expect(detailText).toContain('Support code')
+    expect(detailText).toContain('req-image')
+    expect(detailText).toContain('Image generation')
+    expect(detailText).toContain('/v1/images/generations')
+    expect(detailText).toContain('Balance charge')
+    expect(detailText).toContain('Actual charge $0.88')
+    expect(detailText).toContain('Longer processing')
+    expect(detailText).toContain('Started in 507 ms; total time 3m 28s')
+    expect(detailText).toContain('did more checking or used more steps')
+    expect(detailText).toContain('Image / fixed-fee item')
+    expect(detailText).not.toContain('Token breakdown')
+
+    await rows[1].trigger('click')
+    expect(wrapper.findAll('tr.usage-detail-row')).toHaveLength(1)
+    detailText = wrapper.get('tr.usage-detail-row').text()
+    expect(detailText).toContain('req-no-charge')
+    expect(detailText).toContain('Third-party access')
+    expect(detailText).toContain('No balance charged')
+    expect(detailText).toContain('No balance was deducted for this row.')
+    expect(detailText).toContain('No charge')
+    expect(detailText).toContain('Slightly slower start')
+    expect(detailText).toContain('Started in 6.2 s; total time 6.4 s')
+    expect(detailText).toContain('task complexity, or extra processing steps')
+    expect(detailText).toContain('Token breakdown')
+    expect(detailText).toContain('Input 12')
+
+    await rows[2].trigger('click')
+    detailText = wrapper.get('tr.usage-detail-row').text()
+    expect(detailText).toContain('req-chat')
+    expect(detailText).toContain('Chat')
+    expect(detailText).toContain('Subscription quota')
+    expect(detailText).toContain('Actual charge $0.35')
+    expect(detailText).toContain('Normal')
+    expect(detailText).toContain('Started in 123 ms; total time 987 ms')
+
+    await rows[2].trigger('click')
+    expect(wrapper.findAll('tr.usage-detail-row')).toHaveLength(0)
+
     expect(usageAPI.query).toHaveBeenCalledWith(expect.objectContaining({
       page: 1,
-      page_size: 8
+      page_size: 20
     }))
     expect(usageAPI.getDashboardTrend).toHaveBeenCalledWith(expect.objectContaining({
       granularity: 'day'
@@ -456,6 +480,9 @@ describe('AppUsageView', () => {
     const wrapper = mountView()
     await flushPromises()
 
+    expect(wrapper.text()).not.toContain('req-support-123')
+
+    await wrapper.get('tr.usage-row').trigger('click')
     expect(wrapper.text()).toContain('req-support-123')
 
     await wrapper.get('.support-code-button').trigger('click')
@@ -463,6 +490,7 @@ describe('AppUsageView', () => {
 
     expect(copyToClipboard).toHaveBeenCalledWith('req-support-123', 'Support code copied')
     expect(wrapper.text()).toContain('Copied')
+    expect(wrapper.findAll('tr.usage-detail-row')).toHaveLength(1)
   })
 
   it('marks local mock usage as demo data instead of real data', async () => {
@@ -589,7 +617,7 @@ describe('AppUsageView', () => {
     await flushPromises()
 
     const text = wrapper.text()
-    expect(text).toContain('$0.0000')
+    expect(text).toContain('$0.00')
     expect(text).toContain('No usage records this month.')
     expect(text).toContain('No monthly usage data yet')
     expect(text).toContain('No usage details yet')
@@ -681,7 +709,7 @@ describe('AppUsageView', () => {
 
     expect(usageAPI.query).toHaveBeenLastCalledWith(expect.objectContaining({
       page: 1,
-      page_size: 8,
+      page_size: 20,
       api_key_id: 17,
       model: 'gpt-5.5'
     }))

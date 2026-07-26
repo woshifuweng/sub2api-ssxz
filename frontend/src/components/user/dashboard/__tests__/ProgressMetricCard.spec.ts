@@ -39,13 +39,40 @@ describe('ProgressMetricCard detailed mode', () => {
 
     expect(wrapper.get('.progress-metric-card__value').text()).toBe('$12.00')
     expect(wrapper.get('[data-testid="metric-chart-line"]').attributes('data-values')).toBe('3,4,5')
-    expect(wrapper.get('.progress-metric-card__summary').text()).toContain('$3.00')
     expect(wrapper.get('.progress-metric-card__summary').text()).toContain('$4.00')
     expect(wrapper.get('.progress-metric-card__summary').text()).toContain('$5.00')
+    expect(wrapper.get('.progress-metric-card__summary').text()).not.toContain('$3.00')
 
     await wrapper.get('[data-testid="metric-period-select"]').setValue('all')
 
     expect(wrapper.get('.progress-metric-card__value').text()).toBe('$15.00')
+    expect(wrapper.get('[data-testid="metric-chart-line"]').attributes('data-values')).toBe('1,2,3,4,5')
+  })
+
+  it('follows a controlled period prop and hides its own period select and view toggle', async () => {
+    const wrapper = mount(ProgressMetricCard, {
+      props: {
+        testId: 'daily-cost',
+        label: 'Daily spend',
+        icon: BarChart3,
+        detailed: true,
+        series: [1, 2, 3, 4, 5],
+        seriesLabels: ['07/01', '07/02', '07/03', '07/04', '07/05'],
+        periodOptions: [
+          { value: 'last-3', label: 'Past 3 days', points: 3 },
+          { value: 'all', label: 'All days' }
+        ],
+        period: 'last-3',
+        hideViewToggle: true
+      }
+    })
+
+    expect(wrapper.find('[data-testid="metric-period-select"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="metric-view-bar"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="metric-chart-line"]').attributes('data-values')).toBe('3,4,5')
+
+    await wrapper.setProps({ period: 'all' })
+
     expect(wrapper.get('[data-testid="metric-chart-line"]').attributes('data-values')).toBe('1,2,3,4,5')
   })
 
