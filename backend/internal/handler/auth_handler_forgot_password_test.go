@@ -113,10 +113,10 @@ func newForgotPasswordHarness(t *testing.T, frontendURL string, allowedOrigins [
 	if withQueue {
 		emailQueue = service.NewEmailQueueServiceWithAutoStart(nil, 1, false)
 	}
-	authSvc := service.NewAuthService(nil, userRepo, nil, nil, cfg, settingSvc, nil, nil, emailQueue, nil, nil)
+	authSvc := service.NewAuthService(nil, userRepo, nil, nil, cfg, settingSvc, nil, nil, emailQueue, nil, nil, nil, nil)
 
 	return &forgotPasswordHarness{
-		handler: NewAuthHandler(cfg, authSvc, nil, settingSvc, nil, nil, nil, nil),
+		handler: NewAuthHandler(cfg, authSvc, nil, settingSvc, nil, nil, nil, nil, nil),
 	}
 }
 

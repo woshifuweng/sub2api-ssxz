@@ -799,3 +799,11 @@ func TestUserHandlerStartIdentityBindingReturnsAuthorizeURL(t *testing.T) {
 	require.Contains(t, resp.Data.AuthorizeURL, "intent=bind_current_user")
 	require.Contains(t, resp.Data.AuthorizeURL, "redirect=%2Fsettings%2Fprofile")
 }
+
+func (s *userHandlerRefreshTokenCacheStub) StoreConsumedRefreshTokenFamily(context.Context, string, string, time.Duration) error {
+	return nil
+}
+
+func (s *userHandlerRefreshTokenCacheStub) GetConsumedRefreshTokenFamily(context.Context, string) (string, bool, error) {
+	return "", false, nil
+}

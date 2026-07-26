@@ -264,3 +264,5 @@ func TestAPIKeyHandler_Delete_RejectsOtherUsersKey(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, rec.Code)
 	require.NotContains(t, rec.Body.String(), "sk-other-user-key")
 }
+
+func (r *apiKeyCreateReplayRepo) DeleteWithAudit(context.Context, int64) error { return nil }

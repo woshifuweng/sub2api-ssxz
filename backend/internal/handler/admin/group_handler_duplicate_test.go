@@ -113,7 +113,7 @@ func TestDuplicateGroupHandlerRejectsInvalidID(t *testing.T) {
 func TestDuplicateGroupHandlerReplaysSameIdempotencyKey(t *testing.T) {
 	svc := &duplicateGroupAdminServiceStub{group: duplicateGroupHandlerFixture()}
 	router := setupDuplicateGroupRouter(t, svc)
-	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(newMemoryIdempotencyRepoStub(), service.DefaultIdempotencyConfig()))
+	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(newMemoryIdempotencyRepoStub(), nil, service.DefaultIdempotencyConfig()))
 
 	call := func() *httptest.ResponseRecorder {
 		recorder := httptest.NewRecorder()
@@ -139,7 +139,7 @@ func TestDuplicateGroupHandlerRecoversAfterMarkSucceededFailure(t *testing.T) {
 	svc := &duplicateGroupAdminServiceStub{group: duplicateGroupHandlerFixture()}
 	router := setupDuplicateGroupRouter(t, svc)
 	repo := &failOnceMarkSucceededRepo{memoryIdempotencyRepoStub: newMemoryIdempotencyRepoStub(), failNext: true}
-	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(repo, service.DefaultIdempotencyConfig()))
+	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(repo, nil, service.DefaultIdempotencyConfig()))
 
 	call := func() *httptest.ResponseRecorder {
 		recorder := httptest.NewRecorder()

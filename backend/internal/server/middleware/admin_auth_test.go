@@ -123,8 +123,6 @@ func TestAdminAuthJWTValidatesTokenVersion(t *testing.T) {
 	})
 }
 
-type stubUserRepo struct {
-	getByID func(ctx context.Context, id int64) (*service.User, error)
 func TestAdminAuthAPIKeyRespectsBoundAdminTokenVersion(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -158,10 +156,10 @@ func TestAdminAuthAPIKeyRespectsBoundAdminTokenVersion(t *testing.T) {
 			return nil
 		},
 	}
-	userService := service.NewUserService(userRepo, nil, nil)
+	userService := service.NewUserService(userRepo, nil, nil, nil)
 
 	router := gin.New()
-	router.Use(gin.HandlerFunc(NewAdminAuthMiddleware(nil, userService, settingService)))
+	router.Use(gin.HandlerFunc(NewAdminAuthMiddleware(nil, userService, settingService, nil)))
 	router.GET("/t", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	})
@@ -185,7 +183,7 @@ func TestAdminAuthAPIKeyRespectsBoundAdminTokenVersion(t *testing.T) {
 	})
 
 	t.Run("revoke_all_sessions_revokes_key", func(t *testing.T) {
-		authService := service.NewAuthService(nil, userRepo, nil, nil, &config.Config{JWT: config.JWTConfig{Secret: "test-secret"}}, nil, nil, nil, nil, nil, nil)
+		authService := service.NewAuthService(nil, userRepo, nil, nil, &config.Config{JWT: config.JWTConfig{Secret: "test-secret"}}, nil, nil, nil, nil, nil, nil, nil, nil)
 		require.NoError(t, authService.RevokeAllUserSessions(context.Background(), admin.ID))
 
 		w := httptest.NewRecorder()
@@ -210,10 +208,10 @@ func TestAdminAuthAPIKeyRejectsLegacyUnboundKey(t *testing.T) {
 		getFirstAdmin: func(ctx context.Context) (*service.User, error) {
 			return &service.User{ID: 1, Role: service.RoleAdmin, Status: service.StatusActive}, nil
 		},
-	}, nil, nil)
+	}, nil, nil, nil)
 
 	router := gin.New()
-	router.Use(gin.HandlerFunc(NewAdminAuthMiddleware(nil, userService, settingService)))
+	router.Use(gin.HandlerFunc(NewAdminAuthMiddleware(nil, userService, settingService, nil)))
 	router.GET("/t", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	})
@@ -225,6 +223,64 @@ func TestAdminAuthAPIKeyRejectsLegacyUnboundKey(t *testing.T) {
 
 	require.Equal(t, http.StatusUnauthorized, w.Code)
 	require.Contains(t, w.Body.String(), "INVALID_ADMIN_KEY")
+}
+
+// settingRepoStub is a minimal in-memory service.SettingRepository used by admin auth tests.
+type settingRepoStub struct {
+	values map[string]string
+}
+
+func (s *settingRepoStub) Get(_ context.Context, key string) (*service.Setting, error) {
+	value, ok := s.values[key]
+	if !ok {
+		return nil, nil
+	}
+	return &service.Setting{Key: key, Value: value}, nil
+}
+
+func (s *settingRepoStub) GetValue(_ context.Context, key string) (string, error) {
+	return s.values[key], nil
+}
+
+func (s *settingRepoStub) Set(_ context.Context, key, value string) error {
+	if s.values == nil {
+		s.values = map[string]string{}
+	}
+	s.values[key] = value
+	return nil
+}
+
+func (s *settingRepoStub) GetMultiple(_ context.Context, keys []string) (map[string]string, error) {
+	result := make(map[string]string, len(keys))
+	for _, key := range keys {
+		if value, ok := s.values[key]; ok {
+			result[key] = value
+		}
+	}
+	return result, nil
+}
+
+func (s *settingRepoStub) SetMultiple(_ context.Context, settings map[string]string) error {
+	if s.values == nil {
+		s.values = map[string]string{}
+	}
+	for key, value := range settings {
+		s.values[key] = value
+	}
+	return nil
+}
+
+func (s *settingRepoStub) GetAll(_ context.Context) (map[string]string, error) {
+	result := make(map[string]string, len(s.values))
+	for key, value := range s.values {
+		result[key] = value
+	}
+	return result, nil
+}
+
+func (s *settingRepoStub) Delete(_ context.Context, key string) error {
+	delete(s.values, key)
+	return nil
 }
 
 type stubUserRepo struct {
@@ -253,7 +309,10 @@ func (s *stubUserRepo) GetByEmail(ctx context.Context, email string) (*service.U
 }
 
 func (s *stubUserRepo) GetFirstAdmin(ctx context.Context) (*service.User, error) {
-	panic("unexpected GetFirstAdmin call")
+	if s.getFirstAdmin == nil {
+		panic("unexpected GetFirstAdmin call")
+	}
+	return s.getFirstAdmin(ctx)
 }
 
 func (s *stubUserRepo) Update(ctx context.Context, user *service.User) error {

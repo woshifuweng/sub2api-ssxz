@@ -66,6 +66,7 @@ func setupDuplicateChannelMonitorRouter(t *testing.T) (*gin.Engine, *duplicateCh
 	previousCoordinator := service.DefaultIdempotencyCoordinator()
 	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(
 		newMemoryIdempotencyRepoStub(),
+		nil,
 		service.DefaultIdempotencyConfig(),
 	))
 	t.Cleanup(func() { service.SetDefaultIdempotencyCoordinator(previousCoordinator) })
@@ -145,6 +146,7 @@ func TestDuplicateChannelMonitorHandlerRecoversAfterMarkSucceededFailure(t *test
 	}
 	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(
 		idempotencyRepo,
+		nil,
 		service.DefaultIdempotencyConfig(),
 	))
 

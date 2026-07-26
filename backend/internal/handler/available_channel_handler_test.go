@@ -49,7 +49,7 @@ func TestToUserSupportedModels_FiltersByAllowedPlatforms(t *testing.T) {
 		{Name: "gpt-4o", Platform: "openai", Pricing: nil},
 	}
 	allowed := map[string]struct{}{"anthropic": {}}
-	out := toUserSupportedModels(src, allowed)
+	out := toUserSupportedModels(src, allowed, nil, 0)
 	require.Len(t, out, 1)
 	require.Equal(t, "claude-sonnet-4-6", out[0].Name)
 }
@@ -60,7 +60,7 @@ func TestToUserSupportedModels_NilAllowedPlatformsKeepsAll(t *testing.T) {
 		{Name: "a", Platform: "anthropic"},
 		{Name: "b", Platform: "openai"},
 	}
-	require.Len(t, toUserSupportedModels(src, nil), 2)
+	require.Len(t, toUserSupportedModels(src, nil, nil, 0), 2)
 }
 
 func TestUserAvailableChannel_FieldWhitelist(t *testing.T) {
@@ -146,7 +146,7 @@ func TestBuildPlatformSections_GroupsByPlatform(t *testing.T) {
 		{ID: 2, Name: "g-ant", Platform: "anthropic"},
 		{ID: 3, Name: "g-empty", Platform: ""},
 	}
-	sections := buildPlatformSections(ch, visible)
+	sections := buildPlatformSections(ch, visible, nil, 0)
 	require.Len(t, sections, 2)
 	require.Equal(t, "anthropic", sections[0].Platform)
 	require.Equal(t, "openai", sections[1].Platform)

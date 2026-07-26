@@ -132,7 +132,7 @@ func (r *stubAccountRepo) Delete(ctx context.Context, id int64) error           
 func (r *stubAccountRepo) List(ctx context.Context, params pagination.PaginationParams) ([]service.Account, *pagination.PaginationResult, error) {
 	return nil, nil, nil
 }
-func (r *stubAccountRepo) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search, plan, oauthType, tierID string, groupID int64) ([]service.Account, *pagination.PaginationResult, error) {
+func (r *stubAccountRepo) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]service.Account, *pagination.PaginationResult, error) {
 	return nil, nil, nil
 }
 func (r *stubAccountRepo) ListByGroup(ctx context.Context, groupID int64) ([]service.Account, error) {
@@ -193,7 +193,7 @@ func (r *stubAccountRepo) ListSchedulableUngroupedByPlatforms(ctx context.Contex
 func (r *stubAccountRepo) SetRateLimited(ctx context.Context, id int64, resetAt time.Time) error {
 	return nil
 }
-func (r *stubAccountRepo) SetModelRateLimit(ctx context.Context, id int64, scope string, resetAt time.Time) error {
+func (r *stubAccountRepo) SetModelRateLimit(ctx context.Context, id int64, scope string, resetAt time.Time, reason ...string) error {
 	return nil
 }
 func (r *stubAccountRepo) SetOverloaded(ctx context.Context, id int64, until time.Time) error {
@@ -833,4 +833,24 @@ func TestExtractSoraFailoverHeaderInsights(t *testing.T) {
 	require.Equal(t, "9cff2d62d83bb98d", rayID)
 	require.Equal(t, "challenge", mitigated)
 	require.Equal(t, "text/html", contentType)
+}
+
+func (r *stubAccountRepo) ListAllWithFilters(context.Context, string, string, string, string, int64, string) ([]service.Account, error) {
+	return nil, nil
+}
+
+func (s *stubAccountRepo) ListModelAvailabilityCandidates(ctx context.Context, groupID *int64, platforms []string, includeGrouped bool) ([]service.Account, error) {
+	return nil, nil
+}
+
+func (s *stubAccountRepo) UpdateSessionWindowEnd(ctx context.Context, id int64, end time.Time) error {
+	return nil
+}
+
+func (s *stubAccountRepo) RevertProxyFallback(ctx context.Context, accountID int64) error {
+	return nil
+}
+
+func (s *stubAccountRepo) ListShadowsByParent(ctx context.Context, parentID int64) ([]*service.Account, error) {
+	return nil, nil
 }

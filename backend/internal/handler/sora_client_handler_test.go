@@ -2406,7 +2406,7 @@ func (r *stubAccountRepoForHandler) Delete(context.Context, int64) error        
 func (r *stubAccountRepoForHandler) List(context.Context, pagination.PaginationParams) ([]service.Account, *pagination.PaginationResult, error) {
 	return nil, nil, nil
 }
-func (r *stubAccountRepoForHandler) ListWithFilters(context.Context, pagination.PaginationParams, string, string, string, string, string, string, string, int64) ([]service.Account, *pagination.PaginationResult, error) {
+func (r *stubAccountRepoForHandler) ListWithFilters(context.Context, pagination.PaginationParams, string, string, string, string, int64, string) ([]service.Account, *pagination.PaginationResult, error) {
 	return nil, nil, nil
 }
 func (r *stubAccountRepoForHandler) ListByGroup(_ context.Context, groupID int64) ([]service.Account, error) {
@@ -2458,7 +2458,7 @@ func (r *stubAccountRepoForHandler) ListSchedulableUngroupedByPlatforms(_ contex
 func (r *stubAccountRepoForHandler) SetRateLimited(context.Context, int64, time.Time) error {
 	return nil
 }
-func (r *stubAccountRepoForHandler) SetModelRateLimit(context.Context, int64, string, time.Time) error {
+func (r *stubAccountRepoForHandler) SetModelRateLimit(context.Context, int64, string, time.Time, ...string) error {
 	return nil
 }
 func (r *stubAccountRepoForHandler) SetOverloaded(context.Context, int64, time.Time) error {
@@ -3556,4 +3556,82 @@ func TestCancelGeneration_AlreadyCompleted(t *testing.T) {
 	c.Params = gin.Params{{Key: "id", Value: "1"}}
 	h.CancelGeneration(c)
 	require.Equal(t, http.StatusConflict, rec.Code)
+}
+
+func (r *stubUserRepoForHandler) BatchAddConcurrency(context.Context, []int64, int) (int, error) {
+	return 0, nil
+}
+
+func (r *stubAPIKeyRepoForHandler) DeleteWithAudit(context.Context, int64) error { return nil }
+
+func (r *stubAccountRepoForHandler) ListAllWithFilters(context.Context, string, string, string, string, int64, string) ([]service.Account, error) {
+	return nil, nil
+}
+
+func (s *stubUserRepoForHandler) CreateWithEmailAliasGuard(ctx context.Context, user *service.User) error {
+	return nil
+}
+
+func (s *stubUserRepoForHandler) GetByIDIncludeDeleted(ctx context.Context, id int64) (*service.User, error) {
+	return nil, nil
+}
+
+func (s *stubUserRepoForHandler) GetUserAvatar(ctx context.Context, userID int64) (*service.UserAvatar, error) {
+	return nil, nil
+}
+
+func (s *stubUserRepoForHandler) UpsertUserAvatar(ctx context.Context, userID int64, input service.UpsertUserAvatarInput) (*service.UserAvatar, error) {
+	return nil, nil
+}
+
+func (s *stubUserRepoForHandler) DeleteUserAvatar(ctx context.Context, userID int64) error {
+	return nil
+}
+
+func (s *stubUserRepoForHandler) GetLatestUsedAtByUserIDs(ctx context.Context, userIDs []int64) (map[int64]*time.Time, error) {
+	return nil, nil
+}
+
+func (s *stubUserRepoForHandler) GetLatestUsedAtByUserID(ctx context.Context, userID int64) (*time.Time, error) {
+	return nil, nil
+}
+
+func (s *stubUserRepoForHandler) UpdateUserLastActiveAt(ctx context.Context, userID int64, activeAt time.Time) error {
+	return nil
+}
+
+func (s *stubUserRepoForHandler) BatchSetConcurrency(ctx context.Context, userIDs []int64, value int) (int, error) {
+	return 0, nil
+}
+
+func (s *stubUserRepoForHandler) BatchUpdateLimits(ctx context.Context, userIDs []int64, concurrency, rpmLimit *int) (int, error) {
+	return 0, nil
+}
+
+func (s *stubUserRepoForHandler) ExistsByEmailAlias(ctx context.Context, email string) (bool, error) {
+	return false, nil
+}
+
+func (s *stubUserRepoForHandler) ListUserAuthIdentities(ctx context.Context, userID int64) ([]service.UserAuthIdentityRecord, error) {
+	return nil, nil
+}
+
+func (s *stubUserRepoForHandler) UnbindUserAuthProvider(ctx context.Context, userID int64, provider string) error {
+	return nil
+}
+
+func (s *stubAccountRepoForHandler) ListModelAvailabilityCandidates(ctx context.Context, groupID *int64, platforms []string, includeGrouped bool) ([]service.Account, error) {
+	return nil, nil
+}
+
+func (s *stubAccountRepoForHandler) UpdateSessionWindowEnd(ctx context.Context, id int64, end time.Time) error {
+	return nil
+}
+
+func (s *stubAccountRepoForHandler) RevertProxyFallback(ctx context.Context, accountID int64) error {
+	return nil
+}
+
+func (s *stubAccountRepoForHandler) ListShadowsByParent(ctx context.Context, parentID int64) ([]*service.Account, error) {
+	return nil, nil
 }

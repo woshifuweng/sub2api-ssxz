@@ -164,7 +164,7 @@ func TestDuplicateAccountHandlerReplaysSameIdempotencyKey(t *testing.T) {
 	}
 	router := setupDuplicateAccountRouter(t, svc)
 	repo := newMemoryIdempotencyRepoStub()
-	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(repo, service.DefaultIdempotencyConfig()))
+	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(repo, nil, service.DefaultIdempotencyConfig()))
 
 	call := func() *httptest.ResponseRecorder {
 		recorder := httptest.NewRecorder()
@@ -199,7 +199,7 @@ func TestDuplicateAccountHandlerRecoversAfterMarkSucceededFailure(t *testing.T) 
 	}
 	router := setupDuplicateAccountRouter(t, svc)
 	repo := &failOnceMarkSucceededRepo{memoryIdempotencyRepoStub: newMemoryIdempotencyRepoStub(), failNext: true}
-	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(repo, service.DefaultIdempotencyConfig()))
+	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(repo, nil, service.DefaultIdempotencyConfig()))
 
 	call := func() *httptest.ResponseRecorder {
 		recorder := httptest.NewRecorder()
@@ -237,7 +237,7 @@ func TestDuplicateAccountHandlerPreservesIdempotencyErrorWhenRecoveryLookupFails
 	}
 	router := setupDuplicateAccountRouter(t, svc)
 	repo := &failOnceMarkSucceededRepo{memoryIdempotencyRepoStub: newMemoryIdempotencyRepoStub(), failNext: true}
-	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(repo, service.DefaultIdempotencyConfig()))
+	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(repo, nil, service.DefaultIdempotencyConfig()))
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/42/duplicate", nil)
 	request.Header.Set("Idempotency-Key", "duplicate-account-42-recovery-error")
@@ -266,7 +266,7 @@ func TestDuplicateAccountHandlerDoesNotReexecuteWhileOriginalIsProcessing(t *tes
 		recoverErr: errors.New("recovery database unavailable"),
 	}
 	router := setupDuplicateAccountRouter(t, svc)
-	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(newMemoryIdempotencyRepoStub(), service.DefaultIdempotencyConfig()))
+	service.SetDefaultIdempotencyCoordinator(service.NewIdempotencyCoordinator(newMemoryIdempotencyRepoStub(), nil, service.DefaultIdempotencyConfig()))
 
 	call := func() *httptest.ResponseRecorder {
 		recorder := httptest.NewRecorder()

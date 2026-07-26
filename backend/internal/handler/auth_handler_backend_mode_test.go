@@ -227,13 +227,13 @@ func newAuthHandlerBackendHarness(t *testing.T) *authHandlerBackendHarness {
 			AccessTokenExpireMinutes: 60,
 		},
 	}
-	authSvc := service.NewAuthService(nil, userRepo, nil, nil, cfg, settingSvc, nil, nil, nil, nil, nil)
-	userSvc := service.NewUserService(userRepo, nil, nil)
+	authSvc := service.NewAuthService(nil, userRepo, nil, nil, cfg, settingSvc, nil, nil, nil, nil, nil, nil, nil)
+	userSvc := service.NewUserService(userRepo, nil, nil, nil)
 	totpCache := &authHandlerTotpCacheStub{loginSessions: map[string]*service.TotpLoginSession{}}
 	totpSvc := service.NewTotpService(userRepo, nil, totpCache, settingSvc, nil, nil)
 
 	return &authHandlerBackendHarness{
-		handler:   NewAuthHandler(cfg, authSvc, userSvc, settingSvc, nil, nil, nil, totpSvc),
+		handler:   NewAuthHandler(cfg, authSvc, userSvc, settingSvc, nil, nil, nil, totpSvc, nil),
 		totpCache: totpCache,
 		users: map[string]*service.User{
 			"admin":       admin,
@@ -319,4 +319,68 @@ func TestAuthHandlerLogin2FAGateway_BackendModeDeletesNonAdminPendingSession(t *
 	require.Equal(t, http.StatusUnauthorized, code)
 	require.Equal(t, "INVALID_CREDENTIALS", envelope.Reason)
 	require.Empty(t, harness.totpCache.loginSessions)
+}
+
+func (s *authHandlerTotpCacheStub) SetStepUpGrant(context.Context, int64, string, time.Duration) error {
+	return nil
+}
+
+func (s *authHandlerTotpCacheStub) HasStepUpGrant(context.Context, int64, string) (bool, error) {
+	return false, nil
+}
+
+func (a *authHandlerUserRepoStub) CreateWithEmailAliasGuard(ctx context.Context, user *service.User) error {
+	return nil
+}
+
+func (a *authHandlerUserRepoStub) GetByIDIncludeDeleted(ctx context.Context, id int64) (*service.User, error) {
+	return nil, nil
+}
+
+func (a *authHandlerUserRepoStub) GetUserAvatar(ctx context.Context, userID int64) (*service.UserAvatar, error) {
+	return nil, nil
+}
+
+func (a *authHandlerUserRepoStub) UpsertUserAvatar(ctx context.Context, userID int64, input service.UpsertUserAvatarInput) (*service.UserAvatar, error) {
+	return nil, nil
+}
+
+func (a *authHandlerUserRepoStub) DeleteUserAvatar(ctx context.Context, userID int64) error {
+	return nil
+}
+
+func (a *authHandlerUserRepoStub) GetLatestUsedAtByUserIDs(ctx context.Context, userIDs []int64) (map[int64]*time.Time, error) {
+	return nil, nil
+}
+
+func (a *authHandlerUserRepoStub) GetLatestUsedAtByUserID(ctx context.Context, userID int64) (*time.Time, error) {
+	return nil, nil
+}
+
+func (a *authHandlerUserRepoStub) UpdateUserLastActiveAt(ctx context.Context, userID int64, activeAt time.Time) error {
+	return nil
+}
+
+func (a *authHandlerUserRepoStub) BatchSetConcurrency(ctx context.Context, userIDs []int64, value int) (int, error) {
+	return 0, nil
+}
+
+func (a *authHandlerUserRepoStub) BatchAddConcurrency(ctx context.Context, userIDs []int64, delta int) (int, error) {
+	return 0, nil
+}
+
+func (a *authHandlerUserRepoStub) BatchUpdateLimits(ctx context.Context, userIDs []int64, concurrency, rpmLimit *int) (int, error) {
+	return 0, nil
+}
+
+func (a *authHandlerUserRepoStub) ExistsByEmailAlias(ctx context.Context, email string) (bool, error) {
+	return false, nil
+}
+
+func (a *authHandlerUserRepoStub) ListUserAuthIdentities(ctx context.Context, userID int64) ([]service.UserAuthIdentityRecord, error) {
+	return nil, nil
+}
+
+func (a *authHandlerUserRepoStub) UnbindUserAuthProvider(ctx context.Context, userID int64, provider string) error {
+	return nil
 }
