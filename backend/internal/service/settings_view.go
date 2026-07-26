@@ -5,10 +5,16 @@ type SystemSettings struct {
 	EmailVerifyEnabled               bool
 	RegistrationEmailSuffixWhitelist []string
 	PromoCodeEnabled                 bool
-	PasswordResetEnabled             bool
-	FrontendURL                      string
-	InvitationCodeEnabled            bool
-	TotpEnabled                      bool // TOTP 双因素认证
+	// PasswordResetEnabled 是「生效值」：已与 EmailVerifyEnabled 取与，
+	// 邮箱验证关闭时恒为 false。鉴权/功能判定用这个。
+	PasswordResetEnabled bool
+	// PasswordResetEnabledStored 是 DB 里 password_reset_enabled 的原始存储值，
+	// **不**与 EmailVerifyEnabled 取与。仅用于观测（管理台需要知道「配置开着、
+	// 但因邮箱验证关闭而未生效」这一状态），绝不参与任何鉴权判定。
+	PasswordResetEnabledStored bool
+	FrontendURL                string
+	InvitationCodeEnabled      bool
+	TotpEnabled                bool // TOTP 双因素认证
 
 	SMTPHost               string
 	SMTPPort               int

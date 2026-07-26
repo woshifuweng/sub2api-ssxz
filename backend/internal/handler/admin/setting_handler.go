@@ -150,6 +150,7 @@ func (h *SettingHandler) buildSystemSettingsDTO(ctx context.Context, settings *s
 		RegistrationEmailSuffixWhitelist:                       settings.RegistrationEmailSuffixWhitelist,
 		PromoCodeEnabled:                                       settings.PromoCodeEnabled,
 		PasswordResetEnabled:                                   settings.PasswordResetEnabled,
+		PasswordResetEnabledStored:                             settings.PasswordResetEnabledStored,
 		FrontendURL:                                            settings.FrontendURL,
 		InvitationCodeEnabled:                                  settings.InvitationCodeEnabled,
 		TotpEnabled:                                            settings.TotpEnabled,

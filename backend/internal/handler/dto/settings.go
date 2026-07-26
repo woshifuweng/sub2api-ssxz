@@ -32,7 +32,11 @@ type SystemSettings struct {
 	RegistrationEmailSuffixWhitelist []string                 `json:"registration_email_suffix_whitelist"`
 	PromoCodeEnabled                 bool                     `json:"promo_code_enabled"`
 	PasswordResetEnabled             bool                     `json:"password_reset_enabled"`
-	FrontendURL                      string                   `json:"frontend_url"`
+	// PasswordResetEnabledStored 只读观测字段：password_reset_enabled 的原始存储值，
+	// 未与 email_verify_enabled 取与。管理台用它区分「未开启」与「已开启但当前未生效」，
+	// 请求体里没有对应字段（写入仍然只走 password_reset_enabled）。
+	PasswordResetEnabledStored bool   `json:"password_reset_enabled_stored"`
+	FrontendURL                string `json:"frontend_url"`
 	InvitationCodeEnabled            bool                     `json:"invitation_code_enabled"`
 	TotpEnabled                      bool                     `json:"totp_enabled"`                   // TOTP 双因素认证
 	TotpEncryptionKeyConfigured      bool                     `json:"totp_encryption_key_configured"` // TOTP 加密密钥是否已配置

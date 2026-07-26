@@ -31,8 +31,8 @@ type SettingConfigWarning struct {
 
 // settingConfigWarningInput 计算提示所需的最小输入，独立于 DTO 以便单测直接构造。
 type settingConfigWarningInput struct {
-	// PasswordResetEnabled 取管理员本次保存的原始意图（未与 email_verify_enabled 取与），
-	// 这样「邮件验证关 + 密码重置开」这种组合也能拿到提示。
+	// PasswordResetEnabled 取 password_reset_enabled 的原始存储值（未与 email_verify_enabled
+	// 取与），这样「邮件验证关 + 密码重置开」这种组合也能拿到提示。
 	PasswordResetEnabled bool
 	// FrontendURL 取生效值（DB 优先、fallback 配置文件），而非请求原始值，
 	// 避免配置文件里已经配好时误报。
