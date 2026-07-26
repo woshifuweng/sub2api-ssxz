@@ -148,7 +148,9 @@ func ApplyAPIKeyAuthWithSubscriptionContext(apiKeyService *service.APIKeyService
 	c.SetRequest(c.Request().WithContext(requestContext))
 
 	billingInfoRequest := c.Path() == "/v1/sub2api/billing"
-	skipBilling := c.Path() == "/v1/usage" || billingInfoRequest || isAsyncImageTaskRead(c.Method(), c.Path())
+	skipBilling := billingInfoRequest ||
+		isReadOnlyGatewayMetadata(c.Method(), c.Path()) ||
+		isAsyncImageTaskRead(c.Method(), c.Path())
 
 	if cfg != nil && cfg.RunMode == config.RunModeSimple {
 		setAPIKeyAuthContextValues(c, apiKey, nil)
@@ -352,6 +354,23 @@ func isAsyncImageTaskRead(method, path string) bool {
 		return false
 	}
 	return strings.HasPrefix(path, "/v1/images/tasks/") || strings.HasPrefix(path, "/images/tasks/")
+}
+
+// isReadOnlyGatewayMetadata reports whether the request only reads the caller's
+// own gateway metadata: the model catalog（/v1/models 及其无前缀别名，二者
+// 注册的是同一个 handler）或用量统计（/v1/usage）。这些只读端点跳过下方的
+// 计费闸门（含零余额拦截）：余额是消费门槛，不是身份门槛，新用户在充值前
+// 也应能验证连通性、读取自己的元数据。真正产生费用的 /v1/chat/completions、
+// /v1/messages 等推理端点不在此列，仍受余额拦截。
+func isReadOnlyGatewayMetadata(method, path string) bool {
+	if method != http.MethodGet {
+		return false
+	}
+	switch strings.TrimRight(path, "/") {
+	case "/v1/models", "/models", "/v1/usage":
+		return true
+	}
+	return false
 }
 
 func rejectInvalidAuthAbuseContext(c gatewayctx.GatewayContext, apiKeyService *service.APIKeyService) bool {
