@@ -358,16 +358,20 @@ func isAsyncImageTaskRead(method, path string) bool {
 
 // isReadOnlyGatewayMetadata reports whether the request only reads the caller's
 // own gateway metadata: the model catalog（/v1/models 及其无前缀别名，二者
-// 注册的是同一个 handler）或用量统计（/v1/usage）。这些只读端点跳过下方的
-// 计费闸门（含零余额拦截）：余额是消费门槛，不是身份门槛，新用户在充值前
-// 也应能验证连通性、读取自己的元数据。真正产生费用的 /v1/chat/completions、
-// /v1/messages 等推理端点不在此列，仍受余额拦截。
+// 注册的是同一个 handler）或用量统计（/v1/usage），以及平台前缀下的同类只读
+// 端点（antigravity/sora）。这些只读端点跳过下方的计费闸门（含零余额拦截）：
+// 余额是消费门槛，不是身份门槛，新用户在充值前也应能验证连通性、读取自己的
+// 元数据。真正产生费用的 /v1/chat/completions、/v1/messages 等推理端点不在
+// 此列，仍受余额拦截。只允许 GET + 精确路径：平台前缀下的推理端点（如
+// POST /antigravity/v1/messages）与元数据同前缀，禁止前缀匹配。
 func isReadOnlyGatewayMetadata(method, path string) bool {
 	if method != http.MethodGet {
 		return false
 	}
 	switch strings.TrimRight(path, "/") {
-	case "/v1/models", "/models", "/v1/usage":
+	case "/v1/models", "/models", "/v1/usage",
+		"/antigravity/v1/models", "/antigravity/v1/usage", "/antigravity/models",
+		"/sora/v1/models":
 		return true
 	}
 	return false
