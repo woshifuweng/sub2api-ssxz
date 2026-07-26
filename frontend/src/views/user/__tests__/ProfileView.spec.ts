@@ -182,6 +182,16 @@ describe('ProfileView', () => {
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(false)
   })
 
+  it('omits the support contact card when contact_info is blank whitespace', async () => {
+    authAPI.getPublicSettings.mockResolvedValue({ contact_info: '   ' })
+
+    const wrapper = mount(ProfileView)
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('common.contactSupport')
+    expect(wrapper.find('.profile-support-card').exists()).toBe(false)
+  })
+
   it('silently omits optional support contact when public settings cannot load', async () => {
     authAPI.getPublicSettings.mockRejectedValue(new Error('settings unavailable'))
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)

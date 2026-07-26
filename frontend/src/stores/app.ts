@@ -340,7 +340,8 @@ export const useAppStore = defineStore('app', () => {
     siteName.value = normalizeSiteName(config.site_name)
     siteLogo.value = config.site_logo || ''
     siteVersion.value = config.version || ''
-    contactInfo.value = config.contact_info || ''
+    // 空串/纯空白都视为「未配置」，避免消费方渲染出空白联系方式区块
+    contactInfo.value = (config.contact_info || '').trim()
     apiBaseUrl.value = config.api_base_url || ''
     docUrl.value = config.doc_url || ''
     publicSettingsLoaded.value = true

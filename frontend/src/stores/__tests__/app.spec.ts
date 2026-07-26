@@ -280,6 +280,24 @@ describe('useAppStore', () => {
       expect(store.publicSettingsLoaded).toBe(false)
     })
 
+    it('contact_info 为空或纯空白时归一化为空串（消费方按未配置处理）', () => {
+      const windowAny = window as any
+      windowAny.__APP_CONFIG__ = { site_name: 'Test', contact_info: '   ' }
+      const store = useAppStore()
+      store.initFromInjectedConfig()
+
+      expect(store.contactInfo).toBe('')
+    })
+
+    it('contact_info 有值时去除首尾空白后保留', () => {
+      const windowAny = window as any
+      windowAny.__APP_CONFIG__ = { site_name: 'Test', contact_info: ' QQ: 123456789 ' }
+      const store = useAppStore()
+      store.initFromInjectedConfig()
+
+      expect(store.contactInfo).toBe('QQ: 123456789')
+    })
+
     it('clearPublicSettingsCache 清除缓存', () => {
       const windowAny = window as any
       windowAny.__APP_CONFIG__ = { site_name: 'Test' }
