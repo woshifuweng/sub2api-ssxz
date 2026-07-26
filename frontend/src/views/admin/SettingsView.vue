@@ -972,11 +972,31 @@
               </div>
               <Toggle v-model="form.password_reset_enabled" />
             </div>
-            <!-- Frontend URL - Only show when password reset is enabled -->
+            <!-- Frontend URL - shown whenever password reset is enabled, regardless of
+                 email verification, because password reset silently fails without it -->
             <div
-              v-if="form.email_verify_enabled && form.password_reset_enabled"
+              v-if="form.password_reset_enabled"
               class="border-t border-gray-100 pt-4 dark:border-dark-700"
             >
+              <!-- Password reset is enabled but frontend URL is missing: reset mails are
+                   silently skipped by the backend while the user still sees "success" -->
+              <div
+                v-if="frontendUrlMissingForPasswordReset"
+                data-testid="settings-frontend-url-missing-warning"
+                class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
+              >
+                <div class="flex items-start">
+                  <Icon
+                    name="exclamationTriangle"
+                    size="md"
+                    class="mt-0.5 flex-shrink-0 text-amber-500"
+                  />
+                  <p class="ml-3 text-sm text-amber-700 dark:text-amber-300">
+                    {{ t('admin.settings.registration.frontendUrlMissingWarning') }}
+                  </p>
+                </div>
+              </div>
+
               <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                 {{ t('admin.settings.registration.frontendUrl') }}
               </label>
@@ -984,10 +1004,18 @@
                 v-model="form.frontend_url"
                 type="url"
                 class="input"
+                data-testid="settings-frontend-url-input"
                 :placeholder="t('admin.settings.registration.frontendUrlPlaceholder')"
               />
               <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                 {{ t('admin.settings.registration.frontendUrlHint') }}
+              </p>
+              <p
+                v-if="frontendUrlFormatInvalid"
+                data-testid="settings-frontend-url-format-hint"
+                class="mt-2 text-xs text-amber-600 dark:text-amber-400"
+              >
+                {{ t('admin.settings.registration.frontendUrlInvalidHint') }}
               </p>
             </div>
 
@@ -1639,10 +1667,19 @@
                 v-model="form.contact_info"
                 type="text"
                 class="input"
+                data-testid="settings-contact-info-input"
                 :placeholder="t('admin.settings.site.contactInfoPlaceholder')"
               />
               <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                 {{ t('admin.settings.site.contactInfoHint') }}
+              </p>
+              <!-- Empty contact info leaves locked-out users without any appeal channel -->
+              <p
+                v-if="contactInfoMissing"
+                data-testid="settings-contact-info-missing-hint"
+                class="mt-2 text-xs text-amber-600 dark:text-amber-400"
+              >
+                {{ t('admin.settings.site.contactInfoMissingHint') }}
               </p>
             </div>
 
@@ -2428,6 +2465,31 @@ const form = reactive<SettingsForm>({
   auto_delete_useless_proxies: false
 })
 
+// Validate URL fields — the form uses `novalidate`, so browser-native checks are off.
+// Shared by the inline field hints and by saveSettings().
+function isValidHttpUrl(url: string): boolean {
+  if (!url) return true
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+// Password reset silently no-ops on the backend when frontend_url is empty and the request
+// Origin is not trusted: the customer sees "email sent" but never receives anything.
+const frontendUrlMissingForPasswordReset = computed(
+  () => form.password_reset_enabled && !(form.frontend_url || '').trim()
+)
+
+const frontendUrlFormatInvalid = computed(() => {
+  const value = (form.frontend_url || '').trim()
+  return value !== '' && !isValidHttpUrl(value)
+})
+
+const contactInfoMissing = computed(() => !(form.contact_info || '').trim())
+
 const defaultSubscriptionGroupOptions = computed<DefaultSubscriptionGroupOption[]>(() =>
   subscriptionGroups.value.map((group) => ({
     value: group.id,
@@ -2705,18 +2767,14 @@ async function saveSettings() {
       return
     }
 
-    // Validate URL fields — novalidate disables browser-native checks, so we validate here
-    const isValidHttpUrl = (url: string): boolean => {
-      if (!url) return true
-      try {
-        const u = new URL(url)
-        return u.protocol === 'http:' || u.protocol === 'https:'
-      } catch {
-        return false
-      }
+    // frontend_url drives password reset links. Never silently discard what the admin typed:
+    // a cleared value looks saved but puts password reset right back into silent-failure mode.
+    if (!isValidHttpUrl(form.frontend_url)) {
+      appStore.showError(t('admin.settings.registration.frontendUrlInvalidError'))
+      return
     }
+
     // Optional URL fields: auto-clear invalid values so they don't cause backend 400 errors
-    if (!isValidHttpUrl(form.frontend_url)) form.frontend_url = ''
     if (!isValidHttpUrl(form.doc_url)) form.doc_url = ''
     if (!isValidHttpUrl(form.purchase_link_cny_10)) form.purchase_link_cny_10 = ''
     if (!isValidHttpUrl(form.purchase_link_cny_30)) form.purchase_link_cny_30 = ''

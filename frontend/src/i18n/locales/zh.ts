@@ -5787,6 +5787,12 @@ export default {
         frontendUrl: '前端地址',
         frontendUrlPlaceholder: 'https://example.com',
         frontendUrlHint: '用于生成邮件中的密码重置链接，例如 https://example.com',
+        frontendUrlMissingWarning:
+          '「忘记密码」已开启，但前端地址为空：客户点击重置后不会收到邮件，页面却显示发送成功。请在下方填写用户实际访问的前台站点地址（含 http:// 或 https://，例如 https://example.com），不要填 API 域名。',
+        frontendUrlInvalidHint:
+          '前端地址格式不正确，需要以 http:// 或 https:// 开头的完整地址，例如 https://example.com。保存时会被拒绝。',
+        frontendUrlInvalidError:
+          '前端地址格式不正确，需要以 http:// 或 https:// 开头的完整地址（例如 https://example.com）。已保留你的输入，请修改后重新保存。',
         totp: '双因素认证 (2FA)',
         totpHint: '允许用户使用 Google Authenticator 等应用进行二次验证',
         totpKeyNotConfigured:
@@ -5882,6 +5888,8 @@ export default {
         contactInfo: '客服联系方式',
         contactInfoPlaceholder: '例如：QQ: 123456789',
         contactInfoHint: '填写客服联系方式，将展示在兑换页面、个人资料等位置',
+        contactInfoMissingHint:
+          '当前未填写客服联系方式：账号被封禁或无法登录的用户将没有任何申诉入口，建议至少填写一个可用的联系渠道。',
         docUrl: '文档链接',
         docUrlHint: '文档网站的链接。留空则隐藏文档链接。',
         docUrlPlaceholder: 'https://docs.example.com',
