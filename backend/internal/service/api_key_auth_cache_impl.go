@@ -14,6 +14,12 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
+// apiKeyAuthSnapshotVersion 认证缓存快照 schema 版本。结构演进时必须递增，
+// 使存量缓存条目立即失效回源，而不是以零值字段继续生效。
+// 历史：v3 = 整合前生产版本（67a05dfcc 引入，e5c51dce9 整合时机制被上游基座覆盖丢失）；
+// v4 = 恢复版本机制，并补回独占分组准入字段（Group.IsExclusive / User.AllowedGroups）。
+const apiKeyAuthSnapshotVersion = 4
+
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
 	l1TTL         time.Duration
@@ -282,6 +288,11 @@ func (s *APIKeyService) applyAuthCacheEntry(key string, entry *APIKeyAuthCacheEn
 	if entry.Snapshot == nil {
 		return nil, false, nil
 	}
+	// 版本不符（含无 version 字段的历史条目，反序列化为 0）一律按 miss 回源，
+	// 防止旧 schema 条目以零值字段（如 IsExclusive/AllowedGroups 缺失）继续放行。
+	if entry.Snapshot.Version != apiKeyAuthSnapshotVersion {
+		return nil, false, nil
+	}
 	return s.snapshotToAPIKey(key, entry.Snapshot), true, nil
 }
 
@@ -290,9 +301,11 @@ func (s *APIKeyService) snapshotFromAPIKey(_ context.Context, apiKey *APIKey) *A
 		return nil
 	}
 	snapshot := &APIKeyAuthSnapshot{
+		Version:       apiKeyAuthSnapshotVersion,
 		APIKeyID:      apiKey.ID,
 		UserID:        apiKey.UserID,
 		GroupID:       apiKey.GroupID,
+		Name:          apiKey.Name,
 		GroupIDs:      append([]int64(nil), apiKey.GroupIDs...),
 		AllowedModels: append([]string{}, apiKey.AllowedModels...),
 		Status:        apiKey.Status,
@@ -305,11 +318,12 @@ func (s *APIKeyService) snapshotFromAPIKey(_ context.Context, apiKey *APIKey) *A
 		RateLimit1d:   apiKey.RateLimit1d,
 		RateLimit7d:   apiKey.RateLimit7d,
 		User: APIKeyAuthUserSnapshot{
-			ID:          apiKey.User.ID,
-			Status:      apiKey.User.Status,
-			Role:        apiKey.User.Role,
-			Balance:     apiKey.User.Balance,
-			Concurrency: apiKey.User.EffectiveConcurrency(),
+			ID:            apiKey.User.ID,
+			Status:        apiKey.User.Status,
+			Role:          apiKey.User.Role,
+			Balance:       apiKey.User.Balance,
+			Concurrency:   apiKey.User.EffectiveConcurrency(),
+			AllowedGroups: append([]int64(nil), apiKey.User.AllowedGroups...),
 		},
 	}
 	if apiKey.Group != nil {
@@ -317,6 +331,7 @@ func (s *APIKeyService) snapshotFromAPIKey(_ context.Context, apiKey *APIKey) *A
 			ID:                              apiKey.Group.ID,
 			Name:                            apiKey.Group.Name,
 			Platform:                        apiKey.Group.Platform,
+			IsExclusive:                     apiKey.Group.IsExclusive,
 			Status:                          apiKey.Group.Status,
 			SubscriptionType:                apiKey.Group.SubscriptionType,
 			RateMultiplier:                  apiKey.Group.RateMultiplier,
@@ -334,6 +349,7 @@ func (s *APIKeyService) snapshotFromAPIKey(_ context.Context, apiKey *APIKey) *A
 			SoraImagePrice540:               apiKey.Group.SoraImagePrice540,
 			SoraVideoPricePerRequest:        apiKey.Group.SoraVideoPricePerRequest,
 			SoraVideoPricePerRequestHD:      apiKey.Group.SoraVideoPricePerRequestHD,
+			WebSearchPricePerCall:           apiKey.Group.WebSearchPricePerCall,
 			ClaudeCodeOnly:                  apiKey.Group.ClaudeCodeOnly,
 			FallbackGroupID:                 apiKey.Group.FallbackGroupID,
 			FallbackGroupIDOnInvalidRequest: apiKey.Group.FallbackGroupIDOnInvalidRequest,
@@ -345,6 +361,9 @@ func (s *APIKeyService) snapshotFromAPIKey(_ context.Context, apiKey *APIKey) *A
 			AllowMessagesDispatch:           apiKey.Group.AllowMessagesDispatch,
 			AllowLive:                       apiKey.Group.AllowLive,
 			DefaultMappedModel:              apiKey.Group.DefaultMappedModel,
+			MessagesDispatchModelConfig:     apiKey.Group.MessagesDispatchModelConfig,
+			MaxReasoningEffort:              apiKey.Group.MaxReasoningEffort,
+			ReasoningEffortMappings:         apiKey.Group.ReasoningEffortMappings,
 		}
 	}
 	if len(apiKey.Groups) > 0 {
@@ -357,6 +376,7 @@ func (s *APIKeyService) snapshotFromAPIKey(_ context.Context, apiKey *APIKey) *A
 				ID:                              group.ID,
 				Name:                            group.Name,
 				Platform:                        group.Platform,
+				IsExclusive:                     group.IsExclusive,
 				Status:                          group.Status,
 				SubscriptionType:                group.SubscriptionType,
 				RateMultiplier:                  group.RateMultiplier,
@@ -374,6 +394,7 @@ func (s *APIKeyService) snapshotFromAPIKey(_ context.Context, apiKey *APIKey) *A
 				SoraImagePrice540:               group.SoraImagePrice540,
 				SoraVideoPricePerRequest:        group.SoraVideoPricePerRequest,
 				SoraVideoPricePerRequestHD:      group.SoraVideoPricePerRequestHD,
+				WebSearchPricePerCall:           group.WebSearchPricePerCall,
 				ClaudeCodeOnly:                  group.ClaudeCodeOnly,
 				FallbackGroupID:                 group.FallbackGroupID,
 				FallbackGroupIDOnInvalidRequest: group.FallbackGroupIDOnInvalidRequest,
@@ -385,6 +406,9 @@ func (s *APIKeyService) snapshotFromAPIKey(_ context.Context, apiKey *APIKey) *A
 				AllowMessagesDispatch:           group.AllowMessagesDispatch,
 				AllowLive:                       group.AllowLive,
 				DefaultMappedModel:              group.DefaultMappedModel,
+				MessagesDispatchModelConfig:     group.MessagesDispatchModelConfig,
+				MaxReasoningEffort:              group.MaxReasoningEffort,
+				ReasoningEffortMappings:         group.ReasoningEffortMappings,
 			})
 		}
 	}
@@ -399,6 +423,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 		ID:            snapshot.APIKeyID,
 		UserID:        snapshot.UserID,
 		GroupID:       snapshot.GroupID,
+		Name:          snapshot.Name,
 		GroupIDs:      append([]int64(nil), snapshot.GroupIDs...),
 		AllowedModels: append([]string{}, snapshot.AllowedModels...),
 		Key:           key,
@@ -412,11 +437,12 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 		RateLimit1d:   snapshot.RateLimit1d,
 		RateLimit7d:   snapshot.RateLimit7d,
 		User: &User{
-			ID:          snapshot.User.ID,
-			Status:      snapshot.User.Status,
-			Role:        snapshot.User.Role,
-			Balance:     snapshot.User.Balance,
-			Concurrency: snapshot.User.Concurrency,
+			ID:            snapshot.User.ID,
+			Status:        snapshot.User.Status,
+			Role:          snapshot.User.Role,
+			Balance:       snapshot.User.Balance,
+			Concurrency:   snapshot.User.Concurrency,
+			AllowedGroups: append([]int64(nil), snapshot.User.AllowedGroups...),
 		},
 	}
 	if snapshot.Group != nil {
@@ -424,6 +450,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			ID:                              snapshot.Group.ID,
 			Name:                            snapshot.Group.Name,
 			Platform:                        snapshot.Group.Platform,
+			IsExclusive:                     snapshot.Group.IsExclusive,
 			Status:                          snapshot.Group.Status,
 			Hydrated:                        true,
 			SubscriptionType:                snapshot.Group.SubscriptionType,
@@ -442,6 +469,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			SoraImagePrice540:               snapshot.Group.SoraImagePrice540,
 			SoraVideoPricePerRequest:        snapshot.Group.SoraVideoPricePerRequest,
 			SoraVideoPricePerRequestHD:      snapshot.Group.SoraVideoPricePerRequestHD,
+			WebSearchPricePerCall:           snapshot.Group.WebSearchPricePerCall,
 			ClaudeCodeOnly:                  snapshot.Group.ClaudeCodeOnly,
 			FallbackGroupID:                 snapshot.Group.FallbackGroupID,
 			FallbackGroupIDOnInvalidRequest: snapshot.Group.FallbackGroupIDOnInvalidRequest,
@@ -453,6 +481,9 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			AllowMessagesDispatch:           snapshot.Group.AllowMessagesDispatch,
 			AllowLive:                       snapshot.Group.AllowLive,
 			DefaultMappedModel:              snapshot.Group.DefaultMappedModel,
+			MessagesDispatchModelConfig:     snapshot.Group.MessagesDispatchModelConfig,
+			MaxReasoningEffort:              snapshot.Group.MaxReasoningEffort,
+			ReasoningEffortMappings:         snapshot.Group.ReasoningEffortMappings,
 		}
 	}
 	if len(snapshot.Groups) > 0 {
@@ -462,6 +493,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 				ID:                              group.ID,
 				Name:                            group.Name,
 				Platform:                        group.Platform,
+				IsExclusive:                     group.IsExclusive,
 				Status:                          group.Status,
 				Hydrated:                        true,
 				SubscriptionType:                group.SubscriptionType,
@@ -480,6 +512,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 				SoraImagePrice540:               group.SoraImagePrice540,
 				SoraVideoPricePerRequest:        group.SoraVideoPricePerRequest,
 				SoraVideoPricePerRequestHD:      group.SoraVideoPricePerRequestHD,
+				WebSearchPricePerCall:           group.WebSearchPricePerCall,
 				ClaudeCodeOnly:                  group.ClaudeCodeOnly,
 				FallbackGroupID:                 group.FallbackGroupID,
 				FallbackGroupIDOnInvalidRequest: group.FallbackGroupIDOnInvalidRequest,
@@ -491,6 +524,9 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 				AllowMessagesDispatch:           group.AllowMessagesDispatch,
 				AllowLive:                       group.AllowLive,
 				DefaultMappedModel:              group.DefaultMappedModel,
+				MessagesDispatchModelConfig:     group.MessagesDispatchModelConfig,
+				MaxReasoningEffort:              group.MaxReasoningEffort,
+				ReasoningEffortMappings:         group.ReasoningEffortMappings,
 			}
 			apiKey.Groups = append(apiKey.Groups, g)
 		}

@@ -12,6 +12,7 @@ func TestAPIKeyService_AuthSnapshotPreservesCurrentModelAndGroupScope(t *testing
 
 	apiKey, ok, err := svc.applyAuthCacheEntry("k-current-scope", &APIKeyAuthCacheEntry{
 		Snapshot: &APIKeyAuthSnapshot{
+			Version:       apiKeyAuthSnapshotVersion,
 			APIKeyID:      1,
 			UserID:        2,
 			GroupID:       &groupID,

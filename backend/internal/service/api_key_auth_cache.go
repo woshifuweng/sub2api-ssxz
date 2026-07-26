@@ -4,9 +4,13 @@ import "time"
 
 // APIKeyAuthSnapshot API Key 认证缓存快照（仅包含认证所需字段）
 type APIKeyAuthSnapshot struct {
+	// Version 快照 schema 版本（apiKeyAuthSnapshotVersion）。版本不符的缓存条目
+	// 按 miss 处理并回源重建，避免结构演进后旧条目以零值字段继续生效。
+	Version       int                       `json:"version"`
 	APIKeyID      int64                     `json:"api_key_id"`
 	UserID        int64                     `json:"user_id"`
 	GroupID       *int64                    `json:"group_id,omitempty"`
+	Name          string                    `json:"name"`
 	GroupIDs      []int64                   `json:"group_ids,omitempty"`
 	AllowedModels []string                  `json:"allowed_models,omitempty"`
 	Status        string                    `json:"status"`
@@ -36,13 +40,19 @@ type APIKeyAuthUserSnapshot struct {
 	Role        string  `json:"role"`
 	Balance     float64 `json:"balance"`
 	Concurrency int     `json:"concurrency"`
+	// AllowedGroups 是独占分组准入白名单。缓存命中路径上 CanBindGroup 依赖它，
+	// 缺失会让独占分组校验静默放行（e5c51dce9 整合曾丢过该字段）。
+	AllowedGroups []int64 `json:"allowed_groups,omitempty"`
 }
 
 // APIKeyAuthGroupSnapshot 分组快照
 type APIKeyAuthGroupSnapshot struct {
-	ID                              int64    `json:"id"`
-	Name                            string   `json:"name"`
-	Platform                        string   `json:"platform"`
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Platform string `json:"platform"`
+	// IsExclusive 独占分组标记。缓存命中路径上 validateAPIKeyGroupAllowed 依赖它，
+	// 缺失会让 CanBindGroup 第二参恒为 false 直接短路（e5c51dce9 整合曾丢过该字段）。
+	IsExclusive                     bool     `json:"is_exclusive"`
 	Status                          string   `json:"status"`
 	SubscriptionType                string   `json:"subscription_type"`
 	RateMultiplier                  float64  `json:"rate_multiplier"`
@@ -60,6 +70,7 @@ type APIKeyAuthGroupSnapshot struct {
 	SoraImagePrice540               *float64 `json:"sora_image_price_540,omitempty"`
 	SoraVideoPricePerRequest        *float64 `json:"sora_video_price_per_request,omitempty"`
 	SoraVideoPricePerRequestHD      *float64 `json:"sora_video_price_per_request_hd,omitempty"`
+	WebSearchPricePerCall           *float64 `json:"web_search_price_per_call,omitempty"`
 	ClaudeCodeOnly                  bool     `json:"claude_code_only"`
 	FallbackGroupID                 *int64   `json:"fallback_group_id,omitempty"`
 	FallbackGroupIDOnInvalidRequest *int64   `json:"fallback_group_id_on_invalid_request,omitempty"`
@@ -75,9 +86,15 @@ type APIKeyAuthGroupSnapshot struct {
 	SupportedModelScopes []string `json:"supported_model_scopes,omitempty"`
 
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
-	AllowMessagesDispatch bool   `json:"allow_messages_dispatch"`
-	AllowLive             bool   `json:"allow_live"`
-	DefaultMappedModel    string `json:"default_mapped_model,omitempty"`
+	AllowMessagesDispatch       bool                              `json:"allow_messages_dispatch"`
+	AllowLive                   bool                              `json:"allow_live"`
+	DefaultMappedModel          string                            `json:"default_mapped_model,omitempty"`
+	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config,omitempty"`
+
+	// MaxReasoningEffort OpenAI/Codex 请求的推理强度上限，空字符串表示不限制。
+	MaxReasoningEffort string `json:"max_reasoning_effort,omitempty"`
+	// ReasoningEffortMappings rewrites explicit effort values before the ceiling.
+	ReasoningEffortMappings []ReasoningEffortMapping `json:"reasoning_effort_mappings"`
 }
 
 // APIKeyAuthCacheEntry 缓存条目，支持负缓存
