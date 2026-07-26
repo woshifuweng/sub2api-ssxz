@@ -402,7 +402,8 @@ const fetchHistory = async () => {
   historyLoadFailed.value = false
 
   try {
-    history.value = await redeemAPI.getHistory()
+    const response = await redeemAPI.getHistory({ page: 1, page_size: 25 })
+    history.value = response.items
   } catch {
     history.value = []
     historyLoadFailed.value = true
