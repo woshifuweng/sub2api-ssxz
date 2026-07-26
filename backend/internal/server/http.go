@@ -61,22 +61,31 @@ func ProvideRouter(
 
 	r := gin.New()
 	r.Use(middleware2.Recovery())
-	if len(cfg.Server.TrustedProxies) > 0 {
-		if err := r.SetTrustedProxies(cfg.Server.TrustedProxies); err != nil {
-			log.Printf("Failed to set trusted proxies: %v", err)
-		}
-	} else {
-		if err := r.SetTrustedProxies(nil); err != nil {
-			log.Printf("Failed to disable trusted proxies: %v", err)
-		}
-		if cfg.Server.Mode == "release" {
-			log.Printf("Warning: server.trusted_proxies is empty in release mode; client IP trust chain is disabled")
-		}
-	}
+	configureTrustedProxies(r, cfg.Server)
 
 	router := SetupRouter(r, handlers, jwtAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, redisClient, frontendServer)
 	registerRouterExecutableRuntimeConfig(router, buildExecutableRuntimeConfig(cfg, handlers, apiKeyService, subscriptionService, settingService, authService, userService, redisClient, frontendServer, auditService))
 	return router
+}
+
+// configureTrustedProxies applies the trusted proxy trust chain to the engine.
+// A non-empty list is installed as-is; an empty list explicitly disables the
+// trust chain so that forwarded headers are ignored and ClientIP falls back to
+// the transport peer address. Installation failures (e.g. malformed CIDR) leave
+// gin without any trusted CIDR, which also fails closed.
+func configureTrustedProxies(r *gin.Engine, serverCfg config.ServerConfig) {
+	if len(serverCfg.TrustedProxies) > 0 {
+		if err := r.SetTrustedProxies(serverCfg.TrustedProxies); err != nil {
+			log.Printf("Failed to set trusted proxies: %v", err)
+		}
+		return
+	}
+	if err := r.SetTrustedProxies(nil); err != nil {
+		log.Printf("Failed to disable trusted proxies: %v", err)
+	}
+	if serverCfg.Mode == "release" {
+		log.Printf("Warning: server.trusted_proxies is empty in release mode; client IP trust chain is disabled")
+	}
 }
 
 // BuildHTTPHandler wraps the base HTTP handler with server-level transport features
