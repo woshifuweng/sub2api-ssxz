@@ -54,6 +54,7 @@ interface MockAuthState {
   backendModeEnabled: boolean
   paymentEnabled?: boolean
   affiliateEnabled?: boolean
+  channelMonitorEnabled?: boolean
 }
 
 const backendModeAllowedPaths = [
@@ -135,6 +136,10 @@ function simulateGuard(
   }
 
   if (toPath.startsWith('/app/affiliate') && !(authState.affiliateEnabled ?? true)) {
+    return '/app/dashboard'
+  }
+
+  if (toPath.startsWith('/app/channel-status') && !(authState.channelMonitorEnabled ?? true)) {
     return '/app/dashboard'
   }
 
@@ -376,6 +381,30 @@ describe('路由守卫逻辑', () => {
       }
 
       expect(simulateGuard('/app/affiliate', {}, authState)).toBe('/app/dashboard')
+    })
+
+    it('redirects /app/channel-status when channel monitoring is disabled', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: false,
+        channelMonitorEnabled: false,
+      }
+
+      expect(simulateGuard('/app/channel-status', {}, authState)).toBe('/app/dashboard')
+    })
+
+    it('keeps /app/channel-status available while channel monitoring is enabled', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: true,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: false,
+        channelMonitorEnabled: true,
+      }
+
+      expect(simulateGuard('/app/channel-status', {}, authState)).toBeNull()
     })
   })
 

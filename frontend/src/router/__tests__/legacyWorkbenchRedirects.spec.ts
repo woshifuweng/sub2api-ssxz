@@ -52,7 +52,7 @@ describe('legacy user routes', () => {
     ['/app/redeem', '兑换码'],
     ['/app/affiliate', '邀请返利'],
     ['/app/available-channels', '模型价格'],
-    ['/app/channel-status', '通道状态'],
+    ['/app/channel-status', '渠道状态'],
     ['/app/keys', 'API Key / 第三方接入'],
     ['/app/profile', '个人资料'],
   ])('uses SSXZ AI as the user workbench document title site name for %s', (path, title) => {

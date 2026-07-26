@@ -278,7 +278,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: '通道状态',
+      title: '渠道状态',
       titleKey: 'nav.channelStatus',
       appSection: 'channel-status',
       titleSiteName: 'SSXZ AI'
@@ -842,6 +842,15 @@ router.beforeEach((to, _from, next) => {
     to.path.startsWith('/app/affiliate') &&
     appStore.cachedPublicSettings &&
     !appStore.cachedPublicSettings.affiliate_enabled
+  ) {
+    next(DEFAULT_AUTH_REDIRECT)
+    return
+  }
+
+  if (
+    to.path.startsWith('/app/channel-status') &&
+    appStore.cachedPublicSettings &&
+    !appStore.cachedPublicSettings.channel_monitor_enabled
   ) {
     next(DEFAULT_AUTH_REDIRECT)
     return
