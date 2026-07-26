@@ -1783,6 +1783,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		RegistrationEmailSuffixWhitelist:                       updatedSettings.RegistrationEmailSuffixWhitelist,
 		PromoCodeEnabled:                                       updatedSettings.PromoCodeEnabled,
 		PasswordResetEnabled:                                   updatedSettings.PasswordResetEnabled,
+		PasswordResetEnabledStored:                             updatedSettings.PasswordResetEnabledStored,
 		FrontendURL:                                            updatedSettings.FrontendURL,
 		InvitationCodeEnabled:                                  updatedSettings.InvitationCodeEnabled,
 		TotpEnabled:                                            updatedSettings.TotpEnabled,
@@ -2014,7 +2015,20 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	} else {
 		payload.DefaultPlatformQuotas = platformQuotas
 	}
-	response.Success(c, systemSettingsResponseData(payload, updatedAuthSourceDefaults))
+	responseData := systemSettingsResponseData(payload, updatedAuthSourceDefaults)
+	// 非阻断的配置提示：保存已经落库成功，这里只是在成功响应里附带可读警告，
+	// 让管理台能提示「保存成功但该功能会静默失效」，绝不改变状态码或既有字段。
+	// password_reset_enabled 用落库后的原始存储值 PasswordResetEnabledStored，
+	// 而不是 updatedSettings.PasswordResetEnabled（后者与 email_verify_enabled 取与，
+	// 「邮件验证关 + 密码重置开」这种最危险的组合反而拿不到提示）。
+	// 与 payload 里回给前端的 password_reset_enabled_stored 同源，保证提示与渲染判据一致。
+	// frontend_url 走 GetFrontendURL 拿生效值（DB 优先、fallback 配置文件），避免误报。
+	responseData["warnings"] = collectSettingConfigWarnings(settingConfigWarningInput{
+		PasswordResetEnabled: updatedSettings.PasswordResetEnabledStored,
+		FrontendURL:          h.settingService.GetFrontendURL(c.Request.Context()),
+		ContactInfo:          updatedSettings.ContactInfo,
+	})
+	response.Success(c, responseData)
 }
 
 // hasPaymentFields returns true if any payment-related field was explicitly provided.

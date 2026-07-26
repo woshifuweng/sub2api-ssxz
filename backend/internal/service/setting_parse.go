@@ -296,10 +296,13 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		RegistrationEmailSuffixWhitelist: ParseRegistrationEmailSuffixWhitelist(settings[SettingKeyRegistrationEmailSuffixWhitelist]),
 		PromoCodeEnabled:                 settings[SettingKeyPromoCodeEnabled] != "false", // 默认启用
 		PasswordResetEnabled:             emailVerifyEnabled && settings[SettingKeyPasswordResetEnabled] == "true",
-		FrontendURL:                      settings[SettingKeyFrontendURL],
-		InvitationCodeEnabled:            settings[SettingKeyInvitationCodeEnabled] == "true",
-		TotpEnabled:                      settings[SettingKeyTotpEnabled] == "true",
-		SessionBindingEnabled:            settings[SettingKeySessionBindingEnabled] == "true", // 默认关闭
+		// 原始存储值，刻意不与 emailVerifyEnabled 取与：管理台要能区分
+		// 「没开」与「开了但被邮箱验证压住」，否则空 frontend_url 的隐患无法呈现。
+		PasswordResetEnabledStored: settings[SettingKeyPasswordResetEnabled] == "true",
+		FrontendURL:                settings[SettingKeyFrontendURL],
+		InvitationCodeEnabled:      settings[SettingKeyInvitationCodeEnabled] == "true",
+		TotpEnabled:                settings[SettingKeyTotpEnabled] == "true",
+		SessionBindingEnabled:      settings[SettingKeySessionBindingEnabled] == "true", // 默认关闭
 		StepUpEnabled:                    settings[SettingKeyStepUpEnabled] == "true",         // 默认关闭
 		AuditLogRetentionDays:            parseAuditLogRetentionDays(settings[SettingKeyAuditLogRetentionDays]),
 		LoginAgreementEnabled:            settings[SettingKeyLoginAgreementEnabled] == "true",

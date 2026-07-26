@@ -5625,6 +5625,14 @@ export default {
         frontendUrl: 'Frontend URL',
         frontendUrlPlaceholder: 'https://example.com',
         frontendUrlHint: 'Used to generate password reset links in emails. Example: https://example.com',
+        frontendUrlMissingWarning:
+          'Password reset is enabled but the frontend URL is empty: customers who request a reset never receive the email, even though the page tells them it was sent. Enter the site address your users actually open (including http:// or https://, e.g. https://example.com) — not your API domain.',
+        frontendUrlLatentWarning:
+          'Password reset is switched on in your configuration, but email verification is currently off, so password reset is not in effect yet — no reset emails are being lost right now. The risk is the empty frontend URL: the moment you enable email verification, reset emails start failing silently (customers receive nothing while the page reports success). Fill in the site address your users actually open now (including http:// or https://, e.g. https://example.com) — not your API domain.',
+        frontendUrlInvalidHint:
+          'Invalid frontend URL. It must be an absolute address starting with http:// or https://, e.g. https://example.com. Saving will be rejected.',
+        frontendUrlInvalidError:
+          'Invalid frontend URL: it must be an absolute address starting with http:// or https:// (e.g. https://example.com). Your input was kept — please fix it and save again.',
         totp: 'Two-Factor Authentication (2FA)',
         totpHint: 'Allow users to use authenticator apps like Google Authenticator',
         totpKeyNotConfigured:
@@ -5724,6 +5732,8 @@ export default {
         contactInfo: 'Contact Info',
         contactInfoPlaceholder: 'e.g., QQ: 123456789',
         contactInfoHint: 'Customer support contact info, displayed on redeem page, profile, etc.',
+        contactInfoMissingHint:
+          'No contact info is set: users who are banned or locked out have no way to appeal. Provide at least one reachable support channel.',
         docUrl: 'Documentation URL',
         docUrlPlaceholder: 'https://docs.example.com',
         docUrlHint: 'Link to your documentation site. Leave empty to hide the documentation link.',

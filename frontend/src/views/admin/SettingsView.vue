@@ -972,11 +972,51 @@
               </div>
               <Toggle v-model="form.password_reset_enabled" />
             </div>
-            <!-- Frontend URL - Only show when password reset is enabled -->
+            <!-- Frontend URL - 判据用 passwordResetIntended（基于 password_reset_enabled_stored），
+                 不能用 form.password_reset_enabled：后者是与 email_verify_enabled 取与后的生效值，
+                 邮箱验证关闭时恒为 false，会把「配置开着但未生效」的隐患整块藏起来 -->
             <div
-              v-if="form.email_verify_enabled && form.password_reset_enabled"
+              v-if="passwordResetIntended"
               class="border-t border-gray-100 pt-4 dark:border-dark-700"
             >
+              <!-- 状态 A：正在静默失败 —— 邮箱验证开着、重置开着、前端地址为空，
+                   客户此刻点重置就收不到邮件，页面却显示发送成功 -->
+              <div
+                v-if="passwordResetSilentlyFailing"
+                data-testid="settings-frontend-url-missing-warning"
+                class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
+              >
+                <div class="flex items-start">
+                  <Icon
+                    name="exclamationTriangle"
+                    size="md"
+                    class="mt-0.5 flex-shrink-0 text-amber-500"
+                  />
+                  <p class="ml-3 text-sm text-amber-700 dark:text-amber-300">
+                    {{ t('admin.settings.registration.frontendUrlMissingWarning') }}
+                  </p>
+                </div>
+              </div>
+
+              <!-- 状态 B：潜伏 —— 重置在 DB 里是开的，但邮箱验证关着，功能当前未生效，
+                   所以现在并没有在静默失败。文案必须与状态 A 区分，不能报未发生的故障 -->
+              <div
+                v-else-if="passwordResetLatentlyMisconfigured"
+                data-testid="settings-frontend-url-latent-warning"
+                class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
+              >
+                <div class="flex items-start">
+                  <Icon
+                    name="exclamationTriangle"
+                    size="md"
+                    class="mt-0.5 flex-shrink-0 text-amber-500"
+                  />
+                  <p class="ml-3 text-sm text-amber-700 dark:text-amber-300">
+                    {{ t('admin.settings.registration.frontendUrlLatentWarning') }}
+                  </p>
+                </div>
+              </div>
+
               <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                 {{ t('admin.settings.registration.frontendUrl') }}
               </label>
@@ -984,10 +1024,18 @@
                 v-model="form.frontend_url"
                 type="url"
                 class="input"
+                data-testid="settings-frontend-url-input"
                 :placeholder="t('admin.settings.registration.frontendUrlPlaceholder')"
               />
               <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                 {{ t('admin.settings.registration.frontendUrlHint') }}
+              </p>
+              <p
+                v-if="frontendUrlFormatInvalid"
+                data-testid="settings-frontend-url-format-hint"
+                class="mt-2 text-xs text-amber-600 dark:text-amber-400"
+              >
+                {{ t('admin.settings.registration.frontendUrlInvalidHint') }}
               </p>
             </div>
 
@@ -1639,10 +1687,19 @@
                 v-model="form.contact_info"
                 type="text"
                 class="input"
+                data-testid="settings-contact-info-input"
                 :placeholder="t('admin.settings.site.contactInfoPlaceholder')"
               />
               <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                 {{ t('admin.settings.site.contactInfoHint') }}
+              </p>
+              <!-- Empty contact info leaves locked-out users without any appeal channel -->
+              <p
+                v-if="contactInfoMissing"
+                data-testid="settings-contact-info-missing-hint"
+                class="mt-2 text-xs text-amber-600 dark:text-amber-400"
+              >
+                {{ t('admin.settings.site.contactInfoMissingHint') }}
               </p>
             </div>
 
@@ -2428,6 +2485,62 @@ const form = reactive<SettingsForm>({
   auto_delete_useless_proxies: false
 })
 
+// Validate URL fields — the form uses `novalidate`, so browser-native checks are off.
+// Shared by the inline field hints and by saveSettings().
+function isValidHttpUrl(url: string): boolean {
+  if (!url) return true
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+// DB 里 password_reset_enabled 的原始存储值（未与 email_verify_enabled 取与）。
+// 后端返回的 form.password_reset_enabled 是取与后的生效值：邮箱验证关闭时恒为 false，
+// 因此它**不能**用来判断「密码重置是否被配置过」。老后端不返回 stored 字段时回退到生效值。
+const passwordResetEnabledStored = ref(false)
+
+function syncPasswordResetStored(settings: {
+  password_reset_enabled: boolean
+  password_reset_enabled_stored?: boolean
+}) {
+  passwordResetEnabledStored.value =
+    settings.password_reset_enabled_stored ?? settings.password_reset_enabled
+  // form 必须持有**原始意图**，而不是后端取与后的生效值。
+  // 否则邮箱验证关闭时 form.password_reset_enabled 被种成 false，管理员一旦在页面上打开
+  // 邮箱验证开关（这恰恰是状态 B 文案引导他做的事），判据会瞬间塌回 false：
+  // 潜伏告警消失、状态 A 告警不出现、frontend_url 输入框消失，保存还会把 DB 里的 true 抹掉。
+  form.password_reset_enabled = passwordResetEnabledStored.value
+}
+
+// 管理员对「忘记密码」的真实意图。form 已在 syncPasswordResetStored 里被种成原始存储值，
+// 因此这里直接取 form 即可：邮箱验证开启时它是开关的实时值，关闭时它保持 DB 原始值不变
+// （开关不渲染，无人能改它），跨越 email_verify 开关切换时也不会失真。
+const passwordResetIntended = computed(() => form.password_reset_enabled)
+
+const frontendUrlMissing = computed(() => !(form.frontend_url || '').trim())
+
+// 状态 A「正在静默失败」：邮箱验证开着、密码重置开着、frontend_url 为空。
+// 此刻客户点重置就收不到邮件，页面还显示发送成功 —— 紧急措辞成立。
+const passwordResetSilentlyFailing = computed(
+  () => passwordResetIntended.value && form.email_verify_enabled && frontendUrlMissing.value
+)
+
+// 状态 B「潜伏」：密码重置存的是 true，但邮箱验证关着，重置功能因取与而未生效。
+// 此刻**没有**在静默失败，不能套用状态 A 的文案；一旦开启邮箱验证才会立刻开始静默失败。
+const passwordResetLatentlyMisconfigured = computed(
+  () => passwordResetIntended.value && !form.email_verify_enabled && frontendUrlMissing.value
+)
+
+const frontendUrlFormatInvalid = computed(() => {
+  const value = (form.frontend_url || '').trim()
+  return value !== '' && !isValidHttpUrl(value)
+})
+
+const contactInfoMissing = computed(() => !(form.contact_info || '').trim())
+
 const defaultSubscriptionGroupOptions = computed<DefaultSubscriptionGroupOption[]>(() =>
   subscriptionGroups.value.map((group) => ({
     value: group.id,
@@ -2626,6 +2739,9 @@ async function loadSettings() {
   try {
     const settings = await adminAPI.settings.getSettings()
     Object.assign(form, settings)
+    // Object.assign 只能把取与后的 password_reset_enabled 灌进 form，
+    // 原始存储值必须单独留一份，否则邮箱验证关闭时告警判据就没了。
+    syncPasswordResetStored(settings)
     form.backend_mode_enabled = settings.backend_mode_enabled
     form.default_subscriptions = Array.isArray(settings.default_subscriptions)
       ? settings.default_subscriptions
@@ -2705,18 +2821,14 @@ async function saveSettings() {
       return
     }
 
-    // Validate URL fields — novalidate disables browser-native checks, so we validate here
-    const isValidHttpUrl = (url: string): boolean => {
-      if (!url) return true
-      try {
-        const u = new URL(url)
-        return u.protocol === 'http:' || u.protocol === 'https:'
-      } catch {
-        return false
-      }
+    // frontend_url drives password reset links. Never silently discard what the admin typed:
+    // a cleared value looks saved but puts password reset right back into silent-failure mode.
+    if (!isValidHttpUrl(form.frontend_url)) {
+      appStore.showError(t('admin.settings.registration.frontendUrlInvalidError'))
+      return
     }
+
     // Optional URL fields: auto-clear invalid values so they don't cause backend 400 errors
-    if (!isValidHttpUrl(form.frontend_url)) form.frontend_url = ''
     if (!isValidHttpUrl(form.doc_url)) form.doc_url = ''
     if (!isValidHttpUrl(form.purchase_link_cny_10)) form.purchase_link_cny_10 = ''
     if (!isValidHttpUrl(form.purchase_link_cny_30)) form.purchase_link_cny_30 = ''
@@ -2745,6 +2857,9 @@ async function saveSettings() {
       ),
       promo_code_enabled: form.promo_code_enabled,
       invitation_code_enabled: form.invitation_code_enabled,
+      // form.password_reset_enabled 在 syncPasswordResetStored 里已被种成 DB 原始存储值，
+      // 邮箱验证关闭时开关不渲染、无人能改它，因此原样回传不会把 DB 里的 true 抹掉。
+      // 生效语义不受影响：后端仍与 email_verify_enabled 取与。
       password_reset_enabled: form.password_reset_enabled,
       totp_enabled: form.totp_enabled,
       default_balance: form.default_balance,
@@ -2802,6 +2917,9 @@ async function saveSettings() {
     }
     const updated = await adminAPI.settings.updateSettings(payload)
     Object.assign(form, updated)
+    // Object.assign 会把 form.password_reset_enabled 刷成取与后的值；
+    // 告警判据必须跟着落库的原始值走，否则保存成功那一刻告警就凭空消失，而 DB 里隐患还在。
+    syncPasswordResetStored(updated)
     registrationEmailSuffixWhitelistTags.value = normalizeRegistrationEmailSuffixDomains(
       updated.registration_email_suffix_whitelist
     )
