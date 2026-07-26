@@ -116,6 +116,10 @@ vi.mock('@/components/common/DataTable.vue', () => ({
       >
         <div v-for="row in data" :key="row.id" data-testid="data-row">
           <slot name="cell-key" :value="row.key" :row="row" />
+          <slot name="cell-group" :row="row" />
+          <slot name="cell-usage" :row="row" />
+          <slot name="cell-rate_limit" :row="row" />
+          <slot name="cell-status" :value="row.status" :row="row" />
           <slot name="cell-actions" :row="row" />
         </div>
         <slot v-if="!data.length" name="empty" />
@@ -403,6 +407,125 @@ describe('KeysView workbench surface', () => {
     ])
     expect(persistentButtons.every((button) => button.get('.sr-only').exists())).toBe(true)
     expect(actions.find('.keys-more-actions').exists()).toBe(false)
+  })
+
+  it('renders quota usage as a single line with details in the tooltip', async () => {
+    keysAPI.list.mockResolvedValue({
+      items: [apiKeyFixture({ quota: 3, quota_used: 0.37 })],
+      total: 1,
+      pages: 1
+    })
+    usageAPI.getDashboardApiKeysUsage.mockResolvedValue({
+      stats: { '1': { api_key_id: 1, today_actual_cost: 0.12, total_actual_cost: 0.37 } }
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const usageCell = wrapper.get('[data-testid="keys-usage-cell"]')
+    expect(usageCell.text()).toContain('0.37')
+    expect(usageCell.text()).toContain('3.00')
+    expect(usageCell.find('.keys-usage-bar').exists()).toBe(true)
+    const title = usageCell.attributes('title') ?? ''
+    expect(title).toContain('keys.today')
+    expect(title).toContain('keys.total')
+    expect(title).toContain('keys.quota')
+    expect(usageCell.text()).not.toContain('keys.today')
+  })
+
+  it('renders total usage as a single line when no quota is set', async () => {
+    keysAPI.list.mockResolvedValue({
+      items: [apiKeyFixture()],
+      total: 1,
+      pages: 1
+    })
+    usageAPI.getDashboardApiKeysUsage.mockResolvedValue({
+      stats: { '1': { api_key_id: 1, today_actual_cost: 0.12, total_actual_cost: 1.5 } }
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const usageCell = wrapper.get('[data-testid="keys-usage-cell"]')
+    expect(usageCell.text()).toContain('1.50')
+    expect(usageCell.find('.keys-usage-bar').exists()).toBe(false)
+    const title = usageCell.attributes('title') ?? ''
+    expect(title).toContain('keys.today')
+    expect(title).not.toContain('keys.quota')
+  })
+
+  it('collapses rate-limit windows into a single line showing the tightest window', async () => {
+    keysAPI.list.mockResolvedValue({
+      items: [
+        apiKeyFixture({
+          rate_limit_5h: 10,
+          usage_5h: 1,
+          rate_limit_1d: 20,
+          usage_1d: 15
+        })
+      ],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="keys-column-settings-trigger"]').trigger('click')
+    await wrapper.get('[data-column-key="rate_limit"]').trigger('click')
+
+    const rateCell = wrapper.get('[data-testid="keys-rate-limit-cell"]')
+    expect(rateCell.text()).toContain('1d')
+    expect(rateCell.text()).toContain('15.00')
+    expect(rateCell.text()).toContain('20.00')
+    const title = rateCell.attributes('title') ?? ''
+    expect(title).toContain('5h')
+    expect(title).toContain('1d')
+  })
+
+  it('shows a neutral status dot instead of a colored badge', async () => {
+    keysAPI.list.mockResolvedValue({
+      items: [apiKeyFixture()],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const statusCell = wrapper.get('[data-testid="keys-status-cell"]')
+    expect(statusCell.find('.keys-status-dot').exists()).toBe(true)
+    expect(statusCell.find('.keys-status-dot--danger').exists()).toBe(false)
+    expect(statusCell.find('.badge').exists()).toBe(false)
+    expect(statusCell.text()).toContain('keys.status.active')
+  })
+
+  it('marks abnormal key statuses with a danger dot', async () => {
+    keysAPI.list.mockResolvedValue({
+      items: [apiKeyFixture({ status: 'quota_exhausted' })],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const statusCell = wrapper.get('[data-testid="keys-status-cell"]')
+    expect(statusCell.find('.keys-status-dot--danger').exists()).toBe(true)
+  })
+
+  it('renders group badges with the outline variant and no inline edit affordance', async () => {
+    keysAPI.list.mockResolvedValue({
+      items: [apiKeyFixture({ groups: [groupFixture({ platform: 'anthropic' })] })],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const badge = wrapper.get('[data-testid="group-badge"]')
+    expect(badge.attributes('variant')).toBe('outline')
   })
 
   it('keeps the pagination section when API keys exist', async () => {

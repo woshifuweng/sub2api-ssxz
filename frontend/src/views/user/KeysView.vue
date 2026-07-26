@@ -132,7 +132,7 @@
                 :class="[
                   'hover:bg-gray-100 dark:hover:bg-dark-700',
                   copiedKeyId === row.id
-                    ? 'text-green-500'
+                    ? 'text-primary-600 dark:text-primary-400'
                     : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
                 ]"
                 :title="
@@ -181,6 +181,7 @@
                     :platform="group.platform"
                     :subscription-type="group.subscription_type"
                     :show-rate="false"
+                    variant="outline"
                   />
                   <span
                     v-if="row.groups && row.groups.length > 2"
@@ -192,161 +193,81 @@
                 <span v-else class="text-sm text-gray-400 dark:text-dark-500">{{
                   t('keys.noGroup')
                 }}</span>
-                <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('common.edit') }}</span>
-                <svg
-                  class="h-3.5 w-3.5 text-gray-400 opacity-60 transition-opacity group-hover/dropdown:opacity-100"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  stroke-width="2"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9"
-                  />
-                </svg>
               </button>
             </div>
           </template>
 
           <template #cell-usage="{ row }">
-            <div class="text-sm">
-              <div class="flex items-center gap-1.5">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('keys.today') }}:</span>
-                <span class="font-medium text-gray-900 dark:text-white" :title="formatCurrencyTitle(usageStats[row.id]?.today_actual_cost ?? 0)">
-                  {{ formatCurrency(usageStats[row.id]?.today_actual_cost ?? 0) }}
-                </span>
-              </div>
-              <div class="mt-0.5 flex items-center gap-1.5">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('keys.total') }}:</span>
-                <span class="font-medium text-gray-900 dark:text-white" :title="formatCurrencyTitle(usageStats[row.id]?.total_actual_cost ?? 0)">
-                  {{ formatCurrency(usageStats[row.id]?.total_actual_cost ?? 0) }}
-                </span>
-              </div>
-              <!-- Quota progress (if quota is set) -->
-              <div v-if="row.quota > 0" class="mt-1.5">
-                <div class="flex items-center gap-1.5">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('keys.quota') }}:</span>
-                  <span :class="[
-                    'font-medium',
-                    row.quota_used >= row.quota ? 'text-red-500' :
-                    row.quota_used >= row.quota * 0.8 ? 'text-yellow-500' :
-                    'text-gray-900 dark:text-white'
-                  ]">
-                    {{ formatCurrency(row.quota_used || 0) }} / {{ formatCurrency(row.quota || 0) }}
-                  </span>
-                </div>
-                <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
-                  <div
+            <div
+              class="keys-usage-cell"
+              data-testid="keys-usage-cell"
+              :title="usageCellTitle(row)"
+            >
+              <template v-if="row.quota > 0">
+                <span class="keys-usage-bar">
+                  <span
                     :class="[
-                      'h-full rounded-full transition-all',
-                      row.quota_used >= row.quota ? 'bg-red-500' :
-                      row.quota_used >= row.quota * 0.8 ? 'bg-yellow-500' :
-                      'bg-primary-500'
+                      'keys-usage-bar__fill',
+                      row.quota_used >= row.quota ? 'keys-usage-bar__fill--danger' : ''
                     ]"
-                    :style="{ width: Math.min((row.quota_used / row.quota) * 100, 100) + '%' }"
+                    :style="{ width: Math.min(((row.quota_used || 0) / row.quota) * 100, 100) + '%' }"
                   />
-                </div>
-              </div>
+                </span>
+                <span
+                  :class="[
+                    'text-sm tabular-nums',
+                    row.quota_used >= row.quota
+                      ? 'font-medium text-red-500'
+                      : 'text-gray-500 dark:text-gray-400'
+                  ]"
+                >
+                  {{ formatCurrency(row.quota_used || 0) }} / {{ formatCurrency(row.quota || 0) }}
+                </span>
+              </template>
+              <span v-else class="text-sm tabular-nums text-gray-500 dark:text-gray-400">
+                {{ formatCurrency(usageStats[row.id]?.total_actual_cost ?? 0) }}
+              </span>
             </div>
           </template>
 
           <template #cell-rate_limit="{ row }">
-            <div v-if="row.rate_limit_5h > 0 || row.rate_limit_1d > 0 || row.rate_limit_7d > 0" class="space-y-1.5 min-w-[140px]">
-              <!-- 5h window -->
-              <div v-if="row.rate_limit_5h > 0">
-                <div class="flex items-center justify-between text-xs">
-                  <span class="text-gray-500 dark:text-gray-400">5h</span>
-                  <span :class="[
-                    'font-medium tabular-nums',
-                    row.usage_5h >= row.rate_limit_5h ? 'text-red-500' :
-                    row.usage_5h >= row.rate_limit_5h * 0.8 ? 'text-yellow-500' :
-                    'text-gray-700 dark:text-gray-300'
-                  ]">
-                    ${{ row.usage_5h?.toFixed(2) || '0.00' }}/${{ row.rate_limit_5h?.toFixed(2) }}
-                  </span>
-                </div>
-                <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
-                  <div
-                    :class="[
-                      'h-full rounded-full transition-all',
-                      row.usage_5h >= row.rate_limit_5h ? 'bg-red-500' :
-                      row.usage_5h >= row.rate_limit_5h * 0.8 ? 'bg-yellow-500' :
-                      'bg-primary-500'
-                    ]"
-                    :style="{ width: Math.min((row.usage_5h / row.rate_limit_5h) * 100, 100) + '%' }"
-                  />
-                </div>
-                <div v-if="row.reset_5h_at && formatResetTime(row.reset_5h_at)" class="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
-                  ⟳ {{ formatResetTime(row.reset_5h_at) }}
-                </div>
-              </div>
-              <!-- 1d window -->
-              <div v-if="row.rate_limit_1d > 0">
-                <div class="flex items-center justify-between text-xs">
-                  <span class="text-gray-500 dark:text-gray-400">1d</span>
-                  <span :class="[
-                    'font-medium tabular-nums',
-                    row.usage_1d >= row.rate_limit_1d ? 'text-red-500' :
-                    row.usage_1d >= row.rate_limit_1d * 0.8 ? 'text-yellow-500' :
-                    'text-gray-700 dark:text-gray-300'
-                  ]">
-                    ${{ row.usage_1d?.toFixed(2) || '0.00' }}/${{ row.rate_limit_1d?.toFixed(2) }}
-                  </span>
-                </div>
-                <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
-                  <div
-                    :class="[
-                      'h-full rounded-full transition-all',
-                      row.usage_1d >= row.rate_limit_1d ? 'bg-red-500' :
-                      row.usage_1d >= row.rate_limit_1d * 0.8 ? 'bg-yellow-500' :
-                      'bg-primary-500'
-                    ]"
-                    :style="{ width: Math.min((row.usage_1d / row.rate_limit_1d) * 100, 100) + '%' }"
-                  />
-                </div>
-                <div v-if="row.reset_1d_at && formatResetTime(row.reset_1d_at)" class="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
-                  ⟳ {{ formatResetTime(row.reset_1d_at) }}
-                </div>
-              </div>
-              <!-- 7d window -->
-              <div v-if="row.rate_limit_7d > 0">
-                <div class="flex items-center justify-between text-xs">
-                  <span class="text-gray-500 dark:text-gray-400">7d</span>
-                  <span :class="[
-                    'font-medium tabular-nums',
-                    row.usage_7d >= row.rate_limit_7d ? 'text-red-500' :
-                    row.usage_7d >= row.rate_limit_7d * 0.8 ? 'text-yellow-500' :
-                    'text-gray-700 dark:text-gray-300'
-                  ]">
-                    ${{ row.usage_7d?.toFixed(2) || '0.00' }}/${{ row.rate_limit_7d?.toFixed(2) }}
-                  </span>
-                </div>
-                <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
-                  <div
-                    :class="[
-                      'h-full rounded-full transition-all',
-                      row.usage_7d >= row.rate_limit_7d ? 'bg-red-500' :
-                      row.usage_7d >= row.rate_limit_7d * 0.8 ? 'bg-yellow-500' :
-                      'bg-primary-500'
-                    ]"
-                    :style="{ width: Math.min((row.usage_7d / row.rate_limit_7d) * 100, 100) + '%' }"
-                  />
-                </div>
-                <div v-if="row.reset_7d_at && formatResetTime(row.reset_7d_at)" class="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
-                  ⟳ {{ formatResetTime(row.reset_7d_at) }}
-                </div>
-              </div>
-              <!-- Reset button -->
+            <div
+              v-if="tightestRateWindow(row)"
+              class="keys-usage-cell"
+              data-testid="keys-rate-limit-cell"
+              :title="rateLimitCellTitle(row)"
+            >
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ tightestRateWindow(row)!.label }}</span>
+              <span class="keys-usage-bar">
+                <span
+                  :class="[
+                    'keys-usage-bar__fill',
+                    tightestRateWindow(row)!.usage >= tightestRateWindow(row)!.limit
+                      ? 'keys-usage-bar__fill--danger'
+                      : ''
+                  ]"
+                  :style="{ width: Math.min((tightestRateWindow(row)!.usage / tightestRateWindow(row)!.limit) * 100, 100) + '%' }"
+                />
+              </span>
+              <span
+                :class="[
+                  'text-sm tabular-nums',
+                  tightestRateWindow(row)!.usage >= tightestRateWindow(row)!.limit
+                    ? 'font-medium text-red-500'
+                    : 'text-gray-500 dark:text-gray-400'
+                ]"
+              >
+                {{ formatCurrency(tightestRateWindow(row)!.usage) }} / {{ formatCurrency(tightestRateWindow(row)!.limit) }}
+              </span>
               <button
                 v-if="row.usage_5h > 0 || row.usage_1d > 0 || row.usage_7d > 0"
                 @click.stop="confirmResetRateLimitFromTable(row)"
-                class="mt-0.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                class="keys-action-button !h-7 !w-7"
                 :title="t('keys.resetRateLimitUsage')"
+                :aria-label="t('keys.resetRateLimitUsage')"
               >
                 <Icon name="refresh" size="xs" />
-                {{ t('keys.resetUsage') }}
+                <span class="sr-only">{{ t('keys.resetRateLimitUsage') }}</span>
               </button>
             </div>
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
@@ -363,14 +284,20 @@
           </template>
 
           <template #cell-status="{ value }">
-            <span :class="[
-              'badge',
-              value === 'active' ? 'badge-success' :
-              value === 'quota_exhausted' ? 'badge-warning' :
-              value === 'expired' ? 'badge-danger' :
-              'badge-gray'
-            ]">
-              {{ t('keys.status.' + value) }}
+            <span class="keys-status-cell" data-testid="keys-status-cell">
+              <span
+                :class="[
+                  'keys-status-dot',
+                  value === 'quota_exhausted' || value === 'expired'
+                    ? 'keys-status-dot--danger'
+                    : value === 'inactive'
+                      ? 'keys-status-dot--muted'
+                      : ''
+                ]"
+              />
+              <span class="text-sm text-gray-500 dark:text-gray-400">
+                {{ t('keys.status.' + value) }}
+              </span>
             </span>
           </template>
 
@@ -430,9 +357,7 @@
                 :class="[
                   'keys-action-button',
                   statusUpdatingKeyId === row.id ? 'cursor-not-allowed opacity-50' : '',
-                  row.status === 'active'
-                    ? 'keys-action-button--warning'
-                    : 'keys-action-button--primary'
+                  row.status === 'active' ? '' : 'keys-action-button--primary'
                 ]"
               >
                 <Icon v-if="row.status === 'active'" name="ban" size="sm" />
@@ -1724,7 +1649,7 @@ const statusOptions = computed(() => [
 ])
 
 function formatGroupDisplayName(group: Pick<Group, 'name'>) {
-  return group.name.trim()
+  return group.name?.trim() || ''
 }
 
 function formatGroupDescription(group: Pick<Group, 'description'>) {
@@ -2006,7 +1931,7 @@ const loadApiKeys = async () => {
       try {
         const usageResponse = await usageAPI.getDashboardApiKeysUsage(keyIds, { signal })
         if (signal.aborted) return
-        usageStats.value = usageResponse.stats
+        usageStats.value = usageResponse.stats ?? {}
       } catch (e) {
         if (!isAbortError(e)) {
           console.error('Failed to load usage stats:', e)
@@ -2516,6 +2441,58 @@ function formatResetTime(resetAt: string | null): string {
   return `${mins}m`
 }
 
+const usageCellTitle = (row: ApiKey): string => {
+  const stats = usageStats.value[row.id]
+  const parts = [
+    `${t('keys.today')} ${formatCurrencyTitle(stats?.today_actual_cost ?? 0)}`,
+    `${t('keys.total')} ${formatCurrencyTitle(stats?.total_actual_cost ?? 0)}`
+  ]
+  if (row.quota > 0) {
+    parts.push(
+      `${t('keys.quota')} ${formatCurrency(row.quota_used || 0)} / ${formatCurrency(row.quota || 0)}`
+    )
+  }
+  return parts.join(' · ')
+}
+
+interface RateWindow {
+  label: string
+  usage: number
+  limit: number
+  resetAt: string | null
+}
+
+const rateLimitWindows = (row: ApiKey): RateWindow[] => {
+  const windows: RateWindow[] = []
+  if (row.rate_limit_5h > 0) {
+    windows.push({ label: '5h', usage: row.usage_5h || 0, limit: row.rate_limit_5h, resetAt: row.reset_5h_at || null })
+  }
+  if (row.rate_limit_1d > 0) {
+    windows.push({ label: '1d', usage: row.usage_1d || 0, limit: row.rate_limit_1d, resetAt: row.reset_1d_at || null })
+  }
+  if (row.rate_limit_7d > 0) {
+    windows.push({ label: '7d', usage: row.usage_7d || 0, limit: row.rate_limit_7d, resetAt: row.reset_7d_at || null })
+  }
+  return windows
+}
+
+const tightestRateWindow = (row: ApiKey): RateWindow | null => {
+  const windows = rateLimitWindows(row)
+  if (windows.length === 0) return null
+  return windows.reduce((tightest, current) =>
+    current.usage / current.limit > tightest.usage / tightest.limit ? current : tightest
+  )
+}
+
+const rateLimitCellTitle = (row: ApiKey): string =>
+  rateLimitWindows(row)
+    .map((window) => {
+      const reset = window.resetAt ? formatResetTime(window.resetAt) : ''
+      const base = `${window.label} ${formatCurrency(window.usage)} / ${formatCurrency(window.limit)}`
+      return reset ? `${base} (⟳ ${reset})` : base
+    })
+    .join(' · ')
+
 onMounted(() => {
   loadSavedColumns()
   loadApiKeys()
@@ -2678,6 +2655,9 @@ onUnmounted(() => {
 }
 
 .keys-page-surface--workbench :deep(.table-scroll-container td) {
+  height: 3.5rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
   border-color: color-mix(in srgb, var(--ssxz-border) 62%, transparent);
   color: var(--ssxz-body);
   white-space: normal;
@@ -2694,6 +2674,58 @@ onUnmounted(() => {
   justify-content: flex-end;
   gap: 0.35rem;
   white-space: nowrap;
+}
+
+.keys-usage-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.keys-usage-bar {
+  display: inline-block;
+  width: 3.5rem;
+  height: 0.25rem;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ssxz-border) 80%, transparent);
+}
+
+.keys-usage-bar__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ssxz-action);
+  transition: width 0.2s ease;
+}
+
+.keys-usage-bar__fill--danger {
+  background: hsl(var(--destructive));
+}
+
+.keys-status-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.keys-status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--ssxz-text-muted);
+}
+
+.keys-status-dot--muted {
+  background: var(--ssxz-border-strong);
+}
+
+.keys-status-dot--danger {
+  background: hsl(var(--destructive));
 }
 
 .keys-action-button {
@@ -2735,10 +2767,6 @@ onUnmounted(() => {
 
 .keys-action-button--primary:hover {
   color: var(--ssxz-action);
-}
-
-.keys-action-button--warning:hover {
-  color: hsl(var(--warning));
 }
 
 .keys-action-button--danger:hover {
