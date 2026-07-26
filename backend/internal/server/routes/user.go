@@ -23,6 +23,7 @@ func ExecutableUserRoutes(h *handler.Handlers) []gatewayctx.RouteDef {
 			gatewayctx.RouteDef{Method: http.MethodPut, Path: "/api/v1/user/avatar", Handler: h.User.UpdateAvatarGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
 			gatewayctx.RouteDef{Method: http.MethodPut, Path: "/api/v1/user/password", Handler: h.User.ChangePasswordGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
 			gatewayctx.RouteDef{Method: http.MethodPut, Path: "/api/v1/user", Handler: h.User.UpdateProfileGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/balance-history", Handler: h.User.GetBalanceHistoryGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
 		)
 	}
 	if h.APIKey != nil {
@@ -121,6 +122,7 @@ func RegisterUserRoutes(
 			user.PUT("", h.User.UpdateProfile)
 			user.GET("/aff", h.User.GetAffiliate)
 			user.POST("/aff/transfer", h.User.TransferAffiliateQuota)
+			user.GET("/balance-history", h.User.GetBalanceHistory)
 			user.POST("/account-bindings/email/send-code", h.User.SendEmailBindingCode)
 			user.POST("/account-bindings/email", h.User.BindEmailIdentity)
 			user.DELETE("/account-bindings/:provider", h.User.UnbindIdentity)
