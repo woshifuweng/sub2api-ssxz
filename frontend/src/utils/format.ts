@@ -62,13 +62,16 @@ export function formatCurrency(amount: number | null | undefined, currency: stri
   if (amount === null || amount === undefined) return '$0.00'
 
   const locale = getLocale()
+  const abs = Math.abs(amount)
+  // 小额计费固定两位小数会四舍五入成 $0.00，放宽到最多 6 位以区分真零与小额
+  const maximumFractionDigits = abs > 0 && abs < 0.01 ? 6 : 2
 
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: currency,
     currencyDisplay: 'narrowSymbol',
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    maximumFractionDigits
   }).format(amount)
 }
 

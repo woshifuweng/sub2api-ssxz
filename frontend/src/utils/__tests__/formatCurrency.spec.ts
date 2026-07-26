@@ -13,4 +13,13 @@ describe('currency presentation', () => {
     expect(formatCurrencyExact(0.00675773)).toBe('$0.00675773')
     expect(formatCurrencyTitle(0.00675773)).toBe('精确金额：$0.00675773')
   })
+
+  it('expands sub-cent charges instead of rounding them to $0.00', () => {
+    expect(formatCurrency(0.0003)).toBe('$0.0003')
+    expect(formatCurrency(0.004999)).toBe('$0.004999')
+    expect(formatCurrency(0.0099)).toBe('$0.0099')
+    expect(formatCurrency(0)).toBe('$0.00')
+    expect(formatCurrency(0.01)).toBe('$0.01')
+    expect(formatCurrency(-0.0003)).toBe('-$0.0003')
+  })
 })

@@ -802,7 +802,7 @@ function formatCostTitle(value: number | null | undefined) {
 }
 
 function isNoCharge(row: UsageLog) {
-  return Number(row.actual_cost || 0) <= 0
+  return Number(row.actual_cost || 0) === 0
 }
 
 function isZeroTokenCharged(row: UsageLog) {
