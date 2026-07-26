@@ -2508,15 +2508,17 @@ function syncPasswordResetStored(settings: {
 }) {
   passwordResetEnabledStored.value =
     settings.password_reset_enabled_stored ?? settings.password_reset_enabled
+  // form 必须持有**原始意图**，而不是后端取与后的生效值。
+  // 否则邮箱验证关闭时 form.password_reset_enabled 被种成 false，管理员一旦在页面上打开
+  // 邮箱验证开关（这恰恰是状态 B 文案引导他做的事），判据会瞬间塌回 false：
+  // 潜伏告警消失、状态 A 告警不出现、frontend_url 输入框消失，保存还会把 DB 里的 true 抹掉。
+  form.password_reset_enabled = passwordResetEnabledStored.value
 }
 
-// 管理员对「忘记密码」的真实意图：
-// - 邮箱验证开启时开关就在页面上，form.password_reset_enabled 是实时可编辑的意图，以它为准；
-// - 邮箱验证关闭时开关根本不渲染，form.password_reset_enabled 又被后端取与成了 false，
-//   只有 stored 还留着 DB 里的原始值 —— 这正是坑 A 的组合。
-const passwordResetIntended = computed(() =>
-  form.email_verify_enabled ? form.password_reset_enabled : passwordResetEnabledStored.value
-)
+// 管理员对「忘记密码」的真实意图。form 已在 syncPasswordResetStored 里被种成原始存储值，
+// 因此这里直接取 form 即可：邮箱验证开启时它是开关的实时值，关闭时它保持 DB 原始值不变
+// （开关不渲染，无人能改它），跨越 email_verify 开关切换时也不会失真。
+const passwordResetIntended = computed(() => form.password_reset_enabled)
 
 const frontendUrlMissing = computed(() => !(form.frontend_url || '').trim())
 
@@ -2855,13 +2857,10 @@ async function saveSettings() {
       ),
       promo_code_enabled: form.promo_code_enabled,
       invitation_code_enabled: form.invitation_code_enabled,
-      // 邮箱验证关闭时「忘记密码」开关根本不渲染，而 form.password_reset_enabled 是后端
-      // 取与后的 false —— 直接回传会把 DB 里存着的 true 抹掉（管理员没碰过这个开关，
-      // 只是来填了个前端地址，配置却被静默改写）。开关不可见时原样回传存储值。
+      // form.password_reset_enabled 在 syncPasswordResetStored 里已被种成 DB 原始存储值，
+      // 邮箱验证关闭时开关不渲染、无人能改它，因此原样回传不会把 DB 里的 true 抹掉。
       // 生效语义不受影响：后端仍与 email_verify_enabled 取与。
-      password_reset_enabled: form.email_verify_enabled
-        ? form.password_reset_enabled
-        : passwordResetEnabledStored.value,
+      password_reset_enabled: form.password_reset_enabled,
       totp_enabled: form.totp_enabled,
       default_balance: form.default_balance,
       default_concurrency: form.default_concurrency,

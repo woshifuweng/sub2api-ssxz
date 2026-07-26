@@ -260,6 +260,47 @@ describe('admin SettingsView', () => {
     expect(wrapper.find(FRONTEND_URL_INPUT).exists()).toBe(true)
   })
 
+  // 状态 B 的文案原话是「一旦你开启邮箱验证，重置邮件会立即开始静默失败」，
+  // 管理员照做就会走进这个过渡态。若 form 持有的是后端取与后的 false 而非原始存储值，
+  // 打开邮箱验证的瞬间：潜伏告警消失、状态 A 告警不出现、输入框消失 —— 文案把人引进坑里。
+  it('escalates from the latent warning to the live warning when email verification is switched on', async () => {
+    const wrapper = await mountView(
+      passwordResetApiShape({ emailVerify: false, storedPasswordReset: true })
+    )
+
+    expect(wrapper.find(RESET_LATENT_WARNING).exists()).toBe(true)
+    expect(wrapper.find(RESET_WARNING).exists()).toBe(false)
+
+    // 管理员按文案指引打开「邮箱验证」
+    const vm = wrapper.vm as unknown as { form: Record<string, unknown> }
+    vm.form.email_verify_enabled = true
+    await flushPromises()
+
+    // 必须升级为状态 A，而不是整块塌陷
+    expect(wrapper.find(RESET_WARNING).exists()).toBe(true)
+    expect(wrapper.find(RESET_LATENT_WARNING).exists()).toBe(false)
+    expect(wrapper.find(FRONTEND_URL_INPUT).exists()).toBe(true)
+  })
+
+  // 同一过渡态下保存：DB 里的 true 不能被抹成 false
+  it('does not clobber the stored password reset flag across the email verification switch', async () => {
+    const wrapper = await mountView(
+      passwordResetApiShape({ emailVerify: false, storedPasswordReset: true })
+    )
+
+    const vm = wrapper.vm as unknown as { form: Record<string, unknown> }
+    vm.form.email_verify_enabled = true
+    vm.form.frontend_url = 'https://example.com'
+    await flushPromises()
+
+    await (wrapper.vm as unknown as { saveSettings: () => Promise<void> }).saveSettings()
+    await flushPromises()
+
+    expect(settingsAPI.updateSettings).toHaveBeenCalled()
+    const payload = settingsAPI.updateSettings.mock.calls.at(-1)?.[0] as Record<string, unknown>
+    expect(payload.password_reset_enabled).toBe(true)
+  })
+
   it('hides the frontend URL warning once a URL is configured (state A)', async () => {
     const wrapper = await mountView(
       passwordResetApiShape({
