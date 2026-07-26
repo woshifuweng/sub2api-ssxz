@@ -476,7 +476,7 @@
   .modal-content {
     @apply w-full;
     @apply max-h-[95vh] sm:max-h-[90vh];
-    background: var(--ssxz-surface);
+    background: var(--ssxz-surface-dialog);
     border: 1px solid var(--ssxz-border-strong);
     border-radius: var(--ssxz-radius-dialog, 12px);
     box-shadow: var(--ssxz-shadow-dialog);
@@ -872,6 +872,7 @@
   --ssxz-bg: #f6f7f8;
   --ssxz-bg-subtle: #f0f2f4;
   --ssxz-surface: #ffffff;
+  --ssxz-surface-dialog: #ffffff;
   --ssxz-surface-raised: #f7f8f9;
   --ssxz-surface-muted: #eceff2;
   --ssxz-surface-code: #f3f5f6;
@@ -946,6 +947,8 @@
   --ssxz-bg: #0b0b0d;
   --ssxz-bg-subtle: #0b0b0d;
   --ssxz-surface: transparent;
+  /* Dialogs must stay opaque even though the outline-first dark surface is transparent. */
+  --ssxz-surface-dialog: #111115;
   --ssxz-surface-raised: #0b0b0d;
   --ssxz-surface-muted: #111115;
   --ssxz-surface-code: #111115;
