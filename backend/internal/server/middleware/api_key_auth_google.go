@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"errors"
+	"net/http"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -184,7 +185,8 @@ func ApplyAPIKeyAuthWithSubscriptionGoogleContext(apiKeyService *service.APIKeyS
 			abortWithGoogleErrorContext(c, status, validateErr.Error())
 			return false
 		}
-	} else if apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
+	} else if apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) &&
+		!isGoogleReadOnlyModelMetadata(c.Method(), c.Path()) {
 		abortWithGoogleErrorContext(c, 403, "Insufficient account balance")
 		return false
 	}
@@ -192,6 +194,33 @@ func ApplyAPIKeyAuthWithSubscriptionGoogleContext(apiKeyService *service.APIKeyS
 	setAPIKeyAuthContextValues(c, apiKey, subscription)
 	_ = apiKeyService.TouchLastUsed(c.Request().Context(), apiKey.ID)
 	return true
+}
+
+// isGoogleReadOnlyModelMetadata reports whether the request only reads Gemini
+// 模型元数据：GET /v1beta/models（列表）或 GET /v1beta/models/{model}（单个），
+// 以及 /antigravity 前缀的同款。与标准中间件的 isReadOnlyGatewayMetadata 同一
+// 裁定：余额是消费门槛，不是身份门槛，零余额放行只读元数据。
+//
+// 匹配必须是 GET + 精确形状，绝不允许前缀匹配：真正的 Gemini 推理入口
+// POST /v1beta/models/{model}:{action}（见 routes/gateway.go 的 *modelAction
+// 路由）与列表端点同前缀，前缀匹配等于把推理白送。这里拿到的 path 是实际
+// 请求路径（req.URL.Path，已解码），因此要求 /models/ 后是单段（不含 '/'）
+// 且不含 ':'（不吞 {model}:{action} 形态，%3A 解码后同样会被拒）。
+func isGoogleReadOnlyModelMetadata(method, path string) bool {
+	if method != http.MethodGet {
+		return false
+	}
+	path = strings.TrimRight(path, "/")
+	for _, root := range []string{"/v1beta/models", "/antigravity/v1beta/models"} {
+		if path == root {
+			return true
+		}
+		if rest, ok := strings.CutPrefix(path, root+"/"); ok &&
+			rest != "" && !strings.ContainsAny(rest, "/:") {
+			return true
+		}
+	}
+	return false
 }
 
 func abortIfGoogleAPIKeyGroupUnavailableContext(c gatewayctx.GatewayContext, apiKey *service.APIKey) bool {
