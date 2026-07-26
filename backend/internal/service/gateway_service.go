@@ -1052,6 +1052,7 @@ type GatewayService struct {
 	tlsFPProfileService   *TLSFingerprintProfileService
 	channelService        *ChannelService
 	resolver              *ModelPricingResolver
+	compositeResolver     *CompositeRouteResolver
 	balanceNotifyService  *BalanceNotifyService
 	userPlatformQuotaRepo UserPlatformQuotaRepository
 	runtimeSyncWake       chan struct{}
@@ -1140,6 +1141,9 @@ func NewGatewayService(
 	if len(extraDependencies) > 4 {
 		svc.userPlatformQuotaRepo, _ = extraDependencies[4].(UserPlatformQuotaRepository)
 	}
+	if len(extraDependencies) > 5 {
+		svc.compositeResolver, _ = extraDependencies[5].(*CompositeRouteResolver)
+	}
 	svc.userGroupRateResolver = newUserGroupRateResolver(
 		userGroupRateRepo,
 		svc.userGroupRateCache,
@@ -1188,6 +1192,16 @@ func (s *GatewayService) SetBillingShortfallNotifier(notifier BillingShortfallNo
 		return
 	}
 	s.billingShortfallAlert = notifier
+}
+
+// SetCompositeRouteResolver wires the composite model route resolver used by
+// composite-platform groups (v0.1.165). Nil is tolerated: resolution then falls
+// back to the built-in model platform detector.
+func (s *GatewayService) SetCompositeRouteResolver(resolver *CompositeRouteResolver) {
+	if s == nil {
+		return
+	}
+	s.compositeResolver = resolver
 }
 
 // GenerateSessionHash 从预解析请求计算粘性会话 hash
@@ -1747,7 +1761,23 @@ func (s *GatewayService) SelectAccountForModelWithExclusions(ctx context.Context
 		}
 		for _, entry := range chain {
 			localCtx := s.withGroupContext(ctx, entry.Group)
-			account, err := s.selectAccountForResolvedPlatform(localCtx, &entry.GroupID, sessionHash, requestedModel, excludedIDs, entry.Group.Platform)
+			entryPlatform := entry.Group.Platform
+			entryModel := requestedModel
+			// composite 分组：按模型解析目标平台/上游模型（v0.1.165）。
+			// 解析失败时不中断降级链，继续尝试链上的下一个分组。
+			if entry.Group.Platform == PlatformComposite {
+				decision, ok, err := s.resolveCompositeRouteDecision(localCtx, entry.Group, requestedModel, CompositeRouteEndpointAny)
+				if err != nil {
+					return nil, err
+				}
+				if !ok {
+					continue
+				}
+				entryPlatform = decision.TargetPlatform
+				entryModel = decision.UpstreamModel
+				localCtx = WithCompositeRouteDecision(localCtx, decision)
+			}
+			account, err := s.selectAccountForResolvedPlatform(localCtx, &entry.GroupID, sessionHash, entryModel, excludedIDs, entryPlatform)
 			if err == nil {
 				return account, nil
 			}
@@ -1904,7 +1934,7 @@ func (s *GatewayService) selectAccountWithLoadAwarenessSingleGroup(ctx context.C
 		}
 	}
 
-	platform, hasForcePlatform, err := s.resolvePlatform(ctx, groupID, group)
+	platform, hasForcePlatform, err := s.resolvePlatform(ctx, groupID, group, requestedModel)
 	if err != nil {
 		return nil, err
 	}
@@ -1935,9 +1965,10 @@ func (s *GatewayService) selectAccountWithLoadAwarenessSingleGroup(ctx context.C
 		accountByID[accounts[i].ID] = &accounts[i]
 	}
 
-	// 获取模型路由配置（仅 anthropic 平台）
+	// 获取模型路由配置（anthropic 目标平台；composite 分组按目标平台判断）
 	var routingAccountIDs []int64
-	if group != nil && requestedModel != "" && group.Platform == PlatformAnthropic {
+	if group != nil && requestedModel != "" && platform == PlatformAnthropic &&
+		(group.Platform == PlatformAnthropic || group.Platform == PlatformComposite) {
 		routingAccountIDs = group.GetRoutingAccountIDs(requestedModel)
 		if s.debugModelRoutingEnabled() {
 			logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] context group routing: group_id=%d model=%s enabled=%v rules=%d matched_ids=%v session=%s sticky_account=%d",
@@ -2407,8 +2438,9 @@ func (s *GatewayService) routingAccountIDsForRequest(ctx context.Context, groupI
 		}
 		return nil
 	}
-	// Preserve existing behavior: model routing only applies to anthropic groups.
-	if group.Platform != PlatformAnthropic {
+	// Model routing applies only to requests resolved to Anthropic. Composite
+	// groups may still use those rules once their model resolved to Anthropic.
+	if group.Platform != PlatformAnthropic && group.Platform != PlatformComposite {
 		if s.debugModelRoutingEnabled() {
 			logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] skip: non-anthropic group platform: group_id=%d group_platform=%s model=%s", group.ID, group.Platform, requestedModel)
 		}
@@ -2501,18 +2533,41 @@ func (s *GatewayService) checkClaudeCodeRestriction(ctx context.Context, groupID
 	return group, resolvedID, nil
 }
 
-func (s *GatewayService) resolvePlatform(ctx context.Context, groupID *int64, group *Group) (string, bool, error) {
+func (s *GatewayService) resolvePlatform(ctx context.Context, groupID *int64, group *Group, requestedModel string) (string, bool, error) {
 	forcePlatform, hasForcePlatform := ctx.Value(ctxkey.ForcePlatform).(string)
 	if hasForcePlatform && forcePlatform != "" {
 		return forcePlatform, true, nil
 	}
+	if platform, ok := ResolvedTargetPlatformFromContext(ctx); ok {
+		return platform, false, nil
+	}
 	if group != nil {
+		if group.Platform == PlatformComposite {
+			decision, ok, err := s.resolveCompositeRouteDecision(ctx, group, requestedModel, CompositeRouteEndpointAny)
+			if err != nil {
+				return "", false, err
+			}
+			if !ok {
+				return "", false, fmt.Errorf("%w supporting model: %s (composite target platform unknown)", ErrNoAvailableAccounts, requestedModel)
+			}
+			return decision.TargetPlatform, false, nil
+		}
 		return group.Platform, false, nil
 	}
 	if groupID != nil {
 		group, err := s.resolveGroupByID(ctx, *groupID)
 		if err != nil {
 			return "", false, err
+		}
+		if group.Platform == PlatformComposite {
+			decision, ok, err := s.resolveCompositeRouteDecision(ctx, group, requestedModel, CompositeRouteEndpointAny)
+			if err != nil {
+				return "", false, err
+			}
+			if !ok {
+				return "", false, fmt.Errorf("%w supporting model: %s (composite target platform unknown)", ErrNoAvailableAccounts, requestedModel)
+			}
+			return decision.TargetPlatform, false, nil
 		}
 		return group.Platform, false, nil
 	}
@@ -4848,6 +4903,10 @@ func (s *GatewayService) ForwardContext(ctx context.Context, c gatewayctx.Gatewa
 			if resp != nil && resp.Body != nil {
 				_ = resp.Body.Close()
 			}
+			// Transport attempt left local validation; count Ollama Cloud activity.
+			if !errors.Is(err, context.Canceled) {
+				scheduleOllamaCloudUsageActivity(s.deferredService, account)
+			}
 			safeErr := sanitizeUpstreamErrorMessage(err.Error())
 			setOpsUpstreamErrorContext(c, 0, safeErr, "")
 			appendOpsUpstreamErrorContext(c, OpsUpstreamErrorEvent{
@@ -5307,6 +5366,10 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInputContext(
 			}
 			if resp != nil && resp.Body != nil {
 				_ = resp.Body.Close()
+			}
+			// Transport attempt left local validation; count Ollama Cloud activity.
+			if !errors.Is(err, context.Canceled) {
+				scheduleOllamaCloudUsageActivity(s.deferredService, account)
 			}
 			safeErr := sanitizeUpstreamErrorMessage(err.Error())
 			setOpsUpstreamErrorContext(c, 0, safeErr, "")
@@ -7021,6 +7084,8 @@ func (s *GatewayService) handleErrorResponseLegacy(ctx context.Context, resp *ht
 }
 
 func (s *GatewayService) handleErrorResponseContext(ctx context.Context, resp *http.Response, c gatewayctx.GatewayContext, account *Account) (*ForwardResult, error) {
+	// Upstream returned a non-success HTTP status; count Ollama Cloud activity.
+	scheduleOllamaCloudUsageActivity(s.deferredService, account)
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
 
 	// 调试日志：打印上游错误响应
@@ -9620,6 +9685,34 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 		modelsListCacheStoreTotal.Add(1)
 	}
 	return cloneStringSlice(models)
+}
+
+// GetSchedulablePlatforms returns the concrete platforms that currently have
+// schedulable accounts in the target group.
+func (s *GatewayService) GetSchedulablePlatforms(ctx context.Context, groupID *int64) map[string]struct{} {
+	platforms := make(map[string]struct{})
+	if s == nil || s.accountRepo == nil {
+		return platforms
+	}
+
+	var accounts []Account
+	var err error
+	if groupID != nil {
+		accounts, err = s.accountRepo.ListSchedulableByGroupID(ctx, *groupID)
+	} else {
+		accounts, err = s.accountRepo.ListSchedulable(ctx)
+	}
+	if err != nil {
+		return platforms
+	}
+
+	for _, acc := range accounts {
+		platform := strings.TrimSpace(acc.Platform)
+		if platform != "" {
+			platforms[platform] = struct{}{}
+		}
+	}
+	return platforms
 }
 
 func (s *GatewayService) InvalidateAvailableModelsCache(groupID *int64, platform string) {

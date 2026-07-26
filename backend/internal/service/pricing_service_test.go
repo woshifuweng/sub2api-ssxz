@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -128,6 +129,36 @@ func TestMatchByModelFamily_IsDeterministicForLegacyAliases(t *testing.T) {
 	for range 100 {
 		require.Same(t, newest, svc.matchByModelFamily("claude-opus"))
 	}
+}
+
+func TestPricingSchedulerBlankRemoteURLDoesNotStart(t *testing.T) {
+	svc := NewPricingService(&config.Config{Pricing: config.PricingConfig{RemoteURL: "  \t  "}}, nil)
+	defer svc.Stop()
+
+	svc.startUpdateScheduler()
+	done := make(chan struct{})
+	go func() {
+		svc.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("blank remote URL must not start scheduler")
+	}
+}
+
+func TestPricingNonEmptyInvalidRemoteURLStillReturnsValidationError(t *testing.T) {
+	svc := NewPricingService(&config.Config{Pricing: config.PricingConfig{
+		RemoteURL: "://invalid",
+		DataDir:   t.TempDir(),
+	}}, nil)
+
+	err := svc.ForceUpdate()
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid pricing url")
 }
 
 func TestParsePricingData_ParsesPriorityAndServiceTierFields(t *testing.T) {

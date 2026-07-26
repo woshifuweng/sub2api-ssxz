@@ -132,6 +132,20 @@ var officialExactModelPricing = map[string]LiteLLMModelPricing{
 		SupportsPromptCaching:               true,
 		MaxInputTokens:                      intPtr(200000),
 	},
+	// Claude Opus 5 官方定价与 Opus 4.8 一致（$5/$25 per MTok），
+	// 默认 1M 上下文 / 128K 输出（上游 v0.1.165 登记，6c9b84cc7）。
+	"claude-opus-5": {
+		InputCostPerToken:                   5e-6,
+		OutputCostPerToken:                  25e-6,
+		CacheCreationInputTokenCost:         6.25e-6,
+		CacheCreationInputTokenCostAbove1hr: 10e-6,
+		CacheReadInputTokenCost:             0.5e-6,
+		LiteLLMProvider:                     "anthropic",
+		Mode:                                "chat",
+		SupportsPromptCaching:               true,
+		MaxInputTokens:                      intPtr(1000000),
+		MaxOutputTokens:                     intPtr(128000),
+	},
 	"claude-sonnet-4-6": {
 		InputCostPerToken:                   3e-6,
 		OutputCostPerToken:                  15e-6,
@@ -390,6 +404,11 @@ func (s *PricingService) Stop() {
 
 // startUpdateScheduler 启动定时更新调度器
 func (s *PricingService) startUpdateScheduler() {
+	if s == nil || s.cfg == nil || strings.TrimSpace(s.cfg.Pricing.RemoteURL) == "" {
+		logger.LegacyPrintf("service.pricing", "%s", "[Pricing] Remote sync disabled: pricing remote URL is empty")
+		return
+	}
+
 	// 定期检查哈希更新
 	hashInterval := time.Duration(s.cfg.Pricing.HashCheckIntervalMinutes) * time.Minute
 	if hashInterval < time.Minute {
@@ -912,10 +931,18 @@ func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
 	}
 
 	// Claude模型系列匹配规则
+	// 按特异性降序排列：高版本号在前，避免 "claude-opus-4"（opus-4 系列）
+	// 因子串关系误匹配 "claude-opus-4-7"/"claude-opus-4-8"。
 	families := []struct {
 		name     string
-		patterns []string
+		patterns []string // 用于将模型归类到此系列的模式（strings.Contains 匹配）
+		pricing  []string // 用于在定价数据中查找价格的模式（nil 则复用 patterns；可包含同价低版本 fallback）
 	}{
+		// Opus 5 与 Opus 4.8 同价（$5/$25 per MTok）。定价数据缺失 claude-opus-5 时
+		// 必须回退到 4.8，否则会掉进 "opus-4" 系列按 $15/$75 计费（3 倍超收）。
+		{name: "opus-5", patterns: []string{"claude-opus-5"}, pricing: []string{"claude-opus-5", "claude-opus-4-8"}},
+		{name: "opus-4.8", patterns: []string{"claude-opus-4.8", "claude-opus-4-8"}, pricing: []string{"claude-opus-4-8", "claude-opus-4.8", "claude-opus-4-7"}},
+		{name: "opus-4.7", patterns: []string{"claude-opus-4.7", "claude-opus-4-7"}, pricing: []string{"claude-opus-4-7", "claude-opus-4.7", "claude-opus-4-6"}},
 		{name: "opus-4.6", patterns: []string{"claude-opus-4.6", "claude-opus-4-6"}},
 		{name: "opus-4.5", patterns: []string{"claude-opus-4.5", "claude-opus-4-5"}},
 		{name: "opus-4", patterns: []string{"claude-opus-4", "claude-3-opus"}},
@@ -928,7 +955,11 @@ func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
 	}
 	familyPatterns := make(map[string][]string, len(families))
 	for _, family := range families {
-		familyPatterns[family.name] = family.patterns
+		if family.pricing != nil {
+			familyPatterns[family.name] = family.pricing
+		} else {
+			familyPatterns[family.name] = family.patterns
+		}
 	}
 
 	// 确定模型属于哪个系列
@@ -948,7 +979,16 @@ func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
 	if matchedFamily == "" {
 		// 简单的系列匹配
 		if strings.Contains(model, "opus") {
-			if strings.Contains(model, "4.5") || strings.Contains(model, "4-5") {
+			// "opus-5" 必须先判：不能用裸 "5" 匹配，否则 claude-opus-4-5 会被误判。
+			if strings.Contains(model, "opus-5") || strings.Contains(model, "opus5") {
+				matchedFamily = "opus-5"
+			} else if strings.Contains(model, "4.8") || strings.Contains(model, "4-8") {
+				matchedFamily = "opus-4.8"
+			} else if strings.Contains(model, "4.7") || strings.Contains(model, "4-7") {
+				matchedFamily = "opus-4.7"
+			} else if strings.Contains(model, "4.6") || strings.Contains(model, "4-6") {
+				matchedFamily = "opus-4.6"
+			} else if strings.Contains(model, "4.5") || strings.Contains(model, "4-5") {
 				matchedFamily = "opus-4.5"
 			} else {
 				matchedFamily = "opus-4"

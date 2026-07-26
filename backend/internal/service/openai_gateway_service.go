@@ -26,6 +26,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
+	"github.com/Wei-Shaw/sub2api/internal/platform/liveattestation"
 	ffi "github.com/Wei-Shaw/sub2api/internal/rustbridge/ffi"
 	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
@@ -427,10 +428,13 @@ type OpenAIGatewayService struct {
 	settingService        *SettingService
 	userPlatformQuotaRepo UserPlatformQuotaRepository
 	tlsFPProfileService   *TLSFingerprintProfileService
+	liveAttestation       liveattestation.Provider
+	liveAttestationCipher SecretEncryptor
 
 	openaiWSPoolOnce              sync.Once
 	openaiWSStateStoreOnce        sync.Once
 	openaiSchedulerOnce           sync.Once
+	openaiProxyStreamCircuitOnce  sync.Once
 	openaiWSPassthroughDialerOnce sync.Once
 	openaiWSPool                  *openAIWSConnPool
 	openaiWSStateStore            OpenAIWSStateStore
@@ -440,6 +444,7 @@ type OpenAIGatewayService struct {
 	openaiRelayMetrics            openAIStreamRelayMetrics
 	proxyCircuit                  *openAICircuitBreaker
 	accountCircuit                *openAICircuitBreaker
+	openaiProxyStreamCircuit      *openAIProxyStreamCircuit
 
 	openaiWSFallbackUntil               sync.Map // key: int64(accountID), value: time.Time
 	openaiCompatSessionResponses        sync.Map
@@ -568,6 +573,8 @@ func NewOpenAIGatewayService(
 		openAITokenProvider:    openAITokenProvider,
 		toolCorrector:          NewCodexToolCorrector(),
 		openaiWSResolver:       NewOpenAIWSProtocolResolver(cfg),
+		liveAttestation:        liveattestation.NewProvider(),
+		liveAttestationCipher:  newLiveAttestationCipher(cfg),
 		responseHeaderFilter:   compileResponseHeaderFilter(cfg),
 		codexSnapshotThrottle:  newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
 		proxyCircuit:           newOpenAICircuitBreaker(resolveOpenAIProxyBreakerThreshold(cfg), resolveOpenAIProxyBreakerCooldown(cfg)),
@@ -2576,6 +2583,33 @@ func (s *OpenAIGatewayService) ForwardContext(ctx context.Context, c gatewayctx.
 			},
 		})
 		return nil, errors.New("openai ws v1 is temporarily unsupported; use ws v2")
+	}
+	// 上游 165：HTTP 转发前摊平 Codex namespace 工具并剥离 input 项残留
+	// namespace（WSv2 原生支持 namespace 时保持原样）。flatten 需要 gin 上下文
+	// 存储平名映射用于响应还原，native 传输无 gin 时跳过；strip 与上下文无关。
+	if ginContext != nil && shouldFlattenOpenAIResponsesNamespaces(account, wsDecision.Transport, account.IsOpenAIPassthroughEnabled()) {
+		flattenedBody, flattenErr := flattenOpenAIResponsesNamespaces(ginContext, body)
+		if flattenErr != nil {
+			setOpsUpstreamError(ginContext, http.StatusBadRequest, flattenErr.Error(), "")
+			ginContext.JSON(http.StatusBadRequest, gin.H{"error": gin.H{
+				"type": "invalid_request_error", "message": flattenErr.Error(), "param": "tools",
+			}})
+			return nil, flattenErr
+		}
+		body = flattenedBody
+	}
+	if shouldStripOpenAIResponsesInputNamespaces(account, wsDecision.Transport, account.IsOpenAIPassthroughEnabled()) {
+		strippedBody, stripErr := stripOpenAIResponsesInputNamespaces(body)
+		if stripErr != nil {
+			if ginContext != nil {
+				setOpsUpstreamError(ginContext, http.StatusBadRequest, stripErr.Error(), "")
+			}
+			c.WriteJSON(http.StatusBadRequest, gin.H{"error": gin.H{
+				"type": "invalid_request_error", "message": stripErr.Error(), "param": "input",
+			}})
+			return nil, stripErr
+		}
+		body = strippedBody
 	}
 	if passthroughEnabled {
 		reasoningEffort := extractOpenAIReasoningEffortFromBody(body, reqModel)
@@ -7063,7 +7097,9 @@ func extractOpenAIRequestMetaFromBody(body []byte) (model string, stream bool, p
 }
 
 // normalizeOpenAIPassthroughOAuthBody 将透传 OAuth 请求体收敛为旧链路关键行为：
-// 1) store=false 2) 非 compact 保持 stream=true；compact 强制 stream=false
+// 1) 删除 ChatGPT internal API 不支持的顶层 Responses 参数
+// 2) input 收敛为列表形态（string/object 包装为数组，修复 "Input must be a list"）
+// 3) store=false 4) 非 compact 保持 stream=true；compact 强制 stream=false
 func normalizeOpenAIPassthroughOAuthBody(body []byte, compact bool) ([]byte, bool, error) {
 	if len(body) == 0 {
 		return body, false, nil
@@ -7082,6 +7118,34 @@ func normalizeOpenAIPassthroughOAuthBody(body []byte, compact bool) ([]byte, boo
 		}
 		normalized = next
 		changed = true
+	}
+
+	if inputResult := gjson.GetBytes(normalized, "input"); inputResult.Exists() {
+		switch {
+		case inputResult.Type == gjson.String:
+			text := inputResult.String()
+			var inputValue any
+			if strings.TrimSpace(text) != "" {
+				inputValue = []any{map[string]any{
+					"type": "message", "role": "user", "content": text,
+				}}
+			} else {
+				inputValue = []any{}
+			}
+			next, err := sjson.SetBytes(normalized, "input", inputValue)
+			if err != nil {
+				return body, false, fmt.Errorf("normalize passthrough body input string: %w", err)
+			}
+			normalized = next
+			changed = true
+		case inputResult.Type == gjson.JSON && !inputResult.IsArray():
+			next, err := sjson.SetRawBytes(normalized, "input", []byte("["+inputResult.Raw+"]"))
+			if err != nil {
+				return body, false, fmt.Errorf("normalize passthrough body input object: %w", err)
+			}
+			normalized = next
+			changed = true
+		}
 	}
 
 	if compact {

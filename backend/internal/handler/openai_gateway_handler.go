@@ -54,7 +54,13 @@ func wrapUsageRecordTaskContext(parent context.Context, task service.UsageRecord
 	}
 }
 
-func openAICompatibleRequestPlatform(apiKey *service.APIKey) string {
+func openAICompatibleRequestPlatform(ctx context.Context, apiKey *service.APIKey) string {
+	if platform, ok := service.ResolvedTargetPlatformFromContext(ctx); ok {
+		if platform == service.PlatformGrok {
+			return service.PlatformGrok
+		}
+		return service.PlatformOpenAI
+	}
 	if apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform == service.PlatformGrok {
 		return service.PlatformGrok
 	}
@@ -484,6 +490,59 @@ func adjustOpenAINetworkFailoverCooldown(
 	return &adjusted
 }
 
+func openAICompatibleTextTargetAllowed(c *gin.Context, apiKey *service.APIKey, model string) bool {
+	return compositeTargetPlatformAllowed(c, apiKey, model, service.PlatformOpenAI, service.PlatformGrok)
+}
+
+// ensureCompositeTargetPlatformContext 桥接 gatewayctx 与 gin-based composite 解析。
+// 非 gin 传输不携带 composite 上下文，保持 v0.1.163 行为（composite 分组仅在 gin 入口生效）。
+func ensureCompositeTargetPlatformContext(c gatewayctx.GatewayContext, apiKey *service.APIKey, model string) {
+	if c == nil {
+		return
+	}
+	if native, ok := c.Native().(*gin.Context); ok && native != nil {
+		ensureCompositeTargetPlatform(native, apiKey, model)
+	}
+}
+
+func openAICompatibleTextTargetAllowedContext(c gatewayctx.GatewayContext, apiKey *service.APIKey, model string) bool {
+	if c != nil {
+		if native, ok := c.Native().(*gin.Context); ok && native != nil {
+			return openAICompatibleTextTargetAllowed(native, apiKey, model)
+		}
+	}
+	// 非 gin 传输：composite 分组无法解析目标平台，仅 composite 分组拒绝。
+	return apiKey == nil || apiKey.Group == nil || apiKey.Group.Platform != service.PlatformComposite
+}
+
+func compositeTargetPlatformAllowedContext(c gatewayctx.GatewayContext, apiKey *service.APIKey, model string, allowed ...string) bool {
+	if c != nil {
+		if native, ok := c.Native().(*gin.Context); ok && native != nil {
+			return compositeTargetPlatformAllowed(native, apiKey, model, allowed...)
+		}
+	}
+	return apiKey == nil || apiKey.Group == nil || apiKey.Group.Platform != service.PlatformComposite
+}
+
+func extractClientSessionIDContext(c gatewayctx.GatewayContext) string {
+	if c == nil {
+		return ""
+	}
+	if native, ok := c.Native().(*gin.Context); ok && native != nil {
+		return service.ExtractClientSessionID(native)
+	}
+	return ""
+}
+
+func clientRequestedUsageFieldsContext(c gatewayctx.GatewayContext, mapping service.ChannelMappingResult, fallbackModel, upstreamModel string) service.ChannelUsageFields {
+	if c != nil {
+		if native, ok := c.Native().(*gin.Context); ok && native != nil {
+			return clientRequestedUsageFields(native, mapping, fallbackModel, upstreamModel)
+		}
+	}
+	return mapping.ToUsageFields(fallbackModel, upstreamModel)
+}
+
 // NewOpenAIGatewayHandler creates a new OpenAIGatewayHandler
 func NewOpenAIGatewayHandler(
 	gatewayService *service.OpenAIGatewayService,
@@ -655,7 +714,12 @@ func (h *OpenAIGatewayHandler) ResponsesGateway(transportCtx gatewayctx.GatewayC
 		return
 	}
 	reqModel := modelResult.String()
-	requestPlatform := openAICompatibleRequestPlatform(apiKey)
+	ensureCompositeTargetPlatformContext(transportCtx, apiKey, reqModel)
+	if !openAICompatibleTextTargetAllowedContext(transportCtx, apiKey, reqModel) {
+		h.errorResponseGateway(transportCtx, http.StatusBadRequest, "invalid_request_error", "Model is not supported by this OpenAI-compatible endpoint for composite groups")
+		return
+	}
+	requestPlatform := openAICompatibleRequestPlatform(transportCtx.Context(), apiKey)
 	imageIntent := service.IsExplicitImageGenerationIntent("/v1/responses", reqModel, body)
 	if requestPlatform == service.PlatformGrok {
 		imageIntent = service.IsImageGenerationIntentForPlatform("/v1/responses", reqModel, body, requestPlatform)
@@ -1045,6 +1109,7 @@ func (h *OpenAIGatewayHandler) ResponsesGateway(transportCtx gatewayctx.GatewayC
 		clientIP := strings.TrimSpace(transportCtx.ClientIP())
 		requestPayloadHash := service.HashUsageRequestPayload(body)
 		quotaPlatform := service.QuotaPlatform(transportCtx.Context(), selectedAPIKey)
+		sessionID := extractClientSessionIDContext(transportCtx)
 
 		// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
 		h.submitUsageRecordTask(transportCtx.Context(), func(ctx context.Context) {
@@ -1061,7 +1126,8 @@ func (h *OpenAIGatewayHandler) ResponsesGateway(transportCtx gatewayctx.GatewayC
 				RequestPayloadHash: requestPayloadHash,
 				APIKeyService:      h.apiKeyService,
 				QuotaPlatform:      quotaPlatform,
-				ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
+				SessionID:          sessionID,
+				ChannelUsageFields: clientRequestedUsageFieldsContext(transportCtx, channelMapping, reqModel, result.UpstreamModel),
 			}); err != nil {
 				logger.L().With(
 					zap.String("component", "handler.openai_gateway.responses"),
@@ -1278,6 +1344,11 @@ func (h *OpenAIGatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayCo
 	reqModel := modelResult.String()
 	if !apiKeyAllowsRequestedModel(apiKey, reqModel) {
 		h.anthropicErrorResponseContext(transportCtx, http.StatusBadRequest, "invalid_request_error", apiKeyModelNotAllowedMessage(reqModel))
+		return
+	}
+	ensureCompositeTargetPlatformContext(transportCtx, apiKey, reqModel)
+	if !openAICompatibleTextTargetAllowedContext(transportCtx, apiKey, reqModel) {
+		h.anthropicErrorResponseContext(transportCtx, http.StatusBadRequest, "invalid_request_error", "Model is not supported by this OpenAI-compatible endpoint for composite groups")
 		return
 	}
 	reqStream := gjson.GetBytes(body, "stream").Bool()
@@ -1531,6 +1602,7 @@ func (h *OpenAIGatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayCo
 		clientIP := strings.TrimSpace(transportCtx.ClientIP())
 		requestPayloadHash := service.HashUsageRequestPayload(body)
 		quotaPlatform := service.QuotaPlatform(transportCtx.Context(), selectedAPIKey)
+		sessionID := extractClientSessionIDContext(transportCtx)
 
 		h.submitUsageRecordTask(transportCtx.Context(), func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
@@ -1546,7 +1618,8 @@ func (h *OpenAIGatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayCo
 				RequestPayloadHash: requestPayloadHash,
 				APIKeyService:      h.apiKeyService,
 				QuotaPlatform:      quotaPlatform,
-				ChannelUsageFields: channelMappingMsg.ToUsageFields(reqModel, result.UpstreamModel),
+				SessionID:          sessionID,
+				ChannelUsageFields: clientRequestedUsageFieldsContext(transportCtx, channelMappingMsg, reqModel, result.UpstreamModel),
 			}); err != nil {
 				logger.L().With(
 					zap.String("component", "handler.openai_gateway.messages"),
@@ -1991,6 +2064,15 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocketGateway(transportCtx gatewayctx
 		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, apiKeyModelNotAllowedMessage(reqModel))
 		return
 	}
+	ensureCompositeTargetPlatformContext(transportCtx, apiKey, reqModel)
+	ctx = transportCtx.Context()
+	if apiKey.Group != nil && apiKey.Group.Platform == service.PlatformComposite {
+		platform, ok := service.ResolvedTargetPlatformFromContext(ctx)
+		if !ok || (platform != service.PlatformOpenAI && platform != service.PlatformGrok) {
+			closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "Responses WebSocket API only supports OpenAI-compatible models for composite groups")
+			return
+		}
+	}
 	previousResponseID := strings.TrimSpace(gjson.GetBytes(firstMessage, "previous_response_id").String())
 	previousResponseIDKind := service.ClassifyOpenAIPreviousResponseIDKind(previousResponseID)
 	if previousResponseID != "" && previousResponseIDKind == service.OpenAIPreviousResponseIDKindMessageID {
@@ -2223,6 +2305,7 @@ retryWebSocketAccount:
 	)
 
 	quotaPlatform := service.QuotaPlatform(transportCtx.Context(), selectedAPIKey)
+	sessionID := extractClientSessionIDContext(transportCtx)
 	hooks := &service.OpenAIWSIngressHooks{
 		InitialRequestModel: reqModel,
 		BeforeTurn: func(turn int) error {
@@ -2288,7 +2371,8 @@ retryWebSocketAccount:
 					RequestPayloadHash: service.HashUsageRequestPayload(firstMessage),
 					APIKeyService:      h.apiKeyService,
 					QuotaPlatform:      quotaPlatform,
-					ChannelUsageFields: channelMappingWS.ToUsageFields(reqModel, result.UpstreamModel),
+					SessionID:          sessionID,
+					ChannelUsageFields: clientRequestedUsageFieldsContext(transportCtx, channelMappingWS, reqModel, result.UpstreamModel),
 				}); err != nil {
 					reqLog.Error("openai.websocket_record_usage_failed",
 						zap.Int64("account_id", account.ID),

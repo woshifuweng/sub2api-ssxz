@@ -79,12 +79,29 @@ func (h *OpenAIGatewayHandler) ImagesGateway(c gatewayctx.GatewayContext) {
 		h.errorResponseGateway(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
+	requestModel := parsed.Model
+	ensureCompositeTargetPlatformContext(c, apiKey, requestModel)
+	clientRequestModel := requestModel
+	if requested, ok := service.RequestedPublicModelFromContext(c.Context()); ok {
+		clientRequestModel = requested
+	}
+	routingModel := requestModel
+	if resolvedModel, ok := service.ResolvedUpstreamModelFromContext(c.Context()); ok {
+		routingModel = resolvedModel
+	}
+	if !compositeTargetPlatformAllowedContext(c, apiKey, requestModel, service.PlatformOpenAI) {
+		h.errorResponseGateway(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by this OpenAI-compatible endpoint for composite groups")
+		return
+	}
 
 	reqLog = reqLog.With(
-		zap.String("model", parsed.Model),
+		zap.String("model", clientRequestModel),
+		zap.String("routing_model", routingModel),
 		zap.Bool("stream", parsed.Stream),
 		zap.Bool("multipart", parsed.Multipart),
 		zap.String("capability", string(parsed.RequiredCapability)),
+		zap.String("img_quality", parsed.Quality),
+		zap.String("img_size", parsed.Size),
 	)
 	if !service.GroupAllowsImageGeneration(apiKey.Group) {
 		h.errorResponseGateway(c, http.StatusForbidden, "permission_error", service.ImageGenerationPermissionMessage())
@@ -100,9 +117,9 @@ func (h *OpenAIGatewayHandler) ImagesGateway(c gatewayctx.GatewayContext) {
 	}
 
 	if parsed.Multipart {
-		setOpsRequestContextGateway(c, parsed.Model, parsed.Stream, nil)
+		setOpsRequestContextGateway(c, clientRequestModel, parsed.Stream, nil)
 	} else {
-		setOpsRequestContextGateway(c, parsed.Model, parsed.Stream, body)
+		setOpsRequestContextGateway(c, clientRequestModel, parsed.Stream, body)
 	}
 	setOpsEndpointContextGateway(c, "", int16(service.RequestTypeFromLegacy(parsed.Stream, false)))
 
@@ -162,7 +179,7 @@ func (h *OpenAIGatewayHandler) ImagesGateway(c gatewayctx.GatewayContext) {
 			apiKey,
 			"",
 			sessionHash,
-			parsed.Model,
+			routingModel,
 			failedAccountIDs,
 			service.OpenAIUpstreamTransportHTTPSSE,
 			h.gatewayService.SelectAccountWithScheduler,
@@ -288,6 +305,7 @@ func (h *OpenAIGatewayHandler) ImagesGateway(c gatewayctx.GatewayContext) {
 		upstreamEndpoint := GetUpstreamEndpointContext(c, account.Platform)
 		quotaPlatform := service.QuotaPlatform(c.Context(), selectedAPIKey)
 
+		sessionID := extractClientSessionIDContext(c)
 		h.submitUsageRecordTask(c.Context(), func(taskCtx context.Context) {
 			_ = h.gatewayService.RecordUsage(taskCtx, &service.OpenAIRecordUsageInput{
 				Result:             result,
@@ -302,6 +320,7 @@ func (h *OpenAIGatewayHandler) ImagesGateway(c gatewayctx.GatewayContext) {
 				RequestPayloadHash: requestPayloadHash,
 				APIKeyService:      h.apiKeyService,
 				QuotaPlatform:      quotaPlatform,
+				SessionID:          sessionID,
 			})
 		})
 		return

@@ -247,7 +247,11 @@ func (h *OpenAIGatewayHandler) enqueueCyberSessionBlockedOpsEntry(c *gin.Context
 			meta.Stream = b
 		}
 	}
-	meta.Platform = resolveOpsPlatform(apiKey, guessPlatformFromPath(meta.RequestPath))
+	requestCtx := context.Background()
+	if c.Request != nil {
+		requestCtx = c.Request.Context()
+	}
+	meta.Platform = resolveOpsPlatform(requestCtx, apiKey, guessPlatformFromPath(meta.RequestPath))
 	if c.Request != nil {
 		meta.ClientRequestID, _ = c.Request.Context().Value(ctxkey.ClientRequestID).(string)
 		meta.UserAgent = c.GetHeader("User-Agent")
@@ -276,6 +280,7 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey 
 	}
 	c.Set(cyberPolicyRecordedKey, true)
 
+	model = clientRequestedModel(c, model)
 	requestID := c.Writer.Header().Get("X-Request-Id")
 	var userID, apiKeyID int64
 	var userEmail, apiKeyName, groupName string
@@ -313,7 +318,12 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey 
 	if c.Request != nil && c.Request.URL != nil {
 		requestPath = c.Request.URL.Path
 	}
-	platform := resolveOpsPlatform(apiKey, guessPlatformFromPath(requestPath))
+	requestCtx := context.Background()
+	if c.Request != nil {
+		requestCtx = c.Request.Context()
+	}
+	platform := resolveOpsPlatform(requestCtx, apiKey, guessPlatformFromPath(requestPath))
+	sessionID := service.ExtractClientSessionID(c)
 	var clientRequestID, userAgent, clientIPStr string
 	if c.Request != nil {
 		clientRequestID, _ = c.Request.Context().Value(ctxkey.ClientRequestID).(string)
@@ -379,6 +389,7 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey 
 				RequestPayloadHash: requestPayloadHash,
 				APIKeyService:      apiKeySvc,
 				ChannelUsageFields: channelFields,
+				SessionID:          sessionID,
 			})
 		}
 		if gwSvc != nil && cyberBlockKey != "" {

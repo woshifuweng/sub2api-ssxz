@@ -736,6 +736,7 @@ func ProvideGatewayService(
 	kiroTokenProvider *KiroTokenProvider,
 	kiroGatewayService *KiroGatewayService,
 	balanceNotifyService *BalanceNotifyService,
+	compositeRouteResolver *CompositeRouteResolver,
 ) *GatewayService {
 	svc := NewGatewayService(
 		accountRepo,
@@ -764,6 +765,7 @@ func ProvideGatewayService(
 	svc.SetProxyFailoverDeps(proxyRepo, proxyLatencyCache)
 	svc.SetKiroDeps(kiroTokenProvider, kiroGatewayService)
 	svc.SetBillingShortfallNotifier(balanceNotifyService)
+	svc.SetCompositeRouteResolver(compositeRouteResolver)
 	return svc
 }
 
@@ -804,6 +806,7 @@ var ProviderSet = wire.NewSet(
 	ProvideAPIKeyAuthCacheInvalidator,
 	ProvideAuthCacheInvalidationWorker,
 	NewGroupService,
+	NewCompositeRouteResolver,
 	NewAccountService,
 	NewProxyService,
 	NewRedeemService,
@@ -864,6 +867,7 @@ var ProviderSet = wire.NewSet(
 	ProvideAccountTestService,
 	ProvideUpstreamBillingProbeService,
 	ProvideAccountModelsRefreshService,
+	ProvideOllamaCloudUsageService,
 	ProvideSettingService,
 	NewDataManagementService,
 	ProvideBackupService,

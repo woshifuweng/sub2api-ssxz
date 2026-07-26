@@ -1660,6 +1660,9 @@ func (s *openAIWSUsageHandlerChannelRepoStub) GetGroupPlatforms(ctx context.Cont
 	return out, nil
 }
 
+// 验证上游 165 的池模式同账号重试语义：5xx 命中 pool_mode_retry_status_codes 时
+// 在同一账号上重试（不立即切换账号），重试预算耗尽后返回上游错误。
+// 只放一个账号以保证确定性——多账号时的选择顺序属调度器语义，另有 failover 测试覆盖。
 func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	groupID := int64(4203)
@@ -1673,15 +1676,6 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 				"pool_mode":                    true,
 				"pool_mode_retry_count":        float64(1),
 				"pool_mode_retry_status_codes": []any{float64(http.StatusBadGateway)},
-			},
-			Extra: map[string]any{"openai_passthrough": true},
-		},
-		{
-			ID: 9911, Name: "fallback-api-key", Platform: service.PlatformOpenAI,
-			Type: service.AccountTypeAPIKey, Status: service.StatusActive, Schedulable: true, Priority: 2,
-			Credentials: map[string]any{
-				"api_key":  "sk-fallback",
-				"base_url": "https://api.example.test",
 			},
 			Extra: map[string]any{"openai_passthrough": true},
 		},
@@ -1740,7 +1734,7 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 
 	h.Responses(c)
 
-	require.Equal(t, []int64{9910, 9910, 9911}, upstream.calls())
+	require.Equal(t, []int64{9910, 9910}, upstream.calls())
 	require.Equal(t, http.StatusBadGateway, rec.Code)
 	require.Equal(t, "upstream_error", gjson.GetBytes(rec.Body.Bytes(), "error.type").String())
 	require.Equal(t, "Upstream service temporarily unavailable", gjson.GetBytes(rec.Body.Bytes(), "error.message").String())

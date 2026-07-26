@@ -76,6 +76,7 @@ type APIKeyAuthGroupSnapshot struct {
 
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
 	AllowMessagesDispatch bool   `json:"allow_messages_dispatch"`
+	AllowLive             bool   `json:"allow_live"`
 	DefaultMappedModel    string `json:"default_mapped_model,omitempty"`
 }
 

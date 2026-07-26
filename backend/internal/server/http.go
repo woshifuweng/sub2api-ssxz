@@ -42,6 +42,7 @@ func ProvideRouter(
 	opsService *service.OpsService,
 	settingService *service.SettingService,
 	auditService *service.AuditLogService,
+	compositeResolver *service.CompositeRouteResolver,
 	redisClient *redis.Client,
 ) *gin.Engine {
 	if cfg.Server.Mode == "release" {
@@ -73,7 +74,7 @@ func ProvideRouter(
 		}
 	}
 
-	router := SetupRouter(r, handlers, jwtAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, cfg, redisClient, frontendServer)
+	router := SetupRouter(r, handlers, jwtAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, redisClient, frontendServer)
 	registerRouterExecutableRuntimeConfig(router, buildExecutableRuntimeConfig(cfg, handlers, apiKeyService, subscriptionService, settingService, authService, userService, redisClient, frontendServer, auditService))
 	return router
 }

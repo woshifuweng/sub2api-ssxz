@@ -612,6 +612,7 @@ const formatUserAgent = (ua: string): string => {
 
 const getRequestTypeLabel = (log: UsageLog): string => {
   const requestType = resolveUsageRequestType(log)
+  if (requestType === 'live') return t('usage.live')
   if (requestType === 'ws_v2') return t('usage.ws')
   if (requestType === 'stream') return t('usage.stream')
   if (requestType === 'sync') return t('usage.sync')
@@ -628,6 +629,7 @@ const getRequestTypeBadgeClass = (log: UsageLog): string => {
 
 const getRequestTypeExportText = (log: UsageLog): string => {
   const requestType = resolveUsageRequestType(log)
+  if (requestType === 'live') return 'Live'
   if (requestType === 'ws_v2') return 'WS'
   if (requestType === 'stream') return 'Stream'
   if (requestType === 'sync') return 'Sync'

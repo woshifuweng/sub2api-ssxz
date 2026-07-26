@@ -45,7 +45,7 @@ func (h *GatewayHandler) GeminiV1BetaListModelsGateway(transportCtx gatewayctx.G
 	}
 	// 检查平台：优先使用强制平台（/antigravity 路由），否则要求 gemini 分组
 	forcePlatform, hasForcePlatform := middleware.GetForcePlatformFromGatewayContext(transportCtx)
-	if !hasForcePlatform && (apiKey.Group == nil || apiKey.Group.Platform != service.PlatformGemini) {
+	if !hasForcePlatform && effectiveAPIKeyPlatformContext(transportCtx, apiKey) != service.PlatformGemini {
 		googleErrorContext(transportCtx, http.StatusBadRequest, "API key group platform is not gemini")
 		return
 	}
@@ -114,7 +114,7 @@ func (h *GatewayHandler) GeminiV1BetaGetModelGateway(transportCtx gatewayctx.Gat
 	}
 	// 检查平台：优先使用强制平台（/antigravity 路由），否则要求 gemini 分组
 	forcePlatform, hasForcePlatform := middleware.GetForcePlatformFromGatewayContext(transportCtx)
-	if !hasForcePlatform && (apiKey.Group == nil || apiKey.Group.Platform != service.PlatformGemini) {
+	if !hasForcePlatform && effectiveAPIKeyPlatformContext(transportCtx, apiKey) != service.PlatformGemini {
 		googleErrorContext(transportCtx, http.StatusBadRequest, "API key group platform is not gemini")
 		return
 	}
@@ -127,6 +127,9 @@ func (h *GatewayHandler) GeminiV1BetaGetModelGateway(transportCtx gatewayctx.Gat
 	if !apiKeyAllowsRequestedModel(apiKey, modelName) {
 		googleErrorContext(transportCtx, http.StatusBadRequest, apiKeyModelNotAllowedMessage(modelName))
 		return
+	}
+	if resolvedModel, ok := service.ResolvedUpstreamModelFromContext(transportCtx.Context()); ok && strings.TrimSpace(resolvedModel) != "" {
+		modelName = strings.TrimSpace(resolvedModel)
 	}
 
 	// 强制 antigravity 模式：返回 antigravity 模型信息
@@ -193,7 +196,7 @@ func (h *GatewayHandler) GeminiV1BetaModelsGateway(transportCtx gatewayctx.Gatew
 
 	// 检查平台：优先使用强制平台（/antigravity 路由，中间件已设置 request.Context），否则要求 gemini 分组
 	if !middleware.HasForcePlatformContext(transportCtx) {
-		if apiKey.Group == nil || apiKey.Group.Platform != service.PlatformGemini {
+		if effectiveAPIKeyPlatformContext(transportCtx, apiKey) != service.PlatformGemini {
 			googleErrorContext(transportCtx, http.StatusBadRequest, "API key group platform is not gemini")
 			return
 		}
@@ -207,6 +210,9 @@ func (h *GatewayHandler) GeminiV1BetaModelsGateway(transportCtx gatewayctx.Gatew
 	if !apiKeyAllowsRequestedModel(apiKey, modelName) {
 		googleErrorContext(transportCtx, http.StatusBadRequest, apiKeyModelNotAllowedMessage(modelName))
 		return
+	}
+	if resolvedModel, ok := service.ResolvedUpstreamModelFromContext(transportCtx.Context()); ok && strings.TrimSpace(resolvedModel) != "" {
+		modelName = strings.TrimSpace(resolvedModel)
 	}
 
 	stream := action == "streamGenerateContent"
@@ -617,6 +623,7 @@ func (h *GatewayHandler) GeminiV1BetaModelsGateway(transportCtx gatewayctx.Gatew
 		upstreamEndpoint := GetUpstreamEndpointContext(transportCtx, account.Platform)
 		forceCacheBilling := fs.ForceCacheBilling
 		quotaPlatform := service.QuotaPlatform(transportCtx.Context(), selectedAPIKey)
+		sessionID := extractClientSessionIDContext(transportCtx)
 		h.submitUsageRecordTask(transportCtx.Context(), func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsageWithLongContext(ctx, &service.RecordUsageLongContextInput{
 				Result:                result,
@@ -634,7 +641,8 @@ func (h *GatewayHandler) GeminiV1BetaModelsGateway(transportCtx gatewayctx.Gatew
 				LongContextMultiplier: 2.0,    // 超出部分双倍计费
 				ForceCacheBilling:     forceCacheBilling,
 				APIKeyService:         h.apiKeyService,
-				ChannelUsageFields:    channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
+				SessionID:             sessionID,
+				ChannelUsageFields:    clientRequestedUsageFieldsContext(transportCtx, channelMapping, reqModel, result.UpstreamModel),
 			}); err != nil {
 				logger.L().With(
 					zap.String("component", "handler.gemini_v1beta.models"),

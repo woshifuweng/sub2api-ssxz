@@ -227,6 +227,7 @@ func (h *GatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayContext)
 	body = parsedReq.Body.Bytes()
 	reqModel := parsedReq.Model
 	reqStream := parsedReq.Stream
+	ensureCompositeTargetPlatformContext(transportCtx, apiKey, reqModel)
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(transportCtx.Context(), apiKey.GroupID, reqModel)
 
@@ -256,6 +257,10 @@ func (h *GatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayContext)
 	}
 	if decision := h.checkSecurityAuditContext(transportCtx, reqLog, apiKey, subject, service.ContentModerationProtocolAnthropicMessages, reqModel, body); decision != nil && !decision.AllowNextStage {
 		h.anthropicSecurityAuditErrorContext(transportCtx, decision)
+		return
+	}
+	if !compositeTargetPlatformResolvedContext(transportCtx, apiKey, reqModel) {
+		h.errorResponseGateway(transportCtx, http.StatusBadRequest, "invalid_request_error", "Model is not supported by composite groups")
 		return
 	}
 
@@ -321,9 +326,12 @@ func (h *GatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayContext)
 	parsedReq.SessionContext = buildGatewaySessionContextContext(transportCtx, apiKey.ID)
 	sessionHash := h.gatewayService.GenerateSessionHash(parsedReq)
 
+	// 获取平台：优先使用强制平台（/antigravity 路由），其次使用 composite 解析出的目标平台，否则使用分组平台
 	platform := ""
 	if forcePlatform, ok := middleware2.GetForcePlatformFromGatewayContext(transportCtx); ok {
 		platform = forcePlatform
+	} else if resolvedPlatform, ok := service.ResolvedTargetPlatformFromContext(transportCtx.Context()); ok {
+		platform = resolvedPlatform
 	} else if apiKey.Group != nil {
 		platform = apiKey.Group.Platform
 	}
@@ -526,6 +534,7 @@ func (h *GatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayContext)
 
 			forceCacheBilling := fs.ForceCacheBilling
 			quotaPlatform := service.QuotaPlatform(transportCtx.Context(), selectedAPIKey)
+			sessionID := extractClientSessionIDContext(transportCtx)
 			h.submitUsageRecordTask(transportCtx.Context(), func(ctx context.Context) {
 				if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
 					Result:             result,
@@ -538,10 +547,11 @@ func (h *GatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayContext)
 					UpstreamEndpoint:   upstreamEndpoint,
 					UserAgent:          userAgent,
 					IPAddress:          clientIP,
+					SessionID:          sessionID,
 					RequestPayloadHash: requestPayloadHash,
 					ForceCacheBilling:  forceCacheBilling,
 					APIKeyService:      h.apiKeyService,
-					ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
+					ChannelUsageFields: clientRequestedUsageFieldsContext(transportCtx, channelMapping, reqModel, result.UpstreamModel),
 				}); err != nil {
 					logger.L().With(zap.String("component", "handler.gateway.messages"), zap.Int64("user_id", subject.UserID), zap.Int64("api_key_id", selectedAPIKey.ID), zap.Any("group_id", selectedAPIKey.GroupID), zap.String("model", reqModel), zap.Int64("account_id", account.ID)).Error("gateway.record_usage_failed", zap.Error(err))
 				}
@@ -836,6 +846,7 @@ func (h *GatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayContext)
 
 			forceCacheBilling := fs.ForceCacheBilling
 			quotaPlatform := service.QuotaPlatform(transportCtx.Context(), currentAPIKey)
+			sessionID := extractClientSessionIDContext(transportCtx)
 			h.submitUsageRecordTask(transportCtx.Context(), func(ctx context.Context) {
 				if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
 					Result:             result,
@@ -848,10 +859,11 @@ func (h *GatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayContext)
 					UpstreamEndpoint:   upstreamEndpoint,
 					UserAgent:          userAgent,
 					IPAddress:          clientIP,
+					SessionID:          sessionID,
 					RequestPayloadHash: requestPayloadHash,
 					ForceCacheBilling:  forceCacheBilling,
 					APIKeyService:      h.apiKeyService,
-					ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
+					ChannelUsageFields: clientRequestedUsageFieldsContext(transportCtx, channelMapping, reqModel, result.UpstreamModel),
 				}); err != nil {
 					logger.L().With(zap.String("component", "handler.gateway.messages"), zap.Int64("user_id", subject.UserID), zap.Int64("api_key_id", currentAPIKey.ID), zap.Any("group_id", currentAPIKey.GroupID), zap.String("model", reqModel), zap.Int64("account_id", account.ID)).Error("gateway.record_usage_failed", zap.Error(err))
 				}
@@ -909,6 +921,29 @@ func (h *GatewayHandler) ModelsGateway(c gatewayctx.GatewayContext) {
 		})
 		return
 	}
+	if platform == service.PlatformComposite {
+		availableModels := h.compositeAvailableModels(c.Request().Context(), groupID)
+		if apiKey != nil && len(apiKey.AllowedModels) > 0 {
+			filtered := make([]string, 0, len(availableModels))
+			for _, modelID := range availableModels {
+				if apiKeyAllowsRequestedModel(apiKey, modelID) {
+					filtered = append(filtered, modelID)
+				}
+			}
+			availableModels = filtered
+		}
+		if apiKey != nil && apiKey.Group != nil && apiKey.Group.CustomModelsListEnabled() {
+			availableModels = filterModelsByCustomList(availableModels, defaultModelIDsForPlatform(service.PlatformComposite), apiKey.Group.ModelsListConfig.Models)
+			writeCustomModelsList(c, service.PlatformComposite, availableModels)
+			return
+		}
+		if len(availableModels) > 0 {
+			writeModelsList(c, service.PlatformComposite, availableModels)
+			return
+		}
+		writeModelsList(c, service.PlatformComposite, defaultModelIDsForPlatform(service.PlatformComposite))
+		return
+	}
 	availableModels := h.gatewayService.GetAvailableModels(c.Request().Context(), groupID, platform)
 	if apiKey != nil && len(apiKey.AllowedModels) > 0 {
 		filtered := make([]string, 0, len(availableModels))
@@ -961,6 +996,35 @@ func (h *GatewayHandler) ModelsGateway(c gatewayctx.GatewayContext) {
 			"data":   filterClaudeModelsForAPIKey(apiKey, claude.DefaultModels),
 		})
 	}
+}
+
+func (h *GatewayHandler) compositeAvailableModels(ctx context.Context, groupID *int64) []string {
+	if h == nil || h.gatewayService == nil {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	models := make([]string, 0)
+	schedulablePlatforms := h.gatewayService.GetSchedulablePlatforms(ctx, groupID)
+	for _, platform := range []string{service.PlatformAnthropic, service.PlatformGemini, service.PlatformOpenAI, service.PlatformAntigravity, service.PlatformGrok} {
+		platformModels := h.gatewayService.GetAvailableModels(ctx, groupID, platform)
+		if len(platformModels) == 0 {
+			if _, ok := schedulablePlatforms[platform]; ok {
+				platformModels = defaultModelIDsForPlatform(platform)
+			}
+		}
+		for _, model := range platformModels {
+			model = strings.TrimSpace(model)
+			if model == "" {
+				continue
+			}
+			if _, ok := seen[model]; ok {
+				continue
+			}
+			seen[model] = struct{}{}
+			models = append(models, model)
+		}
+	}
+	return models
 }
 
 func writeModelsList(c gatewayctx.GatewayContext, platform string, modelIDs []string) {
@@ -1155,6 +1219,19 @@ func defaultModelIDsForPlatform(platform string) []string {
 		return mergeModelIDs(ids, nil)
 	case service.PlatformGrok:
 		return xai.DefaultModelIDs()
+	case service.PlatformComposite:
+		ids := make([]string, 0)
+		seen := make(map[string]struct{})
+		for _, concretePlatform := range []string{service.PlatformAnthropic, service.PlatformGemini, service.PlatformOpenAI, service.PlatformAntigravity, service.PlatformGrok} {
+			for _, id := range defaultModelIDsForPlatform(concretePlatform) {
+				if _, ok := seen[id]; ok {
+					continue
+				}
+				seen[id] = struct{}{}
+				ids = append(ids, id)
+			}
+		}
+		return ids
 	default:
 		ids := make([]string, 0, len(claude.DefaultModels))
 		for _, model := range claude.DefaultModels {
@@ -1840,6 +1917,7 @@ func (h *GatewayHandler) CountTokensGateway(transportCtx gatewayctx.GatewayConte
 	body = parsedReq.Body.Bytes()
 	// count_tokens 走 messages 严格校验时，复用已解析请求，避免二次反序列化。
 	SetClaudeCodeClientContextContext(transportCtx, body, parsedReq)
+	ensureCompositeTargetPlatformContext(transportCtx, apiKey, parsedReq.Model)
 	reqLog = reqLog.With(zap.String("model", parsedReq.Model), zap.Bool("stream", parsedReq.Stream))
 	// 在请求上下文中记录 thinking 状态，供 Antigravity 最终模型 key 推导/模型维度限流使用
 	transportCtx.SetRequest(transportCtx.Request().WithContext(service.WithThinkingEnabled(transportCtx.Context(), parsedReq.ThinkingEnabled, h.metadataBridgeEnabled())))
@@ -1851,6 +1929,10 @@ func (h *GatewayHandler) CountTokensGateway(transportCtx gatewayctx.GatewayConte
 	}
 	if !apiKeyAllowsRequestedModel(apiKey, parsedReq.Model) {
 		h.errorResponseGateway(transportCtx, http.StatusBadRequest, "invalid_request_error", apiKeyModelNotAllowedMessage(parsedReq.Model))
+		return
+	}
+	if !compositeTargetPlatformResolvedContext(transportCtx, apiKey, parsedReq.Model) {
+		h.errorResponseGateway(transportCtx, http.StatusBadRequest, "invalid_request_error", "Model is not supported by composite groups")
 		return
 	}
 
@@ -2258,4 +2340,32 @@ func (h *GatewayHandler) getUserMsgQueueMode(account *service.Account, parsed *s
 		mode = h.cfg.Gateway.UserMessageQueue.GetEffectiveMode()
 	}
 	return mode
+}
+
+// compositeTargetPlatformResolvedContext 桥接 gatewayctx 与 gin-based composite 解析。
+// 非 gin 传输不携带 composite 上下文：仅 composite 分组返回 false（无法解析目标平台）。
+func compositeTargetPlatformResolvedContext(c gatewayctx.GatewayContext, apiKey *service.APIKey, model string) bool {
+	if c != nil {
+		if native, ok := c.Native().(*gin.Context); ok && native != nil {
+			return compositeTargetPlatformResolved(native, apiKey, model)
+		}
+	}
+	return apiKey == nil || apiKey.Group == nil || apiKey.Group.Platform != service.PlatformComposite
+}
+
+// effectiveAPIKeyPlatformContext 桥接 gatewayctx 与 gin-based composite 平台解析：
+// 优先返回 composite 解析出的目标平台，否则返回分组平台。
+func effectiveAPIKeyPlatformContext(c gatewayctx.GatewayContext, apiKey *service.APIKey) string {
+	if c != nil {
+		if native, ok := c.Native().(*gin.Context); ok && native != nil {
+			return effectiveAPIKeyPlatform(native, apiKey)
+		}
+		if platform, ok := service.ResolvedTargetPlatformFromContext(c.Context()); ok {
+			return platform
+		}
+	}
+	if apiKey == nil || apiKey.Group == nil {
+		return ""
+	}
+	return apiKey.Group.Platform
 }

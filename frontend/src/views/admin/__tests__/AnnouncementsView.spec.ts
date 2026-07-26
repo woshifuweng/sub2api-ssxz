@@ -132,7 +132,10 @@ describe('admin AnnouncementsView empty and error states', () => {
   it('shows a creation empty state when the list loads successfully with no announcements', async () => {
     listAnnouncements.mockResolvedValue(emptyResponse())
 
-    const wrapper = mount(AnnouncementsView)
+    // 上游 165 在管理视图内嵌 AnnouncementPopup 预览组件，其 setup 依赖 pinia，测试中打桩。
+    const wrapper = mount(AnnouncementsView, {
+      global: { stubs: { AnnouncementPopup: true } }
+    })
     await flushPromises()
 
     expect(wrapper.get('[data-testid="announcement-empty"]').text()).toContain('暂无公告')
@@ -143,7 +146,9 @@ describe('admin AnnouncementsView empty and error states', () => {
   it('shows a retryable error state when the list request fails', async () => {
     listAnnouncements.mockRejectedValueOnce(new Error('network failure'))
 
-    const wrapper = mount(AnnouncementsView)
+    const wrapper = mount(AnnouncementsView, {
+      global: { stubs: { AnnouncementPopup: true } }
+    })
     await flushPromises()
 
     expect(wrapper.get('[data-testid="announcement-empty"]').text()).toContain('加载公告失败')

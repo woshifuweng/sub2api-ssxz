@@ -57,7 +57,7 @@
             <div class="space-y-2">
               <p class="text-sm font-medium text-[var(--ssxz-text-secondary)]">{{ t('affiliate.code') }}</p>
               <div class="affiliate-copy-row">
-                <code class="flex-1 truncate text-sm font-semibold text-[var(--ssxz-text)]">{{ detail.aff_code }}</code>
+                <code class="min-w-0 flex-1 break-all text-sm font-semibold text-[var(--ssxz-text)] sm:truncate">{{ detail.aff_code }}</code>
                 <button class="btn btn-secondary btn-sm" data-testid="copy-affiliate-code" @click="copyValue(detail.aff_code, t('affiliate.codeCopied'))">
                   <Icon name="copy" size="sm" />
                   <span>{{ t('affiliate.copy') }}</span>
@@ -68,7 +68,7 @@
             <div class="space-y-2">
               <p class="text-sm font-medium text-[var(--ssxz-text-secondary)]">{{ t('affiliate.link') }}</p>
               <div class="affiliate-copy-row">
-                <code class="flex-1 truncate text-sm text-[var(--ssxz-text-secondary)]">{{ inviteLink }}</code>
+                <code class="min-w-0 flex-1 break-all text-sm text-[var(--ssxz-text-secondary)] sm:truncate">{{ inviteLink }}</code>
                 <button class="btn btn-secondary btn-sm" data-testid="copy-affiliate-link" @click="copyValue(inviteLink, t('affiliate.linkCopied'))">
                   <Icon name="copy" size="sm" />
                   <span>{{ t('affiliate.copy') }}</span>

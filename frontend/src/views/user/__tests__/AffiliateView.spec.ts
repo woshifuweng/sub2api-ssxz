@@ -196,6 +196,40 @@ describe('AffiliateView', () => {
     )
   })
 
+  it('keeps mobile-stackable copy rows and copies both the code and the bound link', async () => {
+    const longCode = 'affiliate-code-that-is-long-enough-to-overflow-a-mobile-viewport'
+    userAPI.getAffiliateDetail.mockResolvedValue({
+      aff_code: longCode,
+      effective_rebate_rate_percent: 10,
+      aff_count: 0,
+      aff_quota: 0,
+      aff_history_quota: 0,
+      aff_frozen_quota: 0,
+      invitees: []
+    })
+
+    const wrapper = mount(AffiliateView)
+    await flushPromises()
+
+    const copyRows = wrapper.findAll('.affiliate-copy-row')
+    expect(copyRows).toHaveLength(2)
+    for (const row of copyRows) {
+      expect(row.find('code').exists()).toBe(true)
+      expect(row.find('button').exists()).toBe(true)
+    }
+
+    await wrapper.get('[data-testid="copy-affiliate-code"]').trigger('click')
+    await wrapper.get('[data-testid="copy-affiliate-link"]').trigger('click')
+    await flushPromises()
+
+    expect(clipboard.copyToClipboard).toHaveBeenNthCalledWith(1, longCode, '推广码已复制')
+    expect(clipboard.copyToClipboard).toHaveBeenNthCalledWith(
+      2,
+      `${window.location.origin}/register?aff=${encodeURIComponent(longCode)}`,
+      '推广链接已复制'
+    )
+  })
+
   it('keeps the legacy layout when used outside the app workbench', async () => {
     routeState.path = '/affiliate'
 

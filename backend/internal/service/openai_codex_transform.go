@@ -1126,6 +1126,9 @@ func filterCodexInput(input []any, preserveReferences bool) []any {
 			if !isCodexToolCallItemType(typ) {
 				delete(newItem, "call_id")
 			}
+		} else if id, ok := m["id"].(string); ok && shouldStripOpenAIResponsesInputItemID(typ, id) {
+			ensureCopy()
+			delete(newItem, "id")
 		}
 
 		filtered = append(filtered, newItem)

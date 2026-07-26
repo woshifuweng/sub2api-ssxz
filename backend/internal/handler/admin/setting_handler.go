@@ -359,6 +359,7 @@ func (h *SettingHandler) buildSystemSettingsDTO(ctx context.Context, settings *s
 		PaymentCancelRateLimitUnit:                             paymentCfg.CancelRateLimitUnit,
 		PaymentCancelRateLimitMode:                             paymentCfg.CancelRateLimitMode,
 		PaymentAlipayForceQRCode:                               paymentCfg.AlipayForceQRCode,
+		PaymentAlipayMobilePrecreateDeepLink:                   paymentCfg.AlipayMobilePrecreateDeepLink,
 
 		ChannelMonitorEnabled:                settings.ChannelMonitorEnabled,
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,

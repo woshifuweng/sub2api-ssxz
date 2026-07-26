@@ -849,7 +849,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 			}
 
 			fallbackPlatform := guessPlatformFromPath(c.Request.URL.Path)
-			platform := resolveOpsPlatform(apiKey, fallbackPlatform)
+			platform := resolveOpsPlatform(c.Request.Context(), apiKey, fallbackPlatform)
 
 			requestID := c.Writer.Header().Get("X-Request-Id")
 			if requestID == "" {
@@ -1046,7 +1046,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 		}
 
 		fallbackPlatform := guessPlatformFromPath(c.Request.URL.Path)
-		platform := resolveOpsPlatform(apiKey, fallbackPlatform)
+		platform := resolveOpsPlatform(c.Request.Context(), apiKey, fallbackPlatform)
 
 		requestID := c.Writer.Header().Get("X-Request-Id")
 		if requestID == "" {
@@ -1231,7 +1231,8 @@ func logOpsStreamError(c *gin.Context, ops *service.OpsService, wireStatus int) 
 	}
 
 	fallbackPlatform := guessPlatformFromPath(c.Request.URL.Path)
-	platform := resolveOpsPlatform(apiKey, fallbackPlatform)
+	platform := resolveOpsPlatform(c.Request.Context(), apiKey, fallbackPlatform)
+
 	requestID := c.Writer.Header().Get("X-Request-Id")
 	if requestID == "" {
 		requestID = c.Writer.Header().Get("x-request-id")
@@ -1292,6 +1293,10 @@ func logOpsStreamError(c *gin.Context, ops *service.OpsService, wireStatus int) 
 	enqueueOpsErrorLog(ops, entry)
 }
 
+// getOpsAPIKey 返回用于 Ops 错误日志的 API Key：优先取已鉴权写入的正式 key；
+// 鉴权早退（分组停用/删除、Key 停用/过期/额度、用户停用、IP 限制等）时，
+// 正式 key 尚未写入，回退到 middleware 写入的 ops fallback key
+// （含 User/Group/Platform），从而让日志能展示 用户/分组/平台。
 func getOpsAPIKey(c *gin.Context) *service.APIKey {
 	if apiKey, ok := middleware2.GetAPIKeyFromContext(c); ok && apiKey != nil {
 		return apiKey
@@ -1429,7 +1434,10 @@ func parseOpsErrorResponse(body []byte) parsedOpsError {
 	return parsedOpsError{Message: truncateString(string(body), 1024)}
 }
 
-func resolveOpsPlatform(apiKey *service.APIKey, fallback string) string {
+func resolveOpsPlatform(ctx context.Context, apiKey *service.APIKey, fallback string) string {
+	if platform, ok := service.ResolvedTargetPlatformFromContext(ctx); ok {
+		return platform
+	}
 	if apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform != "" {
 		return apiKey.Group.Platform
 	}

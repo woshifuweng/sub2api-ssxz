@@ -412,7 +412,7 @@ export interface PaginationConfig {
 
 // ==================== API Key & Group Types ====================
 
-export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'sora' | 'kiro'
+export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'sora' | 'kiro' | 'composite'
 
 export type SubscriptionType = 'standard' | 'subscription'
 
@@ -445,6 +445,8 @@ export interface Group {
   fallback_group_id_on_invalid_request: number | null
   // OpenAI Messages 调度开关（用户侧需要此字段判断是否展示 Claude Code 教程）
   allow_messages_dispatch?: boolean
+  // OpenAI Live 接口开关
+  allow_live: boolean
   created_at: string
   updated_at: string
 }
@@ -470,6 +472,63 @@ export interface AdminGroup extends Group {
 
   // 分组排序
   sort_order: number
+}
+
+export type CompositeRouteMatchType = 'exact' | 'prefix'
+
+export type CompositeRouteEndpoint =
+  | 'any'
+  | 'messages'
+  | 'count_tokens'
+  | 'responses'
+  | 'chat_completions'
+  | 'embeddings'
+  | 'images'
+  | 'gemini'
+
+export type CompositeRouteSource = 'route' | 'detector' | string
+
+export interface CompositeModelRoute {
+  id: number
+  group_id: number
+  public_model: string
+  match_type: CompositeRouteMatchType
+  target_platform: Exclude<GroupPlatform, 'composite'>
+  upstream_model: string
+  endpoint: CompositeRouteEndpoint
+  priority: number
+  enabled: boolean
+  notes: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface CompositeModelRouteInput {
+  public_model: string
+  match_type: CompositeRouteMatchType
+  target_platform: Exclude<GroupPlatform, 'composite'>
+  upstream_model?: string
+  endpoint: CompositeRouteEndpoint
+  priority?: number
+  enabled?: boolean
+  notes?: string
+}
+
+export interface CompositeRoutePreviewRequest {
+  model: string
+  endpoint: CompositeRouteEndpoint
+}
+
+export interface CompositeRouteDecision {
+  matched: boolean
+  source: CompositeRouteSource
+  group_id: number
+  public_model: string
+  target_platform: Exclude<GroupPlatform, 'composite'> | ''
+  upstream_model: string
+  endpoint: CompositeRouteEndpoint
+  route?: CompositeModelRoute
+  reason?: string
 }
 
 export interface ApiKey {
@@ -560,6 +619,7 @@ export interface CreateGroupRequest {
   fallback_group_id_on_invalid_request?: number | null
   mcp_xml_inject?: boolean
   supported_model_scopes?: string[]
+  allow_live?: boolean
   // 从指定分组复制账号
   copy_accounts_from_group_ids?: number[]
 }
@@ -588,6 +648,7 @@ export interface UpdateGroupRequest {
   fallback_group_id_on_invalid_request?: number | null
   mcp_xml_inject?: boolean
   supported_model_scopes?: string[]
+  allow_live?: boolean
   copy_accounts_from_group_ids?: number[]
 }
 
@@ -1140,7 +1201,7 @@ export interface AdminDataExportTask {
 // ==================== Usage & Redeem Types ====================
 
 export type RedeemCodeType = 'balance' | 'concurrency' | 'subscription' | 'invitation'
-export type UsageRequestType = 'unknown' | 'sync' | 'stream' | 'ws_v2'
+export type UsageRequestType = 'unknown' | 'sync' | 'stream' | 'ws_v2' | 'live'
 
 export interface UsageLog {
   id: number

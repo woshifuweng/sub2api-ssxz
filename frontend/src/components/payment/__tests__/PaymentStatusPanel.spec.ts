@@ -106,4 +106,46 @@ describe('PaymentStatusPanel', () => {
     expect(wrapper.text()).toContain('payment.result.success')
     expect(wrapper.emitted('success')).toHaveLength(1)
   })
+
+  it('does not show the QR fallback after the page enters the background', async () => {
+    const originalLocation = window.location
+    const originalHidden = Object.getOwnPropertyDescriptor(document, 'hidden')
+    let hidden = false
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { assign: vi.fn() },
+    })
+    Object.defineProperty(document, 'hidden', {
+      configurable: true,
+      get: () => hidden,
+    })
+
+    const wrapper = mount(PaymentStatusPanel, {
+      props: {
+        orderId: 42,
+        amount: 88,
+        payAmount: 88,
+        qrCode: 'https://qr.alipay.com/dynamic-order-42',
+        expiresAt: '2099-01-01T12:30:00Z',
+        paymentType: 'alipay',
+        orderType: 'balance',
+        outTradeNo: 'sub2_20260420abcd1234',
+        mobileAlipayDeepLink: true,
+      },
+      global: { stubs: { Icon: true } },
+    })
+
+    await flushPromises()
+    hidden = true
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(2200)
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="alipay-qr-fallback"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('payment.qr.alipayContinueInApp')
+
+    wrapper.unmount()
+    Object.defineProperty(window, 'location', { configurable: true, value: originalLocation })
+    if (originalHidden) Object.defineProperty(document, 'hidden', originalHidden)
+  })
 })

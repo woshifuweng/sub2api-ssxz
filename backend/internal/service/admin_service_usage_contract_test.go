@@ -88,7 +88,7 @@ func TestAdminService_GetUserUsageStats_UsesRealUsageRepo(t *testing.T) {
 			},
 		},
 	}
-	svc := NewAdminService(nil, nil, nil, nil, nil, nil, nil, repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewAdminService(nil, nil, nil, nil, nil, nil, nil, repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	got, err := svc.GetUserUsageStats(context.Background(), 7, "month")
 	require.NoError(t, err)

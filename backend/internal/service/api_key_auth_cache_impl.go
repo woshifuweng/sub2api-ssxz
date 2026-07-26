@@ -343,6 +343,7 @@ func (s *APIKeyService) snapshotFromAPIKey(_ context.Context, apiKey *APIKey) *A
 			AllowImageGeneration:            apiKey.Group.AllowImageGeneration,
 			SupportedModelScopes:            apiKey.Group.SupportedModelScopes,
 			AllowMessagesDispatch:           apiKey.Group.AllowMessagesDispatch,
+			AllowLive:                       apiKey.Group.AllowLive,
 			DefaultMappedModel:              apiKey.Group.DefaultMappedModel,
 		}
 	}
@@ -382,6 +383,7 @@ func (s *APIKeyService) snapshotFromAPIKey(_ context.Context, apiKey *APIKey) *A
 				AllowImageGeneration:            group.AllowImageGeneration,
 				SupportedModelScopes:            group.SupportedModelScopes,
 				AllowMessagesDispatch:           group.AllowMessagesDispatch,
+				AllowLive:                       group.AllowLive,
 				DefaultMappedModel:              group.DefaultMappedModel,
 			})
 		}
@@ -449,6 +451,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			AllowImageGeneration:            snapshot.Group.AllowImageGeneration,
 			SupportedModelScopes:            snapshot.Group.SupportedModelScopes,
 			AllowMessagesDispatch:           snapshot.Group.AllowMessagesDispatch,
+			AllowLive:                       snapshot.Group.AllowLive,
 			DefaultMappedModel:              snapshot.Group.DefaultMappedModel,
 		}
 	}
@@ -486,6 +489,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 				AllowImageGeneration:            group.AllowImageGeneration,
 				SupportedModelScopes:            group.SupportedModelScopes,
 				AllowMessagesDispatch:           group.AllowMessagesDispatch,
+				AllowLive:                       group.AllowLive,
 				DefaultMappedModel:              group.DefaultMappedModel,
 			}
 			apiKey.Groups = append(apiKey.Groups, g)

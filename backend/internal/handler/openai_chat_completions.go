@@ -81,6 +81,11 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 		return
 	}
 	reqModel := modelResult.String()
+	ensureCompositeTargetPlatformContext(c, apiKey, reqModel)
+	if !openAICompatibleTextTargetAllowedContext(c, apiKey, reqModel) {
+		h.errorResponseGateway(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by this OpenAI-compatible endpoint for composite groups")
+		return
+	}
 	if service.IsGPTImageGenerationModel(reqModel) {
 		h.errorResponseGateway(c, http.StatusBadRequest, "invalid_request_error", "This model is not supported on the Chat Completions endpoint")
 		return
@@ -262,7 +267,7 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 		defaultMappedModel := resolveOpenAIForwardDefaultMappedModel(selectedAPIKey, getContextStringGateway(c, "openai_chat_completions_fallback_model"))
 		forwardBody := openAIModelMappedBody(body, channelMapping.Mapped, channelMapping.MappedModel, h.gatewayService.ReplaceModelInBody)
 		result, err := h.gatewayService.ForwardAsChatCompletionsContext(c.Context(), c, account, forwardBody, promptCacheKey, defaultMappedModel)
-		h.recordCyberPolicyIfMarkedContext(c, selectedAPIKey, account, subscription, reqModel, err != nil, body, channelMapping.ToUsageFields(reqModel, ""))
+		h.recordCyberPolicyIfMarkedContext(c, selectedAPIKey, account, subscription, reqModel, err != nil, body, clientRequestedUsageFieldsContext(c, channelMapping, reqModel, ""))
 
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()
 		if accountReleaseFunc != nil {
@@ -359,6 +364,7 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 
 		userAgent := c.HeaderValue("User-Agent")
 		clientIP := c.ClientIP()
+		sessionID := extractClientSessionIDContext(c)
 
 		cyberBlocked := getOpsCyberPolicyContext(c) != nil
 		quotaPlatform := service.QuotaPlatform(c.Context(), selectedAPIKey)
@@ -380,7 +386,8 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 				RequestPayloadHash: service.HashUsageRequestPayload(body),
 				APIKeyService:      h.apiKeyService,
 				QuotaPlatform:      quotaPlatform,
-				ChannelUsageFields: channelMapping.ToUsageFields(reqModel, upstreamModel),
+				SessionID:          sessionID,
+				ChannelUsageFields: clientRequestedUsageFieldsContext(c, channelMapping, reqModel, upstreamModel),
 				CyberBlocked:       cyberBlocked,
 			}); err != nil {
 				logger.L().With(

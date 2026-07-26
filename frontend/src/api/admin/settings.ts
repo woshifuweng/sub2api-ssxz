@@ -97,6 +97,9 @@ export interface SystemSettings {
   auto_delete_401_accounts: boolean
   auto_delete_429_accounts: boolean
   auto_delete_useless_proxies: boolean
+
+  // Alipay 手机端预创建深链（后端设置项，生产环境使用外部发卡支付，此开关保持关闭）
+  payment_alipay_mobile_precreate_deep_link?: boolean
 }
 
 export interface UpdateSettingsRequest {
@@ -163,6 +166,7 @@ export interface UpdateSettingsRequest {
   auto_delete_401_accounts?: boolean
   auto_delete_429_accounts?: boolean
   auto_delete_useless_proxies?: boolean
+  payment_alipay_mobile_precreate_deep_link?: boolean
 }
 
 /**

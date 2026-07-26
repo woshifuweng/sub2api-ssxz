@@ -6,7 +6,7 @@ export interface UsageRequestTypeLike {
   openai_ws_mode?: boolean | null
 }
 
-const VALID_REQUEST_TYPES = new Set<UsageRequestType>(['unknown', 'sync', 'stream', 'ws_v2'])
+const VALID_REQUEST_TYPES = new Set<UsageRequestType>(['unknown', 'sync', 'stream', 'ws_v2', 'live'])
 
 export const isUsageRequestType = (value: unknown): value is UsageRequestType => {
   return typeof value === 'string' && VALID_REQUEST_TYPES.has(value as UsageRequestType)
@@ -23,7 +23,8 @@ export const resolveUsageRequestType = (value: UsageRequestTypeLike): UsageReque
 }
 
 export const requestTypeToLegacyStream = (requestType?: UsageRequestType | null): boolean | null | undefined => {
-  if (!requestType || requestType === 'unknown') {
+  // live 不映射到 legacy stream 维度。
+  if (!requestType || requestType === 'unknown' || requestType === 'live') {
     return null
   }
   if (requestType === 'sync') {

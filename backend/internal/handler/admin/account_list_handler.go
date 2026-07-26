@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/rustbridge/ffi"
@@ -96,6 +95,17 @@ func (h *AccountHandler) ListGateway(c gatewayctx.GatewayContext) {
 			)
 			if err != nil {
 				return nil, 0, err
+			}
+
+			// Ollama Cloud 用量状态：整页一次批量解析，避免 N+1（上游 165）。
+			if h.ollamaCloudUsage != nil && len(accounts) > 0 {
+				accountPointers := make([]*service.Account, len(accounts))
+				for i := range accounts {
+					accountPointers[i] = &accounts[i]
+				}
+				if resolveErr := h.ollamaCloudUsage.ResolveAccounts(ctx, accountPointers); resolveErr != nil {
+					return nil, 0, resolveErr
+				}
 			}
 
 			accountIDs := make([]int64, len(accounts))
@@ -212,7 +222,7 @@ func (h *AccountHandler) ListGateway(c gatewayctx.GatewayContext) {
 			for i := range accounts {
 				account := &accounts[i]
 				item := AccountWithConcurrency{
-					Account:            dto.AccountFromService(account),
+					Account:            h.accountResponseFromService(account),
 					CurrentConcurrency: concurrencyCounts[account.ID],
 					SchedulerScore:     schedulerScores[account.ID],
 					SchedulerScores:    schedulerGroupScores[account.ID],

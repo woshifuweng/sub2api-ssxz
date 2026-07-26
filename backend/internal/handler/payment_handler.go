@@ -140,6 +140,14 @@ func (h *PaymentHandler) GetCheckoutInfoGateway(c gatewayctx.GatewayContext) {
 		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
+	alipayMobilePrecreateDeepLink := false
+	if cfg.AlipayMobilePrecreateDeepLink {
+		alipayMobilePrecreateDeepLink, err = h.configService.UsesOfficialAlipayVisibleMethod(ctx)
+		if err != nil {
+			response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+			return
+		}
+	}
 
 	// Fetch plans with group info
 	plans, _ := h.configService.ListPlansForSale(ctx)
@@ -160,30 +168,32 @@ func (h *PaymentHandler) GetCheckoutInfoGateway(c gatewayctx.GatewayContext) {
 	}
 
 	response.SuccessContext(gatewayJSONResponder{ctx: c}, checkoutInfoResponse{
-		Methods:                   limitsResp.Methods,
-		GlobalMin:                 limitsResp.GlobalMin,
-		GlobalMax:                 limitsResp.GlobalMax,
-		Plans:                     planList,
-		BalanceDisabled:           cfg.BalanceDisabled,
-		BalanceRechargeMultiplier: cfg.BalanceRechargeMultiplier,
-		RechargeFeeRate:           cfg.RechargeFeeRate,
-		HelpText:                  cfg.HelpText,
-		HelpImageURL:              cfg.HelpImageURL,
-		StripePublishableKey:      cfg.StripePublishableKey,
+		Methods:                       limitsResp.Methods,
+		GlobalMin:                     limitsResp.GlobalMin,
+		GlobalMax:                     limitsResp.GlobalMax,
+		Plans:                         planList,
+		BalanceDisabled:               cfg.BalanceDisabled,
+		BalanceRechargeMultiplier:     cfg.BalanceRechargeMultiplier,
+		RechargeFeeRate:               cfg.RechargeFeeRate,
+		HelpText:                      cfg.HelpText,
+		HelpImageURL:                  cfg.HelpImageURL,
+		StripePublishableKey:          cfg.StripePublishableKey,
+		AlipayMobilePrecreateDeepLink: alipayMobilePrecreateDeepLink,
 	})
 }
 
 type checkoutInfoResponse struct {
-	Methods                   map[string]service.MethodLimits `json:"methods"`
-	GlobalMin                 float64                         `json:"global_min"`
-	GlobalMax                 float64                         `json:"global_max"`
-	Plans                     []checkoutPlan                  `json:"plans"`
-	BalanceDisabled           bool                            `json:"balance_disabled"`
-	BalanceRechargeMultiplier float64                         `json:"balance_recharge_multiplier"`
-	RechargeFeeRate           float64                         `json:"recharge_fee_rate"`
-	HelpText                  string                          `json:"help_text"`
-	HelpImageURL              string                          `json:"help_image_url"`
-	StripePublishableKey      string                          `json:"stripe_publishable_key"`
+	Methods                       map[string]service.MethodLimits `json:"methods"`
+	GlobalMin                     float64                         `json:"global_min"`
+	GlobalMax                     float64                         `json:"global_max"`
+	Plans                         []checkoutPlan                  `json:"plans"`
+	BalanceDisabled               bool                            `json:"balance_disabled"`
+	BalanceRechargeMultiplier     float64                         `json:"balance_recharge_multiplier"`
+	RechargeFeeRate               float64                         `json:"recharge_fee_rate"`
+	HelpText                      string                          `json:"help_text"`
+	HelpImageURL                  string                          `json:"help_image_url"`
+	StripePublishableKey          string                          `json:"stripe_publishable_key"`
+	AlipayMobilePrecreateDeepLink bool                            `json:"alipay_mobile_precreate_deep_link"`
 }
 
 type checkoutPlan struct {

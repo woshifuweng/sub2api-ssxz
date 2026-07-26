@@ -40,6 +40,7 @@ const (
 	PlatformAntigravity = domain.PlatformAntigravity
 	PlatformSora        = domain.PlatformSora
 	PlatformKiro        = domain.PlatformKiro
+	PlatformComposite   = domain.PlatformComposite
 )
 
 // Account type constants
@@ -206,6 +207,13 @@ const (
 
 	// SettingKeyOpsRuntimeLogConfig stores JSON config for runtime log settings.
 	SettingKeyOpsRuntimeLogConfig = "ops_runtime_log_config"
+
+	// =========================
+	// Ollama Cloud Usage
+	// =========================
+
+	// SettingKeyOllamaCloudUsageSettings stores the opt-in global runner switch and interval.
+	SettingKeyOllamaCloudUsageSettings = "ollama_cloud_usage_settings"
 
 	// =========================
 	// Overload Cooldown (529)

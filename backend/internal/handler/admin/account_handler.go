@@ -67,6 +67,7 @@ type AccountHandler struct {
 	importTaskManager       *accountImportTaskManager
 	exportTaskManager       *accountExportTaskManager
 	uploadSessionManager    *accountImportUploadSessionManager
+	ollamaCloudUsage        *service.OllamaCloudUsageService
 }
 
 // SetUpstreamBillingProbeService attaches the optional remote billing probe service.
@@ -77,6 +78,11 @@ func (h *AccountHandler) SetUpstreamBillingProbeService(probe *service.UpstreamB
 // SetAccountExportService attaches the streaming export implementation.
 func (h *AccountHandler) SetAccountExportService(exportService *service.AccountExportService) {
 	h.accountExportService = exportService
+}
+
+// SetOllamaCloudUsageService attaches the optional Ollama Cloud usage service.
+func (h *AccountHandler) SetOllamaCloudUsageService(usage *service.OllamaCloudUsageService) {
+	h.ollamaCloudUsage = usage
 }
 
 // NewAccountHandler creates a new admin account handler
@@ -220,9 +226,17 @@ type AccountSchedulerGroupScore struct {
 
 const accountListGroupUngroupedQueryValue = "ungrouped"
 
+func (h *AccountHandler) accountResponseFromService(account *service.Account) *dto.Account {
+	out := dto.AccountFromService(account)
+	if h != nil && h.ollamaCloudUsage != nil && out != nil {
+		h.ollamaCloudUsage.EnrichState(out.OllamaCloudUsage)
+	}
+	return out
+}
+
 func (h *AccountHandler) buildAccountResponseWithRuntime(ctx context.Context, account *service.Account) AccountWithConcurrency {
 	item := AccountWithConcurrency{
-		Account:            dto.AccountFromService(account),
+		Account:            h.accountResponseFromService(account),
 		CurrentConcurrency: 0,
 	}
 	if account == nil {
@@ -587,6 +601,16 @@ func (h *AccountHandler) ListGateway(c gatewayctx.GatewayContext) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	if h.ollamaCloudUsage != nil && len(accounts) > 0 {
+		accountPointers := make([]*service.Account, len(accounts))
+		for index := range accounts {
+			accountPointers[index] = &accounts[index]
+		}
+		if err := h.ollamaCloudUsage.ResolveAccounts(c.Request.Context(), accountPointers); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	}
 
 	// Get current concurrency counts for all accounts
 	accountIDs := make([]int64, len(accounts))
@@ -689,7 +713,7 @@ func (h *AccountHandler) ListGateway(c gatewayctx.GatewayContext) {
 	for i := range accounts {
 		acc := &accounts[i]
 		item := AccountWithConcurrency{
-			Account:            dto.AccountFromService(acc),
+			Account:            h.accountResponseFromService(acc),
 			CurrentConcurrency: concurrencyCounts[acc.ID],
 			SchedulerScore:     schedulerScores[acc.ID],
 			SchedulerScores:    schedulerGroupScores[acc.ID],
@@ -896,6 +920,12 @@ func (h *AccountHandler) GetByIDGateway(c gatewayctx.GatewayContext) {
 	if err != nil {
 		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
+	}
+	if h.ollamaCloudUsage != nil {
+		if err := h.ollamaCloudUsage.ResolveAccounts(c.Request().Context(), []*service.Account{account}); err != nil {
+			response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+			return
+		}
 	}
 
 	response.SuccessContext(gatewayJSONResponder{ctx: c}, h.buildAccountResponseWithRuntime(c.Request().Context(), account))
