@@ -5,8 +5,8 @@
       badgeClass
     ]"
   >
-    <!-- Platform logo -->
-    <PlatformIcon v-if="platform" :platform="platform" size="sm" />
+    <!-- Platform logo (hidden in outline variant to keep the badge monochrome) -->
+    <PlatformIcon v-if="platform && variant !== 'outline'" :platform="platform" size="sm" />
     <!-- Group name -->
     <span class="truncate">{{ name }}</span>
     <!-- Right side label -->
@@ -37,13 +37,15 @@ interface Props {
   userRateMultiplier?: number | null // 用户专属倍率
   showRate?: boolean
   daysRemaining?: number | null // 剩余天数（订阅类型时使用）
+  variant?: 'solid' | 'outline' // outline: 单色描边，无平台色/图标
 }
 
 const props = withDefaults(defineProps<Props>(), {
   subscriptionType: 'standard',
   showRate: true,
   daysRemaining: null,
-  userRateMultiplier: null
+  userRateMultiplier: null,
+  variant: 'solid'
 })
 
 const { t } = useI18n()
@@ -130,6 +132,9 @@ const labelClass = computed(() => {
 
 // Badge color based on platform and subscription type
 const badgeClass = computed(() => {
+  if (props.variant === 'outline') {
+    return 'border border-gray-300 bg-transparent text-gray-600 dark:border-dark-500 dark:text-gray-300'
+  }
   if (props.platform === 'anthropic') {
     // Claude: orange theme
     return isSubscription.value
