@@ -134,11 +134,6 @@ func TestAdminAuthAPIKeyRespectsBoundAdminTokenVersion(t *testing.T) {
 		TokenVersion: 3,
 		Concurrency:  2,
 	}
-	repo := &settingRepoStub{values: map[string]string{}}
-	settingService := service.NewSettingService(repo, &config.Config{})
-	key, err := settingService.GenerateAdminAPIKey(context.Background(), admin.ID, admin.TokenVersion)
-	require.NoError(t, err)
-
 	userRepo := &stubUserRepo{
 		getByID: func(ctx context.Context, id int64) (*service.User, error) {
 			if id != admin.ID {
@@ -157,6 +152,17 @@ func TestAdminAuthAPIKeyRespectsBoundAdminTokenVersion(t *testing.T) {
 		},
 	}
 	userService := service.NewUserService(userRepo, nil, nil, nil)
+
+	repo := &settingRepoStub{values: map[string]string{}}
+	settingService := service.NewSettingService(repo, &config.Config{})
+
+	// 生产路径（SettingHandler.RegenerateAdminAPIKey）绑定的是 userService.GetByID
+	// 归一化后的 TokenVersion，而不是仓储层原始值；单测必须走同一条路径取基线，
+	// 否则绑定值与鉴权时的比较值天然不等。
+	boundAdmin, err := userService.GetByID(context.Background(), admin.ID)
+	require.NoError(t, err)
+	key, err := settingService.GenerateAdminAPIKey(context.Background(), admin.ID, boundAdmin.TokenVersion)
+	require.NoError(t, err)
 
 	router := gin.New()
 	router.Use(gin.HandlerFunc(NewAdminAuthMiddleware(nil, userService, settingService, nil)))
