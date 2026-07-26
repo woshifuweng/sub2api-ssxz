@@ -115,7 +115,7 @@ describe('RedeemView', () => {
     appStore.showSuccess.mockReset()
     appStore.showWarning.mockReset()
     subscriptionStore.fetchActiveSubscriptions.mockReset()
-    redeemAPI.getHistory.mockResolvedValue([])
+    redeemAPI.getHistory.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 25, pages: 1 })
     authAPI.getPublicSettings.mockResolvedValue({ contact_info: '' })
   })
 
@@ -328,17 +328,23 @@ describe('RedeemView', () => {
   it('shows a retry action when redemption history fails to load', async () => {
     redeemAPI.getHistory
       .mockRejectedValueOnce(new Error('network down'))
-      .mockResolvedValueOnce([
-        {
-          id: 3,
-          code: 'HISTORY-OK',
-          type: 'balance',
-          value: 5,
-          status: 'used',
-          used_at: '2026-07-02T00:00:00Z',
-          created_at: '2026-07-02T00:00:00Z'
-        }
-      ])
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: 3,
+            code: 'HISTORY-OK',
+            type: 'balance',
+            value: 5,
+            status: 'used',
+            used_at: '2026-07-02T00:00:00Z',
+            created_at: '2026-07-02T00:00:00Z'
+          }
+        ],
+        total: 1,
+        page: 1,
+        page_size: 25,
+        pages: 1
+      })
 
     const wrapper = mount(RedeemView)
     await flushPromises()

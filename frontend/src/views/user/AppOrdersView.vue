@@ -36,7 +36,7 @@
         <header class="panel-heading">
           <div>
             <h3>{{ paymentEnabled ? '记录明细' : '账单记录' }}</h3>
-            <p>{{ paymentEnabled ? '查看金额、来源和当前状态。' : '显示兑换码入账的时间、内容和状态。' }}</p>
+            <p>{{ paymentEnabled ? '查看金额、来源和当前状态。' : '显示兑换码入账、返利转入的时间、内容和状态。' }}</p>
           </div>
           <div class="orders-toolbar">
             <template v-if="paymentEnabled">
@@ -55,7 +55,7 @@
               </select>
             </template>
             <RouterLink v-else to="/app/redeem" class="btn btn-primary btn-sm">去兑换</RouterLink>
-            <button type="button" class="btn btn-secondary btn-sm refresh-button" :disabled="loading || redeemLoading" @click="handleRefresh">
+            <button type="button" class="btn btn-secondary btn-sm refresh-button" :disabled="loading || billingLoading" @click="handleRefresh">
               <Icon name="refresh" size="xs" />
               刷新
             </button>
@@ -71,21 +71,21 @@
         </div>
 
         <template v-if="!paymentEnabled">
-          <div v-if="redeemLoading" class="orders-empty compact">
+          <div v-if="billingLoading" class="orders-empty compact">
             <div class="orders-empty__icon"><Icon name="sync" size="md" /></div>
             <strong>正在加载账单记录</strong>
           </div>
 
-          <div v-else-if="redeemLoadError" class="orders-empty compact">
+          <div v-else-if="billingLoadError" class="orders-empty compact">
             <div class="orders-empty__icon is-warning"><Icon name="exclamationTriangle" size="md" /></div>
-            <strong>{{ redeemLoadError }}</strong>
+            <strong>{{ billingLoadError }}</strong>
             <span>账单记录正在更新，请稍后刷新。如果刚完成兑换，入账可能需要一点时间。</span>
           </div>
 
-          <div v-else-if="redeemHistory.length === 0" class="orders-empty compact">
+          <div v-else-if="billingRecords.length === 0" class="orders-empty compact">
             <div class="orders-empty__icon"><Icon name="inbox" size="md" /></div>
             <strong>暂无账单记录</strong>
-            <span>使用兑换码补充额度后，入账记录会显示在这里。</span>
+            <span>使用兑换码补充额度或返利转入后，入账记录会显示在这里。</span>
             <div class="empty-actions">
               <RouterLink to="/app/redeem" class="btn btn-primary btn-sm empty-action">去兑换</RouterLink>
             </div>
@@ -99,12 +99,12 @@
                     <th>入账时间</th>
                     <th>类型</th>
                     <th>内容</th>
-                    <th>兑换码</th>
+                    <th>编号</th>
                     <th>备注</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="item in redeemHistory" :key="item.id">
+                  <tr v-for="item in billingRecords" :key="item.id">
                     <td>{{ formatDateTime(item.used_at || item.created_at) }}</td>
                     <td>{{ formatRedeemType(item) }}</td>
                     <td>{{ formatRedeemValue(item) }}</td>
@@ -114,9 +114,14 @@
                 </tbody>
               </table>
             </div>
-            <p v-if="redeemHistory.length >= 25" class="records-cap-note">
-              最多显示最近 25 条兑换入账记录，更早的记录暂不在此展示。
-            </p>
+            <Pagination
+              v-if="billingPagination.total > 0"
+              :page="billingPagination.page"
+              :total="billingPagination.total"
+              :page-size="billingPagination.page_size"
+              @update:page="handleBillingPageChange"
+              @update:pageSize="handleBillingPageSizeChange"
+            />
           </template>
 
           <div v-if="loadError" class="orders-empty compact" data-testid="legacy-orders-error">
@@ -296,8 +301,10 @@ import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import Pagination from '@/components/common/Pagination.vue'
 import { paymentAPI } from '@/api/payment'
-import redeemAPI, { type RedeemHistoryItem } from '@/api/redeem'
+import userAPI from '@/api/user'
+import type { RedeemHistoryItem } from '@/api/redeem'
 import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
 import type { PaymentOrder } from '@/types/payment'
@@ -309,9 +316,10 @@ const loading = ref(false)
 const actionLoading = ref(false)
 const loadError = ref('')
 const orders = ref<PaymentOrder[]>([])
-const redeemHistory = ref<RedeemHistoryItem[]>([])
-const redeemLoading = ref(false)
-const redeemLoadError = ref('')
+const billingRecords = ref<RedeemHistoryItem[]>([])
+const billingLoading = ref(false)
+const billingLoadError = ref('')
+const billingPagination = reactive({ page: 1, page_size: 10, total: 0 })
 const totalOrders = ref(0)
 const currentFilter = ref('')
 const refundEligibleProviders = ref<Set<string>>(new Set())
@@ -328,18 +336,18 @@ const balanceText = computed(() => `$${Number(authStore.user?.balance || 0).toFi
 const orderCountText = computed(() => (
   paymentEnabled.value
     ? String(totalOrders.value || orders.value.length)
-    : String(redeemHistory.value.length + totalOrders.value)
+    : String(billingPagination.total + totalOrders.value)
 ))
 const shellTitle = computed(() => (paymentEnabled.value ? '账户记录' : '账单记录'))
 const shellSubtitle = computed(() => (
   paymentEnabled.value
     ? '查看充值、兑换、订单状态和账户额度变化。'
-    : '查看兑换码入账和账户额度变化。'
+    : '查看兑换码入账、返利转入和账户额度变化。'
 ))
 const recordCountDescription = computed(() => (
   paymentEnabled.value
     ? '这里会显示充值、兑换、订单、账户调整和退款相关记录。'
-    : '这里会显示兑换码入账和账户额度变化记录。'
+    : '这里会显示兑换码入账、返利转入和账户额度变化记录。'
 ))
 const disabledOrdersTitle = computed(() => (
   purchaseEnabled.value ? '当前账号可查看已有账户记录' : '当前可用方式：兑换码'
@@ -373,31 +381,49 @@ watch(
       void loadRefundEligibility()
     } else {
       refundEligibleProviders.value = new Set()
-      void loadRedeemHistory()
+      void loadBillingHistory()
     }
     syncDocumentTitle()
   },
   { immediate: true }
 )
 
-async function loadRedeemHistory() {
-  if (redeemLoading.value) return
-  redeemLoading.value = true
-  redeemLoadError.value = ''
+async function loadBillingHistory() {
+  if (billingLoading.value) return
+  billingLoading.value = true
+  billingLoadError.value = ''
   try {
-    redeemHistory.value = await redeemAPI.getHistory()
+    const response = await userAPI.getBalanceHistory({
+      page: billingPagination.page,
+      page_size: billingPagination.page_size
+    })
+    billingRecords.value = Array.isArray(response.items) ? response.items : []
+    billingPagination.total = Number(response.total || 0)
   } catch {
-    redeemHistory.value = []
-    redeemLoadError.value = '账单记录暂时无法加载'
+    billingRecords.value = []
+    billingPagination.total = 0
+    billingLoadError.value = '账单记录暂时无法加载'
   } finally {
-    redeemLoading.value = false
+    billingLoading.value = false
   }
+}
+
+function handleBillingPageChange(page: number) {
+  if (page < 1) return
+  billingPagination.page = page
+  void loadBillingHistory()
+}
+
+function handleBillingPageSizeChange(pageSize: number) {
+  billingPagination.page_size = pageSize
+  billingPagination.page = 1
+  void loadBillingHistory()
 }
 
 function handleRefresh() {
   void loadOrders()
   if (!paymentEnabled.value) {
-    void loadRedeemHistory()
+    void loadBillingHistory()
   }
 }
 
@@ -530,6 +556,7 @@ function formatOrderAmount(order: PaymentOrder) {
 
 function formatRedeemType(item: RedeemHistoryItem) {
   if (item.type === 'balance') return '兑换码入账'
+  if (item.type === 'affiliate_balance') return '返利转入'
   if (item.type === 'admin_balance') return item.value >= 0 ? '管理员调整（增加）' : '管理员调整（扣减）'
   if (item.type === 'concurrency') return '并发数提升'
   if (item.type === 'admin_concurrency') return item.value >= 0 ? '并发数调整（增加）' : '并发数调整（减少）'
@@ -741,13 +768,6 @@ function formatPaymentType(type: string) {
   color: var(--ssxz-text-muted);
   font-size: 0.84rem;
   font-weight: 850;
-}
-
-.records-cap-note {
-  margin: -0.5rem 0 0;
-  color: var(--ssxz-text-muted);
-  font-size: 0.78rem;
-  line-height: 1.5;
 }
 
 .orders-empty__icon {

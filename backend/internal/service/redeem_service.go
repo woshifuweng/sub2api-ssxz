@@ -653,13 +653,13 @@ func (s *RedeemService) GetStats(ctx context.Context) (map[string]any, error) {
 	return stats, nil
 }
 
-// GetUserHistory 获取用户的兑换历史
-func (s *RedeemService) GetUserHistory(ctx context.Context, userID int64, limit int) ([]RedeemCode, error) {
-	codes, err := s.redeemRepo.ListByUser(ctx, userID, limit)
+// GetUserHistory 获取用户的兑换历史（分页）
+func (s *RedeemService) GetUserHistory(ctx context.Context, userID int64, params pagination.PaginationParams) ([]RedeemCode, *pagination.PaginationResult, error) {
+	codes, result, err := s.redeemRepo.ListByUserPaginated(ctx, userID, params, "")
 	if err != nil {
-		return nil, fmt.Errorf("get user redeem history: %w", err)
+		return nil, nil, fmt.Errorf("get user redeem history: %w", err)
 	}
-	return codes, nil
+	return codes, result, nil
 }
 
 // reduceOrCancelSubscription 缩短订阅天数，剩余天数 <= 0 时取消订阅

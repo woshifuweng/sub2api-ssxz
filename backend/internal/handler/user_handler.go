@@ -27,6 +27,9 @@ type UserHandler struct {
 	emailCache            service.EmailCache
 	affiliateService      *service.AffiliateService
 	userPlatformQuotaRepo service.UserPlatformQuotaRepository
+	// adminService 仅用于复用 GetUserBalanceHistory 的聚合流水查询
+	//（redeem_codes + user_affiliate_ledger transfer），userID 恒取自 JWT。
+	adminService service.AdminService
 }
 
 // NewUserHandler creates a new UserHandler
@@ -37,6 +40,7 @@ func NewUserHandler(
 	emailCache service.EmailCache,
 	affiliateService *service.AffiliateService,
 	userPlatformQuotaRepo service.UserPlatformQuotaRepository,
+	adminService service.AdminService,
 ) *UserHandler {
 	return &UserHandler{
 		userService:           userService,
@@ -45,6 +49,7 @@ func NewUserHandler(
 		emailCache:            emailCache,
 		affiliateService:      affiliateService,
 		userPlatformQuotaRepo: userPlatformQuotaRepo,
+		adminService:          adminService,
 	}
 }
 
@@ -737,6 +742,52 @@ func (h *UserHandler) GetAffiliateGateway(c gatewayctx.GatewayContext) {
 		return
 	}
 	response.SuccessContext(gatewayJSONResponder{ctx: c}, detail)
+}
+
+// GetBalanceHistory returns the current user's aggregated balance ledger
+// (redeem codes + affiliate transfers), paginated.
+// GET /api/v1/user/balance-history
+func (h *UserHandler) GetBalanceHistory(c *gin.Context) {
+	h.GetBalanceHistoryGateway(gatewayctx.FromGin(c))
+}
+
+func (h *UserHandler) GetBalanceHistoryGateway(c gatewayctx.GatewayContext) {
+	subject, ok := middleware2.GetAuthSubjectFromGatewayContext(c)
+	if !ok {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
+		return
+	}
+	if h.adminService == nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusServiceUnavailable, "Balance history unavailable")
+		return
+	}
+
+	page, pageSize := response.ParsePaginationValues(c)
+	codeType := c.QueryValue("type")
+
+	codes, total, totalRecharged, err := h.adminService.GetUserBalanceHistory(c.Request().Context(), subject.UserID, page, pageSize, codeType)
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+
+	// 用户端脱敏映射（不含 admin 恒定 notes 字段）。
+	out := make([]dto.RedeemCode, 0, len(codes))
+	for i := range codes {
+		out = append(out, *dto.RedeemCodeFromService(&codes[i]))
+	}
+	pages := int((total + int64(pageSize) - 1) / int64(pageSize))
+	if pages < 1 {
+		pages = 1
+	}
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, map[string]any{
+		"items":           out,
+		"total":           total,
+		"page":            page,
+		"page_size":       pageSize,
+		"pages":           pages,
+		"total_recharged": totalRecharged,
+	})
 }
 
 // TransferAffiliateQuota transfers all available affiliate quota into current balance.

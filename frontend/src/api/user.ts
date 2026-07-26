@@ -9,8 +9,18 @@ import type {
   UserAvatar,
   ChangePasswordRequest,
   UserAffiliateDetail,
-  AffiliateTransferResponse
+  AffiliateTransferResponse,
+  BasePaginationResponse
 } from '@/types'
+import type { RedeemHistoryItem } from './redeem'
+
+/**
+ * Aggregated balance ledger response:
+ * redeem codes + affiliate transfers (type `affiliate_balance`, code `AFF-<id>`).
+ */
+export interface UserBalanceHistoryResponse extends BasePaginationResponse<RedeemHistoryItem> {
+  total_recharged: number
+}
 
 /**
  * Get current user profile
@@ -71,6 +81,17 @@ export async function transferAffiliateQuota(): Promise<AffiliateTransferRespons
   return data
 }
 
+/**
+ * Get current user's aggregated balance ledger (paginated):
+ * redeem codes + affiliate transfers.
+ */
+export async function getBalanceHistory(
+  params?: { page?: number; page_size?: number; type?: string }
+): Promise<UserBalanceHistoryResponse> {
+  const { data } = await apiClient.get<UserBalanceHistoryResponse>('/user/balance-history', { params })
+  return data
+}
+
 export const userAPI = {
   getProfile,
   updateProfile,
@@ -78,7 +99,8 @@ export const userAPI = {
   getAvatar,
   updateAvatar,
   getAffiliateDetail,
-  transferAffiliateQuota
+  transferAffiliateQuota,
+  getBalanceHistory
 }
 
 export default userAPI

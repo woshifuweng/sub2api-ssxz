@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PaymentOrder } from '@/types/payment'
 
-const { appStore, authStore, paymentAPI, redeemAPI } = vi.hoisted(() => ({
+const { appStore, authStore, paymentAPI, userAPI } = vi.hoisted(() => ({
   appStore: {
     cachedPublicSettings: {
       payment_enabled: false as boolean,
@@ -22,8 +22,8 @@ const { appStore, authStore, paymentAPI, redeemAPI } = vi.hoisted(() => ({
     cancelOrder: vi.fn(),
     requestRefund: vi.fn()
   },
-  redeemAPI: {
-    getHistory: vi.fn()
+  userAPI: {
+    getBalanceHistory: vi.fn()
   }
 }))
 
@@ -39,9 +39,22 @@ vi.mock('@/api/payment', () => ({
   paymentAPI
 }))
 
-vi.mock('@/api/redeem', () => ({
-  default: redeemAPI,
-  redeemAPI
+vi.mock('@/api/user', () => ({
+  default: userAPI,
+  userAPI
+}))
+
+vi.mock('@/components/common/Pagination.vue', () => ({
+  default: {
+    name: 'Pagination',
+    props: ['total', 'page', 'pageSize'],
+    emits: ['update:page', 'update:pageSize'],
+    template: `
+      <nav data-testid="billing-pagination">
+        <button data-testid="billing-next-page" @click="$emit('update:page', page + 1)">next</button>
+      </nav>
+    `
+  }
 }))
 
 vi.mock('@/components/user/AppSectionShell.vue', () => ({
@@ -121,6 +134,17 @@ function ordersResponse(items: PaymentOrder[], total = items.length) {
   }
 }
 
+function billingResponse(items: unknown[], total = items.length) {
+  return {
+    items,
+    total,
+    page: 1,
+    page_size: 10,
+    pages: Math.max(1, Math.ceil(total / 10)),
+    total_recharged: 0
+  }
+}
+
 function mountView() {
   return mount(AppOrdersView, {
     global: {
@@ -147,12 +171,12 @@ describe('AppOrdersView', () => {
     paymentAPI.getRefundEligibleProviders.mockReset()
     paymentAPI.cancelOrder.mockReset()
     paymentAPI.requestRefund.mockReset()
-    redeemAPI.getHistory.mockReset()
+    userAPI.getBalanceHistory.mockReset()
     paymentAPI.getMyOrders.mockResolvedValue(ordersResponse([]))
     paymentAPI.getRefundEligibleProviders.mockResolvedValue({ data: { provider_instance_ids: [] } })
     paymentAPI.cancelOrder.mockResolvedValue({})
     paymentAPI.requestRefund.mockResolvedValue({})
-    redeemAPI.getHistory.mockResolvedValue([])
+    userAPI.getBalanceHistory.mockResolvedValue(billingResponse([]))
   })
 
   it('shows billing records copy and the payment-off notice when payment is disabled', async () => {
@@ -173,13 +197,13 @@ describe('AppOrdersView', () => {
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
     expect(hrefs).not.toContain('/app/purchase')
     expect(hrefs).toContain('/app/redeem')
-    expect(redeemAPI.getHistory).toHaveBeenCalledTimes(1)
+    expect(userAPI.getBalanceHistory).toHaveBeenCalledWith({ page: 1, page_size: 10 })
     expect(paymentAPI.getMyOrders).toHaveBeenCalledWith({ page: 1, page_size: 10 })
     expect(paymentAPI.getRefundEligibleProviders).not.toHaveBeenCalled()
   })
 
-  it('renders redeem history as billing records when payment is disabled', async () => {
-    redeemAPI.getHistory.mockResolvedValue([
+  it('renders the aggregated balance ledger as billing records when payment is disabled', async () => {
+    userAPI.getBalanceHistory.mockResolvedValue(billingResponse([
       {
         id: 7,
         code: 'CODE-777',
@@ -199,8 +223,17 @@ describe('AppOrdersView', () => {
         created_at: '2026-06-01T00:00:00Z',
         validity_days: 30,
         group: { id: 2, name: 'Pro 订阅' }
+      },
+      {
+        id: -3,
+        code: 'AFF-3',
+        type: 'affiliate_balance',
+        value: 1.5,
+        status: 'used',
+        used_at: '2026-06-22T09:30:00Z',
+        created_at: '2026-06-22T09:30:00Z'
       }
-    ])
+    ]))
 
     const wrapper = mountView()
     await flushPromises()
@@ -212,8 +245,35 @@ describe('AppOrdersView', () => {
     expect(text).toContain('CODE-777')
     expect(text).toContain('订阅开通')
     expect(text).toContain('Pro 订阅（30 天）')
+    expect(text).toContain('返利转入')
+    expect(text).toContain('+$1.50 额度')
+    expect(text).toContain('AFF-3')
     expect(wrapper.find('[data-testid="status-filter"]').exists()).toBe(false)
-    expect(redeemAPI.getHistory).toHaveBeenCalledTimes(1)
+    expect(userAPI.getBalanceHistory).toHaveBeenCalledTimes(1)
+  })
+
+  it('paginates billing records through the shared Pagination component', async () => {
+    const manyRecords = Array.from({ length: 10 }, (_, index) => ({
+      id: index + 1,
+      code: `CODE-${index + 1}`,
+      type: 'balance',
+      value: 5,
+      status: 'used',
+      used_at: '2026-06-20T09:30:00Z',
+      created_at: '2026-06-01T00:00:00Z'
+    }))
+    userAPI.getBalanceHistory.mockResolvedValue(billingResponse(manyRecords, 42))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="billing-pagination"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('最多显示最近 25 条')
+
+    await wrapper.get('[data-testid="billing-next-page"]').trigger('click')
+    await flushPromises()
+
+    expect(userAPI.getBalanceHistory).toHaveBeenLastCalledWith({ page: 2, page_size: 10 })
   })
 
   it('keeps existing order history visible while payment actions are disabled', async () => {

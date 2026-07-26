@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -99,10 +100,9 @@ func (h *RedeemHandler) GetHistoryGateway(c gatewayctx.GatewayContext) {
 		return
 	}
 
-	// Default limit is 25
-	limit := 25
+	page, pageSize := response.ParsePaginationValues(c)
 
-	codes, err := h.redeemService.GetUserHistory(c.Request().Context(), subject.UserID, limit)
+	codes, result, err := h.redeemService.GetUserHistory(c.Request().Context(), subject.UserID, pagination.PaginationParams{Page: page, PageSize: pageSize})
 	if err != nil {
 		response.ErrorFromContext(redeemGatewayResponder{ctx: c}, err)
 		return
@@ -112,5 +112,5 @@ func (h *RedeemHandler) GetHistoryGateway(c gatewayctx.GatewayContext) {
 	for i := range codes {
 		out = append(out, *dto.RedeemCodeFromService(&codes[i]))
 	}
-	response.SuccessContext(redeemGatewayResponder{ctx: c}, out)
+	response.PaginatedContext(redeemGatewayResponder{ctx: c}, out, result.Total, page, pageSize)
 }
