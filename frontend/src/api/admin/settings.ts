@@ -27,6 +27,13 @@ export interface SystemSettings {
    * 无法区分「没开」与「开了但当前未生效」。老后端不返回该字段，读取时需要回退。
    */
   password_reset_enabled_stored?: boolean
+  /**
+   * 只读观测字段：密码重置邮件实际会用的链接基址，由后端
+   * service.ResolvePasswordResetBaseURL 解析（DB 值 → 配置文件回落 → Origin 兜底）。
+   * 空串表示解析不出来、发信会被静默跳过。管理台必须消费它，不要拿 frontend_url
+   * 原始值自行推断 —— 那会漏掉配置文件回落而误报。
+   */
+  password_reset_link_base?: string
   frontend_url: string
   invitation_code_enabled: boolean
   totp_enabled: boolean // TOTP 双因素认证

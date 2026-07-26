@@ -224,6 +224,12 @@ describe('admin SettingsView', () => {
     /** DB 里 password_reset_enabled 的原始存储值 */
     storedPasswordReset: boolean
     frontendUrl?: string
+    /**
+     * 后端解析出的重置链接基址。真实后端的规则是「DB 值 → config.yaml 回落 → Origin 兜底」，
+     * 所以它可以在 frontend_url 为空时依然非空。默认让它跟随 frontendUrl，
+     * 需要构造「DB 空但配置文件已配」时显式传入。
+     */
+    resetLinkBase?: string
   }) {
     return {
       email_verify_enabled: options.emailVerify,
@@ -231,7 +237,8 @@ describe('admin SettingsView', () => {
       password_reset_enabled: options.emailVerify && options.storedPasswordReset,
       // 观测值：原始存储值，不取与
       password_reset_enabled_stored: options.storedPasswordReset,
-      frontend_url: options.frontendUrl ?? ''
+      frontend_url: options.frontendUrl ?? '',
+      password_reset_link_base: options.resetLinkBase ?? options.frontendUrl ?? ''
     }
   }
 
@@ -245,6 +252,55 @@ describe('admin SettingsView', () => {
     // 状态 B 的「尚未生效」文案在这里是错的，绝不能同时出现
     expect(wrapper.find(RESET_LATENT_WARNING).exists()).toBe(false)
     expect(wrapper.find(FRONTEND_URL_INPUT).exists()).toBe(true)
+  })
+
+  // 误报回归：DB 的 frontend_url 为空，但后端通过 config.yaml 的 server.frontend_url
+  // 回落解析出了链接基址 —— 邮件其实发得出去，绝不能打「客户收不到邮件」的紧急告警。
+  // 这条用来钉死「前端不得拿 frontend_url 原始值自行推断」。
+  it('does not warn when the backend resolved a reset link base from the config file', async () => {
+    const wrapper = await mountView(
+      passwordResetApiShape({
+        emailVerify: true,
+        storedPasswordReset: true,
+        frontendUrl: '',
+        resetLinkBase: 'https://fallback.example.com'
+      })
+    )
+
+    expect(wrapper.find(RESET_WARNING).exists()).toBe(false)
+    expect(wrapper.find(RESET_LATENT_WARNING).exists()).toBe(false)
+    // 输入框仍要可见可填，方便管理员把地址显式写进 DB
+    expect(wrapper.find(FRONTEND_URL_INPUT).exists()).toBe(true)
+  })
+
+  // 同上，但处于状态 B：解析得出链接就同样不该有潜伏告警
+  it('does not warn in the latent state when the reset link base resolves', async () => {
+    const wrapper = await mountView(
+      passwordResetApiShape({
+        emailVerify: false,
+        storedPasswordReset: true,
+        frontendUrl: '',
+        resetLinkBase: 'https://fallback.example.com'
+      })
+    )
+
+    expect(wrapper.find(RESET_LATENT_WARNING).exists()).toBe(false)
+    expect(wrapper.find(RESET_WARNING).exists()).toBe(false)
+  })
+
+  // 管理员正在输入时不该边填边报错：表单已有合法地址即视为可解析，
+  // 哪怕后端上一次返回的解析结果还是空的。
+  it('clears the warning as soon as a valid URL is typed, before saving', async () => {
+    const wrapper = await mountView(
+      passwordResetApiShape({ emailVerify: true, storedPasswordReset: true })
+    )
+    expect(wrapper.find(RESET_WARNING).exists()).toBe(true)
+
+    const vm = wrapper.vm as unknown as { form: Record<string, unknown> }
+    vm.form.frontend_url = 'https://typed.example.com'
+    await flushPromises()
+
+    expect(wrapper.find(RESET_WARNING).exists()).toBe(false)
   })
 
   // 状态 B「潜伏」：DB 里存着 true，但邮箱验证关闭 —— 真实响应里 password_reset_enabled 是 false。

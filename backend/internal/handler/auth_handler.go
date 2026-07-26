@@ -3,7 +3,6 @@ package handler
 import (
 	"log/slog"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 
@@ -609,33 +608,12 @@ type ForgotPasswordResponse struct {
 
 const passwordResetGenericMessage = "If your email is registered, you will receive a password reset link shortly."
 
+// resolvePasswordResetBaseURL 委托到 service.ResolvePasswordResetBaseURL。
+// 逻辑本体已下沉到 service 层，以便管理端设置页复用同一份判断
+// （handler 包 import 了 handler/admin，admin 无法反向 import handler）。
+// 这里保留同名薄封装，既维持既有调用点与测试不变，也保证解析规则只有一份实现。
 func resolvePasswordResetBaseURL(configuredURL, requestOrigin string, cfg *config.Config) string {
-	if configuredURL = strings.TrimSpace(configuredURL); configuredURL != "" {
-		return configuredURL
-	}
-
-	requestOrigin = strings.TrimSpace(requestOrigin)
-	if cfg == nil || config.ValidateAbsoluteHTTPURL(requestOrigin) != nil {
-		return ""
-	}
-
-	originURL, err := url.Parse(requestOrigin)
-	if err != nil || originURL.User != nil || originURL.Opaque != "" || originURL.Path != "" ||
-		originURL.RawPath != "" || originURL.RawQuery != "" || originURL.ForceQuery || originURL.Fragment != "" ||
-		strings.TrimSpace(originURL.Hostname()) == "" {
-		return ""
-	}
-
-	if strings.EqualFold(strings.TrimSpace(cfg.Server.Mode), gin.ReleaseMode) {
-		for _, allowedOrigin := range cfg.CORS.AllowedOrigins {
-			if strings.TrimSpace(allowedOrigin) == requestOrigin && requestOrigin != "*" {
-				return requestOrigin
-			}
-		}
-		return ""
-	}
-
-	return requestOrigin
+	return service.ResolvePasswordResetBaseURL(configuredURL, requestOrigin, cfg)
 }
 
 // ForgotPassword 请求密码重置
@@ -648,6 +626,16 @@ func (h *AuthHandler) ForgotPasswordGateway(c gatewayctx.GatewayContext) {
 	var req ForgotPasswordRequest
 	if err := c.BindJSON(&req); err != nil {
 		response.ErrorContext(authJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+
+	// 重置功能关闭时先拒绝，再校验 Turnstile：否则每次请求都要白跑一趟 Cloudflare
+	// 并消耗一个一次性 token。service 层（auth_service.go 的 RequestPasswordReset /
+	// RequestPasswordResetAsync / ResetPassword）各自仍有独立门禁，此处只是提前拦截，
+	// 不是唯一防线。
+	if !h.authService.IsPasswordResetEnabled(c.Request().Context()) {
+		response.ErrorFromContext(authJSONResponder{ctx: c},
+			infraerrors.Forbidden("PASSWORD_RESET_DISABLED", "password reset is not enabled"))
 		return
 	}
 

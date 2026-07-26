@@ -27,26 +27,32 @@ type CustomEndpoint struct {
 
 // SystemSettings represents the admin settings API response payload.
 type SystemSettings struct {
-	RegistrationEnabled              bool                     `json:"registration_enabled"`
-	EmailVerifyEnabled               bool                     `json:"email_verify_enabled"`
-	RegistrationEmailSuffixWhitelist []string                 `json:"registration_email_suffix_whitelist"`
-	PromoCodeEnabled                 bool                     `json:"promo_code_enabled"`
-	PasswordResetEnabled             bool                     `json:"password_reset_enabled"`
+	RegistrationEnabled              bool     `json:"registration_enabled"`
+	EmailVerifyEnabled               bool     `json:"email_verify_enabled"`
+	RegistrationEmailSuffixWhitelist []string `json:"registration_email_suffix_whitelist"`
+	PromoCodeEnabled                 bool     `json:"promo_code_enabled"`
+	PasswordResetEnabled             bool     `json:"password_reset_enabled"`
 	// PasswordResetEnabledStored 只读观测字段：password_reset_enabled 的原始存储值，
 	// 未与 email_verify_enabled 取与。管理台用它区分「未开启」与「已开启但当前未生效」，
 	// 请求体里没有对应字段（写入仍然只走 password_reset_enabled）。
 	PasswordResetEnabledStored bool   `json:"password_reset_enabled_stored"`
 	FrontendURL                string `json:"frontend_url"`
-	InvitationCodeEnabled            bool                     `json:"invitation_code_enabled"`
-	TotpEnabled                      bool                     `json:"totp_enabled"`                   // TOTP 双因素认证
-	TotpEncryptionKeyConfigured      bool                     `json:"totp_encryption_key_configured"` // TOTP 加密密钥是否已配置
-	SessionBindingEnabled            bool                     `json:"session_binding_enabled"`        // 会话 IP/UA 绑定
-	StepUpEnabled                    bool                     `json:"step_up_enabled"`                // 敏感操作 step-up 2FA
-	AuditLogRetentionDays            int                      `json:"audit_log_retention_days"`       // 审计日志保留天数
-	LoginAgreementEnabled            bool                     `json:"login_agreement_enabled"`
-	LoginAgreementMode               string                   `json:"login_agreement_mode"`
-	LoginAgreementUpdatedAt          string                   `json:"login_agreement_updated_at"`
-	LoginAgreementDocuments          []LoginAgreementDocument `json:"login_agreement_documents"`
+	// PasswordResetLinkBase 只读观测字段：密码重置邮件实际会用的链接基址，
+	// 由 service.ResolvePasswordResetBaseURL 解析（DB 值 → 配置文件回落 → Origin 兜底）。
+	// 空串表示解析不出来、发信会被静默跳过。管理台**必须**用它判断配置是否可用，
+	// 不要拿 FrontendURL 原始值自行推断 —— 那会漏掉配置文件回落而误报。
+	// 请求体里没有对应字段。
+	PasswordResetLinkBase       string                   `json:"password_reset_link_base"`
+	InvitationCodeEnabled       bool                     `json:"invitation_code_enabled"`
+	TotpEnabled                 bool                     `json:"totp_enabled"`                   // TOTP 双因素认证
+	TotpEncryptionKeyConfigured bool                     `json:"totp_encryption_key_configured"` // TOTP 加密密钥是否已配置
+	SessionBindingEnabled       bool                     `json:"session_binding_enabled"`        // 会话 IP/UA 绑定
+	StepUpEnabled               bool                     `json:"step_up_enabled"`                // 敏感操作 step-up 2FA
+	AuditLogRetentionDays       int                      `json:"audit_log_retention_days"`       // 审计日志保留天数
+	LoginAgreementEnabled       bool                     `json:"login_agreement_enabled"`
+	LoginAgreementMode          string                   `json:"login_agreement_mode"`
+	LoginAgreementUpdatedAt     string                   `json:"login_agreement_updated_at"`
+	LoginAgreementDocuments     []LoginAgreementDocument `json:"login_agreement_documents"`
 
 	SMTPHost               string `json:"smtp_host"`
 	SMTPPort               int    `json:"smtp_port"`

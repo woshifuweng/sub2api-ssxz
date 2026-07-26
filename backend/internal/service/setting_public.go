@@ -153,6 +153,23 @@ func (s *SettingService) GetFrontendURL(ctx context.Context) string {
 	return s.cfg.Server.FrontendURL
 }
 
+// ResolvePasswordResetLinkBase 返回密码重置邮件实际会使用的链接基址，
+// 空串表示解析不出来、发信会被静默跳过。
+//
+// 它把「DB 值 → 配置文件回落 → 请求 Origin 兜底（release 模式下还要过 CORS 白名单）」
+// 这条完整链路收敛在一处，供管理端设置页判断配置是否可用。
+// 管理端**必须**用它，不要拿 settings.frontend_url 的原始值自行推断 ——
+// 那样会漏掉配置文件回落，在「DB 空但 config.yaml 已配」的部署上误报成故障。
+func (s *SettingService) ResolvePasswordResetLinkBase(ctx context.Context, requestOrigin string) string {
+	// 该方法会被 buildSystemSettingsDTO 之类的纯装配路径调用，那里可能拿到
+	// 只填了部分依赖的 SettingService（测试脚手架就是这么构造的）。
+	// 解析不出来就返回空串，绝不能 panic 掉整个设置接口。
+	if s == nil || s.settingRepo == nil || s.cfg == nil {
+		return ""
+	}
+	return ResolvePasswordResetBaseURL(s.GetFrontendURL(ctx), requestOrigin, s.cfg)
+}
+
 // GetPublicSettings 获取公开设置（无需登录）
 func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings, error) {
 	keys := []string{

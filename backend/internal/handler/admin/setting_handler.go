@@ -104,7 +104,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 }
 
 func (h *SettingHandler) GetSettingsGateway(c gatewayctx.GatewayContext) {
-	settingsDTO, err := h.loadSystemSettingsDTO(c.Request().Context())
+	settingsDTO, err := h.loadSystemSettingsDTO(c.Request().Context(), c.HeaderValue("Origin"))
 	if err != nil {
 		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
@@ -117,16 +117,16 @@ func (h *SettingHandler) GetSettingsGateway(c gatewayctx.GatewayContext) {
 	response.SuccessContext(gatewayJSONResponder{ctx: c}, systemSettingsResponseData(settingsDTO, authSourceDefaults))
 }
 
-func (h *SettingHandler) loadSystemSettingsDTO(ctx context.Context) (dto.SystemSettings, error) {
+func (h *SettingHandler) loadSystemSettingsDTO(ctx context.Context, requestOrigin string) (dto.SystemSettings, error) {
 	settings, err := h.settingService.GetAllSettings(ctx)
 	if err != nil {
 		return dto.SystemSettings{}, err
 	}
 	effectiveOpsMonitoringEnabled := settings.OpsMonitoringEnabled && h.opsService != nil && h.opsService.IsMonitoringEnabled(ctx)
-	return h.buildSystemSettingsDTO(ctx, settings, effectiveOpsMonitoringEnabled), nil
+	return h.buildSystemSettingsDTO(ctx, settings, effectiveOpsMonitoringEnabled, requestOrigin), nil
 }
 
-func (h *SettingHandler) buildSystemSettingsDTO(ctx context.Context, settings *service.SystemSettings, effectiveOpsMonitoringEnabled bool) dto.SystemSettings {
+func (h *SettingHandler) buildSystemSettingsDTO(ctx context.Context, settings *service.SystemSettings, effectiveOpsMonitoringEnabled bool, requestOrigin string) dto.SystemSettings {
 	defaultSubscriptions := make([]dto.DefaultSubscriptionSetting, 0, len(settings.DefaultSubscriptions))
 	for _, sub := range settings.DefaultSubscriptions {
 		defaultSubscriptions = append(defaultSubscriptions, dto.DefaultSubscriptionSetting{
@@ -151,6 +151,7 @@ func (h *SettingHandler) buildSystemSettingsDTO(ctx context.Context, settings *s
 		PromoCodeEnabled:                                       settings.PromoCodeEnabled,
 		PasswordResetEnabled:                                   settings.PasswordResetEnabled,
 		PasswordResetEnabledStored:                             settings.PasswordResetEnabledStored,
+		PasswordResetLinkBase:                                  h.settingService.ResolvePasswordResetLinkBase(ctx, requestOrigin),
 		FrontendURL:                                            settings.FrontendURL,
 		InvitationCodeEnabled:                                  settings.InvitationCodeEnabled,
 		TotpEnabled:                                            settings.TotpEnabled,
