@@ -28,6 +28,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import AetherHomeExperience from '@/components/home/aether/AetherHomeExperience.vue'
 import { FoundationProvider } from '@/components/foundation'
 import { useAppStore, useAuthStore } from '@/stores'
@@ -39,6 +40,7 @@ import { sanitizeUrl } from '@/utils/url'
 
 const authStore = useAuthStore()
 const appStore = useAppStore()
+const route = useRoute()
 
 function getInitialTheme(): 'light' | 'dark' {
   if (typeof document === 'undefined') return 'dark'
@@ -65,8 +67,14 @@ const displayedApiBaseUrl = computed(() => {
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const isAdmin = computed(() => authStore.isAdmin)
 const dashboardPath = computed(() => isAdmin.value ? '/admin/dashboard' : '/app/dashboard')
-const primaryCtaPath = computed(() => isAuthenticated.value ? dashboardPath.value : '/register')
-const createKeyPath = computed(() => isAuthenticated.value ? '/app/keys' : '/register')
+// 邀请链接落到首页时保留邀请码，注册页会从 ?aff= 预填(见 RegisterView onMounted)
+const registerPath = computed(() => {
+  const raw = route.query.aff ?? route.query.affiliate
+  const code = Array.isArray(raw) ? raw[0] : raw
+  return code ? `/register?aff=${encodeURIComponent(String(code))}` : '/register'
+})
+const primaryCtaPath = computed(() => isAuthenticated.value ? dashboardPath.value : registerPath.value)
+const createKeyPath = computed(() => isAuthenticated.value ? '/app/keys' : registerPath.value)
 
 function syncTheme(): void {
   theme.value = document.documentElement.classList.contains('dark') ? 'dark' : 'light'

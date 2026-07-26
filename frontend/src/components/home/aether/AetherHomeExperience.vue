@@ -136,16 +136,13 @@
       <section ref="section0" class="aether-section aether-hero">
         <div class="aether-hero__content">
           <div class="aether-hero__logo-space" />
-          <h1 :style="getTitleStyle(SECTIONS.HOME)">
-            欢迎使用
+          <p class="aether-hero__brand" :style="getTitleStyle(SECTIONS.HOME)">
             <span class="typewriter">
               {{ brandText }}<span class="cursor" :class="{ 'is-hidden': !showCursor }">_</span>
             </span>
-          </h1>
-          <p :style="getDescStyle(SECTIONS.HOME)">
-            AI 开发工具统一接入平台，连接 Claude Code、Codex CLI、Gemini CLI 等 AI
-            编程助手，一个入口接入你的日常开发工作流。
           </p>
+          <h1 :style="getTitleStyle(SECTIONS.HOME)">一个 API Key，调用 Claude 与 GPT 系列官方模型</h1>
+          <p :style="getDescStyle(SECTIONS.HOME)">按量计费，失败不扣费，每一笔消耗都有明细可查。</p>
           <div class="aether-hero__actions" :style="getButtonsStyle(SECTIONS.HOME)">
             <RouterLink :to="createKeyPath" class="f0-button f0-button--default f0-button--lg">
               创建 API Key
@@ -163,7 +160,6 @@
             <li>OpenAI</li>
             <li>Claude</li>
             <li>Gemini</li>
-            <li>Grok</li>
           </ul>
           <button
             type="button"
@@ -831,6 +827,16 @@ onUnmounted(() => {
   line-height: 1.8;
   text-wrap: balance;
   transition: opacity 700ms ease, transform 700ms ease;
+}
+
+.aether-hero p.aether-hero__brand {
+  margin: 0 auto 0.9rem;
+  color: var(--aether-hero-ink);
+  font-size: clamp(0.95rem, 1.4vw, 1.15rem);
+  font-weight: 720;
+  letter-spacing: 0.14em;
+  line-height: 1.2;
+  text-transform: uppercase;
 }
 
 .aether-hero__actions,
