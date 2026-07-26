@@ -69,4 +69,30 @@ describe('admin affiliate api', () => {
     await expect(mod.lookupUsers('   ')).resolves.toEqual([])
     expect(get).not.toHaveBeenCalled()
   })
+
+  // The overview endpoint is what tells the UI whether an exclusive rate exists at all,
+  // which is how an explicit 0 (rebate disabled) stays distinguishable from NULL.
+  it('reads a single user overview including the custom-rate flag', async () => {
+    get.mockResolvedValueOnce({
+      data: {
+        user_id: 7,
+        email: 'user@example.com',
+        username: 'user',
+        aff_code: 'SSXZ7',
+        rebate_rate_percent: 0,
+        rebate_rate_custom: true,
+        invited_count: 1,
+        rebated_invitee_count: 0,
+        available_quota: 0,
+        history_quota: 0
+      }
+    })
+
+    const mod = await import('../affiliate')
+    const overview = await mod.getUserOverview(7)
+
+    expect(get).toHaveBeenCalledWith('/admin/affiliates/users/7/overview')
+    expect(overview.rebate_rate_custom).toBe(true)
+    expect(overview.rebate_rate_percent).toBe(0)
+  })
 })

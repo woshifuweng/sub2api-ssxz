@@ -1,23 +1,29 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { affiliateAPI, showError, showSuccess, routeQuery, copyToClipboard } = vi.hoisted(() => ({
-  affiliateAPI: {
-    listUsers: vi.fn(),
-    lookupUsers: vi.fn(),
-    updateUserSettings: vi.fn(),
-    clearUserSettings: vi.fn(),
-    batchSetRate: vi.fn()
-  },
-  showError: vi.fn(),
-  showSuccess: vi.fn(),
-  copyToClipboard: vi.fn(),
-  routeQuery: {} as Record<string, string>
-}))
+const { affiliateAPI, settingsAPI, showError, showSuccess, routeQuery, copyToClipboard } =
+  vi.hoisted(() => ({
+    affiliateAPI: {
+      listUsers: vi.fn(),
+      lookupUsers: vi.fn(),
+      getUserOverview: vi.fn(),
+      updateUserSettings: vi.fn(),
+      clearUserSettings: vi.fn(),
+      batchSetRate: vi.fn()
+    },
+    settingsAPI: {
+      getSettings: vi.fn()
+    },
+    showError: vi.fn(),
+    showSuccess: vi.fn(),
+    copyToClipboard: vi.fn(),
+    routeQuery: {} as Record<string, string>
+  }))
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
-    affiliate: affiliateAPI
+    affiliate: affiliateAPI,
+    settings: settingsAPI
   }
 }))
 
@@ -80,6 +86,24 @@ function mountView() {
   })
 }
 
+const RATE_INPUT = 'input[placeholder="留空 = 不设专属比例，跟随全局"]'
+
+const baseEntry = {
+  user_id: 7,
+  email: 'promoter@example.com',
+  username: 'promoter',
+  aff_code: 'SSXZ7',
+  aff_code_custom: true,
+  aff_rebate_rate_percent: 12 as number | null,
+  aff_count: 3,
+  aff_quota: 8.25,
+  aff_frozen_quota: 2.5,
+  aff_history_quota: 13,
+  accrued_rebate_total: 13,
+  transferred_rebate_total: 2.25,
+  invitee_recharge_total: 100
+}
+
 describe('admin AffiliatesView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -112,8 +136,21 @@ describe('admin AffiliatesView', () => {
     affiliateAPI.lookupUsers.mockResolvedValue([
       { id: 8, email: 'new@example.com', username: 'new-user' }
     ])
+    affiliateAPI.getUserOverview.mockResolvedValue({
+      user_id: 8,
+      email: 'new@example.com',
+      username: 'new-user',
+      aff_code: 'SSXZ8',
+      rebate_rate_percent: 5,
+      rebate_rate_custom: false,
+      invited_count: 0,
+      rebated_invitee_count: 0,
+      available_quota: 0,
+      history_quota: 0
+    })
     affiliateAPI.updateUserSettings.mockResolvedValue({ user_id: 8 })
     affiliateAPI.clearUserSettings.mockResolvedValue({ user_id: 7 })
+    settingsAPI.getSettings.mockResolvedValue({ affiliate_rebate_rate: 5 })
   })
 
   it('loads existing custom affiliate users', async () => {
@@ -166,8 +203,9 @@ describe('admin AffiliatesView', () => {
 
     expect(affiliateAPI.lookupUsers).toHaveBeenCalledWith('new@example.com')
     await wrapper.findAll('button').find((button) => button.text().includes('选择'))!.trigger('click')
+    await flushPromises()
     await wrapper.find('input[placeholder="例如 SSXZ2026"]').setValue('SSXZ8')
-    await wrapper.find('input[placeholder="留空使用默认比例"]').setValue('15')
+    await wrapper.find(RATE_INPUT).setValue('15')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
@@ -176,5 +214,86 @@ describe('admin AffiliatesView', () => {
       aff_rebate_rate_percent: 15
     })
     expect(showSuccess).toHaveBeenCalledWith('推广返利设置已保存')
+  })
+
+  // Regression: 0 vs NULL. An emptied input must clear the override (NULL -> follow the
+  // global rate), and an explicit 0 must stay 0 (rebate disabled for that user).
+  it('sends clear_rebate_rate when the rate input is emptied', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.findAll('button').find((button) => button.text().includes('编辑'))!.trigger('click')
+    await flushPromises()
+
+    // Row has an exclusive 12%, so the input is prefilled from it.
+    expect((wrapper.find(RATE_INPUT).element as HTMLInputElement).value).toBe('12')
+
+    await wrapper.find(RATE_INPUT).setValue('')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(affiliateAPI.updateUserSettings).toHaveBeenCalledWith(7, {
+      aff_code: 'SSXZ7',
+      clear_rebate_rate: true
+    })
+    const payload = affiliateAPI.updateUserSettings.mock.calls[0][1]
+    expect(payload).not.toHaveProperty('aff_rebate_rate_percent')
+  })
+
+  it('sends an explicit 0 as 0 rather than clearing the override', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.findAll('button').find((button) => button.text().includes('编辑'))!.trigger('click')
+    await flushPromises()
+
+    await wrapper.find(RATE_INPUT).setValue('0')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(affiliateAPI.updateUserSettings).toHaveBeenCalledWith(7, {
+      aff_code: 'SSXZ7',
+      aff_rebate_rate_percent: 0
+    })
+    const payload = affiliateAPI.updateUserSettings.mock.calls[0][1]
+    expect(payload).not.toHaveProperty('clear_rebate_rate')
+  })
+
+  it('renders unset and explicit-zero rates differently', async () => {
+    affiliateAPI.listUsers.mockResolvedValue({
+      items: [
+        { ...baseEntry, user_id: 21, aff_rebate_rate_percent: null },
+        { ...baseEntry, user_id: 22, aff_rebate_rate_percent: 0 }
+      ],
+      total: 2,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('未设置（跟随全局 5%）')
+    expect(wrapper.text()).toContain('0%（已关闭返利）')
+  })
+
+  it('leaves the rate untouched when the current state could not be read', async () => {
+    affiliateAPI.getUserOverview.mockRejectedValue({ status: 500, message: 'boom' })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.find('input[placeholder="输入邮箱、用户名或用户 ID"]').setValue('new@example.com')
+    await wrapper.find('button.btn-primary').trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text().includes('选择'))!.trigger('click')
+    await flushPromises()
+
+    await wrapper.find('input[placeholder="例如 SSXZ2026"]').setValue('SSXZ8')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(affiliateAPI.updateUserSettings).toHaveBeenCalledWith(8, { aff_code: 'SSXZ8' })
   })
 })

@@ -34,6 +34,27 @@ export interface UpdateAffiliateUserRequest {
   clear_rebate_rate?: boolean
 }
 
+/**
+ * Single-user affiliate overview.
+ *
+ * `rebate_rate_percent` is the effective rate (custom value when set, otherwise the
+ * global default). `rebate_rate_custom` distinguishes "no exclusive rate, follows the
+ * global default" from "an exclusive rate is set" — an explicit 0 is a valid business
+ * value meaning "rebate disabled for this user", so 0 must never be treated as unset.
+ */
+export interface AdminAffiliateUserOverview {
+  user_id: number
+  email: string
+  username: string
+  aff_code: string
+  rebate_rate_percent: number
+  rebate_rate_custom: boolean
+  invited_count: number
+  rebated_invitee_count: number
+  available_quota: number
+  history_quota: number
+}
+
 export async function listUsers(
   page: number = 1,
   pageSize: number = 20,
@@ -60,6 +81,13 @@ export async function lookupUsers(q: string): Promise<AffiliateUserSummary[]> {
   const { data } = await apiClient.get<AffiliateUserSummary[]>('/admin/affiliates/users/lookup', {
     params: { q: keyword }
   })
+  return data
+}
+
+export async function getUserOverview(userId: number): Promise<AdminAffiliateUserOverview> {
+  const { data } = await apiClient.get<AdminAffiliateUserOverview>(
+    `/admin/affiliates/users/${userId}/overview`
+  )
   return data
 }
 
@@ -100,6 +128,7 @@ export const affiliateAPI = {
   lookupUsers,
   updateUserSettings,
   clearUserSettings,
+  getUserOverview,
   batchSetRate
 }
 

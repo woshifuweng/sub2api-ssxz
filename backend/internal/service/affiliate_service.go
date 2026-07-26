@@ -199,12 +199,16 @@ type AffiliateTransferRecord struct {
 }
 
 type AffiliateUserOverview struct {
-	UserID              int64   `json:"user_id"`
-	Email               string  `json:"email"`
-	Username            string  `json:"username"`
-	AffCode             string  `json:"aff_code"`
-	RebateRatePercent   float64 `json:"rebate_rate_percent"`
-	RebateRateCustom    bool    `json:"-"`
+	UserID   int64  `json:"user_id"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	AffCode  string `json:"aff_code"`
+	// RebateRatePercent 是实际生效比例：有专属比例时用专属值（含显式 0），
+	// 否则回退全局比例。
+	RebateRatePercent float64 `json:"rebate_rate_percent"`
+	// RebateRateCustom 区分「未设置专属比例（跟随全局）」与「显式设置了专属比例」。
+	// 显式 0 是合法业务值（关闭该用户返利），所以管理端必须能区分 0 与未设置。
+	RebateRateCustom    bool    `json:"rebate_rate_custom"`
 	InvitedCount        int     `json:"invited_count"`
 	RebatedInviteeCount int     `json:"rebated_invitee_count"`
 	AvailableQuota      float64 `json:"available_quota"`

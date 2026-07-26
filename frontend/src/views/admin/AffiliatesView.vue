@@ -93,18 +93,24 @@
             <div>
               <label class="input-label">专属返利比例（%）</label>
               <input
-                v-model.number="form.aff_rebate_rate_percent"
+                v-model="form.aff_rebate_rate_percent"
                 type="number"
                 min="0"
                 max="100"
                 step="0.01"
                 class="input"
-                placeholder="留空使用默认比例"
-                :disabled="!selectedUser || form.clear_rebate_rate"
+                placeholder="留空 = 不设专属比例，跟随全局"
+                :disabled="!selectedUser || form.clear_rebate_rate || overviewLoading"
               />
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                当前状态：{{ selectedRateStateText }}
+              </p>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                留空保存 = 清除专属比例，跟随全局{{ globalRateSuffix }}；填 0 = 该用户返利关闭（0%），不是跟随全局。
+              </p>
               <label class="mt-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
                 <input v-model="form.clear_rebate_rate" type="checkbox" class="rounded border-gray-300" :disabled="!selectedUser" />
-                清除专属比例，改用系统默认比例
+                清除专属比例，改用全局比例
               </label>
             </div>
 
@@ -251,7 +257,8 @@ import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useClipboard } from '@/composables/useClipboard'
 import type {
   AdminAffiliateEntry,
-  AffiliateUserSummary
+  AffiliateUserSummary,
+  UpdateAffiliateUserRequest
 } from '@/api/admin/affiliate'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -288,11 +295,36 @@ const pagination = reactive({
   pages: 0
 })
 
+/**
+ * The rate field is deliberately `string | number`.
+ *
+ * Vue's v-model casts the value for any `type="number"` input (the `.number` modifier is
+ * not even needed), and an emptied input casts to `''`, not to a number. The old code then
+ * did `Number(form.aff_rebate_rate_percent)`, and `Number('')` is `0` — so "I did not set an
+ * exclusive rate" was silently submitted as "I set it to 0%". The backend correctly stores
+ * that 0 as an explicit override (0% is a valid business value meaning "rebate disabled"),
+ * which is a different state from NULL (follow the global rate). Keeping the raw value and
+ * normalizing through `rateInputRaw` is what lets us tell the two apart.
+ */
 const form = reactive({
   aff_code: '',
-  aff_rebate_rate_percent: null as number | null,
+  aff_rebate_rate_percent: '' as string | number,
   clear_rebate_rate: false
 })
+
+/** Normalizes the rate input to a trimmed string; '' means "no exclusive rate". */
+function rateInputRaw() {
+  const value = form.aff_rebate_rate_percent
+  return value == null ? '' : String(value).trim()
+}
+
+/** Global fallback rate (percent), null while unknown. */
+const globalRatePercent = ref<number | null>(null)
+/** Whether the selected user's current rate is known, and whether it is an explicit override. */
+const rateBaselineKnown = ref(false)
+const rateBaselineCustom = ref(false)
+const rateBaselineValue = ref<number | null>(null)
+const overviewLoading = ref(false)
 
 const columns = computed<Column[]>(() => [
   { key: 'user', label: '用户' },
@@ -307,9 +339,38 @@ const columns = computed<Column[]>(() => [
   { key: 'actions', label: '操作' }
 ])
 
-function formatRate(value: number | null | undefined) {
-  return value == null ? '默认比例' : `${value.toFixed(2).replace(/\.00$/, '')}%`
+function formatPercent(value: number) {
+  return `${value.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1')}%`
 }
+
+const globalRateText = computed(() =>
+  globalRatePercent.value == null ? '全局比例' : formatPercent(globalRatePercent.value)
+)
+
+/** " 5%" when the global rate is known, "" otherwise — keeps hint text readable either way. */
+const globalRateSuffix = computed(() =>
+  globalRatePercent.value == null ? '' : ` ${formatPercent(globalRatePercent.value)}`
+)
+
+/**
+ * Table cell: NULL (field omitted by the API) means "no exclusive rate, follows the global
+ * rate". An explicit 0 means the rebate is switched off for that user. These are different
+ * states and must not render the same way.
+ */
+function formatRate(value: number | null | undefined) {
+  if (value == null) return `未设置（跟随全局 ${globalRateText.value}）`
+  if (value === 0) return '0%（已关闭返利）'
+  return formatPercent(value)
+}
+
+const selectedRateStateText = computed(() => {
+  if (!selectedUser.value) return ''
+  if (overviewLoading.value) return '正在读取当前配置…'
+  if (!rateBaselineKnown.value) return '当前配置未知，留空不会改动专属比例'
+  if (!rateBaselineCustom.value) return `当前未设置专属比例，跟随全局 ${globalRateText.value}`
+  if (rateBaselineValue.value === 0) return '当前专属比例 0%，该用户返利已关闭'
+  return `当前专属比例 ${formatPercent(rateBaselineValue.value ?? 0)}`
+})
 
 function formatQuota(value: number | null | undefined) {
   return `${Number(value ?? 0).toFixed(2)} 额度`
@@ -334,7 +395,24 @@ async function copyAffiliateLink(row: AdminAffiliateEntry) {
 
 function resetForm() {
   form.aff_code = ''
-  form.aff_rebate_rate_percent = null
+  form.aff_rebate_rate_percent = ''
+  form.clear_rebate_rate = false
+  rateBaselineKnown.value = false
+  rateBaselineCustom.value = false
+  rateBaselineValue.value = null
+}
+
+/**
+ * Record the selected user's current rate state and prefill the input from it.
+ *
+ * Prefilling matters: an empty input now means "clear the exclusive rate", so an admin who
+ * only wants to change the aff code must not silently wipe an existing rate.
+ */
+function applyRateBaseline(custom: boolean, value: number | null) {
+  rateBaselineKnown.value = true
+  rateBaselineCustom.value = custom
+  rateBaselineValue.value = custom ? value : null
+  form.aff_rebate_rate_percent = custom && value != null ? String(value) : ''
   form.clear_rebate_rate = false
 }
 
@@ -385,9 +463,35 @@ async function lookupUsers() {
   }
 }
 
+/**
+ * Reads the selected user's current exclusive rate so that an empty input can safely mean
+ * "clear the exclusive rate". Without a known baseline, a promo-code-only save would have
+ * to guess, and guessing is what caused rates to be silently overwritten.
+ */
+async function loadRateBaseline(userId: number) {
+  overviewLoading.value = true
+  rateBaselineKnown.value = false
+  rateBaselineCustom.value = false
+  rateBaselineValue.value = null
+  try {
+    const overview = await adminAPI.affiliate.getUserOverview(userId)
+    applyRateBaseline(Boolean(overview?.rebate_rate_custom), overview?.rebate_rate_percent ?? null)
+  } catch (error: any) {
+    if (error?.status === 404) {
+      // No affiliate row yet: no exclusive rate, follows the global rate.
+      applyRateBaseline(false, null)
+    } else {
+      appStore.showError(error?.message || '读取当前返利配置失败')
+    }
+  } finally {
+    overviewLoading.value = false
+  }
+}
+
 function selectLookupUser(user: AffiliateUserSummary) {
   selectedUser.value = user
   resetForm()
+  void loadRateBaseline(user.id)
 }
 
 function selectEntry(row: AdminAffiliateEntry) {
@@ -397,38 +501,57 @@ function selectEntry(row: AdminAffiliateEntry) {
     username: row.username
   }
   form.aff_code = row.aff_code || ''
-  form.aff_rebate_rate_percent = row.aff_rebate_rate_percent ?? null
   form.clear_rebate_rate = false
+  // The admin list returns the raw column: omitted/null = no exclusive rate, 0 = disabled.
+  applyRateBaseline(row.aff_rebate_rate_percent != null, row.aff_rebate_rate_percent ?? null)
   lookupKeyword.value = row.email || row.username || String(row.user_id)
 }
 
-function buildPayload() {
-  const payload: {
-    aff_code?: string
-    aff_rebate_rate_percent?: number | null
-    clear_rebate_rate?: boolean
-  } = {}
+/** Returns null when the input is invalid (the error has already been surfaced). */
+function buildPayload(): UpdateAffiliateUserRequest | null {
+  const payload: UpdateAffiliateUserRequest = {}
   if (form.aff_code) {
     payload.aff_code = form.aff_code.toUpperCase()
   }
-  if (form.clear_rebate_rate) {
-    payload.clear_rebate_rate = true
-  } else if (form.aff_rebate_rate_percent != null) {
-    payload.aff_rebate_rate_percent = Number(form.aff_rebate_rate_percent)
+
+  const raw = rateInputRaw()
+  if (form.clear_rebate_rate || raw === '') {
+    // An empty field means "no exclusive rate" -> clear (NULL), never 0.
+    // Only send the clear when there is actually an override to remove, so that a
+    // promo-code-only save on an unknown baseline leaves the rate untouched.
+    if (form.clear_rebate_rate || (rateBaselineKnown.value && rateBaselineCustom.value)) {
+      payload.clear_rebate_rate = true
+    }
+    return payload
   }
+
+  const parsed = Number(raw)
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+    appStore.showError('专属返利比例需在 0 到 100 之间')
+    return null
+  }
+  // 0 is intentional and is sent as 0: it disables this user's rebate.
+  payload.aff_rebate_rate_percent = parsed
   return payload
 }
 
 async function saveSelectedUser() {
   if (!selectedUser.value) return
   const payload = buildPayload()
+  if (!payload) return
   if (Object.keys(payload).length === 0) {
-    appStore.showError('请填写推广码或专属返利比例')
+    appStore.showError('没有需要保存的改动')
     return
   }
   saving.value = true
   try {
     await adminAPI.affiliate.updateUserSettings(selectedUser.value.id, payload)
+    // Re-sync the baseline so a second save cannot act on a stale "current rate".
+    if (payload.clear_rebate_rate) {
+      applyRateBaseline(false, null)
+    } else if (payload.aff_rebate_rate_percent != null) {
+      applyRateBaseline(true, payload.aff_rebate_rate_percent)
+    }
     appStore.showSuccess('推广返利设置已保存')
     await loadEntries()
   } catch (error: any) {
@@ -444,6 +567,7 @@ async function clearSelectedUser() {
   try {
     await adminAPI.affiliate.clearUserSettings(selectedUser.value.id)
     resetForm()
+    applyRateBaseline(false, null)
     appStore.showSuccess('推广返利自定义设置已清除')
     await loadEntries()
   } catch (error: any) {
@@ -488,6 +612,20 @@ function handlePageSizeChange(pageSize: number) {
   loadEntries()
 }
 
+/**
+ * Read the global rebate rate so the UI can spell out what "未设置" actually falls back to.
+ * Non-fatal: without it we just render the generic "全局比例" wording.
+ */
+async function loadGlobalRate() {
+  try {
+    const settings = await adminAPI.settings.getSettings()
+    const rate = Number(settings?.affiliate_rebate_rate)
+    globalRatePercent.value = Number.isFinite(rate) ? rate : null
+  } catch {
+    globalRatePercent.value = null
+  }
+}
+
 onMounted(() => {
   const keyword = getInitialInvestigationKeyword()
   if (keyword) {
@@ -495,6 +633,7 @@ onMounted(() => {
     lookupKeyword.value = keyword
     void lookupUsers()
   }
+  void loadGlobalRate()
   loadEntries()
 })
 </script>
