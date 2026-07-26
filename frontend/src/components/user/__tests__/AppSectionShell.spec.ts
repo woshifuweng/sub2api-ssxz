@@ -18,7 +18,9 @@ const { routeState, mocks, authState, appState } = vi.hoisted(() => ({
   },
   appState: {
     cachedPublicSettings: {
-      affiliate_enabled: false
+      affiliate_enabled: false,
+      payment_enabled: true,
+      channel_monitor_enabled: true
     }
   }
 }))
@@ -36,6 +38,7 @@ vi.mock('vue-i18n', async (importOriginal) => ({
       'nav.usage': 'Usage',
       'nav.billing': 'Billing',
       'nav.orders': 'Orders',
+      'nav.billingRecords': 'Billing Records',
       'nav.redeem': 'Redeem',
       'nav.channelStatus': 'Channel Status',
       'nav.groupOverview': 'Overview',
@@ -147,7 +150,10 @@ describe('AppSectionShell', () => {
     routeState.path = '/app/chat'
     routeState.fullPath = '/app/chat'
     authState.isAdmin = false
+    Object.assign(appState.cachedPublicSettings, { channel_monitor_enabled: true })
     appState.cachedPublicSettings.affiliate_enabled = false
+    appState.cachedPublicSettings.payment_enabled = true
+    appState.cachedPublicSettings.channel_monitor_enabled = true
     mocks.push.mockReset()
     mocks.logout.mockReset()
     mocks.showSuccess.mockReset()
@@ -175,6 +181,16 @@ describe('AppSectionShell', () => {
     expect(wrapper.find('.ssxz-secondary-nav').exists()).toBe(false)
   })
 
+  it('merges the redeem entry into billing records when payment is disabled', () => {
+    appState.cachedPublicSettings.payment_enabled = false
+    const wrapper = mountShell()
+    const labels = navButtons(wrapper).map((button) => button.text())
+
+    expect(labels).toContain('Billing Records')
+    expect(labels).not.toContain('Orders')
+    expect(labels).not.toContain('Redeem')
+  })
+
   it('adds the affiliate destination only when the public feature flag is enabled', async () => {
     appState.cachedPublicSettings.affiliate_enabled = true
     const wrapper = mountShell()
@@ -182,6 +198,13 @@ describe('AppSectionShell', () => {
     expect(navButtons(wrapper).map((button) => button.text())).toContain('Referral Rewards')
     await navButtons(wrapper).find((button) => button.text() === 'Referral Rewards')!.trigger('click')
     expect(mocks.push).toHaveBeenCalledWith('/app/affiliate')
+  })
+
+  it('hides the channel status destination while channel monitoring is disabled', () => {
+    Object.assign(appState.cachedPublicSettings, { channel_monitor_enabled: false })
+    const wrapper = mountShell()
+
+    expect(navButtons(wrapper).map((button) => button.text())).not.toContain('Channel Status')
   })
 
   it('keeps the shared theme control in the top-right header without forcing dark mode', () => {

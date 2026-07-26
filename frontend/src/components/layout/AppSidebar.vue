@@ -456,10 +456,13 @@ const userNavItems = computed((): NavItem[] => [
   { path: '/app/keys', label: t('nav.apiKeys'), icon: KeyIcon },
   { path: '/app/available-channels', label: t('nav.models'), icon: ChannelIcon },
   { path: '/app/usage', label: t('nav.usage'), icon: ChartIcon },
-  { path: '/app/channel-status', label: t('nav.channelStatus'), icon: SignalIcon },
+  ...(channelMonitorEnabled.value
+    ? [{ path: '/app/channel-status', label: t('nav.channelStatus'), icon: SignalIcon }]
+    : []),
   { path: '/app/purchase', label: t('nav.billing'), icon: RechargeSubscriptionIcon },
-  { path: '/app/orders', label: t('nav.orders'), icon: OrderIcon },
-  { path: '/app/redeem', label: t('nav.redeem'), icon: TicketIcon },
+  // 在线支付关闭时，「订单」实际展示兑换码入账（账单记录），并入口合一，隐藏单独的「兑换」入口
+  { path: '/app/orders', label: paymentEnabled.value ? t('nav.orders') : t('nav.billingRecords'), icon: OrderIcon },
+  ...(paymentEnabled.value ? [{ path: '/app/redeem', label: t('nav.redeem'), icon: TicketIcon }] : []),
   ...(affiliateEnabled.value ? [{ path: '/app/affiliate', label: t('nav.affiliate'), icon: UsersIcon }] : []),
   { path: '/app/profile', label: t('nav.account'), icon: UserIcon }
 ])

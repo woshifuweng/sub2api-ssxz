@@ -21,8 +21,24 @@
       <Line :data="chartData" :options="lineOptions" />
     </div>
     <div v-else class="token-usage-trend__state token-usage-trend__state--empty">
-      <strong>暂无 Token 趋势</strong>
-      <span>完成一次模型调用后，这里会显示输入与输出变化。</span>
+      <template v-if="showRangeShortcut">
+        <strong>所选区间无调用记录</strong>
+        <span v-if="lastCallAt" data-testid="trend-last-call">你最近一次调用在 {{ formatDateTime(lastCallAt) }}</span>
+        <span v-else>该账号还没有任何调用记录，完成一次模型调用后这里会显示趋势。</span>
+        <button
+          v-if="lastCallAt"
+          type="button"
+          class="token-usage-trend__range-button"
+          data-testid="trend-extend-range"
+          @click="$emit('extendRange')"
+        >
+          切换到近 30 天
+        </button>
+      </template>
+      <template v-else>
+        <strong>暂无 Token 趋势</strong>
+        <span>完成一次模型调用后，这里会显示输入与输出变化。</span>
+      </template>
     </div>
   </section>
 </template>
@@ -45,6 +61,7 @@ import {
 } from 'chart.js'
 import { Line } from 'vue-chartjs'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { formatDateTime } from '@/utils/format'
 import type { TrendDataPoint } from '@/types'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
@@ -56,11 +73,17 @@ const props = withDefaults(defineProps<{
   loading?: boolean
   theme?: 'light' | 'dark'
   variant?: 'default' | 'foundation'
+  lastCallAt?: string | null
+  showRangeShortcut?: boolean
 }>(), {
   loading: false,
   theme: undefined,
-  variant: 'default'
+  variant: 'default',
+  lastCallAt: null,
+  showRangeShortcut: false
 })
+
+defineEmits(['extendRange'])
 
 const isDarkMode = computed(() => {
   if (props.theme) return props.theme === 'dark'
@@ -241,6 +264,27 @@ function formatCost(value: number): string {
 .token-usage-trend__state--empty span {
   color: hsl(var(--muted-foreground));
   font-size: 0.6875rem;
+}
+
+.token-usage-trend__range-button {
+  justify-self: center;
+  margin-top: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 0.25rem 0.65rem;
+  color: hsl(var(--foreground));
+  background: hsl(var(--card));
+  font-size: 0.6875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.token-usage-trend__range-button:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
 }
 
 .token-usage-trend--foundation {

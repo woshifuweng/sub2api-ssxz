@@ -30,13 +30,13 @@
       label="累计请求"
       :value="formatNumber(stats.total_requests || 0)"
       :icon="ChartSpline"
-      period-label="累计"
+      period-label="全时段累计"
       :series="requestSeries"
       :series-formatter="formatCompact"
       trend-label="所选周期请求趋势"
       to="/app/usage"
     >
-      <span>全时累计</span>
+      <span>全时段累计，不随下方时间范围变化</span>
     </ProgressMetricCard>
 
     <ProgressMetricCard
@@ -89,7 +89,7 @@
       :label="t('dashboard.totalTokens')"
       :value="formatTokens(stats.total_tokens || 0)"
       :icon="DatabaseZap"
-      period-label="全部"
+      period-label="全时段累计"
       :series="tokenSeries"
       :series-formatter="formatCompact"
       trend-label="所选周期 Token 趋势"
@@ -115,7 +115,7 @@
       :label="t('dashboard.avgResponse')"
       :value="formatDuration(stats.average_duration_ms || 0)"
       :icon="Timer"
-      period-label="全部"
+      period-label="全时段"
     >
       <span>{{ t('dashboard.averageTime') }}</span>
       <span>服务端处理耗时</span>

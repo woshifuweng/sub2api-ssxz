@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PaymentOrder } from '@/types/payment'
 
-const { appStore, authStore, paymentAPI } = vi.hoisted(() => ({
+const { appStore, authStore, paymentAPI, redeemAPI } = vi.hoisted(() => ({
   appStore: {
     cachedPublicSettings: {
       payment_enabled: false as boolean,
@@ -21,6 +21,9 @@ const { appStore, authStore, paymentAPI } = vi.hoisted(() => ({
     getRefundEligibleProviders: vi.fn(),
     cancelOrder: vi.fn(),
     requestRefund: vi.fn()
+  },
+  redeemAPI: {
+    getHistory: vi.fn()
   }
 }))
 
@@ -34,6 +37,11 @@ vi.mock('@/stores/auth', () => ({
 
 vi.mock('@/api/payment', () => ({
   paymentAPI
+}))
+
+vi.mock('@/api/redeem', () => ({
+  default: redeemAPI,
+  redeemAPI
 }))
 
 vi.mock('@/components/user/AppSectionShell.vue', () => ({
@@ -139,22 +147,25 @@ describe('AppOrdersView', () => {
     paymentAPI.getRefundEligibleProviders.mockReset()
     paymentAPI.cancelOrder.mockReset()
     paymentAPI.requestRefund.mockReset()
+    redeemAPI.getHistory.mockReset()
     paymentAPI.getMyOrders.mockResolvedValue(ordersResponse([]))
     paymentAPI.getRefundEligibleProviders.mockResolvedValue({ data: { provider_instance_ids: [] } })
     paymentAPI.cancelOrder.mockResolvedValue({})
     paymentAPI.requestRefund.mockResolvedValue({})
+    redeemAPI.getHistory.mockResolvedValue([])
   })
 
-  it('shows the payment-off notice while still loading order history', async () => {
+  it('shows billing records copy and the payment-off notice when payment is disabled', async () => {
     const wrapper = mountView()
     await flushPromises()
 
     const text = wrapper.text()
     expect(wrapper.find('[data-testid="app-section-shell"]').exists()).toBe(true)
-    expect(text).toContain('账户记录')
+    expect(text).toContain('账单记录')
     expect(text).toContain('当前可用方式：兑换码')
     expect(text).toContain('通过兑换码补充账户额度')
     expect(text).toContain('使用兑换码')
+    expect(text).toContain('暂无账单记录')
     expect(text).not.toContain('联系管理员')
     expect(text).not.toContain('新版工作台')
     expect(text).not.toContain('真实订单接口')
@@ -162,8 +173,47 @@ describe('AppOrdersView', () => {
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
     expect(hrefs).not.toContain('/app/purchase')
     expect(hrefs).toContain('/app/redeem')
+    expect(redeemAPI.getHistory).toHaveBeenCalledTimes(1)
     expect(paymentAPI.getMyOrders).toHaveBeenCalledWith({ page: 1, page_size: 10 })
     expect(paymentAPI.getRefundEligibleProviders).not.toHaveBeenCalled()
+  })
+
+  it('renders redeem history as billing records when payment is disabled', async () => {
+    redeemAPI.getHistory.mockResolvedValue([
+      {
+        id: 7,
+        code: 'CODE-777',
+        type: 'balance',
+        value: 25,
+        status: 'used',
+        used_at: '2026-06-20T09:30:00Z',
+        created_at: '2026-06-01T00:00:00Z'
+      },
+      {
+        id: 8,
+        code: 'SUB-888',
+        type: 'subscription',
+        value: 0,
+        status: 'used',
+        used_at: '2026-06-21T09:30:00Z',
+        created_at: '2026-06-01T00:00:00Z',
+        validity_days: 30,
+        group: { id: 2, name: 'Pro 订阅' }
+      }
+    ])
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(wrapper.find('[data-testid="billing-records-table"]').exists()).toBe(true)
+    expect(text).toContain('兑换码入账')
+    expect(text).toContain('+$25.00 额度')
+    expect(text).toContain('CODE-777')
+    expect(text).toContain('订阅开通')
+    expect(text).toContain('Pro 订阅（30 天）')
+    expect(wrapper.find('[data-testid="status-filter"]').exists()).toBe(false)
+    expect(redeemAPI.getHistory).toHaveBeenCalledTimes(1)
   })
 
   it('keeps existing order history visible while payment actions are disabled', async () => {
@@ -174,10 +224,24 @@ describe('AppOrdersView', () => {
     const wrapper = mountView()
     await flushPromises()
 
+    expect(wrapper.text()).toContain('历史充值订单')
     expect(wrapper.text()).toContain('ORDER-OFF')
     expect(wrapper.find('[data-testid="cancel-order-31"]').exists()).toBe(false)
     expect(paymentAPI.getMyOrders).toHaveBeenCalledWith({ page: 1, page_size: 10 })
     expect(paymentAPI.getRefundEligibleProviders).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a legacy-order load error instead of silently hiding history when payment is disabled', async () => {
+    paymentAPI.getMyOrders.mockRejectedValue(new Error('orders down'))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(wrapper.find('[data-testid="legacy-orders-error"]').exists()).toBe(true)
+    expect(text).toContain('历史充值订单暂时无法加载')
+    expect(text).toContain('暂无账单记录')
+    expect(text).not.toContain('orders down')
   })
 
   it('keeps the configured legacy purchase entry from the disabled order state', async () => {

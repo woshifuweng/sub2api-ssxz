@@ -5,7 +5,7 @@
         <p>调用记录</p>
         <h2>{{ t('dashboard.recentUsage') }}</h2>
       </div>
-      <span>{{ t('dashboard.last7Days') }}</span>
+      <span>{{ periodLabel || t('dashboard.last7Days') }}</span>
     </header>
 
     <div class="dashboard-list-panel__content">
@@ -13,7 +13,10 @@
         <LoadingSpinner size="lg" />
       </div>
       <div v-else-if="data.length === 0" class="dashboard-list-panel__empty">
-        <EmptyState :title="t('dashboard.noUsageRecords')" :description="t('dashboard.startUsingApi')" />
+        <EmptyState
+          :title="hasAnyUsage ? t('dashboard.noUsageRecordsInRange') : t('dashboard.noUsageRecords')"
+          :description="hasAnyUsage ? t('dashboard.tryWiderRange') : t('dashboard.startUsingApi')"
+        />
       </div>
       <div v-else class="dashboard-usage-list">
         <article v-for="log in data" :key="log.id" class="dashboard-usage-row">
@@ -52,10 +55,15 @@ import ModelIcon from '@/components/common/ModelIcon.vue'
 import { formatCurrency, formatCurrencyExact, formatCurrencyTitle, formatDateTime } from '@/utils/format'
 import type { UsageLog } from '@/types'
 
-defineProps<{
+withDefaults(defineProps<{
   data: UsageLog[]
   loading: boolean
-}>()
+  periodLabel?: string
+  hasAnyUsage?: boolean
+}>(), {
+  periodLabel: '',
+  hasAnyUsage: false
+})
 
 const { t } = useI18n()
 </script>

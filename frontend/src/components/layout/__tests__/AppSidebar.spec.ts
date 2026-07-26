@@ -54,6 +54,7 @@ vi.mock('vue-i18n', () => ({
       'nav.billing': 'Billing',
       'nav.redeem': 'Redeem',
       'nav.orders': 'Orders',
+      'nav.billingRecords': 'Billing Records',
       'nav.channelStatus': 'Channel Status',
       'nav.groupOverview': 'Overview',
       'nav.groupUse': 'Use',
@@ -171,6 +172,19 @@ describe('AppSidebar', () => {
     expect(wrapper.text()).not.toMatch(/Affiliate|Referral|Beta|Experiment/)
   })
 
+  it('merges the redeem entry into billing records when payment is disabled', () => {
+    appState.cachedPublicSettings.payment_enabled = false
+
+    const wrapper = mountSidebar()
+    const destinations = hrefs(wrapper)
+
+    expect(destinations).toContain('/app/orders')
+    expect(destinations).not.toContain('/app/redeem')
+    expect(wrapper.text()).toContain('Billing Records')
+    expect(wrapper.text()).not.toContain('Redeem')
+    expect(wrapper.text()).not.toContain('Orders')
+  })
+
   it('shows the user affiliate entry when the public feature flag is enabled', () => {
     appState.cachedPublicSettings.affiliate_enabled = true
 
@@ -178,6 +192,15 @@ describe('AppSidebar', () => {
 
     expect(hrefs(wrapper)).toContain('/app/affiliate')
     expect(wrapper.text()).toContain('Referral Rewards')
+  })
+
+  it('hides the user channel status entry while channel monitoring is disabled', () => {
+    appState.cachedPublicSettings.channel_monitor_enabled = false
+
+    const wrapper = mountSidebar()
+
+    expect(hrefs(wrapper)).not.toContain('/app/channel-status')
+    expect(wrapper.text()).not.toContain('Channel Status')
   })
 
   it('uses the shared SSXZ brand mark instead of the legacy text box', () => {

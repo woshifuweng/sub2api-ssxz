@@ -63,7 +63,10 @@ vi.mock('vue-i18n', () => ({
         'affiliate.registeredAt': '注册时间',
         'affiliate.loadFailed': '推广数据加载失败，请稍后重试',
         'affiliate.transferSuccess': `已转入余额：${params?.amount ?? ''}`,
-        'affiliate.transferFailed': '结算失败，请稍后重试'
+        'affiliate.transferFailed': '结算失败，请稍后重试',
+        'affiliate.notOpenTitle': '活动暂未开放',
+        'affiliate.notOpenBody': '邀请返利活动当前未开放，暂时无法使用专属邀请链接。你已获得的奖励和可结算额度不受影响，仍可正常结算。',
+        'affiliate.rateClosedValue': '未开放'
       }
       return messages[key] ?? key
     }
@@ -228,6 +231,33 @@ describe('AffiliateView', () => {
       `${window.location.origin}/register?aff=${encodeURIComponent(longCode)}`,
       '推广链接已复制'
     )
+  })
+
+  it('hides the invite panel and shows a closed notice when the rebate rate is 0', async () => {
+    userAPI.getAffiliateDetail.mockResolvedValue({
+      aff_code: 'INVITE123',
+      effective_rebate_rate_percent: 0,
+      aff_count: 0,
+      aff_quota: 0,
+      aff_history_quota: 100,
+      aff_frozen_quota: 0,
+      invitees: []
+    })
+
+    const wrapper = mount(AffiliateView)
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(wrapper.find('[data-testid="affiliate-not-open"]').exists()).toBe(true)
+    expect(text).toContain('活动暂未开放')
+    expect(text).not.toContain('0%')
+    expect(text).not.toContain('推广码')
+    expect(text).not.toContain('INVITE123')
+    expect(wrapper.find('[data-testid="copy-affiliate-link"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="copy-affiliate-code"]').exists()).toBe(false)
+    // 历史奖励仍然展示，仅隐藏邀请入口
+    expect(text).toContain('累计奖励')
+    expect(text).toContain('$100.00')
   })
 
   it('keeps the legacy layout when used outside the app workbench', async () => {

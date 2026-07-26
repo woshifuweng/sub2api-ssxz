@@ -1,11 +1,11 @@
 <template>
   <AppSectionShell
-    title="账户记录"
-    subtitle="查看充值、兑换、订单状态和账户额度变化。"
+    :title="shellTitle"
+    :subtitle="shellSubtitle"
     eyebrow="账户计费"
     icon="creditCard"
   >
-    <section class="orders-workbench" aria-label="订单记录">
+    <section class="orders-workbench" :aria-label="shellTitle">
       <div class="orders-summary-grid">
         <article class="orders-summary-card">
           <div class="summary-icon">
@@ -27,7 +27,7 @@
           <div>
             <span>记录数量</span>
             <strong>{{ orderCountText }}</strong>
-            <p>这里会显示充值、兑换、订单、账户调整和退款相关记录。</p>
+            <p>{{ recordCountDescription }}</p>
           </div>
         </article>
       </div>
@@ -35,24 +35,27 @@
       <section class="orders-panel">
         <header class="panel-heading">
           <div>
-            <h3>记录明细</h3>
-            <p>查看金额、来源和当前状态。</p>
+            <h3>{{ paymentEnabled ? '记录明细' : '账单记录' }}</h3>
+            <p>{{ paymentEnabled ? '查看金额、来源和当前状态。' : '显示兑换码入账的时间、内容和状态。' }}</p>
           </div>
           <div class="orders-toolbar">
-            <label class="status-filter-label" for="app-order-status-filter">状态</label>
-            <select
-              id="app-order-status-filter"
-              v-model="currentFilter"
-              class="status-filter"
-              data-testid="status-filter"
-              :disabled="loading"
-              @change="handleFilterChange"
-            >
-              <option v-for="option in statusFilters" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </select>
-            <button type="button" class="btn btn-secondary btn-sm refresh-button" :disabled="loading" @click="loadOrders">
+            <template v-if="paymentEnabled">
+              <label class="status-filter-label" for="app-order-status-filter">状态</label>
+              <select
+                id="app-order-status-filter"
+                v-model="currentFilter"
+                class="status-filter"
+                data-testid="status-filter"
+                :disabled="loading"
+                @change="handleFilterChange"
+              >
+                <option v-for="option in statusFilters" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+            </template>
+            <RouterLink v-else to="/app/redeem" class="btn btn-primary btn-sm">去兑换</RouterLink>
+            <button type="button" class="btn btn-secondary btn-sm refresh-button" :disabled="loading || redeemLoading" @click="handleRefresh">
               <Icon name="refresh" size="xs" />
               刷新
             </button>
@@ -67,18 +70,75 @@
           <RouterLink v-else to="/app/redeem" class="btn btn-primary btn-sm empty-action">使用兑换码</RouterLink>
         </div>
 
-        <div v-if="loading" class="orders-empty compact">
+        <template v-if="!paymentEnabled">
+          <div v-if="redeemLoading" class="orders-empty compact">
+            <div class="orders-empty__icon"><Icon name="sync" size="md" /></div>
+            <strong>正在加载账单记录</strong>
+          </div>
+
+          <div v-else-if="redeemLoadError" class="orders-empty compact">
+            <div class="orders-empty__icon is-warning"><Icon name="exclamationTriangle" size="md" /></div>
+            <strong>{{ redeemLoadError }}</strong>
+            <span>账单记录正在更新，请稍后刷新。如果刚完成兑换，入账可能需要一点时间。</span>
+          </div>
+
+          <div v-else-if="redeemHistory.length === 0" class="orders-empty compact">
+            <div class="orders-empty__icon"><Icon name="inbox" size="md" /></div>
+            <strong>暂无账单记录</strong>
+            <span>使用兑换码补充额度后，入账记录会显示在这里。</span>
+            <div class="empty-actions">
+              <RouterLink to="/app/redeem" class="btn btn-primary btn-sm empty-action">去兑换</RouterLink>
+            </div>
+          </div>
+
+          <template v-else>
+            <div class="orders-table-wrap" data-testid="billing-records-table">
+              <table class="orders-table">
+                <thead>
+                  <tr>
+                    <th>入账时间</th>
+                    <th>类型</th>
+                    <th>内容</th>
+                    <th>兑换码</th>
+                    <th>备注</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in redeemHistory" :key="item.id">
+                    <td>{{ formatDateTime(item.used_at || item.created_at) }}</td>
+                    <td>{{ formatRedeemType(item) }}</td>
+                    <td>{{ formatRedeemValue(item) }}</td>
+                    <td class="order-no">{{ item.code || '-' }}</td>
+                    <td>{{ item.notes || '-' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p v-if="redeemHistory.length >= 25" class="records-cap-note">
+              最多显示最近 25 条兑换入账记录，更早的记录暂不在此展示。
+            </p>
+          </template>
+
+          <div v-if="loadError" class="orders-empty compact" data-testid="legacy-orders-error">
+            <div class="orders-empty__icon is-warning"><Icon name="exclamationTriangle" size="md" /></div>
+            <strong>历史充值订单暂时无法加载</strong>
+            <span>不影响上方的账单记录，点击「刷新」可重试。</span>
+          </div>
+          <h4 v-else-if="orders.length > 0" class="legacy-orders-heading">历史充值订单</h4>
+        </template>
+
+        <div v-if="paymentEnabled && loading" class="orders-empty compact">
           <div class="orders-empty__icon"><Icon name="sync" size="md" /></div>
           <strong>正在加载账户记录</strong>
         </div>
 
-        <div v-else-if="loadError" class="orders-empty compact">
+        <div v-else-if="paymentEnabled && loadError" class="orders-empty compact">
           <div class="orders-empty__icon is-warning"><Icon name="exclamationTriangle" size="md" /></div>
           <strong>{{ loadError }}</strong>
           <span>账户记录正在更新，请稍后刷新。如果刚完成支付，到账可能需要一点时间。</span>
         </div>
 
-        <div v-else-if="orders.length === 0" class="orders-empty compact">
+        <div v-else-if="paymentEnabled && orders.length === 0" class="orders-empty compact">
           <div class="orders-empty__icon"><Icon name="inbox" size="md" /></div>
           <strong>暂无账户记录</strong>
           <span>完成充值、兑换或额度调整后，记录会显示在这里。</span>
@@ -88,7 +148,7 @@
           </div>
         </div>
 
-        <div v-else class="orders-table-wrap">
+        <div v-else-if="orders.length > 0" class="orders-table-wrap">
           <table class="orders-table">
             <thead>
               <tr>
@@ -237,6 +297,7 @@ import Icon from '@/components/icons/Icon.vue'
 import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import { paymentAPI } from '@/api/payment'
+import redeemAPI, { type RedeemHistoryItem } from '@/api/redeem'
 import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
 import type { PaymentOrder } from '@/types/payment'
@@ -248,6 +309,9 @@ const loading = ref(false)
 const actionLoading = ref(false)
 const loadError = ref('')
 const orders = ref<PaymentOrder[]>([])
+const redeemHistory = ref<RedeemHistoryItem[]>([])
+const redeemLoading = ref(false)
+const redeemLoadError = ref('')
 const totalOrders = ref(0)
 const currentFilter = ref('')
 const refundEligibleProviders = ref<Set<string>>(new Set())
@@ -261,7 +325,22 @@ const purchaseEnabled = computed(() => (
   paymentEnabled.value || !!appStore.cachedPublicSettings?.purchase_subscription_enabled
 ))
 const balanceText = computed(() => `$${Number(authStore.user?.balance || 0).toFixed(2)}`)
-const orderCountText = computed(() => String(totalOrders.value || orders.value.length))
+const orderCountText = computed(() => (
+  paymentEnabled.value
+    ? String(totalOrders.value || orders.value.length)
+    : String(redeemHistory.value.length + totalOrders.value)
+))
+const shellTitle = computed(() => (paymentEnabled.value ? '账户记录' : '账单记录'))
+const shellSubtitle = computed(() => (
+  paymentEnabled.value
+    ? '查看充值、兑换、订单状态和账户额度变化。'
+    : '查看兑换码入账和账户额度变化。'
+))
+const recordCountDescription = computed(() => (
+  paymentEnabled.value
+    ? '这里会显示充值、兑换、订单、账户调整和退款相关记录。'
+    : '这里会显示兑换码入账和账户额度变化记录。'
+))
 const disabledOrdersTitle = computed(() => (
   purchaseEnabled.value ? '当前账号可查看已有账户记录' : '当前可用方式：兑换码'
 ))
@@ -281,17 +360,55 @@ const statusFilters = [
 
 let ordersBootstrapped = false
 
-watch(paymentEnabled, (enabled) => {
-  if (!ordersBootstrapped) {
-    ordersBootstrapped = true
-    void loadOrders()
+// 等公共设置就绪后再按 payment_enabled 分流，避免设置未加载时误按「支付关闭」发起兑换记录请求
+watch(
+  [() => appStore.cachedPublicSettings, paymentEnabled] as const,
+  ([settings, enabled]) => {
+    if (!settings) return
+    if (!ordersBootstrapped) {
+      ordersBootstrapped = true
+      void loadOrders()
+    }
+    if (enabled) {
+      void loadRefundEligibility()
+    } else {
+      refundEligibleProviders.value = new Set()
+      void loadRedeemHistory()
+    }
+    syncDocumentTitle()
+  },
+  { immediate: true }
+)
+
+async function loadRedeemHistory() {
+  if (redeemLoading.value) return
+  redeemLoading.value = true
+  redeemLoadError.value = ''
+  try {
+    redeemHistory.value = await redeemAPI.getHistory()
+  } catch {
+    redeemHistory.value = []
+    redeemLoadError.value = '账单记录暂时无法加载'
+  } finally {
+    redeemLoading.value = false
   }
-  if (enabled) {
-    void loadRefundEligibility()
-  } else {
-    refundEligibleProviders.value = new Set()
+}
+
+function handleRefresh() {
+  void loadOrders()
+  if (!paymentEnabled.value) {
+    void loadRedeemHistory()
   }
-}, { immediate: true })
+}
+
+// 路由 meta 的标签页标题固定为「我的订单」；账单记录模式下同步替换，避免页内文案与标签页不一致
+function syncDocumentTitle() {
+  if (typeof document === 'undefined') return
+  const current = document.title
+  const sepIndex = current.indexOf(' - ')
+  const suffix = sepIndex >= 0 ? current.slice(sepIndex) : ''
+  document.title = shellTitle.value + suffix
+}
 
 async function loadOrders() {
   loading.value = true
@@ -409,6 +526,27 @@ function formatOrderAmount(order: PaymentOrder) {
     return `支付 ¥${payAmount.toFixed(2)}，到账 $${accountAmount.toFixed(2)} 额度`
   }
   return `支付 ¥${payAmount.toFixed(2)}`
+}
+
+function formatRedeemType(item: RedeemHistoryItem) {
+  if (item.type === 'balance') return '兑换码入账'
+  if (item.type === 'admin_balance') return item.value >= 0 ? '管理员调整（增加）' : '管理员调整（扣减）'
+  if (item.type === 'concurrency') return '并发数提升'
+  if (item.type === 'admin_concurrency') return item.value >= 0 ? '并发数调整（增加）' : '并发数调整（减少）'
+  if (item.type === 'subscription') return '订阅开通'
+  return item.type || '-'
+}
+
+function formatRedeemValue(item: RedeemHistoryItem) {
+  if (item.type === 'subscription') {
+    const groupName = item.group?.name || '订阅'
+    return item.validity_days ? `${groupName}（${item.validity_days} 天）` : groupName
+  }
+  if (item.type === 'concurrency' || item.type === 'admin_concurrency') {
+    return `${item.value >= 0 ? '+' : ''}${item.value} 并发`
+  }
+  const amount = Number(item.value || 0)
+  return `${amount >= 0 ? '+' : '-'}$${Math.abs(amount).toFixed(2)} 额度`
 }
 
 function formatPaymentType(type: string) {
@@ -596,6 +734,20 @@ function formatPaymentType(type: string) {
 
 .orders-disabled-note .empty-action {
   justify-self: start;
+}
+
+.legacy-orders-heading {
+  margin: 0.25rem 0 -0.5rem;
+  color: var(--ssxz-text-muted);
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+.records-cap-note {
+  margin: -0.5rem 0 0;
+  color: var(--ssxz-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
 }
 
 .orders-empty__icon {

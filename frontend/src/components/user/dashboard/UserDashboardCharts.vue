@@ -79,8 +79,18 @@
           </div>
         </div>
         <div v-else class="dashboard-chart-empty">
-          <strong>暂无模型用量</strong>
-          <span>完成一次模型调用后，这里会显示用量构成。</span>
+          <strong>所选时间范围内暂无模型用量</strong>
+          <span v-if="lastCallAt" data-testid="models-last-call">你最近一次调用在 {{ formatDateTime(lastCallAt) }}，可切换时间范围查看。</span>
+          <span v-else>完成一次模型调用后，这里会显示用量构成。</span>
+          <button
+            v-if="lastCallAt"
+            type="button"
+            class="dashboard-chart-empty__button"
+            data-testid="models-extend-range"
+            @click="$emit('extendRange')"
+          >
+            切换到近 30 天
+          </button>
         </div>
       </div>
 
@@ -89,6 +99,9 @@
         :loading="loading"
         :theme="theme"
         variant="foundation"
+        :last-call-at="lastCallAt"
+        show-range-shortcut
+        @extend-range="$emit('extendRange')"
       />
     </div>
   </section>
@@ -121,6 +134,7 @@ import type { TrendDataPoint, ModelStat } from '@/types'
 import {
   formatCostFixed as formatCost,
   formatCurrencyTitle,
+  formatDateTime,
   formatNumberLocaleString as formatNumber,
   formatTokensK as formatTokens
 } from '@/utils/format'
@@ -145,8 +159,10 @@ const props = withDefaults(defineProps<{
   trend: TrendDataPoint[]
   models: ModelStat[]
   theme?: 'light' | 'dark'
+  lastCallAt?: string | null
 }>(), {
-  theme: 'light'
+  theme: 'light',
+  lastCallAt: null
 })
 
 defineEmits([
@@ -154,7 +170,8 @@ defineEmits([
   'update:endDate',
   'update:granularity',
   'dateRangeChange',
-  'granularityChange'
+  'granularityChange',
+  'extendRange'
 ])
 
 const { t } = useI18n()
@@ -347,6 +364,27 @@ const doughnutOptions = computed<ChartOptions<'doughnut'>>(() => ({
 
 .dashboard-chart-empty span {
   font-size: 0.6875rem;
+}
+
+.dashboard-chart-empty__button {
+  justify-self: center;
+  margin-top: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 0.25rem 0.65rem;
+  color: hsl(var(--foreground));
+  background: hsl(var(--card));
+  font-size: 0.6875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dashboard-chart-empty__button:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
 }
 
 .dashboard-model-table-wrap {

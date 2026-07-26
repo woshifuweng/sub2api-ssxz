@@ -27,8 +27,8 @@
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div class="card affiliate-stat-card">
             <p class="affiliate-stat-card__label">{{ t('affiliate.currentRate') }}</p>
-            <p class="affiliate-stat-card__value">{{ formattedRate }}%</p>
-            <p class="affiliate-stat-card__hint">{{ t('affiliate.rateHint') }}</p>
+            <p class="affiliate-stat-card__value">{{ rateActive ? `${formattedRate}%` : t('affiliate.rateClosedValue') }}</p>
+            <p class="affiliate-stat-card__hint">{{ rateActive ? t('affiliate.rateHint') : t('affiliate.notOpenTitle') }}</p>
           </div>
           <div class="card affiliate-stat-card">
             <p class="affiliate-stat-card__label">{{ t('affiliate.inviteCount') }}</p>
@@ -49,7 +49,12 @@
           </div>
         </div>
 
-        <div class="card affiliate-panel p-6">
+        <div v-if="!rateActive" class="card affiliate-panel p-6" data-testid="affiliate-not-open">
+          <h2 class="text-base font-semibold text-[var(--ssxz-text)]">{{ t('affiliate.notOpenTitle') }}</h2>
+          <p class="mt-1 text-sm text-[var(--ssxz-text-muted)]">{{ t('affiliate.notOpenBody') }}</p>
+        </div>
+
+        <div v-else class="card affiliate-panel p-6">
           <h2 class="text-base font-semibold text-[var(--ssxz-text)]">{{ t('affiliate.exclusiveInvite') }}</h2>
           <p class="mt-1 text-sm text-[var(--ssxz-text-muted)]">{{ t('affiliate.inviteDescription') }}</p>
 
@@ -174,6 +179,9 @@ const formattedRate = computed(() => {
   const rounded = Math.round(rate * 100) / 100
   return Number.isInteger(rounded) ? String(rounded) : rounded.toString()
 })
+
+// 比例为 0 表示活动对该账号未开放：隐藏邀请链接面板，避免与历史累计奖励（旧活动数据）形成矛盾展示。
+const rateActive = computed(() => (detail.value?.effective_rebate_rate_percent ?? 0) > 0)
 
 async function loadAffiliateDetail(silent = false): Promise<void> {
   if (!silent) loading.value = true

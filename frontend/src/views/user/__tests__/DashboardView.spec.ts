@@ -21,7 +21,8 @@ const { appStore, authStore, usageAPI } = vi.hoisted(() => ({
     getDashboardStats: vi.fn(),
     getDashboardTrend: vi.fn(),
     getDashboardModels: vi.fn(),
-    getByDateRange: vi.fn()
+    getByDateRange: vi.fn(),
+    list: vi.fn()
   }
 }))
 
@@ -79,8 +80,9 @@ vi.mock('@/components/user/dashboard/UserDashboardStats.vue', () => ({
 vi.mock('@/components/user/dashboard/UserDashboardCharts.vue', () => ({
   default: {
     name: 'UserDashboardCharts',
-    props: ['trend', 'models', 'loading'],
-    template: '<section data-testid="dashboard-charts-child">{{ trend.length }} {{ models.length }} {{ String(loading) }}</section>'
+    props: ['trend', 'models', 'loading', 'lastCallAt'],
+    emits: ['extendRange'],
+    template: '<section data-testid="dashboard-charts-child">{{ trend.length }} {{ models.length }} {{ String(loading) }} {{ lastCallAt }}</section>'
   }
 }))
 
@@ -225,6 +227,7 @@ describe('DashboardView', () => {
       total: 1,
       pages: 1
     })
+    usageAPI.list.mockResolvedValue({ items: [], total: 0, pages: 0 })
   })
 
   it('keeps real dashboard data while removing duplicated workbench and service directory layers', async () => {
@@ -296,6 +299,67 @@ describe('DashboardView', () => {
     expect(wrapper.text()).toContain('去兑换')
     expect(hrefs).toContain('/app/redeem')
     expect(wrapper.text()).toContain('兑换码')
+  })
+
+  it('resolves the latest call date and switches to a 30-day range when the selected range is empty', async () => {
+    usageAPI.getDashboardTrend.mockResolvedValue({
+      trend: [],
+      start_date: '2026-07-20',
+      end_date: '2026-07-26',
+      granularity: 'day'
+    })
+    usageAPI.getDashboardModels.mockResolvedValue({
+      models: [],
+      start_date: '2026-07-20',
+      end_date: '2026-07-26'
+    })
+    usageAPI.list.mockResolvedValue({
+      items: [
+        {
+          id: 5,
+          request_id: 'req-5',
+          model: 'gpt-4o-mini',
+          input_tokens: 10,
+          output_tokens: 5,
+          total_cost: 0.1,
+          actual_cost: 0.08,
+          created_at: '2026-05-02T10:00:00Z'
+        }
+      ],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(usageAPI.list).toHaveBeenCalledWith(1, 1)
+    const charts = wrapper.findComponent({ name: 'UserDashboardCharts' })
+    expect(charts.props('lastCallAt')).toBe('2026-05-02T10:00:00Z')
+
+    usageAPI.getDashboardTrend.mockClear()
+    usageAPI.getDashboardModels.mockClear()
+    charts.vm.$emit('extendRange')
+    await flushPromises()
+
+    const formatLD = (date: Date) => [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, '0'),
+      String(date.getDate()).padStart(2, '0')
+    ].join('-')
+    const expectedStartDate = new Date()
+    expectedStartDate.setDate(expectedStartDate.getDate() - 29)
+    const expectedStart = formatLD(expectedStartDate)
+    const expectedEnd = formatLD(new Date())
+    expect(usageAPI.getDashboardTrend).toHaveBeenCalledWith(expect.objectContaining({
+      start_date: expectedStart,
+      end_date: expectedEnd,
+      granularity: 'day'
+    }))
+    expect(usageAPI.getDashboardModels).toHaveBeenCalledWith({
+      start_date: expectedStart,
+      end_date: expectedEnd
+    })
   })
 
   it('shows a retryable error state instead of a blank page when stats fail', async () => {

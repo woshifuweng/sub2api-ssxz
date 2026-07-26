@@ -64,12 +64,19 @@
             :trend="trendData"
             :models="modelStats"
             :theme="theme"
+            :last-call-at="lastCallAt"
             @dateRangeChange="loadCharts"
             @granularityChange="loadCharts"
+            @extendRange="switchToThirtyDays"
           />
 
           <div class="dashboard-detail-grid">
-            <UserDashboardRecentUsage :data="recentUsage" :loading="loadingUsage" />
+            <UserDashboardRecentUsage
+              :data="recentUsage"
+              :loading="loadingUsage"
+              :period-label="rangeLabel"
+              :has-any-usage="(stats.total_requests || 0) > 0"
+            />
             <UserDashboardQuickActions />
           </div>
 
@@ -150,6 +157,7 @@ const trendData = ref<TrendDataPoint[]>([])
 const todayTrendData = ref<TrendDataPoint[]>([])
 const modelStats = ref<ModelStat[]>([])
 const recentUsage = ref<UsageLog[]>([])
+const lastCallAt = ref<string | null>(null)
 let themeObserver: MutationObserver | null = null
 
 const onboardingSteps = computed(() => [
@@ -194,6 +202,14 @@ const endDate = ref(formatLD(new Date()))
 const granularity = ref('day')
 const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
+// 最近使用面板与图表共用同一时间范围，标签跟随实际选择的天数
+const rangeLabel = computed(() => {
+  const start = new Date(`${startDate.value}T00:00:00`)
+  const end = new Date(`${endDate.value}T00:00:00`)
+  const days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1
+  return Number.isFinite(days) && days > 0 ? `近 ${days} 天` : ''
+})
+
 function syncTheme(): void {
   theme.value = document.documentElement.classList.contains('dark') ? 'dark' : 'light'
 }
@@ -213,7 +229,11 @@ const loadStats = async () => {
   }
 }
 
+// 序号守卫：快速连续切换范围时，丢弃迟到的旧响应，避免旧的空结果覆盖新范围的数据
+let chartsRequestSeq = 0
+
 const loadCharts = async () => {
+  const requestSeq = ++chartsRequestSeq
   loadingCharts.value = true
   try {
     const response = await Promise.all([
@@ -228,13 +248,41 @@ const loadCharts = async () => {
         end_date: endDate.value
       })
     ])
+    if (requestSeq !== chartsRequestSeq) return
     trendData.value = response[0].trend || []
     modelStats.value = response[1].models || []
+    if (!trendData.value.length || !modelStats.value.length) {
+      void loadLastCall()
+    }
   } catch (error) {
     console.error('Failed to load charts:', error)
   } finally {
-    loadingCharts.value = false
+    if (requestSeq === chartsRequestSeq) {
+      loadingCharts.value = false
+    }
   }
+}
+
+// 累计卡是全时段口径，图表是所选区间口径；区间查不到数据时，
+// 取最近一条调用记录，让空态能指出真实的最近调用时间。
+const loadLastCall = async () => {
+  try {
+    const response = await usageAPI.list(1, 1)
+    lastCallAt.value = response.items?.[0]?.created_at ?? null
+  } catch (error) {
+    lastCallAt.value = null
+    console.error('Failed to load latest usage record:', error)
+  }
+}
+
+const switchToThirtyDays = () => {
+  const start = new Date()
+  start.setDate(start.getDate() - 29)
+  startDate.value = formatLD(start)
+  endDate.value = formatLD(new Date())
+  granularity.value = 'day'
+  void loadCharts()
+  void loadRecent()
 }
 
 const loadTodayTrend = async () => {

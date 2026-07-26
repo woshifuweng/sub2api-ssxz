@@ -358,6 +358,7 @@ export default {
     usage: 'Usage',
     billing: 'Billing',
     orders: 'Orders',
+    billingRecords: 'Billing Records',
     channelStatus: 'Channel Status',
     groupOverview: 'Overview',
     groupUse: 'Use',
@@ -453,7 +454,10 @@ export default {
     registeredAt: 'Registered at',
     loadFailed: 'Failed to load referral data. Please try again later.',
     transferSuccess: 'Transferred to balance: {amount}',
-    transferFailed: 'Transfer failed. Please try again later.'
+    transferFailed: 'Transfer failed. Please try again later.',
+    notOpenTitle: 'Referral program not open yet',
+    notOpenBody: 'The referral program is currently closed, so the invite link is unavailable for now. Rewards you already earned and your settleable balance are not affected and can still be transferred.',
+    rateClosedValue: 'Closed'
   },
 
   // Auth
@@ -619,6 +623,8 @@ export default {
     recentUsage: 'Recent Usage',
     last7Days: 'Last 7 days',
     noUsageRecords: 'No usage records',
+    noUsageRecordsInRange: 'No usage records in the selected time range',
+    tryWiderRange: 'Adjust the time range above to see earlier calls.',
     startUsingApi: 'Start using the API to see your usage history here.',
     viewAllUsage: 'View all usage',
     quickActions: 'Quick Actions',
@@ -688,6 +694,18 @@ export default {
       modelHint: 'Available models follow backend configuration and the current key group. Codex defaults to gpt-5.5 and Claude to claude-opus-4-8.',
       readinessHint:
         'If the client reports insufficient balance, unavailable model, or temporary service pressure, switch to a recommended model or retry later; complex tasks may take longer to start.',
+      quickStart: {
+        title: 'Copy-and-run examples',
+        description: 'Your full key and Base URL are already filled in — paste and go.',
+        copyAll: 'Copy all',
+        copied: 'Copied',
+        exampleCopied: 'Example copied',
+        cherryHeading: '# Cherry Studio: Settings -> Model Services -> Add Provider',
+        cherryProvider: 'Provider type: OpenAI-compatible (custom OpenAI)',
+        cherryBaseUrl: 'API URL (Base URL): ',
+        cherryApiKey: 'API Key: ',
+        cherryModel: 'Model: '
+      },
       acknowledge: 'I saved it',
     },
     searchPlaceholder: 'Search name...',

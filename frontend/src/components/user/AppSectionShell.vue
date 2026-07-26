@@ -185,15 +185,22 @@ const mobileNavOpen = ref(false)
 const isDesktopViewport = ref(false)
 let desktopMediaQuery: MediaQueryList | null = null
 
+const paymentEnabled = computed(() => !!appStore.cachedPublicSettings?.payment_enabled)
+
 const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName }>>(() => [
   { label: t('nav.dashboard'), to: '/app/dashboard', icon: 'home' },
   { label: t('nav.apiKeys'), to: '/app/keys', icon: 'key' },
   { label: t('nav.models'), to: '/app/available-channels', icon: 'calculator' },
   { label: t('nav.usage'), to: '/app/usage', icon: 'chartBar' },
-  { label: t('nav.channelStatus'), to: '/app/channel-status', icon: 'chartBar' },
+  ...(appStore.cachedPublicSettings?.channel_monitor_enabled
+    ? [{ label: t('nav.channelStatus'), to: '/app/channel-status', icon: 'chartBar' as IconName }]
+    : []),
   { label: t('nav.billing'), to: '/app/purchase', icon: 'creditCard' },
-  { label: t('nav.orders'), to: '/app/orders', icon: 'document' },
-  { label: t('nav.redeem'), to: '/app/redeem', icon: 'gift' },
+  // 在线支付关闭时，「订单」页实际展示兑换码入账（账单记录），并与「兑换」入口合一
+  { label: paymentEnabled.value ? t('nav.orders') : t('nav.billingRecords'), to: '/app/orders', icon: 'document' },
+  ...(paymentEnabled.value
+    ? [{ label: t('nav.redeem'), to: '/app/redeem', icon: 'gift' as IconName }]
+    : []),
   ...(appStore.cachedPublicSettings?.affiliate_enabled
     ? [{ label: t('nav.affiliate'), to: '/app/affiliate', icon: 'users' as IconName }]
     : []),

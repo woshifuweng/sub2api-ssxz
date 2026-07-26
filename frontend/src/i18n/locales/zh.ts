@@ -358,6 +358,7 @@ export default {
     usage: '使用记录',
     billing: '充值',
     orders: '订单',
+    billingRecords: '账单记录',
     channelStatus: '渠道状态',
     groupOverview: '概览',
     groupUse: '使用',
@@ -453,7 +454,10 @@ export default {
     registeredAt: '注册时间',
     loadFailed: '推广数据加载失败，请稍后重试',
     transferSuccess: '已转入余额：{amount}',
-    transferFailed: '结算失败，请稍后重试'
+    transferFailed: '结算失败，请稍后重试',
+    notOpenTitle: '活动暂未开放',
+    notOpenBody: '邀请返利活动当前未开放，暂时无法使用专属邀请链接。你已获得的奖励和可结算额度不受影响，仍可正常结算。',
+    rateClosedValue: '未开放'
   },
 
   // Auth
@@ -619,6 +623,8 @@ export default {
     recentUsage: '最近使用',
     last7Days: '近 7 天',
     noUsageRecords: '暂无使用记录',
+    noUsageRecordsInRange: '所选时间范围内暂无使用记录',
+    tryWiderRange: '可切换上方时间范围查看更早的调用。',
     startUsingApi: '开始使用 API 后，您的使用历史将显示在这里。',
     viewAllUsage: '查看全部',
     quickActions: '快捷操作',
@@ -683,6 +689,18 @@ export default {
       modelLabel: '模型',
       modelHint: '可用模型以后端配置和当前 Key 分组为准；Codex 默认 gpt-5.5，Claude 默认 claude-opus-4-8。',
       readinessHint: '如果客户端提示额度不足、模型不可用或服务繁忙，先换推荐模型或稍后再试；复杂任务启动慢属于正常现象。',
+      quickStart: {
+        title: '复制即用示例',
+        description: '已自动填入完整 Key 和 Base URL，粘贴即可使用。',
+        copyAll: '一键复制',
+        copied: '已复制',
+        exampleCopied: '接入示例已复制',
+        cherryHeading: '# Cherry Studio：设置 → 模型服务 → 添加提供商',
+        cherryProvider: '服务商类型: OpenAI-compatible（自定义 OpenAI）',
+        cherryBaseUrl: 'API 地址 (Base URL): ',
+        cherryApiKey: 'API 密钥 (API Key): ',
+        cherryModel: '模型 (Model): '
+      },
       acknowledge: '我已保存'
     },
     searchPlaceholder: '搜索名称...',
