@@ -335,7 +335,7 @@ func (s *PaymentService) doBalance(ctx context.Context, o *dbent.PaymentOrder, l
 	switch action {
 	case redeemActionSkipCompleted:
 		// Code already created and redeemed — just mark completed
-		return s.markCompleted(ctx, o, lease, "RECHARGE_SUCCESS")
+		return s.markCompletedWithAffiliateRebate(ctx, o, lease, "RECHARGE_SUCCESS", "affiliate rebate failed after balance fulfillment")
 	case redeemActionCreate:
 		rc := &RedeemCode{Code: o.RechargeCode, Type: RedeemTypeBalance, Value: o.Amount, Status: StatusUnused}
 		if err := s.redeemService.CreateCode(ctx, rc); err != nil {
@@ -347,7 +347,30 @@ func (s *PaymentService) doBalance(ctx context.Context, o *dbent.PaymentOrder, l
 	if _, err := s.redeemService.Redeem(ContextSkipRedeemAffiliate(ctx), o.UserID, o.RechargeCode); err != nil {
 		return fmt.Errorf("redeem balance: %w", err)
 	}
-	return s.markCompleted(ctx, o, lease, "RECHARGE_SUCCESS")
+	return s.markCompletedWithAffiliateRebate(ctx, o, lease, "RECHARGE_SUCCESS", "affiliate rebate failed after balance fulfillment")
+}
+
+func (s *PaymentService) markCompletedWithAffiliateRebate(ctx context.Context, o *dbent.PaymentOrder, lease *paymentFulfillmentLease, auditAction, warningMessage string) error {
+	return completePaymentFulfillmentWithAffiliateRebate(
+		func() error {
+			return s.markCompleted(ctx, o, lease, auditAction)
+		},
+		func() error {
+			return s.applyAffiliateRebateForOrder(ctx, o)
+		},
+		o.ID,
+		warningMessage,
+	)
+}
+
+func completePaymentFulfillmentWithAffiliateRebate(markCompleted func() error, applyAffiliateRebate func() error, orderID int64, warningMessage string) error {
+	if err := markCompleted(); err != nil {
+		return err
+	}
+	if rebateErr := applyAffiliateRebate(); rebateErr != nil {
+		slog.Warn(warningMessage, "orderID", orderID, "error", rebateErr)
+	}
+	return nil
 }
 
 func (s *PaymentService) markCompleted(ctx context.Context, o *dbent.PaymentOrder, lease *paymentFulfillmentLease, auditAction string) error {
@@ -499,7 +522,7 @@ func (s *PaymentService) doSub(ctx context.Context, o *dbent.PaymentOrder, lease
 	if err := s.ensurePaymentSubscriptionAssigned(ctx, o, gid, days); err != nil {
 		return err
 	}
-	return s.markCompleted(ctx, o, lease, "SUBSCRIPTION_SUCCESS")
+	return s.markCompletedWithAffiliateRebate(ctx, o, lease, "SUBSCRIPTION_SUCCESS", "affiliate rebate failed after subscription fulfillment")
 }
 
 func (s *PaymentService) ensurePaymentSubscriptionAssigned(ctx context.Context, o *dbent.PaymentOrder, groupID int64, days int) error {
