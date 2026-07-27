@@ -547,6 +547,19 @@ func (s *PricingService) downloadPricingData() error {
 		return fmt.Errorf("parse pricing data: %w", err)
 	}
 
+	s.mu.RLock()
+	previousSnapshot := clonePricingSnapshot(s.pricingData)
+	s.mu.RUnlock()
+	if changes := detectPricingDrift(previousSnapshot, data); len(changes) > 0 {
+		alertBody := pricingDriftAlertBody(changes)
+		logger.With(
+			zap.String("component", "service.pricing"),
+			zap.String("event", "pricing_drift"),
+			zap.Int("changed_count", len(changes)),
+			zap.String("alert_body", alertBody),
+		).Error("pricing drift detected")
+	}
+
 	// 保存到本地文件
 	pricingFile := s.getPricingFilePath()
 	if err := os.WriteFile(pricingFile, body, 0644); err != nil {
