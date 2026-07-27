@@ -182,7 +182,7 @@ func (h *OpenAIGatewayHandler) ImagesGateway(c gatewayctx.GatewayContext) {
 			routingModel,
 			failedAccountIDs,
 			service.OpenAIUpstreamTransportHTTPSSE,
-			h.gatewayService.SelectAccountWithScheduler,
+			h.selectOpenAIAccountWithScheduler(apiKey),
 		)
 		var (
 			selection      *service.AccountSelectionResult
