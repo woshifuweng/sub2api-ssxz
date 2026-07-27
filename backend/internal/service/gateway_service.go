@@ -8665,6 +8665,15 @@ func writeUsageLogBestEffort(ctx context.Context, repo UsageLogRepository, usage
 		if err := writer.CreateBestEffort(usageCtx, usageLog); err != nil {
 			logger.LegacyPrintf(logKey, "Create usage log failed: %v", err)
 			if IsUsageLogCreateDropped(err) {
+				// 队列满丢弃时也尝试同步写；若同步也失败，至少留下可对账的结构化日志
+				if _, syncErr := repo.Create(usageCtx, usageLog); syncErr != nil {
+					slog.Error("usage log dropped and sync fallback failed — billing without audit record",
+						"logKey", logKey,
+						"userID", usageLog.UserID,
+						"requestID", usageLog.RequestID,
+						"totalTokens", usageLog.TotalTokens(),
+					)
+				}
 				return
 			}
 			if _, syncErr := repo.Create(usageCtx, usageLog); syncErr != nil {
