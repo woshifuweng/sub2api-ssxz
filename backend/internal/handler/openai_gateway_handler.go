@@ -307,14 +307,14 @@ func handleOpenAISelectionExhausted(
 }
 
 func clampOpenAIMaxSwitches(limit, cap int) int {
-	if limit < 0 {
-		limit = 0
+	if limit <= 0 {
+		return 0 // admin configured no account switching; respect as-is
 	}
-	if cap < 0 {
-		cap = 0
-	}
-	if limit == 0 || cap == 0 {
-		return 0
+	if cap <= 0 {
+		// huge-body size cap wants 0, but always allow at least one failover
+		// attempt so a single oversized request cannot strand the caller with
+		// no retry when other accounts are available.
+		return 1
 	}
 	if limit < cap {
 		return limit
@@ -421,7 +421,12 @@ func adjustOpenAIFailoverForLargeStreamingRequest(
 
 	adjusted := *failoverErr
 	adjusted.RetryableOnSameAccount = false
-	if adjusted.TempUnscheduleFor <= 0 {
+	// Do not impose a long-context cooldown for transient upstream 5xx responses
+	// (e.g. rate-limit 529, service-unavailable 503).  The cooldown is only
+	// meaningful when the request itself was too heavy for the account; a
+	// short-lived server-side failure should not keep the account off-schedule
+	// for up to 6 minutes.
+	if adjusted.TempUnscheduleFor <= 0 && !(adjusted.StatusCode >= 500 && adjusted.StatusCode < 600) {
 		switch {
 		case huge > 0 && bodySize >= huge:
 			adjusted.TempUnscheduleFor = openAIStreamLongContextTimeoutCooldown
