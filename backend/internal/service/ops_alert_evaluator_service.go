@@ -115,13 +115,42 @@ func (s *OpsAlertEvaluatorService) run() {
 	timer := time.NewTimer(0)
 	defer timer.Stop()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		select {
+		case <-s.stopCh:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
+	runOpsAlertEvaluationLoop(ctx, timer.C, func() {
+		interval := s.getInterval()
+		defer func() { timer.Reset(interval) }()
+		s.evaluateOnce(interval)
+	})
+}
+
+// runOpsAlertEvaluationLoop keeps alert evaluation independent from request
+// traffic and makes its cancellation boundary explicit for regression tests.
+func runOpsAlertEvaluationLoop(ctx context.Context, ticks <-chan time.Time, evaluate func()) {
 	for {
 		select {
-		case <-timer.C:
-			interval := s.getInterval()
-			s.evaluateOnce(interval)
-			timer.Reset(interval)
-		case <-s.stopCh:
+		case <-ticks:
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						logger.LegacyPrintf(
+							"service.ops_alert_evaluator",
+							"[OpsAlertEvaluator] recovered from panic in background eval: %v",
+							r,
+						)
+					}
+				}()
+				evaluate()
+			}()
+		case <-ctx.Done():
 			return
 		}
 	}
