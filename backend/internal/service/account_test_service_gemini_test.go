@@ -4,6 +4,7 @@ package service
 
 import (
 	"encoding/json"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -43,7 +44,8 @@ func TestProcessGeminiStream_EmitsImageEvent(t *testing.T) {
 	t.Parallel()
 	gin.SetMode(gin.TestMode)
 
-	ctx, recorder := newTestContext()
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
 	svc := &AccountTestService{}
 
 	stream := strings.NewReader("data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ok\"},{\"inlineData\":{\"mimeType\":\"image/png\",\"data\":\"QUJD\"}}]}}]}\n\ndata: [DONE]\n\n")

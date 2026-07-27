@@ -486,6 +486,14 @@ func (s *billingCacheStub) InvalidateSubscriptionCache(ctx context.Context, user
 	return nil
 }
 
+func (s *billingCacheStub) PublishSubscriptionCacheInvalidation(context.Context, string) error {
+	return nil
+}
+
+func (s *billingCacheStub) SubscribeSubscriptionCacheInvalidation(context.Context, func(string)) error {
+	return nil
+}
+
 func (s *billingCacheStub) GetAPIKeyRateLimit(ctx context.Context, keyID int64) (*APIKeyRateLimitCacheData, error) {
 	panic("unexpected GetAPIKeyRateLimit call")
 }
