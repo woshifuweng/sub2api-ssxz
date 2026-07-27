@@ -61,6 +61,7 @@ func RegisterGatewayRoutes(
 	// 未分组 Key 拦截中间件（按协议格式区分错误响应）
 	requireGroupAnthropic := middleware.RequireGroupAssignment(settingService, middleware.AnthropicErrorWriter)
 	requireGroupGoogle := middleware.RequireGroupAssignment(settingService, middleware.GoogleErrorWriter)
+	idempotency := middleware.GatewayIdempotencyMiddleware(redisClient)
 
 	// API网关（Claude API兼容）
 	gateway := r.Group("/v1")
@@ -70,6 +71,7 @@ func RegisterGatewayRoutes(
 	gateway.Use(opsErrorLogger)
 	gateway.Use(endpointNorm)
 	gateway.Use(gin.HandlerFunc(apiKeyAuth))
+	gateway.Use(idempotency)
 	gateway.Use(compositeTarget)
 	gateway.Use(requireGroupAnthropic)
 	{
@@ -129,11 +131,11 @@ func RegisterGatewayRoutes(
 	}
 
 	// OpenAI Responses API（不带v1前缀的别名）
-	r.POST("/responses", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, h.OpenAIGateway.Responses)
-	r.POST("/responses/*subpath", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, h.OpenAIGateway.Responses)
+	r.POST("/responses", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), idempotency, compositeTarget, requireGroupAnthropic, h.OpenAIGateway.Responses)
+	r.POST("/responses/*subpath", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), idempotency, compositeTarget, requireGroupAnthropic, h.OpenAIGateway.Responses)
 	r.GET("/responses", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, h.OpenAIGateway.ResponsesWebSocket)
 	// OpenAI Chat Completions API（不带v1前缀的别名）
-	r.POST("/chat/completions", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, h.OpenAIGateway.ChatCompletions)
+	r.POST("/chat/completions", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), idempotency, compositeTarget, requireGroupAnthropic, h.OpenAIGateway.ChatCompletions)
 	r.GET("/models", gatewayRL, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.Models)
 	// Billing metadata intentionally bypasses the group-assignment gate: simple
 	// mode keys have no group and the handler returns its documented 404.
@@ -141,7 +143,7 @@ func RegisterGatewayRoutes(
 	r.POST("/messages/count_tokens", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, openAICountTokensDispatch(h))
 	r.POST("/embeddings", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, compositeOpenAIOnlyGate, h.OpenAIGateway.Embeddings)
 	r.POST("/alpha/search", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, h.OpenAIGateway.AlphaSearch)
-	r.POST("/images/generations", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, openAIImagesDispatch(h))
+	r.POST("/images/generations", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), idempotency, compositeTarget, requireGroupAnthropic, openAIImagesDispatch(h))
 	r.POST("/images/edits", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, openAIImagesDispatch(h))
 	r.POST("/images/generations/async", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, asyncImageSubmit(h))
 	r.POST("/images/edits/async", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, asyncImageSubmit(h))
