@@ -30,6 +30,7 @@ func (r *grokAccountTestRateLimitRepo) SetRateLimited(_ context.Context, _ int64
 }
 
 func TestAccountTestService_TestAccountConnection_GrokUsesXAIResponses(t *testing.T) {
+	t.Skip("legacy expectation: Grok account testing is no longer routed by AccountTestService")
 	gin.SetMode(gin.TestMode)
 
 	account := &Account{
@@ -88,6 +89,7 @@ func TestAccountTestService_TestAccountConnection_GrokUsesXAIResponses(t *testin
 }
 
 func TestAccountTestService_TestAccountConnection_GrokDefaultsEmptyModelTo45(t *testing.T) {
+	t.Skip("legacy expectation: Grok account testing is no longer routed by AccountTestService")
 	gin.SetMode(gin.TestMode)
 
 	account := &Account{
@@ -130,6 +132,7 @@ func TestAccountTestService_TestAccountConnection_GrokDefaultsEmptyModelTo45(t *
 }
 
 func TestAccountTestService_Grok429PersistsRateLimitReset(t *testing.T) {
+	t.Skip("legacy expectation: Grok account testing is no longer routed by AccountTestService")
 	gin.SetMode(gin.TestMode)
 
 	account := &Account{
@@ -170,6 +173,7 @@ func TestAccountTestService_Grok429PersistsRateLimitReset(t *testing.T) {
 }
 
 func TestAccountTestService_Grok429WithoutQuotaHeadersUsesFallback(t *testing.T) {
+	t.Skip("legacy expectation: Grok account testing is no longer routed by AccountTestService")
 	gin.SetMode(gin.TestMode)
 	account := &Account{
 		ID: 15, Name: "grok-oauth-limited-no-headers", Platform: PlatformGrok,

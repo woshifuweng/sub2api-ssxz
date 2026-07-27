@@ -3569,7 +3569,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness_PrefersFallbackGroupOverP
 		concurrencyService: NewConcurrencyService(concurrencyCache),
 	}
 
-	result, err := svc.SelectAccountWithLoadAwareness(ctx, &primaryGroupID, "group-wait-fallback", "claude-3-5-sonnet-20241022", nil, "")
+	result, err := svc.SelectAccountWithLoadAwareness(ctx, &primaryGroupID, "group-wait-fallback", "claude-3-5-sonnet-20241022", nil, "", 0)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, result.Account)

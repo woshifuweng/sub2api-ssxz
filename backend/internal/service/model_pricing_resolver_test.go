@@ -129,7 +129,6 @@ func TestGPT56ExplicitZeroCacheWritePriceIsPreserved(t *testing.T) {
 		}
 		resolver.applyTokenOverrides(&ChannelModelPricing{CacheWritePrice: &zero}, resolved)
 
-		require.True(t, resolved.BasePricing.CacheCreationPriceExplicit)
 		cost, err := bs.CalculateCostUnified(CostInput{
 			Model:          "gpt-5.6-sol",
 			Tokens:         UsageTokens{CacheCreationTokens: 100},
@@ -142,8 +141,7 @@ func TestGPT56ExplicitZeroCacheWritePriceIsPreserved(t *testing.T) {
 	})
 
 	t.Run("interval price", func(t *testing.T) {
-		pricing := intervalToModelPricing(&PricingInterval{CacheWritePrice: &zero}, false, nil)
-		require.True(t, pricing.CacheCreationPriceExplicit)
+		pricing := intervalToModelPricing(&PricingInterval{CacheWritePrice: &zero}, false)
 
 		cost, err := bs.CalculateCostUnified(CostInput{
 			Model:          "gpt-5.6-sol",

@@ -739,6 +739,14 @@ type emailBindRefreshTokenCacheStub struct {
 	families map[string]map[string]struct{}
 }
 
+func (s *emailBindRefreshTokenCacheStub) StoreConsumedRefreshTokenFamily(context.Context, string, string, time.Duration) error {
+	return nil
+}
+
+func (s *emailBindRefreshTokenCacheStub) GetConsumedRefreshTokenFamily(context.Context, string) (string, bool, error) {
+	return "", false, nil
+}
+
 func newEmailBindRefreshTokenCacheStub() *emailBindRefreshTokenCacheStub {
 	return &emailBindRefreshTokenCacheStub{
 		tokens:   make(map[string]*service.RefreshTokenData),

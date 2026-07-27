@@ -127,6 +127,14 @@ func (s *refreshTokenCacheStub) GetRefreshToken(context.Context, string) (*Refre
 	return nil, ErrRefreshTokenNotFound
 }
 
+func (s *refreshTokenCacheStub) StoreConsumedRefreshTokenFamily(context.Context, string, string, time.Duration) error {
+	return nil
+}
+
+func (s *refreshTokenCacheStub) GetConsumedRefreshTokenFamily(context.Context, string) (string, bool, error) {
+	return "", false, nil
+}
+
 func (s *refreshTokenCacheStub) DeleteRefreshToken(context.Context, string) error {
 	return nil
 }

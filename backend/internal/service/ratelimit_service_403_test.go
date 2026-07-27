@@ -19,6 +19,23 @@ type runtimeBlockRecorder struct {
 	clearedIDs []int64
 }
 
+type openAI403CounterCacheStub struct {
+	counts []int64
+}
+
+func (s *openAI403CounterCacheStub) IncrementOpenAI403Count(context.Context, int64, int) (int64, error) {
+	if len(s.counts) == 0 {
+		return 0, nil
+	}
+	count := s.counts[0]
+	s.counts = s.counts[1:]
+	return count, nil
+}
+
+func (s *openAI403CounterCacheStub) ResetOpenAI403Count(context.Context, int64) error {
+	return nil
+}
+
 func (r *runtimeBlockRecorder) BlockAccountScheduling(account *Account, until time.Time, reason string) {
 	r.accounts = append(r.accounts, account)
 	r.until = append(r.until, until)
