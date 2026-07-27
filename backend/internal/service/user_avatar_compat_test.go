@@ -52,7 +52,7 @@ func TestValidateUserAvatarUploadRequiresSupportedRealImage(t *testing.T) {
 
 func TestUserServiceAvatarUsesAuthenticatedRepositoryIdentity(t *testing.T) {
 	repo := &userAvatarRepoStub{}
-	svc := NewUserService(repo, nil, nil)
+	svc := NewUserService(repo, nil, nil, nil)
 	const userID int64 = 42
 
 	png := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="

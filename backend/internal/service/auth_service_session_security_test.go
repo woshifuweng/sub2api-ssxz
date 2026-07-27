@@ -15,6 +15,7 @@ import (
 )
 
 type authSessionUserRepoStub struct {
+	UserRepository
 	users         map[int64]*User
 	usersByEmail  map[string]*User
 	getByIDErr    error
@@ -23,6 +24,9 @@ type authSessionUserRepoStub struct {
 }
 
 func (s *authSessionUserRepoStub) Create(context.Context, *User) error { panic("unexpected") }
+func (s *authSessionUserRepoStub) CreateWithEmailAliasGuard(context.Context, *User) error {
+	panic("unexpected")
+}
 func (s *authSessionUserRepoStub) GetByID(_ context.Context, id int64) (*User, error) {
 	if s.getByIDErr != nil {
 		return nil, s.getByIDErr
@@ -72,6 +76,15 @@ func (s *authSessionUserRepoStub) DeductBalance(context.Context, int64, float64)
 	panic("unexpected")
 }
 func (s *authSessionUserRepoStub) UpdateConcurrency(context.Context, int64, int) error {
+	panic("unexpected")
+}
+func (s *authSessionUserRepoStub) BatchSetConcurrency(context.Context, []int64, int) (int, error) {
+	panic("unexpected")
+}
+func (s *authSessionUserRepoStub) BatchAddConcurrency(context.Context, []int64, int) (int, error) {
+	panic("unexpected")
+}
+func (s *authSessionUserRepoStub) BatchUpdateLimits(context.Context, []int64, *int, *int) (int, error) {
 	panic("unexpected")
 }
 func (s *authSessionUserRepoStub) ExistsByEmail(context.Context, string) (bool, error) {
@@ -246,7 +259,7 @@ func newAuthSessionService(t *testing.T, user *User, cache *memoryRefreshTokenCa
 			RefreshTokenExpireDays:   30,
 		},
 	}
-	return NewAuthService(nil, repo, nil, cache, cfg, nil, nil, nil, nil, nil, nil), repo
+	return NewAuthService(nil, repo, nil, cache, cfg, nil, nil, nil, nil, nil, nil, nil, nil), repo
 }
 
 func TestAuthServiceRevokeAllUserSessions_BumpsTokenVersionAndRevokesRefreshTokens(t *testing.T) {

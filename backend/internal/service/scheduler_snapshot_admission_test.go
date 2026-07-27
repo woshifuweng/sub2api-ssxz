@@ -12,8 +12,9 @@ import (
 )
 
 type schedulerAdmissionCacheStub struct {
-	accountsByID map[int64]*Account
-	snapshotsByBucket map[string][]*Account
+	SchedulerCache
+	accountsByID       map[int64]*Account
+	snapshotsByBucket  map[string][]*Account
 	setSnapshotBuckets []SchedulerBucket
 }
 
@@ -36,7 +37,7 @@ func (s *schedulerAdmissionCacheStub) GetSnapshot(ctx context.Context, bucket Sc
 	return out, true, nil
 }
 
-func (s *schedulerAdmissionCacheStub) SetSnapshot(ctx context.Context, bucket SchedulerBucket, accounts []Account) error {
+func (s *schedulerAdmissionCacheStub) SetSnapshot(ctx context.Context, bucket SchedulerBucket, _ SchedulerBucketWriteToken, accounts []Account) error {
 	s.setSnapshotBuckets = append(s.setSnapshotBuckets, bucket)
 	if s.snapshotsByBucket == nil {
 		s.snapshotsByBucket = make(map[string][]*Account)
