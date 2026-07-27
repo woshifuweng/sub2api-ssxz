@@ -1925,6 +1925,9 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	cfg.Server.RuntimeMode = NormalizeServerRuntimeMode(cfg.Server.RuntimeMode)
 	cfg.Server.FrontendURL = strings.TrimSpace(cfg.Server.FrontendURL)
 	cfg.JWT.Secret = strings.TrimSpace(cfg.JWT.Secret)
+	if err := applyJWTSecretOverride(&cfg); err != nil {
+		return nil, err
+	}
 	cfg.LinuxDo.ClientID = strings.TrimSpace(cfg.LinuxDo.ClientID)
 	cfg.LinuxDo.ClientSecret = strings.TrimSpace(cfg.LinuxDo.ClientSecret)
 	cfg.LinuxDo.AuthorizeURL = strings.TrimSpace(cfg.LinuxDo.AuthorizeURL)
@@ -2044,6 +2047,25 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// applyJWTSecretOverride applies an environment-only JWT secret override after
+// config.yaml has been loaded. The staging guard prevents accidentally running
+// staging with the production signing key.
+func applyJWTSecretOverride(cfg *Config) error {
+	override := strings.TrimSpace(os.Getenv("JWT_SECRET_OVERRIDE"))
+	if override == "" {
+		slog.Info("JWT secret source: config")
+		return nil
+	}
+
+	if os.Getenv("STAGING_MODE") == "1" && override == cfg.JWT.Secret {
+		return fmt.Errorf("staging JWT secret must differ from production")
+	}
+
+	cfg.JWT.Secret = override
+	slog.Info("JWT secret source: JWT_SECRET_OVERRIDE env")
+	return nil
 }
 
 func setDefaults() {
