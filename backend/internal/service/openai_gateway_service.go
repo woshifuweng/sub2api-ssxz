@@ -2276,6 +2276,20 @@ func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Acco
 	}
 	switch account.Type {
 	case AccountTypeOAuth:
+		if account.Platform == PlatformGrok {
+			if s.grokTokenProvider != nil {
+				accessToken, err := s.grokTokenProvider.GetAccessToken(ctx, account)
+				if err != nil {
+					return "", "", err
+				}
+				return accessToken, "oauth", nil
+			}
+			accessToken := account.GetGrokAccessToken()
+			if accessToken == "" {
+				return "", "", errors.New("access_token not found in credentials")
+			}
+			return accessToken, "oauth", nil
+		}
 		// 使用 TokenProvider 获取缓存的 token
 		if s.openAITokenProvider != nil {
 			accessToken, err := s.openAITokenProvider.GetAccessToken(ctx, account)
@@ -2291,6 +2305,13 @@ func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Acco
 		}
 		return accessToken, "oauth", nil
 	case AccountTypeAPIKey:
+		if account.Platform == PlatformGrok {
+			apiKey := strings.TrimSpace(account.GetCredential("api_key"))
+			if apiKey == "" {
+				return "", "", errors.New("api_key not found in credentials")
+			}
+			return apiKey, "apikey", nil
+		}
 		apiKey := account.GetOpenAIApiKey()
 		if apiKey == "" {
 			return "", "", errors.New("api_key not found in credentials")

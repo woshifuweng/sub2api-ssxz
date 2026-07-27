@@ -177,7 +177,7 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 			reqModel,
 			failedAccountIDs,
 			service.OpenAIUpstreamTransportAny,
-			h.gatewayService.SelectAccountWithScheduler,
+			h.selectOpenAIAccountWithScheduler(apiKey),
 		)
 		var (
 			selection        *service.AccountSelectionResult
@@ -208,7 +208,7 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 						defaultModel,
 						failedAccountIDs,
 						service.OpenAIUpstreamTransportAny,
-						h.gatewayService.SelectAccountWithScheduler,
+						h.selectOpenAIAccountWithScheduler(apiKey),
 					)
 					if err == nil && groupSelection != nil {
 						selection = groupSelection.Selection
@@ -266,7 +266,12 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 
 		defaultMappedModel := resolveOpenAIForwardDefaultMappedModel(selectedAPIKey, getContextStringGateway(c, "openai_chat_completions_fallback_model"))
 		forwardBody := openAIModelMappedBody(body, channelMapping.Mapped, channelMapping.MappedModel, h.gatewayService.ReplaceModelInBody)
-		result, err := h.gatewayService.ForwardAsChatCompletionsContext(c.Context(), c, account, forwardBody, promptCacheKey, defaultMappedModel)
+		var result *service.OpenAIForwardResult
+		if credentialErr := h.preflightGrokCredentialContext(c.Context(), c, account); credentialErr != nil {
+			err = credentialErr
+		} else {
+			result, err = h.gatewayService.ForwardAsChatCompletionsContext(c.Context(), c, account, forwardBody, promptCacheKey, defaultMappedModel)
+		}
 		h.recordCyberPolicyIfMarkedContext(c, selectedAPIKey, account, subscription, reqModel, err != nil, body, clientRequestedUsageFieldsContext(c, channelMapping, reqModel, ""))
 
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()
