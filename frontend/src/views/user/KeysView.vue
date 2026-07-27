@@ -1028,6 +1028,25 @@
               <Icon v-else name="clipboard" size="sm" />
             </button>
           </div>
+          <!-- P2-15: expose root URL (no /v1) for tools that append the path themselves -->
+          <div class="mt-1 flex flex-wrap items-center gap-2">
+            <span class="text-gray-500 dark:text-gray-400">{{ t('keys.workbenchGuide.baseUrlRootLabel') }}</span>
+            <code class="rounded-lg bg-white px-2 py-1 text-xs dark:bg-dark-900">{{ apiBaseRoot }}</code>
+            <button
+              type="button"
+              class="rounded-lg p-1 text-gray-500 transition-colors hover:bg-white hover:text-gray-700 dark:hover:bg-dark-900 dark:hover:text-gray-200"
+              data-testid="created-key-base-url-root-copy"
+              :title="
+                baseUrlRootCopied
+                  ? t('keys.workbenchGuide.baseUrlRootCopied')
+                  : t('keys.workbenchGuide.copyBaseUrlRoot')
+              "
+              @click="copyBaseUrlRoot"
+            >
+              <Icon v-if="baseUrlRootCopied" name="check" size="sm" :stroke-width="2" />
+              <Icon v-else name="clipboard" size="sm" />
+            </button>
+          </div>
           <div class="mt-2 flex flex-wrap items-start gap-2">
             <span class="text-gray-500 dark:text-gray-400">{{ t('keys.createdKeyReveal.modelLabel') }}</span>
             <span class="leading-6">{{ t('keys.createdKeyReveal.modelHint') }}</span>
@@ -1171,7 +1190,7 @@
     <!-- Use Key Modal -->
     <UseKeyModal
       :show="showUseKeyModal"
-      :api-key="selectedKeyUsableApiKey"
+      :api-key="useKeyPlaintext"
       :base-url="apiBaseUrl"
       :platform="selectedKey?.group?.platform || null"
       :allowed-models="selectedKey?.allowed_models || []"
@@ -1408,6 +1427,7 @@ const now = ref(new Date())
 let resetTimer: ReturnType<typeof setInterval> | null = null
 let createdKeyCopyTimer: ReturnType<typeof setTimeout> | null = null
 let baseUrlCopyTimer: ReturnType<typeof setTimeout> | null = null
+let baseUrlRootCopyTimer: ReturnType<typeof setTimeout> | null = null
 let createdKeyExampleCopyTimer: ReturnType<typeof setTimeout> | null = null
 const usageStats = ref<Record<string, BatchApiKeyUsageStats>>({})
 const userGroupRates = ref<Record<number, number>>({})
@@ -1431,6 +1451,7 @@ const showStatusDialog = ref(false)
 const showResetQuotaDialog = ref(false)
 const showResetRateLimitDialog = ref(false)
 const showUseKeyModal = ref(false)
+const useKeyPlaintext = ref('')
 const showCcsClientSelect = ref(false)
 const pendingCcsRow = ref<ApiKey | null>(null)
 const pendingStatusAction = ref<{ key: ApiKey; status: 'active' | 'inactive' } | null>(null)
@@ -1439,6 +1460,7 @@ const copiedKeyId = ref<number | null>(null)
 const createdKeyToReveal = ref<ApiKey | null>(null)
 const createdKeyCopied = ref(false)
 const baseUrlCopied = ref(false)
+const baseUrlRootCopied = ref(false)
 type CreatedKeyExampleTabId = 'curl' | 'python' | 'cherry'
 const createdKeyExampleTab = ref<CreatedKeyExampleTabId>('curl')
 const createdKeyExampleCopied = ref(false)
@@ -1456,6 +1478,8 @@ const openAICompatibleBaseUrl = computed(() => {
   const trimmed = apiBaseUrl.value.replace(/\/+$/, '')
   return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
 })
+// Raw base URL without /v1 — for tools that append the path themselves (Claude Code, Codex CLI)
+const apiBaseRoot = computed(() => apiBaseUrl.value.replace(/\/+$/, ''))
 
 const createdKeyExampleTabs: Array<{ id: CreatedKeyExampleTabId; label: string }> = [
   { id: 'curl', label: 'curl' },
@@ -1808,11 +1832,6 @@ const resolveCcsImportPlatform = (row: ApiKey): CcsImportPlatform | null => {
   return uniquePlatforms.length === 1 ? uniquePlatforms[0] : null
 }
 
-const selectedKeyUsableApiKey = computed(() => {
-  const key = selectedKey.value?.key
-  return isMaskedApiKey(key) ? '' : (key ?? '')
-})
-
 const resolvePlaintextApiKey = async (row: ApiKey): Promise<string | null> => {
   if (!isMaskedApiKey(row.key)) return row.key
 
@@ -1864,6 +1883,18 @@ const copyBaseUrl = async () => {
     baseUrlCopyTimer = setTimeout(() => {
       baseUrlCopied.value = false
       baseUrlCopyTimer = null
+    }, 1200)
+  }
+}
+
+const copyBaseUrlRoot = async () => {
+  const success = await clipboardCopy(apiBaseRoot.value, t('keys.workbenchGuide.baseUrlRootCopied'))
+  if (success) {
+    baseUrlRootCopied.value = true
+    if (baseUrlRootCopyTimer) clearTimeout(baseUrlRootCopyTimer)
+    baseUrlRootCopyTimer = setTimeout(() => {
+      baseUrlRootCopied.value = false
+      baseUrlRootCopyTimer = null
     }, 1200)
   }
 }
@@ -1977,14 +2008,21 @@ const loadPublicSettings = async () => {
   }
 }
 
-const openUseKeyModal = (key: ApiKey) => {
+const openUseKeyModal = async (key: ApiKey) => {
   selectedKey.value = key
+  useKeyPlaintext.value = ''
   showUseKeyModal.value = true
+  // Resolve plaintext async; guard against stale updates if modal was closed or key changed
+  const plaintext = await resolvePlaintextApiKey(key)
+  if (plaintext && showUseKeyModal.value && selectedKey.value?.id === key.id) {
+    useKeyPlaintext.value = plaintext
+  }
 }
 
 const closeUseKeyModal = () => {
   showUseKeyModal.value = false
   selectedKey.value = null
+  useKeyPlaintext.value = ''
 }
 
 const handlePageChange = (page: number) => {
@@ -2508,6 +2546,7 @@ onUnmounted(() => {
   if (resetTimer) clearInterval(resetTimer)
   if (createdKeyCopyTimer) clearTimeout(createdKeyCopyTimer)
   if (baseUrlCopyTimer) clearTimeout(baseUrlCopyTimer)
+  if (baseUrlRootCopyTimer) clearTimeout(baseUrlRootCopyTimer)
 })
 </script>
 
