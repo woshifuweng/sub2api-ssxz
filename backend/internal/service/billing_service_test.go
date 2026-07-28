@@ -134,6 +134,17 @@ func TestGetModelPricing_CaseInsensitive(t *testing.T) {
 	require.Equal(t, p1.InputPricePerToken, p2.InputPricePerToken)
 }
 
+func TestGetModelPricing_GLM52UsesOwnPrice(t *testing.T) {
+	svc := newTestBillingService()
+
+	pricing, err := svc.GetModelPricing("glm-5.2")
+	require.NoError(t, err)
+	require.NotNil(t, pricing)
+	require.InDelta(t, 1.4e-6, pricing.InputPricePerToken, 1e-12)
+	require.InDelta(t, 4.4e-6, pricing.OutputPricePerToken, 1e-12)
+	require.InDelta(t, 0.26e-6, pricing.CacheReadPricePerToken, 1e-12)
+}
+
 func TestGetModelPricing_UnknownClaudeModelReturnsError(t *testing.T) {
 	logSink, restore := captureStructuredLog(t)
 	defer restore()
