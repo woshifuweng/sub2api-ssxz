@@ -120,6 +120,7 @@ func (r *stubGenRepo) CountByUserAndStatus(_ context.Context, userID int64, stat
 var _ UserRepository = (*stubUserRepoForQuota)(nil)
 
 type stubUserRepoForQuota struct {
+	UserRepository
 	users     map[int64]*User
 	updateErr error
 }

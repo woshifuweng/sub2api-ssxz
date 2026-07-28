@@ -8,6 +8,18 @@
   >
     <FoundationProvider :theme="theme" class="dashboard-foundation">
       <div class="dashboard-workspace">
+        <BalanceWarningBanner />
+        <a
+          class="dashboard-purchase-link"
+          href="https://shop.placeholder.com"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Icon name="creditCard" size="sm" aria-hidden="true" />
+          <span>购买余额</span>
+          <Icon name="externalLink" size="xs" aria-hidden="true" />
+        </a>
+
         <div v-if="loading" class="dashboard-loading">
           <LoadingSpinner />
         </div>
@@ -92,7 +104,7 @@
                 </span>
                 <span>
                   <strong>首次接入指南</strong>
-                  <small>创建 Key、完成调用，再核对用量和额度</small>
+                  <small>先完成额度，再创建 Key 并开始调用</small>
                 </span>
               </span>
               <ChevronDown class="dashboard-onboarding-panel__chevron" aria-hidden="true" />
@@ -105,6 +117,14 @@
                   <p>{{ step.description }}</p>
                   <RouterLink :to="step.to">
                     {{ step.action }}
+                    <ArrowUpRight />
+                  </RouterLink>
+                  <RouterLink
+                    v-if="step.secondaryTo && step.secondaryAction"
+                    :to="step.secondaryTo"
+                    class="dashboard-onboarding__secondary-link"
+                  >
+                    {{ step.secondaryAction }}
                     <ArrowUpRight />
                   </RouterLink>
                 </div>
@@ -129,12 +149,14 @@ import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { usageAPI, type UserDashboardStats as UserStatsType } from '@/api/usage'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
+import BalanceWarningBanner from '@/components/user/BalanceWarningBanner.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { FoundationProvider } from '@/components/foundation'
 import UserDashboardStats from '@/components/user/dashboard/UserDashboardStats.vue'
 import UserDashboardCharts from '@/components/user/dashboard/UserDashboardCharts.vue'
 import UserDashboardRecentUsage from '@/components/user/dashboard/UserDashboardRecentUsage.vue'
 import UserDashboardQuickActions from '@/components/user/dashboard/UserDashboardQuickActions.vue'
+import Icon from '@/components/icons/Icon.vue'
 import type { ModelStat, TrendDataPoint, UsageLog } from '@/types'
 
 function getInitialTheme(): 'light' | 'dark' {
@@ -160,36 +182,40 @@ const recentUsage = ref<UsageLog[]>([])
 const lastCallAt = ref<string | null>(null)
 let themeObserver: MutationObserver | null = null
 
-const onboardingSteps = computed(() => [
+type OnboardingStep = {
+  index: string
+  title: string
+  description: string
+  to: string
+  action: string
+  secondaryTo?: string
+  secondaryAction?: string
+}
+
+const onboardingSteps = computed<OnboardingStep[]>(() => [
   {
     index: '01',
-    title: '先创建 API Key',
-    description: '把 Key 配到 Cherry Studio、Chatbox、CC Switch 等客户端，优先完成首次可用连接。',
+    title: '先充值或兑换额度',
+    description: '余额为 0 时无法调用接口。先补充额度；如果已有兑换码，可直接进入兑换入口。',
+    to: paymentEnabled.value ? '/app/purchase' : '/app/redeem',
+    action: paymentEnabled.value ? '去充值' : '去兑换',
+    secondaryTo: paymentEnabled.value ? '/app/redeem' : undefined,
+    secondaryAction: paymentEnabled.value ? '使用兑换码' : undefined
+  },
+  {
+    index: '02',
+    title: '创建 API Key',
+    description: '创建用于客户端接入的 API Key，并按接入说明完成配置。',
     to: '/app/keys',
     action: '管理 Key'
   },
   {
-    index: '02',
-    title: '再查看用量和余额',
-    description: '每次调用后回到使用记录查看模型、用量、余额变化和扣费结果。',
-    to: '/app/usage',
-    action: '查看用量'
-  },
-  paymentEnabled.value
-    ? {
-        index: '03',
-        title: '最后核对额度和订单记录',
-        description: '余额不足时进入充值 / 订阅页，完成后回查订单记录和余额到账情况。',
-        to: '/app/purchase',
-        action: '补充额度'
-      }
-    : {
-        index: '03',
-        title: '最后使用兑换码或核对订单记录',
-        description: '当前账号没有在线充值入口时，可先用兑换码补充账户额度；账户变化以使用记录和订单记录为准。',
-        to: '/app/redeem',
-        action: '去兑换'
-      }
+    index: '03',
+    title: '开始调用',
+    description: '将 API Key 配置到客户端后发起首次调用，再回到账户用量查看结果。',
+    to: '/app/docs',
+    action: '查看调用说明'
+  }
 ])
 
 const formatLD = (date: Date) => [
@@ -341,6 +367,28 @@ onBeforeUnmount(() => {
 .dashboard-workspace {
   display: grid;
   gap: 1.25rem;
+}
+
+.dashboard-purchase-link {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--card));
+  padding: 0.45rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+
+.dashboard-purchase-link:hover {
+  border-color: hsl(var(--foreground) / 0.35);
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted));
 }
 
 .dashboard-loading {
@@ -646,6 +694,11 @@ onBeforeUnmount(() => {
 .dashboard-onboarding a {
   margin-top: 0.65rem;
   color: hsl(var(--foreground));
+}
+
+.dashboard-onboarding__secondary-link {
+  margin-left: 0.75rem;
+  color: hsl(var(--muted-foreground)) !important;
 }
 
 @media (max-width: 900px) {

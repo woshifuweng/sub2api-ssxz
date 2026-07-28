@@ -271,6 +271,17 @@ func (r *redeemCodeRepository) BatchUpdate(ctx context.Context, ids []int64, fie
 	return updated, nil
 }
 
+func (r *redeemCodeRepository) UpdateNotes(ctx context.Context, id int64, notes string) error {
+	client := clientFromContext(ctx, r.client)
+	if _, err := client.RedeemCode.UpdateOneID(id).SetNotes(notes).Save(ctx); err != nil {
+		if dbent.IsNotFound(err) {
+			return service.ErrRedeemCodeNotFound
+		}
+		return err
+	}
+	return nil
+}
+
 func (r *redeemCodeRepository) batchUpdate(ctx context.Context, client *dbent.Client, ids []int64, fields service.RedeemCodeBatchUpdateFields) (int64, error) {
 	existing, err := client.RedeemCode.Query().
 		Where(redeemcode.IDIn(ids...)).

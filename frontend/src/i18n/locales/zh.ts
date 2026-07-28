@@ -419,6 +419,16 @@ export default {
     loggedOut: '已退出登录'
   },
 
+  balanceWarning: {
+    message: '余额不足，无法调用接口，请先兑换额度',
+    action: '去兑换额度'
+  },
+
+  lowBalanceWarning: {
+    message: '余额低于 ${threshold}，请及时充值以避免服务中断。',
+    action: '立即充值'
+  },
+
   affiliate: {
     title: '邀请返利',
     subtitle: '复制专属链接，查看邀请人数、奖励和可转入余额。',
@@ -6129,6 +6139,23 @@ export default {
         cooldownMinutesHint: '账号暂停调度的持续时间（1-120 分钟）',
         saved: '过载冷却设置保存成功',
         saveFailed: '保存过载冷却设置失败'
+      },
+      panelRateLimit: {
+        title: '面板 API 限流',
+        description: '按用户和安全客户端 IP 限制面板接口请求频率',
+        enabled: '启用面板 API 限流',
+        enabledHint: '防止高频请求打爆面板接口和数据库，不影响正常使用',
+        userRpm: '认证用户限制',
+        heavyRpm: '重型接口限制',
+        publicIpRpm: '公开接口限制',
+        perMinute: '次/分钟',
+        userRpmHint: '按认证用户账号统计面板请求',
+        heavyRpmHint: '用于使用量和仪表盘等高成本统计接口',
+        publicIpRpmHint: '按安全客户端 IP 统计未认证公开接口',
+        exemptAdmin: '管理员豁免',
+        exemptAdminHint: '管理员请求不计入认证用户限流额度',
+        saved: '面板 API 限流设置已保存',
+        saveFailed: '面板 API 限流设置保存失败'
       },
       streamTimeout: {
         title: '流超时处理',

@@ -70,16 +70,23 @@
     <main class="ssxz-app-content min-h-screen">
       <header class="ssxz-app-header sticky top-0 z-20 flex items-center border-b px-4 sm:px-6">
         <div class="flex w-full items-center justify-between gap-3">
-          <button
-            type="button"
-            class="ssxz-btn-icon ssxz-sidebar-toggle-desktop"
-            :aria-label="navToggleLabel"
-            :title="navToggleLabel"
-            :aria-expanded="navToggleExpanded"
-            @click="toggleShellNav"
-          >
-            <Icon name="menu" size="sm" />
-          </button>
+          <div class="ssxz-header-leading">
+            <button
+              type="button"
+              class="ssxz-btn-icon ssxz-sidebar-toggle-desktop"
+              :aria-label="navToggleLabel"
+              :title="navToggleLabel"
+              :aria-expanded="navToggleExpanded"
+              @click="toggleShellNav"
+            >
+              <Icon name="menu" size="sm" />
+            </button>
+            <div v-if="contactInfo" class="ssxz-contact-info">
+              <Icon name="chat" size="xs" />
+              <span class="ssxz-contact-label">{{ t('common.contactSupport') }}</span>
+              <span class="ssxz-contact-value">{{ contactInfo }}</span>
+            </div>
+          </div>
           <div class="flex items-center gap-2">
             <RouterLink
               to="/docs"
@@ -186,6 +193,7 @@ const isDesktopViewport = ref(false)
 let desktopMediaQuery: MediaQueryList | null = null
 
 const paymentEnabled = computed(() => !!appStore.cachedPublicSettings?.payment_enabled)
+const contactInfo = computed(() => appStore.contactInfo)
 
 const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName }>>(() => [
   { label: t('nav.dashboard'), to: '/app/dashboard', icon: 'home' },
@@ -376,6 +384,37 @@ watch(() => route.fullPath || route.path, closeMobileNav)
   background: var(--ssxz-surface);
 }
 
+.ssxz-header-leading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.ssxz-contact-info {
+  display: flex;
+  min-width: 0;
+  max-width: min(60vw, 30rem);
+  align-items: center;
+  gap: 0.35rem;
+  border-left: 1px solid var(--ssxz-border);
+  color: var(--ssxz-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
+  padding-left: 0.7rem;
+}
+
+.ssxz-contact-label {
+  flex: 0 0 auto;
+  font-weight: 650;
+}
+
+.ssxz-contact-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ssxz-text);
+}
+
 .ssxz-app-main {
   margin-inline: auto;
   width: min(100%, var(--ssxz-content-max));
@@ -431,6 +470,17 @@ watch(() => route.fullPath || route.path, closeMobileNav)
 .ssxz-header-docs:focus-visible {
   background: color-mix(in srgb, var(--ssxz-primary) 10%, transparent);
   color: var(--ssxz-text);
+}
+
+@media (max-width: 640px) {
+  .ssxz-contact-info {
+    max-width: 48vw;
+    padding-left: 0.45rem;
+  }
+
+  .ssxz-contact-label {
+    display: none;
+  }
 }
 
 .ssxz-user-menu {

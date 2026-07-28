@@ -132,6 +132,9 @@ const (
 	SettingKeyTurnstileSiteKey   = "turnstile_site_key"   // Turnstile Site Key
 	SettingKeyTurnstileSecretKey = "turnstile_secret_key" // Turnstile Secret Key
 
+	// Panel API rate-limit settings (JSON: PanelRateLimitSettings).
+	SettingKeyPanelRateLimitSettings = "panel_rate_limit_settings"
+
 	// TOTP 双因素认证设置
 	SettingKeyTotpEnabled = "totp_enabled" // 是否启用 TOTP 2FA 功能
 

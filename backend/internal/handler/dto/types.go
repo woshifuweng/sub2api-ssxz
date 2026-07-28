@@ -484,12 +484,13 @@ type BatchUpdateRedeemCodesRequest struct {
 
 // UsageLog 是普通用户接口使用的 usage log DTO（不包含管理员字段）。
 type UsageLog struct {
-	ID        int64  `json:"id"`
-	UserID    int64  `json:"user_id,omitempty"`
-	APIKeyID  int64  `json:"api_key_id,omitempty"`
-	AccountID int64  `json:"account_id,omitempty"`
-	RequestID string `json:"request_id"`
-	Model     string `json:"model"`
+	ID          int64  `json:"id"`
+	UserID      int64  `json:"user_id,omitempty"`
+	APIKeyID    int64  `json:"api_key_id,omitempty"`
+	AccountID   int64  `json:"account_id,omitempty"`
+	RequestID   string `json:"request_id"`
+	Model       string `json:"model"`
+	ServedModel string `json:"served_model"`
 	// ServiceTier records the OpenAI service tier used for billing, e.g. "priority" / "flex".
 	ServiceTier *string `json:"service_tier,omitempty"`
 	// ReasoningEffort is the request's reasoning effort level.
@@ -587,6 +588,21 @@ type AdminUsageLog struct {
 
 	// Account 最小账号信息（避免泄露敏感字段）
 	Account *AccountSummary `json:"account,omitempty"`
+}
+
+func (l AdminUsageLog) MarshalJSON() ([]byte, error) {
+	type adminUsageLog AdminUsageLog
+	payload, err := json.Marshal(adminUsageLog(l))
+	if err != nil {
+		return nil, err
+	}
+
+	fields := make(map[string]json.RawMessage)
+	if err := json.Unmarshal(payload, &fields); err != nil {
+		return nil, err
+	}
+	delete(fields, "served_model")
+	return json.Marshal(fields)
 }
 
 type UsageCleanupFilters struct {

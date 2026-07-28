@@ -51,6 +51,14 @@ func (s *billingCacheMissStub) InvalidateSubscriptionCache(ctx context.Context, 
 	return nil
 }
 
+func (s *billingCacheMissStub) PublishSubscriptionCacheInvalidation(context.Context, string) error {
+	return nil
+}
+
+func (s *billingCacheMissStub) SubscribeSubscriptionCacheInvalidation(context.Context, func(string)) error {
+	return nil
+}
+
 func (s *billingCacheMissStub) GetAPIKeyRateLimit(ctx context.Context, keyID int64) (*APIKeyRateLimitCacheData, error) {
 	return nil, errors.New("cache miss")
 }

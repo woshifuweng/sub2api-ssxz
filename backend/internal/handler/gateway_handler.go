@@ -1757,6 +1757,9 @@ func (h *GatewayHandler) handleStreamingAwareErrorContext(c gatewayctx.GatewayCo
 // 让 handleStreamingAwareError 通过 SSE 发协议合规的终止事件，
 // 否则下游收到的就是 silent EOF。
 func (h *GatewayHandler) ensureForwardErrorResponse(c *gin.Context, streamStarted bool) bool {
+	if c != nil && service.IsResponseCommitted(c) {
+		return false
+	}
 	return h.ensureForwardErrorResponseContext(gatewayctx.FromGin(c), streamStarted)
 }
 

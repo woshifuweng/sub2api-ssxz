@@ -782,6 +782,7 @@ func TestServeEmbeddedFrontend(t *testing.T) {
 
 		apiPaths := []string{
 			"/api/users",
+			"/internal/readyz",
 			"/models",
 			"/v1/models",
 			"/v1beta/chat",

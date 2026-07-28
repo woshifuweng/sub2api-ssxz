@@ -2,6 +2,7 @@
 package server
 
 import (
+	"database/sql"
 	"log"
 	"net/http"
 	"sync"
@@ -43,6 +44,7 @@ func ProvideRouter(
 	settingService *service.SettingService,
 	auditService *service.AuditLogService,
 	compositeResolver *service.CompositeRouteResolver,
+	sqlDB *sql.DB,
 	redisClient *redis.Client,
 ) *gin.Engine {
 	if cfg.Server.Mode == "release" {
@@ -63,7 +65,7 @@ func ProvideRouter(
 	r.Use(middleware2.Recovery())
 	configureTrustedProxies(r, cfg.Server)
 
-	router := SetupRouter(r, handlers, jwtAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, redisClient, frontendServer)
+	router := SetupRouter(r, handlers, jwtAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, sqlDB, redisClient, frontendServer)
 	registerRouterExecutableRuntimeConfig(router, buildExecutableRuntimeConfig(cfg, handlers, apiKeyService, subscriptionService, settingService, authService, userService, redisClient, frontendServer, auditService))
 	return router
 }

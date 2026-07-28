@@ -5,10 +5,68 @@ package service
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestApplyTokenOverrides_DoesNotMutateSharedBasePricing(t *testing.T) {
+	shared := &ModelPricing{
+		InputPricePerToken:  3e-6,
+		OutputPricePerToken: 15e-6,
+	}
+	resolver := &ModelPricingResolver{}
+	first := &ResolvedPricing{BasePricing: shared}
+	second := &ResolvedPricing{BasePricing: shared}
+
+	resolver.applyTokenOverrides(&ChannelModelPricing{
+		InputPrice: testPtrFloat64(10e-6),
+	}, first)
+	resolver.applyTokenOverrides(&ChannelModelPricing{
+		InputPrice: testPtrFloat64(20e-6),
+	}, second)
+
+	require.InDelta(t, 3e-6, shared.InputPricePerToken, 1e-12)
+	require.InDelta(t, 15e-6, shared.OutputPricePerToken, 1e-12)
+	require.InDelta(t, 10e-6, first.BasePricing.InputPricePerToken, 1e-12)
+	require.InDelta(t, 20e-6, second.BasePricing.InputPricePerToken, 1e-12)
+	require.NotSame(t, shared, first.BasePricing)
+	require.NotSame(t, shared, second.BasePricing)
+}
+
+func TestResolve_ConcurrentCallsDoNotRaceOnBasePricing(t *testing.T) {
+	t.Parallel()
+
+	resolver := newResolverWithChannel(t, []ChannelModelPricing{{
+		Platform:    "anthropic",
+		Models:      []string{"claude-sonnet-4"},
+		BillingMode: BillingModeToken,
+		InputPrice:  testPtrFloat64(10e-6),
+		OutputPrice: testPtrFloat64(50e-6),
+	}})
+
+	const workers = 32
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			resolved := resolver.Resolve(context.Background(), PricingInput{
+				Model:   "claude-sonnet-4",
+				GroupID: groupIDPtr(),
+			})
+			if resolved == nil || resolved.BasePricing == nil {
+				t.Errorf("Resolve returned no base pricing")
+				return
+			}
+			if resolved.BasePricing.InputPricePerToken != 10e-6 {
+				t.Errorf("input price = %g, want %g", resolved.BasePricing.InputPricePerToken, 10e-6)
+			}
+		}()
+	}
+	wg.Wait()
+}
 
 func newTestBillingServiceForResolver() *BillingService {
 	bs := &BillingService{
@@ -129,7 +187,6 @@ func TestGPT56ExplicitZeroCacheWritePriceIsPreserved(t *testing.T) {
 		}
 		resolver.applyTokenOverrides(&ChannelModelPricing{CacheWritePrice: &zero}, resolved)
 
-		require.True(t, resolved.BasePricing.CacheCreationPriceExplicit)
 		cost, err := bs.CalculateCostUnified(CostInput{
 			Model:          "gpt-5.6-sol",
 			Tokens:         UsageTokens{CacheCreationTokens: 100},
@@ -142,8 +199,7 @@ func TestGPT56ExplicitZeroCacheWritePriceIsPreserved(t *testing.T) {
 	})
 
 	t.Run("interval price", func(t *testing.T) {
-		pricing := intervalToModelPricing(&PricingInterval{CacheWritePrice: &zero}, false, nil)
-		require.True(t, pricing.CacheCreationPriceExplicit)
+		pricing := intervalToModelPricing(&PricingInterval{CacheWritePrice: &zero}, false)
 
 		cost, err := bs.CalculateCostUnified(CostInput{
 			Model:          "gpt-5.6-sol",

@@ -7,7 +7,7 @@
         </div>
         <div class="min-w-0">
           <p class="redeem-balance-card__label">{{ t('redeem.currentBalance') }}</p>
-          <p class="redeem-balance-card__value">
+          <p :class="['redeem-balance-card__value', { 'redeem-balance-card__value--updated': balancePulse }]">
             ${{ user?.balance?.toFixed(2) || '0.00' }}
           </p>
           <p class="redeem-balance-card__meta">
@@ -20,6 +20,10 @@
 
       <div class="card redeem-form-card">
         <div class="p-6">
+          <div class="redeem-form-card__intro">
+            <h2>{{ t('redeem.redeemCodeLabel') }}</h2>
+            <p>{{ t('redeem.redeemCodeHint') }}</p>
+          </div>
           <form @submit.prevent="handleRedeem" class="space-y-5">
             <div>
               <label for="code" class="input-label">
@@ -273,7 +277,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { redeemAPI, authAPI, type RedeemHistoryItem, type RedeemResult } from '@/api'
@@ -314,6 +318,8 @@ const history = ref<RedeemHistoryItem[]>([])
 const loadingHistory = ref(false)
 const historyLoadFailed = ref(false)
 const contactInfo = ref('')
+const balancePulse = ref(false)
+let balancePulseTimer: ReturnType<typeof setTimeout> | null = null
 
 const redeemErrorKeyByReason: Record<string, string> = {
   REDEEM_CODE_NOT_FOUND: 'redeem.errors.REDEEM_CODE_NOT_FOUND',
@@ -420,6 +426,11 @@ const handleRedeem = async () => {
     appStore.showError(t('redeem.pleaseEnterCode'))
     return
   }
+  if (!/^[A-Za-z0-9_-]{3,128}$/.test(code)) {
+    errorMessage.value = t('redeem.errors.REDEEM_CODE_INVALID')
+    appStore.showError(errorMessage.value)
+    return
+  }
   submitting.value = true
   errorMessage.value = ''
   redeemResult.value = null
@@ -429,6 +440,16 @@ const handleRedeem = async () => {
     redeemResult.value = result
 
     await authStore.refreshUser()
+    if (result.type === 'balance') {
+      balancePulse.value = false
+      if (balancePulseTimer) clearTimeout(balancePulseTimer)
+      requestAnimationFrame(() => {
+        balancePulse.value = true
+        balancePulseTimer = setTimeout(() => {
+          balancePulse.value = false
+        }, 700)
+      })
+    }
 
     if (result.type === 'subscription') {
       try {
@@ -458,14 +479,18 @@ onMounted(async () => {
     contactInfo.value = ''
   }
 })
+
+onBeforeUnmount(() => {
+  if (balancePulseTimer) clearTimeout(balancePulseTimer)
+})
 </script>
 
 <style scoped>
 .redeem-workbench {
   display: grid;
-  width: min(100%, 52rem);
+  width: min(100%, 44rem);
   margin-inline: auto;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .redeem-workbench :deep(.card) {
@@ -507,6 +532,12 @@ onMounted(async () => {
   font-weight: 760;
   letter-spacing: -0.02em;
   line-height: 1.1;
+  transition: color 180ms ease, transform 180ms ease;
+}
+
+.redeem-balance-card__value--updated {
+  color: var(--ssxz-success);
+  transform: translateY(-2px);
 }
 
 .redeem-balance-card__meta {
@@ -565,6 +596,23 @@ onMounted(async () => {
 .redeem-form-card,
 .redeem-history-card {
   overflow: hidden;
+}
+
+.redeem-form-card__intro {
+  margin-bottom: 1.25rem;
+}
+
+.redeem-form-card__intro h2 {
+  margin: 0;
+  color: var(--ssxz-text);
+  font-size: 1.05rem;
+  font-weight: 720;
+}
+
+.redeem-form-card__intro p {
+  margin: 0.35rem 0 0;
+  color: var(--ssxz-text-muted);
+  font-size: 0.82rem;
 }
 
 .redeem-section-heading {

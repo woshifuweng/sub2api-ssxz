@@ -83,6 +83,44 @@ func openAIForwardSucceededForScheduling(result *service.OpenAIForwardResult) bo
 	return result.SucceededForScheduling()
 }
 
+var errOpenAIWSUnsupportedModelSwitch = errors.New("selected account does not support websocket model switch")
+
+func newOpenAIWSUnsupportedModelSwitchError(model string) error {
+	cause := fmt.Errorf("%w: model %q", errOpenAIWSUnsupportedModelSwitch, strings.TrimSpace(model))
+	return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "model switch requires reconnect", cause)
+}
+
+func shouldReportOpenAIWSProxyAccountFailure(err error) bool {
+	return err != nil && !errors.Is(err, errOpenAIWSUnsupportedModelSwitch)
+}
+
+func openAIWSTurnBillingModel(result *service.OpenAIForwardResult, mapping service.ChannelMappingResult, requestedModel, upstreamModel string) string {
+	billingModel := ""
+	if result != nil {
+		billingModel = strings.TrimSpace(result.BillingModel)
+	}
+	if billingModel == "" {
+		billingModel = strings.TrimSpace(upstreamModel)
+	}
+	if billingModel == "" {
+		billingModel = strings.TrimSpace(requestedModel)
+	}
+
+	requestedModel = strings.TrimSpace(requestedModel)
+	switch mapping.BillingModelSource {
+	case service.BillingModelSourceRequested:
+		if requestedModel != "" {
+			billingModel = requestedModel
+		}
+	case service.BillingModelSourceChannelMapped:
+		mappedModel := strings.TrimSpace(mapping.MappedModel)
+		if mappedModel != "" && mappedModel != requestedModel {
+			billingModel = mappedModel
+		}
+	}
+	return billingModel
+}
+
 func resolveOpenAIMessagesDispatchMappedModel(apiKey *service.APIKey, requestedModel string) string {
 	if apiKey == nil || apiKey.Group == nil {
 		return ""
@@ -126,6 +164,94 @@ func newOpenAIModelMappedBodyCache(body []byte, replace openAIModelBodyReplaceFu
 func credentialFailoverClientResponse(failoverErr *service.UpstreamFailoverError) (int, string) {
 	_ = failoverErr
 	return http.StatusServiceUnavailable, service.GrokCredentialUnavailableClientMessage
+}
+
+func (h *OpenAIGatewayHandler) preflightGrokCredentialContext(
+	ctx context.Context,
+	c gatewayctx.GatewayContext,
+	account *service.Account,
+) error {
+	if account == nil || !account.IsGrokOAuth() {
+		return nil
+	}
+	_, _, err := h.gatewayService.GetRequestCredentialContext(ctx, c, account)
+	return err
+}
+
+func openAIGatewayPlatform(apiKey *service.APIKey) string {
+	if apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform != "" {
+		return apiKey.Group.Platform
+	}
+	return service.PlatformOpenAI
+}
+
+func (h *OpenAIGatewayHandler) selectOpenAIAccountWithScheduler(apiKey *service.APIKey) func(
+	context.Context,
+	*int64,
+	string,
+	string,
+	string,
+	map[int64]struct{},
+	service.OpenAIUpstreamTransport,
+	...bool,
+) (*service.AccountSelectionResult, service.OpenAIAccountScheduleDecision, error) {
+	return func(
+		ctx context.Context,
+		groupID *int64,
+		previousResponseID string,
+		sessionHash string,
+		requestedModel string,
+		excludedIDs map[int64]struct{},
+		requiredTransport service.OpenAIUpstreamTransport,
+		requireCompact ...bool,
+	) (*service.AccountSelectionResult, service.OpenAIAccountScheduleDecision, error) {
+		compact := len(requireCompact) > 0 && requireCompact[0]
+		return h.gatewayService.SelectAccountWithSchedulerForPlatform(
+			ctx,
+			groupID,
+			previousResponseID,
+			sessionHash,
+			requestedModel,
+			excludedIDs,
+			requiredTransport,
+			openAIGatewayPlatform(apiKey),
+			compact,
+		)
+	}
+}
+
+func (h *OpenAIGatewayHandler) selectOpenAIAccountWithSchedulerWithCompact(apiKey *service.APIKey) func(
+	context.Context,
+	*int64,
+	string,
+	string,
+	string,
+	map[int64]struct{},
+	service.OpenAIUpstreamTransport,
+	bool,
+) (*service.AccountSelectionResult, service.OpenAIAccountScheduleDecision, error) {
+	return func(
+		ctx context.Context,
+		groupID *int64,
+		previousResponseID string,
+		sessionHash string,
+		requestedModel string,
+		excludedIDs map[int64]struct{},
+		requiredTransport service.OpenAIUpstreamTransport,
+		requireCompact bool,
+	) (*service.AccountSelectionResult, service.OpenAIAccountScheduleDecision, error) {
+		return h.gatewayService.SelectAccountWithSchedulerForPlatform(
+			ctx,
+			groupID,
+			previousResponseID,
+			sessionHash,
+			requestedModel,
+			excludedIDs,
+			requiredTransport,
+			openAIGatewayPlatform(apiKey),
+			requireCompact,
+		)
+	}
 }
 
 func copyFailoverRetryAfter(c *gin.Context, headers http.Header) {
@@ -878,7 +1004,7 @@ func (h *OpenAIGatewayHandler) ResponsesGateway(transportCtx gatewayctx.GatewayC
 			failedAccountIDs,
 			service.OpenAIUpstreamTransportAny,
 			remoteCompact,
-			h.gatewayService.SelectAccountWithSchedulerWithCompact,
+			h.selectOpenAIAccountWithSchedulerWithCompact(apiKey),
 		)
 		var (
 			selection        *service.AccountSelectionResult
@@ -910,7 +1036,7 @@ func (h *OpenAIGatewayHandler) ResponsesGateway(transportCtx gatewayctx.GatewayC
 						failedAccountIDs,
 						service.OpenAIUpstreamTransportAny,
 						remoteCompact,
-						h.gatewayService.SelectAccountWithSchedulerWithCompact,
+						h.selectOpenAIAccountWithSchedulerWithCompact(apiKey),
 					)
 					if err == nil && groupSelection != nil {
 						selection = groupSelection.Selection
@@ -986,7 +1112,12 @@ func (h *OpenAIGatewayHandler) ResponsesGateway(transportCtx gatewayctx.GatewayC
 		if channelMapping.Mapped {
 			forwardBody = h.gatewayService.ReplaceModelInBody(body, channelMapping.MappedModel)
 		}
-		result, err := h.gatewayService.ForwardContext(transportCtx.Context(), transportCtx, account, forwardBody, defaultMappedModel)
+		var result *service.OpenAIForwardResult
+		if credentialErr := h.preflightGrokCredentialContext(transportCtx.Context(), transportCtx, account); credentialErr != nil {
+			err = credentialErr
+		} else {
+			result, err = h.gatewayService.ForwardContext(transportCtx.Context(), transportCtx, account, forwardBody, defaultMappedModel)
+		}
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()
 		if accountReleaseFunc != nil {
 			accountReleaseFunc()
@@ -1431,7 +1562,7 @@ func (h *OpenAIGatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayCo
 			reqModel,
 			failedAccountIDs,
 			service.OpenAIUpstreamTransportAny,
-			h.gatewayService.SelectAccountWithScheduler,
+			h.selectOpenAIAccountWithScheduler(apiKey),
 		)
 		var (
 			selection        *service.AccountSelectionResult
@@ -1463,7 +1594,7 @@ func (h *OpenAIGatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayCo
 						defaultModel,
 						failedAccountIDs,
 						service.OpenAIUpstreamTransportAny,
-						h.gatewayService.SelectAccountWithScheduler,
+						h.selectOpenAIAccountWithScheduler(apiKey),
 					)
 					if err == nil && groupSelection != nil {
 						selection = groupSelection.Selection
@@ -1525,7 +1656,12 @@ func (h *OpenAIGatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayCo
 		if channelMappingMsg.Mapped {
 			forwardBody = h.gatewayService.ReplaceModelInBody(body, channelMappingMsg.MappedModel)
 		}
-		result, err := h.gatewayService.ForwardAsAnthropicContext(transportCtx.Context(), transportCtx, account, forwardBody, promptCacheKey, defaultMappedModel)
+		var result *service.OpenAIForwardResult
+		if credentialErr := h.preflightGrokCredentialContext(transportCtx.Context(), transportCtx, account); credentialErr != nil {
+			err = credentialErr
+		} else {
+			result, err = h.gatewayService.ForwardAsAnthropicContext(transportCtx.Context(), transportCtx, account, forwardBody, promptCacheKey, defaultMappedModel)
+		}
 
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()
 		if accountReleaseFunc != nil {
@@ -1691,6 +1827,11 @@ func (h *OpenAIGatewayHandler) handleAnthropicFailoverExhausted(c *gin.Context, 
 }
 
 func (h *OpenAIGatewayHandler) handleAnthropicFailoverExhaustedContext(c gatewayctx.GatewayContext, failoverErr *service.UpstreamFailoverError, streamStarted bool) {
+	if failoverErr != nil && failoverErr.IsCredentialFailure() {
+		status, message := credentialFailoverClientResponse(failoverErr)
+		h.anthropicStreamingAwareErrorContext(c, status, "api_error", message, streamStarted)
+		return
+	}
 	status, errType, errMsg := h.mapUpstreamError(failoverErr.StatusCode)
 	h.anthropicStreamingAwareErrorContext(c, status, errType, errMsg, streamStarted)
 }
@@ -2086,7 +2227,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocketGateway(transportCtx gatewayctx
 	}
 	reqLog = reqLog.With(
 		zap.Bool("ws_ingress", true),
-		zap.String("model", reqModel),
+		zap.String("session_initial_model", reqModel),
 		zap.Bool("has_previous_response_id", previousResponseID != ""),
 		zap.String("previous_response_id_kind", previousResponseIDKind),
 	)
@@ -2233,7 +2374,7 @@ retryWebSocketAccount:
 		reqModel,
 		failedAccountIDs,
 		service.OpenAIUpstreamTransportResponsesWebsocketV2,
-		h.gatewayService.SelectAccountWithScheduler,
+		h.selectOpenAIAccountWithScheduler(apiKey),
 	)
 	if err != nil {
 		reqLog.Warn("openai.websocket_account_select_failed", zap.Error(err), zap.Int("excluded_account_count", len(failedAccountIDs)))
@@ -2288,7 +2429,7 @@ retryWebSocketAccount:
 		reqLog.Warn("openai.websocket_bind_sticky_session_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 	}
 
-	token, _, err := h.gatewayService.GetAccessToken(ctx, account)
+	token, _, err := h.gatewayService.GetRequestCredentialContext(ctx, transportCtx, account)
 	if err != nil {
 		reqLog.Warn("openai.websocket_get_access_token_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 		var failoverErr *service.UpstreamFailoverError
@@ -2671,6 +2812,11 @@ func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverE
 func (h *OpenAIGatewayHandler) handleFailoverExhaustedContext(c gatewayctx.GatewayContext, failoverErr *service.UpstreamFailoverError, streamStarted bool) {
 	if failoverErr == nil {
 		h.handleStreamingAwareErrorContext(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", streamStarted)
+		return
+	}
+	if failoverErr.IsCredentialFailure() {
+		status, message := credentialFailoverClientResponse(failoverErr)
+		h.handleStreamingAwareErrorContext(c, status, "server_error", message, streamStarted)
 		return
 	}
 	if failoverErr.IsOpenAIRequestBodyTooLarge() {

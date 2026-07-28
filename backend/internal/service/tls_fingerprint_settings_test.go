@@ -23,7 +23,7 @@ func TestListTLSFingerprintProfiles_FallsBackToConfigAndPersists(t *testing.T) {
 				EnableGREASE: true,
 				CipherSuites: []uint16{4866, 4867, 4866},
 				Curves:       []uint16{29, 23},
-				PointFormats: []uint8{0, 1, 0},
+				PointFormats: []uint16{0, 1, 0},
 			},
 		},
 	}

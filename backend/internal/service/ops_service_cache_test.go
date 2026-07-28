@@ -13,7 +13,8 @@ import (
 )
 
 type opsAccountRepoCacheStub struct {
-	listWithFiltersFn func(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search, plan, oauthType, tierID string, groupID int64) ([]Account, *pagination.PaginationResult, error)
+	AccountRepository
+	listWithFiltersFn func(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]Account, *pagination.PaginationResult, error)
 }
 
 func (s *opsAccountRepoCacheStub) Create(ctx context.Context, account *Account) error {
@@ -46,11 +47,14 @@ func (s *opsAccountRepoCacheStub) Delete(ctx context.Context, id int64) error {
 func (s *opsAccountRepoCacheStub) List(ctx context.Context, params pagination.PaginationParams) ([]Account, *pagination.PaginationResult, error) {
 	panic("unexpected List call")
 }
-func (s *opsAccountRepoCacheStub) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search, plan, oauthType, tierID string, groupID int64) ([]Account, *pagination.PaginationResult, error) {
+func (s *opsAccountRepoCacheStub) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]Account, *pagination.PaginationResult, error) {
 	if s.listWithFiltersFn != nil {
-		return s.listWithFiltersFn(ctx, params, platform, accountType, status, search, plan, oauthType, tierID, groupID)
+		return s.listWithFiltersFn(ctx, params, platform, accountType, status, search, groupID, privacyMode)
 	}
 	panic("unexpected ListWithFilters call")
+}
+func (s *opsAccountRepoCacheStub) ListAllWithFilters(context.Context, string, string, string, string, int64, string) ([]Account, error) {
+	panic("unexpected ListAllWithFilters call")
 }
 func (s *opsAccountRepoCacheStub) ListByGroup(ctx context.Context, groupID int64) ([]Account, error) {
 	panic("unexpected ListByGroup call")
@@ -109,7 +113,7 @@ func (s *opsAccountRepoCacheStub) ListSchedulableUngroupedByPlatforms(ctx contex
 func (s *opsAccountRepoCacheStub) SetRateLimited(ctx context.Context, id int64, resetAt time.Time) error {
 	panic("unexpected SetRateLimited call")
 }
-func (s *opsAccountRepoCacheStub) SetModelRateLimit(ctx context.Context, id int64, scope string, resetAt time.Time) error {
+func (s *opsAccountRepoCacheStub) SetModelRateLimit(ctx context.Context, id int64, scope string, resetAt time.Time, reason ...string) error {
 	panic("unexpected SetModelRateLimit call")
 }
 func (s *opsAccountRepoCacheStub) SetOverloaded(ctx context.Context, id int64, until time.Time) error {
@@ -148,7 +152,7 @@ func (s *opsAccountRepoCacheStub) ResetQuotaUsed(ctx context.Context, id int64) 
 
 func TestListAllAccountsForOpsCached_ReturnsEmptySnapshotOnColdLoadFailure(t *testing.T) {
 	repo := &opsAccountRepoCacheStub{
-		listWithFiltersFn: func(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search, plan, oauthType, tierID string, groupID int64) ([]Account, *pagination.PaginationResult, error) {
+		listWithFiltersFn: func(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]Account, *pagination.PaginationResult, error) {
 			return nil, nil, errors.New("db unavailable")
 		},
 	}
@@ -163,7 +167,7 @@ func TestListAllAccountsForOpsCached_UsesStaleSnapshotOnReloadFailure(t *testing
 	now := time.Now().Add(-time.Second)
 	svc := &OpsService{
 		accountRepo: &opsAccountRepoCacheStub{
-			listWithFiltersFn: func(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search, plan, oauthType, tierID string, groupID int64) ([]Account, *pagination.PaginationResult, error) {
+			listWithFiltersFn: func(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]Account, *pagination.PaginationResult, error) {
 				return nil, nil, errors.New("db unavailable")
 			},
 		},

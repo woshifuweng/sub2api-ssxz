@@ -178,6 +178,7 @@ func ApplyAPIKeyAuthWithSubscriptionContext(apiKeyService *service.APIKeyService
 		}
 	}
 
+	c.SetValue(string(ContextKeyAPIKey), apiKey)
 	if !skipBilling {
 		switch apiKey.Status {
 		case service.StatusAPIKeyQuotaExhausted:
@@ -368,7 +369,11 @@ func isReadOnlyGatewayMetadata(method, path string) bool {
 	if method != http.MethodGet {
 		return false
 	}
-	switch strings.TrimRight(path, "/") {
+	path = strings.TrimRight(path, "/")
+	if strings.HasPrefix(path, "/v1beta/models") {
+		return true
+	}
+	switch path {
 	case "/v1/models", "/models", "/v1/usage",
 		"/antigravity/v1/models", "/antigravity/v1/usage", "/antigravity/models",
 		"/sora/v1/models":

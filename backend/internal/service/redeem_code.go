@@ -2,9 +2,14 @@ package service
 
 import (
 	"crypto/rand"
-	"encoding/hex"
+	"math"
+	"math/big"
 	"time"
 )
+
+const redeemCodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+
+const redeemCodeLength = 16
 
 type RedeemCode struct {
 	ID        int64
@@ -48,9 +53,22 @@ func (r *RedeemCode) CanUse() bool {
 }
 
 func GenerateRedeemCode() (string, error) {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
+	code := make([]byte, redeemCodeLength)
+	max := big.NewInt(int64(len(redeemCodeAlphabet)))
+	for i := range code {
+		index, err := rand.Int(rand.Reader, max)
+		if err != nil {
+			return "", err
+		}
+		code[i] = redeemCodeAlphabet[index.Int64()]
 	}
-	return hex.EncodeToString(b), nil
+	return string(code), nil
+}
+
+// BalanceCreditAmount applies the fixed promotional rule for balance codes.
+func BalanceCreditAmount(amount float64) float64 {
+	if math.Abs(amount-100) < 1e-9 {
+		return 110
+	}
+	return amount
 }

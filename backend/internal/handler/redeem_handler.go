@@ -2,8 +2,10 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
@@ -78,7 +80,12 @@ func (h *RedeemHandler) RedeemGateway(c gatewayctx.GatewayContext) {
 		response.ErrorContext(redeemGatewayResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
-	result, err := h.redeemService.Redeem(c.Request().Context(), subject.UserID, req.Code)
+	code := strings.TrimSpace(req.Code)
+	if !service.IsValidRedeemCodeFormat(code) {
+		response.ErrorFromContext(redeemGatewayResponder{ctx: c}, infraerrors.BadRequest("REDEEM_CODE_INVALID", "redeem code format is invalid"))
+		return
+	}
+	result, err := h.redeemService.Redeem(c.Request().Context(), subject.UserID, code)
 	if err != nil {
 		response.ErrorFromContext(redeemGatewayResponder{ctx: c}, err)
 		return

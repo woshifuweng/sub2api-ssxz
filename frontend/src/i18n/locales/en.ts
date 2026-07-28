@@ -419,6 +419,16 @@ export default {
     loggedOut: 'Signed out'
   },
 
+  balanceWarning: {
+    message: 'Your balance is insufficient. Redeem balance before calling the API.',
+    action: 'Redeem balance'
+  },
+
+  lowBalanceWarning: {
+    message: 'Balance is below ${threshold}. Recharge soon to avoid service interruption.',
+    action: 'Recharge now'
+  },
+
   affiliate: {
     title: 'Referral Rewards',
     subtitle: 'Copy your referral link and track invitees, rewards, and transferable balance.',
@@ -5969,6 +5979,23 @@ export default {
         cooldownMinutesHint: 'Duration to pause account scheduling (1-120 minutes)',
         saved: 'Overload cooldown settings saved',
         saveFailed: 'Failed to save overload cooldown settings'
+      },
+      panelRateLimit: {
+        title: 'Panel API Rate Limit',
+        description: 'Limit authenticated panel traffic per user and public traffic per client IP',
+        enabled: 'Enable Panel API Rate Limit',
+        enabledHint: 'Protects panel endpoints from high-frequency abuse without penalizing normal users',
+        userRpm: 'Authenticated User Limit',
+        heavyRpm: 'Heavy Endpoint Limit',
+        publicIpRpm: 'Public Endpoint Limit',
+        perMinute: 'requests/minute',
+        userRpmHint: 'Applied to authenticated panel requests by user account',
+        heavyRpmHint: 'Applied to expensive usage and dashboard aggregation endpoints',
+        publicIpRpmHint: 'Applied to unauthenticated public endpoints by client IP',
+        exemptAdmin: 'Exempt Administrators',
+        exemptAdminHint: 'Do not count administrator requests against the authenticated user limit',
+        saved: 'Panel API rate-limit settings saved',
+        saveFailed: 'Failed to save panel API rate-limit settings'
       },
       streamTimeout: {
         title: 'Stream Timeout Handling',

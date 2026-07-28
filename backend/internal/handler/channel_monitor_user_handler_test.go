@@ -113,12 +113,13 @@ func (r *channelMonitorUserRepo) availFor(windowDays int) []*service.ChannelMoni
 
 // 敏感值：这些字符串一旦出现在用户端响应里即为泄露。
 const (
-	secretAPIKey     = "sk-upstream-secret-key-xyz"
-	secretEndpoint   = "https://internal-upstream.example.net/v1"
-	secretHeaderTok  = "tok-upstream-header-abc123"
-	secretErrDetail  = "401 Unauthorized: invalid api key sk-upstream-secret-key-xyz"
-	visibleGroupName = "vip"
-	hiddenGroupName  = "internal-only"
+	secretAPIKey      = "sk-upstream-secret-key-xyz"
+	secretEndpoint    = "https://internal-upstream.example.net/v1"
+	secretHeaderTok   = "tok-upstream-header-abc123"
+	secretErrDetail   = "401 Unauthorized: invalid api key sk-upstream-secret-key-xyz"
+	secretMonitorName = "Claude 高速通道"
+	visibleGroupName  = "vip"
+	hiddenGroupName   = "internal-only"
 )
 
 func channelMonitorUserFixtureRepo() *channelMonitorUserRepo {
@@ -214,7 +215,7 @@ func newChannelMonitorUserRequest(t *testing.T, method, target string, userID in
 
 // 开关关闭时 List 必须返回空集合，且不得触达 monitor / 分组依赖，
 // 与前端路由守卫（channel_monitor_enabled=false 时不进页面）保持一致。
-func TestChannelMonitorUser_FeatureDisabled_ListReturnsEmptyAndSkipsService(t *testing.T) {
+func TestChannelMonitorUser_FeatureDisabled_ListReturns403AndSkipsService(t *testing.T) {
 	repo := channelMonitorUserFixtureRepo()
 	groups := &channelMonitorUserGroups{groups: []service.Group{{ID: 1, Name: visibleGroupName}}}
 	h := newChannelMonitorUserHandler(repo, groups, map[string]string{
@@ -224,25 +225,14 @@ func TestChannelMonitorUser_FeatureDisabled_ListReturnsEmptyAndSkipsService(t *t
 	w, c := newChannelMonitorUserRequest(t, http.MethodGet, "/api/v1/channel-monitors", 42, nil)
 	h.List(c)
 
-	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, http.StatusForbidden, w.Code)
 	require.Equal(t, 0, repo.listed, "开关关闭时不应查询监控列表")
 	require.Equal(t, 0, groups.calls, "开关关闭时不应解析用户可见分组")
-
-	var body struct {
-		Code int `json:"code"`
-		Data struct {
-			Items []map[string]any `json:"items"`
-		} `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	require.Equal(t, 0, body.Code)
-	require.Empty(t, body.Data.Items)
-	// 空集合必须序列化为 []，不能是 null，否则前端 res.items 兜底逻辑会拿到 null。
-	require.Contains(t, w.Body.String(), `"items":[]`)
+	require.Contains(t, w.Body.String(), `"message":"disabled"`)
 }
 
 // 开关关闭时详情接口必须按"资源不存在"处理（404），不泄露监控是否存在。
-func TestChannelMonitorUser_FeatureDisabled_StatusReturns404(t *testing.T) {
+func TestChannelMonitorUser_FeatureDisabled_StatusReturns403(t *testing.T) {
 	repo := channelMonitorUserFixtureRepo()
 	groups := &channelMonitorUserGroups{groups: []service.Group{{ID: 1, Name: visibleGroupName}}}
 	h := newChannelMonitorUserHandler(repo, groups, map[string]string{
@@ -253,9 +243,9 @@ func TestChannelMonitorUser_FeatureDisabled_StatusReturns404(t *testing.T) {
 		gin.Params{{Key: "id", Value: "7"}})
 	h.GetStatus(c)
 
-	require.Equal(t, http.StatusNotFound, w.Code)
+	require.Equal(t, http.StatusForbidden, w.Code)
 	require.Equal(t, 0, groups.calls, "开关关闭时不应解析用户可见分组")
-	require.NotContains(t, w.Body.String(), secretEndpoint)
+	require.Contains(t, w.Body.String(), `"message":"disabled"`)
 }
 
 // ---------- 2. 未登录 → 401 ----------
@@ -307,6 +297,7 @@ func channelMonitorUserSecrets() []string {
 		secretEndpoint,  // 上游真实 URL
 		secretHeaderTok, // 自定义上游鉴权头
 		secretErrDetail, // 含凭证的错误详情
+		secretMonitorName,
 		hiddenGroupName, // 用户无权访问的分组
 		"内部压测渠道",        // 不可见渠道的展示名
 		"acct-77",       // 上游账号 ID
@@ -372,7 +363,7 @@ func TestChannelMonitorUser_ListResponseExcludesSensitiveFields(t *testing.T) {
 		require.Containsf(t, item, key, "用户端 list DTO 缺少字段 %q", key)
 	}
 	require.Len(t, item, 11, "用户端 list DTO 字段集合发生变化，请复核脱敏")
-	require.Equal(t, "Claude 高速通道", item["name"])
+	require.Equal(t, "channel-1", item["name"])
 
 	// timeline 点只保留状态/延迟/时间，不含 message。
 	timeline, ok := item["timeline"].([]any)
@@ -414,10 +405,8 @@ func TestChannelMonitorUser_StatusResponseExcludesSensitiveFields(t *testing.T) 
 		Data map[string]any `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-	for _, key := range []string{"id", "name", "provider", "group_name", "models"} {
-		require.Containsf(t, body.Data, key, "用户端 detail DTO 缺少字段 %q", key)
-	}
-	require.Len(t, body.Data, 5, "用户端 detail DTO 字段集合发生变化，请复核脱敏")
+	require.Contains(t, body.Data, "models")
+	require.Len(t, body.Data, 1, "用户端 detail DTO 字段集合发生变化，请复核脱敏")
 
 	models, ok := body.Data["models"].([]any)
 	require.True(t, ok)

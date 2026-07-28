@@ -64,6 +64,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness_LargePoolEscapesInitialHo
 			"claude-3-5-sonnet-20241022",
 			nil,
 			"",
+			0,
 		)
 		require.NoError(t, err)
 		require.NotNil(t, result)

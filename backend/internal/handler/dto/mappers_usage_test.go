@@ -121,6 +121,7 @@ func TestUsageLogFromService_UsesRequestedModelAndKeepsUpstreamAdminOnly(t *test
 	adminDTO := UsageLogFromServiceAdmin(log)
 
 	require.Equal(t, "claude-sonnet-4", userDTO.Model)
+	require.Equal(t, upstreamModel, userDTO.ServedModel)
 	require.Equal(t, "claude-sonnet-4", adminDTO.Model)
 
 	userJSON, err := json.Marshal(userDTO)
@@ -130,6 +131,18 @@ func TestUsageLogFromService_UsesRequestedModelAndKeepsUpstreamAdminOnly(t *test
 	adminJSON, err := json.Marshal(adminDTO)
 	require.NoError(t, err)
 	require.Contains(t, string(adminJSON), `"upstream_model":"claude-sonnet-4-20250514"`)
+	require.NotContains(t, string(adminJSON), `"served_model"`)
+}
+
+func TestUsageLogFromService_UsesEmptyServedModelWhenUpstreamMissing(t *testing.T) {
+	log := &service.UsageLog{Model: "gpt-5"}
+
+	userDTO := UsageLogFromService(log)
+	require.Equal(t, "", userDTO.ServedModel)
+
+	userJSON, err := json.Marshal(userDTO)
+	require.NoError(t, err)
+	require.Contains(t, string(userJSON), `"served_model":""`)
 }
 
 func TestUsageLogFromService_KeepsUserBillingAndIPWithoutAdminCostFields(t *testing.T) {

@@ -10,9 +10,8 @@ func optionalTrimmedStringPtr(raw string) *string {
 	return &trimmed
 }
 
-// optionalNonEqualStringPtr returns a pointer to value if it is non-empty and
-// differs from compare; otherwise nil. Used to store upstream_model only when
-// it differs from the requested model.
+// optionalNonEqualStringPtr returns a pointer only when value is non-empty and
+// differs from compare.
 func optionalNonEqualStringPtr(value, compare string) *string {
 	if value == "" || value == compare {
 		return nil

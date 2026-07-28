@@ -435,12 +435,10 @@ func TestHandleChatStreamingResponse_SilentRefusalReasoningSummaryExempt(t *test
 	result, err := svc.handleChatStreamingResponse(
 		resp,
 		c,
-		rawChatCompletionsTestAccount(),
 		"gpt-5.5",
 		"gpt-5.5",
-		"gpt-5.5",
+		false,
 		time.Now(),
-		openAISilentRefusalMinRequestBodyBytes,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, result)

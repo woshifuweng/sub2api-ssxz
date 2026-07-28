@@ -157,6 +157,8 @@ type SettingService struct {
 	codexRestrictionPolicySF          singleflight.Group
 	cyberSessionBlockRuntimeCache     atomic.Value
 	cyberSessionBlockRuntimeSF        singleflight.Group
+	panelRateLimitCache               atomic.Value
+	panelRateLimitSF                  singleflight.Group
 	openAIQuotaAutoPauseSettingsCache atomic.Value
 	openAIQuotaAutoPauseSettingsSF    singleflight.Group
 	webSearchManagerBuilder           WebSearchManagerBuilder

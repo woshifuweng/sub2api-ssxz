@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -81,11 +82,7 @@ type channelMonitorUserTimelinePoint struct {
 }
 
 type channelMonitorUserDetailResponse struct {
-	ID        int64                         `json:"id"`
-	Name      string                        `json:"name"`
-	Provider  string                        `json:"provider"`
-	GroupName string                        `json:"group_name"`
-	Models    []channelMonitorUserModelStat `json:"models"`
+	Models []channelMonitorUserModelStat `json:"models"`
 }
 
 type channelMonitorUserModelStat struct {
@@ -98,7 +95,7 @@ type channelMonitorUserModelStat struct {
 	AvgLatency7dMs  *int    `json:"avg_latency_7d_ms"`
 }
 
-func userMonitorViewToItem(v *service.UserMonitorView) channelMonitorUserListItem {
+func userMonitorViewToItem(v *service.UserMonitorView, displayName string) channelMonitorUserListItem {
 	extras := make([]dto.ChannelMonitorExtraModelStatus, 0, len(v.ExtraModels))
 	for _, e := range v.ExtraModels {
 		extras = append(extras, dto.ChannelMonitorExtraModelStatus{
@@ -118,7 +115,7 @@ func userMonitorViewToItem(v *service.UserMonitorView) channelMonitorUserListIte
 	}
 	return channelMonitorUserListItem{
 		ID:                   v.ID,
-		Name:                 v.Name,
+		Name:                 displayName,
 		Provider:             v.Provider,
 		GroupName:            v.GroupName,
 		PrimaryModel:         v.PrimaryModel,
@@ -145,11 +142,7 @@ func userMonitorDetailToResponse(d *service.UserMonitorDetail) *channelMonitorUs
 		})
 	}
 	return &channelMonitorUserDetailResponse{
-		ID:        d.ID,
-		Name:      d.Name,
-		Provider:  d.Provider,
-		GroupName: d.GroupName,
-		Models:    models,
+		Models: models,
 	}
 }
 
@@ -161,8 +154,11 @@ func (h *ChannelMonitorUserHandler) List(c *gin.Context) {
 }
 
 func (h *ChannelMonitorUserHandler) ListGateway(c gatewayctx.GatewayContext) {
+	if !h.requireAuthenticatedGateway(c) {
+		return
+	}
 	if !h.featureEnabledGateway(c) {
-		response.SuccessContext(gatewayJSONResponder{ctx: c}, gin.H{"items": []channelMonitorUserListItem{}})
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusForbidden, "disabled")
 		return
 	}
 	visibleGroupNames, ok := h.visibleGroupNamesGateway(c)
@@ -175,8 +171,10 @@ func (h *ChannelMonitorUserHandler) ListGateway(c gatewayctx.GatewayContext) {
 		return
 	}
 	items := make([]channelMonitorUserListItem, 0, len(views))
-	for _, v := range views {
-		items = append(items, userMonitorViewToItem(v))
+	for i, v := range views {
+		// The configured monitor name is an upstream/channel identifier. Keep
+		// the UI usable with an anonymous label without exposing it.
+		items = append(items, userMonitorViewToItem(v, fmt.Sprintf("channel-%d", i+1)))
 	}
 	response.SuccessContext(gatewayJSONResponder{ctx: c}, gin.H{"items": items})
 }
@@ -187,8 +185,11 @@ func (h *ChannelMonitorUserHandler) GetStatus(c *gin.Context) {
 }
 
 func (h *ChannelMonitorUserHandler) GetStatusGateway(c gatewayctx.GatewayContext) {
+	if !h.requireAuthenticatedGateway(c) {
+		return
+	}
 	if !h.featureEnabledGateway(c) {
-		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, service.ErrChannelMonitorNotFound)
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusForbidden, "disabled")
 		return
 	}
 
@@ -208,9 +209,18 @@ func (h *ChannelMonitorUserHandler) GetStatusGateway(c gatewayctx.GatewayContext
 	response.SuccessContext(gatewayJSONResponder{ctx: c}, userMonitorDetailToResponse(detail))
 }
 
+func (h *ChannelMonitorUserHandler) requireAuthenticatedGateway(c gatewayctx.GatewayContext) bool {
+	subject, ok := middleware.GetAuthSubjectFromGatewayContext(c)
+	if !ok || subject.UserID <= 0 {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
+		return false
+	}
+	return true
+}
+
 func (h *ChannelMonitorUserHandler) visibleGroupNamesGateway(c gatewayctx.GatewayContext) (map[string]struct{}, bool) {
 	subject, ok := middleware.GetAuthSubjectFromGatewayContext(c)
-	if !ok {
+	if !ok || subject.UserID <= 0 {
 		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
 		return nil, false
 	}

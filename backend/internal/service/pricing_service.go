@@ -547,6 +547,19 @@ func (s *PricingService) downloadPricingData() error {
 		return fmt.Errorf("parse pricing data: %w", err)
 	}
 
+	s.mu.RLock()
+	previousSnapshot := clonePricingSnapshot(s.pricingData)
+	s.mu.RUnlock()
+	if changes := detectPricingDrift(previousSnapshot, data); len(changes) > 0 {
+		alertBody := pricingDriftAlertBody(changes)
+		logger.With(
+			zap.String("component", "service.pricing"),
+			zap.String("event", "pricing_drift"),
+			zap.Int("changed_count", len(changes)),
+			zap.String("alert_body", alertBody),
+		).Error("pricing drift detected")
+	}
+
 	// 保存到本地文件
 	pricingFile := s.getPricingFilePath()
 	if err := os.WriteFile(pricingFile, body, 0644); err != nil {
@@ -846,16 +859,24 @@ func warnExactPricingUnavailable(model string) {
 }
 
 func (s *PricingService) buildModelLookupCandidates(modelLower string) []string {
-	// Prefer canonical model name first (this also improves billing compatibility with "models/xxx").
-	candidates := []string{
-		normalizeModelNameForPricing(modelLower),
+	rawCandidates := []string{
 		modelLower,
-	}
-	candidates = append(candidates,
 		strings.TrimPrefix(modelLower, "models/"),
 		lastSegment(modelLower),
 		lastSegment(strings.TrimPrefix(modelLower, "models/")),
-	)
+	}
+	normalized := normalizeModelNameForPricing(modelLower)
+
+	// A tier-specific entry should take precedence when the pricing catalog gains
+	// one later. Today Antigravity's Gemini 3.6 Flash tiers share the base rate,
+	// so the normalized base remains the fallback after the exact aliases.
+	candidates := rawCandidates
+	if normalizeGeminiThinkingTierAlias(lastSegment(modelLower)) != lastSegment(modelLower) {
+		candidates = append(candidates, normalized)
+	} else {
+		// Prefer canonical model names for all other aliases (including models/xxx).
+		candidates = append([]string{normalized}, candidates...)
+	}
 
 	seen := make(map[string]struct{}, len(candidates))
 	out := make([]string, 0, len(candidates))
@@ -894,6 +915,16 @@ func normalizeModelNameForPricing(model string) string {
 	}
 
 	model = strings.TrimLeft(model, "/")
+	return model
+}
+
+func normalizeGeminiThinkingTierAlias(model string) string {
+	const baseModel = "gemini-3.6-flash"
+	for _, tier := range []string{"-high", "-low", "-medium", "-tiered"} {
+		if model == baseModel+tier {
+			return baseModel
+		}
+	}
 	return model
 }
 

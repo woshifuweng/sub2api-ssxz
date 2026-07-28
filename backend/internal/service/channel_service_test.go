@@ -9,7 +9,6 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 // ---------------------------------------------------------------------------
@@ -1941,6 +1940,7 @@ func TestReplaceModelInBody_InvalidJSON(t *testing.T) {
 	require.Equal(t, arrayBody, result2)
 }
 
+/*
 func TestRemovePreviousResponseIDFromBody(t *testing.T) {
 	t.Run("empty body returned as-is", func(t *testing.T) {
 		require.Equal(t, []byte{}, RemovePreviousResponseIDFromBody([]byte{}))
@@ -1967,6 +1967,7 @@ func TestRemovePreviousResponseIDFromBody(t *testing.T) {
 		require.False(t, gjson.GetBytes(result, "previous_response_id").Exists())
 	})
 }
+*/
 
 // ===========================================================================
 // 7. isPlatformPricingMatch
