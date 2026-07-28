@@ -103,15 +103,13 @@ describe('AppPurchaseView', () => {
     expect(text).toContain('在兑换页输入到账')
     expect(text).toContain('日常使用')
     expect(text).toContain('推荐')
-    expect(text).toContain('赠¥15')
-    expect(text).toContain('余额¥115 · 更划算')
+    expect(text).toContain('赠$10')
+    expect(text).toContain('到账 $110 额度')
     expect(text).toContain('常见问题')
     expect(text).toContain('已有兑换码？')
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
     expect(hrefs).toContain('/app/redeem')
-    expect(hrefs).toContain('https://www.goofish.com/item?id=1066158667182')
-    expect(hrefs).toContain('https://www.goofish.com/item?id=1066164243562')
-    expect(hrefs).toContain('https://www.goofish.com/item?id=1066164819751')
+    expect(hrefs.filter((href) => href === 'https://pay.ldxp.cn/shop/VT7XKDFI')).toHaveLength(3)
     expect(wrapper.findAll('a[target="_blank"]').length).toBe(3)
     expect(wrapper.find('[data-testid="payment-checkout-content"]').exists()).toBe(false)
   })
@@ -131,7 +129,7 @@ describe('AppPurchaseView', () => {
     expect(wrapper.find('[data-testid="payment-checkout-content"]').exists()).toBe(false)
   })
 
-  it('uses configured public purchase links and keeps the hardcoded fallback contract', () => {
+  it('uses the configured shop URL for every purchase plan', () => {
     appStore.cachedPublicSettings = {
       payment_enabled: false,
       purchase_subscription_enabled: false,
@@ -144,9 +142,9 @@ describe('AppPurchaseView', () => {
     const hrefs = wrapper.findAll('a[target="_blank"]').map((link) => link.attributes('href'))
 
     expect(hrefs).toEqual([
-      'https://example.com/ten',
-      'https://example.com/thirty',
-      'https://example.com/hundred'
+      'https://pay.ldxp.cn/shop/VT7XKDFI',
+      'https://pay.ldxp.cn/shop/VT7XKDFI',
+      'https://pay.ldxp.cn/shop/VT7XKDFI'
     ])
   })
 })

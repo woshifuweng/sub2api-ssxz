@@ -110,34 +110,30 @@ const appStore = useAppStore()
 const paymentEnabled = computed(() => !!appStore.cachedPublicSettings?.payment_enabled)
 const legacyPurchaseEnabled = computed(() => !!appStore.cachedPublicSettings?.purchase_subscription_enabled)
 
-const fallbackPurchaseLinks = {
-  10: 'https://www.goofish.com/item?id=1066158667182',
-  30: 'https://www.goofish.com/item?id=1066164243562',
-  100: 'https://www.goofish.com/item?id=1066164819751'
-} as const
+const purchaseShopUrl = 'https://pay.ldxp.cn/shop/VT7XKDFI'
 
 const rechargePlans = computed(() => [
   {
     amount: 10,
     title: '入门体验',
     description: '适合轻度尝鲜',
-    href: appStore.cachedPublicSettings?.purchase_link_cny_10 || fallbackPurchaseLinks[10],
+    href: purchaseShopUrl,
     featured: false,
   },
   {
     amount: 30,
     title: '日常使用',
     description: '最受欢迎',
-    href: appStore.cachedPublicSettings?.purchase_link_cny_30 || fallbackPurchaseLinks[30],
+    href: purchaseShopUrl,
     featured: true,
   },
   {
     amount: 100,
     title: '重度使用',
     description: '余额更充裕',
-    promotion: '赠¥15',
-    promotionDetail: '余额¥115 · 更划算',
-    href: appStore.cachedPublicSettings?.purchase_link_cny_100 || fallbackPurchaseLinks[100],
+    promotion: '赠$10',
+    promotionDetail: '到账 $110 额度',
+    href: purchaseShopUrl,
     featured: false,
   },
 ])
