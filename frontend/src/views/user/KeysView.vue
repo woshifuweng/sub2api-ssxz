@@ -1,6 +1,8 @@
 <template>
   <component :is="pageShell" v-bind="pageShellProps">
     <div :class="['keys-page-surface', { 'keys-page-surface--workbench': useWorkbenchShell }]">
+      <BalanceWarningBanner />
+
       <TablePageLayout
         :class="[
           { 'keys-workbench-layout': useWorkbenchShell },
@@ -1324,6 +1326,7 @@ const { t } = useI18n()
 import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
+import BalanceWarningBanner from '@/components/user/BalanceWarningBanner.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import DataTable from '@/components/common/DataTable.vue'
 	import Pagination from '@/components/common/Pagination.vue'

@@ -419,6 +419,11 @@ export default {
     loggedOut: '已退出登录'
   },
 
+  balanceWarning: {
+    message: '余额不足，无法调用接口，请先兑换额度',
+    action: '去兑换额度'
+  },
+
   affiliate: {
     title: '邀请返利',
     subtitle: '复制专属链接，查看邀请人数、奖励和可转入余额。',
