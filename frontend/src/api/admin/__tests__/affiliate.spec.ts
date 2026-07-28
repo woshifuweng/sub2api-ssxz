@@ -70,6 +70,19 @@ describe('admin affiliate api', () => {
     expect(get).not.toHaveBeenCalled()
   })
 
+  it('sends only clear=true when clearing a batch rate', async () => {
+    post.mockResolvedValueOnce({ data: { affected: 2 } })
+
+    const mod = await import('../affiliate')
+    await mod.batchSetRate([7, 8], null, true)
+
+    expect(post).toHaveBeenCalledWith('/admin/affiliates/users/batch-rate', {
+      user_ids: [7, 8],
+      clear: true
+    })
+    expect(post.mock.calls[0][1]).not.toHaveProperty('aff_rebate_rate_percent')
+  })
+
   // The overview endpoint is what tells the UI whether an exclusive rate exists at all,
   // which is how an explicit 0 (rebate disabled) stays distinguishable from NULL.
   it('reads a single user overview including the custom-rate flag', async () => {

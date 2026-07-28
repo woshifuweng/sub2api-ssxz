@@ -112,13 +112,19 @@ export async function batchSetRate(
   ratePercent: number | null,
   clear: boolean = false
 ): Promise<{ affected: number }> {
+  const payload = clear
+    ? {
+        user_ids: userIds,
+        clear: true
+      }
+    : {
+        user_ids: userIds,
+        aff_rebate_rate_percent: ratePercent,
+        clear: false
+      }
   const { data } = await apiClient.post<{ affected: number }>(
     '/admin/affiliates/users/batch-rate',
-    {
-      user_ids: userIds,
-      aff_rebate_rate_percent: clear ? undefined : ratePercent,
-      clear
-    }
+    payload
   )
   return data
 }
