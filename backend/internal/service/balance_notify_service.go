@@ -397,9 +397,13 @@ func (s *BalanceNotifyService) getBalanceNotifyConfig(ctx context.Context) (enab
 	if err != nil {
 		return false, 0, ""
 	}
-	enabled = settings[SettingKeyBalanceLowNotifyEnabled] == "true"
+	enabled = true
+	if raw, ok := settings[SettingKeyBalanceLowNotifyEnabled]; ok && strings.TrimSpace(raw) != "" {
+		enabled = raw == "true"
+	}
+	threshold = 1.0
 	if v := settings[SettingKeyBalanceLowNotifyThreshold]; v != "" {
-		if f, err := strconv.ParseFloat(v, 64); err == nil {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f >= 0 {
 			threshold = f
 		}
 	}

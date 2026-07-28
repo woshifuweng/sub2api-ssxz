@@ -395,6 +395,8 @@ export const useAppStore = defineStore('app', () => {
           purchase_link_cny_30: '',
           purchase_link_cny_100: '',
           payment_enabled: false,
+          balance_low_notify_enabled: true,
+          balance_low_notify_threshold: 1,
           custom_menu_items: [],
           linuxdo_oauth_enabled: false,
           wechat_oauth_enabled: false,

@@ -296,9 +296,13 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		loginAgreementUpdatedAt = defaultLoginAgreementDate
 	}
 
-	var balanceLowNotifyThreshold float64
+	balanceLowNotifyThreshold := 1.0
 	if v, err := strconv.ParseFloat(settings[SettingKeyBalanceLowNotifyThreshold], 64); err == nil && v >= 0 {
 		balanceLowNotifyThreshold = v
+	}
+	balanceLowNotifyEnabled := true
+	if raw, ok := settings[SettingKeyBalanceLowNotifyEnabled]; ok && strings.TrimSpace(raw) != "" {
+		balanceLowNotifyEnabled = raw == "true"
 	}
 	availableChannelsEnabled := settings[SettingKeyAvailableChannelsEnabled] == "true"
 	if runtime, ok := s.getAvailableChannelsRuntimeOverride(); ok {
@@ -360,7 +364,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		OIDCOAuthProviderName:            oidcProviderName,
 		GitHubOAuthEnabled:               gitHubEnabled,
 		GoogleOAuthEnabled:               googleEnabled,
-		BalanceLowNotifyEnabled:          settings[SettingKeyBalanceLowNotifyEnabled] == "true",
+		BalanceLowNotifyEnabled:          balanceLowNotifyEnabled,
 		AccountQuotaNotifyEnabled:        settings[SettingKeyAccountQuotaNotifyEnabled] == "true",
 		BalanceLowNotifyThreshold:        balanceLowNotifyThreshold,
 		BalanceLowNotifyRechargeURL:      settings[SettingKeyBalanceLowNotifyRechargeURL],

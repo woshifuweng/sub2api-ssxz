@@ -54,6 +54,7 @@ func zeroBalanceTestRouter(t *testing.T) *gin.Engine {
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	}
 	router.GET("/v1/models", ok)
+	router.GET("/v1beta/models", ok)
 	router.GET("/models", ok)
 	router.GET("/v1/usage", ok)
 	router.GET("/antigravity/v1/models", ok)
@@ -81,7 +82,7 @@ func TestZeroBalanceAllowsReadOnlyMetadataEndpoints(t *testing.T) {
 	router := zeroBalanceTestRouter(t)
 
 	for _, path := range []string{
-		"/v1/models", "/models", "/v1/usage",
+		"/v1/models", "/v1beta/models", "/models", "/v1/usage",
 		"/antigravity/v1/models", "/antigravity/v1/usage", "/antigravity/models",
 		"/sora/v1/models",
 	} {
@@ -121,7 +122,8 @@ func TestIsReadOnlyGatewayMetadata(t *testing.T) {
 	require.False(t, isReadOnlyGatewayMetadata(http.MethodPost, "/v1/models"))
 	require.False(t, isReadOnlyGatewayMetadata(http.MethodGet, "/v1/chat/completions"))
 	require.False(t, isReadOnlyGatewayMetadata(http.MethodGet, "/v1/models/extra"))
-	require.False(t, isReadOnlyGatewayMetadata(http.MethodGet, "/v1beta/models"))
+	require.True(t, isReadOnlyGatewayMetadata(http.MethodGet, "/v1beta/models"))
+	require.True(t, isReadOnlyGatewayMetadata(http.MethodGet, "/v1beta/models/gemini-2.0-flash"))
 	require.False(t, isReadOnlyGatewayMetadata(http.MethodPost, "/antigravity/v1/models"))
 	require.False(t, isReadOnlyGatewayMetadata(http.MethodGet, "/antigravity/v1/messages"))
 	require.False(t, isReadOnlyGatewayMetadata(http.MethodGet, "/sora/v1/chat/completions"))

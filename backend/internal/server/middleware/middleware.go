@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
@@ -83,13 +84,59 @@ func GetForcePlatformFromGatewayContext(c gatewayctx.GatewayContext) (string, bo
 
 // ErrorResponse 标准错误响应结构
 type ErrorResponse struct {
-	Code    string `json:"code"`
+	Error   ErrorDetail `json:"error"`
+	Code    string      `json:"-"`
+	Message string      `json:"-"`
+}
+
+type ErrorDetail struct {
 	Message string `json:"message"`
+	Type    string `json:"type"`
+	Code    string `json:"code"`
+}
+
+func (r *ErrorResponse) UnmarshalJSON(data []byte) error {
+	var payload struct {
+		Error   ErrorDetail `json:"error"`
+		Code    string      `json:"code"`
+		Message string      `json:"message"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return err
+	}
+	r.Error = payload.Error
+	r.Code = payload.Code
+	r.Message = payload.Message
+	if r.Code == "" {
+		r.Code = r.Error.Code
+	}
+	if r.Message == "" {
+		r.Message = r.Error.Message
+	}
+	return nil
+}
+
+func errorResponseType(code string) string {
+	switch code {
+	case "INSUFFICIENT_BALANCE", "API_KEY_QUOTA_EXHAUSTED", "USAGE_LIMIT_EXCEEDED":
+		return "billing_error"
+	case "INVALID_API_KEY", "API_KEY_REQUIRED", "API_KEY_DISABLED", "USER_INACTIVE", "USER_NOT_FOUND":
+		return "authentication_error"
+	case "API_KEY_EXPIRED", "SUBSCRIPTION_NOT_FOUND", "SUBSCRIPTION_INVALID", "ACCESS_DENIED":
+		return "permission_error"
+	default:
+		return "api_error"
+	}
 }
 
 // NewErrorResponse 创建错误响应
 func NewErrorResponse(code, message string) ErrorResponse {
 	return ErrorResponse{
+		Error: ErrorDetail{
+			Message: message,
+			Type:    errorResponseType(code),
+			Code:    code,
+		},
 		Code:    code,
 		Message: message,
 	}

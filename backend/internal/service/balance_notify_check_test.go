@@ -149,7 +149,7 @@ func TestGetBalanceNotifyConfig_InvalidThreshold(t *testing.T) {
 
 	enabled, threshold, _ := s.getBalanceNotifyConfig(context.Background())
 	require.True(t, enabled)
-	require.Equal(t, 0.0, threshold)
+	require.Equal(t, 1.0, threshold)
 }
 
 func TestIsAccountQuotaNotifyEnabled(t *testing.T) {

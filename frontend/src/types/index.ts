@@ -115,6 +115,8 @@ export interface PublicSettings {
   purchase_link_cny_30: string
   purchase_link_cny_100: string
   payment_enabled: boolean
+  balance_low_notify_enabled: boolean
+  balance_low_notify_threshold: number
   custom_menu_items: CustomMenuItem[]
   linuxdo_oauth_enabled: boolean
   wechat_oauth_enabled: boolean

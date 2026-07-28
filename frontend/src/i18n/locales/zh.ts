@@ -424,6 +424,11 @@ export default {
     action: '去兑换额度'
   },
 
+  lowBalanceWarning: {
+    message: '余额低于 ${threshold}，请及时充值以避免服务中断。',
+    action: '立即充值'
+  },
+
   affiliate: {
     title: '邀请返利',
     subtitle: '复制专属链接，查看邀请人数、奖励和可转入余额。',

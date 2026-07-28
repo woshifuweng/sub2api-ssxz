@@ -424,6 +424,11 @@ export default {
     action: 'Redeem balance'
   },
 
+  lowBalanceWarning: {
+    message: 'Balance is below ${threshold}. Recharge soon to avoid service interruption.',
+    action: 'Recharge now'
+  },
+
   affiliate: {
     title: 'Referral Rewards',
     subtitle: 'Copy your referral link and track invitees, rewards, and transferable balance.',
