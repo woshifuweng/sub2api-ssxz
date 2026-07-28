@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -116,7 +117,19 @@ func ApplyMigrations(ctx context.Context, db *sql.DB) error {
 	if db == nil {
 		return errors.New("nil sql db")
 	}
+	if skipMigrationsByEnv() {
+		return nil
+	}
 	return applyMigrationsFS(ctx, db, migrations.FS)
+}
+
+func skipMigrationsByEnv() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("SKIP_MIGRATIONS"))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 // applyMigrationsFS 是迁移执行的核心实现。
