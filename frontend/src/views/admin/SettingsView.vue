@@ -257,6 +257,71 @@
           </div>
         </div>
 
+        <!-- Panel API Rate Limit Settings -->
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.settings.panelRateLimit.title') }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.settings.panelRateLimit.description') }}
+            </p>
+          </div>
+          <div class="space-y-5 p-6">
+            <div v-if="panelRateLimitLoading" class="flex items-center gap-2 text-gray-500">
+              <div class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"></div>
+              {{ t('common.loading') }}
+            </div>
+            <template v-else>
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="font-medium text-gray-900 dark:text-white">
+                    {{ t('admin.settings.panelRateLimit.enabled') }}
+                  </label>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ t('admin.settings.panelRateLimit.enabledHint') }}
+                  </p>
+                </div>
+                <Toggle v-model="panelRateLimitForm.enabled" />
+              </div>
+
+              <div v-if="panelRateLimitForm.enabled" class="space-y-5 border-t border-gray-100 pt-4 dark:border-dark-700">
+                <div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.panelRateLimit.userRpm') }}
+                    <input v-model.number="panelRateLimitForm.user_rpm" type="number" min="0" max="100000" class="input mt-2 w-32" />
+                    <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.panelRateLimit.perMinute') }}</span>
+                  </label>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.panelRateLimit.heavyRpm') }}
+                    <input v-model.number="panelRateLimitForm.heavy_rpm" type="number" min="0" max="100000" class="input mt-2 w-32" />
+                    <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.panelRateLimit.perMinute') }}</span>
+                  </label>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.panelRateLimit.publicIpRpm') }}
+                    <input v-model.number="panelRateLimitForm.public_ip_rpm" type="number" min="0" max="100000" class="input mt-2 w-32" />
+                    <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.panelRateLimit.perMinute') }}</span>
+                  </label>
+                </div>
+
+                <div class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700">
+                  <div>
+                    <label class="font-medium text-gray-900 dark:text-white">{{ t('admin.settings.panelRateLimit.exemptAdmin') }}</label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.settings.panelRateLimit.exemptAdminHint') }}</p>
+                  </div>
+                  <Toggle v-model="panelRateLimitForm.exempt_admin" />
+                </div>
+              </div>
+
+              <div class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700">
+                <button type="button" @click="savePanelRateLimitSettings" :disabled="panelRateLimitSaving" class="btn btn-primary btn-sm">
+                  {{ panelRateLimitSaving ? t('common.saving') : t('common.save') }}
+                </button>
+              </div>
+            </template>
+          </div>
+        </div>
+
         <!-- Stream Timeout Settings -->
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
@@ -2344,6 +2409,17 @@ const overloadCooldownForm = reactive({
   cooldown_minutes: 10
 })
 
+// Panel API Rate Limit 状态
+const panelRateLimitLoading = ref(true);
+const panelRateLimitSaving = ref(false);
+const panelRateLimitForm = reactive({
+  enabled: true,
+  user_rpm: 240,
+  heavy_rpm: 60,
+  exempt_admin: true,
+  public_ip_rpm: 300,
+});
+
 // Stream Timeout 状态
 const streamTimeoutLoading = ref(true)
 const streamTimeoutSaving = ref(false)
@@ -3136,6 +3212,37 @@ async function saveStreamTimeoutSettings() {
   }
 }
 
+async function loadPanelRateLimitSettings() {
+  panelRateLimitLoading.value = true
+  try {
+    const settings = await adminAPI.settings.getPanelRateLimitSettings()
+    Object.assign(panelRateLimitForm, settings)
+  } catch (error: any) {
+    console.error('Failed to load panel rate limit settings:', error)
+  } finally {
+    panelRateLimitLoading.value = false
+  }
+}
+
+async function savePanelRateLimitSettings() {
+  panelRateLimitSaving.value = true
+  try {
+    const updated = await adminAPI.settings.updatePanelRateLimitSettings({
+      enabled: panelRateLimitForm.enabled,
+      user_rpm: panelRateLimitForm.user_rpm,
+      heavy_rpm: panelRateLimitForm.heavy_rpm,
+      exempt_admin: panelRateLimitForm.exempt_admin,
+      public_ip_rpm: panelRateLimitForm.public_ip_rpm,
+    })
+    Object.assign(panelRateLimitForm, updated)
+    appStore.showSuccess(t('admin.settings.panelRateLimit.saved'))
+  } catch (error: any) {
+    appStore.showError(t('admin.settings.panelRateLimit.saveFailed') + ': ' + (error.message || t('common.unknownError')))
+  } finally {
+    panelRateLimitSaving.value = false
+  }
+}
+
 // Rectifier 方法
 async function loadRectifierSettings() {
   rectifierLoading.value = true
@@ -3363,6 +3470,7 @@ onMounted(() => {
   loadSubscriptionGroups()
   loadAdminApiKey()
   loadOverloadCooldownSettings()
+  loadPanelRateLimitSettings()
   loadStreamTimeoutSettings()
   loadRectifierSettings()
   loadBetaPolicySettings()

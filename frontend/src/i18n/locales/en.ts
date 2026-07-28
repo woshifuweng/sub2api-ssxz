@@ -5970,6 +5970,23 @@ export default {
         saved: 'Overload cooldown settings saved',
         saveFailed: 'Failed to save overload cooldown settings'
       },
+      panelRateLimit: {
+        title: 'Panel API Rate Limit',
+        description: 'Limit authenticated panel traffic per user and public traffic per client IP',
+        enabled: 'Enable Panel API Rate Limit',
+        enabledHint: 'Protects panel endpoints from high-frequency abuse without penalizing normal users',
+        userRpm: 'Authenticated User Limit',
+        heavyRpm: 'Heavy Endpoint Limit',
+        publicIpRpm: 'Public Endpoint Limit',
+        perMinute: 'requests/minute',
+        userRpmHint: 'Applied to authenticated panel requests by user account',
+        heavyRpmHint: 'Applied to expensive usage and dashboard aggregation endpoints',
+        publicIpRpmHint: 'Applied to unauthenticated public endpoints by client IP',
+        exemptAdmin: 'Exempt Administrators',
+        exemptAdminHint: 'Do not count administrator requests against the authenticated user limit',
+        saved: 'Panel API rate-limit settings saved',
+        saveFailed: 'Failed to save panel API rate-limit settings'
+      },
       streamTimeout: {
         title: 'Stream Timeout Handling',
         description: 'Configure account handling strategy when upstream response times out',

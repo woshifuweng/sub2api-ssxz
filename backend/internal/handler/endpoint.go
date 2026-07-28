@@ -33,9 +33,12 @@ const (
 	EndpointGeminiModels      = "/v1beta/models"
 )
 
+const EndpointAntigravityGenerateContent = "/v1internal:streamGenerateContent"
+
 // gin.Context keys used by the middleware and helpers below.
 const (
-	ctxKeyInboundEndpoint = "_gateway_inbound_endpoint"
+	ctxKeyInboundEndpoint        = "_gateway_inbound_endpoint"
+	ctxKeyActualUpstreamEndpoint = "_gateway_actual_upstream_endpoint"
 )
 
 // ──────────────────────────────────────────────────────────
@@ -321,6 +324,13 @@ func GetUpstreamEndpoint(c *gin.Context, platform string) string {
 }
 
 func GetUpstreamEndpointContext(c gatewayctx.GatewayContext, platform string) string {
+	if c != nil {
+		if value, ok := c.Value(ctxKeyActualUpstreamEndpoint); ok {
+			if endpoint, ok := value.(string); ok && strings.TrimSpace(endpoint) != "" {
+				return strings.TrimSpace(endpoint)
+			}
+		}
+	}
 	inbound := GetInboundEndpointContext(c)
 	rawPath := ""
 	if c != nil {
@@ -359,4 +369,16 @@ func resolveOpenAIUpstreamEndpointContext(c gatewayctx.GatewayContext, account *
 		return EndpointChatCompletions
 	}
 	return GetUpstreamEndpointContext(c, account.Platform)
+}
+
+func setActualUpstreamEndpoint(c *gin.Context, endpoint string) {
+	if c != nil {
+		c.Set(ctxKeyActualUpstreamEndpoint, strings.TrimSpace(endpoint))
+	}
+}
+
+func shouldUseAntigravityCompat(account *service.Account) bool {
+	return account != nil &&
+		account.Platform == service.PlatformAntigravity &&
+		account.Type == service.AccountTypeOAuth
 }

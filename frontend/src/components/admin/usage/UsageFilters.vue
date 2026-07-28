@@ -214,6 +214,7 @@ const userKeyword = ref('')
 const userResults = ref<SimpleUser[]>([])
 const showUserDropdown = ref(false)
 let userSearchTimeout: ReturnType<typeof setTimeout> | null = null
+let userSearchSequence = 0
 
 const apiKeyKeyword = ref('')
 const apiKeyResults = ref<SimpleApiKey[]>([])
@@ -249,7 +250,8 @@ const billingTypeOptions = ref<SelectOption[]>([
 const emitChange = () => emit('change')
 
 const debounceUserSearch = () => {
-  if (userSearchTimeout) clearTimeout(userSearchTimeout)
+  userSearchSequence++
+	if (userSearchTimeout) clearTimeout(userSearchTimeout)
   userSearchTimeout = setTimeout(async () => {
     if (!userKeyword.value) {
       userResults.value = []
@@ -447,6 +449,17 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  document.removeEventListener('click', onDocumentClick)
+	document.removeEventListener('click', onDocumentClick)
 })
+
+const setUserKeyword = (email: string) => {
+	if (userSearchTimeout) clearTimeout(userSearchTimeout)
+	userKeyword.value = email
+	userResults.value = []
+	showUserDropdown.value = false
+}
+
+const getUserSearchRevision = () => userSearchSequence
+
+defineExpose({ getUserSearchRevision, setUserKeyword })
 </script>

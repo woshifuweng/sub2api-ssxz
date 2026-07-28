@@ -160,6 +160,70 @@ func sanitizeEncryptedReasoningInputItemWeiShaw(item any) (next any, changed boo
 	return inputItem, true, true
 }
 
+// SanitizeOpenAICrossModeFailoverReasoning removes provider-specific encrypted
+// reasoning items before a failover crosses into a provider that cannot parse them.
+func SanitizeOpenAICrossModeFailoverReasoning(body []byte) (sanitized []byte, changed bool, err error) {
+	if len(body) == 0 || !gjson.GetBytes(body, "input").Exists() {
+		return body, false, nil
+	}
+	var decoded map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+	if err := decoder.Decode(&decoded); err != nil {
+		return body, false, fmt.Errorf("decode cross-mode failover body: %w", err)
+	}
+	if !dropOpenAIEncryptedReasoningInputItems(decoded) {
+		return body, false, nil
+	}
+	out, err := marshalOpenAIUpstreamJSON(decoded)
+	if err != nil {
+		return body, false, fmt.Errorf("serialize cross-mode failover body: %w", err)
+	}
+	return out, true, nil
+}
+
+func dropOpenAIEncryptedReasoningInputItems(reqBody map[string]any) bool {
+	inputValue, ok := reqBody["input"]
+	if !ok {
+		return false
+	}
+	input, ok := inputValue.([]any)
+	if !ok {
+		if item, itemOK := inputValue.(map[string]any); itemOK && isOpenAIEncryptedReasoningInputItem(item) {
+			delete(reqBody, "input")
+			return true
+		}
+		return false
+	}
+	filtered := make([]any, 0, len(input))
+	changed := false
+	for _, item := range input {
+		if isOpenAIEncryptedReasoningInputItem(item) {
+			changed = true
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	if !changed {
+		return false
+	}
+	if len(filtered) == 0 {
+		delete(reqBody, "input")
+	} else {
+		reqBody["input"] = filtered
+	}
+	return true
+}
+
+func isOpenAIEncryptedReasoningInputItem(item any) bool {
+	inputItem, ok := item.(map[string]any)
+	if !ok || strings.TrimSpace(fmt.Sprint(inputItem["type"])) != "reasoning" {
+		return false
+	}
+	_, hasEncryptedContent := inputItem["encrypted_content"]
+	return hasEncryptedContent
+}
+
 func IsOpenAIResponsesCompactPathForTestWeiShaw(c *gin.Context) bool {
 	return isOpenAIResponsesCompactPath(c)
 }
