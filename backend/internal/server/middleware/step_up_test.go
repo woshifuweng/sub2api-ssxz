@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -56,6 +57,33 @@ func TestEnforceStepUpRejectsAdminAPIKey(t *testing.T) {
 	c.Set("auth_method", service.AuditAuthMethodAdminAPIKey)
 
 	ok := enforceStepUp(c, stubStepUpGrantChecker{granted: true}, stubStepUpUserReader{user: &service.User{TotpEnabled: true}}, stepUpEnabled)
+
+	require.False(t, ok)
+	require.True(t, c.IsAborted())
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.Contains(t, rec.Body.String(), "STEP_UP_ADMIN_API_KEY_FORBIDDEN")
+}
+
+func TestEnforceStepUpDisabledRejectsAdminAPIKey(t *testing.T) {
+	c, rec := newStepUpTestContext(t)
+	c.Set("auth_method", service.AuditAuthMethodAdminAPIKey)
+
+	ok := enforceStepUp(c, stubStepUpGrantChecker{granted: false}, stubStepUpUserReader{err: errors.New("should not be called")}, stubStepUpSettingReader{enabled: false})
+
+	require.False(t, ok)
+	require.True(t, c.IsAborted())
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.Contains(t, rec.Body.String(), "STEP_UP_ADMIN_API_KEY_FORBIDDEN")
+}
+
+func TestEnforceStepUpGatewayDisabledRejectsAdminAPIKey(t *testing.T) {
+	c, rec := newStepUpTestContext(t)
+	c.Set("auth_method", service.AuditAuthMethodAdminAPIKey)
+	settings := service.NewSettingService(stepUpSettingRepoStub{values: map[string]string{
+		service.SettingKeyStepUpEnabled: "false",
+	}}, nil)
+
+	ok := EnforceStepUpGateway(gatewayctx.FromGin(c), nil, nil, settings)
 
 	require.False(t, ok)
 	require.True(t, c.IsAborted())
@@ -115,8 +143,8 @@ func TestEnforceStepUpPassesWithGrant(t *testing.T) {
 	require.False(t, c.IsAborted())
 }
 
-// 功能开关关闭时：不论 TOTP/grant/凭证类型，一律放行（恢复门控引入前行为）。
-func TestEnforceStepUpDisabledSkipsAllChecks(t *testing.T) {
+// 功能开关关闭时，普通用户会话跳过 step-up 检查，但机器凭证仍被拒绝。
+func TestEnforceStepUpDisabledSkipsUserSessionChecks(t *testing.T) {
 	disabled := stubStepUpSettingReader{enabled: false}
 
 	t.Run("no totp, no grant", func(t *testing.T) {
@@ -129,15 +157,41 @@ func TestEnforceStepUpDisabledSkipsAllChecks(t *testing.T) {
 		require.False(t, c.IsAborted())
 	})
 
-	t.Run("admin api key", func(t *testing.T) {
-		c, _ := newStepUpTestContext(t)
-		c.Set("auth_method", service.AuditAuthMethodAdminAPIKey)
+}
 
-		ok := enforceStepUp(c, stubStepUpGrantChecker{granted: false}, stubStepUpUserReader{user: nil, err: errors.New("should not be called")}, disabled)
+type stepUpSettingRepoStub struct {
+	values map[string]string
+}
 
-		require.True(t, ok)
-		require.False(t, c.IsAborted())
-	})
+func (r stepUpSettingRepoStub) Get(ctx context.Context, key string) (*service.Setting, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r stepUpSettingRepoStub) GetValue(ctx context.Context, key string) (string, error) {
+	if value, ok := r.values[key]; ok {
+		return value, nil
+	}
+	return "", service.ErrSettingNotFound
+}
+
+func (r stepUpSettingRepoStub) Set(ctx context.Context, key, value string) error {
+	return errors.New("not implemented")
+}
+
+func (r stepUpSettingRepoStub) GetMultiple(ctx context.Context, keys []string) (map[string]string, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r stepUpSettingRepoStub) SetMultiple(ctx context.Context, settings map[string]string) error {
+	return errors.New("not implemented")
+}
+
+func (r stepUpSettingRepoStub) GetAll(ctx context.Context) (map[string]string, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r stepUpSettingRepoStub) Delete(ctx context.Context, key string) error {
+	return errors.New("not implemented")
 }
 
 // settings 为 nil 时保持门控（fail-closed），避免装配缺陷静默关闭安全控制。
