@@ -32,6 +32,15 @@ func ensureBootstrapSecrets(ctx context.Context, client *ent.Client, cfg *config
 		return fmt.Errorf("nil config")
 	}
 
+	if envSecret, source := config.JWTSecretEnvOverride(); envSecret != "" {
+		if len([]byte(envSecret)) < 32 {
+			return fmt.Errorf("environment JWT secret must be at least 32 bytes")
+		}
+		cfg.JWT.Secret = envSecret
+		log.Printf("JWT secret source: %s env; skipped persisted JWT secret", source)
+		return nil
+	}
+
 	cfg.JWT.Secret = strings.TrimSpace(cfg.JWT.Secret)
 	if cfg.JWT.Secret != "" {
 		storedSecret, err := createSecuritySecretIfAbsent(ctx, client, securitySecretKeyJWT, cfg.JWT.Secret)

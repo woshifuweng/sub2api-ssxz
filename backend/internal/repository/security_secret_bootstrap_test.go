@@ -100,6 +100,38 @@ func TestEnsureBootstrapSecretsPersistConfiguredJWTSecret(t *testing.T) {
 	require.Equal(t, "configured-jwt-secret-32bytes-long!!", stored.Value)
 }
 
+func TestEnsureBootstrapSecretsEnvironmentSecretTakesPrecedence(t *testing.T) {
+	client := newSecuritySecretTestClient(t)
+	_, err := client.SecuritySecret.Create().
+		SetKey(securitySecretKeyJWT).
+		SetValue("persisted-production-jwt-secret-32bytes!!").
+		Save(context.Background())
+	require.NoError(t, err)
+
+	envSecret := "staging-environment-jwt-secret-32bytes!!"
+	t.Setenv("JWT_SECRET", envSecret)
+	cfg := &config.Config{}
+
+	require.NoError(t, ensureBootstrapSecrets(context.Background(), client, cfg))
+	require.Equal(t, envSecret, cfg.JWT.Secret)
+}
+
+func TestEnsureBootstrapSecretsSSXZEnvironmentSecretTakesPrecedence(t *testing.T) {
+	client := newSecuritySecretTestClient(t)
+	_, err := client.SecuritySecret.Create().
+		SetKey(securitySecretKeyJWT).
+		SetValue("persisted-production-jwt-secret-32bytes!!").
+		Save(context.Background())
+	require.NoError(t, err)
+
+	envSecret := "ssxz-staging-environment-secret-32bytes!"
+	t.Setenv("SSXZ_JWT_SECRET", envSecret)
+	cfg := &config.Config{}
+
+	require.NoError(t, ensureBootstrapSecrets(context.Background(), client, cfg))
+	require.Equal(t, envSecret, cfg.JWT.Secret)
+}
+
 func TestEnsureBootstrapSecretsConfiguredSecretTooShort(t *testing.T) {
 	client := newSecuritySecretTestClient(t)
 	cfg := &config.Config{JWT: config.JWTConfig{Secret: "short"}}
