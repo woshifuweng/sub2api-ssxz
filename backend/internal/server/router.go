@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"sync/atomic"
 	"time"
@@ -34,6 +35,7 @@ func SetupRouter(
 	settingService *service.SettingService,
 	compositeResolver *service.CompositeRouteResolver,
 	cfg *config.Config,
+	sqlDB *sql.DB,
 	redisClient *redis.Client,
 	frontendServer *web.FrontendServer,
 ) *gin.Engine {
@@ -87,7 +89,7 @@ func SetupRouter(
 	}
 
 	// 注册路由
-	registerRoutes(r, handlers, jwtAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, redisClient)
+	registerRoutes(r, handlers, jwtAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, sqlDB, redisClient)
 
 	return r
 }
@@ -107,10 +109,11 @@ func registerRoutes(
 	settingService *service.SettingService,
 	compositeResolver *service.CompositeRouteResolver,
 	cfg *config.Config,
+	sqlDB *sql.DB,
 	redisClient *redis.Client,
 ) {
 	// 通用路由（健康检查、状态等）
-	routes.RegisterCommonRoutes(r)
+	routes.RegisterCommonRoutes(r, sqlDB)
 
 	// API v1
 	v1 := r.Group("/api/v1")
