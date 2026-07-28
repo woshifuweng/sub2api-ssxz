@@ -18,6 +18,7 @@ import (
 )
 
 var validOpsAlertMetricTypes = []string{
+	"request_count_absolute",
 	"success_rate",
 	"error_rate",
 	"upstream_error_rate",

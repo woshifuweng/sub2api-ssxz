@@ -288,6 +288,33 @@ func TestComputeRuleMetricLatencyPercentiles(t *testing.T) {
 	require.False(t, ok)
 }
 
+func TestComputeRuleMetricRequestCountAbsoluteIncludesZeroTraffic(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns total requests even when SLA count is zero", func(t *testing.T) {
+		svc := &OpsAlertEvaluatorService{
+			opsRepo: &stubOpsRepo{overview: &OpsDashboardOverview{
+				RequestCountTotal: 17,
+				RequestCountSLA:   0,
+			}},
+		}
+
+		value, ok := svc.computeRuleMetric(context.Background(), &OpsAlertRule{MetricType: "request_count_absolute"}, nil, time.Time{}, time.Time{}, "", nil)
+		require.True(t, ok)
+		require.Equal(t, 17.0, value)
+	})
+
+	t.Run("returns zero as a valid metric for zero traffic", func(t *testing.T) {
+		svc := &OpsAlertEvaluatorService{
+			opsRepo: &stubOpsRepo{overview: &OpsDashboardOverview{}},
+		}
+
+		value, ok := svc.computeRuleMetric(context.Background(), &OpsAlertRule{MetricType: "request_count_absolute"}, nil, time.Time{}, time.Time{}, "", nil)
+		require.True(t, ok)
+		require.Equal(t, 0.0, value)
+	})
+}
+
 func TestShouldSendOpsAlertEmailByMinSeverityPreservesNamedSeverities(t *testing.T) {
 	t.Parallel()
 
