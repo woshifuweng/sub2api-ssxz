@@ -4,7 +4,7 @@
       <BalanceWarningBanner />
       <a
         class="keys-purchase-link"
-        href="https://shop.placeholder.com"
+        href="https://pay.ldxp.cn/shop/VT7XKDFI"
         target="_blank"
         rel="noopener noreferrer"
       >
