@@ -20,6 +20,10 @@ func TestProvideServiceBuildInfo(t *testing.T) {
 	require.Equal(t, in.BuildType, out.BuildType)
 }
 
+func TestReleaseRepoUsesWeiShawUpstream(t *testing.T) {
+	require.Equal(t, "Wei-Shaw/sub2api", ReleaseRepo)
+}
+
 func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 	cfg := &config.Config{}
 
