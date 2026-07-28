@@ -210,6 +210,13 @@ func (s *APIKeyService) getAuthCacheEntry(ctx context.Context, cacheKey string) 
 			}
 		}
 	}
+	if s.authNegativeCacheL1 != nil {
+		if val, ok := s.authNegativeCacheL1.Get(cacheKey); ok {
+			if entry, ok := val.(*APIKeyAuthCacheEntry); ok && entry.NotFound {
+				return entry, true
+			}
+		}
+	}
 	if s.cache == nil || !s.authCfg.l2Enabled() {
 		return nil, false
 	}
@@ -222,13 +229,19 @@ func (s *APIKeyService) getAuthCacheEntry(ctx context.Context, cacheKey string) 
 }
 
 func (s *APIKeyService) setAuthCacheL1(cacheKey string, entry *APIKeyAuthCacheEntry) {
-	if s.authCacheL1 == nil || entry == nil {
+	if entry == nil {
+		return
+	}
+	if entry.NotFound {
+		if s.authNegativeCacheL1 != nil && s.authCfg.negativeTTL > 0 {
+			_ = s.authNegativeCacheL1.SetWithTTL(cacheKey, entry, 1, s.authCfg.jitterTTL(s.authCfg.negativeTTL))
+		}
+		return
+	}
+	if s.authCacheL1 == nil {
 		return
 	}
 	ttl := s.authCfg.l1TTL
-	if entry.NotFound && s.authCfg.negativeTTL > 0 && s.authCfg.negativeTTL < ttl {
-		ttl = s.authCfg.negativeTTL
-	}
 	ttl = s.authCfg.jitterTTL(ttl)
 	_ = s.authCacheL1.SetWithTTL(cacheKey, entry, 1, ttl)
 }
@@ -238,7 +251,7 @@ func (s *APIKeyService) setAuthCacheEntry(ctx context.Context, cacheKey string, 
 		return
 	}
 	s.setAuthCacheL1(cacheKey, entry)
-	if s.cache == nil || !s.authCfg.l2Enabled() {
+	if entry.NotFound || s.cache == nil || !s.authCfg.l2Enabled() {
 		return
 	}
 	_ = s.cache.SetAuthCache(ctx, cacheKey, entry, s.authCfg.jitterTTL(ttl))
@@ -247,6 +260,9 @@ func (s *APIKeyService) setAuthCacheEntry(ctx context.Context, cacheKey string, 
 func (s *APIKeyService) deleteAuthCache(ctx context.Context, cacheKey string) {
 	if s.authCacheL1 != nil {
 		s.authCacheL1.Del(cacheKey)
+	}
+	if s.authNegativeCacheL1 != nil {
+		s.authNegativeCacheL1.Del(cacheKey)
 	}
 	if s.cache == nil {
 		return
@@ -257,12 +273,15 @@ func (s *APIKeyService) deleteAuthCache(ctx context.Context, cacheKey string) {
 }
 
 func (s *APIKeyService) loadAuthCacheEntry(ctx context.Context, key, cacheKey string) (*APIKeyAuthCacheEntry, error) {
-	apiKey, err := s.apiKeyRepo.GetByKeyForAuth(ctx, key)
+	apiKey, err := s.lookupAPIKeyForAuth(ctx, key)
 	if err != nil {
 		if errors.Is(err, ErrAPIKeyNotFound) {
 			entry := &APIKeyAuthCacheEntry{NotFound: true}
 			if s.authCfg.negativeEnabled() {
-				s.setAuthCacheEntry(ctx, cacheKey, entry, s.authCfg.negativeTTL)
+				// Invalid keys are attacker-controlled and high-cardinality. Keep their
+				// negative entries in the bounded process-local cache; do not amplify
+				// random-key scans into Redis writes on every instance.
+				s.setAuthCacheL1(cacheKey, entry)
 			}
 			return entry, nil
 		}
@@ -276,6 +295,30 @@ func (s *APIKeyService) loadAuthCacheEntry(ctx context.Context, key, cacheKey st
 	entry := &APIKeyAuthCacheEntry{Snapshot: snapshot}
 	s.setAuthCacheEntry(ctx, cacheKey, entry, s.authCfg.l2TTL)
 	return entry, nil
+}
+
+func (s *APIKeyService) lookupAPIKeyForAuth(ctx context.Context, key string) (*APIKey, error) {
+	if s == nil || s.apiKeyRepo == nil {
+		return nil, ErrAPIKeyNotFound
+	}
+	if s.authLookupSlots == nil {
+		return s.apiKeyRepo.GetByKeyForAuth(ctx, key)
+	}
+	s.authLookupTotal.Add(1)
+	select {
+	case s.authLookupSlots <- struct{}{}:
+		s.authLookupInFlight.Add(1)
+		defer func() {
+			s.authLookupInFlight.Add(-1)
+			<-s.authLookupSlots
+		}()
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+		s.authLookupRejected.Add(1)
+		return nil, ErrAPIKeyAuthOverloaded
+	}
+	return s.apiKeyRepo.GetByKeyForAuth(ctx, key)
 }
 
 func (s *APIKeyService) applyAuthCacheEntry(key string, entry *APIKeyAuthCacheEntry) (*APIKey, bool, error) {

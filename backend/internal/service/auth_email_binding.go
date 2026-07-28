@@ -34,6 +34,9 @@ func (s *AuthService) BindEmailIdentity(
 	if isReservedEmail(normalizedEmail) {
 		return nil, ErrEmailReserved
 	}
+	if err := s.validateRegistrationEmailPolicy(ctx, normalizedEmail); err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(password) == "" {
 		return nil, ErrPasswordRequired
 	}
@@ -139,7 +142,8 @@ func normalizeEmailForIdentityBinding(email string) (string, error) {
 	if normalized == "" || len(normalized) > 255 {
 		return "", infraerrors.BadRequest("INVALID_EMAIL", "invalid email")
 	}
-	if _, err := mail.ParseAddress(normalized); err != nil {
+	parsed, err := mail.ParseAddress(normalized)
+	if err != nil || parsed.Address != normalized {
 		return "", infraerrors.BadRequest("INVALID_EMAIL", "invalid email")
 	}
 	return normalized, nil
