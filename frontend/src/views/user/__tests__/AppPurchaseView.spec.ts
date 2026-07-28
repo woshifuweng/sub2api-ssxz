@@ -107,10 +107,18 @@ describe('AppPurchaseView', () => {
     expect(text).toContain('到账 $110 额度')
     expect(text).toContain('常见问题')
     expect(text).toContain('已有兑换码？')
+    expect(text).toContain('¥5')
+    expect(text).toContain('¥10')
+    expect(text).toContain('¥20')
+    expect(text).toContain('¥30')
+    expect(text).toContain('¥50')
+    expect(text).toContain('¥100')
+    expect(text).toContain('赠$5')
+    expect(text).toContain('到账 $55 额度')
     const hrefs = wrapper.findAll('a').map((link) => link.attributes('href'))
     expect(hrefs).toContain('/app/redeem')
-    expect(hrefs.filter((href) => href === 'https://pay.ldxp.cn/shop/VT7XKDFI')).toHaveLength(3)
-    expect(wrapper.findAll('a[target="_blank"]').length).toBe(3)
+    expect(hrefs.filter((href) => href === 'https://pay.ldxp.cn/shop/VT7XKDFI')).toHaveLength(6)
+    expect(wrapper.findAll('a[target="_blank"]').length).toBe(6)
     expect(wrapper.find('[data-testid="payment-checkout-content"]').exists()).toBe(false)
   })
 
@@ -142,6 +150,9 @@ describe('AppPurchaseView', () => {
     const hrefs = wrapper.findAll('a[target="_blank"]').map((link) => link.attributes('href'))
 
     expect(hrefs).toEqual([
+      'https://pay.ldxp.cn/shop/VT7XKDFI',
+      'https://pay.ldxp.cn/shop/VT7XKDFI',
+      'https://pay.ldxp.cn/shop/VT7XKDFI',
       'https://pay.ldxp.cn/shop/VT7XKDFI',
       'https://pay.ldxp.cn/shop/VT7XKDFI',
       'https://pay.ldxp.cn/shop/VT7XKDFI'

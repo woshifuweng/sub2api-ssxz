@@ -114,9 +114,23 @@ const purchaseShopUrl = 'https://pay.ldxp.cn/shop/VT7XKDFI'
 
 const rechargePlans = computed(() => [
   {
+    amount: 5,
+    title: '轻量尝试',
+    description: '适合首次体验',
+    href: purchaseShopUrl,
+    featured: false,
+  },
+  {
     amount: 10,
     title: '入门体验',
     description: '适合轻度尝鲜',
+    href: purchaseShopUrl,
+    featured: false,
+  },
+  {
+    amount: 20,
+    title: '灵活使用',
+    description: '满足日常调用',
     href: purchaseShopUrl,
     featured: false,
   },
@@ -126,6 +140,15 @@ const rechargePlans = computed(() => [
     description: '最受欢迎',
     href: purchaseShopUrl,
     featured: true,
+  },
+  {
+    amount: 50,
+    title: '进阶使用',
+    description: '适合持续调用',
+    promotion: '赠$5',
+    promotionDetail: '到账 $55 额度',
+    href: purchaseShopUrl,
+    featured: false,
   },
   {
     amount: 100,

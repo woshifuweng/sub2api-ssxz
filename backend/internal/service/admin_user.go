@@ -1241,6 +1241,10 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 	}
 
 	codes := make([]RedeemCode, 0, input.Count)
+	value := input.Value
+	if input.Type == RedeemTypeBalance {
+		value = BalanceCreditAmount(value)
+	}
 	for i := 0; i < input.Count; i++ {
 		codeValue, err := GenerateRedeemCode()
 		if err != nil {
@@ -1249,7 +1253,7 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 		code := RedeemCode{
 			Code:      codeValue,
 			Type:      input.Type,
-			Value:     input.Value,
+			Value:     value,
 			Status:    StatusUnused,
 			ExpiresAt: input.ExpiresAt,
 		}

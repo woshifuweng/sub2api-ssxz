@@ -67,6 +67,9 @@ func GenerateRedeemCode() (string, error) {
 
 // BalanceCreditAmount applies the fixed promotional rule for balance codes.
 func BalanceCreditAmount(amount float64) float64 {
+	if math.Abs(amount-50) < 1e-9 {
+		return 55
+	}
 	if math.Abs(amount-100) < 1e-9 {
 		return 110
 	}

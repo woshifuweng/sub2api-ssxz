@@ -9,7 +9,9 @@ import (
 )
 
 func TestBalanceCreditAmount(t *testing.T) {
+	require.Equal(t, 55.0, BalanceCreditAmount(50))
 	require.Equal(t, 110.0, BalanceCreditAmount(100))
+	require.Equal(t, 5.0, BalanceCreditAmount(5))
 	require.Equal(t, 99.99, BalanceCreditAmount(99.99))
 	require.Equal(t, 100.01, BalanceCreditAmount(100.01))
 }
