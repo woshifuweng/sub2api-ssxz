@@ -9,6 +9,16 @@
     <FoundationProvider :theme="theme" class="dashboard-foundation">
       <div class="dashboard-workspace">
         <BalanceWarningBanner />
+        <a
+          class="dashboard-purchase-link"
+          href="https://shop.placeholder.com"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Icon name="creditCard" size="sm" aria-hidden="true" />
+          <span>购买余额</span>
+          <Icon name="externalLink" size="xs" aria-hidden="true" />
+        </a>
 
         <div v-if="loading" class="dashboard-loading">
           <LoadingSpinner />
@@ -146,6 +156,7 @@ import UserDashboardStats from '@/components/user/dashboard/UserDashboardStats.v
 import UserDashboardCharts from '@/components/user/dashboard/UserDashboardCharts.vue'
 import UserDashboardRecentUsage from '@/components/user/dashboard/UserDashboardRecentUsage.vue'
 import UserDashboardQuickActions from '@/components/user/dashboard/UserDashboardQuickActions.vue'
+import Icon from '@/components/icons/Icon.vue'
 import type { ModelStat, TrendDataPoint, UsageLog } from '@/types'
 
 function getInitialTheme(): 'light' | 'dark' {
@@ -356,6 +367,28 @@ onBeforeUnmount(() => {
 .dashboard-workspace {
   display: grid;
   gap: 1.25rem;
+}
+
+.dashboard-purchase-link {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--card));
+  padding: 0.45rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+
+.dashboard-purchase-link:hover {
+  border-color: hsl(var(--foreground) / 0.35);
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted));
 }
 
 .dashboard-loading {

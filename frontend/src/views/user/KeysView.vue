@@ -2,6 +2,16 @@
   <component :is="pageShell" v-bind="pageShellProps">
     <div :class="['keys-page-surface', { 'keys-page-surface--workbench': useWorkbenchShell }]">
       <BalanceWarningBanner />
+      <a
+        class="keys-purchase-link"
+        href="https://shop.placeholder.com"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <Icon name="creditCard" size="sm" aria-hidden="true" />
+        <span>购买余额</span>
+        <Icon name="externalLink" size="xs" aria-hidden="true" />
+      </a>
 
       <TablePageLayout
         :class="[
@@ -2556,6 +2566,29 @@ onUnmounted(() => {
 <style scoped>
 .keys-page-surface {
   width: 100%;
+}
+
+.keys-purchase-link {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.75rem 0 1rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  color: var(--ssxz-text-secondary);
+  background: var(--ssxz-surface-raised);
+  padding: 0.45rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+
+.keys-purchase-link:hover {
+  border-color: var(--ssxz-border-strong);
+  color: var(--ssxz-text-primary);
+  background: var(--ssxz-surface-muted);
 }
 
 .keys-page-surface--workbench {

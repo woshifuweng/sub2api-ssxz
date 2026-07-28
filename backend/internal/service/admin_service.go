@@ -2273,6 +2273,10 @@ func (s *adminServiceImpl) GenerateRedeemCodesLegacy(ctx context.Context, input 
 	}
 
 	codes := make([]RedeemCode, 0, input.Count)
+	value := input.Value
+	if input.Type == RedeemTypeBalance {
+		value = BalanceCreditAmount(value)
+	}
 	for i := 0; i < input.Count; i++ {
 		codeValue, err := GenerateRedeemCode()
 		if err != nil {
@@ -2281,7 +2285,7 @@ func (s *adminServiceImpl) GenerateRedeemCodesLegacy(ctx context.Context, input 
 		code := RedeemCode{
 			Code:   codeValue,
 			Type:   input.Type,
-			Value:  input.Value,
+			Value:  value,
 			Status: StatusUnused,
 		}
 		// 订阅类型专用字段

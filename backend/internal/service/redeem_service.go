@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -66,6 +67,17 @@ type RedeemCodeRepository interface {
 	ListByUserPaginated(ctx context.Context, userID int64, params pagination.PaginationParams, codeType string) ([]RedeemCode, *pagination.PaginationResult, error)
 	// SumPositiveBalanceByUser returns the total recharged amount (sum of positive balance values) for a user.
 	SumPositiveBalanceByUser(ctx context.Context, userID int64) (float64, error)
+}
+
+var redeemCodeFormatPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{3,128}$`)
+
+// RedeemCodeNotesUpdater is optional so lightweight service fakes remain compatible.
+type RedeemCodeNotesUpdater interface {
+	UpdateNotes(ctx context.Context, id int64, notes string) error
+}
+
+func IsValidRedeemCodeFormat(code string) bool {
+	return code == strings.TrimSpace(code) && redeemCodeFormatPattern.MatchString(code)
 }
 
 // GenerateCodesRequest 生成兑换码请求
@@ -451,6 +463,13 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 			return nil, ErrRedeemCodeUsed
 		}
 		return nil, fmt.Errorf("mark code as used: %w", err)
+	}
+	if redeemCode.Type == RedeemTypeBalance {
+		if updater, ok := s.redeemRepo.(RedeemCodeNotesUpdater); ok {
+			if err := updater.UpdateNotes(txCtx, redeemCode.ID, "兑换码充值"); err != nil {
+				return nil, fmt.Errorf("record redeem ledger note: %w", err)
+			}
+		}
 	}
 
 	// 执行兑换逻辑（兑换码已被锁定，此时可安全操作）
