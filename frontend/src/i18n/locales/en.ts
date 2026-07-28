@@ -419,6 +419,11 @@ export default {
     loggedOut: 'Signed out'
   },
 
+  balanceWarning: {
+    message: 'Your balance is insufficient. Redeem balance before calling the API.',
+    action: 'Redeem balance'
+  },
+
   affiliate: {
     title: 'Referral Rewards',
     subtitle: 'Copy your referral link and track invitees, rewards, and transferable balance.',
