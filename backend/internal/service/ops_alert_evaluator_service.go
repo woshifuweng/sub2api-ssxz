@@ -228,6 +228,7 @@ func (s *OpsAlertEvaluatorService) evaluateOnce(interval time.Duration) {
 	eventsCreated := 0
 	eventsResolved := 0
 	emailsSent := 0
+	emailsFailed := 0
 
 	now := time.Now().UTC()
 	safeEnd := now.Truncate(time.Minute)
@@ -321,9 +322,11 @@ func (s *OpsAlertEvaluatorService) evaluateOnce(interval time.Duration) {
 
 			eventsCreated++
 			if created != nil && created.ID > 0 {
-				if s.maybeSendAlertEmail(ctx, runtimeCfg, rule, created) {
+				delivery := s.maybeSendAlertEmailWithStats(ctx, runtimeCfg, rule, created)
+				if delivery.sent {
 					emailsSent++
 				}
+				emailsFailed += delivery.failed
 			}
 			continue
 		}
@@ -339,7 +342,7 @@ func (s *OpsAlertEvaluatorService) evaluateOnce(interval time.Duration) {
 		}
 	}
 
-	result := truncateString(fmt.Sprintf("rules=%d enabled=%d evaluated=%d created=%d resolved=%d emails_sent=%d", rulesTotal, rulesEnabled, rulesEvaluated, eventsCreated, eventsResolved, emailsSent), 2048)
+	result := truncateString(fmt.Sprintf("rules=%d enabled=%d evaluated=%d created=%d resolved=%d emails_sent=%d emails_failed=%d", rulesTotal, rulesEnabled, rulesEvaluated, eventsCreated, eventsResolved, emailsSent, emailsFailed), 2048)
 	s.recordHeartbeatSuccess(runAt, time.Since(startedAt), result)
 }
 
@@ -627,6 +630,8 @@ func (s *OpsAlertEvaluatorService) computeRuleMetric(
 	}
 
 	switch strings.TrimSpace(rule.MetricType) {
+	case "request_count_absolute":
+		return float64(overview.RequestCountTotal), true
 	case "success_rate":
 		if overview.RequestCountSLA <= 0 {
 			return 0, false
@@ -714,32 +719,41 @@ func buildOpsAlertDescription(rule *OpsAlertRule, value float64, windowMinutes i
 	)
 }
 
+type opsAlertEmailDeliveryResult struct {
+	sent   bool
+	failed int
+}
+
 func (s *OpsAlertEvaluatorService) maybeSendAlertEmail(ctx context.Context, runtimeCfg *OpsAlertRuntimeSettings, rule *OpsAlertRule, event *OpsAlertEvent) bool {
+	return s.maybeSendAlertEmailWithStats(ctx, runtimeCfg, rule, event).sent
+}
+
+func (s *OpsAlertEvaluatorService) maybeSendAlertEmailWithStats(ctx context.Context, runtimeCfg *OpsAlertRuntimeSettings, rule *OpsAlertRule, event *OpsAlertEvent) opsAlertEmailDeliveryResult {
 	if s == nil || s.emailService == nil || s.opsService == nil || event == nil || rule == nil {
-		return false
+		return opsAlertEmailDeliveryResult{}
 	}
 	if event.EmailSent {
-		return false
+		return opsAlertEmailDeliveryResult{}
 	}
 	if !rule.NotifyEmail {
-		return false
+		return opsAlertEmailDeliveryResult{}
 	}
 
 	emailCfg, err := s.opsService.GetEmailNotificationConfig(ctx)
 	if err != nil || emailCfg == nil || !emailCfg.Alert.Enabled {
-		return false
+		return opsAlertEmailDeliveryResult{}
 	}
 
 	if len(emailCfg.Alert.Recipients) == 0 {
-		return false
+		return opsAlertEmailDeliveryResult{}
 	}
 	if !shouldSendOpsAlertEmailByMinSeverity(strings.TrimSpace(emailCfg.Alert.MinSeverity), strings.TrimSpace(rule.Severity)) {
-		return false
+		return opsAlertEmailDeliveryResult{}
 	}
 
 	if runtimeCfg != nil && runtimeCfg.Silencing.Enabled {
 		if isOpsAlertSilenced(time.Now().UTC(), rule, event, runtimeCfg.Silencing) {
-			return false
+			return opsAlertEmailDeliveryResult{}
 		}
 	}
 
@@ -749,7 +763,7 @@ func (s *OpsAlertEvaluatorService) maybeSendAlertEmail(ctx context.Context, runt
 	subject := fmt.Sprintf("[Ops Alert][%s] %s", strings.TrimSpace(rule.Severity), strings.TrimSpace(rule.Name))
 	body := buildOpsAlertEmailBody(rule, event)
 
-	anySent := false
+	result := opsAlertEmailDeliveryResult{}
 	for _, to := range emailCfg.Alert.Recipients {
 		addr := strings.TrimSpace(to)
 		if addr == "" {
@@ -767,12 +781,13 @@ func (s *OpsAlertEvaluatorService) maybeSendAlertEmail(ctx context.Context, runt
 				SourceID:       fmt.Sprintf("%d", event.ID),
 				Variables:      opsAlertEmailVariables(rule, event),
 			}); err == nil {
-				anySent = true
+				result.sent = true
 				continue
 			} else if !shouldFallbackNotificationEmail(err) {
 				logger.LegacyPrintf("service.ops_alert_evaluator",
 					"[OpsAlertEvaluator] notification email send failed, fallback disabled (event=%d rule=%d recipient=%s): %v",
 					event.ID, rule.ID, addr, err)
+				result.failed++
 				continue
 			}
 		}
@@ -781,15 +796,16 @@ func (s *OpsAlertEvaluatorService) maybeSendAlertEmail(ctx context.Context, runt
 			logger.LegacyPrintf("service.ops_alert_evaluator",
 				"[OpsAlertEvaluator] send alert email failed (event=%d rule=%d recipient=%s): %v",
 				event.ID, rule.ID, addr, err)
+			result.failed++
 			continue
 		}
-		anySent = true
+		result.sent = true
 	}
 
-	if anySent {
+	if result.sent {
 		_ = s.opsRepo.UpdateAlertEventEmailSent(context.Background(), event.ID, true)
 	}
-	return anySent
+	return result
 }
 
 func opsAlertEmailVariables(rule *OpsAlertRule, event *OpsAlertEvent) map[string]string {
