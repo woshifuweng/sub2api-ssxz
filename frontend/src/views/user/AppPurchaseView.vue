@@ -48,7 +48,12 @@
             rel="noopener noreferrer"
           >
             <span v-if="plan.featured" class="recharge-plan__bar" aria-hidden="true" />
-            <span v-if="plan.featured" class="recharge-plan__badge">推荐</span>
+            <span
+              v-if="plan.featured"
+              class="recharge-plan__badge recharge-plan__badge--featured"
+            >
+              推荐
+            </span>
             <span v-else-if="plan.promotion" class="recharge-plan__badge recharge-plan__badge--promotion">
               {{ plan.promotion }}
             </span>
@@ -319,6 +324,7 @@ const rechargePlans = computed(() => [
 
 .recharge-plan--featured {
   border-color: var(--ssxz-border-strong);
+  background: color-mix(in srgb, var(--ssxz-text) 3%, transparent);
 }
 
 .recharge-plan__bar {
@@ -335,6 +341,14 @@ const rechargePlans = computed(() => [
   color: var(--ssxz-text-secondary);
   font-size: 12px;
   font-weight: 650;
+}
+
+.recharge-plan__badge--featured {
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, var(--ssxz-text) 18%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ssxz-text) 7%, transparent);
+  color: var(--ssxz-text-secondary);
 }
 
 .recharge-plan__badge--promotion {
