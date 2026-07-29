@@ -1,5 +1,5 @@
 <template>
-  <div class="workbench-shell">
+  <div class="workbench-shell" data-layout-revision="20260730">
     <iframe
       v-if="iframeSrc"
       :src="iframeSrc"
