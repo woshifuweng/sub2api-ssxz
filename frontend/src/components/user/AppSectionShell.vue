@@ -212,6 +212,7 @@ const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName 
   ...(appStore.cachedPublicSettings?.affiliate_enabled
     ? [{ label: t('nav.affiliate'), to: '/app/affiliate', icon: 'users' as IconName }]
     : []),
+  { label: '图片工作台', to: '/app/image', icon: 'photo' as IconName },
   { label: t('nav.account'), to: '/app/profile', icon: 'userCircle' }
 ])
 
