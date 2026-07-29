@@ -64,7 +64,10 @@
           </FoundationInput>
         </div>
 
-        <div class="auth-code-slot auth-code-field">
+        <div
+          class="auth-code-slot auth-code-field"
+          data-testid="affiliate-invitation-field"
+        >
           <FoundationInput
             id="affiliate_code"
             v-model="formData.affiliate_code"
@@ -77,9 +80,10 @@
           >
             <template #leading><KeyRound aria-hidden="true" /></template>
           </FoundationInput>
+          <span class="auth-field-help">{{ t('common.optional') }}</span>
         </div>
 
-        <div class="auth-turnstile-slot">
+        <div class="auth-turnstile-slot" data-testid="registration-turnstile">
           <div v-if="turnstileEnabled && turnstileSiteKey" class="auth-turnstile">
             <TurnstileWidget
               ref="turnstileRef"
@@ -99,24 +103,24 @@
           </div>
         </Transition>
 
-        <FoundationButton
+        <LiquidButton
           type="submit"
-          size="lg"
-          class="auth-submit"
+          class="w-full"
+          size="default"
           :disabled="isLoading || (turnstileEnabled && !turnstileToken)"
         >
-          <template #leading>
+          <span class="flex items-center gap-2">
             <LoaderCircle v-if="isLoading" class="auth-spinner" aria-hidden="true" />
             <UserPlus v-else aria-hidden="true" />
-          </template>
-          {{
-            isLoading
-              ? t('auth.processing')
-              : emailVerifyEnabled
-                ? t('auth.continue')
-                : t('auth.createAccount')
-          }}
-        </FoundationButton>
+            {{
+              isLoading
+                ? t('auth.processing')
+                : emailVerifyEnabled
+                  ? t('auth.continue')
+                  : t('auth.createAccount')
+            }}
+          </span>
+        </LiquidButton>
       </form>
   </div>
 </template>
@@ -137,6 +141,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import LinuxDoOAuthSection from '@/components/auth/LinuxDoOAuthSection.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
+import LiquidButton from '@/components/common/LiquidButton.vue'
 import { FoundationButton, FoundationInput } from '@/components/foundation'
 import { useAuthStore, useAppStore } from '@/stores'
 import { clearAuthPortalDraft, useAuthPortalDraft } from '@/composables/useAuthPortalDraft'
@@ -467,16 +472,6 @@ async function handleRegister(): Promise<void> {
   border-color: hsl(var(--warning) / 0.3);
   color: hsl(var(--warning));
   background: hsl(var(--warning) / 0.1);
-}
-
-.auth-submit {
-  width: 100%;
-  transform: none !important;
-}
-
-.auth-submit:hover,
-.auth-submit:active {
-  transform: none !important;
 }
 
 .auth-spinner {

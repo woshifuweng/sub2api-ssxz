@@ -1,5 +1,6 @@
 import { defineComponent } from 'vue'
 import { shallowMount } from '@vue/test-utils'
+import { createPinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { authState, appState, routeState } = vi.hoisted(() => ({
@@ -61,6 +62,7 @@ const VersionBadgeStub = defineComponent({
 function mountHeader() {
   return shallowMount(AppHeader, {
     global: {
+      plugins: [createPinia()],
       stubs: {
         VersionBadge: VersionBadgeStub,
         RouterLink: {

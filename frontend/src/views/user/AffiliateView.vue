@@ -2,125 +2,252 @@
   <component :is="pageShell" v-bind="pageShellProps">
     <div class="affiliate-workbench">
       <div v-if="loading" class="card affiliate-loading-state">
-        <div class="h-8 w-8 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></div>
+        <div
+          class="h-8 w-8 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"
+        ></div>
       </div>
 
-      <div v-else-if="errorMessage" class="card affiliate-feedback-card p-6 text-center">
+      <div
+        v-else-if="errorMessage"
+        class="card affiliate-feedback-card p-6 text-center"
+      >
         <div class="affiliate-feedback-card__icon" aria-hidden="true">
           <Icon name="exclamationCircle" size="md" />
         </div>
-        <h2 class="mt-3 text-base font-semibold text-[var(--ssxz-text)]">{{ t('affiliate.loadFailedTitle') }}</h2>
-        <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--ssxz-text-muted)]">
-          {{ t('affiliate.loadFailedBody') }}
+        <h2 class="mt-3 text-base font-semibold text-[var(--ssxz-text)]">
+          {{ t("affiliate.loadFailedTitle") }}
+        </h2>
+        <p
+          class="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--ssxz-text-muted)]"
+        >
+          {{ t("affiliate.loadFailedBody") }}
         </p>
-        <button
+        <LiquidButton
           type="button"
-          class="btn btn-primary mt-5"
+          class="mt-5"
           data-testid="affiliate-retry"
           @click="loadAffiliateDetail()"
+          size="sm"
         >
-          {{ t('affiliate.reload') }}
-        </button>
+          {{ t("affiliate.reload") }}
+        </LiquidButton>
       </div>
 
       <template v-else-if="detail">
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div class="card affiliate-stat-card">
-            <p class="affiliate-stat-card__label">{{ t('affiliate.currentRate') }}</p>
-            <p class="affiliate-stat-card__value">{{ rateActive ? `${formattedRate}%` : t('affiliate.rateClosedValue') }}</p>
-            <p class="affiliate-stat-card__hint">{{ rateActive ? t('affiliate.rateHint') : t('affiliate.notOpenTitle') }}</p>
+            <p class="affiliate-stat-card__label">
+              {{ t("affiliate.currentRate") }}
+            </p>
+            <p class="affiliate-stat-card__value">
+              {{
+                rateActive
+                  ? `${formattedRate}%`
+                  : t("affiliate.rateClosedValue")
+              }}
+            </p>
+            <p class="affiliate-stat-card__hint">
+              {{
+                rateActive
+                  ? t("affiliate.rateHint")
+                  : t("affiliate.notOpenTitle")
+              }}
+            </p>
           </div>
           <div class="card affiliate-stat-card">
-            <p class="affiliate-stat-card__label">{{ t('affiliate.inviteCount') }}</p>
+            <p class="affiliate-stat-card__label">
+              {{ t("affiliate.inviteCount") }}
+            </p>
             <p class="affiliate-stat-card__value">{{ detail.aff_count }}</p>
-            <p class="affiliate-stat-card__hint">{{ t('affiliate.inviteCountHint') }}</p>
+            <p class="affiliate-stat-card__hint">
+              {{ t("affiliate.inviteCountHint") }}
+            </p>
           </div>
           <div class="card affiliate-stat-card">
-            <p class="affiliate-stat-card__label">{{ t('affiliate.availableQuota') }}</p>
-            <p class="affiliate-stat-card__value">{{ formatCurrency(detail.aff_quota) }}</p>
-            <p class="affiliate-stat-card__hint">{{ t('affiliate.availableQuotaHint') }}</p>
+            <p class="affiliate-stat-card__label">
+              {{ t("affiliate.availableQuota") }}
+            </p>
+            <p class="affiliate-stat-card__value">
+              {{ formatCurrency(detail.aff_quota) }}
+            </p>
+            <p class="affiliate-stat-card__hint">
+              {{ t("affiliate.availableQuotaHint") }}
+            </p>
           </div>
           <div class="card affiliate-stat-card">
-            <p class="affiliate-stat-card__label">{{ t('affiliate.totalRewards') }}</p>
-            <p class="affiliate-stat-card__value">{{ formatCurrency(detail.aff_history_quota) }}</p>
-            <p v-if="detail.aff_frozen_quota > 0" class="affiliate-stat-card__pending">
-              {{ t('affiliate.pending', { amount: formatCurrency(detail.aff_frozen_quota) }) }}
+            <p class="affiliate-stat-card__label">
+              {{ t("affiliate.totalRewards") }}
+            </p>
+            <p class="affiliate-stat-card__value">
+              {{ formatCurrency(detail.aff_history_quota) }}
+            </p>
+            <p
+              v-if="detail.aff_frozen_quota > 0"
+              class="affiliate-stat-card__pending"
+            >
+              {{
+                t("affiliate.pending", {
+                  amount: formatCurrency(detail.aff_frozen_quota),
+                })
+              }}
             </p>
           </div>
         </div>
 
-        <div v-if="!rateActive" class="card affiliate-panel p-6" data-testid="affiliate-not-open">
-          <h2 class="text-base font-semibold text-[var(--ssxz-text)]">{{ t('affiliate.notOpenTitle') }}</h2>
-          <p class="mt-1 text-sm text-[var(--ssxz-text-muted)]">{{ t('affiliate.notOpenBody') }}</p>
+        <div
+          v-if="!rateActive"
+          class="card affiliate-panel p-6"
+          data-testid="affiliate-not-open"
+        >
+          <h2 class="text-base font-semibold text-[var(--ssxz-text)]">
+            {{ t("affiliate.notOpenTitle") }}
+          </h2>
+          <p class="mt-1 text-sm text-[var(--ssxz-text-muted)]">
+            {{ t("affiliate.notOpenBody") }}
+          </p>
         </div>
 
         <div v-else class="card affiliate-panel p-6">
-          <h2 class="text-base font-semibold text-[var(--ssxz-text)]">{{ t('affiliate.exclusiveInvite') }}</h2>
-          <p class="mt-1 text-sm text-[var(--ssxz-text-muted)]">{{ t('affiliate.inviteDescription') }}</p>
+          <h2 class="text-base font-semibold text-[var(--ssxz-text)]">
+            {{ t("affiliate.exclusiveInvite") }}
+          </h2>
+          <p class="mt-1 text-sm text-[var(--ssxz-text-muted)]">
+            {{ t("affiliate.inviteDescription") }}
+          </p>
 
           <div class="mt-5 grid gap-4 md:grid-cols-2">
             <div class="space-y-2">
-              <p class="text-sm font-medium text-[var(--ssxz-text-secondary)]">{{ t('affiliate.code') }}</p>
+              <p class="text-sm font-medium text-[var(--ssxz-text-secondary)]">
+                {{ t("affiliate.code") }}
+              </p>
               <div class="affiliate-copy-row">
-                <code class="min-w-0 flex-1 break-all text-sm font-semibold text-[var(--ssxz-text)] sm:truncate">{{ detail.aff_code }}</code>
-                <button class="btn btn-secondary btn-sm" data-testid="copy-affiliate-code" @click="copyValue(detail.aff_code, t('affiliate.codeCopied'))">
+                <code
+                  class="min-w-0 flex-1 break-all text-sm font-semibold text-[var(--ssxz-text)] sm:truncate"
+                  >{{ detail.aff_code }}</code
+                >
+                <LiquidButton
+                  data-testid="copy-affiliate-code"
+                  @click="copyValue(detail.aff_code, t('affiliate.codeCopied'))"
+                  variant="outline"
+                  size="sm"
+                >
                   <Icon name="copy" size="sm" />
-                  <span>{{ t('affiliate.copy') }}</span>
-                </button>
+                  <span>{{ t("affiliate.copy") }}</span>
+                </LiquidButton>
               </div>
             </div>
 
             <div class="space-y-2">
-              <p class="text-sm font-medium text-[var(--ssxz-text-secondary)]">{{ t('affiliate.link') }}</p>
+              <p class="text-sm font-medium text-[var(--ssxz-text-secondary)]">
+                {{ t("affiliate.link") }}
+              </p>
               <div class="affiliate-copy-row">
-                <code class="min-w-0 flex-1 break-all text-sm text-[var(--ssxz-text-secondary)] sm:truncate">{{ inviteLink }}</code>
-                <button class="btn btn-secondary btn-sm" data-testid="copy-affiliate-link" @click="copyValue(inviteLink, t('affiliate.linkCopied'))">
+                <code
+                  class="min-w-0 flex-1 break-all text-sm text-[var(--ssxz-text-secondary)] sm:truncate"
+                  >{{ inviteLink }}</code
+                >
+                <LiquidButton
+                  data-testid="copy-affiliate-link"
+                  @click="copyValue(inviteLink, t('affiliate.linkCopied'))"
+                  variant="outline"
+                  size="sm"
+                >
                   <Icon name="copy" size="sm" />
-                  <span>{{ t('affiliate.copy') }}</span>
-                </button>
+                  <span>{{ t("affiliate.copy") }}</span>
+                </LiquidButton>
               </div>
             </div>
           </div>
         </div>
 
         <div class="card affiliate-panel p-6">
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div
+            class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+          >
             <div>
-              <h3 class="text-base font-semibold text-[var(--ssxz-text)]">{{ t('affiliate.settleTitle') }}</h3>
-              <p class="mt-1 text-sm text-[var(--ssxz-text-muted)]">{{ t('affiliate.settleDescription') }}</p>
+              <h3 class="text-base font-semibold text-[var(--ssxz-text)]">
+                {{ t("affiliate.settleTitle") }}
+              </h3>
+              <p class="mt-1 text-sm text-[var(--ssxz-text-muted)]">
+                {{ t("affiliate.settleDescription") }}
+              </p>
             </div>
-            <button class="btn btn-primary" :disabled="transferring || detail.aff_quota <= 0" @click="transferQuota">
-              <Icon v-if="transferring" name="refresh" size="sm" class="animate-spin" />
+            <LiquidButton
+              :disabled="transferring || detail.aff_quota <= 0"
+              @click="transferQuota"
+              size="sm"
+            >
+              <Icon
+                v-if="transferring"
+                name="refresh"
+                size="sm"
+                class="animate-spin"
+              />
               <Icon v-else name="dollar" size="sm" />
-              <span>{{ transferring ? t('affiliate.settling') : t('affiliate.transfer') }}</span>
-            </button>
+              <span>{{
+                transferring ? t("affiliate.settling") : t("affiliate.transfer")
+              }}</span>
+            </LiquidButton>
           </div>
         </div>
 
         <div class="card affiliate-panel p-6">
-          <h3 class="text-base font-semibold text-[var(--ssxz-text)]">{{ t('affiliate.recordsTitle') }}</h3>
-          <p class="mt-1 text-sm text-[var(--ssxz-text-muted)]">{{ t('affiliate.recordsDescription') }}</p>
-          <div v-if="detail.invitees.length === 0" class="affiliate-empty-state mt-4">
-            <div class="affiliate-empty-state__icon"><Icon name="users" size="lg" /></div>
-            <strong>{{ t('affiliate.noRecordsTitle', '暂无邀请记录') }}</strong>
-            <span>{{ t('affiliate.noRecords') }}</span>
+          <h3 class="text-base font-semibold text-[var(--ssxz-text)]">
+            {{ t("affiliate.recordsTitle") }}
+          </h3>
+          <p class="mt-1 text-sm text-[var(--ssxz-text-muted)]">
+            {{ t("affiliate.recordsDescription") }}
+          </p>
+          <div
+            v-if="detail.invitees.length === 0"
+            class="affiliate-empty-state mt-4"
+          >
+            <div class="affiliate-empty-state__icon">
+              <Icon name="users" size="lg" />
+            </div>
+            <strong>{{ t("affiliate.noRecordsTitle", "暂无邀请记录") }}</strong>
+            <span>{{ t("affiliate.noRecords") }}</span>
           </div>
           <div v-else class="mt-4 overflow-x-auto">
             <table class="w-full min-w-[560px] text-left text-sm">
               <thead>
-                <tr class="border-b border-[var(--ssxz-border)] text-[var(--ssxz-text-muted)]">
-                  <th class="px-3 py-2 font-medium">{{ t('affiliate.user') }}</th>
-                  <th class="px-3 py-2 font-medium">{{ t('affiliate.name') }}</th>
-                  <th class="px-3 py-2 text-right font-medium">{{ t('affiliate.creditedReward') }}</th>
-                  <th class="px-3 py-2 font-medium">{{ t('affiliate.registeredAt') }}</th>
+                <tr
+                  class="border-b border-[var(--ssxz-border)] text-[var(--ssxz-text-muted)]"
+                >
+                  <th class="px-3 py-2 font-medium">
+                    {{ t("affiliate.user") }}
+                  </th>
+                  <th class="px-3 py-2 font-medium">
+                    {{ t("affiliate.name") }}
+                  </th>
+                  <th class="px-3 py-2 text-right font-medium">
+                    {{ t("affiliate.creditedReward") }}
+                  </th>
+                  <th class="px-3 py-2 font-medium">
+                    {{ t("affiliate.registeredAt") }}
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="item in detail.invitees" :key="item.user_id" class="border-b border-[var(--ssxz-border)] last:border-b-0">
-                  <td class="px-3 py-3 text-[var(--ssxz-text)]">{{ item.email || '-' }}</td>
-                  <td class="px-3 py-3 text-[var(--ssxz-text-secondary)]">{{ item.username || '-' }}</td>
-                  <td class="px-3 py-3 text-right font-medium text-[var(--ssxz-text)]">{{ formatCurrency(item.total_rebate) }}</td>
-                  <td class="px-3 py-3 text-[var(--ssxz-text-secondary)]">{{ formatDateTime(item.created_at) || '-' }}</td>
+                <tr
+                  v-for="item in detail.invitees"
+                  :key="item.user_id"
+                  class="border-b border-[var(--ssxz-border)] last:border-b-0"
+                >
+                  <td class="px-3 py-3 text-[var(--ssxz-text)]">
+                    {{ item.email || "-" }}
+                  </td>
+                  <td class="px-3 py-3 text-[var(--ssxz-text-secondary)]">
+                    {{ item.username || "-" }}
+                  </td>
+                  <td
+                    class="px-3 py-3 text-right font-medium text-[var(--ssxz-text)]"
+                  >
+                    {{ formatCurrency(item.total_rebate) }}
+                  </td>
+                  <td class="px-3 py-3 text-[var(--ssxz-text-secondary)]">
+                    {{ formatDateTime(item.created_at) || "-" }}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -132,96 +259,114 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
-import { useI18n } from 'vue-i18n'
-import AppLayout from '@/components/layout/AppLayout.vue'
-import AppSectionShell from '@/components/user/AppSectionShell.vue'
-import Icon from '@/components/icons/Icon.vue'
-import userAPI from '@/api/user'
-import type { UserAffiliateDetail } from '@/types'
-import { useAppStore } from '@/stores/app'
-import { useAuthStore } from '@/stores/auth'
-import { useClipboard } from '@/composables/useClipboard'
-import { formatCurrency, formatDateTime } from '@/utils/format'
-import { extractApiErrorMessage } from '@/utils/apiError'
+import LiquidButton from "@/components/common/LiquidButton.vue";
+import { computed, onMounted, ref } from "vue";
+import { useRoute } from "vue-router";
+import { useI18n } from "vue-i18n";
+import AppLayout from "@/components/layout/AppLayout.vue";
+import AppSectionShell from "@/components/user/AppSectionShell.vue";
+import Icon from "@/components/icons/Icon.vue";
+import userAPI from "@/api/user";
+import type { UserAffiliateDetail } from "@/types";
+import { useAppStore } from "@/stores/app";
+import { useAuthStore } from "@/stores/auth";
+import { useClipboard } from "@/composables/useClipboard";
+import { formatCurrency, formatDateTime } from "@/utils/format";
+import { extractApiErrorMessage } from "@/utils/apiError";
 
-const appStore = useAppStore()
-const authStore = useAuthStore()
-const route = useRoute()
-const { t } = useI18n()
-const { copyToClipboard } = useClipboard()
+const appStore = useAppStore();
+const authStore = useAuthStore();
+const route = useRoute();
+const { t } = useI18n();
+const { copyToClipboard } = useClipboard();
 
-const useWorkbenchShell = computed(() => route.path === '/app/affiliate')
-const pageShell = computed(() => useWorkbenchShell.value ? AppSectionShell : AppLayout)
-const pageShellProps = computed(() => useWorkbenchShell.value
-  ? {
-      title: t('affiliate.title'),
-      subtitle: t('affiliate.subtitle'),
-      eyebrow: t('affiliate.eyebrow'),
-      icon: 'gift'
-    }
-  : {})
+const useWorkbenchShell = computed(() => route.path === "/app/affiliate");
+const pageShell = computed(() =>
+  useWorkbenchShell.value ? AppSectionShell : AppLayout,
+);
+const pageShellProps = computed(() =>
+  useWorkbenchShell.value
+    ? {
+        title: t("affiliate.title"),
+        subtitle: t("affiliate.subtitle"),
+        eyebrow: t("affiliate.eyebrow"),
+        icon: "gift",
+      }
+    : {},
+);
 
-const loading = ref(true)
-const transferring = ref(false)
-const detail = ref<UserAffiliateDetail | null>(null)
-const errorMessage = ref('')
+const loading = ref(true);
+const transferring = ref(false);
+const detail = ref<UserAffiliateDetail | null>(null);
+const errorMessage = ref("");
 
 const inviteLink = computed(() => {
-  if (!detail.value) return ''
-  if (typeof window === 'undefined') return `/register?aff=${encodeURIComponent(detail.value.aff_code)}`
-  return `${window.location.origin}/register?aff=${encodeURIComponent(detail.value.aff_code)}`
-})
+  if (!detail.value) return "";
+  if (typeof window === "undefined")
+    return `/register?aff=${encodeURIComponent(detail.value.aff_code)}`;
+  return `${window.location.origin}/register?aff=${encodeURIComponent(detail.value.aff_code)}`;
+});
 
 const formattedRate = computed(() => {
-  const rate = detail.value?.effective_rebate_rate_percent ?? 0
-  const rounded = Math.round(rate * 100) / 100
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toString()
-})
+  const rate = detail.value?.effective_rebate_rate_percent ?? 0;
+  const rounded = Math.round(rate * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toString();
+});
 
 // 比例为 0 表示活动对该账号未开放：隐藏邀请链接面板，避免与历史累计奖励（旧活动数据）形成矛盾展示。
-const rateActive = computed(() => (detail.value?.effective_rebate_rate_percent ?? 0) > 0)
+const rateActive = computed(
+  () => (detail.value?.effective_rebate_rate_percent ?? 0) > 0,
+);
 
 async function loadAffiliateDetail(silent = false): Promise<void> {
-  if (!silent) loading.value = true
+  if (!silent) loading.value = true;
   try {
-    detail.value = await userAPI.getAffiliateDetail()
-    errorMessage.value = ''
+    detail.value = await userAPI.getAffiliateDetail();
+    errorMessage.value = "";
   } catch (error) {
-    detail.value = null
-    errorMessage.value = extractApiErrorMessage(error, t('affiliate.loadFailed'))
-    appStore.showError(errorMessage.value)
+    detail.value = null;
+    errorMessage.value = extractApiErrorMessage(
+      error,
+      t("affiliate.loadFailed"),
+    );
+    appStore.showError(errorMessage.value);
   } finally {
-    if (!silent) loading.value = false
+    if (!silent) loading.value = false;
   }
 }
 
 async function copyValue(value: string, message: string): Promise<void> {
-  if (!value) return
-  await copyToClipboard(value, message)
+  if (!value) return;
+  await copyToClipboard(value, message);
 }
 
 async function transferQuota(): Promise<void> {
-  if (!detail.value || detail.value.aff_quota <= 0 || transferring.value) return
-  transferring.value = true
+  if (!detail.value || detail.value.aff_quota <= 0 || transferring.value)
+    return;
+  transferring.value = true;
   try {
-    const resp = await userAPI.transferAffiliateQuota()
-    appStore.showSuccess(t('affiliate.transferSuccess', { amount: formatCurrency(resp.transferred_quota) }))
+    const resp = await userAPI.transferAffiliateQuota();
+    appStore.showSuccess(
+      t("affiliate.transferSuccess", {
+        amount: formatCurrency(resp.transferred_quota),
+      }),
+    );
     await Promise.all([
       loadAffiliateDetail(true),
       authStore.refreshUser().catch(() => undefined),
-    ])
+    ]);
   } catch (error) {
-    appStore.showError(extractApiErrorMessage(error, t('affiliate.transferFailed')))
+    appStore.showError(
+      extractApiErrorMessage(error, t("affiliate.transferFailed")),
+    );
   } finally {
-    transferring.value = false
+    transferring.value = false;
   }
 }
 
 onMounted(() => {
-  void loadAffiliateDetail()
-})
+  void loadAffiliateDetail();
+});
 </script>
 
 <style scoped>

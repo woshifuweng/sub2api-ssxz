@@ -1,4 +1,5 @@
 import { mount } from '@vue/test-utils'
+import { createPinia } from 'pinia'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { UserAvailableChannel } from '@/api/channels'
@@ -181,7 +182,7 @@ describe('AvailableChannelsTable', () => {
   })
 })
 
-const rows: UserAvailableChannel[] = [
+const responsiveRows: UserAvailableChannel[] = [
   {
     name: 'Primary channel',
     description: 'Fast and reliable access',
@@ -214,7 +215,20 @@ const rows: UserAvailableChannel[] = [
             is_exclusive: false,
           },
         ],
-        supported_models: [{ name: 'claude-test', platform: 'anthropic', pricing: null }],
+        supported_models: [{
+          name: 'claude-test',
+          platform: 'anthropic',
+          pricing: {
+            billing_mode: 'token',
+            input_price: 0.000005,
+            output_price: 0.000025,
+            cache_write_price: null,
+            cache_read_price: null,
+            image_output_price: null,
+            per_request_price: null,
+            intervals: []
+          }
+        }],
       },
     ],
   },
@@ -228,12 +242,13 @@ const baseProps = {
     groups: 'Groups and rates',
     supportedModels: 'Models and pricing',
   },
-  rows,
+  rows: responsiveRows,
   loading: false,
   pricingKeyPrefix: 'availableChannels.pricing',
   noPricingLabel: 'No pricing',
   noModelsLabel: 'No models',
   emptyLabel: 'No channels',
+  searchQuery: '',
   userGroupRates: { 1: 0.8 },
 }
 
@@ -259,45 +274,25 @@ function mountTable(props = {}) {
   })
 }
 
-describe('AvailableChannelsTable responsive surfaces', () => {
-  it('keeps the five-column table as the desktop-only surface', () => {
+describe('AvailableChannelsTable catalog surface', () => {
+  it('renders the current eight-column model catalog', () => {
     const wrapper = mountTable()
-    const desktop = wrapper.get('[data-testid="desktop-channels"]')
+    const table = wrapper.get('.model-catalog__table')
 
-    // TablePageLayout has a more-specific `display: table` rule for descendants,
-    // so these display utilities must remain important at both breakpoints.
-    expect(desktop.classes()).toContain('!hidden')
-    expect(desktop.classes()).toContain('lg:!table')
-    expect(desktop.findAll('thead th')).toHaveLength(5)
-    expect(desktop.text()).toContain('Primary channel')
-    expect(desktop.text()).toContain('Fast and reliable access')
-    expect(desktop.findAll('[data-group-badge]')).toHaveLength(2)
-    expect(desktop.get('[data-model-chip]').text()).toContain('claude-test:No pricing')
+    expect(table.findAll('thead th')).toHaveLength(8)
+    expect(table.findAll('[data-testid="model-row"]')).toHaveLength(1)
+    expect(table.text()).toContain('claude-test')
   })
 
-  it('renders a mobile-only readable surface with groups, rates, peaks, and model pricing chips', () => {
+  it('keeps group selection and the effective user rate visible', () => {
     const wrapper = mountTable()
-    const mobile = wrapper.get('[data-testid="mobile-channels"]')
+    const row = wrapper.get('[data-model="claude-test"]')
 
-    expect(mobile.classes()).toContain('lg:hidden')
-    expect(mobile.classes()).toContain('overflow-x-hidden')
-    expect(mobile.text()).toContain('Primary channel')
-    expect(mobile.text()).toContain('Fast and reliable access')
-    expect(mobile.text()).toContain('Groups and rates')
-    expect(mobile.text()).toContain('Models and pricing')
-    expect(mobile.text()).toContain('availableChannels.exclusive')
-    expect(mobile.text()).toContain('availableChannels.public')
-    expect(mobile.get('[data-group-badge]').text()).toBe('Exclusive Pro:1.2:0.8')
-    expect(mobile.findAll('[data-group-badge]')).toHaveLength(2)
-    expect(mobile.get('[data-icon="clock"]')).toBeTruthy()
-    expect(mobile.text()).toContain('08:00')
-    expect(mobile.text()).toContain('10:00')
-    expect(mobile.text()).toContain('×1.5')
-    expect(mobile.get('[data-model-chip]').text()).toBe('claude-test:No pricing')
-    expect(mobile.findAll('.max-w-full')).not.toHaveLength(0)
+    expect(row.text()).toContain('Exclusive Pro')
+    expect(row.text()).toContain('0.8x')
   })
 
-  it('keeps the mobile placeholders when a platform has no groups or models', () => {
+  it('shows the empty state when a channel exposes no models', () => {
     const wrapper = mountTable({
       rows: [
         {
@@ -307,23 +302,17 @@ describe('AvailableChannelsTable responsive surfaces', () => {
         },
       ],
     })
-    const mobile = wrapper.get('[data-testid="mobile-channels"]')
-
-    expect(mobile.text()).toContain('Fallback channel')
-    expect(mobile.text()).toContain('openai')
-    expect(mobile.text()).toContain('No models')
-    expect(mobile.findAll('dd')[0].text()).toBe('-')
+    expect(wrapper.findAll('[data-testid="model-row"]')).toHaveLength(0)
+    expect(wrapper.get('.model-catalog__empty').text()).toContain('No channels')
   })
 
-  it('provides loading and empty states on both responsive surfaces', async () => {
+  it('provides loading and empty states for the catalog', async () => {
     const wrapper = mountTable({ loading: true, rows: [] })
 
-    expect(wrapper.get('[data-testid="desktop-channels"] [data-icon="refresh"]')).toBeTruthy()
-    expect(wrapper.get('[data-testid="mobile-loading"] [data-icon="refresh"]')).toBeTruthy()
+    expect(wrapper.get('.model-catalog__empty [data-icon="refresh"]')).toBeTruthy()
 
     await wrapper.setProps({ loading: false })
 
-    expect(wrapper.get('[data-testid="desktop-channels"]').text()).toContain('No channels')
-    expect(wrapper.get('[data-testid="mobile-empty"]').text()).toContain('No channels')
+    expect(wrapper.get('.model-catalog__empty').text()).toContain('No channels')
   })
 })

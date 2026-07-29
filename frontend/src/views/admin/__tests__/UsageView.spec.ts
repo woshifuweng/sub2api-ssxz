@@ -4,7 +4,7 @@ import { defineComponent, ref } from 'vue'
 
 import UsageView from '../UsageView.vue'
 
-const { list, getStats, getSnapshotV2, getModelStats, getById } = vi.hoisted(() => {
+const { list, getStats, getSnapshotV2, getModelStats, getById, routeQuery } = vi.hoisted(() => {
   vi.stubGlobal('localStorage', {
     getItem: vi.fn(() => null),
     setItem: vi.fn(),
@@ -17,6 +17,7 @@ const { list, getStats, getSnapshotV2, getModelStats, getById } = vi.hoisted(() 
     getSnapshotV2: vi.fn(),
     getModelStats: vi.fn(),
     getById: vi.fn(),
+    routeQuery: {} as Record<string, string>,
   }
 })
 
@@ -81,7 +82,7 @@ vi.mock('vue-i18n', async () => {
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({
-    query: {}
+    query: routeQuery
   }),
   useRouter: () => ({
     push: vi.fn()
@@ -89,7 +90,22 @@ vi.mock('vue-router', () => ({
 }))
 
 const AppLayoutStub = { template: '<div><slot /></div>' }
-const UsageFiltersStub = { template: '<div><slot name="after-reset" /></div>' }
+const UsageFiltersStub = defineComponent({
+  name: 'UsageFiltersStub',
+  setup(_, { expose }) {
+    const userKeyword = ref('')
+    let userSearchRevision = 0
+    const setUserKeyword = (value: string) => { userKeyword.value = value }
+    const getUserSearchRevision = () => userSearchRevision
+    const simulateUserInput = (value: string) => {
+      userSearchRevision += 1
+      userKeyword.value = value
+    }
+    expose({ setUserKeyword, getUserSearchRevision, simulateUserInput })
+    return { userKeyword }
+  },
+  template: '<div><span data-test="user-filter-label">{{ userKeyword }}</span><slot name="after-reset" /></div>'
+})
 const ModelDistributionChartStub = {
   props: ['metric'],
   emits: ['update:metric'],
@@ -154,7 +170,7 @@ describe('admin UsageView route filters', () => {
     const wrapper = mountRouteFilteredUsageView()
     await flushPromises()
 
-    expect(getById).toHaveBeenCalledWith(42, true)
+    expect(getById).toHaveBeenCalledWith(42)
     expect(list).toHaveBeenCalledWith(expect.objectContaining({ user_id: 42 }), expect.anything())
     expect(wrapper.find('[data-test="user-filter-label"]').text()).toBe('route-user@test.com')
   })

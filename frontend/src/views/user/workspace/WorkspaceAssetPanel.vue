@@ -20,7 +20,7 @@
       />
     </label>
 
-    <button
+    <LiquidButton
       v-else
       type="button"
       class="asset-option is-unavailable"
@@ -28,15 +28,17 @@
       disabled
       aria-disabled="true"
       title="上传图片暂未接入"
+      variant="plain"
+      size="sm"
     >
       <Icon name="upload" size="sm" />
       <span>
         <strong>图片</strong>
         <small>暂未接入</small>
       </span>
-    </button>
+    </LiquidButton>
 
-    <button
+    <LiquidButton
       v-for="item in futureCapabilities"
       :key="item.label"
       type="button"
@@ -45,13 +47,15 @@
       disabled
       aria-disabled="true"
       :title="item.description"
+      variant="plain"
+      size="sm"
     >
       <Icon :name="item.icon" size="sm" />
       <span>
         <strong>{{ item.label }}</strong>
         <small>暂未接入</small>
       </span>
-    </button>
+    </LiquidButton>
 
     <p class="asset-panel-note">
       当前仅开放文本对话 beta，图片上传与扩展附件能力暂未接入。
@@ -63,51 +67,55 @@
 </template>
 
 <script setup lang="ts">
-import Icon from '@/components/icons/Icon.vue'
-import type { RejectedWorkspaceFile } from './useWorkspaceAssets'
+import LiquidButton from "@/components/common/LiquidButton.vue";
+import Icon from "@/components/icons/Icon.vue";
+import type { RejectedWorkspaceFile } from "./useWorkspaceAssets";
 
-type IconName = InstanceType<typeof Icon>['$props']['name']
+type IconName = InstanceType<typeof Icon>["$props"]["name"];
 
-withDefaults(defineProps<{
-  rejectedFiles: RejectedWorkspaceFile[]
-  imageUploadAvailable?: boolean
-}>(), {
-  imageUploadAvailable: false
-})
+withDefaults(
+  defineProps<{
+    rejectedFiles: RejectedWorkspaceFile[];
+    imageUploadAvailable?: boolean;
+  }>(),
+  {
+    imageUploadAvailable: false,
+  },
+);
 
 const emit = defineEmits<{
-  (event: 'files', files: File[]): void
-}>()
+  (event: "files", files: File[]): void;
+}>();
 
 const futureCapabilities: Array<{
-  key: 'document' | 'table' | 'code'
-  label: string
-  description: string
-  icon: IconName
+  key: "document" | "table" | "code";
+  label: string;
+  description: string;
+  icon: IconName;
 }> = [
   {
-    key: 'document',
-    label: '文档',
-    description: '文档分析暂未接入。',
-    icon: 'document'
+    key: "document",
+    label: "文档",
+    description: "文档分析暂未接入。",
+    icon: "document",
   },
   {
-    key: 'table',
-    label: '表格',
-    description: '表格分析暂未接入。',
-    icon: 'chart'
+    key: "table",
+    label: "表格",
+    description: "表格分析暂未接入。",
+    icon: "chart",
   },
   {
-    key: 'code',
-    label: '代码',
-    description: '代码工具暂未接入。',
-    icon: 'terminal'
-  }
-]
+    key: "code",
+    label: "代码",
+    description: "代码工具暂未接入。",
+    icon: "terminal",
+  },
+];
 
 function handleFileChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  emit('files', Array.from(input.files || []))
-  input.value = ''
+  const input = event.target as HTMLInputElement;
+  emit("files", Array.from(input.files || []));
+  input.value = "";
 }
 </script>

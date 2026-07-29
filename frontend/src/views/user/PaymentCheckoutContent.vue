@@ -1,27 +1,44 @@
 <template>
-  <div class="payment-checkout mx-auto max-w-6xl space-y-6" data-testid="payment-checkout">
+  <div
+    class="payment-checkout mx-auto max-w-6xl space-y-6"
+    data-testid="payment-checkout"
+  >
     <div v-if="loading" class="flex items-center justify-center py-20">
-      <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
+      <div
+        class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"
+      ></div>
     </div>
     <template v-else>
-      <section v-if="paymentPhase === 'select' && !selectedPlan" class="checkout-overview rounded-2xl p-5">
+      <section
+        v-if="paymentPhase === 'select' && !selectedPlan"
+        class="checkout-overview rounded-2xl p-5"
+      >
         <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div>
             <div class="mb-3 flex flex-wrap items-center gap-2">
-              <span class="checkout-kicker inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold">
+              <span
+                class="checkout-kicker inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
+              >
                 <span class="checkout-kicker-dot h-2 w-2 rounded-full"></span>
                 充值 / 订阅
               </span>
-              <span class="checkout-balance rounded-full px-3 py-1 text-xs font-medium">
-                当前余额 ${{ user?.balance?.toFixed(2) || '0.00' }} 额度
+              <span
+                class="checkout-balance rounded-full px-3 py-1 text-xs font-medium"
+              >
+                当前余额 ${{ user?.balance?.toFixed(2) || "0.00" }} 额度
               </span>
             </div>
-            <h1 class="text-2xl font-bold tracking-normal text-gray-900 dark:text-white">
+            <h1
+              class="text-2xl font-bold tracking-normal text-gray-900 dark:text-white"
+            >
               补充账户额度后即可使用
             </h1>
-            <p class="mt-3 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-400">
-              余额可用于站内聊天、图片生成和 API Key / 第三方客户端调用，消费记录可在用量明细中查看。
-                补充额度支付使用人民币 ¥，到账后显示为账户 $ 额度。
+            <p
+              class="mt-3 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-400"
+            >
+              余额可用于站内聊天、图片生成和 API Key /
+              第三方客户端调用，消费记录可在用量明细中查看。
+              补充额度支付使用人民币 ¥，到账后显示为账户 $ 额度。
             </p>
           </div>
 
@@ -33,34 +50,61 @@
               class="checkout-link rounded-xl p-3 transition"
             >
               <Icon :name="item.icon" size="sm" class="mb-2 text-primary-500" />
-              <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ item.title }}</p>
-              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ item.description }}</p>
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">
+                {{ item.title }}
+              </p>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ item.description }}
+              </p>
             </RouterLink>
           </div>
         </div>
 
         <div class="mt-5 grid gap-3 md:grid-cols-3">
           <div class="checkout-note rounded-xl p-4">
-            <p class="text-sm font-semibold text-gray-900 dark:text-white">账户额度</p>
-            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">适合按需使用。补充后可用于聊天、图片生成和第三方客户端调用。</p>
+            <p class="text-sm font-semibold text-gray-900 dark:text-white">
+              账户额度
+            </p>
+            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">
+              适合按需使用。补充后可用于聊天、图片生成和第三方客户端调用。
+            </p>
           </div>
           <div class="checkout-note rounded-xl p-4">
-            <p class="text-sm font-semibold text-gray-900 dark:text-white">权益订阅</p>
-            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">适合长期使用。可用范围、额度和有效期以页面说明为准。</p>
+            <p class="text-sm font-semibold text-gray-900 dark:text-white">
+              权益订阅
+            </p>
+            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">
+              适合长期使用。可用范围、额度和有效期以页面说明为准。
+            </p>
           </div>
           <div class="checkout-note rounded-xl p-4">
-            <p class="text-sm font-semibold text-gray-900 dark:text-white">图片生成</p>
-            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">图片生成消耗会根据所选模型、规格和数量计算，实际记录可在用量中心查看。</p>
+            <p class="text-sm font-semibold text-gray-900 dark:text-white">
+              图片生成
+            </p>
+            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-400">
+              图片生成消耗会根据所选模型、规格和数量计算，实际记录可在用量中心查看。
+            </p>
           </div>
         </div>
       </section>
 
       <!-- Tab Switcher (hide during payment and subscription confirm) -->
-      <div v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan" class="checkout-tabs flex space-x-1 rounded-xl p-1">
-        <button v-for="tab in tabs" :key="tab.key"
+      <div
+        v-if="tabs.length > 1 && paymentPhase === 'select' && !selectedPlan"
+        class="checkout-tabs flex space-x-1 rounded-xl p-1"
+      >
+        <LiquidButton
+          v-for="tab in tabs"
+          :key="tab.key"
           class="flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all"
-          :class="activeTab === tab.key ? 'checkout-tab-active' : 'checkout-tab-idle'"
-          @click="activeTab = tab.key">{{ tab.label }}</button>
+          :class="
+            activeTab === tab.key ? 'checkout-tab-active' : 'checkout-tab-idle'
+          "
+          @click="activeTab = tab.key"
+          variant="plain"
+          size="sm"
+          >{{ tab.label }}</LiquidButton
+        >
       </div>
       <!-- Payment in progress (shared by recharge and subscription) -->
       <template v-if="paymentPhase === 'paying'">
@@ -78,7 +122,11 @@
       </template>
       <!-- Tab content (select phase) -->
       <template v-else>
-        <div v-if="showPaymentTurnstile" class="card p-4" data-testid="payment-turnstile">
+        <div
+          v-if="showPaymentTurnstile"
+          class="card p-4"
+          data-testid="payment-turnstile"
+        >
           <TurnstileWidget
             ref="turnstileRef"
             :site-key="turnstileSiteKey"
@@ -93,66 +141,139 @@
         <template v-if="activeTab === 'recharge'">
           <!-- Recharge Account Card -->
           <div class="card p-5">
-            <p class="text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
-            <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
-            <p class="mt-0.5 text-sm font-medium text-gray-600 dark:text-gray-300">{{ t('payment.currentBalance') }}: ${{ user?.balance?.toFixed(2) || '0.00' }} 额度</p>
+            <p class="text-xs font-medium text-gray-400 dark:text-gray-500">
+              {{ t("payment.rechargeAccount") }}
+            </p>
+            <p
+              class="mt-1 text-base font-semibold text-gray-900 dark:text-white"
+            >
+              {{ user?.username || "" }}
+            </p>
+            <p
+              class="mt-0.5 text-sm font-medium text-gray-600 dark:text-gray-300"
+            >
+              {{ t("payment.currentBalance") }}: ${{
+                user?.balance?.toFixed(2) || "0.00"
+              }}
+              额度
+            </p>
           </div>
-          <div v-if="enabledMethods.length === 0" class="card py-16 text-center">
-            <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
+          <div
+            v-if="enabledMethods.length === 0"
+            class="card py-16 text-center"
+          >
+            <p class="text-gray-500 dark:text-gray-400">
+              {{ t("payment.notAvailable") }}
+            </p>
           </div>
           <template v-else>
-          <div class="card p-6">
-            <AmountInput
-              v-model="amount"
-              :amounts="[10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
-              :min="globalMinAmount"
-              :max="globalMaxAmount"
-            />
-            <p v-if="amountError" class="mt-2 text-xs text-amber-600 dark:text-amber-300">{{ amountError }}</p>
-          </div>
-          <div v-if="enabledMethods.length >= 1" class="card p-6">
-            <PaymentMethodSelector
-              :methods="methodOptions"
-              :selected="selectedMethod"
-              @select="selectedMethod = $event"
-            />
-          </div>
-          <div v-if="validAmount > 0" class="card p-6">
-            <div class="space-y-2 text-sm">
-              <p class="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
-                支付 ¥ 金额，到账 $ 额度；实际到账以订单完成结果为准。
-              </p>
-              <div class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.paymentAmount') }}</span>
-                <span class="text-gray-900 dark:text-white">¥{{ validAmount.toFixed(2) }}</span>
-              </div>
-              <div v-if="feeRate > 0" class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fee') }} ({{ feeRate }}%)</span>
-                <span class="text-gray-900 dark:text-white">¥{{ feeAmount.toFixed(2) }}</span>
-              </div>
-              <div v-if="feeRate > 0" class="flex justify-between border-t border-gray-200 pt-2 dark:border-dark-600">
-                <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
-                <span class="text-lg font-bold text-gray-900 dark:text-white">¥{{ totalAmount.toFixed(2) }}</span>
-              </div>
-              <div class="flex justify-between" :class="{ 'border-t border-gray-200 pt-2 dark:border-dark-600': feeRate <= 0 }">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.creditedBalance') }}</span>
-                <span class="text-gray-900 dark:text-white">${{ creditedAmount.toFixed(2) }} 额度</span>
-              </div>
-              <p class="border-t border-gray-200 pt-2 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400">
-                支付 ¥{{ totalAmount.toFixed(2) }}，到账 ${{ creditedAmount.toFixed(2) }} 额度。
-                <span v-if="balanceRechargeMultiplier !== 1">
-                  {{ t('payment.rechargeRatePreview', { usd: balanceRechargeMultiplier.toFixed(2) }) }}
-                </span>
+            <div class="card p-6">
+              <AmountInput
+                v-model="amount"
+                :amounts="[10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
+                :min="globalMinAmount"
+                :max="globalMaxAmount"
+              />
+              <p
+                v-if="amountError"
+                class="mt-2 text-xs text-amber-600 dark:text-amber-300"
+              >
+                {{ amountError }}
               </p>
             </div>
-          </div>
-          <button :class="['btn w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmit || submitting" @click="handleSubmitRecharge">
-            <span v-if="submitting" class="flex items-center justify-center gap-2">
-              <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-              {{ t('common.processing') }}
-            </span>
-            <span v-else>{{ rechargeSubmitLabel }}</span>
-          </button>
+            <div v-if="enabledMethods.length >= 1" class="card p-6">
+              <PaymentMethodSelector
+                :methods="methodOptions"
+                :selected="selectedMethod"
+                @select="selectedMethod = $event"
+              />
+            </div>
+            <div v-if="validAmount > 0" class="card p-6">
+              <div class="space-y-2 text-sm">
+                <p
+                  class="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700 dark:bg-amber-950/30 dark:text-amber-200"
+                >
+                  支付 ¥ 金额，到账 $ 额度；实际到账以订单完成结果为准。
+                </p>
+                <div class="flex justify-between">
+                  <span class="text-gray-500 dark:text-gray-400">{{
+                    t("payment.paymentAmount")
+                  }}</span>
+                  <span class="text-gray-900 dark:text-white"
+                    >¥{{ validAmount.toFixed(2) }}</span
+                  >
+                </div>
+                <div v-if="feeRate > 0" class="flex justify-between">
+                  <span class="text-gray-500 dark:text-gray-400"
+                    >{{ t("payment.fee") }} ({{ feeRate }}%)</span
+                  >
+                  <span class="text-gray-900 dark:text-white"
+                    >¥{{ feeAmount.toFixed(2) }}</span
+                  >
+                </div>
+                <div
+                  v-if="feeRate > 0"
+                  class="flex justify-between border-t border-gray-200 pt-2 dark:border-dark-600"
+                >
+                  <span class="font-medium text-gray-700 dark:text-gray-300">{{
+                    t("payment.actualPay")
+                  }}</span>
+                  <span class="text-lg font-bold text-gray-900 dark:text-white"
+                    >¥{{ totalAmount.toFixed(2) }}</span
+                  >
+                </div>
+                <div
+                  class="flex justify-between"
+                  :class="{
+                    'border-t border-gray-200 pt-2 dark:border-dark-600':
+                      feeRate <= 0,
+                  }"
+                >
+                  <span class="text-gray-500 dark:text-gray-400">{{
+                    t("payment.creditedBalance")
+                  }}</span>
+                  <span class="text-gray-900 dark:text-white"
+                    >${{ creditedAmount.toFixed(2) }} 额度</span
+                  >
+                </div>
+                <p
+                  class="border-t border-gray-200 pt-2 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400"
+                >
+                  支付 ¥{{ totalAmount.toFixed(2) }}，到账 ${{
+                    creditedAmount.toFixed(2)
+                  }}
+                  额度。
+                  <span v-if="balanceRechargeMultiplier !== 1">
+                    {{
+                      t("payment.rechargeRatePreview", {
+                        usd: balanceRechargeMultiplier.toFixed(2),
+                      })
+                    }}
+                  </span>
+                </p>
+              </div>
+            </div>
+            <LiquidButton
+              :class="[
+                ' w-full py-3 text-base font-medium',
+                paymentButtonClass,
+              ]"
+              :disabled="!canSubmit || submitting"
+              @click="handleSubmitRecharge"
+              variant="plain"
+              size="sm"
+            >
+              <span
+                v-if="submitting"
+                class="flex items-center justify-center gap-2"
+              >
+                <span
+                  class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+                ></span>
+                {{ t("common.processing") }}
+              </span>
+              <span v-else>{{ rechargeSubmitLabel }}</span>
+            </LiquidButton>
           </template>
         </template>
         <!-- Subscribe Tab -->
@@ -162,46 +283,97 @@
             <div class="card p-5">
               <!-- Header: platform badge + plan name -->
               <div class="mb-3 flex flex-wrap items-center gap-2">
-                <span :class="['rounded-md border px-2 py-0.5 text-xs font-medium', planBadgeClass]">
-                  {{ platformLabel(selectedPlan.group_platform || '') }}
+                <span
+                  :class="[
+                    'rounded-md border px-2 py-0.5 text-xs font-medium',
+                    planBadgeClass,
+                  ]"
+                >
+                  {{ platformLabel(selectedPlan.group_platform || "") }}
                 </span>
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white">{{ selectedPlan.name }}</h3>
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">
+                  {{ selectedPlan.name }}
+                </h3>
               </div>
               <!-- Price -->
               <div class="flex items-baseline gap-2">
-                <span v-if="selectedPlan.original_price" class="text-sm text-gray-400 line-through dark:text-gray-500">
+                <span
+                  v-if="selectedPlan.original_price"
+                  class="text-sm text-gray-400 line-through dark:text-gray-500"
+                >
                   ¥{{ selectedPlan.original_price }}
                 </span>
-                <span :class="['text-3xl font-bold', planTextClass]">¥{{ selectedPlan.price }}</span>
-                <span class="text-sm text-gray-500 dark:text-gray-400">/ {{ planValiditySuffix }}</span>
+                <span :class="['text-3xl font-bold', planTextClass]"
+                  >¥{{ selectedPlan.price }}</span
+                >
+                <span class="text-sm text-gray-500 dark:text-gray-400"
+                  >/ {{ planValiditySuffix }}</span
+                >
               </div>
               <!-- Description -->
-              <p v-if="selectedPlan.description" class="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+              <p
+                v-if="selectedPlan.description"
+                class="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400"
+              >
                 {{ selectedPlan.description }}
               </p>
               <!-- Rate + Limits grid -->
               <div class="mt-3 grid grid-cols-2 gap-3">
                 <div>
-                  <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.rate') }}</span>
+                  <span class="text-xs text-gray-400 dark:text-gray-500">{{
+                    t("payment.planCard.rate")
+                  }}</span>
                   <div class="flex items-baseline">
-                    <span :class="['text-lg font-bold', planTextClass]">×{{ selectedPlan.rate_multiplier ?? 1 }}</span>
+                    <span :class="['text-lg font-bold', planTextClass]"
+                      >×{{ selectedPlan.rate_multiplier ?? 1 }}</span
+                    >
                   </div>
                 </div>
                 <div v-if="selectedPlan.daily_limit_usd != null">
-                  <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.dailyLimit') }}</span>
-                  <div class="text-lg font-semibold text-gray-800 dark:text-gray-200">${{ selectedPlan.daily_limit_usd }}</div>
+                  <span class="text-xs text-gray-400 dark:text-gray-500">{{
+                    t("payment.planCard.dailyLimit")
+                  }}</span>
+                  <div
+                    class="text-lg font-semibold text-gray-800 dark:text-gray-200"
+                  >
+                    ${{ selectedPlan.daily_limit_usd }}
+                  </div>
                 </div>
                 <div v-if="selectedPlan.weekly_limit_usd != null">
-                  <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.weeklyLimit') }}</span>
-                  <div class="text-lg font-semibold text-gray-800 dark:text-gray-200">${{ selectedPlan.weekly_limit_usd }}</div>
+                  <span class="text-xs text-gray-400 dark:text-gray-500">{{
+                    t("payment.planCard.weeklyLimit")
+                  }}</span>
+                  <div
+                    class="text-lg font-semibold text-gray-800 dark:text-gray-200"
+                  >
+                    ${{ selectedPlan.weekly_limit_usd }}
+                  </div>
                 </div>
                 <div v-if="selectedPlan.monthly_limit_usd != null">
-                  <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.monthlyLimit') }}</span>
-                  <div class="text-lg font-semibold text-gray-800 dark:text-gray-200">${{ selectedPlan.monthly_limit_usd }}</div>
+                  <span class="text-xs text-gray-400 dark:text-gray-500">{{
+                    t("payment.planCard.monthlyLimit")
+                  }}</span>
+                  <div
+                    class="text-lg font-semibold text-gray-800 dark:text-gray-200"
+                  >
+                    ${{ selectedPlan.monthly_limit_usd }}
+                  </div>
                 </div>
-                <div v-if="selectedPlan.daily_limit_usd == null && selectedPlan.weekly_limit_usd == null && selectedPlan.monthly_limit_usd == null">
-                  <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.quota') }}</span>
-                  <div class="text-lg font-semibold text-gray-800 dark:text-gray-200">{{ t('payment.planCard.unlimited') }}</div>
+                <div
+                  v-if="
+                    selectedPlan.daily_limit_usd == null &&
+                    selectedPlan.weekly_limit_usd == null &&
+                    selectedPlan.monthly_limit_usd == null
+                  "
+                >
+                  <span class="text-xs text-gray-400 dark:text-gray-500">{{
+                    t("payment.planCard.quota")
+                  }}</span>
+                  <div
+                    class="text-lg font-semibold text-gray-800 dark:text-gray-200"
+                  >
+                    {{ t("payment.planCard.unlimited") }}
+                  </div>
                 </div>
               </div>
             </div>
@@ -215,69 +387,184 @@
             <div v-if="feeRate > 0 && selectedPlan.price > 0" class="card p-6">
               <div class="space-y-2 text-sm">
                 <div class="flex justify-between">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.amountLabel') }}</span>
-                  <span class="text-gray-900 dark:text-white">¥{{ selectedPlan.price.toFixed(2) }}</span>
+                  <span class="text-gray-500 dark:text-gray-400">{{
+                    t("payment.amountLabel")
+                  }}</span>
+                  <span class="text-gray-900 dark:text-white"
+                    >¥{{ selectedPlan.price.toFixed(2) }}</span
+                  >
                 </div>
                 <div class="flex justify-between">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fee') }} ({{ feeRate }}%)</span>
-                  <span class="text-gray-900 dark:text-white">¥{{ subFeeAmount.toFixed(2) }}</span>
+                  <span class="text-gray-500 dark:text-gray-400"
+                    >{{ t("payment.fee") }} ({{ feeRate }}%)</span
+                  >
+                  <span class="text-gray-900 dark:text-white"
+                    >¥{{ subFeeAmount.toFixed(2) }}</span
+                  >
                 </div>
-                <div class="flex justify-between border-t border-gray-200 pt-2 dark:border-dark-600">
-                  <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
-                  <span class="text-lg font-bold text-gray-900 dark:text-white">¥{{ subTotalAmount.toFixed(2) }}</span>
+                <div
+                  class="flex justify-between border-t border-gray-200 pt-2 dark:border-dark-600"
+                >
+                  <span class="font-medium text-gray-700 dark:text-gray-300">{{
+                    t("payment.actualPay")
+                  }}</span>
+                  <span class="text-lg font-bold text-gray-900 dark:text-white"
+                    >¥{{ subTotalAmount.toFixed(2) }}</span
+                  >
                 </div>
               </div>
             </div>
-            <button :class="['btn w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmitSubscription || submitting" @click="confirmSubscribe">
-              <span v-if="submitting" class="flex items-center justify-center gap-2">
-                <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-                {{ t('common.processing') }}
+            <LiquidButton
+              :class="[
+                ' w-full py-3 text-base font-medium',
+                paymentButtonClass,
+              ]"
+              :disabled="!canSubmitSubscription || submitting"
+              @click="confirmSubscribe"
+              variant="plain"
+              size="sm"
+            >
+              <span
+                v-if="submitting"
+                class="flex items-center justify-center gap-2"
+              >
+                <span
+                  class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+                ></span>
+                {{ t("common.processing") }}
               </span>
-              <span v-else>{{ t('payment.createOrder') }} ¥{{ (feeRate > 0 ? subTotalAmount : selectedPlan.price).toFixed(2) }}</span>
-            </button>
-            <button class="btn btn-secondary w-full" @click="selectedPlan = null">{{ t('common.cancel') }}</button>
+              <span v-else
+                >{{ t("payment.createOrder") }} ¥{{
+                  (feeRate > 0 ? subTotalAmount : selectedPlan.price).toFixed(2)
+                }}</span
+              >
+            </LiquidButton>
+            <LiquidButton
+              class="w-full"
+              @click="selectedPlan = null"
+              variant="outline"
+              size="sm"
+              >{{ t("common.cancel") }}</LiquidButton
+            >
           </template>
           <!-- Plan list -->
           <template v-else>
-            <div v-if="checkout.plans.length === 0" class="card py-16 text-center">
-              <Icon name="gift" size="xl" class="mx-auto mb-3 text-gray-300 dark:text-dark-600" />
-              <p class="text-gray-500 dark:text-gray-400">{{ t('payment.noPlans') }}</p>
+            <div
+              v-if="checkout.plans.length === 0"
+              class="card py-16 text-center"
+            >
+              <Icon
+                name="gift"
+                size="xl"
+                class="mx-auto mb-3 text-gray-300 dark:text-dark-600"
+              />
+              <p class="text-gray-500 dark:text-gray-400">
+                {{ t("payment.noPlans") }}
+              </p>
             </div>
             <div v-else :class="planGridClass">
-              <SubscriptionPlanCard v-for="plan in checkout.plans" :key="plan.id" :plan="plan" :active-subscriptions="activeSubscriptions" @select="selectPlan" />
+              <SubscriptionPlanCard
+                v-for="plan in checkout.plans"
+                :key="plan.id"
+                :plan="plan"
+                :active-subscriptions="activeSubscriptions"
+                @select="selectPlan"
+              />
             </div>
             <!-- Active subscriptions (compact, below plan list) -->
             <div v-if="activeSubscriptions.length > 0">
-              <p class="mb-2 text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.activeSubscription') }}</p>
+              <p
+                class="mb-2 text-xs font-medium text-gray-400 dark:text-gray-500"
+              >
+                {{ t("payment.activeSubscription") }}
+              </p>
               <div class="space-y-2">
-                <div v-for="sub in activeSubscriptions" :key="sub.id"
-                  class="flex items-center gap-3 rounded-xl border border-gray-100 bg-white px-3 py-2 dark:border-dark-700 dark:bg-dark-800">
-                  <div :class="['h-6 w-1 shrink-0 rounded-full', platformAccentBarClass(sub.group?.platform || '')]" />
+                <div
+                  v-for="sub in activeSubscriptions"
+                  :key="sub.id"
+                  class="flex items-center gap-3 rounded-xl border border-gray-100 bg-white px-3 py-2 dark:border-dark-700 dark:bg-dark-800"
+                >
+                  <div
+                    :class="[
+                      'h-6 w-1 shrink-0 rounded-full',
+                      platformAccentBarClass(sub.group?.platform || ''),
+                    ]"
+                  />
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-1.5">
-                      <span class="truncate text-xs font-semibold text-gray-900 dark:text-white">{{ sub.group?.name || t('payment.groupFallback', { id: sub.group_id }) }}</span>
-                      <span :class="['shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium', platformBadgeLightClass(sub.group?.platform || '')]">{{ platformLabel(sub.group?.platform || '') }}</span>
+                      <span
+                        class="truncate text-xs font-semibold text-gray-900 dark:text-white"
+                        >{{
+                          sub.group?.name ||
+                          t("payment.groupFallback", { id: sub.group_id })
+                        }}</span
+                      >
+                      <span
+                        :class="[
+                          'shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium',
+                          platformBadgeLightClass(sub.group?.platform || ''),
+                        ]"
+                        >{{ platformLabel(sub.group?.platform || "") }}</span
+                      >
                     </div>
-                    <div class="flex flex-wrap gap-x-3 text-[11px] text-gray-400 dark:text-gray-500">
-                      <span>{{ t('payment.planCard.rate') }}: ×{{ sub.group?.rate_multiplier ?? 1 }}</span>
-                      <span v-if="sub.group?.daily_limit_usd == null && sub.group?.weekly_limit_usd == null && sub.group?.monthly_limit_usd == null">{{ t('payment.planCard.quota') }}: {{ t('payment.planCard.unlimited') }}</span>
-                      <span v-if="sub.expires_at">{{ t('userSubscriptions.daysRemaining', { days: getDaysRemaining(sub.expires_at) }) }}</span>
-                      <span v-else>{{ t('userSubscriptions.noExpiration') }}</span>
+                    <div
+                      class="flex flex-wrap gap-x-3 text-[11px] text-gray-400 dark:text-gray-500"
+                    >
+                      <span
+                        >{{ t("payment.planCard.rate") }}: ×{{
+                          sub.group?.rate_multiplier ?? 1
+                        }}</span
+                      >
+                      <span
+                        v-if="
+                          sub.group?.daily_limit_usd == null &&
+                          sub.group?.weekly_limit_usd == null &&
+                          sub.group?.monthly_limit_usd == null
+                        "
+                        >{{ t("payment.planCard.quota") }}:
+                        {{ t("payment.planCard.unlimited") }}</span
+                      >
+                      <span v-if="sub.expires_at">{{
+                        t("userSubscriptions.daysRemaining", {
+                          days: getDaysRemaining(sub.expires_at),
+                        })
+                      }}</span>
+                      <span v-else>{{
+                        t("userSubscriptions.noExpiration")
+                      }}</span>
                     </div>
                   </div>
-                  <span class="badge badge-success shrink-0 text-[10px]">{{ t('userSubscriptions.status.active') }}</span>
+                  <span class="badge badge-success shrink-0 text-[10px]">{{
+                    t("userSubscriptions.status.active")
+                  }}</span>
                 </div>
               </div>
             </div>
           </template>
         </template>
       </template>
-      <div v-if="(checkoutHelpText || checkout.help_image_url) && paymentPhase === 'select' && !selectedPlan" class="card p-4">
+      <div
+        v-if="
+          (checkoutHelpText || checkout.help_image_url) &&
+          paymentPhase === 'select' &&
+          !selectedPlan
+        "
+        class="card p-4"
+      >
         <div class="flex flex-col items-center gap-3">
-          <img v-if="checkout.help_image_url" :src="checkout.help_image_url" alt=""
+          <img
+            v-if="checkout.help_image_url"
+            :src="checkout.help_image_url"
+            alt=""
             class="h-40 max-w-full cursor-pointer rounded-lg object-contain transition-opacity hover:opacity-80"
-            @click="previewImage = checkout.help_image_url" />
-          <p v-if="checkoutHelpText" class="text-center text-sm text-gray-500 dark:text-gray-400">{{ checkoutHelpText }}</p>
+            @click="previewImage = checkout.help_image_url"
+          />
+          <p
+            v-if="checkoutHelpText"
+            class="text-center text-sm text-gray-500 dark:text-gray-400"
+          >
+            {{ checkoutHelpText }}
+          </p>
         </div>
       </div>
     </template>
@@ -285,15 +572,47 @@
   <!-- Renewal Plan Selection Modal -->
   <Teleport to="body">
     <Transition name="modal">
-      <div v-if="showRenewalModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" @click.self="closeRenewalModal">
-        <div class="relative w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-dark-700 dark:bg-dark-900">
+      <div
+        v-if="showRenewalModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+        @click.self="closeRenewalModal"
+      >
+        <div
+          class="relative w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-dark-700 dark:bg-dark-900"
+        >
           <!-- Close button -->
-          <button class="absolute right-4 top-4 rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-gray-200" @click="closeRenewalModal">
-            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-          <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">{{ t('payment.selectPlan') }}</h3>
+          <LiquidButton
+            class="absolute right-4 top-4 rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-gray-200"
+            :aria-label="t('common.close')"
+            @click="closeRenewalModal"
+            variant="plain"
+            size="icon"
+          >
+            <svg
+              class="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </LiquidButton>
+          <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
+            {{ t("payment.selectPlan") }}
+          </h3>
           <div class="space-y-4">
-            <SubscriptionPlanCard v-for="plan in renewalPlans" :key="plan.id" :plan="plan" :active-subscriptions="activeSubscriptions" @select="selectPlanFromModal" />
+            <SubscriptionPlanCard
+              v-for="plan in renewalPlans"
+              :key="plan.id"
+              :plan="plan"
+              :active-subscriptions="activeSubscriptions"
+              @select="selectPlanFromModal"
+            />
           </div>
         </div>
       </div>
@@ -302,28 +621,49 @@
   <!-- Image Preview Overlay -->
   <Teleport to="body">
     <Transition name="modal">
-      <div v-if="previewImage" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm" @click="previewImage = ''">
-        <img :src="previewImage" alt="" class="max-h-[85vh] max-w-[90vw] rounded-xl object-contain shadow-2xl" />
+      <div
+        v-if="previewImage"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+        @click="previewImage = ''"
+      >
+        <img
+          :src="previewImage"
+          alt=""
+          class="max-h-[85vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
+        />
       </div>
     </Transition>
   </Teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
-import { usePaymentStore } from '@/stores/payment'
-import { useSubscriptionStore } from '@/stores/subscriptions'
-import { useAppStore } from '@/stores'
-import { paymentAPI } from '@/api/payment'
-import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
-import { isMobileDevice } from '@/utils/device'
-import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderRequest, CreateOrderResult, OrderType } from '@/types/payment'
-import AmountInput from '@/components/payment/AmountInput.vue'
-import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
-import { METHOD_ORDER, getPaymentPopupFeatures } from '@/components/payment/providerConfig'
+import LiquidButton from "@/components/common/LiquidButton.vue";
+import { ref, computed, onMounted, watch } from "vue";
+import { useI18n } from "vue-i18n";
+import { useRoute, useRouter } from "vue-router";
+import { useAuthStore } from "@/stores/auth";
+import { usePaymentStore } from "@/stores/payment";
+import { useSubscriptionStore } from "@/stores/subscriptions";
+import { useAppStore } from "@/stores";
+import { paymentAPI } from "@/api/payment";
+import {
+  extractApiErrorMessage,
+  extractI18nErrorMessage,
+} from "@/utils/apiError";
+import { isMobileDevice } from "@/utils/device";
+import type {
+  SubscriptionPlan,
+  CheckoutInfoResponse,
+  CreateOrderRequest,
+  CreateOrderResult,
+  OrderType,
+} from "@/types/payment";
+import AmountInput from "@/components/payment/AmountInput.vue";
+import PaymentMethodSelector from "@/components/payment/PaymentMethodSelector.vue";
+import {
+  METHOD_ORDER,
+  getPaymentPopupFeatures,
+} from "@/components/payment/providerConfig";
 import {
   PAYMENT_RECOVERY_STORAGE_KEY,
   buildCreateOrderPayload,
@@ -334,109 +674,147 @@ import {
   readPaymentRecoverySnapshot,
   type PaymentRecoverySnapshot,
   writePaymentRecoverySnapshot,
-} from '@/components/payment/paymentFlow'
-import { platformAccentBarClass, platformBadgeLightClass, platformBadgeClass, platformTextClass, platformLabel } from '@/utils/platformColors'
-import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
-import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
-import Icon from '@/components/icons/Icon.vue'
-import TurnstileWidget from '@/components/TurnstileWidget.vue'
-import type { PaymentMethodOption } from '@/components/payment/PaymentMethodSelector.vue'
-import { buildPaymentErrorToastMessage, describePaymentScenarioError } from './paymentUx'
-import { hasWechatResumeQuery, parseWechatResumeRoute, stripWechatResumeQuery } from './paymentWechatResume'
+} from "@/components/payment/paymentFlow";
+import {
+  platformAccentBarClass,
+  platformBadgeLightClass,
+  platformBadgeClass,
+  platformTextClass,
+  platformLabel,
+} from "@/utils/platformColors";
+import SubscriptionPlanCard from "@/components/payment/SubscriptionPlanCard.vue";
+import PaymentStatusPanel from "@/components/payment/PaymentStatusPanel.vue";
+import Icon from "@/components/icons/Icon.vue";
+import TurnstileWidget from "@/components/TurnstileWidget.vue";
+import type { PaymentMethodOption } from "@/components/payment/PaymentMethodSelector.vue";
+import {
+  buildPaymentErrorToastMessage,
+  describePaymentScenarioError,
+} from "./paymentUx";
+import {
+  hasWechatResumeQuery,
+  parseWechatResumeRoute,
+  stripWechatResumeQuery,
+} from "./paymentWechatResume";
 
-type CheckoutVariant = 'legacy' | 'workspace'
-type IconName = InstanceType<typeof Icon>['$props']['name']
+type CheckoutVariant = "legacy" | "workspace";
+type IconName = InstanceType<typeof Icon>["$props"]["name"];
 type QuickLink = {
-  to: string
-  icon: IconName
-  title: string
-  description: string
-}
+  to: string;
+  icon: IconName;
+  title: string;
+  description: string;
+};
 
 const props = withDefaults(defineProps<{ variant?: CheckoutVariant }>(), {
-  variant: 'legacy'
-})
+  variant: "legacy",
+});
 
-const isWorkspaceVariant = computed(() => props.variant === 'workspace')
+const isWorkspaceVariant = computed(() => props.variant === "workspace");
 const quickLinks = computed(() => {
   const items: QuickLink[] = [
     {
-      to: '/app/usage',
-      icon: 'chart',
-      title: '用量明细',
-      description: '查看每次消费'
+      to: "/app/usage",
+      icon: "chart",
+      title: "用量明细",
+      description: "查看每次消费",
     },
     {
-      to: '/app/keys',
-      icon: 'key',
-      title: 'API Key',
-      description: '第三方接入'
-    }
-  ]
+      to: "/app/keys",
+      icon: "key",
+      title: "API Key",
+      description: "第三方接入",
+    },
+  ];
 
   if (!isWorkspaceVariant.value) {
-    items.splice(1, 0,
+    items.splice(
+      1,
+      0,
       {
-        to: '/app/channel-status',
-        icon: 'server',
-        title: '通道状态',
-        description: '查看可用率和状态'
+        to: "/app/channel-status",
+        icon: "server",
+        title: "通道状态",
+        description: "查看可用率和状态",
       },
       {
-        to: '/app/redeem',
-        icon: 'gift',
-        title: '兑换额度',
-        description: '使用兑换码'
-      }
-    )
+        to: "/app/redeem",
+        icon: "gift",
+        title: "兑换额度",
+        description: "使用兑换码",
+      },
+    );
   }
 
-  return items
-})
+  return items;
+});
 
-const { t } = useI18n()
-const route = useRoute()
-const router = useRouter()
-const authStore = useAuthStore()
-const paymentStore = usePaymentStore()
-const subscriptionStore = useSubscriptionStore()
-const appStore = useAppStore()
+const { t } = useI18n();
+const route = useRoute();
+const router = useRouter();
+const authStore = useAuthStore();
+const paymentStore = usePaymentStore();
+const subscriptionStore = useSubscriptionStore();
+const appStore = useAppStore();
 
-const user = computed(() => authStore.user)
-const activeSubscriptions = computed(() => subscriptionStore.activeSubscriptions)
+const user = computed(() => authStore.user);
+const activeSubscriptions = computed(
+  () => subscriptionStore.activeSubscriptions,
+);
 
 function getDaysRemaining(expiresAt: string): number {
-  const diff = new Date(expiresAt).getTime() - Date.now()
-  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
+  const diff = new Date(expiresAt).getTime() - Date.now();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
 }
 
-const loading = ref(true)
-const submitting = ref(false)
-const errorMessage = ref('')
-const errorHintMessage = ref('')
-const activeTab = ref<'recharge' | 'subscription'>('recharge')
-const amount = ref<number | null>(null)
-const selectedMethod = ref('')
-const selectedPlan = ref<SubscriptionPlan | null>(null)
-const previewImage = ref('')
+const loading = ref(true);
+const submitting = ref(false);
+const errorMessage = ref("");
+const errorHintMessage = ref("");
+const activeTab = ref<"recharge" | "subscription">("recharge");
+const amount = ref<number | null>(null);
+const selectedMethod = ref("");
+const selectedPlan = ref<SubscriptionPlan | null>(null);
+const previewImage = ref("");
 
-const paymentPhase = ref<'select' | 'paying'>('select')
-const pendingCreateOrderIdempotency = ref<{ fingerprint: string; key: string } | null>(null)
-const turnstileEnabled = computed(() => appStore.cachedPublicSettings?.turnstile_enabled === true)
-const turnstileSiteKey = computed(() => appStore.cachedPublicSettings?.turnstile_site_key || '')
-const turnstileToken = ref('')
-const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
-const showPaymentTurnstile = computed(() => turnstileEnabled.value && !!turnstileSiteKey.value && paymentPhase.value === 'select' && (activeTab.value === 'recharge' ? validAmount.value > 0 : !!selectedPlan.value))
-const handleTurnstileVerify = (token: string) => { turnstileToken.value = token }
-const handleTurnstileExpire = () => { turnstileToken.value = '' }
-const handleTurnstileError = () => { turnstileToken.value = '' }
+const paymentPhase = ref<"select" | "paying">("select");
+const pendingCreateOrderIdempotency = ref<{
+  fingerprint: string;
+  key: string;
+} | null>(null);
+const turnstileEnabled = computed(
+  () => appStore.cachedPublicSettings?.turnstile_enabled === true,
+);
+const turnstileSiteKey = computed(
+  () => appStore.cachedPublicSettings?.turnstile_site_key || "",
+);
+const turnstileToken = ref("");
+const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null);
+const showPaymentTurnstile = computed(
+  () =>
+    turnstileEnabled.value &&
+    !!turnstileSiteKey.value &&
+    paymentPhase.value === "select" &&
+    (activeTab.value === "recharge"
+      ? validAmount.value > 0
+      : !!selectedPlan.value),
+);
+const handleTurnstileVerify = (token: string) => {
+  turnstileToken.value = token;
+};
+const handleTurnstileExpire = () => {
+  turnstileToken.value = "";
+};
+const handleTurnstileError = () => {
+  turnstileToken.value = "";
+};
 
 interface CreateOrderOptions {
-  openid?: string
-  wechatResumeToken?: string
-  paymentType?: string
-  isResume?: boolean
-  mobileQrFallbackAttempted?: boolean
+  openid?: string;
+  wechatResumeToken?: string;
+  paymentType?: string;
+  isResume?: boolean;
+  mobileQrFallbackAttempted?: boolean;
 }
 
 interface WeixinJSBridgeLike {
@@ -444,503 +822,604 @@ interface WeixinJSBridgeLike {
     action: string,
     payload: Record<string, unknown>,
     callback: (result: Record<string, unknown>) => void,
-  ): void
+  ): void;
 }
 
 function emptyPaymentState(): PaymentRecoverySnapshot {
   return {
     orderId: 0,
     amount: 0,
-    qrCode: '',
-    expiresAt: '',
-    paymentType: '',
-    payUrl: '',
-    outTradeNo: '',
-    clientSecret: '',
+    qrCode: "",
+    expiresAt: "",
+    paymentType: "",
+    payUrl: "",
+    outTradeNo: "",
+    clientSecret: "",
     payAmount: 0,
-    orderType: '',
-    paymentMode: '',
-    resumeToken: '',
+    orderType: "",
+    paymentMode: "",
+    resumeToken: "",
     createdAt: 0,
-  }
+  };
 }
 
 function getWeixinJSBridge(): WeixinJSBridgeLike | undefined {
-  return (window as Window & { WeixinJSBridge?: WeixinJSBridgeLike }).WeixinJSBridge
+  return (window as Window & { WeixinJSBridge?: WeixinJSBridgeLike })
+    .WeixinJSBridge;
 }
 
 function normalizeIdempotencyValue(value: unknown): unknown {
   if (Array.isArray(value)) {
-    return value.map(normalizeIdempotencyValue)
+    return value.map(normalizeIdempotencyValue);
   }
-  if (value && typeof value === 'object') {
-    const out: Record<string, unknown> = {}
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
     for (const key of Object.keys(value as Record<string, unknown>).sort()) {
-      const item = (value as Record<string, unknown>)[key]
+      const item = (value as Record<string, unknown>)[key];
       if (item !== undefined) {
-        out[key] = normalizeIdempotencyValue(item)
+        out[key] = normalizeIdempotencyValue(item);
       }
     }
-    return out
+    return out;
   }
-  return value
+  return value;
 }
 
 function createOrderFingerprint(payload: CreateOrderRequest): string {
-  return JSON.stringify(normalizeIdempotencyValue(payload))
+  return JSON.stringify(normalizeIdempotencyValue(payload));
 }
 
 function generateCreateOrderIdempotencyKey(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return `payment-order-${crypto.randomUUID()}`
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return `payment-order-${crypto.randomUUID()}`;
   }
-  return `payment-order-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return `payment-order-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function getCreateOrderIdempotencyKey(payload: CreateOrderRequest): string {
-  const fingerprint = createOrderFingerprint(payload)
-  if (!pendingCreateOrderIdempotency.value || pendingCreateOrderIdempotency.value.fingerprint !== fingerprint) {
+  const fingerprint = createOrderFingerprint(payload);
+  if (
+    !pendingCreateOrderIdempotency.value ||
+    pendingCreateOrderIdempotency.value.fingerprint !== fingerprint
+  ) {
     pendingCreateOrderIdempotency.value = {
       fingerprint,
       key: generateCreateOrderIdempotencyKey(),
-    }
+    };
   }
-  return pendingCreateOrderIdempotency.value.key
+  return pendingCreateOrderIdempotency.value.key;
 }
 
 function clearCreateOrderIdempotencyKey(payload: CreateOrderRequest) {
-  const fingerprint = createOrderFingerprint(payload)
+  const fingerprint = createOrderFingerprint(payload);
   if (pendingCreateOrderIdempotency.value?.fingerprint === fingerprint) {
-    pendingCreateOrderIdempotency.value = null
+    pendingCreateOrderIdempotency.value = null;
   }
 }
 
-function waitForWeixinJSBridge(timeoutMs = 4000): Promise<WeixinJSBridgeLike | null> {
-  const existing = getWeixinJSBridge()
-  if (existing) return Promise.resolve(existing)
+function waitForWeixinJSBridge(
+  timeoutMs = 4000,
+): Promise<WeixinJSBridgeLike | null> {
+  const existing = getWeixinJSBridge();
+  if (existing) return Promise.resolve(existing);
 
   return new Promise((resolve) => {
-    let settled = false
+    let settled = false;
     const finish = (bridge: WeixinJSBridgeLike | null) => {
-      if (settled) return
-      settled = true
-      document.removeEventListener('WeixinJSBridgeReady', handleReady)
-      document.removeEventListener('onWeixinJSBridgeReady', handleReady)
-      window.clearTimeout(timer)
-      resolve(bridge)
-    }
-    const handleReady = () => finish(getWeixinJSBridge() ?? null)
-    const timer = window.setTimeout(() => finish(getWeixinJSBridge() ?? null), timeoutMs)
-    document.addEventListener('WeixinJSBridgeReady', handleReady, false)
-    document.addEventListener('onWeixinJSBridgeReady', handleReady, false)
-  })
+      if (settled) return;
+      settled = true;
+      document.removeEventListener("WeixinJSBridgeReady", handleReady);
+      document.removeEventListener("onWeixinJSBridgeReady", handleReady);
+      window.clearTimeout(timer);
+      resolve(bridge);
+    };
+    const handleReady = () => finish(getWeixinJSBridge() ?? null);
+    const timer = window.setTimeout(
+      () => finish(getWeixinJSBridge() ?? null),
+      timeoutMs,
+    );
+    document.addEventListener("WeixinJSBridgeReady", handleReady, false);
+    document.addEventListener("onWeixinJSBridgeReady", handleReady, false);
+  });
 }
 
-async function invokeWechatJsapiPayment(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const bridge = await waitForWeixinJSBridge()
+async function invokeWechatJsapiPayment(
+  payload: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const bridge = await waitForWeixinJSBridge();
   if (!bridge) {
-    throw new Error('WECHAT_JSAPI_UNAVAILABLE')
+    throw new Error("WECHAT_JSAPI_UNAVAILABLE");
   }
   return new Promise((resolve) => {
-    bridge.invoke('getBrandWCPayRequest', payload, (result) => resolve(result || {}))
-  })
+    bridge.invoke("getBrandWCPayRequest", payload, (result) =>
+      resolve(result || {}),
+    );
+  });
 }
 
-const paymentState = ref<PaymentRecoverySnapshot>(emptyPaymentState())
+const paymentState = ref<PaymentRecoverySnapshot>(emptyPaymentState());
 
 function persistRecoverySnapshot(snapshot: PaymentRecoverySnapshot) {
-  if (typeof window === 'undefined' || !snapshot.orderId) return
-  writePaymentRecoverySnapshot(window.localStorage, snapshot, PAYMENT_RECOVERY_STORAGE_KEY)
+  if (typeof window === "undefined" || !snapshot.orderId) return;
+  writePaymentRecoverySnapshot(
+    window.localStorage,
+    snapshot,
+    PAYMENT_RECOVERY_STORAGE_KEY,
+  );
 }
 
 function removeRecoverySnapshot() {
-  if (typeof window === 'undefined') return
-  clearPaymentRecoverySnapshot(window.localStorage, PAYMENT_RECOVERY_STORAGE_KEY)
+  if (typeof window === "undefined") return;
+  clearPaymentRecoverySnapshot(
+    window.localStorage,
+    PAYMENT_RECOVERY_STORAGE_KEY,
+  );
 }
 
 function resetPayment() {
-  paymentPhase.value = 'select'
-  paymentState.value = emptyPaymentState()
-  removeRecoverySnapshot()
+  paymentPhase.value = "select";
+  paymentState.value = emptyPaymentState();
+  removeRecoverySnapshot();
 }
 
-async function redirectToPaymentResult(state: PaymentRecoverySnapshot): Promise<void> {
-  const query: Record<string, string | undefined> = {}
+async function redirectToPaymentResult(
+  state: PaymentRecoverySnapshot,
+): Promise<void> {
+  const query: Record<string, string | undefined> = {};
   if (state.orderId > 0) {
-    query.order_id = String(state.orderId)
+    query.order_id = String(state.orderId);
   }
   if (state.outTradeNo) {
-    query.out_trade_no = state.outTradeNo
+    query.out_trade_no = state.outTradeNo;
   }
   if (state.resumeToken) {
-    query.resume_token = state.resumeToken
+    query.resume_token = state.resumeToken;
   }
   await router.push({
-    path: '/payment/result',
+    path: "/payment/result",
     query,
-  })
+  });
 }
 
 function buildWechatOAuthAuthorizeUrl(
   authorizeUrl: string,
-  context: { paymentType: string; orderType: OrderType; planId?: number; orderAmount: number },
+  context: {
+    paymentType: string;
+    orderType: OrderType;
+    planId?: number;
+    orderAmount: number;
+  },
 ): string {
-  const normalizedUrl = authorizeUrl.trim()
-  if (!normalizedUrl || typeof window === 'undefined') {
-    return normalizedUrl
+  const normalizedUrl = authorizeUrl.trim();
+  if (!normalizedUrl || typeof window === "undefined") {
+    return normalizedUrl;
   }
 
   try {
-    const targetUrl = new URL(normalizedUrl, window.location.origin)
-    const redirectPath = targetUrl.searchParams.get('redirect') || '/app/purchase'
-    const redirectUrl = new URL(redirectPath, window.location.origin)
-    const paymentType = normalizeVisibleMethod(context.paymentType) || context.paymentType.trim() || 'wxpay'
+    const targetUrl = new URL(normalizedUrl, window.location.origin);
+    const redirectPath =
+      targetUrl.searchParams.get("redirect") || "/app/purchase";
+    const redirectUrl = new URL(redirectPath, window.location.origin);
+    const paymentType =
+      normalizeVisibleMethod(context.paymentType) ||
+      context.paymentType.trim() ||
+      "wxpay";
 
-    redirectUrl.searchParams.set('payment_type', paymentType)
-    redirectUrl.searchParams.set('order_type', context.orderType)
+    redirectUrl.searchParams.set("payment_type", paymentType);
+    redirectUrl.searchParams.set("order_type", context.orderType);
 
     if (context.planId) {
-      redirectUrl.searchParams.set('plan_id', String(context.planId))
+      redirectUrl.searchParams.set("plan_id", String(context.planId));
     } else {
-      redirectUrl.searchParams.delete('plan_id')
+      redirectUrl.searchParams.delete("plan_id");
     }
 
     if (context.orderAmount > 0) {
-      redirectUrl.searchParams.set('amount', String(context.orderAmount))
+      redirectUrl.searchParams.set("amount", String(context.orderAmount));
     } else {
-      redirectUrl.searchParams.delete('amount')
+      redirectUrl.searchParams.delete("amount");
     }
 
-    targetUrl.searchParams.set('redirect', `${redirectUrl.pathname}${redirectUrl.search}`)
-    return targetUrl.toString()
+    targetUrl.searchParams.set(
+      "redirect",
+      `${redirectUrl.pathname}${redirectUrl.search}`,
+    );
+    return targetUrl.toString();
   } catch {
-    return normalizedUrl
+    return normalizedUrl;
   }
 }
 
 function onPaymentDone() {
-  const wasSubscription = paymentState.value.orderType === 'subscription'
-  resetPayment()
-  selectedPlan.value = null
+  const wasSubscription = paymentState.value.orderType === "subscription";
+  resetPayment();
+  selectedPlan.value = null;
   if (wasSubscription) {
-    subscriptionStore.fetchActiveSubscriptions(true).catch(() => {})
+    subscriptionStore.fetchActiveSubscriptions(true).catch(() => {});
   }
 }
 
 function onPaymentSuccess() {
-  removeRecoverySnapshot()
-  authStore.refreshUser()
-  if (paymentState.value.orderType === 'subscription') {
-    subscriptionStore.fetchActiveSubscriptions(true).catch(() => {})
+  removeRecoverySnapshot();
+  authStore.refreshUser();
+  if (paymentState.value.orderType === "subscription") {
+    subscriptionStore.fetchActiveSubscriptions(true).catch(() => {});
   }
 }
 
 function onPaymentSettled() {
-  removeRecoverySnapshot()
+  removeRecoverySnapshot();
 }
 
 // All checkout data from single API call
 const checkout = ref<CheckoutInfoResponse>({
-  methods: {}, global_min: 0, global_max: 0,
-  plans: [], balance_disabled: false, balance_recharge_multiplier: 1, recharge_fee_rate: 0, help_text: '', help_image_url: '', stripe_publishable_key: '',
-})
+  methods: {},
+  global_min: 0,
+  global_max: 0,
+  plans: [],
+  balance_disabled: false,
+  balance_recharge_multiplier: 1,
+  recharge_fee_rate: 0,
+  help_text: "",
+  help_image_url: "",
+  stripe_publishable_key: "",
+});
 
 const tabs = computed(() => {
-  const result: { key: 'recharge' | 'subscription'; label: string }[] = []
-  if (!checkout.value.balance_disabled) result.push({ key: 'recharge', label: t('payment.tabTopUp') })
-  result.push({ key: 'subscription', label: t('payment.tabSubscribe') })
-  return result
-})
+  const result: { key: "recharge" | "subscription"; label: string }[] = [];
+  if (!checkout.value.balance_disabled)
+    result.push({ key: "recharge", label: t("payment.tabTopUp") });
+  result.push({ key: "subscription", label: t("payment.tabSubscribe") });
+  return result;
+});
 
-const visibleMethods = computed(() => getVisibleMethods(checkout.value.methods))
-const enabledMethods = computed(() => Object.keys(visibleMethods.value))
-const validAmount = computed(() => amount.value ?? 0)
+const visibleMethods = computed(() =>
+  getVisibleMethods(checkout.value.methods),
+);
+const enabledMethods = computed(() => Object.keys(visibleMethods.value));
+const validAmount = computed(() => amount.value ?? 0);
 const balanceRechargeMultiplier = computed(() => {
-  const multiplier = checkout.value.balance_recharge_multiplier
-  return multiplier > 0 ? multiplier : 1
-})
-const creditedAmount = computed(() => Math.round((validAmount.value * balanceRechargeMultiplier.value) * 100) / 100)
+  const multiplier = checkout.value.balance_recharge_multiplier;
+  return multiplier > 0 ? multiplier : 1;
+});
+const creditedAmount = computed(
+  () =>
+    Math.round(validAmount.value * balanceRechargeMultiplier.value * 100) / 100,
+);
 const checkoutHelpText = computed(() => {
-  const text = checkout.value.help_text?.trim() || ''
-  if (text === 'Recharge adds account balance. Usage and fee records follow backend ledger data.') {
-    return '补充额度会增加账户额度，用量和扣费记录以系统记录为准。'
+  const text = checkout.value.help_text?.trim() || "";
+  if (
+    text ===
+    "Recharge adds account balance. Usage and fee records follow backend ledger data."
+  ) {
+    return "补充额度会增加账户额度，用量和扣费记录以系统记录为准。";
   }
-  return text
-})
+  return text;
+});
 
 // Adaptive grid: center single card, 2-col for 2 plans, 3-col for 3+
 const planGridClass = computed(() => {
-  const n = checkout.value.plans.length
-  if (n <= 2) return 'grid grid-cols-1 gap-5 sm:grid-cols-2'
-  return 'grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3'
-})
+  const n = checkout.value.plans.length;
+  if (n <= 2) return "grid grid-cols-1 gap-5 sm:grid-cols-2";
+  return "grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3";
+});
 
 // Check if an amount fits a method's [min, max]. 0 = no limit.
 function amountFitsMethod(amt: number, methodType: string): boolean {
-  if (amt <= 0) return true
-  const ml = visibleMethods.value[methodType]
-  if (!ml) return false
-  if (ml.single_min > 0 && amt < ml.single_min) return false
-  if (ml.single_max > 0 && amt > ml.single_max) return false
-  return true
+  if (amt <= 0) return true;
+  const ml = visibleMethods.value[methodType];
+  if (!ml) return false;
+  if (ml.single_min > 0 && amt < ml.single_min) return false;
+  if (ml.single_max > 0 && amt > ml.single_max) return false;
+  return true;
 }
 
 // Visible methods decide the amount range shown to users.
 const globalMinAmount = computed(() => {
-  const limits = Object.values(visibleMethods.value)
-  if (limits.length === 0) return 0
-  if (limits.some(limit => limit.single_min <= 0)) return 0
-  return Math.min(...limits.map(limit => limit.single_min))
-})
+  const limits = Object.values(visibleMethods.value);
+  if (limits.length === 0) return 0;
+  if (limits.some((limit) => limit.single_min <= 0)) return 0;
+  return Math.min(...limits.map((limit) => limit.single_min));
+});
 const globalMaxAmount = computed(() => {
-  const limits = Object.values(visibleMethods.value)
-  if (limits.length === 0) return 0
-  if (limits.some(limit => limit.single_max <= 0)) return 0
-  return Math.max(...limits.map(limit => limit.single_max))
-})
+  const limits = Object.values(visibleMethods.value);
+  if (limits.length === 0) return 0;
+  if (limits.some((limit) => limit.single_max <= 0)) return 0;
+  return Math.max(...limits.map((limit) => limit.single_max));
+});
 
 // Selected method's limits (for validation and error messages)
-const selectedLimit = computed(() => visibleMethods.value[selectedMethod.value])
+const selectedLimit = computed(
+  () => visibleMethods.value[selectedMethod.value],
+);
 
 const methodOptions = computed<PaymentMethodOption[]>(() =>
   enabledMethods.value.map((type) => {
-    const ml = visibleMethods.value[type]
+    const ml = visibleMethods.value[type];
     return {
       type,
       fee_rate: ml?.fee_rate ?? 0,
-      available: ml?.available !== false && amountFitsMethod(validAmount.value, type),
-    }
-  })
-)
+      available:
+        ml?.available !== false && amountFitsMethod(validAmount.value, type),
+    };
+  }),
+);
 
-const feeRate = computed(() => checkout.value?.recharge_fee_rate ?? 0)
+const feeRate = computed(() => checkout.value?.recharge_fee_rate ?? 0);
 const feeAmount = computed(() =>
   feeRate.value > 0 && validAmount.value > 0
     ? Math.ceil(((validAmount.value * feeRate.value) / 100) * 100) / 100
-    : 0
-)
+    : 0,
+);
 const totalAmount = computed(() =>
   feeRate.value > 0 && validAmount.value > 0
     ? Math.round((validAmount.value + feeAmount.value) * 100) / 100
-    : validAmount.value
-)
+    : validAmount.value,
+);
 
 const amountError = computed(() => {
-  if (validAmount.value <= 0) return ''
+  if (validAmount.value <= 0) return "";
   // No method can handle this amount
-  if (!enabledMethods.value.some((m) => amountFitsMethod(validAmount.value, m))) {
-    return t('payment.amountNoMethod')
+  if (
+    !enabledMethods.value.some((m) => amountFitsMethod(validAmount.value, m))
+  ) {
+    return t("payment.amountNoMethod");
   }
   // Selected method can't handle this amount (but others can)
-  const ml = selectedLimit.value
+  const ml = selectedLimit.value;
   if (ml) {
-    if (ml.single_min > 0 && validAmount.value < ml.single_min) return t('payment.amountTooLow', { min: ml.single_min })
-    if (ml.single_max > 0 && validAmount.value > ml.single_max) return t('payment.amountTooHigh', { max: ml.single_max })
+    if (ml.single_min > 0 && validAmount.value < ml.single_min)
+      return t("payment.amountTooLow", { min: ml.single_min });
+    if (ml.single_max > 0 && validAmount.value > ml.single_max)
+      return t("payment.amountTooHigh", { max: ml.single_max });
   }
-  return ''
-})
+  return "";
+});
 
-const canSubmit = computed(() =>
-  validAmount.value > 0
-    && amountFitsMethod(validAmount.value, selectedMethod.value)
-    && selectedLimit.value?.available !== false
-)
+const canSubmit = computed(
+  () =>
+    validAmount.value > 0 &&
+    amountFitsMethod(validAmount.value, selectedMethod.value) &&
+    selectedLimit.value?.available !== false,
+);
 const rechargeSubmitLabel = computed(() => {
-  if (validAmount.value <= 0) return '请选择补充金额'
-  return `${t('payment.createOrder')} ¥${totalAmount.value.toFixed(2)}`
-})
+  if (validAmount.value <= 0) return "请选择补充金额";
+  return `${t("payment.createOrder")} ¥${totalAmount.value.toFixed(2)}`;
+});
 
 // Subscription-specific: method options based on plan price
 const subMethodOptions = computed<PaymentMethodOption[]>(() => {
-  const planPrice = selectedPlan.value?.price ?? 0
+  const planPrice = selectedPlan.value?.price ?? 0;
   return enabledMethods.value.map((type) => {
-    const ml = visibleMethods.value[type]
+    const ml = visibleMethods.value[type];
     return {
       type,
       fee_rate: ml?.fee_rate ?? 0,
       available: ml?.available !== false && amountFitsMethod(planPrice, type),
-    }
-  })
-})
+    };
+  });
+});
 
 const subFeeAmount = computed(() => {
-  const price = selectedPlan.value?.price ?? 0
-  if (feeRate.value <= 0 || price <= 0) return 0
-  return Math.ceil(((price * feeRate.value) / 100) * 100) / 100
-})
+  const price = selectedPlan.value?.price ?? 0;
+  if (feeRate.value <= 0 || price <= 0) return 0;
+  return Math.ceil(((price * feeRate.value) / 100) * 100) / 100;
+});
 
 const subTotalAmount = computed(() => {
-  const price = selectedPlan.value?.price ?? 0
-  if (feeRate.value <= 0 || price <= 0) return price
-  return Math.round((price + subFeeAmount.value) * 100) / 100
-})
+  const price = selectedPlan.value?.price ?? 0;
+  if (feeRate.value <= 0 || price <= 0) return price;
+  return Math.round((price + subFeeAmount.value) * 100) / 100;
+});
 
-const canSubmitSubscription = computed(() =>
-  selectedPlan.value !== null
-    && amountFitsMethod(selectedPlan.value.price, selectedMethod.value)
-    && selectedLimit.value?.available !== false
-)
+const canSubmitSubscription = computed(
+  () =>
+    selectedPlan.value !== null &&
+    amountFitsMethod(selectedPlan.value.price, selectedMethod.value) &&
+    selectedLimit.value?.available !== false,
+);
 
 // Auto-switch to first available method when current selection can't handle the amount
-watch(() => [validAmount.value, selectedMethod.value] as const, ([amt, method]) => {
-  if (amt <= 0 || amountFitsMethod(amt, method)) return
-  const available = enabledMethods.value.find((m) => amountFitsMethod(amt, m))
-  if (available) selectedMethod.value = available
-})
+watch(
+  () => [validAmount.value, selectedMethod.value] as const,
+  ([amt, method]) => {
+    if (amt <= 0 || amountFitsMethod(amt, method)) return;
+    const available = enabledMethods.value.find((m) =>
+      amountFitsMethod(amt, m),
+    );
+    if (available) selectedMethod.value = available;
+  },
+);
 
 // Provider branding stays on the method icon; the primary action follows F0.
 const paymentButtonClass = computed(() => {
-  return 'btn-primary'
-})
+  return "btn-primary";
+});
 
 // Subscription confirm: platform accent colors (clean card, no gradient)
-const planBadgeClass = computed(() => platformBadgeClass(selectedPlan.value?.group_platform || ''))
-const planTextClass = computed(() => platformTextClass(selectedPlan.value?.group_platform || ''))
+const planBadgeClass = computed(() =>
+  platformBadgeClass(selectedPlan.value?.group_platform || ""),
+);
+const planTextClass = computed(() =>
+  platformTextClass(selectedPlan.value?.group_platform || ""),
+);
 
 // Renewal modal state
-const showRenewalModal = ref(false)
-const renewGroupId = ref<number | null>(null)
+const showRenewalModal = ref(false);
+const renewGroupId = ref<number | null>(null);
 const renewalPlans = computed(() => {
-  if (renewGroupId.value == null) return []
-  return checkout.value.plans.filter(p => p.group_id === renewGroupId.value)
-})
+  if (renewGroupId.value == null) return [];
+  return checkout.value.plans.filter((p) => p.group_id === renewGroupId.value);
+});
 
 const planValiditySuffix = computed(() => {
-  if (!selectedPlan.value) return ''
-  const u = selectedPlan.value.validity_unit || 'day'
-  if (u === 'month') return t('payment.perMonth')
-  if (u === 'year') return t('payment.perYear')
-  return `${selectedPlan.value.validity_days}${t('payment.days')}`
-})
+  if (!selectedPlan.value) return "";
+  const u = selectedPlan.value.validity_unit || "day";
+  if (u === "month") return t("payment.perMonth");
+  if (u === "year") return t("payment.perYear");
+  return `${selectedPlan.value.validity_days}${t("payment.days")}`;
+});
 
 function selectPlan(plan: SubscriptionPlan) {
-  selectedPlan.value = plan
-  errorMessage.value = ''
+  selectedPlan.value = plan;
+  errorMessage.value = "";
 }
 
 function selectPlanFromModal(plan: SubscriptionPlan) {
-  showRenewalModal.value = false
-  renewGroupId.value = null
-  selectedPlan.value = plan
-  errorMessage.value = ''
+  showRenewalModal.value = false;
+  renewGroupId.value = null;
+  selectedPlan.value = plan;
+  errorMessage.value = "";
 }
 
 function closeRenewalModal() {
-  showRenewalModal.value = false
-  renewGroupId.value = null
+  showRenewalModal.value = false;
+  renewGroupId.value = null;
 }
 
 async function handleSubmitRecharge() {
-  if (!canSubmit.value || submitting.value) return
-  await createOrder(validAmount.value, 'balance')
+  if (!canSubmit.value || submitting.value) return;
+  await createOrder(validAmount.value, "balance");
 }
 
 async function confirmSubscribe() {
-  if (!selectedPlan.value || submitting.value) return
-  await createOrder(selectedPlan.value.price, 'subscription', selectedPlan.value.id)
+  if (!selectedPlan.value || submitting.value) return;
+  await createOrder(
+    selectedPlan.value.price,
+    "subscription",
+    selectedPlan.value.id,
+  );
 }
 
-async function createOrder(orderAmount: number, orderType: OrderType, planId?: number, options: CreateOrderOptions = {}) {
+async function createOrder(
+  orderAmount: number,
+  orderType: OrderType,
+  planId?: number,
+  options: CreateOrderOptions = {},
+) {
   if (turnstileEnabled.value && !turnstileToken.value) {
-    errorMessage.value = t('auth.completeVerification')
-    appStore.showError(errorMessage.value)
-    return
+    errorMessage.value = t("auth.completeVerification");
+    appStore.showError(errorMessage.value);
+    return;
   }
-  submitting.value = true
-  errorMessage.value = ''
-  errorHintMessage.value = ''
-  const requestType = normalizeVisibleMethod(options.paymentType || selectedMethod.value) || options.paymentType || selectedMethod.value
+  submitting.value = true;
+  errorMessage.value = "";
+  errorHintMessage.value = "";
+  const requestType =
+    normalizeVisibleMethod(options.paymentType || selectedMethod.value) ||
+    options.paymentType ||
+    selectedMethod.value;
   try {
     const payload = buildCreateOrderPayload({
       amount: orderAmount,
       paymentType: requestType,
       orderType,
       planId,
-      origin: typeof window !== 'undefined' ? window.location.origin : '',
+      origin: typeof window !== "undefined" ? window.location.origin : "",
       isMobile: isMobileDevice(),
-      isWechatBrowser: typeof window !== 'undefined' && /MicroMessenger/i.test(window.navigator.userAgent),
+      isWechatBrowser:
+        typeof window !== "undefined" &&
+        /MicroMessenger/i.test(window.navigator.userAgent),
       turnstileToken: turnstileToken.value,
-    })
+    });
     if (options.openid) {
-      payload.openid = options.openid
+      payload.openid = options.openid;
     }
     if (options.wechatResumeToken) {
-      payload.wechat_resume_token = options.wechatResumeToken
+      payload.wechat_resume_token = options.wechatResumeToken;
     }
 
-    const idempotencyKey = getCreateOrderIdempotencyKey(payload)
-    const result = await paymentStore.createOrder(payload, { idempotencyKey }) as CreateOrderResult & { resume_token?: string }
-    clearCreateOrderIdempotencyKey(payload)
-    turnstileRef.value?.reset()
-    turnstileToken.value = ''
+    const idempotencyKey = getCreateOrderIdempotencyKey(payload);
+    const result = (await paymentStore.createOrder(payload, {
+      idempotencyKey,
+    })) as CreateOrderResult & { resume_token?: string };
+    clearCreateOrderIdempotencyKey(payload);
+    turnstileRef.value?.reset();
+    turnstileToken.value = "";
     const openWindow = (url: string) => {
-      const win = window.open(url, 'paymentPopup', getPaymentPopupFeatures())
+      const win = window.open(url, "paymentPopup", getPaymentPopupFeatures());
       if (!win || win.closed) {
-        window.location.href = url
+        window.location.href = url;
       }
-    }
-    const visibleMethod = normalizeVisibleMethod(requestType) || requestType
-    const stripeMethod = visibleMethod === 'stripe'
-      ? ''
-      : visibleMethod === 'wxpay' ? 'wechat_pay' : 'alipay'
+    };
+    const visibleMethod = normalizeVisibleMethod(requestType) || requestType;
+    const stripeMethod =
+      visibleMethod === "stripe"
+        ? ""
+        : visibleMethod === "wxpay"
+          ? "wechat_pay"
+          : "alipay";
     const stripeRouteUrl = result.client_secret
       ? router.resolve({
-        path: '/payment/stripe',
-        query: {
-          order_id: String(result.order_id),
-          client_secret: result.client_secret,
-          method: stripeMethod || undefined,
-          resume_token: result.resume_token || undefined,
-        },
-      }).href
-      : ''
+          path: "/payment/stripe",
+          query: {
+            order_id: String(result.order_id),
+            client_secret: result.client_secret,
+            method: stripeMethod || undefined,
+            resume_token: result.resume_token || undefined,
+          },
+        }).href
+      : "";
     const decision = decidePaymentLaunch(result, {
       visibleMethod,
       orderType,
       isMobile: isMobileDevice(),
-      isWechatBrowser: typeof window !== 'undefined' && /MicroMessenger/i.test(window.navigator.userAgent),
+      isWechatBrowser:
+        typeof window !== "undefined" &&
+        /MicroMessenger/i.test(window.navigator.userAgent),
       stripePopupUrl: stripeRouteUrl,
       stripeRouteUrl,
-    })
+    });
 
-    if (decision.kind === 'wechat_oauth' && decision.oauth?.authorize_url) {
-      window.location.href = buildWechatOAuthAuthorizeUrl(decision.oauth.authorize_url, {
-        paymentType: visibleMethod,
-        orderType,
-        planId,
-        orderAmount,
-      })
-      return
+    if (decision.kind === "wechat_oauth" && decision.oauth?.authorize_url) {
+      window.location.href = buildWechatOAuthAuthorizeUrl(
+        decision.oauth.authorize_url,
+        {
+          paymentType: visibleMethod,
+          orderType,
+          planId,
+          orderAmount,
+        },
+      );
+      return;
     }
 
-    if (decision.kind === 'unhandled') {
-      applyScenarioError({ reason: 'UNHANDLED_PAYMENT_SCENARIO' }, visibleMethod)
-      return
+    if (decision.kind === "unhandled") {
+      applyScenarioError(
+        { reason: "UNHANDLED_PAYMENT_SCENARIO" },
+        visibleMethod,
+      );
+      return;
     }
 
-    paymentState.value = decision.paymentState
-    paymentPhase.value = 'paying'
-    persistRecoverySnapshot(decision.recovery)
+    paymentState.value = decision.paymentState;
+    paymentPhase.value = "paying";
+    persistRecoverySnapshot(decision.recovery);
 
-    if (decision.kind === 'stripe_popup') {
-      openWindow(decision.paymentState.payUrl)
-      return
+    if (decision.kind === "stripe_popup") {
+      openWindow(decision.paymentState.payUrl);
+      return;
     }
-    if (decision.kind === 'stripe_route') {
-      window.location.href = decision.paymentState.payUrl
-      return
+    if (decision.kind === "stripe_route") {
+      window.location.href = decision.paymentState.payUrl;
+      return;
     }
-    if (decision.kind === 'wechat_jsapi' && decision.jsapi) {
+    if (decision.kind === "wechat_jsapi" && decision.jsapi) {
       try {
-        const jsapiResult = await invokeWechatJsapiPayment(decision.jsapi as Record<string, unknown>)
-        const errMsg = String(jsapiResult.err_msg || '').toLowerCase()
-        if (errMsg.includes('cancel')) {
-          appStore.showInfo(t('payment.qr.cancelled'))
-          resetPayment()
-        } else if (errMsg && !errMsg.includes('ok')) {
-          resetPayment()
+        const jsapiResult = await invokeWechatJsapiPayment(
+          decision.jsapi as Record<string, unknown>,
+        );
+        const errMsg = String(jsapiResult.err_msg || "").toLowerCase();
+        if (errMsg.includes("cancel")) {
+          appStore.showInfo(t("payment.qr.cancelled"));
+          resetPayment();
+        } else if (errMsg && !errMsg.includes("ok")) {
+          resetPayment();
           const fallbackApplied = await attemptMobileQrFallback(
-            { reason: 'WECHAT_JSAPI_FAILED', message: errMsg },
+            { reason: "WECHAT_JSAPI_FAILED", message: errMsg },
             {
               orderAmount,
               orderType,
@@ -948,148 +1427,190 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
               paymentType: visibleMethod,
               attempted: options.mobileQrFallbackAttempted === true,
             },
-          )
+          );
           if (!fallbackApplied) {
-            applyScenarioError({ reason: 'WECHAT_JSAPI_FAILED', message: errMsg }, visibleMethod)
+            applyScenarioError(
+              { reason: "WECHAT_JSAPI_FAILED", message: errMsg },
+              visibleMethod,
+            );
           }
         } else {
-          const resultState = { ...decision.paymentState }
-          resetPayment()
-          await redirectToPaymentResult(resultState)
+          const resultState = { ...decision.paymentState };
+          resetPayment();
+          await redirectToPaymentResult(resultState);
         }
       } catch (err: unknown) {
-        resetPayment()
+        resetPayment();
         const fallbackApplied = await attemptMobileQrFallback(err, {
           orderAmount,
           orderType,
           planId,
           paymentType: visibleMethod,
           attempted: options.mobileQrFallbackAttempted === true,
-        })
+        });
         if (!fallbackApplied) {
-          throw err
+          throw err;
         }
       }
-      return
+      return;
     }
-    if (decision.kind === 'redirect_waiting' && decision.paymentState.payUrl) {
+    if (decision.kind === "redirect_waiting" && decision.paymentState.payUrl) {
       if (isMobileDevice()) {
-        window.location.href = decision.paymentState.payUrl
-        return
+        window.location.href = decision.paymentState.payUrl;
+        return;
       }
-      openWindow(decision.paymentState.payUrl)
+      openWindow(decision.paymentState.payUrl);
     }
   } catch (err: unknown) {
-    const apiErr = err as Record<string, unknown>
-    if (apiErr.reason === 'TOO_MANY_PENDING') {
-      const metadata = apiErr.metadata as Record<string, unknown> | undefined
-      errorMessage.value = t('payment.errors.tooManyPending', { max: metadata?.max || '' })
-      errorHintMessage.value = ''
-    } else if (apiErr.reason === 'CANCEL_RATE_LIMITED') {
-      errorMessage.value = t('payment.errors.cancelRateLimited')
-      errorHintMessage.value = ''
-    } else if (await attemptMobileQrFallback(err, {
-      orderAmount,
-      orderType,
-      planId,
-      paymentType: requestType,
-      attempted: options.mobileQrFallbackAttempted === true,
-    })) {
-      return
+    const apiErr = err as Record<string, unknown>;
+    if (apiErr.reason === "TOO_MANY_PENDING") {
+      const metadata = apiErr.metadata as Record<string, unknown> | undefined;
+      errorMessage.value = t("payment.errors.tooManyPending", {
+        max: metadata?.max || "",
+      });
+      errorHintMessage.value = "";
+    } else if (apiErr.reason === "CANCEL_RATE_LIMITED") {
+      errorMessage.value = t("payment.errors.cancelRateLimited");
+      errorHintMessage.value = "";
+    } else if (
+      await attemptMobileQrFallback(err, {
+        orderAmount,
+        orderType,
+        planId,
+        paymentType: requestType,
+        attempted: options.mobileQrFallbackAttempted === true,
+      })
+    ) {
+      return;
     } else {
       const handled = applyScenarioError(
         err,
-        normalizeVisibleMethod(options.paymentType || selectedMethod.value) || selectedMethod.value,
-      )
+        normalizeVisibleMethod(options.paymentType || selectedMethod.value) ||
+          selectedMethod.value,
+      );
       if (!handled) {
-        errorMessage.value = extractI18nErrorMessage(err, t, 'payment.errors', extractApiErrorMessage(err, t('payment.result.failed')))
-        errorHintMessage.value = ''
+        errorMessage.value = extractI18nErrorMessage(
+          err,
+          t,
+          "payment.errors",
+          extractApiErrorMessage(err, t("payment.result.failed")),
+        );
+        errorHintMessage.value = "";
       }
       if (handled) {
-        return
+        return;
       }
     }
-    appStore.showError(buildPaymentErrorToastMessage(errorMessage.value, errorHintMessage.value))
+    appStore.showError(
+      buildPaymentErrorToastMessage(errorMessage.value, errorHintMessage.value),
+    );
   } finally {
-    submitting.value = false
+    submitting.value = false;
   }
 }
 
 interface MobileQrFallbackContext {
-  orderAmount: number
-  orderType: OrderType
-  planId?: number
-  paymentType: string
-  attempted: boolean
+  orderAmount: number;
+  orderType: OrderType;
+  planId?: number;
+  paymentType: string;
+  attempted: boolean;
 }
 
-function shouldFallbackToDesktopQr(err: unknown, paymentMethod: string, attempted: boolean): boolean {
+function shouldFallbackToDesktopQr(
+  err: unknown,
+  paymentMethod: string,
+  attempted: boolean,
+): boolean {
   if (attempted || !isMobileDevice()) {
-    return false
+    return false;
   }
 
-  const normalizedMethod = normalizeVisibleMethod(paymentMethod) || paymentMethod
-  const reason = typeof err === 'object' && err && 'reason' in err && typeof err.reason === 'string'
-    ? err.reason
-    : ''
-  const message = err instanceof Error
-    ? err.message
-    : (typeof err === 'object' && err && 'message' in err && typeof err.message === 'string'
+  const normalizedMethod =
+    normalizeVisibleMethod(paymentMethod) || paymentMethod;
+  const reason =
+    typeof err === "object" &&
+    err &&
+    "reason" in err &&
+    typeof err.reason === "string"
+      ? err.reason
+      : "";
+  const message =
+    err instanceof Error
       ? err.message
-      : '')
-  const normalizedMessage = message.toLowerCase()
+      : typeof err === "object" &&
+          err &&
+          "message" in err &&
+          typeof err.message === "string"
+        ? err.message
+        : "";
+  const normalizedMessage = message.toLowerCase();
 
-  if (normalizedMethod === 'wxpay') {
-    return reason === 'WECHAT_H5_NOT_AUTHORIZED'
-      || reason === 'WECHAT_PAYMENT_MP_NOT_CONFIGURED'
-      || reason === 'WECHAT_JSAPI_FAILED'
-      || reason === 'PAYMENT_GATEWAY_ERROR'
-      || reason === 'UNHANDLED_PAYMENT_SCENARIO'
-      || normalizedMessage.includes('weixinjsbridge is unavailable')
-      || normalizedMessage.includes('wechat_jsapi_unavailable')
+  if (normalizedMethod === "wxpay") {
+    return (
+      reason === "WECHAT_H5_NOT_AUTHORIZED" ||
+      reason === "WECHAT_PAYMENT_MP_NOT_CONFIGURED" ||
+      reason === "WECHAT_JSAPI_FAILED" ||
+      reason === "PAYMENT_GATEWAY_ERROR" ||
+      reason === "UNHANDLED_PAYMENT_SCENARIO" ||
+      normalizedMessage.includes("weixinjsbridge is unavailable") ||
+      normalizedMessage.includes("wechat_jsapi_unavailable")
+    );
   }
 
-  if (normalizedMethod === 'alipay') {
-    return reason === 'PAYMENT_GATEWAY_ERROR' || reason === 'UNHANDLED_PAYMENT_SCENARIO'
+  if (normalizedMethod === "alipay") {
+    return (
+      reason === "PAYMENT_GATEWAY_ERROR" ||
+      reason === "UNHANDLED_PAYMENT_SCENARIO"
+    );
   }
 
-  return false
+  return false;
 }
 
-async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackContext): Promise<boolean> {
+async function attemptMobileQrFallback(
+  err: unknown,
+  context: MobileQrFallbackContext,
+): Promise<boolean> {
   if (!shouldFallbackToDesktopQr(err, context.paymentType, context.attempted)) {
-    return false
+    return false;
   }
 
   try {
-    const visibleMethod = normalizeVisibleMethod(context.paymentType) || context.paymentType
+    const visibleMethod =
+      normalizeVisibleMethod(context.paymentType) || context.paymentType;
     const payload = buildCreateOrderPayload({
       amount: context.orderAmount,
       paymentType: visibleMethod,
       orderType: context.orderType,
       planId: context.planId,
-      origin: typeof window !== 'undefined' ? window.location.origin : '',
+      origin: typeof window !== "undefined" ? window.location.origin : "",
       isMobile: false,
       isWechatBrowser: false,
       turnstileToken: turnstileToken.value,
-    })
-    const idempotencyKey = getCreateOrderIdempotencyKey(payload)
-    const result = await paymentStore.createOrder(payload, { idempotencyKey }) as CreateOrderResult & { resume_token?: string }
-    clearCreateOrderIdempotencyKey(payload)
-    const stripeMethod = visibleMethod === 'stripe'
-      ? ''
-      : visibleMethod === 'wxpay' ? 'wechat_pay' : 'alipay'
+    });
+    const idempotencyKey = getCreateOrderIdempotencyKey(payload);
+    const result = (await paymentStore.createOrder(payload, {
+      idempotencyKey,
+    })) as CreateOrderResult & { resume_token?: string };
+    clearCreateOrderIdempotencyKey(payload);
+    const stripeMethod =
+      visibleMethod === "stripe"
+        ? ""
+        : visibleMethod === "wxpay"
+          ? "wechat_pay"
+          : "alipay";
     const stripeRouteUrl = result.client_secret
       ? router.resolve({
-        path: '/payment/stripe',
-        query: {
-          order_id: String(result.order_id),
-          client_secret: result.client_secret,
-          method: stripeMethod || undefined,
-          resume_token: result.resume_token || undefined,
-        },
-      }).href
-      : ''
+          path: "/payment/stripe",
+          query: {
+            order_id: String(result.order_id),
+            client_secret: result.client_secret,
+            method: stripeMethod || undefined,
+            resume_token: result.resume_token || undefined,
+          },
+        }).href
+      : "";
     const decision = decidePaymentLaunch(result, {
       visibleMethod,
       orderType: context.orderType,
@@ -1097,21 +1618,21 @@ async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackCo
       isWechatBrowser: false,
       stripePopupUrl: stripeRouteUrl,
       stripeRouteUrl,
-    })
+    });
 
-    if (decision.kind !== 'qr_waiting' || !decision.paymentState.qrCode) {
-      return false
+    if (decision.kind !== "qr_waiting" || !decision.paymentState.qrCode) {
+      return false;
     }
 
-    errorMessage.value = ''
-    errorHintMessage.value = ''
-    paymentState.value = decision.paymentState
-    paymentPhase.value = 'paying'
-    persistRecoverySnapshot(decision.recovery)
-    appStore.showWarning(t('payment.errors.mobilePaymentFallbackToQr'))
-    return true
+    errorMessage.value = "";
+    errorHintMessage.value = "";
+    paymentState.value = decision.paymentState;
+    paymentPhase.value = "paying";
+    persistRecoverySnapshot(decision.recovery);
+    appStore.showWarning(t("payment.errors.mobilePaymentFallbackToQr"));
+    return true;
   } catch {
-    return false
+    return false;
   }
 }
 
@@ -1119,42 +1640,54 @@ function applyScenarioError(err: unknown, paymentMethod: string): boolean {
   const descriptor = describePaymentScenarioError(err, {
     paymentMethod,
     isMobile: isMobileDevice(),
-    isWechatBrowser: typeof window !== 'undefined' && /MicroMessenger/i.test(window.navigator.userAgent),
-  })
+    isWechatBrowser:
+      typeof window !== "undefined" &&
+      /MicroMessenger/i.test(window.navigator.userAgent),
+  });
   if (!descriptor) {
-    errorMessage.value = ''
-    errorHintMessage.value = ''
-    return false
+    errorMessage.value = "";
+    errorHintMessage.value = "";
+    return false;
   }
-  errorMessage.value = t(descriptor.messageKey)
-  errorHintMessage.value = descriptor.hintKey ? t(descriptor.hintKey) : ''
-  appStore.showError(buildPaymentErrorToastMessage(errorMessage.value, errorHintMessage.value))
-  return true
+  errorMessage.value = t(descriptor.messageKey);
+  errorHintMessage.value = descriptor.hintKey ? t(descriptor.hintKey) : "";
+  appStore.showError(
+    buildPaymentErrorToastMessage(errorMessage.value, errorHintMessage.value),
+  );
+  return true;
 }
 
 async function resumeWechatPaymentFromQuery() {
-  const resume = parseWechatResumeRoute(route.query, checkout.value.plans, validAmount.value)
+  const resume = parseWechatResumeRoute(
+    route.query,
+    checkout.value.plans,
+    validAmount.value,
+  );
   if (!resume) {
-    return
+    return;
   }
 
-  selectedMethod.value = resume.paymentType
-  if (resume.orderType === 'balance' && resume.orderAmount > 0) {
-    amount.value = resume.orderAmount
+  selectedMethod.value = resume.paymentType;
+  if (resume.orderType === "balance" && resume.orderAmount > 0) {
+    amount.value = resume.orderAmount;
   }
-  if (resume.orderType === 'subscription' && resume.planId) {
-    selectedPlan.value = checkout.value.plans.find(plan => plan.id === resume.planId) ?? null
+  if (resume.orderType === "subscription" && resume.planId) {
+    selectedPlan.value =
+      checkout.value.plans.find((plan) => plan.id === resume.planId) ?? null;
   }
 
-  await router.replace({ path: route.path, query: stripWechatResumeQuery(route.query) })
+  await router.replace({
+    path: route.path,
+    query: stripWechatResumeQuery(route.query),
+  });
 
   if (resume.wechatResumeToken) {
     await createOrder(0, resume.orderType, resume.planId, {
       wechatResumeToken: resume.wechatResumeToken,
       paymentType: resume.paymentType,
       isResume: true,
-    })
-    return
+    });
+    return;
   }
 
   if (resume.orderAmount > 0 && resume.openid) {
@@ -1162,70 +1695,78 @@ async function resumeWechatPaymentFromQuery() {
       openid: resume.openid,
       paymentType: resume.paymentType,
       isResume: true,
-    })
+    });
   }
 }
 
 onMounted(async () => {
   try {
-    const res = await paymentAPI.getCheckoutInfo()
-    checkout.value = res.data
+    const res = await paymentAPI.getCheckoutInfo();
+    checkout.value = res.data;
     if (enabledMethods.value.length) {
-      const order: readonly string[] = METHOD_ORDER
+      const order: readonly string[] = METHOD_ORDER;
       const sorted = [...enabledMethods.value].sort((a, b) => {
-        const ai = order.indexOf(a)
-        const bi = order.indexOf(b)
-        return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
-      })
-      selectedMethod.value = sorted[0]
+        const ai = order.indexOf(a);
+        const bi = order.indexOf(b);
+        return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+      });
+      selectedMethod.value = sorted[0];
     }
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       if (hasWechatResumeQuery(route.query)) {
-        removeRecoverySnapshot()
+        removeRecoverySnapshot();
       }
-      const routeResumeToken = typeof route.query.resume_token === 'string'
-        ? route.query.resume_token
-        : typeof route.query.wechat_resume_token === 'string'
-          ? route.query.wechat_resume_token
-          : undefined
+      const routeResumeToken =
+        typeof route.query.resume_token === "string"
+          ? route.query.resume_token
+          : typeof route.query.wechat_resume_token === "string"
+            ? route.query.wechat_resume_token
+            : undefined;
       const restored = readPaymentRecoverySnapshot(
         window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY),
         { resumeToken: routeResumeToken },
-      )
+      );
       if (restored) {
-        paymentState.value = restored
-        paymentPhase.value = 'paying'
-        const restoredMethod = normalizeVisibleMethod(restored.paymentType)
+        paymentState.value = restored;
+        paymentPhase.value = "paying";
+        const restoredMethod = normalizeVisibleMethod(restored.paymentType);
         if (restoredMethod) {
-          selectedMethod.value = restoredMethod
+          selectedMethod.value = restoredMethod;
         }
       } else {
-        removeRecoverySnapshot()
+        removeRecoverySnapshot();
       }
     }
-    await resumeWechatPaymentFromQuery()
+    await resumeWechatPaymentFromQuery();
     if (checkout.value.balance_disabled) {
-      activeTab.value = 'subscription'
+      activeTab.value = "subscription";
     }
     // Handle renewal navigation: ?tab=subscription&group=123
-    if (route.query.tab === 'subscription') {
-      activeTab.value = 'subscription'
+    if (route.query.tab === "subscription") {
+      activeTab.value = "subscription";
       if (route.query.group) {
-        const groupId = Number(route.query.group)
-        const groupPlans = checkout.value.plans.filter(p => p.group_id === groupId)
+        const groupId = Number(route.query.group);
+        const groupPlans = checkout.value.plans.filter(
+          (p) => p.group_id === groupId,
+        );
         if (groupPlans.length === 1) {
-          selectedPlan.value = groupPlans[0]
+          selectedPlan.value = groupPlans[0];
         } else if (groupPlans.length > 1) {
-          renewGroupId.value = groupId
-          showRenewalModal.value = true
+          renewGroupId.value = groupId;
+          showRenewalModal.value = true;
         }
       }
     }
-  } catch (err: unknown) { appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error'))) }
-  finally { loading.value = false }
+  } catch (err: unknown) {
+    appStore.showError(
+      extractI18nErrorMessage(err, t, "payment.errors", t("common.error")),
+    );
+  } finally {
+    loading.value = false;
+  }
   // Fetch active subscriptions (uses cache, non-blocking)
-  subscriptionStore.fetchActiveSubscriptions().catch(() => {})
-})
+  subscriptionStore.fetchActiveSubscriptions().catch(() => {});
+});
 </script>
 
 <style scoped>

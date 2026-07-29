@@ -97,7 +97,7 @@ describe('RegisterView invitation layout', () => {
     ).toBeTruthy()
   })
 
-  it('uses the mandatory invitation field without duplicating the affiliate field', async () => {
+  it('ignores the retired mandatory invitation setting and keeps the affiliate field', async () => {
     getPublicSettingsMock.mockResolvedValueOnce({
       ...publicSettings,
       invitation_code_enabled: true
@@ -106,7 +106,8 @@ describe('RegisterView invitation layout', () => {
     const wrapper = mountRegister()
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="affiliate-invitation-field"]').exists()).toBe(false)
-    expect(wrapper.get('#invitation_code').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="affiliate-invitation-field"]').exists()).toBe(true)
+    expect(wrapper.find('#invitation_code').exists()).toBe(false)
+    expect(wrapper.get('#affiliate_code').attributes('name')).toBe('affiliate_code')
   })
 })

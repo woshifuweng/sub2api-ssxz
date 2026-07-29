@@ -1,14 +1,31 @@
 <template>
   <component :is="pageShell" v-bind="pageShellProps">
-    <div :class="['profile-workbench', { 'profile-workbench--app': useWorkbenchShell }]">
-      <section class="profile-hero-card" :aria-label="t('profile.workbench.introAriaLabel')">
+    <div
+      :class="[
+        'profile-workbench',
+        { 'profile-workbench--app': useWorkbenchShell },
+      ]"
+    >
+      <section
+        class="profile-hero-card"
+        :aria-label="t('profile.workbench.introAriaLabel')"
+      >
         <div class="profile-hero-card__identity">
           <Avatar :src="avatar?.url" :name="displayName" :size="96" />
           <div class="profile-hero-card__copy">
             <div class="profile-hero-card__name-row">
               <h2>{{ displayName }}</h2>
-              <span :class="['badge', user?.role === 'admin' ? 'badge-primary' : 'badge-gray']">
-                {{ user?.role === 'admin' ? t('profile.administrator') : t('profile.user') }}
+              <span
+                :class="[
+                  'badge',
+                  user?.role === 'admin' ? 'badge-primary' : 'badge-gray',
+                ]"
+              >
+                {{
+                  user?.role === "admin"
+                    ? t("profile.administrator")
+                    : t("profile.user")
+                }}
               </span>
             </div>
             <p>{{ user?.email }}</p>
@@ -16,36 +33,56 @@
         </div>
         <dl class="profile-hero-card__stats">
           <div>
-            <dt><Icon name="dollar" size="sm" />{{ t('profile.accountBalance') }}</dt>
+            <dt>
+              <Icon name="dollar" size="sm" />{{ t("profile.accountBalance") }}
+            </dt>
             <dd>{{ formatCurrency(user?.balance || 0) }}</dd>
           </div>
           <div>
-            <dt><Icon name="shield" size="sm" />{{ t('profile.accountStatus') }}</dt>
-            <dd :class="{ 'is-active': user?.status === 'active' }">{{ accountStatusLabel }}</dd>
+            <dt>
+              <Icon name="shield" size="sm" />{{ t("profile.accountStatus") }}
+            </dt>
+            <dd :class="{ 'is-active': user?.status === 'active' }">
+              {{ accountStatusLabel }}
+            </dd>
           </div>
           <div>
-            <dt><Icon name="calendar" size="sm" />{{ t('profile.memberSince') }}</dt>
-            <dd>{{ formatDate(user?.created_at || '', { year: 'numeric', month: 'long' }) }}</dd>
+            <dt>
+              <Icon name="calendar" size="sm" />{{ t("profile.memberSince") }}
+            </dt>
+            <dd>
+              {{
+                formatDate(user?.created_at || "", {
+                  year: "numeric",
+                  month: "long",
+                })
+              }}
+            </dd>
           </div>
         </dl>
       </section>
 
       <section class="profile-panel profile-identity-panel">
         <div class="profile-panel-heading">
-          <span>{{ t('profile.workbench.basicInfoKicker') }}</span>
-          <strong>{{ t('profile.workbench.accountInfoTitle') }}</strong>
+          <span>{{ t("profile.workbench.basicInfoKicker") }}</span>
+          <strong>{{ t("profile.workbench.accountInfoTitle") }}</strong>
         </div>
         <div class="profile-identity-grid">
           <div class="profile-avatar-settings">
             <Avatar :src="avatar?.url" :name="displayName" :size="84" />
             <div class="profile-avatar-settings__copy">
-              <strong>{{ t('profile.avatar.uploadTitle') }}</strong>
-              <p>{{ t('profile.avatar.uploadHint') }}</p>
+              <strong>{{ t("profile.avatar.uploadTitle") }}</strong>
+              <p>{{ t("profile.avatar.uploadHint") }}</p>
             </div>
-            <button type="button" class="btn btn-secondary" @click="avatarDialogOpen = true">
+            <LiquidButton
+              type="button"
+              @click="avatarDialogOpen = true"
+              variant="outline"
+              size="sm"
+            >
               <Icon name="upload" size="sm" />
-              {{ t('profile.avatar.change') }}
-            </button>
+              {{ t("profile.avatar.change") }}
+            </LiquidButton>
           </div>
           <div class="profile-edit-slot">
             <ProfileEditForm :initial-username="user?.username || ''" />
@@ -53,31 +90,39 @@
         </div>
       </section>
 
-      <section v-if="linuxdoOAuthEnabled" class="profile-panel profile-provider-panel">
+      <section
+        v-if="linuxdoOAuthEnabled"
+        class="profile-panel profile-provider-panel"
+      >
         <div class="profile-panel-heading">
-          <span>{{ t('profile.thirdParty.kicker') }}</span>
-          <strong>{{ t('profile.thirdParty.title') }}</strong>
+          <span>{{ t("profile.thirdParty.kicker") }}</span>
+          <strong>{{ t("profile.thirdParty.title") }}</strong>
         </div>
         <div class="profile-provider-row">
           <div>
-            <strong>{{ t('profile.thirdParty.linuxdoTitle') }}</strong>
-            <p>{{ t('profile.thirdParty.linuxdoDescription') }}</p>
+            <strong>{{ t("profile.thirdParty.linuxdoTitle") }}</strong>
+            <p>{{ t("profile.thirdParty.linuxdoDescription") }}</p>
           </div>
-          <span class="profile-provider-status">{{ t('profile.thirdParty.connected') }}</span>
+          <span class="profile-provider-status">{{
+            t("profile.thirdParty.connected")
+          }}</span>
         </div>
       </section>
 
       <div v-if="contactInfo" class="profile-support-card">
         <div class="flex items-center gap-4">
           <div class="profile-support-icon"><Icon name="chat" size="lg" /></div>
-          <div><h3>{{ t('common.contactSupport') }}</h3><p>{{ contactInfo }}</p></div>
+          <div>
+            <h3>{{ t("common.contactSupport") }}</h3>
+            <p>{{ contactInfo }}</p>
+          </div>
         </div>
       </div>
 
       <section class="profile-panel">
         <div class="profile-panel-heading">
-          <span>{{ t('profile.workbench.loginProtectionKicker') }}</span>
-          <strong>{{ t('profile.workbench.changePasswordTitle') }}</strong>
+          <span>{{ t("profile.workbench.loginProtectionKicker") }}</span>
+          <strong>{{ t("profile.workbench.changePasswordTitle") }}</strong>
         </div>
         <ProfilePasswordForm />
       </section>
@@ -93,8 +138,8 @@
 
       <section class="profile-panel">
         <div class="profile-panel-heading">
-          <span>{{ t('profile.workbench.twoFactorKicker') }}</span>
-          <strong>{{ t('profile.workbench.securityTitle') }}</strong>
+          <span>{{ t("profile.workbench.twoFactorKicker") }}</span>
+          <strong>{{ t("profile.workbench.securityTitle") }}</strong>
         </div>
         <ProfileTotpCard />
       </section>
@@ -112,91 +157,99 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
-import { useAppStore } from '@/stores/app'
-import { formatDate } from '@/utils/format'
-import { authAPI } from '@/api'
-import AppLayout from '@/components/layout/AppLayout.vue'
-import { userAPI } from '@/api'
-import AppSectionShell from '@/components/user/AppSectionShell.vue'
-import Avatar from '@/components/common/Avatar.vue'
-import ProfileEditForm from '@/components/user/profile/ProfileEditForm.vue'
-import ProfileBalanceNotifyCard from '@/components/user/profile/ProfileBalanceNotifyCard.vue'
-import ProfilePasswordForm from '@/components/user/profile/ProfilePasswordForm.vue'
-import ProfileTotpCard from '@/components/user/profile/ProfileTotpCard.vue'
-import ProfilePasskeyCard from '@/components/user/profile/ProfilePasskeyCard.vue'
-import AvatarCropDialog from '@/components/user/profile/AvatarCropDialog.vue'
-import type { UserAvatar } from '@/types'
-import { Icon } from '@/components/icons'
+import LiquidButton from "@/components/common/LiquidButton.vue";
+import { ref, computed, onMounted } from "vue";
+import { useI18n } from "vue-i18n";
+import { useRoute } from "vue-router";
+import { useAuthStore } from "@/stores/auth";
+import { useAppStore } from "@/stores/app";
+import { formatDate } from "@/utils/format";
+import { authAPI } from "@/api";
+import AppLayout from "@/components/layout/AppLayout.vue";
+import { userAPI } from "@/api";
+import AppSectionShell from "@/components/user/AppSectionShell.vue";
+import Avatar from "@/components/common/Avatar.vue";
+import ProfileEditForm from "@/components/user/profile/ProfileEditForm.vue";
+import ProfileBalanceNotifyCard from "@/components/user/profile/ProfileBalanceNotifyCard.vue";
+import ProfilePasswordForm from "@/components/user/profile/ProfilePasswordForm.vue";
+import ProfileTotpCard from "@/components/user/profile/ProfileTotpCard.vue";
+import ProfilePasskeyCard from "@/components/user/profile/ProfilePasskeyCard.vue";
+import AvatarCropDialog from "@/components/user/profile/AvatarCropDialog.vue";
+import type { UserAvatar } from "@/types";
+import { Icon } from "@/components/icons";
 
-const { t } = useI18n()
-const authStore = useAuthStore()
-const appStore = useAppStore()
-const user = computed(() => authStore.user)
-const route = useRoute()
-const useWorkbenchShell = computed(() => route.path.startsWith('/app/'))
-const pageShell = computed(() => useWorkbenchShell.value ? AppSectionShell : AppLayout)
-const pageShellProps = computed(() => useWorkbenchShell.value
-  ? {
-      title: t('profile.workbench.title'),
-      subtitle: t('profile.workbench.subtitle'),
-      eyebrow: t('profile.workbench.eyebrow'),
-      icon: 'userCircle'
-    }
-  : {}
-)
-const contactInfo = ref('')
-const linuxdoOAuthEnabled = ref(false)
-const balanceLowNotifyEnabled = ref(false)
-const systemDefaultThreshold = ref(0)
-const passkeyEnabled = ref(false)
-const avatar = ref<UserAvatar | null>(null)
-const avatarDialogOpen = ref(false)
-const avatarSaving = ref(false)
-const displayName = computed(() => user.value?.username || user.value?.email || t('profile.user'))
-const accountStatusLabel = computed(() => user.value?.status === 'active'
-  ? t('profile.statusActive')
-  : t('profile.statusDisabled')
-)
+const { t } = useI18n();
+const authStore = useAuthStore();
+const appStore = useAppStore();
+const user = computed(() => authStore.user);
+const route = useRoute();
+const useWorkbenchShell = computed(() => route.path.startsWith("/app/"));
+const pageShell = computed(() =>
+  useWorkbenchShell.value ? AppSectionShell : AppLayout,
+);
+const pageShellProps = computed(() =>
+  useWorkbenchShell.value
+    ? {
+        title: t("profile.workbench.title"),
+        subtitle: t("profile.workbench.subtitle"),
+        eyebrow: t("profile.workbench.eyebrow"),
+        icon: "userCircle",
+      }
+    : {},
+);
+const contactInfo = ref("");
+const linuxdoOAuthEnabled = ref(false);
+const balanceLowNotifyEnabled = ref(false);
+const systemDefaultThreshold = ref(0);
+const passkeyEnabled = ref(false);
+const avatar = ref<UserAvatar | null>(null);
+const avatarDialogOpen = ref(false);
+const avatarSaving = ref(false);
+const displayName = computed(
+  () => user.value?.username || user.value?.email || t("profile.user"),
+);
+const accountStatusLabel = computed(() =>
+  user.value?.status === "active"
+    ? t("profile.statusActive")
+    : t("profile.statusDisabled"),
+);
 
 onMounted(async () => {
   try {
-    const settings = await authAPI.getPublicSettings()
-    contactInfo.value = (settings.contact_info || '').trim()
-    linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled === true
-    balanceLowNotifyEnabled.value = settings.balance_low_notify_enabled ?? false
-    systemDefaultThreshold.value = settings.balance_low_notify_threshold ?? 0
-    passkeyEnabled.value = settings.passkey_enabled === true
+    const settings = await authAPI.getPublicSettings();
+    contactInfo.value = (settings.contact_info || "").trim();
+    linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled === true;
+    balanceLowNotifyEnabled.value =
+      settings.balance_low_notify_enabled ?? false;
+    systemDefaultThreshold.value = settings.balance_low_notify_threshold ?? 0;
+    passkeyEnabled.value = settings.passkey_enabled === true;
   } catch {
-    contactInfo.value = ''
-    linuxdoOAuthEnabled.value = false
-    balanceLowNotifyEnabled.value = false
-    systemDefaultThreshold.value = 0
-    passkeyEnabled.value = false
+    contactInfo.value = "";
+    linuxdoOAuthEnabled.value = false;
+    balanceLowNotifyEnabled.value = false;
+    systemDefaultThreshold.value = 0;
+    passkeyEnabled.value = false;
   }
   try {
-    avatar.value = await userAPI.getAvatar()
+    avatar.value = await userAPI.getAvatar();
   } catch {
-    avatar.value = null
+    avatar.value = null;
   }
-})
+});
 
 const handleAvatarSave = async (dataUrl: string) => {
-  avatarSaving.value = true
+  avatarSaving.value = true;
   try {
-    avatar.value = await userAPI.updateAvatar(dataUrl)
-    avatarDialogOpen.value = false
-    appStore.showSuccess(t('profile.avatar.saved'))
+    avatar.value = await userAPI.updateAvatar(dataUrl);
+    avatarDialogOpen.value = false;
+    appStore.showSuccess(t("profile.avatar.saved"));
   } catch (error: any) {
-    appStore.showError(error?.message || t('profile.avatar.saveFailed'))
+    appStore.showError(error?.message || t("profile.avatar.saveFailed"));
   } finally {
-    avatarSaving.value = false
+    avatarSaving.value = false;
   }
-}
-const formatCurrency = (v: number) => `$${v.toFixed(2)}`
+};
+const formatCurrency = (v: number) => `$${v.toFixed(2)}`;
 </script>
 
 <style scoped>
@@ -448,7 +501,8 @@ const formatCurrency = (v: number) => `$${v.toFixed(2)}`
 
 .profile-provider-status {
   flex: 0 0 auto;
-  border: 1px solid color-mix(in srgb, var(--ssxz-success) 32%, var(--ssxz-border));
+  border: 1px solid
+    color-mix(in srgb, var(--ssxz-success) 32%, var(--ssxz-border));
   border-radius: 999px;
   padding: 0.35rem 0.65rem;
   color: var(--ssxz-success);

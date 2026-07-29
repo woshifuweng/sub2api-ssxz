@@ -131,6 +131,10 @@ vi.mock('@/components/user/profile/ProfileTotpCard.vue', () => ({
   default: { name: 'ProfileTotpCard', template: '<section />' }
 }))
 
+vi.mock('@/components/user/profile/ProfilePasskeyCard.vue', () => ({
+  default: { name: 'ProfilePasskeyCard', template: '<section />' }
+}))
+
 vi.mock('@/components/icons', () => ({
   Icon: { name: 'Icon', template: '<span />' }
 }))

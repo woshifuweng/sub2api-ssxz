@@ -11,7 +11,10 @@
     @select-conversation="selectConversation"
   >
     <section class="workspace-page" :data-section="activeSection">
-      <div class="workspace-main" :class="{ 'has-messages': workspace.messages.value.length > 0 }">
+      <div
+        class="workspace-main"
+        :class="{ 'has-messages': workspace.messages.value.length > 0 }"
+      >
         <section
           v-if="workspace.messages.value.length === 0"
           class="empty-state"
@@ -28,19 +31,29 @@
         />
       </div>
 
-      <div v-if="workspace.errorMessage.value" class="workspace-error" role="alert">
+      <div
+        v-if="workspace.errorMessage.value"
+        class="workspace-error"
+        role="alert"
+      >
         <span>{{ workspace.errorMessage.value }}</span>
-        <button
+        <LiquidButton
           v-if="workspace.canRetryLastFailedSend.value"
           type="button"
           class="workspace-error-retry"
           :disabled="workspace.sending.value || assets.registering.value"
           @click="retryLastFailedSend"
+          variant="plain"
+          size="sm"
         >
           重试
-        </button>
+        </LiquidButton>
       </div>
-      <p v-else-if="!workspace.backendEnabled.value" class="workspace-notice" role="status">
+      <p
+        v-else-if="!workspace.backendEnabled.value"
+        class="workspace-notice"
+        role="status"
+      >
         模型测试服务暂不可用，暂不可发送。当前仅展示轻量测试入口。
       </p>
 
@@ -70,138 +83,155 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import Icon from '@/components/icons/Icon.vue'
-import AppSectionShell from '@/components/user/AppSectionShell.vue'
-import { useUserCapabilities } from '@/composables/useUserCapabilities'
-import { useAppStore } from '@/stores/app'
-import WorkspaceComposer from './workspace/WorkspaceComposer.vue'
-import WorkspaceMessageList from './workspace/WorkspaceMessageList.vue'
-import { useWorkspaceAssets } from './workspace/useWorkspaceAssets'
+import LiquidButton from "@/components/common/LiquidButton.vue";
+import { computed, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import Icon from "@/components/icons/Icon.vue";
+import AppSectionShell from "@/components/user/AppSectionShell.vue";
+import { useUserCapabilities } from "@/composables/useUserCapabilities";
+import { useAppStore } from "@/stores/app";
+import WorkspaceComposer from "./workspace/WorkspaceComposer.vue";
+import WorkspaceMessageList from "./workspace/WorkspaceMessageList.vue";
+import { useWorkspaceAssets } from "./workspace/useWorkspaceAssets";
 import {
   WORKSPACE_TEXT_ONLY_MESSAGE,
   useWorkspaceConversation,
-  type WorkspaceIntent
-} from './workspace/useWorkspaceConversation'
+  type WorkspaceIntent,
+} from "./workspace/useWorkspaceConversation";
 
-type IconName = InstanceType<typeof Icon>['$props']['name']
-type SectionKey = 'home' | 'chat' | 'image'
+type IconName = InstanceType<typeof Icon>["$props"]["name"];
+type SectionKey = "home" | "chat" | "image";
 
 interface SectionContent {
-  shellTitle: string
-  shellSubtitle: string
-  eyebrow: string
-  icon: IconName
+  shellTitle: string;
+  shellSubtitle: string;
+  eyebrow: string;
+  icon: IconName;
 }
 
-const route = useRoute()
-const router = useRouter()
-const appStore = useAppStore()
-const draft = ref('')
-const selectedModelId = ref('')
-const webSearchRequested = ref(false)
-const workspace = useWorkspaceConversation()
-const assets = useWorkspaceAssets()
-const capabilities = useUserCapabilities()
-const {
-  chatModels,
-  hasChat,
-  loadCapabilities
-} = capabilities
-const defaultTextModel = capabilities.defaultTextModel ?? ref('')
-const ACTIVE_CONVERSATION_QUERY_KEY = 'conversation_id'
+const route = useRoute();
+const router = useRouter();
+const appStore = useAppStore();
+const draft = ref("");
+const selectedModelId = ref("");
+const webSearchRequested = ref(false);
+const workspace = useWorkspaceConversation();
+const assets = useWorkspaceAssets();
+const capabilities = useUserCapabilities();
+const { chatModels, hasChat, loadCapabilities } = capabilities;
+const defaultTextModel = capabilities.defaultTextModel ?? ref("");
+const ACTIVE_CONVERSATION_QUERY_KEY = "conversation_id";
 
-const sectionKeys: readonly SectionKey[] = ['home', 'chat', 'image']
+const sectionKeys: readonly SectionKey[] = ["home", "chat", "image"];
 
 const sectionContent: Record<SectionKey, SectionContent> = {
   home: {
-    shellTitle: '模型测试入口',
-    shellSubtitle: '用于轻量验证文本模型和 API 可用性，不作为默认首页或主产品入口。',
-    eyebrow: '轻量体验入口',
-    icon: 'chat'
+    shellTitle: "模型测试入口",
+    shellSubtitle:
+      "用于轻量验证文本模型和 API 可用性，不作为默认首页或主产品入口。",
+    eyebrow: "轻量体验入口",
+    icon: "chat",
   },
   chat: {
-    shellTitle: '模型测试入口',
-    shellSubtitle: '当前只做轻量文本模型测试，真实能力以账号可用模型和分组为准。',
-    eyebrow: '轻量体验入口',
-    icon: 'chat'
+    shellTitle: "模型测试入口",
+    shellSubtitle:
+      "当前只做轻量文本模型测试，真实能力以账号可用模型和分组为准。",
+    eyebrow: "轻量体验入口",
+    icon: "chat",
   },
   image: {
-    shellTitle: '模型测试入口',
-    shellSubtitle: '当前只做轻量文本模型测试，图片能力请到图片内测入口查看。',
-    eyebrow: '轻量体验入口',
-    icon: 'chat'
-  }
-}
+    shellTitle: "模型测试入口",
+    shellSubtitle: "当前只做轻量文本模型测试，图片能力请到图片内测入口查看。",
+    eyebrow: "轻量体验入口",
+    icon: "chat",
+  },
+};
 
 const activeSection = computed<SectionKey>(() => {
-  const section = route.meta.appSection
-  return isSectionKey(section) ? section : 'home'
-})
-const availableModelIds = computed(() => chatModels.value.map((model) => model.id))
+  const section = route.meta.appSection;
+  return isSectionKey(section) ? section : "home";
+});
+const availableModelIds = computed(() =>
+  chatModels.value.map((model) => model.id),
+);
 const activeChatModel = computed(() => {
-  if (!hasChat.value) return ''
-  if (selectedModelId.value && availableModelIds.value.includes(selectedModelId.value)) return selectedModelId.value
-  return defaultTextModel.value || availableModelIds.value[0] || ''
-})
-const imageCapabilityAvailable = computed(() => false)
-const webSearchAvailable = computed(() => appStore.cachedPublicSettings?.web_search?.available === true)
-const textBetaMode = computed(() => hasChat.value)
-const activeModelLabel = computed(() =>
-  chatModels.value.find((model) => model.id === activeChatModel.value)?.name || 'Deepseek-V4-Flash'
-)
-const textBetaCapabilityCopy = computed(() =>
-  `当前开放 ${activeModelLabel.value} 文本对话。图片理解和多图分析暂未接入。`
-)
+  if (!hasChat.value) return "";
+  if (
+    selectedModelId.value &&
+    availableModelIds.value.includes(selectedModelId.value)
+  )
+    return selectedModelId.value;
+  return defaultTextModel.value || availableModelIds.value[0] || "";
+});
+const imageCapabilityAvailable = computed(() => false);
+const webSearchAvailable = computed(
+  () => appStore.cachedPublicSettings?.web_search?.available === true,
+);
+const textBetaMode = computed(() => hasChat.value);
+const activeModelLabel = computed(
+  () =>
+    chatModels.value.find((model) => model.id === activeChatModel.value)
+      ?.name || "Deepseek-V4-Flash",
+);
+const textBetaCapabilityCopy = computed(
+  () =>
+    `当前开放 ${activeModelLabel.value} 文本对话。图片理解和多图分析暂未接入。`,
+);
 const workspaceIntent = computed<WorkspaceIntent>(() =>
-  textBetaMode.value ? 'chat' : activeSection.value
-)
+  textBetaMode.value ? "chat" : activeSection.value,
+);
 const activeContent = computed<SectionContent>(() => {
   if (textBetaMode.value) {
     return {
-      shellTitle: '模型测试入口',
+      shellTitle: "模型测试入口",
       shellSubtitle: `${textBetaCapabilityCopy.value} 这里仅用于验证模型/API 可用性。`,
-      eyebrow: '轻量体验入口',
-      icon: 'chat'
-    }
+      eyebrow: "轻量体验入口",
+      icon: "chat",
+    };
   }
-  return sectionContent[activeSection.value]
-})
-const emptyStateTitle = computed(() => '模型测试入口')
+  return sectionContent[activeSection.value];
+});
+const emptyStateTitle = computed(() => "模型测试入口");
 const emptyStateCopy = computed(() => {
-  if (textBetaMode.value) return `${textBetaCapabilityCopy.value} 需要图片能力请到图片内测入口；这里仅保留轻量模型测试能力。`
-  if (activeSection.value === 'image') return '输入你想处理的图像需求。'
-  if (activeSection.value === 'chat') return '输入问题后，这段对话会进入左侧历史，刷新页面也不会丢失。'
-  return '直接输入问题，开始对话。'
-})
+  if (textBetaMode.value)
+    return `${textBetaCapabilityCopy.value} 需要图片能力请到图片内测入口；这里仅保留轻量模型测试能力。`;
+  if (activeSection.value === "image") return "输入你想处理的图像需求。";
+  if (activeSection.value === "chat")
+    return "输入问题后，这段对话会进入左侧历史，刷新页面也不会丢失。";
+  return "直接输入问题，开始对话。";
+});
 
 function isSectionKey(value: unknown): value is SectionKey {
-  return typeof value === 'string' && sectionKeys.includes(value as SectionKey)
+  return typeof value === "string" && sectionKeys.includes(value as SectionKey);
 }
 
 async function handleFiles(files: File[]) {
   if (!imageCapabilityAvailable.value) {
-    assets.clearPreviews()
-    workspace.errorMessage.value = WORKSPACE_TEXT_ONLY_MESSAGE
-    return
+    assets.clearPreviews();
+    workspace.errorMessage.value = WORKSPACE_TEXT_ONLY_MESSAGE;
+    return;
   }
 
-  await assets.addFiles(files)
+  await assets.addFiles(files);
 }
 
 function handleUnsupportedFiles() {
-  assets.clearPreviews()
-  workspace.errorMessage.value = WORKSPACE_TEXT_ONLY_MESSAGE
+  assets.clearPreviews();
+  workspace.errorMessage.value = WORKSPACE_TEXT_ONLY_MESSAGE;
 }
 
 async function submitDraft() {
-  const text = draft.value.trim()
-  if (!text && assets.previews.value.length === 0) return
-  if (!activeChatModel.value || workspace.sending.value || assets.registering.value) return
+  const text = draft.value.trim();
+  if (!text && assets.previews.value.length === 0) return;
+  if (
+    !activeChatModel.value ||
+    workspace.sending.value ||
+    assets.registering.value
+  )
+    return;
   if (assets.previews.value.length > 0 && !imageCapabilityAvailable.value) {
-    workspace.errorMessage.value = WORKSPACE_TEXT_ONLY_MESSAGE
-    return
+    workspace.errorMessage.value = WORKSPACE_TEXT_ONLY_MESSAGE;
+    return;
   }
 
   const sent = await workspace.sendTextMessage({
@@ -209,99 +239,104 @@ async function submitDraft() {
     model: activeChatModel.value,
     intent: workspaceIntent.value,
     attachments: assets.getLocalAttachments(),
-    webSearchRequested: webSearchAvailable.value && webSearchRequested.value
-  })
+    webSearchRequested: webSearchAvailable.value && webSearchRequested.value,
+  });
   if (sent) {
-    await finishSuccessfulSend()
+    await finishSuccessfulSend();
   }
 }
 
 async function retryLastFailedSend() {
-  const sent = await workspace.retryLastFailedSend()
+  const sent = await workspace.retryLastFailedSend();
   if (sent) {
-    await finishSuccessfulSend()
+    await finishSuccessfulSend();
   }
 }
 
 async function finishSuccessfulSend() {
-  draft.value = ''
-  assets.clearPreviews()
-  webSearchRequested.value = false
-  const activeConversationId = workspace.activeConversationId.value
+  draft.value = "";
+  assets.clearPreviews();
+  webSearchRequested.value = false;
+  const activeConversationId = workspace.activeConversationId.value;
   if (activeConversationId !== null) {
-    await replaceActiveConversationQuery(activeConversationId)
+    await replaceActiveConversationQuery(activeConversationId);
   }
 }
 
 async function selectConversation(id: number) {
-  draft.value = ''
-  assets.clearPreviews()
-  webSearchRequested.value = false
-  await workspace.selectConversation(id)
+  draft.value = "";
+  assets.clearPreviews();
+  webSearchRequested.value = false;
+  await workspace.selectConversation(id);
   if (workspace.activeConversationId.value === id) {
-    await replaceActiveConversationQuery(id)
+    await replaceActiveConversationQuery(id);
   }
 }
 
 async function startNewChat() {
-  draft.value = ''
-  assets.clearPreviews()
-  webSearchRequested.value = false
-  await workspace.startNewChat()
-  await replaceActiveConversationQuery(null)
+  draft.value = "";
+  assets.clearPreviews();
+  webSearchRequested.value = false;
+  await workspace.startNewChat();
+  await replaceActiveConversationQuery(null);
 }
 
 function toggleWebSearch() {
-  if (!webSearchAvailable.value) return
-  webSearchRequested.value = !webSearchRequested.value
+  if (!webSearchAvailable.value) return;
+  webSearchRequested.value = !webSearchRequested.value;
 }
 
 function routeConversationId() {
-  const raw = route.query?.[ACTIVE_CONVERSATION_QUERY_KEY]
-  const value = Array.isArray(raw) ? raw[0] : raw
-  if (typeof value !== 'string' || value.trim() === '') return null
-  const id = Number(value)
-  return Number.isInteger(id) && id > 0 ? id : null
+  const raw = route.query?.[ACTIVE_CONVERSATION_QUERY_KEY];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
 }
 
 async function replaceActiveConversationQuery(id: number | null) {
-  const query = { ...(route.query ?? {}) }
+  const query = { ...(route.query ?? {}) };
   if (id === null) {
-    delete query[ACTIVE_CONVERSATION_QUERY_KEY]
+    delete query[ACTIVE_CONVERSATION_QUERY_KEY];
   } else {
-    query[ACTIVE_CONVERSATION_QUERY_KEY] = String(id)
+    query[ACTIVE_CONVERSATION_QUERY_KEY] = String(id);
   }
-  await router.replace({ query })
+  await router.replace({ query });
 }
 
 onMounted(async () => {
-  await Promise.all([
-    loadCapabilities(),
-    workspace.loadHistory()
-  ])
-  const conversationId = routeConversationId()
-  if (conversationId === null || !workspace.backendEnabled.value) return
-  await workspace.selectConversation(conversationId)
+  await Promise.all([loadCapabilities(), workspace.loadHistory()]);
+  const conversationId = routeConversationId();
+  if (conversationId === null || !workspace.backendEnabled.value) return;
+  await workspace.selectConversation(conversationId);
   if (workspace.activeConversationId.value !== conversationId) {
-    await replaceActiveConversationQuery(null)
+    await replaceActiveConversationQuery(null);
   }
-})
+});
 
-watch(chatModels, (models) => {
-  if (!models.length) {
-    selectedModelId.value = ''
-    return
-  }
-  if (!models.some((model) => model.id === selectedModelId.value)) {
-    selectedModelId.value = defaultTextModel.value || models[0].id
-  }
-}, { immediate: true })
+watch(
+  chatModels,
+  (models) => {
+    if (!models.length) {
+      selectedModelId.value = "";
+      return;
+    }
+    if (!models.some((model) => model.id === selectedModelId.value)) {
+      selectedModelId.value = defaultTextModel.value || models[0].id;
+    }
+  },
+  { immediate: true },
+);
 
-watch(webSearchAvailable, (available) => {
-  if (!available) {
-    webSearchRequested.value = false
-  }
-}, { immediate: true })
+watch(
+  webSearchAvailable,
+  (available) => {
+    if (!available) {
+      webSearchRequested.value = false;
+    }
+  },
+  { immediate: true },
+);
 </script>
 
 <style scoped>
@@ -421,17 +456,17 @@ watch(webSearchAvailable, (available) => {
   width: min(48rem, 100%);
 }
 
-:deep(.message-row[data-role='user']) {
+:deep(.message-row[data-role="user"]) {
   grid-template-columns: minmax(0, 1fr) 2.25rem;
   justify-self: end;
 }
 
-:deep(.message-row[data-role='user'] .message-avatar) {
+:deep(.message-row[data-role="user"] .message-avatar) {
   grid-column: 2;
   grid-row: 1;
 }
 
-:deep(.message-row[data-role='user'] .message-bubble) {
+:deep(.message-row[data-role="user"] .message-bubble) {
   grid-column: 1;
   justify-self: end;
   background: var(--ssxz-primary);
@@ -459,12 +494,12 @@ watch(webSearchAvailable, (available) => {
   box-shadow: 0 16px 45px color-mix(in srgb, #0f172a 8%, transparent);
 }
 
-:deep(.message-row[data-state='failed'] .message-bubble) {
+:deep(.message-row[data-state="failed"] .message-bubble) {
   border-color: color-mix(in srgb, #ef4444 34%, transparent);
 }
 
-:deep(.message-row[data-state='sending'] .message-bubble),
-:deep(.message-row[data-state='generating'] .message-bubble) {
+:deep(.message-row[data-state="sending"] .message-bubble),
+:deep(.message-row[data-state="generating"] .message-bubble) {
   border-color: color-mix(in srgb, var(--ssxz-primary) 28%, transparent);
 }
 
@@ -760,7 +795,7 @@ watch(webSearchAvailable, (available) => {
   }
 
   :deep(.message-row),
-  :deep(.message-row[data-role='user']) {
+  :deep(.message-row[data-role="user"]) {
     grid-template-columns: 1fr;
   }
 

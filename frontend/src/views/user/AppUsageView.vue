@@ -12,12 +12,14 @@
             <Icon name="creditCard" size="sm" />
           </div>
           <div>
-            <span>{{ t('usage.workbench.balanceTitle') }}</span>
+            <span>{{ t("usage.workbench.balanceTitle") }}</span>
             <strong :title="balanceTitle">{{ balanceText }}</strong>
-            <p :class="{ 'is-warning': balanceRefreshError }">{{ balanceDescriptionText }}</p>
+            <p :class="{ 'is-warning': balanceRefreshError }">
+              {{ balanceDescriptionText }}
+            </p>
           </div>
           <RouterLink to="/app/purchase" class="btn btn-primary summary-action">
-            {{ t('usage.workbench.recharge') }}
+            {{ t("usage.workbench.recharge") }}
           </RouterLink>
         </article>
 
@@ -26,7 +28,7 @@
             <Icon name="chartBar" size="sm" />
           </div>
           <div>
-            <span>{{ t('usage.workbench.monthlyCostTitle') }}</span>
+            <span>{{ t("usage.workbench.monthlyCostTitle") }}</span>
             <strong :title="monthlyCostTitle">{{ monthlyCostText }}</strong>
             <p>{{ monthlyUsageNote }}</p>
           </div>
@@ -36,8 +38,8 @@
       <section class="usage-trends-section">
         <header class="panel-heading">
           <div>
-            <h3>{{ t('usage.workbench.monthlyUsageTitle') }}</h3>
-            <p>{{ t('usage.workbench.monthlyUsageDescription') }}</p>
+            <h3>{{ t("usage.workbench.monthlyUsageTitle") }}</h3>
+            <p>{{ t("usage.workbench.monthlyUsageDescription") }}</p>
           </div>
           <div class="trend-heading-controls">
             <div
@@ -46,28 +48,38 @@
               role="group"
               :aria-label="t('usage.workbench.periodSelectLabel')"
             >
-              <button
+              <LiquidButton
                 v-for="option in metricPeriodOptions"
                 :key="option.value"
                 type="button"
                 :class="{ 'is-active': trendPeriod === option.value }"
                 :data-testid="`usage-period-toggle-${option.value}`"
                 @click="trendPeriod = option.value"
+                variant="ghost"
+                size="sm"
               >
                 {{ option.label }}
-              </button>
+              </LiquidButton>
             </div>
-            <span v-if="hasDailyUsage" class="panel-badge">{{ usageDataBadge }}</span>
+            <span v-if="hasDailyUsage" class="panel-badge">{{
+              usageDataBadge
+            }}</span>
           </div>
         </header>
 
         <div v-if="trendLoadError" class="usage-empty">
-          <div class="usage-empty__icon is-warning"><Icon name="exclamationTriangle" size="lg" /></div>
-          <strong>{{ t('usage.workbench.trendLoadError') }}</strong>
-          <span>{{ t('usage.workbench.trendLoadErrorHint') }}</span>
+          <div class="usage-empty__icon is-warning">
+            <Icon name="exclamationTriangle" size="lg" />
+          </div>
+          <strong>{{ t("usage.workbench.trendLoadError") }}</strong>
+          <span>{{ t("usage.workbench.trendLoadErrorHint") }}</span>
         </div>
 
-        <div v-else-if="hasDailyUsage" class="usage-trend-grid" :aria-label="t('usage.workbench.monthlyChartLabel')">
+        <div
+          v-else-if="hasDailyUsage"
+          class="usage-trend-grid"
+          :aria-label="t('usage.workbench.monthlyChartLabel')"
+        >
           <ProgressMetricCard
             test-id="usage-trend-cost"
             :label="t('usage.workbench.dailyCostTrend')"
@@ -83,7 +95,7 @@
             :peak-label="t('usage.workbench.peak')"
             :trend-label="t('usage.workbench.dailyCostTrend')"
           >
-            <span>{{ t('usage.workbench.actualChargeTrendHint') }}</span>
+            <span>{{ t("usage.workbench.actualChargeTrendHint") }}</span>
           </ProgressMetricCard>
 
           <ProgressMetricCard
@@ -101,7 +113,7 @@
             :peak-label="t('usage.workbench.peak')"
             :trend-label="t('usage.workbench.dailyRequestTrend')"
           >
-            <span>{{ t('usage.workbench.requestTrendHint') }}</span>
+            <span>{{ t("usage.workbench.requestTrendHint") }}</span>
           </ProgressMetricCard>
 
           <ProgressMetricCard
@@ -119,16 +131,18 @@
             :peak-label="t('usage.workbench.peak')"
             :trend-label="t('usage.workbench.dailyTokenTrend')"
           >
-            <span>{{ t('usage.workbench.tokenTrendHint') }}</span>
+            <span>{{ t("usage.workbench.tokenTrendHint") }}</span>
           </ProgressMetricCard>
         </div>
 
         <div v-else class="usage-empty">
-          <div class="usage-empty__icon"><Icon name="chartBar" size="lg" /></div>
-          <strong>{{ t('usage.workbench.noMonthlyUsageTitle') }}</strong>
-          <span>{{ t('usage.workbench.noMonthlyUsageDescription') }}</span>
+          <div class="usage-empty__icon">
+            <Icon name="chartBar" size="lg" />
+          </div>
+          <strong>{{ t("usage.workbench.noMonthlyUsageTitle") }}</strong>
+          <span>{{ t("usage.workbench.noMonthlyUsageDescription") }}</span>
           <RouterLink to="/app/keys" class="btn btn-primary btn-sm">
-            {{ t('usage.workbench.manageKeys', '管理 API Key') }}
+            {{ t("usage.workbench.manageKeys", "管理 API Key") }}
           </RouterLink>
         </div>
       </section>
@@ -136,18 +150,25 @@
       <section class="usage-panel">
         <header class="panel-heading">
           <div>
-            <h3>{{ t('usage.workbench.usageDetailsTitle') }}</h3>
-            <p>{{ t('usage.workbench.usageDetailsDescription') }}</p>
+            <h3>{{ t("usage.workbench.usageDetailsTitle") }}</h3>
+            <p>{{ t("usage.workbench.usageDetailsDescription") }}</p>
           </div>
-          <button type="button" class="btn btn-secondary btn-sm refresh-button" :disabled="loading" @click="loadUsageOverview">
+          <LiquidButton
+            type="button"
+            class="refresh-button"
+            :disabled="loading"
+            @click="loadUsageOverview"
+            variant="outline"
+            size="sm"
+          >
             <Icon name="refresh" size="xs" />
-            {{ t('usage.workbench.refresh') }}
-          </button>
+            {{ t("usage.workbench.refresh") }}
+          </LiquidButton>
         </header>
 
         <div class="usage-filters" data-testid="usage-filters">
           <label class="filter-field">
-            <span>{{ t('usage.apiKeyFilter') }}</span>
+            <span>{{ t("usage.apiKeyFilter") }}</span>
             <Select
               data-testid="usage-api-key-filter"
               :model-value="filters.api_key_id"
@@ -156,7 +177,7 @@
             />
           </label>
           <label class="filter-field">
-            <span>{{ t('usage.model') }}</span>
+            <span>{{ t("usage.model") }}</span>
             <input
               v-model.trim="filters.model"
               class="f0-input-control"
@@ -166,41 +187,63 @@
             />
           </label>
           <label class="filter-field">
-            <span>{{ t('usage.workbench.startDate') }}</span>
-            <input v-model="filters.start_date" class="f0-input-control" type="date" @change="applyFilters" />
+            <span>{{ t("usage.workbench.startDate") }}</span>
+            <input
+              v-model="filters.start_date"
+              class="f0-input-control"
+              type="date"
+              @change="applyFilters"
+            />
           </label>
           <label class="filter-field">
-            <span>{{ t('usage.workbench.endDate') }}</span>
-            <input v-model="filters.end_date" class="f0-input-control" type="date" @change="applyFilters" />
+            <span>{{ t("usage.workbench.endDate") }}</span>
+            <input
+              v-model="filters.end_date"
+              class="f0-input-control"
+              type="date"
+              @change="applyFilters"
+            />
           </label>
           <div class="filter-actions">
-            <button type="button" class="btn btn-secondary" @click="resetFilters">
-              {{ t('common.reset') }}
-            </button>
-            <button type="button" class="btn btn-primary" :disabled="exporting || totalRows === 0" @click="exportToCSV">
+            <LiquidButton
+              type="button"
+              @click="resetFilters"
+              variant="outline"
+              size="sm"
+            >
+              {{ t("common.reset") }}
+            </LiquidButton>
+            <LiquidButton
+              type="button"
+              :disabled="exporting || totalRows === 0"
+              @click="exportToCSV"
+              size="sm"
+            >
               <Icon name="download" size="xs" />
-              {{ exporting ? t('usage.exporting') : t('usage.exportCsv') }}
-            </button>
+              {{ exporting ? t("usage.exporting") : t("usage.exportCsv") }}
+            </LiquidButton>
           </div>
         </div>
 
         <div v-if="loading" class="usage-empty compact">
           <div class="usage-empty__icon"><Icon name="sync" size="md" /></div>
-          <strong>{{ t('usage.workbench.loading') }}</strong>
+          <strong>{{ t("usage.workbench.loading") }}</strong>
         </div>
 
         <div v-else-if="detailsLoadError" class="usage-empty compact">
-          <div class="usage-empty__icon is-warning"><Icon name="exclamationTriangle" size="md" /></div>
-          <strong>{{ t('usage.workbench.detailsLoadError') }}</strong>
-          <span>{{ t('usage.workbench.detailsLoadErrorHint') }}</span>
+          <div class="usage-empty__icon is-warning">
+            <Icon name="exclamationTriangle" size="md" />
+          </div>
+          <strong>{{ t("usage.workbench.detailsLoadError") }}</strong>
+          <span>{{ t("usage.workbench.detailsLoadErrorHint") }}</span>
         </div>
 
         <div v-else-if="usageRows.length === 0" class="usage-empty compact">
           <div class="usage-empty__icon"><Icon name="inbox" size="md" /></div>
-          <strong>{{ t('usage.workbench.noDetailsTitle') }}</strong>
-          <span>{{ t('usage.workbench.noDetailsDescription') }}</span>
+          <strong>{{ t("usage.workbench.noDetailsTitle") }}</strong>
+          <span>{{ t("usage.workbench.noDetailsDescription") }}</span>
           <RouterLink to="/app/keys" class="btn btn-primary btn-sm">
-            {{ t('usage.workbench.manageKeys', '管理 API Key') }}
+            {{ t("usage.workbench.manageKeys", "管理 API Key") }}
           </RouterLink>
         </div>
 
@@ -208,12 +251,21 @@
           <table class="usage-table f0-table">
             <thead>
               <tr>
-                <th>{{ t('usage.workbench.createdAt') }}</th>
-                <th>{{ t('usage.workbench.model') }}</th>
-                <th class="num-cell">{{ t('usage.workbench.amount') }}</th>
-                <th class="num-cell">{{ t('usage.workbench.duration') }}</th>
-                <th class="num-cell fee-th" :title="t('usage.workbench.feeTooltip')">{{ t('usage.workbench.fee') }}</th>
-                <th class="row-toggle-th"><span class="sr-only">{{ t('usage.workbench.expandRow') }}</span></th>
+                <th>{{ t("usage.workbench.createdAt") }}</th>
+                <th>{{ t("usage.workbench.model") }}</th>
+                <th class="num-cell">{{ t("usage.workbench.amount") }}</th>
+                <th class="num-cell">{{ t("usage.workbench.duration") }}</th>
+                <th
+                  class="num-cell fee-th"
+                  :title="t('usage.workbench.feeTooltip')"
+                >
+                  {{ t("usage.workbench.fee") }}
+                </th>
+                <th class="row-toggle-th">
+                  <span class="sr-only">{{
+                    t("usage.workbench.expandRow")
+                  }}</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -223,75 +275,102 @@
                   :class="{ 'is-expanded': isRowExpanded(row) }"
                   @click="toggleRow(row)"
                 >
-                  <td :title="formatDateTime(row.created_at)">{{ formatShortDateTime(row.created_at) }}</td>
-                  <td class="model-cell">{{ row.model || '-' }}</td>
+                  <td :title="formatDateTime(row.created_at)">
+                    {{ formatShortDateTime(row.created_at) }}
+                  </td>
+                  <td class="model-cell">{{ row.model || "-" }}</td>
                   <td class="num-cell">{{ formatUsageAmount(row) }}</td>
                   <td class="num-cell" :class="{ 'is-slow': isSlowRow(row) }">
-                    <span :title="durationCellTitle(row)">{{ formatLatency(row.duration_ms) }}</span>
+                    <span :title="durationCellTitle(row)">{{
+                      formatLatency(row.duration_ms)
+                    }}</span>
                   </td>
                   <td class="num-cell">
                     <span
                       :class="{ 'is-muted-fee': isNoCharge(row) }"
                       :title="formatCostTitle(row.actual_cost)"
-                    >{{ formatCost(row.actual_cost) }}</span>
+                      >{{ formatCost(row.actual_cost) }}</span
+                    >
                   </td>
                   <td class="row-toggle-cell">
-                    <button
+                    <LiquidButton
                       type="button"
                       class="row-toggle"
                       :aria-expanded="isRowExpanded(row)"
-                      :aria-label="isRowExpanded(row) ? t('usage.workbench.collapseRow') : t('usage.workbench.expandRow')"
+                      :aria-label="
+                        isRowExpanded(row)
+                          ? t('usage.workbench.collapseRow')
+                          : t('usage.workbench.expandRow')
+                      "
                       @click.stop="toggleRow(row)"
+                      variant="plain"
+                      size="icon"
                     >
                       <Icon name="chevronDown" size="xs" />
-                    </button>
+                    </LiquidButton>
                   </td>
                 </tr>
                 <tr v-if="isRowExpanded(row)" class="usage-detail-row">
                   <td colspan="6">
                     <dl class="usage-detail-grid">
                       <div v-if="resolveSupportCode(row)">
-                        <dt>{{ t('usage.workbench.supportCode') }}</dt>
+                        <dt>{{ t("usage.workbench.supportCode") }}</dt>
                         <dd>
                           <code>{{ resolveSupportCode(row) }}</code>
-                          <button
+                          <LiquidButton
                             type="button"
                             class="support-code-button"
                             :aria-label="t('usage.workbench.copySupportCode')"
                             :title="t('usage.workbench.copySupportCode')"
                             @click.stop="copySupportCode(row)"
+                            variant="plain"
+                            size="sm"
                           >
-                            {{ copiedSupportCode === resolveSupportCode(row) ? t('usage.workbench.copied') : t('usage.workbench.copy') }}
-                          </button>
+                            {{
+                              copiedSupportCode === resolveSupportCode(row)
+                                ? t("usage.workbench.copied")
+                                : t("usage.workbench.copy")
+                            }}
+                          </LiquidButton>
                         </dd>
                       </div>
                       <div>
-                        <dt>{{ t('usage.workbench.kind') }}</dt>
-                        <dd>{{ formatUsageKind(row) }} · {{ formatSource(row) }}</dd>
+                        <dt>{{ t("usage.workbench.kind") }}</dt>
+                        <dd>
+                          {{ formatUsageKind(row) }} · {{ formatSource(row) }}
+                        </dd>
                       </div>
                       <div>
-                        <dt>{{ t('usage.workbench.endpoint') }}</dt>
-                        <dd><code>{{ resolveEndpoint(row) }}</code></dd>
+                        <dt>{{ t("usage.workbench.endpoint") }}</dt>
+                        <dd>
+                          <code>{{ resolveEndpoint(row) }}</code>
+                        </dd>
                       </div>
                       <div>
-                        <dt>{{ t('usage.workbench.billingBasis') }}</dt>
-                        <dd>{{ formatBillingType(row) }} · {{ formatBillingBasis(row) }}</dd>
+                        <dt>{{ t("usage.workbench.billingBasis") }}</dt>
+                        <dd>
+                          {{ formatBillingType(row) }} ·
+                          {{ formatBillingBasis(row) }}
+                        </dd>
                       </div>
                       <div v-if="!isImageRow(row)">
-                        <dt>{{ t('usage.tokenDetails') }}</dt>
+                        <dt>{{ t("usage.tokenDetails") }}</dt>
                         <dd>{{ formatTokenBreakdown(row) }}</dd>
                       </div>
                       <div>
-                        <dt>{{ t('usage.workbench.performance') }}</dt>
+                        <dt>{{ t("usage.workbench.performance") }}</dt>
                         <dd>
-                          <span class="performance-badge" :class="performanceBadgeClass(row)">
+                          <span
+                            class="performance-badge"
+                            :class="performanceBadgeClass(row)"
+                          >
                             {{ formatPerformanceStatus(row) }}
                           </span>
                           {{ formatPerformanceSummary(row) }}
                         </dd>
                       </div>
                       <div v-if="detailNote(row)">
-                        <dt>{{ t('usage.workbench.detailNote') }}</dt>
+                        <dt>{{ t("usage.workbench.detailNote") }}</dt>
                         <dd>{{ detailNote(row) }}</dd>
                       </div>
                     </dl>
@@ -302,15 +381,29 @@
           </table>
         </div>
         <div v-if="!loading && totalRows > 0" class="usage-pagination">
-          <span>{{ t('usage.workbench.paginationSummary', { total: totalRows }) }}</span>
+          <span>{{
+            t("usage.workbench.paginationSummary", { total: totalRows })
+          }}</span>
           <div>
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="page <= 1" @click="changePage(page - 1)">
-              {{ t('pagination.previous') }}
-            </button>
+            <LiquidButton
+              type="button"
+              :disabled="page <= 1"
+              @click="changePage(page - 1)"
+              variant="outline"
+              size="sm"
+            >
+              {{ t("pagination.previous") }}
+            </LiquidButton>
             <strong>{{ page }} / {{ totalPages }}</strong>
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="page >= totalPages" @click="changePage(page + 1)">
-              {{ t('pagination.next') }}
-            </button>
+            <LiquidButton
+              type="button"
+              :disabled="page >= totalPages"
+              @click="changePage(page + 1)"
+              variant="outline"
+              size="sm"
+            >
+              {{ t("pagination.next") }}
+            </LiquidButton>
           </div>
         </div>
       </section>
@@ -319,533 +412,616 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { Activity, CircleDollarSign, DatabaseZap } from '@lucide/vue'
-import AppSectionShell from '@/components/user/AppSectionShell.vue'
-import ProgressMetricCard from '@/components/user/dashboard/ProgressMetricCard.vue'
-import Icon from '@/components/icons/Icon.vue'
-import Select from '@/components/common/Select.vue'
-import { keysAPI, usageAPI } from '@/api'
-import { useAppStore } from '@/stores/app'
-import { useAuthStore } from '@/stores/auth'
-import { useClipboard } from '@/composables/useClipboard'
-import type { ApiKey, TrendDataPoint, UsageLog, UsageQueryParams, UsageStatsResponse } from '@/types'
+import LiquidButton from "@/components/common/LiquidButton.vue";
+import { computed, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
+import { Activity, CircleDollarSign, DatabaseZap } from "@lucide/vue";
+import AppSectionShell from "@/components/user/AppSectionShell.vue";
+import ProgressMetricCard from "@/components/user/dashboard/ProgressMetricCard.vue";
+import Icon from "@/components/icons/Icon.vue";
+import Select from "@/components/common/Select.vue";
+import { keysAPI, usageAPI } from "@/api";
+import { useAppStore } from "@/stores/app";
+import { useAuthStore } from "@/stores/auth";
+import { useClipboard } from "@/composables/useClipboard";
+import type {
+  ApiKey,
+  TrendDataPoint,
+  UsageLog,
+  UsageQueryParams,
+  UsageStatsResponse,
+} from "@/types";
 import {
   formatCurrency as formatMoney,
-  formatCurrencyTitle as formatMoneyTitle
-} from '@/utils/format'
+  formatCurrencyTitle as formatMoneyTitle,
+} from "@/utils/format";
 
 interface DailyUsage {
-  key: string
-  label: string
-  requests: number
-  tokens: number
-  cost: number
+  key: string;
+  label: string;
+  requests: number;
+  tokens: number;
+  cost: number;
 }
 
-const { t } = useI18n()
-const authStore = useAuthStore()
-const appStore = useAppStore()
-const { copyToClipboard } = useClipboard()
-const usageRows = ref<UsageLog[]>([])
-const usageStats = ref<UsageStatsResponse | null>(null)
-const dailySeries = ref<DailyUsage[]>([])
-const loading = ref(false)
-const detailsLoadError = ref(false)
-const statsLoadError = ref(false)
-const trendLoadError = ref(false)
-const balanceRefreshError = ref(false)
-const copiedSupportCode = ref<string | null>(null)
-const apiKeys = ref<ApiKey[]>([])
-const exporting = ref(false)
-const page = ref(1)
-const pageSize = 20
-const expandedRowKey = ref<string | null>(null)
-const trendPeriod = ref('30d')
-const totalRows = ref(0)
-const totalPages = ref(1)
+const { t } = useI18n();
+const authStore = useAuthStore();
+const appStore = useAppStore();
+const { copyToClipboard } = useClipboard();
+const usageRows = ref<UsageLog[]>([]);
+const usageStats = ref<UsageStatsResponse | null>(null);
+const dailySeries = ref<DailyUsage[]>([]);
+const loading = ref(false);
+const detailsLoadError = ref(false);
+const statsLoadError = ref(false);
+const trendLoadError = ref(false);
+const balanceRefreshError = ref(false);
+const copiedSupportCode = ref<string | null>(null);
+const apiKeys = ref<ApiKey[]>([]);
+const exporting = ref(false);
+const page = ref(1);
+const pageSize = 20;
+const expandedRowKey = ref<string | null>(null);
+const trendPeriod = ref("30d");
+const totalRows = ref(0);
+const totalPages = ref(1);
 
-const today = new Date()
-const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
-const trendStart = new Date(today.getFullYear(), today.getMonth() - 5, 1)
+const today = new Date();
+const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+const trendStart = new Date(today.getFullYear(), today.getMonth() - 5, 1);
 
-const todayKey = toDateKey(today)
-const monthStartKey = toDateKey(monthStart)
-const trendStartKey = toDateKey(trendStart)
+const todayKey = toDateKey(today);
+const monthStartKey = toDateKey(monthStart);
+const trendStartKey = toDateKey(trendStart);
 const filters = ref<UsageQueryParams>({
   api_key_id: undefined,
-  model: '',
+  model: "",
   start_date: monthStartKey,
-  end_date: todayKey
-})
+  end_date: todayKey,
+});
 
-const balanceText = computed(() => formatMoney(authStore.user?.balance || 0))
-const balanceTitle = computed(() => formatMoneyTitle(authStore.user?.balance || 0))
+const balanceText = computed(() => formatMoney(authStore.user?.balance || 0));
+const balanceTitle = computed(() =>
+  formatMoneyTitle(authStore.user?.balance || 0),
+);
 const balanceDescriptionText = computed(() => {
-  if (balanceRefreshError.value) return t('usage.workbench.balanceRefreshError')
-  return t('usage.workbench.balanceDescription')
-})
+  if (balanceRefreshError.value)
+    return t("usage.workbench.balanceRefreshError");
+  return t("usage.workbench.balanceDescription");
+});
 const monthlyCostText = computed(() => {
-  if (statsLoadError.value) return t('usage.workbench.unavailable')
-  return formatMoney(usageStats.value?.total_actual_cost || 0)
-})
-const monthlyCostTitle = computed(() => (
-  statsLoadError.value ? undefined : formatMoneyTitle(usageStats.value?.total_actual_cost || 0)
-))
+  if (statsLoadError.value) return t("usage.workbench.unavailable");
+  return formatMoney(usageStats.value?.total_actual_cost || 0);
+});
+const monthlyCostTitle = computed(() =>
+  statsLoadError.value
+    ? undefined
+    : formatMoneyTitle(usageStats.value?.total_actual_cost || 0),
+);
 const monthlyUsageNote = computed(() => {
-  if (statsLoadError.value) return t('usage.workbench.statsLoadError')
+  if (statsLoadError.value) return t("usage.workbench.statsLoadError");
 
-  const requests = usageStats.value?.total_requests || 0
-  const tokens = usageStats.value?.total_tokens || 0
-  if (!requests && !tokens) return t('usage.workbench.noRealUsageNote')
-  return t('usage.workbench.monthlyUsageSummary', {
+  const requests = usageStats.value?.total_requests || 0;
+  const tokens = usageStats.value?.total_tokens || 0;
+  if (!requests && !tokens) return t("usage.workbench.noRealUsageNote");
+  return t("usage.workbench.monthlyUsageSummary", {
     requests: formatNumber(requests),
-    tokens: formatNumber(tokens)
-  })
-})
-const hasDailyUsage = computed(() => dailySeries.value.some((item) => item.requests > 0 || item.tokens > 0 || item.cost > 0))
+    tokens: formatNumber(tokens),
+  });
+});
+const hasDailyUsage = computed(() =>
+  dailySeries.value.some(
+    (item) => item.requests > 0 || item.tokens > 0 || item.cost > 0,
+  ),
+);
 const isDemoUser = computed(() => {
-  const username = authStore.user?.username?.toLowerCase?.() || ''
-  const email = authStore.user?.email?.toLowerCase?.() || ''
-  return username.includes('demo') || email.endsWith('@example.local')
-})
+  const username = authStore.user?.username?.toLowerCase?.() || "";
+  const email = authStore.user?.email?.toLowerCase?.() || "";
+  return username.includes("demo") || email.endsWith("@example.local");
+});
 const usageDataBadge = computed(() =>
-  isDemoUser.value ? t('usage.workbench.demoDataBadge') : t('usage.workbench.realDataBadge')
-)
+  isDemoUser.value
+    ? t("usage.workbench.demoDataBadge")
+    : t("usage.workbench.realDataBadge"),
+);
 const apiKeyOptions = computed(() => [
-  { value: null, label: t('usage.allApiKeys') },
-  ...apiKeys.value.map((key) => ({ value: key.id, label: key.name }))
-])
-const dailyLabels = computed(() => dailySeries.value.map((item) => item.label))
-const dailyCostSeries = computed(() => dailySeries.value.map((item) => item.cost))
-const dailyRequestSeries = computed(() => dailySeries.value.map((item) => item.requests))
-const dailyTokenSeries = computed(() => dailySeries.value.map((item) => item.tokens))
+  { value: null, label: t("usage.allApiKeys") },
+  ...apiKeys.value.map((key) => ({ value: key.id, label: key.name })),
+]);
+const dailyLabels = computed(() => dailySeries.value.map((item) => item.label));
+const dailyCostSeries = computed(() =>
+  dailySeries.value.map((item) => item.cost),
+);
+const dailyRequestSeries = computed(() =>
+  dailySeries.value.map((item) => item.requests),
+);
+const dailyTokenSeries = computed(() =>
+  dailySeries.value.map((item) => item.tokens),
+);
 const metricPeriodOptions = computed(() => [
-  { value: '7d', label: t('usage.workbench.period7Days'), points: 7 },
-  { value: '30d', label: t('usage.workbench.period30Days'), points: 30 },
-  { value: '90d', label: t('usage.workbench.period90Days'), points: 90 }
-])
+  { value: "7d", label: t("usage.workbench.period7Days"), points: 7 },
+  { value: "30d", label: t("usage.workbench.period30Days"), points: 30 },
+  { value: "90d", label: t("usage.workbench.period90Days"), points: 90 },
+]);
 
 onMounted(() => {
-  void loadApiKeys()
-  void loadUsageOverview()
-})
+  void loadApiKeys();
+  void loadUsageOverview();
+});
 
 async function loadUsageOverview() {
-  loading.value = true
-  detailsLoadError.value = false
-  statsLoadError.value = false
-  trendLoadError.value = false
-  balanceRefreshError.value = false
-  expandedRowKey.value = null
+  loading.value = true;
+  detailsLoadError.value = false;
+  statsLoadError.value = false;
+  trendLoadError.value = false;
+  balanceRefreshError.value = false;
+  expandedRowKey.value = null;
 
-  const [statsResult, logsResult, trendResult, userResult] = await Promise.allSettled([
-    usageAPI.getStatsByDateRange(
-      monthStartKey,
-      todayKey,
-      filters.value.api_key_id ? Number(filters.value.api_key_id) : undefined
-    ),
-    usageAPI.query({
-      page: page.value,
-      page_size: pageSize,
-      api_key_id: filters.value.api_key_id ? Number(filters.value.api_key_id) : undefined,
-      model: filters.value.model?.trim() || undefined,
-      start_date: filters.value.start_date || monthStartKey,
-      end_date: filters.value.end_date || todayKey
-    }),
-    usageAPI.getDashboardTrend({
-      start_date: trendStartKey,
-      end_date: todayKey,
-      granularity: 'day'
-    }),
-    authStore.refreshUser()
-  ])
+  const [statsResult, logsResult, trendResult, userResult] =
+    await Promise.allSettled([
+      usageAPI.getStatsByDateRange(
+        monthStartKey,
+        todayKey,
+        filters.value.api_key_id ? Number(filters.value.api_key_id) : undefined,
+      ),
+      usageAPI.query({
+        page: page.value,
+        page_size: pageSize,
+        api_key_id: filters.value.api_key_id
+          ? Number(filters.value.api_key_id)
+          : undefined,
+        model: filters.value.model?.trim() || undefined,
+        start_date: filters.value.start_date || monthStartKey,
+        end_date: filters.value.end_date || todayKey,
+      }),
+      usageAPI.getDashboardTrend({
+        start_date: trendStartKey,
+        end_date: todayKey,
+        granularity: "day",
+      }),
+      authStore.refreshUser(),
+    ]);
 
-  if (statsResult.status === 'fulfilled') {
-    usageStats.value = statsResult.value
+  if (statsResult.status === "fulfilled") {
+    usageStats.value = statsResult.value;
   } else {
-    usageStats.value = null
-    statsLoadError.value = true
+    usageStats.value = null;
+    statsLoadError.value = true;
   }
 
-  if (logsResult.status === 'fulfilled') {
-    usageRows.value = Array.isArray(logsResult.value.items) ? logsResult.value.items : []
-    totalRows.value = Number(logsResult.value.total || 0)
-    totalPages.value = Math.max(1, Number(logsResult.value.pages || 1))
+  if (logsResult.status === "fulfilled") {
+    usageRows.value = Array.isArray(logsResult.value.items)
+      ? logsResult.value.items
+      : [];
+    totalRows.value = Number(logsResult.value.total || 0);
+    totalPages.value = Math.max(1, Number(logsResult.value.pages || 1));
   } else {
-    usageRows.value = []
-    totalRows.value = 0
-    totalPages.value = 1
-    detailsLoadError.value = true
+    usageRows.value = [];
+    totalRows.value = 0;
+    totalPages.value = 1;
+    detailsLoadError.value = true;
   }
 
-  if (trendResult.status === 'fulfilled') {
-    dailySeries.value = buildDailySeries(trendResult.value.trend || [])
+  if (trendResult.status === "fulfilled") {
+    dailySeries.value = buildDailySeries(trendResult.value.trend || []);
   } else {
-    dailySeries.value = []
-    trendLoadError.value = true
+    dailySeries.value = [];
+    trendLoadError.value = true;
   }
 
-  if (userResult?.status === 'rejected') {
-    balanceRefreshError.value = true
+  if (userResult?.status === "rejected") {
+    balanceRefreshError.value = true;
   }
 
-  loading.value = false
+  loading.value = false;
 }
 
 async function loadApiKeys() {
   try {
-    const response = await keysAPI.list(1, 100)
-    apiKeys.value = Array.isArray(response.items) ? response.items : []
+    const response = await keysAPI.list(1, 100);
+    apiKeys.value = Array.isArray(response.items) ? response.items : [];
   } catch {
-    apiKeys.value = []
+    apiKeys.value = [];
   }
 }
 
 function applyFilters() {
-  page.value = 1
-  void loadUsageOverview()
+  page.value = 1;
+  void loadUsageOverview();
 }
 
 function updateApiKeyFilter(value: string | number | boolean | null) {
-  filters.value.api_key_id = typeof value === 'number' ? value : undefined
-  applyFilters()
+  filters.value.api_key_id = typeof value === "number" ? value : undefined;
+  applyFilters();
 }
 
 function resetFilters() {
   filters.value = {
     api_key_id: undefined,
-    model: '',
+    model: "",
     start_date: monthStartKey,
-    end_date: todayKey
-  }
-  applyFilters()
+    end_date: todayKey,
+  };
+  applyFilters();
 }
 
 function changePage(nextPage: number) {
-  page.value = Math.min(Math.max(1, nextPage), totalPages.value)
-  void loadUsageOverview()
+  page.value = Math.min(Math.max(1, nextPage), totalPages.value);
+  void loadUsageOverview();
 }
 
 function escapeCSVValue(value: unknown) {
-  if (value == null) return ''
-  const raw = String(value)
-  const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw
-  return /[,"\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe
+  if (value == null) return "";
+  const raw = String(value);
+  const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+  return /[,"\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
 async function exportToCSV() {
-  if (totalRows.value === 0) return
-  exporting.value = true
+  if (totalRows.value === 0) return;
+  exporting.value = true;
   try {
-    const rows: UsageLog[] = []
-    const exportPageSize = 100
-    const pages = Math.ceil(totalRows.value / exportPageSize)
+    const rows: UsageLog[] = [];
+    const exportPageSize = 100;
+    const pages = Math.ceil(totalRows.value / exportPageSize);
     for (let exportPage = 1; exportPage <= pages; exportPage += 1) {
       const response = await usageAPI.query({
         page: exportPage,
         page_size: exportPageSize,
-        api_key_id: filters.value.api_key_id ? Number(filters.value.api_key_id) : undefined,
+        api_key_id: filters.value.api_key_id
+          ? Number(filters.value.api_key_id)
+          : undefined,
         model: filters.value.model?.trim() || undefined,
         start_date: filters.value.start_date,
-        end_date: filters.value.end_date
-      })
-      rows.push(...response.items)
+        end_date: filters.value.end_date,
+      });
+      rows.push(...response.items);
     }
-    const header = ['Time', 'Model', 'Endpoint', 'Input Tokens', 'Output Tokens', 'Standard Cost', 'Actual Cost', 'Support Code']
-    const body = rows.map((row) => [
-      row.created_at,
-      row.model,
-      resolveEndpoint(row),
-      row.input_tokens,
-      row.output_tokens,
-      row.total_cost,
-      row.actual_cost,
-      resolveSupportCode(row)
-    ].map(escapeCSVValue).join(','))
-    const blob = new Blob([[header.join(','), ...body].join('\n')], { type: 'text/csv;charset=utf-8' })
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `usage_${filters.value.start_date}_to_${filters.value.end_date}.csv`
-    link.click()
-    window.URL.revokeObjectURL(url)
-    appStore.showSuccess(t('usage.exportSuccess'))
+    const header = [
+      "Time",
+      "Model",
+      "Endpoint",
+      "Input Tokens",
+      "Output Tokens",
+      "Standard Cost",
+      "Actual Cost",
+      "Support Code",
+    ];
+    const body = rows.map((row) =>
+      [
+        row.created_at,
+        row.model,
+        resolveEndpoint(row),
+        row.input_tokens,
+        row.output_tokens,
+        row.total_cost,
+        row.actual_cost,
+        resolveSupportCode(row),
+      ]
+        .map(escapeCSVValue)
+        .join(","),
+    );
+    const blob = new Blob([[header.join(","), ...body].join("\n")], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `usage_${filters.value.start_date}_to_${filters.value.end_date}.csv`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+    appStore.showSuccess(t("usage.exportSuccess"));
   } catch {
-    appStore.showError(t('usage.exportFailed'))
+    appStore.showError(t("usage.exportFailed"));
   } finally {
-    exporting.value = false
+    exporting.value = false;
   }
 }
 
 function buildDailySeries(points: TrendDataPoint[]): DailyUsage[] {
-  const buckets = new Map<string, DailyUsage>()
+  const buckets = new Map<string, DailyUsage>();
 
   for (const point of points) {
-    const key = String(point.date || '').slice(0, 10)
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue
+    const key = String(point.date || "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
     const existing = buckets.get(key) || {
       key,
       label: formatDailyLabel(key),
       requests: 0,
       tokens: 0,
-      cost: 0
-    }
-    existing.requests += Number(point.requests || 0)
-    existing.tokens += Number(point.total_tokens || 0)
-    existing.cost += Number(point.actual_cost || 0)
-    buckets.set(key, existing)
+      cost: 0,
+    };
+    existing.requests += Number(point.requests || 0);
+    existing.tokens += Number(point.total_tokens || 0);
+    existing.cost += Number(point.actual_cost || 0);
+    buckets.set(key, existing);
   }
 
-  const result: DailyUsage[] = []
-  const cursor = new Date(trendStart.getFullYear(), trendStart.getMonth(), trendStart.getDate())
-  const lastDay = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const result: DailyUsage[] = [];
+  const cursor = new Date(
+    trendStart.getFullYear(),
+    trendStart.getMonth(),
+    trendStart.getDate(),
+  );
+  const lastDay = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+  );
   while (cursor <= lastDay) {
-    const key = toDateKey(cursor)
-    result.push(buckets.get(key) || {
-      key,
-      label: formatDailyLabel(key),
-      requests: 0,
-      tokens: 0,
-      cost: 0
-    })
-    cursor.setDate(cursor.getDate() + 1)
+    const key = toDateKey(cursor);
+    result.push(
+      buckets.get(key) || {
+        key,
+        label: formatDailyLabel(key),
+        requests: 0,
+        tokens: 0,
+        cost: 0,
+      },
+    );
+    cursor.setDate(cursor.getDate() + 1);
   }
-  return result
+  return result;
 }
 
 function formatDailyLabel(key: string) {
-  const [, month = '', day = ''] = key.split('-')
-  return `${month}/${day}`
+  const [, month = "", day = ""] = key.split("-");
+  return `${month}/${day}`;
 }
 
 function formatTrendCost(value: number) {
-  return formatMoney(value)
+  return formatMoney(value);
 }
 
 function formatTrendNumber(value: number) {
   return new Intl.NumberFormat(undefined, {
-    notation: value >= 1000 ? 'compact' : 'standard',
-    maximumFractionDigits: 1
-  }).format(value)
+    notation: value >= 1000 ? "compact" : "standard",
+    maximumFractionDigits: 1,
+  }).format(value);
 }
 
 function formatUsageKind(row: UsageLog) {
-  const endpoint = resolveEndpoint(row)
-  if (row.image_count > 0 || endpoint.includes('/images/')) return t('usage.workbench.usageKindImage')
-  if (endpoint.includes('/chat/')) return t('usage.workbench.usageKindChat')
-  if (row.api_key_id) return t('usage.workbench.usageKindThirdParty')
-  return t('usage.workbench.usageKindWeb')
+  const endpoint = resolveEndpoint(row);
+  if (row.image_count > 0 || endpoint.includes("/images/"))
+    return t("usage.workbench.usageKindImage");
+  if (endpoint.includes("/chat/")) return t("usage.workbench.usageKindChat");
+  if (row.api_key_id) return t("usage.workbench.usageKindThirdParty");
+  return t("usage.workbench.usageKindWeb");
 }
 
 function resolveEndpoint(row: UsageLog) {
-  return row.inbound_endpoint || '-'
+  return row.inbound_endpoint || "-";
 }
 
 function resolveSupportCode(row: UsageLog) {
-  return row.request_id || ''
+  return row.request_id || "";
 }
 
 function rowKey(row: UsageLog) {
-  return String(row.id ?? row.request_id ?? '')
+  return String(row.id ?? row.request_id ?? "");
 }
 
 function isRowExpanded(row: UsageLog) {
-  return expandedRowKey.value === rowKey(row)
+  return expandedRowKey.value === rowKey(row);
 }
 
 function toggleRow(row: UsageLog) {
-  const key = rowKey(row)
-  expandedRowKey.value = expandedRowKey.value === key ? null : key
+  const key = rowKey(row);
+  expandedRowKey.value = expandedRowKey.value === key ? null : key;
 }
 
 function isImageRow(row: UsageLog) {
-  return Number(row.image_count || 0) > 0
+  return Number(row.image_count || 0) > 0;
 }
 
 function isSlowRow(row: UsageLog) {
-  return isSlowFirstToken(row) || isSlowTotalDuration(row)
+  return isSlowFirstToken(row) || isSlowTotalDuration(row);
 }
 
 function durationCellTitle(row: UsageLog) {
-  const summary = formatPerformanceSummary(row)
-  const hint = formatPerformanceHint(row)
-  return hint ? `${summary}\n${hint}` : summary
+  const summary = formatPerformanceSummary(row);
+  const hint = formatPerformanceHint(row);
+  return hint ? `${summary}\n${hint}` : summary;
 }
 
 function formatTokenBreakdown(row: UsageLog) {
-  return t('usage.workbench.tokenBreakdown', {
+  return t("usage.workbench.tokenBreakdown", {
     input: formatNumber(Number(row.input_tokens || 0)),
     output: formatNumber(Number(row.output_tokens || 0)),
     cacheWrite: formatNumber(Number(row.cache_creation_tokens || 0)),
-    cacheRead: formatNumber(Number(row.cache_read_tokens || 0))
-  })
+    cacheRead: formatNumber(Number(row.cache_read_tokens || 0)),
+  });
 }
 
 function detailNote(row: UsageLog) {
-  const notes: string[] = []
-  if (isNoCharge(row)) notes.push(t('usage.workbench.noCharge'))
-  else if (isZeroTokenCharged(row)) notes.push(t('usage.workbench.zeroTokenCharged'))
-  const hint = formatPerformanceHint(row)
-  if (hint) notes.push(hint)
-  return notes.join(' ')
+  const notes: string[] = [];
+  if (isNoCharge(row)) notes.push(t("usage.workbench.noCharge"));
+  else if (isZeroTokenCharged(row))
+    notes.push(t("usage.workbench.zeroTokenCharged"));
+  const hint = formatPerformanceHint(row);
+  if (hint) notes.push(hint);
+  return notes.join(" ");
 }
 
 async function copySupportCode(row: UsageLog) {
-  const supportCode = resolveSupportCode(row)
-  if (!supportCode) return
-  const copied = await copyToClipboard(supportCode, t('usage.workbench.supportCodeCopied'))
-  if (!copied) return
-  copiedSupportCode.value = supportCode
+  const supportCode = resolveSupportCode(row);
+  if (!supportCode) return;
+  const copied = await copyToClipboard(
+    supportCode,
+    t("usage.workbench.supportCodeCopied"),
+  );
+  if (!copied) return;
+  copiedSupportCode.value = supportCode;
   window.setTimeout(() => {
-    if (copiedSupportCode.value === supportCode) copiedSupportCode.value = null
-  }, 2000)
+    if (copiedSupportCode.value === supportCode) copiedSupportCode.value = null;
+  }, 2000);
 }
 
 function formatSource(row: UsageLog) {
-  return row.api_key_id ? t('usage.workbench.usageKindThirdParty') : t('usage.workbench.usageKindWeb')
+  return row.api_key_id
+    ? t("usage.workbench.usageKindThirdParty")
+    : t("usage.workbench.usageKindWeb");
 }
 
 function formatUsageAmount(row: UsageLog) {
   if (row.image_count > 0) {
-    const count = formatNumber(Number(row.image_count || 0))
-    if (row.image_size) return t('usage.workbench.imageAmountWithSize', { count, size: row.image_size })
-    return t('usage.workbench.imageAmount', { count })
+    const count = formatNumber(Number(row.image_count || 0));
+    if (row.image_size)
+      return t("usage.workbench.imageAmountWithSize", {
+        count,
+        size: row.image_size,
+      });
+    return t("usage.workbench.imageAmount", { count });
   }
-  const tokens = Number(row.input_tokens || 0) + Number(row.output_tokens || 0) + Number(row.cache_creation_tokens || 0) + Number(row.cache_read_tokens || 0)
-  return t('usage.workbench.tokenAmount', { count: formatNumber(tokens) })
+  const tokens =
+    Number(row.input_tokens || 0) +
+    Number(row.output_tokens || 0) +
+    Number(row.cache_creation_tokens || 0) +
+    Number(row.cache_read_tokens || 0);
+  return t("usage.workbench.tokenAmount", { count: formatNumber(tokens) });
 }
 
 function formatBillingType(row: UsageLog) {
-  if (isNoCharge(row)) return t('usage.workbench.billingNoCharge')
-  if (Number(row.billing_type) === 1) return t('usage.workbench.billingSubscription')
-  return t('usage.workbench.billingBalance')
+  if (isNoCharge(row)) return t("usage.workbench.billingNoCharge");
+  if (Number(row.billing_type) === 1)
+    return t("usage.workbench.billingSubscription");
+  return t("usage.workbench.billingBalance");
 }
 
 function formatBillingBasis(row: UsageLog) {
-  const standardCost = Number(row.total_cost || 0)
-  const actualCost = Number(row.actual_cost || 0)
-  if (isNoCharge(row)) return t('usage.workbench.noChargeBasis')
+  const standardCost = Number(row.total_cost || 0);
+  const actualCost = Number(row.actual_cost || 0);
+  if (isNoCharge(row)) return t("usage.workbench.noChargeBasis");
   if (standardCost > 0 && Math.abs(standardCost - actualCost) > 0.000001) {
-    return t('usage.workbench.standardVsActual', {
+    return t("usage.workbench.standardVsActual", {
       standard: formatCost(standardCost),
-      actual: formatCost(actualCost)
-    })
+      actual: formatCost(actualCost),
+    });
   }
-  return t('usage.workbench.actualChargeBasis', { amount: formatCost(actualCost) })
+  return t("usage.workbench.actualChargeBasis", {
+    amount: formatCost(actualCost),
+  });
 }
 
 function formatPerformanceStatus(row: UsageLog) {
-  if (!hasLatencyRecord(row)) return t('usage.workbench.performanceUnknown')
-  if (isSlowFirstToken(row)) return t('usage.workbench.performanceSlowFirstToken')
-  if (isSlowTotalDuration(row)) return t('usage.workbench.performanceSlowTotal')
-  return t('usage.workbench.performanceHealthy')
+  if (!hasLatencyRecord(row)) return t("usage.workbench.performanceUnknown");
+  if (isSlowFirstToken(row))
+    return t("usage.workbench.performanceSlowFirstToken");
+  if (isSlowTotalDuration(row))
+    return t("usage.workbench.performanceSlowTotal");
+  return t("usage.workbench.performanceHealthy");
 }
 
 function formatPerformanceSummary(row: UsageLog) {
-  if (!hasLatencyRecord(row)) return t('usage.workbench.performanceNoRecord')
-  return t('usage.workbench.performanceSummary', {
+  if (!hasLatencyRecord(row)) return t("usage.workbench.performanceNoRecord");
+  return t("usage.workbench.performanceSummary", {
     firstToken: formatLatency(row.first_token_ms),
-    duration: formatLatency(row.duration_ms)
-  })
+    duration: formatLatency(row.duration_ms),
+  });
 }
 
 function formatPerformanceHint(row: UsageLog) {
-  if (isSlowFirstToken(row)) return t('usage.workbench.performanceSlowFirstTokenHint')
-  if (isSlowTotalDuration(row)) return t('usage.workbench.performanceSlowTotalHint')
-  return ''
+  if (isSlowFirstToken(row))
+    return t("usage.workbench.performanceSlowFirstTokenHint");
+  if (isSlowTotalDuration(row))
+    return t("usage.workbench.performanceSlowTotalHint");
+  return "";
 }
 
 function performanceBadgeClass(row: UsageLog) {
-  if (!hasLatencyRecord(row)) return 'is-muted'
-  if (isSlowFirstToken(row) || isSlowTotalDuration(row)) return 'is-warning'
-  return 'is-normal'
+  if (!hasLatencyRecord(row)) return "is-muted";
+  if (isSlowFirstToken(row) || isSlowTotalDuration(row)) return "is-warning";
+  return "is-normal";
 }
 
 function hasLatencyRecord(row: UsageLog) {
-  return isFiniteLatency(row.duration_ms) || isFiniteLatency(row.first_token_ms)
+  return (
+    isFiniteLatency(row.duration_ms) || isFiniteLatency(row.first_token_ms)
+  );
 }
 
 function isSlowFirstToken(row: UsageLog) {
-  return isFiniteLatency(row.first_token_ms) && Number(row.first_token_ms) > 5000
+  return (
+    isFiniteLatency(row.first_token_ms) && Number(row.first_token_ms) > 5000
+  );
 }
 
 function isSlowTotalDuration(row: UsageLog) {
-  return isFiniteLatency(row.duration_ms) && Number(row.duration_ms) >= 60000
+  return isFiniteLatency(row.duration_ms) && Number(row.duration_ms) >= 60000;
 }
 
 function isFiniteLatency(value: number | null | undefined) {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
 function formatLatency(value: number | null | undefined) {
-  if (!isFiniteLatency(value)) return '-'
-  const ms = Number(value)
-  if (ms < 1000) return `${Math.round(ms)} ms`
+  if (!isFiniteLatency(value)) return "-";
+  const ms = Number(value);
+  if (ms < 1000) return `${Math.round(ms)} ms`;
   if (ms < 60000) {
-    const digits = ms < 10000 ? 1 : 0
-    return `${(ms / 1000).toFixed(digits)} s`
+    const digits = ms < 10000 ? 1 : 0;
+    return `${(ms / 1000).toFixed(digits)} s`;
   }
-  const minutes = Math.floor(ms / 60000)
-  const seconds = Math.round((ms % 60000) / 1000)
-  if (seconds <= 0) return `${minutes}m`
-  return `${minutes}m ${seconds}s`
+  const minutes = Math.floor(ms / 60000);
+  const seconds = Math.round((ms % 60000) / 1000);
+  if (seconds <= 0) return `${minutes}m`;
+  return `${minutes}m ${seconds}s`;
 }
 
 function formatCost(value: number | null | undefined) {
-  return formatMoney(Number(value || 0))
+  return formatMoney(Number(value || 0));
 }
 
 function formatCostTitle(value: number | null | undefined) {
-  return formatMoneyTitle(Number(value || 0))
+  return formatMoneyTitle(Number(value || 0));
 }
 
 function isNoCharge(row: UsageLog) {
-  return Number(row.actual_cost || 0) === 0
+  return Number(row.actual_cost || 0) === 0;
 }
 
 function isZeroTokenCharged(row: UsageLog) {
-  const tokenTotal = Number(row.input_tokens || 0)
-    + Number(row.output_tokens || 0)
-    + Number(row.cache_creation_tokens || 0)
-    + Number(row.cache_read_tokens || 0)
-  return tokenTotal <= 0 && Number(row.actual_cost || 0) > 0
+  const tokenTotal =
+    Number(row.input_tokens || 0) +
+    Number(row.output_tokens || 0) +
+    Number(row.cache_creation_tokens || 0) +
+    Number(row.cache_read_tokens || 0);
+  return tokenTotal <= 0 && Number(row.actual_cost || 0) > 0;
 }
 
 function formatNumber(value: number) {
-  return Number(value || 0).toLocaleString()
+  return Number(value || 0).toLocaleString();
 }
 
 function formatDateTime(value: string) {
-  if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '-'
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
   return date.toLocaleString(undefined, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  })
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
 function formatShortDateTime(value: string) {
-  if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '-'
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
   return date.toLocaleString(undefined, {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  })
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
 function toDateKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 </script>
 
@@ -870,7 +1046,10 @@ function toDateKey(date: Date) {
 
 .usage-filters {
   display: grid;
-  grid-template-columns: minmax(10rem, 1fr) minmax(10rem, 1fr) minmax(9rem, 0.8fr) minmax(9rem, 0.8fr) auto;
+  grid-template-columns: minmax(10rem, 1fr) minmax(10rem, 1fr) minmax(
+      9rem,
+      0.8fr
+    ) minmax(9rem, 0.8fr) auto;
   gap: 0.75rem;
   align-items: end;
   border-bottom: 1px solid var(--ssxz-border);
@@ -960,6 +1139,7 @@ function toDateKey(date: Date) {
 
 .panel-badge {
   display: inline-flex;
+  min-height: 2rem;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
@@ -1010,7 +1190,8 @@ function toDateKey(date: Date) {
 }
 
 .panel-badge {
-  border: 1px solid color-mix(in srgb, var(--ssxz-action) 35%, var(--ssxz-border));
+  border: 1px solid
+    color-mix(in srgb, var(--ssxz-action) 35%, var(--ssxz-border));
   background: color-mix(in srgb, var(--ssxz-action-soft) 72%, transparent);
   color: var(--ssxz-action);
   padding: 0.3rem 0.62rem;
@@ -1125,7 +1306,8 @@ function toDateKey(date: Date) {
 
 .fee-th {
   cursor: help;
-  text-decoration: underline dotted color-mix(in srgb, var(--ssxz-text-muted) 65%, transparent);
+  text-decoration: underline dotted
+    color-mix(in srgb, var(--ssxz-text-muted) 65%, transparent);
   text-underline-offset: 0.2em;
 }
 

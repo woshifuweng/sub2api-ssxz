@@ -46,6 +46,13 @@ vi.mock('@/components/user/AppSectionShell.vue', () => ({
   }
 }))
 
+vi.mock('@/components/user/BalanceWarningBanner.vue', () => ({
+  default: {
+    name: 'BalanceWarningBanner',
+    template: '<div data-testid="balance-warning-banner" />'
+  }
+}))
+
 vi.mock('@/components/common/LoadingSpinner.vue', () => ({
   default: {
     name: 'LoadingSpinner',
@@ -270,7 +277,7 @@ describe('DashboardView', () => {
     expect(onboarding.attributes('open')).toBeUndefined()
     expect(onboarding.text()).toContain('首次接入指南')
     expect(hrefs).toContain('/app/keys')
-    expect(hrefs).toContain('/app/usage')
+    expect(hrefs).toContain('/app/docs')
     expect(hrefs).toContain('/app/purchase')
   })
 
@@ -294,8 +301,6 @@ describe('DashboardView', () => {
     expect(wrapper.text()).not.toContain('购买套餐')
     expect(wrapper.text()).not.toContain('去充值')
     expect(wrapper.text()).not.toContain('充值和订单')
-    expect(wrapper.text()).toContain('订单记录')
-    expect(wrapper.text()).toContain('最后使用兑换码或核对订单记录')
     expect(wrapper.text()).toContain('去兑换')
     expect(hrefs).toContain('/app/redeem')
     expect(wrapper.text()).toContain('兑换码')

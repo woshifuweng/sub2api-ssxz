@@ -131,7 +131,7 @@ describe('AdminPaymentSettingsView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    await wrapper.find('button.btn-primary').trigger('click')
+    await wrapper.get('[data-testid="save-payment-config"]').trigger('click')
     await flushPromises()
 
     expect(updateConfig).toHaveBeenCalledWith(expect.objectContaining({

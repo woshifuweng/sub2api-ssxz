@@ -56,17 +56,18 @@
         </div>
       </Transition>
 
-      <FoundationButton
-        class="auth-submit"
+      <LiquidButton
+        class="w-full"
         type="submit"
+        size="default"
         :disabled="isLoading || (turnstileEnabled && !turnstileToken)"
       >
-        <template #leading>
+        <span class="flex items-center gap-2">
           <LoaderCircle v-if="isLoading" class="auth-spinner" aria-hidden="true" />
           <Mail v-else aria-hidden="true" />
-        </template>
-        {{ isLoading ? t('auth.sendingResetLink') : t('auth.sendResetLink') }}
-      </FoundationButton>
+          {{ isLoading ? t('auth.sendingResetLink') : t('auth.sendResetLink') }}
+        </span>
+      </LiquidButton>
     </form>
 
     <p v-if="!isSubmitted" class="auth-form-footer">
@@ -81,7 +82,8 @@ import { ref, reactive, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, Mail } from '@lucide/vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
-import { FoundationButton, FoundationInput } from '@/components/foundation'
+import LiquidButton from '@/components/common/LiquidButton.vue'
+import { FoundationInput } from '@/components/foundation'
 import { useAppStore } from '@/stores'
 import { getPublicSettings, forgotPassword } from '@/api/auth'
 
@@ -301,16 +303,6 @@ async function handleSubmit(): Promise<void> {
 
 .auth-form-status p {
   margin: 0;
-}
-
-.auth-submit {
-  width: 100%;
-  transform: none !important;
-}
-
-.auth-submit:hover,
-.auth-submit:active {
-  transform: none !important;
 }
 
 .auth-spinner {

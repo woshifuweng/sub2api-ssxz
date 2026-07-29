@@ -198,7 +198,7 @@ describe('admin AffiliatesView', () => {
     await flushPromises()
 
     await wrapper.find('input[placeholder="输入邮箱、用户名或用户 ID"]').setValue('new@example.com')
-    await wrapper.find('button.btn-primary').trigger('click')
+    await wrapper.get('[data-testid="affiliate-user-search"]').trigger('click')
     await flushPromises()
 
     expect(affiliateAPI.lookupUsers).toHaveBeenCalledWith('new@example.com')
@@ -285,7 +285,7 @@ describe('admin AffiliatesView', () => {
     await flushPromises()
 
     await wrapper.find('input[placeholder="输入邮箱、用户名或用户 ID"]').setValue('new@example.com')
-    await wrapper.find('button.btn-primary').trigger('click')
+    await wrapper.get('[data-testid="affiliate-user-search"]').trigger('click')
     await flushPromises()
     await wrapper.findAll('button').find((button) => button.text().includes('选择'))!.trigger('click')
     await flushPromises()

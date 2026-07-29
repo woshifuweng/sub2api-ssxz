@@ -4,27 +4,28 @@
       <template #filters>
         <div class="pricing-toolbar">
           <div class="pricing-actions">
-              <div class="pricing-search">
-                <Icon
-                  name="search"
-                  size="md"
-                  class="pricing-search__icon"
-                />
-                <input
-                  v-model="searchQuery"
-                  type="text"
-                  :placeholder="t('availableChannels.searchPlaceholder')"
-                  class="f0-input-control f0-input-control--leading"
-                />
-              </div>
-              <button
-                @click="loadChannels"
-                :disabled="loading"
-                class="btn btn-secondary btn-icon"
-                :title="t('common.refresh', 'Refresh')"
-              >
-                <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-              </button>
+            <div class="pricing-search">
+              <Icon name="search" size="md" class="pricing-search__icon" />
+              <input
+                v-model="searchQuery"
+                type="text"
+                :placeholder="t('availableChannels.searchPlaceholder')"
+                class="f0-input-control f0-input-control--leading"
+              />
+            </div>
+            <LiquidButton
+              @click="loadChannels"
+              :disabled="loading"
+              :title="t('common.refresh', 'Refresh')"
+              variant="outline"
+              size="icon"
+            >
+              <Icon
+                name="refresh"
+                size="md"
+                :class="loading ? 'animate-spin' : ''"
+              />
+            </LiquidButton>
           </div>
         </div>
       </template>
@@ -43,67 +44,74 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
-import AppLayout from '@/components/layout/AppLayout.vue'
-import AppSectionShell from '@/components/user/AppSectionShell.vue'
-import TablePageLayout from '@/components/layout/TablePageLayout.vue'
-import Icon from '@/components/icons/Icon.vue'
-import AvailableChannelsTable from '@/components/channels/AvailableChannelsTable.vue'
-import userChannelsAPI, { type UserAvailableChannel } from '@/api/channels'
-import userGroupsAPI from '@/api/groups'
-import { useAppStore } from '@/stores/app'
-import { extractApiErrorMessage } from '@/utils/apiError'
+import LiquidButton from "@/components/common/LiquidButton.vue";
+import { computed, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
+import { useRoute } from "vue-router";
+import AppLayout from "@/components/layout/AppLayout.vue";
+import AppSectionShell from "@/components/user/AppSectionShell.vue";
+import TablePageLayout from "@/components/layout/TablePageLayout.vue";
+import Icon from "@/components/icons/Icon.vue";
+import AvailableChannelsTable from "@/components/channels/AvailableChannelsTable.vue";
+import userChannelsAPI, { type UserAvailableChannel } from "@/api/channels";
+import userGroupsAPI from "@/api/groups";
+import { useAppStore } from "@/stores/app";
+import { extractApiErrorMessage } from "@/utils/apiError";
 
-const { t } = useI18n()
-const route = useRoute()
-const appStore = useAppStore()
+const { t } = useI18n();
+const route = useRoute();
+const appStore = useAppStore();
 
-const useWorkbenchShell = computed(() => route.path === '/app/available-channels')
-const pageShell = computed(() => useWorkbenchShell.value ? AppSectionShell : AppLayout)
-const pageShellProps = computed(() => useWorkbenchShell.value
-  ? {
-      title: t('availableChannels.title'),
-      subtitle: t('availableChannels.description'),
-      eyebrow: t('availableChannels.eyebrow'),
-      icon: 'server'
-    }
-  : {})
+const useWorkbenchShell = computed(
+  () => route.path === "/app/available-channels",
+);
+const pageShell = computed(() =>
+  useWorkbenchShell.value ? AppSectionShell : AppLayout,
+);
+const pageShellProps = computed(() =>
+  useWorkbenchShell.value
+    ? {
+        title: t("availableChannels.title"),
+        subtitle: t("availableChannels.description"),
+        eyebrow: t("availableChannels.eyebrow"),
+        icon: "server",
+      }
+    : {},
+);
 
-const channels = ref<UserAvailableChannel[]>([])
-const userGroupRates = ref<Record<number, number>>({})
-const loading = ref(false)
-const searchQuery = ref('')
+const channels = ref<UserAvailableChannel[]>([]);
+const userGroupRates = ref<Record<number, number>>({});
+const loading = ref(false);
+const searchQuery = ref("");
 
 const emptyLabel = computed(() =>
   appStore.cachedPublicSettings?.available_channels_enabled === true
-    ? t('availableChannels.empty')
-    : t('availableChannels.emptyDisabled')
-)
+    ? t("availableChannels.empty")
+    : t("availableChannels.emptyDisabled"),
+);
 
 async function loadChannels() {
-  loading.value = true
+  loading.value = true;
   try {
     // 渠道列表和用户专属倍率并发拉取。专属倍率失败不阻塞模型目录展示，
     // 价格会降级为按分组默认倍率计算。
     const [list, rates] = await Promise.all([
       userChannelsAPI.getAvailable(),
       userGroupsAPI.getUserGroupRates().catch((err: unknown) => {
-        console.error('Failed to load user group rates:', err)
-        return {} as Record<number, number>
+        console.error("Failed to load user group rates:", err);
+        return {} as Record<number, number>;
       }),
-    ])
-    channels.value = list
-    userGroupRates.value = rates
+    ]);
+    channels.value = list;
+    userGroupRates.value = rates;
   } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, t('common.error')))
+    appStore.showError(extractApiErrorMessage(err, t("common.error")));
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
-onMounted(loadChannels)
+onMounted(loadChannels);
 </script>
 
 <style scoped>

@@ -64,15 +64,15 @@ describe('ModelWhitelistSelector', () => {
     const wrapper = mountSelector()
     await wrapper.get('div.cursor-pointer').trigger('click')
 
-    const row = findModelRow(wrapper, 'gpt-5.6-sol')
+    const row = findModelRow(wrapper, 'gpt-5.4')
 
     const copyButton = row.get('[data-testid="copy-model-id"]')
-    expect(copyButton.attributes('aria-label')).toBe('复制 gpt-5.6-sol')
+    expect(copyButton.attributes('aria-label')).toBe('复制 gpt-5.4')
 
     await copyButton.trigger('click')
     await flushPromises()
 
-    expect(copyToClipboard).toHaveBeenCalledWith('gpt-5.6-sol')
+    expect(copyToClipboard).toHaveBeenCalledWith('gpt-5.4')
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
   })
 
@@ -80,10 +80,10 @@ describe('ModelWhitelistSelector', () => {
     const wrapper = mountSelector()
     await wrapper.get('div.cursor-pointer').trigger('click')
 
-    const row = findModelRow(wrapper, 'gpt-5.6-sol')
+    const row = findModelRow(wrapper, 'gpt-5.4')
     await row.get('[data-testid="select-model"]').trigger('click')
 
-    expect(wrapper.emitted('update:modelValue')).toEqual([[['gpt-5.6-sol']]])
+    expect(wrapper.emitted('update:modelValue')).toEqual([[['gpt-5.4']]])
     expect(copyToClipboard).not.toHaveBeenCalled()
   })
 })

@@ -20,7 +20,7 @@ describe('ThemeToggle', () => {
 
   it('persists the selected theme and updates the document root', async () => {
     const wrapper = mount(ThemeToggle)
-    const button = wrapper.get('button')
+    const button = wrapper.get('[role="button"]')
 
     expect(button.attributes('aria-label')).toBe('Dark Mode')
     await button.trigger('click')
@@ -30,5 +30,16 @@ describe('ThemeToggle', () => {
     await button.trigger('click')
     expect(document.documentElement.classList.contains('dark')).toBe(false)
     expect(localStorage.getItem('theme')).toBe('light')
+  })
+
+  it('supports keyboard theme switching', async () => {
+    const wrapper = mount(ThemeToggle)
+    const button = wrapper.get('[role="button"]')
+
+    await button.trigger('keydown', { key: 'Enter' })
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+
+    await button.trigger('keydown', { key: ' ' })
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
   })
 })

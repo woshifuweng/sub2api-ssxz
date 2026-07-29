@@ -92,18 +92,18 @@
           </div>
         </Transition>
 
-        <FoundationButton
+        <LiquidButton
           type="submit"
-          size="lg"
-          class="auth-submit"
+          class="w-full"
+          size="default"
           :disabled="authActionDisabled || (turnstileEnabled && !turnstileToken)"
         >
-          <template #leading>
+          <span class="flex items-center gap-2">
             <LoaderCircle v-if="isLoading" class="auth-spinner" aria-hidden="true" />
             <LogIn v-else aria-hidden="true" />
-          </template>
-          {{ isLoading ? t('auth.signingIn') : t('auth.signIn') }}
-        </FoundationButton>
+            {{ isLoading ? t('auth.signingIn') : t('auth.signIn') }}
+          </span>
+        </LiquidButton>
 
         <LoginAgreementPrompt
           v-if="loginAgreementEnabled"
@@ -162,6 +162,7 @@ import TotpLoginModal from '@/components/auth/TotpLoginModal.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { FoundationButton, FoundationInput } from '@/components/foundation'
+import LiquidButton from '@/components/common/LiquidButton.vue'
 import { useAuthStore, useAppStore } from '@/stores'
 import { clearAuthPortalDraft, useAuthPortalDraft } from '@/composables/useAuthPortalDraft'
 import { getPublicSettings, isTotp2FARequired } from '@/api/auth'
@@ -630,16 +631,6 @@ function handle2FACancel(): void {
   border-color: hsl(var(--destructive) / 0.26);
   color: hsl(var(--destructive));
   background: hsl(var(--destructive) / 0.08);
-}
-
-.auth-submit {
-  width: 100%;
-  transform: none !important;
-}
-
-.auth-submit:hover,
-.auth-submit:active {
-  transform: none !important;
 }
 
 .auth-spinner {

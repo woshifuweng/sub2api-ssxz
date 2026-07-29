@@ -1,4 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { routeState, keysAPI, authAPI, usageAPI, userGroupsAPI, appStore, onboardingStore, clipboardCopy } = vi.hoisted(() => ({
@@ -327,6 +328,9 @@ function groupFixture(overrides: Record<string, unknown> = {}) {
 
 describe('KeysView workbench surface', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    keysAPI.reveal.mockReset()
     localStorage.clear()
     routeState.path = '/app/keys'
     keysAPI.list.mockResolvedValue({ items: [], total: 0, pages: 0 })
@@ -336,7 +340,6 @@ describe('KeysView workbench surface', () => {
     userGroupsAPI.getUserGroupRates.mockResolvedValue({})
     onboardingStore.isCurrentStep.mockReturnValue(false)
     clipboardCopy.mockResolvedValue(true)
-    vi.clearAllMocks()
   })
 
   it('uses the workbench shell and workbench table surface on /app/keys', async () => {
@@ -1059,8 +1062,8 @@ describe('KeysView workbench surface', () => {
     expect(wrapper.text()).toContain('keys.createdKeyReveal.readinessHint')
     expect(wrapper.text()).toContain('keys.createdKeyReveal.primaryActionHint')
     expect(wrapper.text()).toContain('https://example.test/v1')
-    expect(wrapper.get('[data-testid="created-key-ccs-import"]').classes()).toContain('btn-primary')
-    expect(wrapper.get('[data-testid="created-key-ack"]').classes()).toContain('btn-secondary')
+    expect(wrapper.get('[data-testid="created-key-ccs-import"]').classes()).toContain('bg-transparent')
+    expect(wrapper.get('[data-testid="created-key-ack"]').classes()).toContain('border')
 
     await wrapper.get('[data-testid="created-key-base-url-copy"]').trigger('click')
     await flushPromises()

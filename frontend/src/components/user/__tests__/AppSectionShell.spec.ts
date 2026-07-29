@@ -172,6 +172,7 @@ describe('AppSectionShell', () => {
       'Billing',
       'Orders',
       'Redeem',
+      '图片工作台',
       'Account'
     ])
     expect(wrapper.get('.ssxz-header-docs').attributes('href')).toBe('/docs')
@@ -243,6 +244,7 @@ describe('AppSectionShell', () => {
       '/app/purchase',
       '/app/orders',
       '/app/redeem',
+      '/app/image',
       '/app/profile'
     ]
 

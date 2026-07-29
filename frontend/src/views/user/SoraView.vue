@@ -4,11 +4,21 @@
     <div class="sora-page">
       <!-- 功能未启用提示 -->
       <div v-if="!soraEnabled" class="sora-not-enabled">
-        <svg class="sora-not-enabled-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
+        <svg
+          class="sora-not-enabled-icon"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+            d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"
+          />
         </svg>
-        <h2 class="sora-not-enabled-title">{{ t('sora.notEnabled') }}</h2>
-        <p class="sora-not-enabled-desc">{{ t('sora.notEnabledDesc') }}</p>
+        <h2 class="sora-not-enabled-title">{{ t("sora.notEnabled") }}</h2>
+        <p class="sora-not-enabled-desc">{{ t("sora.notEnabledDesc") }}</p>
       </div>
 
       <!-- Sora 主界面 -->
@@ -17,27 +27,43 @@
         <header class="sora-header">
           <div class="sora-header-left">
             <!-- 返回主页按钮 -->
-            <router-link :to="dashboardPath" class="sora-back-btn" :title="t('common.back')">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <router-link
+              :to="dashboardPath"
+              class="sora-back-btn"
+              :title="t('common.back')"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
                 <path d="M15 19l-7-7 7-7" />
               </svg>
             </router-link>
             <nav class="sora-nav-tabs">
-              <button
+              <LiquidButton
                 v-for="tab in tabs"
                 :key="tab.key"
                 :class="['sora-nav-tab', activeTab === tab.key && 'active']"
                 @click="activeTab = tab.key"
+                variant="plain"
+                size="sm"
               >
                 {{ tab.label }}
-              </button>
+              </LiquidButton>
             </nav>
           </div>
           <div class="sora-header-right">
             <SoraQuotaBar v-if="quota" :quota="quota" />
             <div v-if="activeTaskCount > 0" class="sora-queue-indicator">
-              <span class="sora-queue-dot" :class="{ busy: hasGeneratingTask }"></span>
-              <span>{{ activeTaskCount }} {{ t('sora.queueTasks') }}</span>
+              <span
+                class="sora-queue-dot"
+                :class="{ busy: hasGeneratingTask }"
+              ></span>
+              <span>{{ activeTaskCount }} {{ t("sora.queueTasks") }}</span>
             </div>
           </div>
         </header>
@@ -59,44 +85,49 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { useAppStore, useAuthStore } from '@/stores'
-import SoraQuotaBar from '@/components/sora/SoraQuotaBar.vue'
-import SoraGeneratePage from '@/components/sora/SoraGeneratePage.vue'
-import SoraLibraryPage from '@/components/sora/SoraLibraryPage.vue'
-import soraAPI, { type QuotaInfo } from '@/api/sora'
+import LiquidButton from "@/components/common/LiquidButton.vue";
+import { ref, computed, onMounted } from "vue";
+import { useI18n } from "vue-i18n";
+import { useAppStore, useAuthStore } from "@/stores";
+import SoraQuotaBar from "@/components/sora/SoraQuotaBar.vue";
+import SoraGeneratePage from "@/components/sora/SoraGeneratePage.vue";
+import SoraLibraryPage from "@/components/sora/SoraLibraryPage.vue";
+import soraAPI, { type QuotaInfo } from "@/api/sora";
 
-const { t } = useI18n()
-const authStore = useAuthStore()
-const appStore = useAppStore()
+const { t } = useI18n();
+const authStore = useAuthStore();
+const appStore = useAppStore();
 
-const soraEnabled = computed(() => appStore.cachedPublicSettings?.sora_client_enabled ?? false)
+const soraEnabled = computed(
+  () => appStore.cachedPublicSettings?.sora_client_enabled ?? false,
+);
 
-const activeTab = ref<'generate' | 'library'>('generate')
-const quota = ref<QuotaInfo | null>(null)
-const activeTaskCount = ref(0)
-const hasGeneratingTask = ref(false)
-const dashboardPath = computed(() => (authStore.isAdmin ? '/admin/dashboard' : '/dashboard'))
+const activeTab = ref<"generate" | "library">("generate");
+const quota = ref<QuotaInfo | null>(null);
+const activeTaskCount = ref(0);
+const hasGeneratingTask = ref(false);
+const dashboardPath = computed(() =>
+  authStore.isAdmin ? "/admin/dashboard" : "/dashboard",
+);
 
 const tabs = computed(() => [
-  { key: 'generate' as const, label: t('sora.tabGenerate') },
-  { key: 'library' as const, label: t('sora.tabLibrary') }
-])
+  { key: "generate" as const, label: t("sora.tabGenerate") },
+  { key: "library" as const, label: t("sora.tabLibrary") },
+]);
 
 function onTaskCountChange(counts: { active: number; generating: boolean }) {
-  activeTaskCount.value = counts.active
-  hasGeneratingTask.value = counts.generating
+  activeTaskCount.value = counts.active;
+  hasGeneratingTask.value = counts.generating;
 }
 
 onMounted(async () => {
-  if (!soraEnabled.value) return
+  if (!soraEnabled.value) return;
   try {
-    quota.value = await soraAPI.getQuota()
+    quota.value = await soraAPI.getQuota();
   } catch {
     // 配额查询失败不阻塞页面
   }
-})
+});
 </script>
 
 <style scoped>
@@ -104,46 +135,57 @@ onMounted(async () => {
    Sora 主题 CSS 变量 — 亮色模式（跟随应用主题）
    ============================================================ */
 .sora-root {
-  --sora-bg-primary: #F9FAFB;
-  --sora-bg-secondary: #FFFFFF;
-  --sora-bg-tertiary: #F3F4F6;
-  --sora-bg-elevated: #FFFFFF;
-  --sora-bg-hover: #E5E7EB;
-  --sora-bg-input: #FFFFFF;
+  --sora-bg-primary: #f9fafb;
+  --sora-bg-secondary: #ffffff;
+  --sora-bg-tertiary: #f3f4f6;
+  --sora-bg-elevated: #ffffff;
+  --sora-bg-hover: #e5e7eb;
+  --sora-bg-input: #ffffff;
   --sora-text-primary: #111827;
-  --sora-text-secondary: #6B7280;
-  --sora-text-tertiary: #9CA3AF;
-  --sora-text-muted: #D1D5DB;
+  --sora-text-secondary: #6b7280;
+  --sora-text-tertiary: #9ca3af;
+  --sora-text-muted: #d1d5db;
   --sora-accent-primary: #14b8a6;
   --sora-accent-secondary: #0d9488;
   --sora-accent-gradient: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
-  --sora-accent-gradient-hover: linear-gradient(135deg, #2dd4bf 0%, #14b8a6 100%);
-  --sora-success: #10B981;
-  --sora-warning: #F59E0B;
-  --sora-error: #EF4444;
-  --sora-info: #3B82F6;
-  --sora-border-color: #E5E7EB;
-  --sora-border-subtle: #F3F4F6;
+  --sora-accent-gradient-hover: linear-gradient(
+    135deg,
+    #2dd4bf 0%,
+    #14b8a6 100%
+  );
+  --sora-success: #10b981;
+  --sora-warning: #f59e0b;
+  --sora-error: #ef4444;
+  --sora-info: #3b82f6;
+  --sora-border-color: #e5e7eb;
+  --sora-border-subtle: #f3f4f6;
   --sora-radius-sm: 8px;
   --sora-radius-md: 12px;
   --sora-radius-lg: 16px;
   --sora-radius-xl: 20px;
   --sora-radius-full: 9999px;
-  --sora-shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-  --sora-shadow-md: 0 4px 12px rgba(0,0,0,0.08);
-  --sora-shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
-  --sora-shadow-glow: 0 0 20px rgba(20,184,166,0.25);
+  --sora-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --sora-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --sora-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --sora-shadow-glow: 0 0 20px rgba(20, 184, 166, 0.25);
   --sora-transition-fast: 150ms ease;
   --sora-transition-normal: 250ms ease;
   --sora-header-height: 56px;
   --sora-header-bg: rgba(249, 250, 251, 0.85);
-  --sora-placeholder-gradient: linear-gradient(135deg, #e0e7ff 0%, #dbeafe 50%, #cffafe 100%);
+  --sora-placeholder-gradient: linear-gradient(
+    135deg,
+    #e0e7ff 0%,
+    #dbeafe 50%,
+    #cffafe 100%
+  );
   --sora-modal-backdrop: rgba(0, 0, 0, 0.4);
 
   min-height: 100vh;
   background: var(--sora-bg-primary);
   color: var(--sora-text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI",
+    "PingFang SC", "Noto Sans SC", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -259,8 +301,13 @@ onMounted(async () => {
 }
 
 @keyframes sora-pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 
 /* ============================================================
@@ -363,7 +410,12 @@ html.dark .sora-root {
   --sora-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
   --sora-shadow-glow: 0 0 20px rgba(20, 184, 166, 0.3);
   --sora-header-bg: rgba(2, 6, 23, 0.85);
-  --sora-placeholder-gradient: linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #020617 100%);
+  --sora-placeholder-gradient: linear-gradient(
+    135deg,
+    #1e293b 0%,
+    #0f172a 50%,
+    #020617 100%
+  );
   --sora-modal-backdrop: rgba(0, 0, 0, 0.7);
 }
 </style>
