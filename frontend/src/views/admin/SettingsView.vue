@@ -1591,6 +1591,9 @@
                       form.passkey_rp_origins.join(", ")
                     }}
                   </p>
+                  <p v-if="!form.passkey_configured" class="mt-2">
+                    {{ t("admin.settings.security.passkeyDeploymentHint") }}
+                  </p>
                 </div>
                 <Toggle
                   v-model="form.passkey_enabled"
