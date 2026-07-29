@@ -234,7 +234,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableClaudeBootstrapAuthFailureWithoutF
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"API_KEY_REQUIRED","message":"API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"API_KEY_REQUIRED","message":"API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -297,7 +297,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableClaudeMetricsEnabledAuthFailureWit
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"API_KEY_REQUIRED","message":"API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"API_KEY_REQUIRED","message":"API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -360,7 +360,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableClaudePolicyLimitsAuthFailureWitho
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"API_KEY_REQUIRED","message":"API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"API_KEY_REQUIRED","message":"API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -427,7 +427,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableClaudeUserSettingsAuthFailureWitho
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"API_KEY_REQUIRED","message":"API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"API_KEY_REQUIRED","message":"API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -494,7 +494,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableChatCompletionsAuthFailureWithoutF
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"API_KEY_REQUIRED","message":"API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"API_KEY_REQUIRED","message":"API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -561,7 +561,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableResponsesAuthFailureWithoutFallbac
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"API_KEY_REQUIRED","message":"API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"API_KEY_REQUIRED","message":"API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -635,7 +635,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableResponsesWebSocketAuthFailureWitho
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"API_KEY_REQUIRED","message":"API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"API_KEY_REQUIRED","message":"API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -671,7 +671,7 @@ func (s *nativeRouteAPIKeyRepoStub) GetByKeyForAuth(ctx context.Context, key str
 	}
 	return s.getByKeyForAuth(ctx, key)
 }
-func (s *nativeRouteAPIKeyRepoStub) Update(context.Context, *service.APIKey) error {
+func (s *nativeRouteAPIKeyRepoStub) Update(context.Context, *service.APIKey, service.APIKeyUpdateFields) error {
 	panic("unexpected Update call")
 }
 func (s *nativeRouteAPIKeyRepoStub) Delete(context.Context, int64) error {
@@ -970,7 +970,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableMessagesAuthFailureWithoutFallback
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"API_KEY_REQUIRED","message":"API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"API_KEY_REQUIRED","message":"API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -1037,7 +1037,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableMessagesCountTokensAuthFailureWith
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"API_KEY_REQUIRED","message":"API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"API_KEY_REQUIRED","message":"API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -1104,7 +1104,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminTLSSettingsAuthFailureWithout
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -1171,7 +1171,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminSettingsAuthFailureWithoutFal
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -1238,7 +1238,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminSoraS3SettingsAuthFailureWith
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -1306,7 +1306,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminImportTaskAuthFailureWithoutF
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -1352,7 +1352,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminDashboardStatsAuthFailureWith
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -1397,7 +1397,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminGroupsAuthFailureWithoutFallb
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -1443,7 +1443,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminGroupCreateAuthFailureWithout
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -1489,7 +1489,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminUserCreateAuthFailureWithoutF
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -1534,7 +1534,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminSubscriptionsAuthFailureWitho
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -1579,7 +1579,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminUsageAuthFailureWithoutFallba
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -1622,7 +1622,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminUsageCleanupTasksAuthFailureW
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -1666,7 +1666,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminAPIKeysAuthFailureWithoutFall
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -1709,7 +1709,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminErrorPassthroughAuthFailureWi
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -1752,7 +1752,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminProxyMaintenanceAuthFailureWi
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -1791,7 +1791,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminAnnouncementsAuthFailureWitho
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	require.NoError(t, runtime.Shutdown(ctx))
@@ -1829,7 +1829,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminPromoCodesAuthFailureWithoutF
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	require.NoError(t, runtime.Shutdown(ctx))
@@ -1867,7 +1867,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminUserAttributesAuthFailureWith
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	require.NoError(t, runtime.Shutdown(ctx))
@@ -1905,7 +1905,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminRedeemCodesAuthFailureWithout
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	require.NoError(t, runtime.Shutdown(ctx))
@@ -1943,7 +1943,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminBackupsAuthFailureWithoutFall
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	require.NoError(t, runtime.Shutdown(ctx))
@@ -1982,7 +1982,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminScheduledTestsAuthFailureWith
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	require.NoError(t, runtime.Shutdown(ctx))
@@ -2020,7 +2020,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminProxiesAuthFailureWithoutFall
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	require.NoError(t, runtime.Shutdown(ctx))
@@ -2059,7 +2059,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminOpenAIOAuthAuthFailureWithout
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	require.NoError(t, runtime.Shutdown(ctx))
@@ -2097,7 +2097,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminGeminiOAuthAuthFailureWithout
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	require.NoError(t, runtime.Shutdown(ctx))
@@ -2136,7 +2136,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminAntigravityOAuthAuthFailureWi
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	require.NoError(t, runtime.Shutdown(ctx))
@@ -2174,7 +2174,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminDataManagementAuthFailureWith
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	require.NoError(t, runtime.Shutdown(ctx))
@@ -2212,7 +2212,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminOpsAlertRulesAuthFailureWitho
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	require.NoError(t, runtime.Shutdown(ctx))
@@ -2250,7 +2250,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminOpsRuntimeLoggingAuthFailureW
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	require.NoError(t, runtime.Shutdown(ctx))
@@ -2288,7 +2288,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminOpsErrorsAuthFailureWithoutFa
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	require.NoError(t, runtime.Shutdown(ctx))
@@ -2326,7 +2326,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminOpsQPSWSAuthFailureWithoutFal
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	require.NoError(t, runtime.Shutdown(ctx))
@@ -2368,7 +2368,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminUserAPIKeysAuthFailureWithout
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -2411,7 +2411,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminGroupAPIKeysAuthFailureWithou
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -2498,7 +2498,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAuthMeUnauthorizedWithoutFallbackH
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization header is required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization header is required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -2585,7 +2585,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableUserProfileUnauthorizedWithoutFall
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization header is required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization header is required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -2672,7 +2672,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableKeysUnauthorizedWithoutFallbackHan
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization header is required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization header is required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -2716,7 +2716,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableRedeemUnauthorizedWithoutFallbackH
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization header is required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization header is required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -2759,7 +2759,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableSubscriptionsUnauthorizedWithoutFa
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization header is required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization header is required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -2803,7 +2803,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableSoraGenerateUnauthorizedWithoutFal
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization header is required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization header is required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -2846,7 +2846,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableUsageStatsUnauthorizedWithoutFallb
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization header is required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization header is required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -2889,7 +2889,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableTotpStatusUnauthorizedWithoutFallb
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization header is required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization header is required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -2932,7 +2932,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminOpsConcurrencyAuthFailureWith
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -2975,7 +2975,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminSystemVersionAuthFailureWitho
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -3061,7 +3061,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminAccountsAuthFailureWithoutFal
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -3106,7 +3106,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminAccountTestAuthFailureWithout
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -3151,7 +3151,7 @@ func TestNativeGnetHTTPRuntimeServesExecutableAdminAccountsOAuthAuthFailureWitho
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.JSONEq(t, `{"code":"UNAUTHORIZED","message":"Authorization required"}`, string(body))
+require.JSONEq(t, `{"error":{"code":"UNAUTHORIZED","message":"Authorization required","type":"authentication_error"}}`, string(body))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()

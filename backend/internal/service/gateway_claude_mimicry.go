@@ -48,6 +48,10 @@ func (s *GatewayService) applyClaudeCodeOAuthMimicryToBodyContext(
 		return body, model
 	}
 
+	// Remove client message breakpoints before moving the original system block
+	// into messages, so the system block's own cache_control can be preserved.
+	body = stripMessageCacheControl(body)
+
 	systemPromptInjectionEnabled, systemPrompt, systemPromptBlocks := s.claudeOAuthSystemPromptInjectionSettings(ctx)
 	systemRewritten := false
 	if systemPromptInjectionEnabled {
@@ -82,7 +86,6 @@ func (s *GatewayService) applyClaudeCodeOAuthMimicryToBodyContext(
 
 	body, model = normalizeClaudeOAuthRequestBody(body, model, normalizeOpts)
 
-	body = stripMessageCacheControl(body)
 	body = addMessageCacheBreakpoints(body)
 
 	if rw := buildToolNameRewriteFromBody(body); rw != nil {

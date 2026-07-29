@@ -6485,7 +6485,6 @@ func (s *GatewayService) buildUpstreamRequestContext(ctx context.Context, c gate
 	// Build effective drop set: merge static defaults with dynamic beta policy filter rules
 	policyFilterSet := s.getBetaPolicyFilterSetContext(ctx, c, account)
 	effectiveDropSet := mergeDropSets(policyFilterSet)
-	effectiveDropWithClaudeCodeSet := mergeDropSets(policyFilterSet, claude.BetaClaudeCode)
 
 	// 处理 anthropic-beta header（OAuth 账号需要包含 oauth beta）
 	if tokenType == "oauth" {
@@ -6499,8 +6498,8 @@ func (s *GatewayService) buildUpstreamRequestContext(ctx context.Context, c gate
 			// Match real Claude CLI traffic (per mitmproxy reports):
 			// messages requests typically use only oauth + interleaved-thinking.
 			// Also drop claude-code beta if a downstream client added it.
-			requiredBetas := []string{claude.BetaOAuth, claude.BetaInterleavedThinking}
-			req.Header.Set("anthropic-beta", mergeAnthropicBetaDropping(requiredBetas, incomingBeta, effectiveDropWithClaudeCodeSet))
+			requiredBetas := claude.FullClaudeCodeMimicryBetas()
+			req.Header.Set("anthropic-beta", mergeAnthropicBetaDropping(requiredBetas, incomingBeta, effectiveDropSet))
 		} else {
 			// Claude Code 客户端：尽量透传原始 header，仅补齐 oauth beta
 			clientBetaHeader := req.Header.Get("anthropic-beta")

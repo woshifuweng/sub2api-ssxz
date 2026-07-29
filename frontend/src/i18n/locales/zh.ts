@@ -345,6 +345,28 @@ export default {
     }
   },
 
+  legal: {
+    loginAgreement: '登录条款',
+    adminCompliance: '部署与运营合规承诺',
+    loginAgreementPrompt: {
+      checkboxPrefix: '我已阅读并同意',
+      documentSeparator: '、',
+      noticeTitle: '继续登录前需要先同意最新条款。',
+      noticeDescription: '未同意前，账号密码输入和快捷登录会保持禁用。',
+      viewTerms: '查看条款',
+      dialogTitle: '条款更新通知',
+      dialogDescription: '我们的服务条款已于 {date} 更新。在继续使用服务之前，请仔细阅读并同意以下条款。',
+      recently: '近期',
+      relatedDocuments: '相关文档',
+      reject: '拒绝',
+      accept: '同意并继续',
+      loginRejectedWarning: '未同意最新条款前，无法输入账号密码或使用快捷登录。',
+      loginRequiredWarning: '请先阅读并同意最新条款后再登录。',
+      registerRejectedWarning: '未同意最新条款前，无法注册或使用快捷登录。',
+      registerRequiredWarning: '请先阅读并同意最新条款后再注册。'
+    }
+  },
+
   // Navigation
   nav: {
     dashboard: '仪表盘',
@@ -353,6 +375,7 @@ export default {
     image: '图片',
     announcements: '公告',
     apiKeys: 'API 密钥',
+    modelPlaza: '模型广场',
     imageWorkbench: '图片工作台',
     imageWorkbenchNoKey: '请先创建并启用一个 API 密钥',
     imageWorkbenchKeyError: '无法读取 API 密钥，请稍后重试',
@@ -432,6 +455,53 @@ export default {
     action: '立即充值'
   },
 
+  modelPlaza: {
+    title: '模型广场',
+    description: '按分组浏览可用模型与价格',
+    loading: '加载中...',
+    empty: '暂无可展示的分组',
+    loadFailed: '加载模型广场失败',
+    noSearchResult: '没有匹配的模型',
+    anonymousHint: '登录后可查看你的专属分组与专属倍率',
+    filters: {
+      platformLabel: '平台',
+      groupLabel: '分组',
+      rateLabel: '倍率',
+      modelLabel: '模型',
+      searchPlaceholder: '搜索模型名称',
+      all: '全部'
+    },
+    badges: {
+      exclusive: '专属分组',
+      subscription: '订阅'
+    },
+    detail: {
+      noModels: '该分组暂未配置模型',
+      noPricing: '未配置定价',
+      peakNote: '高峰时段 {window} 计费倍率 ×{multiplier}'
+    },
+    table: {
+      model: '模型',
+      input: '输入',
+      output: '输出',
+      cache: '缓存',
+      cacheWrite: '写入',
+      cacheRead: '读取',
+      paidPrice: '实付价格（折后）',
+      officialPrice: '官方价格',
+      rate: '折扣倍率',
+      unitPerMillion: '$ / 1M token',
+      perUnitRequest: '/ 次',
+      perUnitImage: '/ 张',
+      perRequest: '按次计费',
+      perImage: '按图片计费'
+    },
+    nav: {
+      login: '登录',
+      backToDashboard: '回到后台'
+    }
+  },
+
   affiliate: {
     title: '邀请返利',
     subtitle: '复制专属链接，查看邀请人数、奖励和可转入余额。',
@@ -479,6 +549,10 @@ export default {
     signInToAccount: '登录您的账户以继续',
     signIn: '登录',
     signingIn: '登录中...',
+    passkeySignIn: '使用 Passkey 登录',
+    passkeySigningIn: '正在等待 Passkey...',
+    passkeyCancelled: '已取消 Passkey 登录。',
+    passkeyFailed: 'Passkey 登录失败，请重试。',
     accountAccess: '账号访问',
     portalHeadlineLineOne: '连接主流 AI 模型',
     portalHeadlineLineTwo: '只需一个入口',
@@ -1559,6 +1633,63 @@ export default {
     passwordTooShort: '密码至少需要 8 个字符',
     passwordChangeSuccess: '密码修改成功',
     passwordChangeFailed: '密码修改失败',
+    passkey: {
+      title: 'Passkey',
+      description: '使用面容 ID、触控 ID、Windows Hello 或安全密钥免密码登录。',
+      add: '添加 Passkey',
+      continue: '创建 Passkey',
+      name: 'Passkey 名称',
+      namePlaceholder: '例如：MacBook 触控 ID',
+      passwordPlaceholder: '输入当前登录密码以确认',
+      empty: '尚未添加任何 Passkey。',
+      synced: '已同步',
+      createdAt: '创建于 {date}',
+      lastUsed: '上次使用 {date}',
+      featureDisabled: '管理员尚未配置 Passkey 功能。',
+      unsupported: '当前浏览器或设备不支持 Passkey。',
+      loadFailed: '加载 Passkey 失败。',
+      added: 'Passkey 已添加。',
+      addFailed: '添加 Passkey 失败。',
+      renamePrompt: '请输入新的 Passkey 名称',
+      renamed: 'Passkey 已重命名。',
+      renameFailed: '重命名 Passkey 失败。',
+      deleteTitle: '删除 Passkey',
+      deleteConfirm: '删除“{name}”？删除后将无法再使用它登录。',
+      deleted: 'Passkey 已删除。',
+      deleteFailed: '删除 Passkey 失败。'
+    },
+    balanceNotify: {
+      title: '余额不足提醒',
+      description: '当账户余额低于阈值时发送邮件提醒',
+      enabled: '启用余额不足提醒',
+      threshold: '自定义提醒阈值',
+      thresholdHint: '留空使用系统默认值',
+      thresholdPlaceholder: '输入金额',
+      systemDefault: '系统默认值',
+      extraEmails: '通知邮箱',
+      extraEmailsHint: '必须添加并验证邮箱后，余额不足时才能收到提醒邮件',
+      primaryEmail: '主邮箱',
+      noExtraEmails: '暂无额外通知邮箱',
+      enterEmail: '输入邮箱地址',
+      addEmail: '添加邮箱',
+      emailPlaceholder: '输入邮箱地址',
+      sendCode: '发送验证码',
+      resend: '重发',
+      codeSent: '验证码已发送',
+      codeSentTo: '验证码已发送到 {email}',
+      enterCode: '输入验证码',
+      codePlaceholder: '6位验证码',
+      verify: '验证',
+      emailAdded: '邮箱已添加',
+      emailRemoved: '邮箱已移除',
+      verifySuccess: '邮箱添加成功',
+      removeEmail: '移除',
+      removeSuccess: '邮箱已移除',
+      emailDuplicate: '该邮箱已存在',
+      maxEmailsReached: '已达到通知邮箱数量上限',
+      unverified: '未验证',
+      verified: '已验证'
+    },
     avatar: {
       dialogTitle: '更换头像',
       change: '更换头像',

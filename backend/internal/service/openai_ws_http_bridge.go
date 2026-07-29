@@ -505,6 +505,11 @@ func resolveGrokWSCacheIdentity(c *gin.Context, account *Account, seedPayload, c
 
 func resolveGrokWSUpstreamModel(account *Account, body []byte, originalModel string) string {
 	upstreamModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
+	if upstreamModel != "" && originalModel != "" && !strings.EqualFold(upstreamModel, originalModel) {
+		// The ingress hook may have already applied a per-turn model mapping.
+		// Preserve that snapshot instead of re-resolving only account mappings.
+		return upstreamModel
+	}
 	if account != nil && originalModel != "" {
 		mappedModel, matched := account.ResolveMappedModel(originalModel)
 		if matched {

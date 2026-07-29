@@ -82,6 +82,15 @@
         <ProfilePasswordForm />
       </section>
 
+      <ProfileBalanceNotifyCard
+        v-if="user && balanceLowNotifyEnabled"
+        :enabled="user.balance_notify_enabled ?? true"
+        :threshold="user.balance_notify_threshold ?? null"
+        :extra-emails="user.balance_notify_extra_emails ?? []"
+        :system-default-threshold="systemDefaultThreshold"
+        :user-email="user.email"
+      />
+
       <section class="profile-panel">
         <div class="profile-panel-heading">
           <span>{{ t('profile.workbench.twoFactorKicker') }}</span>
@@ -89,6 +98,8 @@
         </div>
         <ProfileTotpCard />
       </section>
+
+      <ProfilePasskeyCard :enabled="passkeyEnabled" />
     </div>
 
     <AvatarCropDialog
@@ -101,21 +112,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'; import { useI18n } from 'vue-i18n'
+import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'; import { useAppStore } from '@/stores/app'; import { formatDate } from '@/utils/format'
-import { authAPI } from '@/api'; import AppLayout from '@/components/layout/AppLayout.vue'
+import { useAuthStore } from '@/stores/auth'
+import { useAppStore } from '@/stores/app'
+import { formatDate } from '@/utils/format'
+import { authAPI } from '@/api'
+import AppLayout from '@/components/layout/AppLayout.vue'
 import { userAPI } from '@/api'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import ProfileEditForm from '@/components/user/profile/ProfileEditForm.vue'
+import ProfileBalanceNotifyCard from '@/components/user/profile/ProfileBalanceNotifyCard.vue'
 import ProfilePasswordForm from '@/components/user/profile/ProfilePasswordForm.vue'
 import ProfileTotpCard from '@/components/user/profile/ProfileTotpCard.vue'
+import ProfilePasskeyCard from '@/components/user/profile/ProfilePasskeyCard.vue'
 import AvatarCropDialog from '@/components/user/profile/AvatarCropDialog.vue'
 import type { UserAvatar } from '@/types'
 import { Icon } from '@/components/icons'
 
-const { t } = useI18n(); const authStore = useAuthStore(); const appStore = useAppStore(); const user = computed(() => authStore.user)
+const { t } = useI18n()
+const authStore = useAuthStore()
+const appStore = useAppStore()
+const user = computed(() => authStore.user)
 const route = useRoute()
 const useWorkbenchShell = computed(() => route.path.startsWith('/app/'))
 const pageShell = computed(() => useWorkbenchShell.value ? AppSectionShell : AppLayout)
@@ -130,6 +150,9 @@ const pageShellProps = computed(() => useWorkbenchShell.value
 )
 const contactInfo = ref('')
 const linuxdoOAuthEnabled = ref(false)
+const balanceLowNotifyEnabled = ref(false)
+const systemDefaultThreshold = ref(0)
+const passkeyEnabled = ref(false)
 const avatar = ref<UserAvatar | null>(null)
 const avatarDialogOpen = ref(false)
 const avatarSaving = ref(false)
@@ -144,9 +167,15 @@ onMounted(async () => {
     const settings = await authAPI.getPublicSettings()
     contactInfo.value = (settings.contact_info || '').trim()
     linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled === true
+    balanceLowNotifyEnabled.value = settings.balance_low_notify_enabled ?? false
+    systemDefaultThreshold.value = settings.balance_low_notify_threshold ?? 0
+    passkeyEnabled.value = settings.passkey_enabled === true
   } catch {
     contactInfo.value = ''
     linuxdoOAuthEnabled.value = false
+    balanceLowNotifyEnabled.value = false
+    systemDefaultThreshold.value = 0
+    passkeyEnabled.value = false
   }
   try {
     avatar.value = await userAPI.getAvatar()

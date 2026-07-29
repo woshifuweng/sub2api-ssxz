@@ -114,20 +114,28 @@ func (h *AuthHandler) respondInvalidCredentials(c gatewayctx.GatewayContext) {
 // respondWithTokenPair 生成 Token 对并返回认证响应
 // 如果 Token 对生成失败，回退到只返回 Access Token（向后兼容）
 func (h *AuthHandler) respondWithTokenPair(c *gin.Context, user *service.User) {
-	h.respondWithTokenPairGateway(gatewayctx.FromGin(c), user)
+	respondWithTokenPairContext(gatewayctx.FromGin(c), h.authService, user)
 }
 
 func (h *AuthHandler) respondWithTokenPairGateway(c gatewayctx.GatewayContext, user *service.User) {
+	respondWithTokenPairContext(c, h.authService, user)
+}
+
+func respondWithTokenPair(c *gin.Context, authService *service.AuthService, user *service.User) {
+	respondWithTokenPairContext(gatewayctx.FromGin(c), authService, user)
+}
+
+func respondWithTokenPairContext(c gatewayctx.GatewayContext, authService *service.AuthService, user *service.User) {
 	if err := ensureLoginUserActive(user); err != nil {
 		response.ErrorFromContext(authJSONResponder{ctx: c}, err)
 		return
 	}
 
-	tokenPair, err := h.authService.GenerateTokenPair(c.Request().Context(), user, "")
+	tokenPair, err := authService.GenerateTokenPair(c.Request().Context(), user, "")
 	if err != nil {
 		slog.Error("failed to generate token pair", "error", err, "user_id", user.ID)
 		// 回退到只返回Access Token
-		token, tokenErr := h.authService.GenerateToken(c.Request().Context(), user)
+		token, tokenErr := authService.GenerateToken(c.Request().Context(), user)
 		if tokenErr != nil {
 			response.ErrorContext(authJSONResponder{ctx: c}, http.StatusInternalServerError, "Failed to generate token")
 			return

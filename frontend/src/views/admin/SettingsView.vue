@@ -1128,6 +1128,28 @@
                 :disabled="!form.totp_encryption_key_configured"
               />
             </div>
+
+            <!-- Passkey -->
+            <div
+              class="flex items-center justify-between gap-4 border-t border-gray-100 pt-4 dark:border-dark-700"
+            >
+              <div>
+                <label class="font-medium text-gray-900 dark:text-white">Passkey 免密登录</label>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                  允许用户在个人资料页注册通行密钥并用于登录。
+                </p>
+                <p
+                  v-if="!form.passkey_configured"
+                  class="mt-2 text-sm text-amber-600 dark:text-amber-400"
+                >
+                  当前 WebAuthn 配置不完整，请先配置 RP ID 与允许来源。
+                </p>
+                <p v-else class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  RP ID：{{ form.passkey_rp_id }}；来源：{{ form.passkey_rp_origins.join(', ') }}
+                </p>
+              </div>
+              <Toggle v-model="form.passkey_enabled" :disabled="!form.passkey_configured" />
+            </div>
           </div>
         </div>
 
@@ -1533,6 +1555,52 @@
                   0 表示不设置单人上限。
                 </p>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Model Plaza Settings -->
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">模型广场</h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              向用户展示可用分组、模型与公开价格信息。
+            </p>
+          </div>
+          <div class="space-y-5 p-6">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <label class="font-medium text-gray-900 dark:text-white">启用模型广场</label>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                  开启后在用户页头显示模型广场入口。
+                </p>
+              </div>
+              <Toggle v-model="form.model_plaza_enabled" />
+            </div>
+            <div
+              class="flex items-center justify-between gap-4 border-t border-gray-100 pt-4 dark:border-dark-700"
+            >
+              <div>
+                <label class="font-medium text-gray-900 dark:text-white">要求登录</label>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                  开启后，未登录访客不能查看模型广场。
+                </p>
+              </div>
+              <Toggle
+                v-model="form.model_plaza_require_auth"
+                :disabled="!form.model_plaza_enabled"
+              />
+            </div>
+            <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
+              <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                顶部说明
+              </label>
+              <textarea
+                v-model="form.model_plaza_description"
+                rows="4"
+                class="input min-h-[96px]"
+                placeholder="支持 Markdown，可填写计费说明、汇率或活动信息"
+              ></textarea>
             </div>
           </div>
         </div>
@@ -2493,6 +2561,10 @@ const form = reactive<SettingsForm>({
   password_reset_enabled: false,
   totp_enabled: false,
   totp_encryption_key_configured: false,
+  passkey_enabled: false,
+  passkey_configured: false,
+  passkey_rp_id: '',
+  passkey_rp_origins: [],
   default_balance: 0,
   default_concurrency: 1,
   default_subscriptions: [],
@@ -2558,7 +2630,10 @@ const form = reactive<SettingsForm>({
   allow_ungrouped_key_scheduling: false,
   auto_delete_401_accounts: false,
   auto_delete_429_accounts: false,
-  auto_delete_useless_proxies: false
+  auto_delete_useless_proxies: false,
+  model_plaza_enabled: false,
+  model_plaza_require_auth: false,
+  model_plaza_description: ''
 })
 
 // Validate URL fields — the form uses `novalidate`, so browser-native checks are off.
@@ -2957,6 +3032,7 @@ async function saveSettings() {
       // 生效语义不受影响：后端仍与 email_verify_enabled 取与。
       password_reset_enabled: form.password_reset_enabled,
       totp_enabled: form.totp_enabled,
+      passkey_enabled: form.passkey_enabled,
       default_balance: form.default_balance,
       default_concurrency: form.default_concurrency,
       default_subscriptions: normalizedDefaultSubscriptions,
@@ -3008,7 +3084,10 @@ async function saveSettings() {
       allow_ungrouped_key_scheduling: form.allow_ungrouped_key_scheduling,
       auto_delete_401_accounts: form.auto_delete_401_accounts,
       auto_delete_429_accounts: form.auto_delete_429_accounts,
-      auto_delete_useless_proxies: form.auto_delete_useless_proxies
+      auto_delete_useless_proxies: form.auto_delete_useless_proxies,
+      model_plaza_enabled: form.model_plaza_enabled,
+      model_plaza_require_auth: form.model_plaza_require_auth,
+      model_plaza_description: form.model_plaza_description
     }
     const updated = await adminAPI.settings.updateSettings(payload)
     Object.assign(form, updated)

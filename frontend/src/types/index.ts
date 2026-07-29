@@ -24,12 +24,21 @@ export interface FetchOptions {
 
 // ==================== User & Auth Types ====================
 
+export interface NotifyEmailEntry {
+  email: string
+  disabled: boolean
+  verified: boolean
+}
+
 export interface User {
   id: number
   username: string
   email: string
   role: 'admin' | 'user' // User role for authorization
   balance: number // User balance for API usage
+  balance_notify_enabled?: boolean
+  balance_notify_threshold?: number | null
+  balance_notify_extra_emails?: NotifyEmailEntry[]
   concurrency: number // Allowed concurrent requests
   unlimited_concurrency?: boolean
   status: 'active' | 'disabled' // Account status
@@ -92,6 +101,12 @@ export interface CustomMenuItem {
   sort_order: number
 }
 
+export interface LoginAgreementDocument {
+  id: string
+  title: string
+  content_md: string
+}
+
 export interface PublicSettings {
   registration_enabled: boolean
   email_verify_enabled: boolean
@@ -99,7 +114,13 @@ export interface PublicSettings {
   promo_code_enabled: boolean
   password_reset_enabled: boolean
   invitation_code_enabled: boolean
+  login_agreement_enabled?: boolean
+  login_agreement_mode?: 'modal' | 'checkbox' | string
+  login_agreement_updated_at?: string
+  login_agreement_revision?: string
+  login_agreement_documents?: LoginAgreementDocument[]
   turnstile_enabled: boolean
+  passkey_enabled?: boolean
   turnstile_site_key: string
   site_name: string
   site_logo: string
@@ -133,6 +154,11 @@ export interface PublicSettings {
     available: boolean
     provider?: string
   }
+  model_plaza_enabled: boolean
+  model_plaza_require_auth: boolean
+  risk_control_enabled: boolean
+  server_utc_offset?: string
+  service_quota_enabled: boolean
   affiliate_enabled: boolean
   backend_mode_enabled: boolean
   version: string

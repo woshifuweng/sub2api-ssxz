@@ -91,6 +91,10 @@ describe('admin SettingsView', () => {
     invitation_code_enabled: false,
     totp_enabled: false,
     totp_encryption_key_configured: false,
+    passkey_enabled: false,
+    passkey_configured: true,
+    passkey_rp_id: 'api.ssxzapi.com',
+    passkey_rp_origins: ['https://api.ssxzapi.com'],
     default_balance: 0,
     default_concurrency: 1,
     default_subscriptions: [],
@@ -142,7 +146,10 @@ describe('admin SettingsView', () => {
     allow_ungrouped_key_scheduling: false,
     auto_delete_401_accounts: false,
     auto_delete_429_accounts: false,
-    auto_delete_useless_proxies: false
+    auto_delete_useless_proxies: false,
+    model_plaza_enabled: false,
+    model_plaza_require_auth: false,
+    model_plaza_description: ''
   })
 
   beforeEach(() => {

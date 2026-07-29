@@ -15,6 +15,7 @@ type SystemSettings struct {
 	FrontendURL                string
 	InvitationCodeEnabled      bool
 	TotpEnabled                bool // TOTP 双因素认证
+	PasskeyEnabled             bool // Passkey 登录
 
 	SMTPHost               string
 	SMTPPort               int
@@ -213,6 +214,10 @@ type SystemSettings struct {
 	CodexCLIOnlyEngineFingerprintSignals   string
 	WebSearchEmulationEnabled              bool
 
+	// Model Plaza feature (public group/model pricing showcase)
+	ModelPlazaEnabled                 bool   `json:"model_plaza_enabled"`
+	ModelPlazaRequireAuth             bool   `json:"model_plaza_require_auth"`
+	ModelPlazaDescription             string `json:"model_plaza_description"`
 	PaymentVisibleMethodAlipaySource  string
 	PaymentVisibleMethodWxpaySource   string
 	PaymentVisibleMethodAlipayEnabled bool
@@ -269,6 +274,12 @@ type PublicSettings struct {
 	PasswordResetEnabled             bool
 	InvitationCodeEnabled            bool
 	TotpEnabled                      bool // TOTP 双因素认证
+	PasskeyEnabled                   bool
+	LoginAgreementEnabled            bool
+	LoginAgreementMode               string
+	LoginAgreementUpdatedAt          string
+	LoginAgreementRevision           string
+	LoginAgreementDocuments          []LoginAgreementDocument
 	TurnstileEnabled                 bool
 	TurnstileSiteKey                 string
 	SiteName                         string
@@ -301,17 +312,14 @@ type PublicSettings struct {
 	ChannelMonitorDefaultIntervalSeconds int
 	AvailableChannelsEnabled             bool
 	WebSearch                            PublicWorkspaceWebSearchSettings
+	ModelPlazaEnabled                    bool
+	ModelPlazaRequireAuth                bool
 	AffiliateEnabled                     bool
 
 	BackendModeEnabled bool
 	Version            string
 
 	ForceEmailOnThirdPartySignup bool
-	LoginAgreementEnabled        bool
-	LoginAgreementMode           string
-	LoginAgreementUpdatedAt      string
-	LoginAgreementRevision       string
-	LoginAgreementDocuments      []LoginAgreementDocument
 	TableDefaultPageSize         int
 	TablePageSizeOptions         []int
 	CustomEndpoints              string

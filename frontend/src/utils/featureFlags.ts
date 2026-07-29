@@ -104,6 +104,16 @@ export const FeatureFlags = {
     mode: 'opt-in',
     label: 'Available Channels',
   }),
+  modelPlaza: defineFlag({
+    key: 'model_plaza_enabled',
+    mode: 'opt-in',
+    label: 'Model Plaza',
+  }),
+  riskControl: defineFlag({
+    key: 'risk_control_enabled',
+    mode: 'opt-in',
+    label: 'Risk Control',
+  }),
   affiliate: defineFlag({
     key: 'affiliate_enabled',
     mode: 'opt-in',

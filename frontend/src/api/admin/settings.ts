@@ -38,6 +38,10 @@ export interface SystemSettings {
   invitation_code_enabled: boolean
   totp_enabled: boolean // TOTP 双因素认证
   totp_encryption_key_configured: boolean // TOTP 加密密钥是否已配置
+  passkey_enabled: boolean
+  passkey_configured: boolean
+  passkey_rp_id: string
+  passkey_rp_origins: string[]
   // Default settings
   default_balance: number
   default_concurrency: number
@@ -110,6 +114,9 @@ export interface SystemSettings {
   auto_delete_401_accounts: boolean
   auto_delete_429_accounts: boolean
   auto_delete_useless_proxies: boolean
+  model_plaza_enabled: boolean
+  model_plaza_require_auth: boolean
+  model_plaza_description: string
 
   // Alipay 手机端预创建深链（后端设置项，生产环境使用外部发卡支付，此开关保持关闭）
   payment_alipay_mobile_precreate_deep_link?: boolean
@@ -124,6 +131,7 @@ export interface UpdateSettingsRequest {
   frontend_url?: string
   invitation_code_enabled?: boolean
   totp_enabled?: boolean // TOTP 双因素认证
+  passkey_enabled?: boolean
   default_balance?: number
   default_concurrency?: number
   default_subscriptions?: DefaultSubscriptionSetting[]
@@ -179,6 +187,9 @@ export interface UpdateSettingsRequest {
   auto_delete_401_accounts?: boolean
   auto_delete_429_accounts?: boolean
   auto_delete_useless_proxies?: boolean
+  model_plaza_enabled?: boolean
+  model_plaza_require_auth?: boolean
+  model_plaza_description?: string
   payment_alipay_mobile_precreate_deep_link?: boolean
 }
 

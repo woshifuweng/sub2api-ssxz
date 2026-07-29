@@ -10,7 +10,8 @@ import type {
   ChangePasswordRequest,
   UserAffiliateDetail,
   AffiliateTransferResponse,
-  BasePaginationResponse
+  BasePaginationResponse,
+  NotifyEmailEntry
 } from '@/types'
 import type { RedeemHistoryItem } from './redeem'
 
@@ -38,8 +39,28 @@ export async function getProfile(): Promise<User> {
  */
 export async function updateProfile(profile: {
   username?: string
+  balance_notify_enabled?: boolean
+  balance_notify_threshold?: number | null
+  balance_notify_extra_emails?: NotifyEmailEntry[]
 }): Promise<User> {
   const { data } = await apiClient.put<User>('/user', profile)
+  return data
+}
+
+export async function sendNotifyEmailCode(email: string): Promise<void> {
+  await apiClient.post('/user/notify-email/send-code', { email })
+}
+
+export async function verifyNotifyEmail(email: string, code: string): Promise<void> {
+  await apiClient.post('/user/notify-email/verify', { email, code })
+}
+
+export async function removeNotifyEmail(email: string): Promise<void> {
+  await apiClient.delete('/user/notify-email', { data: { email } })
+}
+
+export async function toggleNotifyEmail(email: string, disabled: boolean): Promise<User> {
+  const { data } = await apiClient.put<User>('/user/notify-email/toggle', { email, disabled })
   return data
 }
 
@@ -96,6 +117,10 @@ export const userAPI = {
   getProfile,
   updateProfile,
   changePassword,
+  sendNotifyEmailCode,
+  verifyNotifyEmail,
+  removeNotifyEmail,
+  toggleNotifyEmail,
   getAvatar,
   updateAvatar,
   getAffiliateDetail,

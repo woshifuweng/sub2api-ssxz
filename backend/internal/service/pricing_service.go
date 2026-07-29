@@ -73,6 +73,7 @@ type LiteLLMModelPricing struct {
 	SupportsPromptCaching               bool    `json:"supports_prompt_caching"`
 	OutputCostPerImage                  float64 `json:"output_cost_per_image"`       // 图片生成模型每张图片价格
 	OutputCostPerImageToken             float64 `json:"output_cost_per_image_token"` // 图片输出 token 价格
+	TokenPricingAbsent                  bool    `json:"token_pricing_absent,omitempty"`
 	MaxInputTokens                      *int    `json:"max_input_tokens,omitempty"`
 	MaxOutputTokens                     *int    `json:"max_output_tokens,omitempty"`
 }

@@ -6558,6 +6558,12 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if result.BillingModel != "" {
 		billingModel = strings.TrimSpace(result.BillingModel)
 	}
+	if input.BillingModelSource == BillingModelSourceChannelMapped && input.ChannelMappedModel != "" && input.ChannelMappedModel != input.OriginalModel {
+		billingModel = input.ChannelMappedModel
+	}
+	if input.BillingModelSource == BillingModelSourceRequested && input.OriginalModel != "" {
+		billingModel = input.OriginalModel
+	}
 	serviceTier := ""
 	if result.ServiceTier != nil {
 		serviceTier = strings.TrimSpace(*result.ServiceTier)
@@ -6584,14 +6590,18 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	durationMs := int(result.Duration.Milliseconds())
 	accountRateMultiplier := account.BillingRateMultiplier()
 	requestID := resolveUsageBillingRequestID(ctx, result.RequestID)
+	requestedModel := result.Model
+	if input.OriginalModel != "" {
+		requestedModel = input.OriginalModel
+	}
 	usageLog := &UsageLog{
 		UserID:                user.ID,
 		APIKeyID:              apiKey.ID,
 		AccountID:             account.ID,
 		RequestID:             requestID,
 		Model:                 result.Model,
-		RequestedModel:        result.Model,
-		UpstreamModel:         optionalNonEqualStringPtr(result.UpstreamModel, result.Model),
+		RequestedModel:        requestedModel,
+		UpstreamModel:         optionalTrimmedStringPtr(result.UpstreamModel),
 		ServiceTier:           result.ServiceTier,
 		ReasoningEffort:       result.ReasoningEffort,
 		InboundEndpoint:       optionalTrimmedStringPtr(input.InboundEndpoint),
@@ -6616,6 +6626,8 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		ImageCount:            result.ImageCount,
 		CreatedAt:             time.Now(),
 	}
+	usageLog.ChannelID = optionalInt64Ptr(input.ChannelID)
+	usageLog.ModelMappingChain = optionalTrimmedStringPtr(input.ModelMappingChain)
 	if result.ImageSize != "" {
 		imageSize := result.ImageSize
 		usageLog.ImageSize = &imageSize

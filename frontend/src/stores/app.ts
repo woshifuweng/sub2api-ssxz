@@ -412,6 +412,10 @@ export const useAppStore = defineStore('app', () => {
           web_search: {
             available: false
           },
+          model_plaza_enabled: false,
+          model_plaza_require_auth: false,
+          risk_control_enabled: false,
+          service_quota_enabled: false,
           affiliate_enabled: false,
           backend_mode_enabled: false,
           version: siteVersion.value

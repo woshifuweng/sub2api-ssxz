@@ -345,6 +345,28 @@ export default {
     }
   },
 
+  legal: {
+    loginAgreement: 'Login Terms',
+    adminCompliance: 'Deployment and Operations Compliance Commitment',
+    loginAgreementPrompt: {
+      checkboxPrefix: 'I have read and agree to ',
+      documentSeparator: ', ',
+      noticeTitle: 'Accept the latest terms before continuing.',
+      noticeDescription: 'Account/password login and quick sign-in stay disabled until you accept.',
+      viewTerms: 'View terms',
+      dialogTitle: 'Terms Update Notice',
+      dialogDescription: 'Our service terms were updated on {date}. Please read and accept the following terms before continuing.',
+      recently: 'recently',
+      relatedDocuments: 'Related documents',
+      reject: 'Reject',
+      accept: 'Accept and continue',
+      loginRejectedWarning: 'Account/password login and quick sign-in are disabled until you accept the latest terms.',
+      loginRequiredWarning: 'Please read and accept the latest terms before logging in.',
+      registerRejectedWarning: 'Registration and quick sign-in are disabled until you accept the latest terms.',
+      registerRequiredWarning: 'Please read and accept the latest terms before registering.'
+    }
+  },
+
   // Navigation
   nav: {
     dashboard: 'Dashboard',
@@ -353,6 +375,7 @@ export default {
     image: 'Image',
     announcements: 'Announcements',
     apiKeys: 'API Keys',
+    modelPlaza: 'Model Plaza',
     imageWorkbench: 'Image Workbench',
     imageWorkbenchNoKey: 'Create and enable an API key first',
     imageWorkbenchKeyError: 'Unable to load an API key. Try again later.',
@@ -432,6 +455,53 @@ export default {
     action: 'Recharge now'
   },
 
+  modelPlaza: {
+    title: 'Model Plaza',
+    description: 'Browse available models and pricing by group',
+    loading: 'Loading...',
+    empty: 'No groups to display',
+    loadFailed: 'Failed to load model plaza',
+    noSearchResult: 'No matching models',
+    anonymousHint: 'Sign in to see your exclusive groups and personal rates',
+    filters: {
+      platformLabel: 'Platform',
+      groupLabel: 'Group',
+      rateLabel: 'Rate',
+      modelLabel: 'Model',
+      searchPlaceholder: 'Search models',
+      all: 'All'
+    },
+    badges: {
+      exclusive: 'Exclusive',
+      subscription: 'Subscription'
+    },
+    detail: {
+      noModels: 'No models configured for this group',
+      noPricing: 'Pricing not configured',
+      peakNote: 'Peak hours {window}: billing rate ×{multiplier}'
+    },
+    table: {
+      model: 'Model',
+      input: 'Input',
+      output: 'Output',
+      cache: 'Cache',
+      cacheWrite: 'Write',
+      cacheRead: 'Read',
+      paidPrice: 'Your Price (Discounted)',
+      officialPrice: 'Official Price',
+      rate: 'Rate',
+      unitPerMillion: '$ / 1M tokens',
+      perUnitRequest: '/ request',
+      perUnitImage: '/ image',
+      perRequest: 'Per request',
+      perImage: 'Per image'
+    },
+    nav: {
+      login: 'Sign In',
+      backToDashboard: 'Back to Console'
+    }
+  },
+
   affiliate: {
     title: 'Referral Rewards',
     subtitle: 'Copy your referral link and track invitees, rewards, and transferable balance.',
@@ -479,6 +549,10 @@ export default {
     signInToAccount: 'Sign in to your account to continue',
     signIn: 'Sign In',
     signingIn: 'Signing in...',
+    passkeySignIn: 'Sign in with a passkey',
+    passkeySigningIn: 'Waiting for passkey...',
+    passkeyCancelled: 'Passkey sign-in was cancelled.',
+    passkeyFailed: 'Passkey sign-in failed. Please try again.',
     accountAccess: 'Account access',
     portalHeadlineLineOne: 'Leading AI models',
     portalHeadlineLineTwo: 'One unified gateway',
@@ -1557,6 +1631,63 @@ export default {
     passwordTooShort: 'Password must be at least 8 characters long',
     passwordChangeSuccess: 'Password changed successfully',
     passwordChangeFailed: 'Failed to change password',
+    passkey: {
+      title: 'Passkeys',
+      description: 'Use Face ID, Touch ID, Windows Hello, or a security key to sign in without a password.',
+      add: 'Add passkey',
+      continue: 'Create passkey',
+      name: 'Passkey name',
+      namePlaceholder: 'For example, MacBook Touch ID',
+      passwordPlaceholder: 'Enter your current password to confirm',
+      empty: 'No passkeys are registered yet.',
+      synced: 'Synced',
+      createdAt: 'Created {date}',
+      lastUsed: 'Last used {date}',
+      featureDisabled: 'Passkeys have not been configured by the administrator.',
+      unsupported: 'This browser or device does not support passkeys.',
+      loadFailed: 'Failed to load passkeys.',
+      added: 'Passkey added.',
+      addFailed: 'Failed to add passkey.',
+      renamePrompt: 'Enter a new name for this passkey',
+      renamed: 'Passkey renamed.',
+      renameFailed: 'Failed to rename passkey.',
+      deleteTitle: 'Delete passkey',
+      deleteConfirm: 'Delete “{name}”? You will no longer be able to sign in with it.',
+      deleted: 'Passkey deleted.',
+      deleteFailed: 'Failed to delete passkey.'
+    },
+    balanceNotify: {
+      title: 'Balance Low Notification',
+      description: 'Send email alert when account balance falls below threshold',
+      enabled: 'Enable Balance Low Notification',
+      threshold: 'Custom Threshold',
+      thresholdHint: 'Leave empty to use system default',
+      thresholdPlaceholder: 'Enter amount',
+      systemDefault: 'System Default',
+      extraEmails: 'Notification Emails',
+      extraEmailsHint: 'You must add and verify an email address to receive low balance alerts',
+      primaryEmail: 'Primary',
+      noExtraEmails: 'No extra notification emails',
+      enterEmail: 'Enter email address',
+      addEmail: 'Add Email',
+      emailPlaceholder: 'Enter email address',
+      sendCode: 'Send Code',
+      resend: 'Resend',
+      codeSent: 'Verification code sent',
+      codeSentTo: 'Code sent to {email}',
+      enterCode: 'Enter verification code',
+      codePlaceholder: '6-digit code',
+      verify: 'Verify',
+      emailAdded: 'Email added',
+      emailRemoved: 'Email removed',
+      verifySuccess: 'Email added successfully',
+      removeEmail: 'Remove',
+      removeSuccess: 'Email removed',
+      emailDuplicate: 'This email already exists',
+      maxEmailsReached: 'Maximum number of notification emails reached',
+      unverified: 'Unverified',
+      verified: 'Verified'
+    },
     avatar: {
       dialogTitle: 'Change avatar',
       change: 'Change avatar',

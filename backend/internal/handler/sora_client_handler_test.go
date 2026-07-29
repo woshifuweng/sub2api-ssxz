@@ -1081,8 +1081,10 @@ func (r *stubAPIKeyRepoForHandler) GetByKey(context.Context, string) (*service.A
 func (r *stubAPIKeyRepoForHandler) GetByKeyForAuth(context.Context, string) (*service.APIKey, error) {
 	return nil, nil
 }
-func (r *stubAPIKeyRepoForHandler) Update(context.Context, *service.APIKey) error { return nil }
-func (r *stubAPIKeyRepoForHandler) Delete(context.Context, int64) error           { return nil }
+func (r *stubAPIKeyRepoForHandler) Update(context.Context, *service.APIKey, service.APIKeyUpdateFields) error {
+	return nil
+}
+func (r *stubAPIKeyRepoForHandler) Delete(context.Context, int64) error { return nil }
 func (r *stubAPIKeyRepoForHandler) ListByUserID(_ context.Context, userID int64, _ pagination.PaginationParams, filters service.APIKeyListFilters) ([]service.APIKey, *pagination.PaginationResult, error) {
 	keys := make([]service.APIKey, 0, len(r.keys))
 	for _, key := range r.keys {

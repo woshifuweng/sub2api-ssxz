@@ -800,7 +800,17 @@ func (s *adminServiceImpl) UpdateUserLegacy(ctx context.Context, id int64, input
 		return nil, infraerrors.BadRequest("USER_INVALID_CONCURRENCY", "concurrency must be at least 1 unless unlimited concurrency is enabled")
 	}
 
-	if err := s.userRepo.Update(ctx, user); err != nil {
+	if err := s.userRepo.Update(ctx, user, UserUpdateFields{
+		Email:                 input.Email != "",
+		PasswordHash:          input.Password != "",
+		Username:              input.Username != nil,
+		Notes:                 input.Notes != nil,
+		Status:                input.Status != "",
+		Concurrency:           input.Concurrency != nil,
+		UnlimitedConcurrency:  input.UnlimitedConcurrency != nil,
+		AllowedGroups:         input.AllowedGroups != nil,
+		SoraStorageQuotaBytes: input.SoraStorageQuotaBytes != nil,
+	}); err != nil {
 		return nil, err
 	}
 
@@ -881,7 +891,7 @@ func (s *adminServiceImpl) UpdateUserBalanceLegacy(ctx context.Context, userID i
 		return nil, fmt.Errorf("balance cannot be negative, current balance: %.2f, requested operation would result in: %.2f", oldBalance, user.Balance)
 	}
 
-	if err := s.userRepo.Update(ctx, user); err != nil {
+	if _, err := s.userRepo.SetBalance(ctx, user.ID, user.Balance); err != nil {
 		return nil, err
 	}
 	balanceDiff := user.Balance - oldBalance
@@ -1575,7 +1585,7 @@ func (s *adminServiceImpl) AdminUpdateAPIKeyGroupIDLegacy(ctx context.Context, k
 			if addErr := s.userRepo.AddGroupToAllowedGroups(opCtx, apiKey.UserID, gid); addErr != nil {
 				return nil, fmt.Errorf("add group to user allowed groups: %w", addErr)
 			}
-			if err := s.apiKeyRepo.Update(opCtx, apiKey); err != nil {
+			if err := s.apiKeyRepo.Update(opCtx, apiKey, APIKeyUpdateFields{GroupID: true}); err != nil {
 				return nil, fmt.Errorf("update api key: %w", err)
 			}
 			if tx != nil {
@@ -1599,7 +1609,7 @@ func (s *adminServiceImpl) AdminUpdateAPIKeyGroupIDLegacy(ctx context.Context, k
 	}
 
 	// 非专属分组 / 解绑：无需事务，单步更新即可
-	if err := s.apiKeyRepo.Update(ctx, apiKey); err != nil {
+	if err := s.apiKeyRepo.Update(ctx, apiKey, APIKeyUpdateFields{GroupID: true}); err != nil {
 		return nil, fmt.Errorf("update api key: %w", err)
 	}
 

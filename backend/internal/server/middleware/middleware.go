@@ -120,7 +120,7 @@ func errorResponseType(code string) string {
 	switch code {
 	case "INSUFFICIENT_BALANCE", "API_KEY_QUOTA_EXHAUSTED", "USAGE_LIMIT_EXCEEDED":
 		return "billing_error"
-	case "INVALID_API_KEY", "API_KEY_REQUIRED", "API_KEY_DISABLED", "USER_INACTIVE", "USER_NOT_FOUND":
+	case "INVALID_API_KEY", "API_KEY_REQUIRED", "API_KEY_DISABLED", "USER_INACTIVE", "USER_NOT_FOUND", "UNAUTHORIZED":
 		return "authentication_error"
 	case "API_KEY_EXPIRED", "SUBSCRIPTION_NOT_FOUND", "SUBSCRIPTION_INVALID", "ACCESS_DENIED":
 		return "permission_error"

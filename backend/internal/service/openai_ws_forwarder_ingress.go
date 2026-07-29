@@ -295,6 +295,18 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		} else {
 			upstreamModel = normalizeOpenAIModelForUpstream(account, account.GetMappedModel(originalModel))
 		}
+		if hooks != nil && hooks.MapRequestModel != nil {
+			mappedModel, mapErr := hooks.MapRequestModel(turn, originalModel)
+			if mapErr != nil {
+				return openAIWSClientPayload{}, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "failed to map websocket model", mapErr)
+			}
+			if mappedModel = strings.TrimSpace(mappedModel); mappedModel != "" {
+				upstreamModel = mappedModel
+				if account.Platform != PlatformGrok {
+					upstreamModel = normalizeOpenAIModelForUpstream(account, account.GetMappedModel(upstreamModel))
+				}
+			}
+		}
 		if modelMissing || upstreamModel != originalModel {
 			next, setErr := applyPayloadMutation(normalized, "model", upstreamModel)
 			if setErr != nil {

@@ -177,7 +177,7 @@ func (s *SoraQuotaService) AddUsage(ctx context.Context, userID int64, bytes int
 		return fmt.Errorf("get user for quota update: %w", err)
 	}
 	user.SoraStorageUsedBytes += bytes
-	if err := s.userRepo.Update(ctx, user); err != nil {
+	if err := s.userRepo.Update(ctx, user, UserUpdateFields{SoraStorageUsedBytes: true}); err != nil {
 		return fmt.Errorf("update user quota usage: %w", err)
 	}
 	logger.LegacyPrintf("service.sora_quota", "[SoraQuota] 累加用量 user=%d +%d total=%d", userID, bytes, user.SoraStorageUsedBytes)
@@ -207,7 +207,7 @@ func (s *SoraQuotaService) ReleaseUsage(ctx context.Context, userID int64, bytes
 	if user.SoraStorageUsedBytes < 0 {
 		user.SoraStorageUsedBytes = 0
 	}
-	if err := s.userRepo.Update(ctx, user); err != nil {
+	if err := s.userRepo.Update(ctx, user, UserUpdateFields{SoraStorageUsedBytes: true}); err != nil {
 		return fmt.Errorf("update user quota release: %w", err)
 	}
 	logger.LegacyPrintf("service.sora_quota", "[SoraQuota] 释放用量 user=%d -%d total=%d", userID, bytes, user.SoraStorageUsedBytes)
@@ -247,7 +247,7 @@ func SetUserSoraQuota(ctx context.Context, userRepo UserRepository, userID int64
 		return err
 	}
 	user.SoraStorageQuotaBytes = quotaBytes
-	return userRepo.Update(ctx, user)
+	return userRepo.Update(ctx, user, UserUpdateFields{SoraStorageQuotaBytes: true})
 }
 
 // ParseQuotaBytes 解析配额字符串为字节数。

@@ -9,6 +9,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -2233,7 +2234,6 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocketGateway(transportCtx gatewayctx
 	)
 	setOpsRequestContextGateway(transportCtx, reqModel, true, firstMessage)
 	setOpsEndpointContextGateway(transportCtx, "", int16(service.RequestTypeWSV2))
-	channelMappingWS, _ := h.gatewayService.ResolveChannelMappingAndRestrict(ctx, apiKey.GroupID, reqModel)
 	if decision := h.checkSecurityAuditStageContext(transportCtx, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIResponses, reqModel, firstMessage, "first_turn"); decision != nil && !decision.AllowNextStage {
 		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, securityAuditMessage(decision))
 		return
@@ -2452,8 +2452,20 @@ retryWebSocketAccount:
 
 	quotaPlatform := service.QuotaPlatform(transportCtx.Context(), selectedAPIKey)
 	sessionID := extractClientSessionIDContext(transportCtx)
+	var channelMappingMu sync.Mutex
+	channelMappingsByTurn := make(map[int]service.ChannelMappingResult)
 	hooks := &service.OpenAIWSIngressHooks{
 		InitialRequestModel: reqModel,
+		MapRequestModel: func(turn int, requestedModel string) (string, error) {
+			mapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(ctx, apiKey.GroupID, requestedModel)
+			channelMappingMu.Lock()
+			channelMappingsByTurn[turn] = mapping
+			channelMappingMu.Unlock()
+			if mapping.Mapped {
+				return mapping.MappedModel, nil
+			}
+			return requestedModel, nil
+		},
 		BeforeTurn: func(turn int) error {
 			if turn == 1 {
 				return nil
@@ -2499,6 +2511,13 @@ retryWebSocketAccount:
 			if turnErr != nil || result == nil {
 				return
 			}
+			channelMappingMu.Lock()
+			usageChannelMapping, mappingCaptured := channelMappingsByTurn[turn]
+			delete(channelMappingsByTurn, turn)
+			channelMappingMu.Unlock()
+			if !mappingCaptured {
+				usageChannelMapping, _ = h.gatewayService.ResolveChannelMappingAndRestrict(ctx, apiKey.GroupID, result.Model)
+			}
 			if account.Type == service.AccountTypeOAuth && !account.IsOpenAIChatWebMode() {
 				h.gatewayService.UpdateCodexUsageSnapshotFromHeaders(ctx, account.ID, result.ResponseHeaders)
 			}
@@ -2518,7 +2537,7 @@ retryWebSocketAccount:
 					APIKeyService:      h.apiKeyService,
 					QuotaPlatform:      quotaPlatform,
 					SessionID:          sessionID,
-					ChannelUsageFields: clientRequestedUsageFieldsContext(transportCtx, channelMappingWS, reqModel, result.UpstreamModel),
+					ChannelUsageFields: clientRequestedUsageFieldsContext(transportCtx, usageChannelMapping, result.Model, result.UpstreamModel),
 				}); err != nil {
 					reqLog.Error("openai.websocket_record_usage_failed",
 						zap.Int64("account_id", account.ID),
@@ -2535,11 +2554,7 @@ retryWebSocketAccount:
 		closeOpenAIClientWS(wsConn, coderws.StatusInternalError, "unsupported websocket gateway transport")
 		return
 	}
-	wsFirstMessage := firstMessage
-	if channelMappingWS.Mapped {
-		wsFirstMessage = h.gatewayService.ReplaceModelInBody(firstMessage, channelMappingWS.MappedModel)
-	}
-	if err := h.gatewayService.ProxyResponsesWebSocketFromClient(ctx, ginCtx, wsConn, account, token, wsFirstMessage, hooks); err != nil {
+	if err := h.gatewayService.ProxyResponsesWebSocketFromClient(ctx, ginCtx, wsConn, account, token, firstMessage, hooks); err != nil {
 		var failoverErr *service.UpstreamFailoverError
 		if errors.As(err, &failoverErr) {
 			if prepareWebSocketFailover(account, selectedAPIKey, failoverErr) {

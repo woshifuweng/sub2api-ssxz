@@ -725,16 +725,32 @@ func TestGatewayService_AnthropicOAuth_ForwardPreservesBillingHeaderSystemBlock(
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name string
-		body string
+		name                       string
+		body                       string
+		wantModel                  string
+		wantOriginalSystem         string
+		wantOriginalSystemCacheTTL string
+		wantMetadataUserID         string
 	}{
 		{
-			name: "system array",
-			body: `{"model":"claude-3-5-sonnet-latest","system":[{"type":"text","text":"x-anthropic-billing-header keep"}],"messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`,
+			name:               "sonnet system array",
+			body:               `{"model":"claude-3-5-sonnet-latest","system":[{"type":"text","text":"x-anthropic-billing-header keep"}],"messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`,
+			wantModel:          "claude-3-5-sonnet-latest",
+			wantOriginalSystem: "x-anthropic-billing-header keep",
 		},
 		{
-			name: "system string",
-			body: `{"model":"claude-3-5-sonnet-latest","system":"x-anthropic-billing-header keep","messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`,
+			name:               "sonnet system string",
+			body:               `{"model":"claude-3-5-sonnet-latest","system":"x-anthropic-billing-header keep","messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`,
+			wantModel:          "claude-3-5-sonnet-latest",
+			wantOriginalSystem: "x-anthropic-billing-header keep",
+		},
+		{
+			name:                       "haiku full mimicry",
+			body:                       `{"model":"claude-haiku-4-5","metadata":{"user_id":"pi-session-metadata"},"system":[{"type":"text","text":"Pi project instructions","cache_control":{"type":"ephemeral","ttl":"1h"}}],"thinking":{"type":"enabled","budget_tokens":1024},"messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`,
+			wantModel:                  "claude-haiku-4-5-20251001",
+			wantOriginalSystem:         "Pi project instructions",
+			wantOriginalSystemCacheTTL: "1h",
+			wantMetadataUserID:         "pi-session-metadata",
 		},
 	}
 
@@ -783,18 +799,56 @@ func TestGatewayService_AnthropicOAuth_ForwardPreservesBillingHeaderSystemBlock(
 				Status:      StatusActive,
 				Schedulable: true,
 			}
-
 			result, err := svc.Forward(context.Background(), c, account, parsed)
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.NotNil(t, upstream.lastReq)
 			require.Equal(t, "Bearer oauth-token", getHeaderRaw(upstream.lastReq.Header, "authorization"))
-			require.Contains(t, getHeaderRaw(upstream.lastReq.Header, "anthropic-beta"), claude.BetaOAuth)
+			finalBeta := getHeaderRaw(upstream.lastReq.Header, "anthropic-beta")
+			for _, beta := range claude.FullClaudeCodeMimicryBetas() {
+				require.Truef(t, anthropicBetaTokensContains(finalBeta, beta), "missing mimic beta %s", beta)
+			}
+			require.False(t, anthropicBetaTokensContains(finalBeta, "client-only-beta"))
+			for key, value := range claude.DefaultHeaders {
+				require.Equal(t, value, getHeaderRaw(upstream.lastReq.Header, key), "mimic fingerprint header %s", key)
+			}
+			require.NotEmpty(t, getHeaderRaw(upstream.lastReq.Header, "x-client-request-id"))
 
+			require.Equal(t, tt.wantModel, gjson.GetBytes(upstream.lastBody, "model").String())
 			system := gjson.GetBytes(upstream.lastBody, "system")
 			require.True(t, system.Exists())
-			require.Contains(t, system.Raw, "x-anthropic-billing-header:")
-			require.Contains(t, gjson.GetBytes(upstream.lastBody, "messages.0.content.0.text").String(), "x-anthropic-billing-header keep")
+			require.True(t, system.IsArray(), "system should be an array")
+			arr := system.Array()
+			require.Len(t, arr, 3, "system array should have billing block + cc prompt block + expansion block")
+
+			billingText := arr[0].Get("text").String()
+			require.Contains(t, billingText, "x-anthropic-billing-header:")
+			require.Contains(t, billingText, "cc_version="+claude.CLICurrentVersion+".")
+			require.Contains(t, billingText, "cc_entrypoint=cli;")
+
+			require.Equal(t, claudeCodeSystemPrompt, arr[1].Get("text").String())
+			require.False(t, arr[1].Get("cache_control").Exists(), "身份前缀 block 不应带 cache_control")
+
+			require.Equal(t, claudeCodeSystemPromptExpansion, arr[2].Get("text").String())
+			require.Equal(t, "ephemeral", arr[2].Get("cache_control.type").String())
+
+			// 原始 system prompt 应迁移至 messages 中。
+			messages := gjson.GetBytes(upstream.lastBody, "messages")
+			require.True(t, messages.IsArray())
+			firstMsg := messages.Array()[0]
+			require.Equal(t, "user", firstMsg.Get("role").String())
+			require.Contains(t, firstMsg.Get("content.0.text").String(), tt.wantOriginalSystem)
+			if tt.wantOriginalSystemCacheTTL != "" {
+				require.Equal(t, "ephemeral", firstMsg.Get("content.0.cache_control.type").String())
+				require.Equal(t, tt.wantOriginalSystemCacheTTL, firstMsg.Get("content.0.cache_control.ttl").String())
+			} else {
+				require.False(t, firstMsg.Get("content.0.cache_control").Exists())
+			}
+
+			if tt.wantMetadataUserID != "" {
+				require.Equal(t, tt.wantMetadataUserID, gjson.GetBytes(upstream.lastBody, "metadata.user_id").String())
+				require.True(t, gjson.GetBytes(upstream.lastBody, "context_management").Exists())
+			}
 		})
 	}
 }

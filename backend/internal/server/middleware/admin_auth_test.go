@@ -146,7 +146,7 @@ func TestAdminAuthAPIKeyRespectsBoundAdminTokenVersion(t *testing.T) {
 			clone := *admin
 			return &clone, nil
 		},
-		update: func(ctx context.Context, user *service.User) error {
+		update: func(ctx context.Context, user *service.User, _ service.UserUpdateFields) error {
 			*admin = *user
 			return nil
 		},
@@ -292,7 +292,7 @@ func (s *settingRepoStub) Delete(_ context.Context, key string) error {
 type stubUserRepo struct {
 	getByID       func(ctx context.Context, id int64) (*service.User, error)
 	getFirstAdmin func(ctx context.Context) (*service.User, error)
-	update        func(ctx context.Context, user *service.User) error
+	update        func(ctx context.Context, user *service.User, fields service.UserUpdateFields) error
 }
 
 func (s *stubUserRepo) Create(ctx context.Context, user *service.User) error {
@@ -321,11 +321,11 @@ func (s *stubUserRepo) GetFirstAdmin(ctx context.Context) (*service.User, error)
 	return s.getFirstAdmin(ctx)
 }
 
-func (s *stubUserRepo) Update(ctx context.Context, user *service.User) error {
+func (s *stubUserRepo) Update(ctx context.Context, user *service.User, fields service.UserUpdateFields) error {
 	if s.update == nil {
 		panic("unexpected Update call")
 	}
-	return s.update(ctx, user)
+	return s.update(ctx, user, fields)
 }
 
 func (s *stubUserRepo) Delete(ctx context.Context, id int64) error {
@@ -370,6 +370,14 @@ func (s *stubUserRepo) UpdateBalance(ctx context.Context, id int64, amount float
 
 func (s *stubUserRepo) DeductBalance(ctx context.Context, id int64, amount float64) error {
 	panic("unexpected DeductBalance call")
+}
+
+func (s *stubUserRepo) AdjustBalance(ctx context.Context, id int64, delta float64) (service.BalanceChange, error) {
+	panic("unexpected AdjustBalance call")
+}
+
+func (s *stubUserRepo) SetBalance(ctx context.Context, id int64, value float64) (service.BalanceChange, error) {
+	panic("unexpected SetBalance call")
 }
 
 func (s *stubUserRepo) UpdateConcurrency(ctx context.Context, id int64, amount int) error {
