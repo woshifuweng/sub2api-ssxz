@@ -52,22 +52,40 @@
       <!-- Regular User View -->
       <template v-else-if="!appStore.backendModeEnabled">
         <div class="sidebar-section">
-          <router-link
+          <template
             v-for="item in userNavItems"
             :key="item.path"
-            :to="item.path"
-            class="sidebar-link mb-1"
-            :class="{ 'sidebar-link-active': isActive(item.path) }"
-            :title="sidebarCollapsed ? item.label : undefined"
-            :data-tour="item.path === '/app/keys' ? 'sidebar-my-keys' : undefined"
-            @click="handleMenuItemClick(item.path)"
           >
-            <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-            <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
-            <transition name="fade">
-              <span v-if="!sidebarCollapsed">{{ item.label }}</span>
-            </transition>
-          </router-link>
+            <button
+              v-if="item.action === 'image-workbench'"
+              type="button"
+              class="sidebar-link mb-1 w-full text-left"
+              :title="sidebarCollapsed ? item.label : undefined"
+              :disabled="imageWorkbenchOpening"
+              data-testid="sidebar-image-workbench"
+              @click="openImageWorkbench"
+            >
+              <component :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+              <transition name="fade">
+                <span v-if="!sidebarCollapsed">{{ item.label }}</span>
+              </transition>
+            </button>
+            <router-link
+              v-else
+              :to="item.path"
+              class="sidebar-link mb-1"
+              :class="{ 'sidebar-link-active': isActive(item.path) }"
+              :title="sidebarCollapsed ? item.label : undefined"
+              :data-tour="item.path === '/app/keys' ? 'sidebar-my-keys' : undefined"
+              @click="handleMenuItemClick(item.path)"
+            >
+              <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
+              <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+              <transition name="fade">
+                <span v-if="!sidebarCollapsed">{{ item.label }}</span>
+              </transition>
+            </router-link>
+          </template>
         </div>
       </template>
     </nav>
@@ -100,10 +118,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, watch } from 'vue'
+import { computed, h, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { Images } from '@lucide/vue'
 import BrandLogo from '@/components/common/BrandLogo.vue'
+import { keysAPI } from '@/api/keys'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import { sanitizeSvg } from '@/utils/sanitize'
 
@@ -111,6 +131,7 @@ interface NavItem {
   path: string
   label: string
   icon: unknown
+  action?: 'image-workbench'
   iconSvg?: string
   hideInSimpleMode?: boolean
 }
@@ -126,6 +147,7 @@ const adminSettingsStore = useAdminSettingsStore()
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const mobileOpen = computed(() => appStore.mobileOpen)
 const isAdmin = computed(() => authStore.isAdmin)
+const imageWorkbenchOpening = ref(false)
 
 // Site settings from appStore (cached, no flicker)
 const siteName = computed(() => appStore.siteName)
@@ -454,6 +476,7 @@ const affiliateEnabled = computed(() => !!appStore.cachedPublicSettings?.affilia
 const userNavItems = computed((): NavItem[] => [
   { path: '/app/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
   { path: '/app/keys', label: t('nav.apiKeys'), icon: KeyIcon },
+  { path: '/image/', label: t('nav.imageWorkbench'), icon: Images, action: 'image-workbench' },
   { path: '/app/available-channels', label: t('nav.models'), icon: ChannelIcon },
   { path: '/app/usage', label: t('nav.usage'), icon: ChartIcon },
   ...(channelMonitorEnabled.value
@@ -530,6 +553,32 @@ function toggleSidebar() {
 
 function closeMobile() {
   appStore.setMobileOpen(false)
+}
+
+async function openImageWorkbench() {
+  if (imageWorkbenchOpening.value) return
+
+  imageWorkbenchOpening.value = true
+  try {
+    const response = await keysAPI.list(1, 100, { status: 'active' })
+    const userApiKey = response.items.find((item) => item.status === 'active' && item.key.trim())?.key.trim()
+
+    if (!userApiKey) {
+      appStore.showWarning(t('nav.imageWorkbenchNoKey'))
+      return
+    }
+
+    window.open(
+      `/image/?apiKey=${encodeURIComponent(userApiKey)}`,
+      '_blank',
+      'noopener,noreferrer'
+    )
+    closeMobile()
+  } catch {
+    appStore.showError(t('nav.imageWorkbenchKeyError'))
+  } finally {
+    imageWorkbenchOpening.value = false
+  }
 }
 
 function handleMenuItemClick(itemPath: string) {

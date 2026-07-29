@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { routeState, appState, authState, adminSettingsState, onboardingState } = vi.hoisted(() => ({
+const { routeState, appState, authState, adminSettingsState, onboardingState, keysListMock } = vi.hoisted(() => ({
   routeState: {
     path: '/app/dashboard'
   },
@@ -20,7 +20,9 @@ const { routeState, appState, authState, adminSettingsState, onboardingState } =
       custom_menu_items: []
     },
     toggleSidebar: vi.fn(),
-    setMobileOpen: vi.fn()
+    setMobileOpen: vi.fn(),
+    showWarning: vi.fn(),
+    showError: vi.fn()
   },
   authState: {
     isAdmin: false,
@@ -34,7 +36,8 @@ const { routeState, appState, authState, adminSettingsState, onboardingState } =
   onboardingState: {
     isCurrentStep: vi.fn(() => false),
     nextStep: vi.fn()
-  }
+  },
+  keysListMock: vi.fn()
 }))
 
 vi.mock('vue-router', () => ({
@@ -50,6 +53,9 @@ vi.mock('vue-i18n', () => ({
       'nav.modelTest': 'Model Test',
       'nav.image': 'Image',
       'nav.apiKeys': 'API Keys',
+      'nav.imageWorkbench': 'Image Workbench',
+      'nav.imageWorkbenchNoKey': 'Create and enable an API key first',
+      'nav.imageWorkbenchKeyError': 'Unable to load an API key. Try again later.',
       'nav.models': 'Models',
       'nav.billing': 'Billing',
       'nav.redeem': 'Redeem',
@@ -95,6 +101,12 @@ vi.mock('@/stores', () => ({
   useAuthStore: () => authState,
   useAdminSettingsStore: () => adminSettingsState,
   useOnboardingStore: () => onboardingState
+}))
+
+vi.mock('@/api/keys', () => ({
+  keysAPI: {
+    list: keysListMock
+  }
 }))
 
 import AppSidebar from '../AppSidebar.vue'
@@ -147,6 +159,10 @@ describe('AppSidebar', () => {
     adminSettingsState.opsMonitoringEnabled = true
     adminSettingsState.customMenuItems = []
     adminSettingsState.fetch.mockReset()
+    appState.showWarning.mockReset()
+    appState.showError.mockReset()
+    keysListMock.mockReset()
+    keysListMock.mockResolvedValue({ items: [], total: 0, pages: 0 })
   })
 
   it('hides the affiliate entry while the public feature flag is disabled', () => {
@@ -166,6 +182,7 @@ describe('AppSidebar', () => {
     for (const label of ['Dashboard', 'API Keys', 'Models', 'Usage', 'Channel Status', 'Orders', 'Redeem', 'Account']) {
       expect(wrapper.text()).toContain(label)
     }
+    expect(wrapper.text()).toContain('Image Workbench')
     expect(wrapper.text()).not.toContain('Model Test')
     expect(wrapper.findAll('.sidebar-group-label')).toHaveLength(0)
     expect(wrapper.text()).not.toContain('Docs')
@@ -192,6 +209,37 @@ describe('AppSidebar', () => {
 
     expect(hrefs(wrapper)).toContain('/app/affiliate')
     expect(wrapper.text()).toContain('Referral Rewards')
+  })
+
+  it('opens the image workbench with the first active API key', async () => {
+    keysListMock.mockResolvedValue({
+      items: [{ id: 1, key: 'sk test/+', status: 'active' }],
+      total: 1,
+      pages: 1
+    })
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const wrapper = mountSidebar()
+
+    await wrapper.get('[data-testid="sidebar-image-workbench"]').trigger('click')
+
+    expect(keysListMock).toHaveBeenCalledWith(1, 100, { status: 'active' })
+    expect(openSpy).toHaveBeenCalledWith(
+      '/image/?apiKey=sk%20test%2F%2B',
+      '_blank',
+      'noopener,noreferrer'
+    )
+    openSpy.mockRestore()
+  })
+
+  it('does not open the image workbench without an active API key', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const wrapper = mountSidebar()
+
+    await wrapper.get('[data-testid="sidebar-image-workbench"]').trigger('click')
+
+    expect(openSpy).not.toHaveBeenCalled()
+    expect(appState.showWarning).toHaveBeenCalledWith('Create and enable an API key first')
+    openSpy.mockRestore()
   })
 
   it('hides the user channel status entry while channel monitoring is disabled', () => {
