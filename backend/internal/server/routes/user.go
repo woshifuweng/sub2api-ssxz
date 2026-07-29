@@ -94,6 +94,24 @@ func ExecutableUserRoutes(h *handler.Handlers) []gatewayctx.RouteDef {
 			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/user/totp/disable", Handler: h.Totp.DisableGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
 		)
 	}
+	if h.Reseller != nil {
+		jwtUser := []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}
+		out = append(out,
+			// Agent routes
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/role", Handler: h.Reseller.GetMyRoleGateway, Middleware: jwtUser},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/dashboard", Handler: h.Reseller.GetMyDashboardGateway, Middleware: jwtUser},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/recruits", Handler: h.Reseller.GetMyRecruitsGateway, Middleware: jwtUser},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/withdrawals", Handler: h.Reseller.GetMyWithdrawalsGateway, Middleware: jwtUser},
+			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/user/reseller/withdraw", Handler: h.Reseller.RequestWithdrawGateway, Middleware: jwtUser},
+			// Manager routes (jwt_auth, role enforced in handler)
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/manager/dashboard", Handler: h.Reseller.GetManagerDashboardGateway, Middleware: jwtUser},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/manager/agents", Handler: h.Reseller.ManagerListAgentsGateway, Middleware: jwtUser},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/manager/agents/:id", Handler: h.Reseller.ManagerGetAgentDetailGateway, Middleware: jwtUser},
+			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/user/reseller/manager/agents/:id/grant", Handler: h.Reseller.ManagerGrantAgentGateway, Middleware: jwtUser},
+			gatewayctx.RouteDef{Method: http.MethodDelete, Path: "/api/v1/user/reseller/manager/agents/:id/role", Handler: h.Reseller.ManagerRevokeAgentGateway, Middleware: jwtUser},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/manager/withdrawals", Handler: h.Reseller.ManagerListWithdrawalsGateway, Middleware: jwtUser},
+		)
+	}
 	out = append(out, executableUserFeatureRoutes(h)...)
 	return out
 }

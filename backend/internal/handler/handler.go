@@ -71,6 +71,7 @@ type Handlers struct {
 	ImageStudio      *ImageStudioHandler
 	ChatStudio       *ChatStudioHandler
 	ChatWorkspace    *ChatWorkspaceHandler
+	Reseller         *ResellerHandler
 }
 
 // BuildInfo contains build-time information

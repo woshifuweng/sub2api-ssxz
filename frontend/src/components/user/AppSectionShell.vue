@@ -154,6 +154,7 @@ import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import type { ChatConversation } from '@/api/chatWorkspace'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
+import { useResellerStore } from '@/stores/reseller'
 import { getSafeLocalStorageItem, setSafeLocalStorageItem } from '@/utils/safeStorage'
 import { formatCurrency, formatCurrencyTitle } from '@/utils/format'
 
@@ -185,6 +186,7 @@ const router = useRouter()
 const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
+const resellerStore = useResellerStore()
 const userMenuOpen = ref(false)
 const SIDEBAR_COLLAPSED_KEY = 'ssxz.app.sidebar.collapsed'
 const sidebarCollapsed = ref(readSidebarCollapsed())
@@ -211,6 +213,12 @@ const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName 
     : []),
   ...(appStore.cachedPublicSettings?.affiliate_enabled
     ? [{ label: t('nav.affiliate'), to: '/app/affiliate', icon: 'users' as IconName }]
+    : []),
+  ...(resellerStore.isAgent
+    ? [{ label: t('nav.resellerAgent'), to: '/app/reseller', icon: 'users' as IconName }]
+    : []),
+  ...(resellerStore.isManager
+    ? [{ label: t('nav.resellerManager'), to: '/app/reseller/manager', icon: 'badge' as IconName }]
     : []),
   { label: '图片工作台', to: '/app/image', icon: 'photo' as IconName },
   { label: t('nav.account'), to: '/app/profile', icon: 'userCircle' }
@@ -300,6 +308,9 @@ async function logout() {
 }
 
 onMounted(() => {
+  if (authStore.user?.id) {
+    void resellerStore.fetchRole(authStore.user.id).catch(() => undefined)
+  }
   if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
     desktopMediaQuery = window.matchMedia('(min-width: 1024px)')
     syncViewportMode()

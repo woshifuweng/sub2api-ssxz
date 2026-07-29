@@ -47,6 +47,8 @@ vi.mock('vue-i18n', async (importOriginal) => ({
       'nav.groupAccount': 'Account',
       'nav.docs': 'Docs',
       'nav.affiliate': 'Referral Rewards',
+      'nav.resellerAgent': 'Reseller Workspace',
+      'nav.resellerManager': 'Reseller Management',
       'nav.account': 'Account',
       'nav.logout': 'Sign out',
       'appShell.closeNavigation': 'Close navigation',
@@ -85,11 +87,20 @@ vi.mock('@/stores/auth', () => ({
     isAuthenticated: true,
     isAdmin: authState.isAdmin,
     user: {
+      id: 7,
       username: 'tester',
       email: 'tester@example.com',
       balance: 8.53
     },
     logout: mocks.logout
+  })
+}))
+
+vi.mock('@/stores/reseller', () => ({
+  useResellerStore: () => ({
+    isAgent: false,
+    isManager: false,
+    fetchRole: vi.fn().mockResolvedValue(null)
   })
 }))
 

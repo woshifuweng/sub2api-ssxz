@@ -405,6 +405,8 @@ export default {
     promoCodes: '优惠码',
     affiliates: '推广返利',
     affiliate: '邀请返利',
+    resellerAgent: '代理工作台',
+    resellerManager: '代理管理',
     settings: '站点设置',
     channelPricing: '通道定价',
     channelMonitor: '通道监控',

@@ -124,7 +124,7 @@ import { useI18n } from 'vue-i18n'
 import { Images } from '@lucide/vue'
 import BrandLogo from '@/components/common/BrandLogo.vue'
 import { keysAPI } from '@/api/keys'
-import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
+import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore, useResellerStore } from '@/stores'
 import { sanitizeSvg } from '@/utils/sanitize'
 
 interface NavItem {
@@ -143,6 +143,7 @@ const appStore = useAppStore()
 const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
 const adminSettingsStore = useAdminSettingsStore()
+const resellerStore = useResellerStore()
 
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const mobileOpen = computed(() => appStore.mobileOpen)
@@ -487,6 +488,8 @@ const userNavItems = computed((): NavItem[] => [
   { path: '/app/orders', label: paymentEnabled.value ? t('nav.orders') : t('nav.billingRecords'), icon: OrderIcon },
   ...(paymentEnabled.value ? [{ path: '/app/redeem', label: t('nav.redeem'), icon: TicketIcon }] : []),
   ...(affiliateEnabled.value ? [{ path: '/app/affiliate', label: t('nav.affiliate'), icon: UsersIcon }] : []),
+  ...(resellerStore.isAgent ? [{ path: '/app/reseller', label: t('nav.resellerAgent'), icon: UsersIcon }] : []),
+  ...(resellerStore.isManager ? [{ path: '/app/reseller/manager', label: t('nav.resellerManager'), icon: UsersIcon }] : []),
   { path: '/app/profile', label: t('nav.account'), icon: UserIcon }
 ])
 
@@ -612,6 +615,18 @@ watch(
   (v) => {
     if (v) {
       adminSettingsStore.fetch()
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => authStore.user?.id,
+  (userId) => {
+    if (userId && !isAdmin.value) {
+      void resellerStore.fetchRole(userId).catch(() => undefined)
+    } else {
+      resellerStore.reset()
     }
   },
   { immediate: true }

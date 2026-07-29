@@ -413,6 +413,16 @@ func ExecutableAdminRoutes(h *handler.Handlers) []gatewayctx.RouteDef {
 			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/admin/settings/sora-s3/profiles/:profile_id/activate", Handler: h.Admin.Setting.SetActiveSoraS3ProfileGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "admin_auth"}},
 		)
 	}
+	if h.Reseller != nil {
+		adminMW := []string{"request_logger", "cors", "security_headers", "client_request_id", "admin_auth"}
+		out = append(out,
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/admin/reseller/agents", Handler: h.Reseller.AdminListAgentsGateway, Middleware: adminMW},
+			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/admin/reseller/agents/:id/role", Handler: h.Reseller.AdminGrantRoleGateway, Middleware: adminMW},
+			gatewayctx.RouteDef{Method: http.MethodDelete, Path: "/api/v1/admin/reseller/agents/:id/role", Handler: h.Reseller.AdminRevokeRoleGateway, Middleware: adminMW},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/admin/reseller/withdrawals", Handler: h.Reseller.AdminListWithdrawalsGateway, Middleware: adminMW},
+			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/admin/reseller/withdrawals/:id/review", Handler: h.Reseller.AdminReviewWithdrawalGateway, Middleware: adminMW},
+		)
+	}
 	out = append(out, executableAdminFeatureRoutes(h)...)
 	return out
 }

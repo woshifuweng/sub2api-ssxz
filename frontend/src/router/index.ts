@@ -5,6 +5,7 @@
 
 import { createRouter, createWebHistory, type RouteLocationGeneric, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useResellerStore } from '@/stores/reseller'
 import { useAppStore } from '@/stores/app'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
 import { useNavigationLoadingState } from '@/composables/useNavigationLoading'
@@ -273,6 +274,32 @@ const routes: RouteRecordRaw[] = [
       requiresAdmin: false,
       title: '邀请返利',
       appSection: 'affiliate',
+      titleSiteName: 'SSXZ AI'
+    }
+  },
+  {
+    path: '/app/reseller',
+    name: 'ResellerAgent',
+    component: () => import('@/views/user/ResellerAgentView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      resellerRole: 'agent',
+      title: '代理工作台',
+      appSection: 'reseller',
+      titleSiteName: 'SSXZ AI'
+    }
+  },
+  {
+    path: '/app/reseller/manager',
+    name: 'ResellerManager',
+    component: () => import('@/views/user/ResellerManagerView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      resellerRole: 'agent_manager',
+      title: '代理管理',
+      appSection: 'reseller-manager',
       titleSiteName: 'SSXZ AI'
     }
   },
@@ -752,6 +779,7 @@ const BACKEND_MODE_ALLOWED_PATHS = [
   '/app/orders',
   '/app/redeem',
   '/app/affiliate',
+  '/app/reseller',
   '/app/available-channels',
   '/app/channel-status',
   '/app/keys',
@@ -780,6 +808,7 @@ router.beforeEach(async (to, _from, next) => {
   navigationLoading.startNavigation()
 
   const authStore = useAuthStore()
+  const resellerStore = useResellerStore()
 
   // Restore auth state from localStorage on first navigation (page refresh)
   if (!authInitialized) {
@@ -881,6 +910,23 @@ router.beforeEach(async (to, _from, next) => {
     // User is authenticated but not admin, redirect to user dashboard
     next(DEFAULT_AUTH_REDIRECT)
     return
+  }
+
+  if (to.meta.resellerRole && authStore.user) {
+    try {
+      await resellerStore.fetchRole(authStore.user.id)
+    } catch {
+      next(DEFAULT_AUTH_REDIRECT)
+      return
+    }
+
+    const allowed = to.meta.resellerRole === 'agent_manager'
+      ? resellerStore.isManager
+      : resellerStore.isAgent
+    if (!allowed) {
+      next(DEFAULT_AUTH_REDIRECT)
+      return
+    }
   }
 
   if (to.meta.requiresPayment && !appStore.cachedPublicSettings?.payment_enabled) {

@@ -42,5 +42,8 @@ declare module 'vue-router' {
      * @default false
      */
     hideInMenu?: boolean
+
+    /** Required reseller role for reseller workbench routes. */
+    resellerRole?: 'agent' | 'agent_manager'
   }
 }

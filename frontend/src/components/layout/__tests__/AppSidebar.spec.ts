@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { routeState, appState, authState, adminSettingsState, onboardingState, keysListMock } = vi.hoisted(() => ({
+const { routeState, appState, authState, adminSettingsState, onboardingState, resellerState, keysListMock } = vi.hoisted(() => ({
   routeState: {
     path: '/app/dashboard'
   },
@@ -36,6 +36,12 @@ const { routeState, appState, authState, adminSettingsState, onboardingState, ke
   onboardingState: {
     isCurrentStep: vi.fn(() => false),
     nextStep: vi.fn()
+  },
+  resellerState: {
+    isAgent: false,
+    isManager: false,
+    fetchRole: vi.fn(),
+    reset: vi.fn()
   },
   keysListMock: vi.fn()
 }))
@@ -100,7 +106,8 @@ vi.mock('@/stores', () => ({
   useAppStore: () => appState,
   useAuthStore: () => authState,
   useAdminSettingsStore: () => adminSettingsState,
-  useOnboardingStore: () => onboardingState
+  useOnboardingStore: () => onboardingState,
+  useResellerStore: () => resellerState
 }))
 
 vi.mock('@/api/keys', () => ({
@@ -159,6 +166,10 @@ describe('AppSidebar', () => {
     adminSettingsState.opsMonitoringEnabled = true
     adminSettingsState.customMenuItems = []
     adminSettingsState.fetch.mockReset()
+    resellerState.isAgent = false
+    resellerState.isManager = false
+    resellerState.fetchRole.mockReset()
+    resellerState.reset.mockReset()
     appState.showWarning.mockReset()
     appState.showError.mockReset()
     keysListMock.mockReset()

@@ -208,6 +208,7 @@ func ProvideHandlers(
 	imageStudioHandler *ImageStudioHandler,
 	chatStudioHandler *ChatStudioHandler,
 	chatWorkspaceHandler *ChatWorkspaceHandler,
+	resellerHandler *ResellerHandler,
 	_ *adminTaskStateCacheSetup,
 ) *Handlers {
 	return &Handlers{
@@ -236,6 +237,7 @@ func ProvideHandlers(
 		ImageStudio:      imageStudioHandler,
 		ChatStudio:       chatStudioHandler,
 		ChatWorkspace:    chatWorkspaceHandler,
+		Reseller:         resellerHandler,
 	}
 }
 
@@ -275,6 +277,7 @@ var ProviderSet = wire.NewSet(
 	NewWorkspaceSub2APITextBridge,
 	wire.Bind(new(service.WorkspaceSub2APITextBridge), new(*WorkspaceSub2APITextBridge)),
 	NewChatWorkspaceHandler,
+	NewResellerHandler,
 
 	// Admin handlers
 	ProvideDashboardHandler,

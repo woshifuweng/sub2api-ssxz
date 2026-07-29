@@ -405,6 +405,8 @@ export default {
     promoCodes: 'Promo Codes',
     affiliates: 'Affiliates',
     affiliate: 'Referral Rewards',
+    resellerAgent: 'Reseller Workspace',
+    resellerManager: 'Reseller Management',
     settings: 'Site Settings',
     channelPricing: 'Channel Pricing',
     channelMonitor: 'Channel Monitor',
