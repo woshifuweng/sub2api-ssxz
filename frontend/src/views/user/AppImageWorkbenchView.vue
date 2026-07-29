@@ -52,8 +52,9 @@ onMounted(async () => {
 
 <style scoped>
 .workbench-shell {
-  margin: calc(-1 * var(--ssxz-space-page-y, 24px)) calc(-1 * var(--ssxz-space-page-x, 24px));
-  height: calc(100vh - var(--ssxz-header-height, 56px));
+  /* This route owns the full viewport; the embedded workbench has its own header. */
+  width: 100%;
+  height: 100vh;
   max-width: none;
   display: flex;
   flex-direction: column;
