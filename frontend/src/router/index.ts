@@ -189,11 +189,11 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/app/image',
     name: 'AppImage',
-    component: () => import('@/views/user/ImageStudioView.vue'),
+    component: () => import('@/views/user/AppImageWorkbenchView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-        title: '图片内测入口',
+        title: '图片工作台',
       titleSiteName: 'SSXZ AI'
     }
   },
