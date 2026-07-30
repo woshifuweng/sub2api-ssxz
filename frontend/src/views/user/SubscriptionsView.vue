@@ -300,6 +300,7 @@ import type { UserSubscription } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateOnly } from '@/utils/format'
+import { getExpirationDateRelation } from '@/utils/subscriptionQuota'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -338,18 +339,19 @@ function formatExpirationDate(expiresAt: string): string {
   const expires = new Date(expiresAt)
   const diff = expires.getTime() - now.getTime()
   const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
+  const relation = getExpirationDateRelation(expires, now)
 
-  if (days < 0) {
+  if (relation === null || relation === 'expired') {
     return t('userSubscriptions.status.expired')
   }
 
   const dateStr = formatDateOnly(expires)
 
-  if (days === 0) {
-    return `${dateStr} (Today)`
+  if (relation === 'today') {
+    return `${dateStr} (${t('common.today')})`
   }
-  if (days === 1) {
-    return `${dateStr} (Tomorrow)`
+  if (relation === 'tomorrow') {
+    return `${dateStr} (${t('common.tomorrow')})`
   }
 
   return t('userSubscriptions.daysRemaining', { days }) + ` (${dateStr})`

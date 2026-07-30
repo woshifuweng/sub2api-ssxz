@@ -314,7 +314,10 @@
                     ${{ row.group?.daily_limit_usd?.toFixed(2) }}
                   </span>
                 </div>
-                <div class="reset-info" v-if="row.daily_window_start">
+                <div
+                  class="reset-info"
+                  v-if="row.daily_window_start || (isOneTimeDailyQuota(row) && row.expires_at)"
+                >
                   <svg
                     class="h-3 w-3"
                     fill="none"
@@ -329,7 +332,7 @@
                     />
                   </svg>
                   <span>{{
-                    formatResetTime(row.daily_window_start, "daily")
+                    formatDailyUsageWindow(row)
                   }}</span>
                 </div>
               </div>
@@ -469,13 +472,14 @@
               >
                 {{ formatDateOnly(value) }}
               </span>
-              <div
-                v-if="getDaysRemaining(value) !== null"
-                class="text-xs text-gray-500"
+              <template
+                v-for="remainingExpiry in [formatRemainingExpiry(value)]"
+                :key="remainingExpiry ?? 'expired'"
               >
-                {{ getDaysRemaining(value) }}
-                {{ t("admin.subscriptions.daysRemaining") }}
-              </div>
+                <div v-if="remainingExpiry" class="text-xs text-gray-500">
+                  {{ remainingExpiry }}
+                </div>
+              </template>
             </div>
             <span v-else class="text-sm text-gray-500">{{
               t("admin.subscriptions.noExpiration")
@@ -1023,6 +1027,12 @@ import type {
 import type { SimpleUser } from "@/api/admin/usage";
 import type { Column } from "@/components/common/types";
 import { formatDateOnly } from "@/utils/format";
+import {
+  getRemainingDurationParts,
+  getRemainingExpiryDuration,
+  isOneTimeDailyQuota,
+  type RemainingDurationParts,
+} from "@/utils/subscriptionQuota";
 import { getPersistedPageSize } from "@/composables/usePersistedPageSize";
 import AppLayout from "@/components/layout/AppLayout.vue";
 import AdminPageHeader from "@/components/admin/AdminPageHeader.vue";
@@ -1630,6 +1640,21 @@ const getDaysRemaining = (expiresAt: string): number | null => {
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 };
 
+const formatRemainingExpiry = (expiresAt: string): string | null => {
+  const duration = getRemainingExpiryDuration(expiresAt);
+  if (!duration) return null;
+  if (duration.unit === "days") {
+    return t("admin.subscriptions.daysRemaining", { days: duration.days });
+  }
+  if (duration.hours) {
+    return t("admin.subscriptions.hoursMinutesRemaining", {
+      hours: duration.hours,
+      minutes: duration.minutes,
+    });
+  }
+  return t("admin.subscriptions.minutesRemaining", { minutes: duration.minutes });
+};
+
 const isExpiringSoon = (expiresAt: string): boolean => {
   const days = getDaysRemaining(expiresAt);
   return days !== null && days <= 7;
@@ -1657,9 +1682,43 @@ const getProgressClass = (
   return "bg-green-500";
 };
 
+const formatResetDuration = (parts: RemainingDurationParts): string => {
+  if (parts.days > 0) {
+    return t("admin.subscriptions.resetInDaysHours", { days: parts.days, hours: parts.hours });
+  }
+  if (parts.hours > 0) {
+    return t("admin.subscriptions.resetInHoursMinutes", {
+      hours: parts.hours,
+      minutes: parts.minutes,
+    });
+  }
+  return t("admin.subscriptions.resetInMinutes", { minutes: parts.minutes });
+};
+
+const formatQuotaEndDuration = (parts: RemainingDurationParts): string => {
+  if (parts.days > 0) {
+    return t("admin.subscriptions.quotaEndsInDaysHours", { days: parts.days, hours: parts.hours });
+  }
+  if (parts.hours > 0) {
+    return t("admin.subscriptions.quotaEndsInHoursMinutes", {
+      hours: parts.hours,
+      minutes: parts.minutes,
+    });
+  }
+  return t("admin.subscriptions.quotaEndsInMinutes", { minutes: parts.minutes });
+};
+
+const formatDailyUsageWindow = (subscription: UserSubscription): string => {
+  if (isOneTimeDailyQuota(subscription) && subscription.expires_at) {
+    const parts = getRemainingDurationParts(subscription.expires_at);
+    return parts ? formatQuotaEndDuration(parts) : t("admin.subscriptions.windowNotActive");
+  }
+  return formatResetTime(subscription.daily_window_start, "daily");
+};
+
 // Format reset time based on window start and period type
 const formatResetTime = (
-  windowStart: string,
+  windowStart: string | null,
   period: "daily" | "weekly" | "monthly",
 ): string => {
   if (!windowStart) return t("admin.subscriptions.windowNotActive");
@@ -1681,21 +1740,8 @@ const formatResetTime = (
       break;
   }
 
-  const diffMs = resetTime.getTime() - now.getTime();
-  if (diffMs <= 0) return t("admin.subscriptions.windowNotActive");
-
-  const diffSeconds = Math.floor(diffMs / 1000);
-  const days = Math.floor(diffSeconds / 86400);
-  const hours = Math.floor((diffSeconds % 86400) / 3600);
-  const minutes = Math.floor((diffSeconds % 3600) / 60);
-
-  if (days > 0) {
-    return t("admin.subscriptions.resetInDaysHours", { days, hours });
-  } else if (hours > 0) {
-    return t("admin.subscriptions.resetInHoursMinutes", { hours, minutes });
-  } else {
-    return t("admin.subscriptions.resetInMinutes", { minutes });
-  }
+  const parts = getRemainingDurationParts(resetTime, now);
+  return parts ? formatResetDuration(parts) : t("admin.subscriptions.windowNotActive");
 };
 
 // Handle click outside to close dropdowns
