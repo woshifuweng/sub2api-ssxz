@@ -257,6 +257,7 @@ func (s *OpenAIGatewayService) RecordUsageWeiShaw(ctx context.Context, input *Op
 		Model:               result.Model,
 		RequestedModel:      requestedModel,
 		UpstreamModel:       optionalTrimmedStringPtr(result.UpstreamModel),
+		BillingModel:        billingModel,
 		ServiceTier:         result.ServiceTier,
 		ReasoningEffort:     result.ReasoningEffort,
 		InboundEndpoint:     optionalTrimmedStringPtr(input.InboundEndpoint),

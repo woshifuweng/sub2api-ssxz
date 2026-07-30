@@ -194,10 +194,18 @@
             }}</span>
           </template>
 
-          <template #cell-model="{ value }">
-            <span class="font-medium text-gray-900 dark:text-white">{{
-              value
-            }}</span>
+          <template #cell-model="{ row }">
+            <div class="space-y-0.5">
+              <div class="break-all font-medium text-gray-900 dark:text-white">
+                {{ row.model }}
+              </div>
+              <div
+                v-if="row.served_model && row.served_model !== row.model"
+                class="break-all text-xs text-gray-500 dark:text-gray-400"
+              >
+                实际：{{ row.served_model }}
+              </div>
+            </div>
           </template>
 
           <template #cell-reasoning_effort="{ row }">

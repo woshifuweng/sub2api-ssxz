@@ -1238,6 +1238,7 @@ export interface UsageLog {
   account_id?: number | null
   request_id: string
   model: string
+  served_model?: string | null
   service_tier?: string | null
   reasoning_effort?: string | null
   inbound_endpoint?: string | null
@@ -1293,6 +1294,7 @@ export interface UsageLogAccountSummary {
 
 export interface AdminUsageLog extends UsageLog {
   upstream_model?: string | null
+  billing_model?: string | null
 
   // 账号计费倍率（仅管理员可见）
   account_rate_multiplier?: number | null

@@ -43733,6 +43733,7 @@ type UsageLogMutation struct {
 	model                        *string
 	requested_model              *string
 	upstream_model               *string
+	billing_model                *string
 	channel_id                   *int64
 	addchannel_id                *int64
 	model_mapping_chain          *string
@@ -44180,6 +44181,55 @@ func (m *UsageLogMutation) UpstreamModelCleared() bool {
 func (m *UsageLogMutation) ResetUpstreamModel() {
 	m.upstream_model = nil
 	delete(m.clearedFields, usagelog.FieldUpstreamModel)
+}
+
+// SetBillingModel sets the "billing_model" field.
+func (m *UsageLogMutation) SetBillingModel(s string) {
+	m.billing_model = &s
+}
+
+// BillingModel returns the value of the "billing_model" field in the mutation.
+func (m *UsageLogMutation) BillingModel() (r string, exists bool) {
+	v := m.billing_model
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBillingModel returns the old "billing_model" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldBillingModel(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBillingModel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBillingModel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBillingModel: %w", err)
+	}
+	return oldValue.BillingModel, nil
+}
+
+// ClearBillingModel clears the value of the "billing_model" field.
+func (m *UsageLogMutation) ClearBillingModel() {
+	m.billing_model = nil
+	m.clearedFields[usagelog.FieldBillingModel] = struct{}{}
+}
+
+// BillingModelCleared returns if the "billing_model" field was cleared in this mutation.
+func (m *UsageLogMutation) BillingModelCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldBillingModel]
+	return ok
+}
+
+// ResetBillingModel resets all changes to the "billing_model" field.
+func (m *UsageLogMutation) ResetBillingModel() {
+	m.billing_model = nil
+	delete(m.clearedFields, usagelog.FieldBillingModel)
 }
 
 // SetChannelID sets the "channel_id" field.
@@ -46378,7 +46428,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 45)
+	fields := make([]string, 0, 46)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -46399,6 +46449,9 @@ func (m *UsageLogMutation) Fields() []string {
 	}
 	if m.upstream_model != nil {
 		fields = append(fields, usagelog.FieldUpstreamModel)
+	}
+	if m.billing_model != nil {
+		fields = append(fields, usagelog.FieldBillingModel)
 	}
 	if m.channel_id != nil {
 		fields = append(fields, usagelog.FieldChannelID)
@@ -46536,6 +46589,8 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.RequestedModel()
 	case usagelog.FieldUpstreamModel:
 		return m.UpstreamModel()
+	case usagelog.FieldBillingModel:
+		return m.BillingModel()
 	case usagelog.FieldChannelID:
 		return m.ChannelID()
 	case usagelog.FieldModelMappingChain:
@@ -46635,6 +46690,8 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldRequestedModel(ctx)
 	case usagelog.FieldUpstreamModel:
 		return m.OldUpstreamModel(ctx)
+	case usagelog.FieldBillingModel:
+		return m.OldBillingModel(ctx)
 	case usagelog.FieldChannelID:
 		return m.OldChannelID(ctx)
 	case usagelog.FieldModelMappingChain:
@@ -46768,6 +46825,13 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetUpstreamModel(v)
+		return nil
+	case usagelog.FieldBillingModel:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBillingModel(v)
 		return nil
 	case usagelog.FieldChannelID:
 		v, ok := value.(int64)
@@ -47326,6 +47390,9 @@ func (m *UsageLogMutation) ClearedFields() []string {
 	if m.FieldCleared(usagelog.FieldUpstreamModel) {
 		fields = append(fields, usagelog.FieldUpstreamModel)
 	}
+	if m.FieldCleared(usagelog.FieldBillingModel) {
+		fields = append(fields, usagelog.FieldBillingModel)
+	}
 	if m.FieldCleared(usagelog.FieldChannelID) {
 		fields = append(fields, usagelog.FieldChannelID)
 	}
@@ -47399,6 +47466,9 @@ func (m *UsageLogMutation) ClearField(name string) error {
 		return nil
 	case usagelog.FieldUpstreamModel:
 		m.ClearUpstreamModel()
+		return nil
+	case usagelog.FieldBillingModel:
+		m.ClearBillingModel()
 		return nil
 	case usagelog.FieldChannelID:
 		m.ClearChannelID()
@@ -47482,6 +47552,9 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldUpstreamModel:
 		m.ResetUpstreamModel()
+		return nil
+	case usagelog.FieldBillingModel:
+		m.ResetBillingModel()
 		return nil
 	case usagelog.FieldChannelID:
 		m.ResetChannelID()
