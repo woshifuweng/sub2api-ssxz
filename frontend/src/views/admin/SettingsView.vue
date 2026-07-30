@@ -2242,13 +2242,7 @@
                     {{ t("admin.settings.scheduling.allowUngroupedKeyHint") }}
                   </p>
                 </div>
-                <label class="toggle">
-                  <input
-                    v-model="form.allow_ungrouped_key_scheduling"
-                    type="checkbox"
-                  />
-                  <span class="toggle-slider"></span>
-                </label>
+                <Toggle v-model="form.allow_ungrouped_key_scheduling" />
               </div>
             </div>
           </div>
@@ -2276,13 +2270,7 @@
                     {{ t("admin.settings.cleanup.autoDelete401AccountsHint") }}
                   </p>
                 </div>
-                <label class="toggle">
-                  <input
-                    v-model="form.auto_delete_401_accounts"
-                    type="checkbox"
-                  />
-                  <span class="toggle-slider"></span>
-                </label>
+                <Toggle v-model="form.auto_delete_401_accounts" />
               </div>
 
               <div class="flex items-center justify-between">
@@ -2296,13 +2284,7 @@
                     {{ t("admin.settings.cleanup.autoDelete429AccountsHint") }}
                   </p>
                 </div>
-                <label class="toggle">
-                  <input
-                    v-model="form.auto_delete_429_accounts"
-                    type="checkbox"
-                  />
-                  <span class="toggle-slider"></span>
-                </label>
+                <Toggle v-model="form.auto_delete_429_accounts" />
               </div>
 
               <div class="flex items-center justify-between">
@@ -2318,13 +2300,7 @@
                     }}
                   </p>
                 </div>
-                <label class="toggle">
-                  <input
-                    v-model="form.auto_delete_useless_proxies"
-                    type="checkbox"
-                  />
-                  <span class="toggle-slider"></span>
-                </label>
+                <Toggle v-model="form.auto_delete_useless_proxies" />
               </div>
             </div>
           </div>

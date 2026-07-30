@@ -191,28 +191,10 @@
         <label class="text-sm text-gray-700 dark:text-gray-300">{{
           t("payment.admin.forSale")
         }}</label>
-        <LiquidButton
-          type="button"
-          role="switch"
-          :aria-checked="planForm.for_sale"
+        <Toggle
+          v-model="planForm.for_sale"
           :aria-label="t('payment.admin.forSale')"
-          :class="[
-            'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-            planForm.for_sale
-              ? 'bg-primary-500'
-              : 'bg-gray-300 dark:bg-dark-600',
-          ]"
-          @click="planForm.for_sale = !planForm.for_sale"
-          variant="plain"
-          size="icon"
-        >
-          <span
-            :class="[
-              'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-              planForm.for_sale ? 'translate-x-5' : 'translate-x-0',
-            ]"
-          />
-        </LiquidButton>
+        />
       </div>
     </form>
     <template #footer>
@@ -247,6 +229,7 @@ import type { SubscriptionPlan } from "@/types/payment";
 import type { AdminGroup } from "@/types";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import Select from "@/components/common/Select.vue";
+import Toggle from "@/components/common/Toggle.vue";
 import Icon from "@/components/icons/Icon.vue";
 import GroupBadge from "@/components/common/GroupBadge.vue";
 import { platformTextClass } from "@/utils/platformColors";
