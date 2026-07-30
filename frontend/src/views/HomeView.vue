@@ -1,5 +1,5 @@
 <template>
-  <div v-if="homeContent" class="min-h-screen">
+  <div v-if="hasHomeContent" class="min-h-screen">
     <iframe
       v-if="isHomeContentUrl"
       referrerpolicy="no-referrer"
@@ -9,6 +9,35 @@
     />
     <div v-else v-html="renderedHomeContent"></div>
   </div>
+
+  <FoundationProvider v-else-if="compactHomeEnabled" :theme="theme">
+    <main
+      data-testid="compact-home"
+      class="flex min-h-screen items-center justify-center bg-[var(--ssxz-bg)] px-6 text-[var(--ssxz-text)]"
+    >
+      <section class="w-full max-w-xl text-center">
+        <p class="text-sm text-[var(--ssxz-text-muted)]">{{ siteName }}</p>
+        <h1 class="mt-3 text-3xl font-semibold">AI API Gateway</h1>
+        <p class="mt-3 text-sm leading-6 text-[var(--ssxz-text-muted)]">
+          使用一个 API Key 访问已配置的模型服务。
+        </p>
+        <div class="mt-7 flex justify-center gap-3">
+          <RouterLink :to="primaryCtaPath" class="foundation-button foundation-button--primary">
+            {{ isAuthenticated ? '进入控制台' : '开始使用' }}
+          </RouterLink>
+          <a
+            v-if="docUrl"
+            :href="docUrl"
+            class="foundation-button foundation-button--secondary"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            查看文档
+          </a>
+        </div>
+      </section>
+    </main>
+  </FoundationProvider>
 
   <FoundationProvider v-else :theme="theme">
     <AetherHomeExperience
@@ -55,6 +84,8 @@ const siteName = computed(() =>
 )
 const docUrl = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.doc_url || appStore.docUrl || ''))
 const homeContent = computed(() => appStore.cachedPublicSettings?.home_content || '')
+const hasHomeContent = computed(() => homeContent.value.trim().length > 0)
+const compactHomeEnabled = computed(() => appStore.cachedPublicSettings?.compact_home_enabled === true)
 const homeContentUrl = computed(() => sanitizeUrl(homeContent.value))
 const renderedHomeContent = computed(() => renderRichContent(homeContent.value))
 const isHomeContentUrl = computed(() => Boolean(homeContentUrl.value))
