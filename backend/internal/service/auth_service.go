@@ -1159,6 +1159,9 @@ func (s *AuthService) ValidateToken(tokenString string) (*JWTClaims, error) {
 			// token 过期但仍返回 claims（用于 RefreshToken 等场景）
 			// jwt-go 在解析时即使遇到过期错误，token.Claims 仍会被填充
 			if claims, ok := token.Claims.(*JWTClaims); ok {
+				if claims.Issuer != "" && claims.Issuer != s.cfg.JWT.Env {
+					return nil, fmt.Errorf("token issuer %q does not match env %q", claims.Issuer, s.cfg.JWT.Env)
+				}
 				return claims, ErrTokenExpired
 			}
 			return nil, ErrTokenExpired
@@ -1167,6 +1170,9 @@ func (s *AuthService) ValidateToken(tokenString string) (*JWTClaims, error) {
 	}
 
 	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
+		if claims.Issuer != "" && claims.Issuer != s.cfg.JWT.Env {
+			return nil, fmt.Errorf("token issuer %q does not match env %q", claims.Issuer, s.cfg.JWT.Env)
+		}
 		return claims, nil
 	}
 
@@ -1225,6 +1231,7 @@ func (s *AuthService) generateAccessToken(user *User, sessionID, bindingHash str
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
+			Issuer:    s.cfg.JWT.Env,
 		},
 	}
 

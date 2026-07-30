@@ -40,6 +40,25 @@ func TestLoadServerTimingConfig(t *testing.T) {
 	})
 }
 
+func TestLoadJWTEnvironment(t *testing.T) {
+	t.Run("defaults to production", func(t *testing.T) {
+		resetViperWithJWTSecret(t)
+
+		cfg, err := Load()
+		require.NoError(t, err)
+		require.Equal(t, "production", cfg.JWT.Env)
+	})
+
+	t.Run("loads JWT_ENV", func(t *testing.T) {
+		resetViperWithJWTSecret(t)
+		t.Setenv("JWT_ENV", "staging")
+
+		cfg, err := Load()
+		require.NoError(t, err)
+		require.Equal(t, "staging", cfg.JWT.Env)
+	})
+}
+
 func TestLoadRedisUsernameFromEnvironment(t *testing.T) {
 	resetViperWithJWTSecret(t)
 	t.Setenv("REDIS_USERNAME", "app-user")

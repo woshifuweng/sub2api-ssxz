@@ -1712,6 +1712,7 @@ type OpsMetricsCollectorCacheConfig struct {
 
 type JWTConfig struct {
 	Secret     string `mapstructure:"secret"`
+	Env        string `mapstructure:"env"`
 	ExpireHour int    `mapstructure:"expire_hour"`
 	// AccessTokenExpireMinutes: Access Token有效期（分钟）
 	// - >0: 使用分钟配置（优先级高于 ExpireHour）
@@ -1866,13 +1867,6 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	viper.SetConfigType("yaml")
 	configureConfigSource(viper.SetConfigFile, viper.AddConfigPath)
 
-	// 环境变量支持
-	viper.AutomaticEnv()
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	if err := viper.BindEnv("server.enable_server_timing", "ENABLE_SERVER_TIMING"); err != nil {
-		return nil, fmt.Errorf("bind ENABLE_SERVER_TIMING: %w", err)
-	}
-
 	// 默认值
 	setDefaults()
 
@@ -1882,6 +1876,15 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 		}
 		// 配置文件不存在时使用默认值
 	}
+	configuredJWTSecret := strings.TrimSpace(viper.GetString("jwt.secret"))
+
+	// 环境变量支持。在读取配置文件之后启用，保留 guard 比较所需的基准 JWT secret。
+	viper.AutomaticEnv()
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	if err := viper.BindEnv("server.enable_server_timing", "ENABLE_SERVER_TIMING"); err != nil {
+		return nil, fmt.Errorf("bind ENABLE_SERVER_TIMING: %w", err)
+	}
+
 	trustedProxiesEnv, trustedProxiesEnvConfigured := os.LookupEnv("SERVER_TRUSTED_PROXIES")
 	forwardedClientIPHeadersEnv, forwardedClientIPHeadersEnvConfigured := os.LookupEnv("SECURITY_FORWARDED_CLIENT_IP_HEADERS")
 	trustedProxiesConfigured := viper.InConfig("server.trusted_proxies") ||
@@ -1923,6 +1926,13 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	cfg.Server.RuntimeMode = NormalizeServerRuntimeMode(cfg.Server.RuntimeMode)
 	cfg.Server.FrontendURL = strings.TrimSpace(cfg.Server.FrontendURL)
 	cfg.JWT.Secret = strings.TrimSpace(cfg.JWT.Secret)
+	if _, source := JWTSecretEnvOverride(); source == "JWT_SECRET" {
+		cfg.JWT.Secret = configuredJWTSecret
+	}
+	cfg.JWT.Env = strings.TrimSpace(cfg.JWT.Env)
+	if cfg.JWT.Env == "" {
+		cfg.JWT.Env = "production"
+	}
 	if err := applyJWTSecretOverride(&cfg); err != nil {
 		return nil, err
 	}
@@ -2057,8 +2067,12 @@ func applyJWTSecretOverride(cfg *Config) error {
 		return nil
 	}
 
-	if source == "JWT_SECRET_OVERRIDE" && os.Getenv("STAGING_MODE") == "1" && override == cfg.JWT.Secret {
-		return fmt.Errorf("staging JWT secret must differ from production")
+	if cfg.JWT.Env != "production" && cfg.JWT.Secret != "" && override == cfg.JWT.Secret {
+		return fmt.Errorf(
+			"JWT secret for env=%q must differ from production secret (source=%s)",
+			cfg.JWT.Env,
+			source,
+		)
 	}
 
 	cfg.JWT.Secret = override
@@ -2367,6 +2381,7 @@ func setDefaults() {
 
 	// JWT
 	viper.SetDefault("jwt.secret", "")
+	viper.SetDefault("jwt.env", "production")
 	viper.SetDefault("jwt.expire_hour", 24)
 	viper.SetDefault("jwt.access_token_expire_minutes", 0) // 0 表示回退到 expire_hour
 	viper.SetDefault("jwt.refresh_token_expire_days", 30)  // 30天Refresh Token有效期
