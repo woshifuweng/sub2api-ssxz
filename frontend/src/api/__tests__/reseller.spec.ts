@@ -27,6 +27,8 @@ describe('reseller api', () => {
     await api.setManagedAgentRole(8, null)
     await api.listManagedWithdrawals(1, 20, 'pending')
     await api.listAdminAgents(2, 50, 'agent@example.com')
+    await api.grantAdminRole(8, { role: 'agent_manager', notes: 'regional lead' })
+    await api.revokeAdminRole(8)
     await api.listAdminWithdrawals(3, 10, 'pending')
     await api.reviewWithdrawal(12, { action: 'reject', reason: 'invalid request' })
 
@@ -44,10 +46,15 @@ describe('reseller api', () => {
     expect(get).toHaveBeenNthCalledWith(4, '/admin/reseller/agents', {
       params: { page: 2, page_size: 50, search: 'agent@example.com' }
     })
+    expect(post).toHaveBeenNthCalledWith(4, '/admin/reseller/agents/8/role', {
+      role: 'agent_manager',
+      notes: 'regional lead'
+    })
+    expect(del).toHaveBeenCalledWith('/admin/reseller/agents/8/role')
     expect(get).toHaveBeenNthCalledWith(5, '/admin/reseller/withdrawals', {
       params: { page: 3, page_size: 10, status: 'pending' }
     })
-    expect(post).toHaveBeenNthCalledWith(4, '/admin/reseller/withdrawals/12/review', {
+    expect(post).toHaveBeenNthCalledWith(5, '/admin/reseller/withdrawals/12/review', {
       action: 'reject',
       reason: 'invalid request'
     })

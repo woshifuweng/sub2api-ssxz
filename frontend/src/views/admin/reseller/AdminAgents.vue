@@ -7,6 +7,15 @@
       <template #actions>
         <LiquidButton
           type="button"
+          size="sm"
+          data-testid="open-grant-dialog"
+          @click="grantDialogOpen = true"
+        >
+          <Icon name="userPlus" size="sm" />
+          <span>添加 Agent</span>
+        </LiquidButton>
+        <LiquidButton
+          type="button"
           variant="outline"
           size="sm"
           :disabled="loading"
@@ -90,6 +99,18 @@
             <template #cell-granted_at="{ value }">
               {{ value ? formatDateTime(value) : '--' }}
             </template>
+            <template #cell-actions="{ row }">
+              <LiquidButton
+                type="button"
+                variant="destructive"
+                size="sm"
+                :disabled="revoking"
+                :data-testid="`revoke-agent-${row.user_id}`"
+                @click="revokeTarget = row"
+              >
+                <span>撤销</span>
+              </LiquidButton>
+            </template>
 
             <template #empty>
               <div class="py-10 text-center">
@@ -114,6 +135,56 @@
         </template>
       </TablePageLayout>
     </div>
+
+    <AdminAgentGrantDialog
+      :show="grantDialogOpen"
+      @close="grantDialogOpen = false"
+      @granted="handleGranted"
+    />
+
+    <BaseDialog
+      :show="!!revokeTarget"
+      title="撤销 Reseller 角色"
+      width="narrow"
+      :close-on-escape="!revoking"
+      @close="closeRevokeDialog"
+    >
+      <div class="space-y-3">
+        <p class="text-sm text-[var(--ssxz-text-secondary)]">
+          确认撤销
+          <strong class="text-[var(--ssxz-text)]">
+            {{ revokeTarget?.email || `用户 ${revokeTarget?.user_id ?? ''}` }}
+          </strong>
+          的 {{ revokeTarget ? roleLabel(revokeTarget.role) : '' }} 角色？
+        </p>
+        <p class="text-xs text-[var(--ssxz-text-muted)]">
+          此操作会移除 Reseller 管理入口，但不会删除用户账号。
+        </p>
+      </div>
+      <template #footer>
+        <div class="flex flex-wrap justify-end gap-2">
+          <LiquidButton
+            type="button"
+            variant="outline"
+            size="sm"
+            :disabled="revoking"
+            @click="closeRevokeDialog"
+          >
+            <span>取消</span>
+          </LiquidButton>
+          <LiquidButton
+            type="button"
+            variant="destructive"
+            size="sm"
+            :disabled="revoking"
+            data-testid="confirm-revoke-agent"
+            @click="confirmRevoke"
+          >
+            <span>{{ revoking ? '正在撤销' : '确认撤销' }}</span>
+          </LiquidButton>
+        </div>
+      </template>
+    </BaseDialog>
   </AppLayout>
 </template>
 
@@ -121,15 +192,17 @@
 import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import resellerAPI, { type AgentSummary } from '@/api/reseller'
-import type { PaginatedResponse } from '@/types'
+import type { AdminUser, PaginatedResponse } from '@/types'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import LiquidButton from '@/components/common/LiquidButton.vue'
 import Icon from '@/components/icons/Icon.vue'
+import AdminAgentGrantDialog from './AdminAgentGrantDialog.vue'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatDateTime } from '@/utils/format'
@@ -137,8 +210,11 @@ import { formatDateTime } from '@/utils/format'
 const route = useRoute()
 const appStore = useAppStore()
 const loading = ref(true)
+const revoking = ref(false)
 const search = ref('')
 const agents = ref<PaginatedResponse<AgentSummary>>(emptyPage())
+const grantDialogOpen = ref(false)
+const revokeTarget = ref<AgentSummary | null>(null)
 
 const sectionLinks = [
   { to: '/admin/reseller/agents', label: 'Agent 列表' },
@@ -152,7 +228,8 @@ const columns: Column[] = [
   { key: 'recruit_count', label: '招募人数' },
   { key: 'total_commission', label: '累计佣金' },
   { key: 'commission_rate', label: '佣金比例' },
-  { key: 'granted_at', label: '加入时间' }
+  { key: 'granted_at', label: '加入时间' },
+  { key: 'actions', label: '操作', class: 'text-right' }
 ]
 
 function emptyPage<T>(): PaginatedResponse<T> {
@@ -205,6 +282,38 @@ function changePage(page: number): void {
 function changePageSize(pageSize: number): void {
   agents.value.page_size = pageSize
   void loadAgents(1)
+}
+
+function handleGranted(user: AdminUser): void {
+  grantDialogOpen.value = false
+  search.value = user.email
+  void loadAgents(1)
+}
+
+function closeRevokeDialog(): void {
+  if (revoking.value) return
+  revokeTarget.value = null
+}
+
+async function confirmRevoke(): Promise<void> {
+  const target = revokeTarget.value
+  if (!target || revoking.value) return
+
+  revoking.value = true
+  try {
+    await resellerAPI.revokeAdminRole(target.user_id)
+    appStore.showSuccess(`${target.email || `用户 ${target.user_id}`} 的 Reseller 角色已撤销`)
+    revokeTarget.value = null
+    const nextPage =
+      agents.value.items.length === 1 && agents.value.page > 1
+        ? agents.value.page - 1
+        : agents.value.page
+    await loadAgents(nextPage)
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, 'Reseller 角色撤销失败'))
+  } finally {
+    revoking.value = false
+  }
 }
 
 onMounted(() => void loadAgents(1))

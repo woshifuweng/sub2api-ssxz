@@ -69,6 +69,11 @@ export interface ReviewWithdrawalInput {
   reason?: string
 }
 
+export interface GrantAdminResellerRoleInput {
+  role: ResellerRole
+  notes?: string
+}
+
 export const resellerAPI = {
   async getRole(): Promise<ResellerRoleResponse> {
     const { data } = await apiClient.get<ResellerRoleResponse>('/user/reseller/role')
@@ -162,6 +167,24 @@ export const resellerAPI = {
     const { data } = await apiClient.get<PaginatedResponse<AgentSummary>>('/admin/reseller/agents', {
       params: { page, page_size: pageSize, search: search || undefined }
     })
+    return data
+  },
+
+  async grantAdminRole(
+    userId: number,
+    input: GrantAdminResellerRoleInput
+  ): Promise<{ user_id: number; role: ResellerRole }> {
+    const { data } = await apiClient.post<{ user_id: number; role: ResellerRole }>(
+      `/admin/reseller/agents/${userId}/role`,
+      input
+    )
+    return data
+  },
+
+  async revokeAdminRole(userId: number): Promise<{ user_id: number }> {
+    const { data } = await apiClient.delete<{ user_id: number }>(
+      `/admin/reseller/agents/${userId}/role`
+    )
     return data
   },
 
