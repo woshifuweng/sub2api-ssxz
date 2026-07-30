@@ -465,6 +465,7 @@ func RegisterAdminRoutes(
 
 		// OpenAI OAuth
 		registerOpenAIOAuthRoutes(admin, h)
+		registerSoraOAuthRoutes(admin, h)
 
 		// Gemini OAuth
 		registerGeminiOAuthRoutes(admin, h)
@@ -631,6 +632,8 @@ func registerOpsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		ops.GET("/user-concurrency", h.Admin.Ops.GetUserConcurrencyStats)
 		ops.GET("/account-availability", h.Admin.Ops.GetAccountAvailability)
 		ops.GET("/realtime-traffic", h.Admin.Ops.GetRealtimeTrafficSummary)
+		ops.GET("/gateway-scheduler", h.Admin.Ops.GetGatewaySchedulerRuntime)
+		ops.GET("/openai-ws-runtime", h.Admin.Ops.GetOpenAIWSRuntime)
 
 		// Alerts (rules + events)
 		ops.GET("/alert-rules", h.Admin.Ops.ListAlertRules)
@@ -676,12 +679,16 @@ func registerOpsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// Error logs (legacy)
 		ops.GET("/errors", h.Admin.Ops.GetErrorLogs)
 		ops.GET("/errors/:id", h.Admin.Ops.GetErrorLogByID)
+		ops.GET("/errors/:id/retries", gatewayctx.AdaptGinHandler(h.Admin.Ops.ListRetryAttemptsGateway))
+		ops.POST("/errors/:id/retry", gatewayctx.AdaptGinHandler(h.Admin.Ops.RetryErrorRequestGateway))
 		ops.PUT("/errors/:id/resolve", h.Admin.Ops.UpdateErrorResolution)
 
 		// Request errors (client-visible failures)
 		ops.GET("/request-errors", h.Admin.Ops.ListRequestErrors)
 		ops.GET("/request-errors/:id", h.Admin.Ops.GetRequestError)
 		ops.GET("/request-errors/:id/upstream-errors", h.Admin.Ops.ListRequestErrorUpstreamErrors)
+		ops.POST("/request-errors/:id/retry-client", gatewayctx.AdaptGinHandler(h.Admin.Ops.RetryRequestErrorClientGateway))
+		ops.POST("/request-errors/:id/upstream-errors/:idx/retry", gatewayctx.AdaptGinHandler(h.Admin.Ops.RetryRequestErrorUpstreamEventGateway))
 		ops.PUT("/request-errors/:id/resolve", h.Admin.Ops.ResolveRequestError)
 
 		// Bounded ingress-admission rejection aggregates.
@@ -692,6 +699,7 @@ func registerOpsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// Upstream errors (independent upstream failures)
 		ops.GET("/upstream-errors", h.Admin.Ops.ListUpstreamErrors)
 		ops.GET("/upstream-errors/:id", h.Admin.Ops.GetUpstreamError)
+		ops.POST("/upstream-errors/:id/retry", gatewayctx.AdaptGinHandler(h.Admin.Ops.RetryUpstreamErrorGateway))
 		ops.PUT("/upstream-errors/:id/resolve", h.Admin.Ops.ResolveUpstreamError)
 
 		// Request drilldown (success + error)
@@ -816,6 +824,7 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 		accounts.POST("/:id/ollama-cloud-usage/refresh", h.Admin.Account.RefreshOllamaCloudUsage)
 		accounts.DELETE("/:id", h.Admin.Account.Delete)
 		accounts.POST("/:id/test", h.Admin.Account.Test)
+		accounts.POST("/batch-test", h.Admin.Account.BatchTest)
 		accounts.POST("/:id/recover-state", h.Admin.Account.RecoverState)
 		accounts.POST("/:id/refresh", h.Admin.Account.Refresh)
 		accounts.POST("/:id/apply-oauth-credentials", h.Admin.Account.ApplyOAuthCredentials)
@@ -834,11 +843,20 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 		accounts.POST("/:id/schedulable", h.Admin.Account.SetSchedulable)
 		accounts.POST("/models/sync-upstream-preview", h.Admin.Account.SyncUpstreamModelsPreview)
 		accounts.GET("/:id/models", h.Admin.Account.GetAvailableModels)
+		accounts.POST("/:id/models/refresh", h.Admin.Account.RefreshModels)
 		accounts.POST("/:id/models/sync-upstream", h.Admin.Account.SyncUpstreamModels)
 		accounts.POST("/batch", h.Admin.Account.BatchCreate)
 		// 账号导出泄露上游凭证原文——要求 step-up 2FA
 		accounts.GET("/data", gin.HandlerFunc(stepUpAuth), h.Admin.Account.ExportData)
 		accounts.POST("/data", h.Admin.Account.ImportData)
+		accounts.POST("/data/export-tasks", gin.HandlerFunc(stepUpAuth), h.Admin.Account.CreateExportTask)
+		accounts.GET("/data/export-tasks/:task_id", gin.HandlerFunc(stepUpAuth), h.Admin.Account.GetExportTask)
+		accounts.POST("/data/upload-sessions", h.Admin.Account.CreateImportUploadSession)
+		accounts.GET("/data/upload-sessions/:session_id", h.Admin.Account.GetImportUploadSession)
+		accounts.PUT("/data/upload-sessions/:session_id", h.Admin.Account.UploadImportChunk)
+		accounts.POST("/data/upload-sessions/:session_id/finalize", h.Admin.Account.FinalizeImportUploadSession)
+		accounts.POST("/data/tasks", h.Admin.Account.CreateImportTask)
+		accounts.GET("/data/tasks/:task_id", h.Admin.Account.GetImportTask)
 		accounts.POST("/batch-update-credentials", h.Admin.Account.BatchUpdateCredentials)
 		accounts.POST("/batch-refresh-tier", h.Admin.Account.BatchRefreshTier)
 		accounts.POST("/bulk-update", h.Admin.Account.BulkUpdate)
@@ -886,6 +904,19 @@ func registerOpenAIOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		openai.POST("/create-from-codex-pat", h.Admin.OpenAIOAuth.CreateAccountFromCodexPAT)
 		openai.GET("/accounts/:id/quota", h.Admin.OpenAIOAuth.QueryQuota)
 		openai.POST("/accounts/:id/reset-quota", h.Admin.OpenAIOAuth.ResetQuota)
+	}
+}
+
+func registerSoraOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	sora := admin.Group("/sora")
+	{
+		sora.POST("/generate-auth-url", h.Admin.OpenAIOAuth.GenerateAuthURL)
+		sora.POST("/exchange-code", h.Admin.OpenAIOAuth.ExchangeCode)
+		sora.POST("/refresh-token", h.Admin.OpenAIOAuth.RefreshToken)
+		sora.POST("/st2at", h.Admin.OpenAIOAuth.ExchangeSoraSessionToken)
+		sora.POST("/rt2at", h.Admin.OpenAIOAuth.RefreshToken)
+		sora.POST("/accounts/:id/refresh", h.Admin.OpenAIOAuth.RefreshAccountToken)
+		sora.POST("/create-from-oauth", h.Admin.OpenAIOAuth.CreateAccountFromOAuth)
 	}
 }
 
@@ -1011,6 +1042,22 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		adminSettings.PUT("/web-search-emulation", h.Admin.Setting.UpdateWebSearchEmulationConfig)
 		adminSettings.POST("/web-search-emulation/test", h.Admin.Setting.TestWebSearchEmulation)
 		adminSettings.POST("/web-search-emulation/reset-usage", h.Admin.Setting.ResetWebSearchUsage)
+		// TLS fingerprint settings and profiles
+		adminSettings.GET("/tls-fingerprint", h.Admin.Setting.GetTLSFingerprintSettings)
+		adminSettings.PUT("/tls-fingerprint", h.Admin.Setting.UpdateTLSFingerprintSettings)
+		adminSettings.GET("/tls-fingerprint/profiles", h.Admin.Setting.ListTLSFingerprintProfiles)
+		adminSettings.POST("/tls-fingerprint/profiles", h.Admin.Setting.CreateTLSFingerprintProfile)
+		adminSettings.PUT("/tls-fingerprint/profiles/:profile_id", h.Admin.Setting.UpdateTLSFingerprintProfile)
+		adminSettings.DELETE("/tls-fingerprint/profiles/:profile_id", h.Admin.Setting.DeleteTLSFingerprintProfile)
+		// Sora object storage settings and profiles
+		adminSettings.GET("/sora-s3", h.Admin.Setting.GetSoraS3Settings)
+		adminSettings.PUT("/sora-s3", h.Admin.Setting.UpdateSoraS3Settings)
+		adminSettings.POST("/sora-s3/test", h.Admin.Setting.TestSoraS3Connection)
+		adminSettings.GET("/sora-s3/profiles", h.Admin.Setting.ListSoraS3Profiles)
+		adminSettings.POST("/sora-s3/profiles", h.Admin.Setting.CreateSoraS3Profile)
+		adminSettings.PUT("/sora-s3/profiles/:profile_id", h.Admin.Setting.UpdateSoraS3Profile)
+		adminSettings.DELETE("/sora-s3/profiles/:profile_id", h.Admin.Setting.DeleteSoraS3Profile)
+		adminSettings.POST("/sora-s3/profiles/:profile_id/activate", h.Admin.Setting.SetActiveSoraS3Profile)
 	}
 }
 

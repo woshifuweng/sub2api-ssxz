@@ -51,3 +51,29 @@ func TestIngressRejectAdminRoutesRequireAdminAuthentication(t *testing.T) {
 		}
 	}
 }
+
+func TestOpsRuntimeAdminRoutesRequireAdminAuthentication(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	handlers := &handler.Handlers{Admin: &handler.AdminHandlers{Ops: adminhandler.NewOpsHandler(nil)}}
+	adminAuth := servermiddleware.AdminAuthMiddleware(func(c *gin.Context) {
+		if c.GetHeader("Authorization") == "" {
+			servermiddleware.AbortWithError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authorization required")
+			return
+		}
+		servermiddleware.AbortWithError(c, http.StatusForbidden, "FORBIDDEN", "Admin access required")
+	})
+	auditLog := servermiddleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() })
+	stepUp := servermiddleware.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() })
+	RegisterAdminRoutes(router.Group("/api/v1"), handlers, adminAuth, auditLog, stepUp, nil, nil)
+
+	for _, path := range []string{
+		"/api/v1/admin/ops/gateway-scheduler",
+		"/api/v1/admin/ops/openai-ws-runtime",
+	} {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodGet, path, nil)
+		router.ServeHTTP(recorder, request)
+		require.Equal(t, http.StatusUnauthorized, recorder.Code, path)
+	}
+}

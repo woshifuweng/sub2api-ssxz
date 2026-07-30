@@ -7,6 +7,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	middleware "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
 // fillPointers recursively allocates every nil pointer field in the value
@@ -84,4 +85,37 @@ func TestNativeRouterBootHasNoDuplicateRoutes(t *testing.T) {
 			t.Errorf("missing native reseller route %s", expected)
 		}
 	}
+}
+
+func TestExecutableAdminRoutesHaveNativeGinParity(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h := &handler.Handlers{}
+	fillPointers(reflect.ValueOf(h))
+
+	noop := func(c *gin.Context) { c.Next() }
+	r := gin.New()
+	RegisterAdminRoutes(
+		r.Group("/api/v1"),
+		h,
+		middleware.AdminAuthMiddleware(noop),
+		middleware.AuditLogMiddleware(noop),
+		middleware.StepUpAuthMiddleware(noop),
+		nil,
+		nil,
+	)
+
+	registered := make(map[routeKey]struct{})
+	for _, route := range r.Routes() {
+		registered[routeKey{method: route.Method, path: route.Path}] = struct{}{}
+	}
+
+	var missing []routeKey
+	for _, route := range ExecutableAdminRoutes(h) {
+		key := routeKey{method: route.Method, path: route.Path}
+		if _, ok := registered[key]; !ok {
+			missing = append(missing, key)
+		}
+	}
+	require.Empty(t, missing, "native Gin router must include every executable admin route")
 }
