@@ -415,12 +415,17 @@ func ExecutableAdminRoutes(h *handler.Handlers) []gatewayctx.RouteDef {
 	}
 	if h.Reseller != nil {
 		adminMW := []string{"request_logger", "cors", "security_headers", "client_request_id", "admin_auth"}
+		adminWriteMW := []string{"request_logger", "cors", "security_headers", "client_request_id", "admin_auth", "audit_log"}
 		out = append(out,
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/admin/reseller/agents", Handler: h.Reseller.AdminListAgentsGateway, Middleware: adminMW},
-			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/admin/reseller/agents/:id/role", Handler: h.Reseller.AdminGrantRoleGateway, Middleware: adminMW},
-			gatewayctx.RouteDef{Method: http.MethodDelete, Path: "/api/v1/admin/reseller/agents/:id/role", Handler: h.Reseller.AdminRevokeRoleGateway, Middleware: adminMW},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/admin/reseller/agents/:id", Handler: h.Reseller.AdminGetAgentDetailGateway, Middleware: adminMW},
+			gatewayctx.RouteDef{Method: http.MethodPatch, Path: "/api/v1/admin/reseller/agents/:id", Handler: h.Reseller.AdminUpdateAgentGateway, Middleware: adminWriteMW},
+			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/admin/reseller/agents/:id/disable", Handler: h.Reseller.AdminDisableAgentGateway, Middleware: adminWriteMW},
+			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/admin/reseller/agents/:id/enable", Handler: h.Reseller.AdminEnableAgentGateway, Middleware: adminWriteMW},
+			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/admin/reseller/agents/:id/role", Handler: h.Reseller.AdminGrantRoleGateway, Middleware: adminWriteMW},
+			gatewayctx.RouteDef{Method: http.MethodDelete, Path: "/api/v1/admin/reseller/agents/:id/role", Handler: h.Reseller.AdminRevokeRoleGateway, Middleware: adminWriteMW},
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/admin/reseller/withdrawals", Handler: h.Reseller.AdminListWithdrawalsGateway, Middleware: adminMW},
-			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/admin/reseller/withdrawals/:id/review", Handler: h.Reseller.AdminReviewWithdrawalGateway, Middleware: adminMW},
+			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/admin/reseller/withdrawals/:id/review", Handler: h.Reseller.AdminReviewWithdrawalGateway, Middleware: adminWriteMW},
 		)
 	}
 	out = append(out, executableAdminFeatureRoutes(h)...)
@@ -550,6 +555,10 @@ func registerResellerRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	reseller := admin.Group("/reseller")
 	{
 		reseller.GET("/agents", h.Reseller.AdminListAgents)
+		reseller.GET("/agents/:id", h.Reseller.AdminGetAgentDetail)
+		reseller.PATCH("/agents/:id", h.Reseller.AdminUpdateAgent)
+		reseller.POST("/agents/:id/disable", h.Reseller.AdminDisableAgent)
+		reseller.POST("/agents/:id/enable", h.Reseller.AdminEnableAgent)
 		reseller.POST("/agents/:id/role", h.Reseller.AdminGrantRole)
 		reseller.DELETE("/agents/:id/role", h.Reseller.AdminRevokeRole)
 		reseller.GET("/withdrawals", h.Reseller.AdminListWithdrawals)

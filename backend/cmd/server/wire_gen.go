@@ -334,7 +334,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	chatWorkspaceHandler := handler.NewChatWorkspaceHandler(chatWorkspaceService)
 	resellerRepository := repository.NewResellerRepository(client, db)
 	resellerService := service.NewResellerService(resellerRepository)
-	resellerHandler := handler.NewResellerHandler(resellerService)
+	resellerHandler := handler.NewResellerHandler(resellerService, totpService, userService, settingService)
 	taskStateCache := repository.NewTaskStateCache(redisClient)
 	adminTaskStateRepository := repository.NewAdminTaskStateRepository(client, db)
 	adminTaskStateCacheSetup := handler.ProvideAdminTaskStateCacheSetup(taskStateCache, adminTaskStateRepository)

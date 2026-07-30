@@ -2,6 +2,8 @@ import { apiClient } from './client'
 import type { PaginatedResponse } from '@/types'
 
 export type ResellerRole = 'agent' | 'agent_manager'
+export type ResellerStatus = 'active' | 'disabled' | 'revoked'
+export type RebateMode = 'global' | 'disabled' | 'custom'
 export type WithdrawStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
 export type ManagedAgentRole = 'agent' | null
 
@@ -56,12 +58,49 @@ export interface AgentSummary {
   email: string
   username: string
   role: ResellerRole
-  commission_rate: number
+  status: ResellerStatus
+  manager_id: number | null
+  manager_email: string | null
+  effective_rebate_rate_percent: number | null
+  rebate_mode: RebateMode
   aff_code: string
   recruit_count: number
-  aff_quota: number
+  commission_balance: string
+  commission_total: string
+  notes: string
   granted_at: string
+  updated_at: string
+  disabled_at: string | null
+  disabled_by_email: string | null
+  disabled_reason: string
+  revoked_at: string | null
   granted_by?: number
+}
+
+export interface AgentDetail extends AgentSummary {
+  aff_history_quota: number
+  pending_redemption_count: number
+  recruits?: RecruitRecord[]
+}
+
+export interface AdminAgentFilters {
+  search?: string
+  status?: ResellerStatus | 'all' | ''
+  role?: ResellerRole | ''
+  manager_id?: number
+}
+
+export interface RebatePolicyInput {
+  mode: RebateMode
+  rate_percent?: number
+}
+
+export interface UpdateAdminAgentInput {
+  role?: ResellerRole
+  manager_id?: number | null
+  notes?: string
+  rebate_policy?: RebatePolicyInput
+  reason?: string
 }
 
 export interface ReviewWithdrawalInput {
@@ -162,11 +201,47 @@ export const resellerAPI = {
   async listAdminAgents(
     page = 1,
     pageSize = 20,
-    search = ''
+    filters: AdminAgentFilters | string = {}
   ): Promise<PaginatedResponse<AgentSummary>> {
+    const normalizedFilters = typeof filters === 'string' ? { search: filters } : filters
     const { data } = await apiClient.get<PaginatedResponse<AgentSummary>>('/admin/reseller/agents', {
-      params: { page, page_size: pageSize, search: search || undefined }
+      params: {
+        page,
+        page_size: pageSize,
+        search: normalizedFilters.search || undefined,
+        status: normalizedFilters.status || undefined,
+        role: normalizedFilters.role || undefined,
+        manager_id: normalizedFilters.manager_id || undefined
+      }
     })
+    return data
+  },
+
+  async getAdminAgent(userId: number): Promise<AgentDetail> {
+    const { data } = await apiClient.get<AgentDetail>(`/admin/reseller/agents/${userId}`)
+    return data
+  },
+
+  async updateAdminAgent(userId: number, input: UpdateAdminAgentInput): Promise<AgentDetail> {
+    const { data } = await apiClient.patch<AgentDetail>(
+      `/admin/reseller/agents/${userId}`,
+      input
+    )
+    return data
+  },
+
+  async disableAdminAgent(userId: number, reason: string): Promise<AgentDetail> {
+    const { data } = await apiClient.post<AgentDetail>(
+      `/admin/reseller/agents/${userId}/disable`,
+      { reason }
+    )
+    return data
+  },
+
+  async enableAdminAgent(userId: number): Promise<AgentDetail> {
+    const { data } = await apiClient.post<AgentDetail>(
+      `/admin/reseller/agents/${userId}/enable`
+    )
     return data
   },
 

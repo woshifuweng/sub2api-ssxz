@@ -17,6 +17,8 @@ type resellerRepository struct {
 	db *sql.DB
 }
 
+const resellerMutationAdvisoryLock int64 = 2026073001
+
 // NewResellerRepository constructs the repository. All queries run directly
 // against the underlying *sql.DB; the ent client is not needed here.
 func NewResellerRepository(_ *dbent.Client, db *sql.DB) service.ResellerRepository {
@@ -26,35 +28,108 @@ func NewResellerRepository(_ *dbent.Client, db *sql.DB) service.ResellerReposito
 // --- GrantRole ---
 
 func (r *resellerRepository) GrantRole(ctx context.Context, userID int64, role string, grantedBy int64, notes string) error {
-	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO user_reseller_roles (user_id, role, granted_by, granted_at, notes)
-		 VALUES ($1, $2, $3, NOW(), $4)
-		 ON CONFLICT (user_id) DO UPDATE SET
-		     role       = EXCLUDED.role,
-		     granted_by = EXCLUDED.granted_by,
-		     granted_at = NOW(),
-		     revoked_at = NULL,
-		     notes      = EXCLUDED.notes`,
-		userID, role, grantedBy, notes,
-	)
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("reseller repo GrantRole: %w", err)
+		return fmt.Errorf("reseller repo GrantRole begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if err := lockResellerMutations(ctx, tx); err != nil {
+		return err
+	}
+
+	var currentRole string
+	var revokedAt sql.NullTime
+	err = tx.QueryRowContext(ctx, `
+		SELECT role, revoked_at
+		FROM user_reseller_roles
+		WHERE user_id = $1
+		FOR UPDATE`, userID).Scan(&currentRole, &revokedAt)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO user_reseller_roles (
+				user_id, role, granted_by, granted_at, notes, status, updated_at, updated_by
+			)
+			VALUES ($1, $2, $3, NOW(), $4, 'active', NOW(), $3)`,
+			userID, role, grantedBy, notes,
+		)
+	case err != nil:
+		return fmt.Errorf("reseller repo GrantRole lock: %w", err)
+	default:
+		if !revokedAt.Valid && currentRole == service.ResellerRoleManager && role == service.ResellerRoleAgent {
+			hasChildren, checkErr := hasDirectAgents(ctx, tx, userID)
+			if checkErr != nil {
+				return checkErr
+			}
+			if hasChildren {
+				return service.ErrResellerHasDirectAgents
+			}
+		}
+		_, err = tx.ExecContext(ctx, `
+			UPDATE user_reseller_roles
+			SET role = $2,
+			    granted_by = $3,
+			    granted_at = NOW(),
+			    revoked_at = NULL,
+			    notes = $4,
+			    status = 'active',
+			    manager_id = CASE
+			        WHEN role = 'agent' AND $2 = 'agent' THEN manager_id
+			        ELSE NULL
+			    END,
+			    updated_at = NOW(),
+			    updated_by = $3,
+			    disabled_at = NULL,
+			    disabled_by = NULL,
+			    disabled_reason = ''
+			WHERE user_id = $1`,
+			userID, role, grantedBy, notes,
+		)
+	}
+	if err != nil {
+		return fmt.Errorf("reseller repo GrantRole write: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("reseller repo GrantRole commit: %w", err)
 	}
 	return nil
 }
 
 func (r *resellerRepository) GrantManagedAgent(ctx context.Context, userID, managerID int64, notes string) error {
-	result, err := r.db.ExecContext(ctx, `
-		INSERT INTO user_reseller_roles (user_id, role, granted_by, granted_at, notes)
-		VALUES ($1, 'agent', $2, NOW(), $3)
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("reseller repo GrantManagedAgent begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if err := lockResellerMutations(ctx, tx); err != nil {
+		return err
+	}
+	if err := validateManagerAssignment(ctx, tx, userID, managerID); err != nil {
+		return err
+	}
+
+	result, err := tx.ExecContext(ctx, `
+		INSERT INTO user_reseller_roles (
+			user_id, role, granted_by, granted_at, notes, status, manager_id, updated_at, updated_by
+		)
+		VALUES ($1, 'agent', $2, NOW(), $3, 'active', $2, NOW(), $2)
 		ON CONFLICT (user_id) DO UPDATE SET
 			role = 'agent',
 			granted_by = EXCLUDED.granted_by,
 			granted_at = NOW(),
 			revoked_at = NULL,
-			notes = EXCLUDED.notes
+			notes = EXCLUDED.notes,
+			status = 'active',
+			manager_id = $2,
+			updated_at = NOW(),
+			updated_by = $2,
+			disabled_at = NULL,
+			disabled_by = NULL,
+			disabled_reason = ''
 		WHERE user_reseller_roles.revoked_at IS NOT NULL
-		   OR (user_reseller_roles.role = 'agent' AND user_reseller_roles.granted_by = $2)`,
+		   OR (user_reseller_roles.role = 'agent' AND user_reseller_roles.manager_id = $2)`,
 		userID, managerID, notes,
 	)
 	if err != nil {
@@ -67,42 +142,84 @@ func (r *resellerRepository) GrantManagedAgent(ctx context.Context, userID, mana
 	if affected == 0 {
 		return service.ErrResellerAgentNotManaged
 	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("reseller repo GrantManagedAgent commit: %w", err)
+	}
 	return nil
 }
 
 // --- RevokeRole ---
 
-func (r *resellerRepository) RevokeRole(ctx context.Context, userID int64) error {
-	_, err := r.db.ExecContext(ctx,
-		`UPDATE user_reseller_roles SET revoked_at = NOW()
-		  WHERE user_id = $1 AND revoked_at IS NULL`,
-		userID,
-	)
+func (r *resellerRepository) RevokeRole(ctx context.Context, userID, updatedBy int64) error {
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
+		return fmt.Errorf("reseller repo RevokeRole begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if err := lockResellerMutations(ctx, tx); err != nil {
+		return err
+	}
+	if _, _, err := lockResellerRole(ctx, tx, userID); err != nil {
+		return err
+	}
+	if err := ensureAgentCanBeRevoked(ctx, tx, userID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE user_reseller_roles
+		SET revoked_at = NOW(), updated_at = NOW(), updated_by = $2
+		WHERE user_id = $1 AND revoked_at IS NULL`, userID, updatedBy); err != nil {
 		return fmt.Errorf("reseller repo RevokeRole: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("reseller repo RevokeRole commit: %w", err)
 	}
 	return nil
 }
 
 func (r *resellerRepository) RevokeManagedAgent(ctx context.Context, userID, managerID int64) error {
-	result, err := r.db.ExecContext(ctx, `
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("reseller repo RevokeManagedAgent begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if err := lockResellerMutations(ctx, tx); err != nil {
+		return err
+	}
+	var ownerID sql.NullInt64
+	var role string
+	var revokedAt sql.NullTime
+	if err := tx.QueryRowContext(ctx, `
+		SELECT role, manager_id, revoked_at
+		FROM user_reseller_roles
+		WHERE user_id = $1
+		FOR UPDATE`, userID).Scan(&role, &ownerID, &revokedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return service.ErrResellerAgentNotManaged
+		}
+		return fmt.Errorf("reseller repo RevokeManagedAgent lock: %w", err)
+	}
+	if role != service.ResellerRoleAgent || !ownerID.Valid || ownerID.Int64 != managerID || revokedAt.Valid {
+		return service.ErrResellerAgentNotManaged
+	}
+	if err := ensureAgentCanBeRevoked(ctx, tx, userID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
 		UPDATE user_reseller_roles
-		SET revoked_at = NOW()
+		SET revoked_at = NOW(), updated_at = NOW(), updated_by = $2
 		WHERE user_id = $1
 		  AND role = 'agent'
-		  AND granted_by = $2
+		  AND manager_id = $2
 		  AND revoked_at IS NULL`,
 		userID, managerID,
-	)
-	if err != nil {
+	); err != nil {
 		return fmt.Errorf("reseller repo RevokeManagedAgent: %w", err)
 	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("reseller repo RevokeManagedAgent rows affected: %w", err)
-	}
-	if affected == 0 {
-		return service.ErrResellerAgentNotManaged
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("reseller repo RevokeManagedAgent commit: %w", err)
 	}
 	return nil
 }
@@ -114,17 +231,17 @@ func (r *resellerRepository) GetManagerDashboard(ctx context.Context, managerID 
 	err := r.db.QueryRowContext(ctx, `
 		SELECT
 		    (SELECT COUNT(*) FROM user_reseller_roles
-		      WHERE role = 'agent' AND granted_by = $1 AND revoked_at IS NULL)::int,
+		      WHERE role = 'agent' AND manager_id = $1 AND revoked_at IS NULL)::int,
 		    (SELECT COUNT(DISTINCT ua.user_id)
 		       FROM user_affiliates ua
 		       JOIN user_reseller_roles rr
 		         ON rr.user_id = ua.inviter_id AND rr.role = 'agent'
-		        AND rr.granted_by = $1 AND rr.revoked_at IS NULL)::int,
+		        AND rr.manager_id = $1 AND rr.revoked_at IS NULL)::int,
 		    (SELECT COUNT(*)
 		       FROM affiliate_withdraw_requests wr
 		       JOIN user_reseller_roles rr ON rr.user_id = wr.user_id
 		      WHERE wr.status = 'pending' AND rr.role = 'agent'
-		        AND rr.granted_by = $1 AND rr.revoked_at IS NULL)::int
+		        AND rr.manager_id = $1 AND rr.revoked_at IS NULL)::int
 	`, managerID).Scan(&d.TotalAgents, &d.TotalRecruits, &d.PendingWithdrawals)
 	if err != nil {
 		return nil, fmt.Errorf("reseller repo GetManagerDashboard: %w", err)
@@ -136,17 +253,18 @@ func (r *resellerRepository) GetManagerDashboard(ctx context.Context, managerID 
 
 func (r *resellerRepository) GetRole(ctx context.Context, userID int64) (*service.ResellerRoleRecord, error) {
 	var rec service.ResellerRoleRecord
+	var managerID sql.NullInt64
 	var grantedBy sql.NullInt64
 	var revokedAt sql.NullTime
 	err := r.db.QueryRowContext(ctx,
-		`SELECT user_id, role, granted_by, granted_at, revoked_at, notes,
+		`SELECT user_id, role, status, manager_id, granted_by, granted_at, revoked_at, notes,
 		        commission_rate::double precision
 		   FROM user_reseller_roles
-		  WHERE user_id = $1 AND revoked_at IS NULL
+		  WHERE user_id = $1 AND status = 'active' AND revoked_at IS NULL
 		  LIMIT 1`,
 		userID,
 	).Scan(
-		&rec.UserID, &rec.Role, &grantedBy, &rec.GrantedAt, &revokedAt, &rec.Notes,
+		&rec.UserID, &rec.Role, &rec.Status, &managerID, &grantedBy, &rec.GrantedAt, &revokedAt, &rec.Notes,
 		&rec.CommissionRate,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -157,6 +275,9 @@ func (r *resellerRepository) GetRole(ctx context.Context, userID int64) (*servic
 	}
 	if grantedBy.Valid {
 		rec.GrantedBy = &grantedBy.Int64
+	}
+	if managerID.Valid {
+		rec.ManagerID = &managerID.Int64
 	}
 	if revokedAt.Valid {
 		rec.RevokedAt = &revokedAt.Time
@@ -175,36 +296,71 @@ func (r *resellerRepository) ListAgents(ctx context.Context, filter service.Agen
 		pageSize = 20
 	}
 	offset := (page - 1) * pageSize
+	status := filter.Status
+	if status == "" {
+		status = "current"
+	}
 
 	var total int64
 	if err := r.db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM user_reseller_roles rr
 		  JOIN users u ON u.id = rr.user_id
-		 WHERE rr.revoked_at IS NULL
+		 WHERE (
+		       $4 = 'all'
+		       OR ($4 = 'current' AND rr.revoked_at IS NULL)
+		       OR ($4 = 'revoked' AND rr.revoked_at IS NOT NULL)
+		       OR ($4 IN ('active', 'disabled') AND rr.revoked_at IS NULL AND rr.status = $4)
+		   )
 		   AND (rr.role = 'agent' OR ($3 AND rr.role = 'agent_manager'))
+		   AND ($5 = '' OR rr.role = $5)
 		   AND ($1 = '' OR u.email ILIKE '%' || $1 || '%')
-		   AND ($2 = 0 OR rr.granted_by = $2)`,
-		filter.Search, filter.ManagerID, filter.IncludeAllRoles,
+		   AND ($2 = 0 OR rr.manager_id = $2)`,
+		filter.Search, filter.ManagerID, filter.IncludeAllRoles, status, filter.Role,
 	).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("reseller ListAgents count: %w", err)
 	}
 
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT rr.user_id, u.email, COALESCE(u.username, ''),
-		       rr.role, rr.commission_rate::double precision,
+		       rr.role,
+		       CASE WHEN rr.revoked_at IS NOT NULL THEN 'revoked' ELSE rr.status END,
+		       rr.manager_id, manager.email,
+		       ua.aff_rebate_rate_percent::double precision,
+		       CASE
+		           WHEN ua.aff_rebate_rate_percent IS NULL THEN 'global'
+		           WHEN ua.aff_rebate_rate_percent = 0 THEN 'disabled'
+		           ELSE 'custom'
+		       END,
 		       COALESCE(ua.aff_code, ''), COALESCE(ua.aff_count, 0)::int,
-		       COALESCE(ua.aff_quota, 0)::double precision,
-		       rr.granted_at, rr.granted_by
+		       TO_CHAR(COALESCE(ua.aff_quota, 0), 'FM999999999999990.00'),
+		       TO_CHAR((
+		           COALESCE(ua.aff_quota, 0)
+		           + COALESCE((
+		               SELECT SUM(wr.amount)
+		               FROM affiliate_withdraw_requests wr
+		               WHERE wr.user_id = rr.user_id AND wr.status = 'approved'
+		           ), 0)
+		       ), 'FM999999999999990.00'),
+		       rr.notes, rr.granted_at, rr.updated_at, rr.disabled_at,
+		       disabled_user.email, rr.disabled_reason, rr.revoked_at, rr.granted_by
 		  FROM user_reseller_roles rr
 		  JOIN users u ON u.id = rr.user_id
 		  LEFT JOIN user_affiliates ua ON ua.user_id = rr.user_id
-		 WHERE rr.revoked_at IS NULL
+		  LEFT JOIN users manager ON manager.id = rr.manager_id
+		  LEFT JOIN users disabled_user ON disabled_user.id = rr.disabled_by
+		 WHERE (
+		       $4 = 'all'
+		       OR ($4 = 'current' AND rr.revoked_at IS NULL)
+		       OR ($4 = 'revoked' AND rr.revoked_at IS NOT NULL)
+		       OR ($4 IN ('active', 'disabled') AND rr.revoked_at IS NULL AND rr.status = $4)
+		   )
 		   AND (rr.role = 'agent' OR ($3 AND rr.role = 'agent_manager'))
+		   AND ($5 = '' OR rr.role = $5)
 		   AND ($1 = '' OR u.email ILIKE '%' || $1 || '%')
-		   AND ($2 = 0 OR rr.granted_by = $2)
+		   AND ($2 = 0 OR rr.manager_id = $2)
 		 ORDER BY rr.granted_at DESC
-		 LIMIT $4 OFFSET $5`,
-		filter.Search, filter.ManagerID, filter.IncludeAllRoles, pageSize, offset,
+		 LIMIT $6 OFFSET $7`,
+		filter.Search, filter.ManagerID, filter.IncludeAllRoles, status, filter.Role, pageSize, offset,
 	)
 	if err != nil {
 		return nil, 0, fmt.Errorf("reseller ListAgents query: %w", err)
@@ -213,20 +369,11 @@ func (r *resellerRepository) ListAgents(ctx context.Context, filter service.Agen
 
 	var out []service.AgentSummary
 	for rows.Next() {
-		var s service.AgentSummary
-		var grantedBy sql.NullInt64
-		if err := rows.Scan(
-			&s.UserID, &s.Email, &s.Username,
-			&s.Role, &s.CommissionRate,
-			&s.AffCode, &s.RecruitCount, &s.AffQuota,
-			&s.GrantedAt, &grantedBy,
-		); err != nil {
+		s, err := scanAgentSummary(rows)
+		if err != nil {
 			return nil, 0, fmt.Errorf("reseller ListAgents scan: %w", err)
 		}
-		if grantedBy.Valid {
-			s.GrantedBy = &grantedBy.Int64
-		}
-		out = append(out, s)
+		out = append(out, *s)
 	}
 	return out, total, rows.Err()
 }
@@ -234,26 +381,7 @@ func (r *resellerRepository) ListAgents(ctx context.Context, filter service.Agen
 // --- GetAgentDetail ---
 
 func (r *resellerRepository) GetAgentDetail(ctx context.Context, agentUserID, managerID int64) (*service.AgentDetail, error) {
-	var d service.AgentDetail
-	var grantedBy sql.NullInt64
-	err := r.db.QueryRowContext(ctx, `
-		SELECT rr.user_id, u.email, COALESCE(u.username, ''),
-		       rr.role, rr.commission_rate::double precision,
-		       COALESCE(ua.aff_code, ''), COALESCE(ua.aff_count, 0)::int,
-		       COALESCE(ua.aff_quota, 0)::double precision,
-		       rr.granted_at, rr.granted_by
-		  FROM user_reseller_roles rr
-		  JOIN users u ON u.id = rr.user_id
-		  LEFT JOIN user_affiliates ua ON ua.user_id = rr.user_id
-		 WHERE rr.user_id = $1 AND rr.role = 'agent' AND rr.revoked_at IS NULL
-		   AND ($2 = 0 OR rr.granted_by = $2)`,
-		agentUserID, managerID,
-	).Scan(
-		&d.UserID, &d.Email, &d.Username,
-		&d.Role, &d.CommissionRate,
-		&d.AffCode, &d.RecruitCount, &d.AffQuota,
-		&d.GrantedAt, &grantedBy,
-	)
+	d, err := queryAgentDetail(ctx, r.db, agentUserID, managerID, false)
 	if errors.Is(err, sql.ErrNoRows) {
 		if managerID > 0 {
 			return nil, service.ErrResellerAgentNotManaged
@@ -263,15 +391,179 @@ func (r *resellerRepository) GetAgentDetail(ctx context.Context, agentUserID, ma
 	if err != nil {
 		return nil, fmt.Errorf("reseller GetAgentDetail: %w", err)
 	}
-	if grantedBy.Valid {
-		d.GrantedBy = &grantedBy.Int64
-	}
 	recruits, _, err := r.ListMyRecruits(ctx, agentUserID, 1, 500, false)
 	if err != nil {
 		return nil, err
 	}
 	d.Recruits = recruits
-	return &d, nil
+	return d, nil
+}
+
+func (r *resellerRepository) GetAdminAgentDetail(ctx context.Context, agentUserID int64) (*service.AgentDetail, error) {
+	d, err := queryAgentDetail(ctx, r.db, agentUserID, 0, true)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, service.ErrResellerRoleNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reseller GetAdminAgentDetail: %w", err)
+	}
+	return d, nil
+}
+
+func (r *resellerRepository) UpdateAgent(
+	ctx context.Context,
+	agentUserID, updatedBy int64,
+	input service.UpdateAgentInput,
+) (*service.AgentDetail, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("reseller UpdateAgent begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if err := lockResellerMutations(ctx, tx); err != nil {
+		return nil, err
+	}
+	currentRole, _, err := lockResellerRole(ctx, tx, agentUserID)
+	if err != nil {
+		return nil, err
+	}
+	if input.Role != nil && currentRole == service.ResellerRoleManager && *input.Role == service.ResellerRoleAgent {
+		hasChildren, err := hasDirectAgents(ctx, tx, agentUserID)
+		if err != nil {
+			return nil, err
+		}
+		if hasChildren {
+			return nil, service.ErrResellerHasDirectAgents
+		}
+	}
+	if input.ManagerID.Set && input.ManagerID.Value != nil {
+		if err := validateManagerAssignment(ctx, tx, agentUserID, *input.ManagerID.Value); err != nil {
+			return nil, err
+		}
+	}
+
+	roleSet := input.Role != nil
+	role := ""
+	if roleSet {
+		role = *input.Role
+	}
+	notesSet := input.Notes != nil
+	notes := ""
+	if notesSet {
+		notes = *input.Notes
+	}
+	var managerValue any
+	if input.ManagerID.Value != nil {
+		managerValue = *input.ManagerID.Value
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE user_reseller_roles
+		SET role = CASE WHEN $3 THEN $4 ELSE role END,
+		    manager_id = CASE WHEN $5 THEN $6 ELSE manager_id END,
+		    notes = CASE WHEN $7 THEN $8 ELSE notes END,
+		    updated_at = NOW(),
+		    updated_by = $2
+		WHERE user_id = $1 AND revoked_at IS NULL`,
+		agentUserID, updatedBy,
+		roleSet, role,
+		input.ManagerID.Set, managerValue,
+		notesSet, notes,
+	); err != nil {
+		return nil, fmt.Errorf("reseller UpdateAgent update role: %w", err)
+	}
+
+	if input.RebatePolicy != nil {
+		var rate any
+		switch input.RebatePolicy.Mode {
+		case service.RebateModeGlobal:
+			rate = nil
+		case service.RebateModeDisabled:
+			rate = float64(0)
+		case service.RebateModeCustom:
+			rate = *input.RebatePolicy.RatePercent
+		}
+		result, err := tx.ExecContext(ctx, `
+			UPDATE user_affiliates
+			SET aff_rebate_rate_percent = $2, updated_at = NOW()
+			WHERE user_id = $1`, agentUserID, rate)
+		if err != nil {
+			return nil, fmt.Errorf("reseller UpdateAgent update rebate: %w", err)
+		}
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return nil, fmt.Errorf("reseller UpdateAgent rebate rows affected: %w", err)
+		}
+		if affected != 1 {
+			return nil, service.ErrAffiliateProfileNotFound
+		}
+	}
+
+	detail, err := queryAgentDetail(ctx, tx, agentUserID, 0, true)
+	if err != nil {
+		return nil, fmt.Errorf("reseller UpdateAgent detail: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("reseller UpdateAgent commit: %w", err)
+	}
+	return detail, nil
+}
+
+func (r *resellerRepository) DisableAgent(ctx context.Context, agentUserID, updatedBy int64, reason string) (*service.AgentDetail, error) {
+	return r.changeAgentStatus(ctx, agentUserID, updatedBy, service.ResellerStatusActive, service.ResellerStatusDisabled, reason)
+}
+
+func (r *resellerRepository) EnableAgent(ctx context.Context, agentUserID, updatedBy int64) (*service.AgentDetail, error) {
+	return r.changeAgentStatus(ctx, agentUserID, updatedBy, service.ResellerStatusDisabled, service.ResellerStatusActive, "")
+}
+
+func (r *resellerRepository) changeAgentStatus(
+	ctx context.Context,
+	agentUserID, updatedBy int64,
+	expected, next, reason string,
+) (*service.AgentDetail, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("reseller changeAgentStatus begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if err := lockResellerMutations(ctx, tx); err != nil {
+		return nil, err
+	}
+	_, status, err := lockResellerRole(ctx, tx, agentUserID)
+	if err != nil {
+		return nil, err
+	}
+	if status != expected {
+		return nil, service.ErrResellerStateConflict.WithMetadata(map[string]string{
+			"current_status": status,
+		})
+	}
+	if next == service.ResellerStatusDisabled {
+		_, err = tx.ExecContext(ctx, `
+			UPDATE user_reseller_roles
+			SET status = 'disabled', disabled_at = NOW(), disabled_by = $2,
+			    disabled_reason = $3, updated_at = NOW(), updated_by = $2
+			WHERE user_id = $1 AND revoked_at IS NULL`, agentUserID, updatedBy, reason)
+	} else {
+		_, err = tx.ExecContext(ctx, `
+			UPDATE user_reseller_roles
+			SET status = 'active', disabled_at = NULL, disabled_by = NULL,
+			    disabled_reason = '', updated_at = NOW(), updated_by = $2
+			WHERE user_id = $1 AND revoked_at IS NULL`, agentUserID, updatedBy)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reseller changeAgentStatus update: %w", err)
+	}
+	detail, err := queryAgentDetail(ctx, tx, agentUserID, 0, true)
+	if err != nil {
+		return nil, fmt.Errorf("reseller changeAgentStatus detail: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("reseller changeAgentStatus commit: %w", err)
+	}
+	return detail, nil
 }
 
 // --- GetAgentDashboard ---
@@ -390,6 +682,12 @@ func (r *resellerRepository) CreateWithdrawRequest(ctx context.Context, userID i
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if err := lockResellerMutations(ctx, tx); err != nil {
+		return nil, err
+	}
+	if _, _, err := lockResellerRole(ctx, tx, userID); err != nil {
+		return nil, err
+	}
 	var availableQuota float64
 	if err := tx.QueryRowContext(ctx, `
 		SELECT aff_quota::double precision
@@ -442,6 +740,9 @@ func (r *resellerRepository) CancelWithdrawRequest(ctx context.Context, withdraw
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if err := lockResellerMutations(ctx, tx); err != nil {
+		return err
+	}
 	var ownerID int64
 	var currentStatus string
 	if err := tx.QueryRowContext(ctx, `
@@ -505,7 +806,7 @@ func (r *resellerRepository) ListWithdrawRequests(ctx context.Context, filter se
 		   AND ($3 = 0 OR EXISTS (
 		       SELECT 1 FROM user_reseller_roles rr
 		       WHERE rr.user_id = affiliate_withdraw_requests.user_id
-		         AND rr.role = 'agent' AND rr.granted_by = $3 AND rr.revoked_at IS NULL
+		         AND rr.role = 'agent' AND rr.manager_id = $3 AND rr.revoked_at IS NULL
 		   ))`,
 		filter.UserID, filter.Status, filter.ManagerID,
 	).Scan(&total); err != nil {
@@ -522,7 +823,7 @@ func (r *resellerRepository) ListWithdrawRequests(ctx context.Context, filter se
 		   AND ($3 = 0 OR EXISTS (
 		       SELECT 1 FROM user_reseller_roles rr
 		       WHERE rr.user_id = wr.user_id
-		         AND rr.role = 'agent' AND rr.granted_by = $3 AND rr.revoked_at IS NULL
+		         AND rr.role = 'agent' AND rr.manager_id = $3 AND rr.revoked_at IS NULL
 		   ))
 		 ORDER BY wr.requested_at DESC
 		 LIMIT $4 OFFSET $5`,
@@ -553,6 +854,9 @@ func (r *resellerRepository) ReviewWithdrawRequest(ctx context.Context, id, revi
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if err := lockResellerMutations(ctx, tx); err != nil {
+		return err
+	}
 	var userID int64
 	var amount float64
 	var currentStatus string
@@ -669,4 +973,246 @@ func scanWithdrawRequest(rows *sql.Rows) (*service.WithdrawRequest, error) {
 		_ = json.Unmarshal(accountRaw, &req.AccountInfo)
 	}
 	return &req, nil
+}
+
+type resellerQueryRower interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+type resellerRowScanner interface {
+	Scan(...any) error
+}
+
+func scanAgentSummary(row resellerRowScanner) (*service.AgentSummary, error) {
+	var out service.AgentSummary
+	var managerID, grantedBy sql.NullInt64
+	var managerEmail, disabledByEmail sql.NullString
+	var rebateRate sql.NullFloat64
+	var disabledAt, revokedAt sql.NullTime
+	if err := row.Scan(
+		&out.UserID, &out.Email, &out.Username,
+		&out.Role, &out.Status,
+		&managerID, &managerEmail,
+		&rebateRate, &out.RebateMode,
+		&out.AffCode, &out.RecruitCount,
+		&out.CommissionBalance, &out.CommissionTotal,
+		&out.Notes, &out.GrantedAt, &out.UpdatedAt,
+		&disabledAt, &disabledByEmail, &out.DisabledReason,
+		&revokedAt, &grantedBy,
+	); err != nil {
+		return nil, err
+	}
+	if managerID.Valid {
+		out.ManagerID = &managerID.Int64
+	}
+	if managerEmail.Valid {
+		out.ManagerEmail = &managerEmail.String
+	}
+	if rebateRate.Valid {
+		out.EffectiveRebateRatePercent = &rebateRate.Float64
+	}
+	if disabledAt.Valid {
+		out.DisabledAt = &disabledAt.Time
+	}
+	if disabledByEmail.Valid {
+		out.DisabledByEmail = &disabledByEmail.String
+	}
+	if revokedAt.Valid {
+		out.RevokedAt = &revokedAt.Time
+	}
+	if grantedBy.Valid {
+		out.GrantedBy = &grantedBy.Int64
+	}
+	return &out, nil
+}
+
+func queryAgentDetail(
+	ctx context.Context,
+	queryer resellerQueryRower,
+	agentUserID, managerID int64,
+	includeRevoked bool,
+) (*service.AgentDetail, error) {
+	row := queryer.QueryRowContext(ctx, `
+		SELECT rr.user_id, u.email, COALESCE(u.username, ''),
+		       rr.role,
+		       CASE WHEN rr.revoked_at IS NOT NULL THEN 'revoked' ELSE rr.status END,
+		       rr.manager_id, manager.email,
+		       ua.aff_rebate_rate_percent::double precision,
+		       CASE
+		           WHEN ua.aff_rebate_rate_percent IS NULL THEN 'global'
+		           WHEN ua.aff_rebate_rate_percent = 0 THEN 'disabled'
+		           ELSE 'custom'
+		       END,
+		       COALESCE(ua.aff_code, ''), COALESCE(ua.aff_count, 0)::int,
+		       TO_CHAR(COALESCE(ua.aff_quota, 0), 'FM999999999999990.00'),
+		       TO_CHAR((
+		           COALESCE(ua.aff_quota, 0)
+		           + COALESCE((
+		               SELECT SUM(wr.amount)
+		               FROM affiliate_withdraw_requests wr
+		               WHERE wr.user_id = rr.user_id AND wr.status = 'approved'
+		           ), 0)
+		       ), 'FM999999999999990.00'),
+		       rr.notes, rr.granted_at, rr.updated_at, rr.disabled_at,
+		       disabled_user.email, rr.disabled_reason, rr.revoked_at, rr.granted_by,
+		       COALESCE(ua.aff_history_quota, 0)::double precision,
+		       (
+		           SELECT COUNT(*)
+		           FROM affiliate_withdraw_requests pending
+		           WHERE pending.user_id = rr.user_id AND pending.status = 'pending'
+		       )::int
+		  FROM user_reseller_roles rr
+		  JOIN users u ON u.id = rr.user_id
+		  LEFT JOIN user_affiliates ua ON ua.user_id = rr.user_id
+		  LEFT JOIN users manager ON manager.id = rr.manager_id
+		  LEFT JOIN users disabled_user ON disabled_user.id = rr.disabled_by
+		 WHERE rr.user_id = $1
+		   AND ($2 = 0 OR (rr.role = 'agent' AND rr.manager_id = $2))
+		   AND ($3 OR rr.revoked_at IS NULL)`,
+		agentUserID, managerID, includeRevoked,
+	)
+	var detail service.AgentDetail
+	var managerIDValue, grantedBy sql.NullInt64
+	var managerEmail, disabledByEmail sql.NullString
+	var rebateRate sql.NullFloat64
+	var disabledAt, revokedAt sql.NullTime
+	if err := row.Scan(
+		&detail.UserID, &detail.Email, &detail.Username,
+		&detail.Role, &detail.Status,
+		&managerIDValue, &managerEmail,
+		&rebateRate, &detail.RebateMode,
+		&detail.AffCode, &detail.RecruitCount,
+		&detail.CommissionBalance, &detail.CommissionTotal,
+		&detail.Notes, &detail.GrantedAt, &detail.UpdatedAt,
+		&disabledAt, &disabledByEmail, &detail.DisabledReason,
+		&revokedAt, &grantedBy,
+		&detail.AffHistoryQuota, &detail.PendingRedemptionCount,
+	); err != nil {
+		return nil, err
+	}
+	if managerIDValue.Valid {
+		detail.ManagerID = &managerIDValue.Int64
+	}
+	if managerEmail.Valid {
+		detail.ManagerEmail = &managerEmail.String
+	}
+	if rebateRate.Valid {
+		detail.EffectiveRebateRatePercent = &rebateRate.Float64
+	}
+	if disabledAt.Valid {
+		detail.DisabledAt = &disabledAt.Time
+	}
+	if disabledByEmail.Valid {
+		detail.DisabledByEmail = &disabledByEmail.String
+	}
+	if revokedAt.Valid {
+		detail.RevokedAt = &revokedAt.Time
+	}
+	if grantedBy.Valid {
+		detail.GrantedBy = &grantedBy.Int64
+	}
+	return &detail, nil
+}
+
+func lockResellerMutations(ctx context.Context, tx *sql.Tx) error {
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, resellerMutationAdvisoryLock); err != nil {
+		return fmt.Errorf("reseller mutation lock: %w", err)
+	}
+	return nil
+}
+
+func lockResellerRole(ctx context.Context, tx *sql.Tx, userID int64) (string, string, error) {
+	var role, status string
+	var revokedAt sql.NullTime
+	err := tx.QueryRowContext(ctx, `
+		SELECT role, status, revoked_at
+		FROM user_reseller_roles
+		WHERE user_id = $1
+		FOR UPDATE`, userID).Scan(&role, &status, &revokedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", "", service.ErrResellerRoleNotFound
+	}
+	if err != nil {
+		return "", "", fmt.Errorf("reseller lock role: %w", err)
+	}
+	if revokedAt.Valid {
+		return "", "", service.ErrResellerStateConflict.WithMetadata(map[string]string{
+			"current_status": service.ResellerStatusRevoked,
+		})
+	}
+	return role, status, nil
+}
+
+func hasDirectAgents(ctx context.Context, tx *sql.Tx, managerID int64) (bool, error) {
+	var exists bool
+	if err := tx.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM user_reseller_roles
+			WHERE manager_id = $1 AND role = 'agent' AND revoked_at IS NULL
+		)`, managerID).Scan(&exists); err != nil {
+		return false, fmt.Errorf("reseller check direct agents: %w", err)
+	}
+	return exists, nil
+}
+
+func ensureAgentCanBeRevoked(ctx context.Context, tx *sql.Tx, userID int64) error {
+	hasChildren, err := hasDirectAgents(ctx, tx, userID)
+	if err != nil {
+		return err
+	}
+	if hasChildren {
+		return service.ErrResellerHasDirectAgents
+	}
+	var pending bool
+	if err := tx.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM affiliate_withdraw_requests
+			WHERE user_id = $1 AND status = 'pending'
+		)`, userID).Scan(&pending); err != nil {
+		return fmt.Errorf("reseller check pending withdrawals: %w", err)
+	}
+	if pending {
+		return service.ErrResellerHasPendingWithdraw
+	}
+	return nil
+}
+
+func validateManagerAssignment(ctx context.Context, tx *sql.Tx, targetUserID, managerID int64) error {
+	var valid bool
+	if err := tx.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM user_reseller_roles
+			WHERE user_id = $1
+			  AND role = 'agent_manager'
+			  AND status = 'active'
+			  AND revoked_at IS NULL
+		)`, managerID).Scan(&valid); err != nil {
+		return fmt.Errorf("reseller validate manager: %w", err)
+	}
+	if !valid {
+		return service.ErrResellerManagerInvalid
+	}
+
+	current := managerID
+	for depth := 0; depth < 10; depth++ {
+		if current == targetUserID {
+			return service.ErrResellerManagerCycle
+		}
+		var parent sql.NullInt64
+		err := tx.QueryRowContext(ctx, `
+			SELECT manager_id
+			FROM user_reseller_roles
+			WHERE user_id = $1 AND revoked_at IS NULL`, current).Scan(&parent)
+		if errors.Is(err, sql.ErrNoRows) || !parent.Valid {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("reseller validate manager hierarchy: %w", err)
+		}
+		current = parent.Int64
+	}
+	return service.ErrResellerManagerCycle
 }

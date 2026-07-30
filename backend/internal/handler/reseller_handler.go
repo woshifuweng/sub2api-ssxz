@@ -7,6 +7,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -21,12 +22,25 @@ import (
 
 // ResellerHandler handles reseller/affiliate hierarchy endpoints.
 type ResellerHandler struct {
-	svc *service.ResellerService
+	svc            *service.ResellerService
+	totpService    *service.TotpService
+	userService    *service.UserService
+	settingService *service.SettingService
 }
 
 // NewResellerHandler constructs the handler. Called from wire.go.
-func NewResellerHandler(svc *service.ResellerService) *ResellerHandler {
-	return &ResellerHandler{svc: svc}
+func NewResellerHandler(
+	svc *service.ResellerService,
+	totpService *service.TotpService,
+	userService *service.UserService,
+	settingService *service.SettingService,
+) *ResellerHandler {
+	return &ResellerHandler{
+		svc:            svc,
+		totpService:    totpService,
+		userService:    userService,
+		settingService: settingService,
+	}
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -418,6 +432,9 @@ func (h *ResellerHandler) AdminGrantRoleGateway(c gatewayctx.GatewayContext) {
 	if !ok {
 		return
 	}
+	if !middleware2.EnforceStepUpGateway(c, h.totpService, h.userService, h.settingService) {
+		return
+	}
 	targetID, err := strconv.ParseInt(c.PathParam("id"), 10, 64)
 	if err != nil || targetID <= 0 {
 		response.ErrorContext(h.r(c), http.StatusBadRequest, "invalid user id")
@@ -441,7 +458,11 @@ func (h *ResellerHandler) AdminRevokeRole(c *gin.Context) {
 }
 
 func (h *ResellerHandler) AdminRevokeRoleGateway(c gatewayctx.GatewayContext) {
-	if _, ok := h.requireAdminUserSession(c); !ok {
+	updatedBy, ok := h.requireAdminUserSession(c)
+	if !ok {
+		return
+	}
+	if !middleware2.EnforceStepUpGateway(c, h.totpService, h.userService, h.settingService) {
 		return
 	}
 	targetID, err := strconv.ParseInt(c.PathParam("id"), 10, 64)
@@ -449,7 +470,7 @@ func (h *ResellerHandler) AdminRevokeRoleGateway(c gatewayctx.GatewayContext) {
 		response.ErrorContext(h.r(c), http.StatusBadRequest, "invalid user id")
 		return
 	}
-	if err := h.svc.RevokeRole(c.Request().Context(), targetID); err != nil {
+	if err := h.svc.RevokeRole(c.Request().Context(), targetID, updatedBy); err != nil {
 		response.ErrorFromContext(h.r(c), err)
 		return
 	}
@@ -482,9 +503,17 @@ func (h *ResellerHandler) AdminListAgents(c *gin.Context) {
 
 func (h *ResellerHandler) AdminListAgentsGateway(c gatewayctx.GatewayContext) {
 	page, pageSize := response.ParsePaginationValues(c)
+	managerID, err := parseOptionalPositiveInt64(c.QueryValue("manager_id"))
+	if err != nil {
+		response.ErrorContext(h.r(c), http.StatusBadRequest, "invalid manager id")
+		return
+	}
 	items, total, err := h.svc.ListAgents(c.Request().Context(), service.AgentFilter{
 		IncludeAllRoles: true,
 		Search:          c.QueryValue("search"),
+		Status:          c.QueryValue("status"),
+		Role:            c.QueryValue("role"),
+		ManagerID:       managerID,
 		Page:            page,
 		PageSize:        pageSize,
 	})
@@ -493,4 +522,169 @@ func (h *ResellerHandler) AdminListAgentsGateway(c gatewayctx.GatewayContext) {
 		return
 	}
 	response.PaginatedContext(h.r(c), items, total, page, pageSize)
+}
+
+// AdminGetAgentDetail GET /api/v1/admin/reseller/agents/:id
+func (h *ResellerHandler) AdminGetAgentDetail(c *gin.Context) {
+	h.AdminGetAgentDetailGateway(gatewayctx.FromGin(c))
+}
+
+func (h *ResellerHandler) AdminGetAgentDetailGateway(c gatewayctx.GatewayContext) {
+	targetID, ok := h.adminAgentTargetID(c)
+	if !ok {
+		return
+	}
+	detail, err := h.svc.GetAdminAgentDetail(c.Request().Context(), targetID)
+	if err != nil {
+		response.ErrorFromContext(h.r(c), err)
+		return
+	}
+	response.SuccessContext(h.r(c), detail)
+}
+
+type adminUpdateAgentBody struct {
+	Role         *string                    `json:"role"`
+	ManagerID    service.OptionalInt64      `json:"-"`
+	Notes        *string                    `json:"notes"`
+	RebatePolicy *service.RebatePolicyInput `json:"rebate_policy"`
+	Reason       string                     `json:"reason"`
+}
+
+func (b *adminUpdateAgentBody) UnmarshalJSON(data []byte) error {
+	type bodyAlias adminUpdateAgentBody
+	var alias bodyAlias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+	*b = adminUpdateAgentBody(alias)
+
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	raw, exists := fields["manager_id"]
+	if !exists {
+		return nil
+	}
+	b.ManagerID.Set = true
+	if string(raw) == "null" {
+		return nil
+	}
+	var managerID int64
+	if err := json.Unmarshal(raw, &managerID); err != nil {
+		return err
+	}
+	b.ManagerID.Value = &managerID
+	return nil
+}
+
+// AdminUpdateAgent PATCH /api/v1/admin/reseller/agents/:id
+func (h *ResellerHandler) AdminUpdateAgent(c *gin.Context) {
+	h.AdminUpdateAgentGateway(gatewayctx.FromGin(c))
+}
+
+func (h *ResellerHandler) AdminUpdateAgentGateway(c gatewayctx.GatewayContext) {
+	updatedBy, ok := h.requireAdminUserSession(c)
+	if !ok {
+		return
+	}
+	targetID, ok := h.adminAgentTargetID(c)
+	if !ok {
+		return
+	}
+	var body adminUpdateAgentBody
+	if err := c.BindJSON(&body); err != nil {
+		response.ErrorContext(h.r(c), http.StatusBadRequest, "invalid request")
+		return
+	}
+	if body.Role != nil || body.ManagerID.Set || body.RebatePolicy != nil {
+		if !middleware2.EnforceStepUpGateway(c, h.totpService, h.userService, h.settingService) {
+			return
+		}
+	}
+	detail, err := h.svc.UpdateAgent(c.Request().Context(), targetID, updatedBy, service.UpdateAgentInput{
+		Role:         body.Role,
+		ManagerID:    body.ManagerID,
+		Notes:        body.Notes,
+		RebatePolicy: body.RebatePolicy,
+		Reason:       body.Reason,
+	})
+	if err != nil {
+		response.ErrorFromContext(h.r(c), err)
+		return
+	}
+	response.SuccessContext(h.r(c), detail)
+}
+
+type adminDisableAgentBody struct {
+	Reason string `json:"reason"`
+}
+
+// AdminDisableAgent POST /api/v1/admin/reseller/agents/:id/disable
+func (h *ResellerHandler) AdminDisableAgent(c *gin.Context) {
+	h.AdminDisableAgentGateway(gatewayctx.FromGin(c))
+}
+
+func (h *ResellerHandler) AdminDisableAgentGateway(c gatewayctx.GatewayContext) {
+	updatedBy, ok := h.requireAdminUserSession(c)
+	if !ok {
+		return
+	}
+	targetID, ok := h.adminAgentTargetID(c)
+	if !ok {
+		return
+	}
+	var body adminDisableAgentBody
+	if err := c.BindJSON(&body); err != nil {
+		response.ErrorContext(h.r(c), http.StatusBadRequest, "invalid request")
+		return
+	}
+	detail, err := h.svc.DisableAgent(c.Request().Context(), targetID, updatedBy, body.Reason)
+	if err != nil {
+		response.ErrorFromContext(h.r(c), err)
+		return
+	}
+	response.SuccessContext(h.r(c), detail)
+}
+
+// AdminEnableAgent POST /api/v1/admin/reseller/agents/:id/enable
+func (h *ResellerHandler) AdminEnableAgent(c *gin.Context) {
+	h.AdminEnableAgentGateway(gatewayctx.FromGin(c))
+}
+
+func (h *ResellerHandler) AdminEnableAgentGateway(c gatewayctx.GatewayContext) {
+	updatedBy, ok := h.requireAdminUserSession(c)
+	if !ok {
+		return
+	}
+	targetID, ok := h.adminAgentTargetID(c)
+	if !ok {
+		return
+	}
+	detail, err := h.svc.EnableAgent(c.Request().Context(), targetID, updatedBy)
+	if err != nil {
+		response.ErrorFromContext(h.r(c), err)
+		return
+	}
+	response.SuccessContext(h.r(c), detail)
+}
+
+func (h *ResellerHandler) adminAgentTargetID(c gatewayctx.GatewayContext) (int64, bool) {
+	targetID, err := strconv.ParseInt(c.PathParam("id"), 10, 64)
+	if err != nil || targetID <= 0 {
+		response.ErrorContext(h.r(c), http.StatusBadRequest, "invalid agent id")
+		return 0, false
+	}
+	return targetID, true
+}
+
+func parseOptionalPositiveInt64(raw string) (int64, error) {
+	if raw == "" {
+		return 0, nil
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value <= 0 {
+		return 0, errors.New("invalid positive integer")
+	}
+	return value, nil
 }

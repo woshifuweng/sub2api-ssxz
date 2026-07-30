@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql/driver"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -20,10 +21,25 @@ func newResellerRepoMock(t *testing.T) (*resellerRepository, sqlmock.Sqlmock) {
 	return &resellerRepository{db: db}, mock
 }
 
+func expectResellerMutationLock(mock sqlmock.Sqlmock) {
+	mock.ExpectExec(`SELECT pg_advisory_xact_lock\(\$1\)`).
+		WithArgs(resellerMutationAdvisoryLock).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+}
+
+func expectActiveResellerRoleLock(mock sqlmock.Sqlmock, userID int64, role string) {
+	mock.ExpectQuery(`SELECT role, status, revoked_at.*FOR UPDATE`).
+		WithArgs(userID).
+		WillReturnRows(sqlmock.NewRows([]string{"role", "status", "revoked_at"}).
+			AddRow(role, service.ResellerStatusActive, nil))
+}
+
 func TestResellerRepositoryCreateWithdrawRequestRejectsReservedBalance(t *testing.T) {
 	repo, mock := newResellerRepoMock(t)
 
 	mock.ExpectBegin()
+	expectResellerMutationLock(mock)
+	expectActiveResellerRoleLock(mock, 7, service.ResellerRoleAgent)
 	mock.ExpectQuery(`SELECT aff_quota::double precision.*FOR UPDATE`).
 		WithArgs(int64(7)).
 		WillReturnRows(sqlmock.NewRows([]string{"aff_quota"}).AddRow(100.0))
@@ -47,6 +63,8 @@ func TestResellerRepositoryCreateWithdrawRequestCommitsWithinAvailableBalance(t 
 	now := time.Now().UTC()
 
 	mock.ExpectBegin()
+	expectResellerMutationLock(mock)
+	expectActiveResellerRoleLock(mock, 7, service.ResellerRoleAgent)
 	mock.ExpectQuery(`SELECT aff_quota::double precision.*FOR UPDATE`).
 		WithArgs(int64(7)).
 		WillReturnRows(sqlmock.NewRows([]string{"aff_quota"}).AddRow(100.0))
@@ -97,16 +115,20 @@ func TestResellerRepositoryListAgentsIncludesManagersForAdmin(t *testing.T) {
 	now := time.Now().UTC()
 
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM user_reseller_roles`).
-		WithArgs("", int64(0), true).
+		WithArgs("", int64(0), true, "current", "").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
-	mock.ExpectQuery(`SELECT rr.user_id.*rr.role, rr.commission_rate`).
-		WithArgs("", int64(0), true, 20, 0).
+	mock.ExpectQuery(`SELECT rr.user_id.*rr.role`).
+		WithArgs("", int64(0), true, "current", "", 20, 0).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"user_id", "email", "username", "role", "commission_rate",
-			"aff_code", "aff_count", "aff_quota", "granted_at", "granted_by",
+			"user_id", "email", "username", "role", "status", "manager_id", "manager_email",
+			"rebate_rate", "rebate_mode", "aff_code", "aff_count", "commission_balance",
+			"commission_total", "notes", "granted_at", "updated_at", "disabled_at",
+			"disabled_by_email", "disabled_reason", "revoked_at", "granted_by",
 		}).
-			AddRow(int64(7), "agent@example.com", "Agent", "agent", 0.05, "A7", 3, 12.0, now, int64(1)).
-			AddRow(int64(8), "manager@example.com", "Manager", "agent_manager", 0.10, "M8", 5, 20.0, now, int64(1)))
+			AddRow(int64(7), "agent@example.com", "Agent", "agent", "active", nil, nil,
+				5.0, "custom", "A7", 3, "12.00", "20.00", "agent", now, now, nil, nil, "", nil, int64(1)).
+			AddRow(int64(8), "manager@example.com", "Manager", "agent_manager", "active", nil, nil,
+				10.0, "custom", "M8", 5, "20.00", "30.00", "manager", now, now, nil, nil, "", nil, int64(1)))
 
 	items, total, err := repo.ListAgents(context.Background(), service.AgentFilter{IncludeAllRoles: true})
 
@@ -114,7 +136,7 @@ func TestResellerRepositoryListAgentsIncludesManagersForAdmin(t *testing.T) {
 	require.Equal(t, int64(2), total)
 	require.Len(t, items, 2)
 	require.Equal(t, "agent_manager", items[1].Role)
-	require.Equal(t, 0.10, items[1].CommissionRate)
+	require.Equal(t, 10.0, *items[1].EffectiveRebateRatePercent)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -146,10 +168,35 @@ func TestResellerRepositoryListWithdrawRequestsIncludesUsername(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestResellerRepositoryListWithdrawRequestsScopesManagerByLifecycleManagerID(t *testing.T) {
+	repo, mock := newResellerRepoMock(t)
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM affiliate_withdraw_requests.*rr\.manager_id = \$3`).
+		WithArgs(int64(0), "pending", int64(33)).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	mock.ExpectQuery(`SELECT wr\.id.*rr\.manager_id = \$3`).
+		WithArgs(int64(0), "pending", int64(33), 20, 0).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "email", "username", "amount", "method", "account_info",
+			"status", "note", "requested_at", "reviewed_at", "reviewed_by",
+		}))
+
+	items, total, err := repo.ListWithdrawRequests(context.Background(), service.WithdrawFilter{
+		ManagerID: 33,
+		Status:    "pending",
+	})
+
+	require.NoError(t, err)
+	require.Zero(t, total)
+	require.Empty(t, items)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestResellerRepositoryReviewWithdrawTransfersOnlyRequestedAmount(t *testing.T) {
 	repo, mock := newResellerRepoMock(t)
 
 	mock.ExpectBegin()
+	expectResellerMutationLock(mock)
 	mock.ExpectQuery(`SELECT user_id, amount::double precision, status.*FOR UPDATE`).
 		WithArgs(int64(12)).
 		WillReturnRows(sqlmock.NewRows([]string{"user_id", "amount", "status"}).AddRow(int64(7), 25.0, "pending"))
@@ -177,6 +224,7 @@ func TestResellerRepositoryReviewWithdrawRejectsRepeatedReview(t *testing.T) {
 	repo, mock := newResellerRepoMock(t)
 
 	mock.ExpectBegin()
+	expectResellerMutationLock(mock)
 	mock.ExpectQuery(`SELECT user_id, amount::double precision, status.*FOR UPDATE`).
 		WithArgs(int64(12)).
 		WillReturnRows(sqlmock.NewRows([]string{"user_id", "amount", "status"}).AddRow(int64(7), 25.0, "approved"))
@@ -192,6 +240,7 @@ func TestResellerRepositoryCancelWithdrawRejectsForeignOwner(t *testing.T) {
 	repo, mock := newResellerRepoMock(t)
 
 	mock.ExpectBegin()
+	expectResellerMutationLock(mock)
 	mock.ExpectQuery(`SELECT user_id, status.*FOR UPDATE`).
 		WithArgs(int64(12)).
 		WillReturnRows(sqlmock.NewRows([]string{"user_id", "status"}).AddRow(int64(8), "pending"))
@@ -207,6 +256,7 @@ func TestResellerRepositoryCancelWithdrawRejectsNonPendingState(t *testing.T) {
 	repo, mock := newResellerRepoMock(t)
 
 	mock.ExpectBegin()
+	expectResellerMutationLock(mock)
 	mock.ExpectQuery(`SELECT user_id, status.*FOR UPDATE`).
 		WithArgs(int64(12)).
 		WillReturnRows(sqlmock.NewRows([]string{"user_id", "status"}).AddRow(int64(7), "approved"))
@@ -222,6 +272,7 @@ func TestResellerRepositoryCancelWithdrawCommitsPendingRequest(t *testing.T) {
 	repo, mock := newResellerRepoMock(t)
 
 	mock.ExpectBegin()
+	expectResellerMutationLock(mock)
 	mock.ExpectQuery(`SELECT user_id, status.*FOR UPDATE`).
 		WithArgs(int64(12)).
 		WillReturnRows(sqlmock.NewRows([]string{"user_id", "status"}).AddRow(int64(7), "pending"))
@@ -239,13 +290,139 @@ func TestResellerRepositoryCancelWithdrawCommitsPendingRequest(t *testing.T) {
 func TestResellerRepositoryRevokeManagedAgentRejectsForeignAgent(t *testing.T) {
 	repo, mock := newResellerRepoMock(t)
 
-	mock.ExpectExec(`UPDATE user_reseller_roles`).
-		WithArgs(int64(9), int64(3)).
-		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectBegin()
+	expectResellerMutationLock(mock)
+	mock.ExpectQuery(`SELECT role, manager_id, revoked_at.*FOR UPDATE`).
+		WithArgs(int64(9)).
+		WillReturnRows(sqlmock.NewRows([]string{"role", "manager_id", "revoked_at"}).
+			AddRow("agent", int64(4), nil))
+	mock.ExpectRollback()
 
 	err := repo.RevokeManagedAgent(context.Background(), 9, 3)
 
 	require.ErrorIs(t, err, service.ErrResellerAgentNotManaged)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResellerRepositoryGrantRoleRejectsManagerDowngradeWithDirectAgents(t *testing.T) {
+	repo, mock := newResellerRepoMock(t)
+
+	mock.ExpectBegin()
+	expectResellerMutationLock(mock)
+	mock.ExpectQuery(`SELECT role, revoked_at.*FOR UPDATE`).
+		WithArgs(int64(9)).
+		WillReturnRows(sqlmock.NewRows([]string{"role", "revoked_at"}).
+			AddRow(service.ResellerRoleManager, nil))
+	mock.ExpectQuery(`SELECT EXISTS.*manager_id = \$1`).
+		WithArgs(int64(9)).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectRollback()
+
+	err := repo.GrantRole(context.Background(), 9, service.ResellerRoleAgent, 1, "downgrade")
+
+	require.ErrorIs(t, err, service.ErrResellerHasDirectAgents)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResellerRepositoryUpdateAgentRejectsManagerDowngradeWithDirectAgents(t *testing.T) {
+	repo, mock := newResellerRepoMock(t)
+	nextRole := service.ResellerRoleAgent
+
+	mock.ExpectBegin()
+	expectResellerMutationLock(mock)
+	expectActiveResellerRoleLock(mock, 9, service.ResellerRoleManager)
+	mock.ExpectQuery(`SELECT EXISTS.*manager_id = \$1`).
+		WithArgs(int64(9)).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectRollback()
+
+	_, err := repo.UpdateAgent(context.Background(), 9, 1, service.UpdateAgentInput{
+		Role: &nextRole,
+	})
+
+	require.ErrorIs(t, err, service.ErrResellerHasDirectAgents)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResellerRepositoryUpdateAgentRollsBackWhenRebateWriteFails(t *testing.T) {
+	repo, mock := newResellerRepoMock(t)
+	nextRole := service.ResellerRoleManager
+	rate := 5.0
+
+	mock.ExpectBegin()
+	expectResellerMutationLock(mock)
+	expectActiveResellerRoleLock(mock, 9, service.ResellerRoleAgent)
+	mock.ExpectExec(`UPDATE user_reseller_roles`).
+		WithArgs(int64(9), int64(1), true, nextRole, false, nil, false, "").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`UPDATE user_affiliates`).
+		WithArgs(int64(9), rate).
+		WillReturnError(errors.New("write failed"))
+	mock.ExpectRollback()
+
+	_, err := repo.UpdateAgent(context.Background(), 9, 1, service.UpdateAgentInput{
+		Role: &nextRole,
+		RebatePolicy: &service.RebatePolicyInput{
+			Mode:        service.RebateModeCustom,
+			RatePercent: &rate,
+		},
+	})
+
+	require.ErrorContains(t, err, "update rebate")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResellerRepositoryDisableAgentRejectsAlreadyDisabledState(t *testing.T) {
+	repo, mock := newResellerRepoMock(t)
+
+	mock.ExpectBegin()
+	expectResellerMutationLock(mock)
+	mock.ExpectQuery(`SELECT role, status, revoked_at.*FOR UPDATE`).
+		WithArgs(int64(9)).
+		WillReturnRows(sqlmock.NewRows([]string{"role", "status", "revoked_at"}).
+			AddRow(service.ResellerRoleAgent, service.ResellerStatusDisabled, nil))
+	mock.ExpectRollback()
+
+	_, err := repo.DisableAgent(context.Background(), 9, 1, "manual review")
+
+	require.ErrorIs(t, err, service.ErrResellerStateConflict)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResellerRepositoryRevokeRoleRejectsDirectAgents(t *testing.T) {
+	repo, mock := newResellerRepoMock(t)
+
+	mock.ExpectBegin()
+	expectResellerMutationLock(mock)
+	expectActiveResellerRoleLock(mock, 9, service.ResellerRoleManager)
+	mock.ExpectQuery(`SELECT EXISTS.*manager_id = \$1`).
+		WithArgs(int64(9)).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectRollback()
+
+	err := repo.RevokeRole(context.Background(), 9, 1)
+
+	require.ErrorIs(t, err, service.ErrResellerHasDirectAgents)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResellerRepositoryRevokeRoleRejectsPendingWithdrawals(t *testing.T) {
+	repo, mock := newResellerRepoMock(t)
+
+	mock.ExpectBegin()
+	expectResellerMutationLock(mock)
+	expectActiveResellerRoleLock(mock, 9, service.ResellerRoleAgent)
+	mock.ExpectQuery(`SELECT EXISTS.*manager_id = \$1`).
+		WithArgs(int64(9)).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+	mock.ExpectQuery(`SELECT EXISTS.*affiliate_withdraw_requests`).
+		WithArgs(int64(9)).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+	mock.ExpectRollback()
+
+	err := repo.RevokeRole(context.Background(), 9, 1)
+
+	require.ErrorIs(t, err, service.ErrResellerHasPendingWithdraw)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

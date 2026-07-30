@@ -32,6 +32,7 @@ const (
 	middlewareTagBodyLimitGW              = "gateway_body_limit"
 	middlewareTagMessageDispatch          = "message_dispatch"
 	middlewareTagAdminAuth                = "admin_auth"
+	middlewareTagAuditLog                 = "audit_log"
 	middlewareTagJWTAuth                  = "jwt_auth"
 	middlewareTagBackendModeAuth          = "backend_mode_auth_guard"
 	middlewareTagBackendModeUser          = "backend_mode_user_guard"
@@ -160,11 +161,25 @@ func dispatchExecutableRoute(runtimeCfg *executableRuntimeConfig, req *http.Requ
 	if !applyExecutableMiddlewares(runtimeCfg, ctx, route.middleware) {
 		return true
 	}
+	finishAudit := func() {}
+	if hasExecutableMiddleware(route.middleware, middlewareTagAuditLog) {
+		finishAudit = sermiddleware.BeginAuditLogContext(runtimeCfg.auditService, ctx, route.path)
+	}
+	defer finishAudit()
 	route.handler(ctx)
 	if shouldFallbackToHTTPHandler(ctx) {
 		return false
 	}
 	return true
+}
+
+func hasExecutableMiddleware(tags []string, target string) bool {
+	for _, tag := range tags {
+		if tag == target {
+			return true
+		}
+	}
+	return false
 }
 
 func shouldFallbackToHTTPHandler(c gatewayctx.GatewayContext) bool {
@@ -263,6 +278,8 @@ func applyExecutableMiddlewares(runtimeCfg *executableRuntimeConfig, c gatewayct
 			if runtimeCfg == nil || !sermiddleware.ApplyAdminAuthContext(runtimeCfg.authService, runtimeCfg.userService, runtimeCfg.settingService, runtimeCfg.auditService, c) {
 				return false
 			}
+		case middlewareTagAuditLog:
+			// The dispatcher starts this after authentication and completes it after the handler.
 		case middlewareTagJWTAuth:
 			if runtimeCfg == nil || !sermiddleware.ApplyJWTAuthContext(runtimeCfg.authService, runtimeCfg.userService, runtimeCfg.userService, runtimeCfg.settingService, runtimeCfg.auditService, c) {
 				return false

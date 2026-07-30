@@ -33,7 +33,7 @@ func (s *resellerRepositoryStub) GrantManagedAgent(_ context.Context, userID, ma
 	s.managedGrant = [2]int64{userID, managerID}
 	return nil
 }
-func (s *resellerRepositoryStub) RevokeRole(context.Context, int64) error { return nil }
+func (s *resellerRepositoryStub) RevokeRole(context.Context, int64, int64) error { return nil }
 func (s *resellerRepositoryStub) RevokeManagedAgent(_ context.Context, userID, managerID int64) error {
 	s.managedRevoke = [2]int64{userID, managerID}
 	return nil
@@ -44,6 +44,18 @@ func (s *resellerRepositoryStub) ListAgents(_ context.Context, filter AgentFilte
 }
 func (s *resellerRepositoryStub) GetAgentDetail(context.Context, int64, int64) (*AgentDetail, error) {
 	return &AgentDetail{}, nil
+}
+func (s *resellerRepositoryStub) GetAdminAgentDetail(context.Context, int64) (*AgentDetail, error) {
+	return &AgentDetail{}, nil
+}
+func (s *resellerRepositoryStub) UpdateAgent(_ context.Context, _ int64, _ int64, input UpdateAgentInput) (*AgentDetail, error) {
+	return &AgentDetail{AgentSummary: AgentSummary{Role: resellerStringValue(input.Role)}}, nil
+}
+func (s *resellerRepositoryStub) DisableAgent(context.Context, int64, int64, string) (*AgentDetail, error) {
+	return &AgentDetail{AgentSummary: AgentSummary{Status: ResellerStatusDisabled}}, nil
+}
+func (s *resellerRepositoryStub) EnableAgent(context.Context, int64, int64) (*AgentDetail, error) {
+	return &AgentDetail{AgentSummary: AgentSummary{Status: ResellerStatusActive}}, nil
 }
 func (s *resellerRepositoryStub) GetAgentDashboard(context.Context, int64) (*AgentDashboard, error) {
 	return &AgentDashboard{}, nil
@@ -199,4 +211,44 @@ func TestResellerServiceCancelWithdrawalDelegatesOwnershipCheck(t *testing.T) {
 
 	require.NoError(t, svc.CancelWithdrawal(context.Background(), 7, 12))
 	require.Equal(t, [2]int64{12, 7}, repo.cancelled)
+}
+
+func TestResellerServiceUpdateAgentRejectsInvalidManager(t *testing.T) {
+	repo := &resellerRepositoryStub{}
+	svc := NewResellerService(repo)
+	managerID := int64(7)
+
+	_, err := svc.UpdateAgent(context.Background(), 7, 1, UpdateAgentInput{
+		ManagerID: OptionalInt64{Set: true, Value: &managerID},
+	})
+
+	require.ErrorIs(t, err, ErrResellerManagerInvalid)
+}
+
+func TestResellerServiceUpdateAgentRejectsInvalidRebatePolicy(t *testing.T) {
+	repo := &resellerRepositoryStub{}
+	svc := NewResellerService(repo)
+	rate := 101.0
+
+	_, err := svc.UpdateAgent(context.Background(), 7, 1, UpdateAgentInput{
+		RebatePolicy: &RebatePolicyInput{Mode: RebateModeCustom, RatePercent: &rate},
+	})
+
+	require.ErrorIs(t, err, ErrResellerInvalidRebatePolicy)
+}
+
+func TestResellerServiceDisableAgentRequiresReason(t *testing.T) {
+	repo := &resellerRepositoryStub{}
+	svc := NewResellerService(repo)
+
+	_, err := svc.DisableAgent(context.Background(), 7, 1, " ")
+
+	require.ErrorIs(t, err, ErrResellerDisableReason)
+}
+
+func resellerStringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }

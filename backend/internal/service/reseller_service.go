@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"strings"
 	"time"
 
@@ -17,6 +18,15 @@ const (
 	ResellerRoleAgent = "agent"
 	// ResellerRoleManager marks a user as an operations manager (运营管理员).
 	ResellerRoleManager = "agent_manager"
+
+	ResellerStatusActive   = "active"
+	ResellerStatusDisabled = "disabled"
+	ResellerStatusRevoked  = "revoked"
+	ResellerStatusAll      = "all"
+
+	RebateModeGlobal   = "global"
+	RebateModeDisabled = "disabled"
+	RebateModeCustom   = "custom"
 
 	WithdrawStatusPending   = "pending"
 	WithdrawStatusApproved  = "approved"
@@ -44,6 +54,14 @@ var (
 	ErrWithdrawNotPending          = infraerrors.Conflict("WITHDRAW_NOT_PENDING", "only pending withdrawals can be changed")
 	ErrResellerAgentNotManaged     = infraerrors.Forbidden("AGENT_NOT_MANAGED", "agent is not managed by this manager")
 	ErrResellerCannotManageSelf    = infraerrors.BadRequest("CANNOT_MANAGE_SELF", "manager cannot grant or revoke their own role")
+	ErrResellerInvalidStatus       = infraerrors.BadRequest("INVALID_RESELLER_STATUS", "status must be active, disabled, revoked, or all")
+	ErrResellerInvalidRebatePolicy = infraerrors.BadRequest("INVALID_REBATE_POLICY", "invalid rebate policy")
+	ErrResellerManagerInvalid      = infraerrors.New(422, "INVALID_RESELLER_MANAGER", "manager must be an active agent manager")
+	ErrResellerManagerCycle        = infraerrors.New(422, "RESELLER_MANAGER_CYCLE", "manager assignment creates a hierarchy cycle")
+	ErrResellerHasDirectAgents     = infraerrors.Conflict("RESELLER_HAS_DIRECT_AGENTS", "agent manager still has direct agents")
+	ErrResellerHasPendingWithdraw  = infraerrors.Conflict("RESELLER_HAS_PENDING_WITHDRAWALS", "agent still has pending balance conversions")
+	ErrResellerStateConflict       = infraerrors.Conflict("RESELLER_STATE_CONFLICT", "reseller state does not allow this operation")
+	ErrResellerDisableReason       = infraerrors.BadRequest("DISABLE_REASON_REQUIRED", "disable reason is required")
 )
 
 // --- Domain types ---
@@ -52,25 +70,38 @@ var (
 type ResellerRoleRecord struct {
 	UserID         int64      `json:"user_id"`
 	Role           string     `json:"role"`
+	Status         string     `json:"status"`
+	ManagerID      *int64     `json:"manager_id,omitempty"`
 	GrantedBy      *int64     `json:"granted_by,omitempty"`
 	GrantedAt      time.Time  `json:"granted_at"`
 	RevokedAt      *time.Time `json:"revoked_at,omitempty"`
 	Notes          string     `json:"notes"`
-	CommissionRate float64    `json:"commission_rate"`
+	CommissionRate float64    `json:"-"`
 }
 
-// AgentSummary is used by manager to list all agents.
+// AgentSummary is shared by manager and admin list views.
 type AgentSummary struct {
-	UserID         int64     `json:"user_id"`
-	Email          string    `json:"email"`
-	Username       string    `json:"username"`
-	Role           string    `json:"role"`
-	CommissionRate float64   `json:"commission_rate"`
-	AffCode        string    `json:"aff_code"`
-	RecruitCount   int       `json:"recruit_count"`
-	AffQuota       float64   `json:"aff_quota"`
-	GrantedAt      time.Time `json:"granted_at"`
-	GrantedBy      *int64    `json:"granted_by,omitempty"`
+	UserID                     int64      `json:"user_id"`
+	Email                      string     `json:"email"`
+	Username                   string     `json:"username"`
+	Role                       string     `json:"role"`
+	Status                     string     `json:"status"`
+	ManagerID                  *int64     `json:"manager_id"`
+	ManagerEmail               *string    `json:"manager_email"`
+	EffectiveRebateRatePercent *float64   `json:"effective_rebate_rate_percent"`
+	RebateMode                 string     `json:"rebate_mode"`
+	AffCode                    string     `json:"aff_code"`
+	RecruitCount               int        `json:"recruit_count"`
+	CommissionBalance          string     `json:"commission_balance"`
+	CommissionTotal            string     `json:"commission_total"`
+	Notes                      string     `json:"notes"`
+	GrantedAt                  time.Time  `json:"granted_at"`
+	UpdatedAt                  time.Time  `json:"updated_at"`
+	DisabledAt                 *time.Time `json:"disabled_at"`
+	DisabledByEmail            *string    `json:"disabled_by_email"`
+	DisabledReason             string     `json:"disabled_reason"`
+	RevokedAt                  *time.Time `json:"revoked_at"`
+	GrantedBy                  *int64     `json:"granted_by,omitempty"`
 }
 
 // RecruitRecord is a single customer under an agent.
@@ -86,8 +117,9 @@ type RecruitRecord struct {
 // AgentDetail is manager view of a single agent with their recruits.
 type AgentDetail struct {
 	AgentSummary
-	AffHistoryQuota float64         `json:"aff_history_quota"`
-	Recruits        []RecruitRecord `json:"recruits"`
+	AffHistoryQuota        float64         `json:"aff_history_quota"`
+	PendingRedemptionCount int             `json:"pending_redemption_count"`
+	Recruits               []RecruitRecord `json:"recruits,omitempty"`
 }
 
 // AgentDashboard is the agent's own view of their stats and balance.
@@ -138,8 +170,29 @@ type AgentFilter struct {
 	ManagerID       int64
 	IncludeAllRoles bool
 	Search          string
+	Status          string
+	Role            string
 	Page            int
 	PageSize        int
+}
+
+// OptionalInt64 distinguishes an omitted manager_id from an explicit null.
+type OptionalInt64 struct {
+	Set   bool
+	Value *int64
+}
+
+type RebatePolicyInput struct {
+	Mode        string   `json:"mode"`
+	RatePercent *float64 `json:"rate_percent,omitempty"`
+}
+
+type UpdateAgentInput struct {
+	Role         *string
+	ManagerID    OptionalInt64
+	Notes        *string
+	RebatePolicy *RebatePolicyInput
+	Reason       string
 }
 
 // WithdrawFilter is used for listing withdraw requests.
@@ -158,10 +211,14 @@ type ResellerRepository interface {
 	GetRole(ctx context.Context, userID int64) (*ResellerRoleRecord, error)
 	GrantRole(ctx context.Context, userID int64, role string, grantedBy int64, notes string) error
 	GrantManagedAgent(ctx context.Context, userID, managerID int64, notes string) error
-	RevokeRole(ctx context.Context, userID int64) error
+	RevokeRole(ctx context.Context, userID, updatedBy int64) error
 	RevokeManagedAgent(ctx context.Context, userID, managerID int64) error
 	ListAgents(ctx context.Context, filter AgentFilter) ([]AgentSummary, int64, error)
 	GetAgentDetail(ctx context.Context, agentUserID, managerID int64) (*AgentDetail, error)
+	GetAdminAgentDetail(ctx context.Context, agentUserID int64) (*AgentDetail, error)
+	UpdateAgent(ctx context.Context, agentUserID, updatedBy int64, input UpdateAgentInput) (*AgentDetail, error)
+	DisableAgent(ctx context.Context, agentUserID, updatedBy int64, reason string) (*AgentDetail, error)
+	EnableAgent(ctx context.Context, agentUserID, updatedBy int64) (*AgentDetail, error)
 	GetAgentDashboard(ctx context.Context, agentUserID int64) (*AgentDashboard, error)
 	ListMyRecruits(ctx context.Context, agentUserID int64, page, pageSize int, maskEmail bool) ([]RecruitRecord, int64, error)
 	CreateWithdrawRequest(ctx context.Context, userID int64, input WithdrawInput) (*WithdrawRequest, error)
@@ -205,8 +262,8 @@ func (s *ResellerService) GrantRole(ctx context.Context, targetUserID, grantedBy
 }
 
 // RevokeRole removes the active reseller role.
-func (s *ResellerService) RevokeRole(ctx context.Context, targetUserID int64) error {
-	return s.repo.RevokeRole(ctx, targetUserID)
+func (s *ResellerService) RevokeRole(ctx context.Context, targetUserID, updatedBy int64) error {
+	return s.repo.RevokeRole(ctx, targetUserID, updatedBy)
 }
 
 // GrantManagedAgent lets a manager grant only an agent role within their own scope.
@@ -232,6 +289,12 @@ func (s *ResellerService) ManagerDashboard(ctx context.Context, managerID int64)
 
 // ListAgents returns paginated agent list for manager view.
 func (s *ResellerService) ListAgents(ctx context.Context, filter AgentFilter) ([]AgentSummary, int64, error) {
+	if !validResellerStatusFilter(filter.Status) {
+		return nil, 0, ErrResellerInvalidStatus
+	}
+	if filter.Role != "" && filter.Role != ResellerRoleAgent && filter.Role != ResellerRoleManager {
+		return nil, 0, ErrResellerInvalidRole
+	}
 	return s.repo.ListAgents(ctx, filter)
 }
 
@@ -244,6 +307,42 @@ func (s *ResellerService) ListManagedAgents(ctx context.Context, managerID int64
 // GetAgentDetail returns a single agent with their full recruit list (real emails).
 func (s *ResellerService) GetAgentDetail(ctx context.Context, agentUserID int64) (*AgentDetail, error) {
 	return s.repo.GetAgentDetail(ctx, agentUserID, 0)
+}
+
+func (s *ResellerService) GetAdminAgentDetail(ctx context.Context, agentUserID int64) (*AgentDetail, error) {
+	return s.repo.GetAdminAgentDetail(ctx, agentUserID)
+}
+
+func (s *ResellerService) UpdateAgent(ctx context.Context, agentUserID, updatedBy int64, input UpdateAgentInput) (*AgentDetail, error) {
+	if input.Role != nil && *input.Role != ResellerRoleAgent && *input.Role != ResellerRoleManager {
+		return nil, ErrResellerInvalidRole
+	}
+	if input.ManagerID.Set && input.ManagerID.Value != nil {
+		if *input.ManagerID.Value <= 0 || *input.ManagerID.Value == agentUserID {
+			return nil, ErrResellerManagerInvalid
+		}
+	}
+	if err := validateRebatePolicy(input.RebatePolicy); err != nil {
+		return nil, err
+	}
+	if input.Notes != nil {
+		trimmed := strings.TrimSpace(*input.Notes)
+		input.Notes = &trimmed
+	}
+	input.Reason = strings.TrimSpace(input.Reason)
+	return s.repo.UpdateAgent(ctx, agentUserID, updatedBy, input)
+}
+
+func (s *ResellerService) DisableAgent(ctx context.Context, agentUserID, updatedBy int64, reason string) (*AgentDetail, error) {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return nil, ErrResellerDisableReason
+	}
+	return s.repo.DisableAgent(ctx, agentUserID, updatedBy, reason)
+}
+
+func (s *ResellerService) EnableAgent(ctx context.Context, agentUserID, updatedBy int64) (*AgentDetail, error) {
+	return s.repo.EnableAgent(ctx, agentUserID, updatedBy)
 }
 
 // GetManagedAgentDetail restricts manager access to their own agent scope.
@@ -358,4 +457,31 @@ func (s *ResellerService) ReviewWithdrawRequest(ctx context.Context, requestID, 
 	}
 
 	return s.repo.ReviewWithdrawRequest(ctx, requestID, reviewerID, status, reason)
+}
+
+func validResellerStatusFilter(status string) bool {
+	switch status {
+	case "", ResellerStatusActive, ResellerStatusDisabled, ResellerStatusRevoked, ResellerStatusAll:
+		return true
+	default:
+		return false
+	}
+}
+
+func validateRebatePolicy(policy *RebatePolicyInput) error {
+	if policy == nil {
+		return nil
+	}
+	switch policy.Mode {
+	case RebateModeGlobal, RebateModeDisabled:
+		return nil
+	case RebateModeCustom:
+		if policy.RatePercent == nil || math.IsNaN(*policy.RatePercent) || math.IsInf(*policy.RatePercent, 0) ||
+			*policy.RatePercent < 0 || *policy.RatePercent > 100 {
+			return ErrResellerInvalidRebatePolicy
+		}
+		return nil
+	default:
+		return ErrResellerInvalidRebatePolicy
+	}
 }

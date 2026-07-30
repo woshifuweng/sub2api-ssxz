@@ -169,6 +169,36 @@ func TestExecutableProfileSecurityRoutesRequireUserAuthMiddleware(t *testing.T) 
 	}
 }
 
+func TestExecutableResellerWriteRoutesEnableNativeAudit(t *testing.T) {
+	routesByKey := collectRouteDefsByKey(ExecutableAdminRoutes(&handler.Handlers{
+		Reseller: &handler.ResellerHandler{},
+		Admin:    &handler.AdminHandlers{},
+	}))
+
+	for _, item := range []routeKey{
+		{method: http.MethodPatch, path: "/api/v1/admin/reseller/agents/:id"},
+		{method: http.MethodPost, path: "/api/v1/admin/reseller/agents/:id/disable"},
+		{method: http.MethodPost, path: "/api/v1/admin/reseller/agents/:id/enable"},
+		{method: http.MethodPost, path: "/api/v1/admin/reseller/agents/:id/role"},
+		{method: http.MethodDelete, path: "/api/v1/admin/reseller/agents/:id/role"},
+		{method: http.MethodPost, path: "/api/v1/admin/reseller/withdrawals/:id/review"},
+	} {
+		def, ok := routesByKey[item]
+		require.True(t, ok, "reseller route %s %s should be registered", item.method, item.path)
+		require.Contains(t, def.Middleware, "audit_log", "reseller write route %s %s should be audited", item.method, item.path)
+	}
+
+	for _, item := range []routeKey{
+		{method: http.MethodGet, path: "/api/v1/admin/reseller/agents"},
+		{method: http.MethodGet, path: "/api/v1/admin/reseller/agents/:id"},
+		{method: http.MethodGet, path: "/api/v1/admin/reseller/withdrawals"},
+	} {
+		def, ok := routesByKey[item]
+		require.True(t, ok, "reseller route %s %s should be registered", item.method, item.path)
+		require.NotContains(t, def.Middleware, "audit_log", "ordinary reseller read route %s %s should not create mutation audit entries", item.method, item.path)
+	}
+}
+
 type routeKey struct {
 	method string
 	path   string

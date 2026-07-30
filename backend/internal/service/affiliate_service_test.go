@@ -16,9 +16,11 @@ type affiliateRepoStub struct {
 	thawCalls     int
 	transferCalls int
 	setRateCalls  int
+	accrueCalls   int
 
-	summary  *AffiliateSummary
-	overview *AffiliateUserOverview
+	summary   *AffiliateSummary
+	summaries map[int64]*AffiliateSummary
+	overview  *AffiliateUserOverview
 
 	// lastSetRate is the last value handed to SetUserRebateRate. nil means the override was
 	// cleared (NULL in the DB); a pointer to 0 means an explicit 0% override.
@@ -27,6 +29,9 @@ type affiliateRepoStub struct {
 
 func (r *affiliateRepoStub) EnsureUserAffiliate(ctx context.Context, userID int64) (*AffiliateSummary, error) {
 	r.ensureCalls++
+	if summary := r.summaries[userID]; summary != nil {
+		return summary, nil
+	}
 	if r.summary != nil {
 		return r.summary, nil
 	}
@@ -42,7 +47,8 @@ func (r *affiliateRepoStub) BindInviter(ctx context.Context, userID, inviterID i
 }
 
 func (r *affiliateRepoStub) AccrueQuota(ctx context.Context, inviterID, inviteeUserID int64, amount float64, freezeHours int, _ *int64) (bool, error) {
-	panic("unexpected AccrueQuota call")
+	r.accrueCalls++
+	return true, nil
 }
 
 func (r *affiliateRepoStub) GetAccruedRebateFromInvitee(ctx context.Context, inviterID, inviteeUserID int64) (float64, error) {
@@ -156,6 +162,64 @@ func TestAffiliateRebateRateZeroIsNotUnset(t *testing.T) {
 
 	// A nil inviter (no affiliate row at all) also follows the global rate.
 	require.Equal(t, 5.0, svc.resolveRebateRatePercent(ctx, nil))
+}
+
+func TestAffiliateAccrualSkipsDisabledOrRevokedReseller(t *testing.T) {
+	now := time.Now()
+	for _, tc := range []struct {
+		name      string
+		status    string
+		revokedAt *time.Time
+	}{
+		{name: "disabled", status: ResellerStatusDisabled},
+		{name: "revoked", status: ResellerStatusActive, revokedAt: &now},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			inviterID := int64(9)
+			repo := &affiliateRepoStub{summaries: map[int64]*AffiliateSummary{
+				7: {UserID: 7, InviterID: &inviterID, CreatedAt: now},
+				9: {
+					UserID:            9,
+					HasResellerRole:   true,
+					ResellerStatus:    tc.status,
+					ResellerRevokedAt: tc.revokedAt,
+				},
+			}}
+			svc := NewAffiliateService(repo, newAffiliateTestSettingServiceWithRate(true, "5"), nil, nil)
+
+			rebate, err := svc.AccrueInviteRebate(context.Background(), 7, 100)
+
+			require.NoError(t, err)
+			require.Zero(t, rebate)
+			require.Zero(t, repo.accrueCalls)
+		})
+	}
+}
+
+func TestAffiliateAccrualKeepsOrdinaryAffiliateAndActiveReseller(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		hasResellerRole bool
+		status          string
+	}{
+		{name: "ordinary affiliate"},
+		{name: "active reseller", hasResellerRole: true, status: ResellerStatusActive},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			inviterID := int64(9)
+			repo := &affiliateRepoStub{summaries: map[int64]*AffiliateSummary{
+				7: {UserID: 7, InviterID: &inviterID, CreatedAt: time.Now()},
+				9: {UserID: 9, HasResellerRole: tc.hasResellerRole, ResellerStatus: tc.status},
+			}}
+			svc := NewAffiliateService(repo, newAffiliateTestSettingServiceWithRate(true, "5"), nil, nil)
+
+			rebate, err := svc.AccrueInviteRebate(context.Background(), 7, 100)
+
+			require.NoError(t, err)
+			require.Equal(t, 5.0, rebate)
+			require.Equal(t, 1, repo.accrueCalls)
+		})
+	}
 }
 
 // TestAffiliateDetailEffectiveRateDistinguishesZeroFromUnset covers the same semantics
