@@ -211,7 +211,8 @@ func TestHandlePaymentNotificationDoesNotDoubleFulfillBalanceOrder(t *testing.T)
 
 	userRepo := &paymentFulfillmentUserRepo{client: client}
 	redeemRepo := newPaymentFulfillmentRedeemRepo()
-	redeemService := NewRedeemService(redeemRepo, userRepo, nil, nil, nil, client, nil, nil)
+	ledgerRepo := &paymentFulfillmentLedgerRepo{}
+	redeemService := NewRedeemService(redeemRepo, userRepo, nil, nil, nil, client, nil, nil, ledgerRepo)
 	affiliateRepo := &paymentFulfillmentAffiliateRepo{
 		inviterID:     user.ID + 100,
 		inviteeUserID: user.ID,
@@ -243,7 +244,8 @@ func TestHandlePaymentNotificationDoesNotDoubleFulfillBalanceOrder(t *testing.T)
 	require.Equal(t, 1, redeemRepo.createCalls)
 	require.Equal(t, 1, redeemRepo.useCalls)
 	require.Equal(t, 1, userRepo.balanceUpdateCalls)
-require.Equal(t, 1, affiliateRepo.accrueCalls)
+	require.Equal(t, 1, ledgerRepo.insertCalls)
+	require.Equal(t, 1, affiliateRepo.accrueCalls)
 
 	dbUser, err := client.User.Get(ctx, user.ID)
 	require.NoError(t, err)
@@ -394,6 +396,36 @@ func (r *paymentFulfillmentUserRepo) UpdateBalance(ctx context.Context, id int64
 	r.balanceUpdateCalls++
 	_ = updated
 	return nil
+}
+
+func (r *paymentFulfillmentUserRepo) AdjustBalance(ctx context.Context, id int64, amount float64) (BalanceChange, error) {
+	client := r.client
+	if tx := dbent.TxFromContext(ctx); tx != nil {
+		client = tx.Client()
+	}
+	user, err := client.User.Get(ctx, id)
+	if err != nil {
+		return BalanceChange{}, err
+	}
+	updated, err := client.User.UpdateOneID(id).AddBalance(amount).Save(ctx)
+	if err != nil {
+		return BalanceChange{}, err
+	}
+	r.balanceUpdateCalls++
+	return BalanceChange{Old: user.Balance, New: updated.Balance}, nil
+}
+
+type paymentFulfillmentLedgerRepo struct {
+	insertCalls int
+}
+
+func (r *paymentFulfillmentLedgerRepo) Insert(context.Context, BalanceLedgerEntry) error {
+	r.insertCalls++
+	return nil
+}
+
+func (r *paymentFulfillmentLedgerRepo) ListByUser(context.Context, int64, int, int) ([]BalanceLedgerEntry, int64, error) {
+	panic("unexpected ListByUser call")
 }
 
 type paymentFulfillmentSettingRepo struct {

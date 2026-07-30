@@ -16,6 +16,7 @@ import (
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -223,8 +224,14 @@ func (h *RedeemHandler) CreateAndRedeemGateway(c gatewayctx.GatewayContext) {
 		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
+	subject, ok := middleware.GetAuthSubjectFromGatewayContext(c)
+	if !ok || subject.UserID <= 0 {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusUnauthorized, "admin authentication required")
+		return
+	}
 
 	executeAdminIdempotentGatewayJSON(c, "admin.redeem_codes.create_and_redeem", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		ctx = service.ContextWithAdminRedeemActor(ctx, subject.UserID)
 		existing, err := h.redeemService.GetByCode(ctx, req.Code)
 		if err == nil {
 			return h.resolveCreateAndRedeemExisting(ctx, existing, req.UserID)

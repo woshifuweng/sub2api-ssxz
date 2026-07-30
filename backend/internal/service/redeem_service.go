@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -154,6 +155,7 @@ type RedeemService struct {
 	entClient            *dbent.Client
 	authCacheInvalidator APIKeyAuthCacheInvalidator
 	affiliateService     *AffiliateService
+	ledgerRepo           BalanceLedgerRepository
 }
 
 // NewRedeemService 创建兑换码服务实例
@@ -166,8 +168,13 @@ func NewRedeemService(
 	entClient *dbent.Client,
 	authCacheInvalidator APIKeyAuthCacheInvalidator,
 	affiliateService *AffiliateService,
+	ledgerRepos ...BalanceLedgerRepository,
 ) *RedeemService {
 	redeemUserRepo, _ := userRepo.(RedeemUserAdjustmentRepository)
+	var ledgerRepo BalanceLedgerRepository
+	if len(ledgerRepos) > 0 {
+		ledgerRepo = ledgerRepos[0]
+	}
 	return &RedeemService{
 		redeemRepo:           redeemRepo,
 		userRepo:             userRepo,
@@ -178,6 +185,7 @@ func NewRedeemService(
 		entClient:            entClient,
 		authCacheInvalidator: authCacheInvalidator,
 		affiliateService:     affiliateService,
+		ledgerRepo:           ledgerRepo,
 	}
 }
 
@@ -466,24 +474,21 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 	}
 	if redeemCode.Type == RedeemTypeBalance {
 		if updater, ok := s.redeemRepo.(RedeemCodeNotesUpdater); ok {
-			if err := updater.UpdateNotes(txCtx, redeemCode.ID, "兑换码充值"); err != nil {
+			const redeemLedgerNote = "兑换码充值"
+			if err := updater.UpdateNotes(txCtx, redeemCode.ID, redeemLedgerNote); err != nil {
 				return nil, fmt.Errorf("record redeem ledger note: %w", err)
 			}
+			redeemCode.Notes = redeemLedgerNote
 		}
 	}
+
+	var balanceChange BalanceChange
 
 	// 执行兑换逻辑（兑换码已被锁定，此时可安全操作）
 	switch redeemCode.Type {
 	case RedeemTypeBalance:
-		amount := redeemCode.Value
-		if amount < 0 {
-			if s.redeemUserRepo == nil {
-				return nil, errors.New("user repository does not support atomic redeem balance adjustments")
-			}
-			if err := s.redeemUserRepo.ApplyRedeemBalanceAdjustment(txCtx, userID, amount); err != nil {
-				return nil, fmt.Errorf("update user balance: %w", err)
-			}
-		} else if err := s.userRepo.UpdateBalance(txCtx, userID, amount); err != nil {
+		balanceChange, err = s.userRepo.AdjustBalance(txCtx, userID, redeemCode.Value)
+		if err != nil {
 			return nil, fmt.Errorf("update user balance: %w", err)
 		}
 
@@ -525,6 +530,29 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 
 	default:
 		return nil, unsupportedRedeemTypeError(redeemCode.Type)
+	}
+
+	if redeemCode.Type == RedeemTypeBalance {
+		if s.ledgerRepo == nil {
+			return nil, errors.New("balance ledger repository is not configured")
+		}
+		actor := redeemActorFromContext(ctx, userID)
+		sourceType := BalanceLedgerSourceRedeemCode
+		sourceID := strconv.FormatInt(redeemCode.ID, 10)
+		if err := s.ledgerRepo.Insert(txCtx, BalanceLedgerEntry{
+			UserID:        userID,
+			EventType:     actor.eventType,
+			AmountDelta:   balanceChange.New - balanceChange.Old,
+			BalanceBefore: balanceChange.Old,
+			BalanceAfter:  balanceChange.New,
+			ActorType:     actor.actorType,
+			ActorID:       actor.actorID,
+			SourceType:    &sourceType,
+			SourceID:      &sourceID,
+			Note:          redeemCode.Notes,
+		}); err != nil {
+			return nil, fmt.Errorf("insert balance ledger: %w", err)
+		}
 	}
 
 	// 提交事务

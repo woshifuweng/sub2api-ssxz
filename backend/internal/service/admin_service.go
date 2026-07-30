@@ -562,6 +562,8 @@ type adminServiceImpl struct {
 	affiliateService     adminRechargeAffiliateAccruer
 	compositeRouteRepo   CompositeModelRouteRepository
 	compositeResolver    *CompositeRouteResolver
+	ledgerRepo           BalanceLedgerRepository
+	runBalanceTx         func(context.Context, func(context.Context) error) error
 }
 
 type adminRechargeAffiliateAccruer interface {
@@ -597,7 +599,12 @@ func NewAdminService(
 	affiliateService *AffiliateService,
 	compositeRouteRepo CompositeModelRouteRepository,
 	compositeResolver *CompositeRouteResolver,
+	ledgerRepos ...BalanceLedgerRepository,
 ) AdminService {
+	var ledgerRepo BalanceLedgerRepository
+	if len(ledgerRepos) > 0 {
+		ledgerRepo = ledgerRepos[0]
+	}
 	impl := &adminServiceImpl{
 		userRepo:             userRepo,
 		groupRepo:            groupRepo,
@@ -622,6 +629,7 @@ func NewAdminService(
 		affiliateService:     affiliateService,
 		compositeRouteRepo:   compositeRouteRepo,
 		compositeResolver:    compositeResolver,
+		ledgerRepo:           ledgerRepo,
 	}
 	if duplicateRepo, ok := accountRepo.(AccountDuplicateRepository); ok {
 		impl.accountDuplicateRepo = duplicateRepo

@@ -506,24 +506,48 @@ func (s *adminServiceImpl) BatchUpdateLimits(ctx context.Context, userIDs []int6
 }
 
 func (s *adminServiceImpl) UpdateUserBalance(ctx context.Context, userID int64, balance float64, operation string, notes string) (*User, error) {
-	// 余额调整必须走原子接口：先读后整行写回会把并发的计费扣款覆盖掉。
-	var (
-		change BalanceChange
-		err    error
-	)
-	switch operation {
-	case "set":
-		change, err = s.userRepo.SetBalance(ctx, userID, balance)
-	case "add":
-		change, err = s.userRepo.AdjustBalance(ctx, userID, balance)
-	case "subtract":
-		change, err = s.userRepo.AdjustBalance(ctx, userID, -balance)
-	default:
+	if operation != "set" && operation != "add" && operation != "subtract" {
 		return nil, fmt.Errorf("unsupported balance operation: %q", operation)
 	}
-	if errors.Is(err, ErrBalanceNegative) {
-		return nil, fmt.Errorf("balance cannot be negative, current balance: %.2f, requested operation would result in: %.2f", change.Old, change.New)
+	if s.ledgerRepo == nil {
+		return nil, errors.New("balance ledger repository is not configured")
 	}
+
+	var change BalanceChange
+	err := s.runUserBalanceTransaction(ctx, func(txCtx context.Context) error {
+		var updateErr error
+		switch operation {
+		case "set":
+			change, updateErr = s.userRepo.SetBalance(txCtx, userID, balance)
+		case "add":
+			change, updateErr = s.userRepo.AdjustBalance(txCtx, userID, balance)
+		case "subtract":
+			change, updateErr = s.userRepo.AdjustBalance(txCtx, userID, -balance)
+		}
+		if errors.Is(updateErr, ErrBalanceNegative) {
+			return fmt.Errorf(
+				"balance cannot be negative, current balance: %.2f, requested operation would result in: %.2f",
+				change.Old,
+				change.New,
+			)
+		}
+		if updateErr != nil {
+			return updateErr
+		}
+		if change.New == change.Old {
+			return nil
+		}
+
+		return s.ledgerRepo.Insert(txCtx, BalanceLedgerEntry{
+			UserID:        userID,
+			EventType:     adminBalanceEventType(operation),
+			AmountDelta:   change.New - change.Old,
+			BalanceBefore: change.Old,
+			BalanceAfter:  change.New,
+			ActorType:     BalanceLedgerActorAdmin,
+			Note:          notes,
+		})
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -537,9 +561,11 @@ func (s *adminServiceImpl) UpdateUserBalance(ctx context.Context, userID int64, 
 	if s.authCacheInvalidator != nil && balanceDiff != 0 {
 		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
 	}
-	s.tryAccrueAffiliateRebateForAdminRecharge(ctx, userID, operation, balance)
+	if balanceDiff != 0 {
+		s.tryAccrueAffiliateRebateForAdminRecharge(ctx, userID, operation, balance)
+	}
 
-	if s.billingCacheService != nil {
+	if s.billingCacheService != nil && balanceDiff != 0 {
 		go func() {
 			cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -549,30 +575,38 @@ func (s *adminServiceImpl) UpdateUserBalance(ctx context.Context, userID int64, 
 		}()
 	}
 
-	if balanceDiff != 0 {
-		code, err := GenerateRedeemCode()
-		if err != nil {
-			logger.LegacyPrintf("service.admin", "failed to generate adjustment redeem code: %v", err)
-			return user, nil
-		}
+	return user, nil
+}
 
-		adjustmentRecord := &RedeemCode{
-			Code:   code,
-			Type:   AdjustmentTypeAdminBalance,
-			Value:  balanceDiff,
-			Status: StatusUsed,
-			UsedBy: &user.ID,
-			Notes:  notes,
-		}
-		now := time.Now()
-		adjustmentRecord.UsedAt = &now
-
-		if err := s.redeemCodeRepo.Create(ctx, adjustmentRecord); err != nil {
-			logger.LegacyPrintf("service.admin", "failed to create balance adjustment redeem code: %v", err)
-		}
+func (s *adminServiceImpl) runUserBalanceTransaction(ctx context.Context, fn func(context.Context) error) error {
+	if s.runBalanceTx != nil {
+		return s.runBalanceTx(ctx, fn)
+	}
+	if s.entClient == nil {
+		return errors.New("database client is not configured")
 	}
 
-	return user, nil
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if err := fn(dbent.NewTxContext(ctx, tx)); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func adminBalanceEventType(operation string) string {
+	switch operation {
+	case "add":
+		return BalanceLedgerEventAdminCredit
+	case "subtract":
+		return BalanceLedgerEventAdminDebit
+	default:
+		return BalanceLedgerEventAdminSet
+	}
 }
 
 func (s *adminServiceImpl) tryAccrueAffiliateRebateForAdminRecharge(ctx context.Context, userID int64, operation string, amount float64) {
@@ -727,13 +761,17 @@ func (s *adminServiceImpl) getAllUserBalanceHistory(ctx context.Context, userID 
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	codes := mergeBalanceHistoryCodes(redeemCodes, affiliateCodes, params)
+	ledgerCodes, ledgerTotal, err := s.listLedgerBalanceHistoryForMerge(ctx, userID, needed)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	codes := mergeBalanceHistoryCodes(redeemCodes, affiliateCodes, params, ledgerCodes)
 
 	totalRecharged, err := s.redeemCodeRepo.SumPositiveBalanceByUser(ctx, userID)
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	return codes, redeemTotal + affiliateTotal, totalRecharged, nil
+	return codes, redeemTotal + affiliateTotal + ledgerTotal, totalRecharged, nil
 }
 
 func (s *adminServiceImpl) listRedeemBalanceHistoryForMerge(ctx context.Context, userID int64, needed int) ([]RedeemCode, int64, error) {
@@ -745,9 +783,13 @@ func (s *adminServiceImpl) listRedeemBalanceHistoryForMerge(ctx context.Context,
 		out   []RedeemCode
 		total int64
 	)
+	redeemHistoryRepo, ok := s.redeemCodeRepo.(RedeemCodeLedgerHistoryRepository)
+	if !ok {
+		return nil, 0, errors.New("redeem code repository does not support ledger-aware history")
+	}
 	for page := 1; len(out) < needed; page++ {
 		params := pagination.PaginationParams{Page: page, PageSize: 1000}
-		codes, result, err := s.redeemCodeRepo.ListByUserPaginated(ctx, userID, params, "")
+		codes, result, err := redeemHistoryRepo.ListByUserPaginatedExcludingLedger(ctx, userID, params, "")
 		if err != nil {
 			return nil, 0, err
 		}
@@ -763,6 +805,66 @@ func (s *adminServiceImpl) listRedeemBalanceHistoryForMerge(ctx context.Context,
 		out = out[:needed]
 	}
 	return out, total, nil
+}
+
+func (s *adminServiceImpl) listLedgerBalanceHistoryForMerge(ctx context.Context, userID int64, needed int) ([]RedeemCode, int64, error) {
+	if needed <= 0 {
+		return nil, 0, nil
+	}
+	if s.ledgerRepo == nil {
+		return nil, 0, errors.New("balance ledger repository is not configured")
+	}
+
+	var (
+		out   []RedeemCode
+		total int64
+	)
+	for offset := 0; len(out) < needed; offset += 1000 {
+		entries, currentTotal, err := s.ledgerRepo.ListByUser(ctx, userID, offset, 1000)
+		if err != nil {
+			return nil, 0, err
+		}
+		total = currentTotal
+		for _, entry := range entries {
+			code, ok := balanceLedgerEntryToHistory(entry)
+			if ok {
+				out = append(out, code)
+			}
+		}
+		if len(entries) < 1000 || int64(offset+len(entries)) >= total {
+			break
+		}
+	}
+	if len(out) > needed {
+		out = out[:needed]
+	}
+	return out, total, nil
+}
+
+func balanceLedgerEntryToHistory(entry BalanceLedgerEntry) (RedeemCode, bool) {
+	var codeType string
+	switch entry.EventType {
+	case BalanceLedgerEventAdminCredit, BalanceLedgerEventAdminDebit, BalanceLedgerEventAdminSet:
+		codeType = AdjustmentTypeAdminBalance
+	case BalanceLedgerEventRedeemCode, BalanceLedgerEventAdminRedeem:
+		codeType = RedeemTypeBalance
+	default:
+		return RedeemCode{}, false
+	}
+
+	usedBy := entry.UserID
+	usedAt := entry.CreatedAt
+	return RedeemCode{
+		ID:        -entry.ID,
+		Code:      fmt.Sprintf("LEDGER-%d", entry.ID),
+		Type:      codeType,
+		Value:     entry.AmountDelta,
+		Status:    StatusUsed,
+		UsedBy:    &usedBy,
+		UsedAt:    &usedAt,
+		Notes:     entry.Note,
+		CreatedAt: entry.CreatedAt,
+	}, true
 }
 
 func (s *adminServiceImpl) listAffiliateBalanceHistoryForMerge(ctx context.Context, userID int64, needed int) ([]RedeemCode, int64, error) {
@@ -793,8 +895,11 @@ func (s *adminServiceImpl) listAffiliateBalanceHistoryForMerge(ctx context.Conte
 }
 
 func (s *adminServiceImpl) listAffiliateBalanceHistory(ctx context.Context, userID int64, params pagination.PaginationParams) ([]RedeemCode, int64, error) {
-	if s == nil || s.entClient == nil || userID <= 0 {
-		return nil, 0, nil
+	if s == nil || s.entClient == nil {
+		return nil, 0, errors.New("database client is not configured")
+	}
+	if userID <= 0 {
+		return nil, 0, errors.New("user id must be positive")
 	}
 
 	rows, err := s.entClient.QueryContext(ctx, `
@@ -870,8 +975,11 @@ WHERE user_id = $1
 	return total.Int64, nil
 }
 
-func mergeBalanceHistoryCodes(redeemCodes, affiliateCodes []RedeemCode, params pagination.PaginationParams) []RedeemCode {
+func mergeBalanceHistoryCodes(redeemCodes, affiliateCodes []RedeemCode, params pagination.PaginationParams, extraSources ...[]RedeemCode) []RedeemCode {
 	combined := append(append([]RedeemCode{}, redeemCodes...), affiliateCodes...)
+	for _, source := range extraSources {
+		combined = append(combined, source...)
+	}
 	sort.SliceStable(combined, func(i, j int) bool {
 		return redeemCodeHistoryTime(combined[i]).After(redeemCodeHistoryTime(combined[j]))
 	})
