@@ -68,7 +68,7 @@
               </td>
               <td class="model-catalog__group-cell">
                 <Select
-                  v-model="selectedGroups[row.key]"
+                  :model-value="selectedOption(row)?.value"
                   :options="row.options"
                   value-key="value"
                   label-key="label"
@@ -76,6 +76,7 @@
                   :search-placeholder="t('availableChannels.groupSearchPlaceholder')"
                   :empty-text="t('availableChannels.groupSearchEmpty')"
                   :data-testid="`group-select-${row.key}`"
+                  @update:model-value="selectPlatformGroup(row.platform, $event)"
                 >
                   <template #selected="{ option }">
                     <span v-if="option" class="model-group-selected">
@@ -161,7 +162,9 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const activeProvider = ref('all')
-const selectedGroups = ref<Record<string, number>>({})
+// Keyed by platform (e.g. 'anthropic', 'openai'). Selecting a group on any row
+// updates all rows of the same platform — page-level selection, not per-row.
+const selectedGroupByPlatform = ref<Record<string, number>>({})
 
 const flatRows = computed<ModelCatalogRow[]>(() => {
   const models = new Map<string, ModelCatalogRow>()
@@ -215,17 +218,21 @@ const flatRows = computed<ModelCatalogRow[]>(() => {
 })
 
 watch(flatRows, (rows) => {
-  const next = { ...selectedGroups.value }
-  const validKeys = new Set(rows.map((row) => row.key))
-  for (const key of Object.keys(next)) {
-    if (!validKeys.has(key)) delete next[key]
+  const next = { ...selectedGroupByPlatform.value }
+  const validPlatforms = new Set(rows.map((row) => row.platform))
+  for (const platform of Object.keys(next)) {
+    if (!validPlatforms.has(platform)) delete next[platform]
   }
-  for (const row of rows) {
-    if (!row.options.some((option) => option.value === next[row.key])) {
-      next[row.key] = row.options[0].value
+  for (const platform of validPlatforms) {
+    const options = rows
+      .filter((row) => row.platform === platform)
+      .flatMap((row) => row.options)
+      .sort(compareGroupOptions)
+    if (!options.some((option) => option.value === next[platform])) {
+      next[platform] = options[0]?.value
     }
   }
-  selectedGroups.value = next
+  selectedGroupByPlatform.value = next
 }, { immediate: true })
 
 const providerTabs = computed(() => {
@@ -261,7 +268,13 @@ function compareGroupOptions(a: ModelGroupOption, b: ModelGroupOption): number {
 }
 
 function selectedOption(row: ModelCatalogRow): ModelGroupOption | undefined {
-  return row.options.find((option) => option.value === selectedGroups.value[row.key]) || row.options[0]
+  const groupId = selectedGroupByPlatform.value[row.platform]
+  return row.options.find((option) => option.value === groupId) || row.options[0]
+}
+
+function selectPlatformGroup(platform: string, value: string | number | boolean | null) {
+  if (typeof value !== 'number') return
+  selectedGroupByPlatform.value[platform] = value
 }
 
 function formatRate(rate: number): string {
