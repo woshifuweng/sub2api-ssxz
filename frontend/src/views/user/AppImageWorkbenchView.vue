@@ -1,11 +1,13 @@
 <template>
   <div class="workbench-shell" data-layout-revision="20260730">
     <iframe
+      ref="frameEl"
       v-if="iframeSrc"
       :src="iframeSrc"
       class="workbench-frame"
       allow="clipboard-write"
       referrerpolicy="no-referrer"
+      @load="patchFrameLinks"
     />
     <div v-else-if="loading" class="workbench-placeholder">
       <svg class="workbench-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -30,6 +32,31 @@ import { list as listKeys, reveal as revealKey } from '@/api/keys'
 
 const iframeSrc = ref<string>('')
 const loading = ref(true)
+const frameEl = ref<HTMLIFrameElement | null>(null)
+
+// After the workbench iframe loads, rewrite any root-level home links to the
+// in-app dashboard so clicking the workbench logo stays inside the app.
+function patchFrameLinks() {
+  try {
+    const doc = frameEl.value?.contentDocument
+    if (!doc) return
+    const origin = window.location.origin
+    doc.querySelectorAll<HTMLAnchorElement>('a').forEach(a => {
+      const href = a.getAttribute('href')
+      if (!href || href.startsWith('#') || href.toLowerCase().startsWith('javascript:')) return
+      let resolved: URL
+      try { resolved = new URL(href, origin) } catch { return }
+      // Intercept links that point to the site root '/'
+      if (resolved.origin === origin && (resolved.pathname === '/' || resolved.pathname === '')) {
+        a.setAttribute('href', '/app')
+        // Remove frame-busting targets that would navigate the parent window
+        if (a.target === '_top' || a.target === '_parent') a.removeAttribute('target')
+      }
+    })
+  } catch {
+    // Cross-origin iframe — skip silently
+  }
+}
 
 onMounted(async () => {
   try {
