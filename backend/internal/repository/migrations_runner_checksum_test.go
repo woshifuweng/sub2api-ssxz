@@ -26,6 +26,7 @@ func TestMigrationChecksumCompatibilityRulesAreExplicitAndBidirectional(t *testi
 		"133_affiliate_rebate_freeze.sql",
 		"159_batch_image_foundation.sql",
 		"161_batch_image_pricing_snapshot.sql",
+		"200_reseller_roles.sql",
 	}
 	actualNames := make([]string, 0, len(migrationChecksumCompatibilityRules))
 	for name := range migrationChecksumCompatibilityRules {

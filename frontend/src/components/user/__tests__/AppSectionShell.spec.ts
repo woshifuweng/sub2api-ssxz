@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { readFileSync } from 'node:fs'
 
-const { routeState, mocks, authState, appState } = vi.hoisted(() => ({
+const { routeState, mocks, authState, appState, resellerState } = vi.hoisted(() => ({
   routeState: {
     path: '/app/chat',
     fullPath: '/app/chat'
@@ -22,6 +22,11 @@ const { routeState, mocks, authState, appState } = vi.hoisted(() => ({
       payment_enabled: true,
       channel_monitor_enabled: true
     }
+  },
+  resellerState: {
+    isAgent: false,
+    isManager: false,
+    fetchRole: vi.fn().mockResolvedValue(null)
   }
 }))
 
@@ -47,8 +52,9 @@ vi.mock('vue-i18n', async (importOriginal) => ({
       'nav.groupAccount': 'Account',
       'nav.docs': 'Docs',
       'nav.affiliate': 'Referral Rewards',
-      'nav.resellerAgent': 'Reseller Workspace',
-      'nav.resellerManager': 'Reseller Management',
+      'nav.resellerAgent': 'My Rewards',
+      'nav.resellerWithdrawals': 'Conversion Records',
+      'nav.resellerManager': 'Manage Agents',
       'nav.account': 'Account',
       'nav.logout': 'Sign out',
       'appShell.closeNavigation': 'Close navigation',
@@ -97,11 +103,7 @@ vi.mock('@/stores/auth', () => ({
 }))
 
 vi.mock('@/stores/reseller', () => ({
-  useResellerStore: () => ({
-    isAgent: false,
-    isManager: false,
-    fetchRole: vi.fn().mockResolvedValue(null)
-  })
+  useResellerStore: () => resellerState
 }))
 
 vi.mock('@/components/icons/Icon.vue', () => ({
@@ -165,6 +167,9 @@ describe('AppSectionShell', () => {
     appState.cachedPublicSettings.affiliate_enabled = false
     appState.cachedPublicSettings.payment_enabled = true
     appState.cachedPublicSettings.channel_monitor_enabled = true
+    resellerState.isAgent = false
+    resellerState.isManager = false
+    resellerState.fetchRole.mockClear()
     mocks.push.mockReset()
     mocks.logout.mockReset()
     mocks.showSuccess.mockReset()
@@ -210,6 +215,20 @@ describe('AppSectionShell', () => {
     expect(navButtons(wrapper).map((button) => button.text())).toContain('Referral Rewards')
     await navButtons(wrapper).find((button) => button.text() === 'Referral Rewards')!.trigger('click')
     expect(mocks.push).toHaveBeenCalledWith('/app/affiliate')
+  })
+
+  it('adds reseller destinations according to the current role', async () => {
+    resellerState.isAgent = true
+    resellerState.isManager = true
+    const wrapper = mountShell()
+    const labels = navButtons(wrapper).map((button) => button.text())
+
+    expect(labels).toContain('My Rewards')
+    expect(labels).toContain('Conversion Records')
+    expect(labels).toContain('Manage Agents')
+
+    await navButtons(wrapper).find((button) => button.text() === 'Conversion Records')!.trigger('click')
+    expect(mocks.push).toHaveBeenCalledWith('/app/reseller/withdrawals')
   })
 
   it('hides the channel status destination while channel monitoring is disabled', () => {

@@ -14,6 +14,7 @@ type resellerRepositoryStub struct {
 	withdrawFilter   WithdrawFilter
 	managedGrant     [2]int64
 	managedRevoke    [2]int64
+	cancelled        [2]int64
 	reviewStatus     string
 	managerDashboard int64
 	withdrawals      []WithdrawRequest
@@ -62,6 +63,10 @@ func (s *resellerRepositoryStub) ReviewWithdrawRequest(_ context.Context, _, _ i
 	s.reviewStatus = status
 	return nil
 }
+func (s *resellerRepositoryStub) CancelWithdrawRequest(_ context.Context, withdrawalID, userID int64) error {
+	s.cancelled = [2]int64{withdrawalID, userID}
+	return nil
+}
 func (s *resellerRepositoryStub) GetManagerDashboard(_ context.Context, managerID int64) (*ManagerDashboard, error) {
 	s.managerDashboard = managerID
 	return &ManagerDashboard{}, nil
@@ -80,6 +85,19 @@ func TestResellerServiceRequestWithdrawNormalizesValidatedAccount(t *testing.T) 
 	require.NoError(t, err)
 	require.Equal(t, "alipay", req.Method)
 	require.Equal(t, "agent@example.com", req.AccountInfo["account"])
+}
+
+func TestResellerServiceRequestWithdrawDefaultsToBalanceTransfer(t *testing.T) {
+	repo := &resellerRepositoryStub{role: &ResellerRoleRecord{Role: ResellerRoleAgent}}
+	svc := NewResellerService(repo)
+
+	req, err := svc.RequestWithdraw(context.Background(), 7, WithdrawInput{Amount: 12.5})
+
+	require.NoError(t, err)
+	require.Equal(t, "balance_transfer", req.Method)
+	require.Empty(t, req.AccountInfo)
+	require.Equal(t, "balance_transfer", repo.createdInput.Method)
+	require.Empty(t, repo.createdInput.AccountInfo)
 }
 
 func TestResellerServiceRequestWithdrawRejectsInvalidAccount(t *testing.T) {
@@ -145,12 +163,40 @@ func TestResellerServiceManagerCannotManageSelf(t *testing.T) {
 	require.Equal(t, [2]int64{}, repo.managedRevoke)
 }
 
-func TestResellerServiceReviewMapsDecisionToStableStatus(t *testing.T) {
+func TestResellerServiceReviewMapsActionToStableStatus(t *testing.T) {
 	repo := &resellerRepositoryStub{}
 	svc := NewResellerService(repo)
 
-	require.NoError(t, svc.ReviewWithdrawRequest(context.Background(), 1, 2, true, "paid"))
+	require.NoError(t, svc.ReviewWithdrawRequest(context.Background(), 1, 2, "approve", ""))
 	require.Equal(t, "approved", repo.reviewStatus)
-	require.NoError(t, svc.ReviewWithdrawRequest(context.Background(), 1, 2, false, "declined"))
+	require.NoError(t, svc.ReviewWithdrawRequest(context.Background(), 1, 2, "reject", "declined"))
 	require.Equal(t, "rejected", repo.reviewStatus)
+}
+
+func TestResellerServiceReviewRejectRequiresReason(t *testing.T) {
+	repo := &resellerRepositoryStub{}
+	svc := NewResellerService(repo)
+
+	err := svc.ReviewWithdrawRequest(context.Background(), 1, 2, "reject", "  ")
+
+	require.ErrorIs(t, err, ErrWithdrawReasonRequired)
+	require.Empty(t, repo.reviewStatus)
+}
+
+func TestResellerServiceReviewRejectsUnknownAction(t *testing.T) {
+	repo := &resellerRepositoryStub{}
+	svc := NewResellerService(repo)
+
+	err := svc.ReviewWithdrawRequest(context.Background(), 1, 2, "approve-and-pay", "invalid")
+
+	require.ErrorIs(t, err, ErrWithdrawInvalidAction)
+	require.Empty(t, repo.reviewStatus)
+}
+
+func TestResellerServiceCancelWithdrawalDelegatesOwnershipCheck(t *testing.T) {
+	repo := &resellerRepositoryStub{}
+	svc := NewResellerService(repo)
+
+	require.NoError(t, svc.CancelWithdrawal(context.Background(), 7, 12))
+	require.Equal(t, [2]int64{12, 7}, repo.cancelled)
 }

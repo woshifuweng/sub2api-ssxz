@@ -139,12 +139,16 @@ func (r *resellerRepository) GetRole(ctx context.Context, userID int64) (*servic
 	var grantedBy sql.NullInt64
 	var revokedAt sql.NullTime
 	err := r.db.QueryRowContext(ctx,
-		`SELECT user_id, role, granted_by, granted_at, revoked_at, notes
+		`SELECT user_id, role, granted_by, granted_at, revoked_at, notes,
+		        commission_rate::double precision
 		   FROM user_reseller_roles
 		  WHERE user_id = $1 AND revoked_at IS NULL
 		  LIMIT 1`,
 		userID,
-	).Scan(&rec.UserID, &rec.Role, &grantedBy, &rec.GrantedAt, &revokedAt, &rec.Notes)
+	).Scan(
+		&rec.UserID, &rec.Role, &grantedBy, &rec.GrantedAt, &revokedAt, &rec.Notes,
+		&rec.CommissionRate,
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrResellerRoleNotFound
 	}
@@ -176,28 +180,31 @@ func (r *resellerRepository) ListAgents(ctx context.Context, filter service.Agen
 	if err := r.db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM user_reseller_roles rr
 		  JOIN users u ON u.id = rr.user_id
-		 WHERE rr.role = 'agent' AND rr.revoked_at IS NULL
+		 WHERE rr.revoked_at IS NULL
+		   AND (rr.role = 'agent' OR ($3 AND rr.role = 'agent_manager'))
 		   AND ($1 = '' OR u.email ILIKE '%' || $1 || '%')
 		   AND ($2 = 0 OR rr.granted_by = $2)`,
-		filter.Search, filter.ManagerID,
+		filter.Search, filter.ManagerID, filter.IncludeAllRoles,
 	).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("reseller ListAgents count: %w", err)
 	}
 
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT rr.user_id, u.email, COALESCE(u.username, ''),
+		       rr.role, rr.commission_rate::double precision,
 		       COALESCE(ua.aff_code, ''), COALESCE(ua.aff_count, 0)::int,
 		       COALESCE(ua.aff_quota, 0)::double precision,
 		       rr.granted_at, rr.granted_by
 		  FROM user_reseller_roles rr
 		  JOIN users u ON u.id = rr.user_id
 		  LEFT JOIN user_affiliates ua ON ua.user_id = rr.user_id
-		 WHERE rr.role = 'agent' AND rr.revoked_at IS NULL
+		 WHERE rr.revoked_at IS NULL
+		   AND (rr.role = 'agent' OR ($3 AND rr.role = 'agent_manager'))
 		   AND ($1 = '' OR u.email ILIKE '%' || $1 || '%')
 		   AND ($2 = 0 OR rr.granted_by = $2)
 		 ORDER BY rr.granted_at DESC
-		 LIMIT $3 OFFSET $4`,
-		filter.Search, filter.ManagerID, pageSize, offset,
+		 LIMIT $4 OFFSET $5`,
+		filter.Search, filter.ManagerID, filter.IncludeAllRoles, pageSize, offset,
 	)
 	if err != nil {
 		return nil, 0, fmt.Errorf("reseller ListAgents query: %w", err)
@@ -210,6 +217,7 @@ func (r *resellerRepository) ListAgents(ctx context.Context, filter service.Agen
 		var grantedBy sql.NullInt64
 		if err := rows.Scan(
 			&s.UserID, &s.Email, &s.Username,
+			&s.Role, &s.CommissionRate,
 			&s.AffCode, &s.RecruitCount, &s.AffQuota,
 			&s.GrantedAt, &grantedBy,
 		); err != nil {
@@ -230,6 +238,7 @@ func (r *resellerRepository) GetAgentDetail(ctx context.Context, agentUserID, ma
 	var grantedBy sql.NullInt64
 	err := r.db.QueryRowContext(ctx, `
 		SELECT rr.user_id, u.email, COALESCE(u.username, ''),
+		       rr.role, rr.commission_rate::double precision,
 		       COALESCE(ua.aff_code, ''), COALESCE(ua.aff_count, 0)::int,
 		       COALESCE(ua.aff_quota, 0)::double precision,
 		       rr.granted_at, rr.granted_by
@@ -241,6 +250,7 @@ func (r *resellerRepository) GetAgentDetail(ctx context.Context, agentUserID, ma
 		agentUserID, managerID,
 	).Scan(
 		&d.UserID, &d.Email, &d.Username,
+		&d.Role, &d.CommissionRate,
 		&d.AffCode, &d.RecruitCount, &d.AffQuota,
 		&d.GrantedAt, &grantedBy,
 	)
@@ -274,7 +284,7 @@ func (r *resellerRepository) GetAgentDashboard(ctx context.Context, agentUserID 
 		       COALESCE(aff_frozen_quota, 0)::double precision,
 		       COALESCE(aff_history_quota, 0)::double precision,
 		       COALESCE(aff_count, 0)::int,
-		       COALESCE(rebate_rate, 0)::double precision
+		       COALESCE(aff_rebate_rate_percent, 0)::double precision
 		  FROM user_affiliates
 		 WHERE user_id = $1`,
 		agentUserID,
@@ -282,13 +292,18 @@ func (r *resellerRepository) GetAgentDashboard(ctx context.Context, agentUserID 
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("reseller GetAgentDashboard: %w", err)
 	}
-	// Sum pending withdrawal amounts
-	_ = r.db.QueryRowContext(ctx, `
-		SELECT COALESCE(SUM(amount), 0)::double precision
+	var approvedWithdraw float64
+	if err := r.db.QueryRowContext(ctx, `
+		SELECT
+		       COALESCE(SUM(amount) FILTER (WHERE status = 'pending'), 0)::double precision,
+		       COALESCE(SUM(amount) FILTER (WHERE status = 'approved'), 0)::double precision
 		  FROM affiliate_withdraw_requests
-		 WHERE user_id = $1 AND status = 'pending'`,
+		 WHERE user_id = $1`,
 		agentUserID,
-	).Scan(&d.PendingWithdraw)
+	).Scan(&d.PendingWithdraw, &approvedWithdraw); err != nil {
+		return nil, fmt.Errorf("reseller GetAgentDashboard withdrawal totals: %w", err)
+	}
+	d.CommissionEarned = d.AffQuota + approvedWithdraw
 	return d, nil
 }
 
@@ -418,6 +433,58 @@ func (r *resellerRepository) CreateWithdrawRequest(ctx context.Context, userID i
 	return &req, nil
 }
 
+// --- CancelWithdrawRequest ---
+
+func (r *resellerRepository) CancelWithdrawRequest(ctx context.Context, withdrawalID, userID int64) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("reseller CancelWithdrawRequest begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var ownerID int64
+	var currentStatus string
+	if err := tx.QueryRowContext(ctx, `
+		SELECT user_id, status
+		FROM affiliate_withdraw_requests
+		WHERE id = $1
+		FOR UPDATE`, withdrawalID).Scan(&ownerID, &currentStatus); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return service.ErrWithdrawRequestNotFound
+		}
+		return fmt.Errorf("reseller CancelWithdrawRequest lock request: %w", err)
+	}
+	if ownerID != userID {
+		return service.ErrWithdrawNotOwner
+	}
+	if currentStatus != service.WithdrawStatusPending {
+		return service.ErrWithdrawNotPending.WithMetadata(map[string]string{
+			"current_status": currentStatus,
+		})
+	}
+
+	result, err := tx.ExecContext(ctx, `
+		UPDATE affiliate_withdraw_requests
+		SET status = 'cancelled', updated_at = NOW()
+		WHERE id = $1 AND user_id = $2 AND status = 'pending'`,
+		withdrawalID, userID,
+	)
+	if err != nil {
+		return fmt.Errorf("reseller CancelWithdrawRequest update: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("reseller CancelWithdrawRequest rows affected: %w", err)
+	}
+	if affected != 1 {
+		return service.ErrWithdrawNotPending
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("reseller CancelWithdrawRequest commit: %w", err)
+	}
+	return nil
+}
+
 // --- ListWithdrawRequests ---
 
 func (r *resellerRepository) ListWithdrawRequests(ctx context.Context, filter service.WithdrawFilter) ([]service.WithdrawRequest, int64, error) {
@@ -446,7 +513,7 @@ func (r *resellerRepository) ListWithdrawRequests(ctx context.Context, filter se
 	}
 
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT wr.id, wr.user_id, COALESCE(u.email, ''),
+		SELECT wr.id, wr.user_id, COALESCE(u.email, ''), COALESCE(u.username, ''),
 		       wr.amount, wr.method, wr.account_info,
 		       wr.status, wr.note, wr.requested_at, wr.reviewed_at, wr.reviewed_by
 		  FROM affiliate_withdraw_requests wr
@@ -499,11 +566,13 @@ func (r *resellerRepository) ReviewWithdrawRequest(ctx context.Context, id, revi
 		}
 		return fmt.Errorf("reseller ReviewWithdrawRequest lock request: %w", err)
 	}
-	if currentStatus != "pending" {
-		return service.ErrWithdrawAlreadyReviewed
+	if currentStatus != service.WithdrawStatusPending {
+		return service.ErrWithdrawAlreadyReviewed.WithMetadata(map[string]string{
+			"current_status": currentStatus,
+		})
 	}
 
-	if status == "approved" {
+	if status == service.WithdrawStatusApproved {
 		var quotaAfter, frozenAfter, historyAfter float64
 		err = tx.QueryRowContext(ctx, `
 			UPDATE user_affiliates
@@ -549,7 +618,7 @@ func (r *resellerRepository) ReviewWithdrawRequest(ctx context.Context, id, revi
 		); err != nil {
 			return fmt.Errorf("reseller ReviewWithdrawRequest insert ledger: %w", err)
 		}
-	} else if status != "rejected" {
+	} else if status != service.WithdrawStatusRejected {
 		return service.ErrWithdrawInvalidStatus
 	}
 
@@ -584,7 +653,7 @@ func scanWithdrawRequest(rows *sql.Rows) (*service.WithdrawRequest, error) {
 	var reviewedAt sql.NullTime
 	var reviewedBy sql.NullInt64
 	if err := rows.Scan(
-		&req.ID, &req.UserID, &req.UserEmail,
+		&req.ID, &req.UserID, &req.UserEmail, &req.Username,
 		&req.Amount, &req.Method, &accountRaw,
 		&req.Status, &req.Note, &req.RequestedAt, &reviewedAt, &reviewedBy,
 	); err != nil {

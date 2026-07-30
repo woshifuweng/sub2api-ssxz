@@ -280,25 +280,38 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/app/reseller',
     name: 'ResellerAgent',
-    component: () => import('@/views/user/ResellerAgentView.vue'),
+    component: () => import('@/views/reseller/AgentDashboard.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
       resellerRole: 'agent',
-      title: '代理工作台',
+      title: '我的返利',
       appSection: 'reseller',
+      titleSiteName: 'SSXZ AI'
+    }
+  },
+  {
+    path: '/app/reseller/withdrawals',
+    name: 'ResellerWithdrawals',
+    component: () => import('@/views/reseller/AgentWithdrawals.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      resellerRole: 'agent',
+      title: '兑换记录',
+      appSection: 'reseller-withdrawals',
       titleSiteName: 'SSXZ AI'
     }
   },
   {
     path: '/app/reseller/manager',
     name: 'ResellerManager',
-    component: () => import('@/views/user/ResellerManagerView.vue'),
+    component: () => import('@/views/reseller/ManagerDashboard.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
       resellerRole: 'agent_manager',
-      title: '代理管理',
+      title: '管理 Agent',
       appSection: 'reseller-manager',
       titleSiteName: 'SSXZ AI'
     }
@@ -649,6 +662,27 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/reseller/agents',
+    name: 'AdminResellerAgents',
+    component: () => import('@/views/admin/reseller/AdminAgents.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Reseller Management',
+      titleKey: 'nav.resellerAdmin'
+    }
+  },
+  {
+    path: '/admin/reseller/withdrawals',
+    name: 'AdminResellerWithdrawals',
+    component: () => import('@/views/admin/reseller/AdminWithdrawals.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Reseller Conversion Reviews'
+    }
+  },
+  {
     path: '/admin/settings',
     name: 'AdminSettings',
     component: () => import('@/views/admin/SettingsView.vue'),
@@ -913,10 +947,9 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   if (to.meta.resellerRole && authStore.user) {
-    try {
-      await resellerStore.fetchRole(authStore.user.id)
-    } catch {
-      next(DEFAULT_AUTH_REDIRECT)
+    const role = await resellerStore.fetchRole(authStore.user.id)
+    if (!role) {
+      next('/app')
       return
     }
 
@@ -924,7 +957,7 @@ router.beforeEach(async (to, _from, next) => {
       ? resellerStore.isManager
       : resellerStore.isAgent
     if (!allowed) {
-      next(DEFAULT_AUTH_REDIRECT)
+      next(to.meta.resellerRole === 'agent_manager' ? '/app/reseller' : '/app')
       return
     }
   }

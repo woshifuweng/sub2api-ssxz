@@ -192,6 +192,32 @@ func (h *ResellerHandler) RequestWithdrawGateway(c gatewayctx.GatewayContext) {
 	response.SuccessContext(h.r(c), req)
 }
 
+// CancelWithdrawal POST /api/v1/user/reseller/withdrawals/:id/cancel
+func (h *ResellerHandler) CancelWithdrawal(c *gin.Context) {
+	h.CancelWithdrawalGateway(gatewayctx.FromGin(c))
+}
+
+func (h *ResellerHandler) CancelWithdrawalGateway(c gatewayctx.GatewayContext) {
+	sub, ok := middleware2.GetAuthSubjectFromGatewayContext(c)
+	if !ok || sub.UserID <= 0 {
+		response.ErrorContext(h.r(c), http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	withdrawalID, err := strconv.ParseInt(c.PathParam("id"), 10, 64)
+	if err != nil || withdrawalID <= 0 {
+		response.ErrorContext(h.r(c), http.StatusBadRequest, "invalid withdrawal id")
+		return
+	}
+	if err := h.svc.CancelWithdrawal(c.Request().Context(), sub.UserID, withdrawalID); err != nil {
+		response.ErrorFromContext(h.r(c), err)
+		return
+	}
+	response.SuccessContext(h.r(c), gin.H{
+		"id":     withdrawalID,
+		"status": service.WithdrawStatusCancelled,
+	})
+}
+
 // ── Manager endpoints (jwt_auth + manager role) ───────────────────────────────
 
 // GetManagerDashboard GET /api/v1/user/reseller/manager/dashboard
@@ -335,8 +361,8 @@ func (h *ResellerHandler) ManagerListWithdrawalsGateway(c gatewayctx.GatewayCont
 // ── Owner (admin_auth) endpoints ──────────────────────────────────────────────
 
 type reviewWithdrawalBody struct {
-	Status string `json:"status" binding:"required"`
-	Note   string `json:"note"`
+	Action string `json:"action" binding:"required"`
+	Reason string `json:"reason"`
 }
 
 // AdminReviewWithdrawal POST /api/v1/admin/reseller/withdrawals/:id/review
@@ -359,16 +385,21 @@ func (h *ResellerHandler) AdminReviewWithdrawalGateway(c gatewayctx.GatewayConte
 		response.ErrorContext(h.r(c), http.StatusBadRequest, "invalid request")
 		return
 	}
-	if body.Status != "approved" && body.Status != "rejected" {
-		response.ErrorFromContext(h.r(c), service.ErrWithdrawInvalidStatus)
-		return
-	}
-	approve := body.Status == "approved"
-	if err := h.svc.ReviewWithdrawRequest(c.Request().Context(), wid, reviewerID, approve, body.Note); err != nil {
+	if err := h.svc.ReviewWithdrawRequest(
+		c.Request().Context(),
+		wid,
+		reviewerID,
+		body.Action,
+		body.Reason,
+	); err != nil {
 		response.ErrorFromContext(h.r(c), err)
 		return
 	}
-	response.SuccessContext(h.r(c), gin.H{"id": wid, "status": body.Status})
+	status := service.WithdrawStatusRejected
+	if body.Action == service.WithdrawReviewActionApprove {
+		status = service.WithdrawStatusApproved
+	}
+	response.SuccessContext(h.r(c), gin.H{"id": wid, "status": status})
 }
 
 type adminGrantRoleBody struct {
@@ -452,9 +483,10 @@ func (h *ResellerHandler) AdminListAgents(c *gin.Context) {
 func (h *ResellerHandler) AdminListAgentsGateway(c gatewayctx.GatewayContext) {
 	page, pageSize := response.ParsePaginationValues(c)
 	items, total, err := h.svc.ListAgents(c.Request().Context(), service.AgentFilter{
-		Search:   c.QueryValue("search"),
-		Page:     page,
-		PageSize: pageSize,
+		IncludeAllRoles: true,
+		Search:          c.QueryValue("search"),
+		Page:            page,
+		PageSize:        pageSize,
 	})
 	if err != nil {
 		response.ErrorFromContext(h.r(c), err)

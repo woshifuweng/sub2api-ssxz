@@ -72,6 +72,80 @@ func TestResellerRepositoryCreateWithdrawRequestCommitsWithinAvailableBalance(t 
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestResellerRepositoryGetAgentDashboardCalculatesCommissionEarned(t *testing.T) {
+	repo, mock := newResellerRepoMock(t)
+
+	mock.ExpectQuery(`SELECT COALESCE\(aff_code, ''\)`).
+		WithArgs(int64(7)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"aff_code", "aff_quota", "aff_frozen_quota", "aff_history_quota", "aff_count", "rebate_rate",
+		}).AddRow("AGENT7", 40.0, 5.0, 80.0, 3, 0.1))
+	mock.ExpectQuery(`SUM\(amount\) FILTER \(WHERE status = 'pending'\).*SUM\(amount\) FILTER \(WHERE status = 'approved'\)`).
+		WithArgs(int64(7)).
+		WillReturnRows(sqlmock.NewRows([]string{"pending", "approved"}).AddRow(10.0, 30.0))
+
+	dashboard, err := repo.GetAgentDashboard(context.Background(), 7)
+
+	require.NoError(t, err)
+	require.Equal(t, 10.0, dashboard.PendingWithdraw)
+	require.Equal(t, 70.0, dashboard.CommissionEarned)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResellerRepositoryListAgentsIncludesManagersForAdmin(t *testing.T) {
+	repo, mock := newResellerRepoMock(t)
+	now := time.Now().UTC()
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM user_reseller_roles`).
+		WithArgs("", int64(0), true).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+	mock.ExpectQuery(`SELECT rr.user_id.*rr.role, rr.commission_rate`).
+		WithArgs("", int64(0), true, 20, 0).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"user_id", "email", "username", "role", "commission_rate",
+			"aff_code", "aff_count", "aff_quota", "granted_at", "granted_by",
+		}).
+			AddRow(int64(7), "agent@example.com", "Agent", "agent", 0.05, "A7", 3, 12.0, now, int64(1)).
+			AddRow(int64(8), "manager@example.com", "Manager", "agent_manager", 0.10, "M8", 5, 20.0, now, int64(1)))
+
+	items, total, err := repo.ListAgents(context.Background(), service.AgentFilter{IncludeAllRoles: true})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(2), total)
+	require.Len(t, items, 2)
+	require.Equal(t, "agent_manager", items[1].Role)
+	require.Equal(t, 0.10, items[1].CommissionRate)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResellerRepositoryListWithdrawRequestsIncludesUsername(t *testing.T) {
+	repo, mock := newResellerRepoMock(t)
+	now := time.Now().UTC()
+
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM affiliate_withdraw_requests`).
+		WithArgs(int64(7), "", int64(0)).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery(`SELECT wr.id, wr.user_id, COALESCE\(u.email, ''\), COALESCE\(u.username, ''\)`).
+		WithArgs(int64(7), "", int64(0), 20, 0).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "email", "username", "amount", "method", "account_info",
+			"status", "note", "requested_at", "reviewed_at", "reviewed_by",
+		}).AddRow(
+			int64(11), int64(7), "agent@example.com", "Agent Seven", 20.0,
+			"balance_transfer", []byte(`{}`), "pending", "", now, nil, nil,
+		))
+
+	items, total, err := repo.ListWithdrawRequests(context.Background(), service.WithdrawFilter{
+		UserID: 7,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	require.Len(t, items, 1)
+	require.Equal(t, "Agent Seven", items[0].Username)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestResellerRepositoryReviewWithdrawTransfersOnlyRequestedAmount(t *testing.T) {
 	repo, mock := newResellerRepoMock(t)
 
@@ -111,6 +185,54 @@ func TestResellerRepositoryReviewWithdrawRejectsRepeatedReview(t *testing.T) {
 	err := repo.ReviewWithdrawRequest(context.Background(), 12, 1, "approved", "paid")
 
 	require.ErrorIs(t, err, service.ErrWithdrawAlreadyReviewed)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResellerRepositoryCancelWithdrawRejectsForeignOwner(t *testing.T) {
+	repo, mock := newResellerRepoMock(t)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT user_id, status.*FOR UPDATE`).
+		WithArgs(int64(12)).
+		WillReturnRows(sqlmock.NewRows([]string{"user_id", "status"}).AddRow(int64(8), "pending"))
+	mock.ExpectRollback()
+
+	err := repo.CancelWithdrawRequest(context.Background(), 12, 7)
+
+	require.ErrorIs(t, err, service.ErrWithdrawNotOwner)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResellerRepositoryCancelWithdrawRejectsNonPendingState(t *testing.T) {
+	repo, mock := newResellerRepoMock(t)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT user_id, status.*FOR UPDATE`).
+		WithArgs(int64(12)).
+		WillReturnRows(sqlmock.NewRows([]string{"user_id", "status"}).AddRow(int64(7), "approved"))
+	mock.ExpectRollback()
+
+	err := repo.CancelWithdrawRequest(context.Background(), 12, 7)
+
+	require.ErrorIs(t, err, service.ErrWithdrawNotPending)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResellerRepositoryCancelWithdrawCommitsPendingRequest(t *testing.T) {
+	repo, mock := newResellerRepoMock(t)
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`SELECT user_id, status.*FOR UPDATE`).
+		WithArgs(int64(12)).
+		WillReturnRows(sqlmock.NewRows([]string{"user_id", "status"}).AddRow(int64(7), "pending"))
+	mock.ExpectExec(`UPDATE affiliate_withdraw_requests.*status = 'cancelled'`).
+		WithArgs(int64(12), int64(7)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := repo.CancelWithdrawRequest(context.Background(), 12, 7)
+
+	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

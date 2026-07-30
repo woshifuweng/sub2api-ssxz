@@ -82,6 +82,7 @@ var migrationChecksumCompatibilityRules = map[string]migrationChecksumCompatibil
 	"123_fix_legacy_auth_source_grant_on_signup_defaults.sql": newMigrationChecksumCompatibilityRule("2ce43c2cd89e9f9e1febd34a407ed9e84d177386c5544b6f02c1f58a21129f57", "6cd33422f215dcd1f486ab6f35c0ea5805d9ca69bb25906d94bc649156657145"),
 	"159_batch_image_foundation.sql":                          newMigrationChecksumCompatibilityRule("d902b70982025ec519749faf058aab7631e82c3f48167b9a4ae4db718eb72cce", "82da85b5d98e67a0507647b873a40373e84538e4adafdeed6767c0ac8b6570b2"),
 	"161_batch_image_pricing_snapshot.sql":                    newMigrationChecksumCompatibilityRule("4012af3e43636cb6af22e0176d59d1fcc70615c0f310194329461ae462c4fbd6", "96d915c9b7a6941ae99039e0ff3f1a61481eb9bddd933d11c6fadb2274554e87"),
+	"200_reseller_roles.sql":                                  newMigrationChecksumCompatibilityRule("4c4719ac44f4b12a425d3844f3ab555cb9f7f704bfba6ea609d389b8698dd49a", "27bccebd382fc52fdc938367e43566a673088b8461edb2ad4f9bd2b05d18543d"),
 	"001_init.sql": newMigrationChecksumCompatibilityRule(
 		"17d187d5de98f44c35450300c33f789720e4e64225614e4a5e9becab0c1e87fe",
 		"9ba0369779484625edcea7a7d1d4582397e31546db9149b05004990a3f16c630",

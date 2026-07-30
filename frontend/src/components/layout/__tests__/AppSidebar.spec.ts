@@ -77,6 +77,10 @@ vi.mock('vue-i18n', () => ({
       'nav.docs': 'Docs',
       'nav.account': 'Account',
       'nav.affiliate': 'Referral Rewards',
+      'nav.resellerAgent': 'My Rewards',
+      'nav.resellerWithdrawals': 'Conversion Records',
+      'nav.resellerManager': 'Manage Agents',
+      'nav.resellerAdmin': 'Reseller Management',
       'nav.ops': 'Runtime Monitor',
       'nav.users': 'Users / Balance',
       'nav.groups': 'Groups / Pricing',
@@ -222,6 +226,24 @@ describe('AppSidebar', () => {
     expect(wrapper.text()).toContain('Referral Rewards')
   })
 
+  it('shows role-scoped reseller destinations without overlapping active states', () => {
+    resellerState.isAgent = true
+    resellerState.isManager = true
+    routeState.path = '/app/reseller/withdrawals'
+
+    const wrapper = mountSidebar()
+    const destinations = hrefs(wrapper)
+
+    expect(destinations).toContain('/app/reseller')
+    expect(destinations).toContain('/app/reseller/withdrawals')
+    expect(destinations).toContain('/app/reseller/manager')
+    expect(wrapper.text()).toContain('My Rewards')
+    expect(wrapper.text()).toContain('Conversion Records')
+    expect(wrapper.text()).toContain('Manage Agents')
+    expect(wrapper.get('a[href="/app/reseller/withdrawals"]').classes()).toContain('sidebar-link-active')
+    expect(wrapper.get('a[href="/app/reseller"]').classes()).not.toContain('sidebar-link-active')
+  })
+
   it('opens the image workbench with the first active API key', async () => {
     keysListMock.mockResolvedValue({
       items: [{ id: 1, key: 'sk test/+', status: 'active' }],
@@ -282,8 +304,19 @@ describe('AppSidebar', () => {
     expect(destinations).toContain('/admin/dashboard')
     expect(destinations).toContain('/admin/accounts')
     expect(destinations).toContain('/admin/affiliates')
+    expect(destinations).toContain('/admin/reseller/agents')
+    expect(wrapper.text()).toContain('Reseller Management')
     expect(destinations.every((path) => path.startsWith('/admin/'))).toBe(true)
     expect(destinations.some((path) => path.startsWith('/app/'))).toBe(false)
+  })
+
+  it('keeps the reseller admin entry active on the review page', () => {
+    authState.isAdmin = true
+    routeState.path = '/admin/reseller/withdrawals'
+
+    const wrapper = mountSidebar()
+
+    expect(wrapper.get('a[href="/admin/reseller/agents"]').classes()).toContain('sidebar-link-active')
   })
 
   it('does not inject user routes into the simple admin console', () => {

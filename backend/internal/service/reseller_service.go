@@ -17,6 +17,14 @@ const (
 	ResellerRoleAgent = "agent"
 	// ResellerRoleManager marks a user as an operations manager (运营管理员).
 	ResellerRoleManager = "agent_manager"
+
+	WithdrawStatusPending   = "pending"
+	WithdrawStatusApproved  = "approved"
+	WithdrawStatusRejected  = "rejected"
+	WithdrawStatusCancelled = "cancelled"
+
+	WithdrawReviewActionApprove = "approve"
+	WithdrawReviewActionReject  = "reject"
 )
 
 var (
@@ -30,6 +38,10 @@ var (
 	ErrWithdrawInvalidMethod       = infraerrors.BadRequest("INVALID_WITHDRAW_METHOD", "unsupported withdrawal method")
 	ErrWithdrawInvalidAccount      = infraerrors.BadRequest("INVALID_WITHDRAW_ACCOUNT", "withdrawal account is required")
 	ErrWithdrawInvalidStatus       = infraerrors.BadRequest("INVALID_WITHDRAW_STATUS", "status must be 'approved' or 'rejected'")
+	ErrWithdrawInvalidAction       = infraerrors.BadRequest("INVALID_WITHDRAW_ACTION", "action must be 'approve' or 'reject'")
+	ErrWithdrawReasonRequired      = infraerrors.BadRequest("WITHDRAW_REASON_REQUIRED", "reason is required when rejecting a withdrawal")
+	ErrWithdrawNotOwner            = infraerrors.Forbidden("WITHDRAW_NOT_OWNER", "withdrawal does not belong to the current user")
+	ErrWithdrawNotPending          = infraerrors.Conflict("WITHDRAW_NOT_PENDING", "only pending withdrawals can be changed")
 	ErrResellerAgentNotManaged     = infraerrors.Forbidden("AGENT_NOT_MANAGED", "agent is not managed by this manager")
 	ErrResellerCannotManageSelf    = infraerrors.BadRequest("CANNOT_MANAGE_SELF", "manager cannot grant or revoke their own role")
 )
@@ -38,24 +50,27 @@ var (
 
 // ResellerRoleRecord is one row from user_reseller_roles.
 type ResellerRoleRecord struct {
-	UserID    int64      `json:"user_id"`
-	Role      string     `json:"role"`
-	GrantedBy *int64     `json:"granted_by,omitempty"`
-	GrantedAt time.Time  `json:"granted_at"`
-	RevokedAt *time.Time `json:"revoked_at,omitempty"`
-	Notes     string     `json:"notes"`
+	UserID         int64      `json:"user_id"`
+	Role           string     `json:"role"`
+	GrantedBy      *int64     `json:"granted_by,omitempty"`
+	GrantedAt      time.Time  `json:"granted_at"`
+	RevokedAt      *time.Time `json:"revoked_at,omitempty"`
+	Notes          string     `json:"notes"`
+	CommissionRate float64    `json:"commission_rate"`
 }
 
 // AgentSummary is used by manager to list all agents.
 type AgentSummary struct {
-	UserID       int64     `json:"user_id"`
-	Email        string    `json:"email"`
-	Username     string    `json:"username"`
-	AffCode      string    `json:"aff_code"`
-	RecruitCount int       `json:"recruit_count"`
-	AffQuota     float64   `json:"aff_quota"`
-	GrantedAt    time.Time `json:"granted_at"`
-	GrantedBy    *int64    `json:"granted_by,omitempty"`
+	UserID         int64     `json:"user_id"`
+	Email          string    `json:"email"`
+	Username       string    `json:"username"`
+	Role           string    `json:"role"`
+	CommissionRate float64   `json:"commission_rate"`
+	AffCode        string    `json:"aff_code"`
+	RecruitCount   int       `json:"recruit_count"`
+	AffQuota       float64   `json:"aff_quota"`
+	GrantedAt      time.Time `json:"granted_at"`
+	GrantedBy      *int64    `json:"granted_by,omitempty"`
 }
 
 // RecruitRecord is a single customer under an agent.
@@ -77,14 +92,15 @@ type AgentDetail struct {
 
 // AgentDashboard is the agent's own view of their stats and balance.
 type AgentDashboard struct {
-	UserID          int64   `json:"user_id"`
-	AffCode         string  `json:"aff_code"`
-	AffQuota        float64 `json:"aff_quota"`        // available to withdraw
-	AffFrozenQuota  float64 `json:"aff_frozen_quota"` // pending maturation
-	AffHistoryQuota float64 `json:"aff_history_quota"`
-	RecruitCount    int     `json:"recruit_count"`
-	RebateRate      float64 `json:"rebate_rate"`
-	PendingWithdraw float64 `json:"pending_withdraw"` // sum of pending requests
+	UserID           int64   `json:"user_id"`
+	AffCode          string  `json:"aff_code"`
+	AffQuota         float64 `json:"aff_quota"`        // available to withdraw
+	AffFrozenQuota   float64 `json:"aff_frozen_quota"` // pending maturation
+	AffHistoryQuota  float64 `json:"aff_history_quota"`
+	RecruitCount     int     `json:"recruit_count"`
+	RebateRate       float64 `json:"rebate_rate"`
+	PendingWithdraw  float64 `json:"pending_withdraw"` // sum of pending requests
+	CommissionEarned float64 `json:"commission_earned"`
 }
 
 // ManagerDashboard is the manager's top-level stats overview.
@@ -99,10 +115,11 @@ type WithdrawRequest struct {
 	ID          int64          `json:"id"`
 	UserID      int64          `json:"user_id"`
 	UserEmail   string         `json:"user_email,omitempty"`
+	Username    string         `json:"username,omitempty"`
 	Amount      float64        `json:"amount"`
 	Method      string         `json:"method"`
 	AccountInfo map[string]any `json:"account_info"`
-	Status      string         `json:"status"` // pending / approved / rejected
+	Status      string         `json:"status"` // pending / approved / rejected / cancelled
 	RequestedAt time.Time      `json:"requested_at"`
 	ReviewedAt  *time.Time     `json:"reviewed_at,omitempty"`
 	ReviewedBy  *int64         `json:"reviewed_by,omitempty"`
@@ -118,10 +135,11 @@ type WithdrawInput struct {
 
 // AgentFilter is used by manager when listing agents.
 type AgentFilter struct {
-	ManagerID int64
-	Search    string
-	Page      int
-	PageSize  int
+	ManagerID       int64
+	IncludeAllRoles bool
+	Search          string
+	Page            int
+	PageSize        int
 }
 
 // WithdrawFilter is used for listing withdraw requests.
@@ -149,6 +167,7 @@ type ResellerRepository interface {
 	CreateWithdrawRequest(ctx context.Context, userID int64, input WithdrawInput) (*WithdrawRequest, error)
 	ListWithdrawRequests(ctx context.Context, filter WithdrawFilter) ([]WithdrawRequest, int64, error)
 	ReviewWithdrawRequest(ctx context.Context, id, reviewerID int64, status, note string) error
+	CancelWithdrawRequest(ctx context.Context, withdrawalID, userID int64) error
 	GetManagerDashboard(ctx context.Context, managerID int64) (*ManagerDashboard, error)
 }
 
@@ -256,10 +275,14 @@ func (s *ResellerService) RequestWithdraw(ctx context.Context, agentUserID int64
 	}
 	input.Method = strings.ToLower(strings.TrimSpace(input.Method))
 	if input.Method == "" {
-		input.Method = "manual"
+		input.Method = "balance_transfer"
 	}
 	if !validWithdrawMethod(input.Method) {
 		return nil, ErrWithdrawInvalidMethod
+	}
+	if input.Method == "balance_transfer" {
+		input.AccountInfo = map[string]any{}
+		return s.repo.CreateWithdrawRequest(ctx, agentUserID, input)
 	}
 	account, ok := input.AccountInfo["account"].(string)
 	if !ok || strings.TrimSpace(account) == "" || len(strings.TrimSpace(account)) > 200 {
@@ -275,7 +298,7 @@ func (s *ResellerService) RequestWithdraw(ctx context.Context, agentUserID int64
 
 func validWithdrawMethod(method string) bool {
 	switch method {
-	case "alipay", "wechat", "bank", "manual":
+	case "alipay", "wechat", "bank", "manual", "balance_transfer":
 		return true
 	default:
 		return false
@@ -289,6 +312,11 @@ func (s *ResellerService) GetWithdrawHistory(ctx context.Context, agentUserID in
 		Page:     page,
 		PageSize: pageSize,
 	})
+}
+
+// CancelWithdrawal cancels a pending request owned by the current user.
+func (s *ResellerService) CancelWithdrawal(ctx context.Context, userID, withdrawalID int64) error {
+	return s.repo.CancelWithdrawRequest(ctx, withdrawalID, userID)
 }
 
 // ListAllWithdrawRequests is for manager/admin: list all or filtered requests.
@@ -313,10 +341,21 @@ func (s *ResellerService) ListManagedWithdrawRequests(ctx context.Context, manag
 
 // ReviewWithdrawRequest approves or rejects a pending request.
 // On approval the aff_quota is transferred to the user's balance.
-func (s *ResellerService) ReviewWithdrawRequest(ctx context.Context, requestID, reviewerID int64, approve bool, note string) error {
-	status := "rejected"
-	if approve {
-		status = "approved"
+func (s *ResellerService) ReviewWithdrawRequest(ctx context.Context, requestID, reviewerID int64, action, reason string) error {
+	reason = strings.TrimSpace(reason)
+
+	var status string
+	switch action {
+	case WithdrawReviewActionApprove:
+		status = WithdrawStatusApproved
+	case WithdrawReviewActionReject:
+		if reason == "" {
+			return ErrWithdrawReasonRequired
+		}
+		status = WithdrawStatusRejected
+	default:
+		return ErrWithdrawInvalidAction
 	}
-	return s.repo.ReviewWithdrawRequest(ctx, requestID, reviewerID, status, strings.TrimSpace(note))
+
+	return s.repo.ReviewWithdrawRequest(ctx, requestID, reviewerID, status, reason)
 }

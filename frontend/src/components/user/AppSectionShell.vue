@@ -215,7 +215,10 @@ const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName 
     ? [{ label: t('nav.affiliate'), to: '/app/affiliate', icon: 'users' as IconName }]
     : []),
   ...(resellerStore.isAgent
-    ? [{ label: t('nav.resellerAgent'), to: '/app/reseller', icon: 'users' as IconName }]
+    ? [
+        { label: t('nav.resellerAgent'), to: '/app/reseller', icon: 'users' as IconName },
+        { label: t('nav.resellerWithdrawals'), to: '/app/reseller/withdrawals', icon: 'document' as IconName }
+      ]
     : []),
   ...(resellerStore.isManager
     ? [{ label: t('nav.resellerManager'), to: '/app/reseller/manager', icon: 'badge' as IconName }]

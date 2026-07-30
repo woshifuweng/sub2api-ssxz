@@ -2,10 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useResellerStore } from '@/stores/reseller'
 
-const { getRole } = vi.hoisted(() => ({ getRole: vi.fn() }))
+const { getRole, getAgentDashboard } = vi.hoisted(() => ({
+  getRole: vi.fn(),
+  getAgentDashboard: vi.fn()
+}))
 
 vi.mock('@/api/reseller', () => ({
-  default: { getRole }
+  default: { getRole, getAgentDashboard }
 }))
 
 describe('useResellerStore', () => {
@@ -53,5 +56,39 @@ describe('useResellerStore', () => {
     resolveRequest?.({ role: 'agent' })
     await Promise.all([first, second])
     expect(store.role).toBe('agent')
+  })
+
+  it('fails closed when the role endpoint is unavailable', async () => {
+    getRole.mockRejectedValue(new Error('network error'))
+    const store = useResellerStore()
+
+    await expect(store.fetchRole(7)).resolves.toBeNull()
+
+    expect(store.role).toBeNull()
+    expect(store.isAgent).toBe(false)
+    expect(store.loading).toBe(false)
+  })
+
+  it('loads dashboard data only for reseller roles', async () => {
+    const dashboard = {
+      user_id: 7,
+      aff_code: 'CODE7',
+      aff_quota: 20,
+      aff_frozen_quota: 3,
+      aff_history_quota: 48,
+      recruit_count: 5,
+      rebate_rate: 0.05,
+      pending_withdraw: 4,
+      commission_earned: 52
+    }
+    getRole.mockResolvedValue({ role: 'agent' })
+    getAgentDashboard.mockResolvedValue(dashboard)
+    const store = useResellerStore()
+
+    await store.fetchRole(7)
+    await store.fetchDashboard()
+
+    expect(store.dashboard).toEqual(dashboard)
+    expect(store.loading).toBe(false)
   })
 })

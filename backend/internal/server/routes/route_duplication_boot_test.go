@@ -68,4 +68,20 @@ func TestNativeRouterBootHasNoDuplicateRoutes(t *testing.T) {
 		middleware.StepUpAuthMiddleware(noop),
 		nil,
 		nil)
+
+	registered := make(map[string]struct{})
+	for _, route := range r.Routes() {
+		registered[route.Method+" "+route.Path] = struct{}{}
+	}
+	for _, expected := range []string{
+		"GET /api/v1/user/reseller/role",
+		"POST /api/v1/user/reseller/withdrawals/:id/cancel",
+		"GET /api/v1/user/reseller/manager/agents",
+		"GET /api/v1/admin/reseller/agents",
+		"POST /api/v1/admin/reseller/withdrawals/:id/review",
+	} {
+		if _, ok := registered[expected]; !ok {
+			t.Errorf("missing native reseller route %s", expected)
+		}
+	}
 }

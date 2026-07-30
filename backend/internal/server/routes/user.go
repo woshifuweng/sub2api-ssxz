@@ -103,6 +103,7 @@ func ExecutableUserRoutes(h *handler.Handlers) []gatewayctx.RouteDef {
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/recruits", Handler: h.Reseller.GetMyRecruitsGateway, Middleware: jwtUser},
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/withdrawals", Handler: h.Reseller.GetMyWithdrawalsGateway, Middleware: jwtUser},
 			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/user/reseller/withdraw", Handler: h.Reseller.RequestWithdrawGateway, Middleware: jwtUser},
+			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/user/reseller/withdrawals/:id/cancel", Handler: h.Reseller.CancelWithdrawalGateway, Middleware: jwtUser},
 			// Manager routes (jwt_auth, role enforced in handler)
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/manager/dashboard", Handler: h.Reseller.GetManagerDashboardGateway, Middleware: jwtUser},
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/manager/agents", Handler: h.Reseller.ManagerListAgentsGateway, Middleware: jwtUser},
@@ -273,6 +274,28 @@ func RegisterUserRoutes(
 				chatWorkspace.GET("/conversations/:id", h.ChatWorkspace.GetConversation)
 				chatWorkspace.GET("/conversations/:id/messages", h.ChatWorkspace.ListMessages)
 				chatWorkspace.POST("/conversations/:id/messages", h.ChatWorkspace.AppendMessage)
+			}
+		}
+
+		if h.Reseller != nil {
+			reseller := authenticated.Group("/user/reseller")
+			{
+				reseller.GET("/role", h.Reseller.GetMyRole)
+				reseller.GET("/dashboard", h.Reseller.GetMyDashboard)
+				reseller.GET("/recruits", h.Reseller.GetMyRecruits)
+				reseller.GET("/withdrawals", h.Reseller.GetMyWithdrawals)
+				reseller.POST("/withdraw", h.Reseller.RequestWithdraw)
+				reseller.POST("/withdrawals/:id/cancel", h.Reseller.CancelWithdrawal)
+
+				manager := reseller.Group("/manager")
+				{
+					manager.GET("/dashboard", h.Reseller.GetManagerDashboard)
+					manager.GET("/agents", h.Reseller.ManagerListAgents)
+					manager.GET("/agents/:id", h.Reseller.ManagerGetAgentDetail)
+					manager.POST("/agents/:id/grant", h.Reseller.ManagerGrantAgent)
+					manager.DELETE("/agents/:id/role", h.Reseller.ManagerRevokeAgent)
+					manager.GET("/withdrawals", h.Reseller.ManagerListWithdrawals)
+				}
 			}
 		}
 

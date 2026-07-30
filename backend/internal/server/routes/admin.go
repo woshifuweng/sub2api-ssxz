@@ -535,8 +535,24 @@ func RegisterAdminRoutes(
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
 
+		registerResellerRoutes(admin, h)
+
 		// 操作审计日志
 		registerAuditLogRoutes(admin, h, stepUpAuth)
+	}
+}
+
+func registerResellerRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	if h.Reseller == nil {
+		return
+	}
+	reseller := admin.Group("/reseller")
+	{
+		reseller.GET("/agents", h.Reseller.AdminListAgents)
+		reseller.POST("/agents/:id/role", h.Reseller.AdminGrantRole)
+		reseller.DELETE("/agents/:id/role", h.Reseller.AdminRevokeRole)
+		reseller.GET("/withdrawals", h.Reseller.AdminListWithdrawals)
+		reseller.POST("/withdrawals/:id/review", h.Reseller.AdminReviewWithdrawal)
 	}
 }
 

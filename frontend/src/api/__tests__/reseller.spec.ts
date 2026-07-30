@@ -20,25 +20,36 @@ describe('reseller api', () => {
     const api = (await import('../reseller')).default
 
     await api.listRecruits(2, 10)
-    await api.requestWithdraw({ amount: 10, method: 'alipay', account_info: { account: 'user@example.com' } })
+    await api.requestBalanceConversion(10)
+    await api.cancelWithdrawal(12)
     await api.listManagedAgents(1, 20, 'user')
-    await api.grantManagedAgent(8, 'regional agent')
-    await api.revokeManagedAgent(8)
+    await api.setManagedAgentRole(8, 'agent', 'regional agent')
+    await api.setManagedAgentRole(8, null)
     await api.listManagedWithdrawals(1, 20, 'pending')
+    await api.listAdminAgents(2, 50, 'agent@example.com')
+    await api.listAdminWithdrawals(3, 10, 'pending')
+    await api.reviewWithdrawal(12, { action: 'reject', reason: 'invalid request' })
 
     expect(get).toHaveBeenNthCalledWith(1, '/user/reseller/recruits', { params: { page: 2, page_size: 10 } })
-    expect(post).toHaveBeenNthCalledWith(1, '/user/reseller/withdraw', {
-      amount: 10,
-      method: 'alipay',
-      account_info: { account: 'user@example.com' }
-    })
+    expect(post).toHaveBeenNthCalledWith(1, '/user/reseller/withdraw', { amount: 10 })
+    expect(post).toHaveBeenNthCalledWith(2, '/user/reseller/withdrawals/12/cancel')
     expect(get).toHaveBeenNthCalledWith(2, '/user/reseller/manager/agents', {
       params: { page: 1, page_size: 20, search: 'user' }
     })
-    expect(post).toHaveBeenNthCalledWith(2, '/user/reseller/manager/agents/8/grant', { notes: 'regional agent' })
+    expect(post).toHaveBeenNthCalledWith(3, '/user/reseller/manager/agents/8/grant', { notes: 'regional agent' })
     expect(del).toHaveBeenCalledWith('/user/reseller/manager/agents/8/role')
     expect(get).toHaveBeenNthCalledWith(3, '/user/reseller/manager/withdrawals', {
       params: { page: 1, page_size: 20, status: 'pending' }
+    })
+    expect(get).toHaveBeenNthCalledWith(4, '/admin/reseller/agents', {
+      params: { page: 2, page_size: 50, search: 'agent@example.com' }
+    })
+    expect(get).toHaveBeenNthCalledWith(5, '/admin/reseller/withdrawals', {
+      params: { page: 3, page_size: 10, status: 'pending' }
+    })
+    expect(post).toHaveBeenNthCalledWith(4, '/admin/reseller/withdrawals/12/review', {
+      action: 'reject',
+      reason: 'invalid request'
     })
   })
 })

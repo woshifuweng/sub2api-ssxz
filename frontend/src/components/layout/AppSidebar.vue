@@ -488,7 +488,12 @@ const userNavItems = computed((): NavItem[] => [
   { path: '/app/orders', label: paymentEnabled.value ? t('nav.orders') : t('nav.billingRecords'), icon: OrderIcon },
   ...(paymentEnabled.value ? [{ path: '/app/redeem', label: t('nav.redeem'), icon: TicketIcon }] : []),
   ...(affiliateEnabled.value ? [{ path: '/app/affiliate', label: t('nav.affiliate'), icon: UsersIcon }] : []),
-  ...(resellerStore.isAgent ? [{ path: '/app/reseller', label: t('nav.resellerAgent'), icon: UsersIcon }] : []),
+  ...(resellerStore.isAgent
+    ? [
+        { path: '/app/reseller', label: t('nav.resellerAgent'), icon: UsersIcon },
+        { path: '/app/reseller/withdrawals', label: t('nav.resellerWithdrawals'), icon: TicketIcon }
+      ]
+    : []),
   ...(resellerStore.isManager ? [{ path: '/app/reseller/manager', label: t('nav.resellerManager'), icon: UsersIcon }] : []),
   { path: '/app/profile', label: t('nav.account'), icon: UserIcon }
 ])
@@ -520,6 +525,7 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/redeem', label: t('nav.redeemCodes'), icon: TicketIcon, hideInSimpleMode: true },
     { path: '/admin/promo-codes', label: t('nav.promoCodes'), icon: GiftIcon, hideInSimpleMode: true },
     { path: '/admin/affiliates', label: t('nav.affiliates'), icon: UsersIcon, hideInSimpleMode: true },
+    { path: '/admin/reseller/agents', label: t('nav.resellerAdmin'), icon: UsersIcon, hideInSimpleMode: true },
     { path: '/admin/orders/settings', label: t('nav.paymentSettings'), icon: CreditCardIcon, hideInSimpleMode: true },
     ...(paymentEnabled.value
       ? [
@@ -606,6 +612,10 @@ function handleMenuItemClick(itemPath: string) {
 
 function isActive(path: string): boolean {
   const normalizedPath = path.split('?')[0]
+  if (normalizedPath === '/app/reseller') return route.path === normalizedPath
+  if (normalizedPath === '/admin/reseller/agents') {
+    return route.path.startsWith('/admin/reseller/')
+  }
   return route.path === normalizedPath || route.path.startsWith(normalizedPath + '/')
 }
 
