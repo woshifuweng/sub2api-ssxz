@@ -42,4 +42,20 @@ describe('recharge controls', () => {
     await methods[1].trigger('click')
     expect(wrapper.emitted('select')?.at(-1)).toEqual(['wxpay'])
   })
+
+  it('keeps custom payment methods within the responsive grid and shows their configured name', () => {
+    const wrapper = mount(PaymentMethodSelector, {
+      props: {
+        selected: 'ldc',
+        methods: [{ type: 'ldc', display_name: 'LDC Pay', fee_rate: 0, available: true }]
+      }
+    })
+
+    expect(wrapper.get('[data-testid="payment-method-grid"]').classes()).toEqual(
+      expect.arrayContaining(['grid', 'sm:grid-cols-3', 'lg:grid-cols-4'])
+    )
+    expect(wrapper.get('button').attributes('title')).toBe('LDC Pay')
+    expect(wrapper.get('[data-testid="payment-method-label"]').text()).toBe('LDC Pay')
+    expect(wrapper.get('button').classes()).toContain('min-w-0')
+  })
 })
