@@ -710,15 +710,14 @@ func normalizeOpenAIPassthroughOAuthBodyWeiShaw(body []byte, compact bool) ([]by
 	return normalized, changed, nil
 }
 
-func detectOpenAIPassthroughInstructionsRejectReasonWeiShaw(reqModel string, body []byte) string {
-	model := strings.ToLower(strings.TrimSpace(reqModel))
-	if !strings.Contains(model, "codex") {
+func detectOpenAIPassthroughInstructionsRejectReason(reqModel string, body []byte) string {
+	if !isOpenAICodexModel(reqModel) {
 		return ""
 	}
 
 	instructions := gjson.GetBytes(body, "instructions")
 	if !instructions.Exists() {
-		return "instructions_missing"
+		return ""
 	}
 	if instructions.Type != gjson.String {
 		return "instructions_not_string"
@@ -727,6 +726,10 @@ func detectOpenAIPassthroughInstructionsRejectReasonWeiShaw(reqModel string, bod
 		return "instructions_empty"
 	}
 	return ""
+}
+
+func isOpenAICodexModel(model string) bool {
+	return strings.Contains(strings.ToLower(strings.TrimSpace(model)), "codex")
 }
 
 // extractOpenAIReasoningEffortFromBody 按优先级传入模型候选（如 upstreamModel,
