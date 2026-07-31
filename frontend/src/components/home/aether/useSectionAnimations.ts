@@ -157,7 +157,8 @@ export function useLogoPosition(
     let opacity = 1
 
     if (section === SECTIONS.HOME) {
-      transform = 'scale(1) translateY(-18vh)'
+      // Keep the tall artwork inside short mobile viewports without changing desktop placement.
+      transform = isDesktop ? 'scale(1) translateY(-18vh)' : 'scale(0.82) translateY(-10vh)'
       opacity = 1
     } else if (section === SECTIONS.CLAUDE) {
       // Mobile: move logo higher and reduce opacity to avoid blocking content

@@ -76,7 +76,7 @@
 }
 @keyframes ssxz-outline-retire {
   from { opacity: 1; }
-  to { opacity: .18; }
+  to { opacity: 0; }
 }
 @keyframes ssxz-color-form {
   0% {

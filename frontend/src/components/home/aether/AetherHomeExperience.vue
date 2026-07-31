@@ -136,13 +136,17 @@
       <section ref="section0" class="aether-section aether-hero">
         <div class="aether-hero__content">
           <div class="aether-hero__logo-space" />
-          <p class="aether-hero__brand" :style="getTitleStyle(SECTIONS.HOME)">
+          <h1 class="aether-hero__brand" :style="getTitleStyle(SECTIONS.HOME)">
             <span class="typewriter">
               {{ brandText }}<span class="cursor" :class="{ 'is-hidden': !showCursor }">_</span>
             </span>
+          </h1>
+          <p class="aether-hero__subtitle" :style="getDescStyle(SECTIONS.HOME)">
+            AI 开发工具统一接入平台
           </p>
-          <h1 :style="getTitleStyle(SECTIONS.HOME)">AI 开发工具统一接入平台</h1>
-          <p :style="getDescStyle(SECTIONS.HOME)">整合 Claude Code、Codex CLI、Gemini CLI 等多个 AI 编程助手</p>
+          <p class="aether-hero__description" :style="getDescStyle(SECTIONS.HOME)">
+            整合 Claude Code、Codex CLI、Gemini CLI 等多个 AI 编程助手
+          </p>
           <div class="aether-hero__actions" :style="getButtonsStyle(SECTIONS.HOME)">
             <RouterLink :to="createKeyPath" class="f0-button f0-button--default f0-button--lg">
               创建 API Key
@@ -797,9 +801,9 @@ onUnmounted(() => {
 
 .aether-hero h1 {
   margin: 0;
-  font-size: clamp(2.35rem, 5vw, 4.25rem);
-  font-weight: 730;
-  line-height: 1.04;
+  font-size: clamp(2.8rem, 6vw, 5rem);
+  font-weight: 560;
+  line-height: 1.12;
   text-wrap: balance;
   transition: opacity 700ms ease, transform 700ms ease;
 }
@@ -829,14 +833,23 @@ onUnmounted(() => {
   transition: opacity 700ms ease, transform 700ms ease;
 }
 
-.aether-hero p.aether-hero__brand {
-  margin: 0 auto 0.9rem;
+.aether-hero h1.aether-hero__brand {
+  margin: 0 auto;
   color: var(--aether-hero-ink);
-  font-size: clamp(0.95rem, 1.4vw, 1.15rem);
-  font-weight: 720;
-  letter-spacing: 0.14em;
-  line-height: 1.2;
-  text-transform: uppercase;
+  font-family: "Noto Serif SC", "Source Han Serif SC", "STSong", serif;
+  letter-spacing: 0;
+}
+
+.aether-hero p.aether-hero__subtitle {
+  margin-top: 1.35rem;
+  color: var(--aether-hero-ink);
+  font-family: "Noto Serif SC", "Source Han Serif SC", "STSong", serif;
+  font-size: clamp(1rem, 1.8vw, 1.35rem);
+  line-height: 1.4;
+}
+
+.aether-hero p.aether-hero__description {
+  margin-top: 0.65rem;
 }
 
 .aether-hero__actions,
