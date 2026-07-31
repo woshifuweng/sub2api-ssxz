@@ -128,6 +128,10 @@ func (h *GatewayHandler) GeminiV1BetaGetModelGateway(transportCtx gatewayctx.Gat
 		googleErrorContext(transportCtx, http.StatusBadRequest, apiKeyModelNotAllowedMessage(modelName))
 		return
 	}
+	if !service.IsSafeGeminiModelPathSegment(modelName) {
+		googleErrorContext(transportCtx, http.StatusBadRequest, "Invalid model in URL")
+		return
+	}
 	if resolvedModel, ok := service.ResolvedUpstreamModelFromContext(transportCtx.Context()); ok && strings.TrimSpace(resolvedModel) != "" {
 		modelName = strings.TrimSpace(resolvedModel)
 	}
@@ -209,6 +213,10 @@ func (h *GatewayHandler) GeminiV1BetaModelsGateway(transportCtx gatewayctx.Gatew
 	}
 	if !apiKeyAllowsRequestedModel(apiKey, modelName) {
 		googleErrorContext(transportCtx, http.StatusBadRequest, apiKeyModelNotAllowedMessage(modelName))
+		return
+	}
+	if !service.IsSafeGeminiModelPathSegment(modelName) {
+		googleErrorContext(transportCtx, http.StatusBadRequest, "Invalid model in URL")
 		return
 	}
 	if resolvedModel, ok := service.ResolvedUpstreamModelFromContext(transportCtx.Context()); ok && strings.TrimSpace(resolvedModel) != "" {

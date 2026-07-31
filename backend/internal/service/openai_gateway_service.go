@@ -6425,6 +6425,13 @@ func openAIResponsesRequestPathSuffix(c *gin.Context) string {
 	return openAIResponsesRequestPathSuffixContext(gatewayctx.FromGin(c))
 }
 
+// IsForwardableOpenAIResponsesRequestPath reports whether the incoming
+// Responses subpath can be safely appended to an upstream URL.
+func IsForwardableOpenAIResponsesRequestPath(c *gin.Context) bool {
+	_, ok := sanitizedUpstreamPathSuffix(rawOpenAIResponsesRequestPathSuffixContext(gatewayctx.FromGin(c)))
+	return ok
+}
+
 func resolveOpenAICompactSessionIDContext(c gatewayctx.GatewayContext) string {
 	if c != nil {
 		if sessionID := strings.TrimSpace(c.HeaderValue("session_id")); sessionID != "" {
@@ -6443,6 +6450,14 @@ func resolveOpenAICompactSessionIDContext(c gatewayctx.GatewayContext) string {
 }
 
 func openAIResponsesRequestPathSuffixContext(c gatewayctx.GatewayContext) string {
+	suffix, ok := sanitizedUpstreamPathSuffix(rawOpenAIResponsesRequestPathSuffixContext(c))
+	if !ok {
+		return ""
+	}
+	return suffix
+}
+
+func rawOpenAIResponsesRequestPathSuffixContext(c gatewayctx.GatewayContext) string {
 	if c == nil || c.Request() == nil || c.Request().URL == nil {
 		return ""
 	}
@@ -6466,8 +6481,8 @@ func openAIResponsesRequestPathSuffixContext(c gatewayctx.GatewayContext) string
 
 func appendOpenAIResponsesRequestPathSuffix(baseURL, suffix string) string {
 	trimmedBase := strings.TrimRight(strings.TrimSpace(baseURL), "/")
-	trimmedSuffix := strings.TrimSpace(suffix)
-	if trimmedBase == "" || trimmedSuffix == "" {
+	trimmedSuffix, ok := sanitizedUpstreamPathSuffix(suffix)
+	if !ok || trimmedBase == "" || trimmedSuffix == "" {
 		return trimmedBase
 	}
 	return trimmedBase + trimmedSuffix

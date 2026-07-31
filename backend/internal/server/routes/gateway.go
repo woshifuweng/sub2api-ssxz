@@ -62,6 +62,21 @@ func RegisterGatewayRoutes(
 	requireGroupAnthropic := middleware.RequireGroupAssignment(settingService, middleware.AnthropicErrorWriter)
 	requireGroupGoogle := middleware.RequireGroupAssignment(settingService, middleware.GoogleErrorWriter)
 	idempotency := middleware.GatewayIdempotencyMiddleware(redisClient)
+	guardResponsesSubpath := func(next gin.HandlerFunc) gin.HandlerFunc {
+		return func(c *gin.Context) {
+			if !service.IsForwardableOpenAIResponsesRequestPath(c) {
+				service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalPolicyDenied)
+				c.AbortWithStatusJSON(http.StatusNotFound, gin.H{
+					"error": gin.H{
+						"type":    "not_found_error",
+						"message": "Unsupported responses subpath",
+					},
+				})
+				return
+			}
+			next(c)
+		}
+	}
 
 	// API网关（Claude API兼容）
 	gateway := r.Group("/v1")
@@ -92,7 +107,7 @@ func RegisterGatewayRoutes(
 		gateway.GET("/live/:call_id", h.OpenAIGateway.LiveSideband)
 		// OpenAI Responses API
 		gateway.POST("/responses", h.OpenAIGateway.Responses)
-		gateway.POST("/responses/*subpath", h.OpenAIGateway.Responses)
+		gateway.POST("/responses/*subpath", guardResponsesSubpath(h.OpenAIGateway.Responses))
 		gateway.GET("/responses", h.OpenAIGateway.ResponsesWebSocket)
 		// OpenAI Chat Completions API
 		gateway.POST("/chat/completions", h.OpenAIGateway.ChatCompletions)
@@ -132,7 +147,7 @@ func RegisterGatewayRoutes(
 
 	// OpenAI Responses API（不带v1前缀的别名）
 	r.POST("/responses", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), idempotency, compositeTarget, requireGroupAnthropic, h.OpenAIGateway.Responses)
-	r.POST("/responses/*subpath", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), idempotency, compositeTarget, requireGroupAnthropic, h.OpenAIGateway.Responses)
+	r.POST("/responses/*subpath", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), idempotency, compositeTarget, requireGroupAnthropic, guardResponsesSubpath(h.OpenAIGateway.Responses))
 	r.GET("/responses", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), compositeTarget, requireGroupAnthropic, h.OpenAIGateway.ResponsesWebSocket)
 	// OpenAI Chat Completions API（不带v1前缀的别名）
 	r.POST("/chat/completions", gatewayRL, bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), idempotency, compositeTarget, requireGroupAnthropic, h.OpenAIGateway.ChatCompletions)
@@ -166,7 +181,7 @@ func RegisterGatewayRoutes(
 		codexDirect.GET("/models", h.OpenAIGateway.CodexModels)
 		codexDirect.GET("/responses", h.OpenAIGateway.ResponsesWebSocket)
 		codexDirect.POST("/responses", h.OpenAIGateway.Responses)
-		codexDirect.POST("/responses/*subpath", h.OpenAIGateway.Responses)
+		codexDirect.POST("/responses/*subpath", guardResponsesSubpath(h.OpenAIGateway.Responses))
 		codexDirect.POST("/alpha/search", h.OpenAIGateway.AlphaSearch)
 	}
 	// Claude Code bootstrap / telemetry compatibility endpoints.
