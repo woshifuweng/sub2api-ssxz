@@ -431,20 +431,21 @@ type OpenAIGatewayService struct {
 	liveAttestation       liveattestation.Provider
 	liveAttestationCipher SecretEncryptor
 
-	openaiWSPoolOnce              sync.Once
-	openaiWSStateStoreOnce        sync.Once
-	openaiSchedulerOnce           sync.Once
-	openaiProxyStreamCircuitOnce  sync.Once
-	openaiWSPassthroughDialerOnce sync.Once
-	openaiWSPool                  *openAIWSConnPool
-	openaiWSStateStore            OpenAIWSStateStore
-	openaiScheduler               OpenAIAccountScheduler
-	openaiWSPassthroughDialer     openAIWSClientDialer
-	openaiAccountStats            *openAIAccountRuntimeStats
-	openaiRelayMetrics            openAIStreamRelayMetrics
-	proxyCircuit                  *openAICircuitBreaker
-	accountCircuit                *openAICircuitBreaker
-	openaiProxyStreamCircuit      *openAIProxyStreamCircuit
+	openaiWSPoolOnce               sync.Once
+	openaiWSStateStoreOnce         sync.Once
+	openaiSchedulerOnce            sync.Once
+	openaiProxyStreamCircuitOnce   sync.Once
+	openaiWSPassthroughDialerOnce  sync.Once
+	openaiWSPool                   *openAIWSConnPool
+	openaiWSStateStore             OpenAIWSStateStore
+	openaiScheduler                OpenAIAccountScheduler
+	openaiWSPassthroughDialer      openAIWSClientDialer
+	openaiAccountStats             *openAIAccountRuntimeStats
+	openaiRelayMetrics             openAIStreamRelayMetrics
+	proxyCircuit                   *openAICircuitBreaker
+	accountCircuit                 *openAICircuitBreaker
+	openaiProxyStreamCircuit       *openAIProxyStreamCircuit
+	openaiProxyStreamFailOpenLogAt atomic.Int64
 
 	openaiWSFallbackUntil               sync.Map // key: int64(accountID), value: time.Time
 	openaiCompatSessionResponses        sync.Map
