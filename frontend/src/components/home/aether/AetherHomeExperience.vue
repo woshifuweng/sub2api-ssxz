@@ -141,8 +141,8 @@
               {{ brandText }}<span class="cursor" :class="{ 'is-hidden': !showCursor }">_</span>
             </span>
           </p>
-          <h1 :style="getTitleStyle(SECTIONS.HOME)">一个 API Key，调用 Claude 与 GPT 系列官方模型</h1>
-          <p :style="getDescStyle(SECTIONS.HOME)">按量计费，失败不扣费，每一笔消耗都有明细可查。</p>
+          <h1 :style="getTitleStyle(SECTIONS.HOME)">AI 开发工具统一接入平台</h1>
+          <p :style="getDescStyle(SECTIONS.HOME)">整合 Claude Code、Codex CLI、Gemini CLI 等多个 AI 编程助手</p>
           <div class="aether-hero__actions" :style="getButtonsStyle(SECTIONS.HOME)">
             <RouterLink :to="createKeyPath" class="f0-button f0-button--default f0-button--lg">
               创建 API Key
@@ -400,7 +400,7 @@ function copyText(text: string): void {
 
 function startTypewriter(): void {
   if (typewriterTimer) clearTimeout(typewriterTimer)
-  const fullText = props.siteName || 'SSXZ'
+  const fullText = '欢迎使用SSXZAI'
   let index = 0
   let deleting = false
 
