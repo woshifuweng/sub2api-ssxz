@@ -529,6 +529,7 @@ type ForwardResult struct {
 	ImageOutputSizes   []string
 	ImageSizeSource    string
 	ImageSizeBreakdown map[string]int
+	Quality            string
 	VideoCount         int // Sora 视频生成数量
 
 	// Sora 媒体字段
@@ -8736,15 +8737,7 @@ func (s *GatewayService) RecordUsage(ctx context.Context, input *RecordUsageInpu
 		cost = &CostBreakdown{}
 	} else if result.ImageCount > 0 {
 		// 图片生成计费
-		var groupConfig *ImagePriceConfig
-		if apiKey.Group != nil {
-			groupConfig = &ImagePriceConfig{
-				Price1K: apiKey.Group.ImagePrice1K,
-				Price2K: apiKey.Group.ImagePrice2K,
-				Price4K: apiKey.Group.ImagePrice4K,
-			}
-		}
-		cost = s.billingService.CalculateImageCost(billingModel, result.ImageSize, result.ImageCount, groupConfig, multiplier)
+		cost = calculateImageCostForAPIKey(s.billingService, billingModel, result.ImageSize, result.ImageCount, apiKey, multiplier, result.Quality)
 	} else {
 		// Token 计费
 		tokens := UsageTokens{
@@ -8925,15 +8918,7 @@ func (s *GatewayService) RecordUsageWithLongContext(ctx context.Context, input *
 	// 根据请求类型选择计费方式
 	if result.ImageCount > 0 {
 		// 图片生成计费
-		var groupConfig *ImagePriceConfig
-		if apiKey.Group != nil {
-			groupConfig = &ImagePriceConfig{
-				Price1K: apiKey.Group.ImagePrice1K,
-				Price2K: apiKey.Group.ImagePrice2K,
-				Price4K: apiKey.Group.ImagePrice4K,
-			}
-		}
-		cost = s.billingService.CalculateImageCost(billingModel, result.ImageSize, result.ImageCount, groupConfig, multiplier)
+		cost = calculateImageCostForAPIKey(s.billingService, billingModel, result.ImageSize, result.ImageCount, apiKey, multiplier, result.Quality)
 	} else {
 		// Token 计费（使用长上下文计费方法）
 		tokens := UsageTokens{

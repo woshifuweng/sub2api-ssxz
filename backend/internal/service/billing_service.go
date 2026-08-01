@@ -161,7 +161,10 @@ type CostBreakdown struct {
 	CacheReadCost             float64
 	TotalCost                 float64
 	ActualCost                float64 // 应用倍率后的实际费用
-	BillingMode               string  // 计费模式（"token"/"per_request"/"image"），由 CalculateCostUnified 填充
+	ImageUnitPrice            float64
+	ImageQualityMultiplier    float64
+	ImageEffectiveMultiplier  float64
+	BillingMode               string // 计费模式（"token"/"per_request"/"image"），由 CalculateCostUnified 填充
 	LongContextBillingApplied bool
 }
 
@@ -928,6 +931,7 @@ type CostInput struct {
 	Tokens                    UsageTokens
 	RequestCount              int    // 按次计费时使用
 	SizeTier                  string // 按次/图片模式的层级标签（"1K","2K","4K","HD" 等）
+	Quality                   string // 图片质量层级（"low","auto","medium","high"）
 	RateMultiplier            float64
 	ServiceTier               string                // "priority","flex","" 等
 	Resolver                  *ModelPricingResolver // 定价解析器
@@ -1153,13 +1157,24 @@ func (s *BillingService) calculatePerRequestCost(resolved *ResolvedPricing, inpu
 		unitPrice = resolved.DefaultPerRequestPrice
 	}
 
-	totalCost := unitPrice * float64(count)
+	isImageCost := resolved.Mode == BillingModeImage || strings.TrimSpace(input.SizeTier) != ""
+	qualityMultiplier := 1.0
+	if isImageCost {
+		qualityMultiplier = imageQualityMultiplier(input.Quality)
+	}
+	totalCost := unitPrice * float64(count) * qualityMultiplier
 	actualCost := totalCost * input.RateMultiplier
 
-	return &CostBreakdown{
+	breakdown := &CostBreakdown{
 		TotalCost:  totalCost,
 		ActualCost: actualCost,
-	}, nil
+	}
+	if isImageCost {
+		breakdown.ImageUnitPrice = unitPrice
+		breakdown.ImageQualityMultiplier = qualityMultiplier
+		breakdown.ImageEffectiveMultiplier = qualityMultiplier * input.RateMultiplier
+	}
+	return breakdown, nil
 }
 
 // CalculateCost 计算使用费用
@@ -1466,17 +1481,18 @@ func (s *BillingService) CalculateWebSearchCost(callCount int, groupPrice *float
 // imageCount: 生成的图片数量
 // groupConfig: 分组配置的价格（可能为 nil，表示使用默认值）
 // rateMultiplier: 费率倍数
-func (s *BillingService) CalculateImageCost(model string, imageSize string, imageCount int, groupConfig *ImagePriceConfig, rateMultiplier float64) *CostBreakdown {
+func (s *BillingService) CalculateImageCost(model string, imageSize string, imageCount int, groupConfig *ImagePriceConfig, rateMultiplier float64, quality string) *CostBreakdown {
 	if imageCount <= 0 {
 		return &CostBreakdown{}
 	}
-	imageSize = NormalizeImageBillingTierOrDefault(imageSize)
+	imageSize = normalizeImageBillingTierForModel(model, imageSize)
 
 	// 获取单价
 	unitPrice := s.getImageUnitPrice(model, imageSize, groupConfig)
 
 	// 计算总费用
-	totalCost := unitPrice * float64(imageCount)
+	qualityMultiplier := imageQualityMultiplier(quality)
+	totalCost := unitPrice * float64(imageCount) * qualityMultiplier
 
 	// 应用倍率（保存时强制 > 0；负数按 0 处理避免按 1x 误扣）
 	if rateMultiplier < 0 {
@@ -1485,9 +1501,12 @@ func (s *BillingService) CalculateImageCost(model string, imageSize string, imag
 	actualCost := totalCost * rateMultiplier
 
 	return &CostBreakdown{
-		TotalCost:   totalCost,
-		ActualCost:  actualCost,
-		BillingMode: string(BillingModeImage),
+		TotalCost:                totalCost,
+		ActualCost:               actualCost,
+		ImageUnitPrice:           unitPrice,
+		ImageQualityMultiplier:   qualityMultiplier,
+		ImageEffectiveMultiplier: qualityMultiplier * rateMultiplier,
+		BillingMode:              string(BillingModeImage),
 	}
 }
 

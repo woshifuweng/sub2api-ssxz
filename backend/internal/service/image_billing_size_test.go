@@ -108,3 +108,43 @@ func TestResolveImageBillingSize(t *testing.T) {
 		})
 	}
 }
+
+func TestApplyOpenAIImageModelBillingFallbackGPTImage2AutoDefaultsTo4K(t *testing.T) {
+	result := &OpenAIForwardResult{
+		ImageCount:     1,
+		ImageInputSize: "auto",
+	}
+
+	ApplyOpenAIImageBillingResolution(result)
+	ApplyOpenAIImageModelBillingFallback(result, "gpt-image-2")
+
+	require.Equal(t, ImageBillingSize4K, result.ImageSize)
+	require.Equal(t, ImageSizeSourceDefault, result.ImageSizeSource)
+}
+
+func TestApplyOpenAIImageModelBillingFallbackActualOutputWins(t *testing.T) {
+	result := &OpenAIForwardResult{
+		ImageCount:      1,
+		ImageInputSize:  "auto",
+		ImageOutputSize: "1024x1024",
+	}
+
+	ApplyOpenAIImageBillingResolution(result)
+	ApplyOpenAIImageModelBillingFallback(result, "gpt-image-2")
+
+	require.Equal(t, ImageBillingSize1K, result.ImageSize)
+	require.Equal(t, ImageSizeSourceOutput, result.ImageSizeSource)
+}
+
+func TestApplyOpenAIImageModelBillingFallbackOtherModelsRemain2K(t *testing.T) {
+	result := &OpenAIForwardResult{
+		ImageCount:     1,
+		ImageInputSize: "auto",
+	}
+
+	ApplyOpenAIImageBillingResolution(result)
+	ApplyOpenAIImageModelBillingFallback(result, "gemini-3-pro-image")
+
+	require.Equal(t, ImageBillingSize2K, result.ImageSize)
+	require.Equal(t, ImageSizeSourceDefault, result.ImageSizeSource)
+}

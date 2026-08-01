@@ -278,6 +278,7 @@ type OpenAIForwardResult struct {
 	ImageOutputSizes      []string
 	ImageSizeSource       string
 	ImageSizeBreakdown    map[string]int
+	Quality               string
 	VideoCount            int
 	VideoResolution       string
 	VideoDurationSeconds  int
@@ -6591,7 +6592,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	}
 	var cost *CostBreakdown
 	if result.ImageCount > 0 {
-		cost = s.calculateOpenAIImageCostLegacy(ctx, billingModel, result.ImageSize, result.ImageCount, multiplier, apiKey)
+		cost = s.calculateOpenAIImageCostLegacy(ctx, billingModel, result.ImageSize, result.ImageCount, multiplier, apiKey, result.Quality)
 	} else {
 		var err error
 		cost, err = s.calculateOpenAITokenCost(ctx, billingModel, tokens, multiplier, serviceTier, apiKey)
@@ -6713,7 +6714,7 @@ func (s *OpenAIGatewayService) EstimateOpenAIImageCost(ctx context.Context, mode
 		}
 		multiplier = resolver.Resolve(ctx, user.ID, *apiKey.GroupID, apiKey.Group.RateMultiplier)
 	}
-	return s.calculateOpenAIImageCostLegacy(ctx, model, imageSize, imageCount, multiplier, apiKey)
+	return s.calculateOpenAIImageCostLegacy(ctx, model, imageSize, imageCount, multiplier, apiKey, "")
 }
 
 func (s *OpenAIGatewayService) EstimateOpenAITokenRequestCost(ctx context.Context, model string, body []byte, apiKey *APIKey, user *User) (*CostBreakdown, error) {
@@ -6784,10 +6785,11 @@ func estimateOpenAIRequestInputTokens(body []byte) int {
 	return tokens
 }
 
-func (s *OpenAIGatewayService) calculateOpenAIImageCostLegacy(ctx context.Context, model string, imageSize string, imageCount int, multiplier float64, apiKey *APIKey) *CostBreakdown {
+func (s *OpenAIGatewayService) calculateOpenAIImageCostLegacy(ctx context.Context, model string, imageSize string, imageCount int, multiplier float64, apiKey *APIKey, quality string) *CostBreakdown {
 	if imageCount <= 0 {
 		return &CostBreakdown{}
 	}
+	imageSize = normalizeImageBillingTierForModel(model, imageSize)
 
 	if s.modelPricingResolver != nil && apiKey != nil && apiKey.GroupID != nil {
 		resolved := s.modelPricingResolver.Resolve(ctx, PricingInput{
@@ -6804,24 +6806,23 @@ func (s *OpenAIGatewayService) calculateOpenAIImageCostLegacy(ctx context.Contex
 				if multiplier <= 0 {
 					multiplier = 1.0
 				}
-				totalCost := unitPrice * float64(imageCount)
-				return &CostBreakdown{
-					TotalCost:  totalCost,
-					ActualCost: totalCost * multiplier,
+				qualityMultiplier := imageQualityMultiplier(quality)
+				totalCost := unitPrice * float64(imageCount) * qualityMultiplier
+				cost := &CostBreakdown{
+					TotalCost:                totalCost,
+					ActualCost:               totalCost * multiplier,
+					ImageUnitPrice:           unitPrice,
+					ImageQualityMultiplier:   qualityMultiplier,
+					ImageEffectiveMultiplier: qualityMultiplier * multiplier,
+					BillingMode:              string(BillingModeImage),
 				}
+				logResolvedImageBillingCost(cost, model, imageSize, imageCount, quality, apiKey, imageBillingSourceChannel)
+				return cost
 			}
 		}
 	}
 
-	var groupConfig *ImagePriceConfig
-	if apiKey != nil && apiKey.Group != nil {
-		groupConfig = &ImagePriceConfig{
-			Price1K: apiKey.Group.ImagePrice1K,
-			Price2K: apiKey.Group.ImagePrice2K,
-			Price4K: apiKey.Group.ImagePrice4K,
-		}
-	}
-	return s.billingService.CalculateImageCost(model, imageSize, imageCount, groupConfig, multiplier)
+	return calculateImageCostForAPIKey(s.billingService, model, imageSize, imageCount, apiKey, multiplier, quality)
 }
 
 func (s *OpenAIGatewayService) calculateOpenAITokenCost(ctx context.Context, model string, tokens UsageTokens, multiplier float64, serviceTier string, apiKey *APIKey) (*CostBreakdown, error) {

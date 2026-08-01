@@ -684,6 +684,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKeyContext(
 		FirstTokenMs:    firstTokenMs,
 		ImageCount:      imageCount,
 		ImageSize:       parsed.SizeTier,
+		Quality:         parsed.Quality,
 	}, nil
 }
 

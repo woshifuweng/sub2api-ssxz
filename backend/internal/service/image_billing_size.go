@@ -158,6 +158,47 @@ func ApplyForwardImageBillingResolution(result *ForwardResult) {
 	)
 }
 
+// ApplyOpenAIImageModelBillingFallback conservatively bills gpt-image-2 auto
+// requests as 4K only when the upstream response did not expose dimensions.
+func ApplyOpenAIImageModelBillingFallback(result *OpenAIForwardResult, billingModel string) {
+	if result == nil {
+		return
+	}
+	applyGPTImage2AutoBillingFallback(
+		&result.ImageSize,
+		result.ImageInputSize,
+		result.ImageSizeSource,
+		billingModel,
+	)
+}
+
+func ApplyForwardImageModelBillingFallback(result *ForwardResult, billingModel string) {
+	if result == nil {
+		return
+	}
+	applyGPTImage2AutoBillingFallback(
+		&result.ImageSize,
+		result.ImageInputSize,
+		result.ImageSizeSource,
+		billingModel,
+	)
+}
+
+func applyGPTImage2AutoBillingFallback(
+	billingSize *string,
+	inputSize string,
+	source string,
+	billingModel string,
+) {
+	if billingSize == nil ||
+		!strings.EqualFold(strings.TrimSpace(billingModel), "gpt-image-2") ||
+		source != ImageSizeSourceDefault ||
+		!strings.EqualFold(strings.TrimSpace(inputSize), "auto") {
+		return
+	}
+	*billingSize = ImageBillingSize4K
+}
+
 func applyImageBillingResolution(
 	billingSize *string,
 	inputSize *string,

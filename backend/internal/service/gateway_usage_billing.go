@@ -880,10 +880,10 @@ func (s *GatewayService) calculateImageCost(
 	billingModel string,
 	multiplier float64,
 ) *CostBreakdown {
-	sizeTier := NormalizeImageBillingTierOrDefault(result.ImageSize)
-	groupConfig := imagePriceConfigFromAPIKey(apiKey)
+	ApplyForwardImageModelBillingFallback(result, billingModel)
+	sizeTier := normalizeImageBillingTierForModel(billingModel, result.ImageSize)
 	if apiKeyHasConfiguredImagePrice(apiKey, sizeTier) {
-		return s.billingService.CalculateImageCost(billingModel, sizeTier, result.ImageCount, groupConfig, multiplier)
+		return calculateImageCostForAPIKey(s.billingService, billingModel, sizeTier, result.ImageCount, apiKey, multiplier, result.Quality)
 	}
 	if resolved := s.resolveChannelPricing(ctx, billingModel, apiKey); resolved != nil {
 		tokens := UsageTokens{
@@ -900,6 +900,7 @@ func (s *GatewayService) calculateImageCost(
 			RequestCount:   result.ImageCount,
 			SizeTier:       sizeTier,
 			RateMultiplier: multiplier,
+			Quality:        result.Quality,
 			Resolver:       s.resolver,
 			Resolved:       resolved,
 		})
@@ -907,10 +908,11 @@ func (s *GatewayService) calculateImageCost(
 			logger.LegacyPrintf("service.gateway", "Calculate image token cost failed: %v", err)
 			return &CostBreakdown{ActualCost: 0}
 		}
+		logResolvedImageBillingCost(cost, billingModel, sizeTier, result.ImageCount, result.Quality, apiKey, imageBillingSourceChannel)
 		return cost
 	}
 
-	return s.billingService.CalculateImageCost(billingModel, sizeTier, result.ImageCount, groupConfig, multiplier)
+	return calculateImageCostForAPIKey(s.billingService, billingModel, sizeTier, result.ImageCount, apiKey, multiplier, result.Quality)
 }
 
 // calculateTokenCost 计算 Token 计费：根据 opts 决定走普通/长上下文/渠道统一计费。
