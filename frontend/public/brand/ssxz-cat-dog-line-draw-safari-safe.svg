@@ -20,7 +20,7 @@
 .cls-14 {fill:#FAFAFB;}
 
 .ssxz-outline {
-  animation: ssxz-outline-retire .34s ease 2.08s forwards;
+  animation: ssxz-outline-retire .42s ease 1.92s forwards;
 }
 .ssxz-draw {
   fill: none;
@@ -76,12 +76,12 @@
 }
 @keyframes ssxz-outline-retire {
   from { opacity: 1; }
-  to { opacity: 0; }
+  to { opacity: 0; visibility: hidden; }
 }
 @keyframes ssxz-color-form {
   0% {
     opacity: 0;
-    transform: scale(.992);
+    transform: scale(1);
   }
   100% {
     opacity: 1;

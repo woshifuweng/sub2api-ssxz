@@ -2609,7 +2609,9 @@ func (s *OpenAIGatewayService) ForwardContext(ctx context.Context, c gatewayctx.
 	// 上游 165：HTTP 转发前摊平 Codex namespace 工具并剥离 input 项残留
 	// namespace（WSv2 原生支持 namespace 时保持原样）。flatten 需要 gin 上下文
 	// 存储平名映射用于响应还原，native 传输无 gin 时跳过；strip 与上下文无关。
-	if ginContext != nil && shouldFlattenOpenAIResponsesNamespaces(account, wsDecision.Transport, account.IsOpenAIPassthroughEnabled()) {
+	compactPath := isOpenAIResponsesCompactPathContext(c)
+	namespacePassthroughEnabled := account.IsOpenAIPassthroughEnabled()
+	if ginContext != nil && shouldFlattenOpenAIResponsesNamespaces(account, wsDecision.Transport, namespacePassthroughEnabled, compactPath) {
 		flattenedBody, flattenErr := flattenOpenAIResponsesNamespaces(ginContext, body)
 		if flattenErr != nil {
 			setOpsUpstreamError(ginContext, http.StatusBadRequest, flattenErr.Error(), "")
@@ -2620,8 +2622,11 @@ func (s *OpenAIGatewayService) ForwardContext(ctx context.Context, c gatewayctx.
 		}
 		body = flattenedBody
 	}
-	if shouldStripOpenAIResponsesInputNamespaces(account, wsDecision.Transport, account.IsOpenAIPassthroughEnabled()) {
-		strippedBody, stripErr := stripOpenAIResponsesInputNamespaces(body)
+	if shouldStripOpenAIResponsesInputNamespaces(account, wsDecision.Transport, namespacePassthroughEnabled) {
+		keepToolCallNamespaces := shouldKeepOpenAIResponsesToolCallNamespaces(
+			account, wsDecision.Transport, namespacePassthroughEnabled, compactPath,
+		)
+		strippedBody, stripErr := stripOpenAIResponsesInputNamespaces(body, keepToolCallNamespaces)
 		if stripErr != nil {
 			if ginContext != nil {
 				setOpsUpstreamError(ginContext, http.StatusBadRequest, stripErr.Error(), "")

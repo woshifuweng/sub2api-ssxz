@@ -30,27 +30,6 @@ type LoginAgreementDocument struct {
 	ContentMD string `json:"content_md"`
 }
 
-type UserPlatformQuotaKey struct {
-	UserID   int64
-	Platform string
-}
-
-const UserPlatformQuotaCacheSchemaV1 = int64(1)
-
-type UserPlatformQuotaCacheEntry struct {
-	DailyUsageUSD      float64
-	WeeklyUsageUSD     float64
-	MonthlyUsageUSD    float64
-	Version            int64
-	SchemaVersion      int64
-	DailyLimitUSD      *float64
-	WeeklyLimitUSD     *float64
-	MonthlyLimitUSD    *float64
-	DailyWindowStart   *time.Time
-	WeeklyWindowStart  *time.Time
-	MonthlyWindowStart *time.Time
-}
-
 type AdminBindAuthIdentityInput struct {
 	ProviderType    string
 	ProviderKey     string
@@ -173,13 +152,6 @@ type BatchImageBalanceHoldResult struct {
 	Applied       bool
 	NewBalance    *float64
 	FrozenBalance *float64
-}
-
-// VideoPriceConfig contains per-second video prices in USD.
-type VideoPriceConfig struct {
-	Price480P  *float64
-	Price720P  *float64
-	Price1080P *float64
 }
 
 // OpenAIFastPolicyRule is the service-level form of the OpenAI fast policy.

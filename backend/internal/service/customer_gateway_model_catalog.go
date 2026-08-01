@@ -84,9 +84,6 @@ func filterCustomerGatewayModels(platform string, models []string) []string {
 		if _, ok := allowed[model]; !ok {
 			continue
 		}
-		if getOfficialExactModelPricing(model) == nil {
-			continue
-		}
 		filteredSet[model] = struct{}{}
 	}
 
