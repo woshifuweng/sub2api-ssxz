@@ -26,13 +26,13 @@
         <section class="reseller-stats" aria-label="返利数据概览">
           <article class="card reseller-stat">
             <span>可兑换余额</span>
-            <strong>{{ formatCurrency(availableBalance) }}</strong>
-            <small>待审核金额 {{ formatCurrency(dashboard.pending_withdraw) }}</small>
+            <strong>{{ formatNumber(availableBalance) }} 额度</strong>
+            <small>待审核 {{ formatNumber(dashboard.pending_withdraw) }} 额度</small>
           </article>
           <article class="card reseller-stat">
             <span>累计佣金</span>
-            <strong>{{ cumulativeCommission }}</strong>
-            <small>尚未成熟 {{ formatCurrency(dashboard.aff_frozen_quota) }}</small>
+            <strong>{{ cumulativeCommission }}<span v-if="cumulativeCommission !== '--'"> 额度</span></strong>
+            <small>尚未成熟 {{ formatNumber(dashboard.aff_frozen_quota) }} 额度</small>
           </article>
           <article class="card reseller-stat">
             <span>招募人数</span>
@@ -90,16 +90,16 @@
               <thead>
                 <tr>
                   <th>申请时间</th>
-                  <th>金额</th>
+                  <th>额度</th>
                   <th>状态</th>
                   <th>说明</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="item in recentRequests" :key="item.id">
-                  <td>{{ formatDateTime(item.requested_at) }}</td>
+                  <td>{{ formatRelativeTime(item.requested_at) }}</td>
                   <td class="font-medium text-[var(--ssxz-text)]">
-                    {{ formatCurrency(item.amount) }}
+                    {{ formatNumber(item.amount) }} 额度
                   </td>
                   <td><WithdrawalStatusBadge :status="item.status" /></td>
                   <td>{{ item.status === 'rejected' ? item.note || '未提供原因' : '--' }}</td>
@@ -138,7 +138,7 @@ import WithdrawalStatusBadge from '@/components/reseller/WithdrawalStatusBadge.v
 import resellerAPI, { type WithdrawRequest } from '@/api/reseller'
 import { useResellerStore } from '@/stores/reseller'
 import { useClipboard } from '@/composables/useClipboard'
-import { formatCurrency, formatDateTime } from '@/utils/format'
+import { formatNumber, formatRelativeTime } from '@/utils/format'
 import { extractApiErrorMessage } from '@/utils/apiError'
 
 const resellerStore = useResellerStore()
@@ -154,7 +154,7 @@ const availableBalance = computed(() => Math.max(
 ))
 const cumulativeCommission = computed(() => (
   typeof dashboard.value?.commission_earned === 'number'
-    ? formatCurrency(dashboard.value.commission_earned)
+    ? formatNumber(dashboard.value.commission_earned)
     : '--'
 ))
 const inviteLink = computed(() => {

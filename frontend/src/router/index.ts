@@ -304,6 +304,19 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/app/reseller/recruits',
+    name: 'ResellerRecruits',
+    component: () => import('@/views/reseller/AgentRecruits.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      resellerRole: 'agent',
+      title: '招募用户',
+      appSection: 'reseller-recruits',
+      titleSiteName: 'SSXZ AI'
+    }
+  },
+  {
     path: '/app/reseller/manager',
     name: 'ResellerManager',
     component: () => import('@/views/reseller/ManagerDashboard.vue'),

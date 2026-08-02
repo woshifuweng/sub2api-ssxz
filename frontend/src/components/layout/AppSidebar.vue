@@ -491,6 +491,7 @@ const userNavItems = computed((): NavItem[] => [
   ...(resellerStore.isAgent
     ? [
         { path: '/app/reseller', label: t('nav.resellerAgent'), icon: UsersIcon },
+        { path: '/app/reseller/recruits', label: t('nav.resellerRecruits'), icon: UsersIcon },
         { path: '/app/reseller/withdrawals', label: t('nav.resellerWithdrawals'), icon: TicketIcon }
       ]
     : []),
@@ -526,6 +527,7 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/promo-codes', label: t('nav.promoCodes'), icon: GiftIcon, hideInSimpleMode: true },
     { path: '/admin/affiliates', label: t('nav.affiliates'), icon: UsersIcon, hideInSimpleMode: true },
     { path: '/admin/reseller/agents', label: t('nav.resellerAdmin'), icon: UsersIcon, hideInSimpleMode: true },
+    { path: '/admin/reseller/withdrawals', label: t('nav.resellerAdminWithdrawals'), icon: TicketIcon, hideInSimpleMode: true },
     { path: '/admin/orders/settings', label: t('nav.paymentSettings'), icon: CreditCardIcon, hideInSimpleMode: true },
     ...(paymentEnabled.value
       ? [
@@ -613,8 +615,8 @@ function handleMenuItemClick(itemPath: string) {
 function isActive(path: string): boolean {
   const normalizedPath = path.split('?')[0]
   if (normalizedPath === '/app/reseller') return route.path === normalizedPath
-  if (normalizedPath === '/admin/reseller/agents') {
-    return route.path.startsWith('/admin/reseller/')
+  if (normalizedPath === '/admin/reseller/agents' || normalizedPath === '/admin/reseller/withdrawals') {
+    return route.path === normalizedPath || route.path.startsWith(normalizedPath + '/')
   }
   return route.path === normalizedPath || route.path.startsWith(normalizedPath + '/')
 }

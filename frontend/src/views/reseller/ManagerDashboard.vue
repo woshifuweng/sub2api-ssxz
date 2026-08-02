@@ -83,7 +83,7 @@
                   <th>用户</th>
                   <th>当前角色</th>
                   <th>招募数</th>
-                  <th>累计佣金</th>
+                  <th>累计额度</th>
                   <th>开通时间</th>
                   <th class="text-right">操作</th>
                 </tr>
@@ -92,12 +92,12 @@
                 <tr v-for="item in agents.items" :key="item.user_id">
                   <td>
                     <strong>{{ item.username || `用户 ${item.user_id}` }}</strong>
-                    <small>{{ item.email || '--' }}</small>
+                    <small>{{ maskEmail(item.email) }}</small>
                   </td>
-                  <td>Agent</td>
+                  <td>{{ item.role === 'agent_manager' ? '管理 Agent' : 'Agent' }}</td>
                   <td>{{ item.recruit_count ?? '--' }}</td>
-                  <td>--</td>
-                  <td>{{ item.granted_at ? formatDateTime(item.granted_at) : '--' }}</td>
+                  <td>{{ item.commission_total ? `${item.commission_total} 额度` : '--' }}</td>
+                  <td>{{ formatRelativeTime(item.granted_at) }}</td>
                   <td class="text-right">
                     <LiquidButton
                       type="button"
@@ -183,7 +183,7 @@ import resellerAPI, {
 } from '@/api/reseller'
 import type { PaginatedResponse } from '@/types'
 import { useAppStore } from '@/stores/app'
-import { formatDateTime } from '@/utils/format'
+import { formatRelativeTime } from '@/utils/format'
 import { extractApiErrorMessage } from '@/utils/apiError'
 
 const appStore = useAppStore()
@@ -196,6 +196,14 @@ const search = ref('')
 const newAgent = reactive({ userId: '', notes: '' })
 const roleTarget = ref<AgentSummary | null>(null)
 const selectedRole = ref<'agent' | 'none'>('agent')
+
+function maskEmail(email: string | undefined): string {
+  if (!email) return '--'
+  const [local, domain] = email.split('@')
+  if (!domain) return '***'
+  if (local.length <= 2) return `${local[0] || '*'}***@${domain}`
+  return `${local.slice(0, 2)}***@${domain}`
+}
 
 function emptyPage<T>(): PaginatedResponse<T> {
   return { items: [], total: 0, page: 1, page_size: 20, pages: 0 }

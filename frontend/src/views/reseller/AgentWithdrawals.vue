@@ -9,12 +9,12 @@
       <section class="card conversion-panel">
         <div class="conversion-copy">
           <span>当前可兑换</span>
-          <strong>{{ formatCurrency(availableBalance) }}</strong>
+          <strong>{{ formatNumber(availableBalance) }} 额度</strong>
           <p>申请审核通过后，金额会自动转入当前账户余额。</p>
         </div>
 
         <form class="conversion-form" @submit.prevent="submitConversion">
-          <label for="reseller-conversion-amount">兑换金额</label>
+          <label for="reseller-conversion-amount">兑换额度</label>
           <div class="conversion-form__row">
             <input
               id="reseller-conversion-amount"
@@ -40,7 +40,7 @@
             </LiquidButton>
           </div>
           <small v-if="availableBalance < 1">当前可兑换余额不足 1。</small>
-          <small v-else>单次金额范围：1 至 {{ formatCurrency(availableBalance) }}</small>
+          <small v-else>单次额度范围：1 至 {{ formatNumber(availableBalance) }}</small>
         </form>
       </section>
 
@@ -68,7 +68,7 @@
           <table class="withdrawal-table min-w-[700px]">
             <thead>
               <tr>
-                <th>金额</th>
+                <th>额度</th>
                 <th>状态</th>
                 <th>申请时间</th>
                 <th>说明</th>
@@ -78,10 +78,10 @@
             <tbody>
               <tr v-for="item in requests.items" :key="item.id">
                 <td class="font-medium text-[var(--ssxz-text)]">
-                  {{ formatCurrency(item.amount) }}
+                  {{ formatNumber(item.amount) }} 额度
                 </td>
                 <td><WithdrawalStatusBadge :status="item.status" /></td>
-                <td>{{ formatDateTime(item.requested_at) }}</td>
+                <td>{{ formatRelativeTime(item.requested_at) }}</td>
                 <td>{{ item.status === 'rejected' ? item.note || '未提供原因' : '--' }}</td>
                 <td class="text-right">
                   <LiquidButton
@@ -141,7 +141,7 @@ import resellerAPI, { type WithdrawRequest } from '@/api/reseller'
 import type { PaginatedResponse } from '@/types'
 import { useAppStore } from '@/stores/app'
 import { useResellerStore } from '@/stores/reseller'
-import { formatCurrency, formatDateTime } from '@/utils/format'
+import { formatNumber, formatRelativeTime } from '@/utils/format'
 import { extractApiErrorMessage } from '@/utils/apiError'
 
 const appStore = useAppStore()
@@ -159,7 +159,7 @@ const availableBalance = computed(() => Math.max(
 ))
 const cancelMessage = computed(() => (
   cancelTarget.value
-    ? `确认撤销 ${formatCurrency(cancelTarget.value.amount)} 的兑换申请？`
+    ? `确认撤销 ${formatNumber(cancelTarget.value.amount)} 额度的兑换申请？`
     : ''
 ))
 
@@ -186,7 +186,7 @@ async function loadPage(page = requests.value.page || 1): Promise<void> {
 async function submitConversion(): Promise<void> {
   const value = Number(amount.value)
   if (!Number.isFinite(value) || value < 1 || value > availableBalance.value) {
-    appStore.showWarning(`请输入 1 至 ${formatCurrency(availableBalance.value)} 之间的金额`)
+    appStore.showWarning(`请输入 1 至 ${formatNumber(availableBalance.value)} 之间的额度`)
     return
   }
 
