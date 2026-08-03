@@ -317,6 +317,32 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/app/reseller/commission',
+    name: 'ResellerCommission',
+    component: () => import('@/views/reseller/AgentCommission.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      resellerRole: 'agent',
+      title: '佣金明细',
+      appSection: 'reseller-commission',
+      titleSiteName: 'SSXZ AI'
+    }
+  },
+  {
+    path: '/app/reseller/invite',
+    name: 'ResellerInvite',
+    component: () => import('@/views/reseller/AgentInvite.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      resellerRole: 'agent',
+      title: '推广工具',
+      appSection: 'reseller-invite',
+      titleSiteName: 'SSXZ AI'
+    }
+  },
+  {
     path: '/app/reseller/manager',
     name: 'ResellerManager',
     component: () => import('@/views/reseller/ManagerDashboard.vue'),

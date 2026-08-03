@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -621,6 +622,18 @@ func (r *resellerRepository) ListMyRecruits(ctx context.Context, agentUserID int
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT ua.user_id, u.email, COALESCE(u.username, ''),
 		       u.created_at,
+		       COALESCE(u.status, ''),
+		       COALESCE((
+		           SELECT rr.role
+		           FROM user_reseller_roles rr
+		           WHERE rr.user_id = ua.user_id AND rr.revoked_at IS NULL
+		           LIMIT 1
+		       ), ''),
+		       COALESCE(
+		           ua.aff_rebate_rate_percent::double precision,
+		           NULLIF((SELECT value FROM settings WHERE key = 'affiliate_rebate_rate' LIMIT 1), '')::double precision,
+		           0
+		       ),
 		       COALESCE((
 		           SELECT SUM(ual.amount)
 		           FROM user_affiliate_ledger ual
@@ -652,7 +665,8 @@ func (r *resellerRepository) ListMyRecruits(ctx context.Context, agentUserID int
 		var email string
 		if err := rows.Scan(
 			&rec.UserID, &email, &rec.Username,
-			&joinedAt, &rec.TotalRebate, &rec.IsActive,
+			&joinedAt, &rec.Status, &rec.ResellerRole, &rec.CommissionRate,
+			&rec.TotalRebate, &rec.IsActive,
 		); err != nil {
 			return nil, 0, fmt.Errorf("reseller ListMyRecruits scan: %w", err)
 		}
@@ -662,11 +676,291 @@ func (r *resellerRepository) ListMyRecruits(ctx context.Context, agentUserID int
 			rec.Email = email
 		}
 		if joinedAt.Valid {
+			rec.CreatedAt = &joinedAt.Time
 			rec.JoinedAt = &joinedAt.Time
 		}
 		out = append(out, rec)
 	}
 	return out, total, rows.Err()
+}
+
+const recruitDownlineScopeSQL = `WITH RECURSIVE downline AS (
+    SELECT ua.user_id
+    FROM user_affiliates ua
+    WHERE ua.inviter_id = $1
+    UNION ALL
+    SELECT child.user_id
+    FROM user_affiliates child
+    JOIN downline parent ON parent.user_id = child.inviter_id
+)`
+
+func (r *resellerRepository) GetRecruitDetail(ctx context.Context, agentUserID, recruitUserID int64, maskEmail bool) (*service.RecruitRecord, error) {
+	var rec service.RecruitRecord
+	var joinedAt sql.NullTime
+	var email string
+	err := r.db.QueryRowContext(ctx, recruitDownlineScopeSQL+`
+SELECT ua.user_id, u.email, COALESCE(u.username, ''),
+       u.created_at,
+       COALESCE(u.status, ''),
+       COALESCE((
+           SELECT rr.role
+           FROM user_reseller_roles rr
+           WHERE rr.user_id = ua.user_id AND rr.revoked_at IS NULL
+           LIMIT 1
+       ), ''),
+       COALESCE(
+           ua.aff_rebate_rate_percent::double precision,
+           NULLIF((SELECT value FROM settings WHERE key = 'affiliate_rebate_rate' LIMIT 1), '')::double precision,
+           0
+       ),
+       COALESCE((
+           SELECT SUM(ual.amount)
+           FROM user_affiliate_ledger ual
+           WHERE ual.user_id = $1
+             AND ual.source_user_id = ua.user_id
+             AND ual.action = 'accrue'
+       ), 0)::double precision,
+       EXISTS (
+           SELECT 1 FROM usage_logs ul
+           WHERE ul.user_id = ua.user_id
+             AND ul.created_at >= NOW() - INTERVAL '30 days'
+       )
+FROM user_affiliates ua
+JOIN users u ON u.id = ua.user_id
+WHERE ua.user_id = $2
+  AND EXISTS (SELECT 1 FROM downline WHERE user_id = $2)`,
+		agentUserID, recruitUserID,
+	).Scan(
+		&rec.UserID, &email, &rec.Username, &joinedAt, &rec.Status,
+		&rec.ResellerRole, &rec.CommissionRate, &rec.TotalRebate, &rec.IsActive,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, service.ErrResellerAgentNotManaged
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reseller GetRecruitDetail: %w", err)
+	}
+	if maskEmail {
+		rec.Email = service.MaskEmail(email)
+	} else {
+		rec.Email = email
+	}
+	if joinedAt.Valid {
+		rec.CreatedAt = &joinedAt.Time
+		rec.JoinedAt = &joinedAt.Time
+	}
+	return &rec, nil
+}
+
+func (r *resellerRepository) ListRecruitUsageLogs(ctx context.Context, agentUserID, recruitUserID int64, page, pageSize int) ([]service.RecruitUsageLog, int64, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	offset := (page - 1) * pageSize
+
+	var total int64
+	if err := r.db.QueryRowContext(ctx, recruitDownlineScopeSQL+`
+SELECT COUNT(*)
+FROM usage_logs ul
+JOIN downline d ON d.user_id = ul.user_id
+WHERE d.user_id = $2`, agentUserID, recruitUserID).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("reseller ListRecruitUsageLogs count: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(ctx, recruitDownlineScopeSQL+`
+SELECT ul.id,
+       ul.created_at,
+       COALESCE(NULLIF(ul.requested_model, ''), ul.model),
+       COALESCE(ul.request_type, 0)::smallint,
+       (COALESCE(ul.input_tokens, 0) + COALESCE(ul.output_tokens, 0)
+        + COALESCE(ul.cache_creation_tokens, 0) + COALESCE(ul.cache_read_tokens, 0)
+        + COALESCE(ul.cache_creation_5m_tokens, 0) + COALESCE(ul.cache_creation_1h_tokens, 0))::bigint,
+       ul.actual_cost::double precision
+FROM usage_logs ul
+JOIN downline d ON d.user_id = ul.user_id
+WHERE d.user_id = $2
+ORDER BY ul.created_at DESC, ul.id DESC
+LIMIT $3 OFFSET $4`, agentUserID, recruitUserID, pageSize, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("reseller ListRecruitUsageLogs query: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]service.RecruitUsageLog, 0)
+	for rows.Next() {
+		var item service.RecruitUsageLog
+		if err := rows.Scan(&item.ID, &item.CreatedAt, &item.Model, &item.RequestType, &item.TotalTokens, &item.ActualCost); err != nil {
+			return nil, 0, fmt.Errorf("reseller ListRecruitUsageLogs scan: %w", err)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("reseller ListRecruitUsageLogs rows: %w", err)
+	}
+	return items, total, nil
+}
+
+func (r *resellerRepository) ListRecruitRecharges(ctx context.Context, agentUserID, recruitUserID int64, page, pageSize int) ([]service.RecruitRecharge, int64, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	offset := (page - 1) * pageSize
+
+	var total int64
+	if err := r.db.QueryRowContext(ctx, recruitDownlineScopeSQL+`
+SELECT COUNT(*)
+FROM account_balance_ledger bl
+JOIN downline d ON d.user_id = bl.user_id
+WHERE d.user_id = $2
+  AND bl.amount_delta > 0`, agentUserID, recruitUserID).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("reseller ListRecruitRecharges count: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(ctx, recruitDownlineScopeSQL+`
+SELECT bl.id,
+       bl.event_type,
+       bl.amount_delta::double precision,
+       bl.note,
+       bl.created_at
+FROM account_balance_ledger bl
+JOIN downline d ON d.user_id = bl.user_id
+WHERE d.user_id = $2
+  AND bl.amount_delta > 0
+ORDER BY bl.created_at DESC, bl.id DESC
+LIMIT $3 OFFSET $4`, agentUserID, recruitUserID, pageSize, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("reseller ListRecruitRecharges query: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]service.RecruitRecharge, 0)
+	for rows.Next() {
+		var item service.RecruitRecharge
+		if err := rows.Scan(&item.ID, &item.EventType, &item.Amount, &item.Note, &item.CreatedAt); err != nil {
+			return nil, 0, fmt.Errorf("reseller ListRecruitRecharges scan: %w", err)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("reseller ListRecruitRecharges rows: %w", err)
+	}
+	return items, total, nil
+}
+
+// ListCommission lists usage rows generated by the agent's direct recruits.
+// The rebate rate is resolved from the agent's custom setting first, then the global setting.
+func (r *resellerRepository) ListCommission(ctx context.Context, filter service.CommissionFilter) ([]service.CommissionRecord, int64, float64, error) {
+	page, pageSize := filter.Page, filter.PageSize
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 50
+	}
+	offset := (page - 1) * pageSize
+
+	where := []string{
+		"invitee.inviter_id = $1",
+		"ul.actual_cost > 0",
+	}
+	args := []any{filter.AgentUserID}
+	if filter.StartAt != nil {
+		args = append(args, *filter.StartAt)
+		where = append(where, fmt.Sprintf("ul.created_at >= $%d", len(args)))
+	}
+	if filter.EndAt != nil {
+		args = append(args, *filter.EndAt)
+		where = append(where, fmt.Sprintf("ul.created_at < $%d", len(args)))
+	}
+
+	fromSQL := `
+FROM usage_logs ul
+JOIN user_affiliates invitee ON invitee.user_id = ul.user_id
+JOIN users source_user ON source_user.id = ul.user_id
+LEFT JOIN user_affiliates inviter_aff ON inviter_aff.user_id = invitee.inviter_id
+LEFT JOIN settings affiliate_rate ON affiliate_rate.key = 'affiliate_rebate_rate'`
+	rateSQL := `COALESCE(inviter_aff.aff_rebate_rate_percent::double precision,
+                         NULLIF(affiliate_rate.value, '')::double precision,
+                         0) / 100.0`
+	whereSQL := strings.Join(where, " AND ")
+
+	var total int64
+	var totalCommission float64
+	if err := r.db.QueryRowContext(ctx, `
+SELECT COUNT(*)::bigint,
+       COALESCE(SUM((ul.actual_cost::double precision) * (`+rateSQL+`)), 0)::double precision
+`+fromSQL+`
+WHERE `+whereSQL, args...).Scan(&total, &totalCommission); err != nil {
+		return nil, 0, 0, fmt.Errorf("reseller ListCommission summary: %w", err)
+	}
+
+	args = append(args, pageSize, offset)
+	rows, err := r.db.QueryContext(ctx, `
+SELECT ul.id,
+       ul.created_at,
+       COALESCE(source_user.email, ''),
+       ul.actual_cost::double precision,
+       ((ul.actual_cost::double precision) * (`+rateSQL+`))::double precision,
+       (`+rateSQL+`)::double precision
+`+fromSQL+`
+WHERE `+whereSQL+`
+ORDER BY ul.created_at DESC, ul.id DESC
+LIMIT $`+fmt.Sprint(len(args)-1)+` OFFSET $`+fmt.Sprint(len(args)), args...)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("reseller ListCommission query: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]service.CommissionRecord, 0)
+	for rows.Next() {
+		var item service.CommissionRecord
+		var email string
+		if err := rows.Scan(
+			&item.ID,
+			&item.Time,
+			&email,
+			&item.SourceConsumptionUSD,
+			&item.CommissionUSD,
+			&item.CommissionRate,
+		); err != nil {
+			return nil, 0, 0, fmt.Errorf("reseller ListCommission scan: %w", err)
+		}
+		item.SourceUserMaskedEmail = service.MaskEmail(email)
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, 0, fmt.Errorf("reseller ListCommission rows: %w", err)
+	}
+	return items, total, totalCommission, nil
+}
+
+// GetInviteSummary reads the existing affiliate code and recruit counters without creating data.
+func (r *resellerRepository) GetInviteSummary(ctx context.Context, agentUserID int64) (*service.InviteSummary, error) {
+	summary := &service.InviteSummary{}
+	err := r.db.QueryRowContext(ctx, `
+SELECT COALESCE(aff_code, ''),
+       (SELECT COUNT(*) FROM user_affiliates WHERE inviter_id = $1)::int,
+       (SELECT COUNT(*)
+          FROM user_affiliates
+         WHERE inviter_id = $1
+           AND created_at >= date_trunc('month', CURRENT_TIMESTAMP))::int
+  FROM user_affiliates
+ WHERE user_id = $1`,
+		agentUserID,
+	).Scan(&summary.InviteCode, &summary.TotalRecruited, &summary.RecruitedThisMonth)
+	if errors.Is(err, sql.ErrNoRows) {
+		return summary, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reseller GetInviteSummary: %w", err)
+	}
+	return summary, nil
 }
 
 // --- CreateWithdrawRequest ---

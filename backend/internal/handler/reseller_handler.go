@@ -9,8 +9,12 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
@@ -95,6 +99,123 @@ func (h *ResellerHandler) requireManager(c gatewayctx.GatewayContext) (int64, bo
 // ── Agent endpoints (jwt_auth + agent role) ───────────────────────────────────
 
 // GetMyRole GET /api/v1/user/reseller/role — safe for any logged-in user.
+func parseCommissionDate(value string, endOfDay bool) (*time.Time, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, nil
+	}
+	if parsed, err := time.Parse(time.RFC3339, value); err == nil {
+		return &parsed, nil
+	}
+	parsed, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return nil, err
+	}
+	if endOfDay {
+		parsed = parsed.Add(24 * time.Hour)
+	}
+	return &parsed, nil
+}
+
+func fallbackInviteCode(userID int64) string {
+	return fmt.Sprintf("AGENT-%X", uint64(userID))
+}
+
+// InviteHandler GET /api/v1/user/reseller/invite.
+func (h *ResellerHandler) InviteHandler(c *gin.Context) {
+	h.InviteHandlerGateway(gatewayctx.FromGin(c))
+}
+
+func (h *ResellerHandler) InviteHandlerGateway(c gatewayctx.GatewayContext) {
+	userID, ok := h.requireAgent(c)
+	if !ok {
+		return
+	}
+	summary, err := h.svc.GetInviteSummary(c.Request().Context(), userID)
+	if err != nil {
+		response.ErrorFromContext(h.r(c), err)
+		return
+	}
+	inviteCode := strings.TrimSpace(summary.InviteCode)
+	if inviteCode == "" {
+		inviteCode = fallbackInviteCode(userID)
+	}
+
+	baseURL := ""
+	if h.settingService != nil {
+		baseURL = strings.TrimRight(strings.TrimSpace(h.settingService.GetFrontendURLLegacy(c.Request().Context())), "/")
+	}
+	if baseURL == "" {
+		baseURL = strings.TrimRight(strings.TrimSpace(c.HeaderValue("Origin")), "/")
+	}
+	if baseURL == "" {
+		if req := c.Request(); req != nil {
+			scheme := "http"
+			if req.TLS != nil {
+				scheme = "https"
+			}
+			baseURL = scheme + "://" + req.Host
+		}
+	}
+	if baseURL == "" {
+		response.ErrorContext(h.r(c), http.StatusInternalServerError, "frontend URL is not configured")
+		return
+	}
+
+	response.SuccessContext(h.r(c), gin.H{
+		"invite_code":          inviteCode,
+		"invite_link":          baseURL + "/register?ref=" + url.QueryEscape(inviteCode),
+		"total_recruited":      summary.TotalRecruited,
+		"recruited_this_month": summary.RecruitedThisMonth,
+	})
+}
+
+// CommissionHandler GET /api/v1/user/reseller/commission.
+func (h *ResellerHandler) CommissionHandler(c *gin.Context) {
+	h.CommissionHandlerGateway(gatewayctx.FromGin(c))
+}
+
+func (h *ResellerHandler) CommissionHandlerGateway(c gatewayctx.GatewayContext) {
+	userID, ok := h.requireAgent(c)
+	if !ok {
+		return
+	}
+	page, pageSize := response.ParsePaginationValues(c)
+	startAt, err := parseCommissionDate(c.QueryValue("start_date"), false)
+	if err != nil {
+		response.ErrorContext(h.r(c), http.StatusBadRequest, "invalid start_date")
+		return
+	}
+	endAt, err := parseCommissionDate(c.QueryValue("end_date"), true)
+	if err != nil {
+		response.ErrorContext(h.r(c), http.StatusBadRequest, "invalid end_date")
+		return
+	}
+	items, total, totalCommission, err := h.svc.ListCommission(c.Request().Context(), service.CommissionFilter{
+		AgentUserID: userID,
+		Page:        page,
+		PageSize:    pageSize,
+		StartAt:     startAt,
+		EndAt:       endAt,
+	})
+	if err != nil {
+		response.ErrorFromContext(h.r(c), err)
+		return
+	}
+	pages := (total + int64(pageSize) - 1) / int64(pageSize)
+	if pages < 1 {
+		pages = 1
+	}
+	response.SuccessContext(h.r(c), gin.H{
+		"items":                items,
+		"total":                total,
+		"total_commission_usd": totalCommission,
+		"page":                 page,
+		"page_size":            pageSize,
+		"pages":                pages,
+	})
+}
+
 func (h *ResellerHandler) GetMyRole(c *gin.Context) {
 	h.GetMyRoleGateway(gatewayctx.FromGin(c))
 }
@@ -147,6 +268,83 @@ func (h *ResellerHandler) GetMyRecruitsGateway(c gatewayctx.GatewayContext) {
 	}
 	page, pageSize := response.ParsePaginationValues(c)
 	items, total, err := h.svc.ListMyRecruits(c.Request().Context(), userID, page, pageSize)
+	if err != nil {
+		response.ErrorFromContext(h.r(c), err)
+		return
+	}
+	response.PaginatedContext(h.r(c), items, total, page, pageSize)
+}
+
+func parseRecruitUserID(c gatewayctx.GatewayContext) (int64, bool) {
+	recruitUserID, err := strconv.ParseInt(c.PathParam("userId"), 10, 64)
+	if err != nil || recruitUserID <= 0 {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "invalid recruit user id")
+		return 0, false
+	}
+	return recruitUserID, true
+}
+
+// GetRecruitDetail GET /api/v1/user/reseller/recruits/:userId.
+func (h *ResellerHandler) GetRecruitDetail(c *gin.Context) {
+	h.GetRecruitDetailGateway(gatewayctx.FromGin(c))
+}
+
+func (h *ResellerHandler) GetRecruitDetailGateway(c gatewayctx.GatewayContext) {
+	userID, ok := h.requireAgent(c)
+	if !ok {
+		return
+	}
+	recruitUserID, ok := parseRecruitUserID(c)
+	if !ok {
+		return
+	}
+	detail, err := h.svc.GetRecruitDetail(c.Request().Context(), userID, recruitUserID)
+	if err != nil {
+		response.ErrorFromContext(h.r(c), err)
+		return
+	}
+	response.SuccessContext(h.r(c), detail)
+}
+
+// GetRecruitLogs GET /api/v1/user/reseller/recruits/:userId/logs.
+func (h *ResellerHandler) GetRecruitLogs(c *gin.Context) {
+	h.GetRecruitLogsGateway(gatewayctx.FromGin(c))
+}
+
+func (h *ResellerHandler) GetRecruitLogsGateway(c gatewayctx.GatewayContext) {
+	userID, ok := h.requireAgent(c)
+	if !ok {
+		return
+	}
+	recruitUserID, ok := parseRecruitUserID(c)
+	if !ok {
+		return
+	}
+	page, pageSize := response.ParsePaginationValues(c)
+	items, total, err := h.svc.ListRecruitUsageLogs(c.Request().Context(), userID, recruitUserID, page, pageSize)
+	if err != nil {
+		response.ErrorFromContext(h.r(c), err)
+		return
+	}
+	response.PaginatedContext(h.r(c), items, total, page, pageSize)
+}
+
+// GetRecruitRecharges GET /api/v1/user/reseller/recruits/:userId/recharges.
+func (h *ResellerHandler) GetRecruitRecharges(c *gin.Context) {
+	h.GetRecruitRechargesGateway(gatewayctx.FromGin(c))
+}
+
+func (h *ResellerHandler) GetRecruitRechargesGateway(c gatewayctx.GatewayContext) {
+	userID, ok := h.requireAgent(c)
+	if !ok {
+		return
+	}
+	recruitUserID, ok := parseRecruitUserID(c)
+	if !ok {
+		return
+	}
+	page, pageSize := response.ParsePaginationValues(c)
+	items, total, err := h.svc.ListRecruitRecharges(c.Request().Context(), userID, recruitUserID, page, pageSize)
 	if err != nil {
 		response.ErrorFromContext(h.r(c), err)
 		return

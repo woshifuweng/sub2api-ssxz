@@ -408,6 +408,8 @@ export default {
     resellerAgent: '我的返利',
     resellerRecruits: '招募用户',
     resellerWithdrawals: '兑换记录',
+    resellerCommission: '佣金明细',
+    resellerInvite: '推广工具',
     resellerManager: '管理 Agent',
     resellerAdmin: 'Reseller 管理',
     resellerAdminWithdrawals: '兑换审批',

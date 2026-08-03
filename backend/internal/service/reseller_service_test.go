@@ -63,6 +63,21 @@ func (s *resellerRepositoryStub) GetAgentDashboard(context.Context, int64) (*Age
 func (s *resellerRepositoryStub) ListMyRecruits(context.Context, int64, int, int, bool) ([]RecruitRecord, int64, error) {
 	return nil, 0, nil
 }
+func (s *resellerRepositoryStub) GetRecruitDetail(context.Context, int64, int64, bool) (*RecruitRecord, error) {
+	return &RecruitRecord{}, nil
+}
+func (s *resellerRepositoryStub) ListRecruitUsageLogs(context.Context, int64, int64, int, int) ([]RecruitUsageLog, int64, error) {
+	return nil, 0, nil
+}
+func (s *resellerRepositoryStub) ListRecruitRecharges(context.Context, int64, int64, int, int) ([]RecruitRecharge, int64, error) {
+	return nil, 0, nil
+}
+func (s *resellerRepositoryStub) ListCommission(context.Context, CommissionFilter) ([]CommissionRecord, int64, float64, error) {
+	return nil, 0, 0, nil
+}
+func (s *resellerRepositoryStub) GetInviteSummary(context.Context, int64) (*InviteSummary, error) {
+	return &InviteSummary{}, nil
+}
 func (s *resellerRepositoryStub) CreateWithdrawRequest(_ context.Context, _ int64, input WithdrawInput) (*WithdrawRequest, error) {
 	s.createdInput = input
 	return &WithdrawRequest{Amount: input.Amount, Method: input.Method, AccountInfo: input.AccountInfo}, nil
@@ -84,19 +99,19 @@ func (s *resellerRepositoryStub) GetManagerDashboard(_ context.Context, managerI
 	return &ManagerDashboard{}, nil
 }
 
-func TestResellerServiceRequestWithdrawNormalizesValidatedAccount(t *testing.T) {
+func TestResellerServiceRequestWithdrawNormalizesBalanceTransfer(t *testing.T) {
 	repo := &resellerRepositoryStub{role: &ResellerRoleRecord{Role: ResellerRoleAgent}}
 	svc := NewResellerService(repo)
 
 	req, err := svc.RequestWithdraw(context.Background(), 7, WithdrawInput{
 		Amount:      12.5,
-		Method:      " AliPay ",
+		Method:      " Balance_Transfer ",
 		AccountInfo: map[string]any{"account": " agent@example.com "},
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, "alipay", req.Method)
-	require.Equal(t, "agent@example.com", req.AccountInfo["account"])
+	require.Equal(t, "balance_transfer", req.Method)
+	require.Empty(t, req.AccountInfo)
 }
 
 func TestResellerServiceRequestWithdrawDefaultsToBalanceTransfer(t *testing.T) {
@@ -112,17 +127,16 @@ func TestResellerServiceRequestWithdrawDefaultsToBalanceTransfer(t *testing.T) {
 	require.Empty(t, repo.createdInput.AccountInfo)
 }
 
-func TestResellerServiceRequestWithdrawRejectsInvalidAccount(t *testing.T) {
+func TestResellerServiceRequestWithdrawRejectsUnsupportedMethod(t *testing.T) {
 	repo := &resellerRepositoryStub{role: &ResellerRoleRecord{Role: ResellerRoleAgent}}
 	svc := NewResellerService(repo)
 
 	_, err := svc.RequestWithdraw(context.Background(), 7, WithdrawInput{
-		Amount:      12.5,
-		Method:      "alipay",
-		AccountInfo: map[string]any{},
+		Amount: 12.5,
+		Method: "alipay",
 	})
 
-	require.ErrorIs(t, err, ErrWithdrawInvalidAccount)
+	require.ErrorIs(t, err, ErrWithdrawInvalidMethod)
 }
 
 func TestResellerServiceManagerQueriesAreScoped(t *testing.T) {

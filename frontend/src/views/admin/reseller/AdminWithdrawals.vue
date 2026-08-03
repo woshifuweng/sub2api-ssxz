@@ -35,22 +35,15 @@
           <div class="card flex flex-wrap items-center justify-between gap-3 p-4">
             <div class="flex gap-2" role="group" aria-label="申请状态">
               <LiquidButton
+                v-for="tab in statusTabs"
+                :key="tab.value || 'all'"
                 type="button"
-                :variant="statusFilter === 'pending' ? 'default' : 'outline'"
+                :variant="statusFilter === tab.value ? 'default' : 'outline'"
                 size="sm"
                 :disabled="loading"
-                @click="setStatusFilter('pending')"
+                @click="setStatusFilter(tab.value)"
               >
-                <span>待审批</span>
-              </LiquidButton>
-              <LiquidButton
-                type="button"
-                :variant="statusFilter === '' ? 'default' : 'outline'"
-                size="sm"
-                :disabled="loading"
-                @click="setStatusFilter('')"
-              >
-                <span>全部</span>
+                <span>{{ tab.label }}</span>
               </LiquidButton>
             </div>
             <span class="text-sm text-gray-500 dark:text-gray-400">
@@ -213,7 +206,7 @@ import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatCurrency, formatDateTime } from '@/utils/format'
 
-type StatusFilter = Extract<WithdrawStatus, 'pending'> | ''
+type StatusFilter = Extract<WithdrawStatus, 'pending' | 'approved' | 'rejected' | 'cancelled'> | ''
 
 const route = useRoute()
 const appStore = useAppStore()
@@ -223,6 +216,14 @@ const reviewingId = ref<number | null>(null)
 const rejectTarget = ref<WithdrawRequest | null>(null)
 const rejectReason = ref('')
 const requests = ref<PaginatedResponse<WithdrawRequest>>(emptyPage())
+
+const statusTabs: Array<{ value: StatusFilter; label: string }> = [
+  { value: '', label: '全部' },
+  { value: 'pending', label: '待审批' },
+  { value: 'approved', label: '已批准' },
+  { value: 'rejected', label: '已拒绝' },
+  { value: 'cancelled', label: '已取消' }
+]
 
 const sectionLinks = [
   { to: '/admin/reseller/agents', label: 'Agent 列表' },

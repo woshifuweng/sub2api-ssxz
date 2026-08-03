@@ -15,7 +15,7 @@ func ExecutableUserRoutes(h *handler.Handlers) []gatewayctx.RouteDef {
 	if h == nil {
 		return nil
 	}
-	out := make([]gatewayctx.RouteDef, 0, 12)
+	out := make([]gatewayctx.RouteDef, 0, 20)
 	if h.User != nil {
 		out = append(out,
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/profile", Handler: h.User.GetProfileGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "jwt_auth", "backend_mode_user_guard"}},
@@ -101,8 +101,14 @@ func ExecutableUserRoutes(h *handler.Handlers) []gatewayctx.RouteDef {
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/role", Handler: h.Reseller.GetMyRoleGateway, Middleware: jwtUser},
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/dashboard", Handler: h.Reseller.GetMyDashboardGateway, Middleware: jwtUser},
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/recruits", Handler: h.Reseller.GetMyRecruitsGateway, Middleware: jwtUser},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/recruits/:userId", Handler: h.Reseller.GetRecruitDetailGateway, Middleware: jwtUser},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/recruits/:userId/logs", Handler: h.Reseller.GetRecruitLogsGateway, Middleware: jwtUser},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/recruits/:userId/recharges", Handler: h.Reseller.GetRecruitRechargesGateway, Middleware: jwtUser},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/commission", Handler: h.Reseller.CommissionHandlerGateway, Middleware: jwtUser},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/invite", Handler: h.Reseller.InviteHandlerGateway, Middleware: jwtUser},
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/withdrawals", Handler: h.Reseller.GetMyWithdrawalsGateway, Middleware: jwtUser},
 			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/user/reseller/withdraw", Handler: h.Reseller.RequestWithdrawGateway, Middleware: jwtUser},
+			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/user/reseller/withdrawals", Handler: h.Reseller.RequestWithdrawGateway, Middleware: jwtUser},
 			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/user/reseller/withdrawals/:id/cancel", Handler: h.Reseller.CancelWithdrawalGateway, Middleware: jwtUser},
 			// Manager routes (jwt_auth, role enforced in handler)
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/user/reseller/manager/dashboard", Handler: h.Reseller.GetManagerDashboardGateway, Middleware: jwtUser},
@@ -283,8 +289,14 @@ func RegisterUserRoutes(
 				reseller.GET("/role", h.Reseller.GetMyRole)
 				reseller.GET("/dashboard", h.Reseller.GetMyDashboard)
 				reseller.GET("/recruits", h.Reseller.GetMyRecruits)
+				reseller.GET("/recruits/:userId", h.Reseller.GetRecruitDetail)
+				reseller.GET("/recruits/:userId/logs", h.Reseller.GetRecruitLogs)
+				reseller.GET("/recruits/:userId/recharges", h.Reseller.GetRecruitRecharges)
+				reseller.GET("/commission", h.Reseller.CommissionHandler)
+				reseller.GET("/invite", h.Reseller.InviteHandler)
 				reseller.GET("/withdrawals", h.Reseller.GetMyWithdrawals)
 				reseller.POST("/withdraw", h.Reseller.RequestWithdraw)
+				reseller.POST("/withdrawals", h.Reseller.RequestWithdraw)
 				reseller.POST("/withdrawals/:id/cancel", h.Reseller.CancelWithdrawal)
 
 				manager := reseller.Group("/manager")

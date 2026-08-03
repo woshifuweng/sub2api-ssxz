@@ -408,6 +408,8 @@ export default {
     resellerAgent: 'My Rewards',
     resellerRecruits: 'Recruits',
     resellerWithdrawals: 'Conversion Records',
+    resellerCommission: 'Commission Details',
+    resellerInvite: 'Promotion Tools',
     resellerManager: 'Manage Agents',
     resellerAdmin: 'Reseller Management',
     resellerAdminWithdrawals: 'Conversion Reviews',

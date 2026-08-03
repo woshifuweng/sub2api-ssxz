@@ -10,10 +10,23 @@
         <div class="conversion-copy">
           <span>当前可兑换</span>
           <strong>{{ formatNumber(availableBalance) }} 额度</strong>
+          <small>提现方式：余额转入</small>
           <p>申请审核通过后，金额会自动转入当前账户余额。</p>
         </div>
 
-        <form class="conversion-form" @submit.prevent="submitConversion">
+        <div class="conversion-form">
+          <p>申请余额转入需要经过审核，金额将转入当前账户余额。</p>
+          <LiquidButton
+            type="button"
+            :disabled="submitting || availableBalance < 5"
+            @click="withdrawModalOpen = true"
+          >
+            <Icon name="swap" size="sm" />
+            <span>申请提现</span>
+          </LiquidButton>
+        </div>
+
+        <form v-if="false" class="conversion-form" @submit.prevent="submitConversion">
           <label for="reseller-conversion-amount">兑换额度</label>
           <div class="conversion-form__row">
             <input
@@ -116,6 +129,55 @@
       </section>
     </div>
 
+    <BaseDialog
+      :show="withdrawModalOpen"
+      title="申请提现"
+      width="narrow"
+      :close-on-click-outside="true"
+      @close="withdrawModalOpen = false"
+    >
+      <form id="withdraw-form" class="withdraw-form" @submit.prevent="submitConversion">
+        <label for="withdraw-available-balance">当前可用余额</label>
+        <input
+          id="withdraw-available-balance"
+          class="input"
+          :value="formatNumber(availableBalance)"
+          readonly
+        />
+        <label for="withdraw-amount">提现金额</label>
+        <input
+          id="withdraw-amount"
+          v-model="amount"
+          class="input"
+          type="number"
+          inputmode="decimal"
+          min="5"
+          :max="availableBalance"
+          step="0.01"
+          placeholder="最低 5"
+          :disabled="submitting"
+          required
+        />
+        <small v-if="availableBalance < 5">当前可用余额不足最低提现金额 5。</small>
+      </form>
+
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <LiquidButton type="button" variant="outline" size="sm" @click="withdrawModalOpen = false">
+            取消
+          </LiquidButton>
+          <LiquidButton
+            type="submit"
+            form="withdraw-form"
+            size="sm"
+            :disabled="submitting || availableBalance < 5"
+          >
+            {{ submitting ? '提交中...' : '确认提现' }}
+          </LiquidButton>
+        </div>
+      </template>
+    </BaseDialog>
+
     <ConfirmDialog
       :show="!!cancelTarget"
       title="撤销兑换申请"
@@ -132,6 +194,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import LiquidButton from '@/components/common/LiquidButton.vue'
@@ -148,6 +211,7 @@ const appStore = useAppStore()
 const resellerStore = useResellerStore()
 const amount = ref('')
 const submitting = ref(false)
+const withdrawModalOpen = ref(false)
 const loading = ref(true)
 const loadError = ref('')
 const cancelTarget = ref<WithdrawRequest | null>(null)
@@ -185,7 +249,7 @@ async function loadPage(page = requests.value.page || 1): Promise<void> {
 
 async function submitConversion(): Promise<void> {
   const value = Number(amount.value)
-  if (!Number.isFinite(value) || value < 1 || value > availableBalance.value) {
+  if (!Number.isFinite(value) || value < 5 || value > availableBalance.value) {
     appStore.showWarning(`请输入 1 至 ${formatNumber(availableBalance.value)} 之间的额度`)
     return
   }
@@ -194,6 +258,7 @@ async function submitConversion(): Promise<void> {
   try {
     await resellerAPI.requestBalanceConversion(value)
     amount.value = ''
+    withdrawModalOpen.value = false
     appStore.showSuccess('兑换申请已提交')
     await loadPage(1)
   } catch (error) {
@@ -260,6 +325,22 @@ onMounted(() => void loadPage(1))
   display: grid;
   align-content: center;
   gap: 0.55rem;
+}
+
+.withdraw-form {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.withdraw-form label {
+  color: var(--ssxz-text-secondary);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.withdraw-form small {
+  color: var(--ssxz-text-muted);
+  font-size: 0.78rem;
 }
 
 .conversion-form label {

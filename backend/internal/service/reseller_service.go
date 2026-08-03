@@ -4,7 +4,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"math"
 	"strings"
@@ -106,12 +105,61 @@ type AgentSummary struct {
 
 // RecruitRecord is a single customer under an agent.
 type RecruitRecord struct {
-	UserID      int64      `json:"user_id"`
-	Email       string     `json:"email"` // masked for agent, real for manager
-	Username    string     `json:"username"`
-	JoinedAt    *time.Time `json:"joined_at,omitempty"`
-	TotalRebate float64    `json:"total_rebate"`
-	IsActive    bool       `json:"is_active"` // any usage in last 30 days
+	UserID         int64      `json:"user_id"`
+	Email          string     `json:"email"` // masked for agent, real for manager
+	Username       string     `json:"username"`
+	Status         string     `json:"status"`
+	ResellerRole   string     `json:"reseller_role"`
+	CommissionRate float64    `json:"commission_rate"`
+	CreatedAt      *time.Time `json:"created_at,omitempty"`
+	JoinedAt       *time.Time `json:"joined_at,omitempty"`
+	TotalRebate    float64    `json:"total_rebate"`
+	IsActive       bool       `json:"is_active"` // any usage in last 30 days
+}
+
+// RecruitUsageLog is a scoped usage record shown in an agent's recruit drawer.
+type RecruitUsageLog struct {
+	ID          int64     `json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	Model       string    `json:"model"`
+	RequestType int16     `json:"request_type"`
+	TotalTokens int64     `json:"total_tokens"`
+	ActualCost  float64   `json:"actual_cost"`
+}
+
+// RecruitRecharge is a positive balance ledger entry for a recruit.
+type RecruitRecharge struct {
+	ID        int64     `json:"id"`
+	EventType string    `json:"event_type"`
+	Amount    float64   `json:"amount"`
+	Note      string    `json:"note"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// CommissionRecord is one usage-based commission row for an agent.
+type CommissionRecord struct {
+	ID                    int64     `json:"id"`
+	Time                  time.Time `json:"time"`
+	SourceUserMaskedEmail string    `json:"source_user_masked_email"`
+	SourceConsumptionUSD  float64   `json:"source_consumption_usd"`
+	CommissionUSD         float64   `json:"commission_usd"`
+	CommissionRate        float64   `json:"commission_rate"`
+}
+
+// CommissionFilter controls the agent commission list range and pagination.
+type CommissionFilter struct {
+	AgentUserID int64
+	Page        int
+	PageSize    int
+	StartAt     *time.Time
+	EndAt       *time.Time
+}
+
+// InviteSummary contains the persisted invite code and recruit counters.
+type InviteSummary struct {
+	InviteCode         string
+	TotalRecruited     int
+	RecruitedThisMonth int
 }
 
 // AgentDetail is manager view of a single agent with their recruits.
@@ -221,6 +269,11 @@ type ResellerRepository interface {
 	EnableAgent(ctx context.Context, agentUserID, updatedBy int64) (*AgentDetail, error)
 	GetAgentDashboard(ctx context.Context, agentUserID int64) (*AgentDashboard, error)
 	ListMyRecruits(ctx context.Context, agentUserID int64, page, pageSize int, maskEmail bool) ([]RecruitRecord, int64, error)
+	GetRecruitDetail(ctx context.Context, agentUserID, recruitUserID int64, maskEmail bool) (*RecruitRecord, error)
+	ListRecruitUsageLogs(ctx context.Context, agentUserID, recruitUserID int64, page, pageSize int) ([]RecruitUsageLog, int64, error)
+	ListRecruitRecharges(ctx context.Context, agentUserID, recruitUserID int64, page, pageSize int) ([]RecruitRecharge, int64, error)
+	ListCommission(ctx context.Context, filter CommissionFilter) ([]CommissionRecord, int64, float64, error)
+	GetInviteSummary(ctx context.Context, agentUserID int64) (*InviteSummary, error)
 	CreateWithdrawRequest(ctx context.Context, userID int64, input WithdrawInput) (*WithdrawRequest, error)
 	ListWithdrawRequests(ctx context.Context, filter WithdrawFilter) ([]WithdrawRequest, int64, error)
 	ReviewWithdrawRequest(ctx context.Context, id, reviewerID int64, status, note string) error
@@ -360,6 +413,31 @@ func (s *ResellerService) ListMyRecruits(ctx context.Context, agentUserID int64,
 	return s.repo.ListMyRecruits(ctx, agentUserID, page, pageSize, true)
 }
 
+// GetRecruitDetail returns one direct or nested recruit within the caller's downline.
+func (s *ResellerService) GetRecruitDetail(ctx context.Context, agentUserID, recruitUserID int64) (*RecruitRecord, error) {
+	return s.repo.GetRecruitDetail(ctx, agentUserID, recruitUserID, true)
+}
+
+// ListRecruitUsageLogs returns usage rows scoped to the caller's downline.
+func (s *ResellerService) ListRecruitUsageLogs(ctx context.Context, agentUserID, recruitUserID int64, page, pageSize int) ([]RecruitUsageLog, int64, error) {
+	return s.repo.ListRecruitUsageLogs(ctx, agentUserID, recruitUserID, page, pageSize)
+}
+
+// ListRecruitRecharges returns positive balance ledger rows scoped to the caller's downline.
+func (s *ResellerService) ListRecruitRecharges(ctx context.Context, agentUserID, recruitUserID int64, page, pageSize int) ([]RecruitRecharge, int64, error) {
+	return s.repo.ListRecruitRecharges(ctx, agentUserID, recruitUserID, page, pageSize)
+}
+
+// ListCommission returns usage-based commission rows with source emails masked by the repository.
+func (s *ResellerService) ListCommission(ctx context.Context, filter CommissionFilter) ([]CommissionRecord, int64, float64, error) {
+	return s.repo.ListCommission(ctx, filter)
+}
+
+// GetInviteSummary returns the agent's persisted invite code and recruit counters.
+func (s *ResellerService) GetInviteSummary(ctx context.Context, agentUserID int64) (*InviteSummary, error) {
+	return s.repo.GetInviteSummary(ctx, agentUserID)
+}
+
 // RequestWithdraw creates a pending withdrawal request after validating balance.
 func (s *ResellerService) RequestWithdraw(ctx context.Context, agentUserID int64, input WithdrawInput) (*WithdrawRequest, error) {
 	role, err := s.GetUserRole(ctx, agentUserID)
@@ -379,29 +457,12 @@ func (s *ResellerService) RequestWithdraw(ctx context.Context, agentUserID int64
 	if !validWithdrawMethod(input.Method) {
 		return nil, ErrWithdrawInvalidMethod
 	}
-	if input.Method == "balance_transfer" {
-		input.AccountInfo = map[string]any{}
-		return s.repo.CreateWithdrawRequest(ctx, agentUserID, input)
-	}
-	account, ok := input.AccountInfo["account"].(string)
-	if !ok || strings.TrimSpace(account) == "" || len(strings.TrimSpace(account)) > 200 {
-		return nil, ErrWithdrawInvalidAccount
-	}
-	input.AccountInfo["account"] = strings.TrimSpace(account)
-	accountJSON, err := json.Marshal(input.AccountInfo)
-	if err != nil || len(accountJSON) > 4096 {
-		return nil, ErrWithdrawInvalidAccount
-	}
+	input.AccountInfo = map[string]any{}
 	return s.repo.CreateWithdrawRequest(ctx, agentUserID, input)
 }
 
 func validWithdrawMethod(method string) bool {
-	switch method {
-	case "alipay", "wechat", "bank", "manual", "balance_transfer":
-		return true
-	default:
-		return false
-	}
+	return method == "balance_transfer"
 }
 
 // GetWithdrawHistory returns the agent's own withdrawal history.

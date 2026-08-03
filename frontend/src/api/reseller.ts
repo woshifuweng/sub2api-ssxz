@@ -27,9 +27,30 @@ export interface RecruitRecord {
   user_id: number
   email: string
   username: string
+  status: string
+  reseller_role: string
+  commission_rate: number
+  created_at?: string
   joined_at?: string
   total_rebate: number
   is_active: boolean
+}
+
+export interface RecruitUsageLog {
+  id: number
+  created_at: string
+  model: string
+  request_type: number
+  total_tokens: number
+  actual_cost: number
+}
+
+export interface RecruitRecharge {
+  id: number
+  event_type: string
+  amount: number
+  note: string
+  created_at: string
 }
 
 export interface WithdrawRequest {
@@ -51,6 +72,29 @@ export interface ManagerDashboard {
   total_agents: number
   total_recruits: number
   pending_withdrawals: number
+}
+
+export interface CommissionRecord {
+  time: string
+  source_user_masked_email: string
+  source_consumption_usd: number
+  commission_usd: number
+  commission_rate: number
+}
+
+export interface CommissionResponse {
+  items: CommissionRecord[]
+  total: number
+  total_commission_usd: number
+  page: number
+  page_size: number
+}
+
+export interface InviteResponse {
+  invite_code: string
+  invite_link: string
+  total_recruited: number
+  recruited_this_month: number
 }
 
 export interface AgentSummary {
@@ -131,6 +175,49 @@ export const resellerAPI = {
     return data
   },
 
+  async getRecruitDetail(userId: number): Promise<RecruitRecord> {
+    const { data } = await apiClient.get<RecruitRecord>(`/user/reseller/recruits/${userId}`)
+    return data
+  },
+
+  async listRecruitLogs(userId: number, page = 1, pageSize = 20): Promise<PaginatedResponse<RecruitUsageLog>> {
+    const { data } = await apiClient.get<PaginatedResponse<RecruitUsageLog>>(
+      `/user/reseller/recruits/${userId}/logs`,
+      { params: { page, page_size: pageSize } }
+    )
+    return data
+  },
+
+  async listRecruitRecharges(userId: number, page = 1, pageSize = 20): Promise<PaginatedResponse<RecruitRecharge>> {
+    const { data } = await apiClient.get<PaginatedResponse<RecruitRecharge>>(
+      `/user/reseller/recruits/${userId}/recharges`,
+      { params: { page, page_size: pageSize } }
+    )
+    return data
+  },
+
+  async listCommission(
+    page = 1,
+    pageSize = 50,
+    startDate = '',
+    endDate = ''
+  ): Promise<CommissionResponse> {
+    const { data } = await apiClient.get<CommissionResponse>('/user/reseller/commission', {
+      params: {
+        page,
+        page_size: pageSize,
+        start_date: startDate || undefined,
+        end_date: endDate || undefined
+      }
+    })
+    return data
+  },
+
+  async getInvite(): Promise<InviteResponse> {
+    const { data } = await apiClient.get<InviteResponse>('/user/reseller/invite')
+    return data
+  },
+
   async listMyWithdrawals(page = 1, pageSize = 20): Promise<PaginatedResponse<WithdrawRequest>> {
     const { data } = await apiClient.get<PaginatedResponse<WithdrawRequest>>('/user/reseller/withdrawals', {
       params: { page, page_size: pageSize }
@@ -139,7 +226,7 @@ export const resellerAPI = {
   },
 
   async requestBalanceConversion(amount: number): Promise<WithdrawRequest> {
-    const { data } = await apiClient.post<WithdrawRequest>('/user/reseller/withdraw', { amount })
+    const { data } = await apiClient.post<WithdrawRequest>('/user/reseller/withdrawals', { amount })
     return data
   },
 

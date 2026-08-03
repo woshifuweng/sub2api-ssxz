@@ -30,7 +30,14 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in recruits.items" :key="item.user_id">
+            <tr
+              v-for="item in recruits.items"
+              :key="item.user_id"
+              class="recruit-row"
+              tabindex="0"
+              @click="openRecruit(item)"
+              @keydown.enter="openRecruit(item)"
+            >
               <td>
                 <strong>{{ item.username || '\u672A\u8BBE\u7F6E\u6635\u79F0' }}</strong>
                 <small>{{ maskEmail(item.email) }}</small>
@@ -63,12 +70,20 @@
         @update:page="changePage"
       />
     </section>
+
+    <RecruitDetailDrawer
+      :show="drawerOpen"
+      :user-id="selectedUserId"
+      :recruit="selectedRecruit"
+      @close="drawerOpen = false"
+    />
   </AppSectionShell>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
+import RecruitDetailDrawer from '@/components/reseller/RecruitDetailDrawer.vue'
 import Icon from '@/components/icons/Icon.vue'
 import LiquidButton from '@/components/common/LiquidButton.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -80,6 +95,9 @@ import { extractApiErrorMessage } from '@/utils/apiError'
 const loading = ref(true)
 const loadError = ref('')
 const recruits = ref<PaginatedResponse<RecruitRecord>>(emptyPage())
+const drawerOpen = ref(false)
+const selectedUserId = ref<number | null>(null)
+const selectedRecruit = ref<RecruitRecord | null>(null)
 
 function emptyPage<T>(): PaginatedResponse<T> {
   return { items: [], total: 0, page: 1, page_size: 20, pages: 0 }
@@ -107,6 +125,12 @@ async function loadPage(page = recruits.value.page || 1): Promise<void> {
 
 function changePage(page: number): void {
   void loadPage(page)
+}
+
+function openRecruit(recruit: RecruitRecord): void {
+  selectedUserId.value = recruit.user_id
+  selectedRecruit.value = recruit
+  drawerOpen.value = true
 }
 
 onMounted(() => void loadPage(1))
@@ -170,6 +194,16 @@ onMounted(() => void loadPage(1))
 .recruits-table td strong,
 .recruits-table td small {
   display: block;
+}
+
+.recruit-row {
+  cursor: pointer;
+}
+
+.recruit-row:hover,
+.recruit-row:focus-visible {
+  background: var(--ssxz-surface-raised);
+  outline: none;
 }
 
 .recruits-table td strong {
