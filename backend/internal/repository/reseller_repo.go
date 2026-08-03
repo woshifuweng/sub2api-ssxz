@@ -684,6 +684,114 @@ func (r *resellerRepository) ListMyRecruits(ctx context.Context, agentUserID int
 	return out, total, rows.Err()
 }
 
+// ListAdminAgentRecruits returns the direct recruits of an agent with the
+// financial aggregates needed by the admin detail view.
+func (r *resellerRepository) ListAdminAgentRecruits(ctx context.Context, agentUserID int64, page, pageSize int) ([]service.AdminRecruitRecord, int64, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	offset := (page - 1) * pageSize
+
+	var total int64
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*)
+           FROM user_affiliates
+          WHERE inviter_id = $1
+            AND user_id <> $1`,
+		agentUserID,
+	).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("reseller ListAdminAgentRecruits count: %w", err)
+	}
+
+	rateSQL := `COALESCE(
+        agent_aff.aff_rebate_rate_percent::double precision,
+        NULLIF((SELECT value FROM settings WHERE key = 'affiliate_rebate_rate' LIMIT 1), '')::double precision,
+        0
+    ) / 100.0`
+
+	rows, err := r.db.QueryContext(ctx, `
+SELECT ua.user_id,
+       COALESCE(u.email, ''),
+       COALESCE(u.username, ''),
+       COALESCE(u.status, ''),
+       COALESCE((
+           SELECT rr.role
+             FROM user_reseller_roles rr
+            WHERE rr.user_id = ua.user_id
+              AND rr.revoked_at IS NULL
+            LIMIT 1
+       ), ''),
+       ua.created_at,
+       EXISTS (
+           SELECT 1
+             FROM usage_logs ul
+            WHERE ul.user_id = ua.user_id
+              AND ul.created_at >= NOW() - INTERVAL '30 days'
+       ),
+       COALESCE((
+           SELECT SUM(abl.amount_delta)
+             FROM account_balance_ledger abl
+            WHERE abl.user_id = ua.user_id
+              AND abl.amount_delta > 0
+       ), 0)::double precision,
+       COALESCE((
+           SELECT SUM(ul.actual_cost)
+             FROM usage_logs ul
+            WHERE ul.user_id = ua.user_id
+       ), 0)::double precision,
+       COALESCE(u.balance, 0)::double precision,
+       (COALESCE((
+           SELECT SUM(ul.actual_cost)
+             FROM usage_logs ul
+            WHERE ul.user_id = ua.user_id
+       ), 0)::double precision * (`+rateSQL+`))::double precision
+  FROM user_affiliates ua
+  JOIN users u ON u.id = ua.user_id
+  LEFT JOIN user_affiliates agent_aff ON agent_aff.user_id = $1
+ WHERE ua.inviter_id = $1
+   AND ua.user_id <> $1
+ ORDER BY ua.created_at DESC, ua.user_id DESC
+ LIMIT $2 OFFSET $3`,
+		agentUserID, pageSize, offset,
+	)
+	if err != nil {
+		return nil, 0, fmt.Errorf("reseller ListAdminAgentRecruits query: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]service.AdminRecruitRecord, 0, pageSize)
+	for rows.Next() {
+		var rec service.AdminRecruitRecord
+		var joinedAt sql.NullTime
+		if err := rows.Scan(
+			&rec.UserID,
+			&rec.Email,
+			&rec.Username,
+			&rec.Status,
+			&rec.ResellerRole,
+			&joinedAt,
+			&rec.IsActive,
+			&rec.TotalRechargeDollars,
+			&rec.TotalCostDollars,
+			&rec.CurrentBalance,
+			&rec.CommissionContrib,
+		); err != nil {
+			return nil, 0, fmt.Errorf("reseller ListAdminAgentRecruits scan: %w", err)
+		}
+		if joinedAt.Valid {
+			rec.JoinedAt = &joinedAt.Time
+		}
+		out = append(out, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("reseller ListAdminAgentRecruits rows: %w", err)
+	}
+	return out, total, nil
+}
+
 const recruitDownlineScopeSQL = `WITH RECURSIVE downline AS (
     SELECT ua.user_id
     FROM user_affiliates ua
@@ -1128,7 +1236,7 @@ func (r *resellerRepository) ListWithdrawRequests(ctx context.Context, filter se
 	}
 	defer rows.Close()
 
-	var out []service.WithdrawRequest
+	out := make([]service.WithdrawRequest, 0)
 	for rows.Next() {
 		req, err := scanWithdrawRequest(rows)
 		if err != nil {

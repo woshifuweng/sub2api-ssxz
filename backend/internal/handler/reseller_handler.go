@@ -682,7 +682,13 @@ func (h *ResellerHandler) AdminListWithdrawals(c *gin.Context) {
 
 func (h *ResellerHandler) AdminListWithdrawalsGateway(c gatewayctx.GatewayContext) {
 	page, pageSize := response.ParsePaginationValues(c)
+	userID, err := parseOptionalPositiveInt64(c.QueryValue("user_id"))
+	if err != nil {
+		response.ErrorContext(h.r(c), http.StatusBadRequest, "invalid user id")
+		return
+	}
 	items, total, err := h.svc.ListAllWithdrawRequests(c.Request().Context(), service.WithdrawFilter{
+		UserID:   userID,
 		Status:   c.QueryValue("status"),
 		Page:     page,
 		PageSize: pageSize,
@@ -738,6 +744,25 @@ func (h *ResellerHandler) AdminGetAgentDetailGateway(c gatewayctx.GatewayContext
 		return
 	}
 	response.SuccessContext(h.r(c), detail)
+}
+
+// AdminGetAgentRecruits GET /api/v1/admin/reseller/agents/:id/recruits
+func (h *ResellerHandler) AdminGetAgentRecruits(c *gin.Context) {
+	h.AdminGetAgentRecruitsGateway(gatewayctx.FromGin(c))
+}
+
+func (h *ResellerHandler) AdminGetAgentRecruitsGateway(c gatewayctx.GatewayContext) {
+	targetID, ok := h.adminAgentTargetID(c)
+	if !ok {
+		return
+	}
+	page, pageSize := response.ParsePaginationValues(c)
+	items, total, err := h.svc.AdminListAgentRecruits(c.Request().Context(), targetID, page, pageSize)
+	if err != nil {
+		response.ErrorFromContext(h.r(c), err)
+		return
+	}
+	response.PaginatedContext(h.r(c), items, total, page, pageSize)
 }
 
 type adminUpdateAgentBody struct {

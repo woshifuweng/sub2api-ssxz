@@ -117,6 +117,22 @@ type RecruitRecord struct {
 	IsActive       bool       `json:"is_active"` // any usage in last 30 days
 }
 
+// AdminRecruitRecord is a full recruit record for the admin reseller view.
+// Unlike the agent-facing RecruitRecord, Email is intentionally not masked.
+type AdminRecruitRecord struct {
+	UserID               int64      `json:"user_id"`
+	Email                string     `json:"email"`
+	Username             string     `json:"username"`
+	Status               string     `json:"status"`
+	ResellerRole         string     `json:"reseller_role"`
+	JoinedAt             *time.Time `json:"joined_at"`
+	IsActive             bool       `json:"is_active"`
+	TotalRechargeDollars float64    `json:"total_recharge_usd"`
+	TotalCostDollars     float64    `json:"total_consumption_usd"`
+	CurrentBalance       float64    `json:"current_balance_usd"`
+	CommissionContrib    float64    `json:"commission_contributed_usd"`
+}
+
 // RecruitUsageLog is a scoped usage record shown in an agent's recruit drawer.
 type RecruitUsageLog struct {
 	ID          int64     `json:"id"`
@@ -269,6 +285,7 @@ type ResellerRepository interface {
 	EnableAgent(ctx context.Context, agentUserID, updatedBy int64) (*AgentDetail, error)
 	GetAgentDashboard(ctx context.Context, agentUserID int64) (*AgentDashboard, error)
 	ListMyRecruits(ctx context.Context, agentUserID int64, page, pageSize int, maskEmail bool) ([]RecruitRecord, int64, error)
+	ListAdminAgentRecruits(ctx context.Context, agentUserID int64, page, pageSize int) ([]AdminRecruitRecord, int64, error)
 	GetRecruitDetail(ctx context.Context, agentUserID, recruitUserID int64, maskEmail bool) (*RecruitRecord, error)
 	ListRecruitUsageLogs(ctx context.Context, agentUserID, recruitUserID int64, page, pageSize int) ([]RecruitUsageLog, int64, error)
 	ListRecruitRecharges(ctx context.Context, agentUserID, recruitUserID int64, page, pageSize int) ([]RecruitRecharge, int64, error)
@@ -411,6 +428,11 @@ func (s *ResellerService) AgentDashboard(ctx context.Context, agentUserID int64)
 // ListMyRecruits returns the agent's own recruit list with masked emails.
 func (s *ResellerService) ListMyRecruits(ctx context.Context, agentUserID int64, page, pageSize int) ([]RecruitRecord, int64, error) {
 	return s.repo.ListMyRecruits(ctx, agentUserID, page, pageSize, true)
+}
+
+// AdminListAgentRecruits returns a full recruit list for one agent.
+func (s *ResellerService) AdminListAgentRecruits(ctx context.Context, agentUserID int64, page, pageSize int) ([]AdminRecruitRecord, int64, error) {
+	return s.repo.ListAdminAgentRecruits(ctx, agentUserID, page, pageSize)
 }
 
 // GetRecruitDetail returns one direct or nested recruit within the caller's downline.

@@ -63,6 +63,9 @@ func (s *resellerRepositoryStub) GetAgentDashboard(context.Context, int64) (*Age
 func (s *resellerRepositoryStub) ListMyRecruits(context.Context, int64, int, int, bool) ([]RecruitRecord, int64, error) {
 	return nil, 0, nil
 }
+func (s *resellerRepositoryStub) ListAdminAgentRecruits(context.Context, int64, int, int) ([]AdminRecruitRecord, int64, error) {
+	return nil, 0, nil
+}
 func (s *resellerRepositoryStub) GetRecruitDetail(context.Context, int64, int64, bool) (*RecruitRecord, error) {
 	return &RecruitRecord{}, nil
 }

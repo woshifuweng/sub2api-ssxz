@@ -8,7 +8,7 @@
     <div v-if="loading" class="py-12 text-center text-sm text-[var(--ssxz-text-muted)]">
       正在加载 Agent 详情
     </div>
-    <div v-else-if="agent" class="space-y-6">
+    <div v-else-if="agent" class="space-y-5">
       <header class="detail-header">
         <div class="min-w-0">
           <h4 class="truncate text-base font-semibold text-[var(--ssxz-text)]">
@@ -21,45 +21,183 @@
         </span>
       </header>
 
-      <section>
-        <h5 class="section-title">合作配置</h5>
-        <dl class="detail-grid">
-          <div><dt>角色</dt><dd>{{ roleLabel(agent.role) }}</dd></div>
-          <div><dt>上级 Manager</dt><dd>{{ agent.manager_email || '未设置' }}</dd></div>
-          <div><dt>返利策略</dt><dd>{{ rebateLabel(agent) }}</dd></div>
-          <div><dt>邀请码</dt><dd>{{ agent.aff_code || '--' }}</dd></div>
-          <div class="md:col-span-2"><dt>备注</dt><dd>{{ agent.notes || '无' }}</dd></div>
-        </dl>
+      <nav class="detail-tabs" aria-label="Agent 详情分组">
+        <button
+          v-for="tab in tabs"
+          :key="tab.value"
+          type="button"
+          :class="['detail-tab', { 'detail-tab--active': activeTab === tab.value }]"
+          @click="activeTab = tab.value"
+        >
+          {{ tab.label }}
+        </button>
+      </nav>
+
+      <section v-if="activeTab === 'overview'" class="space-y-6">
+        <section>
+          <h5 class="section-title">合作配置</h5>
+          <dl class="detail-grid">
+            <div><dt>角色</dt><dd>{{ roleLabel(agent.role) }}</dd></div>
+            <div><dt>上级 Manager</dt><dd>{{ agent.manager_email || '未设置' }}</dd></div>
+            <div><dt>返利策略</dt><dd>{{ rebateLabel(agent) }}</dd></div>
+            <div><dt>邀请码</dt><dd>{{ agent.aff_code || '--' }}</dd></div>
+            <div class="md:col-span-2"><dt>备注</dt><dd>{{ agent.notes || '无' }}</dd></div>
+          </dl>
+        </section>
+
+        <section>
+          <h5 class="section-title">业务数据</h5>
+          <dl class="detail-grid detail-grid--metrics">
+            <div><dt>招募人数</dt><dd>{{ agent.recruit_count }}</dd></div>
+            <div><dt>可兑换佣金</dt><dd>${{ formatMoney(agent.commission_balance) }}</dd></div>
+            <div><dt>累计佣金</dt><dd>${{ formatMoney(agent.commission_total) }}</dd></div>
+            <div><dt>待处理兑换</dt><dd>{{ agent.pending_redemption_count }}</dd></div>
+          </dl>
+        </section>
+
+        <section>
+          <h5 class="section-title">生命周期</h5>
+          <dl class="detail-grid">
+            <div><dt>授权时间</dt><dd>{{ formatDate(agent.granted_at) }}</dd></div>
+            <div><dt>最近更新</dt><dd>{{ formatDate(agent.updated_at) }}</dd></div>
+            <div v-if="agent.disabled_at">
+              <dt>停用时间</dt><dd>{{ formatDate(agent.disabled_at) }}</dd>
+            </div>
+            <div v-if="agent.disabled_by_email">
+              <dt>停用操作人</dt><dd>{{ agent.disabled_by_email }}</dd>
+            </div>
+            <div v-if="agent.disabled_reason" class="md:col-span-2">
+              <dt>停用原因</dt><dd>{{ agent.disabled_reason }}</dd>
+            </div>
+            <div v-if="agent.revoked_at">
+              <dt>最终撤销时间</dt><dd>{{ formatDate(agent.revoked_at) }}</dd>
+            </div>
+          </dl>
+        </section>
       </section>
 
-      <section>
-        <h5 class="section-title">业务数据</h5>
-        <dl class="detail-grid detail-grid--metrics">
-          <div><dt>招募人数</dt><dd>{{ agent.recruit_count }}</dd></div>
-          <div><dt>可兑换佣金</dt><dd>${{ formatMoney(agent.commission_balance) }}</dd></div>
-          <div><dt>累计佣金</dt><dd>${{ formatMoney(agent.commission_total) }}</dd></div>
-          <div><dt>待处理兑换</dt><dd>{{ agent.pending_redemption_count }}</dd></div>
-        </dl>
+      <section v-else-if="activeTab === 'recruits'" class="space-y-4">
+        <div class="summary-grid">
+          <div class="summary-card"><span>下线总人数</span><strong>{{ recruits.total }}</strong></div>
+          <div class="summary-card"><span>本页充值合计</span><strong>${{ formatMoney(recruitSummary.recharge) }}</strong></div>
+          <div class="summary-card"><span>本页消费合计</span><strong>${{ formatMoney(recruitSummary.cost) }}</strong></div>
+          <div class="summary-card"><span>本页贡献佣金</span><strong>${{ formatMoney(recruitSummary.commission) }}</strong></div>
+        </div>
+
+        <div v-if="recruitsLoading" class="py-10 text-center text-sm text-[var(--ssxz-text-muted)]">
+          正在加载下线数据
+        </div>
+        <div v-else-if="recruitsError" class="empty-state text-[var(--ssxz-danger)]">
+          {{ recruitsError }}
+        </div>
+        <div v-else-if="recruits.items.length === 0" class="empty-state">
+          暂无下线用户
+        </div>
+        <div v-else class="table-scroll">
+          <table class="detail-table">
+            <thead>
+              <tr>
+                <th>用户</th>
+                <th>状态</th>
+                <th>角色</th>
+                <th>加入时间</th>
+                <th>近30天活跃</th>
+                <th>累计充值</th>
+                <th>累计消费</th>
+                <th>当前余额</th>
+                <th>贡献佣金</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="recruit in recruits.items" :key="recruit.user_id">
+                <td>
+                  <a
+                    class="user-link"
+                    :href="`/admin/users/${recruit.user_id}`"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <span>{{ recruit.email || `用户 ${recruit.user_id}` }}</span>
+                    <small>#{{ recruit.user_id }}</small>
+                  </a>
+                </td>
+                <td><span :class="['status-badge', `status-badge--${statusClass(recruit.status)}`]">{{ recruitStatusLabel(recruit.status) }}</span></td>
+                <td><span class="role-badge">{{ recruit.reseller_role ? roleLabel(recruit.reseller_role) : '普通用户' }}</span></td>
+                <td>{{ formatDate(recruit.joined_at) }}</td>
+                <td>{{ recruit.is_active ? '是' : '否' }}</td>
+                <td>${{ formatMoney(recruit.total_recharge_usd) }}</td>
+                <td>${{ formatMoney(recruit.total_consumption_usd) }}</td>
+                <td>${{ formatMoney(recruit.current_balance_usd) }}</td>
+                <td>${{ formatMoney(recruit.commission_contributed_usd) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pagination-row">
+          <span>第 {{ recruits.page }} / {{ recruits.pages || 1 }} 页，共 {{ recruits.total }} 人</span>
+          <div class="pagination-actions">
+            <LiquidButton type="button" variant="outline" size="sm" :disabled="recruitsLoading || recruits.page <= 1" @click="loadRecruits(recruits.page - 1)">
+              上一页
+            </LiquidButton>
+            <LiquidButton type="button" variant="outline" size="sm" :disabled="recruitsLoading || !hasNextRecruits" @click="loadRecruits(recruits.page + 1)">
+              下一页
+            </LiquidButton>
+          </div>
+        </div>
       </section>
 
-      <section>
-        <h5 class="section-title">生命周期</h5>
-        <dl class="detail-grid">
-          <div><dt>授权时间</dt><dd>{{ formatDate(agent.granted_at) }}</dd></div>
-          <div><dt>最近更新</dt><dd>{{ formatDate(agent.updated_at) }}</dd></div>
-          <div v-if="agent.disabled_at">
-            <dt>停用时间</dt><dd>{{ formatDate(agent.disabled_at) }}</dd>
+      <section v-else class="space-y-4">
+        <div class="section-heading-row">
+          <h5 class="section-title">提现记录</h5>
+          <a class="subtle-link" href="/admin/reseller/withdrawals">查看全部提现</a>
+        </div>
+
+        <div v-if="withdrawalsLoading" class="py-10 text-center text-sm text-[var(--ssxz-text-muted)]">
+          正在加载提现记录
+        </div>
+        <div v-else-if="withdrawalsError" class="empty-state text-[var(--ssxz-danger)]">
+          {{ withdrawalsError }}
+        </div>
+        <div v-else-if="withdrawals.items.length === 0" class="empty-state">
+          暂无提现记录
+        </div>
+        <div v-else class="table-scroll">
+          <table class="detail-table">
+            <thead>
+              <tr>
+                <th>申请时间</th>
+                <th>金额</th>
+                <th>方式</th>
+                <th>状态</th>
+                <th>审批时间</th>
+                <th>备注</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="withdrawal in withdrawals.items" :key="withdrawal.id">
+                <td>{{ formatDate(withdrawal.requested_at) }}</td>
+                <td>${{ formatMoney(withdrawal.amount) }}</td>
+                <td>余额转入</td>
+                <td><span :class="['status-badge', `status-badge--${withdrawalStatusClass(withdrawal.status)}`]">{{ withdrawalStatusLabel(withdrawal.status) }}</span></td>
+                <td>{{ formatDate(withdrawal.reviewed_at) }}</td>
+                <td class="note-cell">{{ withdrawal.note || '--' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pagination-row">
+          <span>第 {{ withdrawals.page }} / {{ withdrawals.pages || 1 }} 页，共 {{ withdrawals.total }} 条</span>
+          <div class="pagination-actions">
+            <LiquidButton type="button" variant="outline" size="sm" :disabled="withdrawalsLoading || withdrawals.page <= 1" @click="loadWithdrawals(withdrawals.page - 1)">
+              上一页
+            </LiquidButton>
+            <LiquidButton type="button" variant="outline" size="sm" :disabled="withdrawalsLoading || !hasNextWithdrawals" @click="loadWithdrawals(withdrawals.page + 1)">
+              下一页
+            </LiquidButton>
           </div>
-          <div v-if="agent.disabled_by_email">
-            <dt>停用操作人</dt><dd>{{ agent.disabled_by_email }}</dd>
-          </div>
-          <div v-if="agent.disabled_reason" class="md:col-span-2">
-            <dt>停用原因</dt><dd>{{ agent.disabled_reason }}</dd>
-          </div>
-          <div v-if="agent.revoked_at">
-            <dt>最终撤销时间</dt><dd>{{ formatDate(agent.revoked_at) }}</dd>
-          </div>
-        </dl>
+        </div>
       </section>
     </div>
 
@@ -74,12 +212,23 @@
 </template>
 
 <script setup lang="ts">
-import type { AgentDetail, AgentSummary, ResellerStatus } from '@/api/reseller'
+import { computed, ref, watch } from 'vue'
+import type {
+  AdminRecruitRecord,
+  AgentDetail,
+  AgentSummary,
+  ResellerStatus,
+  WithdrawRequest,
+  WithdrawStatus
+} from '@/api/reseller'
+import type { PaginatedResponse } from '@/types'
+import resellerAPI from '@/api/reseller'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import LiquidButton from '@/components/common/LiquidButton.vue'
+import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatDateTime } from '@/utils/format'
 
-defineProps<{
+const props = defineProps<{
   show: boolean
   agent: AgentDetail | null
   loading: boolean
@@ -87,13 +236,132 @@ defineProps<{
 
 const emit = defineEmits<{ (event: 'close'): void }>()
 
+type DetailTab = 'overview' | 'recruits' | 'withdrawals'
+
+const tabs: Array<{ value: DetailTab; label: string }> = [
+  { value: 'overview', label: '概览' },
+  { value: 'recruits', label: '下线列表' },
+  { value: 'withdrawals', label: '提现记录' }
+]
+
+const activeTab = ref<DetailTab>('overview')
+const recruits = ref<PaginatedResponse<AdminRecruitRecord>>(emptyPage(20))
+const withdrawals = ref<PaginatedResponse<WithdrawRequest>>(emptyPage(10))
+const recruitsLoading = ref(false)
+const withdrawalsLoading = ref(false)
+const recruitsLoaded = ref(false)
+const withdrawalsLoaded = ref(false)
+const recruitsError = ref('')
+const withdrawalsError = ref('')
+
+const recruitSummary = computed(() =>
+  recruits.value.items.reduce(
+    (summary, recruit) => ({
+      recharge: summary.recharge + Number(recruit.total_recharge_usd || 0),
+      cost: summary.cost + Number(recruit.total_consumption_usd || 0),
+      commission: summary.commission + Number(recruit.commission_contributed_usd || 0)
+    }),
+    { recharge: 0, cost: 0, commission: 0 }
+  )
+)
+
+const hasNextRecruits = computed(
+  () => recruits.value.pages > 0
+    ? recruits.value.page < recruits.value.pages
+    : recruits.value.items.length >= recruits.value.page_size
+)
+const hasNextWithdrawals = computed(
+  () => withdrawals.value.pages > 0
+    ? withdrawals.value.page < withdrawals.value.pages
+    : withdrawals.value.items.length >= withdrawals.value.page_size
+)
+
+watch(
+  () => props.agent?.user_id,
+  () => {
+    activeTab.value = 'overview'
+    recruits.value = emptyPage(20)
+    withdrawals.value = emptyPage(10)
+    recruitsLoaded.value = false
+    withdrawalsLoaded.value = false
+    recruitsError.value = ''
+    withdrawalsError.value = ''
+  }
+)
+
+watch(activeTab, (tab) => {
+  if (!props.show || !props.agent) return
+  if (tab === 'recruits' && !recruitsLoaded.value) void loadRecruits(1)
+  if (tab === 'withdrawals' && !withdrawalsLoaded.value) void loadWithdrawals(1)
+})
+
+function emptyPage<T>(pageSize: number): PaginatedResponse<T> {
+  return { items: [], total: 0, page: 1, page_size: pageSize, pages: 0 }
+}
+
+async function loadRecruits(page: number): Promise<void> {
+  if (!props.agent || recruitsLoading.value) return
+  recruitsLoading.value = true
+  recruitsError.value = ''
+  try {
+    recruits.value = await resellerAPI.listAdminAgentRecruits(props.agent.user_id, page, 20)
+    recruitsLoaded.value = true
+  } catch (error) {
+    recruitsError.value = extractApiErrorMessage(error, '下线数据加载失败')
+  } finally {
+    recruitsLoading.value = false
+  }
+}
+
+async function loadWithdrawals(page: number): Promise<void> {
+  if (!props.agent || withdrawalsLoading.value) return
+  withdrawalsLoading.value = true
+  withdrawalsError.value = ''
+  try {
+    withdrawals.value = await resellerAPI.listAdminWithdrawals({
+      userId: props.agent.user_id,
+      page,
+      pageSize: 10
+    })
+    withdrawalsLoaded.value = true
+  } catch (error) {
+    withdrawalsError.value = extractApiErrorMessage(error, '提现记录加载失败')
+  } finally {
+    withdrawalsLoading.value = false
+  }
+}
+
 function statusLabel(status: ResellerStatus): string {
   if (status === 'disabled') return '已停用'
   if (status === 'revoked') return '已撤销'
   return '启用中'
 }
 
-function roleLabel(role: AgentSummary['role']): string {
+function recruitStatusLabel(status: string): string {
+  if (status === 'disabled') return '已停用'
+  if (status === 'active') return '启用中'
+  return status || '--'
+}
+
+function withdrawalStatusLabel(status: WithdrawStatus): string {
+  const labels: Record<WithdrawStatus, string> = {
+    pending: '待审批',
+    approved: '已批准',
+    rejected: '已拒绝',
+    cancelled: '已取消'
+  }
+  return labels[status] || status
+}
+
+function statusClass(status: string): string {
+  return status === 'active' ? 'active' : status === 'disabled' ? 'disabled' : 'muted'
+}
+
+function withdrawalStatusClass(status: WithdrawStatus): string {
+  return status === 'approved' ? 'active' : status === 'pending' ? 'pending' : 'muted'
+}
+
+function roleLabel(role: AgentSummary['role'] | string): string {
   return role === 'agent_manager' ? 'Agent Manager' : 'Agent'
 }
 
@@ -110,12 +378,12 @@ function formatRate(value: number): string {
   return `${value.toFixed(2).replace(/\.?0+$/, '')}%`
 }
 
-function formatMoney(value: string): string {
+function formatMoney(value: number | string): string {
   const amount = Number(value)
   return Number.isFinite(amount) ? amount.toFixed(2) : '0.00'
 }
 
-function formatDate(value: string): string {
+function formatDate(value?: string | null): string {
   return value ? formatDateTime(value) : '--'
 }
 </script>
@@ -130,11 +398,41 @@ function formatDate(value: string): string {
   padding-bottom: 1rem;
 }
 
+.detail-tabs {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--ssxz-border);
+}
+
+.detail-tab {
+  flex: none;
+  min-height: 2.5rem;
+  border-bottom: 2px solid transparent;
+  padding: 0 0.8rem;
+  color: var(--ssxz-text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.detail-tab:hover,
+.detail-tab--active {
+  border-bottom-color: var(--ssxz-text);
+  color: var(--ssxz-text);
+}
+
 .section-title {
   margin-bottom: 0.75rem;
   color: var(--ssxz-text);
   font-size: 0.8rem;
   font-weight: 700;
+}
+
+.section-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .detail-grid {
@@ -169,24 +467,143 @@ function formatDate(value: string): string {
   font-size: 1.1rem;
 }
 
+.summary-grid {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  padding: 0.75rem;
+}
+
+.summary-card span {
+  color: var(--ssxz-text-muted);
+  font-size: 0.72rem;
+}
+
+.summary-card strong {
+  color: var(--ssxz-text);
+  font-size: 1rem;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+}
+
+.detail-table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.detail-table th,
+.detail-table td {
+  border-bottom: 1px solid var(--ssxz-border);
+  padding: 0.7rem 0.75rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.detail-table th {
+  background: var(--ssxz-surface-raised);
+  color: var(--ssxz-text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.detail-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.user-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  color: var(--ssxz-text);
+  font-weight: 600;
+}
+
+.user-link:hover,
+.subtle-link:hover {
+  text-decoration: underline;
+}
+
+.user-link small {
+  color: var(--ssxz-text-muted);
+  font-size: 0.68rem;
+  font-weight: 400;
+}
+
+.role-badge,
 .status-badge {
   display: inline-flex;
-  flex: none;
   align-items: center;
   border: 1px solid var(--ssxz-border);
   border-radius: 999px;
   padding: 0.2rem 0.55rem;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 600;
 }
 
+.role-badge {
+  color: var(--ssxz-text-secondary);
+}
+
 .status-badge--active {
+  border-color: color-mix(in srgb, var(--ssxz-success) 35%, var(--ssxz-border));
   color: var(--ssxz-success);
 }
 
+.status-badge--pending {
+  border-color: color-mix(in srgb, var(--ssxz-warning) 35%, var(--ssxz-border));
+  color: var(--ssxz-warning);
+}
+
 .status-badge--disabled,
+.status-badge--muted,
 .status-badge--revoked {
   color: var(--ssxz-text-muted);
+}
+
+.pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--ssxz-text-muted);
+  font-size: 0.75rem;
+}
+
+.pagination-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.empty-state {
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--ssxz-text-muted);
+  font-size: 0.8rem;
+}
+
+.subtle-link {
+  color: var(--ssxz-text-secondary);
+  font-size: 0.75rem;
+}
+
+.note-cell {
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @media (min-width: 768px) {
@@ -195,6 +612,10 @@ function formatDate(value: string): string {
   }
 
   .detail-grid--metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .summary-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }

@@ -419,6 +419,7 @@ func ExecutableAdminRoutes(h *handler.Handlers) []gatewayctx.RouteDef {
 		out = append(out,
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/admin/reseller/agents", Handler: h.Reseller.AdminListAgentsGateway, Middleware: adminMW},
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/admin/reseller/agents/:id", Handler: h.Reseller.AdminGetAgentDetailGateway, Middleware: adminMW},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/admin/reseller/agents/:id/recruits", Handler: h.Reseller.AdminGetAgentRecruitsGateway, Middleware: adminMW},
 			gatewayctx.RouteDef{Method: http.MethodPatch, Path: "/api/v1/admin/reseller/agents/:id", Handler: h.Reseller.AdminUpdateAgentGateway, Middleware: adminWriteMW},
 			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/admin/reseller/agents/:id/disable", Handler: h.Reseller.AdminDisableAgentGateway, Middleware: adminWriteMW},
 			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/admin/reseller/agents/:id/enable", Handler: h.Reseller.AdminEnableAgentGateway, Middleware: adminWriteMW},
@@ -556,6 +557,7 @@ func registerResellerRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		reseller.GET("/agents", h.Reseller.AdminListAgents)
 		reseller.GET("/agents/:id", h.Reseller.AdminGetAgentDetail)
+		reseller.GET("/agents/:id/recruits", h.Reseller.AdminGetAgentRecruits)
 		reseller.PATCH("/agents/:id", h.Reseller.AdminUpdateAgent)
 		reseller.POST("/agents/:id/disable", h.Reseller.AdminDisableAgent)
 		reseller.POST("/agents/:id/enable", h.Reseller.AdminEnableAgent)

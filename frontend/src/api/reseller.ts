@@ -127,11 +127,32 @@ export interface AgentDetail extends AgentSummary {
   recruits?: RecruitRecord[]
 }
 
+export interface AdminRecruitRecord {
+  user_id: number
+  email: string
+  username: string
+  status: string
+  reseller_role: string
+  joined_at?: string
+  is_active: boolean
+  total_recharge_usd: number
+  total_consumption_usd: number
+  current_balance_usd: number
+  commission_contributed_usd: number
+}
+
 export interface AdminAgentFilters {
   search?: string
   status?: ResellerStatus | 'all' | ''
   role?: ResellerRole | ''
   manager_id?: number
+}
+
+export interface AdminWithdrawalsOptions {
+  status?: WithdrawStatus | ''
+  userId?: number
+  page?: number
+  pageSize?: number
 }
 
 export interface RebatePolicyInput {
@@ -309,6 +330,18 @@ export const resellerAPI = {
     return data
   },
 
+  async listAdminAgentRecruits(
+    agentId: number,
+    page = 1,
+    pageSize = 20
+  ): Promise<PaginatedResponse<AdminRecruitRecord>> {
+    const { data } = await apiClient.get<PaginatedResponse<AdminRecruitRecord>>(
+      `/admin/reseller/agents/${agentId}/recruits`,
+      { params: { page, page_size: pageSize } }
+    )
+    return data
+  },
+
   async updateAdminAgent(userId: number, input: UpdateAdminAgentInput): Promise<AgentDetail> {
     const { data } = await apiClient.patch<AgentDetail>(
       `/admin/reseller/agents/${userId}`,
@@ -351,13 +384,26 @@ export const resellerAPI = {
   },
 
   async listAdminWithdrawals(
-    page = 1,
-    pageSize = 20,
-    status: WithdrawStatus | '' = ''
+    optionsOrPage: AdminWithdrawalsOptions | number = {},
+    legacyPageSize = 20,
+    legacyStatus: WithdrawStatus | '' = ''
   ): Promise<PaginatedResponse<WithdrawRequest>> {
+    const options: AdminWithdrawalsOptions =
+      typeof optionsOrPage === 'number'
+        ? { page: optionsOrPage, pageSize: legacyPageSize, status: legacyStatus }
+        : optionsOrPage
+    const page = options.page ?? 1
+    const pageSize = options.pageSize ?? 20
     const { data } = await apiClient.get<PaginatedResponse<WithdrawRequest>>(
       '/admin/reseller/withdrawals',
-      { params: { page, page_size: pageSize, status: status || undefined } }
+      {
+        params: {
+          page,
+          page_size: pageSize,
+          status: options.status || undefined,
+          user_id: options.userId || undefined
+        }
+      }
     )
     return data
   },

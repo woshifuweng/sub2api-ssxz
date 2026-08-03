@@ -191,6 +191,7 @@ func TestExecutableResellerWriteRoutesEnableNativeAudit(t *testing.T) {
 	for _, item := range []routeKey{
 		{method: http.MethodGet, path: "/api/v1/admin/reseller/agents"},
 		{method: http.MethodGet, path: "/api/v1/admin/reseller/agents/:id"},
+		{method: http.MethodGet, path: "/api/v1/admin/reseller/agents/:id/recruits"},
 		{method: http.MethodGet, path: "/api/v1/admin/reseller/withdrawals"},
 	} {
 		def, ok := routesByKey[item]

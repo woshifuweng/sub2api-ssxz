@@ -256,11 +256,11 @@ function sectionLinkClass(path: string): string[] {
 async function loadRequests(page = requests.value.page || 1): Promise<void> {
   loading.value = true
   try {
-    requests.value = await resellerAPI.listAdminWithdrawals(
+    requests.value = await resellerAPI.listAdminWithdrawals({
       page,
-      requests.value.page_size,
-      statusFilter.value
-    )
+      pageSize: requests.value.page_size,
+      status: statusFilter.value
+    })
   } catch (error) {
     appStore.showError(extractApiErrorMessage(error, '兑换申请加载失败'))
   } finally {
