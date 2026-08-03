@@ -68,6 +68,9 @@ func (s *AntigravityGatewayService) setCreditsExhausted(ctx context.Context, acc
 		return
 	}
 	s.updateAccountModelRateLimitInCache(ctx, account, creditsExhaustedKey, resetAt)
+	if s.rateLimitService != nil {
+		s.rateLimitService.NotifyAccountState(ctx, account, "exhausted")
+	}
 	logger.LegacyPrintf("service.antigravity_gateway", "credits_exhausted_marked account=%d reset_at=%s",
 		account.ID, resetAt.UTC().Format(time.RFC3339))
 }

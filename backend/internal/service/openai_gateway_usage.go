@@ -357,6 +357,7 @@ func (s *OpenAIGatewayService) RecordUsageWeiShaw(ctx context.Context, input *Op
 
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
+		s.balanceNotifyService.CheckDailySpending(ctx, s.usageLogRepo, user, usageLog.CreatedAt)
 		logger.LegacyPrintf("service.openai_gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
 		s.deferredService.ScheduleLastUsedUpdate(account.ID)
 		return nil
@@ -389,6 +390,7 @@ func (s *OpenAIGatewayService) RecordUsageWeiShaw(ctx context.Context, input *Op
 		return billingErr
 	}
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
+	s.balanceNotifyService.CheckDailySpending(ctx, s.usageLogRepo, user, usageLog.CreatedAt)
 
 	return nil
 }

@@ -765,6 +765,7 @@ func ProvideGatewayService(
 	svc.SetProxyFailoverDeps(proxyRepo, proxyLatencyCache)
 	svc.SetKiroDeps(kiroTokenProvider, kiroGatewayService)
 	svc.SetBillingShortfallNotifier(balanceNotifyService)
+	rateLimitService.SetBalanceNotifyService(balanceNotifyService)
 	svc.SetCompositeRouteResolver(compositeRouteResolver)
 	return svc
 }

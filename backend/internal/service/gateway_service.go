@@ -8832,6 +8832,7 @@ func (s *GatewayService) RecordUsage(ctx context.Context, input *RecordUsageInpu
 
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
+		s.balanceNotifyService.CheckDailySpending(ctx, s.usageLogRepo, user, usageLog.CreatedAt)
 		logger.LegacyPrintf("service.gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
 		s.deferredService.ScheduleLastUsedUpdate(account.ID)
 		return nil
@@ -8856,6 +8857,7 @@ func (s *GatewayService) RecordUsage(ctx context.Context, input *RecordUsageInpu
 		return billingErr
 	}
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
+	s.balanceNotifyService.CheckDailySpending(ctx, s.usageLogRepo, user, usageLog.CreatedAt)
 
 	return nil
 }
@@ -9008,6 +9010,7 @@ func (s *GatewayService) RecordUsageWithLongContext(ctx context.Context, input *
 
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
+		s.balanceNotifyService.CheckDailySpending(ctx, s.usageLogRepo, user, usageLog.CreatedAt)
 		logger.LegacyPrintf("service.gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
 		s.deferredService.ScheduleLastUsedUpdate(account.ID)
 		return nil
@@ -9032,6 +9035,7 @@ func (s *GatewayService) RecordUsageWithLongContext(ctx context.Context, input *
 		return billingErr
 	}
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
+	s.balanceNotifyService.CheckDailySpending(ctx, s.usageLogRepo, user, usageLog.CreatedAt)
 
 	return nil
 }

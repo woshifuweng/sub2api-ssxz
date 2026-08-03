@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -60,20 +61,123 @@ type BillingShortfallNotifier interface {
 
 // BalanceNotifyService handles balance and quota threshold notifications.
 type BalanceNotifyService struct {
-	emailService          notificationEmailSender
-	settingRepo           SettingRepository
-	accountRepo           AccountQuotaReader
-	shortfallEmailLimiter *slidingWindowLimiter
+	emailService           notificationEmailSender
+	settingRepo            SettingRepository
+	accountRepo            AccountQuotaReader
+	shortfallEmailLimiter  *slidingWindowLimiter
+	alertMu                sync.Mutex
+	upstreamAlertSent      map[string]time.Time
+	dailySpendingAlertSent map[string]time.Time
 }
 
 // NewBalanceNotifyService creates a new BalanceNotifyService.
 func NewBalanceNotifyService(emailService *EmailService, settingRepo SettingRepository, accountRepo AccountQuotaReader) *BalanceNotifyService {
 	return &BalanceNotifyService{
-		emailService:          emailService,
-		settingRepo:           settingRepo,
-		accountRepo:           accountRepo,
-		shortfallEmailLimiter: newSlidingWindowLimiter(0, time.Hour),
+		emailService:           emailService,
+		settingRepo:            settingRepo,
+		accountRepo:            accountRepo,
+		shortfallEmailLimiter:  newSlidingWindowLimiter(0, time.Hour),
+		upstreamAlertSent:      make(map[string]time.Time),
+		dailySpendingAlertSent: make(map[string]time.Time),
 	}
+}
+
+// NotifyUpstreamAccountState sends a best-effort operator alert when an
+// upstream account becomes exhausted, banned, or otherwise unavailable.
+// The in-memory key prevents duplicate alerts for the same account/status for
+// 24 hours without adding another persistence table.
+func (s *BalanceNotifyService) NotifyUpstreamAccountState(ctx context.Context, account *Account, status string) {
+	if s == nil || account == nil || account.ID <= 0 {
+		return
+	}
+	status = strings.ToLower(strings.TrimSpace(status))
+	if status == "" {
+		return
+	}
+
+	emailCfg, err := s.getOpsEmailNotificationConfig(ctx)
+	if err != nil || emailCfg == nil || !emailCfg.Alert.Enabled {
+		return
+	}
+	recipients := normalizeAlertRecipients(emailCfg.Alert.Recipients)
+	if len(recipients) == 0 || !shouldSendOpsAlertEmailByMinSeverity(emailCfg.Alert.MinSeverity, "critical") {
+		return
+	}
+
+	now := time.Now().UTC()
+	key := fmt.Sprintf("%d:%s", account.ID, status)
+	if !s.claimAlertKey(s.upstreamAlertSent, key, now, 24*time.Hour) {
+		return
+	}
+
+	siteName := sanitizeEmailHeader(s.getSiteName(ctx))
+	subject := fmt.Sprintf("[%s][Critical] Upstream account %s", siteName, status)
+	body := fmt.Sprintf(`<h2>Upstream account alert</h2>
+<p>Upstream account <b>%s</b> (%d) is now <b>%s</b>.</p>
+<p><b>Platform</b>: %s</p>
+<p><b>Time</b>: %s</p>`,
+		html.EscapeString(strings.TrimSpace(account.Name)), account.ID,
+		html.EscapeString(status), html.EscapeString(strings.TrimSpace(account.Platform)),
+		now.Format(time.RFC3339))
+	go s.sendEmails(recipients, subject, body, "account_id", account.ID, "status", status)
+}
+
+// CheckDailySpending checks the current day's actual usage after a usage log
+// is written and alerts once per user/day when the hard-coded $10 threshold is
+// crossed. The repository implementation performs the SELECT aggregation.
+func (s *BalanceNotifyService) CheckDailySpending(ctx context.Context, usageRepo UsageLogRepository, user *User, at time.Time) {
+	const dailySpendingThreshold = 10.0
+	if s == nil || usageRepo == nil || user == nil || user.ID <= 0 {
+		return
+	}
+	if at.IsZero() {
+		at = time.Now()
+	}
+	location := at.Location()
+	dayStart := time.Date(at.Year(), at.Month(), at.Day(), 0, 0, 0, 0, location)
+	dayEnd := dayStart.Add(24 * time.Hour)
+	stats, err := usageRepo.GetUserStatsAggregated(ctx, user.ID, dayStart, dayEnd)
+	if err != nil || stats == nil || stats.TotalActualCost <= dailySpendingThreshold {
+		return
+	}
+
+	emailCfg, err := s.getOpsEmailNotificationConfig(ctx)
+	if err != nil || emailCfg == nil || !emailCfg.Alert.Enabled {
+		return
+	}
+	recipients := normalizeAlertRecipients(emailCfg.Alert.Recipients)
+	if len(recipients) == 0 || !shouldSendOpsAlertEmailByMinSeverity(emailCfg.Alert.MinSeverity, "critical") {
+		return
+	}
+
+	now := time.Now().UTC()
+	key := fmt.Sprintf("%d:%s", user.ID, dayStart.Format("2006-01-02"))
+	if !s.claimAlertKey(s.dailySpendingAlertSent, key, now, 24*time.Hour) {
+		return
+	}
+
+	siteName := sanitizeEmailHeader(s.getSiteName(ctx))
+	subject := fmt.Sprintf("[%s][Critical] Abnormal daily spending", siteName)
+	body := fmt.Sprintf(`<h2>Abnormal daily spending alert</h2>
+<p>User <b>%d</b> (%s) has spent <b>$%.4f</b> today.</p>
+<p><b>Threshold</b>: $%.2f</p>
+<p><b>Triggered at</b>: %s</p>`,
+		user.ID, html.EscapeString(strings.TrimSpace(user.Email)), stats.TotalActualCost,
+		dailySpendingThreshold, now.Format(time.RFC3339))
+	go s.sendEmails(recipients, subject, body, "user_id", user.ID, "daily_actual_cost", stats.TotalActualCost)
+}
+
+func (s *BalanceNotifyService) claimAlertKey(store map[string]time.Time, key string, now time.Time, ttl time.Duration) bool {
+	s.alertMu.Lock()
+	defer s.alertMu.Unlock()
+	if store == nil {
+		return false
+	}
+	if previous, ok := store[key]; ok && now.Sub(previous) < ttl {
+		return false
+	}
+	store[key] = now
+	return true
 }
 
 // NotifyBillingShortfall dispatches a critical operator alert without delaying
