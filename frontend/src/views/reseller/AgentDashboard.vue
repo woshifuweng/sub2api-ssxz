@@ -178,7 +178,7 @@ async function loadPage(): Promise<void> {
       resellerStore.fetchDashboard(),
       resellerAPI.listMyWithdrawals(1, 5)
     ])
-    recentRequests.value = history.items
+    recentRequests.value = Array.isArray(history.items) ? history.items : []
   } catch (error) {
     loadError.value = extractApiErrorMessage(error, '返利数据加载失败')
   } finally {

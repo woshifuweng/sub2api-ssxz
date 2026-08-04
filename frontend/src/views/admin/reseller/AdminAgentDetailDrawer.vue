@@ -84,55 +84,72 @@
           <div class="summary-card"><span>本页贡献佣金</span><strong>${{ formatMoney(recruitSummary.commission) }}</strong></div>
         </div>
 
-        <div v-if="recruitsLoading" class="py-10 text-center text-sm text-[var(--ssxz-text-muted)]">
-          正在加载下线数据
-        </div>
-        <div v-else-if="recruitsError" class="empty-state text-[var(--ssxz-danger)]">
+        <div v-if="recruitsError" class="empty-state text-[var(--ssxz-danger)]">
           {{ recruitsError }}
         </div>
-        <div v-else-if="recruits.items.length === 0" class="empty-state">
-          暂无下线用户
-        </div>
-        <div v-else class="table-scroll">
-          <table class="detail-table">
-            <thead>
-              <tr>
-                <th>用户</th>
-                <th>状态</th>
-                <th>角色</th>
-                <th>加入时间</th>
-                <th>近30天活跃</th>
-                <th>累计充值</th>
-                <th>累计消费</th>
-                <th>当前余额</th>
-                <th>贡献佣金</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="recruit in recruits.items" :key="recruit.user_id">
-                <td>
-                  <a
-                    class="user-link"
-                    :href="`/admin/users/${recruit.user_id}`"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <span>{{ recruit.email || `用户 ${recruit.user_id}` }}</span>
-                    <small>#{{ recruit.user_id }}</small>
-                  </a>
-                </td>
-                <td><span :class="['status-badge', `status-badge--${statusClass(recruit.status)}`]">{{ recruitStatusLabel(recruit.status) }}</span></td>
-                <td><span class="role-badge">{{ recruit.reseller_role ? roleLabel(recruit.reseller_role) : '普通用户' }}</span></td>
-                <td>{{ formatDate(recruit.joined_at) }}</td>
-                <td>{{ recruit.is_active ? '是' : '否' }}</td>
-                <td>${{ formatMoney(recruit.total_recharge_usd) }}</td>
-                <td>${{ formatMoney(recruit.total_consumption_usd) }}</td>
-                <td>${{ formatMoney(recruit.current_balance_usd) }}</td>
-                <td>${{ formatMoney(recruit.commission_contributed_usd) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          v-else
+          :columns="recruitColumns"
+          :data="recruits.items"
+          :loading="recruitsLoading"
+          row-key="user_id"
+          default-sort-key="created_at"
+          default-sort-order="desc"
+        >
+          <template #empty>
+            <div class="py-12 text-center text-gray-500 dark:text-dark-400">
+              暂无下线代理
+            </div>
+          </template>
+
+          <template #cell-email="{ value }">
+            <div class="flex items-center gap-2">
+              <div class="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30">
+                <span class="text-sm font-medium text-primary-700 dark:text-primary-300">
+                  {{ String(value || '').charAt(0).toUpperCase() }}
+                </span>
+              </div>
+              <span class="font-medium text-gray-900 dark:text-white">{{ value || '-' }}</span>
+            </div>
+          </template>
+
+          <template #cell-user_id="{ value }">
+            <button
+              type="button"
+              class="font-mono text-sm text-gray-700 underline decoration-dashed decoration-gray-300 underline-offset-4 hover:text-primary-600 dark:text-gray-300 dark:decoration-dark-500 dark:hover:text-primary-400"
+              :title="`复制用户ID ${value}`"
+              @click="copyRecruitId(value)"
+            >
+              #{{ value }}
+            </button>
+          </template>
+
+          <template #cell-status="{ value }">
+            <div class="flex items-center gap-1.5">
+              <span
+                :class="[
+                  'inline-block h-2 w-2 rounded-full',
+                  value === 'active' ? 'bg-green-500' : 'bg-red-500'
+                ]"
+              ></span>
+              <span class="text-sm text-gray-700 dark:text-gray-300">
+                {{ value === 'active' ? 'Active' : 'Disabled' }}
+              </span>
+            </div>
+          </template>
+
+          <template #cell-total_recharge_usd="{ value }">
+            <span class="font-medium text-gray-900 dark:text-white">{{ formatCurrency(value) }}</span>
+          </template>
+
+          <template #cell-total_consumption_usd="{ value }">
+            <span class="font-medium text-gray-900 dark:text-white">{{ formatCurrency(value) }}</span>
+          </template>
+
+          <template #cell-created_at="{ value }">
+            <span class="text-sm text-gray-500 dark:text-dark-400">{{ value ? formatDateTime(value) : '-' }}</span>
+          </template>
+        </DataTable>
 
         <div class="pagination-row">
           <span>第 {{ recruits.page }} / {{ recruits.pages || 1 }} 页，共 {{ recruits.total }} 人</span>
@@ -221,12 +238,15 @@ import type {
   WithdrawRequest,
   WithdrawStatus
 } from '@/api/reseller'
+import type { Column } from '@/components/common/types'
 import type { PaginatedResponse } from '@/types'
 import resellerAPI from '@/api/reseller'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import DataTable from '@/components/common/DataTable.vue'
 import LiquidButton from '@/components/common/LiquidButton.vue'
+import { useClipboard } from '@/composables/useClipboard'
 import { extractApiErrorMessage } from '@/utils/apiError'
-import { formatDateTime } from '@/utils/format'
+import { formatCurrency, formatDateTime } from '@/utils/format'
 
 const props = defineProps<{
   show: boolean
@@ -253,6 +273,16 @@ const recruitsLoaded = ref(false)
 const withdrawalsLoaded = ref(false)
 const recruitsError = ref('')
 const withdrawalsError = ref('')
+const { copyToClipboard } = useClipboard()
+
+const recruitColumns: Column[] = [
+  { key: 'email', label: '邮箱', sortable: true },
+  { key: 'user_id', label: 'ID', sortable: true },
+  { key: 'status', label: '状态', sortable: true },
+  { key: 'total_recharge_usd', label: '总充值', sortable: true },
+  { key: 'total_consumption_usd', label: '总消费', sortable: true },
+  { key: 'created_at', label: '注册时间', sortable: true }
+]
 
 const recruitSummary = computed(() =>
   recruits.value.items.reduce(
@@ -337,12 +367,6 @@ function statusLabel(status: ResellerStatus): string {
   return '启用中'
 }
 
-function recruitStatusLabel(status: string): string {
-  if (status === 'disabled') return '已停用'
-  if (status === 'active') return '启用中'
-  return status || '--'
-}
-
 function withdrawalStatusLabel(status: WithdrawStatus): string {
   const labels: Record<WithdrawStatus, string> = {
     pending: '待审批',
@@ -351,10 +375,6 @@ function withdrawalStatusLabel(status: WithdrawStatus): string {
     cancelled: '已取消'
   }
   return labels[status] || status
-}
-
-function statusClass(status: string): string {
-  return status === 'active' ? 'active' : status === 'disabled' ? 'disabled' : 'muted'
 }
 
 function withdrawalStatusClass(status: WithdrawStatus): string {
@@ -381,6 +401,10 @@ function formatRate(value: number): string {
 function formatMoney(value: number | string): string {
   const amount = Number(value)
   return Number.isFinite(amount) ? amount.toFixed(2) : '0.00'
+}
+
+function copyRecruitId(value: number | string): void {
+  void copyToClipboard(String(value), '用户ID已复制')
 }
 
 function formatDate(value?: string | null): string {

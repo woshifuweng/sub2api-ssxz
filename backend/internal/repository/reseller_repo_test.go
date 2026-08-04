@@ -189,6 +189,7 @@ func TestResellerRepositoryListWithdrawRequestsScopesManagerByLifecycleManagerID
 	require.NoError(t, err)
 	require.Zero(t, total)
 	require.Empty(t, items)
+	require.NotNil(t, items)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

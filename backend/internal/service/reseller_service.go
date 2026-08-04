@@ -118,19 +118,35 @@ type RecruitRecord struct {
 }
 
 // AdminRecruitRecord is a full recruit record for the admin reseller view.
-// Unlike the agent-facing RecruitRecord, Email is intentionally not masked.
 type AdminRecruitRecord struct {
 	UserID               int64      `json:"user_id"`
 	Email                string     `json:"email"`
 	Username             string     `json:"username"`
 	Status               string     `json:"status"`
 	ResellerRole         string     `json:"reseller_role"`
+	CreatedAt            *time.Time `json:"created_at,omitempty"`
 	JoinedAt             *time.Time `json:"joined_at"`
 	IsActive             bool       `json:"is_active"`
 	TotalRechargeDollars float64    `json:"total_recharge_usd"`
 	TotalCostDollars     float64    `json:"total_consumption_usd"`
 	CurrentBalance       float64    `json:"current_balance_usd"`
 	CommissionContrib    float64    `json:"commission_contributed_usd"`
+}
+
+// MaskEmailForResellerAdmin masks an email while keeping the first two local-part
+// characters and the complete domain, for example ab***@gmail.com.
+func MaskEmailForResellerAdmin(email string) string {
+	separator := strings.IndexByte(email, '@')
+	if separator <= 0 {
+		return "***"
+	}
+
+	localPart := email[:separator]
+	prefixLength := 2
+	if len(localPart) < prefixLength {
+		prefixLength = len(localPart)
+	}
+	return localPart[:prefixLength] + "***" + email[separator:]
 }
 
 // RecruitUsageLog is a scoped usage record shown in an agent's recruit drawer.

@@ -724,6 +724,7 @@ SELECT ua.user_id,
               AND rr.revoked_at IS NULL
             LIMIT 1
        ), ''),
+       u.created_at,
        ua.created_at,
        EXISTS (
            SELECT 1
@@ -732,10 +733,11 @@ SELECT ua.user_id,
               AND ul.created_at >= NOW() - INTERVAL '30 days'
        ),
        COALESCE((
-           SELECT SUM(abl.amount_delta)
-             FROM account_balance_ledger abl
-            WHERE abl.user_id = ua.user_id
-              AND abl.amount_delta > 0
+           SELECT SUM(po.amount)
+             FROM payment_orders po
+            WHERE po.user_id = ua.user_id
+              AND po.order_type = 'balance'
+              AND UPPER(po.status) IN ('SUCCEEDED', 'PAID', 'COMPLETED', 'RECHARGING')
        ), 0)::double precision,
        COALESCE((
            SELECT SUM(ul.actual_cost)
@@ -753,7 +755,7 @@ SELECT ua.user_id,
   LEFT JOIN user_affiliates agent_aff ON agent_aff.user_id = $1
  WHERE ua.inviter_id = $1
    AND ua.user_id <> $1
- ORDER BY ua.created_at DESC, ua.user_id DESC
+ ORDER BY u.created_at DESC, ua.user_id DESC
  LIMIT $2 OFFSET $3`,
 		agentUserID, pageSize, offset,
 	)
@@ -765,6 +767,7 @@ SELECT ua.user_id,
 	out := make([]service.AdminRecruitRecord, 0, pageSize)
 	for rows.Next() {
 		var rec service.AdminRecruitRecord
+		var createdAt sql.NullTime
 		var joinedAt sql.NullTime
 		if err := rows.Scan(
 			&rec.UserID,
@@ -772,6 +775,7 @@ SELECT ua.user_id,
 			&rec.Username,
 			&rec.Status,
 			&rec.ResellerRole,
+			&createdAt,
 			&joinedAt,
 			&rec.IsActive,
 			&rec.TotalRechargeDollars,
@@ -781,9 +785,13 @@ SELECT ua.user_id,
 		); err != nil {
 			return nil, 0, fmt.Errorf("reseller ListAdminAgentRecruits scan: %w", err)
 		}
+		if createdAt.Valid {
+			rec.CreatedAt = &createdAt.Time
+		}
 		if joinedAt.Valid {
 			rec.JoinedAt = &joinedAt.Time
 		}
+		rec.Email = service.MaskEmailForResellerAdmin(rec.Email)
 		out = append(out, rec)
 	}
 	if err := rows.Err(); err != nil {

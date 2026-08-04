@@ -133,6 +133,7 @@ export interface AdminRecruitRecord {
   username: string
   status: string
   reseller_role: string
+  created_at?: string
   joined_at?: string
   is_active: boolean
   total_recharge_usd: number

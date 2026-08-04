@@ -201,7 +201,12 @@
                   <span>重新授权</span>
                 </LiquidButton>
 
-                <details v-if="row.status !== 'revoked'" class="action-menu">
+                <details
+                  v-if="row.status !== 'revoked'"
+                  class="action-menu"
+                  @toggle="handleActionMenuToggle"
+                  @keydown.esc.prevent.stop="closeActionMenus()"
+                >
                   <summary title="更多操作" aria-label="更多操作">
                     <Icon name="more" size="sm" />
                   </summary>
@@ -209,7 +214,7 @@
                     <button
                       type="button"
                       :data-testid="`revoke-agent-${row.user_id}`"
-                      @click="revokeTarget = row"
+                      @click="handleRevokeAction(row)"
                     >
                       最终撤销角色
                     </button>
@@ -393,7 +398,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import resellerAPI, {
   type AgentDetail,
@@ -566,6 +571,35 @@ function changePageSize(pageSize: number): void {
   void loadAgents(1)
 }
 
+function closeActionMenus(except?: HTMLDetailsElement): void {
+  document.querySelectorAll<HTMLDetailsElement>('details.action-menu[open]').forEach((menu) => {
+    if (menu !== except) menu.open = false
+  })
+}
+
+function handleActionMenuToggle(event: Event): void {
+  const menu = event.currentTarget
+  if (menu instanceof HTMLDetailsElement && menu.open) {
+    closeActionMenus(menu)
+  }
+}
+
+function handleRevokeAction(target: AgentSummary): void {
+  closeActionMenus()
+  revokeTarget.value = target
+}
+
+function handleActionMenuPointerDown(event: PointerEvent): void {
+  const target = event.target
+  if (!(target instanceof Element) || !target.closest('details.action-menu')) {
+    closeActionMenus()
+  }
+}
+
+function handleActionMenuKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') closeActionMenus()
+}
+
 function handleGranted(user: AdminUser): void {
   grantDialogOpen.value = false
   search.value = user.email
@@ -698,7 +732,14 @@ async function confirmReauthorize(): Promise<void> {
 }
 
 onMounted(() => {
+  document.addEventListener('pointerdown', handleActionMenuPointerDown)
+  document.addEventListener('keydown', handleActionMenuKeydown)
   void Promise.all([loadAgents(1), loadManagers()])
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleActionMenuPointerDown)
+  document.removeEventListener('keydown', handleActionMenuKeydown)
 })
 </script>
 
@@ -795,6 +836,11 @@ onMounted(() => {
 
 .action-menu {
   position: relative;
+  z-index: 1;
+}
+
+.action-menu[open] {
+  z-index: 100;
 }
 
 .action-menu summary {
@@ -829,6 +875,17 @@ onMounted(() => {
   border-radius: var(--ssxz-radius-card);
   background: var(--ssxz-surface-raised);
   box-shadow: var(--ssxz-shadow-lg);
+}
+
+/* The actions column is sticky and each row paints its own stacking level. */
+:deep(.table-wrapper tbody tr:has(details.action-menu[open]) .sticky-col-right) {
+  z-index: 40;
+}
+
+/* Keep the last visible row's menu inside the scrollable table viewport. */
+:deep(.table-wrapper tbody tr:last-child .action-menu__panel) {
+  top: auto;
+  bottom: calc(100% + 0.35rem);
 }
 
 .action-menu__panel button {

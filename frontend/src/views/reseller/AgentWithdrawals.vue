@@ -239,7 +239,10 @@ async function loadPage(page = requests.value.page || 1): Promise<void> {
       resellerStore.fetchDashboard(),
       resellerAPI.listMyWithdrawals(page, requests.value.page_size)
     ])
-    requests.value = history
+    requests.value = {
+      ...history,
+      items: Array.isArray(history.items) ? history.items : []
+    }
   } catch (error) {
     loadError.value = extractApiErrorMessage(error, '兑换记录加载失败')
   } finally {
