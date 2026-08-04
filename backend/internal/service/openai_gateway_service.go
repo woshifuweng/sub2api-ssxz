@@ -3454,6 +3454,13 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthroughContext(
 			})
 			return nil, fmt.Errorf("openai passthrough rejected before upstream: %s", rejectReason)
 		}
+		if isOpenAICodexModel(reqModel) && !gjson.GetBytes(body, "instructions").Exists() {
+			nextBody, setErr := sjson.SetBytes(body, "instructions", defaultCodexSynthInstructions(reqModel))
+			if setErr != nil {
+				return nil, fmt.Errorf("set passthrough codex instructions: %w", setErr)
+			}
+			body = nextBody
+		}
 
 		normalizedBody, normalized, err := normalizeOpenAIPassthroughOAuthBody(body, isOpenAIResponsesCompactPathContext(c))
 		if err != nil {
@@ -6350,7 +6357,14 @@ func sanitizeEncryptedReasoningInputItem(item any) (next any, changed bool, keep
 	}
 
 	itemType, _ := inputItem["type"].(string)
-	if strings.TrimSpace(itemType) != "reasoning" {
+	switch strings.TrimSpace(itemType) {
+	case "compaction", "compaction_summary":
+		if _, has := inputItem["encrypted_content"]; has {
+			return nil, true, false
+		}
+		return item, false, true
+	case "reasoning":
+	default:
 		return item, false, true
 	}
 
@@ -6736,6 +6750,11 @@ func (s *OpenAIGatewayService) EstimateOpenAITokenRequestCost(ctx context.Contex
 			resolver = newUserGroupRateResolver(nil, nil, resolveUserGroupRateCacheTTL(s.cfg), nil, "service.openai_gateway")
 		}
 		multiplier = resolver.Resolve(ctx, user.ID, *apiKey.GroupID, apiKey.Group.RateMultiplier)
+	}
+	// 估算场景下若 multiplier 未配置（= 0），按 1x 保守估算；
+	// ActualCost = TotalCost * 0 = 0 会让前置预扣额度检查误判为免费请求。
+	if multiplier <= 0 {
+		multiplier = 1.0
 	}
 
 	cost, err := s.calculateOpenAITokenCost(ctx, model, UsageTokens{
@@ -7253,7 +7272,7 @@ func detectOpenAIPassthroughInstructionsRejectReason(reqModel string, body []byt
 
 	instructions := gjson.GetBytes(body, "instructions")
 	if !instructions.Exists() {
-		return "instructions_missing"
+		return ""
 	}
 	if instructions.Type != gjson.String {
 		return "instructions_not_string"

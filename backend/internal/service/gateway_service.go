@@ -8215,6 +8215,11 @@ func (s *GatewayService) EstimateGatewayTokenRequestCostWithLongContext(ctx cont
 	if apiKey != nil && apiKey.GroupID != nil && apiKey.Group != nil && user != nil {
 		multiplier = s.getUserGroupRateMultiplier(ctx, user.ID, *apiKey.GroupID, apiKey.Group.RateMultiplier)
 	}
+	// 估算场景下若 multiplier 未配置（= 0），按 1x 保守估算；
+	// ActualCost = TotalCost * 0 = 0 会让前置预扣额度检查误判为免费请求。
+	if multiplier <= 0 {
+		multiplier = 1.0
+	}
 
 	cost, err := s.billingService.CalculateCostWithLongContext(model, UsageTokens{
 		InputTokens:  estimateGatewayRequestInputTokens(parsed.Body.Bytes()),
@@ -8779,6 +8784,7 @@ func (s *GatewayService) RecordUsage(ctx context.Context, input *RecordUsageInpu
 		UserID:                user.ID,
 		APIKeyID:              apiKey.ID,
 		AccountID:             account.ID,
+		ChannelID:             optionalInt64Ptr(input.ChannelID),
 		RequestID:             requestID,
 		Model:                 result.Model,
 		RequestedModel:        result.Model,
@@ -8958,6 +8964,7 @@ func (s *GatewayService) RecordUsageWithLongContext(ctx context.Context, input *
 		UserID:                user.ID,
 		APIKeyID:              apiKey.ID,
 		AccountID:             account.ID,
+		ChannelID:             optionalInt64Ptr(input.ChannelID),
 		RequestID:             requestID,
 		Model:                 result.Model,
 		RequestedModel:        result.Model,
@@ -9392,6 +9399,10 @@ func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthroughContex
 		}
 		targetURL = validatedURL + "/v1/messages/count_tokens?beta=true"
 	}
+
+	// count_tokens 端点只接受请求输入字段，generation 参数（max_tokens、temperature 等）
+	// 必须剥离，否则部分上游会返回 400。
+	body = sanitizeCountTokensRequestBody(body)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(body))
 	if err != nil {
