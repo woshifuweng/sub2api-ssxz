@@ -125,7 +125,7 @@ func (h *GatewayHandler) GeminiV1BetaGetModelGateway(transportCtx gatewayctx.Gat
 		return
 	}
 	if !apiKeyAllowsRequestedModel(apiKey, modelName) {
-		googleErrorContext(transportCtx, http.StatusBadRequest, apiKeyModelNotAllowedMessage(modelName))
+		googleErrorContext(transportCtx, http.StatusBadRequest, apiKeyModelRestrictionMessage(apiKey, modelName))
 		return
 	}
 	if !service.IsSafeGeminiModelPathSegment(modelName) {
@@ -212,7 +212,7 @@ func (h *GatewayHandler) GeminiV1BetaModelsGateway(transportCtx gatewayctx.Gatew
 		return
 	}
 	if !apiKeyAllowsRequestedModel(apiKey, modelName) {
-		googleErrorContext(transportCtx, http.StatusBadRequest, apiKeyModelNotAllowedMessage(modelName))
+		googleErrorContext(transportCtx, http.StatusBadRequest, apiKeyModelRestrictionMessage(apiKey, modelName))
 		return
 	}
 	if !service.IsSafeGeminiModelPathSegment(modelName) {

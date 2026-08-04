@@ -108,7 +108,7 @@ func (h *OpenAIGatewayHandler) ImagesGateway(c gatewayctx.GatewayContext) {
 		return
 	}
 	if !apiKeyAllowsRequestedModel(apiKey, parsed.Model) {
-		h.errorResponseGateway(c, http.StatusBadRequest, "invalid_request_error", apiKeyModelNotAllowedMessage(parsed.Model))
+		h.errorResponseGateway(c, http.StatusBadRequest, "invalid_request_error", apiKeyModelRestrictionMessage(apiKey, parsed.Model))
 		return
 	}
 	if decision := h.checkSecurityAuditContext(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIImages, parsed.Model, parsed.ModerationBody()); decision != nil && !decision.AllowNextStage {
