@@ -144,3 +144,10 @@ docs/*
 frontend/coverage/
 aicodex
 output/
+
+# 本地编译产物（Linux 生产二进制，勿提交）
+backend/sub2api_linux
+backend/sub2api_linux_ldflags
+backend/sub2api_deploy
+backend/sub2api_reseller_prod
+backend/internal/web/dist-backup-*/
