@@ -230,7 +230,7 @@
                           : []"
                       :key="group.id"
                       :name="formatGroupDisplayName(group)"
-                      :platform="group.platform"
+                      :platform="resolveGroupDisplayPlatform(group.name, group.platform)"
                       :subscription-type="group.subscription_type"
                       :show-rate="false"
                       variant="outline"
@@ -1701,6 +1701,7 @@ import {
   formatCurrencyTitle,
   formatDateTime,
 } from "@/utils/format";
+import { resolveGroupDisplayPlatform } from "@/utils/groupPlatform";
 import { DEFAULT_SITE_NAME, normalizeSiteName } from "@/utils/brand";
 
 // Helper to format date for datetime-local input
@@ -2166,7 +2167,7 @@ const groupOptions = computed<GroupSelectOption[]>(() =>
     label: formatGroupDisplayName(group),
     description: formatGroupDescription(group),
     subscriptionType: group.subscription_type,
-    platform: group.platform,
+    platform: resolveGroupDisplayPlatform(group.name, group.platform),
     rateMultiplier: group.rate_multiplier,
     userRateMultiplier: userGroupRates.value[group.id] ?? null,
   })),
