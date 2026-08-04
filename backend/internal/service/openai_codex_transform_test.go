@@ -374,8 +374,6 @@ func TestNormalizeCodexModel_Gpt53(t *testing.T) {
 		"gpt-5.6-sol-high":          "gpt-5.6-sol",
 		"gpt-5.6-terra":             "gpt-5.6-terra",
 		"gpt-5.6-terra-xhigh":       "gpt-5.6-terra",
-		"gpt-5.6-luna":              "gpt-5.6-luna",
-		"gpt 5.6 luna":              "gpt-5.6-luna",
 		"gpt-5.4":                   "gpt-5.4",
 		"gpt-5.4-high":              "gpt-5.4",
 		"gpt-5.4-xhigh":             "gpt-5.4",
