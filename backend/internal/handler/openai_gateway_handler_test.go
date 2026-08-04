@@ -2767,6 +2767,8 @@ func TestResponsesGatewayRejectsModelsOutsideCustomerCatalogBeforeRouting(t *tes
 		{name: "spark reasoning variant", platform: service.PlatformOpenAI, model: "gpt-5.3-codex-spark-high"},
 		{name: "haiku alias", platform: service.PlatformAnthropic, model: "haiku"},
 		{name: "haiku model", platform: service.PlatformAnthropic, model: "claude-haiku-4-5"},
+		{name: "luna exact", platform: service.PlatformOpenAI, model: "gpt-5.6-luna"},
+		{name: "luna reasoning variant", platform: service.PlatformOpenAI, model: "gpt-5.6-luna-high"},
 	}
 
 	for _, tt := range tests {

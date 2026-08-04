@@ -280,9 +280,6 @@ func normalizeCodexModel(model string) string {
 		if strings.Contains(normalized, "gpt-5.6-terra") || strings.Contains(normalized, "gpt 5.6 terra") {
 			return "gpt-5.6-terra"
 		}
-		if strings.Contains(normalized, "gpt-5.6-luna") || strings.Contains(normalized, "gpt 5.6 luna") {
-			return "gpt-5.6-luna"
-		}
 		if strings.Contains(normalized, "gpt-5.6-sol") || strings.Contains(normalized, "gpt 5.6 sol") ||
 			normalized == "gpt-5.6" || normalized == "gpt 5.6" {
 			return "gpt-5.6-sol"

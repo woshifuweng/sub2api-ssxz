@@ -58,7 +58,7 @@ func IsBlockedCustomerGatewayModel(platform, model string) bool {
 	model = strings.TrimPrefix(model, "models/")
 	switch platform {
 	case PlatformOpenAI:
-		return strings.HasPrefix(model, "gpt-5.3-codex-spark") || model == "gpt-5.6-luna"
+		return strings.HasPrefix(model, "gpt-5.3-codex-spark") || strings.HasPrefix(model, "gpt-5.6-luna")
 	case PlatformAnthropic:
 		return model == "haiku" || strings.Contains(model, "haiku")
 	default:
