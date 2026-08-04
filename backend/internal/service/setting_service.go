@@ -139,29 +139,42 @@ type DefaultSubscriptionGroupReader interface {
 
 // SettingService 系统设置服务
 type SettingService struct {
-	settingRepo                       SettingRepository
-	defaultSubGroupReader             DefaultSubscriptionGroupReader
-	proxyRepo                         ProxyRepository
-	cfg                               *config.Config
-	onUpdate                          func() // Callback when settings are updated (for cache invalidation)
-	onS3Update                        func() // Callback when Sora S3 settings are updated
-	onTLSFingerprintUpdate            func() // Callback when TLS fingerprint settings are updated
-	version                           string // Application version
-	hotSettings                       sync.Map
-	hotSettingsSF                     singleflight.Group
-	antigravityUAVersionCache         atomic.Value
-	antigravityUAVersionSF            singleflight.Group
-	openAICodexUACache                atomic.Value
-	openAICodexUASF                   singleflight.Group
-	codexRestrictionPolicyCache       atomic.Value
-	codexRestrictionPolicySF          singleflight.Group
-	cyberSessionBlockRuntimeCache     atomic.Value
-	cyberSessionBlockRuntimeSF        singleflight.Group
-	panelRateLimitCache               atomic.Value
-	panelRateLimitSF                  singleflight.Group
-	openAIQuotaAutoPauseSettingsCache atomic.Value
+	settingRepo                 SettingRepository
+	defaultSubGroupReader       DefaultSubscriptionGroupReader
+	proxyRepo                   ProxyRepository // for resolving websearch provider proxy URLs
+	cfg                         *config.Config
+	onUpdate                    func() // Callback when settings are updated (for cache invalidation)
+	onS3Update                  func() // Callback when Sora S3 settings are updated
+	onTLSFingerprintUpdate      func() // Callback when TLS fingerprint settings are updated
+	version                     string // Application version
+	hotSettings                 sync.Map
+	hotSettingsSF               singleflight.Group
+	webSearchManagerBuilder     WebSearchManagerBuilder
+	antigravityUAVersionCache   atomic.Value // *cachedAntigravityUserAgentVersion
+	antigravityUAVersionSF      singleflight.Group
+	openAICodexUACache          atomic.Value // *cachedOpenAICodexUserAgent
+	openAICodexUASF             singleflight.Group
+	openAICodexVersionCache     atomic.Value // *cachedOpenAICodexClientVersion
+	openAICodexVersionSF        singleflight.Group
+	codexRestrictionPolicyCache atomic.Value // *cachedCodexRestrictionPolicy
+	codexRestrictionPolicySF    singleflight.Group
+
+	cyberSessionBlockRuntimeCache atomic.Value // *cachedCyberSessionBlockRuntime
+	cyberSessionBlockRuntimeSF    singleflight.Group
+
+	// panelRateLimitCache 面板 API 限流配置进程内缓存（*cachedPanelRateLimitSettings）。
+	// 面板每个认证请求都会读取，禁止在热路径上直接访问 DB。
+	panelRateLimitCache atomic.Value
+	panelRateLimitSF    singleflight.Group
+
+	// openAIQuotaAutoPauseSettingsCache holds the most recently observed quota auto-pause
+	// settings. GetOpenAIQuotaAutoPauseSettings reads this atomic.Value on the request hot
+	// path without ever blocking on the DB; when the cached entry expires, a background
+	// goroutine refreshes it via openAIQuotaAutoPauseSettingsSF (stale-while-revalidate).
+	// This per-service field also gives tests natural isolation — each SettingService
+	// instance owns its own cache, no shared package-level state.
+	openAIQuotaAutoPauseSettingsCache atomic.Value // *cachedOpenAIQuotaAutoPauseSettings
 	openAIQuotaAutoPauseSettingsSF    singleflight.Group
-	webSearchManagerBuilder           WebSearchManagerBuilder
 }
 
 // NewSettingService 创建系统设置服务实例
@@ -322,6 +335,11 @@ func (s *SettingService) GetFrontendURLLegacy(ctx context.Context) string {
 		return strings.TrimSpace(val)
 	}
 	return s.cfg.Server.FrontendURL
+}
+
+// ResolvePasswordResetLinkBase resolves the public base URL used in password reset links.
+func (s *SettingService) ResolvePasswordResetLinkBase(ctx context.Context, requestOrigin string) string {
+	return ResolvePasswordResetBaseURL(s.GetFrontendURLLegacy(ctx), requestOrigin, s.cfg)
 }
 
 // GetPublicSettings 获取公开设置（无需登录）

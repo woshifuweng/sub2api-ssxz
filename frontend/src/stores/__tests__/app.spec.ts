@@ -33,6 +33,7 @@ function createPublicSettings(overrides: Partial<PublicSettings> = {}): PublicSe
     contact_info: '',
     doc_url: '',
     home_content: '',
+    compact_home_enabled: false,
     hide_ccs_import_button: false,
     payment_enabled: false,
     risk_control_enabled: false,
@@ -372,14 +373,35 @@ describe('useAppStore', () => {
     })
   })
 
-  describe('public settings web search completeness', () => {
-    it('uses complete injected public settings without refetching', async () => {
-      const injected = {
-        site_name: 'Injected',
-        web_search: { available: true, provider: 'jina' }
-      }
-      const windowAny = window as any
-      windowAny.__APP_CONFIG__ = injected
+    it('fetchPublicSettings(force) 会同步更新运行时注入配置', async () => {
+      vi.mocked(getPublicSettings).mockResolvedValue({
+        registration_enabled: false,
+        email_verify_enabled: false,
+        registration_email_suffix_whitelist: [],
+        promo_code_enabled: true,
+        password_reset_enabled: false,
+        invitation_code_enabled: false,
+        turnstile_enabled: false,
+        turnstile_site_key: '',
+        site_name: 'Updated Site',
+        site_logo: '',
+        site_subtitle: '',
+        api_base_url: '',
+        contact_info: '',
+        doc_url: '',
+        home_content: '',
+        compact_home_enabled: false,
+        hide_ccs_import_button: false,
+        purchase_subscription_enabled: false,
+        purchase_subscription_url: '',
+        table_default_page_size: 1000,
+        table_page_size_options: [20, 100, 1000],
+        custom_menu_items: [],
+        custom_endpoints: [],
+        linuxdo_oauth_enabled: false,
+        backend_mode_enabled: false,
+        version: '1.0.0'
+      })
 
       const store = useAppStore()
       const result = await store.fetchPublicSettings()

@@ -226,8 +226,17 @@ func (e *OpenAIWSClientCloseError) Reason() string {
 
 // OpenAIWSIngressHooks 定义入站 WS 每个 turn 的生命周期回调。
 type OpenAIWSIngressHooks struct {
-	InitialRequestModel     string
-	MaxReasoningEffort      string
+	// ClientLifecycleContext is the request context before an ingress lease
+	// adds its independent cancellation signal. Downstream writes bind to it
+	// so shutdown and disconnect cancellation remain direct during lease loss.
+	ClientLifecycleContext context.Context
+	// InitialRequestModel is the client-facing model from the first frame,
+	// before channel or account mapping. Ingress modes preserve it for usage
+	// attribution while MapRequestModel determines the upstream model.
+	InitialRequestModel string
+	// MaxReasoningEffort limits explicit reasoning effort values for this WS session.
+	MaxReasoningEffort string
+	// ReasoningEffortMappings rewrites explicit effort values for this WS session.
 	ReasoningEffortMappings []ReasoningEffortMapping
 	BeforeRequest           func(turn int, payload []byte, originalModel string) error
 	BeforeTurn              func(turn int) error
@@ -1302,6 +1311,11 @@ func (s *OpenAIGatewayService) buildOpenAIWSHeadersLegacy(
 		if ua := strings.TrimSpace(c.HeaderValue("User-Agent")); ua != "" {
 			headers.Set("user-agent", ua)
 		}
+	}
+	if account != nil && account.Type == AccountTypeOAuth && !account.IsOpenAIChatWebMode() {
+		ensureCodexIdentityHeaders(headers)
+		enforceCodexIdentityHeadersWithUA(headers, s.codexIdentityOverrideUA(account))
+		headers.Set("OpenAI-Beta", betaValue)
 	}
 
 	return headers, sessionResolution

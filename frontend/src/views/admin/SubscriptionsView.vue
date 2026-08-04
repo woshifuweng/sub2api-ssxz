@@ -1013,40 +1013,32 @@
 </template>
 
 <script setup lang="ts">
-import LiquidButton from "@/components/common/LiquidButton.vue";
-import { ref, reactive, computed, onMounted, onUnmounted } from "vue";
-import { useI18n } from "vue-i18n";
-import { useAppStore } from "@/stores/app";
-import { adminAPI } from "@/api/admin";
-import type {
-  UserSubscription,
-  Group,
-  GroupPlatform,
-  SubscriptionType,
-} from "@/types";
-import type { SimpleUser } from "@/api/admin/usage";
-import type { Column } from "@/components/common/types";
-import { formatDateOnly } from "@/utils/format";
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useAppStore } from '@/stores/app'
+import { adminAPI } from '@/api/admin'
+import type { UserSubscription, Group, GroupPlatform, SubscriptionType } from '@/types'
+import type { SimpleUser } from '@/api/admin/usage'
+import type { Column } from '@/components/common/types'
+import { formatDateTimeToMinute } from '@/utils/format'
+import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
+import AppLayout from '@/components/layout/AppLayout.vue'
+import TablePageLayout from '@/components/layout/TablePageLayout.vue'
+import DataTable from '@/components/common/DataTable.vue'
+import Pagination from '@/components/common/Pagination.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
+import Select from '@/components/common/Select.vue'
+import GroupBadge from '@/components/common/GroupBadge.vue'
+import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
+import Icon from '@/components/icons/Icon.vue'
 import {
   getRemainingDurationParts,
   getRemainingExpiryDuration,
   isOneTimeDailyQuota,
-  type RemainingDurationParts,
-} from "@/utils/subscriptionQuota";
-import { getPersistedPageSize } from "@/composables/usePersistedPageSize";
-import AppLayout from "@/components/layout/AppLayout.vue";
-import AdminPageHeader from "@/components/admin/AdminPageHeader.vue";
-import TablePageLayout from "@/components/layout/TablePageLayout.vue";
-import DataTable from "@/components/common/DataTable.vue";
-import Pagination from "@/components/common/Pagination.vue";
-import BaseDialog from "@/components/common/BaseDialog.vue";
-import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
-import EmptyState from "@/components/common/EmptyState.vue";
-import Select from "@/components/common/Select.vue";
-import GroupBadge from "@/components/common/GroupBadge.vue";
-import GroupOptionItem from "@/components/common/GroupOptionItem.vue";
-import Icon from "@/components/icons/Icon.vue";
-import BulkAssignSubscriptionsDialog from "@/components/admin/subscription/BulkAssignSubscriptionsDialog.vue";
+  type RemainingDurationParts
+} from '@/utils/subscriptionQuota'
 
 const { t } = useI18n();
 const appStore = useAppStore();
@@ -1654,6 +1646,21 @@ const formatRemainingExpiry = (expiresAt: string): string | null => {
   }
   return t("admin.subscriptions.minutesRemaining", { minutes: duration.minutes });
 };
+
+const formatRemainingExpiry = (expiresAt: string): string | null => {
+  const duration = getRemainingExpiryDuration(expiresAt)
+  if (!duration) return null
+  if (duration.unit === 'days') {
+    return t('admin.subscriptions.daysRemaining', { days: duration.days })
+  }
+  if (duration.hours) {
+    return t('admin.subscriptions.hoursMinutesRemaining', {
+      hours: duration.hours,
+      minutes: duration.minutes
+    })
+  }
+  return t('admin.subscriptions.minutesRemaining', { minutes: duration.minutes })
+}
 
 const isExpiringSoon = (expiresAt: string): boolean => {
   const days = getDaysRemaining(expiresAt);

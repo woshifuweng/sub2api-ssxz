@@ -134,6 +134,95 @@ async function handleSubmitInvitation() {
   }
 }
 
+async function handleContinueLogin() {
+  isSubmitting.value = true
+  try {
+    const completion = await exchangePendingOAuthCompletion(currentAdoptionDecision()) as LinuxDoPendingActionResponse
+    await finalizePendingAccountResponse(completion)
+  } catch (e: unknown) {
+    errorMessage.value = getRequestErrorMessage(e, t('auth.loginFailed'))
+    needsAdoptionConfirmation.value = false
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+async function handleCreateAccount(payload: PendingOAuthCreateAccountPayload) {
+  accountActionError.value = ''
+  if (!payload.email || !payload.password) return
+
+  isSubmitting.value = true
+  try {
+    const { data } = await apiClient.post<LinuxDoPendingActionResponse>('/auth/oauth/pending/create-account', {
+      email: payload.email,
+      password: payload.password,
+      verify_code: payload.verifyCode || undefined,
+      ...(payload.turnstileToken ? { turnstile_token: payload.turnstileToken } : {}),
+      ...(payload.tencentCaptchaTicket
+        ? {
+            tencent_captcha_ticket: payload.tencentCaptchaTicket,
+            tencent_captcha_randstr: payload.tencentCaptchaRandstr
+        }
+        : {}),
+      invitation_code: payload.invitationCode || undefined,
+      ...oauthAffiliatePayload(loadOAuthAffiliateCode()),
+      ...serializeAdoptionDecision(currentAdoptionDecision())
+    })
+    await finalizePendingAccountResponse(data)
+  } catch (e: unknown) {
+    if (isCreateAccountRecoveryError(e)) {
+      switchToBindLoginMode(payload.email.trim())
+      return
+    }
+    accountActionError.value = getRequestErrorMessage(e, t('auth.loginFailed'))
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+async function handleBindLogin() {
+  accountActionError.value = ''
+  const email = bindLoginEmail.value.trim()
+  const password = bindLoginPassword.value
+  if (!email || !password) return
+
+  isSubmitting.value = true
+  try {
+    const { data } = await apiClient.post<LinuxDoPendingActionResponse>('/auth/oauth/pending/bind-login', {
+      email,
+      password,
+      ...serializeAdoptionDecision(currentAdoptionDecision())
+    })
+    await finalizePendingAccountResponse(data)
+  } catch (e: unknown) {
+    accountActionError.value = getRequestErrorMessage(e, t('auth.loginFailed'))
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+async function handleSubmitTotpChallenge() {
+  totpError.value = ''
+  const code = totpCode.value.trim()
+  if (!totpTempToken.value || code.length !== 6) return
+
+  isSubmitting.value = true
+  try {
+    const completion = await login2FA({
+      temp_token: totpTempToken.value,
+      totp_code: code
+    })
+    await authStore.setToken(completion.access_token)
+    clearAllAffiliateReferralCodes()
+    appStore.showSuccess(t('auth.loginSuccess'))
+    await router.replace(redirectTo.value)
+  } catch (e: unknown) {
+    totpError.value = getRequestErrorMessage(e, t('auth.loginFailed'))
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
 onMounted(async () => {
   const params = parseFragmentParams()
 

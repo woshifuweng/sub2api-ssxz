@@ -2793,10 +2793,14 @@ func (h *OpenAIGatewayHandler) submitUsageRecordTask(parent context.Context, tas
 	}
 	task = wrapUsageRecordTaskContext(parent, task)
 	if h.usageRecordWorkerPool != nil {
-		h.usageRecordWorkerPool.Submit(task)
-		return
+		if mode := h.usageRecordWorkerPool.Submit(task); mode != service.UsageRecordSubmitModeDroppedStopped {
+			return
+		}
+		// The pool can be stopped during graceful shutdown. Execute the task
+		// synchronously so usage records are not silently lost in that window.
+	} else {
+		// 回退路径：worker 池未注入时同步执行，避免退回到无界 goroutine 模式。
 	}
-	// 回退路径：worker 池未注入时同步执行，避免退回到无界 goroutine 模式。
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	defer func() {
@@ -2845,6 +2849,9 @@ func (h *OpenAIGatewayHandler) handleFailoverExhaustedContext(c gatewayctx.Gatew
 		)
 		return
 	}
+	if native, ok := c.Native().(*gin.Context); ok && native != nil {
+		copyFailoverRetryAfter(native, failoverErr.ResponseHeaders)
+	}
 	statusCode := failoverErr.StatusCode
 	responseBody := failoverErr.ResponseBody
 
@@ -2882,6 +2889,10 @@ func (h *OpenAIGatewayHandler) handleFailoverExhaustedContext(c gatewayctx.Gatew
 
 	if isOpenAIPassthroughFailoverContext(c) && statusCode >= http.StatusInternalServerError {
 		h.handleStreamingAwareErrorContext(c, http.StatusBadGateway, "upstream_error", "Upstream service temporarily unavailable", streamStarted)
+		return
+	}
+	if statusCode == http.StatusTooManyRequests && failoverErr.RetryableOnSameAccount {
+		h.handleStreamingAwareErrorContext(c, http.StatusTooManyRequests, "rate_limit_error", "Upstream rate limit exceeded, please retry later", streamStarted)
 		return
 	}
 
@@ -3048,7 +3059,8 @@ func (h *OpenAIGatewayHandler) handleStreamingAwareErrorContext(c gatewayctx.Gat
 	if c == nil {
 		return
 	}
-	if streamStarted || service.RequestUsesOpenAISSE(c) || responseUsesSSEContext(c) {
+	responseHasPayload := c.ResponseSize() > 0
+	if streamStarted || responseHasPayload {
 		if inboundIsResponsesContext(c) && writeResponsesFailedSSEContext(c, errType, message) {
 			return
 		}

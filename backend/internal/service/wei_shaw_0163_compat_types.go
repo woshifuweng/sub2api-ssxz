@@ -100,10 +100,25 @@ type UserGroupRPMStatus struct {
 
 type WebSearchManagerBuilder func(cfg *WebSearchEmulationConfig, proxyURLs map[int64]string)
 
-const (
-	QuotaDimensionGlobal = "global"
-	QuotaDimensionSpark  = "spark"
-)
+type OpenAIFastPolicyRule struct {
+	ServiceTier          string   `json:"service_tier"`
+	Action               string   `json:"action"`
+	Scope                string   `json:"scope"`
+	UserIDs              []int64  `json:"user_ids,omitempty"`
+	ErrorMessage         string   `json:"error_message,omitempty"`
+	ModelWhitelist       []string `json:"model_whitelist,omitempty"`
+	FallbackAction       string   `json:"fallback_action,omitempty"`
+	FallbackErrorMessage string   `json:"fallback_error_message,omitempty"`
+}
+
+type OpenAIFastPolicySettings struct {
+	Rules []OpenAIFastPolicyRule `json:"rules"`
+}
+
+type RateLimit429CooldownSettings struct {
+	Enabled         bool `json:"enabled"`
+	CooldownSeconds int  `json:"cooldown_seconds"`
+}
 
 // BatchImageBalanceHoldCommand describes the idempotent image-billing hold
 // operation used by the repository layer.
@@ -154,22 +169,6 @@ type BatchImageBalanceHoldResult struct {
 	FrozenBalance *float64
 }
 
-// OpenAIFastPolicyRule is the service-level form of the OpenAI fast policy.
-type OpenAIFastPolicyRule struct {
-	ServiceTier          string   `json:"service_tier"`
-	Action               string   `json:"action"`
-	Scope                string   `json:"scope"`
-	UserIDs              []int64  `json:"user_ids,omitempty"`
-	ErrorMessage         string   `json:"error_message,omitempty"`
-	ModelWhitelist       []string `json:"model_whitelist,omitempty"`
-	FallbackAction       string   `json:"fallback_action,omitempty"`
-	FallbackErrorMessage string   `json:"fallback_error_message,omitempty"`
-}
-
-type OpenAIFastPolicySettings struct {
-	Rules []OpenAIFastPolicyRule `json:"rules"`
-}
-
 type OpsRetryAttempt struct {
 	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
@@ -215,11 +214,6 @@ type OpsRetryResult struct {
 	StartedAt  time.Time `json:"started_at"`
 	FinishedAt time.Time `json:"finished_at"`
 	DurationMs int64     `json:"duration_ms"`
-}
-
-type RateLimit429CooldownSettings struct {
-	Enabled         bool `json:"enabled"`
-	CooldownSeconds int  `json:"cooldown_seconds"`
 }
 
 type DefaultPlatformQuotaSetting struct {

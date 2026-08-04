@@ -37,7 +37,15 @@ func openAIForwardErrorAlreadyCommunicated(c *gin.Context, writerSizeBeforeForwa
 }
 
 func openAIForwardMayFailoverContext(c gatewayctx.GatewayContext, writerSizeBeforeForward int, failoverErr *service.UpstreamFailoverError) bool {
-	if c == nil || service.RequestPayloadStarted(c) {
+	if c == nil {
+		return false
+	}
+	// Setting SSE headers is reversible until an actual payload byte is
+	// written. Preserve HTTP failover/error responses for header-only streams.
+	if c.ResponseSize() <= 0 {
+		return true
+	}
+	if service.RequestPayloadStarted(c) {
 		return false
 	}
 	if service.OpenAICompactKeepaliveAdjustedWrittenSizeContext(c) == writerSizeBeforeForward {

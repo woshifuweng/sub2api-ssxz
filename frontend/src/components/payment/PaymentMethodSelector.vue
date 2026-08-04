@@ -3,7 +3,10 @@
     <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
       {{ t('payment.paymentMethod') }}
     </label>
-    <div class="grid grid-cols-2 gap-3 sm:flex">
+    <div
+      data-testid="payment-method-grid"
+      class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
+    >
       <button
         v-for="method in sortedMethods"
         :key="method.type"
@@ -11,7 +14,7 @@
         :title="methodLabel(method)"
         :disabled="!method.available"
         :class="[
-          'payment-method relative flex h-[60px] min-w-0 flex-col items-center justify-center rounded-lg px-3 transition-all',
+          'relative flex h-[60px] min-w-0 flex-col items-center justify-center rounded-lg border px-3 transition-all',
           !method.available
             ? 'payment-method-disabled cursor-not-allowed opacity-50'
             : selected === method.type

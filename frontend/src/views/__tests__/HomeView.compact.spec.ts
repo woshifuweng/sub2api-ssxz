@@ -97,17 +97,17 @@ describe('HomeView compact mode', () => {
     const wrapper = mountHome(settings)
 
     expect(wrapper.find('[data-testid="compact-home"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="compact-home"]').exists()).toBe(false)
+    expect(wrapper.find('.terminal-container').exists()).toBe(true)
   })
 
-  it('links unauthenticated visitors to registration', () => {
-    expect(compactDestination(mountHome({ compact_home_enabled: true }))).toBe('/register')
+  it('links unauthenticated visitors to login', () => {
+    expect(compactDestination(mountHome({ compact_home_enabled: true }))).toBe('/login')
   })
 
   it('links authenticated users to their dashboard', () => {
     authStore.isAuthenticated = true
 
-    expect(compactDestination(mountHome({ compact_home_enabled: true }))).toBe('/app/dashboard')
+    expect(compactDestination(mountHome({ compact_home_enabled: true }))).toBe('/dashboard')
   })
 
   it('links administrators to the admin dashboard', () => {

@@ -174,17 +174,6 @@ func buildVersionedModelsURL(baseURL, version string) string {
 	return normalized + version + "/models"
 }
 
-func truncateModelsRefreshError(err error) string {
-	if err == nil {
-		return ""
-	}
-	msg := strings.TrimSpace(err.Error())
-	if len(msg) <= 500 {
-		return msg
-	}
-	return strings.TrimSpace(msg[:500])
-}
-
 func (s *AccountTestService) executeAccountRequest(req *http.Request, account *Account) (*http.Response, error) {
 	if s.httpUpstream == nil {
 		return nil, errors.New("http upstream is not configured")

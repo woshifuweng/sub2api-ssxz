@@ -70,10 +70,12 @@ func TestHandleChatStreamingResponse_ClassifiesHTTP2ReadError(t *testing.T) {
 	result, err := svc.handleChatStreamingResponse(
 		resp,
 		c,
+		nil,
 		"gpt-5.6-sol",
 		"gpt-5.6-sol",
-		false,
+		"gpt-5.6-sol",
 		time.Now(),
+		0,
 	)
 
 	require.Error(t, err)

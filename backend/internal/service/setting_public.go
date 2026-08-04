@@ -153,23 +153,6 @@ func (s *SettingService) GetFrontendURL(ctx context.Context) string {
 	return s.cfg.Server.FrontendURL
 }
 
-// ResolvePasswordResetLinkBase 返回密码重置邮件实际会使用的链接基址，
-// 空串表示解析不出来、发信会被静默跳过。
-//
-// 它把「DB 值 → 配置文件回落 → 请求 Origin 兜底（release 模式下还要过 CORS 白名单）」
-// 这条完整链路收敛在一处，供管理端设置页判断配置是否可用。
-// 管理端**必须**用它，不要拿 settings.frontend_url 的原始值自行推断 ——
-// 那样会漏掉配置文件回落，在「DB 空但 config.yaml 已配」的部署上误报成故障。
-func (s *SettingService) ResolvePasswordResetLinkBase(ctx context.Context, requestOrigin string) string {
-	// 该方法会被 buildSystemSettingsDTO 之类的纯装配路径调用，那里可能拿到
-	// 只填了部分依赖的 SettingService（测试脚手架就是这么构造的）。
-	// 解析不出来就返回空串，绝不能 panic 掉整个设置接口。
-	if s == nil || s.settingRepo == nil || s.cfg == nil {
-		return ""
-	}
-	return ResolvePasswordResetBaseURL(s.GetFrontendURL(ctx), requestOrigin, s.cfg)
-}
-
 // GetPublicSettings 获取公开设置（无需登录）
 func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings, error) {
 	keys := []string{
@@ -188,6 +171,12 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyLoginAgreementDocuments,
 		SettingKeyTurnstileEnabled,
 		SettingKeyTurnstileSiteKey,
+		SettingKeyTencentCaptchaEnabled,
+		SettingKeyTencentCaptchaAppID,
+		SettingKeyAliyunCaptchaEnabled,
+		SettingKeyAliyunCaptchaSceneID,
+		SettingKeyAliyunCaptchaPrefix,
+		SettingKeyAliyunCaptchaRegion,
 		SettingKeyAPIKeyACLTrustForwardedIP,
 		SettingKeySiteName,
 		SettingKeySiteLogo,
@@ -300,17 +289,9 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		loginAgreementUpdatedAt = defaultLoginAgreementDate
 	}
 
-	balanceLowNotifyThreshold := 1.0
+	var balanceLowNotifyThreshold float64
 	if v, err := strconv.ParseFloat(settings[SettingKeyBalanceLowNotifyThreshold], 64); err == nil && v >= 0 {
 		balanceLowNotifyThreshold = v
-	}
-	balanceLowNotifyEnabled := true
-	if raw, ok := settings[SettingKeyBalanceLowNotifyEnabled]; ok && strings.TrimSpace(raw) != "" {
-		balanceLowNotifyEnabled = raw == "true"
-	}
-	availableChannelsEnabled := settings[SettingKeyAvailableChannelsEnabled] == "true"
-	if runtime, ok := s.getAvailableChannelsRuntimeOverride(); ok {
-		availableChannelsEnabled = runtime.Enabled
 	}
 	soraClientEnabled := settings[SettingKeySoraClientEnabled] == "true"
 	if enabled, ok := s.getSoraClientRuntimeOverride(); ok {
@@ -339,17 +320,23 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		LoginAgreementDocuments:          loginAgreementDocuments,
 		TurnstileEnabled:                 settings[SettingKeyTurnstileEnabled] == "true",
 		TurnstileSiteKey:                 settings[SettingKeyTurnstileSiteKey],
+		TencentCaptchaEnabled:            settings[SettingKeyTencentCaptchaEnabled] == "true",
+		TencentCaptchaAppID:              settings[SettingKeyTencentCaptchaAppID],
+		AliyunCaptchaEnabled:             settings[SettingKeyAliyunCaptchaEnabled] == "true",
+		AliyunCaptchaSceneID:             settings[SettingKeyAliyunCaptchaSceneID],
+		AliyunCaptchaPrefix:              settings[SettingKeyAliyunCaptchaPrefix],
+		AliyunCaptchaRegion:              normalizeAliyunCaptchaRegion(settings[SettingKeyAliyunCaptchaRegion]),
 		SiteName:                         s.getStringOrDefault(settings, SettingKeySiteName, "Sub2API"),
 		SiteLogo:                         settings[SettingKeySiteLogo],
 		SiteSubtitle:                     s.getStringOrDefault(settings, SettingKeySiteSubtitle, "Subscription to API Conversion Platform"),
 		APIBaseURL:                       settings[SettingKeyAPIBaseURL],
 		ContactInfo:                      settings[SettingKeyContactInfo],
 		DocURL:                           settings[SettingKeyDocURL],
-		HomeContent:                      sanitizePublicHomeContent(settings[SettingKeyHomeContent]),
+		HomeContent:                      settings[SettingKeyHomeContent],
 		CompactHomeEnabled:               settings[SettingKeyCompactHomeEnabled] == "true",
 		HideCcsImportButton:              settings[SettingKeyHideCcsImportButton] == "true",
 		PurchaseSubscriptionEnabled:      settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
-		PurchaseSubscriptionURL:          sanitizePublicEmbeddedURL(settings[SettingKeyPurchaseSubscriptionURL]),
+		PurchaseSubscriptionURL:          strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
 		PurchaseLinkCNY10:                sanitizePublicEmbeddedURL(settings[SettingKeyPurchaseLinkCNY10]),
 		PurchaseLinkCNY30:                sanitizePublicEmbeddedURL(settings[SettingKeyPurchaseLinkCNY30]),
 		PurchaseLinkCNY100:               sanitizePublicEmbeddedURL(settings[SettingKeyPurchaseLinkCNY100]),
@@ -370,7 +357,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		OIDCOAuthProviderName:            oidcProviderName,
 		GitHubOAuthEnabled:               gitHubEnabled,
 		GoogleOAuthEnabled:               googleEnabled,
-		BalanceLowNotifyEnabled:          balanceLowNotifyEnabled,
+		BalanceLowNotifyEnabled:          settings[SettingKeyBalanceLowNotifyEnabled] == "true",
 		AccountQuotaNotifyEnabled:        settings[SettingKeyAccountQuotaNotifyEnabled] == "true",
 		BalanceLowNotifyThreshold:        balanceLowNotifyThreshold,
 		BalanceLowNotifyRechargeURL:      settings[SettingKeyBalanceLowNotifyRechargeURL],
@@ -378,9 +365,8 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		ChannelMonitorEnabled:                !isFalseSettingValue(settings[SettingKeyChannelMonitorEnabled]),
 		ChannelMonitorDefaultIntervalSeconds: parseChannelMonitorInterval(settings[SettingKeyChannelMonitorDefaultIntervalSeconds]),
 
-		AvailableChannelsEnabled: availableChannelsEnabled,
-
-		WebSearch: webSearchSettings,
+		AvailableChannelsEnabled: settings[SettingKeyAvailableChannelsEnabled] == "true",
+		WebSearch:                webSearchSettings,
 
 		ModelPlazaEnabled:     settings[SettingKeyModelPlazaEnabled] == "true",
 		ModelPlazaRequireAuth: settings[SettingKeyModelPlazaRequireAuth] == "true",
@@ -535,6 +521,12 @@ type PublicSettingsInjectionPayload struct {
 	LoginAgreementDocuments          []LoginAgreementDocument `json:"login_agreement_documents"`
 	TurnstileEnabled                 bool                     `json:"turnstile_enabled"`
 	TurnstileSiteKey                 string                   `json:"turnstile_site_key"`
+	TencentCaptchaEnabled            bool                     `json:"tencent_captcha_enabled"`
+	TencentCaptchaAppID              string                   `json:"tencent_captcha_app_id"`
+	AliyunCaptchaEnabled             bool                     `json:"aliyun_captcha_enabled"`
+	AliyunCaptchaSceneID             string                   `json:"aliyun_captcha_scene_id"`
+	AliyunCaptchaPrefix              string                   `json:"aliyun_captcha_prefix"`
+	AliyunCaptchaRegion              string                   `json:"aliyun_captcha_region"`
 	SiteName                         string                   `json:"site_name"`
 	SiteLogo                         string                   `json:"site_logo"`
 	SiteSubtitle                     string                   `json:"site_subtitle"`
@@ -581,12 +573,12 @@ type PublicSettingsInjectionPayload struct {
 	ChannelMonitorEnabled                bool                             `json:"channel_monitor_enabled"`
 	ChannelMonitorDefaultIntervalSeconds int                              `json:"channel_monitor_default_interval_seconds"`
 	AvailableChannelsEnabled             bool                             `json:"available_channels_enabled"`
-	WebSearch                            PublicWorkspaceWebSearchSettings `json:"web_search"`
 	ModelPlazaEnabled                    bool                             `json:"model_plaza_enabled"`
 	ModelPlazaRequireAuth                bool                             `json:"model_plaza_require_auth"`
 	AffiliateEnabled                     bool                             `json:"affiliate_enabled"`
 	RiskControlEnabled                   bool                             `json:"risk_control_enabled"`
 	AllowUserViewErrorRequests           bool                             `json:"allow_user_view_error_requests"`
+	WebSearch                            PublicWorkspaceWebSearchSettings `json:"web_search"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -614,6 +606,12 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		LoginAgreementDocuments:          settings.LoginAgreementDocuments,
 		TurnstileEnabled:                 settings.TurnstileEnabled,
 		TurnstileSiteKey:                 settings.TurnstileSiteKey,
+		TencentCaptchaEnabled:            settings.TencentCaptchaEnabled,
+		TencentCaptchaAppID:              settings.TencentCaptchaAppID,
+		AliyunCaptchaEnabled:             settings.AliyunCaptchaEnabled,
+		AliyunCaptchaSceneID:             settings.AliyunCaptchaSceneID,
+		AliyunCaptchaPrefix:              settings.AliyunCaptchaPrefix,
+		AliyunCaptchaRegion:              settings.AliyunCaptchaRegion,
 		SiteName:                         settings.SiteName,
 		SiteLogo:                         settings.SiteLogo,
 		SiteSubtitle:                     settings.SiteSubtitle,
@@ -656,12 +654,12 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		ChannelMonitorEnabled:                settings.ChannelMonitorEnabled,
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
 		AvailableChannelsEnabled:             settings.AvailableChannelsEnabled,
-		WebSearch:                            settings.WebSearch,
 		ModelPlazaEnabled:                    settings.ModelPlazaEnabled,
 		ModelPlazaRequireAuth:                settings.ModelPlazaRequireAuth,
 		AffiliateEnabled:                     settings.AffiliateEnabled,
 		RiskControlEnabled:                   settings.RiskControlEnabled,
 		AllowUserViewErrorRequests:           settings.AllowUserViewErrorRequests,
+		WebSearch:                            settings.WebSearch,
 	}, nil
 }
 

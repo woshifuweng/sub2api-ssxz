@@ -1,28 +1,50 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+
 import AccountBulkActionsBar from '../AccountBulkActionsBar.vue'
 
-vi.mock('vue-i18n', async () => {
-  const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
-  return {
-    ...actual,
-    useI18n: () => ({ t: (key: string) => key })
-  }
-})
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key: string) => key
+  })
+}))
 
 describe('AccountBulkActionsBar', () => {
-  it('emits the dedicated batch credential event', async () => {
+  it('allows selecting all results before any row is selected', async () => {
     const wrapper = mount(AccountBulkActionsBar, {
-      props: { selectedIds: [30, 34] },
-      global: { stubs: { Icon: true } }
+      props: {
+        selectedIds: [],
+        totalResults: 45,
+        selectingAll: false,
+        allResultsSelected: false
+      }
     })
 
-    const button = wrapper.findAll('button').find((item) =>
-      item.text().includes('admin.accounts.bulkActions.updateCredentials')
+    const button = wrapper.findAll('button').find(item =>
+      item.text().includes('admin.accounts.bulkActions.selectAllResults')
     )
-    expect(button).toBeTruthy()
 
+    expect(button).toBeDefined()
     await button!.trigger('click')
-    expect(wrapper.emitted('batch-credentials')).toHaveLength(1)
+    expect(wrapper.emitted('select-all-results')).toHaveLength(1)
+  })
+
+  it('preserves the upstream billing probe action from v0.1.166', async () => {
+    const wrapper = mount(AccountBulkActionsBar, {
+      props: {
+        selectedIds: [1],
+        totalResults: 45,
+        selectingAll: false,
+        allResultsSelected: false
+      }
+    })
+
+    const button = wrapper.findAll('button').find(item =>
+      item.text().includes('admin.accounts.bulkActions.probeUpstreamBilling')
+    )
+
+    expect(button).toBeDefined()
+    await button!.trigger('click')
+    expect(wrapper.emitted('probe-upstream-billing')).toHaveLength(1)
   })
 })

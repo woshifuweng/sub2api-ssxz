@@ -197,14 +197,16 @@
       <template #table>
         <AccountBulkActionsBar
           :selected-ids="selIds"
-          @batch-test="handleBatchTestSelected"
-          @batch-credentials="showBatchCredentials = true"
+          :total-results="pagination.total"
+          :selecting-all="selectingAllResults"
+          :all-results-selected="allResultsSelected"
           @delete="handleBulkDelete"
           @reset-status="handleBulkResetStatus"
           @refresh-token="handleBulkRefreshToken"
           @edit="showBulkEdit = true"
           @clear="clearSelection"
           @select-page="selectPage"
+          @select-all-results="handleSelectAllResults"
           @toggle-schedulable="handleBulkToggleSchedulable"
         />
         <div
@@ -288,52 +290,59 @@
                   {{ getAntigravityTierLabel(row) }}
                 </span>
               </div>
-            </template>
-            <template #cell-capacity="{ row }">
-              <AccountCapacityCell :account="row" />
-            </template>
-            <template #cell-status="{ row }">
-              <AccountStatusIndicator
-                :account="row"
-                @show-temp-unsched="handleShowTempUnsched"
-              />
-            </template>
-            <template #cell-schedulable="{ row }">
-              <Toggle
-                :model-value="row.schedulable"
-                @update:model-value="handleToggleSchedulable(row)"
-                :disabled="togglingSchedulable === row.id"
-                :aria-label="
-                  row.schedulable
-                    ? t('admin.accounts.schedulableEnabled')
-                    : t('admin.accounts.schedulableDisabled')
-                "
-                :title="
-                  row.schedulable
-                    ? t('admin.accounts.schedulableEnabled')
-                    : t('admin.accounts.schedulableDisabled')
-                "
-              />
-            </template>
-            <template #cell-today_stats="{ row }">
-              <AccountTodayStatsCell
-                :stats="todayStatsByAccountId[String(row.id)] ?? null"
-                :loading="todayStatsLoading"
-                :error="todayStatsError"
-              />
-            </template>
-            <template #cell-groups="{ row }">
-              <AccountGroupsCell :groups="row.groups" :max-display="4" />
-            </template>
-            <template #cell-usage="{ row }">
-              <AccountUsageCell
-                :account="row"
-                :today-stats="todayStatsByAccountId[String(row.id)] ?? null"
-                :today-stats-loading="todayStatsLoading"
-                :manual-refresh-token="usageManualRefreshToken"
-              />
-            </template>
-            <template #cell-proxy="{ row }">
+              <div
+                v-if="getOpenAICompactMeta(row)"
+                :class="[
+                  'inline-flex items-center gap-1.5 pl-0.5 text-[11px] font-medium leading-4',
+                  getOpenAICompactMeta(row)?.className
+                ]"
+                :title="getOpenAICompactTitle(row)"
+              >
+                <span :class="['h-1.5 w-1.5 rounded-full', getOpenAICompactMeta(row)?.dotClass]" />
+                <span>{{ getOpenAICompactMeta(row)?.label }}</span>
+              </div>
+            </div>
+          </template>
+          <template #cell-capacity="{ row }">
+            <AccountCapacityCell :account="row" />
+          </template>
+          <template #cell-status="{ row }">
+            <div class="flex items-center gap-1.5">
+              <AccountStatusIndicator :account="row" @show-temp-unsched="handleShowTempUnsched" />
+            </div>
+          </template>
+          <template #cell-schedulable="{ row }">
+            <button @click="handleToggleSchedulable(row)" :disabled="togglingSchedulable === row.id" class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800" :class="[row.schedulable ? 'bg-primary-500 hover:bg-primary-600' : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500']" :title="row.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')">
+              <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" :class="[row.schedulable ? 'translate-x-4' : 'translate-x-0']" />
+            </button>
+          </template>
+          <template #cell-today_stats="{ row }">
+            <AccountTodayStatsCell
+              :stats="todayStatsByAccountId[String(row.id)] ?? null"
+              :loading="todayStatsLoading"
+              :error="todayStatsError"
+            />
+          </template>
+          <template #cell-groups="{ row }">
+            <AccountGroupsCell :groups="row.groups" :max-display="4" />
+          </template>
+          <template #header-usage="{ column }">
+            <div class="flex items-center">
+              <span>{{ column.label }}</span>
+              <HelpTooltip :content="t('admin.accounts.usageWindowsHint')" width-class="w-72" />
+            </div>
+          </template>
+          <template #cell-usage="{ row }">
+            <AccountUsageCell
+              :account="row"
+              :today-stats="todayStatsByAccountId[String(row.id)] ?? null"
+              :today-stats-loading="todayStatsLoading"
+              :manual-refresh-token="usageManualRefreshToken"
+              @account-updated="handleAccountUpdated"
+            />
+          </template>
+          <template #cell-proxy="{ row }">
+            <div class="flex flex-col gap-1">
               <div v-if="row.proxy" class="flex items-center gap-2">
                 <span class="text-sm text-gray-700 dark:text-gray-300">{{
                   row.proxy.name
@@ -345,8 +354,66 @@
                   ({{ row.proxy.country_code }})
                 </span>
               </div>
-              <span v-else class="text-sm text-gray-400 dark:text-dark-500"
-                >-</span
+              <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
+              <div v-if="row.proxy && row.proxy.expires_at" class="flex items-center gap-2 text-xs">
+                <span class="text-gray-600 dark:text-gray-300">{{ formatDateTime(row.proxy.expires_at) }}</span>
+                <span :class="proxyExpiryBadge(row.proxy)">{{ proxyExpiryText(row.proxy) }}</span>
+              </div>
+              <div v-if="row.proxy_fallback_origin_id" class="flex items-center gap-1">
+                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" :title="t('admin.accounts.fallbackActiveTip', { origin: row.proxy_fallback_origin_name })">
+                  {{ t('admin.accounts.fallbackActive') }}
+                </span>
+                <button class="text-xs px-1.5 py-0.5 rounded border border-gray-300 dark:border-dark-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-700" @click="onRevertFallback(row)">{{ t('admin.accounts.revertProxy') }}</button>
+              </div>
+            </div>
+          </template>
+          <template #cell-rate_multiplier="{ row }">
+            <span class="inline-flex items-center gap-1 text-sm font-mono text-gray-700 dark:text-gray-300">
+              <span>{{ formatMultiplier(row.rate_multiplier ?? 1) }}x</span>
+              <span
+                v-if="row.extra?.upstream_billing_rate_sync_enabled === true"
+                class="inline-flex cursor-help text-emerald-600 dark:text-emerald-400"
+                :aria-label="t('admin.accounts.upstreamBilling.syncedRateTooltip')"
+                :title="t('admin.accounts.upstreamBilling.syncedRateTooltip')"
+                data-testid="account-rate-sync-indicator"
+              >
+                <Icon name="sync" size="xs" />
+              </span>
+            </span>
+          </template>
+          <template #header-upstream_billing_rate="{ column }">
+            <div class="flex items-center gap-1">
+              <span>{{ column.label }}</span>
+              <span @click.stop>
+                <HelpTooltip :content="t('admin.accounts.upstreamBilling.trustWarning')" width-class="w-80" />
+              </span>
+            </div>
+          </template>
+          <template #cell-upstream_billing_rate="{ row }">
+            <UpstreamBillingRateCell
+              :account="row"
+              :global-probe-enabled="upstreamBillingProbeGloballyEnabled"
+              :now="upstreamBillingNow"
+              :probing="probingUpstreamBilling.has(row.id)"
+              @probe="handleProbeUpstreamBilling(row)"
+            />
+          </template>
+          <template #cell-priority="{ value }">
+            <span class="text-sm text-gray-700 dark:text-gray-300">{{ value }}</span>
+          </template>
+          <template #header-scheduler_score="{ column }">
+            <div class="flex items-center">
+              <span>{{ column.label }}</span>
+              <HelpTooltip :content="t('admin.accounts.schedulerScore.hint')" width-class="w-80" />
+            </div>
+          </template>
+          <template #cell-scheduler_score="{ row }">
+            <div v-if="getSchedulerScoreRows(row).length" class="flex min-w-[7rem] flex-col gap-0.5 font-mono text-[11px] leading-4">
+              <div
+                v-for="score in getSchedulerScoreRows(row)"
+                :key="String(score.group_id)"
+                class="flex items-center gap-1 whitespace-nowrap text-gray-700 dark:text-gray-300"
+                :title="`${formatSchedulerScoreGroup(score)} / ${formatSchedulerScore(score.base_score)} / ${formatStickySchedulerScore(score)}`"
               >
             </template>
             <template #cell-rate_multiplier="{ row }">
@@ -593,69 +660,53 @@
 </template>
 
 <script setup lang="ts">
-import LiquidButton from "@/components/common/LiquidButton.vue";
-import Toggle from "@/components/common/Toggle.vue";
-import {
-  ref,
-  reactive,
-  computed,
-  onMounted,
-  onUnmounted,
-  toRaw,
-  watch,
-} from "vue";
-import { useIntervalFn } from "@vueuse/core";
-import { useI18n } from "vue-i18n";
-import { useAppStore } from "@/stores/app";
-import { useAuthStore } from "@/stores/auth";
-import { adminAPI } from "@/api/admin";
-import { useTableLoader } from "@/composables/useTableLoader";
-import { useSwipeSelect } from "@/composables/useSwipeSelect";
-import { useTableSelection } from "@/composables/useTableSelection";
-import AppLayout from "@/components/layout/AppLayout.vue";
-import AdminPageHeader from "@/components/admin/AdminPageHeader.vue";
-import TablePageLayout from "@/components/layout/TablePageLayout.vue";
-import DataTable from "@/components/common/DataTable.vue";
-import Pagination from "@/components/common/Pagination.vue";
-import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
-import {
-  CreateAccountModal,
-  EditAccountModal,
-  BulkEditAccountModal,
-  SyncFromCrsModal,
-  TempUnschedStatusModal,
-} from "@/components/account";
-import AccountTableActions from "@/components/admin/account/AccountTableActions.vue";
-import AccountTableFilters from "@/components/admin/account/AccountTableFilters.vue";
-import AccountBulkActionsBar from "@/components/admin/account/AccountBulkActionsBar.vue";
-import BatchUpdateCredentialsDialog from "@/components/admin/account/BatchUpdateCredentialsDialog.vue";
-import AccountActionMenu from "@/components/admin/account/AccountActionMenu.vue";
-import ImportDataModal from "@/components/admin/account/ImportDataModal.vue";
-import ReAuthAccountModal from "@/components/admin/account/ReAuthAccountModal.vue";
-import AccountTestModal from "@/components/admin/account/AccountTestModal.vue";
-import AccountStatsModal from "@/components/admin/account/AccountStatsModal.vue";
-import ScheduledTestsPanel from "@/components/admin/account/ScheduledTestsPanel.vue";
-import type { SelectOption } from "@/components/common/Select.vue";
-import AccountStatusIndicator from "@/components/account/AccountStatusIndicator.vue";
-import AccountUsageCell from "@/components/account/AccountUsageCell.vue";
-import AccountTodayStatsCell from "@/components/account/AccountTodayStatsCell.vue";
-import AccountGroupsCell from "@/components/account/AccountGroupsCell.vue";
-import AccountCapacityCell from "@/components/account/AccountCapacityCell.vue";
-import PlatformTypeBadge from "@/components/common/PlatformTypeBadge.vue";
-import Icon from "@/components/icons/Icon.vue";
-import ErrorPassthroughRulesModal from "@/components/admin/ErrorPassthroughRulesModal.vue";
-import { buildOpenAIUsageRefreshKey } from "@/utils/accountUsageRefresh";
-import { formatDateTime, formatRelativeTime } from "@/utils/format";
-import type {
-  Account,
-  AccountListFilters,
-  AccountPlatform,
-  AccountType,
-  Proxy as AccountProxy,
-  AdminGroup,
-  WindowStats,
-  ClaudeModel,
-} from "@/types";
+import { ref, reactive, computed, onMounted, onUnmounted, toRaw, watch } from 'vue'
+import { useIntervalFn } from '@vueuse/core'
+import { useI18n } from 'vue-i18n'
+import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
+import { adminAPI } from '@/api/admin'
+import { useTableLoader } from '@/composables/useTableLoader'
+import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/useSwipeSelect'
+import { useTableSelection } from '@/composables/useTableSelection'
+import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from '@/composables/useStepUp'
+import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
+import AppLayout from '@/components/layout/AppLayout.vue'
+import TablePageLayout from '@/components/layout/TablePageLayout.vue'
+import DataTable from '@/components/common/DataTable.vue'
+import HelpTooltip from '@/components/common/HelpTooltip.vue'
+import Pagination from '@/components/common/Pagination.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import { CreateAccountModal, EditAccountModal, BulkEditAccountModal, SyncFromCrsModal, TempUnschedStatusModal } from '@/components/account'
+import AccountTableActions from '@/components/admin/account/AccountTableActions.vue'
+import AccountTableFilters from '@/components/admin/account/AccountTableFilters.vue'
+import AccountBulkActionsBar from '@/components/admin/account/AccountBulkActionsBar.vue'
+import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
+import ImportDataModal from '@/components/admin/account/ImportDataModal.vue'
+import ReAuthAccountModal from '@/components/admin/account/ReAuthAccountModal.vue'
+import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
+import AccountStatsModal from '@/components/admin/account/AccountStatsModal.vue'
+import ScheduledTestsPanel from '@/components/admin/account/ScheduledTestsPanel.vue'
+import type { SelectOption } from '@/components/common/Select.vue'
+import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.vue'
+import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
+import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vue'
+import AccountGroupsCell from '@/components/account/AccountGroupsCell.vue'
+import AccountCapacityCell from '@/components/account/AccountCapacityCell.vue'
+import UpstreamBillingRateCell from '@/components/account/UpstreamBillingRateCell.vue'
+import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
+import Icon from '@/components/icons/Icon.vue'
+import ErrorPassthroughRulesModal from '@/components/admin/ErrorPassthroughRulesModal.vue'
+import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfilesModal.vue'
+import { fetchAllAccountIds } from '@/utils/accountSelection'
+import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
+import { formatDateTime, formatRelativeTime } from '@/utils/format'
+import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
+import { extractApiErrorMessage } from '@/utils/apiError'
+import { sanitizeUrl } from '@/utils/url'
+import { getFloatingPanelPosition } from '@/utils/floatingPanel'
+import { formatMultiplier } from '@/utils/formatters'
+import type { Account, AccountPlatform, AccountSchedulerGroupScore, AccountType, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel, UpstreamBillingProbeSnapshot } from '@/types'
 
 const { t } = useI18n();
 const appStore = useAppStore();
@@ -940,6 +991,7 @@ const {
 });
 
 const {
+  selectedSet,
   selectedIds: selIds,
   allVisibleSelected,
   isSelected,
@@ -947,14 +999,41 @@ const {
   select,
   deselect,
   toggle: toggleSel,
-  clear: clearSelection,
+  clear: clearSelectedIds,
   removeMany: removeSelectedAccounts,
   toggleVisible,
-  selectVisible: selectPage,
+  selectVisible: selectCurrentPage,
+  batchUpdate
 } = useTableSelection<Account>({
   rows: accounts,
-  getId: (account) => account.id,
-});
+  getId: (account) => account.id
+})
+
+const selectingAllResults = ref(false)
+const selectedAllResultIDs = ref<Set<number> | null>(null)
+const selectionRequestVersion = ref(0)
+const allResultsSelected = computed(() => {
+  const snapshot = selectedAllResultIDs.value
+  if (!snapshot || snapshot.size === 0 || snapshot.size !== selectedSet.value.size) return false
+  return Array.from(snapshot).every(id => selectedSet.value.has(id))
+})
+
+const clearSelection = () => {
+  selectionRequestVersion.value++
+  selectingAllResults.value = false
+  selectedAllResultIDs.value = null
+  clearSelectedIds()
+}
+
+const selectPage = () => {
+  selectCurrentPage()
+}
+
+const swipeVirtualContext: SwipeSelectVirtualContext = {
+  getVirtualizer: () => dataTableRef.value?.virtualizer ?? null,
+  getSortedData: () => dataTableRef.value?.sortedData ?? accounts.value,
+  getRowId: (row: any) => row.id,
+}
 
 useSwipeSelect(accountTableRef, {
   isSelected,
@@ -993,11 +1072,13 @@ const reload = async () => {
 };
 
 const debouncedReload = () => {
-  hasPendingListSync.value = false;
-  resetAutoRefreshCache();
-  pendingTodayStatsRefresh.value = true;
-  baseDebouncedReload();
-};
+  clearSelection()
+  syncAccountListDerivedParams()
+  hasPendingListSync.value = false
+  resetAutoRefreshCache()
+  pendingTodayStatsRefresh.value = true
+  baseDebouncedReload()
+}
 
 const handlePageChange = (page: number) => {
   hasPendingListSync.value = false;
@@ -1414,19 +1495,30 @@ const openMenu = (a: Account, e: MouseEvent) => {
   menu.show = true;
 };
 const toggleSelectAllVisible = (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  toggleVisible(target.checked);
-};
+  const target = event.target as HTMLInputElement
+  toggleVisible(target.checked)
+}
 const handleBulkDelete = async () => {
-  if (!confirm(t("common.confirm"))) return;
+  const accountIds = [...selIds.value]
+  if (!confirm(t('admin.accounts.bulkActions.confirmDelete', { count: accountIds.length }))) return
   try {
-    await Promise.all(selIds.value.map((id) => adminAPI.accounts.delete(id)));
-    clearSelection();
-    reload();
+    const result = await adminAPI.accounts.batchDelete(accountIds)
+    if (result.failed > 0) {
+      appStore.showError(t('admin.accounts.bulkActions.partialSuccess', {
+        success: result.success,
+        failed: result.failed
+      }))
+      setSelectedIds(result.failed_ids?.length ? result.failed_ids : accountIds)
+    } else {
+      appStore.showSuccess(t('admin.accounts.bulkActions.deleteSuccess', { count: result.success }))
+      clearSelection()
+    }
+    await reload()
   } catch (error) {
-    console.error("Failed to bulk delete accounts:", error);
+    console.error('Failed to bulk delete accounts:', error)
+    appStore.showError(String(error))
   }
-};
+}
 const handleBulkResetStatus = async () => {
   if (!confirm(t("common.confirm"))) return;
   try {
@@ -1480,19 +1572,26 @@ const handleBulkRefreshToken = async () => {
 const handleBatchTestSelected = async () => {
   if (selIds.value.length === 0) return;
   try {
-    const result = await adminAPI.accounts.batchTest(selIds.value);
-    await reload();
-    appStore.showSuccess(
-      t("admin.accounts.batchTestAccountsDone", {
-        success: result.success,
-        failed: result.failed,
-      }),
-    );
-  } catch (error: any) {
-    console.error("Failed to batch test accounts:", error);
-    appStore.showError(
-      error?.message || t("admin.accounts.batchTestAccountsFailed"),
-    );
+    const results = await adminAPI.accounts.probeUpstreamBillingBatch(accountIDs)
+    let patched = false
+    results.forEach(result => {
+      if (result.snapshot) {
+        patchUpstreamBillingSnapshot(result.account_id, result.snapshot)
+        patched = true
+      }
+    })
+    if (patched) await refreshAccountsAfterUpstreamBillingProbe()
+    const failed = results.filter(result => result.error).length
+    if (failed > 0) {
+      appStore.showError(t('admin.accounts.upstreamBilling.batchPartial', { success: results.length - failed, failed }))
+    } else {
+      appStore.showSuccess(t('admin.accounts.upstreamBilling.batchCompleted', { count: results.length }))
+    }
+  } catch (error) {
+    console.error('Failed to probe upstream billing in batch:', error)
+    appStore.showError(extractApiErrorMessage(error, t('admin.accounts.upstreamBilling.probeFailed')))
+  } finally {
+    accountIDs.forEach(id => probingUpstreamBilling.delete(id))
   }
 };
 const updateSchedulableInList = (
@@ -1636,7 +1735,78 @@ const handleBulkToggleSchedulable = async (schedulable: boolean) => {
     console.error("Failed to bulk toggle schedulable:", error);
     appStore.showError(t("common.error"));
   }
-};
+}
+const buildBulkEditFilterSnapshot = () => {
+  const rawParams = toRaw(params) as Record<string, unknown>
+  const sortOrder: AccountSortOrder = rawParams.sort_order === 'desc' ? 'desc' : 'asc'
+  return {
+    platform: typeof rawParams.platform === 'string' ? rawParams.platform : '',
+    type: typeof rawParams.type === 'string' ? rawParams.type : '',
+    status: typeof rawParams.status === 'string' ? rawParams.status : '',
+    group: typeof rawParams.group === 'string' ? rawParams.group : '',
+    search: typeof rawParams.search === 'string' ? rawParams.search : '',
+    privacy_mode: typeof rawParams.privacy_mode === 'string' ? rawParams.privacy_mode : '',
+    sort_by: typeof rawParams.sort_by === 'string' ? rawParams.sort_by : '',
+    sort_order: sortOrder
+  }
+}
+
+const handleSelectAllResults = async () => {
+  if (selectingAllResults.value || pagination.total === 0) return
+
+  const requestVersion = ++selectionRequestVersion.value
+  const filters = buildBulkEditFilterSnapshot()
+  selectingAllResults.value = true
+  try {
+    const ids = await fetchAllAccountIds(
+      (page, pageSize, requestFilters) => adminAPI.accounts.list(page, pageSize, requestFilters),
+      filters
+    )
+    if (requestVersion !== selectionRequestVersion.value) return
+
+    setSelectedIds(ids)
+    selectedAllResultIDs.value = new Set(ids)
+  } catch (error) {
+    if (requestVersion !== selectionRequestVersion.value) return
+    console.error('Failed to select all account results:', error)
+    appStore.showError(t('admin.accounts.bulkActions.selectAllFailed'))
+  } finally {
+    if (requestVersion === selectionRequestVersion.value) {
+      selectingAllResults.value = false
+    }
+  }
+}
+
+const collectSelectionMetadata = (rows: Account[]) => {
+  const selectedPlatforms = Array.from(new Set(rows.map(account => account.platform)))
+  const selectedTypes = Array.from(new Set(rows.map(account => account.type)))
+  return { selectedPlatforms, selectedTypes }
+}
+
+const openBulkEditSelected = () => {
+  bulkEditTarget.value = {
+    mode: 'selected',
+    accountIds: [...selIds.value],
+    selectedPlatforms: [...selPlatforms.value],
+    selectedTypes: [...selTypes.value]
+  }
+  showBulkEdit.value = true
+}
+
+const openBulkEditFiltered = async () => {
+  const filters = buildBulkEditFilterSnapshot()
+  const preview = await adminAPI.accounts.list(1, 100, filters)
+  const { selectedPlatforms, selectedTypes } = collectSelectionMetadata(preview.items)
+  bulkEditTarget.value = {
+    mode: 'filtered',
+    filters,
+    previewCount: preview.total,
+    selectedPlatforms,
+    selectedTypes
+  }
+  showBulkEdit.value = true
+}
+
 const handleBulkUpdated = () => {
   showBulkEdit.value = false;
   clearSelection();
@@ -1737,11 +1907,44 @@ const patchAccountInList = (updatedAccount: Account) => {
     }
     return;
   }
-  const nextAccounts = [...accounts.value];
-  nextAccounts[index] = mergedAccount;
-  accounts.value = nextAccounts;
-  syncAccountRefs(mergedAccount);
-};
+  const nextAccounts = [...accounts.value]
+  nextAccounts[index] = mergedAccount
+  accounts.value = nextAccounts
+  syncAccountRefs(mergedAccount)
+}
+const patchUpstreamBillingSnapshot = (accountID: number, snapshot: UpstreamBillingProbeSnapshot) => {
+  const account = accounts.value.find(item => item.id === accountID)
+  if (!account) return
+  markUpstreamBillingSortRefresh()
+  upstreamBillingNow.value = Date.now()
+  patchAccountInList({
+    ...account,
+    extra: { ...account.extra, upstream_billing_probe: snapshot }
+  })
+}
+const refreshAccountsAfterUpstreamBillingProbe = async () => {
+  try {
+    await load()
+  } catch (error) {
+    console.error('Failed to refresh accounts after upstream billing probe:', error)
+  }
+}
+const handleProbeUpstreamBilling = async (account: Account) => {
+  if (probingUpstreamBilling.has(account.id)) return
+  probingUpstreamBilling.add(account.id)
+  try {
+    const result = await adminAPI.accounts.probeUpstreamBilling(account.id)
+    if (result.snapshot) {
+      patchUpstreamBillingSnapshot(account.id, result.snapshot)
+      await refreshAccountsAfterUpstreamBillingProbe()
+    }
+  } catch (error) {
+    console.error('Failed to probe upstream billing:', error)
+    appStore.showError(extractApiErrorMessage(error, t('admin.accounts.upstreamBilling.probeFailed')))
+  } finally {
+    probingUpstreamBilling.delete(account.id)
+  }
+}
 const handleAccountUpdated = (updatedAccount: Account) => {
   patchAccountInList(updatedAccount);
   enterAutoRefreshSilentWindow();

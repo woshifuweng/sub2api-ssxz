@@ -14,11 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-// apiKeyAuthSnapshotVersion 认证缓存快照 schema 版本。结构演进时必须递增，
-// 使存量缓存条目立即失效回源，而不是以零值字段继续生效。
-// 历史：v3 = 整合前生产版本（67a05dfcc 引入，e5c51dce9 整合时机制被上游基座覆盖丢失）；
-// v4 = 恢复版本机制，并补回独占分组准入字段（Group.IsExclusive / User.AllowedGroups）。
-const apiKeyAuthSnapshotVersion = 4
+const apiKeyAuthSnapshotVersion = 18 // v18: include group profit control fields (force refresh of pre-fix snapshots)
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -407,52 +403,9 @@ func (s *APIKeyService) snapshotFromAPIKey(_ context.Context, apiKey *APIKey) *A
 			MessagesDispatchModelConfig:     apiKey.Group.MessagesDispatchModelConfig,
 			MaxReasoningEffort:              apiKey.Group.MaxReasoningEffort,
 			ReasoningEffortMappings:         apiKey.Group.ReasoningEffortMappings,
-		}
-	}
-	if len(apiKey.Groups) > 0 {
-		snapshot.Groups = make([]APIKeyAuthGroupSnapshot, 0, len(apiKey.Groups))
-		for _, group := range apiKey.Groups {
-			if group == nil {
-				continue
-			}
-			snapshot.Groups = append(snapshot.Groups, APIKeyAuthGroupSnapshot{
-				ID:                              group.ID,
-				Name:                            group.Name,
-				Platform:                        group.Platform,
-				IsExclusive:                     group.IsExclusive,
-				Status:                          group.Status,
-				SubscriptionType:                group.SubscriptionType,
-				RateMultiplier:                  group.RateMultiplier,
-				PeakRateEnabled:                 group.PeakRateEnabled,
-				PeakStart:                       group.PeakStart,
-				PeakEnd:                         group.PeakEnd,
-				PeakRateMultiplier:              group.PeakRateMultiplier,
-				DailyLimitUSD:                   group.DailyLimitUSD,
-				WeeklyLimitUSD:                  group.WeeklyLimitUSD,
-				MonthlyLimitUSD:                 group.MonthlyLimitUSD,
-				ImagePrice1K:                    group.ImagePrice1K,
-				ImagePrice2K:                    group.ImagePrice2K,
-				ImagePrice4K:                    group.ImagePrice4K,
-				SoraImagePrice360:               group.SoraImagePrice360,
-				SoraImagePrice540:               group.SoraImagePrice540,
-				SoraVideoPricePerRequest:        group.SoraVideoPricePerRequest,
-				SoraVideoPricePerRequestHD:      group.SoraVideoPricePerRequestHD,
-				WebSearchPricePerCall:           group.WebSearchPricePerCall,
-				ClaudeCodeOnly:                  group.ClaudeCodeOnly,
-				FallbackGroupID:                 group.FallbackGroupID,
-				FallbackGroupIDOnInvalidRequest: group.FallbackGroupIDOnInvalidRequest,
-				ModelRouting:                    group.ModelRouting,
-				ModelRoutingEnabled:             group.ModelRoutingEnabled,
-				MCPXMLInject:                    group.MCPXMLInject,
-				AllowImageGeneration:            group.AllowImageGeneration,
-				SupportedModelScopes:            group.SupportedModelScopes,
-				AllowMessagesDispatch:           group.AllowMessagesDispatch,
-				AllowLive:                       group.AllowLive,
-				DefaultMappedModel:              group.DefaultMappedModel,
-				MessagesDispatchModelConfig:     group.MessagesDispatchModelConfig,
-				MaxReasoningEffort:              group.MaxReasoningEffort,
-				ReasoningEffortMappings:         group.ReasoningEffortMappings,
-			})
+			ProfitControlEnabled:            apiKey.Group.ProfitControlEnabled,
+			ProfitMinMargin:                 apiKey.Group.ProfitMinMargin,
+			ProfitSafetyBuffer:              apiKey.Group.ProfitSafetyBuffer,
 		}
 	}
 	return snapshot
@@ -527,6 +480,9 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			MessagesDispatchModelConfig:     snapshot.Group.MessagesDispatchModelConfig,
 			MaxReasoningEffort:              snapshot.Group.MaxReasoningEffort,
 			ReasoningEffortMappings:         snapshot.Group.ReasoningEffortMappings,
+			ProfitControlEnabled:            snapshot.Group.ProfitControlEnabled,
+			ProfitMinMargin:                 snapshot.Group.ProfitMinMargin,
+			ProfitSafetyBuffer:              snapshot.Group.ProfitSafetyBuffer,
 		}
 	}
 	if len(snapshot.Groups) > 0 {

@@ -228,6 +228,18 @@ func BuildFetchedModelsExtraUpdates(modelIDs []string, fetchedAt time.Time, sour
 	}
 }
 
+func truncateModelsRefreshError(err error) string {
+	if err == nil {
+		return ""
+	}
+	const maxLen = 512
+	message := sanitizeModelsDiscoveryError(err.Error())
+	if len(message) > maxLen {
+		return message[:maxLen]
+	}
+	return message
+}
+
 type AccountModelDiscoveryAudit struct {
 	AccountID            int64     `json:"account_id"`
 	ProviderType         string    `json:"provider_type"`

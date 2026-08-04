@@ -4,65 +4,15 @@ import (
 	"context"
 	"strings"
 	"time"
-
-	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 )
 
 const (
+	openAICodexAutoPauseStaleAfter      = 2 * time.Hour
 	OpenAIFastTierAny                   = "all"
 	OpenAIFastTierPriority              = "priority"
 	OpenAIFastTierFlex                  = "flex"
 	OpenAIFastPolicyActionForcePriority = "force_priority"
-	openAICodexAutoPauseStaleAfter      = 2 * time.Hour
 )
-
-func ensureCodexOAuthInstructionsField(reqBody map[string]any) {
-	if reqBody == nil {
-		return
-	}
-	if value, ok := reqBody["instructions"]; !ok || value == nil {
-		reqBody["instructions"] = ""
-		return
-	}
-	if _, ok := reqBody["instructions"].(string); !ok {
-		reqBody["instructions"] = ""
-	}
-}
-
-func normalizeResponsesRequestServiceTier(req *apicompat.ResponsesRequest) {
-	if req == nil {
-		return
-	}
-	req.ServiceTier = normalizedOpenAIServiceTierValue(req.ServiceTier)
-}
-
-func normalizedOpenAIServiceTierValue(raw string) string {
-	value := strings.ToLower(strings.TrimSpace(raw))
-	if value == "fast" {
-		value = "priority"
-	}
-	switch value {
-	case "priority", "flex", "auto", "default", "scale":
-		return value
-	default:
-		return ""
-	}
-}
-
-func copyOpenAIUsageFromResponsesUsage(usage *apicompat.ResponsesUsage) OpenAIUsage {
-	if usage == nil {
-		return OpenAIUsage{}
-	}
-	result := OpenAIUsage{
-		InputTokens:              usage.InputTokens,
-		OutputTokens:             usage.OutputTokens,
-		CacheCreationInputTokens: usage.CacheCreationInputTokens,
-	}
-	if usage.InputTokensDetails != nil {
-		result.CacheReadInputTokens = usage.InputTokensDetails.CachedTokens
-	}
-	return result
-}
 
 func isGrokImageGenerationModel(model string) bool {
 	model = strings.ToLower(strings.TrimSpace(model))

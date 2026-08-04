@@ -31,6 +31,26 @@ type SystemSettings struct {
 	TurnstileSecretKey           string
 	TurnstileSecretKeyConfigured bool
 
+	TencentCaptchaEnabled                  bool
+	TencentCaptchaAppID                    string
+	TencentCaptchaAppSecretKey             string
+	TencentCaptchaAppSecretKeyConfigured   bool
+	TencentCaptchaCloudSecretID            string
+	TencentCaptchaCloudSecretIDConfigured  bool
+	TencentCaptchaCloudSecretKey           string
+	TencentCaptchaCloudSecretKeyConfigured bool
+	AliyunCaptchaEnabled                   bool
+	AliyunCaptchaAccessKeyID               string
+	AliyunCaptchaAccessKeySecret           string
+	AliyunCaptchaAccessKeySecretConfigured bool
+	AliyunCaptchaSceneID                   string
+	AliyunCaptchaPrefix                    string
+	AliyunCaptchaRegion                    string
+
+	OpenAICodexClientVersion          string
+	OpenAICodexClientVersionSynced    string
+	OpenAICodexVersionAutoSyncEnabled bool
+
 	// LinuxDo Connect OAuth 登录
 	LinuxDoConnectEnabled                bool
 	LinuxDoConnectClientID               string
@@ -283,6 +303,12 @@ type PublicSettings struct {
 	LoginAgreementDocuments          []LoginAgreementDocument
 	TurnstileEnabled                 bool
 	TurnstileSiteKey                 string
+	TencentCaptchaEnabled            bool
+	TencentCaptchaAppID              string
+	AliyunCaptchaEnabled             bool
+	AliyunCaptchaSceneID             string
+	AliyunCaptchaPrefix              string
+	AliyunCaptchaRegion              string
 	SiteName                         string
 	SiteLogo                         string
 	SiteSubtitle                     string

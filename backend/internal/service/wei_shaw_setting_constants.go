@@ -29,9 +29,6 @@ const (
 	SettingKeyLoginAgreementMode                        = "login_agreement_mode"
 	SettingKeyLoginAgreementUpdatedAt                   = "login_agreement_updated_at"
 	SettingKeyLoginAgreementDocuments                   = "login_agreement_documents"
-	SettingKeyAPIKeyACLTrustForwardedIP                 = "api_key_acl_trust_forwarded_ip"
-	SettingKeyForwardedClientIPHeaders                  = "forwarded_client_ip_headers"
-	settingKeyForwardedClientIPModeV2                   = "forwarded_client_ip_mode_v2_migrated"
 	SettingKeySessionBindingEnabled                     = "session_binding_enabled"
 	SettingKeyStepUpEnabled                             = "step_up_enabled"
 	SettingKeyAuditLogRetentionDays                     = "audit_log_retention_days"
@@ -148,21 +145,6 @@ const (
 	SettingKeyCodexCLIOnlyAllowAppServerClients         = "codex_cli_only_allow_app_server_clients"
 	SettingKeyCodexCLIOnlyAllowBodyEngineFingerprint    = "codex_cli_only_allow_body_engine_fingerprint"
 	SettingKeyCodexCLIOnlyEngineFingerprintSignals      = "codex_cli_only_engine_fingerprint_signals"
-	SettingKeyEnableFingerprintUnification              = "enable_fingerprint_unification"
-	SettingKeyEnableMetadataPassthrough                 = "enable_metadata_passthrough"
-	SettingKeyEnableCCHSigning                          = "enable_cch_signing"
-	SettingKeyEnableClaudeOAuthSystemPromptInjection    = "enable_claude_oauth_system_prompt_injection"
-	SettingKeyClaudeOAuthSystemPrompt                   = "claude_oauth_system_prompt"
-	SettingKeyClaudeOAuthSystemPromptBlocks             = "claude_oauth_system_prompt_blocks"
-	SettingKeyEnableAnthropicCacheTTL1hInjection        = "enable_anthropic_cache_ttl_1h_injection"
-	SettingKeyEnableClientDatelineNormalization         = "enable_client_dateline_normalization"
-	SettingKeyRewriteMessageCacheControl                = "rewrite_message_cache_control"
-	SettingKeyAntigravityUserAgentVersion               = "antigravity_user_agent_version"
-	SettingKeyOpenAICodexUserAgent                      = "openai_codex_user_agent"
-	SettingKeyOpenAIAllowClaudeCodeCodexPlugin          = "openai_allow_claude_code_codex_plugin"
-	SettingKeySubscriptionExpiryNotifyEnabled           = "subscription_expiry_notify_enabled"
-	SettingKeyWebSearchEmulationConfig                  = "web_search_emulation_config"
-	SettingKeyDefaultPlatformQuotas                     = "default_platform_quotas"
 	SettingKeyAllowUserViewErrorRequests                = "allow_user_view_error_requests"
 )
 
@@ -181,10 +163,6 @@ func IsAllowedQuotaPlatform(platform string) bool {
 		}
 	}
 	return false
-}
-
-func SettingKeyAuthSourcePlatformQuotas(source string) string {
-	return "auth_source_default_" + source + "_platform_quotas"
 }
 
 var (
@@ -245,11 +223,3 @@ var (
 		platformQuotas:   SettingKeyAuthSourcePlatformQuotas("dingtalk"),
 	}
 )
-
-func DefaultRateLimit429CooldownSettings() *RateLimit429CooldownSettings {
-	return &RateLimit429CooldownSettings{Enabled: true, CooldownSeconds: 5}
-}
-
-func DefaultOpenAIFastPolicySettings() *OpenAIFastPolicySettings {
-	return &OpenAIFastPolicySettings{Rules: []OpenAIFastPolicyRule{}}
-}

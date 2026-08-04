@@ -360,13 +360,7 @@
       </div>
     </BaseDialog>
 
-    <AdminRefundDialog
-      :show="showRefundDialog"
-      :order="selectedOrder"
-      :submitting="refundSubmitting"
-      @confirm="handleRefund"
-      @cancel="showRefundDialog = false"
-    />
+    <AdminRefundDialog :show="showRefundDialog" :order="selectedOrder" :submitting="refundSubmitting" :require-force="refundRequireForce" :warning="refundWarning" @confirm="handleRefund" @cancel="closeRefundDialog" />
   </AppLayout>
 </template>
 
@@ -420,16 +414,20 @@ const appStore = useAppStore();
 const route = useRoute();
 const router = useRouter();
 
-const ordersLoading = ref(false);
-const orders = ref<PaymentOrder[]>([]);
-const orderSearch = ref("");
-const orderFilters = reactive({ status: "", payment_type: "", order_type: "" });
-const orderPagination = reactive({ page: 1, page_size: 20, total: 0 });
-const selectedOrder = ref<PaymentOrder | null>(null);
-const showDetailDialog = ref(false);
-const showRefundDialog = ref(false);
-const refundSubmitting = ref(false);
-const orderAuditLogs = ref<AuditLog[]>([]);
+const ordersLoading = ref(false)
+const orders = ref<PaymentOrder[]>([])
+const orderSearch = ref('')
+const orderFilters = reactive({ status: '', payment_type: '', order_type: '' })
+const orderPagination = reactive({ page: 1, page_size: 20, total: 0 })
+const selectedOrder = ref<PaymentOrder | null>(null)
+const showDetailDialog = ref(false)
+const showRefundDialog = ref(false)
+const refundSubmitting = ref(false)
+const refundRequireForce = ref(false)
+const refundWarning = ref('')
+const refundQueryingIds = ref(new Set<number>())
+const orderAuditLogs = ref<AuditLog[]>([])
+const creditedAmountSymbol = currencySymbol('USD')
 
 const getSingleQueryValue = (
   value: string | null | Array<string | null> | undefined,
@@ -469,9 +467,124 @@ async function loadOrders() {
     orders.value = res.data.items || [];
     orderPagination.total = res.data.total || 0;
   } catch (err: unknown) {
-    appStore.showError(
-      extractI18nErrorMessage(err, t, "payment.errors", t("common.error")),
-    );
+    appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
+  } finally { ordersLoading.value = false }
+}
+
+function handleOrderPageChange(page: number) { orderPagination.page = page; loadOrders() }
+function handleOrderPageSizeChange(size: number) { orderPagination.page_size = size; orderPagination.page = 1; loadOrders() }
+
+const statusFilterOptions = computed(() => [
+  { value: '', label: t('payment.admin.allStatuses') },
+  { value: 'PENDING', label: t('payment.status.pending') },
+  { value: 'PAID', label: t('payment.status.paid') },
+  { value: 'COMPLETED', label: t('payment.status.completed') },
+  { value: 'EXPIRED', label: t('payment.status.expired') },
+  { value: 'CANCELLED', label: t('payment.status.cancelled') },
+  { value: 'FAILED', label: t('payment.status.failed') },
+  { value: 'REFUNDED', label: t('payment.status.refunded') },
+  { value: 'REFUND_REQUESTED', label: t('payment.status.refund_requested') },
+  { value: 'REFUND_PENDING', label: t('payment.status.refund_pending') },
+  { value: 'REFUND_FAILED', label: t('payment.status.refund_failed') },
+])
+
+const paymentTypeFilterOptions = computed(() => [
+  { value: '', label: t('payment.admin.allPaymentTypes') },
+  { value: 'alipay', label: t('payment.methods.alipay') },
+  { value: 'wxpay', label: t('payment.methods.wxpay') },
+  { value: 'stripe', label: t('payment.methods.stripe') },
+  { value: 'airwallex', label: t('payment.methods.airwallex') },
+])
+
+const orderTypeFilterOptions = computed(() => [
+  { value: '', label: t('payment.admin.allOrderTypes') },
+  { value: 'balance', label: t('payment.admin.balanceOrder') },
+  { value: 'subscription', label: t('payment.admin.subscriptionOrder') },
+])
+
+async function showOrderDetail(order: PaymentOrder) {
+  selectedOrder.value = order
+  orderAuditLogs.value = []
+  showDetailDialog.value = true
+  try {
+    const res = await adminPaymentAPI.getOrder(order.id)
+    const data = res.data as unknown as Record<string, unknown>
+    if (data.order) selectedOrder.value = data.order as PaymentOrder
+    orderAuditLogs.value = ((data.auditLogs || data.audit_logs || []) as unknown) as AuditLog[]
+  } catch (_err: unknown) { /* keep cached order data */ }
+}
+
+async function handleCancelOrder(order: PaymentOrder) {
+  try { await adminPaymentAPI.cancelOrder(order.id); appStore.showSuccess(t('payment.admin.orderCancelled')); loadOrders() }
+  catch (err: unknown) { appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error'))) }
+}
+
+async function handleRetryOrder(order: PaymentOrder) {
+  try { await adminPaymentAPI.retryRecharge(order.id); appStore.showSuccess(t('payment.admin.retrySuccess')); loadOrders() }
+  catch (err: unknown) { appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error'))) }
+}
+
+function openRefundDialog(order: PaymentOrder) {
+  selectedOrder.value = order
+  refundRequireForce.value = false
+  refundWarning.value = ''
+  showRefundDialog.value = true
+}
+
+function closeRefundDialog() {
+  showRefundDialog.value = false
+  refundRequireForce.value = false
+  refundWarning.value = ''
+}
+
+function isRefundPendingWarning(warning: string | undefined): boolean {
+  return /pending|处理中|待/.test(String(warning || '').toLowerCase())
+}
+
+async function handleRefund(data: { amount: number; reason: string; deduct_balance: boolean; force: boolean }) {
+  if (!selectedOrder.value) return
+  refundSubmitting.value = true
+  try {
+    const res = await adminPaymentAPI.refundOrder(selectedOrder.value.id, { amount: data.amount, reason: data.reason, deduct_balance: data.deduct_balance, force: data.force })
+    if (res.data.success) {
+      appStore.showSuccess(t('payment.admin.refundSuccess'))
+      closeRefundDialog()
+      loadOrders()
+      return
+    }
+    if (isRefundPendingWarning(res.data.warning)) {
+      appStore.showSuccess(t('payment.admin.refundPending'))
+      closeRefundDialog()
+      loadOrders()
+      return
+    }
+    if (res.data.require_force) {
+      // Backend needs an explicit force confirmation (e.g. the user spent their
+      // balance after requesting the refund). Keep the dialog open and surface
+      // the force checkbox instead of dropping the admin back to the list.
+      refundRequireForce.value = true
+      refundWarning.value = res.data.warning || ''
+      return
+    }
+    appStore.showError(res.data.warning || t('common.error'))
+  } catch (err: unknown) { appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error'))) }
+  finally { refundSubmitting.value = false }
+}
+
+async function handleQueryRefund(order: PaymentOrder) {
+  refundQueryingIds.value = new Set(refundQueryingIds.value).add(order.id)
+  try {
+    const res = await adminPaymentAPI.queryRefund(order.id)
+    if (res.data.success) {
+      appStore.showSuccess(t('payment.admin.refundSuccess'))
+    } else if (isRefundPendingWarning(res.data.warning)) {
+      appStore.showSuccess(t('payment.admin.refundPending'))
+    } else {
+      appStore.showError(res.data.warning || t('common.error'))
+    }
+    loadOrders()
+  } catch (err: unknown) {
+    appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
   } finally {
     ordersLoading.value = false;
   }

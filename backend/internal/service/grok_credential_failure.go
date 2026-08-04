@@ -104,6 +104,10 @@ func (s *OpenAIGatewayService) getRequestCredential(ctx context.Context, c *gin.
 		return "", "", errors.New("account is nil")
 	}
 	if !account.IsGrokOAuth() {
+		if account.Platform == PlatformOpenAI {
+			token, err := s.getOpenAIRequestAccessToken(ctx, account)
+			return token, "oauth", err
+		}
 		return s.GetAccessToken(ctx, account)
 	}
 	if err := ctx.Err(); err != nil {

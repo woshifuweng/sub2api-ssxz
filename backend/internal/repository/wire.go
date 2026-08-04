@@ -13,6 +13,13 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+func ProvideBalanceLedgerRepositories(repo service.BalanceLedgerRepository) []service.BalanceLedgerRepository {
+	if repo == nil {
+		return nil
+	}
+	return []service.BalanceLedgerRepository{repo}
+}
+
 // ProvideConcurrencyCache 创建并发控制缓存，从配置读取 TTL 参数
 // 性能优化：TTL 可配置，支持长时间运行的 LLM 请求场景
 func ProvideConcurrencyCache(rdb *redis.Client, cfg *config.Config) service.ConcurrencyCache {
@@ -110,6 +117,7 @@ var ProviderSet = wire.NewSet(
 	NewAffiliateRepository,
 	NewResellerRepository,
 	NewBalanceLedgerRepository,
+	ProvideBalanceLedgerRepositories,
 	NewUserPlatformQuotaRepository,     // T14: user × platform quota
 	NewUserPlatformQuotaServiceAdapter, // T14: adapter → service.UserPlatformQuotaRepository
 	// Cache implementations
@@ -159,6 +167,8 @@ var ProviderSet = wire.NewSet(
 
 	// HTTP service ports (DI Strategy A: return interface directly)
 	NewTurnstileVerifier,
+	NewTencentCaptchaVerifier,
+	NewAliyunCaptchaVerifier,
 	ProvidePricingRemoteClient,
 	ProvideGitHubReleaseClient,
 	NewProxyExitInfoProber,

@@ -326,7 +326,27 @@ func resolveOpenAICompactSessionIDWeiShaw(c *gin.Context) string {
 	return uuid.NewString()
 }
 
-func openAIResponsesRequestPathSuffixWeiShaw(c *gin.Context) string {
+// openAIResponsesRequestPathSuffix 返回可拼接到上游 /responses URL 后面的子路径。
+// 不可转发的子路径返回空串（退化为裸 /responses）；真正的拒绝由入口守卫
+// IsForwardableOpenAIResponsesRequestPath 负责。这样即便将来新增路由漏挂守卫，
+// 拼进上游 URL 的也只会是合规片段。
+func openAIResponsesRequestPathSuffix(c *gin.Context) string {
+	suffix, ok := sanitizedUpstreamPathSuffix(rawOpenAIResponsesRequestPathSuffix(c))
+	if !ok {
+		return ""
+	}
+	return suffix
+}
+
+// IsForwardableOpenAIResponsesRequestPath 判断入站请求携带的 /responses 子路径
+// 是否可以安全转发。路由层用它在鉴权后、调度前直接拒绝畸形子路径。
+func IsForwardableOpenAIResponsesRequestPath(c *gin.Context) bool {
+	_, ok := sanitizedUpstreamPathSuffix(rawOpenAIResponsesRequestPathSuffix(c))
+	return ok
+}
+
+// rawOpenAIResponsesRequestPathSuffix 仅做提取，不做任何安全判断。
+func rawOpenAIResponsesRequestPathSuffix(c *gin.Context) string {
 	if c == nil || c.Request == nil || c.Request.URL == nil {
 		return ""
 	}
@@ -350,8 +370,9 @@ func openAIResponsesRequestPathSuffixWeiShaw(c *gin.Context) string {
 
 func appendOpenAIResponsesRequestPathSuffixWeiShaw(baseURL, suffix string) string {
 	trimmedBase := strings.TrimRight(strings.TrimSpace(baseURL), "/")
-	trimmedSuffix := strings.TrimSpace(suffix)
-	if trimmedBase == "" || trimmedSuffix == "" {
+	// 兜底：调用方漏了校验时，这里也不会把不合规的片段拼进上游 URL。
+	trimmedSuffix, ok := sanitizedUpstreamPathSuffix(suffix)
+	if !ok || trimmedBase == "" || trimmedSuffix == "" {
 		return trimmedBase
 	}
 	return trimmedBase + trimmedSuffix
@@ -717,6 +738,24 @@ func normalizeOpenAIPassthroughOAuthBodyWeiShaw(body []byte, compact bool) ([]by
 	return normalized, changed, nil
 }
 
+func detectOpenAIPassthroughInstructionsRejectReason(reqModel string, body []byte) string {
+	if !isOpenAICodexModel(reqModel) {
+		return ""
+	}
+
+	instructions := gjson.GetBytes(body, "instructions")
+	if !instructions.Exists() {
+		return ""
+	}
+	if instructions.Type != gjson.String {
+		return "instructions_not_string"
+	}
+	if strings.TrimSpace(instructions.String()) == "" {
+		return "instructions_empty"
+	}
+	return ""
+}
+
 func isOpenAICodexModel(model string) bool {
 	return strings.Contains(strings.ToLower(strings.TrimSpace(model)), "codex")
 }
@@ -938,7 +977,7 @@ func (s *OpenAIGatewayService) applyOpenAIFastPolicyToBody(ctx context.Context, 
 	if rawTier == "" {
 		return body, nil
 	}
-	normTier := normalizedOpenAIServiceTierValue(rawTier)
+	normTier := normalizedOpenAIRequestServiceTierValue(rawTier)
 	if normTier == "" {
 		return body, nil
 	}
@@ -1049,7 +1088,7 @@ func (s *OpenAIGatewayService) applyOpenAIFastPolicyToWSResponseCreate(
 	if rawTier == "" {
 		return frame, nil, nil
 	}
-	normTier := normalizedOpenAIServiceTierValue(rawTier)
+	normTier := normalizedOpenAIRequestServiceTierValue(rawTier)
 	if normTier == "" {
 		return frame, nil, nil
 	}

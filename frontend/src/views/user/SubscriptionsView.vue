@@ -299,8 +299,25 @@ import subscriptionsAPI from '@/api/subscriptions'
 import type { UserSubscription } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { formatDateOnly } from '@/utils/format'
-import { getExpirationDateRelation } from '@/utils/subscriptionQuota'
+import { formatDateTimeToMinute } from '@/utils/format'
+import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
+import { platformBorderClass, platformBadgeClass, platformButtonClass, platformLabel } from '@/utils/platformColors'
+import {
+  getExpirationDateRelation,
+  getRemainingDurationParts,
+  isOneTimeDailyQuota,
+  type RemainingDurationParts
+} from '@/utils/subscriptionQuota'
+
+function platformAccentDotClass(p: string): string {
+  switch (p) {
+    case 'anthropic': return 'bg-orange-500'
+    case 'openai': return 'bg-emerald-500'
+    case 'antigravity': return 'bg-purple-500'
+    case 'gemini': return 'bg-blue-500'
+    default: return 'bg-gray-400'
+  }
+}
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -341,7 +358,9 @@ function formatExpirationDate(expiresAt: string): string {
   const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
   const relation = getExpirationDateRelation(expires, now)
 
-  if (relation === null || relation === 'expired') {
+  if (relation === null) return ''
+
+  if (relation === 'expired') {
     return t('userSubscriptions.status.expired')
   }
 
@@ -363,7 +382,7 @@ function getExpirationClass(expiresAt: string): string {
   const diff = expires.getTime() - now.getTime()
   const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
 
-  if (days <= 0) return 'text-red-600 dark:text-red-400 font-medium'
+  if (diff <= 0) return 'text-red-600 dark:text-red-400 font-medium'
   if (days <= 3) return 'text-red-600 dark:text-red-400'
   if (days <= 7) return 'text-orange-600 dark:text-orange-400'
   return 'text-gray-700 dark:text-gray-300'

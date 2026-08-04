@@ -389,14 +389,24 @@ var allowedHeaders = map[string]bool{
 	"content-type":                              true,
 }
 
+// ErrStickySessionNotFound is returned by GatewayCache.GetSessionAccountID
+// when no binding exists for the session. It abstracts away the underlying
+// cache implementation (e.g. redis.Nil), mirroring ErrRefreshTokenNotFound.
+var ErrStickySessionNotFound = errors.New("sticky session not found")
+
 // GatewayCache 定义网关服务的缓存操作接口。
 // 提供粘性会话（Sticky Session）的存储、查询、刷新和删除功能。
 //
 // GatewayCache defines cache operations for gateway service.
 // Provides sticky session storage, retrieval, refresh and deletion capabilities.
 type GatewayCache interface {
-	// GetSessionAccountID 获取粘性会话绑定的账号 ID
-	// Get the account ID bound to a sticky session
+	// GetSessionAccountID 获取粘性会话绑定的账号 ID；无绑定时返回
+	// ErrStickySessionNotFound，使 service 层无需依赖具体缓存实现即可
+	// 区分"未绑定"与真实读取失败。
+	// Get the account ID bound to a sticky session. Returns
+	// ErrStickySessionNotFound when no binding exists so service code can
+	// distinguish a miss from a real read failure without importing the
+	// cache driver.
 	GetSessionAccountID(ctx context.Context, groupID int64, sessionHash string) (int64, error)
 	// SetSessionAccountID 设置粘性会话与账号的绑定关系
 	// Set the binding between sticky session and account
@@ -489,6 +499,15 @@ type AccountSelectionResult struct {
 	Acquired    bool
 	ReleaseFunc func()
 	WaitPlan    *AccountWaitPlan // nil means no wait allowed
+	// profitGate 携带本次选号真实生效的利润门（无门为 nil）。门安装在调度栈的
+	// 局部 ctx 上，handler 必须经 ContextWithSelectionProfitGate 重放后才能在
+	// 调度栈之外做抢槽后终检与准入后粘性绑定。
+	profitGate *openAIProfitControlGate
+}
+
+// ProfitGateActive 报告本次选号是否处于利润门之下。
+func (r *AccountSelectionResult) ProfitGateActive() bool {
+	return r != nil && r.profitGate != nil
 }
 
 type gatewayFallbackGroupEntry struct {
@@ -576,6 +595,7 @@ type UpstreamFailoverError struct {
 	ResponseHeaders          http.Header // 上游响应头，用于透传 cf-ray/cf-mitigated/content-type 等诊断信息
 	ForceCacheBilling        bool        // Antigravity 粘性会话切换时设为 true
 	RetryableOnSameAccount   bool        // 临时性错误（如 Google 间歇性 400、空响应），应在同一账号上重试 N 次再切换
+	RequestScopedTransient   bool        // 故障因素与账号无关（如上游按客户端身份/模型容量降载）：可同账号重试，但不得据此对账号做临时封禁
 	TempUnscheduleFor        time.Duration
 	TempUnscheduleReason     string
 	FailedProxyID            int64
@@ -778,7 +798,7 @@ func (s *GatewayService) tryAutoReassignFailedProxy(ctx context.Context, account
 		account *Account
 		err     error
 	)
-	if s.schedulerSnapshot != nil {
+	if s.schedulerSnapshot != nil && s.schedulerSnapshot.accountRepo != nil {
 		account, err = s.schedulerSnapshot.GetAccount(ctx, accountID)
 	}
 	if account == nil && err == nil {
@@ -977,7 +997,14 @@ func (s *GatewayService) TempUnscheduleRetryableError(ctx context.Context, accou
 	if failoverErr == nil {
 		return
 	}
-	if s != nil && s.accountRepo != nil && accountID > 0 {
+	// A request-scoped transient error must never touch account health or
+	// scheduler state. Check this before any repository lookup because tests
+	// and lightweight callers may intentionally provide only the minimal repo
+	// methods needed for the non-transient path.
+	if failoverErr.RequestScopedTransient {
+		return
+	}
+	if failoverErr.TempUnscheduleFor > 0 && s != nil && s.accountRepo != nil && accountID > 0 {
 		if account, err := s.accountRepo.GetByID(ctx, accountID); err == nil && account != nil && account.IgnorePauseSchedulingErrors() {
 			logger.LegacyPrintf("service.gateway", "[handler] ignore_pause_scheduling_errors enabled, skip temp unschedule account=%d", accountID)
 			return
@@ -1285,6 +1312,42 @@ func (s *GatewayService) BindStickySession(ctx context.Context, groupID *int64, 
 		return nil
 	}
 	return s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), sessionHash, accountID, stickySessionTTL)
+}
+
+// bindGatewayStickySessionDuringSelection preserves the normal eager sticky
+// behavior unless a profit gate is installed. Profit-controlled requests bind
+// only after the terminal post-slot check, otherwise a rejected candidate could
+// overwrite a healthy pre-existing sticky binding.
+func (s *GatewayService) bindGatewayStickySessionDuringSelection(ctx context.Context, groupID *int64, sessionHash string, accountID int64) error {
+	if gatewayProfitControlGateActive(ctx) {
+		return nil
+	}
+	return s.BindStickySession(ctx, groupID, sessionHash, accountID)
+}
+
+// BindStickySessionAfterProfitAdmission records a terminally admitted
+// account. Without a profit gate it preserves the pre-existing eager binding
+// behavior at the handler bind points. With a gate it never replaces a
+// different binding that already exists: a temporarily ineligible sticky
+// account remains bound and automatically becomes eligible again if its
+// account rate recovers.
+func (s *GatewayService) BindStickySessionAfterProfitAdmission(ctx context.Context, groupID *int64, sessionHash string, accountID int64) error {
+	if sessionHash == "" || accountID <= 0 || s.cache == nil {
+		return nil
+	}
+	if !gatewayProfitControlGateActive(ctx) {
+		return s.BindStickySession(ctx, groupID, sessionHash, accountID)
+	}
+	existingAccountID, err := s.cache.GetSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+	if err != nil && !errors.Is(err, ErrStickySessionNotFound) {
+		// 读失败时无法判断既有绑定，保守跳过而不是冒着覆盖健康绑定的风险写入。
+		slog.Warn("profit_control_sticky_binding_read_failed", "group_id", derefGroupID(groupID), "account_id", accountID, "error", err)
+		return nil
+	}
+	if existingAccountID > 0 && existingAccountID != accountID {
+		return nil
+	}
+	return s.BindStickySession(ctx, groupID, sessionHash, accountID)
 }
 
 // GetCachedSessionAccountID retrieves the account ID bound to a sticky session.
@@ -5261,6 +5324,9 @@ func (s *GatewayService) ForwardContext(ctx context.Context, c gatewayctx.Gatewa
 			if err.Error() == "have error in stream" {
 				return nil, &UpstreamFailoverError{StatusCode: 403}
 			}
+			if partial := partialStreamUsageResult(resp, streamResult, originalModel, reqModel, startTime, err); partial != nil {
+				return partial, err
+			}
 			return nil, err
 		}
 		usage = streamResult.usage
@@ -5516,6 +5582,9 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInputContext(
 	if input.RequestStream {
 		streamResult, err := s.handleStreamingResponseAnthropicAPIKeyPassthroughContext(ctx, resp, c, account, input.StartTime, input.RequestModel)
 		if err != nil {
+			if partial := partialStreamUsageResult(resp, streamResult, input.OriginalModel, input.RequestModel, input.StartTime, err); partial != nil {
+				return partial, err
+			}
 			return nil, err
 		}
 		usage = streamResult.usage
@@ -7365,10 +7434,6 @@ type streamingResultLegacy struct {
 	clientDisconnect bool // 客户端是否在流式传输过程中断开
 }
 
-func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel string, mimicClaudeCode bool) (*streamingResult, error) {
-	return s.handleStreamingResponseContext(ctx, resp, gatewayctx.FromGin(c), account, startTime, originalModel, mappedModel, mimicClaudeCode)
-}
-
 func (s *GatewayService) handleStreamingResponseContext(ctx context.Context, resp *http.Response, c gatewayctx.GatewayContext, account *Account, startTime time.Time, originalModel, mappedModel string, mimicClaudeCode bool) (*streamingResult, error) {
 	// 更新5h窗口状态
 	if s.rateLimitService != nil {
@@ -7687,6 +7752,12 @@ func (s *GatewayService) handleStreamingResponseContext(ctx context.Context, res
 					logger.LegacyPrintf("service.gateway", "SSE line too long: account=%d max_size=%d error=%v", account.ID, maxLineSize, ev.err)
 					sendErrorEvent("response_too_large")
 					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs}, ev.err
+				}
+				if c.ResponseSize() <= 0 {
+					return nil, &UpstreamFailoverError{
+						StatusCode:             http.StatusBadGateway,
+						RetryableOnSameAccount: true,
+					}
 				}
 				sendErrorEvent("stream_read_error")
 				return &streamingResult{usage: usage, firstTokenMs: firstTokenMs}, fmt.Errorf("stream read error: %w", ev.err)
