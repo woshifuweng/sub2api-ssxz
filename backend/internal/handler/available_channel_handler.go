@@ -355,6 +355,9 @@ func toUserSupportedModels(
 				continue
 			}
 		}
+		if service.IsBlockedCustomerGatewayModel(m.Platform, m.Name) {
+			continue
+		}
 		model := userSupportedModel{
 			Name:          m.Name,
 			Platform:      m.Platform,

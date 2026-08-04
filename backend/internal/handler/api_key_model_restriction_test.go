@@ -62,6 +62,16 @@ func TestAPIKeyBlocksGpt56LunaAsUnavailable(t *testing.T) {
 	}
 }
 
+func TestAPIKeyAllowsRequestedModel_MultiGroupBlocksLuna(t *testing.T) {
+	apiKey := &service.APIKey{
+		Groups: []*service.Group{{Platform: service.PlatformOpenAI}},
+		Group:  &service.Group{Platform: service.PlatformAnthropic},
+	}
+	if apiKeyAllowsRequestedModel(apiKey, "gpt-5.6-luna") {
+		t.Fatal("expected gpt-5.6-luna to be blocked when any reachable platform blocks it")
+	}
+}
+
 func TestFilterOpenAIModelsForAPIKey(t *testing.T) {
 	apiKey := &service.APIKey{AllowedModels: []string{"gpt-5.4"}}
 	models := []openai.Model{

@@ -28,8 +28,37 @@ func canonicalCustomerGatewayModelForAPIKey(apiKey *service.APIKey, model string
 	return canonical, true, available
 }
 
+// apiKeyBlocksModel determines whether a model is disabled for any platform
+// reachable by the API key. It covers both the plural and legacy singular
+// group fields; keys without group information fail closed across customer
+// gateway platforms.
+func apiKeyBlocksModel(apiKey *service.APIKey, model string) bool {
+	if apiKey == nil {
+		return false
+	}
+	platforms := make(map[string]struct{}, 2)
+	for _, group := range apiKey.Groups {
+		if group != nil && strings.TrimSpace(group.Platform) != "" {
+			platforms[group.Platform] = struct{}{}
+		}
+	}
+	if apiKey.Group != nil && strings.TrimSpace(apiKey.Group.Platform) != "" {
+		platforms[apiKey.Group.Platform] = struct{}{}
+	}
+	if len(platforms) == 0 {
+		platforms[service.PlatformOpenAI] = struct{}{}
+		platforms[service.PlatformAnthropic] = struct{}{}
+	}
+	for platform := range platforms {
+		if service.IsBlockedCustomerGatewayModel(platform, model) {
+			return true
+		}
+	}
+	return false
+}
+
 func apiKeyAllowsRequestedModel(apiKey *service.APIKey, model string) bool {
-	if apiKey != nil && apiKey.Group != nil && service.IsBlockedCustomerGatewayModel(apiKey.Group.Platform, model) {
+	if apiKeyBlocksModel(apiKey, model) {
 		return false
 	}
 	if apiKey == nil || len(apiKey.AllowedModels) == 0 {
@@ -64,7 +93,7 @@ func apiKeyModelNotAllowedMessage(model string) string {
 }
 
 func apiKeyModelRestrictionMessage(apiKey *service.APIKey, model string) string {
-	if apiKey != nil && apiKey.Group != nil && service.IsBlockedCustomerGatewayModel(apiKey.Group.Platform, model) {
+	if apiKeyBlocksModel(apiKey, model) {
 		return customerGatewayModelUnavailableMessage(model)
 	}
 	return apiKeyModelNotAllowedMessage(model)
