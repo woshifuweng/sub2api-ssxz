@@ -1008,6 +1008,13 @@ func (s *BillingService) GetModelPricingWithChannel(model string, channelPricing
 	if channelPricing.CacheReadPrice != nil {
 		pricing.CacheReadPricePerToken = *channelPricing.CacheReadPrice
 		pricing.CacheReadPricePerTokenPriority = *channelPricing.CacheReadPrice
+	} else {
+		if pricing.CacheReadPricePerToken == 0 {
+			pricing.CacheReadPricePerToken = pricing.InputPricePerToken * 0.5
+		}
+		if pricing.CacheReadPricePerTokenPriority == 0 {
+			pricing.CacheReadPricePerTokenPriority = pricing.InputPricePerTokenPriority * 0.5
+		}
 	}
 	if channelPricing.ImageOutputPrice != nil {
 		pricing.ImageOutputPricePerToken = *channelPricing.ImageOutputPrice
