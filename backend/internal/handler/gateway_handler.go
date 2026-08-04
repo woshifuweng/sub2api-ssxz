@@ -899,7 +899,7 @@ func (h *GatewayHandler) ModelsGateway(c gatewayctx.GatewayContext) {
 
 	if platform == service.PlatformSora {
 		models := service.DefaultSoraModels(h.cfg)
-		if apiKey != nil && len(apiKey.AllowedModels) > 0 {
+		if apiKey != nil {
 			filtered := make([]openai.Model, 0, len(models))
 			for _, model := range models {
 				if apiKeyAllowsRequestedModel(apiKey, model.ID) {
@@ -923,7 +923,7 @@ func (h *GatewayHandler) ModelsGateway(c gatewayctx.GatewayContext) {
 	}
 	if platform == service.PlatformComposite {
 		availableModels := h.compositeAvailableModels(c.Request().Context(), groupID)
-		if apiKey != nil && len(apiKey.AllowedModels) > 0 {
+		if apiKey != nil {
 			filtered := make([]string, 0, len(availableModels))
 			for _, modelID := range availableModels {
 				if apiKeyAllowsRequestedModel(apiKey, modelID) {
@@ -945,7 +945,7 @@ func (h *GatewayHandler) ModelsGateway(c gatewayctx.GatewayContext) {
 		return
 	}
 	availableModels := h.gatewayService.GetAvailableModels(c.Request().Context(), groupID, platform)
-	if apiKey != nil && len(apiKey.AllowedModels) > 0 {
+	if apiKey != nil {
 		filtered := make([]string, 0, len(availableModels))
 		for _, modelID := range availableModels {
 			if apiKeyAllowsRequestedModel(apiKey, modelID) {
@@ -961,7 +961,7 @@ func (h *GatewayHandler) ModelsGateway(c gatewayctx.GatewayContext) {
 			fallbackModels,
 			apiKey.Group.ModelsListConfig.Models,
 		)
-		if len(apiKey.AllowedModels) > 0 {
+		if apiKey != nil {
 			filtered := make([]string, 0, len(availableModels))
 			for _, modelID := range availableModels {
 				if apiKeyAllowsRequestedModel(apiKey, modelID) {

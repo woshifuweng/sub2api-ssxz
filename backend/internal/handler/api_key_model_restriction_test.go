@@ -52,6 +52,16 @@ func TestAPIKeyAllowsRequestedModel_TreatsGpt56AliasAsSol(t *testing.T) {
 	}
 }
 
+func TestAPIKeyBlocksGpt56LunaAsUnavailable(t *testing.T) {
+	apiKey := &service.APIKey{Group: &service.Group{Platform: service.PlatformOpenAI}}
+	if apiKeyAllowsRequestedModel(apiKey, "gpt-5.6-luna") {
+		t.Fatal("expected gpt-5.6-luna to be blocked for customer API keys")
+	}
+	if got := apiKeyModelRestrictionMessage(apiKey, "gpt-5.6-luna"); got != `Model "gpt-5.6-luna" is not available` {
+		t.Fatalf("unexpected unavailable-model message: %q", got)
+	}
+}
+
 func TestFilterOpenAIModelsForAPIKey(t *testing.T) {
 	apiKey := &service.APIKey{AllowedModels: []string{"gpt-5.4"}}
 	models := []openai.Model{

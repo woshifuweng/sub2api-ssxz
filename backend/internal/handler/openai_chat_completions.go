@@ -91,7 +91,7 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 		return
 	}
 	if !apiKeyAllowsRequestedModel(apiKey, reqModel) {
-		h.errorResponseGateway(c, http.StatusBadRequest, "invalid_request_error", apiKeyModelNotAllowedMessage(reqModel))
+		h.errorResponseGateway(c, http.StatusBadRequest, "invalid_request_error", apiKeyModelRestrictionMessage(apiKey, reqModel))
 		return
 	}
 	reqStream, ok := parseOpenAICompatibleStream(body)

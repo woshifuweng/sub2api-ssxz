@@ -63,8 +63,15 @@ func apiKeyModelNotAllowedMessage(model string) string {
 	return fmt.Sprintf("Model %q is not allowed for this API key", model)
 }
 
+func apiKeyModelRestrictionMessage(apiKey *service.APIKey, model string) string {
+	if apiKey != nil && apiKey.Group != nil && service.IsBlockedCustomerGatewayModel(apiKey.Group.Platform, model) {
+		return customerGatewayModelUnavailableMessage(model)
+	}
+	return apiKeyModelNotAllowedMessage(model)
+}
+
 func filterClaudeModelsForAPIKey(apiKey *service.APIKey, models []claude.Model) []claude.Model {
-	if apiKey == nil || len(apiKey.AllowedModels) == 0 {
+	if apiKey == nil {
 		return models
 	}
 	out := make([]claude.Model, 0, len(models))
@@ -77,7 +84,7 @@ func filterClaudeModelsForAPIKey(apiKey *service.APIKey, models []claude.Model) 
 }
 
 func filterOpenAIModelsForAPIKey(apiKey *service.APIKey, models []openai.Model) []openai.Model {
-	if apiKey == nil || len(apiKey.AllowedModels) == 0 {
+	if apiKey == nil {
 		return models
 	}
 	out := make([]openai.Model, 0, len(models))
@@ -90,7 +97,7 @@ func filterOpenAIModelsForAPIKey(apiKey *service.APIKey, models []openai.Model) 
 }
 
 func filterGeminiModelsForAPIKey(apiKey *service.APIKey, models []gemini.Model) []gemini.Model {
-	if apiKey == nil || len(apiKey.AllowedModels) == 0 {
+	if apiKey == nil {
 		return models
 	}
 	out := make([]gemini.Model, 0, len(models))
@@ -103,7 +110,7 @@ func filterGeminiModelsForAPIKey(apiKey *service.APIKey, models []gemini.Model) 
 }
 
 func filterAntigravityClaudeModelsForAPIKey(apiKey *service.APIKey, models []antigravity.ClaudeModel) []antigravity.ClaudeModel {
-	if apiKey == nil || len(apiKey.AllowedModels) == 0 {
+	if apiKey == nil {
 		return models
 	}
 	out := make([]antigravity.ClaudeModel, 0, len(models))
@@ -116,7 +123,7 @@ func filterAntigravityClaudeModelsForAPIKey(apiKey *service.APIKey, models []ant
 }
 
 func filterAntigravityGeminiModelsForAPIKey(apiKey *service.APIKey, models []antigravity.GeminiModel) []antigravity.GeminiModel {
-	if apiKey == nil || len(apiKey.AllowedModels) == 0 {
+	if apiKey == nil {
 		return models
 	}
 	out := make([]antigravity.GeminiModel, 0, len(models))

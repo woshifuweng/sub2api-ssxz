@@ -9,7 +9,6 @@ var customerGatewayModelsByPlatform = map[string][]string{
 	PlatformOpenAI: {
 		"gpt-5.6-sol",
 		"gpt-5.6-terra",
-		"gpt-5.6-luna",
 		"gpt-5.5",
 		"gpt-5.4",
 		"gpt-5.4-mini",
@@ -59,7 +58,7 @@ func IsBlockedCustomerGatewayModel(platform, model string) bool {
 	model = strings.TrimPrefix(model, "models/")
 	switch platform {
 	case PlatformOpenAI:
-		return strings.HasPrefix(model, "gpt-5.3-codex-spark")
+		return strings.HasPrefix(model, "gpt-5.3-codex-spark") || model == "gpt-5.6-luna"
 	case PlatformAnthropic:
 		return model == "haiku" || strings.Contains(model, "haiku")
 	default:

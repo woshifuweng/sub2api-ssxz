@@ -877,7 +877,7 @@ func (h *OpenAIGatewayHandler) ResponsesGateway(transportCtx gatewayctx.GatewayC
 		reqModel = canonicalModel
 	}
 	if !apiKeyAllowsRequestedModel(apiKey, reqModel) {
-		h.errorResponseGateway(transportCtx, http.StatusBadRequest, "invalid_request_error", apiKeyModelNotAllowedMessage(reqModel))
+		h.errorResponseGateway(transportCtx, http.StatusBadRequest, "invalid_request_error", apiKeyModelRestrictionMessage(apiKey, reqModel))
 		return
 	}
 
@@ -1480,7 +1480,7 @@ func (h *OpenAIGatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayCo
 	}
 	reqModel := modelResult.String()
 	if !apiKeyAllowsRequestedModel(apiKey, reqModel) {
-		h.anthropicErrorResponseContext(transportCtx, http.StatusBadRequest, "invalid_request_error", apiKeyModelNotAllowedMessage(reqModel))
+		h.anthropicErrorResponseContext(transportCtx, http.StatusBadRequest, "invalid_request_error", apiKeyModelRestrictionMessage(apiKey, reqModel))
 		return
 	}
 	ensureCompositeTargetPlatformContext(transportCtx, apiKey, reqModel)
@@ -2208,7 +2208,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocketGateway(transportCtx gatewayctx
 		reqModel = canonicalModel
 	}
 	if !apiKeyAllowsRequestedModel(apiKey, reqModel) {
-		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, apiKeyModelNotAllowedMessage(reqModel))
+		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, apiKeyModelRestrictionMessage(apiKey, reqModel))
 		return
 	}
 	ensureCompositeTargetPlatformContext(transportCtx, apiKey, reqModel)
