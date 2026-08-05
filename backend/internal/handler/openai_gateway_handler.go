@@ -1247,6 +1247,7 @@ func (h *OpenAIGatewayHandler) ResponsesGateway(transportCtx gatewayctx.GatewayC
 		requestPayloadHash := service.HashUsageRequestPayload(body)
 		quotaPlatform := service.QuotaPlatform(transportCtx.Context(), selectedAPIKey)
 		sessionID := extractClientSessionIDContext(transportCtx)
+		usageChannelMapping := usageChannelMappingForAPIKey(transportCtx.Context(), h.gatewayService, selectedAPIKey, reqModel)
 
 		// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
 		h.submitUsageRecordTask(transportCtx.Context(), func(ctx context.Context) {
@@ -1264,7 +1265,7 @@ func (h *OpenAIGatewayHandler) ResponsesGateway(transportCtx gatewayctx.GatewayC
 				APIKeyService:      h.apiKeyService,
 				QuotaPlatform:      quotaPlatform,
 				SessionID:          sessionID,
-				ChannelUsageFields: clientRequestedUsageFieldsContext(transportCtx, channelMapping, reqModel, result.UpstreamModel),
+				ChannelUsageFields: clientRequestedUsageFieldsContext(transportCtx, usageChannelMapping, reqModel, result.UpstreamModel),
 			}); err != nil {
 				logger.L().With(
 					zap.String("component", "handler.openai_gateway.responses"),
@@ -1745,6 +1746,7 @@ func (h *OpenAIGatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayCo
 		requestPayloadHash := service.HashUsageRequestPayload(body)
 		quotaPlatform := service.QuotaPlatform(transportCtx.Context(), selectedAPIKey)
 		sessionID := extractClientSessionIDContext(transportCtx)
+		usageChannelMapping := usageChannelMappingForAPIKey(transportCtx.Context(), h.gatewayService, selectedAPIKey, reqModel)
 
 		h.submitUsageRecordTask(transportCtx.Context(), func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
@@ -1761,7 +1763,7 @@ func (h *OpenAIGatewayHandler) MessagesGateway(transportCtx gatewayctx.GatewayCo
 				APIKeyService:      h.apiKeyService,
 				QuotaPlatform:      quotaPlatform,
 				SessionID:          sessionID,
-				ChannelUsageFields: clientRequestedUsageFieldsContext(transportCtx, channelMappingMsg, reqModel, result.UpstreamModel),
+				ChannelUsageFields: clientRequestedUsageFieldsContext(transportCtx, usageChannelMapping, reqModel, result.UpstreamModel),
 			}); err != nil {
 				logger.L().With(
 					zap.String("component", "handler.openai_gateway.messages"),
@@ -2517,6 +2519,14 @@ retryWebSocketAccount:
 			channelMappingMu.Unlock()
 			if !mappingCaptured {
 				usageChannelMapping, _ = h.gatewayService.ResolveChannelMappingAndRestrict(ctx, apiKey.GroupID, result.Model)
+			}
+			selectedChannelMapping := usageChannelMappingForAPIKey(ctx, h.gatewayService, selectedAPIKey, result.Model)
+			if mappingCaptured {
+				// Keep the per-turn mapping snapshot used for the model chain, but
+				// refresh only the channel attribution after account/group selection.
+				usageChannelMapping.ChannelID = selectedChannelMapping.ChannelID
+			} else {
+				usageChannelMapping = selectedChannelMapping
 			}
 			if account.Type == service.AccountTypeOAuth && !account.IsOpenAIChatWebMode() {
 				h.gatewayService.UpdateCodexUsageSnapshotFromHeaders(ctx, account.ID, result.ResponseHeaders)

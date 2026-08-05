@@ -20,6 +20,28 @@ type openAIAPIKeySelection struct {
 	Decision  service.OpenAIAccountScheduleDecision
 }
 
+type channelMappingResolver interface {
+	ResolveChannelMappingAndRestrict(ctx context.Context, groupID *int64, model string) (service.ChannelMappingResult, bool)
+}
+
+// usageChannelMappingForAPIKey resolves attribution from the API key returned
+// by account/group selection, rather than from the key used before routing.
+// This is deliberately separate from the forwarding mapping: forwarding must
+// keep its existing model-rewrite behavior, while usage attribution must use
+// the group actually selected by the scheduler.
+func usageChannelMappingForAPIKey(
+	ctx context.Context,
+	resolver channelMappingResolver,
+	apiKey *service.APIKey,
+	model string,
+) service.ChannelMappingResult {
+	if resolver == nil {
+		return service.ChannelMappingResult{MappedModel: model}
+	}
+	mapping, _ := resolver.ResolveChannelMappingAndRestrict(ctx, apiKey.GroupIDForUsage(), model)
+	return mapping
+}
+
 func apiKeySupportsMultiGroupRouting(apiKey *service.APIKey) bool {
 	return apiKey != nil && len(apiKey.GroupIDs) > 1 && len(apiKey.Groups) > 1
 }

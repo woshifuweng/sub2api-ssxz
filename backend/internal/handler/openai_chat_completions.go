@@ -377,6 +377,7 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 		if result != nil {
 			upstreamModel = result.UpstreamModel
 		}
+		usageChannelMapping := usageChannelMappingForAPIKey(c.Context(), h.gatewayService, selectedAPIKey, reqModel)
 		h.submitOpenAIUsageRecordTask(c.Context(), result, func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
 				Result:             result,
@@ -392,7 +393,7 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 				APIKeyService:      h.apiKeyService,
 				QuotaPlatform:      quotaPlatform,
 				SessionID:          sessionID,
-				ChannelUsageFields: clientRequestedUsageFieldsContext(c, channelMapping, reqModel, upstreamModel),
+				ChannelUsageFields: clientRequestedUsageFieldsContext(c, usageChannelMapping, reqModel, upstreamModel),
 				CyberBlocked:       cyberBlocked,
 			}); err != nil {
 				logger.L().With(

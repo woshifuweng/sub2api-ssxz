@@ -152,6 +152,25 @@ func PrimaryAPIKeyGroupID(groupIDs []int64) *int64 {
 	return nil
 }
 
+// GroupIDForUsage returns the group that should be used for channel attribution.
+// A multi-group key is resolved by the routing layer first, which sets GroupID
+// on the selected clone. Only a single unambiguous GroupIDs entry is safe to
+// use as a fallback; choosing the first group on a multi-group key could
+// attribute usage to the wrong channel.
+func (k *APIKey) GroupIDForUsage() *int64 {
+	if k == nil {
+		return nil
+	}
+	if k.GroupID != nil && *k.GroupID > 0 {
+		return k.GroupID
+	}
+	if len(k.GroupIDs) == 1 && k.GroupIDs[0] > 0 {
+		groupID := k.GroupIDs[0]
+		return &groupID
+	}
+	return nil
+}
+
 func (k *APIKey) IsActive() bool {
 	return k.Status == StatusActive
 }

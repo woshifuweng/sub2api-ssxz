@@ -304,6 +304,7 @@ func (h *OpenAIGatewayHandler) ImagesGateway(c gatewayctx.GatewayContext) {
 		inboundEndpoint := GetInboundEndpointContext(c)
 		upstreamEndpoint := GetUpstreamEndpointContext(c, account.Platform)
 		quotaPlatform := service.QuotaPlatform(c.Context(), selectedAPIKey)
+		usageChannelMapping := usageChannelMappingForAPIKey(c.Context(), h.gatewayService, selectedAPIKey, clientRequestModel)
 
 		sessionID := extractClientSessionIDContext(c)
 		h.submitUsageRecordTask(c.Context(), func(taskCtx context.Context) {
@@ -321,6 +322,7 @@ func (h *OpenAIGatewayHandler) ImagesGateway(c gatewayctx.GatewayContext) {
 				APIKeyService:      h.apiKeyService,
 				QuotaPlatform:      quotaPlatform,
 				SessionID:          sessionID,
+				ChannelUsageFields: clientRequestedUsageFieldsContext(c, usageChannelMapping, clientRequestModel, result.UpstreamModel),
 			})
 		})
 		return

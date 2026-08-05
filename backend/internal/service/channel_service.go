@@ -550,8 +550,15 @@ func (s *ChannelService) ResolveChannelMappingAndRestrict(ctx context.Context, g
 	if groupID == nil {
 		return ChannelMappingResult{MappedModel: model}, false
 	}
-	lk, _ := s.lookupGroupChannel(ctx, *groupID)
+	lk, err := s.lookupGroupChannel(ctx, *groupID)
+	if err != nil {
+		slog.Warn("failed to load channel cache for mapping", "group_id", *groupID, "error", err)
+		return ChannelMappingResult{MappedModel: model}, false
+	}
 	if lk == nil {
+		// A successful lookup with no active channel is an expected no-channel
+		// case. Keep forwarding available and leave ChannelID at zero so usage
+		// persistence converts it to SQL NULL.
 		return ChannelMappingResult{MappedModel: model}, false
 	}
 	return resolveMapping(lk, *groupID, model), false
