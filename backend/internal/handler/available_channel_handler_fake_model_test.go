@@ -401,3 +401,17 @@ func TestBuildPlatformSectionsDoesNotInventPlatformWithoutVisibleGroup(t *testin
 	require.Equal(t, service.PlatformOpenAI, sections[0].Platform)
 	require.NotEqual(t, service.PlatformAnthropic, sections[0].Platform)
 }
+
+func TestToUserSupportedModelsAddsOnlyKnownContextWindows(t *testing.T) {
+	out := toUserSupportedModels([]service.SupportedModel{
+		{Name: "gpt-5.4", Platform: service.PlatformOpenAI},
+		{Name: "gpt-5.5", Platform: service.PlatformOpenAI},
+		{Name: "gpt-image-2", Platform: service.PlatformOpenAI},
+	}, map[string]struct{}{service.PlatformOpenAI: {}}, nil, 1)
+
+	require.Len(t, out, 3)
+	require.NotNil(t, out[0].ContextLength)
+	require.Equal(t, 1050000, *out[0].ContextLength)
+	require.Nil(t, out[1].ContextLength)
+	require.Nil(t, out[2].ContextLength)
+}

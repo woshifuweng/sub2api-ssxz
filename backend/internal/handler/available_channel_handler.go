@@ -99,6 +99,7 @@ type userPricingIntervalDTO struct {
 type userSupportedModel struct {
 	Name               string                     `json:"name"`
 	Platform           string                     `json:"platform"`
+	ContextLength      *int                       `json:"context_length,omitempty"`
 	Pricing            *userSupportedModelPricing `json:"pricing"`
 	PricingStatus      string                     `json:"pricing_status,omitempty"`
 	UsageSupport       []string                   `json:"usage_support,omitempty"`
@@ -110,6 +111,22 @@ type userSupportedModel struct {
 	Fake               bool                       `json:"fake,omitempty"`
 	TestOnly           bool                       `json:"test_only,omitempty"`
 	StagingOnly        bool                       `json:"staging_only,omitempty"`
+}
+
+// displayModelContextLengths contains only windows with an exact local source
+// entry. LongContextInputThreshold is deliberately not used: it is a billing
+// threshold, not a model context window. Unknown and image models stay empty.
+var displayModelContextLengths = map[string]int{
+	"gpt-5.4":      1050000,
+	"gpt-5.4-mini": 400000,
+}
+
+func displayModelContextLength(model string) *int {
+	contextLength, ok := displayModelContextLengths[strings.ToLower(strings.TrimSpace(model))]
+	if !ok {
+		return nil
+	}
+	return &contextLength
 }
 
 // userChannelPlatformSection 单渠道内某个平台的子视图：用户可见的分组 + 该平台
@@ -406,6 +423,7 @@ func toUserSupportedModels(
 		model := userSupportedModel{
 			Name:          m.Name,
 			Platform:      m.Platform,
+			ContextLength: displayModelContextLength(m.Name),
 			Pricing:       toUserPricing(m.Pricing),
 			PricingStatus: userModelPricingStatus(m.Pricing),
 			UsageSupport:  userModelUsageSupport(m.Pricing),
