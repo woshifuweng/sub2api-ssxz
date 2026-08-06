@@ -62,11 +62,11 @@
             <span
               :class="[
                 'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium uppercase',
-                platformBadgeClass(section.platform),
+                platformBadgeClass(canonicalPlatform(section.platform)),
               ]"
             >
-              <PlatformIcon :platform="section.platform as GroupPlatform" size="xs" />
-              {{ section.platform }}
+              <PlatformIcon :platform="canonicalPlatform(section.platform) as GroupPlatform" size="xs" />
+              {{ canonicalPlatform(section.platform) }}
             </span>
           </td>
 
@@ -88,7 +88,7 @@
                   v-for="g in exclusiveGroups(section)"
                   :key="`ex-${g.id}`"
                   :name="g.name"
-                  :platform="g.platform as GroupPlatform"
+                  :platform="canonicalPlatform(g.platform) as GroupPlatform"
                   :subscription-type="(g.subscription_type || 'standard') as SubscriptionType"
                   :rate-multiplier="g.rate_multiplier"
                   :user-rate-multiplier="userGroupRates[g.id] ?? null"
@@ -110,7 +110,7 @@
                   v-for="g in publicGroups(section)"
                   :key="`pub-${g.id}`"
                   :name="g.name"
-                  :platform="g.platform as GroupPlatform"
+                  :platform="canonicalPlatform(g.platform) as GroupPlatform"
                   :subscription-type="(g.subscription_type || 'standard') as SubscriptionType"
                   :rate-multiplier="g.rate_multiplier"
                   :user-rate-multiplier="userGroupRates[g.id] ?? null"
@@ -131,7 +131,7 @@
                 :pricing-key-prefix="pricingKeyPrefix"
                 :no-pricing-label="noPricingLabel"
                 :show-platform="false"
-                :platform-hint="section.platform"
+                :platform-hint="canonicalPlatform(section.platform)"
               />
               <span v-if="section.supported_models.length === 0" class="text-xs text-gray-400">
                 {{ noModelsLabel }}
@@ -184,6 +184,12 @@ function exclusiveGroups(section: UserChannelPlatformSection): UserAvailableGrou
 
 function publicGroups(section: UserChannelPlatformSection): UserAvailableGroup[] {
   return section.groups.filter((g) => !g.is_exclusive)
+}
+
+// API data is normally lowercase, but normalize defensively so a legacy or
+// manually-created platform value still reaches the same icon/color mapping.
+function canonicalPlatform(platform: string): string {
+  return platform.trim().toLowerCase()
 }
 </script>
 

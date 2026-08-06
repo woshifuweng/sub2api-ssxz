@@ -522,7 +522,8 @@
             <template #selected="{ option }">
               <div v-if="option" class="flex min-w-0 flex-1 items-center gap-2.5 text-left">
                 <span :class="['inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md', getGroupProviderIconClass(getGroupOptionPlatform(option))]">
-                  <PlatformIcon :platform="getGroupOptionPlatform(option)" size="sm" />
+                  <Icon v-if="isImageGenerationGroup(option)" name="photo" size="sm" />
+                  <PlatformIcon v-else :platform="getGroupOptionPlatform(option)" size="sm" />
                 </span>
                 <span class="min-w-0 flex-1 truncate text-sm font-semibold text-gray-900 dark:text-white">
                   {{ option.label }}
@@ -538,7 +539,8 @@
               <div class="flex w-full min-w-0 items-start justify-between gap-3 py-0.5">
                 <div class="flex min-w-0 flex-1 items-start gap-2.5">
                   <span :class="['mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md', getGroupProviderIconClass(getGroupOptionPlatform(option))]">
-                    <PlatformIcon :platform="getGroupOptionPlatform(option)" size="sm" />
+                    <Icon v-if="isImageGenerationGroup(option)" name="photo" size="sm" />
+                    <PlatformIcon v-else :platform="getGroupOptionPlatform(option)" size="sm" />
                   </span>
                   <span class="min-w-0 flex-1 text-left">
                     <span class="flex items-center gap-2">
@@ -1297,6 +1299,7 @@
               :name="option.label"
               :platform="option.platform"
               :subscription-type="option.subscriptionType"
+              :image-generation="option.allowImageGeneration"
               :description="option.description"
               :selected="
                 selectedKeyForGroup?.group_id === option.value ||
@@ -1614,6 +1617,7 @@ interface GroupSelectOption extends Record<string, unknown> {
   platform: Group['platform']
   rateMultiplier: number
   userRateMultiplier: number | null
+  allowImageGeneration: boolean
 }
 
 function asGroupSelectOption(option: Record<string, unknown>) {
@@ -1622,6 +1626,10 @@ function asGroupSelectOption(option: Record<string, unknown>) {
 
 function getGroupOptionPlatform(option: Record<string, unknown>) {
   return asGroupSelectOption(option).platform
+}
+
+function isImageGenerationGroup(option: Record<string, unknown>) {
+  return asGroupSelectOption(option).allowImageGeneration
 }
 
 function getEffectiveGroupRate(option: Record<string, unknown>) {
@@ -1693,7 +1701,8 @@ const groupOptions = computed<GroupSelectOption[]>(() =>
     subscriptionType: group.subscription_type,
     platform: group.platform,
     rateMultiplier: group.rate_multiplier,
-    userRateMultiplier: userGroupRates.value[group.id] ?? null
+    userRateMultiplier: userGroupRates.value[group.id] ?? null,
+    allowImageGeneration: group.allow_image_generation === true
   }))
 )
 

@@ -98,11 +98,11 @@ const loading = ref(false)
 const searchQuery = ref('')
 
 const columnLabels = computed(() => ({
-  name: t('availableChannels.columns.name'),
-  description: t('availableChannels.columns.description'),
-  platform: t('availableChannels.columns.platform'),
-  groups: t('availableChannels.columns.groups'),
-  supportedModels: t('availableChannels.columns.supportedModels'),
+  name: t('availableChannels.columns.name', '服务'),
+  description: t('availableChannels.columns.description', '说明'),
+  platform: t('availableChannels.columns.platform', '类型'),
+  groups: t('availableChannels.columns.groups', '适用范围'),
+  supportedModels: t('availableChannels.columns.supportedModels', '可选模型'),
 }))
 
 const emptyLabel = computed(() =>

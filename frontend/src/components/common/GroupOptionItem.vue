@@ -10,6 +10,7 @@
         :name="name"
         :platform="platform"
         :subscription-type="subscriptionType"
+        :image-generation="imageGeneration"
         :show-rate="false"
         class="groupOptionItemBadge"
       />
@@ -64,12 +65,14 @@ interface Props {
   description?: string | null
   selected?: boolean
   showCheckmark?: boolean
+  imageGeneration?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   subscriptionType: 'standard',
   selected: false,
   showCheckmark: true,
+  imageGeneration: false,
   userRateMultiplier: null
 })
 

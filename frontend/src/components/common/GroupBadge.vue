@@ -6,7 +6,8 @@
     ]"
   >
     <!-- Platform logo -->
-    <PlatformIcon v-if="platform" :platform="platform" size="sm" />
+    <Icon v-if="imageGeneration" name="photo" size="sm" />
+    <PlatformIcon v-else-if="platform" :platform="platform" size="sm" />
     <!-- Group name -->
     <span class="truncate">{{ name }}</span>
     <!-- Right side label -->
@@ -27,6 +28,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { SubscriptionType, GroupPlatform } from '@/types'
+import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from './PlatformIcon.vue'
 
 interface Props {
@@ -36,12 +38,14 @@ interface Props {
   rateMultiplier?: number
   userRateMultiplier?: number | null // 用户专属倍率
   showRate?: boolean
+  imageGeneration?: boolean
   daysRemaining?: number | null // 剩余天数（订阅类型时使用）
 }
 
 const props = withDefaults(defineProps<Props>(), {
   subscriptionType: 'standard',
   showRate: true,
+  imageGeneration: false,
   daysRemaining: null,
   userRateMultiplier: null
 })
