@@ -30,6 +30,8 @@ func executableAdminFeatureRoutes(h *handler.Handlers) []gatewayctx.RouteDef {
 			gatewayctx.RouteDef{Method: http.MethodPut, Path: "/api/v1/admin/affiliates/users/:user_id", Handler: h.Admin.Affiliate.UpdateUserSettingsGateway, Middleware: mw},
 			gatewayctx.RouteDef{Method: http.MethodDelete, Path: "/api/v1/admin/affiliates/users/:user_id", Handler: h.Admin.Affiliate.ClearUserSettingsGateway, Middleware: mw},
 			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/admin/affiliates/users/batch-rate", Handler: h.Admin.Affiliate.BatchSetRateGateway, Middleware: mw},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/admin/affiliates/overview", Handler: h.Admin.Affiliate.GetOverviewGateway, Middleware: mw},
+			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/admin/affiliates/:id/stats", Handler: h.Admin.Affiliate.GetStatsGateway, Middleware: mw},
 		)
 	}
 	if h.Admin.TLSFingerprintProfile != nil {
@@ -92,6 +94,8 @@ func registerAdminFeatureRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 				users.DELETE("/:user_id", h.Admin.Affiliate.ClearUserSettings)
 				users.POST("/batch-rate", h.Admin.Affiliate.BatchSetRate)
 			}
+			affiliates.GET("/overview", h.Admin.Affiliate.GetOverview)
+			affiliates.GET("/:id/stats", h.Admin.Affiliate.GetStats)
 		}
 	}
 	if h.Admin.TLSFingerprintProfile != nil {

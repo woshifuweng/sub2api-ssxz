@@ -151,6 +151,9 @@ export interface AffiliateInvitee {
   username: string
   created_at?: string | null
   total_rebate: number
+  status?: string
+  total_recharge?: number
+  total_consumption?: number
 }
 
 export interface UserAffiliateDetail {
@@ -425,6 +428,7 @@ export interface Group {
   daily_limit_usd: number | null
   weekly_limit_usd: number | null
   monthly_limit_usd: number | null
+  allow_image_generation?: boolean
   // 图片生成计费配置（仅 antigravity 平台使用）
   image_price_1k: number | null
   image_price_2k: number | null

@@ -167,3 +167,37 @@ func (h *AffiliateHandler) LookupUsersGateway(c gatewayctx.GatewayContext) {
 	}
 	response.SuccessContext(gatewayJSONResponder{ctx: c}, result)
 }
+
+func (h *AffiliateHandler) GetOverview(c *gin.Context) {
+	h.GetOverviewGateway(gatewayctx.FromGin(c))
+}
+
+func (h *AffiliateHandler) GetOverviewGateway(c gatewayctx.GatewayContext) {
+	_, total, err := h.affiliateService.AdminListCustomUsers(c.Request().Context(), service.AffiliateAdminFilter{
+		Page:     1,
+		PageSize: 1,
+	})
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, gin.H{"total_affiliates": total})
+}
+
+func (h *AffiliateHandler) GetStats(c *gin.Context) {
+	h.GetStatsGateway(gatewayctx.FromGin(c))
+}
+
+func (h *AffiliateHandler) GetStatsGateway(c gatewayctx.GatewayContext) {
+	userID, err := strconv.ParseInt(c.PathParam("id"), 10, 64)
+	if err != nil || userID <= 0 {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid id")
+		return
+	}
+	summary, err := h.affiliateService.EnsureUserAffiliate(c.Request().Context(), userID)
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, summary)
+}

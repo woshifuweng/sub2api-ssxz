@@ -146,14 +146,42 @@ WHERE id = $1 AND deleted_at IS NULL`, keyID, status)
 
 func changeAdminAPIKeyGroup(ctx context.Context, tx *sql.Tx, userID, keyID, targetGroupID int64) (*int64, string, bool, error) {
 	if targetGroupID == 0 {
-		result, err := tx.ExecContext(ctx, `
-UPDATE api_keys SET group_id = NULL, group_ids = ARRAY[]::bigint[], updated_at = NOW()
-WHERE id = $1 AND deleted_at IS NULL`, keyID)
+		var resultingGroupID sql.NullInt64
+		err := tx.QueryRowContext(ctx, `
+WITH normalized AS (
+  SELECT
+    CASE
+      WHEN cardinality(COALESCE(group_ids, ARRAY[]::bigint[])) > 0
+        THEN COALESCE(group_ids, ARRAY[]::bigint[])
+      WHEN group_id IS NOT NULL THEN ARRAY[group_id]::bigint[]
+      ELSE ARRAY[]::bigint[]
+    END AS ids,
+    COALESCE(group_id, group_ids[1]) AS remove_id
+  FROM api_keys
+  WHERE id = $1 AND deleted_at IS NULL
+), remaining AS (
+  SELECT COALESCE(array_remove(ids, remove_id), ARRAY[]::bigint[]) AS ids
+  FROM normalized
+)
+UPDATE api_keys AS k
+SET group_ids = remaining.ids,
+    group_id = CASE
+      WHEN cardinality(remaining.ids) > 0 THEN remaining.ids[1]
+      ELSE NULL
+    END,
+    updated_at = NOW()
+FROM remaining
+WHERE k.id = $1 AND k.deleted_at IS NULL
+RETURNING k.group_id`, keyID).Scan(&resultingGroupID)
 		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, "", false, service.ErrAPIKeyNotFound
+			}
 			return nil, "", false, fmt.Errorf("unbind admin API key group: %w", err)
 		}
-		if err := requireOneAffectedRow(result); err != nil {
-			return nil, "", false, err
+		if resultingGroupID.Valid {
+			groupID := resultingGroupID.Int64
+			return &groupID, "", false, nil
 		}
 		return nil, "", false, nil
 	}

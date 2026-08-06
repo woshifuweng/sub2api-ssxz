@@ -291,7 +291,10 @@ SELECT ua.user_id,
        COALESCE(u.email, ''),
        COALESCE(u.username, ''),
        ua.created_at,
-       COALESCE(SUM(ual.amount), 0)::double precision AS total_rebate
+       COALESCE(SUM(ual.amount), 0)::double precision AS total_rebate,
+       COALESCE(u.status, 'active'),
+       COALESCE(u.total_recharged, 0)::double precision AS total_recharge,
+       COALESCE((SELECT SUM(ul.actual_cost) FROM usage_logs ul WHERE ul.user_id = ua.user_id), 0)::double precision AS total_consumption
 FROM user_affiliates ua
 LEFT JOIN users u ON u.id = ua.user_id
 LEFT JOIN user_affiliate_ledger ual
@@ -299,7 +302,7 @@ LEFT JOIN user_affiliate_ledger ual
       AND ual.source_user_id = ua.user_id
       AND ual.action = 'accrue'
 WHERE ua.inviter_id = $1
-GROUP BY ua.user_id, u.email, u.username, ua.created_at
+GROUP BY ua.user_id, u.email, u.username, ua.created_at, u.status, u.total_recharged
 ORDER BY ua.created_at DESC
 LIMIT $2`, inviterID, limit)
 	if err != nil {
@@ -311,7 +314,7 @@ LIMIT $2`, inviterID, limit)
 	for rows.Next() {
 		var item service.AffiliateInvitee
 		var createdAt time.Time
-		if err := rows.Scan(&item.UserID, &item.Email, &item.Username, &createdAt, &item.TotalRebate); err != nil {
+		if err := rows.Scan(&item.UserID, &item.Email, &item.Username, &createdAt, &item.TotalRebate, &item.Status, &item.TotalRecharge, &item.TotalConsumption); err != nil {
 			return nil, err
 		}
 		item.CreatedAt = &createdAt

@@ -66,11 +66,14 @@ type AffiliateSummary struct {
 }
 
 type AffiliateInvitee struct {
-	UserID      int64      `json:"user_id"`
-	Email       string     `json:"email"`
-	Username    string     `json:"username"`
-	CreatedAt   *time.Time `json:"created_at,omitempty"`
-	TotalRebate float64    `json:"total_rebate"`
+	UserID           int64      `json:"user_id"`
+	Email            string     `json:"email"`
+	Username         string     `json:"username"`
+	CreatedAt        *time.Time `json:"created_at,omitempty"`
+	TotalRebate      float64    `json:"total_rebate"`
+	Status           string     `json:"status"`
+	TotalRecharge    float64    `json:"total_recharge"`
+	TotalConsumption float64    `json:"total_consumption"`
 }
 
 type AffiliateDetail struct {

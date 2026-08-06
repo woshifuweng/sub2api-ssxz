@@ -36,6 +36,12 @@ func executableUserFeatureRoutes(h *handler.Handlers) []gatewayctx.RouteDef {
 				Handler:    h.User.TransferAffiliateQuotaGateway,
 				Middleware: mw,
 			},
+			gatewayctx.RouteDef{
+				Method:     http.MethodGet,
+				Path:       "/api/v1/user/affiliate/stats",
+				Handler:    h.User.GetAffiliateStatsGateway,
+				Middleware: mw,
+			},
 		)
 	}
 	if h.AvailableChannel != nil {
@@ -74,6 +80,7 @@ func registerUserFeatureRoutes(authenticated *gin.RouterGroup, h *handler.Handle
 		{
 			user.GET("/aff", h.User.GetAffiliate)
 			user.POST("/aff/transfer", h.User.TransferAffiliateQuota)
+			user.GET("/affiliate/stats", h.User.GetAffiliateStats)
 		}
 	}
 	if h.AvailableChannel != nil {

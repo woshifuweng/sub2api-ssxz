@@ -131,6 +131,42 @@ func TestAPIKeyRepositoryAdminMutationRollsBackWhenAuditInsertFails(t *testing.T
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestAPIKeyRepositoryAdminUnbindPreservesRemainingGroups(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	repo := &apiKeyRepository{sql: db}
+	now := time.Now().UTC()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`(?s)SELECT.*FROM api_keys k.*FOR UPDATE OF k`).
+		WithArgs(int64(61)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"user_id", "key", "name", "status", "group_id", "expires_at", "quota", "quota_used",
+		}).AddRow(int64(19), "sk-admin-unbind-secret", "Multi-group key", service.StatusAPIKeyActive, int64(101), now.Add(time.Hour), 0.0, 0.0))
+	mock.ExpectQuery(`(?s)WITH normalized AS.*array_remove.*UPDATE api_keys.*RETURNING (k\.)?group_id`).
+		WithArgs(int64(61)).
+		WillReturnRows(sqlmock.NewRows([]string{"group_id"}).AddRow(int64(202)))
+	mock.ExpectExec(`INSERT INTO admin_audit_logs`).
+		WithArgs(
+			int64(42), service.AdminAPIKeyAuditActionChangeGroup, int64(61), int64(19),
+			redactedAuditJSON{required: `"group_id":101`},
+			redactedAuditJSON{required: `"group_id":202`},
+		).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	record, err := repo.AdminMutateAPIKey(context.Background(), service.AdminAPIKeyMutationCommand{
+		APIKeyID: 61, ActorUserID: 42, Action: service.AdminAPIKeyAuditActionChangeGroup,
+		GroupID: func() *int64 { v := int64(0); return &v }(),
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, record.GroupID)
+	require.Equal(t, int64(202), *record.GroupID)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 type assertionError string
 
 func (e assertionError) Error() string { return string(e) }

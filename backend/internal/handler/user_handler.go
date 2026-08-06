@@ -276,6 +276,30 @@ func (h *UserHandler) TransferAffiliateQuotaGateway(c gatewayctx.GatewayContext)
 	})
 }
 
+// GetAffiliateStats returns a compact stats summary for the current user's affiliate profile.
+// GET /api/v1/user/affiliate/stats
+func (h *UserHandler) GetAffiliateStats(c *gin.Context) {
+	h.GetAffiliateStatsGateway(gatewayctx.FromGin(c))
+}
+
+func (h *UserHandler) GetAffiliateStatsGateway(c gatewayctx.GatewayContext) {
+	subject, ok := middleware2.GetAuthSubjectFromGatewayContext(c)
+	if !ok {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
+		return
+	}
+	if h.affiliateService == nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusServiceUnavailable, "Affiliate service unavailable")
+		return
+	}
+	summary, err := h.affiliateService.EnsureUserAffiliate(c.Request().Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, summary)
+}
+
 type gatewayJSONResponder struct {
 	ctx gatewayctx.GatewayContext
 }

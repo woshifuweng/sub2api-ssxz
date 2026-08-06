@@ -101,19 +101,29 @@
             <span>{{ t('affiliate.noRecords') }}</span>
           </div>
           <div v-else class="mt-4 overflow-x-auto">
-            <table class="w-full min-w-[560px] text-left text-sm">
+            <table class="w-full min-w-[760px] text-left text-sm">
               <thead>
                 <tr class="border-b border-[var(--ssxz-border)] text-[var(--ssxz-text-muted)]">
+                  <th class="px-3 py-2 font-medium">#ID</th>
                   <th class="px-3 py-2 font-medium">{{ t('affiliate.user') }}</th>
                   <th class="px-3 py-2 font-medium">{{ t('affiliate.name') }}</th>
+                  <th class="px-3 py-2 font-medium">状态</th>
+                  <th class="px-3 py-2 text-right font-medium">总充值</th>
+                  <th class="px-3 py-2 text-right font-medium">总消费</th>
                   <th class="px-3 py-2 text-right font-medium">{{ t('affiliate.creditedReward') }}</th>
                   <th class="px-3 py-2 font-medium">{{ t('affiliate.registeredAt') }}</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="item in detail.invitees" :key="item.user_id" class="border-b border-[var(--ssxz-border)] last:border-b-0">
+                  <td class="px-3 py-3 text-[var(--ssxz-text-muted)] tabular-nums">#{{ item.user_id }}</td>
                   <td class="px-3 py-3 text-[var(--ssxz-text)]">{{ item.email || '-' }}</td>
                   <td class="px-3 py-3 text-[var(--ssxz-text-secondary)]">{{ item.username || '-' }}</td>
+                  <td class="px-3 py-3">
+                    <span :class="statusBadgeClass(item.status)">{{ statusLabel(item.status) }}</span>
+                  </td>
+                  <td class="px-3 py-3 text-right font-medium text-[var(--ssxz-text)]">{{ formatCurrency(item.total_recharge ?? 0) }}</td>
+                  <td class="px-3 py-3 text-right font-medium text-[var(--ssxz-text)]">{{ formatCurrency(item.total_consumption ?? 0) }}</td>
                   <td class="px-3 py-3 text-right font-medium text-[var(--ssxz-text)]">{{ formatCurrency(item.total_rebate) }}</td>
                   <td class="px-3 py-3 text-[var(--ssxz-text-secondary)]">{{ formatDateTime(item.created_at) || '-' }}</td>
                 </tr>
@@ -192,6 +202,17 @@ async function loadAffiliateDetail(silent = false): Promise<void> {
 async function copyValue(value: string, message: string): Promise<void> {
   if (!value) return
   await copyToClipboard(value, message)
+}
+
+function statusLabel(status?: string): string {
+  if (status === 'disabled') return '已禁用'
+  return '正常'
+}
+
+function statusBadgeClass(status?: string): string {
+  const base = 'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium'
+  if (status === 'disabled') return `${base} bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400`
+  return `${base} bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400`
 }
 
 async function transferQuota(): Promise<void> {
