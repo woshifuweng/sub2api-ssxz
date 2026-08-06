@@ -319,10 +319,34 @@ func synthesizePlatformSupportedModels(platform string, billingService *service.
 		models = append(models, service.SupportedModel{
 			Name:     candidate,
 			Platform: platform,
-			Pricing:  service.SynthesizePricingFromBilling(pricing),
+			Pricing:  synthesizeBillingPricingForDisplay(pricing),
 		})
 	}
 	return models
+}
+
+// synthesizeBillingPricingForDisplay mirrors the existing LiteLLM display
+// shape without changing the service layer or persisting a channel override.
+// The source values are already resolved by BillingService.GetModelPricing.
+func synthesizeBillingPricingForDisplay(pricing *service.ModelPricing) *service.ChannelModelPricing {
+	if pricing == nil {
+		return nil
+	}
+	return &service.ChannelModelPricing{
+		BillingMode:      service.BillingModeToken,
+		InputPrice:       nonZeroDisplayPrice(pricing.InputPricePerToken),
+		OutputPrice:      nonZeroDisplayPrice(pricing.OutputPricePerToken),
+		CacheWritePrice:  nonZeroDisplayPrice(pricing.CacheCreationPricePerToken),
+		CacheReadPrice:   nonZeroDisplayPrice(pricing.CacheReadPricePerToken),
+		ImageOutputPrice: nonZeroDisplayPrice(pricing.ImageOutputPricePerToken),
+	}
+}
+
+func nonZeroDisplayPrice(price float64) *float64 {
+	if price == 0 {
+		return nil
+	}
+	return &price
 }
 
 func displayModelBelongsToPlatform(model, platform string, billingService *service.BillingService) bool {
