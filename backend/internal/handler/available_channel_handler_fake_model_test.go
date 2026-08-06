@@ -407,6 +407,8 @@ func TestToUserSupportedModelsAddsOnlyKnownContextWindows(t *testing.T) {
 		{Name: "gpt-5.4", Platform: service.PlatformOpenAI},
 		{Name: "gpt-5.5", Platform: service.PlatformOpenAI},
 		{Name: "gpt-image-2", Platform: service.PlatformOpenAI},
+		{Name: "claude-opus-4.6", Platform: service.PlatformAnthropic},
+		{Name: "claude-fable-5", Platform: service.PlatformAnthropic},
 	}, map[string]struct{}{service.PlatformOpenAI: {}}, nil, 1)
 
 	require.Len(t, out, 3)
@@ -414,4 +416,13 @@ func TestToUserSupportedModelsAddsOnlyKnownContextWindows(t *testing.T) {
 	require.Equal(t, 1050000, *out[0].ContextLength)
 	require.Nil(t, out[1].ContextLength)
 	require.Nil(t, out[2].ContextLength)
+
+	claudeOut := toUserSupportedModels([]service.SupportedModel{
+		{Name: "claude-opus-4.6", Platform: service.PlatformAnthropic},
+		{Name: "claude-fable-5", Platform: service.PlatformAnthropic},
+	}, map[string]struct{}{service.PlatformAnthropic: {}}, nil, 1)
+	require.Len(t, claudeOut, 2)
+	require.NotNil(t, claudeOut[0].ContextLength)
+	require.Equal(t, 1000000, *claudeOut[0].ContextLength)
+	require.Nil(t, claudeOut[1].ContextLength)
 }

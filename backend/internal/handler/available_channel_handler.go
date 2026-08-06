@@ -117,8 +117,16 @@ type userSupportedModel struct {
 // entry. LongContextInputThreshold is deliberately not used: it is a billing
 // threshold, not a model context window. Unknown and image models stay empty.
 var displayModelContextLengths = map[string]int{
-	"gpt-5.4":      1050000,
-	"gpt-5.4-mini": 400000,
+	"claude-3-5-haiku":  200000,
+	"claude-3-5-sonnet": 200000,
+	"claude-3-haiku":    200000,
+	"claude-3-opus":     200000,
+	"claude-opus-4.5":   200000,
+	"claude-opus-4.6":   1000000,
+	"claude-sonnet-4":   1000000,
+	"claude-sonnet-4.6": 200000,
+	"gpt-5.4":           1050000,
+	"gpt-5.4-mini":      400000,
 }
 
 func displayModelContextLength(model string) *int {
