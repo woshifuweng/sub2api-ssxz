@@ -29,6 +29,8 @@ const (
 	StripeQDomain = "https://q.stripe.com"
 	// StripeRDomain is used by Stripe telemetry.
 	StripeRDomain = "https://r.stripe.com"
+	// ChainDianShopDomain is the hosted recharge shop embedded in the user page.
+	ChainDianShopDomain = "https://pay.ldxp.cn"
 	// HSTSHeaderValue enables one year of HTTPS-only access in production.
 	HSTSHeaderValue = "max-age=31536000"
 )
@@ -97,7 +99,13 @@ func ApplySecurityHeadersContext(c gatewayctx.GatewayContext, cfg config.CSPConf
 	}
 
 	c.SetHeader("X-Content-Type-Options", "nosniff")
-	c.SetHeader("X-Frame-Options", "DENY")
+	// /image/* is intentionally embedded as an iframe inside the main app;
+	// allow same-origin framing while still blocking cross-origin embedding.
+	if isEmbeddablePath(c) {
+		c.SetHeader("X-Frame-Options", "SAMEORIGIN")
+	} else {
+		c.SetHeader("X-Frame-Options", "DENY")
+	}
 	c.SetHeader("Referrer-Policy", "strict-origin-when-cross-origin")
 	if gin.Mode() == gin.ReleaseMode {
 		c.SetHeader("Strict-Transport-Security", HSTSHeaderValue)
@@ -110,12 +118,30 @@ func ApplySecurityHeadersContext(c gatewayctx.GatewayContext, cfg config.CSPConf
 		nonce, err := GenerateNonce()
 		if err != nil {
 			log.Printf("[SecurityHeaders] %v — 降级为无 nonce 的 CSP", err)
-			c.SetHeader("Content-Security-Policy", strings.ReplaceAll(finalPolicy, NonceTemplate, "'unsafe-inline'"))
+			policy := strings.ReplaceAll(finalPolicy, NonceTemplate, "'unsafe-inline'")
+			if isEmbeddablePath(c) {
+				policy = strings.ReplaceAll(policy, "frame-ancestors 'none'", "frame-ancestors 'self'")
+			}
+			c.SetHeader("Content-Security-Policy", policy)
 			return
 		}
 		c.SetValue(CSPNonceKey, nonce)
-		c.SetHeader("Content-Security-Policy", strings.ReplaceAll(finalPolicy, NonceTemplate, "'nonce-"+nonce+"'"))
+		policy := strings.ReplaceAll(finalPolicy, NonceTemplate, "'nonce-"+nonce+"'")
+		if isEmbeddablePath(c) {
+			policy = strings.ReplaceAll(policy, "frame-ancestors 'none'", "frame-ancestors 'self'")
+		}
+		c.SetHeader("Content-Security-Policy", policy)
 	}
+}
+
+// isEmbeddablePath returns true for paths that are intentionally served as
+// same-origin iframes within the main application (e.g. the image workbench).
+func isEmbeddablePath(c gatewayctx.GatewayContext) bool {
+	if c == nil {
+		return false
+	}
+	path := c.Path()
+	return path == "/image" || strings.HasPrefix(path, "/image/")
 }
 
 func isAPIRoutePathContext(c gatewayctx.GatewayContext) bool {
@@ -161,6 +187,9 @@ func enhanceCSPPolicy(policy string) string {
 	}
 	if !strings.Contains(policy, StripeRDomain) {
 		policy = addToDirective(policy, "connect-src", StripeRDomain)
+	}
+	if !strings.Contains(policy, ChainDianShopDomain) {
+		policy = addToDirective(policy, "frame-src", ChainDianShopDomain)
 	}
 
 	return policy

@@ -221,6 +221,7 @@ func TestSecurityHeaders(t *testing.T) {
 		// Default policy should contain these elements
 		assert.Contains(t, csp, "default-src 'self'")
 		assert.Contains(t, csp, "img-src 'self' data: blob: https:")
+		assert.Contains(t, csp, ChainDianShopDomain)
 	})
 
 	t.Run("uses_default_policy_when_whitespace_only", func(t *testing.T) {
