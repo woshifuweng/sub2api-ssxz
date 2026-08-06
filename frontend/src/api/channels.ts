@@ -9,6 +9,7 @@ import type { BillingMode } from '@/constants/channel'
 export interface UserAvailableGroup {
   id: number
   name: string
+  description?: string | null
   platform: string
   /** 'standard' | 'subscription' — 订阅分组视觉加深，和 API 密钥页保持一致。 */
   subscription_type: string
@@ -43,6 +44,8 @@ export interface UserSupportedModelPricing {
 export interface UserSupportedModel {
   name: string
   platform: string
+  context_length?: number | null
+  context_window?: number | null
   pricing: UserSupportedModelPricing | null
   pricing_status?: string
   usage_support?: string[]
