@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -217,7 +218,7 @@ func TestBuildPlatformSectionsDeepSeekOnlyDoesNotExposeSyntheticImageModels(t *t
 				},
 			},
 		},
-	}, []userAvailableGroup{{ID: 10, Name: "default", Platform: "openai"}}, settingService, 1)
+	}, []userAvailableGroup{{ID: 10, Name: "default", Platform: "openai"}}, settingService, 1, nil)
 
 	require.Len(t, sections, 1)
 	modelNames := availableChannelTestModelNames(sections[0].SupportedModels)
@@ -337,4 +338,66 @@ func availableChannelTestModelNames(models []userSupportedModel) []string {
 		names = append(names, model.Name)
 	}
 	return names
+}
+
+func TestBuildPlatformSectionsSynthesizesAnthropicModelsFromBillingPricing(t *testing.T) {
+	billingService := service.NewBillingService(&config.Config{}, nil)
+
+	sections := buildPlatformSections(service.AvailableChannel{
+		Name:            "Claude upstream",
+		Groups:          []service.AvailableGroupRef{{ID: 11, Name: "Claude 满血池(CCMAX)", Platform: service.PlatformAnthropic}},
+		SupportedModels: nil,
+	}, []userAvailableGroup{{ID: 11, Name: "Claude 满血池(CCMAX)", Platform: service.PlatformAnthropic}}, nil, 1, billingService)
+
+	require.Len(t, sections, 1)
+	require.Equal(t, service.PlatformAnthropic, sections[0].Platform)
+	require.NotEmpty(t, sections[0].SupportedModels)
+
+	for _, model := range sections[0].SupportedModels {
+		require.True(t, billingService.IsModelSupported(model.Name), model.Name)
+		pricing, err := billingService.GetModelPricing(model.Name)
+		require.NoError(t, err, model.Name)
+		require.NotNil(t, model.Pricing, model.Name)
+		require.NotNil(t, pricing, model.Name)
+		require.Equal(t, pricing.InputPricePerToken, *model.Pricing.InputPrice, model.Name)
+		require.Equal(t, pricing.OutputPricePerToken, *model.Pricing.OutputPrice, model.Name)
+		require.Equal(t, pricing.CacheReadPricePerToken, *model.Pricing.CacheReadPrice, model.Name)
+	}
+}
+
+func TestBuildPlatformSectionsKeepsExistingOpenAIModelsWithoutSynthesis(t *testing.T) {
+	billingService := service.NewBillingService(&config.Config{}, nil)
+	price := 0.000001
+	supportedModels := make([]service.SupportedModel, 0, 10)
+	for i := 0; i < 10; i++ {
+		supportedModels = append(supportedModels, service.SupportedModel{
+			Name:     fmt.Sprintf("gpt-test-%d", i),
+			Platform: service.PlatformOpenAI,
+			Pricing: &service.ChannelModelPricing{
+				BillingMode: service.BillingModeToken,
+				InputPrice:  &price,
+				OutputPrice: &price,
+			},
+		})
+	}
+
+	sections := buildPlatformSections(service.AvailableChannel{SupportedModels: supportedModels}, []userAvailableGroup{{ID: 15, Name: "GPT", Platform: service.PlatformOpenAI}}, nil, 1, billingService)
+
+	require.Len(t, sections, 1)
+	require.Equal(t, service.PlatformOpenAI, sections[0].Platform)
+	require.Len(t, sections[0].SupportedModels, 10)
+	require.ElementsMatch(t, availableChannelTestModelNames(sections[0].SupportedModels), []string{
+		"gpt-test-0", "gpt-test-1", "gpt-test-2", "gpt-test-3", "gpt-test-4",
+		"gpt-test-5", "gpt-test-6", "gpt-test-7", "gpt-test-8", "gpt-test-9",
+	})
+}
+
+func TestBuildPlatformSectionsDoesNotInventPlatformWithoutVisibleGroup(t *testing.T) {
+	billingService := service.NewBillingService(&config.Config{}, nil)
+
+	sections := buildPlatformSections(service.AvailableChannel{}, []userAvailableGroup{{ID: 15, Name: "GPT", Platform: service.PlatformOpenAI}}, nil, 1, billingService)
+
+	require.Len(t, sections, 1)
+	require.Equal(t, service.PlatformOpenAI, sections[0].Platform)
+	require.NotEqual(t, service.PlatformAnthropic, sections[0].Platform)
 }

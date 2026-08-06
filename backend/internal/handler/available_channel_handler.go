@@ -27,6 +27,7 @@ type AvailableChannelHandler struct {
 	channelService *service.ChannelService
 	apiKeyService  *service.APIKeyService
 	settingService *service.SettingService
+	billingService *service.BillingService
 }
 
 // NewAvailableChannelHandler 创建用户侧可用渠道 handler。
@@ -34,11 +35,13 @@ func NewAvailableChannelHandler(
 	channelService *service.ChannelService,
 	apiKeyService *service.APIKeyService,
 	settingService *service.SettingService,
+	billingService *service.BillingService,
 ) *AvailableChannelHandler {
 	return &AvailableChannelHandler{
 		channelService: channelService,
 		apiKeyService:  apiKeyService,
 		settingService: settingService,
+		billingService: billingService,
 	}
 }
 
@@ -173,7 +176,7 @@ func (h *AvailableChannelHandler) ListGateway(c gatewayctx.GatewayContext) {
 		if len(visibleGroups) == 0 {
 			continue
 		}
-		sections := buildPlatformSections(ch, visibleGroups, h.settingService, subject.UserID)
+		sections := buildPlatformSections(ch, visibleGroups, h.settingService, subject.UserID, h.billingService)
 		if len(sections) == 0 {
 			continue
 		}
@@ -255,6 +258,7 @@ func buildPlatformSections(
 	visibleGroups []userAvailableGroup,
 	settingService *service.SettingService,
 	userID int64,
+	billingService *service.BillingService,
 ) []userChannelPlatformSection {
 	groupsByPlatform := make(map[string][]userAvailableGroup, 4)
 	for _, g := range visibleGroups {
@@ -276,13 +280,64 @@ func buildPlatformSections(
 	sections := make([]userChannelPlatformSection, 0, len(platforms))
 	for _, platform := range platforms {
 		platformSet := map[string]struct{}{platform: {}}
+		supportedModels := toUserSupportedModels(ch.SupportedModels, platformSet, settingService, userID)
+		if len(supportedModels) == 0 {
+			supportedModels = toUserSupportedModels(
+				synthesizePlatformSupportedModels(platform, billingService),
+				platformSet,
+				settingService,
+				userID,
+			)
+		}
 		sections = append(sections, userChannelPlatformSection{
 			Platform:        platform,
 			Groups:          groupsByPlatform[platform],
-			SupportedModels: toUserSupportedModels(ch.SupportedModels, platformSet, settingService, userID),
+			SupportedModels: supportedModels,
 		})
 	}
 	return sections
+}
+
+// synthesizePlatformSupportedModels 只为用户侧展示层补齐模型目录。
+// 渠道真实支持模型、计费和上游选路均不经过这里，也不会写入渠道定价表。
+func synthesizePlatformSupportedModels(platform string, billingService *service.BillingService) []service.SupportedModel {
+	if billingService == nil {
+		return nil
+	}
+
+	candidates := billingService.ListSupportedModels()
+	sort.Strings(candidates)
+	models := make([]service.SupportedModel, 0, len(candidates))
+	for _, candidate := range candidates {
+		if !displayModelBelongsToPlatform(candidate, platform, billingService) {
+			continue
+		}
+		pricing, err := billingService.GetModelPricing(candidate)
+		if err != nil || pricing == nil {
+			continue
+		}
+		models = append(models, service.SupportedModel{
+			Name:     candidate,
+			Platform: platform,
+			Pricing:  service.SynthesizePricingFromBilling(pricing),
+		})
+	}
+	return models
+}
+
+func displayModelBelongsToPlatform(model, platform string, billingService *service.BillingService) bool {
+	model = strings.ToLower(strings.TrimSpace(model))
+	switch strings.ToLower(strings.TrimSpace(platform)) {
+	case service.PlatformAnthropic:
+		return billingService != nil && billingService.IsModelSupported(model)
+	case service.PlatformOpenAI:
+		return strings.HasPrefix(model, "gpt-") ||
+			strings.HasPrefix(model, "o1") ||
+			strings.HasPrefix(model, "o3") ||
+			strings.HasPrefix(model, "deepseek-")
+	default:
+		return false
+	}
 }
 
 // filterUserVisibleGroups 仅保留用户可访问的分组。

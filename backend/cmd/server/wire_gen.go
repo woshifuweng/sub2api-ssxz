@@ -261,7 +261,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	totpHandler := handler.NewTotpHandler(totpService)
 	handlerPaymentHandler := handler.NewPaymentHandler(paymentService, paymentConfigService, channelService, authService)
 	paymentWebhookHandler := handler.NewPaymentWebhookHandler(paymentService, registry)
-	availableChannelHandler := handler.NewAvailableChannelHandler(channelService, apiKeyService, settingService)
+	availableChannelHandler := handler.NewAvailableChannelHandler(channelService, apiKeyService, settingService, billingService)
 	imageStudioHandler := handler.NewImageStudioHandler(apiKeyService, subscriptionService, openAIGatewayHandler, configConfig, soraGenerationService, soraMediaStorage)
 	chatStudioHandler := handler.NewChatStudioHandler(apiKeyService, subscriptionService, openAIGatewayHandler, configConfig)
 	chatWorkspaceRepository := repository.NewChatWorkspaceRepository(db)
