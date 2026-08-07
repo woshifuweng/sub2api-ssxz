@@ -253,6 +253,44 @@ U 里悬空的 5 个模块（api/url、api/adminUIRequest、utils/oauthAffiliate
 「有 }>(), { 但整文件无 withDefaults(」→ v0.1.171 = 0 个
 ```
 
+### ✅ U2 四道闸门已实测（2026-08-07，worktree `F:\CodexTemp\upstream-v0.1.171-clean`）
+
+`v0.1.171` 是**附注 tag**：tag 对象 `afd154b92`，指向 commit `f0e7a9c7a`。两个都对，别当成建错了树。
+
+| 闸门 | U2 结果 | 同项 U 的结果 |
+|---|---|---|
+| 后端裸编译（linux/amd64/CGO=0） | ✅ 0 | ✅ |
+| `go test ./...` | 46 包过 / **1 包 1 个用例失败** | 全绿 |
+| 前端 typecheck | ✅ **0 error** | ❌ 625 error / 40 文件 |
+| 前端 build | ✅ 15.98s，171 个 asset，入口 `?v=` 0 处 | ❌ 构建不出来 |
+| 前端 vitest | 206/207 文件过，**2 个用例失败** | ❌ 60 文件 / 133 用例失败 |
+| 带 `-tags embed` 编译 | ✅ 156,460,544 字节 | 未做 |
+| SSXZ 改动数 | **0**（`git diff v0.1.171` 空，仅 dist 产物落在 gitignore 内）| — |
+
+**那 3 个失败全是上游自己的测试缺陷，不碰实现代码，不阻塞换主干：**
+
+1. `TestContentModerationRuntimeSnapshotRefreshFailureKeepsStaleConfig`（稳定复现 3/3）——
+   `content_moderation.go` 在 U 与 U2 **字节级一致**，差的只有测试文件。上游靠
+   `runtimeCacheTTL=1ns` 等自然过期，进不去 refresh 分支；**同文件里的兄弟用例
+   `...BacksOff` 手工写 `expired.loadedAt = time.Now().Add(-time.Second)` 就过**。
+   我们那 5 行（`e5c51dce9` 引入）正是这个手工过期，是**真补丁，该重放**。
+   判据：`expired.loadedAt` 在 v0.1.165/169/171 都是 4 次，U 是 5 次。
+2. `admin.system.rollback.spec.ts` 2 个用例——实现多传第 3 参 `{timeout:900000}`，
+   测试只断言 2 参。该文件 **P 和 U 都没有**，纯上游内部不同步。
+3. 10 条 `adminAPI.groups.getLiveCapability is not a function` ——**不是缺实现**
+   （`api/admin/groups.ts:90` 有），是测试 mock 不全导致的 unhandled rejection，
+   没让任何用例失败。
+
+⚠️ **Codex 那份"前端环境阻塞、typecheck/build/vitest 无法执行"的结论已过期。**
+`pnpm install` 其实在它停止等待之后装完了；离线复验 `Already up to date`（1.3s）。
+真 store 在 `F:\CodexDev\pnpm-store\v10`（**不是**仓库里那两个 `.pnpm-store`）。
+pnpm 10 会忽略 `esbuild`/`vue-demi` 的 build script（`.npmrc` 的 `ignore-scripts=false`
+已不足，需 `onlyBuiltDependencies`），但实测不影响 build。
+U2 与 P 的 `pnpm-lock.yaml` 不同 blob → **不能共用 node_modules**，各装各的。
+
+**结论：U2 可以当主干基础。** 三个失败已定位到上游测试本身，不是我们的环境、
+也不是 U2 不自洽。换主干的闸门（全量测试）**允许**带着这 3 个已归因的上游缺陷通过。
+
 ### 重放账本（2026-08-07 实测，阶段 2 基线）
 
 **基准是「分家点 `bda7c39e5` 以来我们改过的文件」，不是「P 与 v0.1.171 的 diff」。**
