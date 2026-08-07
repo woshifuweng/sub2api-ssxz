@@ -281,6 +281,70 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags embed -trimpath \
 **部署后必须做**：`bash scripts/verify-deployed.sh --update-baseline`
 （前端资源哈希这次是有意变更，不更新基线的话第 5 项会一直 FAIL）
 
+#### 第一次部署尝试：16:35 上线后被回滚
+
+**5 项过 4 项，唯一失败项是别人家的中转站没容量，不是我们的代码。**
+
+| 项 | 结果 |
+|---|---|
+| 上传 md5 `633825a5…` | 通过 |
+| 版本 `0.1.3-ssxz.20260807` | 通过 |
+| 入口 `index-Bn3BFivZ.js` | 通过（embed 确实吃到新前端） |
+| 白名单环境变量仍在 | 通过 |
+| Kedaya `gpt-5.5` | 通过 |
+| **Molifang Claude** | **约 45 秒未返回** → 触发回滚 |
+
+已回滚至 `/opt/sub2api/backups/sub2api-pre-redeem-captcha-20260807-163527`；
+当前生产 md5 `2bf007115a3706efb406c4994b11cf3d`，active/running、NRestarts=0、ExecMainStatus=0。
+**门禁与基线更新均未执行。**
+
+归因证据（全部指向「与本轮改动无关」）：
+
+- 本轮 diff 仅 8 个文件（后端 2 个非测试），对
+  `anthropic|claude|gateway|upstream|timeout|httpclient|retry|scheduler` 的 grep **全部 0 命中**
+- 两处后端改动都是封闭的：`redeem_handler.go` 只动 `RedeemGateway` 内部；
+  `parseVersion` 仅被 `compareVersions` 调用（`update_service.go:298` / `:506`，只算 `HasUpdate`
+  一个字段），**无后台 goroutine、无启动期拉取** → 碰不到任何请求路径
+- **同一轮 Kedaya `gpt-5.5` 通过** → 网关转发与调度本身正常。若转发被改坏，Kedaya 会一起挂
+- 账号 38(`Kiro高缓-MoLiFang`) 是**第三方转售中转**。先例：`CLAUDE_TO_CODEX.md:2085` 记 37/38
+  双双 `All available accounts exhausted`，当时结论即「两家 Kiro 转接号当前无容量，非本轮修复失败」；
+  `:1534` 另有一次判为上游偶发
+- 45 秒无返回是**超时**，不是白名单拦截会给的快速 400/403
+
+**尚未证实**：没有在回滚后的旧二进制上复测 Molifang。所以「它本来就不通」目前是强推断，不是实测。
+
+#### 坑：`verify-deployed.sh` 不含任何真实上游请求
+
+脚本里 5 处 `curl --max-time 15`（第 31/51/98/127/155 行）**打的全是我们自己的域名**——
+路由面、版本、CSP、前端资源、`/image/`。Molifang 那项是手加的额外验证，**不属于正式门禁**。
+
+后果本轮已真实发生：**一次转售商容量故障，拦下了一个正式门禁本会放行的部署。**
+以后真实上游冒烟测试记为「观察项」，失败先做对照组复测，不要直接触发回滚。
+
+#### 门禁第 5 项在重新部署时**必定 FAIL**，且这是预期的
+
+基线 `scripts/deployed-baseline.txt` 是 13:28 由脚本**自动初始化**的（不是人工挑选），
+存的是**旧入口**。重新部署后第 5 项必报「前端资源与基线不一致」，预期 diff **恰好一行**：
+
+```
+- /assets/index-CTBPrhn_.js     ← 旧
++ /assets/index-Bn3BFivZ.js     ← 新
+```
+
+判读规则（**只有一行、且只有入口 chunk 变**才算正常）：
+
+- 其余 5 个资源（`index-9_uviuae.css`、`vendor-vue-CdtVZIzQ`、`vendor-i18n-BqIlsuWk`、
+  `vendor-misc-Biz7uIAo`、`vendor-misc-DB0Q8XAf.css`）**必须一字不变**。已逐一核对
+  `48faffaae` 与 `e8ef9e645` 两版被跟踪的 `dist/index.html`，确实只有入口不同
+  （入口变化来自 `RedeemView.vue` + `AppImageWorkbenchView.vue` 两个源码改动，属应用代码 chunk）
+- **vendor chunk 若也变了 = 危险信号**：说明构建重新解析了依赖，绕过了 `package.json` 里
+  `pnpm.overrides` 的四个 pin（`form-data 4.0.6` / `js-cookie 3.0.8` / `lodash 4.18.1` /
+  `lodash-es 4.18.1`）。本轮 vendor 全部未变 → **pin 守住了**，那次拿 `npm run build`
+  当脚本运行器没有造成依赖漂移（这是当时留下的疑点，现已排除）
+- **入口若仍是 `CTBPrhn_` = embed 没吃到新前端**，那才是第 5 项本来要防的真故障
+
+确认 diff 恰好是上面那一行之后，再跑 `--update-baseline`。
+
 ### 2026-08-07 — 作图页 CSP 修复 + 首次版本戳
 - 版本：`0.1.3` → **`0.1.3-ssxz.20260807`**（首次用 ldflags 注入，生产已实测生效）
 - 改动：`enhanceCSPPolicy()` 补 `'self'` 进 `frame-src`，新增 `directiveAllowsSelf()` 辅助函数
