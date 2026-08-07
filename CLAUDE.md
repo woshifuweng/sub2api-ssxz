@@ -97,20 +97,46 @@ curl -s -o /dev/null -w '%{http_code}\n' https://api.ssxzapi.com/api/v1/admin/us
 所以"整版合上游 = 搬进一个陌生产品"这个论证**只对 P 成立，对 U 不成立**。
 以前把它当成"永不跟上游"的理由是推错了对象。
 
-### migration 是换主干的真风险点（已测清）
+### ⭐ 决定性事实：生产库已经是 U 的库（2026-08-07 实测，Codex 只读 SELECT）
 
-runner 的主键是**带号前缀的完整文件名**（`schema_migrations.filename TEXT PRIMARY KEY`），
-所以同一份 DDL 换了号，生产库查不到那行 → **会重跑**。
+```
+total_rows=276  has_134=1  has_138=1  gt_138_rows=86
+reseller: 200_reseller_roles.sql, 201_reseller_fields_hardening.sql
+GT138_SET_DIFF=EMPTY   ← U 本地 >138 的 86 个文件名，生产库全都已记录
+```
 
-| 测项 | 结果 |
+**风险方向跟直觉相反：不是"切到 U 有风险"，是"P 在跑一个比它自己新 86 个 migration 的库"。**
+
+| 推论 | 依据 |
 |---|---|
-| U 内部重复编号（一个号两个文件） | **44 个**（P 有 18 个）|
-| 两条线同名 DDL | 108 个，其中 **12 个编号不同**（如 `add_api_key_allowed_models` P=134/U=189；`add_admin_audit_logs` P=138/U=197）|
-| 那 12 个重跑会不会炸 | **全部安全**（无裸 `ADD COLUMN`/`CREATE TABLE`/`CREATE INDEX`；`188` 与 P 的 `084` 字节相同且是 `SET DEFAULT`；`196` 带 `ON CONFLICT DO NOTHING`）|
-| U 里 >138 的全新 migration | **约 53 个从没审过**，换主干会首次执行 |
+| 切 U 会跑几个 migration | **0 个**（文件名全部已在 `schema_migrations` 里，runner 按 filename 跳过）|
+| 那 12 个换号 DDL 会不会重跑 | **不会**。P 号和 U 号**两套都已在库里**，等于重跑早就发生过且无害 |
+| P 才是异常的那条 | P 只有 118 个 migration 文件，库里有 276 行 |
+| Reseller 表和数据 | **已在生产库**（200/201 有留痕），但 P 有 **0 个** reseller 文件 → 那 8 条路由现在是 404 |
 
-**未实测**：生产库 `schema_migrations` 的真实内容（工作树无 `.env`，无凭证）。
-"生产库有 134/138 那些行"目前是推断。
+runner 主键是带号前缀的完整文件名（`schema_migrations.filename TEXT PRIMARY KEY`），
+库里多出来的行 runner 不认识也不管，所以 P 能正常跑——**但 P 的代码没有那些表对应的功能**。
+
+Codex 扫出的 2 条裸 `ADD COLUMN`（`189_add_group_allow_live`、`204_add_billing_model_to_usage_logs`）
+和 9 处无 `ON CONFLICT` 的 INSERT：**正常部署都不会执行**（文件名已记录 → 跳过；
+9 处里 8 处在 `CREATE OR REPLACE FUNCTION` 函数体内，定义时不执行）。只有**强制重跑**才会炸。
+
+### U 前端构建失败 = 合并解错，不是上游缺陷（已定位到行）
+
+U 后端交叉编译**成功**（162,165,705 字节，`GOOS=linux GOARCH=amd64 CGO_ENABLED=0` 已确认）。
+前端 `vue-tsc` 挂在 **2 个文件**，都是 `b9545e8dd`（合 171 那次）最后改的，**上游自己的副本是好的**：
+
+| 文件 | 缺陷 | 上游对照 |
+|---|---|---|
+| `LinuxDoOAuthSection.vue:23` | `defineProps<{` **没有 `withDefaults(` 包裹**，但尾部留着 `}>(), {` | v0.1.169/171 都有 `withDefaults` |
+| `EmailVerifyView.vue:522` | 保留了 P 的 `const response = await sendVerifyCode({`，但函数体和收尾来自上游的 `const requestPayload = {` 形式 → `requestPayload` 被引用 3 次却**从未声明**，且 `const response` 声明两次 | v0.1.171 有 `const requestPayload = {`（531 行）|
+
+**判据（别用 `}>(), {` 计数，会误报）**：`有 }>(), { 但整个文件没有 withDefaults(` → P=0 个，U=1 个。
+P 里有 27 个 `}>(), {` 且构建正常，那是正常写法的尾巴。
+
+⚠️ **这暴露一个更大的信号：171 那次 138 个冲突是在从没构建过的情况下解的**（U 的 `dist` 未跟踪）。
+抽查的头 2 个都解错了 → 换主干前**必须跑全套测试**，不能只看编译过。
+编译能过不代表语义对：这 2 个是语法错所以 tsc 抓到了，解错成"语法对但语义错"的不会报错。
 
 ### 已证伪的方案：按 `[ssxz]` 标记重放补丁
 
@@ -123,15 +149,39 @@ runner 的主键是**带号前缀的完整文件名**（`schema_migrations.filen
 本仓库大量 squash-merge，可重放的干净补丁序列**不存在**，也无法追溯补造。
 方向（补丁层化）是对的，但不能以"重放现有 `[ssxz]` 提交"起步。
 
+### U 当主干需要搬的东西（已用符号/路由法测清，不是文件名法）
+
+**功能层面 U 几乎是 P 的超集**，"P 独有 33 个源码文件"里绝大部分是文档/截图/skill：
+
+| 测项 | 结果 |
+|---|---|
+| 客户可见路由 P−U | **空集**（P=69 条，U=79 条）|
+| `oauth_compat` 符号在 U | **2/2、1/1 全齐** → 不用搬 |
+| `UserOrdersView` | U 的 `AppOrdersView` 是**改名**（`getMyOrders`/`getRefundEligibleProviders` 都在）→ 不用搬 |
+| U 白捡的 Reseller 路由 | **8 条**（`/app/reseller/*` + `/admin/reseller/*`）|
+
+真正要搬的只有 4 项：
+
+1. 今天 5 个修复：兑换码去 Turnstile / `parseVersion` / 作图页 `AppSectionShell` / CSP / dist 重建
+2. `ModelPricingView.vue` + `modelPricing.ts` + **router 把 `/app/available-channels` 指回去**
+3. `frontend/src/api/affiliate.ts`（4 个符号在 U 整棵树 0 命中，真缺）
+4. `frontend/public/logo.png`（U 里没这个文件）
+
+**⚠️ 第 2 项里的 router 重指是最容易漏的一步**：`/app/available-channels` 这条路由
+**两条线都有**，所以路由集比对是空集查不出来。但它渲染的组件不同——
+P 是 `ModelPricingView.vue`（今天重建的定价页），U 是 `AvailableChannelsView.vue`（旧的）。
+**只切主干不重指，今天的定价页会静默消失。**
+
 ### 站得住的规则
 
 - **唯一主干**：任何时刻只有一条线可以编译部署。这条规则跟"选 P 还是选 U"无关，
   但**必须先立**——否则合过的东西会被另一条线的部署第三次顶掉
 - 每次部署必须记三样：**上游底座 tag + 我们的 HEAD + 二进制 MD5**（`DEPLOYED.md`）
-- 换主干**不能大爆炸式切**。P 有今天 5 个修复和可复现前端，U 有 171/Reseller/计费修复；
-  **两条都不是另一条的超集**，直接切任一方向都会丢东西
 - 上游安全补丁不会自动到我们手上 → 必须定期看上游 release，有则单独挑
 - 截至 2026-08-07，本地可见最新上游 tag 是 `v0.1.171`（**没有 172/173**）
+- **比对功能差异只用符号法/路由法，不用文件名法。** 文件名法今天连续骗了三次：
+  「P 独有 56549 个文件」（56515 个是 `.pnpm-store`+`rust/target` 构建垃圾）、
+  「U 缺 UserOrdersView」（改名了）、「U 缺 oauth_compat」（符号全在）
 
 ## 7. 红线
 
@@ -141,3 +191,10 @@ runner 的主键是**带号前缀的完整文件名**（`schema_migrations.filen
 - 不要手改 `VERSION` 文件，`release.yml` 会从 tag 覆写它
 - 重启后首轮请求约慢一倍（冷启动，已实测 7.8–11s vs 热态 3.4s）——
   **不要**据此判定延迟回归或触发回滚，先等温机复测
+- **解完冲突必须当场构建 + 跑测试再提交。** `b9545e8dd`（合 171，138 个冲突）
+  就是反面案例：它把 `LinuxDoOAuthSection.vue`（丢了 `withDefaults(` 包裹）和
+  `EmailVerifyView.vue`（`requestPayload` 用了但没声明 + `const response` 声明两次）
+  解坏了，**U 的前端至今 `vue-tsc` 都过不去**。因为 U 的 `dist` 未跟踪、当时也没构建，
+  这两个语法错误就这么提交进去了。抽查的前 2 个冲突解法**全是错的**——
+  所以 U 上剩下的 136 个冲突里很可能还有编译器查不出来的**语义**错解，
+  换主干的闸门必须是**全量测试**，不能只看"能不能构建"
