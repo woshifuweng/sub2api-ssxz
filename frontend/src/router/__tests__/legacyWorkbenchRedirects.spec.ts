@@ -45,7 +45,7 @@ describe('legacy user routes', () => {
   it.each([
     ['/app/dashboard', '仪表盘'],
     ['/app/chat', '模型测试入口'],
-    ['/app/image', '图片内测入口'],
+    ['/app/image', '图片工作台'],
     ['/app/usage', '使用记录'],
     ['/app/purchase', '充值 / 订阅'],
     ['/app/orders', '我的订单'],
