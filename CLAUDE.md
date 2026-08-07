@@ -204,11 +204,50 @@ U 留着 importer 丢了被 import 的模块 → 不自洽。**
 **所以切主干真实工作量不是 4 项，是 4 项 + 57 个客户可见 UI 文件逐个核对。**
 
 仍然成立的部分（这些测法没错，只是不够）：客户可见路由 P−U = **空集**（P=69/U=79）；
-`oauth_compat` 符号 U 已齐 2/2、1/1；`UserOrdersView`→`AppOrdersView` 是改名。
+`oauth_compat` 符号 U 已齐 2/2、1/1。
 
-**⚠️ 最容易漏的一步**：`/app/available-channels` 两条线都有，路由集比对查不出来，
-但 P 渲染 `ModelPricingView.vue`（今天重建的定价页），U 渲染 `AvailableChannelsView.vue`（旧的）。
-只切主干不重指 → **今天的定价页静默消失**。
+❌ **已纠正：「`UserOrdersView`→`AppOrdersView` 是改名」这句话方向是反的。**
+不是上游改的名，是**我们**改的，而且**没删旧的**：
+
+```
+P : views/user/AppOrdersView.vue  +  views/user/UserOrdersView.vue   ← 两个都在
+U2: views/user/UserOrdersView.vue                                    ← 只有旧的
+```
+
+P 的 router 指向 `AppOrdersView`，所以 P 里的 `UserOrdersView.vue` 是死代码。
+后果不是"上游缺文件"，而是**搬过去会双份**：U2 保留它自己的 `UserOrdersView`，
+我们又搬进 `AppOrdersView`，两个组件同时存在，router 指哪个才是真的。
+
+### ⭐ 盲区四：同一页面、两条线渲染不同组件（2026-08-07 实测，4 条）
+
+`/app/available-channels` 那条警告是对的，但**它不是孤例，是一个族**。
+按归一化路径把 P 与 U2 的 router 全量比对，得到 4 条：
+
+| 页面 | P 渲染 | U2 渲染 |
+|---|---|---|
+| `/available-channels` | `ModelPricingView.vue`（重建的定价页）| `AvailableChannelsView.vue`（旧的）|
+| `/orders` | `AppOrdersView.vue` | `UserOrdersView.vue` |
+| `/purchase` | `AppPurchaseView.vue` | `PaymentView.vue` |
+| `/usage` | `AppUsageView.vue` | `UsageView.vue` |
+
+**只搬文件不重指 router → 这 4 个页面静默变回上游版本。** 文件级账本
+（B2/B6 那 845 个）**结构上看不见这一类**，因为两边文件都存在、都"搬到了"。
+
+另外：P 独有页面 **9 个**（`/`HomeView、`/chat`、`/image`、`/docs`、
+`/channel-status`、`/admin/affiliates`、`/admin/api-keys` 等），
+U2 独有 **16 个**（audit-logs、risk-control、prompt-audit、oidc/wechat/dingtalk
+回调、model-plaza、subscriptions、batch-image 等 → 切过去白捡，但要逐个决定要不要）。
+
+### ⚠️ 路由命名空间已分叉：`/app/*` vs 裸路径（切主干必须决定）
+
+**我们把整个客户路由重前缀成 `/app/*`，上游还是裸路径。**
+P 里有 16 处 `redirectLegacyRoute('/app/...')` 把裸路径重定向过去。
+
+这也是为什么**第一次比对得到"0 条冲突"——join 键根本对不上**，
+`/app/orders` 永远撞不上 `/orders`。**比路由必须先归一化前缀，否则结论无意义。**
+
+切主干时二选一：保 `/app` 前缀（要把前缀层 + 16 个重定向一起搬）
+或退回裸路径（客户已存的书签/外链会断）。**不能不选。**
 
 ### 主题切换（太阳/月亮）：不是回退，线上就是我们自己的（已实测结案）
 
@@ -388,7 +427,18 @@ grep 验不出来，只能靠编译。
 - 截至 2026-08-07，本地可见最新上游 tag 是 `v0.1.171`（**没有 172/173**）
 - **比对功能差异只用符号法/路由法，不用文件名法。** 文件名法今天连续骗了三次：
   「P 独有 56549 个文件」（56515 个是 `.pnpm-store`+`rust/target` 构建垃圾）、
-  「U 缺 UserOrdersView」（改名了）、「U 缺 oauth_compat」（符号全在）
+  「U 缺 UserOrdersView」（**当时说"改名了"，这个解释也是错的——见 §6：
+  是我们加了新名字且没删旧的，P 里两个都在**）、「U 缺 oauth_compat」（符号全在）
+- ⚠️ **basename 配对法是垃圾，别用。** 想查"上游是不是把文件换了路径"时，
+  拿同名文件互配会得到一堆假阳性：实测 50 条命中里 0 条是真的，
+  `tools/perf/README.md` 会配上 `backend/migrations/README.md`，
+  `components/foundation/index.ts` 会配上 15 个不同的 `index.ts`。
+  **零假阳性的判据只有一个：blob 完全一致而路径不同**（实测 B2 340 个里 0 条）。
+- ⚠️ **`git diff -M` 在大树上会静默跳过改名检测。** 它只在 stderr 写一行
+  `warning: exhaustive rename detection was skipped due to too many files`，
+  退出码仍是 0。**丢掉 stderr 就会拿到"只有 4 条改名"这种假结论。**
+  必须 `-l0` 关掉上限并且读 stderr。（关掉后实测：上游自分家点以来真改名 **1 条**，
+  而那 1 条 `soraerror.go → httputil.go` 是相似度误配，不是真改名。）
 - **但符号法/路由法也有盲区：它们证明不了"页面长得一样"。** 涉及 UI 时必须另外
   逐个 diff `.vue`/`.css`（今天就是这么漏掉 57 个客户可见文件的）。
   **自洽性测法**（有没有 import 却不存在的模块）比两者都强，是今天唯一一次
