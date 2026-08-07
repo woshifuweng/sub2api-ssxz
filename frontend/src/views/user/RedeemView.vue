@@ -44,18 +44,6 @@
               </p>
             </div>
 
-            <div v-if="turnstileEnabled && turnstileSiteKey" class="redeem-turnstile" data-testid="redeem-turnstile">
-              <TurnstileWidget
-                ref="turnstileRef"
-                :site-key="turnstileSiteKey"
-                theme="auto"
-                size="flexible"
-                @verify="handleTurnstileVerify"
-                @expire="handleTurnstileExpire"
-                @error="handleTurnstileError"
-              />
-            </div>
-
             <button
               type="submit"
               :disabled="!redeemCode.trim() || submitting"
@@ -297,7 +285,6 @@ import { useAuthStore } from '@/stores/auth'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 import { extractApiErrorCode } from '@/utils/apiError'
 import { formatDateTime } from '@/utils/format'
-import TurnstileWidget from '@/components/TurnstileWidget.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -327,10 +314,6 @@ const history = ref<RedeemHistoryItem[]>([])
 const loadingHistory = ref(false)
 const historyLoadFailed = ref(false)
 const contactInfo = ref('')
-const turnstileEnabled = ref(false)
-const turnstileSiteKey = ref('')
-const turnstileToken = ref('')
-const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
 
 const redeemErrorKeyByReason: Record<string, string> = {
   REDEEM_CODE_NOT_FOUND: 'redeem.errors.REDEEM_CODE_NOT_FOUND',
@@ -365,10 +348,6 @@ const getRedeemErrorMessage = (error: unknown) => {
 
   return t('redeem.failedToRedeem')
 }
-
-const handleTurnstileVerify = (token: string) => { turnstileToken.value = token }
-const handleTurnstileExpire = () => { turnstileToken.value = '' }
-const handleTurnstileError = () => { turnstileToken.value = '' }
 
 const isBalanceType = (type: string) => type === 'balance' || type === 'admin_balance'
 const isSubscriptionType = (type: string) => type === 'subscription'
@@ -440,19 +419,12 @@ const handleRedeem = async () => {
     appStore.showError(t('redeem.pleaseEnterCode'))
     return
   }
-  if (turnstileEnabled.value && !turnstileToken.value) {
-    appStore.showError(t('auth.completeVerification'))
-    return
-  }
-
   submitting.value = true
   errorMessage.value = ''
   redeemResult.value = null
 
   try {
-    const result = turnstileToken.value
-      ? await redeemAPI.redeem(code, turnstileToken.value)
-      : await redeemAPI.redeem(code)
+    const result = await redeemAPI.redeem(code)
     redeemResult.value = result
 
     await authStore.refreshUser()
@@ -466,8 +438,6 @@ const handleRedeem = async () => {
     }
 
     redeemCode.value = ''
-    turnstileRef.value?.reset()
-    turnstileToken.value = ''
     await fetchHistory()
     appStore.showSuccess(t('redeem.codeRedeemSuccess'))
   } catch (error) {
@@ -483,8 +453,6 @@ onMounted(async () => {
   try {
     const settings = await authAPI.getPublicSettings()
     contactInfo.value = settings.contact_info || ''
-    turnstileEnabled.value = settings.turnstile_enabled === true
-    turnstileSiteKey.value = settings.turnstile_site_key || ''
   } catch {
     contactInfo.value = ''
   }

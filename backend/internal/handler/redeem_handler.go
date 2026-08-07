@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -78,11 +77,11 @@ func (h *RedeemHandler) RedeemGateway(c gatewayctx.GatewayContext) {
 		response.ErrorContext(redeemGatewayResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
-	if err := h.authService.VerifyTurnstile(c.Request().Context(), req.TurnstileToken, ip.GetClientIPContext(c)); err != nil {
-		response.ErrorFromContext(redeemGatewayResponder{ctx: c}, err)
-		return
-	}
-
+	// NOTE(ssxz-redeem-captcha): 兑换码不再做 Turnstile 人机验证。
+	// 兑换接口本身已有三重防护：必须登录（JWTAuth）、失败限流（5 次/10 分钟 → 锁 30 分钟）、
+	// 兑换码为 UUIDv4（122 位熵，不可枚举）。验证码在此只增加客户摩擦，不增加安全性，
+	// 且 widget 卡在"正在验证…"时会让兑换完全不可用。
+	// 登录/注册/找回密码/支付仍保留 Turnstile，未受影响。
 	result, err := h.redeemService.Redeem(c.Request().Context(), subject.UserID, req.Code)
 	if err != nil {
 		response.ErrorFromContext(redeemGatewayResponder{ctx: c}, err)
