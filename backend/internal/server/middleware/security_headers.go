@@ -192,7 +192,36 @@ func enhanceCSPPolicy(policy string) string {
 		policy = addToDirective(policy, "frame-src", ChainDianShopDomain)
 	}
 
+	// The image workbench (/image/) is same-origin and is embedded as an iframe
+	// by /app/image. An explicitly listed frame-src does NOT inherit from
+	// default-src, so without 'self' the browser refuses the frame — which looks
+	// like a blocked page and reproduces in incognito, since CSP is server-sent.
+	if !directiveAllowsSelf(policy, "frame-src") {
+		policy = addToDirective(policy, "frame-src", "'self'")
+	}
+
 	return policy
+}
+
+// directiveAllowsSelf reports whether the named directive exists in the policy
+// and already lists 'self'. The check is directive-scoped on purpose: a plain
+// strings.Contains(policy, "'self'") is satisfied by default-src and would
+// wrongly conclude that frame-src permits same-origin framing.
+func directiveAllowsSelf(policy, directive string) bool {
+	idx := strings.Index(policy, directive+" ")
+	if idx == -1 {
+		return false
+	}
+	value := policy[idx+len(directive)+1:]
+	if end := strings.Index(value, ";"); end != -1 {
+		value = value[:end]
+	}
+	for _, token := range strings.Fields(value) {
+		if token == "'self'" {
+			return true
+		}
+	}
+	return false
 }
 
 // addToDirective adds a value to a specific CSP directive.

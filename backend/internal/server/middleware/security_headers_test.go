@@ -364,6 +364,49 @@ func TestEnhanceCSPPolicy(t *testing.T) {
 		assert.NotContains(t, enhanced, NonceTemplate)
 		assert.Contains(t, enhanced, "'nonce-existing'")
 	})
+
+	t.Run("adds_self_to_frame_src_when_missing", func(t *testing.T) {
+		policy := "default-src 'self'; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'"
+		enhanced := enhanceCSPPolicy(policy)
+
+		assert.True(t, directiveAllowsSelf(enhanced, "frame-src"),
+			"frame-src must allow 'self', otherwise the same-origin /image/ iframe is refused")
+		// frame-ancestors controls who may embed us and must stay untouched.
+		assert.Contains(t, enhanced, "frame-ancestors 'none'")
+	})
+
+	t.Run("does_not_duplicate_self_in_frame_src", func(t *testing.T) {
+		policy := "default-src 'self'; frame-src 'self' https://challenges.cloudflare.com; frame-ancestors 'none'"
+		enhanced := enhanceCSPPolicy(policy)
+
+		frameSrc := enhanced[strings.Index(enhanced, "frame-src "):]
+		frameSrc = frameSrc[:strings.Index(frameSrc, ";")]
+		assert.Equal(t, 1, strings.Count(frameSrc, "'self'"))
+	})
+
+	t.Run("production_default_policy_allows_self_framing", func(t *testing.T) {
+		enhanced := enhanceCSPPolicy(config.DefaultCSPPolicy)
+
+		assert.True(t, directiveAllowsSelf(enhanced, "frame-src"))
+		assert.Contains(t, enhanced, ChainDianShopDomain)
+		assert.Contains(t, enhanced, StripeHooksDomain)
+	})
+}
+
+func TestDirectiveAllowsSelf(t *testing.T) {
+	t.Run("ignores_self_from_other_directives", func(t *testing.T) {
+		policy := "default-src 'self'; frame-src https://js.stripe.com; frame-ancestors 'none'"
+		assert.False(t, directiveAllowsSelf(policy, "frame-src"))
+	})
+
+	t.Run("detects_self_in_target_directive", func(t *testing.T) {
+		policy := "default-src 'self'; frame-src 'self' https://js.stripe.com"
+		assert.True(t, directiveAllowsSelf(policy, "frame-src"))
+	})
+
+	t.Run("missing_directive_reports_false", func(t *testing.T) {
+		assert.False(t, directiveAllowsSelf("default-src 'self'", "frame-src"))
+	})
 }
 
 func TestAddToDirective(t *testing.T) {
