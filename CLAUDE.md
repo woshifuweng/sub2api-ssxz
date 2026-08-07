@@ -388,12 +388,12 @@ grep 验不出来，只能靠编译。
 `DROP TABLE sora_tasks / sora_generations / sora_accounts` + 砍 `groups`/`users`/`usage_logs`
 上 8 个列。这是迁移里第一个**真正破坏性的闸门**。
 
-### ⭐ 破坏性闸门已关，但 090 是「已记录、从未执行」（2026-08-07 只读 SELECT 实测）
+### ⭐ 破坏性闸门已关（这条已定案，2026-08-07 只读 SELECT 实测）
 
 U2 的 138 个 SQL migration **全部已在 `schema_migrations` 里**（未记录 = 0）→
 **换主干不会跑任何一条 migration，4 个破坏性 DDL 一条都不触发。闸门关闭。**
 
-但同一次查询证明 090 的 DDL **从未真正生效**：
+库里现在的 Sora 实况（090 要删的东西基本都还在）：
 
 | 090 要删的 | 现在库里 |
 |---|---|
@@ -402,6 +402,43 @@ U2 的 138 个 SQL migration **全部已在 `schema_migrations` 里**（未记�
 | `groups` 5 列 + `users` 2 列 + `usage_logs.media_type` | **8 个列全在** |
 | `sora_tasks` | 不存在 —— 但**两条线都没有 migration 建过它**（`063` 只建了 `sora_generations`），所以它的缺席不是 090 跑过的证据 |
 
+### ❌ 已撤回：「090 已记录但从未执行」（我下早了，2026-08-07 同日修正）
+
+发现 **`backend/migrations/198_restore_sora_customizations.sql`（只在 U 上，P 和 U2 都没有）**，
+文件头第一行就是：
+
+```
+-- Restore the production Sora customization after upstream migration 090 removes it.
+```
+
+→ 同一份证据有**两个都成立的历史**，不能只挑一个：
+
+| | 历史 A：090 从未执行 | 历史 B：090 执行了，198 又建回来 |
+|---|---|---|
+| 8 个列还在 | ✅ 没被删过 | ✅ 198 用 `ADD COLUMN IF NOT EXISTS` 加回 |
+| `sora_accounts` 0 行 | ✅ 一直没配账号 | ✅ 被 drop 后 198 重建成空表 |
+| `sora_generations` 8 行 | ✅ 正常累积 | ✅ 重建后新写入的 |
+
+**证据现在明显偏向 B**：P 的 checksum 白名单里 `001_init.sql`/`131`/`132`/`133` 四条，
+`acceptedDBChecksum` 记的是 **U2（上游）那一侧的哈希** → 说明**上游那一版文件真的在这个库上跑过**，
+而 090 就在同一批里。B 还不需要任何人工干预就能自洽（runner 按序跑：090 删 → 198 建回）。
+
+**判据（已验证可用，单次 `information_schema` 查询定案）**：
+
+| | `sora_accounts` 的列 |
+|---|---|
+| P 的 `046` 形状 | `account_id, access_token(NOT NULL), refresh_token(NOT NULL), session_token, created_at, updated_at` |
+| U 的 `198` 形状 | `account_id, credentials(JSONB), extra(JSONB), created_at, updated_at` |
+
+两者在 `access_token` / `credentials` 上**互斥** → 查到哪个就是哪段历史。
+
+⚠️ **`sora_generations` 不能当判据**（我一度想用，已验证不行）：P 的 `063` 本来就有
+`api_key_id`/`media_urls`/`s3_object_keys`/`completed_at`，两种历史下形状一样。
+
+**不管是 A 还是 B，闸门都是关的**（已记录 → runner 跳过 → 换主干不跑 DDL）。
+但如果是 B，多一条后果：**Sora schema 是靠 198 活着的，而 U2 有 090、没有 198。**
+→ 要留 Sora 就必须把 `198` 一起搬到 U2，否则将来在干净库上重建会重新删掉。
+
 ⚠️ **通用红线：「migration 已记录」≠「库已经是这条 migration 之后的样子」。**
 runner 按完整文件名跳过，只要那一行在，DDL 到底生效没有无从得知。
 凡是依赖"某个 schema 变更已生效"的判断，必须直接查 `information_schema`，
@@ -409,6 +446,30 @@ runner 按完整文件名跳过，只要那一行在，DDL 到底生效没有无
 
 ⚠️ **反向红线：绝不能删 `schema_migrations` 里 090 那一行，也不能强制重跑 migration。**
 那 8 条 `sora_generations` 数据和 8 个列现在是靠"记录挡着"才活下来的。
+
+### ⭐ checksum 闸门：已测，是关的（差点漏掉的第三个换主干闸门）
+
+`migrations_runner.go:187-212` —— runner 对**每个已记录的 migration** 重算
+`sha256(TrimSpace(文件内容))` 并与库里的 `checksum` 比，**不一致就拒绝启动**
+（不是警告，是 `return fmt.Errorf`）。只有硬编码白名单
+`migrationChecksumCompatibilityRules` 能豁免，且要求文件哈希和库哈希**同时**命中。
+
+→ 所以"同名文件两条线内容不同"是一个**独立于 migration 记录的启动级闸门**。实测：
+
+| 比对 | 同名 | checksum 不同 |
+|---|---|---|
+| **U vs U2** | 239 | **0** ← 决定性：U2 的文件与库里（U 跑出来的）记录天然一致 |
+| P vs U2 | 101 | 4（`001_init`/`131`/`132`/`133`）——且**这 4 个正好全在 P 的白名单里** |
+
+**结论：U2 不会因 checksum 拒绝启动。** P 之所以需要那 4 条白名单，正是因为库里存的是
+上游那一版的哈希——这反过来成了"上游 migration 真跑过"的证据。
+
+方法自检（必须做）：我重算的 P `001_init.sql` = `17d187d5de98…87fe`，与白名单里硬编码的
+`fileChecksum` **完全一致** → 证明我算的就是 runner 算的那个东西。
+
+migration 条目数也全部对上：同名 103 = 101 `.sql` + 2 `.go`；
+U2 独有 142 = 138 `.sql` + 4 `.go`（与 Codex 报的 138 不矛盾）；
+U 比 U2 多的 19 个 `.sql`（`186`–`204`）**正好等于 B8a 里那 19 个 migration**。
 
 **计费风险已排除**（曾担心 U2 不写这些列会 INSERT 失败，实测不会）：
 `usage_logs.media_type` 是 `VARCHAR(16)` **可空无默认**，`users`/`groups` 上的 sora 列是
@@ -434,8 +495,32 @@ P 没有"的定制，结构上不可能出现在 B1–B7 里。已实测漏掉�
 | Reseller migration `200`/`201` | 生产库**已记录**、表和数据都在；U2 有 **0 个** reseller migration |
 | `channel_id=NULL` 计费修复（`9e9440e35`）| 只在 U 的 tip |
 
-→ **真实重放盘子 > 907。B8 必须单独量，而且量的时候要减掉上游 3134 个提交的改动**
-（U 含 v0.1.171 合并，`fork..U` 的 diff 里绝大部分是上游的，不是我们的）。
+→ **真实重放盘子 > 907。**
+
+**B8a 已量出 = 116 个**（用「存在性」测法：**U 有 + U2 无 + P 无**，零误判，
+不用去减上游那 3134 个提交——因为上游改过的文件必然在 U2 里存在，天然被排除掉）：
+
+| 目录 | 数 |
+|---|---|
+| `backend/internal/service` | 36 |
+| `backend/migrations` | **19**（`186`–`204`）|
+| `backend/internal/handler/admin` | 11 |
+| `backend/internal/handler` | 11 |
+| `frontend/src/views/reseller` | 6 |
+| `frontend/src/views/admin/reseller` | 5 |
+| `backend/scripts` | 4 |
+| 其余（middleware/repository/components…）| 24 |
+
+含测试 153，剔测试 + `ent` 后 **116**。
+
+锚点自检的坑：**reseller 31 个里有 10 个是测试**（`reseller_repo_test.go`、
+`__tests__/AdminAgents.spec.ts` 等），所以剔测试后是 **21**，不是 31。
+21 个全部 `U2=0|P=0` → B8a 管线正确。**别拿 31 当锚点**。
+
+**→ 账本总盘：907（B1–B7）+ 116（B8a）= 1023，需动手 845 + 116 = 961。**
+
+B8b（U/U2/P 三方都有、但 U 与另两个都不同）**先不量**：那一桶必然混进上游改动，
+且价值低于先把 B8a 这 116 个（reseller 全在里面）落地。
 
 ### ⚠️ 方法红线（这两条今天各绊我一次，都写死在这）
 
