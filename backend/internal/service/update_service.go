@@ -543,6 +543,12 @@ func compareVersions(current, latest string) int {
 
 func parseVersion(v string) [3]int {
 	v = strings.TrimPrefix(v, "v")
+	// 剥掉 SemVer 预发布/构建元数据后缀，再按点切分。
+	// 我们的版本戳形如 0.1.3-ssxz.20260807，不剥的话第三段是 "3-ssxz"，
+	// Atoi 失败后静默留 0 → 0.1.3 被当成 0.1.0，会误报"有新版本可用"。
+	if idx := strings.IndexAny(v, "-+"); idx >= 0 {
+		v = v[:idx]
+	}
 	parts := strings.Split(v, ".")
 	result := [3]int{0, 0, 0}
 	for i := 0; i < len(parts) && i < 3; i++ {
