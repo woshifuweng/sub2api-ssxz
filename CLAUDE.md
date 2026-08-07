@@ -74,6 +74,119 @@ git ls-tree -r <tag> -- backend | ...  # 与生产线 ls-files 求交集
 curl -s -o /dev/null -w '%{http_code}\n' https://api.ssxzapi.com/api/v1/admin/users   # 控制组，应为 401
 ```
 
+## 5.5 ⛔ v0.1.172 账号接管 0day — P **结构上有洞**，靠"OAuth 全关"挡着（2026-08-07 实测）
+
+用户指令：**「必须合并 172，171 之前的版本都有大漏洞」**。上游 release 说明：
+"攻击者仅凭受害者邮箱，即可通过 OAuth 登录补全流程把自己的第三方身份绑定到他人账号并直接登录"。
+
+**修复本体只有 1 个文件 15 行**：`02e50cc22`（Puppywang，2026-08-07 03:09）改
+`backend/internal/handler/auth_oauth_pending_flow.go`，加一道闸：
+
+```go
+if !canIssueTokenPair && !strings.EqualFold(strings.TrimSpace(session.Intent), oauthIntentBindCurrentUser) {
+    response.Success(c, payload)
+    return
+}
+```
+
+位置：`ExchangePendingOAuthCompletion` 里，**紧接 `pendingSessionWantsInvitation` 那个 return 之后、
+`if !adoptionDecision.hasDecision()` 之前**。
+
+### P 的实测状态：符号全在、闸没有
+
+| 测项 | P | 上游 172 |
+|---|---|---|
+| `auth_oauth_pending_flow.go` | 有，2060 行 | 2066 行（171 是 2051）|
+| `ExchangePendingOAuthCompletion` / `applyPendingOAuthAdoption` / `canIssueTokenPair` / `oauthIntentBindCurrentUser` | **全部存在** | 存在 |
+| `session.Intent` 字段 / `strings` import | 有 / 有（**补丁能直接编译**）| — |
+| **那道闸** | **不存在** | 存在（2012 行）|
+| `pendingSessionRequiresBindLogin`（172 里紧挨补丁的兄弟闸）| **0 处** | 3 处 |
+
+攻击链在 P 里逐环都对得上：`createPendingOAuthAccount`(594) 和
+`SendPendingOAuthVerifyCode`(1759/1772) 发现邮箱已存在 → `transitionPendingOAuthAccountToChoiceState`
+→ `updatePendingOAuthSessionProgress`(731) `SetTargetUserID(受害者)` → exchange 带 adoption decision
+→ `applyPendingOAuthAdoption`(2033) 把攻击者 identity 绑到 `session.TargetUserID`。**全程无密码、无验证码。**
+
+### 唯一挡着的东西：生产 OAuth 全关（**不是代码修好了**）
+
+```
+"linuxdo_oauth_enabled":false   "wechat_oauth_enabled":false
+"oidc_oauth_enabled":false      "wechat_oauth_open_enabled":false / mp / mobile 全 false
+```
+
+pending session **只有一个铸造点** `createOAuthPendingSessionWithContext`
+（`auth_oauth_pending_flow.go:184`），调用者只有 linuxdo / oidc / wechat 三家的 callback，
+三家的 config resolver 都会 `NotFound("OAUTH_DISABLED")`（linuxdo:593、oidc:744、wechat:1128/1178）。
+→ **拿不到 pending cookie，链条第一环就断。**
+
+⚠️ **但 `/oauth/pending/*` 四条路由本身是活的、免鉴权的**，已实测（生产 POST）：
+
+| 探测 | 响应 |
+|---|---|
+| `/api/v1/auth/oauth/pending/exchange` | `{"code":404,...,"reason":"PENDING_AUTH_SESSION_NOT_FOUND"}` ← **handler 在跑** |
+| `/api/v1/definitely-not-a-route-xyz`（负控）| `404 page not found` ← gin 的 |
+| `/api/v1/auth/oauth/pending/send-verify-code` | `400 Field validation for 'Email' failed` ← **在跑** |
+| `/api/v1/auth/oauth/pending/bind-login` | `400 ...` ← **在跑** |
+
+⚠️ **红线：在补丁上线之前，后台绝对不许打开任何一个 OAuth 开关**（linuxdo / wechat / oidc / 微信支付授权）。
+现在的安全性由一个**后台开关**提供，不由代码提供——**点一下开关就是真洞**。
+（微信支付那条 `payment/callback` 我确认了 resolver 有 OAUTH_DISABLED 分支，
+但**没验它读的是哪个 config key**，可能与 `wechat_oauth_enabled` 不同源 → 归为待验。）
+
+### 172 不是"小版本"：208 文件 / 142 非测试
+
+不能"顺手合一下"。同区间还带着这些（其中两条正好打我们踩过的坑）：
+
+| 提交 | 内容 |
+|---|---|
+| `db0bff82c` | **上游响应模型审计**——能识别上游偷偷替换/降级模型（对应我们查过的调度/计费疑点）|
+| `e687ca3e9` | 系统日志落库失败后退避重试，**避免拖垮数据库连接池** |
+| `99b357083` | 订阅每日零点配额重置修复 |
+| `c33c3208e` | 流内降载错误恢复 pre-output failover |
+
+⚠️ **`backend/internal/repository/migrations_runner.go` 在 171..172 区间被改了**——
+那正是 checksum 启动闸所在文件。§6 里"U2 vs 库 checksum 全对得上"是在 **171** 上测的，
+**换 172 底座必须重测那一闸**，不能直接继承结论。
+
+### ✅ P 的等价补丁已写好并通过全部闸门（**未部署**，2026-08-07）
+
+**不整版合 172，只把那 15 行搬到 P。** 理由：整版 208 文件要过 §6 那整套账本，
+而洞只有 1 个文件；先堵洞、再按 upstream-first 慢慢换主干，两件事解耦。
+
+```
+隔离 worktree: F:\CodexTemp\hotfix-oauth-takeover （从 P 的 e8ef9e645 新建，没碰 P 的树）
+分支/提交:     hotfix/oauth-pending-account-takeover  →  4988a280b
+改动:          auth_oauth_pending_flow.go +15 行（闸门）
+               auth_oauth_pending_takeover_guard_test.go +128 行（新增回归测试）
+二进制 MD5:    0d857a0730c5535e2076efadf818d6cb   （122,386,601 字节）
+```
+
+| 闸门 | 结果 |
+|---|---|
+| `go vet` 该包 | ✅ 0 |
+| 生产交叉编译 `GOOS=linux GOARCH=amd64 CGO_ENABLED=0` | ✅ 0 |
+| **全量 `go test ./...`** | ✅ **37 包 ok / 0 FAIL** |
+| 新增回归测试 11 个子用例 | ✅ 全绿 |
+
+补丁与上游**逐字相同，只有一处必要改写**：P 的函数是 gateway-context 版
+（`ExchangePendingOAuthCompletionGateway`），所以 `response.Success(c, payload)`
+写成 `c.WriteJSON(http.StatusOK, payload)`。位置、条件表达式、常量全部一致。
+
+**回归风险已实测排除（针对「修了这边别坏那边」）**：闸门拦住后 exchange 不再落
+adoption decision，但**终态端点不依赖它** —— `auth_linuxdo_oauth.go:564` 和
+`auth_oidc_oauth.go:715` 都是拿**自己请求体里的** `req.AdoptDisplayName`/`req.AdoptAvatar`
+调 `ensurePendingOAuthAdoptionDecisionWithContext`。上游 172 同构
+（`bindOptionalOAuthAdoptionDecision` 全仓只在 exchange 这一处被调用）。
+另外 P 里 `step` 只有**一个**非空取值 `choose_account_action_required`，
+所以被闸门影响的状态是封闭可枚举的，不存在没数到的分支。
+
+⚠️ **测试覆盖的诚实边界**：上游那个端到端测试依赖 3501 行 / 37 测试的 harness
+（`newOAuthPendingFlowTestHandler` + Affiliate/Promo/Totp/SecretEncryptor 一整套），
+**P 里完全不存在**（P 的 handler 包 0 个 pending-OAuth 测试）。搬 harness 比搬补丁本身大得多，
+所以我改成测**纯函数判据**：锁死 `pendingOAuthCompletionCanIssueTokenPair`
+在 choice 状态返回 false（闸门左半边），加闸门真值表。
+→ **没有**端到端"攻击者 identity 真的没写进库"的断言，那个等换 U2 主干时白捡。
+
 ## 6. 长期方向：Upstream-first（上游当主干 + SSXZ 补丁层）— 2026-08-07 用户已确认
 
 ⚠️ **"分家"这个词是错的，已作废。** 上游 remote 从没断开（`upstream` →
@@ -359,9 +472,41 @@ U2 与 P 的 `pnpm-lock.yaml` 不同 blob → **不能共用 node_modules**，�
 旧基数 1361 也作废——**那个过滤器已证明是坏的**（见下方方法红线），
 `-z` 修好后多出的 8 个是非 ASCII 路径（`docs/教程…`）。
 
-B6 按差异行数分层（**合计 189,897 行**）：S≤20 行 **91** · M 21–100 **151** ·
-L 101–500 **164** · XL>500 **93**。最贵：`SettingsView.vue` 14377 行 ·
-`gateway_service.go` 9296 · `openai_gateway_service.go` 6362 · `GroupsView.vue` 5660。
+### ⭐ B6 真实成本 = 63,166 行，不是 189,897（2026-08-07 修正 3.0×）
+
+❌ **作废：「B6 合计 189,897 行，`SettingsView.vue` 14377、`GroupsView.vue` 5660」。**
+那个数是 **P↔U2 的 diff**，其中 50.4% 是**上游 3134 个提交自己的改动**，不是我们的工作量。
+`rep`（P↔U2）能告诉你"合并时会撞多少行"，**不能**告诉你"我们改了多少" —— 别混用。
+
+三个口径必须分开：`ours` = fork→P（我们改的）· `theirs` = fork→U2（上游改的）· `rep` = P↔U2。
+
+⚠️ **但 `ours` 对"导入文件"也是错的**：2026-04-25 有一次上游同步
+（`412a04e2b` "Synchronize upstream features and native gnet auth routes" 加 22 个 +
+`8c7798584` "优化" 加 14 个），把上游代码**当成我们的新增**算进了 `ours`。
+141 个 B6 文件在分家点**不存在**，其中 129 个是这两个提交带进来的。
+这类文件的基线必须**重建为最近的上游 blob**，不能用分家点。
+
+按重建基线重算，505 个 B6 的真实结构：
+
+| 桶 | 数 | 真实行数 | 旧 `ours` 报的 |
+|---|---|---|---|
+| 纯上游副本（blob 与某上游 tag 字节一致）| 26 | **0**（直接取 U2）| — |
+| 导入时就改过（非纯副本）| 51 | **1,795**（均 35）| 12,491（**虚高 7×**）|
+| 导入后又改过 | 64 | **5,602** | 上两桶合计 40,082 |
+| 真 SSXZ 自研 | 364 | **55,769** | — |
+| **合计** | **505** | **63,166** | 189,897 |
+
+修正后最贵的不再是那几个（`SettingsView.vue` 真实 `ours` = **654** 行，
+`GroupsView.vue` = **85** 行，两个都掉出前十）。51 个导入文件里最贵的：
+`gateway_tool_rewrite.go` 186 · `channel_monitor_checker.go` 182 · `payment_order.go` 121 ·
+`auth_oauth_email_flow.go` 114 · `payment_webhook_handler.go` 103 · `MonitorFormDialog.vue` 103。
+
+⚠️ **「导入后没再改过」≠「纯上游副本」**：那次同步是**在同一个提交里**边导入边适配的，
+所以"导入后 diff 为空"的文件里仍然藏着真定制。**唯一可靠的纯净判据是
+blob 与上游 tag 字节一致**（实测 77 个里只有 26 个是）。
+
+**独立佐证血脉**：51 个导入文件的最近基线 **全部 = v0.1.136**，
+与 §4 血脉峰值法（v0.1.136，38.2%）用**完全不同的方法**得到同一个答案。
 
 ⚠️ **我"内容比对能压掉一大截"的预期是错的，只压掉 48 个。**
 B4「我们其实没改过」= **0**、B5「只是吸收过上游」= **6** ——
@@ -548,7 +693,8 @@ B8b（U/U2/P 三方都有、但 U 与另两个都不同）**先不量**：那一
   否则合过的东西会被另一条线的部署第三次顶掉
 - 每次部署必须记三样：**上游底座 tag + 我们的 HEAD + 二进制 MD5**（`DEPLOYED.md`）
 - 上游安全补丁不会自动到我们手上 → 必须定期看上游 release，有则单独挑
-- 截至 2026-08-07，本地可见最新上游 tag 是 `v0.1.171`（**没有 172/173**）
+- 截至 2026-08-07 晚，本地可见最新上游 tag 是 `v0.1.172` = `155c49496`（**没有 173**），
+  `upstream/main` = `68d8f122e`。**v0.1.172 含账号接管 0day 修复，见 §5.5。**
 - **比对功能差异只用符号法/路由法，不用文件名法。** 文件名法今天连续骗了三次：
   「P 独有 56549 个文件」（56515 个是 `.pnpm-store`+`rust/target` 构建垃圾）、
   「U 缺 UserOrdersView」（**当时说"改名了"，这个解释也是错的——见 §6：
