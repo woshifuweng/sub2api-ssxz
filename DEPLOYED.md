@@ -194,6 +194,11 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags embed -trimpath \
   等于绕过了本文件第 5 项的资源基线核验。lockfile 里那几个版本号（`lodash@4.18.1`、
   `js-cookie@3.0.8`）看着像不存在，实际已在公共 registry 发布过，`--frozen-lockfile` 在
   干净服务器上能拉到，不用担心。
+  - ⚠️ **未解决**：2026-08-07 在本机执行 `pnpm install --frozen-lockfile` 直接崩溃，
+    退出码 `-1073740791`（`0xC0000409` STATUS_STACK_BUFFER_OVERRUN，Windows 码）。
+    该次部署因产物已在磁盘上而绕过，**但下次动前端必然再撞**。未验证的怀疑（按可能性排序）：
+    仓库里 **107,667 个被误提交的 `.pnpm-store/` 文件** / Windows 路径长度 / store 索引损坏。
+    崩溃**没有**损坏 `node_modules`（36 个顶层包 + `.pnpm` 完好），所以当时仍能直接构建。
 - **`-X main.Version` 不可省**。`backend/cmd/server/VERSION` 里只写 `0.1.3`，血脉戳完全靠
   ldflags 注入（`main.go:23` 的 `//go:embed VERSION` 只是兜底）。漏掉这个 flag，生产
   就变回裸 `0.1.3`，`verify-deployed.sh` 第 55 行会失败，考古循环重新开始。
@@ -248,12 +253,21 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags embed -trimpath \
 构建与自检（本地，已全部通过）：
 
 ```
-前端: npm run build            # vite.config.ts:65 outDir 直接指向 backend/internal/web/dist，无需拷贝
+前端: pnpm install --frozen-lockfile && pnpm run build
+      # vite.config.ts:65 outDir 直接指向 backend/internal/web/dist，无需拷贝
+      # 注意：本次实际是拿已有 node_modules 直接跑 `npm run build`（npm 此处只当脚本运行器，
+      #       不解析依赖，所以产物正确）。但**不要**由此推出"可以用 npm"——见「构建命令」段第 1 条。
 后端: GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags embed -trimpath \
-      -ldflags "-s -w -X main.Version=0.1.3-ssxz.20260807 -X main.Commit=48faffaae-dirty -X main.Date=<UTC>"
+      -ldflags "-s -w -X main.Version=0.1.3-ssxz.20260807 -X main.Commit=e8ef9e645 -X main.Date=<UTC>"
 ```
 
-- 二进制 md5 `b35e72ddca2543fc7d0b364411ac48dc`（旧 `c8229da332d332428ce48b9d94abd539`）
+- **实际上线二进制**：`sub2api_linux_e8ef9e645`，md5 `633825a54384d11572e8f6931ec87825`，93,737,122 bytes
+  - commit 戳为**干净** `e8ef9e645`（Go buildinfo `vcs.revision` 无 modified 标记）
+    → 线上二进制可反查到已推送的提交，这是本轮"查不出线上跑哪份代码"的解药
+  - 二进制里 `-dirty` 命中 2 处，**均为无关库字符串**（`baseline and allow-dirty are mutually exclusive`），
+    `e8ef9e645-dirty` 命中 0 —— 别被这 2 处误导成脏构建
+- 备用（15:21 首次构建，内容等价但戳为 `48faffaae-dirty`，无法证明对应哪次提交）：
+  md5 `b35e72ddca2543fc7d0b364411ac48dc`（更早一版 `c8229da332d332428ce48b9d94abd539`）
 - ELF64 x86-64 已核（`7f 45 4c 46 02 01 01` + machine `0x3e`），不是 Windows 产物
 - 体积 130MB → 93.7MB，**纯粹因为加了 `-s -w`**（与 `deploy/Dockerfile:69` 一致），不是内容缺失
 - 二进制内含新入口 `index-Bn3BFivZ.js`(90 处)，**旧入口 0 处** → embed 确实吃到新前端
