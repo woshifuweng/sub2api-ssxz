@@ -121,22 +121,43 @@ Codex 扫出的 2 条裸 `ADD COLUMN`（`189_add_group_allow_live`、`204_add_bi
 和 9 处无 `ON CONFLICT` 的 INSERT：**正常部署都不会执行**（文件名已记录 → 跳过；
 9 处里 8 处在 `CREATE OR REPLACE FUNCTION` 函数体内，定义时不执行）。只有**强制重跑**才会炸。
 
-### U 前端构建失败 = 合并解错，不是上游缺陷（已定位到行）
+### ⛔ U 前端根本构建不出来：缺 108 个上游文件却留着 import（2026-08-07 实测）
 
-U 后端交叉编译**成功**（162,165,705 字节，`GOOS=linux GOARCH=amd64 CGO_ENABLED=0` 已确认）。
-前端 `vue-tsc` 挂在 **2 个文件**，都是 `b9545e8dd`（合 171 那次）最后改的，**上游自己的副本是好的**：
+U 后端交叉编译**成功**（162,165,705 字节，`GOOS=linux GOARCH=amd64 CGO_ENABLED=0` 已确认），
+`go test ./...` **全绿**。但前端是硬阻断：
 
-| 文件 | 缺陷 | 上游对照 |
-|---|---|---|
-| `LinuxDoOAuthSection.vue:23` | `defineProps<{` **没有 `withDefaults(` 包裹**，但尾部留着 `}>(), {` | v0.1.169/171 都有 `withDefaults` |
-| `EmailVerifyView.vue:522` | 保留了 P 的 `const response = await sendVerifyCode({`，但函数体和收尾来自上游的 `const requestPayload = {` 形式 → `requestPayload` 被引用 3 次却**从未声明**，且 `const response` 声明两次 | v0.1.171 有 `const requestPayload = {`（531 行）|
+```
+修掉那 2 个语法错之后，vue-tsc 仍报 625 错 / 40 文件
+pnpm exec vitest run → 60 个测试文件失败 / 133 个测试失败（184 文件 877 测试）
+```
 
-**判据（别用 `}>(), {` 计数，会误报）**：`有 }>(), { 但整个文件没有 withDefaults(` → P=0 个，U=1 个。
-P 里有 27 个 `}>(), {` 且构建正常，那是正常写法的尾巴。
+**"U 前端只坏了 2 个文件"是错的（我说错了）。真因是缺文件，不是语法：**
 
-⚠️ **这暴露一个更大的信号：171 那次 138 个冲突是在从没构建过的情况下解的**（U 的 `dist` 未跟踪）。
-抽查的头 2 个都解错了 → 换主干前**必须跑全套测试**，不能只看编译过。
-编译能过不代表语义对：这 2 个是语法错所以 tsc 抓到了，解错成"语法对但语义错"的不会报错。
+| 测项 | 结果 |
+|---|---|
+| 上游 v0.1.171 有、U 没有的前端文件（非测试） | **108 个** |
+| 这 108 个里属于 169→171 新增的 | **0 个** ← 不是合 171 漏加的，本来就缺 |
+| P 也缺这 108 个里的 | **107 个** |
+| 自洽性判据：`import './url'` 的文件数 | **P=0，U=2**；而 `url.ts` 两条线都没有 |
+
+**P 缺同样的文件但能构建，因为 P 连 importer 一起没有 → 自洽。
+U 留着 importer 丢了被 import 的模块 → 不自洽。**
+所以 U 不是"上游 171 + 我们的定制"，是一个**半成品状态**。
+
+缺失的代表：`api/url.ts`、`api/adminUIRequest.ts`、`utils/oauthAffiliate.ts`、
+`utils/safeStorage` 之外的一批 utils、`views/admin/groupsModelsList.ts` 等 5 个 Groups 拆分模块、
+`features/prompt-audit/api.ts`、整套 `i18n/locales/{zh,en}/**`、Grok/批量图片/Ollama 相关组件。
+
+要修就得把这 108 个从上游补回来 → **等于把我们从来没有的那批功能一起搬进来**
+（Grok、批量图片、Ollama、prompt-audit）。这才是"搬进一个陌生产品"，
+而且这次是**实测的**，不是推断的。
+
+⚠️ **171 那次 138 个冲突是在从没构建过的情况下解的**（U 的 `dist` 未跟踪，没人发现）。
+两个抽查的语法错是 `b9545e8dd` 解错的（上游自己的副本正常）：
+`LinuxDoOAuthSection.vue:23` 少 `const props = withDefaults(`；
+`EmailVerifyView.vue:522` 混了两边形态导致 `requestPayload` 引用 3 次却未声明。
+**判据别用 `}>(), {` 计数**（P 有 27 个且构建正常，那是正常写法的尾巴）；
+正确判据是「有 `}>(), {` 但整个文件没有 `withDefaults(`」→ 修复后 P=0、U=0。
 
 ### 已证伪的方案：按 `[ssxz]` 标记重放补丁
 
@@ -149,39 +170,83 @@ P 里有 27 个 `}>(), {` 且构建正常，那是正常写法的尾巴。
 本仓库大量 squash-merge，可重放的干净补丁序列**不存在**，也无法追溯补造。
 方向（补丁层化）是对的，但不能以"重放现有 `[ssxz]` 提交"起步。
 
-### U 当主干需要搬的东西（已用符号/路由法测清，不是文件名法）
+### ❌ 已作废："U 当主干只需搬 4 项"（我说错了，2026-08-07 修正）
 
-**功能层面 U 几乎是 P 的超集**，"P 独有 33 个源码文件"里绝大部分是文档/截图/skill：
+那个结论来自**路由集 + 符号**测法。它们能证明"功能在不在"，
+**证明不了"页面长得一样"**——这是这套测法的盲区，也是它漏掉的东西：
 
 | 测项 | 结果 |
 |---|---|
-| 客户可见路由 P−U | **空集**（P=69 条，U=79 条）|
-| `oauth_compat` 符号在 U | **2/2、1/1 全齐** → 不用搬 |
-| `UserOrdersView` | U 的 `AppOrdersView` 是**改名**（`getMyOrders`/`getRefundEligibleProviders` 都在）→ 不用搬 |
-| U 白捡的 Reseller 路由 | **8 条**（`/app/reseller/*` + `/admin/reseller/*`）|
+| 两条线共有的 `.vue`/`.css`（非测试） | 282 个，其中**内容不同 113 个** |
+| 其中**客户可见**（`user/`+`auth/`+`layout/`+`common/`+`views` 根） | **57 个** |
+| 仅管理端（`admin/`） | 44 个 |
+| 改动最大的 | `SettingsView.vue` 7655 行差、`GroupsView.vue` 3862、`KeysView.vue` 3458 |
 
-真正要搬的只有 4 项：
+客户可见的 57 个里包含**整套设计系统**：`ThemeToggle.vue`、`Toggle.vue`、`Select.vue`、
+`DataTable.vue`、`AppHeader.vue`、`AppSidebar.vue`、`GroupSelector.vue`、
+`PaymentMethodSelector.vue`、`SubscriptionPlanCard.vue`、`HomeView.vue`、全部 `auth/` 页面。
 
-1. 今天 5 个修复：兑换码去 Turnstile / `parseVersion` / 作图页 `AppSectionShell` / CSP / dist 重建
-2. `ModelPricingView.vue` + `modelPricing.ts` + **router 把 `/app/available-channels` 指回去**
-3. `frontend/src/api/affiliate.ts`（4 个符号在 U 整棵树 0 命中，真缺）
-4. `frontend/public/logo.png`（U 里没这个文件）
+**所以切主干真实工作量不是 4 项，是 4 项 + 57 个客户可见 UI 文件逐个核对。**
 
-**⚠️ 第 2 项里的 router 重指是最容易漏的一步**：`/app/available-channels` 这条路由
-**两条线都有**，所以路由集比对是空集查不出来。但它渲染的组件不同——
-P 是 `ModelPricingView.vue`（今天重建的定价页），U 是 `AvailableChannelsView.vue`（旧的）。
-**只切主干不重指，今天的定价页会静默消失。**
+仍然成立的部分（这些测法没错，只是不够）：客户可见路由 P−U = **空集**（P=69/U=79）；
+`oauth_compat` 符号 U 已齐 2/2、1/1；`UserOrdersView`→`AppOrdersView` 是改名。
 
-### 站得住的规则
+**⚠️ 最容易漏的一步**：`/app/available-channels` 两条线都有，路由集比对查不出来，
+但 P 渲染 `ModelPricingView.vue`（今天重建的定价页），U 渲染 `AvailableChannelsView.vue`（旧的）。
+只切主干不重指 → **今天的定价页静默消失**。
 
-- **唯一主干**：任何时刻只有一条线可以编译部署。这条规则跟"选 P 还是选 U"无关，
-  但**必须先立**——否则合过的东西会被另一条线的部署第三次顶掉
+### 主题切换（太阳/月亮）：不是回退，线上就是我们自己的（已实测结案）
+
+怀疑"线上主题按钮变回上游出厂样式"。**实测证伪**——直接查已部署的入口 chunk：
+
+```
+入口 index-Bn3BFivZ.js（与 index.html 声明一致）
+theme-toggle 类名 ×1 · 我们的 sun 路径 M12 3v2.25 ×1 · 我们的 moon 路径 M21.752 ×1
+nav.lightMode ×1 · lucide 痕迹 ×0
+```
+
+| 事实 | 值 |
+|---|---|
+| `ThemeToggle.vue` 在上游 v0.1.171 | **不存在**（这是我们自己写的组件，无"上游出厂版"可回退）|
+| P 的 `ThemeToggle.vue` 最后改动 | `2e7c8ec1f` **2026-07-13**，之后没动过 |
+| 今天那个碰 `Icon.vue` 的提交 `229004d93` | **没有改 sun/moon 路径**（+1 行，与图标无关）|
+| P 与 U 的 `ThemeToggle.vue` | **不同**：P 用自家 `Icon.vue`（Heroicons 路径），U 用 `@lucide/vue` 的 `Moon/Sun` |
+
+所以**方向是反的**：切到 U 才会让主题按钮换成 lucide 版。线上现在是我们的版本。
+观感变化更可能来自 `1c3bc36ca`（2026-07-16 全站单色主题统一），不是代码丢失。
+
+### ⭐ 结论：P 当主干，从 U 单个挑（2026-08-07 定，三次翻转后的终态）
+
+这个结论今天翻转过三次，最终由**两个实测事实**钉住，不要再重推：
+
+| 事实 | 后果 |
+|---|---|
+| U 缺 108 个上游前端文件，却留着 import 它们的文件 | U **不自洽**，`vue-tsc` 625 错 / 40 文件、前端测试 133 挂。修它=把 Grok/批量图片/Ollama/prompt-audit 一起搬进来 |
+| P 缺同样的 107 个，但 import 它们的文件数 = **0** | P **自洽**，能构建、能部署、正在服务客户 |
+
+**P 自洽 + U 不自洽 → 主干只能是 P。**"换主干"这条路已由实测关闭。
+
+从 U 往 P 挑，按收益/风险排序：
+
+1. **Reseller（最高优先，客户现在受影响）**——生产库已有 200/201 和数据，
+   P 有 0 个 reseller 文件 → 8 条路由现在是 404。**已实测可整块搬**：
+   U 侧 15 个前端 + 5 个后端（非测试），22 个 `@/` 依赖里 P 只缺 5 个，
+   其中 4 个本身就是 reseller 文件，**唯一外部依赖是 `@/components/common/LiquidButton.vue`**
+2. **`channel_id=NULL` 计费修复**（`9e9440e35`，就是 U 的 tip）——只挑 3 个符号，
+   `usageChannelMappingForAPIKey` / `channelMappingResolver` / `GroupIDForUsage`，**不要整文件覆盖**
+
+- **唯一主干**：任何时刻只有一条线可以编译部署。**必须先立**——
+  否则合过的东西会被另一条线的部署第三次顶掉
 - 每次部署必须记三样：**上游底座 tag + 我们的 HEAD + 二进制 MD5**（`DEPLOYED.md`）
 - 上游安全补丁不会自动到我们手上 → 必须定期看上游 release，有则单独挑
 - 截至 2026-08-07，本地可见最新上游 tag 是 `v0.1.171`（**没有 172/173**）
 - **比对功能差异只用符号法/路由法，不用文件名法。** 文件名法今天连续骗了三次：
   「P 独有 56549 个文件」（56515 个是 `.pnpm-store`+`rust/target` 构建垃圾）、
   「U 缺 UserOrdersView」（改名了）、「U 缺 oauth_compat」（符号全在）
+- **但符号法/路由法也有盲区：它们证明不了"页面长得一样"。** 涉及 UI 时必须另外
+  逐个 diff `.vue`/`.css`（今天就是这么漏掉 57 个客户可见文件的）。
+  **自洽性测法**（有没有 import 却不存在的模块）比两者都强，是今天唯一一次
+  直接定住"哪条线能构建"的判据
 
 ## 7. 红线
 
