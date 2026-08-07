@@ -169,7 +169,8 @@ done
 
 ```bash
 # 1. 先构建前端（vite 的 outDir 直接指向 embed 目录，无需再手动 copy）
-cd frontend && npm run build
+#    包管理器是 pnpm，不是 npm（a11a0f289 已迁移）。用 npm 会静默换掉依赖树，见下方第 1 条。
+cd frontend && pnpm install --frozen-lockfile && pnpm run build
 
 # 2. 红线检查：入口 JS 绝不能带 ?v= query（两个 URL = 两份模块 = 双 mount 黑屏）
 grep -c '?v=' ../backend/internal/web/dist/index.html   # 必须是 0
@@ -184,8 +185,15 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags embed -trimpath \
   -o sub2api_linux ./cmd/server
 ```
 
-必须知道的三条：
+必须知道的四条：
 
+- **只能用 pnpm，不能用 npm**。`frontend/pnpm-lock.yaml`（lockfileVersion 9.0，已跟踪）是唯一
+  依赖真源。`npm ci` 会直接报 `can only install with an existing package-lock.json`（2026-08-07
+  部署卡在这里）；而 `npm install` **更糟**——`package.json:62` 的 4 个 pin 写在 `pnpm.overrides`
+  里，npm 不读这个键，会按 semver 范围重解出另一棵依赖树，vendor chunk 哈希跟着变，
+  等于绕过了本文件第 5 项的资源基线核验。lockfile 里那几个版本号（`lodash@4.18.1`、
+  `js-cookie@3.0.8`）看着像不存在，实际已在公共 registry 发布过，`--frozen-lockfile` 在
+  干净服务器上能拉到，不用担心。
 - **`-X main.Version` 不可省**。`backend/cmd/server/VERSION` 里只写 `0.1.3`，血脉戳完全靠
   ldflags 注入（`main.go:23` 的 `//go:embed VERSION` 只是兜底）。漏掉这个 flag，生产
   就变回裸 `0.1.3`，`verify-deployed.sh` 第 55 行会失败，考古循环重新开始。
@@ -280,6 +288,66 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags embed -trimpath \
 1. **以生产线为正本**，把 165/17x 线归档 → 放弃上游 6 个月演进，但零风险
 2. **升到 17x 线**，把生产线的 ssxz 改造迁移过去 → 4720 文件差异，需专门排期与回滚预案
 3. 维持三线 → 不可接受，本文件存在就是因为这个状态已经在造成损失
+
+## 已确认的功能回归（二）：上游 v0.1.171 升级 + channel_id 计费修复
+
+**先说清楚，避免下个会话重新考古**：171 **合过，是真的**，不是记错。
+`b9545e8dd Merge upstream v0.1.171 into upgrade/v0.1.169`（2026-08-05 07:13，111 提交 /
+138 冲突全解），当天上线，migration 192/193 于 16:21:44 在生产库执行过。
+memory `ssxz-aug05-session-findings` 那条记录没有写错——**它只是过期了**。
+
+现在生产上一点不剩。三条独立判据（2026-08-07 复核，全部只读）：
+
+| 判据 | 结果 |
+|---|---|
+| `b9545e8dd` 是生产线 tip 的祖先吗 | **不是** |
+| `v0.1.169..v0.1.171` 新增 81 个文件，生产线里有几个 | **1 个**（`AccountBulkActionsBar.spec.ts`，撞名，非同源），其余 80 全无 |
+| migration 最大编号 | 生产线 `138` / 171 线 `204`；`192`/`193` 在生产线**不存在** |
+| 实测生产 `/settings/public` 的 captcha 字段 | 171 线有 11 个 `tencent_*`/`aliyun_*`，生产返回 **0 个**，只有 `turnstile_enabled` |
+| 待部署二进制里 `profit_control_enabled` / `tencent_captcha_enabled` | **各 0 次** |
+
+**机制与经销商完全相同**，这是同一个病的第二个受害者：
+171 合并在 `upgrade/v0.1.169` 线，经销商在 `upgrade/v0.1.165` 线，生产现在跑第三条
+`codex/fix-client-brand-announcements`——它不是前两条的后代。8/6 起每次从本线构建部署，
+就把那两条的成果一起盖掉。**不是谁删了代码，是另一条分支的构建覆盖了它。**
+
+### 顺带丢失：channel_id=NULL 计费归属修复（优先级高于经销商）
+
+`9e9440e35`（同在 169 线，8/5 上线过）。它不像经销商那样"整块消失"，
+而是**同名文件内容不同**，所以只看文件是否存在会得出错误结论：
+生产线里 `backend/internal/handler/api_key_group_routing.go` **存在**（8145 字节），
+但里面不是那份实现。看符号才准：
+
+| 符号 | 生产线 | 169 线 | 待部署二进制 |
+|---|---|---|---|
+| `usageChannelMappingForAPIKey` | 0 | 6 | **0** |
+| `GroupIDForUsage` | 0 | 2 | **0** |
+| `channelMappingResolver` | 0 | 1 | — |
+
+原修复内容：账号调度后 `channelMapping` 未刷新导致 `ChannelID=0→NULL`；多分组 Key 只用第一个
+GroupID。**代码层面已确认缺失（线里没有、二进制里没有）；线上使用记录当前是否真在写 NULL 尚未验证**
+（需查库，非只读探测能覆盖）。
+
+移植方式：**只搬那 3 个符号涉及的改动，禁止整文件覆盖**——169 线该文件带几百行无关漂移，
+整文件搬会引入新回归（与经销商 affiliate 守卫同一教训）。
+
+### 数据库比代码超前（低风险，但不是零）
+
+192/193 跑过而代码只认到 `138`：
+
+- `192_group_profit_control.sql` = `ALTER TABLE groups ADD COLUMN IF NOT EXISTS ... NOT NULL DEFAULT`，
+  纯加列带默认值，老代码不碰它无影响。
+- `193_...auth_cache_invalidation.sql` = `CREATE OR REPLACE FUNCTION
+  enqueue_group_auth_cache_invalidation()`，**换掉了触发器函数体**。它引用的列 192 已建，
+  不会报错，但这是"代码已回退、行为仍留在库里"的东西，回滚二进制**不会**把它回滚掉。
+- `139–191` 之间约 50 个 migration **未逐个审计**。
+
+### 未受影响（已复核仍在生产线）
+
+- Luna `HasPrefix` 封禁：8 个文件命中
+- 缓存 0.5x fallback：`billing_service.go` / `pricing_service.go` 均在
+
+这解释了用户观察到的"只有一部分东西没了"——不同改动落在不同线上，命运不同。
 
 ## 已确认的功能回归：经销商（Reseller / 代理）
 
