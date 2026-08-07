@@ -388,15 +388,54 @@ grep 验不出来，只能靠编译。
 `DROP TABLE sora_tasks / sora_generations / sora_accounts` + 砍 `groups`/`users`/`usage_logs`
 上 8 个列。这是迁移里第一个**真正破坏性的闸门**。
 
-⚠️ **`/api/v1/sora/models` 返回 401 只证明二进制里有路由，不证明 Sora 表还在**
-（鉴权中间件在 DB 访问之前就返回了）。表在不在必须查库，未查。
+### ⭐ 破坏性闸门已关，但 090 是「已记录、从未执行」（2026-08-07 只读 SELECT 实测）
 
-⚠️ **CLAUDE.md 上文那条「切 U 会跑 0 个 migration」不能外推到 U2。**
-那是对 **U** 测的（U 的 >138 集合 86 个，`GT138_SET_DIFF=EMPTY`）。
-**U2 与 P 相比多 142 个 migration 文件**，其中带破坏性 DDL 的 4 个：
-`090_drop_sora.sql`（DROP TABLE+DROP COLUMN）· `127_drop_channel_monitor_deleted_at.sql` ·
+U2 的 138 个 SQL migration **全部已在 `schema_migrations` 里**（未记录 = 0）→
+**换主干不会跑任何一条 migration，4 个破坏性 DDL 一条都不触发。闸门关闭。**
+
+但同一次查询证明 090 的 DDL **从未真正生效**：
+
+| 090 要删的 | 现在库里 |
+|---|---|
+| `sora_generations` | **还在，8 条真数据** |
+| `sora_accounts` | 还在，0 条 |
+| `groups` 5 列 + `users` 2 列 + `usage_logs.media_type` | **8 个列全在** |
+| `sora_tasks` | 不存在 —— 但**两条线都没有 migration 建过它**（`063` 只建了 `sora_generations`），所以它的缺席不是 090 跑过的证据 |
+
+⚠️ **通用红线：「migration 已记录」≠「库已经是这条 migration 之后的样子」。**
+runner 按完整文件名跳过，只要那一行在，DDL 到底生效没有无从得知。
+凡是依赖"某个 schema 变更已生效"的判断，必须直接查 `information_schema`，
+**不能查 `schema_migrations`**。
+
+⚠️ **反向红线：绝不能删 `schema_migrations` 里 090 那一行，也不能强制重跑 migration。**
+那 8 条 `sora_generations` 数据和 8 个列现在是靠"记录挡着"才活下来的。
+
+**计费风险已排除**（曾担心 U2 不写这些列会 INSERT 失败，实测不会）：
+`usage_logs.media_type` 是 `VARCHAR(16)` **可空无默认**，`users`/`groups` 上的 sora 列是
+`NOT NULL DEFAULT 0` → U2 的 INSERT 不提这些列也能过。
+
+⚠️ **`/api/v1/sora/models` 返回 401 只证明二进制里有路由，不证明 Sora 表还在**
+（鉴权中间件在 DB 访问之前就返回了）。已改用只读 SELECT 定案。
+
+⚠️ **上文那条「切 U 会跑 0 个 migration」不能外推到 U2**——但 U2 已单独测过，结论相同。
+U2 比 P 多 **142** 个条目 = 138 个 `.sql` + 4 个 `.go` 回归测试
+（`auth_identity_payment_migrations_regression_test.go` 等），与 Codex 报的 138 不矛盾。
+带破坏性 DDL 的 4 个：`090_drop_sora.sql` · `127_drop_channel_monitor_deleted_at.sql` ·
 `136_remove_ops_retry_replay.sql`（DROP TABLE+TRUNCATE）· `180_audit_logs.sql`（TRUNCATE）。
-**这 142 个在生产库里有没有留痕 = 换主干前最后一个未知项，只读 SELECT 就能答。**
+
+### ⚠️ 账本盲区二（B8）：只活在 U 上的 SSXZ 工作，一个都没进 845
+
+账本基数 1381 是拿 **fork / P / U2 三棵树**算的，**没有 U**。所以任何"只在 U 上做过、
+P 没有"的定制，结构上不可能出现在 B1–B7 里。已实测漏掉的：
+
+| 只活在 U 的东西 | 实测 |
+|---|---|
+| Reseller 经销商代码 | U **31 个**文件；U2 **0**、P **0** |
+| Reseller migration `200`/`201` | 生产库**已记录**、表和数据都在；U2 有 **0 个** reseller migration |
+| `channel_id=NULL` 计费修复（`9e9440e35`）| 只在 U 的 tip |
+
+→ **真实重放盘子 > 907。B8 必须单独量，而且量的时候要减掉上游 3134 个提交的改动**
+（U 含 v0.1.171 合并，`fork..U` 的 diff 里绝大部分是上游的，不是我们的）。
 
 ### ⚠️ 方法红线（这两条今天各绊我一次，都写死在这）
 
