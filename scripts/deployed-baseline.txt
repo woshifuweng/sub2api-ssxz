@@ -1,5 +1,5 @@
 /assets/index-9_uviuae.css
-/assets/index-CTBPrhn_.js
+/assets/index-Bn3BFivZ.js
 /assets/vendor-i18n-BqIlsuWk.js
 /assets/vendor-misc-Biz7uIAo.js
 /assets/vendor-misc-DB0Q8XAf.css
