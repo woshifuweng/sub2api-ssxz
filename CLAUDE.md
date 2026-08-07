@@ -130,12 +130,27 @@ pending session **只有一个铸造点** `createOAuthPendingSessionWithContext`
 
 ⚠️ **红线：在补丁上线之前，后台绝对不许打开任何一个 OAuth 开关**（linuxdo / wechat / oidc / 微信支付授权）。
 现在的安全性由一个**后台开关**提供，不由代码提供——**点一下开关就是真洞**。
-（微信支付那条 `payment/callback` 我确认了 resolver 有 OAUTH_DISABLED 分支，
-但**没验它读的是哪个 config key**，可能与 `wechat_oauth_enabled` 不同源 → 归为待验。）
+✅ **微信支付那条已查清，不是待验**（读代码即可，不需要跑东西）：
+`WeChatPaymentOAuthStart/Callback` 调的是**同一个** resolver
+`getWeChatOAuthConfigGateway(ctx, "mp", c)`，闸是 `SupportsMode("mp")` → `MPEnabled`；
+而 `parseWeChatConnectOAuthConfig` 先要求 `cfg.Enabled && (Open||MP||Mobile)` 才不报 OAUTH_DISABLED。
+→ **微信支付授权需要 `wechat_oauth_enabled` 且 `wechat_oauth_mp_enabled` 同时为 true，
+与其他微信开关同源、主开关也在闸上。** 上面那条红线是完整的。
 
-### 172 不是"小版本"：208 文件 / 142 非测试
+### 172 的真实体量：真源码 122 文件 / +2384−612 行（**不是 208**）
 
-不能"顺手合一下"。同区间还带着这些（其中两条正好打我们踩过的坑）：
+❌ **已作废我自己报的「208 文件 / 142 非测试」**——那个数把测试和生成代码算进来了，
+虚高一倍多。171→172 全区间 +6215/−820，按类别拆开才是真答案：
+
+| 类别 | 文件 | 行 |
+|---|---|---|
+| **真源码** | **122** | **+2384 / −612** |
+| 测试 | 66 | +3130 |
+| `backend/ent/` 生成代码 | 9 | +636/−47（重新生成，不手抄）|
+| README + assets + 赞助商图片 | 10 | +64 |
+| `VERSION` | 1 | — |
+
+同区间带着这些（其中两条正好打我们踩过的坑）：
 
 | 提交 | 内容 |
 |---|---|
@@ -144,9 +159,45 @@ pending session **只有一个铸造点** `createOAuthPendingSessionWithContext`
 | `99b357083` | 订阅每日零点配额重置修复 |
 | `c33c3208e` | 流内降载错误恢复 pre-output failover |
 
-⚠️ **`backend/internal/repository/migrations_runner.go` 在 171..172 区间被改了**——
-那正是 checksum 启动闸所在文件。§6 里"U2 vs 库 checksum 全对得上"是在 **171** 上测的，
-**换 172 底座必须重测那一闸**，不能直接继承结论。
+### ✅ checksum 闸**不需要重测**（已读 diff 定案，别再写"必须重测"）
+
+我一度写了「`migrations_runner.go` 在 171..172 被改了 → 必须重测 checksum 闸」。
+**读 diff 就能定案，实测结论是不用重测：**
+
+| 测项 | 结果 |
+|---|---|
+| `migrations_runner.go` 改动 | **4 行，纯新增**：2 个 const + `prepareNonTransactionalMigration` 里 1 个 `case` |
+| checksum 计算块 / `migrationChecksumCompatibilityRules` | **一个字没动** |
+| `backend/migrations/` 改动 | **新增 2 个，修改 0，删除 0** |
+
+那一闸只依赖三样：算法、白名单、已有文件内容。**三样都没动 → 171 的结论直接继承。**
+（新增的 4 行是自愈逻辑：`CREATE INDEX CONCURRENTLY` 失败会留下 INVALID 索引，
+runner 在重跑前先 `dropInvalidIndexIfPresent` 掉。）
+
+新增那 2 个 migration **会真的执行**，但都安全：
+
+```sql
+-- 194_add_usage_log_upstream_response_model.sql
+ALTER TABLE usage_logs
+    ADD COLUMN IF NOT EXISTS upstream_response_model VARCHAR(200),
+    ADD COLUMN IF NOT EXISTS upstream_model_mismatch BOOLEAN;
+-- 195_..._notx.sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_usage_logs_upstream_model_mismatch_created_at
+    ON usage_logs (created_at DESC, id DESC) WHERE upstream_model_mismatch IS TRUE;
+```
+
+可空无默认的 `ADD COLUMN` 在 PG 11+ 是纯元数据操作（`usage_logs` 再大也是瞬时）；
+`CONCURRENTLY` 不锁写，且是 partial index、初始全 NULL → 索引极小。
+
+⚠️ **但发现一个号段撞车（换主干要知道）**：194/195 这两个号在 U 上**已经被别的文件占了**——
+
+| 号 | 上游 172 | U（生产库跑过的那条线）|
+|---|---|---|
+| 194 | `194_add_usage_log_upstream_response_model.sql` | `194_create_chat_workspace_tables.sql` |
+| 195 | `195_..._model_mismatch_index_notx.sql` | `195_allow_workspace_image_messages.sql` |
+
+runner 主键是**完整文件名**，所以两边不冲突、各记一行、上游那 2 个会正常执行。
+**不构成闸门**，但号段从此双轨，以后自己加 migration 别再用 19x。
 
 ### ✅ P 的等价补丁已写好并通过全部闸门（**未部署**，2026-08-07）
 
@@ -680,6 +731,13 @@ B8b（U/U2/P 三方都有、但 U 与另两个都不同）**先不量**：那一
    实测负控：`/api/v1/definitely-not-a-route-xyz` → **404**，探测法**有效**。
    顺带确认：`/api/v1/reseller/summary` 和 `/api/v1/admin/reseller/applications`
    都是 **404**（= CLAUDE.md 说的 8 条死路由，属实）。
+3. ⛔ **禁止用「必须重测」「归为待验」代替一次实际检查。**（2026-08-07 用户当场纠正）
+   我写过「`migrations_runner.go` 被改了 → 换 172 必须重测 checksum 闸」和
+   「微信支付读哪个 config key → 待验」。两条**都是 `git diff` / 读代码 5 分钟能定案的**，
+   实际答案还都是"不用重测 / 已同源"。**先查再下结论，查不了才写待验，并写明为什么查不了。**
+   同一次还踩了**用文件数虚报改动量**：172 我说"208 文件"，真源码只有 **122 个**，
+   其余是 66 个测试 + 9 个 `ent/` 生成代码 + README/赞助商图片。
+   **报改动量必须按类别拆，并且剔掉测试和生成代码。**
 
 ### 优先项（客户正在受影响，与主干迁移解耦、可先做）
 
