@@ -261,7 +261,7 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags embed -trimpath \
       -ldflags "-s -w -X main.Version=0.1.3-ssxz.20260807 -X main.Commit=e8ef9e645 -X main.Date=<UTC>"
 ```
 
-- **实际上线二进制**：`sub2api_linux_e8ef9e645`，md5 `633825a54384d11572e8f6931ec87825`，93,737,122 bytes
+- **首次上线使用的二进制（历史记录，非当前生产）**：`sub2api_linux_e8ef9e645`，md5 `633825a54384d11572e8f6931ec87825`，93,737,122 bytes
   - commit 戳为**干净** `e8ef9e645`（Go buildinfo `vcs.revision` 无 modified 标记）
     → 线上二进制可反查到已推送的提交，这是本轮"查不出线上跑哪份代码"的解药
   - 二进制里 `-dirty` 命中 2 处，**均为无关库字符串**（`baseline and allow-dirty are mutually exclusive`），
@@ -295,7 +295,7 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags embed -trimpath \
 | **Molifang Claude** | **约 45 秒未返回** → 触发回滚 |
 
 已回滚至 `/opt/sub2api/backups/sub2api-pre-redeem-captcha-20260807-163527`；
-当前生产 md5 `2bf007115a3706efb406c4994b11cf3d`，active/running、NRestarts=0、ExecMainStatus=0。
+**当时回滚后的历史状态** md5 `2bf007115a3706efb406c4994b11cf3d`，active/running、NRestarts=0、ExecMainStatus=0。
 **门禁与基线更新均未执行。**
 
 归因证据（全部指向「与本轮改动无关」）：
@@ -518,6 +518,9 @@ GroupID。**代码层面已确认缺失（线里没有、二进制里没有）�
 | 生产二进制大小 | `93,737,122 bytes` |
 | 服务状态 | `active/running` |
 | `NRestarts` / `ExecMainStatus` | `0 / 0` |
+
+当前生产以本节记录为准：MD5 `8e24a2433d24fa3b545aace7ab67592b`，版本
+`0.1.3-ssxz.20260807.1`，部署时间 `2026-08-08 01:58:44 CST`。
 | 新入口资源 | `/assets/index-Bn3BFivZ.js` |
 | 旧入口资源 | `/assets/index-CTBPrhn_.js`（已不再引用） |
 
@@ -574,3 +577,114 @@ Codex 侧无 Linux/WSL `bash`，只做了等价只读检查。事后由 Git Bash
 **不要据此判定回归、更不要自动回滚**。要判定回归，等服务温机后复测同账号同方法。
 
 **结案**：温机后复测已回到 ~3.4 秒，冷启动假设已确认。
+
+### 2026-08-08 OAuth 账号接管热修部署
+
+本次只上线 OAuth pending completion 的账号接管防护补丁，未合并 v0.1.172 其余源码，未重建前端。
+
+| 项目 | 结果 |
+|---|---|
+| 热修提交 | `4988a280b`（基于生产线 `e8ef9e645`） |
+| 新版本 | `0.1.3-ssxz.20260807.1` |
+| 新二进制 MD5 | `8e24a2433d24fa3b545aace7ab67592b` |
+| 新二进制大小 | `93,733,026 bytes` |
+| 部署时间 | `2026-08-08 01:58:44 CST` |
+| 旧版本备份 | `/opt/sub2api/backups/sub2api-pre-oauth-hotfix-20260808-015843` |
+| 旧版本 MD5 | `633825a54384d11572e8f6931ec87825` |
+| 服务状态 | `active/running` |
+| `NRestarts` / `ExecMainStatus` | `0 / 0` |
+
+验收结果：
+
+- 公开版本为 `0.1.3-ssxz.20260807.1`。
+- 首页返回 `200 text/html`。
+- `assets/index-Bn3BFivZ.js`、`assets/AccountsView-Cva8uL0k.js`、`assets/AdminOrdersView-CygQ8VJM.js` 均返回 `200 text/javascript`。
+- OAuth 开关保持全部关闭；本次没有启用任何 OAuth 功能。
+- pending exchange 返回预期 `404 PENDING_AUTH_SESSION_NOT_FOUND`；发送验证码和绑定登录在空请求下分别返回预期 `400` 参数校验错误；未授权管理员接口返回 `401`；不存在路由返回 `404`。
+- 未执行 migration，未修改生产数据库。
+- 注：日志中的 `OpenAI WS Mode oauth_enabled=true` 是网关 WS 模式字段，不是登录 OAuth 开关；登录 OAuth 开关仍全部关闭。
+
+回滚方式：将备份文件复制回 `/opt/sub2api/sub2api`，然后重启 `sub2api`。
+
+### 2026-08-08 channel_id 修复部署
+
+| 项目 | 结果 |
+|---|---|
+| 上游底座 | `4988a280b` |
+| 修复提交 | `8413e21498d780d60c2098c1f0db1375821a1c1f` |
+| 版本 | `0.1.3-ssxz.20260808` |
+| 正式上线二进制 MD5 | `2874b3f8c2860c803fa025645ed0cce7` |
+| 正式上线二进制大小 | `93,749,410 bytes` |
+| 备份 | `/opt/sub2api/backups/sub2api-pre-channelid-20260808-045507` |
+| 最终服务状态 | `active/running` |
+| 最终 `NRestarts` / `ExecMainStatus` | `0 / 0` |
+
+验收结果：
+
+- 远端正式文件确认为 `ELF 64-bit x86-64`，远端 MD5 与本地一致。
+- `/api/v1/settings/public` 返回版本 `0.1.3-ssxz.20260808`。
+- systemd 中的上游白名单环境仍存在。
+- 部署过程中曾误上传一个 Windows `PE32+` 包，服务短暂进入 `203/EXEC` 自动重启；已使用上述备份恢复，再上传正确 Linux ELF 包。最终服务已恢复正常。
+- 未执行 migration，未修改生产数据库。
+
+回滚方式：将 `/opt/sub2api/backups/sub2api-pre-channelid-20260808-045507` 复制回
+`/opt/sub2api/sub2api`，然后重启 `sub2api`。
+
+### 2026-08-09 reseller migration package r2
+
+| 项目 | 结果 |
+|---|---|
+| 上游底座 | 沿用生产线 P，未切换底座 |
+| 部署来源 | `fix/reseller-restore` worktree |
+| 代码 HEAD（部署包） | `c346c69e33506c1920ff0be40d9b8534a419264d`（未 push） |
+| 版本 | `0.1.3-ssxz.20260808.2` |
+| 正式上线二进制 MD5 | `3a4052afdb766f95419dab734f9c33b5` |
+| 正式上线二进制大小 | `94,134,434 bytes` |
+| 备份 | `/opt/sub2api/backups/sub2api-pre-reseller-image-20260808-r2` |
+| 新 T0 | `2026-08-09 00:40:53 CST` |
+| 最终服务状态 | `active/running` |
+| 最终 `NRestarts` / `ExecMainStatus` | `0 / 0` |
+
+本次从发布包中移除 `200_reseller_roles.sql` 与 `201_reseller_fields_hardening.sql`：生产库已记录这两项且经销商表已存在；其中 200 的生产 checksum 对应内容在当前仓库历史中不存在，继续随包发布会触发启动期 checksum 拒绝。未执行 migration，未修改生产数据库。
+
+验收结果：
+
+- `/api/v1/settings/public` 返回版本 `0.1.3-ssxz.20260808.2`。
+- `/api/v1/admin/users`、`/api/v1/admin/reseller/agents`、`/api/v1/admin/reseller/withdrawals`、`/api/v1/user/reseller/role` 均返回 `401`；`/api/v1/admin/reseller/agents` 已由此前的缺失路由恢复。
+- 不存在路由 `/api/v1/definitely-not-a-route-xyz` 返回 `404`。
+- 首页入口为 `assets/index-C9y_pxRY.js`。
+- 启动日志无 checksum/migration 拒绝。
+
+债务记录：200/201 reseller migration 不随包发布。生产库已记录且表已存在，但库内 200 的 checksum 对应文件内容在仓库中不存在。后果：用干净库重建时不会创建经销商表。将来若需彻底修复，应新增一个改号的幂等 migration（`CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS`），而不是改白名单或强制重跑。
+
+回滚方式：将 `/opt/sub2api/backups/sub2api-pre-reseller-image-20260808-r2` 复制回 `/opt/sub2api/sub2api`，然后重启 `sub2api`。
+
+### 2026-08-09 migration 194/195 部署（S2-01 彩排通过）
+
+| 项目 | 结果 |
+|---|---|
+| 上游底座 | `c346c69e3`（沿用，未换底座） |
+| 迁移源码提交 | `c12b8e937`（基于 `c346c69e3`，未 push） |
+| 二进制 commit 戳 | `c346c69e3`（按任务顺序在迁移文件提交前构建；二进制内已验真包含 194/195） |
+| 新增迁移文件 | `194_add_usage_log_upstream_response_model.sql` |
+|  | `195_add_usage_log_upstream_model_mismatch_index_notx.sql` |
+| 版本 | `0.1.3-ssxz.20260809` |
+| 二进制 MD5 | `226e2af3abd9a1db32de2c520f946d41` |
+| 二进制大小 | `94,134,434 bytes` |
+| 部署时间 | `2026-08-09T15:10:50Z` |
+| 194 验证 | `upstream_response_model VARCHAR(200)` + `upstream_model_mismatch BOOLEAN` 已在库 |
+| 195 验证 | `idx_usage_logs_upstream_model_mismatch_created_at` partial index 已在库且 `indisready=true / indisvalid=true` |
+| `schema_migrations` | `194_add_usage_log_upstream_response_model.sql` + `195_add_usage_log_upstream_model_mismatch_index_notx.sql` 均已记录 |
+| 前端入口 | 沿用 `/assets/index-C9y_pxRY.js`，未重建前端 |
+| 备份 | `/opt/sub2api/backups/sub2api-pre-migration194195-20260809-231003` |
+| 服务状态 | `active/running`，`NRestarts=0`，`ExecMainStatus=0` |
+
+验收结果：
+
+- `/api/v1/settings/public` 返回版本 `0.1.3-ssxz.20260809`。
+- `/api/v1/admin/users`、`/api/v1/admin/reseller/agents`、`/api/v1/admin/reseller/withdrawals`、`/api/v1/user/reseller/role` 均返回 `401`；不存在路由负控返回 `404`。
+- 启动后生产库新增两列与 partial index 均验真，migration 194/195 已记入 `schema_migrations`。
+- 未改任何 OAuth 或计费开关；前端产物未重新构建。
+
+回滚方式：将 `/opt/sub2api/backups/sub2api-pre-migration194195-20260809-231003` 复制回
+`/opt/sub2api/sub2api`，然后重启 `sub2api`。注意：二进制回滚不会自动撤销已经执行的 194/195 schema 变更；这两条 migration 均为向后兼容的新增列/索引。
