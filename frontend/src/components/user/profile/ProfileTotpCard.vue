@@ -14,6 +14,28 @@
         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
       </div>
 
+      <!-- Status load failure -->
+      <div v-else-if="loadError" class="flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex items-center gap-4">
+          <div class="flex-shrink-0 rounded-full bg-red-100 p-3 dark:bg-red-900/30">
+            <svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008v.008H12v-.008Zm-9.303-.374 7.354-12.748c.866-1.5 3.032-1.5 3.898 0l7.354 12.748c.866 1.5-.217 3.374-1.948 3.374H4.645c-1.731 0-2.814-1.874-1.948-3.374Z" />
+            </svg>
+          </div>
+          <div>
+            <p class="font-medium text-gray-900 dark:text-white">
+              {{ t('profile.totp.statusLoadFailed') }}
+            </p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              {{ t('profile.totp.statusLoadFailedHint') }}
+            </p>
+          </div>
+        </div>
+        <button type="button" class="btn btn-secondary" @click="loadStatus">
+          {{ t('profile.totp.retryStatus') }}
+        </button>
+      </div>
+
       <!-- Feature disabled globally -->
       <div v-else-if="status && !status.feature_enabled" class="flex items-center gap-4 py-4">
         <div class="flex-shrink-0 rounded-full bg-gray-100 p-3 dark:bg-dark-700">
@@ -111,16 +133,19 @@ import TotpDisableDialog from './TotpDisableDialog.vue'
 const { t } = useI18n()
 
 const loading = ref(true)
+const loadError = ref(false)
 const status = ref<TotpStatus | null>(null)
 const showSetupModal = ref(false)
 const showDisableDialog = ref(false)
 
 const loadStatus = async () => {
   loading.value = true
+  loadError.value = false
   try {
     status.value = await totpAPI.getStatus()
-  } catch (error) {
-    console.error('Failed to load TOTP status:', error)
+  } catch {
+    status.value = null
+    loadError.value = true
   } finally {
     loading.value = false
   }

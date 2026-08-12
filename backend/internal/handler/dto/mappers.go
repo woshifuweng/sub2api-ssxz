@@ -76,16 +76,45 @@ func UserFromServiceAdmin(u *service.User) *AdminUser {
 }
 
 func APIKeyFromService(k *service.APIKey) *APIKey {
+	return apiKeyFromService(k, false)
+}
+
+func APIKeyFromServiceWithPlaintextKey(k *service.APIKey) *APIKey {
+	return apiKeyFromService(k, true)
+}
+
+func APIKeyForSafeReplay(k *APIKey) *APIKey {
 	if k == nil {
 		return nil
+	}
+	out := *k
+	out.Key = maskAPIKey(k.Key)
+	out.Status = normalizeUserAPIKeyStatus(k.Status)
+	out.GroupIDs = append([]int64(nil), k.GroupIDs...)
+	out.AllowedModels = append([]string(nil), k.AllowedModels...)
+	out.IPWhitelist = append([]string(nil), k.IPWhitelist...)
+	out.IPBlacklist = append([]string(nil), k.IPBlacklist...)
+	out.Groups = append([]Group(nil), k.Groups...)
+	return &out
+}
+
+func apiKeyFromService(k *service.APIKey, includePlaintextKey bool) *APIKey {
+	if k == nil {
+		return nil
+	}
+	key := maskAPIKey(k.Key)
+	if includePlaintextKey {
+		key = k.Key
 	}
 	out := &APIKey{
 		ID:                 k.ID,
 		UserID:             k.UserID,
-		Key:                k.Key,
+		Key:                key,
 		Name:               k.Name,
 		GroupID:            k.GroupID,
-		Status:             k.Status,
+		GroupIDs:           append([]int64(nil), k.GroupIDs...),
+		AllowedModels:      append([]string{}, k.AllowedModels...),
+		Status:             normalizeUserAPIKeyStatus(k.Status),
 		IPWhitelist:        k.IPWhitelist,
 		IPBlacklist:        k.IPBlacklist,
 		LastUsedAt:         k.LastUsedAt,
@@ -108,6 +137,15 @@ func APIKeyFromService(k *service.APIKey) *APIKey {
 		User:               UserFromServiceShallow(k.User),
 		Group:              GroupFromServiceShallow(k.Group),
 	}
+	if len(k.Groups) > 0 {
+		out.Groups = make([]Group, 0, len(k.Groups))
+		for _, group := range k.Groups {
+			if group == nil {
+				continue
+			}
+			out.Groups = append(out.Groups, *GroupFromServiceShallow(group))
+		}
+	}
 	if k.Window5hStart != nil && !service.IsWindowExpired(k.Window5hStart, service.RateLimitWindow5h) {
 		t := k.Window5hStart.Add(service.RateLimitWindow5h)
 		out.Reset5hAt = &t
@@ -121,6 +159,23 @@ func APIKeyFromService(k *service.APIKey) *APIKey {
 		out.Reset7dAt = &t
 	}
 	return out
+}
+
+func normalizeUserAPIKeyStatus(status string) string {
+	if status == service.StatusAPIKeyDisabled {
+		return "inactive"
+	}
+	return status
+}
+
+func maskAPIKey(key string) string {
+	if key == "" {
+		return ""
+	}
+	if len(key) <= 12 {
+		return "[redacted]"
+	}
+	return key[:8] + "..." + key[len(key)-4:]
 }
 
 func GroupFromServiceShallow(g *service.Group) *Group {
@@ -300,6 +355,10 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 		if profileID := a.GetTLSFingerprintProfileID(); profileID > 0 {
 			out.TLSFingerprintProfileID = &profileID
 		}
+		if a.IgnorePauseSchedulingErrors() {
+			enabled := true
+			out.IgnorePauseSchedulingErrors = &enabled
+		}
 		// 会话ID伪装开关
 		if a.IsSessionIDMaskingEnabled() {
 			enabled := true
@@ -320,6 +379,11 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 				out.CustomBaseURL = &customURL
 			}
 		}
+	}
+
+	if out.IgnorePauseSchedulingErrors == nil && a.IgnorePauseSchedulingErrors() {
+		enabled := true
+		out.IgnorePauseSchedulingErrors = &enabled
 	}
 
 	// 提取账号配额限制（apikey / bedrock 类型有效）
@@ -555,6 +619,7 @@ func ProxyAccountSummaryFromService(a *service.ProxyAccountSummary) *ProxyAccoun
 		Name:     a.Name,
 		Platform: a.Platform,
 		Type:     a.Type,
+		Status:   a.Status,
 		Notes:    a.Notes,
 	}
 }
@@ -601,7 +666,7 @@ func redeemCodeFromServiceBase(rc *service.RedeemCode) RedeemCode {
 
 	// For admin_balance/admin_concurrency types, include notes so users can see
 	// why they were charged or credited by admin
-	if (rc.Type == "admin_balance" || rc.Type == "admin_concurrency") && rc.Notes != "" {
+	if (rc.Type == service.RedeemTypeBalance || rc.Type == "admin_balance" || rc.Type == "admin_concurrency") && rc.Notes != "" {
 		out.Notes = &rc.Notes
 	}
 
@@ -628,6 +693,10 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 	if requestedModel == "" {
 		requestedModel = l.Model
 	}
+	servedModel := ""
+	if l.UpstreamModel != nil {
+		servedModel = *l.UpstreamModel
+	}
 	return UsageLog{
 		ID:                        l.ID,
 		UserID:                    l.UserID,
@@ -635,6 +704,7 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 		AccountID:                 l.AccountID,
 		RequestID:                 l.RequestID,
 		Model:                     requestedModel,
+		ServedModel:               servedModel,
 		ServiceTier:               l.ServiceTier,
 		ReasoningEffort:           l.ReasoningEffort,
 		InboundEndpoint:           l.InboundEndpoint,
@@ -684,13 +754,28 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 	}
 }
 
+func scrubUsageLogForRegularUser(u *UsageLog) {
+	u.UserID = 0
+	u.AccountID = 0
+	u.UpstreamEndpoint = nil
+	u.GroupID = nil
+	u.SubscriptionID = nil
+	u.UserAgent = nil
+	u.User = nil
+	u.APIKey = nil
+	u.Group = nil
+	u.Subscription = nil
+}
+
 // UsageLogFromService converts a service UsageLog to DTO for regular users.
 // It excludes admin-only account/upstream internals while keeping user billing and request metadata.
+// It excludes provider/account internals and nested operational objects.
 func UsageLogFromService(l *service.UsageLog) *UsageLog {
 	if l == nil {
 		return nil
 	}
 	u := usageLogFromServiceUser(l)
+	scrubUsageLogForRegularUser(&u)
 	return &u
 }
 
@@ -705,6 +790,7 @@ func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
 	return &AdminUsageLog{
 		UsageLog:              usageLog,
 		UpstreamModel:         l.UpstreamModel,
+		BillingModel:          stringPtrIfNotEmpty(l.BillingModel),
 		ChannelID:             l.ChannelID,
 		ModelMappingChain:     l.ModelMappingChain,
 		BillingTier:           l.BillingTier,
@@ -713,6 +799,13 @@ func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
 		IPAddress:             l.IPAddress,
 		Account:               AccountSummaryFromService(l.Account),
 	}
+}
+
+func stringPtrIfNotEmpty(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 func UsageCleanupTaskFromService(task *service.UsageCleanupTask) *UsageCleanupTask {

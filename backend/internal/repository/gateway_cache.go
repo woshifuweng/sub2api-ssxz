@@ -13,8 +13,19 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const stickySessionPrefix = "sticky_session:"
-const liveCallPrefix = "live:call:"
+const (
+	stickySessionPrefix         = "sticky_session:"
+	liveCallPrefix              = "live:call:"
+	gatewayCacheLocalMaxTTL     = time.Second
+	gatewayCacheCleanupInterval = time.Minute
+	gatewayCacheMinRefreshGap   = time.Second
+	gatewayCacheMaxRefreshGap   = 30 * time.Second
+)
+
+type gatewayCacheEntry struct {
+	AccountID                 int64
+	NextRemoteRefreshUnixNano int64
+}
 
 type gatewayCache struct {
 	rdb *redis.Client
@@ -35,7 +46,7 @@ func (c *gatewayCache) GetSessionAccountID(ctx context.Context, groupID int64, s
 	accountID, err := c.rdb.Get(ctx, key).Int64()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
-			return 0, service.ErrStickySessionNotFound
+			return 0, fmt.Errorf("%w: %w", service.ErrStickySessionNotFound, redis.Nil)
 		}
 		return 0, err
 	}

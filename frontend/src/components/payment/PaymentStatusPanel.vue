@@ -67,6 +67,36 @@
       </div>
     </template>
 
+    <!-- Paid, waiting for backend fulfillment -->
+    <template v-else-if="settlingOrder">
+      <div class="card p-6">
+        <div class="flex flex-col items-center space-y-4 py-4">
+          <div class="flex h-16 w-16 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30">
+            <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
+          </div>
+          <p class="text-lg font-bold text-gray-900 dark:text-white">{{ t('payment.result.settling') }}</p>
+          <p class="text-center text-sm text-gray-500 dark:text-gray-400">{{ t('payment.result.settlingHint') }}</p>
+          <div class="w-full rounded-xl bg-gray-50 p-4 dark:bg-dark-800">
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderId') }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">#{{ settlingOrder.id }}</span>
+              </div>
+              <div v-if="settlingOrder.out_trade_no" class="flex justify-between">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderNo') }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ settlingOrder.out_trade_no }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.status') }}</span>
+                <OrderStatusBadge :status="settlingOrder.status" />
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary" @click="handleDone">{{ t('common.confirm') }}</button>
+        </div>
+      </div>
+    </template>
+
     <!-- ═══ Active States: QR or Popup waiting ═══ -->
 
     <!-- Mobile Alipay app handoff. The QR fallback stays hidden until launch timeout. -->
@@ -228,6 +258,7 @@ import { getPaymentPopupFeatures, isBuiltInAlipayMethod, isBuiltInWxpayMethod } 
 import { currencySymbol, formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import type { PaymentOrder } from '@/types/payment'
 import Icon from '@/components/icons/Icon.vue'
+import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
 import QRCode from 'qrcode'
 import alipayIcon from '@/assets/icons/alipay.svg'
 import wxpayIcon from '@/assets/icons/wxpay.svg'
@@ -266,6 +297,7 @@ const qrUrl = ref('')
 const remainingSeconds = ref(0)
 const cancelling = ref(false)
 const paidOrder = ref<PaymentOrder | null>(null)
+const settlingOrder = ref<PaymentOrder | null>(null)
 const deepLinkState = ref<AlipayDeepLinkState>('idle')
 const deepLinkFallbackVisible = ref(false)
 const paymentCurrency = computed(() => normalizePaymentCurrency(props.currency))
@@ -332,7 +364,7 @@ const countdownDisplay = computed(() => {
   return m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0')
 })
 
-const displayPaymentAmount = computed(() => formatGatewayAmount(props.payAmount || props.amount || 0))
+const displayPaymentAmount = computed(() => formatGatewayAmount(props.payAmount ?? props.amount ?? 0))
 const displayOrderNumber = computed(() => props.outTradeNo || `#${props.orderId}`)
 
 function formatGatewayAmount(value: number, currency?: string | null): string {
@@ -416,14 +448,11 @@ async function tryRecoverPendingOrder(order: PaymentOrder): Promise<PaymentOrder
 let pollInFlight = false
 async function pollStatus() {
   if (!props.orderId || outcome.value) return
-  // 防重入：接口（含 verifyOrder 二次确认）响应慢于 3 秒轮询间隔时避免并发重叠请求。
   if (pollInFlight) return
   pollInFlight = true
   try {
     let order = await paymentStore.pollOrderStatus(props.orderId)
-    if (!order) return
-    // 已进入终态则不再处理迟到的响应。
-    if (outcome.value) return
+    if (!order || outcome.value) return
     order = await tryRecoverPendingOrder(order)
     if (outcome.value) return
     if (isSuccessStatus(order.status)) {
@@ -468,9 +497,16 @@ async function handleCancel() {
 
 function handleDone() { cleanup(); emit('done') }
 
+function clearCountdownTimer() {
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+}
+
 function cleanup() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
-  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null }
+  clearCountdownTimer()
   alipayLauncher?.dispose()
   alipayLauncher = null
 }

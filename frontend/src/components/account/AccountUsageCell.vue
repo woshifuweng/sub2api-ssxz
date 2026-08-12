@@ -194,6 +194,47 @@
       </div>
     </template>
 
+    <!-- Kiro OAuth accounts: total quota display -->
+    <template v-else-if="account.platform === 'kiro' && account.type === 'oauth'">
+      <div v-if="loading" class="space-y-1.5">
+        <div class="flex items-center gap-1">
+          <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+          <div class="h-1.5 w-8 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700"></div>
+          <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+        </div>
+      </div>
+      <div v-else-if="error" class="text-xs text-red-500">{{ error }}</div>
+      <div
+        v-else-if="usageInfo?.error"
+        class="max-w-[220px] truncate text-xs text-amber-600 dark:text-amber-400"
+        :title="usageInfo.error"
+      >
+        {{ usageInfo.error }}
+      </div>
+      <div v-else-if="usageInfo?.kiro_quota" class="space-y-1">
+        <div v-if="usageInfo.kiro_subscription_title" class="mb-1 flex items-center gap-1">
+          <span
+            class="inline-block rounded bg-cyan-100 px-1.5 py-0.5 text-[10px] font-medium text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300"
+          >
+            {{ usageInfo.kiro_subscription_title }}
+          </span>
+        </div>
+        <UsageProgressBar
+          label="$1k"
+          :utilization="usageInfo.kiro_quota.utilization"
+          :resets-at="usageInfo.kiro_quota.resets_at"
+          :window-stats="kiroQuotaStats"
+          color="purple"
+        />
+        <div class="text-[10px] text-gray-500 dark:text-gray-400">
+          Used ${{ formatKiroMoney(usageInfo.kiro_current_usage) }} /
+          Limit ${{ formatKiroMoney(usageInfo.kiro_usage_limit) }} ·
+          Remaining ${{ formatKiroMoney(usageInfo.kiro_remaining) }}
+        </div>
+      </div>
+      <div v-else class="text-xs text-gray-400">-</div>
+    </template>
+
     <!-- Antigravity OAuth accounts: fetch usage from API -->
     <template v-else-if="account.platform === 'antigravity' && account.type === 'oauth'">
       <!-- 账户类型徽章 -->
@@ -701,6 +742,9 @@ const shouldFetchUsage = computed(() => {
   if (props.account.platform === 'gemini') {
     return true
   }
+  if (props.account.platform === 'kiro') {
+    return props.account.type === 'oauth'
+  }
   if (props.account.platform === 'antigravity') {
     return props.account.type === 'oauth'
   }
@@ -731,6 +775,11 @@ const geminiUsageAvailable = computed(() => {
 const hasOpenAIUsageFallback = computed(() => {
   if (props.account.platform !== 'openai' || props.account.type !== 'oauth') return false
   return !!usageInfo.value?.five_hour || !!usageInfo.value?.seven_day
+})
+
+const kiroQuotaStats = computed<WindowStats | null>(() => {
+  if (props.account.platform !== 'kiro') return null
+  return usageInfo.value?.kiro_quota?.window_stats ?? null
 })
 
 const openAIUsageRefreshKey = computed(() => buildOpenAIUsageRefreshKey(props.account))
@@ -1491,6 +1540,13 @@ const handleQuotaResetAccountUpdated = (account: Account) => {
   // account-updated) cannot latch it and swallow a later, unrelated refresh.
   suppressOpenAIUsageRefreshUntil.value = Date.now() + SUPPRESS_USAGE_REFRESH_WINDOW_MS
   emit('account-updated', account)
+}
+
+const formatKiroMoney = (value?: number | null) => {
+  if (value == null || Number.isNaN(value)) return '0'
+  if (value >= 100) return value.toFixed(0)
+  if (value >= 10) return value.toFixed(1)
+  return value.toFixed(2)
 }
 
 // ===== Key account today stats formatters =====

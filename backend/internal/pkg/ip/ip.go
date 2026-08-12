@@ -5,6 +5,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/gin-gonic/gin"
 )
 
@@ -48,41 +49,6 @@ func requestForwardedIPSettings(c *gin.Context) (forwardedIPSettings, bool) {
 func requestUsesLegacyForwardedIPTrust(c *gin.Context) bool {
 	settings, ok := requestForwardedIPSettings(c)
 	return !ok || settings.trustForwarded
-}
-
-// GetClientIP resolves the client address using the legacy forwarding-header
-// precedence used before the trusted-proxy hardening. It remains the
-// compatibility path for request metadata and usage/error logs; security-
-// sensitive callers must use GetTrustedClientIP or GetSecurityClientIP.
-func GetClientIP(c *gin.Context) string {
-	if c == nil {
-		return ""
-	}
-	if !requestUsesLegacyForwardedIPTrust(c) {
-		return GetTrustedClientIP(c)
-	}
-
-	settings, _ := requestForwardedIPSettings(c)
-	customIP, customFallback := resolveCustomForwardedClientIP(c, settings.headers)
-	if customIP != "" {
-		return customIP
-	}
-
-	// Preserve the historical precedence used by existing reverse-proxy
-	// deployments, while skipping an internal proxy address when a public XFF
-	// value is available. This covers Docker/Nginx setups that accidentally
-	// write the bridge address into X-Real-IP.
-	legacyIP, legacyFallback := resolveLegacyForwardedHeaderIP(c)
-	if legacyIP != "" {
-		return legacyIP
-	}
-	if customFallback != "" {
-		return customFallback
-	}
-	if legacyFallback != "" {
-		return legacyFallback
-	}
-	return normalizeIP(c.ClientIP())
 }
 
 func resolveCustomForwardedClientIP(c *gin.Context, headers []string) (string, string) {
@@ -142,6 +108,40 @@ func resolveLegacyForwardedHeaderIP(c *gin.Context) (string, string) {
 	return "", fallback
 }
 
+// GetClientIP 从 Gin Context 中提取可信客户端 IP。
+// 该值依赖 Gin / GatewayContext 已配置的可信代理链，不直接信任原始转发头。
+func GetClientIP(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	if !requestUsesLegacyForwardedIPTrust(c) {
+		return GetTrustedClientIP(c)
+	}
+
+	settings, _ := requestForwardedIPSettings(c)
+	customIP, customFallback := resolveCustomForwardedClientIP(c, settings.headers)
+	if customIP != "" {
+		return customIP
+	}
+
+	legacyIP, legacyFallback := resolveLegacyForwardedHeaderIP(c)
+	if legacyIP != "" {
+		return legacyIP
+	}
+	if customFallback != "" {
+		return customFallback
+	}
+	if legacyFallback != "" {
+		return legacyFallback
+	}
+	return normalizeIP(c.ClientIP())
+}
+
+// GetClientIPContext 从 GatewayContext 中提取可信客户端 IP。
+func GetClientIPContext(c gatewayctx.GatewayContext) string {
+	return GetTrustedClientIPContext(c)
+}
+
 // GetTrustedClientIP 从 Gin 的可信代理解析链提取客户端 IP。
 // 该方法依赖 gin.Engine.SetTrustedProxies 配置，不会优先直接信任原始转发头值。
 // 适用于 ACL / 风控等安全敏感场景。
@@ -150,6 +150,11 @@ func GetTrustedClientIP(c *gin.Context) string {
 		return ""
 	}
 	return normalizeIP(c.ClientIP())
+}
+
+// GetTrustedClientIPContext 从 GatewayContext 的可信代理解析链提取客户端 IP。
+func GetTrustedClientIPContext(c gatewayctx.GatewayContext) string {
+	return gatewayctx.TrustedClientIP(c)
 }
 
 // GetSecurityClientIP returns the address used by security-sensitive paths.

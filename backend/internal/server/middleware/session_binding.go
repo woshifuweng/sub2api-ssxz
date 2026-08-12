@@ -5,6 +5,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -100,5 +101,52 @@ func enforceSessionBinding(
 		})
 	}
 	AbortWithError(c, 401, "SESSION_BINDING_MISMATCH", "Session network fingerprint changed, please login again")
+	return false
+}
+
+func enforceSessionBindingContext(
+	c gatewayctx.GatewayContext,
+	authService *service.AuthService,
+	settingService *service.SettingService,
+	auditService *service.AuditLogService,
+	claims *service.JWTClaims,
+) bool {
+	if c == nil || c.Request() == nil || settingService == nil || !settingService.IsSessionBindingEnabled(c.Request().Context()) {
+		return true
+	}
+	if claims == nil || claims.BindingHash == "" {
+		return true
+	}
+	binding := service.SessionBindingFromContext(c.Request().Context())
+	if binding == nil {
+		binding = &service.SessionBinding{
+			IP:        gatewayctx.TrustedClientIP(c),
+			UserAgent: normalizePersistentText(c.Request().UserAgent(), maxPersistentUserAgentBytes),
+		}
+	}
+	current := binding.Hash()
+	if current == "" || current == claims.BindingHash {
+		return true
+	}
+
+	if authService != nil {
+		_ = authService.RevokeSessionFamily(c.Request().Context(), claims.SessionID)
+	}
+	if auditService != nil {
+		uid := claims.UserID
+		auditService.Record(&service.AuditLog{
+			ActorUserID: &uid,
+			ActorEmail:  claims.Email,
+			ActorRole:   claims.Role,
+			AuthMethod:  service.AuditAuthMethodJWT,
+			Action:      service.AuditActionSessionBindingMismatch,
+			Method:      c.Method(),
+			Path:        c.Path(),
+			ClientIP:    binding.IP,
+			UserAgent:   normalizePersistentText(c.Request().UserAgent(), maxPersistentUserAgentBytes),
+			StatusCode:  401,
+		})
+	}
+	AbortWithErrorContext(c, 401, "SESSION_BINDING_MISMATCH", "Session network fingerprint changed, please login again")
 	return false
 }

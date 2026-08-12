@@ -2,11 +2,14 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"log/slog"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -37,25 +40,267 @@ type AccountQuotaReader interface {
 	GetByID(ctx context.Context, id int64) (*Account, error)
 }
 
+type notificationEmailSender interface {
+	SendEmail(ctx context.Context, to, subject, body string) error
+}
+
+// BillingShortfallAlert contains only non-secret identifiers needed by operators.
+type BillingShortfallAlert struct {
+	RequestID string
+	UserID    int64
+	APIKeyID  int64
+	Model     string
+	Charged   float64
+	Shortfall float64
+}
+
+// BillingShortfallNotifier is the best-effort alert boundary used by billing.
+type BillingShortfallNotifier interface {
+	NotifyBillingShortfall(ctx context.Context, alert BillingShortfallAlert)
+}
+
 // BalanceNotifyService handles balance and quota threshold notifications.
 type BalanceNotifyService struct {
-	emailService             *EmailService
-	settingRepo              SettingRepository
-	accountRepo              AccountQuotaReader
-	notificationEmailService *NotificationEmailService
+	emailService           notificationEmailSender
+	settingRepo            SettingRepository
+	accountRepo            AccountQuotaReader
+	shortfallEmailLimiter  *slidingWindowLimiter
+	alertMu                sync.Mutex
+	upstreamAlertSent      map[string]time.Time
+	dailySpendingAlertSent map[string]time.Time
 }
 
 // NewBalanceNotifyService creates a new BalanceNotifyService.
 func NewBalanceNotifyService(emailService *EmailService, settingRepo SettingRepository, accountRepo AccountQuotaReader) *BalanceNotifyService {
 	return &BalanceNotifyService{
-		emailService: emailService,
-		settingRepo:  settingRepo,
-		accountRepo:  accountRepo,
+		emailService:           emailService,
+		settingRepo:            settingRepo,
+		accountRepo:            accountRepo,
+		shortfallEmailLimiter:  newSlidingWindowLimiter(0, time.Hour),
+		upstreamAlertSent:      make(map[string]time.Time),
+		dailySpendingAlertSent: make(map[string]time.Time),
 	}
 }
 
-func (s *BalanceNotifyService) SetNotificationEmailService(notificationEmailService *NotificationEmailService) {
-	s.notificationEmailService = notificationEmailService
+// NotifyUpstreamAccountState sends a best-effort operator alert when an
+// upstream account becomes exhausted, banned, or otherwise unavailable.
+// The in-memory key prevents duplicate alerts for the same account/status for
+// 24 hours without adding another persistence table.
+func (s *BalanceNotifyService) NotifyUpstreamAccountState(ctx context.Context, account *Account, status string) {
+	if s == nil || account == nil || account.ID <= 0 {
+		return
+	}
+	status = strings.ToLower(strings.TrimSpace(status))
+	if status == "" {
+		return
+	}
+
+	emailCfg, err := s.getOpsEmailNotificationConfig(ctx)
+	if err != nil || emailCfg == nil || !emailCfg.Alert.Enabled {
+		return
+	}
+	recipients := normalizeAlertRecipients(emailCfg.Alert.Recipients)
+	if len(recipients) == 0 || !shouldSendOpsAlertEmailByMinSeverity(emailCfg.Alert.MinSeverity, "critical") {
+		return
+	}
+
+	now := time.Now().UTC()
+	key := fmt.Sprintf("%d:%s", account.ID, status)
+	if !s.claimAlertKey(s.upstreamAlertSent, key, now, 24*time.Hour) {
+		return
+	}
+
+	siteName := sanitizeEmailHeader(s.getSiteName(ctx))
+	subject := fmt.Sprintf("[%s][Critical] Upstream account %s", siteName, status)
+	body := fmt.Sprintf(`<h2>Upstream account alert</h2>
+<p>Upstream account <b>%s</b> (%d) is now <b>%s</b>.</p>
+<p><b>Platform</b>: %s</p>
+<p><b>Time</b>: %s</p>`,
+		html.EscapeString(strings.TrimSpace(account.Name)), account.ID,
+		html.EscapeString(status), html.EscapeString(strings.TrimSpace(account.Platform)),
+		now.Format(time.RFC3339))
+	go s.sendEmails(recipients, subject, body, "account_id", account.ID, "status", status)
+}
+
+// CheckDailySpending checks the current day's actual usage after a usage log
+// is written and alerts once per user/day when the hard-coded $10 threshold is
+// crossed. The repository implementation performs the SELECT aggregation.
+func (s *BalanceNotifyService) CheckDailySpending(ctx context.Context, usageRepo UsageLogRepository, user *User, at time.Time) {
+	const dailySpendingThreshold = 10.0
+	if s == nil || usageRepo == nil || user == nil || user.ID <= 0 {
+		return
+	}
+	if at.IsZero() {
+		at = time.Now()
+	}
+	location := at.Location()
+	dayStart := time.Date(at.Year(), at.Month(), at.Day(), 0, 0, 0, 0, location)
+	dayEnd := dayStart.Add(24 * time.Hour)
+	stats, err := usageRepo.GetUserStatsAggregated(ctx, user.ID, dayStart, dayEnd)
+	if err != nil || stats == nil || stats.TotalActualCost <= dailySpendingThreshold {
+		return
+	}
+
+	emailCfg, err := s.getOpsEmailNotificationConfig(ctx)
+	if err != nil || emailCfg == nil || !emailCfg.Alert.Enabled {
+		return
+	}
+	recipients := normalizeAlertRecipients(emailCfg.Alert.Recipients)
+	if len(recipients) == 0 || !shouldSendOpsAlertEmailByMinSeverity(emailCfg.Alert.MinSeverity, "critical") {
+		return
+	}
+
+	now := time.Now().UTC()
+	key := fmt.Sprintf("%d:%s", user.ID, dayStart.Format("2006-01-02"))
+	if !s.claimAlertKey(s.dailySpendingAlertSent, key, now, 24*time.Hour) {
+		return
+	}
+
+	siteName := sanitizeEmailHeader(s.getSiteName(ctx))
+	subject := fmt.Sprintf("[%s][Critical] Abnormal daily spending", siteName)
+	body := fmt.Sprintf(`<h2>Abnormal daily spending alert</h2>
+<p>User <b>%d</b> (%s) has spent <b>$%.4f</b> today.</p>
+<p><b>Threshold</b>: $%.2f</p>
+<p><b>Triggered at</b>: %s</p>`,
+		user.ID, html.EscapeString(strings.TrimSpace(user.Email)), stats.TotalActualCost,
+		dailySpendingThreshold, now.Format(time.RFC3339))
+	go s.sendEmails(recipients, subject, body, "user_id", user.ID, "daily_actual_cost", stats.TotalActualCost)
+}
+
+func (s *BalanceNotifyService) claimAlertKey(store map[string]time.Time, key string, now time.Time, ttl time.Duration) bool {
+	s.alertMu.Lock()
+	defer s.alertMu.Unlock()
+	if store == nil {
+		return false
+	}
+	if previous, ok := store[key]; ok && now.Sub(previous) < ttl {
+		return false
+	}
+	store[key] = now
+	return true
+}
+
+// NotifyBillingShortfall dispatches a critical operator alert without delaying
+// or changing the completed billing transaction.
+func (s *BalanceNotifyService) NotifyBillingShortfall(_ context.Context, alert BillingShortfallAlert) {
+	if s == nil {
+		return
+	}
+	go func() {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				slog.Error("gateway.billing_shortfall_alert_panicked", "recover", recovered)
+			}
+		}()
+		s.sendBillingShortfallAlert(alert)
+	}()
+}
+
+func (s *BalanceNotifyService) sendBillingShortfallAlert(alert BillingShortfallAlert) bool {
+	if s == nil || s.emailService == nil || s.settingRepo == nil {
+		return false
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), emailSendTimeout)
+	defer cancel()
+
+	emailCfg, err := s.getOpsEmailNotificationConfig(ctx)
+	if err != nil {
+		slog.Error("gateway.billing_shortfall_alert_not_delivered", "reason", "config_error", "error", err)
+		return false
+	}
+	if emailCfg == nil || !emailCfg.Alert.Enabled {
+		slog.Warn("gateway.billing_shortfall_alert_not_delivered", "reason", "alert_email_disabled")
+		return false
+	}
+	recipients := normalizeAlertRecipients(emailCfg.Alert.Recipients)
+	if len(recipients) == 0 {
+		slog.Warn("gateway.billing_shortfall_alert_not_delivered", "reason", "no_recipients")
+		return false
+	}
+	if !shouldSendOpsAlertEmailByMinSeverity(emailCfg.Alert.MinSeverity, "critical") {
+		slog.Warn("gateway.billing_shortfall_alert_not_delivered", "reason", "severity_filtered")
+		return false
+	}
+	if s.shortfallEmailLimiter == nil {
+		s.shortfallEmailLimiter = newSlidingWindowLimiter(0, time.Hour)
+	}
+	s.shortfallEmailLimiter.SetLimit(emailCfg.Alert.RateLimitPerHour)
+
+	siteName := sanitizeEmailHeader(s.getSiteName(ctx))
+	subject := fmt.Sprintf("[%s][Critical] Billing shortfall detected", siteName)
+	body := buildBillingShortfallEmailBody(alert, siteName)
+	anySent := false
+	for _, recipient := range recipients {
+		if !s.shortfallEmailLimiter.Allow(time.Now().UTC()) {
+			slog.Warn("gateway.billing_shortfall_alert_not_delivered", "reason", "rate_limited")
+			break
+		}
+		if err := s.emailService.SendEmail(ctx, recipient, subject, body); err != nil {
+			slog.Error("gateway.billing_shortfall_alert_delivery_failed", "to", recipient, "error", err)
+			continue
+		}
+		anySent = true
+		slog.Info("gateway.billing_shortfall_alert_delivered", "to", recipient, "request_id", alert.RequestID)
+	}
+	return anySent
+}
+
+func (s *BalanceNotifyService) getOpsEmailNotificationConfig(ctx context.Context) (*OpsEmailNotificationConfig, error) {
+	raw, err := s.settingRepo.GetValue(ctx, SettingKeyOpsEmailNotificationConfig)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return defaultOpsEmailNotificationConfig(), nil
+		}
+		return nil, err
+	}
+	cfg := &OpsEmailNotificationConfig{}
+	if err := json.Unmarshal([]byte(raw), cfg); err != nil {
+		return nil, fmt.Errorf("decode ops email notification config: %w", err)
+	}
+	normalizeOpsEmailNotificationConfig(cfg)
+	if err := validateOpsEmailNotificationConfig(cfg); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+func normalizeAlertRecipients(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		address := strings.TrimSpace(value)
+		key := strings.ToLower(address)
+		if address == "" {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, address)
+	}
+	return result
+}
+
+func buildBillingShortfallEmailBody(alert BillingShortfallAlert, siteName string) string {
+	return fmt.Sprintf(`<h2>Critical billing shortfall</h2>
+<p>A completed request exhausted the user's available balance. Review the account and billing records immediately.</p>
+<p><b>Site</b>: %s</p>
+<p><b>Request ID</b>: %s</p>
+<p><b>User ID</b>: %d</p>
+<p><b>API Key ID</b>: %d</p>
+<p><b>Model</b>: %s</p>
+<p><b>Charged</b>: %.6f</p>
+<p><b>Shortfall</b>: %.6f</p>`,
+		html.EscapeString(siteName),
+		html.EscapeString(strings.TrimSpace(alert.RequestID)),
+		alert.UserID,
+		alert.APIKeyID,
+		html.EscapeString(strings.TrimSpace(alert.Model)),
+		alert.Charged,
+		alert.Shortfall,
+	)
 }
 
 // resolveBalanceThreshold returns the effective balance threshold.
@@ -130,7 +375,7 @@ func (s *BalanceNotifyService) dispatchBalanceLowEmail(ctx context.Context, user
 				slog.Error("panic in balance notification", "recover", r)
 			}
 		}()
-		s.sendBalanceLowEmails(recipients, user.ID, user.Username, user.Email, newBalance, threshold, siteName, rechargeURL)
+		s.sendBalanceLowEmails(recipients, user.Username, user.Email, newBalance, threshold, siteName, rechargeURL)
 	}()
 }
 
@@ -256,9 +501,13 @@ func (s *BalanceNotifyService) getBalanceNotifyConfig(ctx context.Context) (enab
 	if err != nil {
 		return false, 0, ""
 	}
-	enabled = settings[SettingKeyBalanceLowNotifyEnabled] == "true"
+	enabled = true
+	if raw, ok := settings[SettingKeyBalanceLowNotifyEnabled]; ok && strings.TrimSpace(raw) != "" {
+		enabled = raw == "true"
+	}
+	threshold = 1.0
 	if v := settings[SettingKeyBalanceLowNotifyThreshold]; v != "" {
-		if f, err := strconv.ParseFloat(v, 64); err == nil {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f >= 0 {
 			threshold = f
 		}
 	}
@@ -347,43 +596,10 @@ func (s *BalanceNotifyService) sendEmails(recipients []string, subject, body str
 }
 
 // sendBalanceLowEmails sends balance low notification to all recipients.
-func (s *BalanceNotifyService) sendBalanceLowEmails(recipients []string, userID int64, userName, userEmail string, balance, threshold float64, siteName, rechargeURL string) {
+func (s *BalanceNotifyService) sendBalanceLowEmails(recipients []string, userName, userEmail string, balance, threshold float64, siteName, rechargeURL string) {
 	displayName := userName
 	if displayName == "" {
 		displayName = userEmail
-	}
-	if s.notificationEmailService != nil {
-		fallbackRecipients := make([]string, 0, len(recipients))
-		for _, to := range recipients {
-			ctx, cancel := context.WithTimeout(context.Background(), emailSendTimeout)
-			err := s.notificationEmailService.Send(ctx, NotificationEmailSendInput{
-				Event:          NotificationEmailEventBalanceLow,
-				RecipientEmail: to,
-				RecipientName:  displayName,
-				UserID:         userID,
-				SourceType:     "balance_low",
-				SourceID:       firstNonEmpty(strconv.FormatInt(userID, 10), userEmail),
-				ReminderKey:    time.Now().UTC().Format("2006-01-02"),
-				Variables: map[string]string{
-					"current_balance": fmt.Sprintf("%.2f", balance),
-					"threshold":       fmt.Sprintf("%.2f", threshold),
-					"recharge_url":    rechargeURL,
-				},
-			})
-			cancel()
-			if err != nil {
-				if shouldFallbackNotificationEmail(err) {
-					slog.Warn("template balance low notification failed; falling back to built-in body", "to", to, "err", err.Error())
-					fallbackRecipients = append(fallbackRecipients, to)
-				} else {
-					slog.Warn("template balance low notification delivery failed; not sending fallback to avoid duplicates", "to", to, "err", err.Error())
-				}
-			}
-		}
-		if len(fallbackRecipients) == 0 {
-			return
-		}
-		recipients = fallbackRecipients
 	}
 	subject := fmt.Sprintf("[%s] 余额不足提醒 / Balance Low Alert", sanitizeEmailHeader(siteName))
 	body := s.buildBalanceLowEmailBody(html.EscapeString(displayName), balance, threshold, html.EscapeString(siteName), rechargeURL)
@@ -405,44 +621,6 @@ func (s *BalanceNotifyService) sendQuotaAlertEmails(adminEmails []string, accoun
 	remaining := dim.limit - used
 	if remaining < 0 {
 		remaining = 0
-	}
-
-	if s.notificationEmailService != nil {
-		fallbackRecipients := make([]string, 0, len(adminEmails))
-		for _, to := range adminEmails {
-			ctx, cancel := context.WithTimeout(context.Background(), emailSendTimeout)
-			err := s.notificationEmailService.Send(ctx, NotificationEmailSendInput{
-				Event:          NotificationEmailEventAccountQuotaAlert,
-				RecipientEmail: to,
-				RecipientName:  emailRecipientName(to),
-				SourceType:     "account_quota",
-				SourceID:       fmt.Sprintf("%d-%s", accountID, dim.name),
-				ReminderKey:    time.Now().UTC().Format("2006-01-02"),
-				Variables: map[string]string{
-					"account_id":      strconv.FormatInt(accountID, 10),
-					"account_name":    accountName,
-					"platform":        platform,
-					"quota_dimension": dimLabel,
-					"quota_used":      fmt.Sprintf("%.2f", used),
-					"quota_limit":     fmt.Sprintf("%.2f", dim.limit),
-					"quota_remaining": fmt.Sprintf("%.2f", remaining),
-					"quota_threshold": thresholdDisplay,
-				},
-			})
-			cancel()
-			if err != nil {
-				if shouldFallbackNotificationEmail(err) {
-					slog.Warn("template account quota alert failed; falling back to built-in body", "to", to, "account_id", accountID, "dimension", dim.name, "err", err.Error())
-					fallbackRecipients = append(fallbackRecipients, to)
-				} else {
-					slog.Warn("template account quota alert delivery failed; not sending fallback to avoid duplicates", "to", to, "account_id", accountID, "dimension", dim.name, "err", err.Error())
-				}
-			}
-		}
-		if len(fallbackRecipients) == 0 {
-			return
-		}
-		adminEmails = fallbackRecipients
 	}
 
 	subject := fmt.Sprintf("[%s] 账号限额告警 / Account Quota Alert - %s", sanitizeEmailHeader(siteName), sanitizeEmailHeader(accountName))

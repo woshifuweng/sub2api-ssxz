@@ -279,6 +279,15 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User, field
 	if fields.Concurrency {
 		updateOp = updateOp.SetConcurrency(userIn.Concurrency)
 	}
+	if fields.UnlimitedConcurrency {
+		updateOp = updateOp.SetUnlimitedConcurrency(userIn.UnlimitedConcurrency)
+	}
+	if fields.SoraStorageQuotaBytes {
+		updateOp = updateOp.SetSoraStorageQuotaBytes(userIn.SoraStorageQuotaBytes)
+	}
+	if fields.SoraStorageUsedBytes {
+		updateOp = updateOp.SetSoraStorageUsedBytes(userIn.SoraStorageUsedBytes)
+	}
 	if fields.RPMLimit {
 		updateOp = updateOp.SetRpmLimit(userIn.RPMLimit)
 	}

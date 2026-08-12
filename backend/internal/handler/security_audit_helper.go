@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -32,6 +33,19 @@ func (h *GatewayHandler) checkSecurityAudit(c *gin.Context, reqLog *zap.Logger, 
 	return runSecurityAudit(c, reqLog, h.securityAuditCoordinator, h.contentModerationService, apiKey, subject, protocol, model, body, "http")
 }
 
+func (h *GatewayHandler) checkSecurityAuditContext(c gatewayctx.GatewayContext, reqLog *zap.Logger, apiKey *service.APIKey, subject middleware2.AuthSubject, protocol, model string, body []byte) *securityaudit.Decision {
+	if h == nil {
+		return nil
+	}
+	if native, ok := c.Native().(*gin.Context); ok && native != nil {
+		return h.checkSecurityAudit(native, reqLog, apiKey, subject, protocol, model, body)
+	}
+	if h.securityAuditCoordinator == nil && h.contentModerationService == nil {
+		return nil
+	}
+	return &securityaudit.Decision{Kind: securityaudit.DecisionUnavailable, HTTPStatus: http.StatusServiceUnavailable, ErrorCode: securityaudit.ErrorCodeUnavailable, ClientMessage: "Request security validation is temporarily unavailable", AllowNextStage: false}
+}
+
 func (h *OpenAIGatewayHandler) checkSecurityAudit(c *gin.Context, reqLog *zap.Logger, apiKey *service.APIKey, subject middleware2.AuthSubject, protocol, model string, body []byte) *securityaudit.Decision {
 	if h == nil {
 		return nil
@@ -39,11 +53,45 @@ func (h *OpenAIGatewayHandler) checkSecurityAudit(c *gin.Context, reqLog *zap.Lo
 	return runSecurityAudit(c, reqLog, h.securityAuditCoordinator, h.contentModerationService, apiKey, subject, protocol, model, body, "http")
 }
 
+func (h *OpenAIGatewayHandler) checkSecurityAuditContext(c gatewayctx.GatewayContext, reqLog *zap.Logger, apiKey *service.APIKey, subject middleware2.AuthSubject, protocol, model string, body []byte) *securityaudit.Decision {
+	if h == nil {
+		return nil
+	}
+	if native, ok := c.Native().(*gin.Context); ok && native != nil {
+		return h.checkSecurityAudit(native, reqLog, apiKey, subject, protocol, model, body)
+	}
+	if h.securityAuditCoordinator == nil && h.contentModerationService == nil {
+		return nil
+	}
+	return &securityaudit.Decision{Kind: securityaudit.DecisionUnavailable, HTTPStatus: http.StatusServiceUnavailable, ErrorCode: securityaudit.ErrorCodeUnavailable, ClientMessage: "Request security validation is temporarily unavailable", AllowNextStage: false}
+}
+
 func (h *OpenAIGatewayHandler) checkSecurityAuditStage(c *gin.Context, reqLog *zap.Logger, apiKey *service.APIKey, subject middleware2.AuthSubject, protocol, model string, body []byte, stage string) *securityaudit.Decision {
 	if h == nil {
 		return nil
 	}
 	return runSecurityAudit(c, reqLog, h.securityAuditCoordinator, h.contentModerationService, apiKey, subject, protocol, model, body, stage)
+}
+
+func (h *OpenAIGatewayHandler) checkSecurityAuditStageContext(c gatewayctx.GatewayContext, reqLog *zap.Logger, apiKey *service.APIKey, subject middleware2.AuthSubject, protocol, model string, body []byte, stage string) *securityaudit.Decision {
+	if h == nil {
+		return nil
+	}
+	if c != nil {
+		if native, ok := c.Native().(*gin.Context); ok && native != nil {
+			return h.checkSecurityAuditStage(native, reqLog, apiKey, subject, protocol, model, body, stage)
+		}
+	}
+	if h.securityAuditCoordinator == nil && h.contentModerationService == nil {
+		return nil
+	}
+	return &securityaudit.Decision{
+		Kind:           securityaudit.DecisionUnavailable,
+		HTTPStatus:     http.StatusServiceUnavailable,
+		ErrorCode:      securityaudit.ErrorCodeUnavailable,
+		ClientMessage:  "Request security validation is temporarily unavailable",
+		AllowNextStage: false,
+	}
 }
 
 func runSecurityAudit(c *gin.Context, reqLog *zap.Logger, coordinator *securityaudit.Coordinator, legacy *service.ContentModerationService, apiKey *service.APIKey, subject middleware2.AuthSubject, protocol, model string, body []byte, stage string) *securityaudit.Decision {

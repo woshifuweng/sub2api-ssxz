@@ -59,15 +59,14 @@ type PaymentConfig struct {
 	EnabledTypes              []string `json:"enabled_payment_types"`
 	BalanceDisabled           bool     `json:"balance_disabled"`
 	BalanceRechargeMultiplier float64  `json:"balance_recharge_multiplier"`
-	// SubscriptionUSDToCNYRate 为 0 时订阅换算关闭（兼容存量行为）。
-	SubscriptionUSDToCNYRate float64 `json:"subscription_usd_to_cny_rate"`
-	RechargeFeeRate          float64 `json:"recharge_fee_rate"`
-	LoadBalanceStrategy      string  `json:"load_balance_strategy"`
-	ProductNamePrefix        string  `json:"product_name_prefix"`
-	ProductNameSuffix        string  `json:"product_name_suffix"`
-	HelpImageURL             string  `json:"help_image_url"`
-	HelpText                 string  `json:"help_text"`
-	StripePublishableKey     string  `json:"stripe_publishable_key,omitempty"`
+	SubscriptionUSDToCNYRate  float64  `json:"subscription_usd_to_cny_rate"`
+	RechargeFeeRate           float64  `json:"recharge_fee_rate"`
+	LoadBalanceStrategy       string   `json:"load_balance_strategy"`
+	ProductNamePrefix         string   `json:"product_name_prefix"`
+	ProductNameSuffix         string   `json:"product_name_suffix"`
+	HelpImageURL              string   `json:"help_image_url"`
+	HelpText                  string   `json:"help_text"`
+	StripePublishableKey      string   `json:"stripe_publishable_key,omitempty"`
 
 	// Cancel rate limit settings
 	CancelRateLimitEnabled bool   `json:"cancel_rate_limit_enabled"`
@@ -442,10 +441,9 @@ func formatPositiveFloat(v *float64) string {
 	return strconv.FormatFloat(*v, 'f', 2, 64)
 }
 
-// formatPositiveFloatExact 保留完整精度，用于汇率等对小数位敏感的配置。
 func formatPositiveFloatExact(v *float64) string {
 	if v == nil || *v <= 0 {
-		return "" // empty → parsePaymentConfig 视为未配置（换算关闭）
+		return ""
 	}
 	return strconv.FormatFloat(*v, 'f', -1, 64)
 }

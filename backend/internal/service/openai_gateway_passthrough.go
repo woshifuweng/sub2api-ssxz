@@ -175,8 +175,9 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		}
 	}
 
-	// Get access token
-	token, _, err := s.GetAccessToken(ctx, account)
+	// Agent Identity signs each upstream request and does not carry a reusable
+	// OAuth access token; all other account types use the regular token path.
+	token, err := s.getOpenAIRequestAccessToken(ctx, account)
 	if err != nil {
 		return nil, err
 	}
@@ -595,6 +596,9 @@ func (s *OpenAIGatewayService) handleFailoverErrorResponsePassthrough(
 		Detail:               upstreamDetail,
 		UpstreamResponseBody: upstreamDetail,
 	})
+	if c != nil {
+		c.Set(OpenAIPassthroughFailoverKey, true)
+	}
 	return newOpenAIUpstreamFailoverError(
 		resp.StatusCode,
 		resp.Header,

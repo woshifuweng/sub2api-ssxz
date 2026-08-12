@@ -287,6 +287,20 @@ func (_c *GroupCreate) SetNillableDefaultValidityDays(v *int) *GroupCreate {
 	return _c
 }
 
+// SetSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field.
+func (_c *GroupCreate) SetSoraStorageQuotaBytes(v int64) *GroupCreate {
+	_c.mutation.SetSoraStorageQuotaBytes(v)
+	return _c
+}
+
+// SetNillableSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableSoraStorageQuotaBytes(v *int64) *GroupCreate {
+	if v != nil {
+		_c.SetSoraStorageQuotaBytes(*v)
+	}
+	return _c
+}
+
 // SetAllowImageGeneration sets the "allow_image_generation" field.
 func (_c *GroupCreate) SetAllowImageGeneration(v bool) *GroupCreate {
 	_c.mutation.SetAllowImageGeneration(v)
@@ -948,6 +962,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultDefaultValidityDays
 		_c.mutation.SetDefaultValidityDays(v)
 	}
+	if _, ok := _c.mutation.SoraStorageQuotaBytes(); !ok {
+		v := group.DefaultSoraStorageQuotaBytes
+		_c.mutation.SetSoraStorageQuotaBytes(v)
+	}
 	if _, ok := _c.mutation.AllowImageGeneration(); !ok {
 		v := group.DefaultAllowImageGeneration
 		_c.mutation.SetAllowImageGeneration(v)
@@ -1130,6 +1148,9 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.DefaultValidityDays(); !ok {
 		return &ValidationError{Name: "default_validity_days", err: errors.New(`ent: missing required field "Group.default_validity_days"`)}
+	}
+	if _, ok := _c.mutation.SoraStorageQuotaBytes(); !ok {
+		return &ValidationError{Name: "sora_storage_quota_bytes", err: errors.New(`ent: missing required field "Group.sora_storage_quota_bytes"`)}
 	}
 	if _, ok := _c.mutation.AllowImageGeneration(); !ok {
 		return &ValidationError{Name: "allow_image_generation", err: errors.New(`ent: missing required field "Group.allow_image_generation"`)}
@@ -1321,6 +1342,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.DefaultValidityDays(); ok {
 		_spec.SetField(group.FieldDefaultValidityDays, field.TypeInt, value)
 		_node.DefaultValidityDays = value
+	}
+	if value, ok := _c.mutation.SoraStorageQuotaBytes(); ok {
+		_spec.SetField(group.FieldSoraStorageQuotaBytes, field.TypeInt64, value)
+		_node.SoraStorageQuotaBytes = value
 	}
 	if value, ok := _c.mutation.AllowImageGeneration(); ok {
 		_spec.SetField(group.FieldAllowImageGeneration, field.TypeBool, value)
@@ -1889,6 +1914,24 @@ func (u *GroupUpsert) UpdateDefaultValidityDays() *GroupUpsert {
 // AddDefaultValidityDays adds v to the "default_validity_days" field.
 func (u *GroupUpsert) AddDefaultValidityDays(v int) *GroupUpsert {
 	u.Add(group.FieldDefaultValidityDays, v)
+	return u
+}
+
+// SetSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field.
+func (u *GroupUpsert) SetSoraStorageQuotaBytes(v int64) *GroupUpsert {
+	u.Set(group.FieldSoraStorageQuotaBytes, v)
+	return u
+}
+
+// UpdateSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateSoraStorageQuotaBytes() *GroupUpsert {
+	u.SetExcluded(group.FieldSoraStorageQuotaBytes)
+	return u
+}
+
+// AddSoraStorageQuotaBytes adds v to the "sora_storage_quota_bytes" field.
+func (u *GroupUpsert) AddSoraStorageQuotaBytes(v int64) *GroupUpsert {
+	u.Add(group.FieldSoraStorageQuotaBytes, v)
 	return u
 }
 
@@ -2846,6 +2889,27 @@ func (u *GroupUpsertOne) AddDefaultValidityDays(v int) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdateDefaultValidityDays() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateDefaultValidityDays()
+	})
+}
+
+// SetSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field.
+func (u *GroupUpsertOne) SetSoraStorageQuotaBytes(v int64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetSoraStorageQuotaBytes(v)
+	})
+}
+
+// AddSoraStorageQuotaBytes adds v to the "sora_storage_quota_bytes" field.
+func (u *GroupUpsertOne) AddSoraStorageQuotaBytes(v int64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddSoraStorageQuotaBytes(v)
+	})
+}
+
+// UpdateSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateSoraStorageQuotaBytes() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateSoraStorageQuotaBytes()
 	})
 }
 
@@ -4068,6 +4132,27 @@ func (u *GroupUpsertBulk) AddDefaultValidityDays(v int) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdateDefaultValidityDays() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateDefaultValidityDays()
+	})
+}
+
+// SetSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field.
+func (u *GroupUpsertBulk) SetSoraStorageQuotaBytes(v int64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetSoraStorageQuotaBytes(v)
+	})
+}
+
+// AddSoraStorageQuotaBytes adds v to the "sora_storage_quota_bytes" field.
+func (u *GroupUpsertBulk) AddSoraStorageQuotaBytes(v int64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddSoraStorageQuotaBytes(v)
+	})
+}
+
+// UpdateSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateSoraStorageQuotaBytes() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateSoraStorageQuotaBytes()
 	})
 }
 

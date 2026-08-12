@@ -18,18 +18,22 @@ import (
 )
 
 func (s *OpenAIGatewayService) validateUpstreamBaseURL(raw string) (string, error) {
-	if s.cfg != nil && !s.cfg.Security.URLAllowlist.Enabled {
-		normalized, err := urlvalidator.ValidateURLFormat(raw, s.cfg.Security.URLAllowlist.AllowInsecureHTTP)
-		if err != nil {
-			return "", fmt.Errorf("invalid base_url: %w", err)
+	var allowInsecureHTTP bool
+	opts := urlvalidator.ValidationOptions{}
+	if s.cfg != nil {
+		urlAllowlist := s.cfg.Security.URLAllowlist
+		allowInsecureHTTP = urlAllowlist.AllowInsecureHTTP
+		allowedHosts := []string(nil)
+		if urlAllowlist.Enabled && urlAllowlist.EnforceUpstreamHosts {
+			allowedHosts = urlAllowlist.UpstreamHosts
 		}
-		return normalized, nil
+		opts = urlvalidator.ValidationOptions{
+			AllowedHosts:     allowedHosts,
+			RequireAllowlist: urlAllowlist.Enabled && urlAllowlist.EnforceUpstreamHosts,
+			AllowPrivate:     !urlAllowlist.Enabled || urlAllowlist.AllowPrivateHosts,
+		}
 	}
-	normalized, err := urlvalidator.ValidateHTTPSURL(raw, urlvalidator.ValidationOptions{
-		AllowedHosts:     s.cfg.Security.URLAllowlist.UpstreamHosts,
-		RequireAllowlist: true,
-		AllowPrivate:     s.cfg.Security.URLAllowlist.AllowPrivateHosts,
-	})
+	normalized, err := urlvalidator.ValidateHTTPURL(raw, allowInsecureHTTP, opts)
 	if err != nil {
 		return "", fmt.Errorf("invalid base_url: %w", err)
 	}

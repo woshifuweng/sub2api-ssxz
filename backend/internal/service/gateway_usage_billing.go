@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"go.uber.org/zap"
 )
 
 func (s *GatewayService) getUserGroupRateMultiplier(ctx context.Context, userID, groupID int64, groupDefaultMultiplier float64) float64 {
@@ -64,6 +66,10 @@ type APIKeyQuotaUpdater interface {
 
 type apiKeyAuthCacheInvalidator interface {
 	InvalidateAuthCacheByKey(ctx context.Context, key string)
+}
+
+type apiKeyAuthCacheByUserInvalidator interface {
+	InvalidateAuthCacheByUserID(ctx context.Context, userID int64)
 }
 
 type usageLogBestEffortWriter interface {
@@ -254,6 +260,9 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 		cmd.CacheCreationTokens = usageLog.CacheCreationTokens
 		cmd.CacheReadTokens = usageLog.CacheReadTokens
 		cmd.ImageCount = usageLog.ImageCount
+		if usageLog.MediaType != nil {
+			cmd.MediaType = *usageLog.MediaType
+		}
 		if usageLog.ServiceTier != nil {
 			cmd.ServiceTier = *usageLog.ServiceTier
 		}
@@ -296,7 +305,17 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 	}
 
 	cmd := buildUsageBillingCommand(requestID, usageLog, p)
-	if cmd == nil || cmd.RequestID == "" || repo == nil {
+	if cmd == nil || cmd.RequestID == "" {
+		if usageBillingParamsRequireIdempotentRepository(p) {
+			return false, ErrBillingServiceUnavailable.WithCause(fmt.Errorf("usage billing command is incomplete"))
+		}
+		postUsageBilling(ctx, p, deps)
+		return true, nil
+	}
+	if repo == nil {
+		if usageBillingCommandRequiresRepository(cmd) {
+			return false, ErrBillingServiceUnavailable.WithCause(fmt.Errorf("usage billing repository is not configured"))
+		}
 		postUsageBilling(ctx, p, deps)
 		return true, nil
 	}
@@ -321,6 +340,9 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 	}
 
 	finalizePostUsageBilling(billingCtx, p, deps, result)
+	if result.BalanceExhausted {
+		handleUsageBillingBalanceExhausted(billingCtx, requestID, usageLog, p, deps, result)
+	}
 	return true, nil
 }
 
@@ -381,6 +403,71 @@ func finalizePostUsageBilling(ctx context.Context, p *postUsageBillingParams, de
 	// no dependency on the request context or upstream connection.
 	go notifyBalanceLow(p, deps, result)
 	go notifyAccountQuota(p, deps, result)
+}
+
+func handleUsageBillingBalanceExhausted(
+	ctx context.Context,
+	requestID string,
+	usageLog *UsageLog,
+	p *postUsageBillingParams,
+	deps *billingDeps,
+	result *UsageBillingApplyResult,
+) {
+	if p == nil || p.User == nil || result == nil {
+		return
+	}
+
+	if result.NewBalance != nil {
+		p.User.Balance = *result.NewBalance
+	}
+	if deps != nil && deps.billingCacheService != nil {
+		if err := deps.billingCacheService.InvalidateUserBalance(ctx, p.User.ID); err != nil {
+			logger.L().With(
+				zap.String("component", "service.gateway.billing"),
+				zap.Int64("user_id", p.User.ID),
+			).Error("gateway.billing_balance_cache_invalidation_failed", zap.Error(err))
+		}
+	}
+	if invalidator, ok := p.APIKeyService.(apiKeyAuthCacheInvalidator); ok && p.APIKey != nil && p.APIKey.Key != "" {
+		invalidator.InvalidateAuthCacheByKey(ctx, p.APIKey.Key)
+	}
+	if invalidator, ok := p.APIKeyService.(apiKeyAuthCacheByUserInvalidator); ok {
+		invalidator.InvalidateAuthCacheByUserID(ctx, p.User.ID)
+	}
+
+	if result.BalanceShortfall <= 0 {
+		return
+	}
+	fields := []zap.Field{
+		zap.String("component", "service.gateway.billing"),
+		zap.String("request_id", strings.TrimSpace(requestID)),
+		zap.Int64("user_id", p.User.ID),
+		zap.Float64("charged", result.BalanceCharged),
+		zap.Float64("shortfall", result.BalanceShortfall),
+	}
+	if p.APIKey != nil {
+		fields = append(fields, zap.Int64("api_key_id", p.APIKey.ID))
+	}
+	if usageLog != nil {
+		fields = append(fields, zap.String("model", usageLog.Model))
+	}
+	logger.L().With(fields...).Error("gateway.billing_shortfall_detected")
+
+	if deps != nil && deps.billingShortfallAlert != nil {
+		alert := BillingShortfallAlert{
+			RequestID: strings.TrimSpace(requestID),
+			UserID:    p.User.ID,
+			Charged:   result.BalanceCharged,
+			Shortfall: result.BalanceShortfall,
+		}
+		if p.APIKey != nil {
+			alert.APIKeyID = p.APIKey.ID
+		}
+		if usageLog != nil {
+			alert.Model = usageLog.Model
+		}
+		deps.billingShortfallAlert.NotifyBillingShortfall(ctx, alert)
+	}
 }
 
 func syncBalanceCacheAfterDeduction(ctx context.Context, p *postUsageBillingParams, deps *billingDeps, result *UsageBillingApplyResult) {
@@ -506,6 +593,7 @@ type billingDeps struct {
 	billingCacheService   *BillingCacheService
 	deferredService       *DeferredService
 	balanceNotifyService  *BalanceNotifyService
+	billingShortfallAlert BillingShortfallNotifier
 	userPlatformQuotaRepo UserPlatformQuotaRepository
 	cfg                   *config.Config
 }
@@ -518,6 +606,7 @@ func (s *GatewayService) billingDeps() *billingDeps {
 		billingCacheService:   s.billingCacheService,
 		deferredService:       s.deferredService,
 		balanceNotifyService:  s.balanceNotifyService,
+		billingShortfallAlert: s.billingShortfallAlert,
 		userPlatformQuotaRepo: s.userPlatformQuotaRepo,
 		cfg:                   s.cfg,
 	}

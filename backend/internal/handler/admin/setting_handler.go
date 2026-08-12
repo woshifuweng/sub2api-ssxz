@@ -1,22 +1,24 @@
 package admin
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"regexp"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
-// semverPattern 预编译 semver 格式校验正则
 var semverPattern = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 
 // menuItemIDPattern validates custom menu item IDs: alphanumeric, hyphens, underscores only.
@@ -49,7 +51,7 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-// SettingHandler 系统设置处理器
+// SettingHandler handles system settings.
 type SettingHandler struct {
 	settingService           *service.SettingService
 	emailService             *service.EmailService
@@ -62,9 +64,10 @@ type SettingHandler struct {
 	notificationEmailService *service.NotificationEmailService
 	totpService              *service.TotpService
 	userService              *service.UserService
+	soraS3Storage            *service.SoraS3Storage
 }
 
-// NewSettingHandler 创建系统设置处理器
+// NewSettingHandler creates a system settings handler.
 func NewSettingHandler(settingService *service.SettingService, emailService *service.EmailService, turnstileService *service.TurnstileService, opsService *service.OpsService, paymentConfigService *service.PaymentConfigService, paymentService *service.PaymentService, userAttributeService *service.UserAttributeService) *SettingHandler {
 	return &SettingHandler{
 		settingService:       settingService,
@@ -98,22 +101,39 @@ func (h *SettingHandler) SetStepUpDeps(totpService *service.TotpService, userSer
 	h.userService = userService
 }
 
-// GetSettings 获取所有系统设置
-// GET /api/v1/admin/settings
-func (h *SettingHandler) GetSettings(c *gin.Context) {
-	settings, err := h.settingService.GetAllSettings(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	authSourceDefaults, err := h.settingService.GetAuthSourceDefaultSettings(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
+// SetSoraS3Storage attaches the optional Sora object storage integration.
+func (h *SettingHandler) SetSoraS3Storage(soraS3Storage *service.SoraS3Storage) {
+	h.soraS3Storage = soraS3Storage
+}
 
-	// Check if ops monitoring is enabled (respects config.ops.enabled)
-	opsEnabled := h.opsService != nil && h.opsService.IsMonitoringEnabled(c.Request.Context())
+func (h *SettingHandler) GetSettings(c *gin.Context) {
+	h.GetSettingsGateway(gatewayctx.FromGin(c))
+}
+
+func (h *SettingHandler) GetSettingsGateway(c gatewayctx.GatewayContext) {
+	settingsDTO, err := h.loadSystemSettingsDTO(c.Request().Context(), c.HeaderValue("Origin"))
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+	authSourceDefaults, err := h.settingService.GetAuthSourceDefaultSettings(c.Request().Context())
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, systemSettingsResponseData(settingsDTO, authSourceDefaults))
+}
+
+func (h *SettingHandler) loadSystemSettingsDTO(ctx context.Context, requestOrigin string) (dto.SystemSettings, error) {
+	settings, err := h.settingService.GetAllSettings(ctx)
+	if err != nil {
+		return dto.SystemSettings{}, err
+	}
+	effectiveOpsMonitoringEnabled := settings.OpsMonitoringEnabled && h.opsService != nil && h.opsService.IsMonitoringEnabled(ctx)
+	return h.buildSystemSettingsDTO(ctx, settings, effectiveOpsMonitoringEnabled, requestOrigin), nil
+}
+
+func (h *SettingHandler) buildSystemSettingsDTO(ctx context.Context, settings *service.SystemSettings, effectiveOpsMonitoringEnabled bool, requestOrigin string) dto.SystemSettings {
 	defaultSubscriptions := make([]dto.DefaultSubscriptionSetting, 0, len(settings.DefaultSubscriptions))
 	for _, sub := range settings.DefaultSubscriptions {
 		defaultSubscriptions = append(defaultSubscriptions, dto.DefaultSubscriptionSetting{
@@ -125,7 +145,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 	// Load payment config
 	var paymentCfg *service.PaymentConfig
 	if h.paymentConfigService != nil {
-		paymentCfg, _ = h.paymentConfigService.GetPaymentConfig(c.Request.Context())
+		paymentCfg, _ = h.paymentConfigService.GetPaymentConfig(ctx)
 	}
 	if paymentCfg == nil {
 		paymentCfg = &service.PaymentConfig{}
@@ -138,6 +158,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		RegistrationEmailSuffixWhitelist:                       settings.RegistrationEmailSuffixWhitelist,
 		PromoCodeEnabled:                                       settings.PromoCodeEnabled,
 		PasswordResetEnabled:                                   settings.PasswordResetEnabled,
+		PasswordResetEnabledStored:                             settings.PasswordResetEnabledStored,
+		PasswordResetLinkBase:                                  h.settingService.ResolvePasswordResetLinkBase(ctx, requestOrigin),
 		FrontendURL:                                            settings.FrontendURL,
 		InvitationCodeEnabled:                                  settings.InvitationCodeEnabled,
 		TotpEnabled:                                            settings.TotpEnabled,
@@ -278,7 +300,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		FallbackModelAntigravity:                               settings.FallbackModelAntigravity,
 		EnableIdentityPatch:                                    settings.EnableIdentityPatch,
 		IdentityPatchPrompt:                                    settings.IdentityPatchPrompt,
-		OpsMonitoringEnabled:                                   opsEnabled && settings.OpsMonitoringEnabled,
+		OpsMonitoringEnabled:                                   effectiveOpsMonitoringEnabled,
 		OpsRealtimeMonitoringEnabled:                           settings.OpsRealtimeMonitoringEnabled,
 		OpsQueryModeDefault:                                    settings.OpsQueryModeDefault,
 		OpsMetricsIntervalSeconds:                              settings.OpsMetricsIntervalSeconds,
@@ -383,20 +405,22 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 	}
 
 	// OpenAI fast policy (stored under a dedicated setting key)
-	if fastPolicy, err := h.settingService.GetOpenAIFastPolicySettings(c.Request.Context()); err != nil {
-		slog.Error("openai_fast_policy_settings_get_failed", "error", err)
-	} else if fastPolicy != nil {
-		payload.OpenAIFastPolicySettings = openaiFastPolicySettingsToDTO(fastPolicy)
+	if h.settingService != nil {
+		if fastPolicy, err := h.settingService.GetOpenAIFastPolicySettings(ctx); err != nil {
+			slog.Error("openai_fast_policy_settings_get_failed", "error", err)
+		} else if fastPolicy != nil {
+			payload.OpenAIFastPolicySettings = openaiFastPolicySettingsToDTO(fastPolicy)
+		}
+
+		// Load default platform quotas.
+		if platformQuotas, err := h.settingService.GetDefaultPlatformQuotas(ctx); err != nil {
+			slog.Error("default_platform_quotas_get_failed", "error", err)
+		} else {
+			payload.DefaultPlatformQuotas = platformQuotas
+		}
 	}
 
-	// Default platform quotas（JSON map）
-	if platformQuotas, err := h.settingService.GetDefaultPlatformQuotas(c.Request.Context()); err != nil {
-		slog.Error("default_platform_quotas_get_failed", "error", err)
-	} else {
-		payload.DefaultPlatformQuotas = platformQuotas
-	}
-
-	response.Success(c, systemSettingsResponseData(payload, authSourceDefaults))
+	return payload
 }
 
 // openaiFastPolicySettingsToDTO converts service -> dto for OpenAI fast policy.
@@ -413,10 +437,7 @@ func openaiFastPolicySettingsToDTO(s *service.OpenAIFastPolicySettings) *dto.Ope
 
 // openaiFastPolicySettingsFromDTO converts dto -> service for OpenAI fast policy.
 //
-// 规范化 ServiceTier：在 DTO 进入 service 层之前统一把空字符串归一为
-// service.OpenAIFastTierAny ("all")，避免管理员保存时空串与 "all" 同时
-// 表达"匹配任意 tier"造成数据库取值的二义性。其它非空值原样透传，由
-// service.SetOpenAIFastPolicySettings 负责合法值校验。
+// openaiFastPolicySettingsFromDTO converts DTO rules to service settings.
 func openaiFastPolicySettingsFromDTO(s *dto.OpenAIFastPolicySettings) *service.OpenAIFastPolicySettings {
 	if s == nil {
 		return nil
@@ -517,4 +538,635 @@ func systemSettingsResponseData(settings dto.SystemSettings, authSourceDefaults 
 	data["force_email_on_third_party_signup"] = authSourceDefaults.ForceEmailOnThirdPartySignup
 
 	return data
+
+}
+func toSoraS3SettingsDTO(settings *service.SoraS3Settings) dto.SoraS3Settings {
+	if settings == nil {
+		return dto.SoraS3Settings{}
+	}
+	return dto.SoraS3Settings{
+		Enabled:                   settings.Enabled,
+		Endpoint:                  settings.Endpoint,
+		Region:                    settings.Region,
+		Bucket:                    settings.Bucket,
+		AccessKeyID:               settings.AccessKeyID,
+		SecretAccessKeyConfigured: settings.SecretAccessKeyConfigured,
+		Prefix:                    settings.Prefix,
+		ForcePathStyle:            settings.ForcePathStyle,
+		CDNURL:                    settings.CDNURL,
+		DefaultStorageQuotaBytes:  settings.DefaultStorageQuotaBytes,
+	}
+}
+
+func toSoraS3ProfileDTO(profile service.SoraS3Profile) dto.SoraS3Profile {
+	return dto.SoraS3Profile{
+		ProfileID:                 profile.ProfileID,
+		Name:                      profile.Name,
+		IsActive:                  profile.IsActive,
+		Enabled:                   profile.Enabled,
+		Endpoint:                  profile.Endpoint,
+		Region:                    profile.Region,
+		Bucket:                    profile.Bucket,
+		AccessKeyID:               profile.AccessKeyID,
+		SecretAccessKeyConfigured: profile.SecretAccessKeyConfigured,
+		Prefix:                    profile.Prefix,
+		ForcePathStyle:            profile.ForcePathStyle,
+		CDNURL:                    profile.CDNURL,
+		DefaultStorageQuotaBytes:  profile.DefaultStorageQuotaBytes,
+		UpdatedAt:                 profile.UpdatedAt,
+	}
+}
+
+func toTLSFingerprintProfileDTO(profile service.TLSFingerprintProfile) dto.TLSFingerprintProfile {
+	return dto.TLSFingerprintProfile{
+		ProfileID:    profile.ProfileID,
+		Name:         profile.Name,
+		Enabled:      profile.Enabled,
+		EnableGREASE: profile.EnableGREASE,
+		CipherSuites: profile.CipherSuites,
+		Curves:       profile.Curves,
+		PointFormats: profile.PointFormats,
+		UpdatedAt:    profile.UpdatedAt,
+	}
+}
+
+func uint16To64Slice(values []uint16) []uint64 {
+	result := make([]uint64, 0, len(values))
+	for _, value := range values {
+		result = append(result, uint64(value))
+	}
+	return result
+}
+
+func uint8To64Slice(values []uint8) []uint64 {
+	result := make([]uint64, 0, len(values))
+	for _, value := range values {
+		result = append(result, uint64(value))
+	}
+	return result
+}
+
+func validateTLSFingerprintSlice(field string, values []uint64) error {
+	for _, value := range values {
+		if value == 0 {
+			return fmt.Errorf("%s cannot contain zero values", field)
+		}
+	}
+	return nil
+}
+
+func validateSoraS3RequiredWhenEnabled(enabled bool, endpoint, bucket, accessKeyID, secretAccessKey string, hasStoredSecret bool) error {
+	if !enabled {
+		return nil
+	}
+	if strings.TrimSpace(endpoint) == "" {
+		return fmt.Errorf("S3 Endpoint is required when enabled")
+	}
+	if strings.TrimSpace(bucket) == "" {
+		return fmt.Errorf("S3 Bucket is required when enabled")
+	}
+	if strings.TrimSpace(accessKeyID) == "" {
+		return fmt.Errorf("S3 Access Key ID is required when enabled")
+	}
+	if strings.TrimSpace(secretAccessKey) != "" || hasStoredSecret {
+		return nil
+	}
+	return fmt.Errorf("S3 Secret Access Key is required when enabled")
+}
+
+type UpdateTLSFingerprintSettingsRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
+type CreateTLSFingerprintProfileRequest struct {
+	ProfileID    string   `json:"profile_id"`
+	Name         string   `json:"name"`
+	Enabled      bool     `json:"enabled"`
+	EnableGREASE bool     `json:"enable_grease"`
+	CipherSuites []uint16 `json:"cipher_suites"`
+	Curves       []uint16 `json:"curves"`
+	PointFormats []uint8  `json:"point_formats"`
+}
+
+type UpdateTLSFingerprintProfileRequest struct {
+	Name         string   `json:"name"`
+	Enabled      bool     `json:"enabled"`
+	EnableGREASE bool     `json:"enable_grease"`
+	CipherSuites []uint16 `json:"cipher_suites"`
+	Curves       []uint16 `json:"curves"`
+	PointFormats []uint8  `json:"point_formats"`
+}
+
+func (h *SettingHandler) GetTLSFingerprintSettings(c *gin.Context) {
+	h.GetTLSFingerprintSettingsGateway(gatewayctx.FromGin(c))
+}
+
+func (h *SettingHandler) GetTLSFingerprintSettingsGateway(c gatewayctx.GatewayContext) {
+	result, err := h.settingService.ListTLSFingerprintProfiles(c.Request().Context())
+	if err != nil {
+		response.ErrorFromContext(c, err)
+		return
+	}
+	items := make([]dto.TLSFingerprintProfile, 0, len(result.Items))
+	for idx := range result.Items {
+		items = append(items, toTLSFingerprintProfileDTO(result.Items[idx]))
+	}
+	response.SuccessContext(c, dto.ListTLSFingerprintProfilesResponse{
+		Enabled: result.Enabled,
+		Items:   items,
+	})
+}
+
+func (h *SettingHandler) UpdateTLSFingerprintSettings(c *gin.Context) {
+	h.UpdateTLSFingerprintSettingsGateway(gatewayctx.FromGin(c))
+}
+
+func (h *SettingHandler) UpdateTLSFingerprintSettingsGateway(c gatewayctx.GatewayContext) {
+	var req UpdateTLSFingerprintSettingsRequest
+	if err := c.BindJSON(&req); err != nil {
+		response.ErrorContext(c, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.settingService.SetTLSFingerprintSettings(c.Request().Context(), &service.TLSFingerprintSettings{
+		Enabled: req.Enabled,
+	}); err != nil {
+		response.ErrorFromContext(c, err)
+		return
+	}
+	response.SuccessContext(c, dto.TLSFingerprintSettings{Enabled: req.Enabled})
+}
+
+func (h *SettingHandler) ListTLSFingerprintProfiles(c *gin.Context) {
+	h.ListTLSFingerprintProfilesGateway(gatewayctx.FromGin(c))
+}
+
+func (h *SettingHandler) ListTLSFingerprintProfilesGateway(c gatewayctx.GatewayContext) {
+	result, err := h.settingService.ListTLSFingerprintProfiles(c.Request().Context())
+	if err != nil {
+		response.ErrorFromContext(c, err)
+		return
+	}
+	items := make([]dto.TLSFingerprintProfile, 0, len(result.Items))
+	for idx := range result.Items {
+		items = append(items, toTLSFingerprintProfileDTO(result.Items[idx]))
+	}
+	response.SuccessContext(c, dto.ListTLSFingerprintProfilesResponse{
+		Enabled: result.Enabled,
+		Items:   items,
+	})
+}
+
+func (h *SettingHandler) CreateTLSFingerprintProfile(c *gin.Context) {
+	h.CreateTLSFingerprintProfileGateway(gatewayctx.FromGin(c))
+}
+
+func (h *SettingHandler) CreateTLSFingerprintProfileGateway(c gatewayctx.GatewayContext) {
+	var req CreateTLSFingerprintProfileRequest
+	if err := c.BindJSON(&req); err != nil {
+		response.ErrorContext(c, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+	if strings.TrimSpace(req.ProfileID) == "" {
+		response.ErrorContext(c, http.StatusBadRequest, "Profile ID is required")
+		return
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		response.ErrorContext(c, http.StatusBadRequest, "Name is required")
+		return
+	}
+	if err := validateTLSFingerprintSlice("cipher_suites", uint16To64Slice(req.CipherSuites)); err != nil {
+		response.ErrorContext(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := validateTLSFingerprintSlice("curves", uint16To64Slice(req.Curves)); err != nil {
+		response.ErrorContext(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := validateTLSFingerprintSlice("point_formats", uint8To64Slice(req.PointFormats)); err != nil {
+		response.ErrorContext(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	created, err := h.settingService.CreateTLSFingerprintProfile(c.Request().Context(), &service.TLSFingerprintProfile{
+		ProfileID:    req.ProfileID,
+		Name:         req.Name,
+		Enabled:      req.Enabled,
+		EnableGREASE: req.EnableGREASE,
+		CipherSuites: req.CipherSuites,
+		Curves:       req.Curves,
+		PointFormats: req.PointFormats,
+	})
+	if err != nil {
+		response.ErrorFromContext(c, err)
+		return
+	}
+	response.SuccessContext(c, toTLSFingerprintProfileDTO(*created))
+}
+
+func (h *SettingHandler) UpdateTLSFingerprintProfile(c *gin.Context) {
+	h.UpdateTLSFingerprintProfileGateway(gatewayctx.FromGin(c))
+}
+
+func (h *SettingHandler) UpdateTLSFingerprintProfileGateway(c gatewayctx.GatewayContext) {
+	profileID := strings.TrimSpace(c.PathParam("profile_id"))
+	if profileID == "" {
+		response.ErrorContext(c, http.StatusBadRequest, "Profile ID is required")
+		return
+	}
+	var req UpdateTLSFingerprintProfileRequest
+	if err := c.BindJSON(&req); err != nil {
+		response.ErrorContext(c, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		response.ErrorContext(c, http.StatusBadRequest, "Name is required")
+		return
+	}
+	if err := validateTLSFingerprintSlice("cipher_suites", uint16To64Slice(req.CipherSuites)); err != nil {
+		response.ErrorContext(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := validateTLSFingerprintSlice("curves", uint16To64Slice(req.Curves)); err != nil {
+		response.ErrorContext(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := validateTLSFingerprintSlice("point_formats", uint8To64Slice(req.PointFormats)); err != nil {
+		response.ErrorContext(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	updated, err := h.settingService.UpdateTLSFingerprintProfile(c.Request().Context(), profileID, &service.TLSFingerprintProfile{
+		Name:         req.Name,
+		Enabled:      req.Enabled,
+		EnableGREASE: req.EnableGREASE,
+		CipherSuites: req.CipherSuites,
+		Curves:       req.Curves,
+		PointFormats: req.PointFormats,
+	})
+	if err != nil {
+		response.ErrorFromContext(c, err)
+		return
+	}
+	response.SuccessContext(c, toTLSFingerprintProfileDTO(*updated))
+}
+
+func (h *SettingHandler) DeleteTLSFingerprintProfile(c *gin.Context) {
+	h.DeleteTLSFingerprintProfileGateway(gatewayctx.FromGin(c))
+}
+
+func (h *SettingHandler) DeleteTLSFingerprintProfileGateway(c gatewayctx.GatewayContext) {
+	profileID := strings.TrimSpace(c.PathParam("profile_id"))
+	if profileID == "" {
+		response.ErrorContext(c, http.StatusBadRequest, "Profile ID is required")
+		return
+	}
+	if err := h.settingService.DeleteTLSFingerprintProfile(c.Request().Context(), profileID); err != nil {
+		response.ErrorFromContext(c, err)
+		return
+	}
+	response.SuccessContext(c, gin.H{"deleted": true})
+}
+
+func findSoraS3ProfileByID(items []service.SoraS3Profile, profileID string) *service.SoraS3Profile {
+	for idx := range items {
+		if items[idx].ProfileID == profileID {
+			return &items[idx]
+		}
+	}
+	return nil
+}
+
+// GET /api/v1/admin/settings/sora-s3
+func (h *SettingHandler) GetSoraS3Settings(c *gin.Context) {
+	h.GetSoraS3SettingsGateway(gatewayctx.FromGin(c))
+}
+
+func (h *SettingHandler) GetSoraS3SettingsGateway(c gatewayctx.GatewayContext) {
+	settings, err := h.settingService.GetSoraS3Settings(c.Request().Context())
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, toSoraS3SettingsDTO(settings))
+}
+
+func (h *SettingHandler) ListSoraS3Profiles(c *gin.Context) {
+	h.ListSoraS3ProfilesGateway(gatewayctx.FromGin(c))
+}
+
+func (h *SettingHandler) ListSoraS3ProfilesGateway(c gatewayctx.GatewayContext) {
+	result, err := h.settingService.ListSoraS3Profiles(c.Request().Context())
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+	items := make([]dto.SoraS3Profile, 0, len(result.Items))
+	for idx := range result.Items {
+		items = append(items, toSoraS3ProfileDTO(result.Items[idx]))
+	}
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, dto.ListSoraS3ProfilesResponse{
+		ActiveProfileID: result.ActiveProfileID,
+		Items:           items,
+	})
+}
+
+// UpdateSoraS3SettingsRequest updates or tests Sora S3 settings.
+type UpdateSoraS3SettingsRequest struct {
+	ProfileID                string `json:"profile_id"`
+	Enabled                  bool   `json:"enabled"`
+	Endpoint                 string `json:"endpoint"`
+	Region                   string `json:"region"`
+	Bucket                   string `json:"bucket"`
+	AccessKeyID              string `json:"access_key_id"`
+	SecretAccessKey          string `json:"secret_access_key"`
+	Prefix                   string `json:"prefix"`
+	ForcePathStyle           bool   `json:"force_path_style"`
+	CDNURL                   string `json:"cdn_url"`
+	DefaultStorageQuotaBytes int64  `json:"default_storage_quota_bytes"`
+}
+
+type CreateSoraS3ProfileRequest struct {
+	ProfileID                string `json:"profile_id"`
+	Name                     string `json:"name"`
+	SetActive                bool   `json:"set_active"`
+	Enabled                  bool   `json:"enabled"`
+	Endpoint                 string `json:"endpoint"`
+	Region                   string `json:"region"`
+	Bucket                   string `json:"bucket"`
+	AccessKeyID              string `json:"access_key_id"`
+	SecretAccessKey          string `json:"secret_access_key"`
+	Prefix                   string `json:"prefix"`
+	ForcePathStyle           bool   `json:"force_path_style"`
+	CDNURL                   string `json:"cdn_url"`
+	DefaultStorageQuotaBytes int64  `json:"default_storage_quota_bytes"`
+}
+
+type UpdateSoraS3ProfileRequest struct {
+	Name                     string `json:"name"`
+	Enabled                  bool   `json:"enabled"`
+	Endpoint                 string `json:"endpoint"`
+	Region                   string `json:"region"`
+	Bucket                   string `json:"bucket"`
+	AccessKeyID              string `json:"access_key_id"`
+	SecretAccessKey          string `json:"secret_access_key"`
+	Prefix                   string `json:"prefix"`
+	ForcePathStyle           bool   `json:"force_path_style"`
+	CDNURL                   string `json:"cdn_url"`
+	DefaultStorageQuotaBytes int64  `json:"default_storage_quota_bytes"`
+}
+
+// POST /api/v1/admin/settings/sora-s3/profiles
+func (h *SettingHandler) CreateSoraS3Profile(c *gin.Context) {
+	h.CreateSoraS3ProfileGateway(gatewayctx.FromGin(c))
+}
+
+func (h *SettingHandler) CreateSoraS3ProfileGateway(c gatewayctx.GatewayContext) {
+	var req CreateSoraS3ProfileRequest
+	if err := json.NewDecoder(c.Request().Body).Decode(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+
+	if req.DefaultStorageQuotaBytes < 0 {
+		req.DefaultStorageQuotaBytes = 0
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Name is required")
+		return
+	}
+	if strings.TrimSpace(req.ProfileID) == "" {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Profile ID is required")
+		return
+	}
+	if err := validateSoraS3RequiredWhenEnabled(req.Enabled, req.Endpoint, req.Bucket, req.AccessKeyID, req.SecretAccessKey, false); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	created, err := h.settingService.CreateSoraS3Profile(c.Request().Context(), &service.SoraS3Profile{
+		ProfileID:                req.ProfileID,
+		Name:                     req.Name,
+		Enabled:                  req.Enabled,
+		Endpoint:                 req.Endpoint,
+		Region:                   req.Region,
+		Bucket:                   req.Bucket,
+		AccessKeyID:              req.AccessKeyID,
+		SecretAccessKey:          req.SecretAccessKey,
+		Prefix:                   req.Prefix,
+		ForcePathStyle:           req.ForcePathStyle,
+		CDNURL:                   req.CDNURL,
+		DefaultStorageQuotaBytes: req.DefaultStorageQuotaBytes,
+	}, req.SetActive)
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, toSoraS3ProfileDTO(*created))
+}
+
+// PUT /api/v1/admin/settings/sora-s3/profiles/:profile_id
+func (h *SettingHandler) UpdateSoraS3Profile(c *gin.Context) {
+	h.UpdateSoraS3ProfileGateway(gatewayctx.FromGin(c))
+}
+
+func (h *SettingHandler) UpdateSoraS3ProfileGateway(c gatewayctx.GatewayContext) {
+	profileID := strings.TrimSpace(c.PathParam("profile_id"))
+	if profileID == "" {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Profile ID is required")
+		return
+	}
+
+	var req UpdateSoraS3ProfileRequest
+	if err := json.NewDecoder(c.Request().Body).Decode(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+
+	if req.DefaultStorageQuotaBytes < 0 {
+		req.DefaultStorageQuotaBytes = 0
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Name is required")
+		return
+	}
+
+	existingList, err := h.settingService.ListSoraS3Profiles(c.Request().Context())
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+	existing := findSoraS3ProfileByID(existingList.Items, profileID)
+	if existing == nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, service.ErrSoraS3ProfileNotFound)
+		return
+	}
+	if err := validateSoraS3RequiredWhenEnabled(req.Enabled, req.Endpoint, req.Bucket, req.AccessKeyID, req.SecretAccessKey, existing.SecretAccessKeyConfigured); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	updated, updateErr := h.settingService.UpdateSoraS3Profile(c.Request().Context(), profileID, &service.SoraS3Profile{
+		Name:                     req.Name,
+		Enabled:                  req.Enabled,
+		Endpoint:                 req.Endpoint,
+		Region:                   req.Region,
+		Bucket:                   req.Bucket,
+		AccessKeyID:              req.AccessKeyID,
+		SecretAccessKey:          req.SecretAccessKey,
+		Prefix:                   req.Prefix,
+		ForcePathStyle:           req.ForcePathStyle,
+		CDNURL:                   req.CDNURL,
+		DefaultStorageQuotaBytes: req.DefaultStorageQuotaBytes,
+	})
+	if updateErr != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, updateErr)
+		return
+	}
+
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, toSoraS3ProfileDTO(*updated))
+}
+
+// DELETE /api/v1/admin/settings/sora-s3/profiles/:profile_id
+func (h *SettingHandler) DeleteSoraS3Profile(c *gin.Context) {
+	h.DeleteSoraS3ProfileGateway(gatewayctx.FromGin(c))
+}
+
+func (h *SettingHandler) DeleteSoraS3ProfileGateway(c gatewayctx.GatewayContext) {
+	profileID := strings.TrimSpace(c.PathParam("profile_id"))
+	if profileID == "" {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Profile ID is required")
+		return
+	}
+	if err := h.settingService.DeleteSoraS3Profile(c.Request().Context(), profileID); err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, map[string]any{"deleted": true})
+}
+
+// POST /api/v1/admin/settings/sora-s3/profiles/:profile_id/activate
+func (h *SettingHandler) SetActiveSoraS3Profile(c *gin.Context) {
+	h.SetActiveSoraS3ProfileGateway(gatewayctx.FromGin(c))
+}
+
+func (h *SettingHandler) SetActiveSoraS3ProfileGateway(c gatewayctx.GatewayContext) {
+	profileID := strings.TrimSpace(c.PathParam("profile_id"))
+	if profileID == "" {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Profile ID is required")
+		return
+	}
+	active, err := h.settingService.SetActiveSoraS3Profile(c.Request().Context(), profileID)
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, toSoraS3ProfileDTO(*active))
+}
+
+// PUT /api/v1/admin/settings/sora-s3
+func (h *SettingHandler) UpdateSoraS3Settings(c *gin.Context) {
+	h.UpdateSoraS3SettingsGateway(gatewayctx.FromGin(c))
+}
+
+func (h *SettingHandler) UpdateSoraS3SettingsGateway(c gatewayctx.GatewayContext) {
+	var req UpdateSoraS3SettingsRequest
+	if err := json.NewDecoder(c.Request().Body).Decode(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+
+	existing, err := h.settingService.GetSoraS3Settings(c.Request().Context())
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+
+	if req.DefaultStorageQuotaBytes < 0 {
+		req.DefaultStorageQuotaBytes = 0
+	}
+	if err := validateSoraS3RequiredWhenEnabled(req.Enabled, req.Endpoint, req.Bucket, req.AccessKeyID, req.SecretAccessKey, existing.SecretAccessKeyConfigured); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	settings := &service.SoraS3Settings{
+		Enabled:                  req.Enabled,
+		Endpoint:                 req.Endpoint,
+		Region:                   req.Region,
+		Bucket:                   req.Bucket,
+		AccessKeyID:              req.AccessKeyID,
+		SecretAccessKey:          req.SecretAccessKey,
+		Prefix:                   req.Prefix,
+		ForcePathStyle:           req.ForcePathStyle,
+		CDNURL:                   req.CDNURL,
+		DefaultStorageQuotaBytes: req.DefaultStorageQuotaBytes,
+	}
+	if err := h.settingService.SetSoraS3Settings(c.Request().Context(), settings); err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+
+	updatedSettings, err := h.settingService.GetSoraS3Settings(c.Request().Context())
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, toSoraS3SettingsDTO(updatedSettings))
+}
+
+func (h *SettingHandler) TestSoraS3Connection(c *gin.Context) {
+	h.TestSoraS3ConnectionGateway(gatewayctx.FromGin(c))
+}
+
+func (h *SettingHandler) TestSoraS3ConnectionGateway(c gatewayctx.GatewayContext) {
+	if h.soraS3Storage == nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, 500, "S3 存储服务未初始化")
+		return
+	}
+
+	var req UpdateSoraS3SettingsRequest
+	if err := json.NewDecoder(c.Request().Body).Decode(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+	if !req.Enabled {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "S3 未启用，无法测试连接")
+		return
+	}
+
+	if req.SecretAccessKey == "" {
+		if req.ProfileID != "" {
+			profiles, err := h.settingService.ListSoraS3Profiles(c.Request().Context())
+			if err == nil {
+				profile := findSoraS3ProfileByID(profiles.Items, req.ProfileID)
+				if profile != nil {
+					req.SecretAccessKey = profile.SecretAccessKey
+				}
+			}
+		}
+		if req.SecretAccessKey == "" {
+			existing, err := h.settingService.GetSoraS3Settings(c.Request().Context())
+			if err == nil {
+				req.SecretAccessKey = existing.SecretAccessKey
+			}
+		}
+	}
+
+	testCfg := &service.SoraS3Settings{
+		Enabled:         true,
+		Endpoint:        req.Endpoint,
+		Region:          req.Region,
+		Bucket:          req.Bucket,
+		AccessKeyID:     req.AccessKeyID,
+		SecretAccessKey: req.SecretAccessKey,
+		Prefix:          req.Prefix,
+		ForcePathStyle:  req.ForcePathStyle,
+		CDNURL:          req.CDNURL,
+	}
+	if err := h.soraS3Storage.TestConnectionWithSettings(c.Request().Context(), testCfg); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, 400, "S3 连接测试失败: "+err.Error())
+		return
+	}
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, map[string]any{"message": "S3 连接成功"})
 }

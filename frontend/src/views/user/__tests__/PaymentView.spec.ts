@@ -601,6 +601,8 @@ describe('PaymentView WeChat JSAPI flow', () => {
 
     expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({
       wechat_resume_token: 'resume-token-123',
+    }), expect.objectContaining({
+      idempotencyKey: expect.stringMatching(/^payment-order-/),
     }))
     expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).toBeNull()
   })
@@ -643,6 +645,8 @@ describe('PaymentView WeChat JSAPI flow', () => {
       order_type: 'subscription',
       plan_id: 7,
       wechat_resume_token: 'resume-subscription-7',
+    }), expect.objectContaining({
+      idempotencyKey: expect.stringMatching(/^payment-order-/),
     }))
     expect(locationState.href).toContain('/api/v1/auth/oauth/wechat/payment/start?')
     expect(new URL(locationState.href, 'http://localhost').searchParams.get('redirect')).toBe(
@@ -689,11 +693,15 @@ describe('PaymentView WeChat JSAPI flow', () => {
       payment_type: 'wxpay',
       is_mobile: true,
       wechat_resume_token: 'resume-token-h5',
+    }), expect.objectContaining({
+      idempotencyKey: expect.stringMatching(/^payment-order-/),
     }))
     expect(createOrder).toHaveBeenNthCalledWith(2, expect.objectContaining({
       payment_type: 'wxpay',
       is_mobile: false,
       payment_source: 'hosted_redirect',
+    }), expect.objectContaining({
+      idempotencyKey: expect.stringMatching(/^payment-order-/),
     }))
     expect(showWarning).toHaveBeenCalledWith('payment.errors.mobilePaymentFallbackToQr')
     expect(showError).not.toHaveBeenCalled()

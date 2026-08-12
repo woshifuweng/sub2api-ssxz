@@ -1,10 +1,14 @@
 package service
 
+import "strings"
+
 // SensitiveCredentialKeys 列出 Account.Credentials JSON map 中绝不允许返回到前端的子键。
 // dto 层做响应脱敏、service 层做更新合并都引用此清单——新增凭证类型时务必同步。
 var SensitiveCredentialKeys = []string{
 	// OAuth
 	"access_token", "refresh_token", "id_token", "agent_private_key",
+	"authorization_code", "client_secret", "code", "code_verifier",
+	"session_token", "watermark_parse_token",
 	// API Key 类
 	"api_key", "session_key", "cookie",
 	// 云服务凭据
@@ -15,14 +19,14 @@ var SensitiveCredentialKeys = []string{
 var sensitiveCredentialKeySet = func() map[string]struct{} {
 	m := make(map[string]struct{}, len(SensitiveCredentialKeys))
 	for _, k := range SensitiveCredentialKeys {
-		m[k] = struct{}{}
+		m[strings.ToLower(strings.TrimSpace(k))] = struct{}{}
 	}
 	return m
 }()
 
 // IsSensitiveCredentialKey 判断指定键是否为敏感凭证子键。
 func IsSensitiveCredentialKey(key string) bool {
-	_, ok := sensitiveCredentialKeySet[key]
+	_, ok := sensitiveCredentialKeySet[strings.ToLower(strings.TrimSpace(key))]
 	return ok
 }
 

@@ -41,6 +41,22 @@ func (m *opsRepoMock) ListRequestDetails(ctx context.Context, filter *OpsRequest
 	return []*OpsRequestDetail{}, 0, nil
 }
 
+func (m *opsRepoMock) InsertRetryAttempt(context.Context, *OpsInsertRetryAttemptInput) (int64, error) {
+	return 0, nil
+}
+
+func (m *opsRepoMock) UpdateRetryAttempt(context.Context, *OpsUpdateRetryAttemptInput) error {
+	return nil
+}
+
+func (m *opsRepoMock) GetLatestRetryAttemptForError(context.Context, int64) (*OpsRetryAttempt, error) {
+	return nil, nil
+}
+
+func (m *opsRepoMock) ListRetryAttemptsByErrorID(context.Context, int64, int) ([]*OpsRetryAttempt, error) {
+	return nil, nil
+}
+
 func (m *opsRepoMock) BatchInsertSystemLogs(ctx context.Context, inputs []*OpsInsertSystemLogInput) (int64, error) {
 	if m.BatchInsertSystemLogsFn != nil {
 		return m.BatchInsertSystemLogsFn(ctx, inputs)
@@ -69,7 +85,7 @@ func (m *opsRepoMock) InsertSystemLogCleanupAudit(ctx context.Context, input *Op
 	return nil
 }
 
-func (m *opsRepoMock) UpdateErrorResolution(ctx context.Context, errorID int64, resolved bool, resolvedByUserID *int64, resolvedAt *time.Time) error {
+func (m *opsRepoMock) UpdateErrorResolution(ctx context.Context, errorID int64, resolved bool, resolvedByUserID *int64, resolvedRetryID *int64, resolvedAt *time.Time) error {
 	return nil
 }
 

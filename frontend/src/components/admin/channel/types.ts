@@ -1,4 +1,5 @@
 import type { BillingMode, PricingInterval } from '@/api/admin/channels'
+import { i18n } from '@/i18n'
 
 type TranslateFn = (key: string, params?: Record<string, unknown>) => string
 
@@ -21,7 +22,6 @@ export interface PricingFormEntry {
   output_price: number | string | null
   cache_write_price: number | string | null
   cache_read_price: number | string | null
-  image_input_price: number | string | null
   image_output_price: number | string | null
   per_request_price: number | string | null
   intervals: IntervalFormEntry[]
@@ -29,6 +29,7 @@ export interface PricingFormEntry {
 
 // 价格转换：后端存 per-token，前端显示 per-MTok ($/1M tokens)
 const MTOK = 1_000_000
+const { t } = i18n.global
 
 export function toNullableNumber(val: number | string | null | undefined): number | null {
   if (val === null || val === undefined || val === '') return null
@@ -118,74 +119,60 @@ export function findModelConflict(models: string[]): [string, string] | null {
 
 // ── 区间校验 ──────────────────────────────────────────────
 
-/** 校验区间列表的合法性，返回错误消息；通过则返回 null
- *
- * mode 决定区间语义：
- * - token：区间是上下文 token 数分段 (min, max]，不能重叠，无上限段必须放最后
- * - per_request / image：区间是按 tier_label 分层（1K/2K/4K 等），后端按 label
- *   匹配，不依赖 min/max，因此跳过重叠 / last-unlimited 校验
- */
+/** 校验区间列表的合法性，返回错误消息；通过则返回 null */
 export function validateIntervals(
   intervals: IntervalFormEntry[],
-  mode: BillingMode,
-  t: TranslateFn,
+  mode: BillingMode = 'token',
+  translate?: TranslateFn,
 ): string | null {
   if (!intervals || intervals.length === 0) return null
+
+  const validationT: TranslateFn = translate ?? ((key, params) => t(key, params ?? {}))
 
   // 按 min_tokens 排序（不修改原数组）
   const sorted = [...intervals].sort((a, b) => a.min_tokens - b.min_tokens)
 
   for (let i = 0; i < sorted.length; i++) {
-    const err = validateSingleInterval(sorted[i], i, t)
+    const err = validateSingleInterval(sorted[i], i, validationT)
     if (err) return err
   }
-
-  // per_request / image 模式按 tier_label 匹配，不做 token 区间重叠校验
   if (mode !== 'token') return null
-  return checkIntervalOverlap(sorted, t)
+  return checkIntervalOverlap(sorted, validationT)
 }
 
-function intervalValidationMessage(
-  t: TranslateFn,
+function validationMessage(
+  translate: TranslateFn,
   key: string,
   params: Record<string, unknown>,
 ): string {
-  return t(`admin.channels.intervalValidation.${key}`, params)
+  return translate(`admin.channels.intervalValidation.${key}`, params)
 }
 
-function intervalPriceLabel(t: TranslateFn, key: string): string {
-  return t(`admin.channels.intervalValidation.price.${key}`)
+function priceLabel(translate: TranslateFn, key: string): string {
+  return translate(`admin.channels.intervalValidation.price.${key}`)
 }
 
-function validateSingleInterval(iv: IntervalFormEntry, idx: number, t: TranslateFn): string | null {
+function validateSingleInterval(iv: IntervalFormEntry, idx: number, translate: TranslateFn): string | null {
   const index = idx + 1
   if (iv.min_tokens < 0) {
-    return intervalValidationMessage(
-      t,
-      'negativeMin',
-      { index, value: iv.min_tokens },
-    )
+    return validationMessage(translate, 'negativeMin', { index, value: iv.min_tokens })
   }
   if (iv.max_tokens != null) {
     if (iv.max_tokens <= 0) {
-      return intervalValidationMessage(
-        t,
-        'maxPositive',
-        { index, value: iv.max_tokens },
-      )
+      return validationMessage(translate, 'maxPositive', { index, value: iv.max_tokens })
     }
     if (iv.max_tokens <= iv.min_tokens) {
-      return intervalValidationMessage(
-        t,
-        'maxGreaterThanMin',
-        { index, max: iv.max_tokens, min: iv.min_tokens },
-      )
+      return validationMessage(translate, 'maxGreaterThanMin', {
+        index,
+        max: iv.max_tokens,
+        min: iv.min_tokens,
+      })
     }
   }
-  return validateIntervalPrices(iv, idx, t)
+  return validateIntervalPrices(iv, idx, translate)
 }
 
-function validateIntervalPrices(iv: IntervalFormEntry, idx: number, t: TranslateFn): string | null {
+function validateIntervalPrices(iv: IntervalFormEntry, idx: number, translate: TranslateFn): string | null {
   const index = idx + 1
   const prices: [string, number | string | null][] = [
     ['inputPrice', iv.input_price],
@@ -196,37 +183,32 @@ function validateIntervalPrices(iv: IntervalFormEntry, idx: number, t: Translate
   ]
   for (const [key, val] of prices) {
     if (val != null && val !== '' && Number(val) < 0) {
-      const field = intervalPriceLabel(t, key)
-      return intervalValidationMessage(
-        t,
-        'negativePrice',
-        { index, field },
-      )
+      return validationMessage(translate, 'negativePrice', {
+        index,
+        field: priceLabel(translate, key),
+      })
     }
   }
   return null
 }
 
-function checkIntervalOverlap(sorted: IntervalFormEntry[], t: TranslateFn): string | null {
+function checkIntervalOverlap(sorted: IntervalFormEntry[], translate: TranslateFn): string | null {
   for (let i = 0; i < sorted.length; i++) {
     // 无上限区间必须是最后一个
     if (sorted[i].max_tokens == null && i < sorted.length - 1) {
-      return intervalValidationMessage(
-        t,
-        'unboundedLast',
-        { index: i + 1 },
-      )
+      return validationMessage(translate, 'unboundedLast', { index: i + 1 })
     }
     if (i === 0) continue
     const prev = sorted[i - 1]
     // (min, max] 语义：前一个区间上界 > 当前区间下界则重叠
     if (prev.max_tokens == null || prev.max_tokens > sorted[i].min_tokens) {
       const prevMax = prev.max_tokens == null ? '∞' : String(prev.max_tokens)
-      return intervalValidationMessage(
-        t,
-        'overlap',
-        { previousIndex: i, currentIndex: i + 1, previousMax: prevMax, currentMin: sorted[i].min_tokens },
-      )
+      return validationMessage(translate, 'overlap', {
+        previousIndex: i,
+        currentIndex: i + 1,
+        previousMax: prevMax,
+        currentMin: sorted[i].min_tokens,
+      })
     }
   }
   return null
@@ -239,7 +221,6 @@ export function getPlatformTagClass(platform: string): string {
     case 'openai': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
     case 'gemini': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
     case 'antigravity': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-    case 'grok': return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
     default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
   }
 }
@@ -251,7 +232,6 @@ export function getPlatformTextClass(platform: string): string {
     case 'openai': return 'text-emerald-700 dark:text-emerald-400'
     case 'gemini': return 'text-blue-700 dark:text-blue-400'
     case 'antigravity': return 'text-purple-700 dark:text-purple-400'
-    case 'grok': return 'text-slate-700 dark:text-slate-300'
     default: return ''
   }
 }

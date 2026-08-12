@@ -833,6 +833,32 @@ func (r *groupRepository) DeleteCascade(ctx context.Context, id int64) ([]int64,
 	}
 
 	// 2. Remove the group id from user_allowed_groups join table.
+	// 2. Clear/compact API key group bindings for this group.
+	// group_id 仍保留为兼容主分组字段；删除分组时，同时从 group_ids 中移除它，
+	// 若被删的是主分组，则自动提升剩余列表的第一个分组为新的主分组。
+	if _, err := exec.ExecContext(ctx, `
+UPDATE api_keys
+SET
+  group_ids = array_remove(COALESCE(group_ids, ARRAY[]::bigint[]), $1),
+  group_id = CASE
+    WHEN group_id = $1 THEN
+      CASE
+        WHEN cardinality(array_remove(COALESCE(group_ids, ARRAY[]::bigint[]), $1)) > 0
+          THEN (array_remove(COALESCE(group_ids, ARRAY[]::bigint[]), $1))[1]
+        ELSE NULL
+      END
+    ELSE group_id
+  END
+WHERE deleted_at IS NULL
+  AND (
+    group_id = $1
+    OR $1 = ANY(COALESCE(group_ids, ARRAY[]::bigint[]))
+  )
+`, id); err != nil {
+		return nil, err
+	}
+
+	// 3. Remove the group id from user_allowed_groups join table.
 	// Legacy users.allowed_groups 列已弃用，不再同步。
 	if _, err := exec.ExecContext(ctx, "DELETE FROM user_allowed_groups WHERE group_id = $1", id); err != nil {
 		return nil, err

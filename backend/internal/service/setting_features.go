@@ -70,11 +70,11 @@ func (s *SettingService) GetCustomMenuItemsRaw(ctx context.Context) string {
 
 // IsAffiliateEnabled 检查是否启用邀请返利功能（总开关）
 func (s *SettingService) IsAffiliateEnabled(ctx context.Context) bool {
-	value, err := s.settingRepo.GetValue(ctx, SettingKeyAffiliateEnabled)
+	value, err := s.getSettingValueCached(ctx, SettingKeyAffiliateEnabled)
 	if err != nil {
-		return false // 默认关闭
+		return AffiliateEnabledDefault
 	}
-	return value == "true"
+	return strings.TrimSpace(value) == "true"
 }
 
 // IsAffiliateAdminRechargeEnabled reports whether admin balance
@@ -439,7 +439,7 @@ func (s *SettingService) UpdateAuthSourceDefaultSettings(ctx context.Context, se
 
 // IsTurnstileEnabled 检查是否启用 Turnstile 验证
 func (s *SettingService) IsTurnstileEnabled(ctx context.Context) bool {
-	value, err := s.settingRepo.GetValue(ctx, SettingKeyTurnstileEnabled)
+	value, err := s.getSettingValueCached(ctx, SettingKeyTurnstileEnabled)
 	if err != nil {
 		return false
 	}
@@ -552,8 +552,18 @@ func (s *SettingService) GetIdentityPatchPrompt(ctx context.Context) string {
 	return value
 }
 
-// GenerateAdminAPIKey 生成新的管理员 API Key
-func (s *SettingService) GenerateAdminAPIKey(ctx context.Context) (string, error) {
+// GenerateAdminAPIKey 生成新的管理员 API Key。
+//
+// 新调用方应传入管理员用户 ID 和令牌版本，以便只存储绑定主体的哈希记录。
+// 无参数形式保留给旧版运行时处理器，继续写入旧版纯文本格式。
+func (s *SettingService) GenerateAdminAPIKey(ctx context.Context, adminIdentity ...int64) (string, error) {
+	if len(adminIdentity) != 0 && len(adminIdentity) != 2 {
+		return "", fmt.Errorf("admin identity must contain user id and token version")
+	}
+	if len(adminIdentity) == 2 && adminIdentity[0] <= 0 {
+		return "", fmt.Errorf("invalid admin user id")
+	}
+
 	// 生成 32 字节随机数 = 64 位十六进制字符
 	bytes := make([]byte, 32)
 	if _, err := rand.Read(bytes); err != nil {
@@ -561,9 +571,23 @@ func (s *SettingService) GenerateAdminAPIKey(ctx context.Context) (string, error
 	}
 
 	key := AdminAPIKeyPrefix + hex.EncodeToString(bytes)
+	storedValue := key
+	if len(adminIdentity) == 2 {
+		recordBytes, err := json.Marshal(adminAPIKeyRecord{
+			Version:           adminAPIKeyRecordVersion,
+			KeyHash:           hashAdminAPIKey(key),
+			MaskedKey:         maskAdminAPIKey(key),
+			AdminUserID:       adminIdentity[0],
+			AdminTokenVersion: adminIdentity[1],
+		})
+		if err != nil {
+			return "", fmt.Errorf("marshal admin api key record: %w", err)
+		}
+		storedValue = string(recordBytes)
+	}
 
 	// 存储到 settings 表
-	if err := s.settingRepo.Set(ctx, SettingKeyAdminAPIKey, key); err != nil {
+	if err := s.setSettingValue(ctx, SettingKeyAdminAPIKey, storedValue); err != nil {
 		return "", fmt.Errorf("save admin api key: %w", err)
 	}
 
@@ -584,14 +608,11 @@ func (s *SettingService) GetAdminAPIKeyStatus(ctx context.Context) (maskedKey st
 		return "", false, nil
 	}
 
-	// 脱敏：显示前 10 位和后 4 位
-	if len(key) > 14 {
-		maskedKey = key[:10] + "..." + key[len(key)-4:]
-	} else {
-		maskedKey = key
+	if record, ok := parseAdminAPIKeyRecord(key); ok {
+		return record.MaskedKey, true, nil
 	}
 
-	return maskedKey, true, nil
+	return maskAdminAPIKey(key), true, nil
 }
 
 // GetAdminAPIKey 获取完整的管理员 API Key（仅供内部验证使用）
@@ -609,7 +630,7 @@ func (s *SettingService) GetAdminAPIKey(ctx context.Context) (string, error) {
 
 // DeleteAdminAPIKey 删除管理员 API Key
 func (s *SettingService) DeleteAdminAPIKey(ctx context.Context) error {
-	return s.settingRepo.Delete(ctx, SettingKeyAdminAPIKey)
+	return s.deleteSettingValue(ctx, SettingKeyAdminAPIKey)
 }
 
 // IsModelFallbackEnabled 检查是否启用模型兜底机制
@@ -752,7 +773,7 @@ func (s *SettingService) SetRateLimit429CooldownSettings(ctx context.Context, se
 
 // GetStreamTimeoutSettings 获取流超时处理配置
 func (s *SettingService) GetStreamTimeoutSettings(ctx context.Context) (*StreamTimeoutSettings, error) {
-	value, err := s.settingRepo.GetValue(ctx, SettingKeyStreamTimeoutSettings)
+	value, err := s.getSettingValueCached(ctx, SettingKeyStreamTimeoutSettings)
 	if err != nil {
 		if errors.Is(err, ErrSettingNotFound) {
 			return DefaultStreamTimeoutSettings(), nil
@@ -1045,7 +1066,7 @@ func (s *SettingService) SetStreamTimeoutSettings(ctx context.Context, settings 
 		return fmt.Errorf("marshal stream timeout settings: %w", err)
 	}
 
-	return s.settingRepo.Set(ctx, SettingKeyStreamTimeoutSettings, string(data))
+	return s.setSettingValue(ctx, SettingKeyStreamTimeoutSettings, string(data))
 }
 
 // GetDefaultPlatformQuotas 读取系统全局 platform quota JSON key，返回全部允许平台 x 3 window 的设置。

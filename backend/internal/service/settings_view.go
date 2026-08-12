@@ -1,33 +1,21 @@
 package service
 
-import "strings"
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
-
 type SystemSettings struct {
 	RegistrationEnabled              bool
 	EmailVerifyEnabled               bool
 	RegistrationEmailSuffixWhitelist []string
 	PromoCodeEnabled                 bool
-	PasswordResetEnabled             bool
-	FrontendURL                      string
-	InvitationCodeEnabled            bool
-	TotpEnabled                      bool // TOTP 双因素认证
-	PasskeyEnabled                   bool // Passkey 登录
-	SessionBindingEnabled            bool // 会话 IP/UA 绑定（变更即失效）
-	StepUpEnabled                    bool // 敏感操作 step-up 2FA 门控
-	AuditLogRetentionDays            int  // 审计日志保留天数（<=0 永久保留）
-	LoginAgreementEnabled            bool
-	LoginAgreementMode               string
-	LoginAgreementUpdatedAt          string
-	LoginAgreementDocuments          []LoginAgreementDocument
+	// PasswordResetEnabled 是「生效值」：已与 EmailVerifyEnabled 取与，
+	// 邮箱验证关闭时恒为 false。鉴权/功能判定用这个。
+	PasswordResetEnabled bool
+	// PasswordResetEnabledStored 是 DB 里 password_reset_enabled 的原始存储值，
+	// **不**与 EmailVerifyEnabled 取与。仅用于观测（管理台需要知道「配置开着、
+	// 但因邮箱验证关闭而未生效」这一状态），绝不参与任何鉴权判定。
+	PasswordResetEnabledStored bool
+	FrontendURL                string
+	InvitationCodeEnabled      bool
+	TotpEnabled                bool // TOTP 双因素认证
+	PasskeyEnabled             bool // Passkey 登录
 
 	SMTPHost               string
 	SMTPPort               int
@@ -38,10 +26,11 @@ type SystemSettings struct {
 	SMTPFromName           string
 	SMTPUseTLS             bool
 
-	TurnstileEnabled                       bool
-	TurnstileSiteKey                       string
-	TurnstileSecretKey                     string
-	TurnstileSecretKeyConfigured           bool
+	TurnstileEnabled             bool
+	TurnstileSiteKey             string
+	TurnstileSecretKey           string
+	TurnstileSecretKeyConfigured bool
+
 	TencentCaptchaEnabled                  bool
 	TencentCaptchaAppID                    string
 	TencentCaptchaAppSecretKey             string
@@ -57,8 +46,10 @@ type SystemSettings struct {
 	AliyunCaptchaSceneID                   string
 	AliyunCaptchaPrefix                    string
 	AliyunCaptchaRegion                    string
-	APIKeyACLTrustForwardedIP              bool
-	ForwardedClientIPHeaders               []string
+
+	OpenAICodexClientVersion          string
+	OpenAICodexClientVersionSynced    string
+	OpenAICodexVersionAutoSyncEnabled bool
 
 	// LinuxDo Connect OAuth 登录
 	LinuxDoConnectEnabled                bool
@@ -67,7 +58,75 @@ type SystemSettings struct {
 	LinuxDoConnectClientSecretConfigured bool
 	LinuxDoConnectRedirectURL            string
 
-	// DingTalk Connect OAuth 登录
+	SiteName                    string
+	SiteLogo                    string
+	SiteSubtitle                string
+	APIBaseURL                  string
+	ContactInfo                 string
+	DocURL                      string
+	HomeContent                 string
+	CompactHomeEnabled          bool
+	HideCcsImportButton         bool
+	PurchaseSubscriptionEnabled bool
+	PurchaseSubscriptionURL     string
+	PurchaseLinkCNY10           string
+	PurchaseLinkCNY30           string
+	PurchaseLinkCNY100          string
+	SoraClientEnabled           bool
+	CustomMenuItems             string // JSON array of custom menu items
+
+	DefaultConcurrency           int
+	DefaultBalance               float64
+	AffiliateRebateRate          float64
+	AffiliateRebateFreezeHours   int
+	AffiliateRebateDurationDays  int
+	AffiliateRebatePerInviteeCap float64
+	DefaultSubscriptions         []DefaultSubscriptionSetting
+
+	// Model fallback configuration
+	EnableModelFallback      bool   `json:"enable_model_fallback"`
+	FallbackModelAnthropic   string `json:"fallback_model_anthropic"`
+	FallbackModelOpenAI      string `json:"fallback_model_openai"`
+	FallbackModelGemini      string `json:"fallback_model_gemini"`
+	FallbackModelAntigravity string `json:"fallback_model_antigravity"`
+
+	// Identity patch configuration (Claude -> Gemini)
+	EnableIdentityPatch bool   `json:"enable_identity_patch"`
+	IdentityPatchPrompt string `json:"identity_patch_prompt"`
+
+	// Ops monitoring (vNext)
+	OpsMonitoringEnabled         bool
+	OpsRealtimeMonitoringEnabled bool
+	OpsQueryModeDefault          string
+	OpsMetricsIntervalSeconds    int
+
+	// Claude Code version check
+	MinClaudeCodeVersion string
+	MaxClaudeCodeVersion string
+
+	// 分组隔离：允许未分组 Key 调度（默认 false → 403）
+	AllowUngroupedKeyScheduling bool
+
+	AutoDelete401Accounts    bool
+	AutoDelete429Accounts    bool
+	AutoDeleteUselessProxies bool
+
+	// Backend 模式：禁用用户注册和自助服务，仅管理员可登录
+	BackendModeEnabled bool
+
+	AffiliateEnabled bool
+
+	SessionBindingEnabled   bool
+	StepUpEnabled           bool
+	AuditLogRetentionDays   int
+	LoginAgreementEnabled   bool
+	LoginAgreementMode      string
+	LoginAgreementUpdatedAt string
+	LoginAgreementDocuments []LoginAgreementDocument
+
+	APIKeyACLTrustForwardedIP bool
+	ForwardedClientIPHeaders  []string
+
 	DingTalkConnectEnabled                 bool
 	DingTalkConnectClientID                string
 	DingTalkConnectClientSecret            string
@@ -86,7 +145,6 @@ type SystemSettings struct {
 	DingTalkConnectSyncDisplayNameAttrName string
 	DingTalkConnectSyncDeptAttrName        string
 
-	// WeChat Connect OAuth 登录
 	WeChatConnectEnabled                   bool
 	WeChatConnectAppID                     string
 	WeChatConnectAppSecret                 string
@@ -108,7 +166,6 @@ type SystemSettings struct {
 	WeChatConnectRedirectURL               string
 	WeChatConnectFrontendRedirectURL       string
 
-	// Generic OIDC OAuth 登录
 	OIDCConnectEnabled                bool
 	OIDCConnectProviderName           string
 	OIDCConnectClientID               string
@@ -133,7 +190,6 @@ type SystemSettings struct {
 	OIDCConnectUserInfoIDPath         string
 	OIDCConnectUserInfoUsernamePath   string
 
-	// GitHub / Google 邮箱快捷登录
 	GitHubOAuthEnabled                bool
 	GitHubOAuthClientID               string
 	GitHubOAuthClientSecret           string
@@ -147,107 +203,47 @@ type SystemSettings struct {
 	GoogleOAuthRedirectURL            string
 	GoogleOAuthFrontendRedirectURL    string
 
-	SiteName                    string
-	SiteLogo                    string
-	SiteSubtitle                string
-	APIBaseURL                  string
-	ContactInfo                 string
-	DocURL                      string
-	HomeContent                 string
-	CompactHomeEnabled          bool
-	HideCcsImportButton         bool
-	PurchaseSubscriptionEnabled bool
-	PurchaseSubscriptionURL     string
 	TableDefaultPageSize        int
 	TablePageSizeOptions        []int
-	CustomMenuItems             string // JSON array of custom menu items
-	CustomEndpoints             string // JSON array of custom endpoints
+	CustomEndpoints             string
+	RiskControlEnabled          bool
+	CyberSessionBlockEnabled    bool
+	CyberSessionBlockTTLSeconds int
+	AdminRechargeRebateEnabled  bool
+	DefaultUserRPMLimit         int
 
-	DefaultConcurrency           int
-	DefaultBalance               float64
-	RiskControlEnabled           bool
-	CyberSessionBlockEnabled     bool
-	CyberSessionBlockTTLSeconds  int
-	AffiliateEnabled             bool
-	AffiliateRebateRate          float64
-	AffiliateRebateFreezeHours   int
-	AffiliateRebateDurationDays  int
-	AffiliateRebatePerInviteeCap float64
-	AdminRechargeRebateEnabled   bool
-	DefaultUserRPMLimit          int
-	DefaultSubscriptions         []DefaultSubscriptionSetting
-
-	// Model fallback configuration
-	EnableModelFallback      bool   `json:"enable_model_fallback"`
-	FallbackModelAnthropic   string `json:"fallback_model_anthropic"`
-	FallbackModelOpenAI      string `json:"fallback_model_openai"`
-	FallbackModelGemini      string `json:"fallback_model_gemini"`
-	FallbackModelAntigravity string `json:"fallback_model_antigravity"`
-
-	// Identity patch configuration (Claude -> Gemini)
-	EnableIdentityPatch bool   `json:"enable_identity_patch"`
-	IdentityPatchPrompt string `json:"identity_patch_prompt"`
-
-	// Ops monitoring (vNext)
-	OpsMonitoringEnabled         bool
-	OpsRealtimeMonitoringEnabled bool
-	OpsQueryModeDefault          string
-	OpsMetricsIntervalSeconds    int
-
-	// Channel Monitor feature
 	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
 	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
+	AvailableChannelsEnabled             bool `json:"available_channels_enabled"`
 
-	// Available Channels feature (user-facing aggregate view)
-	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
+	EnableFingerprintUnification           bool
+	EnableMetadataPassthrough              bool
+	EnableCCHSigning                       bool
+	EnableClaudeOAuthSystemPromptInjection bool
+	ClaudeOAuthSystemPrompt                string
+	ClaudeOAuthSystemPromptBlocks          string
+	EnableAnthropicCacheTTL1hInjection     bool
+	EnableClientDatelineNormalization      bool
+	RewriteMessageCacheControl             bool
+	AntigravityUserAgentVersion            string
+	OpenAICodexUserAgent                   string
+	MinCodexVersion                        string
+	MaxCodexVersion                        string
+	CodexCLIOnlyBlacklist                  string
+	CodexCLIOnlyWhitelist                  string
+	CodexCLIOnlyAllowAppServerClients      bool
+	CodexCLIOnlyEngineFingerprintSignals   string
+	WebSearchEmulationEnabled              bool
 
 	// Model Plaza feature (public group/model pricing showcase)
-	ModelPlazaEnabled     bool   `json:"model_plaza_enabled"`
-	ModelPlazaRequireAuth bool   `json:"model_plaza_require_auth"`
-	ModelPlazaDescription string `json:"model_plaza_description"`
-
-	// Claude Code version check
-	MinClaudeCodeVersion string
-	MaxClaudeCodeVersion string
-
-	// 分组隔离：允许未分组 Key 调度（默认 false → 403）
-	AllowUngroupedKeyScheduling bool
-
-	// Backend 模式：禁用用户注册和自助服务，仅管理员可登录
-	BackendModeEnabled bool
-
-	// Gateway forwarding behavior
-	EnableFingerprintUnification           bool   // 是否统一 OAuth 账号的指纹头（默认 true）
-	EnableMetadataPassthrough              bool   // 是否透传客户端原始 metadata（默认 false）
-	EnableCCHSigning                       bool   // 已废弃 no-op：新版 CLI 取消 cch 签名后网关不再注入/签名 cch，开关无效果
-	EnableClaudeOAuthSystemPromptInjection bool   // 是否对 Claude OAuth mimic 路径注入 Claude Code system blocks（默认 true）
-	ClaudeOAuthSystemPrompt                string // Claude OAuth mimic 路径注入的通用扩展 system prompt；空值使用内置默认
-	ClaudeOAuthSystemPromptBlocks          string // Claude OAuth mimic 路径注入的 system blocks JSON 配置；空值使用内置默认
-	EnableAnthropicCacheTTL1hInjection     bool   // 是否对 Anthropic OAuth/SetupToken 请求体注入 1h cache_control ttl（默认 false）
-	EnableClientDatelineNormalization      bool   // 是否对 Anthropic OAuth/SetupToken 请求体做客户端 dateline 归一化（默认 true）
-	RewriteMessageCacheControl             bool   // 是否改写 messages[*].content[*].cache_control（默认 false）
-	AntigravityUserAgentVersion            string // Antigravity 上游 User-Agent 版本号；空值使用配置/默认值
-	OpenAICodexUserAgent                   string // OpenAI Codex 上游完整 User-Agent；空值由 Codex 客户端版本号拼出标准 CLI UA
-	OpenAICodexClientVersion               string // 出站声明的 Codex 客户端版本号（管理员覆写）；空值跟随自动同步值
-	OpenAICodexClientVersionSynced         string // 自动同步到的官方最新稳定版版本号（只读展示）
-	OpenAICodexVersionAutoSyncEnabled      bool   // 是否启用 Codex 客户端版本号自动同步（默认 true）
-	MinCodexVersion                        string // codex_cli_only 最低 Codex 引擎版本；空=不检查
-	MaxCodexVersion                        string // codex_cli_only 最高 Codex 引擎版本；空=不检查
-	CodexCLIOnlyBlacklist                  string // codex_cli_only 全局黑名单 JSON（[]AllowedClientEntry，OR deny）
-	CodexCLIOnlyWhitelist                  string // codex_cli_only 全局白名单 JSON（[]AllowedClientEntry，AND allow）
-	CodexCLIOnlyAllowAppServerClients      bool   // codex_cli_only App Server 开关：对未列名客户端开闸（默认 false）
-	CodexCLIOnlyEngineFingerprintSignals   string // codex_cli_only 引擎指纹门信号列表 JSON（[]EngineFingerprintSignal）
-
-	// Web Search Emulation
-	WebSearchEmulationEnabled bool // 是否启用 web search 模拟
-
-	// Payment visible method routing
+	ModelPlazaEnabled                 bool   `json:"model_plaza_enabled"`
+	ModelPlazaRequireAuth             bool   `json:"model_plaza_require_auth"`
+	ModelPlazaDescription             string `json:"model_plaza_description"`
 	PaymentVisibleMethodAlipaySource  string
 	PaymentVisibleMethodWxpaySource   string
 	PaymentVisibleMethodAlipayEnabled bool
 	PaymentVisibleMethodWxpayEnabled  bool
 
-	// OpenAI 账号调度
 	OpenAILowUpstreamRatePriorityEnabled                   bool
 	OpenAIOAuthSchedulingRateMultiplier                    float64
 	OpenAIAdvancedSchedulerEnabled                         bool
@@ -276,23 +272,14 @@ type SystemSettings struct {
 	OpenAIAdvancedSchedulerEffectiveWeightPreviousResponse string
 	OpenAIAdvancedSchedulerEffectiveWeightSessionSticky    string
 
-	// 余额不足提醒
-	BalanceLowNotifyEnabled     bool
-	BalanceLowNotifyThreshold   float64
-	BalanceLowNotifyRechargeURL string
-
-	// 订阅到期提醒
+	BalanceLowNotifyEnabled         bool
+	BalanceLowNotifyThreshold       float64
+	BalanceLowNotifyRechargeURL     string
 	SubscriptionExpiryNotifyEnabled bool
-
-	// 账号限额通知
-	AccountQuotaNotifyEnabled bool
-	AccountQuotaNotifyEmails  []NotifyEmailEntry
-
-	// 系统全局默认平台配额（key = platform，nil/缺省 = 不限制）
-	DefaultPlatformQuotas map[string]*DefaultPlatformQuotaSetting `json:"default_platform_quotas"`
-
-	// 允许终端用户在用量页查看自己的失败请求
-	AllowUserViewErrorRequests bool
+	AccountQuotaNotifyEnabled       bool
+	AccountQuotaNotifyEmails        []NotifyEmailEntry
+	DefaultPlatformQuotas           map[string]*DefaultPlatformQuotaSetting `json:"default_platform_quotas"`
+	AllowUserViewErrorRequests      bool
 }
 
 type DefaultSubscriptionSetting struct {
@@ -303,7 +290,6 @@ type DefaultSubscriptionSetting struct {
 type PublicSettings struct {
 	RegistrationEnabled              bool
 	EmailVerifyEnabled               bool
-	ForceEmailOnThirdPartySignup     bool
 	RegistrationEmailSuffixWhitelist []string
 	PromoCodeEnabled                 bool
 	PasswordResetEnabled             bool
@@ -335,115 +321,113 @@ type PublicSettings struct {
 
 	PurchaseSubscriptionEnabled bool
 	PurchaseSubscriptionURL     string
-	TableDefaultPageSize        int
-	TablePageSizeOptions        []int
+	PurchaseLinkCNY10           string
+	PurchaseLinkCNY30           string
+	PurchaseLinkCNY100          string
+	PaymentEnabled              bool
+	SoraClientEnabled           bool
 	CustomMenuItems             string // JSON array of custom menu items
-	CustomEndpoints             string // JSON array of custom endpoints
 
 	LinuxDoOAuthEnabled      bool
-	DingTalkOAuthEnabled     bool
 	WeChatOAuthEnabled       bool
 	WeChatOAuthOpenEnabled   bool
 	WeChatOAuthMPEnabled     bool
 	WeChatOAuthMobileEnabled bool
-	BackendModeEnabled       bool
-	PaymentEnabled           bool
 	OIDCOAuthEnabled         bool
 	OIDCOAuthProviderName    string
-	GitHubOAuthEnabled       bool
-	GoogleOAuthEnabled       bool
-	Version                  string
 
-	BalanceLowNotifyEnabled     bool
-	AccountQuotaNotifyEnabled   bool
-	BalanceLowNotifyThreshold   float64
-	BalanceLowNotifyRechargeURL string
+	ChannelMonitorEnabled                bool
+	ChannelMonitorDefaultIntervalSeconds int
+	AvailableChannelsEnabled             bool
+	WebSearch                            PublicWorkspaceWebSearchSettings
+	ModelPlazaEnabled                    bool
+	ModelPlazaRequireAuth                bool
+	AffiliateEnabled                     bool
 
-	// Channel Monitor feature
-	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
-	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
+	BackendModeEnabled bool
+	Version            string
 
-	// Available Channels feature (user-facing aggregate view)
-	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
-
-	// Model Plaza feature (public group/model pricing showcase)
-	ModelPlazaEnabled     bool `json:"model_plaza_enabled"`
-	ModelPlazaRequireAuth bool `json:"model_plaza_require_auth"`
-
-	// Affiliate (邀请返利) feature toggle
-	AffiliateEnabled bool `json:"affiliate_enabled"`
-
-	// 风控中心功能开关
-	RiskControlEnabled bool `json:"risk_control_enabled"`
-
-	// 允许终端用户在用量页查看自己的失败请求
-	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
+	ForceEmailOnThirdPartySignup bool
+	TableDefaultPageSize         int
+	TablePageSizeOptions         []int
+	CustomEndpoints              string
+	DingTalkOAuthEnabled         bool
+	GitHubOAuthEnabled           bool
+	GoogleOAuthEnabled           bool
+	BalanceLowNotifyEnabled      bool
+	AccountQuotaNotifyEnabled    bool
+	BalanceLowNotifyThreshold    float64
+	BalanceLowNotifyRechargeURL  string
+	RiskControlEnabled           bool `json:"risk_control_enabled"`
+	AllowUserViewErrorRequests   bool `json:"allow_user_view_error_requests"`
 }
 
-type LoginAgreementDocument struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	ContentMD string `json:"content_md"`
+type PublicWorkspaceWebSearchSettings struct {
+	Available bool   `json:"available"`
+	Provider  string `json:"provider,omitempty"`
 }
 
-type WeChatConnectOAuthConfig struct {
-	Enabled             bool
-	LegacyAppID         string
-	LegacyAppSecret     string
-	OpenAppID           string
-	OpenAppSecret       string
-	MPAppID             string
-	MPAppSecret         string
-	MobileAppID         string
-	MobileAppSecret     string
-	OpenEnabled         bool
-	MPEnabled           bool
-	MobileEnabled       bool
-	Mode                string
-	Scopes              string
-	RedirectURL         string
-	FrontendRedirectURL string
+// SoraS3Settings Sora S3 存储配置
+type SoraS3Settings struct {
+	Enabled                   bool   `json:"enabled"`
+	Endpoint                  string `json:"endpoint"`
+	Region                    string `json:"region"`
+	Bucket                    string `json:"bucket"`
+	AccessKeyID               string `json:"access_key_id"`
+	SecretAccessKey           string `json:"secret_access_key"`            // 仅内部使用，不直接返回前端
+	SecretAccessKeyConfigured bool   `json:"secret_access_key_configured"` // 前端展示用
+	Prefix                    string `json:"prefix"`
+	ForcePathStyle            bool   `json:"force_path_style"`
+	CDNURL                    string `json:"cdn_url"`
+	DefaultStorageQuotaBytes  int64  `json:"default_storage_quota_bytes"`
 }
 
-func (cfg WeChatConnectOAuthConfig) SupportsMode(mode string) bool {
-	switch normalizeWeChatConnectModeSetting(mode) {
-	case "mp":
-		return cfg.MPEnabled
-	case "mobile":
-		return cfg.MobileEnabled
-	default:
-		return cfg.OpenEnabled
-	}
+// SoraS3Profile Sora S3 多配置项（服务内部模型）
+type SoraS3Profile struct {
+	ProfileID                 string `json:"profile_id"`
+	Name                      string `json:"name"`
+	IsActive                  bool   `json:"is_active"`
+	Enabled                   bool   `json:"enabled"`
+	Endpoint                  string `json:"endpoint"`
+	Region                    string `json:"region"`
+	Bucket                    string `json:"bucket"`
+	AccessKeyID               string `json:"access_key_id"`
+	SecretAccessKey           string `json:"-"`                            // 仅内部使用，不直接返回前端
+	SecretAccessKeyConfigured bool   `json:"secret_access_key_configured"` // 前端展示用
+	Prefix                    string `json:"prefix"`
+	ForcePathStyle            bool   `json:"force_path_style"`
+	CDNURL                    string `json:"cdn_url"`
+	DefaultStorageQuotaBytes  int64  `json:"default_storage_quota_bytes"`
+	UpdatedAt                 string `json:"updated_at"`
 }
 
-func (cfg WeChatConnectOAuthConfig) ScopeForMode(mode string) string {
-	switch normalizeWeChatConnectModeSetting(mode) {
-	case "mp":
-		return normalizeWeChatConnectScopeSetting(cfg.Scopes, "mp")
-	case "mobile":
-		return ""
-	}
-	return defaultWeChatConnectScopeForMode("open")
+// SoraS3ProfileList Sora S3 多配置列表
+type SoraS3ProfileList struct {
+	ActiveProfileID string          `json:"active_profile_id"`
+	Items           []SoraS3Profile `json:"items"`
 }
 
-func (cfg WeChatConnectOAuthConfig) AppIDForMode(mode string) string {
-	switch normalizeWeChatConnectModeSetting(mode) {
-	case "mp":
-		return strings.TrimSpace(firstNonEmpty(cfg.MPAppID, cfg.LegacyAppID))
-	case "mobile":
-		return strings.TrimSpace(firstNonEmpty(cfg.MobileAppID, cfg.LegacyAppID))
-	}
-	return strings.TrimSpace(firstNonEmpty(cfg.OpenAppID, cfg.LegacyAppID))
+// TLSFingerprintSettings TLS 指纹全局设置。
+type TLSFingerprintSettings struct {
+	Enabled bool `json:"enabled"`
 }
 
-func (cfg WeChatConnectOAuthConfig) AppSecretForMode(mode string) string {
-	switch normalizeWeChatConnectModeSetting(mode) {
-	case "mp":
-		return strings.TrimSpace(firstNonEmpty(cfg.MPAppSecret, cfg.LegacyAppSecret))
-	case "mobile":
-		return strings.TrimSpace(firstNonEmpty(cfg.MobileAppSecret, cfg.LegacyAppSecret))
-	}
-	return strings.TrimSpace(firstNonEmpty(cfg.OpenAppSecret, cfg.LegacyAppSecret))
+// TLSFingerprintProfile TLS 指纹 Profile（服务内部模型）。
+type TLSFingerprintProfile struct {
+	ProfileID    string   `json:"profile_id"`
+	Name         string   `json:"name"`
+	Enabled      bool     `json:"enabled"`
+	EnableGREASE bool     `json:"enable_grease"`
+	CipherSuites []uint16 `json:"cipher_suites"`
+	Curves       []uint16 `json:"curves"`
+	PointFormats []uint8  `json:"point_formats"`
+	UpdatedAt    string   `json:"updated_at"`
+}
+
+// TLSFingerprintProfileList TLS 指纹配置列表。
+type TLSFingerprintProfileList struct {
+	Enabled bool                    `json:"enabled"`
+	Items   []TLSFingerprintProfile `json:"items"`
 }
 
 // StreamTimeoutSettings 流超时处理配置（仅控制超时后的处理方式，超时判定由网关配置控制）
@@ -516,7 +500,7 @@ type BetaPolicyRule struct {
 	ErrorMessage         string   `json:"error_message,omitempty"`          // 自定义错误消息 (action=block 时生效)
 	ModelWhitelist       []string `json:"model_whitelist,omitempty"`        // 模型匹配模式列表（为空=对所有模型生效）
 	FallbackAction       string   `json:"fallback_action,omitempty"`        // 未匹配白名单的模型的处理方式
-	FallbackErrorMessage string   `json:"fallback_error_message,omitempty"` // 未匹配白名单时的自定义错误消息 (fallback_action=block 时生效)
+	FallbackErrorMessage string   `json:"fallback_error_message,omitempty"` // 未匹配白名单时的自定义错误消息
 }
 
 // BetaPolicySettings Beta 策略配置
@@ -532,14 +516,6 @@ type OverloadCooldownSettings struct {
 	CooldownMinutes int `json:"cooldown_minutes"`
 }
 
-// RateLimit429CooldownSettings 429默认回避配置
-type RateLimit429CooldownSettings struct {
-	// Enabled 是否在无法解析上游重置时间时应用默认429回避
-	Enabled bool `json:"enabled"`
-	// CooldownSeconds 默认回避时长（秒）
-	CooldownSeconds int `json:"cooldown_seconds"`
-}
-
 // DefaultOverloadCooldownSettings 返回默认的过载冷却配置（启用，10分钟）
 func DefaultOverloadCooldownSettings() *OverloadCooldownSettings {
 	return &OverloadCooldownSettings{
@@ -548,32 +524,7 @@ func DefaultOverloadCooldownSettings() *OverloadCooldownSettings {
 	}
 }
 
-// DefaultRateLimit429CooldownSettings 返回默认的429回避配置（启用，5秒）
-func DefaultRateLimit429CooldownSettings() *RateLimit429CooldownSettings {
-	return &RateLimit429CooldownSettings{
-		Enabled:         true,
-		CooldownSeconds: 5,
-	}
-}
-
 // DefaultBetaPolicySettings 返回默认的 Beta 策略配置
-//
-// context-1m-2025-08-07 的默认策略：
-//   - 仅 claude-sonnet-5 及后续版本（如 claude-sonnet-5-*）在上游默认支持 1M 上下文。
-//   - Sonnet 4.x 及以下、Opus、Haiku 上游都不支持该 beta，透传上去会被上游 400 或降级。
-//   - 因此默认对 sonnet-5* 放行、其余全部过滤，与上游能力保持一致。
-//
-// 白名单需要覆盖每个上游路径的模型 ID 变形：
-//   - 直连 Anthropic API（OAuth mimic / API Key / SetupToken）：模型保持客户端原样
-//     （如 "claude-sonnet-5"、"claude-sonnet-5-YYYYMMDD"、"claude-sonnet-5-thinking"）。
-//   - Vertex AI：normalizeVertexAnthropicModelID 会把 "-YYYYMMDD" 后缀转成 "@YYYYMMDD"
-//     （如 "claude-sonnet-5@YYYYMMDD"）。
-//   - AWS Bedrock：ResolveBedrockModelID 会输出带跨区域前缀的模型 ID
-//     （us./eu./apac./jp./au./us-gov./global. 或无前缀的 "anthropic." 形式）。
-//
-// 白名单只用后缀通配符（matchModelPattern 语义），因此每个路径都需要显式列出前缀。
-// 精确匹配 "claude-sonnet-5" + 后缀 "-*" 与 "@*"，可覆盖直连/Vertex 场景，同时避免误伤
-// 未来可能出现的 "claude-sonnet-50" 或 "claude-sonnet-5.x" 之类的意外命名。
 func DefaultBetaPolicySettings() *BetaPolicySettings {
 	return &BetaPolicySettings{
 		Rules: []BetaPolicyRule{
@@ -587,12 +538,9 @@ func DefaultBetaPolicySettings() *BetaPolicySettings {
 				Action:    BetaPolicyActionPass,
 				Scope:     BetaPolicyScopeAll,
 				ModelWhitelist: []string{
-					// 直连 Anthropic API（客户端请求 model 原样）
 					"claude-sonnet-5",
 					"claude-sonnet-5-*",
-					// Vertex AI 走 normalizeVertexAnthropicModelID 后 "@YYYYMMDD" 格式
 					"claude-sonnet-5@*",
-					// AWS Bedrock cross-region inference profile
 					"us.anthropic.claude-sonnet-5*",
 					"eu.anthropic.claude-sonnet-5*",
 					"apac.anthropic.claude-sonnet-5*",
@@ -600,55 +548,10 @@ func DefaultBetaPolicySettings() *BetaPolicySettings {
 					"au.anthropic.claude-sonnet-5*",
 					"us-gov.anthropic.claude-sonnet-5*",
 					"global.anthropic.claude-sonnet-5*",
-					// AWS Bedrock 无 cross-region 前缀
 					"anthropic.claude-sonnet-5*",
 				},
 				FallbackAction: BetaPolicyActionFilter,
 			},
 		},
-	}
-}
-
-// OpenAI Fast Policy 策略常量
-// OpenAI 的 "fast 模式" 通过请求体中的 service_tier 字段识别：
-//   - "priority"（客户端可传 "fast"，归一化为 "priority"）：fast 模式
-//   - "flex"：低优先级模式
-//   - 省略：normal 默认
-//
-// 本策略复用 BetaPolicyAction*/BetaPolicyScope* 常量语义，只是匹配键从
-// anthropic-beta header 换成 body 的 service_tier 字段。
-const (
-	OpenAIFastTierAny      = "all"      // 匹配任意已识别的 service_tier
-	OpenAIFastTierPriority = "priority" // 仅匹配 fast（priority）
-	OpenAIFastTierFlex     = "flex"     // 仅匹配 flex
-
-	// OpenAIFastPolicyActionForcePriority 会保留 service_tier 字段并强制写成
-	// priority，用于把 flex/auto/default/scale 等已识别 tier 收敛为 fast。
-	OpenAIFastPolicyActionForcePriority = "force_priority"
-)
-
-// OpenAIFastPolicyRule 单条 OpenAI fast/flex 策略规则
-type OpenAIFastPolicyRule struct {
-	ServiceTier          string   `json:"service_tier"`                     // "priority" | "flex" | "auto" | "default" | "scale" | "all"
-	Action               string   `json:"action"`                           // "pass" | "filter" | "block" | "force_priority"
-	Scope                string   `json:"scope"`                            // "all" | "oauth" | "apikey" | "bedrock"
-	UserIDs              []int64  `json:"user_ids,omitempty"`               // 空=所有 Sub2API 用户；非空=仅指定 API Key 所属用户
-	ErrorMessage         string   `json:"error_message,omitempty"`          // 自定义错误消息 (action=block 时生效)
-	ModelWhitelist       []string `json:"model_whitelist,omitempty"`        // 模型匹配模式列表（为空=对所有模型生效）
-	FallbackAction       string   `json:"fallback_action,omitempty"`        // 未匹配白名单的模型的处理方式
-	FallbackErrorMessage string   `json:"fallback_error_message,omitempty"` // 未匹配白名单时的自定义错误消息 (fallback_action=block 时生效)
-}
-
-// OpenAIFastPolicySettings OpenAI fast 策略配置
-type OpenAIFastPolicySettings struct {
-	Rules []OpenAIFastPolicyRule `json:"rules"`
-}
-
-// DefaultOpenAIFastPolicySettings 返回默认的 OpenAI fast 策略配置。
-// 默认不配置任何规则，保留 OpenAI 上游 service_tier 语义；管理员如需
-// 限制 priority/flex，可以在 admin UI 中显式配置 filter 或 block 规则。
-func DefaultOpenAIFastPolicySettings() *OpenAIFastPolicySettings {
-	return &OpenAIFastPolicySettings{
-		Rules: []OpenAIFastPolicyRule{},
 	}
 }

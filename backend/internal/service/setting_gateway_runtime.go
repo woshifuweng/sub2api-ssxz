@@ -650,13 +650,13 @@ func ValidateEngineFingerprintSignalsJSON(raw string) error {
 // IsBackendModeEnabled checks if backend mode is enabled
 // Uses in-process atomic.Value cache with 60s TTL, zero-lock hot path
 func (s *SettingService) IsBackendModeEnabled(ctx context.Context) bool {
-	if cached, ok := backendModeCache.Load().(*cachedBackendMode); ok && cached != nil {
+	if cached, ok := s.backendModeCache.Load().(*cachedBackendMode); ok && cached != nil {
 		if time.Now().UnixNano() < cached.expiresAt {
 			return cached.value
 		}
 	}
-	result, _, _ := backendModeSF.Do("backend_mode", func() (any, error) {
-		if cached, ok := backendModeCache.Load().(*cachedBackendMode); ok && cached != nil {
+	result, _, _ := s.backendModeSF.Do("backend_mode", func() (any, error) {
+		if cached, ok := s.backendModeCache.Load().(*cachedBackendMode); ok && cached != nil {
 			if time.Now().UnixNano() < cached.expiresAt {
 				return cached.value, nil
 			}
@@ -667,21 +667,21 @@ func (s *SettingService) IsBackendModeEnabled(ctx context.Context) bool {
 		if err != nil {
 			if errors.Is(err, ErrSettingNotFound) {
 				// Setting not yet created (fresh install) - default to disabled with full TTL
-				backendModeCache.Store(&cachedBackendMode{
+				s.backendModeCache.Store(&cachedBackendMode{
 					value:     false,
 					expiresAt: time.Now().Add(backendModeCacheTTL).UnixNano(),
 				})
 				return false, nil
 			}
 			slog.Warn("failed to get backend_mode_enabled setting", "error", err)
-			backendModeCache.Store(&cachedBackendMode{
+			s.backendModeCache.Store(&cachedBackendMode{
 				value:     false,
 				expiresAt: time.Now().Add(backendModeErrorTTL).UnixNano(),
 			})
 			return false, nil
 		}
 		enabled := value == "true"
-		backendModeCache.Store(&cachedBackendMode{
+		s.backendModeCache.Store(&cachedBackendMode{
 			value:     enabled,
 			expiresAt: time.Now().Add(backendModeCacheTTL).UnixNano(),
 		})

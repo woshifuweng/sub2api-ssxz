@@ -189,6 +189,9 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyHideCcsImportButton,
 		SettingKeyPurchaseSubscriptionEnabled,
 		SettingKeyPurchaseSubscriptionURL,
+		SettingKeyPurchaseLinkCNY10,
+		SettingKeyPurchaseLinkCNY30,
+		SettingKeyPurchaseLinkCNY100,
 		SettingKeyTableDefaultPageSize,
 		SettingKeyTablePageSizeOptions,
 		SettingKeyCustomMenuItems,
@@ -289,6 +292,11 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 	if v, err := strconv.ParseFloat(settings[SettingKeyBalanceLowNotifyThreshold], 64); err == nil && v >= 0 {
 		balanceLowNotifyThreshold = v
 	}
+	webSearchSettings := PublicWorkspaceWebSearchSettings{}
+	if s != nil && s.cfg != nil {
+		webSearchSettings.Provider = strings.TrimSpace(s.cfg.Workspace.WebSearch.Provider)
+		webSearchSettings.Available = s.cfg.Workspace.WebSearch.Enabled && !s.cfg.Workspace.WebSearch.KillSwitch
+	}
 
 	return &PublicSettings{
 		RegistrationEnabled:              settings[SettingKeyRegistrationEnabled] == "true",
@@ -323,7 +331,10 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		CompactHomeEnabled:               settings[SettingKeyCompactHomeEnabled] == "true",
 		HideCcsImportButton:              settings[SettingKeyHideCcsImportButton] == "true",
 		PurchaseSubscriptionEnabled:      settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
-		PurchaseSubscriptionURL:          strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
+		PurchaseSubscriptionURL:          sanitizePublicEmbeddedURL(settings[SettingKeyPurchaseSubscriptionURL]),
+		PurchaseLinkCNY10:                sanitizePublicEmbeddedURL(settings[SettingKeyPurchaseLinkCNY10]),
+		PurchaseLinkCNY30:                sanitizePublicEmbeddedURL(settings[SettingKeyPurchaseLinkCNY30]),
+		PurchaseLinkCNY100:               sanitizePublicEmbeddedURL(settings[SettingKeyPurchaseLinkCNY100]),
 		TableDefaultPageSize:             tableDefaultPageSize,
 		TablePageSizeOptions:             tablePageSizeOptions,
 		CustomMenuItems:                  settings[SettingKeyCustomMenuItems],
@@ -349,6 +360,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		ChannelMonitorDefaultIntervalSeconds: parseChannelMonitorInterval(settings[SettingKeyChannelMonitorDefaultIntervalSeconds]),
 
 		AvailableChannelsEnabled: settings[SettingKeyAvailableChannelsEnabled] == "true",
+		WebSearch:                webSearchSettings,
 
 		ModelPlazaEnabled:     settings[SettingKeyModelPlazaEnabled] == "true",
 		ModelPlazaRequireAuth: settings[SettingKeyModelPlazaRequireAuth] == "true",
@@ -426,6 +438,12 @@ type AvailableChannelsRuntime struct {
 // from the settings store. Fail-closed: on error returns Enabled=false, matching
 // the opt-in default (unknown ↔ disabled).
 func (s *SettingService) GetAvailableChannelsRuntime(ctx context.Context) AvailableChannelsRuntime {
+	if runtime, ok := s.getAvailableChannelsRuntimeOverride(); ok {
+		return runtime
+	}
+	if s == nil || s.settingRepo == nil {
+		return AvailableChannelsRuntime{Enabled: false}
+	}
 	vals, err := s.settingRepo.GetMultiple(ctx, []string{SettingKeyAvailableChannelsEnabled})
 	if err != nil {
 		return AvailableChannelsRuntime{Enabled: false}
@@ -519,6 +537,9 @@ type PublicSettingsInjectionPayload struct {
 	HideCcsImportButton              bool                     `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled      bool                     `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL          string                   `json:"purchase_subscription_url"`
+	PurchaseLinkCNY10                string                   `json:"purchase_link_cny_10"`
+	PurchaseLinkCNY30                string                   `json:"purchase_link_cny_30"`
+	PurchaseLinkCNY100               string                   `json:"purchase_link_cny_100"`
 	TableDefaultPageSize             int                      `json:"table_default_page_size"`
 	TablePageSizeOptions             []int                    `json:"table_page_size_options"`
 	CustomMenuItems                  json.RawMessage          `json:"custom_menu_items"`
@@ -547,14 +568,15 @@ type PublicSettingsInjectionPayload struct {
 	// Feature flags — MUST match the opt-in/opt-out registry in
 	// frontend/src/utils/featureFlags.ts. Missing a field here is the bug
 	// that hid the "可用渠道" menu on page refresh.
-	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
-	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
-	AvailableChannelsEnabled             bool `json:"available_channels_enabled"`
-	ModelPlazaEnabled                    bool `json:"model_plaza_enabled"`
-	ModelPlazaRequireAuth                bool `json:"model_plaza_require_auth"`
-	AffiliateEnabled                     bool `json:"affiliate_enabled"`
-	RiskControlEnabled                   bool `json:"risk_control_enabled"`
-	AllowUserViewErrorRequests           bool `json:"allow_user_view_error_requests"`
+	ChannelMonitorEnabled                bool                             `json:"channel_monitor_enabled"`
+	ChannelMonitorDefaultIntervalSeconds int                              `json:"channel_monitor_default_interval_seconds"`
+	AvailableChannelsEnabled             bool                             `json:"available_channels_enabled"`
+	WebSearch                            PublicWorkspaceWebSearchSettings `json:"web_search"`
+	ModelPlazaEnabled                    bool                             `json:"model_plaza_enabled"`
+	ModelPlazaRequireAuth                bool                             `json:"model_plaza_require_auth"`
+	AffiliateEnabled                     bool                             `json:"affiliate_enabled"`
+	RiskControlEnabled                   bool                             `json:"risk_control_enabled"`
+	AllowUserViewErrorRequests           bool                             `json:"allow_user_view_error_requests"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -598,6 +620,9 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		HideCcsImportButton:              settings.HideCcsImportButton,
 		PurchaseSubscriptionEnabled:      settings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:          settings.PurchaseSubscriptionURL,
+		PurchaseLinkCNY10:                settings.PurchaseLinkCNY10,
+		PurchaseLinkCNY30:                settings.PurchaseLinkCNY30,
+		PurchaseLinkCNY100:               settings.PurchaseLinkCNY100,
 		TableDefaultPageSize:             settings.TableDefaultPageSize,
 		TablePageSizeOptions:             settings.TablePageSizeOptions,
 		CustomMenuItems:                  filterUserVisibleMenuItems(settings.CustomMenuItems),
@@ -625,6 +650,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		ChannelMonitorEnabled:                settings.ChannelMonitorEnabled,
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
 		AvailableChannelsEnabled:             settings.AvailableChannelsEnabled,
+		WebSearch:                            settings.WebSearch,
 		ModelPlazaEnabled:                    settings.ModelPlazaEnabled,
 		ModelPlazaRequireAuth:                settings.ModelPlazaRequireAuth,
 		AffiliateEnabled:                     settings.AffiliateEnabled,

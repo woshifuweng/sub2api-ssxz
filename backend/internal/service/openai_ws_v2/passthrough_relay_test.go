@@ -254,9 +254,10 @@ func TestRelay_UpstreamDisconnect(t *testing.T) {
 	defer cancel()
 
 	result, relayExit := Relay(ctx, clientConn, upstreamConn, firstPayload, RelayOptions{})
-	// 上游 EOF 属于 disconnect，标记为 graceful
-	require.Nil(t, relayExit, "上游 EOF 应被视为 graceful disconnect")
+	require.NotNil(t, relayExit, "未观测到 terminal 事件时，上游 EOF 不应被视为成功完成")
+	require.Contains(t, []string{"read_upstream", "read_client", "client_disconnected"}, relayExit.Stage)
 	require.Equal(t, "gpt-4o", result.RequestModel)
+	require.Empty(t, result.TerminalEventType)
 }
 
 func TestRelay_ClientDisconnect(t *testing.T) {
@@ -657,7 +658,9 @@ func TestRelay_PreservesFirstMessageType(t *testing.T) {
 	_, relayExit := Relay(ctx, clientConn, upstreamConn, firstPayload, RelayOptions{
 		FirstMessageType: coderws.MessageBinary,
 	})
-	require.Nil(t, relayExit)
+	if relayExit != nil {
+		require.Contains(t, []string{"read_upstream", "read_client", "client_disconnected"}, relayExit.Stage)
+	}
 
 	upstreamWrites := upstreamConn.Writes()
 	require.Len(t, upstreamWrites, 1)

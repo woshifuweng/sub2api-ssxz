@@ -13,9 +13,9 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	openaiwsv2 "github.com/Wei-Shaw/sub2api/internal/service/openai_ws_v2"
 	coderws "github.com/coder/websocket"
-	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
 
@@ -654,7 +654,7 @@ func (c *openAIWSClientFrameConn) Close() error {
 
 func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	ctx context.Context,
-	c *gin.Context,
+	transportCtx gatewayctx.GatewayContext,
 	clientConn *coderws.Conn,
 	account *Account,
 	token string,
@@ -664,6 +664,9 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 ) error {
 	if s == nil {
 		return errors.New("service is nil")
+	}
+	if transportCtx == nil {
+		return errors.New("gateway context is nil")
 	}
 	if clientConn == nil {
 		return errors.New("client websocket is nil")
@@ -735,7 +738,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		return fmt.Errorf("apply openai fast policy on first ws frame: %w", policyErr)
 	}
 	if blocked != nil {
-		MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
+		MarkOpsClientBusinessLimitedAny(transportCtx, OpsClientBusinessLimitedReasonLocalPolicyDenied)
 		// coder/websocket@v1.8.14 Conn.Write is synchronous: it acquires
 		// writeFrameMu, writes the entire frame, and Flushes the underlying
 		// bufio writer before returning (write.go:42 → write.go:307-311).
@@ -788,22 +791,19 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	)
 
 	isCodexCLI := false
-	if c != nil {
-		isCodexCLI = openai.IsCodexOfficialClientByHeaders(c.GetHeader("User-Agent"), c.GetHeader("originator"))
+	if transportCtx != nil {
+		isCodexCLI = openai.IsCodexOfficialClientByHeaders(transportCtx.HeaderValue("User-Agent"), transportCtx.HeaderValue("originator"))
 	}
 	if s.cfg != nil && s.cfg.Gateway.ForceCodexCLI {
 		isCodexCLI = true
 	}
 	turnState := ""
 	turnMetadata := ""
-	if c != nil {
-		turnState = strings.TrimSpace(c.GetHeader(openAIWSTurnStateHeader))
-		turnMetadata = strings.TrimSpace(c.GetHeader(openAIWSTurnMetadataHeader))
+	if transportCtx != nil {
+		turnState = strings.TrimSpace(transportCtx.HeaderValue(openAIWSTurnStateHeader))
+		turnMetadata = strings.TrimSpace(transportCtx.HeaderValue(openAIWSTurnMetadataHeader))
 	}
-	headers, _, buildHdrErr := s.buildOpenAIWSHeaders(ctx, c, account, token, wsDecision, isCodexCLI, turnState, turnMetadata, promptCacheKey)
-	if buildHdrErr != nil {
-		return fmt.Errorf("build ws headers: %w", buildHdrErr)
-	}
+	headers, _ := s.buildOpenAIWSHeadersLegacy(transportCtx, account, token, wsDecision, isCodexCLI, turnState, turnMetadata, promptCacheKey)
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
@@ -1028,7 +1028,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			return out, blocked, policyErr
 		},
 		onBlock: func(blocked *OpenAIFastBlockedError) {
-			MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
+			MarkOpsClientBusinessLimitedAny(transportCtx, OpsClientBusinessLimitedReasonLocalPolicyDenied)
 			// See note above on Conn.Write being synchronous w.r.t. flush;
 			// no explicit flush is required to ensure the error event lands
 			// before the close frame.
@@ -1069,6 +1069,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		}
 	}
 
+	clientTurns := atomic.Int32{}
+	clientTurns.Store(1)
 	relayResult, relayExit := openaiwsv2.RunEntry(openaiwsv2.EntryInput{
 		Ctx:                ctx,
 		ClientConn:         policyClientConn,
@@ -1084,6 +1086,10 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			FirstMessageSent:                upstreamFirstMessageSent,
 			StartClientAfterFirstDownstream: true,
 			ReadClientFrame:                 readNextClientFrame,
+			TransformClientFrame: func(_ coderws.MessageType, payload []byte) ([]byte, error) {
+				limited, _, err := EnforceUnboundedTokenRequestLimit(payload, "max_output_tokens", "max_output_tokens")
+				return limited, err
+			},
 			OnUsageParseFailure: func(eventType string, usageRaw string) {
 				logOpenAIWSV2Passthrough(
 					"usage_parse_failed event_type=%s usage_raw=%s",
@@ -1185,6 +1191,14 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 					ResponseHeaders: cloneHeader(handshakeHeaders),
 				}
 			},
+			BeforeClientFrame: func(msgType coderws.MessageType, payload []byte) error {
+				if hooks == nil || hooks.BeforeTurnPayload == nil {
+					return nil
+				}
+				nextTurn := int(clientTurns.Add(1))
+				model := strings.TrimSpace(gjson.GetBytes(payload, "model").String())
+				return hooks.BeforeTurnPayload(nextTurn, payload, model)
+			},
 			OnTrace: func(event openaiwsv2.RelayTraceEvent) {
 				logOpenAIWSV2Passthrough(
 					"relay_trace account_id=%d stage=%s direction=%s msg_type=%s bytes=%d graceful=%v wrote_downstream=%v err=%s",
@@ -1272,7 +1286,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		deadline := firstOutputTimeoutErr.deadline
 		failoverErr := s.newOpenAIFirstOutputTimeoutError(
 			ctx,
-			c,
+			transportCtx,
 			account,
 			deadline.startedAt,
 			deadline.requestModel,

@@ -26,6 +26,79 @@
         <p class="input-hint">{{ t('admin.accounts.notesHint') }}</p>
       </div>
 
+      <div
+        v-if="account.platform === 'kiro' && account.type === 'oauth'"
+        class="space-y-4 rounded-lg border border-cyan-200 bg-cyan-50/60 p-4 dark:border-cyan-900/40 dark:bg-cyan-950/20"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <label class="input-label">Kiro OAuth</label>
+            <p class="input-hint">Update Kiro refresh credentials and runtime identifiers.</p>
+          </div>
+          <select v-model="kiroAuthMethod" class="input w-36">
+            <option value="social">social</option>
+            <option value="idc">idc</option>
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Refresh Token</label>
+          <textarea
+            v-model="kiroRefreshToken"
+            rows="4"
+            class="input font-mono text-sm"
+            placeholder="Paste new refresh token or keep existing value"
+          ></textarea>
+        </div>
+        <div v-if="kiroAuthMethod === 'idc'" class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div>
+            <label class="input-label">Client ID</label>
+            <input v-model="kiroClientID" type="text" class="input font-mono text-sm" />
+          </div>
+          <div>
+            <label class="input-label">Client Secret</label>
+            <input v-model="kiroClientSecret" type="password" class="input font-mono text-sm" placeholder="Leave empty to keep existing" />
+          </div>
+        </div>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div>
+            <label class="input-label">Region</label>
+            <input v-model="kiroRegion" type="text" class="input font-mono text-sm" />
+          </div>
+          <div>
+            <label class="input-label">Auth Region</label>
+            <input v-model="kiroAuthRegion" type="text" class="input font-mono text-sm" />
+          </div>
+          <div>
+            <label class="input-label">API Region</label>
+            <input v-model="kiroAPIRegion" type="text" class="input font-mono text-sm" />
+          </div>
+        </div>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div>
+            <label class="input-label">Profile ARN</label>
+            <input v-model="kiroProfileARN" type="text" class="input font-mono text-sm" />
+          </div>
+          <div>
+            <label class="input-label">Machine ID</label>
+            <input v-model="kiroMachineID" type="text" class="input font-mono text-sm" />
+          </div>
+        </div>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div>
+            <label class="input-label">Kiro Version</label>
+            <input v-model="kiroVersion" type="text" class="input font-mono text-sm" />
+          </div>
+          <div>
+            <label class="input-label">System Version</label>
+            <input v-model="kiroSystemVersion" type="text" class="input font-mono text-sm" />
+          </div>
+          <div>
+            <label class="input-label">Node Version</label>
+            <input v-model="kiroNodeVersion" type="text" class="input font-mono text-sm" />
+          </div>
+        </div>
+      </div>
+
       <!-- API Key fields (only for apikey type) -->
       <div v-if="account.type === 'apikey'" class="space-y-4">
         <div>
@@ -273,21 +346,7 @@
                 {{ t('admin.accounts.poolModeHint') }}
               </p>
             </div>
-            <button
-              type="button"
-              @click="poolModeEnabled = !poolModeEnabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                poolModeEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  poolModeEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle v-model="poolModeEnabled" />
           </div>
           <div v-if="poolModeEnabled" class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
             <p class="text-xs text-blue-700 dark:text-blue-400">
@@ -337,21 +396,7 @@
                 {{ t('admin.accounts.customErrorCodesHint') }}
               </p>
             </div>
-            <button
-              type="button"
-              @click="customErrorCodesEnabled = !customErrorCodesEnabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                customErrorCodesEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  customErrorCodesEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle v-model="customErrorCodesEnabled" />
           </div>
 
           <div v-if="customErrorCodesEnabled" class="space-y-3">
@@ -1055,21 +1100,7 @@
                 {{ t('admin.accounts.poolModeHint') }}
               </p>
             </div>
-            <button
-              type="button"
-              @click="poolModeEnabled = !poolModeEnabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                poolModeEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  poolModeEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle v-model="poolModeEnabled" />
           </div>
           <div v-if="poolModeEnabled" class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
             <p class="text-xs text-blue-700 dark:text-blue-400">
@@ -1236,21 +1267,7 @@
               {{ t('admin.accounts.tempUnschedulable.hint') }}
             </p>
           </div>
-          <button
-            type="button"
-            @click="tempUnschedEnabled = !tempUnschedEnabled"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              tempUnschedEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                tempUnschedEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle v-model="tempUnschedEnabled" />
         </div>
 
         <div v-if="tempUnschedEnabled" class="space-y-3">
@@ -1389,21 +1406,7 @@
               {{ t('admin.accounts.interceptWarmupRequestsDesc') }}
             </p>
           </div>
-          <button
-            type="button"
-            @click="interceptWarmupRequests = !interceptWarmupRequests"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              interceptWarmupRequests ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                interceptWarmupRequests ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle v-model="interceptWarmupRequests" />
         </div>
       </div>
 
@@ -1433,7 +1436,7 @@
           <input
             v-model.number="form.priority"
             type="number"
-            min="1"
+            min="0"
             class="input"
             data-tour="account-form-priority"
           />
@@ -1720,21 +1723,7 @@
               {{ t('admin.accounts.anthropic.apiKeyPassthroughDesc') }}
             </p>
           </div>
-          <button
-            type="button"
-            @click="anthropicPassthroughEnabled = !anthropicPassthroughEnabled"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              anthropicPassthroughEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                anthropicPassthroughEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle v-model="anthropicPassthroughEnabled" />
         </div>
       </div>
 
@@ -1923,21 +1912,7 @@
               {{ t('admin.accounts.openai.codexCLIOnlyDesc') }}
             </p>
           </div>
-          <button
-            type="button"
-            @click="codexCLIOnlyEnabled = !codexCLIOnlyEnabled"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              codexCLIOnlyEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                codexCLIOnlyEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle v-model="codexCLIOnlyEnabled" />
         </div>
         <div
           v-if="codexCLIOnlyEnabled"
@@ -2053,21 +2028,21 @@
               {{ t('admin.accounts.autoPauseOnExpiredDesc') }}
             </p>
           </div>
-          <button
-            type="button"
-            @click="autoPauseOnExpired = !autoPauseOnExpired"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              autoPauseOnExpired ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                autoPauseOnExpired ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
+          <Toggle v-model="autoPauseOnExpired" />
+        </div>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between">
+          <div>
+            <label class="input-label mb-0">{{
+              t('admin.accounts.ignorePauseSchedulingErrors')
+            }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.ignorePauseSchedulingErrorsDesc') }}
+            </p>
+          </div>
+          <Toggle v-model="ignorePauseSchedulingErrors" />
         </div>
       </div>
 
@@ -2170,21 +2145,7 @@
                 {{ t('admin.accounts.quotaControl.windowCost.hint') }}
               </p>
             </div>
-            <button
-              type="button"
-              @click="windowCostEnabled = !windowCostEnabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                windowCostEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  windowCostEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle v-model="windowCostEnabled" />
           </div>
 
           <div v-if="windowCostEnabled" class="grid grid-cols-2 gap-4">
@@ -2230,21 +2191,7 @@
                 {{ t('admin.accounts.quotaControl.sessionLimit.hint') }}
               </p>
             </div>
-            <button
-              type="button"
-              @click="sessionLimitEnabled = !sessionLimitEnabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                sessionLimitEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  sessionLimitEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle v-model="sessionLimitEnabled" />
           </div>
 
           <div v-if="sessionLimitEnabled" class="grid grid-cols-2 gap-4">
@@ -2287,21 +2234,7 @@
                 {{ t('admin.accounts.quotaControl.rpmLimit.hint') }}
               </p>
             </div>
-            <button
-              type="button"
-              @click="rpmLimitEnabled = !rpmLimitEnabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                rpmLimitEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  rpmLimitEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle v-model="rpmLimitEnabled" />
           </div>
 
           <div v-if="rpmLimitEnabled" class="space-y-4">
@@ -2400,21 +2333,7 @@
                 {{ t('admin.accounts.quotaControl.tlsFingerprint.hint') }}
               </p>
             </div>
-            <button
-              type="button"
-              @click="tlsFingerprintEnabled = !tlsFingerprintEnabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                tlsFingerprintEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  tlsFingerprintEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle v-model="tlsFingerprintEnabled" />
           </div>
           <!-- Profile selector -->
           <div v-if="tlsFingerprintEnabled" class="mt-3">
@@ -2435,21 +2354,7 @@
                 {{ t('admin.accounts.quotaControl.sessionIdMasking.hint') }}
               </p>
             </div>
-            <button
-              type="button"
-              @click="sessionIdMaskingEnabled = !sessionIdMaskingEnabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                sessionIdMaskingEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  sessionIdMaskingEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle v-model="sessionIdMaskingEnabled" />
           </div>
         </div>
 
@@ -2462,21 +2367,7 @@
                 {{ t('admin.accounts.quotaControl.cacheTTLOverride.hint') }}
               </p>
             </div>
-            <button
-              type="button"
-              @click="cacheTTLOverrideEnabled = !cacheTTLOverrideEnabled"
-              :class="[
-                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                cacheTTLOverrideEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
-            >
-              <span
-                :class="[
-                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  cacheTTLOverrideEnabled ? 'translate-x-5' : 'translate-x-0'
-                ]"
-              />
-            </button>
+            <Toggle v-model="cacheTTLOverrideEnabled" />
           </div>
           <div v-if="cacheTTLOverrideEnabled" class="mt-3">
             <label class="input-label text-xs">{{ t('admin.accounts.quotaControl.cacheTTLOverride.target') }}</label>
@@ -2904,6 +2795,18 @@ const tlsFingerprintProfiles = ref<{ id: number; name: string }[]>([])
 const sessionIdMaskingEnabled = ref(false)
 const cacheTTLOverrideEnabled = ref(false)
 const cacheTTLOverrideTarget = ref<string>('5m')
+const kiroAuthMethod = ref<'social' | 'idc'>('social')
+const kiroRefreshToken = ref('')
+const kiroClientID = ref('')
+const kiroClientSecret = ref('')
+const kiroProfileARN = ref('')
+const kiroRegion = ref('us-east-1')
+const kiroAuthRegion = ref('')
+const kiroAPIRegion = ref('')
+const kiroMachineID = ref('')
+const kiroVersion = ref('0.10.0')
+const kiroSystemVersion = ref('darwin#24.6.0')
+const kiroNodeVersion = ref('22.21.1')
 const customBaseUrlEnabled = ref(false)
 const customBaseUrl = ref('')
 
@@ -2925,6 +2828,7 @@ type CodexImageToolMode = 'inherit' | 'enabled' | 'disabled' | 'block'
 const codexImageToolMode = ref<CodexImageToolMode>('inherit')
 type AnthropicAPIKeyAuthScheme = 'x_api_key' | 'authorization_bearer'
 const anthropicPassthroughEnabled = ref(false)
+const ignorePauseSchedulingErrors = ref(false)
 const anthropicAPIKeyAuthScheme = ref<AnthropicAPIKeyAuthScheme>('x_api_key')
 const webSearchEmulationMode = ref('default')
 const webSearchGlobalEnabled = ref(false)
@@ -2976,6 +2880,11 @@ const openaiResponsesWebSocketV2Mode = computed({
 const openAIWSModeConcurrencyHintKey = computed(() =>
   resolveOpenAIWSModeConcurrencyHintKey(openaiResponsesWebSocketV2Mode.value)
 )
+const isOpenAIChatWebMode = computed(() => (
+  props.account?.platform === 'openai' &&
+  props.account?.type === 'oauth' &&
+  (((props.account?.extra as Record<string, unknown> | undefined)?.openai_auth_mode) === 'chatweb')
+))
 const codexImageToolOptions = computed<Array<{
   value: CodexImageToolMode
   label: string
@@ -3136,7 +3045,7 @@ const normalizeOpenAIResponsesMode = (mode: unknown): OpenAIResponsesMode => {
   return 'auto'
 }
 const isOpenAIModelRestrictionDisabled = computed(() =>
-  props.account?.platform === 'openai' && openaiPassthroughEnabled.value
+  props.account?.platform === 'openai' && openaiPassthroughEnabled.value && !isOpenAIChatWebMode.value
 )
 const openAIResponsesStatusKey = computed(() => {
   if (openAIResponsesMode.value === 'force_responses') {
@@ -3506,6 +3415,34 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     antigravityModelRestrictionMode.value = 'mapping'
     antigravityWhitelistModels.value = []
     antigravityModelMappings.value = []
+  }
+
+  if (newAccount.platform === 'kiro' && newAccount.type === 'oauth') {
+    kiroAuthMethod.value = ((credentials?.auth_method as string) || 'social') as 'social' | 'idc'
+    kiroRefreshToken.value = (credentials?.refresh_token as string) || ''
+    kiroClientID.value = (credentials?.client_id as string) || ''
+    kiroClientSecret.value = ''
+    kiroProfileARN.value = (credentials?.profile_arn as string) || ''
+    kiroRegion.value = (credentials?.region as string) || 'us-east-1'
+    kiroAuthRegion.value = (credentials?.auth_region as string) || ''
+    kiroAPIRegion.value = (credentials?.api_region as string) || ''
+    kiroMachineID.value = (credentials?.machine_id as string) || ''
+    kiroVersion.value = (extra?.kiro_version as string) || '0.10.0'
+    kiroSystemVersion.value = (extra?.system_version as string) || 'darwin#24.6.0'
+    kiroNodeVersion.value = (extra?.node_version as string) || '22.21.1'
+  } else {
+    kiroAuthMethod.value = 'social'
+    kiroRefreshToken.value = ''
+    kiroClientID.value = ''
+    kiroClientSecret.value = ''
+    kiroProfileARN.value = ''
+    kiroRegion.value = 'us-east-1'
+    kiroAuthRegion.value = ''
+    kiroAPIRegion.value = ''
+    kiroMachineID.value = ''
+    kiroVersion.value = '0.10.0'
+    kiroSystemVersion.value = 'darwin#24.6.0'
+    kiroNodeVersion.value = '22.21.1'
   }
 
   // Load quota control settings (Anthropic OAuth/SetupToken only)
@@ -3911,6 +3848,7 @@ function loadQuotaControlSettings(account: Account) {
   tlsFingerprintProfileId.value = null
   sessionIdMaskingEnabled.value = false
   cacheTTLOverrideEnabled.value = false
+  ignorePauseSchedulingErrors.value = false
   cacheTTLOverrideTarget.value = '5m'
   customBaseUrlEnabled.value = false
   customBaseUrl.value = ''
@@ -3965,12 +3903,28 @@ function loadQuotaControlSettings(account: Account) {
     cacheTTLOverrideEnabled.value = true
     cacheTTLOverrideTarget.value = account.cache_ttl_override_target || '5m'
   }
+  if (account.ignore_pause_scheduling_errors === true) {
+    ignorePauseSchedulingErrors.value = true
+  }
 
   // Load custom base URL setting
-  if (account.custom_base_url_enabled === true) {
+  const accountExtra = account.extra as Record<string, unknown> | undefined
+  if (accountExtra?.custom_base_url_enabled === true) {
     customBaseUrlEnabled.value = true
-    customBaseUrl.value = account.custom_base_url || ''
+    customBaseUrl.value = typeof accountExtra.custom_base_url === 'string'
+      ? accountExtra.custom_base_url
+      : ''
   }
+}
+
+function applyIgnorePauseSchedulingErrorsUpdate(extra: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...extra }
+  if (ignorePauseSchedulingErrors.value) {
+    next.ignore_pause_scheduling_errors = true
+  } else {
+    delete next.ignore_pause_scheduling_errors
+  }
+  return next
 }
 
 function formatTempUnschedKeywords(value: unknown) {
@@ -4366,6 +4320,39 @@ const handleSubmit = async () => {
       const currentCredentials = (props.account.credentials as Record<string, unknown>) || {}
       const newCredentials: Record<string, unknown> = { ...currentCredentials }
 
+      if (props.account.platform === 'kiro' && props.account.type === 'oauth') {
+        if (!kiroRefreshToken.value.trim()) {
+          appStore.showError('Kiro refresh token is required')
+          return
+        }
+        if (
+          kiroAuthMethod.value === 'idc' &&
+          (!kiroClientID.value.trim() || (!kiroClientSecret.value.trim() && !currentCredentials.client_secret))
+        ) {
+          appStore.showError('Kiro client_id and client_secret are required for idc auth')
+          return
+        }
+        newCredentials.refresh_token = kiroRefreshToken.value.trim()
+        newCredentials.auth_method = kiroAuthMethod.value
+        newCredentials.region = kiroRegion.value.trim() || 'us-east-1'
+        if (kiroClientID.value.trim()) newCredentials.client_id = kiroClientID.value.trim()
+        if (kiroClientSecret.value.trim()) newCredentials.client_secret = kiroClientSecret.value.trim()
+        if (kiroProfileARN.value.trim()) newCredentials.profile_arn = kiroProfileARN.value.trim()
+        else delete newCredentials.profile_arn
+        if (kiroAuthRegion.value.trim()) newCredentials.auth_region = kiroAuthRegion.value.trim()
+        else delete newCredentials.auth_region
+        if (kiroAPIRegion.value.trim()) newCredentials.api_region = kiroAPIRegion.value.trim()
+        else delete newCredentials.api_region
+        if (kiroMachineID.value.trim()) newCredentials.machine_id = kiroMachineID.value.trim()
+        else delete newCredentials.machine_id
+        updatePayload.extra = {
+          ...((props.account.extra as Record<string, unknown>) || {}),
+          kiro_version: kiroVersion.value.trim() || '0.10.0',
+          system_version: kiroSystemVersion.value.trim() || 'darwin#24.6.0',
+          node_version: kiroNodeVersion.value.trim() || '22.21.1'
+        }
+      }
+
       applyInterceptWarmup(newCredentials, interceptWarmupRequests.value, 'edit')
       if (!applyTempUnschedConfig(newCredentials)) {
         return
@@ -4487,7 +4474,7 @@ const handleSubmit = async () => {
       } else {
         delete newExtra.allow_overages
       }
-      updatePayload.extra = newExtra
+      updatePayload.extra = applyIgnorePauseSchedulingErrorsUpdate(newExtra)
     }
 
     // For Anthropic OAuth/SetupToken accounts, handle quota control settings in extra
@@ -4616,7 +4603,7 @@ const handleSubmit = async () => {
       }
       delete newExtra.responses_websockets_v2_enabled
       delete newExtra.openai_ws_enabled
-      if (openaiPassthroughEnabled.value) {
+      if (isOpenAIChatWebMode.value || openaiPassthroughEnabled.value) {
         newExtra.openai_passthrough = true
       } else {
         delete newExtra.openai_passthrough
@@ -4700,7 +4687,7 @@ const handleSubmit = async () => {
         }
       }
 
-      updatePayload.extra = newExtra
+      updatePayload.extra = applyIgnorePauseSchedulingErrorsUpdate(newExtra)
     }
 
     // For apikey/bedrock accounts, handle quota_limit in extra

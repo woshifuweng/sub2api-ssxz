@@ -23,6 +23,8 @@ const (
 	PlatformGemini      = "gemini"
 	PlatformAntigravity = "antigravity"
 	PlatformGrok        = "grok"
+	PlatformSora        = "sora"
+	PlatformKiro        = "kiro"
 	PlatformComposite   = "composite"
 )
 

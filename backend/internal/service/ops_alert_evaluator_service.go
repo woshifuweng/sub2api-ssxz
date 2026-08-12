@@ -613,6 +613,16 @@ func (s *OpsAlertEvaluatorService) computeRuleMetric(
 			return 0, false
 		}
 		return overview.UpstreamErrorRate * 100, true
+	case "p95_latency_ms":
+		if overview.Duration.P95 == nil {
+			return 0, false
+		}
+		return float64(*overview.Duration.P95), true
+	case "p99_latency_ms":
+		if overview.Duration.P99 == nil {
+			return 0, false
+		}
+		return float64(*overview.Duration.P99), true
 	default:
 		return 0, false
 	}
@@ -846,9 +856,9 @@ func shouldSendOpsAlertEmailByMinSeverity(minSeverity string, ruleSeverity strin
 
 func opsEmailSeverityForOps(severity string) string {
 	switch strings.ToUpper(strings.TrimSpace(severity)) {
-	case "P0":
+	case "P0", "CRITICAL":
 		return "critical"
-	case "P1":
+	case "P1", "WARNING":
 		return "warning"
 	default:
 		return "info"

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -18,9 +17,9 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	dbuser "github.com/Wei-Shaw/sub2api/ent/user"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/oauth"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	entsql "entgo.io/ent/dialect/sql"
@@ -51,6 +50,7 @@ type oauthPendingSessionPayload struct {
 	BrowserSessionKey      string
 	UpstreamIdentityClaims map[string]any
 	CompletionResponse     map[string]any
+	PromoCode              string
 }
 
 type oauthAdoptionDecisionRequest struct {
@@ -66,25 +66,20 @@ type bindPendingOAuthLoginRequest struct {
 }
 
 type createPendingOAuthAccountRequest struct {
-	Email                 string `json:"email" binding:"required,email"`
-	VerifyCode            string `json:"verify_code,omitempty"`
-	Password              string `json:"password" binding:"required,min=6"`
-	TurnstileToken        string `json:"turnstile_token,omitempty"`
-	TencentCaptchaTicket  string `json:"tencent_captcha_ticket,omitempty"`
-	TencentCaptchaRandstr string `json:"tencent_captcha_randstr,omitempty"`
-	InvitationCode        string `json:"invitation_code,omitempty"`
-	AffCode               string `json:"aff_code,omitempty"`
-	AdoptDisplayName      *bool  `json:"adopt_display_name,omitempty"`
-	AdoptAvatar           *bool  `json:"adopt_avatar,omitempty"`
+	Email            string `json:"email" binding:"required,email"`
+	VerifyCode       string `json:"verify_code,omitempty"`
+	Password         string `json:"password" binding:"required,min=6"`
+	InvitationCode   string `json:"invitation_code,omitempty"`
+	AffCode          string `json:"aff_code,omitempty"`
+	AdoptDisplayName *bool  `json:"adopt_display_name,omitempty"`
+	AdoptAvatar      *bool  `json:"adopt_avatar,omitempty"`
 }
 
 type sendPendingOAuthVerifyCodeRequest struct {
-	Email                 string `json:"email" binding:"required,email"`
-	TurnstileToken        string `json:"turnstile_token,omitempty"`
-	TencentCaptchaTicket  string `json:"tencent_captcha_ticket,omitempty"`
-	TencentCaptchaRandstr string `json:"tencent_captcha_randstr,omitempty"`
-	PendingAuthToken      string `json:"pending_auth_token,omitempty"`
-	PendingOAuthToken     string `json:"pending_oauth_token,omitempty"`
+	Email             string `json:"email" binding:"required,email"`
+	TurnstileToken    string `json:"turnstile_token,omitempty"`
+	PendingAuthToken  string `json:"pending_auth_token,omitempty"`
+	PendingOAuthToken string `json:"pending_oauth_token,omitempty"`
 }
 
 func (r bindPendingOAuthLoginRequest) adoptionDecision() oauthAdoptionDecisionRequest {
@@ -231,7 +226,7 @@ func redirectToFrontendCallback(c *gin.Context, frontendCallback string) {
 	c.Redirect(http.StatusFound, u.String())
 }
 
-func (h *AuthHandler) createOAuthPendingSession(c *gin.Context, payload oauthPendingSessionPayload) error {
+func (h *AuthHandler) createOAuthPendingSessionWithContext(ctx context.Context, payload oauthPendingSessionPayload, setSessionCookie func(string)) error {
 	svc, err := h.pendingIdentityService()
 	if err != nil {
 		return err
@@ -240,11 +235,11 @@ func (h *AuthHandler) createOAuthPendingSession(c *gin.Context, payload oauthPen
 	localFlowState := map[string]any{
 		oauthCompletionResponseKey: payload.CompletionResponse,
 	}
-	if promoCode := readOAuthPromoCode(c); promoCode != "" {
+	if promoCode := strings.TrimSpace(payload.PromoCode); promoCode != "" {
 		localFlowState[oauthPromoCodeStateKey] = promoCode
 	}
 
-	session, err := svc.CreatePendingSession(c.Request.Context(), service.CreatePendingAuthSessionInput{
+	session, err := svc.CreatePendingSession(ctx, service.CreatePendingAuthSessionInput{
 		Intent:                 strings.TrimSpace(payload.Intent),
 		Identity:               payload.Identity,
 		TargetUserID:           payload.TargetUserID,
@@ -255,19 +250,37 @@ func (h *AuthHandler) createOAuthPendingSession(c *gin.Context, payload oauthPen
 		LocalFlowState:         localFlowState,
 	})
 	if err != nil {
-		slog.Error("pending auth session create failed",
-			"intent", strings.TrimSpace(payload.Intent),
-			"provider_type", strings.TrimSpace(payload.Identity.ProviderType),
-			"provider_key", strings.TrimSpace(payload.Identity.ProviderKey),
-			"provider_subject_len", len(strings.TrimSpace(payload.Identity.ProviderSubject)),
-			"resolved_email_len", len(strings.TrimSpace(payload.ResolvedEmail)),
-			"has_target_user", payload.TargetUserID != nil,
-			"error", err.Error())
 		return infraerrors.InternalServer("PENDING_AUTH_SESSION_CREATE_FAILED", "failed to create pending auth session").WithCause(err)
 	}
 
-	setOAuthPendingSessionCookie(c, session.SessionToken, isRequestHTTPS(c))
+	if setSessionCookie != nil {
+		setSessionCookie(session.SessionToken)
+	}
 	return nil
+}
+
+func (h *AuthHandler) createOAuthPendingSession(c *gin.Context, payload oauthPendingSessionPayload) error {
+	if c == nil || c.Request == nil {
+		return infraerrors.BadRequest("PENDING_AUTH_SESSION_INVALID", "pending auth registration context is invalid")
+	}
+	secureCookie := isRequestHTTPS(c)
+	payload.PromoCode = readOAuthPromoCode(c)
+	return h.createOAuthPendingSessionWithContext(c.Request.Context(), payload, func(sessionToken string) {
+		setOAuthPendingSessionCookie(c, sessionToken, secureCookie)
+	})
+}
+
+func (h *AuthHandler) createOAuthPendingSessionGateway(c gatewayctx.GatewayContext, payload oauthPendingSessionPayload) error {
+	if c == nil || c.Request() == nil {
+		return infraerrors.BadRequest("PENDING_AUTH_SESSION_INVALID", "pending auth registration context is invalid")
+	}
+	secureCookie := isRequestHTTPSGateway(c)
+	if promoCode, err := readCookieDecodedGateway(c, oauthPromoCodeCookieName); err == nil {
+		payload.PromoCode = strings.TrimSpace(promoCode)
+	}
+	return h.createOAuthPendingSessionWithContext(c.Request().Context(), payload, func(sessionToken string) {
+		setOAuthPendingSessionCookieGateway(c, sessionToken, secureCookie)
+	})
 }
 
 func readCompletionResponse(session map[string]any) (map[string]any, bool) {
@@ -334,8 +347,6 @@ func pendingSessionWantsInvitation(payload map[string]any) bool {
 	return strings.EqualFold(strings.TrimSpace(pendingSessionStringValue(payload, "error")), "invitation_required")
 }
 
-// pendingSessionRequiresEmailCompletion 判断 callback 写入的 completion payload 是否处于"补邮箱"状态。
-// 钉钉跨组织/staff 邮箱缺失时进入此状态：前端跳到补邮箱页，exchange 不应走 adoption apply。
 func pendingSessionRequiresEmailCompletion(payload map[string]any) bool {
 	if v, ok := payload["requires_email_completion"].(bool); ok && v {
 		return true
@@ -343,9 +354,6 @@ func pendingSessionRequiresEmailCompletion(payload map[string]any) bool {
 	return strings.EqualFold(strings.TrimSpace(pendingSessionStringValue(payload, "step")), "email_completion")
 }
 
-// pendingSessionRequiresBindLogin 判断 callback 写入的 completion payload 是否处于"必须绑定已有账户"状态。
-// 钉钉 signupBlocked=true（注册关 + 钉钉企业豁免关）时进入此状态：前端渲染 bind_login 表单，
-// exchange 不应消费 session，否则后续 /pending/bind-login 找不到 session。
 func pendingSessionRequiresBindLogin(payload map[string]any) bool {
 	return strings.EqualFold(strings.TrimSpace(pendingSessionStringValue(payload, "step")), "bind_login_required")
 }
@@ -416,8 +424,8 @@ func buildLegacyCompleteRegistrationPendingResponse(
 	return completionResponse
 }
 
-func (h *AuthHandler) legacyCompleteRegistrationSessionStatus(
-	c *gin.Context,
+func (h *AuthHandler) legacyCompleteRegistrationSessionStatusWithContext(
+	ctx context.Context,
 	session *dbent.PendingAuthSession,
 ) (*dbent.PendingAuthSession, bool, error) {
 	if session == nil {
@@ -429,8 +437,8 @@ func (h *AuthHandler) legacyCompleteRegistrationSessionStatus(
 		return session, true, nil
 	}
 
-	emailVerificationRequired := h != nil && h.authService != nil && h.authService.IsEmailVerifyEnabled(c.Request.Context())
-	forceEmailOnSignup := h.isForceEmailOnThirdPartySignup(c.Request.Context())
+	emailVerificationRequired := h != nil && h.authService != nil && h.authService.IsEmailVerifyEnabled(ctx)
+	forceEmailOnSignup := h.isForceEmailOnThirdPartySignup(ctx)
 	if !emailVerificationRequired && !forceEmailOnSignup {
 		return session, false, nil
 	}
@@ -441,7 +449,7 @@ func (h *AuthHandler) legacyCompleteRegistrationSessionStatus(
 	}
 
 	updatedSession, err := updatePendingOAuthSessionProgress(
-		c.Request.Context(),
+		ctx,
 		client,
 		session,
 		strings.TrimSpace(session.Intent),
@@ -455,6 +463,26 @@ func (h *AuthHandler) legacyCompleteRegistrationSessionStatus(
 	return updatedSession, true, nil
 }
 
+func (h *AuthHandler) legacyCompleteRegistrationSessionStatus(
+	c *gin.Context,
+	session *dbent.PendingAuthSession,
+) (*dbent.PendingAuthSession, bool, error) {
+	if c == nil || c.Request == nil {
+		return nil, false, infraerrors.BadRequest("PENDING_AUTH_SESSION_INVALID", "pending auth registration context is invalid")
+	}
+	return h.legacyCompleteRegistrationSessionStatusWithContext(c.Request.Context(), session)
+}
+
+func (h *AuthHandler) legacyCompleteRegistrationSessionStatusGateway(
+	c gatewayctx.GatewayContext,
+	session *dbent.PendingAuthSession,
+) (*dbent.PendingAuthSession, bool, error) {
+	if c == nil || c.Request() == nil {
+		return nil, false, infraerrors.BadRequest("PENDING_AUTH_SESSION_INVALID", "pending auth registration context is invalid")
+	}
+	return h.legacyCompleteRegistrationSessionStatusWithContext(c.Request().Context(), session)
+}
+
 func (r oauthAdoptionDecisionRequest) hasDecision() bool {
 	return r.AdoptDisplayName != nil || r.AdoptAvatar != nil
 }
@@ -465,6 +493,20 @@ func bindOptionalOAuthAdoptionDecision(c *gin.Context) (oauthAdoptionDecisionReq
 		return req, nil
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
+		if errors.Is(err, io.EOF) {
+			return req, nil
+		}
+		return req, err
+	}
+	return req, nil
+}
+
+func bindOptionalOAuthAdoptionDecisionGateway(c gatewayctx.GatewayContext) (oauthAdoptionDecisionRequest, error) {
+	var req oauthAdoptionDecisionRequest
+	if c == nil || c.Request() == nil || c.Request().Body == nil {
+		return req, nil
+	}
+	if err := c.BindJSON(&req); err != nil {
 		if errors.Is(err, io.EOF) {
 			return req, nil
 		}
@@ -544,74 +586,102 @@ func (h *AuthHandler) BindLinuxDoOAuthLogin(c *gin.Context) { h.bindPendingOAuth
 func (h *AuthHandler) BindOIDCOAuthLogin(c *gin.Context)    { h.bindPendingOAuthLogin(c, "oidc") }
 func (h *AuthHandler) BindWeChatOAuthLogin(c *gin.Context)  { h.bindPendingOAuthLogin(c, "wechat") }
 func (h *AuthHandler) BindPendingOAuthLogin(c *gin.Context) { h.bindPendingOAuthLogin(c, "") }
+func (h *AuthHandler) BindLinuxDoOAuthLoginGateway(c gatewayctx.GatewayContext) {
+	h.bindPendingOAuthLoginGateway(c, "linuxdo")
+}
+func (h *AuthHandler) BindOIDCOAuthLoginGateway(c gatewayctx.GatewayContext) {
+	h.bindPendingOAuthLoginGateway(c, "oidc")
+}
+func (h *AuthHandler) BindWeChatOAuthLoginGateway(c gatewayctx.GatewayContext) {
+	h.bindPendingOAuthLoginGateway(c, "wechat")
+}
+func (h *AuthHandler) BindPendingOAuthLoginGateway(c gatewayctx.GatewayContext) {
+	h.bindPendingOAuthLoginGateway(c, "")
+}
 
 func (h *AuthHandler) CreateLinuxDoOAuthAccount(c *gin.Context) {
 	h.createPendingOAuthAccount(c, "linuxdo")
 }
+func (h *AuthHandler) CreateLinuxDoOAuthAccountGateway(c gatewayctx.GatewayContext) {
+	h.createPendingOAuthAccountGateway(c, "linuxdo")
+}
 
 func (h *AuthHandler) CreateOIDCOAuthAccount(c *gin.Context) { h.createPendingOAuthAccount(c, "oidc") }
+func (h *AuthHandler) CreateOIDCOAuthAccountGateway(c gatewayctx.GatewayContext) {
+	h.createPendingOAuthAccountGateway(c, "oidc")
+}
 
 func (h *AuthHandler) CreateWeChatOAuthAccount(c *gin.Context) {
 	h.createPendingOAuthAccount(c, "wechat")
+}
+func (h *AuthHandler) CreateWeChatOAuthAccountGateway(c gatewayctx.GatewayContext) {
+	h.createPendingOAuthAccountGateway(c, "wechat")
 }
 
 func (h *AuthHandler) CreatePendingOAuthAccount(c *gin.Context) {
 	h.createPendingOAuthAccount(c, "")
 }
 
+func (h *AuthHandler) CreatePendingOAuthAccountGateway(c gatewayctx.GatewayContext) {
+	h.createPendingOAuthAccountGateway(c, "")
+}
+
 // SendPendingOAuthVerifyCode sends a verification code for a browser-bound
 // pending OAuth account-creation flow.
 // POST /api/v1/auth/oauth/pending/send-verify-code
 func (h *AuthHandler) SendPendingOAuthVerifyCode(c *gin.Context) {
+	h.SendPendingOAuthVerifyCodeGateway(gatewayctx.FromGin(c))
+}
+
+func (h *AuthHandler) SendPendingOAuthVerifyCodeGateway(c gatewayctx.GatewayContext) {
 	var req sendPendingOAuthVerifyCodeRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	if err := c.BindJSON(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
 
-	proof := captchaProof(req.TurnstileToken, req.TencentCaptchaTicket, req.TencentCaptchaRandstr)
-	if err := h.authService.VerifyCaptcha(c.Request.Context(), proof, ip.GetClientIP(c)); err != nil {
-		response.ErrorFrom(c, err)
+	if err := h.authService.VerifyTurnstile(c.Request().Context(), req.TurnstileToken, c.ClientIP()); err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
-	_, session, _, err := readPendingOAuthBrowserSession(c, h)
+	_, session, _, err := readPendingOAuthBrowserSessionGateway(c, h)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 	if err := ensurePendingOAuthCompleteRegistrationSession(session); err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
 	client := h.entClient()
 	if client == nil {
-		response.ErrorFrom(c, infraerrors.ServiceUnavailable("PENDING_AUTH_NOT_READY", "pending auth service is not ready"))
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, infraerrors.ServiceUnavailable("PENDING_AUTH_NOT_READY", "pending auth service is not ready"))
 		return
 	}
 
 	email := strings.TrimSpace(strings.ToLower(req.Email))
-	if existingUser, err := findUserByNormalizedEmail(c.Request.Context(), client, email); err == nil && existingUser != nil {
-		session, err = h.transitionPendingOAuthAccountToChoiceState(c, client, session, existingUser, email)
+	if existingUser, err := findUserByNormalizedEmail(c.Request().Context(), client, email); err == nil && existingUser != nil {
+		session, err = transitionPendingOAuthAccountToChoiceStateWithContext(c.Request().Context(), client, session, existingUser, email)
 		if err != nil {
-			response.ErrorFrom(c, err)
+			response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 			return
 		}
-		c.JSON(http.StatusOK, buildPendingOAuthSessionStatusPayload(session))
+		c.WriteJSON(http.StatusOK, buildPendingOAuthSessionStatusPayload(session))
 		return
 	} else if err != nil && !errors.Is(err, service.ErrUserNotFound) {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
-	result, err := h.authService.SendPendingOAuthVerifyCode(c.Request.Context(), req.Email, c.GetHeader("Accept-Language"))
+	result, err := h.authService.SendPendingOAuthVerifyCode(c.Request().Context(), req.Email)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
-	response.Success(c, SendVerifyCodeResponse{
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, SendVerifyCodeResponse{
 		Message:   "Verification code sent successfully",
 		Countdown: result.Countdown,
 	})
@@ -622,6 +692,14 @@ func (h *AuthHandler) upsertPendingOAuthAdoptionDecision(
 	sessionID int64,
 	req oauthAdoptionDecisionRequest,
 ) (*dbent.IdentityAdoptionDecision, error) {
+	return h.upsertPendingOAuthAdoptionDecisionWithContext(c.Request.Context(), sessionID, req)
+}
+
+func (h *AuthHandler) upsertPendingOAuthAdoptionDecisionWithContext(
+	ctx context.Context,
+	sessionID int64,
+	req oauthAdoptionDecisionRequest,
+) (*dbent.IdentityAdoptionDecision, error) {
 	client := h.entClient()
 	if client == nil {
 		return nil, infraerrors.ServiceUnavailable("PENDING_AUTH_NOT_READY", "pending auth service is not ready")
@@ -629,7 +707,7 @@ func (h *AuthHandler) upsertPendingOAuthAdoptionDecision(
 
 	existing, err := client.IdentityAdoptionDecision.Query().
 		Where(identityadoptiondecision.PendingAuthSessionIDEQ(sessionID)).
-		Only(c.Request.Context())
+		Only(ctx)
 	if err != nil && !dbent.IsNotFound(err) {
 		return nil, infraerrors.InternalServer("PENDING_AUTH_ADOPTION_LOAD_FAILED", "failed to load oauth profile adoption decision").WithCause(err)
 	}
@@ -659,7 +737,7 @@ func (h *AuthHandler) upsertPendingOAuthAdoptionDecision(
 	if err != nil {
 		return nil, err
 	}
-	decision, err := svc.UpsertAdoptionDecision(c.Request.Context(), input)
+	decision, err := svc.UpsertAdoptionDecision(ctx, input)
 	if err != nil {
 		return nil, infraerrors.InternalServer("PENDING_AUTH_ADOPTION_SAVE_FAILED", "failed to save oauth profile adoption decision").WithCause(err)
 	}
@@ -671,7 +749,15 @@ func (h *AuthHandler) ensurePendingOAuthAdoptionDecision(
 	sessionID int64,
 	req oauthAdoptionDecisionRequest,
 ) (*dbent.IdentityAdoptionDecision, error) {
-	decision, err := h.upsertPendingOAuthAdoptionDecision(c, sessionID, req)
+	return h.ensurePendingOAuthAdoptionDecisionWithContext(c.Request.Context(), sessionID, req)
+}
+
+func (h *AuthHandler) ensurePendingOAuthAdoptionDecisionWithContext(
+	ctx context.Context,
+	sessionID int64,
+	req oauthAdoptionDecisionRequest,
+) (*dbent.IdentityAdoptionDecision, error) {
+	decision, err := h.upsertPendingOAuthAdoptionDecisionWithContext(ctx, sessionID, req)
 	if err != nil {
 		return nil, err
 	}
@@ -683,7 +769,7 @@ func (h *AuthHandler) ensurePendingOAuthAdoptionDecision(
 	if err != nil {
 		return nil, err
 	}
-	decision, err = svc.UpsertAdoptionDecision(c.Request.Context(), service.PendingIdentityAdoptionDecisionInput{
+	decision, err = svc.UpsertAdoptionDecision(ctx, service.PendingIdentityAdoptionDecisionInput{
 		PendingAuthSessionID: sessionID,
 	})
 	if err != nil {
@@ -1552,10 +1638,8 @@ func normalizePendingOAuthCompletionResponse(payload map[string]any) map[string]
 		delete(normalized, key)
 	}
 	step := strings.ToLower(strings.TrimSpace(pendingSessionStringValue(normalized, "step")))
-	// 把多种 choice 别名归一为 oauthPendingChoiceStep；bind_login_required 是独立终态
-	// （前端渲染 needsBindLogin 而非 needsChooser），故不能并入归一化列表。
 	switch step {
-	case "choice", "choose_account_action", "choose_account", "choose", "email_required":
+	case "choice", "choose_account_action", "choose_account", "choose", "email_required", "bind_login_required":
 		normalized["step"] = oauthPendingChoiceStep
 	}
 	if strings.EqualFold(strings.TrimSpace(pendingSessionStringValue(normalized, "step")), oauthPendingChoiceStep) {
@@ -1591,24 +1675,7 @@ func (h *AuthHandler) transitionPendingOAuthAccountToChoiceState(
 	targetUser *dbent.User,
 	email string,
 ) (*dbent.PendingAuthSession, error) {
-	completionResponse := pendingOAuthChoiceCompletionResponse(session, email)
-	var targetUserID *int64
-	if targetUser != nil && targetUser.ID > 0 {
-		targetUserID = &targetUser.ID
-	}
-	session, err := updatePendingOAuthSessionProgress(
-		c.Request.Context(),
-		client,
-		session,
-		strings.TrimSpace(session.Intent),
-		email,
-		targetUserID,
-		completionResponse,
-	)
-	if err != nil {
-		return nil, infraerrors.InternalServer("PENDING_AUTH_SESSION_UPDATE_FAILED", "failed to update pending oauth session").WithCause(err)
-	}
-	return session, nil
+	return transitionPendingOAuthAccountToChoiceStateWithContext(c.Request.Context(), client, session, targetUser, email)
 }
 
 func writeOAuthTokenPairResponse(c *gin.Context, tokenPair *service.TokenPair) {
@@ -1620,82 +1687,96 @@ func writeOAuthTokenPairResponse(c *gin.Context, tokenPair *service.TokenPair) {
 	})
 }
 
+func writeOAuthTokenPairResponseGateway(c gatewayctx.GatewayContext, tokenPair *service.TokenPair) {
+	if c == nil {
+		return
+	}
+	c.WriteJSON(http.StatusOK, gin.H{
+		"access_token":  tokenPair.AccessToken,
+		"refresh_token": tokenPair.RefreshToken,
+		"expires_in":    tokenPair.ExpiresIn,
+		"token_type":    "Bearer",
+	})
+}
+
 func (h *AuthHandler) bindPendingOAuthLogin(c *gin.Context, provider string) {
+	h.bindPendingOAuthLoginGateway(gatewayctx.FromGin(c), provider)
+}
+
+func (h *AuthHandler) bindPendingOAuthLoginGateway(c gatewayctx.GatewayContext, provider string) {
 	var req bindPendingOAuthLoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	if err := c.BindJSON(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
 
-	pendingSvc, session, clearCookies, err := readPendingOAuthBrowserSession(c, h)
+	pendingSvc, session, clearCookies, err := readPendingOAuthBrowserSessionGateway(c, h)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 	if strings.TrimSpace(provider) != "" && !strings.EqualFold(strings.TrimSpace(session.ProviderType), provider) {
-		response.BadRequest(c, "Pending oauth session provider mismatch")
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Pending oauth session provider mismatch")
 		return
 	}
 
-	user, err := h.authService.ValidatePasswordCredentials(c.Request.Context(), strings.TrimSpace(req.Email), req.Password)
+	user, err := h.authService.ValidatePasswordCredentials(c.Request().Context(), strings.TrimSpace(req.Email), req.Password)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 	if session.TargetUserID != nil && *session.TargetUserID > 0 && user.ID != *session.TargetUserID {
-		response.ErrorFrom(c, infraerrors.Conflict("PENDING_AUTH_TARGET_USER_MISMATCH", "pending oauth session must be completed by the targeted user"))
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, infraerrors.Conflict("PENDING_AUTH_TARGET_USER_MISMATCH", "pending oauth session must be completed by the targeted user"))
 		return
 	}
-	if err := h.ensureBackendModeAllowsUser(c.Request.Context(), user); err != nil {
-		response.ErrorFrom(c, err)
+	if err := h.ensureBackendModeAllowsUser(c.Request().Context(), user); err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
-	decision, err := h.ensurePendingOAuthAdoptionDecision(c, session.ID, req.adoptionDecision())
+	decision, err := h.ensurePendingOAuthAdoptionDecisionWithContext(c.Request().Context(), session.ID, req.adoptionDecision())
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	if h.totpService != nil && h.settingSvc.IsTotpEnabled(c.Request.Context()) && user.TotpEnabled {
+	if h.totpService != nil && h.settingSvc.IsTotpEnabled(c.Request().Context()) && user.TotpEnabled {
 		tempToken, err := h.totpService.CreatePendingOAuthBindLoginSession(
-			c.Request.Context(),
+			c.Request().Context(),
 			user.ID,
 			user.Email,
 			session.SessionToken,
 			session.BrowserSessionKey,
 		)
 		if err != nil {
-			response.InternalError(c, "Failed to create 2FA session")
+			response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusInternalServerError, "Failed to create 2FA session")
 			return
 		}
-		response.Success(c, TotpLoginResponse{
+		response.SuccessContext(gatewayJSONResponder{ctx: c}, TotpLoginResponse{
 			Requires2FA:     true,
 			TempToken:       tempToken,
 			UserEmailMasked: service.MaskEmail(user.Email),
 		})
 		return
 	}
-	if err := applyPendingOAuthBinding(c.Request.Context(), h.entClient(), h.authService, h.userService, session, decision, &user.ID, true, true); err != nil {
-		respondPendingOAuthBindingApplyError(c, err)
+	if err := applyPendingOAuthBinding(c.Request().Context(), h.entClient(), h.authService, h.userService, session, decision, &user.ID, true, true); err != nil {
+		respondPendingOAuthBindingApplyErrorContext(c, err)
 		return
 	}
 
-	h.authService.RecordSuccessfulLogin(c.Request.Context(), user.ID)
-	// bindPendingOAuthLogin = 绑定已有账户登录，不动 users.username（用户已有自己的名字）
-	h.maybeSyncDingTalkAfterLogin(c.Request.Context(), session, user.ID)
-	tokenPair, err := h.authService.GenerateTokenPair(c.Request.Context(), user, "")
+	h.authService.RecordSuccessfulLogin(c.Request().Context(), user.ID)
+	tokenPair, err := h.authService.GenerateTokenPair(c.Request().Context(), user, "")
 	if err != nil {
-		response.InternalError(c, "Failed to generate token pair")
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusInternalServerError, "Failed to generate token pair")
 		return
 	}
-	if _, err := pendingSvc.ConsumeBrowserSession(c.Request.Context(), session.SessionToken, session.BrowserSessionKey); err != nil {
+	if _, err := pendingSvc.ConsumeBrowserSession(c.Request().Context(), session.SessionToken, session.BrowserSessionKey); err != nil {
 		clearCookies()
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
 	clearCookies()
-	writeOAuthTokenPairResponse(c, tokenPair)
+	writeOAuthTokenPairResponseGateway(c, tokenPair)
 }
 
 func respondPendingOAuthBindingApplyError(c *gin.Context, err error) {
@@ -1706,68 +1787,75 @@ func respondPendingOAuthBindingApplyError(c *gin.Context, err error) {
 	response.ErrorFrom(c, infraerrors.InternalServer("PENDING_AUTH_BIND_APPLY_FAILED", "failed to bind pending oauth identity").WithCause(err))
 }
 
+func respondPendingOAuthBindingApplyErrorContext(c gatewayctx.GatewayContext, err error) {
+	if code := infraerrors.Code(err); code >= http.StatusBadRequest && code < http.StatusInternalServerError {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+	response.ErrorFromContext(gatewayJSONResponder{ctx: c}, infraerrors.InternalServer("PENDING_AUTH_BIND_APPLY_FAILED", "failed to bind pending oauth identity").WithCause(err))
+}
+
 func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string) {
+	h.createPendingOAuthAccountGateway(gatewayctx.FromGin(c), provider)
+}
+
+func (h *AuthHandler) createPendingOAuthAccountGateway(c gatewayctx.GatewayContext, provider string) {
 	var req createPendingOAuthAccountRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	if err := c.BindJSON(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
 
-	_, session, clearCookies, err := readPendingOAuthBrowserSession(c, h)
+	_, session, clearCookies, err := readPendingOAuthBrowserSessionGateway(c, h)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 	if err := ensurePendingOAuthCompleteRegistrationSession(session); err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 	if strings.TrimSpace(provider) != "" && !strings.EqualFold(strings.TrimSpace(session.ProviderType), provider) {
-		response.BadRequest(c, "Pending oauth session provider mismatch")
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Pending oauth session provider mismatch")
 		return
 	}
 
 	client := h.entClient()
 	if client == nil {
-		response.ErrorFrom(c, infraerrors.ServiceUnavailable("PENDING_AUTH_NOT_READY", "pending auth service is not ready"))
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, infraerrors.ServiceUnavailable("PENDING_AUTH_NOT_READY", "pending auth service is not ready"))
 		return
 	}
 
 	email := strings.TrimSpace(strings.ToLower(req.Email))
-	existingUser, err := findUserByNormalizedEmail(c.Request.Context(), client, email)
+	existingUser, err := findUserByNormalizedEmail(c.Request().Context(), client, email)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrUserNotFound):
 			existingUser = nil
 		case infraerrors.Code(err) >= http.StatusBadRequest && infraerrors.Code(err) < http.StatusInternalServerError:
-			response.ErrorFrom(c, err)
+			response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 			return
 		default:
-			response.ErrorFrom(c, infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "service temporarily unavailable"))
+			response.ErrorFromContext(gatewayJSONResponder{ctx: c}, infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "service temporarily unavailable"))
 			return
 		}
 	}
 	if existingUser != nil {
-		session, err = h.transitionPendingOAuthAccountToChoiceState(c, client, session, existingUser, email)
+		session, err = transitionPendingOAuthAccountToChoiceStateWithContext(c.Request().Context(), client, session, existingUser, email)
 		if err != nil {
-			response.ErrorFrom(c, err)
+			response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 			return
 		}
-		c.JSON(http.StatusOK, buildPendingOAuthSessionStatusPayload(session))
+		c.WriteJSON(http.StatusOK, buildPendingOAuthSessionStatusPayload(session))
 		return
 	}
-	if err := h.ensureBackendModeAllowsNewUserLogin(c.Request.Context()); err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	proof := captchaProof(req.TurnstileToken, req.TencentCaptchaTicket, req.TencentCaptchaRandstr)
-	if err := h.authService.VerifyCaptcha(c.Request.Context(), proof, ip.GetClientIP(c)); err != nil {
-		response.ErrorFrom(c, err)
+	if err := h.ensureBackendModeAllowsNewUserLogin(c.Request().Context()); err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
 	tokenPair, user, err := h.authService.RegisterOAuthEmailAccount(
-		c.Request.Context(),
+		c.Request().Context(),
 		email,
 		req.Password,
 		strings.TrimSpace(req.VerifyCode),
@@ -1776,20 +1864,20 @@ func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string)
 	)
 	if err != nil {
 		if errors.Is(err, service.ErrEmailExists) {
-			existingUser, lookupErr := findUserByNormalizedEmail(c.Request.Context(), client, email)
+			existingUser, lookupErr := findUserByNormalizedEmail(c.Request().Context(), client, email)
 			if lookupErr != nil {
-				response.ErrorFrom(c, lookupErr)
+				response.ErrorFromContext(gatewayJSONResponder{ctx: c}, lookupErr)
 				return
 			}
-			session, err = h.transitionPendingOAuthAccountToChoiceState(c, client, session, existingUser, email)
+			session, err = transitionPendingOAuthAccountToChoiceStateWithContext(c.Request().Context(), client, session, existingUser, email)
 			if err != nil {
-				response.ErrorFrom(c, err)
+				response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 				return
 			}
-			c.JSON(http.StatusOK, buildPendingOAuthSessionStatusPayload(session))
+			c.WriteJSON(http.StatusOK, buildPendingOAuthSessionStatusPayload(session))
 			return
 		}
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
@@ -1798,11 +1886,11 @@ func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string)
 			return false
 		}
 		if rollbackErr := h.authService.RollbackOAuthEmailAccountCreation(
-			c.Request.Context(),
+			c.Request().Context(),
 			user.ID,
 			strings.TrimSpace(req.InvitationCode),
 		); rollbackErr != nil {
-			response.ErrorFrom(c, infraerrors.InternalServer(
+			response.ErrorFromContext(gatewayJSONResponder{ctx: c}, infraerrors.InternalServer(
 				"PENDING_AUTH_ACCOUNT_ROLLBACK_FAILED",
 				"failed to rollback pending oauth account creation",
 			).WithCause(fmt.Errorf("original error: %w; rollback error: %v", originalErr, rollbackErr)))
@@ -1812,32 +1900,32 @@ func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string)
 		return false
 	}
 
-	decision, err := h.ensurePendingOAuthAdoptionDecision(c, session.ID, req.adoptionDecision())
+	decision, err := h.ensurePendingOAuthAdoptionDecisionWithContext(c.Request().Context(), session.ID, req.adoptionDecision())
 	if err != nil {
 		if rollbackCreatedUser(err) {
 			return
 		}
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
-	tx, err := client.Tx(c.Request.Context())
+	tx, err := client.Tx(c.Request().Context())
 	if err != nil {
 		if rollbackCreatedUser(err) {
 			return
 		}
-		response.ErrorFrom(c, infraerrors.InternalServer("PENDING_AUTH_BIND_APPLY_FAILED", "failed to bind pending oauth identity").WithCause(err))
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, infraerrors.InternalServer("PENDING_AUTH_BIND_APPLY_FAILED", "failed to bind pending oauth identity").WithCause(err))
 		return
 	}
 	defer func() { _ = tx.Rollback() }()
-	txCtx := dbent.NewTxContext(c.Request.Context(), tx)
+	txCtx := dbent.NewTxContext(c.Request().Context(), tx)
 
 	if err := applyPendingOAuthBinding(txCtx, client, h.authService, h.userService, session, decision, &user.ID, true, false); err != nil {
 		_ = tx.Rollback()
 		if rollbackCreatedUser(err) {
 			return
 		}
-		respondPendingOAuthBindingApplyError(c, err)
+		respondPendingOAuthBindingApplyErrorContext(c, err)
 		return
 	}
 
@@ -1852,7 +1940,7 @@ func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string)
 		if rollbackCreatedUser(err) {
 			return
 		}
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
@@ -1862,7 +1950,7 @@ func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string)
 			return
 		}
 		clearCookies()
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
@@ -1872,7 +1960,7 @@ func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string)
 			if rollbackCreatedUser(err) {
 				return
 			}
-			respondPendingOAuthBindingApplyError(c, err)
+			respondPendingOAuthBindingApplyErrorContext(c, err)
 			return
 		}
 	}
@@ -1881,63 +1969,65 @@ func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string)
 		if rollbackCreatedUser(err) {
 			return
 		}
-		response.ErrorFrom(c, infraerrors.InternalServer("PENDING_AUTH_BIND_APPLY_FAILED", "failed to bind pending oauth identity").WithCause(err))
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, infraerrors.InternalServer("PENDING_AUTH_BIND_APPLY_FAILED", "failed to bind pending oauth identity").WithCause(err))
 		return
 	}
 
-	h.authService.ApplyOAuthSignupPromoCode(c.Request.Context(), user.ID, pendingOAuthPromoCode(session))
-	h.authService.RecordSuccessfulLogin(c.Request.Context(), user.ID)
-	// createPendingOAuthAccount = 注册新账户，需要把钉钉昵称同步到 users.username 作为初始值
-	h.maybeSyncDingTalkAfterRegistration(c.Request.Context(), session, user.ID)
+	h.authService.ApplyOAuthSignupPromoCode(c.Request().Context(), user.ID, pendingOAuthPromoCode(session))
+	h.authService.RecordSuccessfulLogin(c.Request().Context(), user.ID)
 	clearCookies()
-	writeOAuthTokenPairResponse(c, tokenPair)
+	writeOAuthTokenPairResponseGateway(c, tokenPair)
 }
 
 // ExchangePendingOAuthCompletion redeems a pending OAuth browser session into a frontend-safe payload.
 // POST /api/v1/auth/oauth/pending/exchange
 func (h *AuthHandler) ExchangePendingOAuthCompletion(c *gin.Context) {
-	secureCookie := isRequestHTTPS(c)
+	h.ExchangePendingOAuthCompletionGateway(gatewayctx.FromGin(c))
+}
+
+func (h *AuthHandler) ExchangePendingOAuthCompletionGateway(c gatewayctx.GatewayContext) {
+	secureCookie := isRequestHTTPSGateway(c)
 	clearCookies := func() {
-		clearOAuthPendingSessionCookie(c, secureCookie)
-		clearOAuthPendingBrowserCookie(c, secureCookie)
+		clearOAuthPendingSessionCookieGateway(c, secureCookie)
+		clearOAuthPendingBrowserCookieGateway(c, secureCookie)
 	}
-	adoptionDecision, err := bindOptionalOAuthAdoptionDecision(c)
+	adoptionDecision, err := bindOptionalOAuthAdoptionDecisionGateway(c)
 	if err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
 
-	sessionToken, err := readOAuthPendingSessionCookie(c)
+	sessionToken, err := readOAuthPendingSessionCookieGateway(c)
 	if err != nil || strings.TrimSpace(sessionToken) == "" {
 		clearCookies()
-		response.ErrorFrom(c, service.ErrPendingAuthSessionNotFound)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, service.ErrPendingAuthSessionNotFound)
 		return
 	}
-	browserSessionKey, err := readOAuthPendingBrowserCookie(c)
+	browserSessionKey, err := readOAuthPendingBrowserCookieGateway(c)
 	if err != nil || strings.TrimSpace(browserSessionKey) == "" {
 		clearCookies()
-		response.ErrorFrom(c, service.ErrPendingAuthBrowserMismatch)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, service.ErrPendingAuthBrowserMismatch)
 		return
 	}
 
 	svc, err := h.pendingIdentityService()
 	if err != nil {
 		clearCookies()
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
-	session, err := svc.GetBrowserSession(c.Request.Context(), sessionToken, browserSessionKey)
+	session, err := svc.GetBrowserSession(c.Request().Context(), sessionToken, browserSessionKey)
 	if err != nil {
 		clearCookies()
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
 	payload, ok := readCompletionResponse(session.LocalFlowState)
 	if !ok {
 		clearCookies()
-		response.ErrorFrom(c, infraerrors.InternalServer("PENDING_AUTH_COMPLETION_INVALID", "pending auth completion payload is invalid"))
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, infraerrors.InternalServer("PENDING_AUTH_COMPLETION_INVALID", "pending auth completion payload is invalid"))
 		return
 	}
 	payload = normalizePendingOAuthCompletionResponse(payload)
@@ -1951,27 +2041,27 @@ func (h *AuthHandler) ExchangePendingOAuthCompletion(c *gin.Context) {
 	canIssueTokenPair := pendingOAuthCompletionCanIssueTokenPair(session, payload)
 	var loginUser *service.User
 	if canIssueTokenPair {
-		loginUser, err = h.userService.GetByID(c.Request.Context(), *session.TargetUserID)
+		loginUser, err = h.userService.GetByID(c.Request().Context(), *session.TargetUserID)
 		if err != nil {
 			clearCookies()
-			response.ErrorFrom(c, err)
+			response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 			return
 		}
 		if err := ensureLoginUserActive(loginUser); err != nil {
 			clearCookies()
-			response.ErrorFrom(c, err)
+			response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 			return
 		}
-		if err := h.ensureBackendModeAllowsUser(c.Request.Context(), loginUser); err != nil {
+		if err := h.ensureBackendModeAllowsUser(c.Request().Context(), loginUser); err != nil {
 			clearCookies()
-			response.ErrorFrom(c, err)
+			response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 			return
 		}
 	}
-	skipAdoptionPrompt, err := h.shouldSkipPendingOAuthAdoptionPrompt(c.Request.Context(), session, payload)
+	skipAdoptionPrompt, err := h.shouldSkipPendingOAuthAdoptionPrompt(c.Request().Context(), session, payload)
 	if err != nil {
 		clearCookies()
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 	if skipAdoptionPrompt {
@@ -1980,28 +2070,37 @@ func (h *AuthHandler) ExchangePendingOAuthCompletion(c *gin.Context) {
 
 	if pendingSessionWantsInvitation(payload) {
 		if adoptionDecision.hasDecision() {
-			decision, err := h.upsertPendingOAuthAdoptionDecision(c, session.ID, adoptionDecision)
+			decision, err := h.upsertPendingOAuthAdoptionDecisionWithContext(c.Request().Context(), session.ID, adoptionDecision)
 			if err != nil {
-				response.ErrorFrom(c, err)
+				response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 				return
 			}
 			_ = decision
 		}
-		response.Success(c, payload)
+		response.SuccessContext(gatewayJSONResponder{ctx: c}, payload)
 		return
 	}
 	if pendingSessionRequiresEmailCompletion(payload) {
-		response.Success(c, payload)
+		response.SuccessContext(gatewayJSONResponder{ctx: c}, payload)
 		return
 	}
 	if pendingSessionRequiresBindLogin(payload) {
-		response.Success(c, payload)
+		response.SuccessContext(gatewayJSONResponder{ctx: c}, payload)
+		return
+	}
+
+	// Security fix (upstream v0.1.172 / 02e50cc22): a non-terminal
+	// session can carry a TargetUserID discovered from attacker-controlled
+	// input without proving ownership of that user. Only a terminal login or
+	// an already-authenticated bind_current_user flow may apply adoption.
+	if !canIssueTokenPair && !strings.EqualFold(strings.TrimSpace(session.Intent), oauthIntentBindCurrentUser) {
+		response.SuccessContext(gatewayJSONResponder{ctx: c}, payload)
 		return
 	}
 	if !adoptionDecision.hasDecision() {
 		adoptionRequired, _ := payload["adoption_required"].(bool)
 		if adoptionRequired {
-			response.Success(c, payload)
+			response.SuccessContext(gatewayJSONResponder{ctx: c}, payload)
 			return
 		}
 	}
@@ -2016,30 +2115,30 @@ func (h *AuthHandler) ExchangePendingOAuthCompletion(c *gin.Context) {
 		}
 	}
 
-	decision, err := h.ensurePendingOAuthAdoptionDecision(c, session.ID, decisionReq)
+	decision, err := h.ensurePendingOAuthAdoptionDecisionWithContext(c.Request().Context(), session.ID, decisionReq)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	if err := applyPendingOAuthAdoption(c.Request.Context(), h.entClient(), h.authService, h.userService, session, decision, session.TargetUserID); err != nil {
-		response.ErrorFrom(c, infraerrors.InternalServer("PENDING_AUTH_ADOPTION_APPLY_FAILED", "failed to apply oauth profile adoption").WithCause(err))
+	if err := applyPendingOAuthAdoption(c.Request().Context(), h.entClient(), h.authService, h.userService, session, decision, session.TargetUserID); err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, infraerrors.InternalServer("PENDING_AUTH_ADOPTION_APPLY_FAILED", "failed to apply oauth profile adoption").WithCause(err))
 		return
 	}
 
-	if _, err := svc.ConsumeBrowserSession(c.Request.Context(), sessionToken, browserSessionKey); err != nil {
+	if _, err := svc.ConsumeBrowserSession(c.Request().Context(), sessionToken, browserSessionKey); err != nil {
 		clearCookies()
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
 	if canIssueTokenPair {
-		tokenPair, err := h.authService.GenerateTokenPair(c.Request.Context(), loginUser, "")
+		tokenPair, err := h.authService.GenerateTokenPair(c.Request().Context(), loginUser, "")
 		if err != nil {
 			clearCookies()
-			response.InternalError(c, "Failed to generate token pair")
+			response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusInternalServerError, "Failed to generate token pair")
 			return
 		}
-		h.authService.RecordSuccessfulLogin(c.Request.Context(), loginUser.ID)
+		h.authService.RecordSuccessfulLogin(c.Request().Context(), loginUser.ID)
 		payload["access_token"] = tokenPair.AccessToken
 		payload["refresh_token"] = tokenPair.RefreshToken
 		payload["expires_in"] = tokenPair.ExpiresIn
@@ -2047,5 +2146,5 @@ func (h *AuthHandler) ExchangePendingOAuthCompletion(c *gin.Context) {
 	}
 
 	clearCookies()
-	response.Success(c, payload)
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, payload)
 }

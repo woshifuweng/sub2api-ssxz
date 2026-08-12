@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +15,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -37,8 +41,8 @@ type GenerateRedeemCodesRequest struct {
 	Count         int        `json:"count" binding:"required,min=1,max=100"`
 	Type          string     `json:"type" binding:"required,oneof=balance concurrency subscription invitation"`
 	Value         float64    `json:"value"`
-	GroupID       *int64     `json:"group_id"`      // 订阅类型必填
-	ValidityDays  int        `json:"validity_days"` // 订阅类型使用，正数增加/负数退款扣减
+	GroupID       *int64     `json:"group_id"`
+	ValidityDays  int        `json:"validity_days"`
 	ExpiresAt     *time.Time `json:"expires_at"`
 	ExpiresInDays *int       `json:"expires_in_days" binding:"omitempty,min=1,max=3650"`
 }
@@ -47,11 +51,11 @@ type GenerateRedeemCodesRequest struct {
 // Type 为 omitempty 而非 required 是为了向后兼容旧版调用方（不传 type 时默认 balance）。
 type CreateAndRedeemCodeRequest struct {
 	Code          string     `json:"code" binding:"required,min=3,max=128"`
-	Type          string     `json:"type" binding:"omitempty,oneof=balance concurrency subscription invitation"` // 不传时默认 balance（向后兼容）
+	Type          string     `json:"type" binding:"omitempty,oneof=balance concurrency subscription invitation"`
 	Value         float64    `json:"value" binding:"required"`
 	UserID        int64      `json:"user_id" binding:"required,gt=0"`
-	GroupID       *int64     `json:"group_id"`      // subscription 类型必填
-	ValidityDays  int        `json:"validity_days"` // subscription 类型：正数增加，负数退款扣减
+	GroupID       *int64     `json:"group_id"`
+	ValidityDays  int        `json:"validity_days"`
 	Notes         string     `json:"notes"`
 	ExpiresAt     *time.Time `json:"expires_at"`
 	ExpiresInDays *int       `json:"expires_in_days" binding:"omitempty,min=1,max=3650"`
@@ -84,21 +88,30 @@ func resolveRedeemCodeExpiresAt(expiresAt *time.Time, expiresInDays *int) (*time
 // List handles listing all redeem codes with pagination
 // GET /api/v1/admin/redeem-codes
 func (h *RedeemHandler) List(c *gin.Context) {
-	page, pageSize := response.ParsePagination(c)
-	codeType := c.Query("type")
-	status := c.Query("status")
-	search := c.Query("search")
-	sortBy := c.DefaultQuery("sort_by", "id")
-	sortOrder := c.DefaultQuery("sort_order", "desc")
+	h.ListGateway(gatewayctx.FromGin(c))
+}
+
+func (h *RedeemHandler) ListGateway(c gatewayctx.GatewayContext) {
+	page, pageSize := response.ParsePaginationValues(c)
+	codeType := c.QueryValue("type")
+	status := c.QueryValue("status")
+	search := strings.TrimSpace(c.QueryValue("search"))
+	sortBy := c.QueryValue("sort_by")
+	sortOrder := c.QueryValue("sort_order")
+	if sortBy == "" {
+		sortBy = "id"
+	}
+	if sortOrder == "" {
+		sortOrder = "desc"
+	}
 	// 标准化和验证 search 参数
-	search = strings.TrimSpace(search)
 	if len(search) > 100 {
 		search = search[:100]
 	}
 
-	codes, total, err := h.adminService.ListRedeemCodes(c.Request.Context(), page, pageSize, codeType, status, search, sortBy, sortOrder)
+	codes, total, err := h.adminService.ListRedeemCodes(c.Request().Context(), page, pageSize, codeType, status, search, sortBy, sortOrder)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
@@ -106,43 +119,51 @@ func (h *RedeemHandler) List(c *gin.Context) {
 	for i := range codes {
 		out = append(out, *dto.RedeemCodeFromServiceAdmin(&codes[i]))
 	}
-	response.Paginated(c, out, total, page, pageSize)
+	response.PaginatedContext(gatewayJSONResponder{ctx: c}, out, total, page, pageSize)
 }
 
 // GetByID handles getting a redeem code by ID
 // GET /api/v1/admin/redeem-codes/:id
 func (h *RedeemHandler) GetByID(c *gin.Context) {
-	codeID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	h.GetByIDGateway(gatewayctx.FromGin(c))
+}
+
+func (h *RedeemHandler) GetByIDGateway(c gatewayctx.GatewayContext) {
+	codeID, err := strconv.ParseInt(c.PathParam("id"), 10, 64)
 	if err != nil {
-		response.BadRequest(c, "Invalid redeem code ID")
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid redeem code ID")
 		return
 	}
 
-	code, err := h.adminService.GetRedeemCode(c.Request.Context(), codeID)
+	code, err := h.adminService.GetRedeemCode(c.Request().Context(), codeID)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
-	response.Success(c, dto.RedeemCodeFromServiceAdmin(code))
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, dto.RedeemCodeFromServiceAdmin(code))
 }
 
 // Generate handles generating new redeem codes
 // POST /api/v1/admin/redeem-codes/generate
 func (h *RedeemHandler) Generate(c *gin.Context) {
+	h.GenerateGateway(gatewayctx.FromGin(c))
+}
+
+func (h *RedeemHandler) GenerateGateway(c gatewayctx.GatewayContext) {
 	var req GenerateRedeemCodesRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	if err := json.NewDecoder(c.Request().Body).Decode(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
 
 	expiresAt, err := resolveRedeemCodeExpiresAt(req.ExpiresAt, req.ExpiresInDays)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
-	executeAdminIdempotentJSON(c, "admin.redeem_codes.generate", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+	executeAdminIdempotentGatewayJSON(c, "admin.redeem_codes.generate", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		codes, execErr := h.adminService.GenerateRedeemCodes(ctx, &service.GenerateRedeemCodesInput{
 			Count:        req.Count,
 			Type:         req.Type,
@@ -166,14 +187,18 @@ func (h *RedeemHandler) Generate(c *gin.Context) {
 // CreateAndRedeem creates a fixed redeem code and redeems it for a target user in one step.
 // POST /api/v1/admin/redeem-codes/create-and-redeem
 func (h *RedeemHandler) CreateAndRedeem(c *gin.Context) {
+	h.CreateAndRedeemGateway(gatewayctx.FromGin(c))
+}
+
+func (h *RedeemHandler) CreateAndRedeemGateway(c gatewayctx.GatewayContext) {
 	if h.redeemService == nil {
-		response.InternalError(c, "redeem service not configured")
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusInternalServerError, "redeem service not configured")
 		return
 	}
 
 	var req CreateAndRedeemCodeRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	if err := json.NewDecoder(c.Request().Body).Decode(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
 	req.Code = strings.TrimSpace(req.Code)
@@ -185,22 +210,28 @@ func (h *RedeemHandler) CreateAndRedeem(c *gin.Context) {
 
 	if req.Type == "subscription" {
 		if req.GroupID == nil {
-			response.BadRequest(c, "group_id is required for subscription type")
+			response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "group_id is required for subscription type")
 			return
 		}
 		if req.ValidityDays == 0 {
-			response.BadRequest(c, "validity_days must not be zero for subscription type")
+			response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "validity_days must not be zero for subscription type")
 			return
 		}
 	}
 
 	expiresAt, err := resolveRedeemCodeExpiresAt(req.ExpiresAt, req.ExpiresInDays)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+	subject, ok := middleware.GetAuthSubjectFromGatewayContext(c)
+	if !ok || subject.UserID <= 0 {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusUnauthorized, "admin authentication required")
 		return
 	}
 
-	executeAdminIdempotentJSON(c, "admin.redeem_codes.create_and_redeem", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+	executeAdminIdempotentGatewayJSON(c, "admin.redeem_codes.create_and_redeem", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		ctx = service.ContextWithAdminRedeemActor(ctx, subject.UserID)
 		existing, err := h.redeemService.GetByCode(ctx, req.Code)
 		if err == nil {
 			return h.resolveCreateAndRedeemExisting(ctx, existing, req.UserID)
@@ -232,7 +263,7 @@ func (h *RedeemHandler) CreateAndRedeem(c *gin.Context) {
 		if redeemErr != nil {
 			return nil, redeemErr
 		}
-		return gin.H{"redeem_code": dto.RedeemCodeFromServiceAdmin(redeemed)}, nil
+		return map[string]any{"redeem_code": dto.RedeemCodeFromServiceAdmin(redeemed)}, nil
 	})
 }
 
@@ -242,13 +273,10 @@ func (h *RedeemHandler) resolveCreateAndRedeemExisting(ctx context.Context, exis
 	}
 
 	// If previous run created the code but crashed before redeem, redeem it now.
-	if existing.IsExpired() {
-		return nil, service.ErrRedeemCodeExpired
-	}
 	if existing.CanUse() {
 		redeemed, err := h.redeemService.Redeem(ctx, userID, existing.Code)
 		if err == nil {
-			return gin.H{"redeem_code": dto.RedeemCodeFromServiceAdmin(redeemed)}, nil
+			return map[string]any{"redeem_code": dto.RedeemCodeFromServiceAdmin(redeemed)}, nil
 		}
 		if !errors.Is(err, service.ErrRedeemCodeUsed) {
 			return nil, err
@@ -260,7 +288,7 @@ func (h *RedeemHandler) resolveCreateAndRedeemExisting(ctx context.Context, exis
 	}
 
 	if existing.UsedBy != nil && *existing.UsedBy == userID {
-		return gin.H{"redeem_code": dto.RedeemCodeFromServiceAdmin(existing)}, nil
+		return map[string]any{"redeem_code": dto.RedeemCodeFromServiceAdmin(existing)}, nil
 	}
 
 	return nil, infraerrors.Conflict("REDEEM_CODE_CONFLICT", "redeem code already used by another user")
@@ -269,45 +297,53 @@ func (h *RedeemHandler) resolveCreateAndRedeemExisting(ctx context.Context, exis
 // Delete handles deleting a redeem code
 // DELETE /api/v1/admin/redeem-codes/:id
 func (h *RedeemHandler) Delete(c *gin.Context) {
-	codeID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	h.DeleteGateway(gatewayctx.FromGin(c))
+}
+
+func (h *RedeemHandler) DeleteGateway(c gatewayctx.GatewayContext) {
+	codeID, err := strconv.ParseInt(c.PathParam("id"), 10, 64)
 	if err != nil {
-		response.BadRequest(c, "Invalid redeem code ID")
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid redeem code ID")
 		return
 	}
 
-	err = h.adminService.DeleteRedeemCode(c.Request.Context(), codeID)
+	err = h.adminService.DeleteRedeemCode(c.Request().Context(), codeID)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
-	response.Success(c, gin.H{"message": "Redeem code deleted successfully"})
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, map[string]any{"message": "Redeem code deleted successfully"})
 }
 
 // BatchDelete handles batch deleting redeem codes
 // POST /api/v1/admin/redeem-codes/batch-delete
 func (h *RedeemHandler) BatchDelete(c *gin.Context) {
+	h.BatchDeleteGateway(gatewayctx.FromGin(c))
+}
+
+func (h *RedeemHandler) BatchDeleteGateway(c gatewayctx.GatewayContext) {
 	var req struct {
 		IDs []int64 `json:"ids" binding:"required,min=1"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	if err := json.NewDecoder(c.Request().Body).Decode(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
 
-	deleted, err := h.adminService.BatchDeleteRedeemCodes(c.Request.Context(), req.IDs)
+	deleted, err := h.adminService.BatchDeleteRedeemCodes(c.Request().Context(), req.IDs)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
-	response.Success(c, gin.H{
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, map[string]any{
 		"deleted": deleted,
 		"message": "Redeem codes deleted successfully",
 	})
 }
 
-// BatchUpdate handles batch updating redeem codes
+// BatchUpdate handles batch updating redeem codes.
 // POST /api/v1/admin/redeem-codes/batch-update
 func (h *RedeemHandler) BatchUpdate(c *gin.Context) {
 	if h.redeemService == nil {
@@ -355,55 +391,109 @@ func redeemBatchUpdateFieldsFromDTO(in dto.BatchUpdateRedeemCodeFields) service.
 // Expire handles expiring a redeem code
 // POST /api/v1/admin/redeem-codes/:id/expire
 func (h *RedeemHandler) Expire(c *gin.Context) {
-	codeID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	h.ExpireGateway(gatewayctx.FromGin(c))
+}
+
+func (h *RedeemHandler) ExpireGateway(c gatewayctx.GatewayContext) {
+	codeID, err := strconv.ParseInt(c.PathParam("id"), 10, 64)
 	if err != nil {
-		response.BadRequest(c, "Invalid redeem code ID")
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid redeem code ID")
 		return
 	}
 
-	code, err := h.adminService.ExpireRedeemCode(c.Request.Context(), codeID)
+	code, err := h.adminService.ExpireRedeemCode(c.Request().Context(), codeID)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
-	response.Success(c, dto.RedeemCodeFromServiceAdmin(code))
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, dto.RedeemCodeFromServiceAdmin(code))
 }
 
 // GetStats handles getting redeem code statistics
 // GET /api/v1/admin/redeem-codes/stats
 func (h *RedeemHandler) GetStats(c *gin.Context) {
-	// Return mock data for now
-	response.Success(c, gin.H{
-		"total_codes":             0,
-		"active_codes":            0,
-		"used_codes":              0,
-		"expired_codes":           0,
-		"total_value_distributed": 0.0,
-		"by_type": gin.H{
-			"balance":     0,
-			"concurrency": 0,
-			"trial":       0,
-		},
+	h.GetStatsGateway(gatewayctx.FromGin(c))
+}
+
+func (h *RedeemHandler) GetStatsGateway(c gatewayctx.GatewayContext) {
+	const pageSize = 1000
+	page := 1
+	totalCodes := int64(0)
+	activeCodes := int64(0)
+	usedCodes := int64(0)
+	expiredCodes := int64(0)
+	totalValueDistributed := 0.0
+	byType := map[string]int64{
+		service.RedeemTypeBalance:      0,
+		service.RedeemTypeConcurrency:  0,
+		service.RedeemTypeSubscription: 0,
+		service.RedeemTypeInvitation:   0,
+	}
+
+	for {
+		codes, total, err := h.adminService.ListRedeemCodes(c.Request().Context(), page, pageSize, "", "", "", "id", "desc")
+		if err != nil {
+			response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+			return
+		}
+		if page == 1 {
+			totalCodes = total
+		}
+		for _, code := range codes {
+			byType[code.Type]++
+			switch code.Status {
+			case service.StatusUnused:
+				activeCodes++
+			case service.StatusUsed:
+				usedCodes++
+				totalValueDistributed += code.Value
+			case service.StatusExpired:
+				expiredCodes++
+			}
+		}
+		if len(codes) < pageSize || int64(page*pageSize) >= total {
+			break
+		}
+		page++
+	}
+
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, map[string]any{
+		"total_codes":             totalCodes,
+		"active_codes":            activeCodes,
+		"used_codes":              usedCodes,
+		"expired_codes":           expiredCodes,
+		"total_value_distributed": totalValueDistributed,
+		"by_type":                 byType,
 	})
 }
 
 // Export handles exporting redeem codes to CSV
 // GET /api/v1/admin/redeem-codes/export
 func (h *RedeemHandler) Export(c *gin.Context) {
-	codeType := c.Query("type")
-	status := c.Query("status")
-	search := strings.TrimSpace(c.Query("search"))
-	sortBy := c.DefaultQuery("sort_by", "id")
-	sortOrder := c.DefaultQuery("sort_order", "desc")
+	h.ExportGateway(gatewayctx.FromGin(c))
+}
+
+func (h *RedeemHandler) ExportGateway(c gatewayctx.GatewayContext) {
+	codeType := c.QueryValue("type")
+	status := c.QueryValue("status")
+	search := strings.TrimSpace(c.QueryValue("search"))
+	sortBy := c.QueryValue("sort_by")
+	sortOrder := c.QueryValue("sort_order")
 	if len(search) > 100 {
 		search = search[:100]
 	}
+	if sortBy == "" {
+		sortBy = "id"
+	}
+	if sortOrder == "" {
+		sortOrder = "desc"
+	}
 
 	// Get all codes without pagination (use large page size)
-	codes, _, err := h.adminService.ListRedeemCodes(c.Request.Context(), 1, 10000, codeType, status, search, sortBy, sortOrder)
+	codes, _, err := h.adminService.ListRedeemCodes(c.Request().Context(), 1, 10000, codeType, status, search, sortBy, sortOrder)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
@@ -413,7 +503,7 @@ func (h *RedeemHandler) Export(c *gin.Context) {
 
 	// Write header
 	if err := writer.Write([]string{"id", "code", "type", "value", "status", "used_by", "used_by_email", "used_at", "expires_at", "created_at"}); err != nil {
-		response.InternalError(c, "Failed to export redeem codes: "+err.Error())
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusInternalServerError, "Failed to export redeem codes: "+err.Error())
 		return
 	}
 
@@ -447,18 +537,19 @@ func (h *RedeemHandler) Export(c *gin.Context) {
 			expiresAt,
 			code.CreatedAt.Format("2006-01-02 15:04:05"),
 		}); err != nil {
-			response.InternalError(c, "Failed to export redeem codes: "+err.Error())
+			response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusInternalServerError, "Failed to export redeem codes: "+err.Error())
 			return
 		}
 	}
 
 	writer.Flush()
 	if err := writer.Error(); err != nil {
-		response.InternalError(c, "Failed to export redeem codes: "+err.Error())
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusInternalServerError, "Failed to export redeem codes: "+err.Error())
 		return
 	}
 
-	c.Header("Content-Type", "text/csv")
-	c.Header("Content-Disposition", "attachment; filename=redeem_codes.csv")
-	c.Data(200, "text/csv", buf.Bytes())
+	c.SetHeader("Content-Disposition", "attachment; filename=redeem_codes.csv")
+	if err := c.WriteReader(http.StatusOK, "text/csv", bytes.NewReader(buf.Bytes()), int64(buf.Len())); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusInternalServerError, "Failed to export redeem codes: "+err.Error())
+	}
 }

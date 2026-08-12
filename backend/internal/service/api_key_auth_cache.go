@@ -4,16 +4,21 @@ import "time"
 
 // APIKeyAuthSnapshot API Key 认证缓存快照（仅包含认证所需字段）
 type APIKeyAuthSnapshot struct {
-	Version     int                      `json:"version"`
-	APIKeyID    int64                    `json:"api_key_id"`
-	UserID      int64                    `json:"user_id"`
-	GroupID     *int64                   `json:"group_id,omitempty"`
-	Name        string                   `json:"name"`
-	Status      string                   `json:"status"`
-	IPWhitelist []string                 `json:"ip_whitelist,omitempty"`
-	IPBlacklist []string                 `json:"ip_blacklist,omitempty"`
-	User        APIKeyAuthUserSnapshot   `json:"user"`
-	Group       *APIKeyAuthGroupSnapshot `json:"group,omitempty"`
+	// Version 快照 schema 版本（apiKeyAuthSnapshotVersion）。版本不符的缓存条目
+	// 按 miss 处理并回源重建，避免结构演进后旧条目以零值字段继续生效。
+	Version       int                       `json:"version"`
+	APIKeyID      int64                     `json:"api_key_id"`
+	UserID        int64                     `json:"user_id"`
+	GroupID       *int64                    `json:"group_id,omitempty"`
+	Name          string                    `json:"name"`
+	GroupIDs      []int64                   `json:"group_ids,omitempty"`
+	AllowedModels []string                  `json:"allowed_models,omitempty"`
+	Status        string                    `json:"status"`
+	IPWhitelist   []string                  `json:"ip_whitelist,omitempty"`
+	IPBlacklist   []string                  `json:"ip_blacklist,omitempty"`
+	User          APIKeyAuthUserSnapshot    `json:"user"`
+	Group         *APIKeyAuthGroupSnapshot  `json:"group,omitempty"`
+	Groups        []APIKeyAuthGroupSnapshot `json:"groups,omitempty"`
 
 	// Quota fields for API Key independent quota feature
 	Quota     float64 `json:"quota"`      // Quota limit in USD (0 = unlimited)
@@ -30,54 +35,41 @@ type APIKeyAuthSnapshot struct {
 
 // APIKeyAuthUserSnapshot 用户快照
 type APIKeyAuthUserSnapshot struct {
-	ID            int64   `json:"id"`
-	Status        string  `json:"status"`
-	Role          string  `json:"role"`
-	Balance       float64 `json:"balance"`
-	Concurrency   int     `json:"concurrency"`
+	ID          int64   `json:"id"`
+	Status      string  `json:"status"`
+	Role        string  `json:"role"`
+	Balance     float64 `json:"balance"`
+	Concurrency int     `json:"concurrency"`
+	// AllowedGroups 是独占分组准入白名单。缓存命中路径上 CanBindGroup 依赖它，
+	// 缺失会让独占分组校验静默放行（e5c51dce9 整合曾丢过该字段）。
 	AllowedGroups []int64 `json:"allowed_groups,omitempty"`
-
-	// Balance notification fields (required for CheckBalanceAfterDeduction)
-	Email                      string             `json:"email"`
-	Username                   string             `json:"username"`
-	BalanceNotifyEnabled       bool               `json:"balance_notify_enabled"`
-	BalanceNotifyThresholdType string             `json:"balance_notify_threshold_type"`
-	BalanceNotifyThreshold     *float64           `json:"balance_notify_threshold,omitempty"`
-	BalanceNotifyExtraEmails   []NotifyEmailEntry `json:"balance_notify_extra_emails,omitempty"`
-	TotalRecharged             float64            `json:"total_recharged"`
-
-	// RPMLimit 用户级每分钟请求数上限（0 = 不限制）；用于 billing_cache_service.checkRPM 兜底判断。
-	RPMLimit int `json:"rpm_limit"`
-
-	// UserGroupRPMOverride 该 API Key 对应的 (user, group) 专属 RPM 覆盖值。
-	// nil = 无 override（回退到 group/user 级）；0 = 不限流；>0 = 专属上限。
-	UserGroupRPMOverride *int `json:"user_group_rpm_override,omitempty"`
 }
 
 // APIKeyAuthGroupSnapshot 分组快照
 type APIKeyAuthGroupSnapshot struct {
-	ID                              int64    `json:"id"`
-	Name                            string   `json:"name"`
-	Platform                        string   `json:"platform"`
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Platform string `json:"platform"`
+	// IsExclusive 独占分组标记。缓存命中路径上 validateAPIKeyGroupAllowed 依赖它，
+	// 缺失会让 CanBindGroup 第二参恒为 false 直接短路（e5c51dce9 整合曾丢过该字段）。
 	IsExclusive                     bool     `json:"is_exclusive"`
 	Status                          string   `json:"status"`
 	SubscriptionType                string   `json:"subscription_type"`
 	RateMultiplier                  float64  `json:"rate_multiplier"`
+	PeakRateEnabled                 bool     `json:"peak_rate_enabled"`
+	PeakStart                       string   `json:"peak_start"`
+	PeakEnd                         string   `json:"peak_end"`
+	PeakRateMultiplier              float64  `json:"peak_rate_multiplier"`
 	DailyLimitUSD                   *float64 `json:"daily_limit_usd,omitempty"`
 	WeeklyLimitUSD                  *float64 `json:"weekly_limit_usd,omitempty"`
 	MonthlyLimitUSD                 *float64 `json:"monthly_limit_usd,omitempty"`
-	AllowImageGeneration            bool     `json:"allow_image_generation"`
-	AllowBatchImageGeneration       bool     `json:"allow_batch_image_generation"`
-	ImageRateIndependent            bool     `json:"image_rate_independent"`
-	ImageRateMultiplier             float64  `json:"image_rate_multiplier"`
 	ImagePrice1K                    *float64 `json:"image_price_1k,omitempty"`
 	ImagePrice2K                    *float64 `json:"image_price_2k,omitempty"`
 	ImagePrice4K                    *float64 `json:"image_price_4k,omitempty"`
-	VideoRateIndependent            bool     `json:"video_rate_independent"`
-	VideoRateMultiplier             float64  `json:"video_rate_multiplier"`
-	VideoPrice480P                  *float64 `json:"video_price_480p,omitempty"`
-	VideoPrice720P                  *float64 `json:"video_price_720p,omitempty"`
-	VideoPrice1080P                 *float64 `json:"video_price_1080p,omitempty"`
+	SoraImagePrice360               *float64 `json:"sora_image_price_360,omitempty"`
+	SoraImagePrice540               *float64 `json:"sora_image_price_540,omitempty"`
+	SoraVideoPricePerRequest        *float64 `json:"sora_video_price_per_request,omitempty"`
+	SoraVideoPricePerRequestHD      *float64 `json:"sora_video_price_per_request_hd,omitempty"`
 	WebSearchPricePerCall           *float64 `json:"web_search_price_per_call,omitempty"`
 	ClaudeCodeOnly                  bool     `json:"claude_code_only"`
 	FallbackGroupID                 *int64   `json:"fallback_group_id,omitempty"`
@@ -85,9 +77,10 @@ type APIKeyAuthGroupSnapshot struct {
 
 	// Model routing is used by gateway account selection, so it must be part of auth cache snapshot.
 	// Only anthropic groups use these fields; others may leave them empty.
-	ModelRouting        map[string][]int64 `json:"model_routing,omitempty"`
-	ModelRoutingEnabled bool               `json:"model_routing_enabled"`
-	MCPXMLInject        bool               `json:"mcp_xml_inject"`
+	ModelRouting         map[string][]int64 `json:"model_routing,omitempty"`
+	ModelRoutingEnabled  bool               `json:"model_routing_enabled"`
+	MCPXMLInject         bool               `json:"mcp_xml_inject"`
+	AllowImageGeneration bool               `json:"allow_image_generation"`
 
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes []string `json:"supported_model_scopes,omitempty"`
@@ -97,10 +90,6 @@ type APIKeyAuthGroupSnapshot struct {
 	AllowLive                   bool                              `json:"allow_live"`
 	DefaultMappedModel          string                            `json:"default_mapped_model,omitempty"`
 	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config,omitempty"`
-	ModelsListConfig            GroupModelsListConfig             `json:"models_list_config,omitempty"`
-
-	// RPMLimit 分组级每分钟请求数上限（0 = 不限制）；用于 billing_cache_service.checkRPM 级联判断。
-	RPMLimit int `json:"rpm_limit"`
 
 	// MaxReasoningEffort OpenAI/Codex 请求的推理强度上限，空字符串表示不限制。
 	MaxReasoningEffort string `json:"max_reasoning_effort,omitempty"`
@@ -110,11 +99,6 @@ type APIKeyAuthGroupSnapshot struct {
 	// 高峰时段倍率：PeakRateEnabled 为 true 且请求时刻处于 [PeakStart, PeakEnd) 时，
 	// token 计费倍率额外乘以 PeakRateMultiplier（详见 Group.PeakMultiplierAt）。
 	// 必须随快照缓存，否则扣费路径拿到的 apiKey.Group 缺字段、高峰倍率失效。
-	PeakRateEnabled    bool    `json:"peak_rate_enabled"`
-	PeakStart          string  `json:"peak_start"`
-	PeakEnd            string  `json:"peak_end"`
-	PeakRateMultiplier float64 `json:"peak_rate_multiplier"`
-
 	// 分组利润控制：调度准入门在直连热路径上读的就是这份快照——门解析
 	// （resolveOpenAIProfitControlGate / resolveProfitControlGroup）优先取
 	// 认证中间件放入 ctx 的 Group，而它正是本快照物化出来的对象，生产绝大

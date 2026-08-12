@@ -1,19 +1,31 @@
 package handler
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
+type channelMonitorGroupAccess interface {
+	GetAvailableGroups(ctx context.Context, userID int64) ([]service.Group, error)
+}
+
 // ChannelMonitorUserHandler 渠道监控用户只读 handler。
 type ChannelMonitorUserHandler struct {
 	monitorService *service.ChannelMonitorService
+	apiKeyService  channelMonitorGroupAccess
 	settingService *service.SettingService
 }
 
@@ -21,10 +33,12 @@ type ChannelMonitorUserHandler struct {
 // settingService 用于每次请求前读取功能开关；关闭时 List/GetStatus 直接返回空/404。
 func NewChannelMonitorUserHandler(
 	monitorService *service.ChannelMonitorService,
+	apiKeyService *service.APIKeyService,
 	settingService *service.SettingService,
 ) *ChannelMonitorUserHandler {
 	return &ChannelMonitorUserHandler{
 		monitorService: monitorService,
+		apiKeyService:  apiKeyService,
 		settingService: settingService,
 	}
 }
@@ -32,10 +46,14 @@ func NewChannelMonitorUserHandler(
 // featureEnabled 返回当前渠道监控功能是否开启。
 // settingService 为 nil（测试场景）视为启用。
 func (h *ChannelMonitorUserHandler) featureEnabled(c *gin.Context) bool {
+	return h.featureEnabledGateway(gatewayctx.FromGin(c))
+}
+
+func (h *ChannelMonitorUserHandler) featureEnabledGateway(c gatewayctx.GatewayContext) bool {
 	if h.settingService == nil {
 		return true
 	}
-	return h.settingService.GetChannelMonitorRuntime(c.Request.Context()).Enabled
+	return h.settingService.GetChannelMonitorRuntime(c.Request().Context()).Enabled
 }
 
 // --- Response ---
@@ -64,11 +82,7 @@ type channelMonitorUserTimelinePoint struct {
 }
 
 type channelMonitorUserDetailResponse struct {
-	ID        int64                         `json:"id"`
-	Name      string                        `json:"name"`
-	Provider  string                        `json:"provider"`
-	GroupName string                        `json:"group_name"`
-	Models    []channelMonitorUserModelStat `json:"models"`
+	Models []channelMonitorUserModelStat `json:"models"`
 }
 
 type channelMonitorUserModelStat struct {
@@ -81,7 +95,7 @@ type channelMonitorUserModelStat struct {
 	AvgLatency7dMs  *int    `json:"avg_latency_7d_ms"`
 }
 
-func userMonitorViewToItem(v *service.UserMonitorView) channelMonitorUserListItem {
+func userMonitorViewToItem(v *service.UserMonitorView, displayName string) channelMonitorUserListItem {
 	extras := make([]dto.ChannelMonitorExtraModelStatus, 0, len(v.ExtraModels))
 	for _, e := range v.ExtraModels {
 		extras = append(extras, dto.ChannelMonitorExtraModelStatus{
@@ -101,7 +115,7 @@ func userMonitorViewToItem(v *service.UserMonitorView) channelMonitorUserListIte
 	}
 	return channelMonitorUserListItem{
 		ID:                   v.ID,
-		Name:                 v.Name,
+		Name:                 displayName,
 		Provider:             v.Provider,
 		GroupName:            v.GroupName,
 		PrimaryModel:         v.PrimaryModel,
@@ -128,11 +142,7 @@ func userMonitorDetailToResponse(d *service.UserMonitorDetail) *channelMonitorUs
 		})
 	}
 	return &channelMonitorUserDetailResponse{
-		ID:        d.ID,
-		Name:      d.Name,
-		Provider:  d.Provider,
-		GroupName: d.GroupName,
-		Models:    models,
+		Models: models,
 	}
 }
 
@@ -140,37 +150,106 @@ func userMonitorDetailToResponse(d *service.UserMonitorDetail) *channelMonitorUs
 
 // List GET /api/v1/channel-monitors
 func (h *ChannelMonitorUserHandler) List(c *gin.Context) {
-	if !h.featureEnabled(c) {
-		response.Success(c, gin.H{"items": []channelMonitorUserListItem{}})
+	h.ListGateway(gatewayctx.FromGin(c))
+}
+
+func (h *ChannelMonitorUserHandler) ListGateway(c gatewayctx.GatewayContext) {
+	if !h.requireAuthenticatedGateway(c) {
 		return
 	}
-	views, err := h.monitorService.ListUserView(c.Request.Context())
+	if !h.featureEnabledGateway(c) {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusForbidden, "disabled")
+		return
+	}
+	visibleGroupNames, ok := h.visibleGroupNamesGateway(c)
+	if !ok {
+		return
+	}
+	views, err := h.monitorService.ListUserView(c.Request().Context(), visibleGroupNames)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 	items := make([]channelMonitorUserListItem, 0, len(views))
-	for _, v := range views {
-		items = append(items, userMonitorViewToItem(v))
+	for i, v := range views {
+		// The configured monitor name is an upstream/channel identifier. Keep
+		// the UI usable with an anonymous label without exposing it.
+		items = append(items, userMonitorViewToItem(v, fmt.Sprintf("channel-%d", i+1)))
 	}
-	response.Success(c, gin.H{"items": items})
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, gin.H{"items": items})
 }
 
 // GetStatus GET /api/v1/channel-monitors/:id/status
 func (h *ChannelMonitorUserHandler) GetStatus(c *gin.Context) {
-	if !h.featureEnabled(c) {
-		response.ErrorFrom(c, service.ErrChannelMonitorNotFound)
+	h.GetStatusGateway(gatewayctx.FromGin(c))
+}
+
+func (h *ChannelMonitorUserHandler) GetStatusGateway(c gatewayctx.GatewayContext) {
+	if !h.requireAuthenticatedGateway(c) {
 		return
 	}
-	// 复用 admin.ParseChannelMonitorID 保持错误码与日志一致。
-	id, ok := admin.ParseChannelMonitorID(c)
+	if !h.featureEnabledGateway(c) {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusForbidden, "disabled")
+		return
+	}
+
+	id, ok := parseChannelMonitorIDGateway(c)
 	if !ok {
 		return
 	}
-	detail, err := h.monitorService.GetUserDetail(c.Request.Context(), id)
-	if err != nil {
-		response.ErrorFrom(c, err)
+	visibleGroupNames, ok := h.visibleGroupNamesGateway(c)
+	if !ok {
 		return
 	}
-	response.Success(c, userMonitorDetailToResponse(detail))
+	detail, err := h.monitorService.GetUserDetail(c.Request().Context(), id, visibleGroupNames)
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, userMonitorDetailToResponse(detail))
+}
+
+func (h *ChannelMonitorUserHandler) requireAuthenticatedGateway(c gatewayctx.GatewayContext) bool {
+	subject, ok := middleware.GetAuthSubjectFromGatewayContext(c)
+	if !ok || subject.UserID <= 0 {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
+		return false
+	}
+	return true
+}
+
+func (h *ChannelMonitorUserHandler) visibleGroupNamesGateway(c gatewayctx.GatewayContext) (map[string]struct{}, bool) {
+	subject, ok := middleware.GetAuthSubjectFromGatewayContext(c)
+	if !ok || subject.UserID <= 0 {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
+		return nil, false
+	}
+	if h.apiKeyService == nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, service.ErrChannelMonitorNotFound)
+		return nil, false
+	}
+
+	groups, err := h.apiKeyService.GetAvailableGroups(c.Request().Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return nil, false
+	}
+	names := make(map[string]struct{}, len(groups))
+	for _, group := range groups {
+		name := strings.TrimSpace(group.Name)
+		if name == "" {
+			continue
+		}
+		names[name] = struct{}{}
+	}
+	return names, true
+}
+
+func parseChannelMonitorIDGateway(c gatewayctx.GatewayContext) (int64, bool) {
+	id, err := strconv.ParseInt(c.PathParam("id"), 10, 64)
+	if err != nil || id <= 0 {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, infraerrors.BadRequest("INVALID_MONITOR_ID", "invalid monitor id"))
+		return 0, false
+	}
+	return id, true
 }

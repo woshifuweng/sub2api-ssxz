@@ -2,6 +2,10 @@ import { defineComponent, h } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import LoginView from '@/views/auth/LoginView.vue'
+import FoundationButton from '@/components/foundation/FoundationButton.vue'
+import FoundationInput from '@/components/foundation/FoundationInput.vue'
+import LiquidButton from '@/components/common/LiquidButton.vue'
+import { clearAuthPortalDraft } from '@/composables/useAuthPortalDraft'
 
 const loginMock = vi.fn()
 const loginWithPasskeyMock = vi.fn()
@@ -12,6 +16,7 @@ const captchaResetMock = vi.fn()
 const locationState = { href: 'http://localhost/login' }
 
 vi.mock('vue-router', () => ({
+  useRoute: () => ({ query: {} }),
   useRouter: () => ({
     currentRoute: { value: { query: {} } },
     push: vi.fn()
@@ -78,6 +83,11 @@ const OAuthButtonStub = defineComponent({
 function mountLogin() {
   return mount(LoginView, {
     global: {
+      components: {
+        FoundationButton,
+        FoundationInput,
+        LiquidButton
+      },
       stubs: {
         AuthLayout: { template: '<div><slot /><slot name="footer" /></div>' },
         RouterLink: true,
@@ -97,6 +107,7 @@ function mountLogin() {
 
 describe('Tencent captcha action gate', () => {
   beforeEach(() => {
+    clearAuthPortalDraft()
     loginMock.mockReset()
     loginWithPasskeyMock.mockReset()
     getPublicSettingsMock.mockReset()

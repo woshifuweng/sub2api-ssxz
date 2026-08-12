@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,7 +23,11 @@ import (
 // 清理 body 中 Anthropic API 专有字段、修复 thinking/tool_use ID、过滤 beta token，
 // 同时过滤 HTTP header 中的 anthropic-beta（防止 Passthrough 路径透传不支持的 token）。
 func (s *GatewayService) ApplyBedrockCCCompat(c *gin.Context, body []byte, model string, account *Account, groupID *int64) []byte {
-	if !s.isBedrockCCCompatEnabled(c.Request.Context(), account, groupID) {
+	return s.ApplyBedrockCCCompatContext(gatewayctx.FromGin(c), body, model, account, groupID)
+}
+
+func (s *GatewayService) ApplyBedrockCCCompatContext(c gatewayctx.GatewayContext, body []byte, model string, account *Account, groupID *int64) []byte {
+	if c == nil || !s.isBedrockCCCompatEnabled(c.Context(), account, groupID) {
 		return body
 	}
 	body = sanitizeBedrockCCFields(body)
@@ -30,11 +35,11 @@ func (s *GatewayService) ApplyBedrockCCCompat(c *gin.Context, body []byte, model
 	body = sanitizeBedrockToolUseIDs(body)
 	body = sanitizeBedrockCCBetaTokens(body, model)
 	// 过滤 HTTP header 中的 anthropic-beta，只保留 Bedrock 支持的 token
-	if betaHeader := c.GetHeader("anthropic-beta"); betaHeader != "" {
+	if betaHeader := c.HeaderValue("anthropic-beta"); betaHeader != "" {
 		if filtered := ResolveBedrockBetaTokens(betaHeader, body, model); len(filtered) > 0 {
-			c.Request.Header.Set("anthropic-beta", strings.Join(filtered, ", "))
+			c.Request().Header.Set("anthropic-beta", strings.Join(filtered, ", "))
 		} else {
-			c.Request.Header.Del("anthropic-beta")
+			c.Request().Header.Del("anthropic-beta")
 		}
 	}
 	return body

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -81,6 +82,57 @@ func EnforceStepUp(
 	settingService *service.SettingService,
 ) bool {
 	return enforceStepUp(c, totpService, userService, stepUpSettingsOrNil(settingService))
+}
+
+// EnforceStepUpGateway applies the same fail-closed step-up policy to native gateway handlers.
+func EnforceStepUpGateway(
+	c gatewayctx.GatewayContext,
+	totpService *service.TotpService,
+	userService *service.UserService,
+	settingService *service.SettingService,
+) bool {
+	settings := stepUpSettingsOrNil(settingService)
+	if value, ok := c.Value("auth_method"); ok && value == service.AuditAuthMethodAdminAPIKey {
+		AbortWithErrorContext(c, 403, "STEP_UP_ADMIN_API_KEY_FORBIDDEN", "Admin API key cannot access this endpoint; a two-factor verified admin session is required")
+		return false
+	}
+	if settings != nil && !settings.IsStepUpEnabled(c.Request().Context()) {
+		return true
+	}
+	subject, ok := GetAuthSubjectFromGatewayContext(c)
+	if !ok || subject.UserID <= 0 {
+		AbortWithErrorContext(c, 401, "UNAUTHORIZED", "Authorization required")
+		return false
+	}
+	if totpService == nil || userService == nil {
+		AbortWithErrorContext(c, 503, "STEP_UP_UNAVAILABLE", "Step-up verification service unavailable")
+		return false
+	}
+	user, err := userService.GetByID(c.Request().Context(), subject.UserID)
+	if err != nil {
+		AbortWithErrorContext(c, 500, "INTERNAL_ERROR", "Failed to load user")
+		return false
+	}
+	if !user.TotpEnabled {
+		AbortWithErrorContext(c, 403, "STEP_UP_TOTP_NOT_ENABLED", "This operation requires two-factor authentication; please enable TOTP first")
+		return false
+	}
+	sessionKey := fmt.Sprintf("u%d", subject.UserID)
+	if value, exists := c.Value(ContextKeySessionID); exists {
+		if sid, valid := value.(string); valid && sid != "" {
+			sessionKey = sid
+		}
+	}
+	granted, err := totpService.HasStepUpGrant(c.Request().Context(), subject.UserID, sessionKey)
+	if err != nil {
+		AbortWithErrorContext(c, 503, "STEP_UP_UNAVAILABLE", "Step-up verification service unavailable")
+		return false
+	}
+	if !granted {
+		AbortWithErrorContext(c, 403, "STEP_UP_REQUIRED", "This operation requires recent two-factor verification")
+		return false
+	}
+	return true
 }
 
 // EnforceStepUpAlways 与 EnforceStepUp 语义相同但不读取功能开关，无条件执行门控。

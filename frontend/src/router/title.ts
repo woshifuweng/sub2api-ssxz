@@ -1,4 +1,5 @@
 import { i18n } from '@/i18n'
+import { DEFAULT_SITE_NAME, normalizeSiteName } from '@/utils/brand'
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
 import type { CustomMenuItem } from '@/types'
 
@@ -6,8 +7,17 @@ import type { CustomMenuItem } from '@/types'
  * 统一生成页面标题，避免多处写入 document.title 产生覆盖冲突。
  * 优先使用 titleKey 通过 i18n 翻译，fallback 到静态 routeTitle。
  */
-export function resolveDocumentTitle(routeTitle: unknown, siteName?: string, titleKey?: string): string {
-  const normalizedSiteName = typeof siteName === 'string' && siteName.trim() ? siteName.trim() : 'Sub2API'
+export function resolveDocumentTitle(
+  routeTitle: unknown,
+  siteName?: string,
+  titleKey?: string,
+  siteNameOverride?: unknown
+): string {
+  const normalizedSiteName = typeof siteNameOverride === 'string' && siteNameOverride.trim()
+    ? normalizeSiteName(siteNameOverride)
+    : typeof siteName === 'string' && siteName.trim()
+      ? normalizeSiteName(siteName)
+      : DEFAULT_SITE_NAME
 
   if (typeof titleKey === 'string' && titleKey.trim()) {
     const translated = i18n.global.t(titleKey)
@@ -34,5 +44,9 @@ export function resolveRouteDocumentTitle(
     : undefined
   const menuTitle = menuItem?.label.trim()
 
-  return resolveDocumentTitle(menuTitle || route.meta.title, siteName, menuTitle ? undefined : route.meta.titleKey as string)
+  return resolveDocumentTitle(
+    menuTitle || route.meta.title,
+    siteName,
+    menuTitle ? undefined : route.meta.titleKey as string,
+  )
 }

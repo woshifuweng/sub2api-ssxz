@@ -598,7 +598,7 @@ LIMIT 1`
 	return &out, nil
 }
 
-func (r *opsRepository) UpdateErrorResolution(ctx context.Context, errorID int64, resolved bool, resolvedByUserID *int64, resolvedAt *time.Time) error {
+func (r *opsRepository) UpdateErrorResolution(ctx context.Context, errorID int64, resolved bool, resolvedByUserID *int64, resolvedRetryID *int64, resolvedAt *time.Time) error {
 	if r == nil || r.db == nil {
 		return fmt.Errorf("nil ops repository")
 	}
@@ -611,7 +611,8 @@ UPDATE ops_error_logs
 SET
   resolved = $2,
   resolved_at = $3,
-  resolved_by_user_id = $4
+  resolved_by_user_id = $4,
+  resolved_retry_id = $5
 WHERE id = $1`
 
 	at := sql.NullTime{}
@@ -629,6 +630,7 @@ WHERE id = $1`
 		resolved,
 		at,
 		nullInt64(resolvedByUserID),
+		nullInt64(resolvedRetryID),
 	)
 	return err
 }

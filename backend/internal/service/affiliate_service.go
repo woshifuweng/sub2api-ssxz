@@ -17,6 +17,7 @@ var (
 	ErrAffiliateCodeTaken       = infraerrors.Conflict("AFFILIATE_CODE_TAKEN", "affiliate code already in use")
 	ErrAffiliateAlreadyBound    = infraerrors.Conflict("AFFILIATE_ALREADY_BOUND", "affiliate inviter already bound")
 	ErrAffiliateQuotaEmpty      = infraerrors.BadRequest("AFFILIATE_QUOTA_EMPTY", "no affiliate quota available to transfer")
+	ErrAffiliateDisabled        = infraerrors.NotFound("AFFILIATE_DISABLED", "affiliate feature is disabled")
 )
 
 const (
@@ -58,17 +59,20 @@ func isValidAffiliateCodeFormat(code string) bool {
 }
 
 type AffiliateSummary struct {
-	UserID               int64     `json:"user_id"`
-	AffCode              string    `json:"aff_code"`
-	AffCodeCustom        bool      `json:"aff_code_custom"`
-	AffRebateRatePercent *float64  `json:"aff_rebate_rate_percent,omitempty"`
-	InviterID            *int64    `json:"inviter_id,omitempty"`
-	AffCount             int       `json:"aff_count"`
-	AffQuota             float64   `json:"aff_quota"`
-	AffFrozenQuota       float64   `json:"aff_frozen_quota"`
-	AffHistoryQuota      float64   `json:"aff_history_quota"`
-	CreatedAt            time.Time `json:"created_at"`
-	UpdatedAt            time.Time `json:"updated_at"`
+	UserID               int64      `json:"user_id"`
+	AffCode              string     `json:"aff_code"`
+	AffCodeCustom        bool       `json:"aff_code_custom"`
+	AffRebateRatePercent *float64   `json:"aff_rebate_rate_percent,omitempty"`
+	InviterID            *int64     `json:"inviter_id,omitempty"`
+	AffCount             int        `json:"aff_count"`
+	AffQuota             float64    `json:"aff_quota"`
+	AffFrozenQuota       float64    `json:"aff_frozen_quota"`
+	AffHistoryQuota      float64    `json:"aff_history_quota"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+	HasResellerRole      bool       `json:"-"`
+	ResellerStatus       string     `json:"-"`
+	ResellerRevokedAt    *time.Time `json:"-"`
 }
 
 type AffiliateInvitee struct {
@@ -125,13 +129,19 @@ type AffiliateAdminFilter struct {
 
 // AffiliateAdminEntry 专属用户列表条目
 type AffiliateAdminEntry struct {
-	UserID               int64    `json:"user_id"`
-	Email                string   `json:"email"`
-	Username             string   `json:"username"`
-	AffCode              string   `json:"aff_code"`
-	AffCodeCustom        bool     `json:"aff_code_custom"`
-	AffRebateRatePercent *float64 `json:"aff_rebate_rate_percent,omitempty"`
-	AffCount             int      `json:"aff_count"`
+	UserID                 int64    `json:"user_id"`
+	Email                  string   `json:"email"`
+	Username               string   `json:"username"`
+	AffCode                string   `json:"aff_code"`
+	AffCodeCustom          bool     `json:"aff_code_custom"`
+	AffRebateRatePercent   *float64 `json:"aff_rebate_rate_percent,omitempty"`
+	AffCount               int      `json:"aff_count"`
+	AffQuota               float64  `json:"aff_quota"`
+	AffFrozenQuota         float64  `json:"aff_frozen_quota"`
+	AffHistoryQuota        float64  `json:"aff_history_quota"`
+	AccruedRebateTotal     float64  `json:"accrued_rebate_total"`
+	TransferredRebateTotal float64  `json:"transferred_rebate_total"`
+	InviteeRechargeTotal   float64  `json:"invitee_recharge_total"`
 }
 
 type AffiliateRecordFilter struct {
@@ -192,12 +202,16 @@ type AffiliateTransferRecord struct {
 }
 
 type AffiliateUserOverview struct {
-	UserID              int64   `json:"user_id"`
-	Email               string  `json:"email"`
-	Username            string  `json:"username"`
-	AffCode             string  `json:"aff_code"`
-	RebateRatePercent   float64 `json:"rebate_rate_percent"`
-	RebateRateCustom    bool    `json:"-"`
+	UserID   int64  `json:"user_id"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	AffCode  string `json:"aff_code"`
+	// RebateRatePercent 是实际生效比例：有专属比例时用专属值（含显式 0），
+	// 否则回退全局比例。
+	RebateRatePercent float64 `json:"rebate_rate_percent"`
+	// RebateRateCustom 区分「未设置专属比例（跟随全局）」与「显式设置了专属比例」。
+	// 显式 0 是合法业务值（关闭该用户返利），所以管理端必须能区分 0 与未设置。
+	RebateRateCustom    bool    `json:"rebate_rate_custom"`
 	InvitedCount        int     `json:"invited_count"`
 	RebatedInviteeCount int     `json:"rebated_invitee_count"`
 	AvailableQuota      float64 `json:"available_quota"`
@@ -239,6 +253,9 @@ func (s *AffiliateService) EnsureUserAffiliate(ctx context.Context, userID int64
 }
 
 func (s *AffiliateService) GetAffiliateDetail(ctx context.Context, userID int64) (*AffiliateDetail, error) {
+	if !s.IsEnabled(ctx) {
+		return nil, ErrAffiliateDisabled
+	}
 	// Lazy thaw: move any matured frozen quota to available before reading.
 	if s != nil && s.repo != nil {
 		// best-effort: thaw failure is non-fatal
@@ -340,6 +357,10 @@ func (s *AffiliateService) AccrueInviteRebateForOrder(ctx context.Context, invit
 	if err != nil {
 		return 0, err
 	}
+	if inviterSummary.HasResellerRole &&
+		(inviterSummary.ResellerStatus != ResellerStatusActive || inviterSummary.ResellerRevokedAt != nil) {
+		return 0, nil
+	}
 	// 有效期检查：超过返利有效期后不再产生返利
 	if s.settingService != nil {
 		if durationDays := s.settingService.GetAffiliateRebateDurationDays(ctx); durationDays > 0 {
@@ -411,6 +432,9 @@ func (s *AffiliateService) globalRebateRatePercent(ctx context.Context) float64 
 func (s *AffiliateService) TransferAffiliateQuota(ctx context.Context, userID int64) (float64, float64, error) {
 	if s == nil || s.repo == nil {
 		return 0, 0, infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "affiliate service unavailable")
+	}
+	if !s.IsEnabled(ctx) {
+		return 0, 0, ErrAffiliateDisabled
 	}
 
 	transferred, balance, err := s.repo.TransferQuotaToBalance(ctx, userID)

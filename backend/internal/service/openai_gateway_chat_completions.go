@@ -13,6 +13,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -103,8 +104,13 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 
 	// 2. Resolve model mapping early so compat prompt_cache_key injection can
 	// derive a stable seed from the final upstream model family.
-	billingModel := resolveOpenAIForwardModel(account, originalModel, defaultMappedModel)
-	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
+	billingModel, modelMappingMatched := resolveOpenAIForwardModelWithMatch(account, originalModel, defaultMappedModel)
+	upstreamModel := billingModel
+	if shouldNormalizeChatCompatModel(billingModel, modelMappingMatched, defaultMappedModel) {
+		upstreamModel = normalizeOpenAIModelForUpstream(account, billingModel)
+	} else {
+		upstreamModel = strings.TrimSpace(upstreamModel)
+	}
 
 	promptCacheKey = strings.TrimSpace(promptCacheKey)
 	compatPromptCacheInjected := false
@@ -245,9 +251,38 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 		return nil, policyErr
 	}
 	responsesBody = updatedBody
+	if account.IsOpenAIChatWebMode() {
+		resp, prepared, token, err := s.beginOpenAIChatWebConversationRequest(ctx, gatewayctx.FromGin(c), account, responsesBody)
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = resp.Body.Close() }()
+		defer s.pingOpenAIChatWebSentinel(context.Background(), account, token, prepared)
+		if resp.StatusCode >= 400 {
+			return s.handleChatCompletionsErrorResponse(resp, c, account, billingModel)
+		}
+		var result *OpenAIForwardResult
+		var handleErr error
+		if clientStream {
+			result, handleErr = s.handleChatStreamingResponse(resp, c, account, originalModel, billingModel, upstreamModel, startTime, len(body))
+		} else {
+			result, handleErr = s.handleChatBufferedStreamingResponse(resp, c, account, originalModel, billingModel, upstreamModel, startTime)
+		}
+		if handleErr == nil && result != nil {
+			if responsesReq.ServiceTier != "" {
+				st := responsesReq.ServiceTier
+				result.ServiceTier = &st
+			}
+			if responsesReq.Reasoning != nil && responsesReq.Reasoning.Effort != "" {
+				re := responsesReq.Reasoning.Effort
+				result.ReasoningEffort = &re
+			}
+		}
+		return result, handleErr
+	}
 
 	// 5. Get access token
-	token, _, err := s.GetAccessToken(ctx, account)
+	token, err := s.getOpenAIRequestAccessToken(ctx, account)
 	if err != nil {
 		return nil, fmt.Errorf("get access token: %w", err)
 	}
@@ -347,7 +382,7 @@ func normalizeResponsesRequestServiceTier(req *apicompat.ResponsesRequest) {
 	if req == nil {
 		return
 	}
-	req.ServiceTier = normalizedOpenAIServiceTierValue(req.ServiceTier)
+	req.ServiceTier = normalizedOpenAIRequestServiceTierValue(req.ServiceTier)
 }
 
 func normalizeResponsesBodyServiceTier(body []byte) ([]byte, string, error) {
@@ -358,7 +393,7 @@ func normalizeResponsesBodyServiceTier(body []byte) ([]byte, string, error) {
 	if rawServiceTier == "" {
 		return body, "", nil
 	}
-	normalizedServiceTier := normalizedOpenAIServiceTierValue(rawServiceTier)
+	normalizedServiceTier := normalizedOpenAIRequestServiceTierValue(rawServiceTier)
 	if normalizedServiceTier == "" {
 		trimmed, err := sjson.DeleteBytes(body, "service_tier")
 		return trimmed, "", err
@@ -376,6 +411,26 @@ func normalizedOpenAIServiceTierValue(raw string) string {
 		return ""
 	}
 	return *normalized
+}
+
+// normalizedOpenAIRequestServiceTierValue accepts every service_tier value
+// supported by the Responses request contract. The narrower
+// normalizedOpenAIServiceTierValue is intentionally kept for billing metadata,
+// where only billable fast tiers are meaningful.
+func normalizedOpenAIRequestServiceTierValue(raw string) string {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	if value == "" {
+		return ""
+	}
+	if value == "fast" {
+		return "priority"
+	}
+	switch value {
+	case "auto", "default", "scale", "priority", "flex":
+		return value
+	default:
+		return ""
+	}
 }
 
 func openAICompatFailedResponseMessage(resp *apicompat.ResponsesResponse) string {
@@ -415,6 +470,15 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 		return nil, err
 	}
 
+	if finalResponse == nil {
+		if acc != nil && acc.HasContent() {
+			finalResponse = &apicompat.ResponsesResponse{
+				Object: "response",
+				Status: "completed",
+				Output: acc.BuildOutput(),
+			}
+		}
+	}
 	if finalResponse == nil {
 		writeChatCompletionsError(c, http.StatusBadGateway, "api_error", "Upstream stream ended without a terminal response event")
 		return nil, fmt.Errorf("upstream stream ended without terminal event")

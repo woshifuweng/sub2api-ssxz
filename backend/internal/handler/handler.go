@@ -41,6 +41,7 @@ type AdminHandlers struct {
 	Affiliate              *admin.AffiliateHandler
 	Compliance             *admin.ComplianceHandler
 	AuditLog               *admin.AuditLogHandler
+	ProxyMaintenance       *admin.ProxyMaintenanceHandler
 }
 
 // Handlers contains all HTTP handlers
@@ -56,6 +57,8 @@ type Handlers struct {
 	Admin            *AdminHandlers
 	Gateway          *GatewayHandler
 	OpenAIGateway    *OpenAIGatewayHandler
+	SoraGateway      *SoraGatewayHandler
+	SoraClient       *SoraClientHandler
 	Setting          *SettingHandler
 	Totp             *TotpHandler
 	Passkey          *PasskeyHandler
@@ -65,10 +68,15 @@ type Handlers struct {
 	ModelPlaza       *ModelPlazaHandler
 	AsyncImage       *AsyncImageHandler
 	BatchImage       *BatchImageHandler
+	ImageStudio      *ImageStudioHandler
+	ChatStudio       *ChatStudioHandler
+	ChatWorkspace    *ChatWorkspaceHandler
+	Reseller         *ResellerHandler
 }
 
 // BuildInfo contains build-time information
 type BuildInfo struct {
-	Version   string
-	BuildType string // "source" for manual builds, "release" for CI builds
+	Version     string
+	BuildType   string // "source" for manual builds, "release" for CI builds
+	ReleaseRepo string // GitHub owner/repo used by online update checks
 }

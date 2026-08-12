@@ -12,31 +12,66 @@ import (
 const maxRedactDepth = 32
 
 var defaultSensitiveKeys = map[string]struct{}{
-	"authorization_code": {},
-	"code":               {},
-	"code_verifier":      {},
-	"access_token":       {},
-	"refresh_token":      {},
-	"id_token":           {},
-	"client_secret":      {},
-	"password":           {},
+	"authorization_code":  {},
+	"authorization":       {},
+	"proxy-authorization": {},
+	"x-api-key":           {},
+	"api-key":             {},
+	"api_key":             {},
+	"apikey":              {},
+	"code":                {},
+	"code_verifier":       {},
+	"access_token":        {},
+	"refresh_token":       {},
+	"id_token":            {},
+	"session_token":       {},
+	"token":               {},
+	"client_secret":       {},
+	"secret":              {},
+	"secret_key":          {},
+	"private_key":         {},
+	"jwt":                 {},
+	"signature":           {},
+	"password":            {},
+	"passwd":              {},
+	"passphrase":          {},
+	"cookie":              {},
+	"set-cookie":          {},
 }
 
 var defaultSensitiveKeyList = []string{
 	"authorization_code",
+	"authorization",
+	"proxy-authorization",
+	"x-api-key",
+	"api-key",
+	"api_key",
+	"apikey",
 	"code",
 	"code_verifier",
 	"access_token",
 	"refresh_token",
 	"id_token",
+	"session_token",
+	"token",
 	"client_secret",
+	"secret",
+	"secret_key",
+	"private_key",
+	"jwt",
+	"signature",
 	"password",
+	"passwd",
+	"passphrase",
+	"cookie",
+	"set-cookie",
 }
 
 type textRedactPatterns struct {
-	reJSONLike  *regexp.Regexp
-	reQueryLike *regexp.Regexp
-	rePlain     *regexp.Regexp
+	reJSONLike   *regexp.Regexp
+	reQueryLike  *regexp.Regexp
+	reAuthScheme *regexp.Regexp
+	rePlain      *regexp.Regexp
 }
 
 var (
@@ -101,6 +136,7 @@ func RedactText(input string, extraKeys ...string) string {
 	out = reAIza.ReplaceAllString(out, "AIza***")
 	out = patterns.reJSONLike.ReplaceAllString(out, `$1***$3`)
 	out = patterns.reQueryLike.ReplaceAllString(out, `$1=***`)
+	out = patterns.reAuthScheme.ReplaceAllString(out, `$1***`)
 	out = patterns.rePlain.ReplaceAllString(out, `$1$2***`)
 	return out
 }
@@ -112,6 +148,8 @@ func compileTextRedactPatterns(extraKeys []string) *textRedactPatterns {
 		reJSONLike: regexp.MustCompile(`(?i)("(?:` + keyAlt + `)"\s*:\s*")([^"]*)(")`),
 		// Query-like: access_token=...
 		reQueryLike: regexp.MustCompile(`(?i)\b((?:` + keyAlt + `))=([^&\s]+)`),
+		// Header-like: Authorization: Bearer ...
+		reAuthScheme: regexp.MustCompile(`(?i)\b((?:authorization|proxy-authorization)\b\s*[:=]\s*)(?:bearer|basic)\s+[^,\s]+`),
 		// Plain: access_token: ... / access_token = ...
 		rePlain: regexp.MustCompile(`(?i)\b((?:` + keyAlt + `))\b(\s*[:=]\s*)([^,\s]+)`),
 	}

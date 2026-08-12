@@ -224,7 +224,7 @@ func DefaultWeChatConnectScopesForMode(mode string) string {
 func (s *SettingService) parseWeChatConnectOAuthConfig(settings map[string]string) (WeChatConnectOAuthConfig, error) {
 	cfg := s.effectiveWeChatConnectOAuthConfig(settings)
 
-	if !cfg.Enabled || (!cfg.OpenEnabled && !cfg.MPEnabled) {
+	if !cfg.Enabled || (!cfg.OpenEnabled && !cfg.MPEnabled && !cfg.MobileEnabled) {
 		return WeChatConnectOAuthConfig{}, infraerrors.NotFound("OAUTH_DISABLED", "wechat oauth is disabled")
 	}
 	if cfg.OpenEnabled {

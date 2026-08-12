@@ -49,7 +49,7 @@ func TestSanitizeAndTrimJSONPayload_PreservesTokenBudgetFields(t *testing.T) {
 	t.Parallel()
 
 	raw := []byte(`{"model":"claude-3","max_tokens":123,"thinking":{"type":"enabled","budget_tokens":456},"access_token":"abc","messages":[{"role":"user","content":"hi"}]}`)
-	out, _, _ := sanitizeAndTrimJSONPayload(raw, 10*1024)
+	out, _, _ := sanitizeAndTrimRequestBody(raw, 10*1024)
 	if out == "" {
 		t.Fatalf("expected non-empty sanitized output")
 	}

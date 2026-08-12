@@ -1,12 +1,31 @@
 import { DriveStep } from 'driver.js'
 
+const TOUR_EMOJI_PATTERN = /[\p{Extended_Pictographic}\uFE0F\u200D]/gu
+
+/** Keep tour copy aligned with F0 without changing the existing steps or audience. */
+export const normalizeTourCopy = (value: string) => {
+  const styleReplacements: Array<[string, string]> = [
+    ['#10b981', 'var(--ssxz-primary)'],
+    ['#3b82f6', 'var(--ssxz-primary)'],
+    ['#f0fdf4', 'var(--ssxz-primary-soft)'],
+    ['#eff6ff', 'var(--ssxz-primary-soft)']
+  ]
+
+  return styleReplacements.reduce(
+    (copy, [from, to]) => copy.split(from).join(to),
+    value.replace(TOUR_EMOJI_PATTERN, '')
+  ).replace(/\s{2,}/g, ' ').trim()
+}
+
 /**
  * 管理员完整引导流程
  * 交互式引导：指引用户实际操作
  * @param t 国际化函数
  * @param isSimpleMode 是否为简易模式（简易模式下会过滤分组相关步骤）
  */
-export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false): DriveStep[] => {
+export const getAdminSteps = (translate: (key: string) => string, isSimpleMode = false): DriveStep[] => {
+  const tourText = (key: string) => normalizeTourCopy(translate(key))
+  const t = tourText
   const allSteps: DriveStep[] = [
   // ========== 欢迎介绍 ==========
   {
@@ -246,7 +265,11 @@ export const getAdminSteps = (t: (key: string) => string, isSimpleMode = false):
 /**
  * 普通用户引导流程
  */
-export const getUserSteps = (t: (key: string) => string): DriveStep[] => [
+export const getUserSteps = (translate: (key: string) => string): DriveStep[] => {
+  const tourText = (key: string) => normalizeTourCopy(translate(key))
+  const t = tourText
+
+  return [
   {
     popover: {
       title: t('onboarding.user.welcome.title'),
@@ -306,4 +329,5 @@ export const getUserSteps = (t: (key: string) => string): DriveStep[] => [
       showButtons: ['close']
     }
   }
-]
+  ]
+}

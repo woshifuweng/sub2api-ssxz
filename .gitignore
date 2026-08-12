@@ -27,12 +27,16 @@ vendor/
 
 # Go 编译缓存
 backend/.gocache/
+.gomodcache/
+.gopath/
 
 # ===================
 # Node.js / Vue 前端
 # ===================
 node_modules/
 frontend/node_modules/
+/.pnpm-store/
+frontend/.pnpm-store/
 frontend/dist/
 *.local
 *.tsbuildinfo
@@ -130,16 +134,42 @@ AGENTS.md
 backend/cmd/server/server
 deploy/docker-compose.override.yml
 .gocache/
+.docker-go/
+backend/rust/target/
+__pycache__/
+*.pyc
+*.pyo
 vite.config.js
 docs/*
-!docs/PAYMENT.md
-!docs/PAYMENT_CN.md
-!docs/ADMIN_PAYMENT_INTEGRATION_API.md
-!docs/ASYNC_IMAGE_TASKS.md
-!docs/legal/
-!docs/legal/*.md
+!docs/operations/
+docs/operations/*
+!docs/operations/DATABASE_DISASTER_RECOVERY_RUNBOOK.md
+!docs/教程/
+docs/教程/*
+!docs/教程/CC-Switch一键接入SSXZ.md
+!docs/教程/assets/
+docs/教程/assets/*
+!docs/教程/assets/cc-switch/
+!docs/教程/assets/cc-switch/*.png
 .serena/
 .codex/
 frontend/coverage/
 aicodex
 output/
+
+# 部署备份目录(运维临时产物,不进版本控制)
+/.deploy-*/
+/backend/.deploy-*/
+
+# GPT review 临时文档
+/GPT_PRO_*.md
+/GPT_REVIEW_*.md
+
+# 线上快照产物
+/production_*.js
+/production_*.html
+/production_*.json
+
+# 二进制备份
+/sub2api-production-*
+/sub2api-staging-*

@@ -3,14 +3,12 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitor"
 	"github.com/Wei-Shaw/sub2api/ent/channelmonitorrequesttemplate"
 	"github.com/Wei-Shaw/sub2api/internal/service"
-	"github.com/lib/pq"
 )
 
 // channelMonitorRequestTemplateRepository 实现 service.ChannelMonitorRequestTemplateRepository。
@@ -32,7 +30,6 @@ func (r *channelMonitorRequestTemplateRepository) Create(ctx context.Context, t 
 	builder := client.ChannelMonitorRequestTemplate.Create().
 		SetName(t.Name).
 		SetProvider(channelmonitorrequesttemplate.Provider(t.Provider)).
-		SetAPIMode(defaultAPIModeRepo(t.APIMode)).
 		SetDescription(t.Description).
 		SetExtraHeaders(emptyHeadersIfNilRepo(t.ExtraHeaders)).
 		SetBodyOverrideMode(defaultBodyModeRepo(t.BodyOverrideMode))
@@ -64,7 +61,6 @@ func (r *channelMonitorRequestTemplateRepository) Update(ctx context.Context, t 
 	client := clientFromContext(ctx, r.client)
 	updater := client.ChannelMonitorRequestTemplate.UpdateOneID(t.ID).
 		SetName(t.Name).
-		SetAPIMode(defaultAPIModeRepo(t.APIMode)).
 		SetDescription(t.Description).
 		SetExtraHeaders(emptyHeadersIfNilRepo(t.ExtraHeaders)).
 		SetBodyOverrideMode(defaultBodyModeRepo(t.BodyOverrideMode))
@@ -94,11 +90,8 @@ func (r *channelMonitorRequestTemplateRepository) List(ctx context.Context, para
 	if params.Provider != "" {
 		q = q.Where(channelmonitorrequesttemplate.ProviderEQ(channelmonitorrequesttemplate.Provider(params.Provider)))
 	}
-	if params.APIMode != "" {
-		q = q.Where(channelmonitorrequesttemplate.APIModeEQ(defaultAPIModeRepo(params.APIMode)))
-	}
 	rows, err := q.
-		Order(dbent.Asc(channelmonitorrequesttemplate.FieldProvider), dbent.Asc(channelmonitorrequesttemplate.FieldAPIMode), dbent.Asc(channelmonitorrequesttemplate.FieldName)).
+		Order(dbent.Asc(channelmonitorrequesttemplate.FieldProvider), dbent.Asc(channelmonitorrequesttemplate.FieldName)).
 		All(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list monitor templates: %w", err)
@@ -112,38 +105,12 @@ func (r *channelMonitorRequestTemplateRepository) List(ctx context.Context, para
 
 // ApplyToMonitors 把模板当前配置覆盖到 monitorIDs 列表里的关联监控。
 // WHERE 双重过滤：template_id = id AND id IN (monitorIDs)，防止用户传了未关联本模板的 id
-// 就被覆盖。模板字段通过 ent UpdateMany 更新以保留 hooks；extra_headers 在同一事务中
-// 单独合并，以保留仅用于幂等恢复、绝不会发往上游的内部 operation ID。
+// 就被覆盖。走 ent UpdateMany 保留 hooks。
 func (r *channelMonitorRequestTemplateRepository) ApplyToMonitors(ctx context.Context, id int64, monitorIDs []int64) (int64, error) {
 	if len(monitorIDs) == 0 {
 		return 0, nil
 	}
-	if tx := dbent.TxFromContext(ctx); tx != nil {
-		return r.applyToMonitorsWithClient(ctx, tx.Client(), id, monitorIDs)
-	}
-
-	tx, err := r.client.Tx(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("begin apply template transaction: %w", err)
-	}
-	txCtx := dbent.NewTxContext(ctx, tx)
-	affected, err := r.applyToMonitorsWithClient(txCtx, tx.Client(), id, monitorIDs)
-	if err != nil {
-		_ = tx.Rollback()
-		return 0, err
-	}
-	if err := tx.Commit(); err != nil {
-		return 0, fmt.Errorf("commit apply template transaction: %w", err)
-	}
-	return affected, nil
-}
-
-func (r *channelMonitorRequestTemplateRepository) applyToMonitorsWithClient(
-	ctx context.Context,
-	client *dbent.Client,
-	id int64,
-	monitorIDs []int64,
-) (int64, error) {
+	client := clientFromContext(ctx, r.client)
 	tpl, err := client.ChannelMonitorRequestTemplate.Query().
 		Where(channelmonitorrequesttemplate.IDEQ(id)).
 		Only(ctx)
@@ -155,10 +122,8 @@ func (r *channelMonitorRequestTemplateRepository) applyToMonitorsWithClient(
 		Where(
 			channelmonitor.TemplateIDEQ(id),
 			channelmonitor.IDIn(monitorIDs...),
-			channelmonitor.ProviderEQ(channelmonitor.Provider(tpl.Provider)),
-			channelmonitor.APIModeEQ(defaultAPIModeRepo(tpl.APIMode)),
 		).
-		SetAPIMode(defaultAPIModeRepo(tpl.APIMode)).
+		SetExtraHeaders(emptyHeadersIfNilRepo(tpl.ExtraHeaders)).
 		SetBodyOverrideMode(defaultBodyModeRepo(tpl.BodyOverrideMode))
 	if tpl.BodyOverride != nil {
 		updater = updater.SetBodyOverride(tpl.BodyOverride)
@@ -170,41 +135,7 @@ func (r *channelMonitorRequestTemplateRepository) applyToMonitorsWithClient(
 	if err != nil {
 		return 0, fmt.Errorf("apply template to monitors: %w", err)
 	}
-	if affected == 0 {
-		return 0, nil
-	}
-
-	templateHeaders := channelMonitorHeadersForPersistence(&service.ChannelMonitor{
-		ExtraHeaders: tpl.ExtraHeaders,
-	})
-	templateHeadersJSON, err := json.Marshal(templateHeaders)
-	if err != nil {
-		return 0, fmt.Errorf("marshal template headers: %w", err)
-	}
-	result, err := client.ExecContext(ctx, `
-		UPDATE channel_monitors
-		SET extra_headers = $1::jsonb || CASE
-			WHEN COALESCE(extra_headers, '{}'::jsonb) ? ($2::text)
-			THEN jsonb_build_object($2::text, COALESCE(extra_headers, '{}'::jsonb) -> ($2::text))
-			ELSE '{}'::jsonb
-		END
-		WHERE template_id = $3
-		  AND id = ANY($4)
-		  AND provider = $5
-		  AND api_mode = $6
-	`, string(templateHeadersJSON), service.ChannelMonitorDuplicateOperationIDMetadataKey,
-		id, pq.Array(monitorIDs), string(tpl.Provider), defaultAPIModeRepo(tpl.APIMode))
-	if err != nil {
-		return 0, fmt.Errorf("apply template headers to monitors: %w", err)
-	}
-	headersAffected, err := result.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("count applied template headers: %w", err)
-	}
-	if headersAffected != int64(affected) {
-		return 0, fmt.Errorf("apply template headers: affected %d rows, expected %d", headersAffected, affected)
-	}
-	return headersAffected, nil
+	return int64(affected), nil
 }
 
 // CountAssociatedMonitors 统计关联监控数（UI 展示「N 个配置」用）。
@@ -234,7 +165,6 @@ func (r *channelMonitorRequestTemplateRepository) ListAssociatedMonitors(ctx con
 			ID:       row.ID,
 			Name:     row.Name,
 			Provider: string(row.Provider),
-			APIMode:  defaultAPIModeRepo(row.APIMode),
 			Enabled:  row.Enabled,
 		})
 	}
@@ -255,7 +185,6 @@ func entToServiceTemplate(row *dbent.ChannelMonitorRequestTemplate) *service.Cha
 		ID:               row.ID,
 		Name:             row.Name,
 		Provider:         string(row.Provider),
-		APIMode:          defaultAPIModeRepo(row.APIMode),
 		Description:      row.Description,
 		ExtraHeaders:     headers,
 		BodyOverrideMode: row.BodyOverrideMode,

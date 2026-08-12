@@ -6,6 +6,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	mathrand "math/rand"
@@ -16,6 +17,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/kiro"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
 )
@@ -32,12 +34,12 @@ func (s *GatewayService) SelectAccountForModel(ctx context.Context, groupID *int
 
 // SelectAccountForModelWithExclusions selects an account supporting the requested model while excluding specified accounts.
 func (s *GatewayService) SelectAccountForModelWithExclusions(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*Account, error) {
-	// 优先检查 context 中的强制平台（/antigravity 路由）
-	var platform string
 	forcePlatform, hasForcePlatform := ctx.Value(ctxkey.ForcePlatform).(string)
 	if hasForcePlatform && forcePlatform != "" {
-		platform = forcePlatform
-	} else if groupID != nil {
+		return s.selectAccountForResolvedScheduling(ctx, groupID, sessionHash, requestedModel, excludedIDs, forcePlatform, true)
+	}
+
+	if groupID != nil {
 		group, resolvedGroupID, err := s.resolveGatewayGroup(ctx, groupID)
 		if err != nil {
 			return nil, err
@@ -45,29 +47,53 @@ func (s *GatewayService) SelectAccountForModelWithExclusions(ctx context.Context
 		if group == nil {
 			return nil, ErrGroupNotFound
 		}
-		groupID = resolvedGroupID
-		ctx = s.withGroupContext(ctx, group)
-		platform = group.Platform
-		if group.Platform == PlatformComposite {
-			decision, ok, err := s.resolveCompositeRouteDecision(ctx, group, requestedModel, CompositeRouteEndpointAny)
-			if err != nil {
+
+		chain, err := s.buildGatewayFallbackChain(ctx, group, resolvedGroupID)
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range chain {
+			localCtx := s.withGroupContext(ctx, entry.Group)
+			entryPlatform := entry.Group.Platform
+			entryModel := requestedModel
+			if entry.Group.Platform == PlatformComposite {
+				decision, ok, err := s.resolveCompositeRouteDecision(localCtx, entry.Group, requestedModel, CompositeRouteEndpointAny)
+				if err != nil {
+					return nil, err
+				}
+				if !ok {
+					continue
+				}
+				entryPlatform = decision.TargetPlatform
+				entryModel = decision.UpstreamModel
+				localCtx = WithCompositeRouteDecision(localCtx, decision)
+			}
+
+			account, err := s.selectAccountForResolvedScheduling(localCtx, &entry.GroupID, sessionHash, entryModel, excludedIDs, entryPlatform, false)
+			if err == nil {
+				return account, nil
+			}
+			if !errors.Is(err, ErrNoAvailableAccounts) {
 				return nil, err
 			}
-			if !ok {
-				return nil, fmt.Errorf("%w supporting model: %s (composite target platform unknown)", ErrNoAvailableAccounts, requestedModel)
-			}
-			platform = decision.TargetPlatform
-			requestedModel = decision.UpstreamModel
-			ctx = WithCompositeRouteDecision(ctx, decision)
 		}
-	} else {
-		// 无分组时只使用原生 anthropic 平台
-		platform = PlatformAnthropic
+		return nil, ErrNoAvailableAccounts
 	}
+
+	return s.selectAccountForResolvedScheduling(ctx, nil, sessionHash, requestedModel, excludedIDs, PlatformAnthropic, false)
+}
+
+func (s *GatewayService) selectAccountForResolvedScheduling(
+	ctx context.Context,
+	groupID *int64,
+	sessionHash string,
+	requestedModel string,
+	excludedIDs map[int64]struct{},
+	platform string,
+	hasForcePlatform bool,
+) (*Account, error) {
 	ctx = s.withGatewayProfitControlGate(ctx, groupID)
 
-	// Claude Code 限制可能已将 groupID 解析为 fallback group，
-	// 渠道限制预检查必须使用解析后的分组。
 	if s.checkChannelPricingRestriction(ctx, groupID, requestedModel) {
 		slog.Warn("channel pricing restriction blocked request",
 			"group_id", derefGroupID(groupID),
@@ -75,8 +101,6 @@ func (s *GatewayService) SelectAccountForModelWithExclusions(ctx context.Context
 		return nil, fmt.Errorf("%w supporting model: %s (channel pricing restriction)", ErrNoAvailableAccounts, requestedModel)
 	}
 
-	// anthropic/gemini 分组支持混合调度（包含启用了 mixed_scheduling 的 antigravity 账户）
-	// 注意：强制平台模式不走混合调度
 	if (platform == PlatformAnthropic || platform == PlatformGemini) && !hasForcePlatform {
 		account, err := s.selectAccountWithMixedScheduling(ctx, groupID, sessionHash, requestedModel, excludedIDs, platform)
 		if err != nil {
@@ -85,8 +109,6 @@ func (s *GatewayService) SelectAccountForModelWithExclusions(ctx context.Context
 		return s.hydrateSelectedAccount(ctx, account)
 	}
 
-	// antigravity 分组、强制平台模式或无分组使用单平台选择
-	// 注意：强制平台模式也必须遵守分组限制，不再回退到全平台查询
 	account, err := s.selectAccountForModelWithPlatform(ctx, groupID, sessionHash, requestedModel, excludedIDs, platform)
 	if err != nil {
 		return nil, err
@@ -801,8 +823,17 @@ func (s *GatewayService) schedulingConfig() config.GatewaySchedulingConfig {
 		StickySessionWaitTimeout: 45 * time.Second,
 		FallbackWaitTimeout:      30 * time.Second,
 		FallbackMaxWaiting:       100,
-		LoadBatchEnabled:         true,
-		SlotCleanupInterval:      30 * time.Second,
+		LBTopK:                   5,
+		RuntimeStatsAlpha:        0.2,
+		SchedulerScoreWeights: config.GatewaySchedulerScoreWeights{
+			Priority:  1.0,
+			Load:      1.0,
+			Queue:     0.7,
+			ErrorRate: 0.8,
+			TTFT:      0.5,
+		},
+		LoadBatchEnabled:    true,
+		SlotCleanupInterval: 30 * time.Second,
 	}
 }
 
@@ -958,6 +989,9 @@ func (s *GatewayService) resolvePlatform(ctx context.Context, groupID *int64, gr
 }
 
 func (s *GatewayService) listSchedulableAccounts(ctx context.Context, groupID *int64, platform string, hasForcePlatform bool) ([]Account, bool, error) {
+	if platform == PlatformSora {
+		return s.listSoraSchedulableAccounts(ctx, groupID)
+	}
 	if s.schedulerSnapshot != nil {
 		accounts, useMixed, err := s.schedulerSnapshot.ListSchedulableAccounts(ctx, groupID, platform, hasForcePlatform)
 		if err == nil {
@@ -1088,12 +1122,21 @@ func (s *GatewayService) isAccountSchedulableForSelection(account *Account) bool
 	if account == nil {
 		return false
 	}
+	if account.Platform == PlatformSora {
+		return s.isSoraAccountSchedulable(account)
+	}
 	return account.IsSchedulable()
 }
 
 func (s *GatewayService) isAccountSchedulableForModelSelection(ctx context.Context, account *Account, requestedModel string) bool {
 	if account == nil {
 		return false
+	}
+	if account.Platform == PlatformSora {
+		if !s.isSoraAccountSchedulable(account) {
+			return false
+		}
+		return account.GetRateLimitRemainingTimeWithContext(ctx, requestedModel) <= 0
 	}
 	return account.IsSchedulableForModelWithContext(ctx, requestedModel)
 }
@@ -2347,6 +2390,9 @@ func (s *GatewayService) logDetailedSelectionFailure(
 		stats.SampleMappingIDs,
 		stats.SampleRateLimitIDs,
 	)
+	if platform == PlatformSora {
+		s.logSoraSelectionFailureDetails(ctx, groupID, sessionHash, requestedModel, accounts, excludedIDs, allowMixedScheduling)
+	}
 	return stats
 }
 
@@ -2407,7 +2453,11 @@ func (s *GatewayService) diagnoseSelectionFailure(
 		return selectionFailureDiagnosis{Category: "excluded"}
 	}
 	if !s.isAccountSchedulableForSelection(acc) {
-		return selectionFailureDiagnosis{Category: "unschedulable", Detail: "generic_unschedulable"}
+		detail := "generic_unschedulable"
+		if acc.Platform == PlatformSora {
+			detail = s.soraUnschedulableReason(acc)
+		}
+		return selectionFailureDiagnosis{Category: "unschedulable", Detail: detail}
 	}
 	if isPlatformFilteredForSelection(acc, platform, allowMixedScheduling) {
 		return selectionFailureDiagnosis{
@@ -2484,6 +2534,12 @@ func summarizeSelectionFailureStats(stats selectionFailureStats) string {
 // isModelSupportedByAccountWithContext 根据账户平台检查模型支持（带 context）
 // 对于 Antigravity 平台，会先获取映射后的最终模型名（包括 thinking 后缀）再检查支持
 func (s *GatewayService) isModelSupportedByAccountWithContext(ctx context.Context, account *Account, requestedModel string) bool {
+	if account.Platform == PlatformKiro {
+		if strings.TrimSpace(requestedModel) == "" {
+			return true
+		}
+		return kiro.MapModel(requestedModel) != ""
+	}
 	if account.Platform == PlatformAntigravity {
 		if strings.TrimSpace(requestedModel) == "" {
 			return true
@@ -2508,11 +2564,20 @@ func (s *GatewayService) isModelSupportedByAccountWithContext(ctx context.Contex
 
 // isModelSupportedByAccount 根据账户平台检查模型支持（无 context，用于非 Antigravity 平台）
 func (s *GatewayService) isModelSupportedByAccount(account *Account, requestedModel string) bool {
+	if account.Platform == PlatformKiro {
+		if strings.TrimSpace(requestedModel) == "" {
+			return true
+		}
+		return kiro.MapModel(requestedModel) != ""
+	}
 	if account.Platform == PlatformAntigravity {
 		if strings.TrimSpace(requestedModel) == "" {
 			return true
 		}
 		return mapAntigravityModel(account, requestedModel) != ""
+	}
+	if account.Platform == PlatformSora {
+		return s.isSoraModelSupportedByAccount(account, requestedModel)
 	}
 	if account.IsBedrock() {
 		_, ok := ResolveBedrockModelID(account, requestedModel)

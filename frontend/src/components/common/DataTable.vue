@@ -1090,6 +1090,46 @@ tbody tr:hover .sticky-col {
 .dark .is-scrollable .sticky-col-right::before {
   background: linear-gradient(to left, rgba(0, 0, 0, 0.2), transparent);
 }
+
+.table-wrapper {
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-surface);
+}
+
+.sticky-header-cell,
+.dark .sticky-header-cell,
+tbody .sticky-col,
+.dark tbody .sticky-col {
+  background-color: var(--ssxz-bg-subtle);
+}
+
+tbody tr:hover .sticky-col,
+.dark tbody tr:hover .sticky-col {
+  background-color: var(--ssxz-surface-raised);
+}
+
+.table-wrapper :deep(thead),
+.table-wrapper :deep(tbody) {
+  color: var(--ssxz-text-secondary);
+}
+
+.table-wrapper :deep(th),
+.table-wrapper :deep(td) {
+  border-color: var(--ssxz-border);
+}
+
+.table-wrapper :deep(.text-gray-900),
+.table-wrapper :deep(.dark\:text-gray-100),
+.table-wrapper :deep(.dark\:text-white) {
+  color: var(--ssxz-text) !important;
+}
+
+.table-wrapper :deep(.text-gray-500),
+.table-wrapper :deep(.dark\:text-dark-400),
+.table-wrapper :deep(.dark\:text-gray-400) {
+  color: var(--ssxz-text-muted) !important;
+}
 </style>
 
 <style>

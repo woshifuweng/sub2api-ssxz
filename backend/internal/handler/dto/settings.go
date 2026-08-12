@@ -27,26 +27,36 @@ type CustomEndpoint struct {
 
 // SystemSettings represents the admin settings API response payload.
 type SystemSettings struct {
-	RegistrationEnabled              bool                     `json:"registration_enabled"`
-	EmailVerifyEnabled               bool                     `json:"email_verify_enabled"`
-	RegistrationEmailSuffixWhitelist []string                 `json:"registration_email_suffix_whitelist"`
-	PromoCodeEnabled                 bool                     `json:"promo_code_enabled"`
-	PasswordResetEnabled             bool                     `json:"password_reset_enabled"`
-	FrontendURL                      string                   `json:"frontend_url"`
-	InvitationCodeEnabled            bool                     `json:"invitation_code_enabled"`
-	TotpEnabled                      bool                     `json:"totp_enabled"`                   // TOTP 双因素认证
-	TotpEncryptionKeyConfigured      bool                     `json:"totp_encryption_key_configured"` // TOTP 加密密钥是否已配置
-	PasskeyEnabled                   bool                     `json:"passkey_enabled"`
-	PasskeyConfigured                bool                     `json:"passkey_configured"`
-	PasskeyRPID                      string                   `json:"passkey_rp_id"`
-	PasskeyRPOrigins                 []string                 `json:"passkey_rp_origins"`
-	SessionBindingEnabled            bool                     `json:"session_binding_enabled"`  // 会话 IP/UA 绑定
-	StepUpEnabled                    bool                     `json:"step_up_enabled"`          // 敏感操作 step-up 2FA
-	AuditLogRetentionDays            int                      `json:"audit_log_retention_days"` // 审计日志保留天数
-	LoginAgreementEnabled            bool                     `json:"login_agreement_enabled"`
-	LoginAgreementMode               string                   `json:"login_agreement_mode"`
-	LoginAgreementUpdatedAt          string                   `json:"login_agreement_updated_at"`
-	LoginAgreementDocuments          []LoginAgreementDocument `json:"login_agreement_documents"`
+	RegistrationEnabled              bool     `json:"registration_enabled"`
+	EmailVerifyEnabled               bool     `json:"email_verify_enabled"`
+	RegistrationEmailSuffixWhitelist []string `json:"registration_email_suffix_whitelist"`
+	PromoCodeEnabled                 bool     `json:"promo_code_enabled"`
+	PasswordResetEnabled             bool     `json:"password_reset_enabled"`
+	// PasswordResetEnabledStored 只读观测字段：password_reset_enabled 的原始存储值，
+	// 未与 email_verify_enabled 取与。管理台用它区分「未开启」与「已开启但当前未生效」，
+	// 请求体里没有对应字段（写入仍然只走 password_reset_enabled）。
+	PasswordResetEnabledStored bool   `json:"password_reset_enabled_stored"`
+	FrontendURL                string `json:"frontend_url"`
+	// PasswordResetLinkBase 只读观测字段：密码重置邮件实际会用的链接基址，
+	// 由 service.ResolvePasswordResetBaseURL 解析（DB 值 → 配置文件回落 → Origin 兜底）。
+	// 空串表示解析不出来、发信会被静默跳过。管理台**必须**用它判断配置是否可用，
+	// 不要拿 FrontendURL 原始值自行推断 —— 那会漏掉配置文件回落而误报。
+	// 请求体里没有对应字段。
+	PasswordResetLinkBase       string                   `json:"password_reset_link_base"`
+	InvitationCodeEnabled       bool                     `json:"invitation_code_enabled"`
+	TotpEnabled                 bool                     `json:"totp_enabled"`                   // TOTP 双因素认证
+	TotpEncryptionKeyConfigured bool                     `json:"totp_encryption_key_configured"` // TOTP 加密密钥是否已配置
+	PasskeyEnabled              bool                     `json:"passkey_enabled"`
+	PasskeyConfigured           bool                     `json:"passkey_configured"`
+	PasskeyRPID                 string                   `json:"passkey_rp_id"`
+	PasskeyRPOrigins            []string                 `json:"passkey_rp_origins"`
+	SessionBindingEnabled       bool                     `json:"session_binding_enabled"`        // 会话 IP/UA 绑定
+	StepUpEnabled               bool                     `json:"step_up_enabled"`                // 敏感操作 step-up 2FA
+	AuditLogRetentionDays       int                      `json:"audit_log_retention_days"`       // 审计日志保留天数
+	LoginAgreementEnabled       bool                     `json:"login_agreement_enabled"`
+	LoginAgreementMode          string                   `json:"login_agreement_mode"`
+	LoginAgreementUpdatedAt     string                   `json:"login_agreement_updated_at"`
+	LoginAgreementDocuments     []LoginAgreementDocument `json:"login_agreement_documents"`
 
 	SMTPHost               string `json:"smtp_host"`
 	SMTPPort               int    `json:"smtp_port"`
@@ -159,6 +169,10 @@ type SystemSettings struct {
 	PurchaseSubscriptionURL     string           `json:"purchase_subscription_url"`
 	TableDefaultPageSize        int              `json:"table_default_page_size"`
 	TablePageSizeOptions        []int            `json:"table_page_size_options"`
+	PurchaseLinkCNY10           string           `json:"purchase_link_cny_10"`
+	PurchaseLinkCNY30           string           `json:"purchase_link_cny_30"`
+	PurchaseLinkCNY100          string           `json:"purchase_link_cny_100"`
+	SoraClientEnabled           bool             `json:"sora_client_enabled"`
 	CustomMenuItems             []CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints             []CustomEndpoint `json:"custom_endpoints"`
 
@@ -194,6 +208,10 @@ type SystemSettings struct {
 
 	// 分组隔离
 	AllowUngroupedKeyScheduling bool `json:"allow_ungrouped_key_scheduling"`
+
+	AutoDelete401Accounts    bool `json:"auto_delete_401_accounts"`
+	AutoDelete429Accounts    bool `json:"auto_delete_429_accounts"`
+	AutoDeleteUselessProxies bool `json:"auto_delete_useless_proxies"`
 
 	// Backend Mode
 	BackendModeEnabled bool `json:"backend_mode_enabled"`
@@ -369,6 +387,9 @@ type PublicSettings struct {
 	HideCcsImportButton              bool                     `json:"hide_ccs_import_button"`
 	PurchaseSubscriptionEnabled      bool                     `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL          string                   `json:"purchase_subscription_url"`
+	PurchaseLinkCNY10                string                   `json:"purchase_link_cny_10"`
+	PurchaseLinkCNY30                string                   `json:"purchase_link_cny_30"`
+	PurchaseLinkCNY100               string                   `json:"purchase_link_cny_100"`
 	TableDefaultPageSize             int                      `json:"table_default_page_size"`
 	TablePageSizeOptions             []int                    `json:"table_page_size_options"`
 	CustomMenuItems                  []CustomMenuItem         `json:"custom_menu_items"`
@@ -401,6 +422,7 @@ type PublicSettings struct {
 
 	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
 
+	WebSearch WebSearchSetting `json:"web_search"`
 	ModelPlazaEnabled     bool `json:"model_plaza_enabled"`
 	ModelPlazaRequireAuth bool `json:"model_plaza_require_auth"`
 
@@ -411,10 +433,76 @@ type PublicSettings struct {
 	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
 }
 
+type WebSearchSetting struct {
+	Available bool   `json:"available"`
+	Provider  string `json:"provider,omitempty"`
+}
+
 type LoginAgreementDocument struct {
 	ID        string `json:"id"`
 	Title     string `json:"title"`
 	ContentMD string `json:"content_md"`
+}
+
+// SoraS3Settings Sora S3 存储配置 DTO（响应用，不含敏感字段）
+type SoraS3Settings struct {
+	Enabled                   bool   `json:"enabled"`
+	Endpoint                  string `json:"endpoint"`
+	Region                    string `json:"region"`
+	Bucket                    string `json:"bucket"`
+	AccessKeyID               string `json:"access_key_id"`
+	SecretAccessKeyConfigured bool   `json:"secret_access_key_configured"`
+	Prefix                    string `json:"prefix"`
+	ForcePathStyle            bool   `json:"force_path_style"`
+	CDNURL                    string `json:"cdn_url"`
+	DefaultStorageQuotaBytes  int64  `json:"default_storage_quota_bytes"`
+}
+
+// SoraS3Profile Sora S3 存储配置项 DTO（响应用，不含敏感字段）
+type SoraS3Profile struct {
+	ProfileID                 string `json:"profile_id"`
+	Name                      string `json:"name"`
+	IsActive                  bool   `json:"is_active"`
+	Enabled                   bool   `json:"enabled"`
+	Endpoint                  string `json:"endpoint"`
+	Region                    string `json:"region"`
+	Bucket                    string `json:"bucket"`
+	AccessKeyID               string `json:"access_key_id"`
+	SecretAccessKeyConfigured bool   `json:"secret_access_key_configured"`
+	Prefix                    string `json:"prefix"`
+	ForcePathStyle            bool   `json:"force_path_style"`
+	CDNURL                    string `json:"cdn_url"`
+	DefaultStorageQuotaBytes  int64  `json:"default_storage_quota_bytes"`
+	UpdatedAt                 string `json:"updated_at"`
+}
+
+// ListSoraS3ProfilesResponse Sora S3 配置列表响应
+type ListSoraS3ProfilesResponse struct {
+	ActiveProfileID string          `json:"active_profile_id"`
+	Items           []SoraS3Profile `json:"items"`
+}
+
+// TLSFingerprintSettings TLS 指纹全局设置 DTO。
+type TLSFingerprintSettings struct {
+	Enabled bool `json:"enabled"`
+}
+
+// TLSFingerprintProfile TLS 指纹 Profile DTO。
+type TLSFingerprintProfile struct {
+	ProfileID    string   `json:"profile_id"`
+	Name         string   `json:"name"`
+	Enabled      bool     `json:"enabled"`
+	EnableGREASE bool     `json:"enable_grease"`
+	CipherSuites []uint16 `json:"cipher_suites"`
+	Curves       []uint16 `json:"curves"`
+	PointFormats []uint8  `json:"point_formats"`
+	UpdatedAt    string   `json:"updated_at"`
+}
+
+// ListTLSFingerprintProfilesResponse TLS 指纹配置列表响应。
+type ListTLSFingerprintProfilesResponse struct {
+	Enabled bool                    `json:"enabled"`
+	Items   []TLSFingerprintProfile `json:"items"`
 }
 
 // OverloadCooldownSettings 529过载冷却配置 DTO

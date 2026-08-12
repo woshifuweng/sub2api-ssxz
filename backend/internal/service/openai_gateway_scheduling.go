@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -1327,11 +1328,23 @@ func (s *OpenAIGatewayService) getSchedulableAccount(ctx context.Context, accoun
 	)
 	if s.schedulerSnapshot != nil {
 		account, err = s.schedulerSnapshot.GetAccount(ctx, accountID)
-	} else {
-		account, err = s.accountRepo.GetByID(ctx, accountID)
+		if err != nil {
+			logger.LegacyPrintf("service.openai_gateway", "[OpenAI] scheduler snapshot get account failed, fallback to repo: account=%d err=%v", accountID, err)
+		}
+	}
+	if account == nil && (s.schedulerSnapshot == nil || err != nil) {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
+		queryCtx, cancel := s.openAISchedulerDirectFallbackContext(ctx)
+		defer cancel()
+		account, err = s.accountRepo.GetByID(queryCtx, accountID)
 	}
 	if err != nil || account == nil {
 		return account, err
+	}
+	if s.isOpenAICircuitBlocked(account) {
+		return nil, nil
 	}
 	return account, nil
 }

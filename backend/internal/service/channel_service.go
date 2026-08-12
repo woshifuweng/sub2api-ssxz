@@ -550,8 +550,15 @@ func (s *ChannelService) ResolveChannelMappingAndRestrict(ctx context.Context, g
 	if groupID == nil {
 		return ChannelMappingResult{MappedModel: model}, false
 	}
-	lk, _ := s.lookupGroupChannel(ctx, *groupID)
+	lk, err := s.lookupGroupChannel(ctx, *groupID)
+	if err != nil {
+		slog.Warn("failed to load channel cache for mapping", "group_id", *groupID, "error", err)
+		return ChannelMappingResult{MappedModel: model}, false
+	}
 	if lk == nil {
+		// A successful lookup with no active channel is an expected no-channel
+		// case. Keep forwarding available and leave ChannelID at zero so usage
+		// persistence converts it to SQL NULL.
 		return ChannelMappingResult{MappedModel: model}, false
 	}
 	return resolveMapping(lk, *groupID, model), false
@@ -600,21 +607,6 @@ func ReplaceModelInBody(body []byte, newModel string) []byte {
 		return body
 	}
 	newBody, err := sjson.SetBytes(body, "model", newModel)
-	if err != nil {
-		return body
-	}
-	return newBody
-}
-
-// RemovePreviousResponseIDFromBody 删除请求体中的 previous_response_id，用于会话失配时改用完整 input 重建上下文。
-func RemovePreviousResponseIDFromBody(body []byte) []byte {
-	if len(body) == 0 {
-		return body
-	}
-	if !gjson.GetBytes(body, "previous_response_id").Exists() {
-		return body
-	}
-	newBody, err := sjson.DeleteBytes(body, "previous_response_id")
 	if err != nil {
 		return body
 	}
@@ -679,7 +671,6 @@ func checkPricesNotNegative(p ChannelModelPricing) error {
 		{"output_price", p.OutputPrice},
 		{"cache_write_price", p.CacheWritePrice},
 		{"cache_read_price", p.CacheReadPrice},
-		{"image_input_price", p.ImageInputPrice},
 		{"image_output_price", p.ImageOutputPrice},
 		{"per_request_price", p.PerRequestPrice},
 	}
@@ -1001,7 +992,7 @@ func validateNoConflictingMappings(mapping map[string]map[string]string) error {
 
 func validatePricingIntervals(pricingList []ChannelModelPricing) error {
 	for _, pricing := range pricingList {
-		if err := ValidateIntervals(pricing.Intervals, pricing.BillingMode); err != nil {
+		if err := ValidateIntervals(pricing.Intervals); err != nil {
 			return infraerrors.BadRequest(
 				"INVALID_PRICING_INTERVALS",
 				fmt.Sprintf("invalid pricing intervals for platform '%s' models %v: %v",
@@ -1018,8 +1009,7 @@ func detectConflicts(entries []modelEntry, platform, errCode, label string) erro
 		for j := i + 1; j < len(entries); j++ {
 			if conflictsBetween(entries[i], entries[j]) {
 				return infraerrors.BadRequest(errCode,
-					fmt.Sprintf("%s '%s' and '%s' conflict in platform '%s': overlapping match range "+
-						"(model names are matched case-insensitively, so an existing entry already covers all case variants)",
+					fmt.Sprintf("%s '%s' and '%s' conflict in platform '%s': overlapping match range",
 						label, entries[i].pattern, entries[j].pattern, platform))
 			}
 		}

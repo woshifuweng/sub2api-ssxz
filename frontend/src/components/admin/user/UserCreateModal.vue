@@ -39,9 +39,16 @@
         </div>
         <div>
           <label class="input-label">{{ t('admin.users.columns.concurrency') }}</label>
-          <input v-model.number="form.concurrency" type="number" class="input" />
+          <input v-model.number="form.concurrency" type="number" class="input" :disabled="form.unlimited_concurrency" />
         </div>
       </div>
+      <label class="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 dark:border-dark-600 dark:text-gray-300">
+        <input v-model="form.unlimited_concurrency" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+        <div>
+          <div class="font-medium">{{ t('admin.users.unlimitedConcurrency') }}</div>
+          <div class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.users.unlimitedConcurrencyHint') }}</div>
+        </div>
+      </label>
       <div>
         <label class="input-label">{{ t('admin.users.form.rpmLimit') }}</label>
         <input
@@ -82,7 +89,7 @@ const props = defineProps<{ show: boolean }>()
 const emit = defineEmits(['close', 'success']); const { t } = useI18n()
 const appStore = useAppStore()
 
-const form = reactive({ email: '', password: '', username: '', notes: '', role: 'user' as 'user' | 'admin', balance: '', concurrency: 1, rpm_limit: 0 })
+const form = reactive({ email: '', password: '', username: '', notes: '', role: 'user' as 'user' | 'admin', balance: '', concurrency: 1, rpm_limit: 0, unlimited_concurrency: false })
 
 const stepUp = useStepUp()
 const loading = ref(false)
@@ -91,6 +98,9 @@ const submit = async () => {
   if (loading.value) return
   loading.value = true
   try {
+    if (!form.unlimited_concurrency && (!form.concurrency || form.concurrency < 1)) {
+      throw new Error(t('admin.users.concurrencyMin'))
+    }
     const { balance: rawBalance, ...rest } = { ...form }
     const balance = String(rawBalance).trim()
     const payload: typeof rest & { balance?: number } = { ...rest }
@@ -116,7 +126,7 @@ const submit = async () => {
   } finally { loading.value = false }
 }
 
-watch(() => props.show, (v) => { if(v) Object.assign(form, { email: '', password: '', username: '', notes: '', role: 'user', balance: '', concurrency: 1, rpm_limit: 0 }) })
+watch(() => props.show, (v) => { if(v) Object.assign(form, { email: '', password: '', username: '', notes: '', role: 'user', balance: '', concurrency: 1, rpm_limit: 0, unlimited_concurrency: false }) })
 
 const generateRandomPassword = () => {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%^&*'

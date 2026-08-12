@@ -531,6 +531,10 @@ func (s *AuthService) IsEmailVerifyEnabled(ctx context.Context) bool {
 
 // Login 用户登录，返回JWT token
 func (s *AuthService) Login(ctx context.Context, email, password string) (string, *User, error) {
+	if s == nil || s.userRepo == nil {
+		return "", nil, ErrServiceUnavailable
+	}
+
 	// 查找用户
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
@@ -1244,6 +1248,9 @@ func (s *AuthService) ValidateToken(tokenString string) (*JWTClaims, error) {
 			// token 过期但仍返回 claims（用于 RefreshToken 等场景）
 			// jwt-go 在解析时即使遇到过期错误，token.Claims 仍会被填充
 			if claims, ok := token.Claims.(*JWTClaims); ok {
+				if claims.Issuer != "" && claims.Issuer != s.cfg.JWT.Env {
+					return nil, fmt.Errorf("token issuer %q does not match env %q", claims.Issuer, s.cfg.JWT.Env)
+				}
 				return claims, ErrTokenExpired
 			}
 			return nil, ErrTokenExpired
@@ -1252,6 +1259,9 @@ func (s *AuthService) ValidateToken(tokenString string) (*JWTClaims, error) {
 	}
 
 	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
+		if claims.Issuer != "" && claims.Issuer != s.cfg.JWT.Env {
+			return nil, fmt.Errorf("token issuer %q does not match env %q", claims.Issuer, s.cfg.JWT.Env)
+		}
 		return claims, nil
 	}
 
@@ -1310,6 +1320,7 @@ func (s *AuthService) generateAccessToken(user *User, sessionID, bindingHash str
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
+			Issuer:    s.cfg.JWT.Env,
 		},
 	}
 
@@ -1531,8 +1542,8 @@ func (s *AuthService) ResetPassword(ctx context.Context, email, token, newPasswo
 		return ErrServiceUnavailable
 	}
 
-	// Also revoke all refresh tokens for this user
-	if err := s.RevokeAllUserSessions(ctx, user.ID); err != nil {
+	// TokenVersion was already bumped above; only purge refresh tokens here.
+	if err := s.revokeAllUserRefreshTokens(ctx, user.ID); err != nil {
 		logger.LegacyPrintf("service.auth", "[Auth] Failed to revoke refresh tokens for user %d: %v", user.ID, err)
 		// Don't return error - password was already changed successfully
 	}
@@ -1633,14 +1644,14 @@ func (s *AuthService) generateRefreshToken(ctx context.Context, user *User, fami
 
 	// 添加到用户Token集合
 	if err := s.refreshTokenCache.AddToUserTokenSet(ctx, user.ID, tokenHash, ttl); err != nil {
-		logger.LegacyPrintf("service.auth", "[Auth] Failed to add token to user set: %v", err)
-		// 不影响主流程
+		_ = s.refreshTokenCache.DeleteRefreshToken(ctx, tokenHash)
+		return "", fmt.Errorf("add refresh token to user set: %w", err)
 	}
 
 	// 添加到家族Token集合
 	if err := s.refreshTokenCache.AddToFamilyTokenSet(ctx, familyID, tokenHash, ttl); err != nil {
-		logger.LegacyPrintf("service.auth", "[Auth] Failed to add token to family set: %v", err)
-		// 不影响主流程
+		_ = s.refreshTokenCache.DeleteRefreshToken(ctx, tokenHash)
+		return "", fmt.Errorf("add refresh token to family set: %w", err)
 	}
 
 	return rawToken, nil
@@ -1665,8 +1676,18 @@ func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string)
 	data, err := s.refreshTokenCache.GetRefreshToken(ctx, tokenHash)
 	if err != nil {
 		if errors.Is(err, ErrRefreshTokenNotFound) {
-			// Token不存在，可能是已被使用（Token轮转）或已过期
-			logger.LegacyPrintf("service.auth", "[Auth] Refresh token not found, possible reuse attack")
+			familyID, consumed, consumedErr := s.refreshTokenCache.GetConsumedRefreshTokenFamily(ctx, tokenHash)
+			if consumedErr != nil {
+				logger.LegacyPrintf("service.auth", "[Auth] Error checking consumed refresh token marker: %v", consumedErr)
+				return nil, ErrServiceUnavailable
+			}
+			if consumed {
+				if revokeErr := s.refreshTokenCache.DeleteTokenFamily(ctx, familyID); revokeErr != nil {
+					logger.LegacyPrintf("service.auth", "[Auth] Failed to revoke replayed refresh token family %s: %v", familyID, revokeErr)
+				}
+				logger.LegacyPrintf("service.auth", "[Auth] Refresh token replay detected for family %s", familyID)
+				return nil, ErrRefreshTokenReused
+			}
 			return nil, ErrRefreshTokenInvalid
 		}
 		logger.LegacyPrintf("service.auth", "[Auth] Error getting refresh token: %v", err)
@@ -1716,10 +1737,19 @@ func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string)
 		}
 	}
 
-	// Token轮转：立即使旧Token失效
+	ttl := time.Until(data.ExpiresAt)
+	if ttl < 0 {
+		ttl = 0
+	}
+
+	// Remove the old token and retain a consumed marker for replay detection.
 	if err := s.refreshTokenCache.DeleteRefreshToken(ctx, tokenHash); err != nil {
 		logger.LegacyPrintf("service.auth", "[Auth] Failed to delete old refresh token: %v", err)
-		// 继续处理，不影响主流程
+		return nil, ErrServiceUnavailable
+	}
+	if err := s.refreshTokenCache.StoreConsumedRefreshTokenFamily(ctx, tokenHash, data.FamilyID, ttl); err != nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Failed to store consumed refresh token marker: %v", err)
+		return nil, ErrServiceUnavailable
 	}
 
 	// 生成新的Token对，保持同一个家族ID
@@ -1755,11 +1785,17 @@ func (s *AuthService) RevokeSessionFamily(ctx context.Context, familyID string) 
 	return s.refreshTokenCache.DeleteTokenFamily(ctx, familyID)
 }
 
-// RevokeAllUserSessions 撤销用户的所有会话（所有Refresh Token）
-// 用于密码更改或用户主动登出所有设备
+func (s *AuthService) revokeAllUserRefreshTokens(ctx context.Context, userID int64) error {
+	if s.refreshTokenCache == nil {
+		return nil
+	}
+	return s.refreshTokenCache.DeleteUserRefreshTokens(ctx, userID)
+}
+
+// RevokeAllUserSessions revokes all refresh sessions for a user.
 func (s *AuthService) RevokeAllUserSessions(ctx context.Context, userID int64) error {
 	if s.refreshTokenCache == nil {
-		return nil // No-op if cache not configured
+		return nil
 	}
 	return s.refreshTokenCache.DeleteUserRefreshTokens(ctx, userID)
 }

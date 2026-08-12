@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -9,7 +11,10 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -18,102 +23,128 @@ import (
 
 // PaymentHandler handles user-facing payment requests.
 type PaymentHandler struct {
-	paymentService *service.PaymentService
-	configService  *service.PaymentConfigService
+	channelService                  *service.ChannelService
+	paymentService                  *service.PaymentService
+	configService                   *service.PaymentConfigService
+	authService                     *service.AuthService
+	createOrderFn                   func(context.Context, service.CreateOrderRequest) (*service.CreateOrderResponse, error)
+	parseWeChatPaymentResumeTokenFn func(string) (*service.WeChatPaymentResumeClaims, error)
 }
 
 // NewPaymentHandler creates a new PaymentHandler.
-func NewPaymentHandler(paymentService *service.PaymentService, configService *service.PaymentConfigService) *PaymentHandler {
-	return &PaymentHandler{
+func NewPaymentHandler(paymentService *service.PaymentService, configService *service.PaymentConfigService, channelService *service.ChannelService, authService *service.AuthService) *PaymentHandler {
+	h := &PaymentHandler{
+		channelService: channelService,
 		paymentService: paymentService,
 		configService:  configService,
+		authService:    authService,
 	}
+	if paymentService != nil {
+		h.createOrderFn = paymentService.CreateOrder
+		h.parseWeChatPaymentResumeTokenFn = paymentService.ParseWeChatPaymentResumeToken
+	}
+	return h
 }
 
 // GetPaymentConfig returns the payment system configuration.
 // GET /api/v1/payment/config
 func (h *PaymentHandler) GetPaymentConfig(c *gin.Context) {
-	cfg, err := h.configService.GetPaymentConfig(c.Request.Context())
+	h.GetPaymentConfigGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) GetPaymentConfigGateway(c gatewayctx.GatewayContext) {
+	cfg, err := h.configService.GetPaymentConfig(c.Request().Context())
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Success(c, cfg)
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, cfg)
 }
 
 // GetPlans returns subscription plans available for sale.
 // GET /api/v1/payment/plans
 func (h *PaymentHandler) GetPlans(c *gin.Context) {
-	plans, err := h.configService.ListPlansForSale(c.Request.Context())
+	h.GetPlansGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) GetPlansGateway(c gatewayctx.GatewayContext) {
+	plans, err := h.configService.ListPlansForSale(c.Request().Context())
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 	// Enrich plans with group platform for frontend color coding
 	type planWithPlatform struct {
-		ID                 int64    `json:"id"`
-		GroupID            int64    `json:"group_id"`
-		GroupPlatform      string   `json:"group_platform"`
-		GroupName          string   `json:"group_name"`
-		RateMultiplier     float64  `json:"rate_multiplier"`
-		PeakRateEnabled    bool     `json:"peak_rate_enabled"`
-		PeakStart          string   `json:"peak_start"`
-		PeakEnd            string   `json:"peak_end"`
-		PeakRateMultiplier float64  `json:"peak_rate_multiplier"`
-		Name               string   `json:"name"`
-		Description        string   `json:"description"`
-		Price              float64  `json:"price"`
-		OriginalPrice      *float64 `json:"original_price,omitempty"`
-		Currency           string   `json:"currency,omitempty"`
-		ValidityDays       int      `json:"validity_days"`
-		ValidityUnit       string   `json:"validity_unit"`
-		Features           string   `json:"features"`
-		ProductName        string   `json:"product_name"`
-		ForSale            bool     `json:"for_sale"`
-		SortOrder          int      `json:"sort_order"`
+		ID            int64    `json:"id"`
+		GroupID       int64    `json:"group_id"`
+		GroupPlatform string   `json:"group_platform"`
+		Name          string   `json:"name"`
+		Description   string   `json:"description"`
+		Price         float64  `json:"price"`
+		OriginalPrice *float64 `json:"original_price,omitempty"`
+		ValidityDays  int      `json:"validity_days"`
+		ValidityUnit  string   `json:"validity_unit"`
+		Features      string   `json:"features"`
+		ProductName   string   `json:"product_name"`
+		ForSale       bool     `json:"for_sale"`
+		SortOrder     int      `json:"sort_order"`
 	}
-	groupInfo := h.configService.GetGroupInfoMap(c.Request.Context(), plans)
+	groupInfo := h.configService.GetGroupInfoMap(c.Request().Context(), plans)
 	result := make([]planWithPlatform, 0, len(plans))
 	for _, p := range plans {
-		gi := groupInfo[p.GroupID]
 		result = append(result, planWithPlatform{
-			ID: int64(p.ID), GroupID: p.GroupID,
-			GroupPlatform: gi.Platform, GroupName: gi.Name,
-			RateMultiplier: gi.RateMultiplier, PeakRateEnabled: gi.PeakRateEnabled,
-			PeakStart: gi.PeakStart, PeakEnd: gi.PeakEnd, PeakRateMultiplier: gi.PeakRateMultiplier,
+			ID: int64(p.ID), GroupID: p.GroupID, GroupPlatform: groupInfo[p.GroupID].Platform,
 			Name: p.Name, Description: p.Description, Price: p.Price, OriginalPrice: p.OriginalPrice,
-			Currency:     p.Currency,
 			ValidityDays: p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: p.Features,
 			ProductName: p.ProductName, ForSale: p.ForSale, SortOrder: p.SortOrder,
 		})
 	}
-	response.Success(c, result)
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, result)
+}
+
+// GetChannels returns enabled payment channels.
+// GET /api/v1/payment/channels
+func (h *PaymentHandler) GetChannels(c *gin.Context) {
+	h.GetChannelsGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) GetChannelsGateway(c gatewayctx.GatewayContext) {
+	channels, _, err := h.channelService.List(c.Request().Context(), pagination.PaginationParams{Page: 1, PageSize: 1000}, "active", "")
+	if err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
+		return
+	}
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, channels)
 }
 
 // GetCheckoutInfo returns all data the payment page needs in a single call:
 // payment methods with limits, subscription plans, and configuration.
 // GET /api/v1/payment/checkout-info
 func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
-	ctx := c.Request.Context()
+	h.GetCheckoutInfoGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) GetCheckoutInfoGateway(c gatewayctx.GatewayContext) {
+	ctx := c.Request().Context()
 
 	// Fetch limits (methods + global range)
 	limitsResp, err := h.configService.GetAvailableMethodLimits(ctx)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 
 	// Fetch payment config
 	cfg, err := h.configService.GetPaymentConfig(ctx)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 	alipayMobilePrecreateDeepLink := false
 	if cfg.AlipayMobilePrecreateDeepLink {
 		alipayMobilePrecreateDeepLink, err = h.configService.UsesOfficialAlipayVisibleMethod(ctx)
 		if err != nil {
-			response.ErrorFrom(c, err)
+			response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 			return
 		}
 	}
@@ -127,32 +158,26 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 		planList = append(planList, checkoutPlan{
 			ID: int64(p.ID), GroupID: p.GroupID,
 			GroupPlatform: gi.Platform, GroupName: gi.Name,
-			RateMultiplier:  gi.RateMultiplier,
-			PeakRateEnabled: gi.PeakRateEnabled, PeakStart: gi.PeakStart,
-			PeakEnd: gi.PeakEnd, PeakRateMultiplier: gi.PeakRateMultiplier,
-			DailyLimitUSD:  gi.DailyLimitUSD,
+			RateMultiplier: gi.RateMultiplier, DailyLimitUSD: gi.DailyLimitUSD,
 			WeeklyLimitUSD: gi.WeeklyLimitUSD, MonthlyLimitUSD: gi.MonthlyLimitUSD,
 			ModelScopes: gi.ModelScopes,
 			Name:        p.Name, Description: p.Description, Price: p.Price, OriginalPrice: p.OriginalPrice,
-			Currency:     p.Currency,
 			ValidityDays: p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: parseFeatures(p.Features),
 			ProductName: p.ProductName,
 		})
 	}
 
-	response.Success(c, checkoutInfoResponse{
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, checkoutInfoResponse{
 		Methods:                       limitsResp.Methods,
 		GlobalMin:                     limitsResp.GlobalMin,
 		GlobalMax:                     limitsResp.GlobalMax,
 		Plans:                         planList,
 		BalanceDisabled:               cfg.BalanceDisabled,
 		BalanceRechargeMultiplier:     cfg.BalanceRechargeMultiplier,
-		SubscriptionUSDToCNYRate:      cfg.SubscriptionUSDToCNYRate,
 		RechargeFeeRate:               cfg.RechargeFeeRate,
 		HelpText:                      cfg.HelpText,
 		HelpImageURL:                  cfg.HelpImageURL,
 		StripePublishableKey:          cfg.StripePublishableKey,
-		AlipayForceQRCode:             cfg.AlipayForceQRCode,
 		AlipayMobilePrecreateDeepLink: alipayMobilePrecreateDeepLink,
 	})
 }
@@ -164,38 +189,31 @@ type checkoutInfoResponse struct {
 	Plans                         []checkoutPlan                  `json:"plans"`
 	BalanceDisabled               bool                            `json:"balance_disabled"`
 	BalanceRechargeMultiplier     float64                         `json:"balance_recharge_multiplier"`
-	SubscriptionUSDToCNYRate      float64                         `json:"subscription_usd_to_cny_rate"`
 	RechargeFeeRate               float64                         `json:"recharge_fee_rate"`
 	HelpText                      string                          `json:"help_text"`
 	HelpImageURL                  string                          `json:"help_image_url"`
 	StripePublishableKey          string                          `json:"stripe_publishable_key"`
-	AlipayForceQRCode             bool                            `json:"alipay_force_qrcode"`
 	AlipayMobilePrecreateDeepLink bool                            `json:"alipay_mobile_precreate_deep_link"`
 }
 
 type checkoutPlan struct {
-	ID                 int64    `json:"id"`
-	GroupID            int64    `json:"group_id"`
-	GroupPlatform      string   `json:"group_platform"`
-	GroupName          string   `json:"group_name"`
-	RateMultiplier     float64  `json:"rate_multiplier"`
-	PeakRateEnabled    bool     `json:"peak_rate_enabled"`
-	PeakStart          string   `json:"peak_start"`
-	PeakEnd            string   `json:"peak_end"`
-	PeakRateMultiplier float64  `json:"peak_rate_multiplier"`
-	DailyLimitUSD      *float64 `json:"daily_limit_usd"`
-	WeeklyLimitUSD     *float64 `json:"weekly_limit_usd"`
-	MonthlyLimitUSD    *float64 `json:"monthly_limit_usd"`
-	ModelScopes        []string `json:"supported_model_scopes"`
-	Name               string   `json:"name"`
-	Description        string   `json:"description"`
-	Price              float64  `json:"price"`
-	OriginalPrice      *float64 `json:"original_price,omitempty"`
-	Currency           string   `json:"currency,omitempty"`
-	ValidityDays       int      `json:"validity_days"`
-	ValidityUnit       string   `json:"validity_unit"`
-	Features           []string `json:"features"`
-	ProductName        string   `json:"product_name"`
+	ID              int64    `json:"id"`
+	GroupID         int64    `json:"group_id"`
+	GroupPlatform   string   `json:"group_platform"`
+	GroupName       string   `json:"group_name"`
+	RateMultiplier  float64  `json:"rate_multiplier"`
+	DailyLimitUSD   *float64 `json:"daily_limit_usd"`
+	WeeklyLimitUSD  *float64 `json:"weekly_limit_usd"`
+	MonthlyLimitUSD *float64 `json:"monthly_limit_usd"`
+	ModelScopes     []string `json:"supported_model_scopes"`
+	Name            string   `json:"name"`
+	Description     string   `json:"description"`
+	Price           float64  `json:"price"`
+	OriginalPrice   *float64 `json:"original_price,omitempty"`
+	ValidityDays    int      `json:"validity_days"`
+	ValidityUnit    string   `json:"validity_unit"`
+	Features        []string `json:"features"`
+	ProductName     string   `json:"product_name"`
 }
 
 // parseFeatures splits a newline-separated features string into a string slice.
@@ -218,12 +236,16 @@ func parseFeatures(raw string) []string {
 // GetLimits returns per-payment-type limits derived from enabled provider instances.
 // GET /api/v1/payment/limits
 func (h *PaymentHandler) GetLimits(c *gin.Context) {
-	resp, err := h.configService.GetAvailableMethodLimits(c.Request.Context())
+	h.GetLimitsGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) GetLimitsGateway(c gatewayctx.GatewayContext) {
+	resp, err := h.configService.GetAvailableMethodLimits(c.Request().Context())
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Success(c, resp)
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, resp)
 }
 
 // CreateOrderRequest is the request body for creating a payment order.
@@ -239,59 +261,85 @@ type CreateOrderRequest struct {
 	// IsMobile lets the frontend declare its mobile status directly. When
 	// nil we fall back to User-Agent heuristics (which miss iPadOS / some
 	// embedded browsers that strip the "Mobile" keyword).
-	IsMobile *bool `json:"is_mobile,omitempty"`
+	IsMobile       *bool  `json:"is_mobile,omitempty"`
+	TurnstileToken string `json:"turnstile_token"`
 }
 
 // CreateOrder creates a new payment order.
 // POST /api/v1/payment/orders
 func (h *PaymentHandler) CreateOrder(c *gin.Context) {
-	subject, ok := requireAuth(c)
+	h.CreateOrderGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) CreateOrderGateway(c gatewayctx.GatewayContext) {
+	subject, ok := requireAuthGateway(c)
 	if !ok {
 		return
 	}
 
 	var req CreateOrderRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	if err := c.BindJSON(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.authService.VerifyTurnstile(c.Request().Context(), req.TurnstileToken, ip.GetClientIPContext(c)); err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
 	if strings.TrimSpace(req.WechatResumeToken) != "" {
-		claims, err := h.paymentService.ParseWeChatPaymentResumeToken(req.WechatResumeToken)
+		claims, err := h.parseWeChatPaymentResumeToken(req.WechatResumeToken)
 		if err != nil {
-			response.ErrorFrom(c, err)
+			response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 			return
 		}
 		if err := applyWeChatPaymentResumeClaims(&req, claims); err != nil {
-			response.ErrorFrom(c, err)
+			response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 			return
 		}
 	}
 
-	mobile := isMobile(c)
+	mobile := isMobileGateway(c)
 	if req.IsMobile != nil {
 		mobile = *req.IsMobile
 	}
-	result, err := h.paymentService.CreateOrder(c.Request.Context(), service.CreateOrderRequest{
+
+	svcReq := service.CreateOrderRequest{
 		UserID:          subject.UserID,
 		Amount:          req.Amount,
 		PaymentType:     req.PaymentType,
 		OpenID:          req.OpenID,
 		ClientIP:        c.ClientIP(),
 		IsMobile:        mobile,
-		IsWeChatBrowser: isWeChatBrowser(c),
-		SrcHost:         c.Request.Host,
-		SrcURL:          c.Request.Referer(),
+		IsWeChatBrowser: isWeChatBrowserGateway(c),
+		SrcHost:         c.Request().Host,
+		SrcURL:          c.Request().Referer(),
 		ReturnURL:       req.ReturnURL,
 		PaymentSource:   req.PaymentSource,
 		OrderType:       req.OrderType,
 		PlanID:          req.PlanID,
-		Locale:          c.GetHeader("Accept-Language"),
-	})
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
 	}
-	response.Success(c, result)
+
+	executeUserIdempotentGatewayJSONWithStoredResponse(c, paymentCreateOrderIdempotencyScope(subject.UserID), req, service.DefaultWriteIdempotencyTTL(), nil, func(ctx context.Context) (any, error) {
+		return h.createPaymentOrder(ctx, svcReq)
+	})
+}
+
+func paymentCreateOrderIdempotencyScope(userID int64) string {
+	return "user.payment.orders.create." + strconv.FormatInt(userID, 10)
+}
+
+func (h *PaymentHandler) createPaymentOrder(ctx context.Context, req service.CreateOrderRequest) (*service.CreateOrderResponse, error) {
+	if h.createOrderFn != nil {
+		return h.createOrderFn(ctx, req)
+	}
+	return h.paymentService.CreateOrder(ctx, req)
+}
+
+func (h *PaymentHandler) parseWeChatPaymentResumeToken(token string) (*service.WeChatPaymentResumeClaims, error) {
+	if h.parseWeChatPaymentResumeTokenFn != nil {
+		return h.parseWeChatPaymentResumeTokenFn(token)
+	}
+	return h.paymentService.ParseWeChatPaymentResumeToken(token)
 }
 
 func applyWeChatPaymentResumeClaims(req *CreateOrderRequest, claims *service.WeChatPaymentResumeClaims) error {
@@ -335,68 +383,80 @@ func applyWeChatPaymentResumeClaims(req *CreateOrderRequest, claims *service.WeC
 // GetMyOrders returns the authenticated user's orders.
 // GET /api/v1/payment/orders/my
 func (h *PaymentHandler) GetMyOrders(c *gin.Context) {
-	subject, ok := requireAuth(c)
+	h.GetMyOrdersGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) GetMyOrdersGateway(c gatewayctx.GatewayContext) {
+	subject, ok := requireAuthGateway(c)
 	if !ok {
 		return
 	}
 
-	page, pageSize := response.ParsePagination(c)
-	orders, total, err := h.paymentService.GetUserOrders(c.Request.Context(), subject.UserID, service.OrderListParams{
+	page, pageSize := response.ParsePaginationValues(c)
+	orders, total, err := h.paymentService.GetUserOrders(c.Request().Context(), subject.UserID, service.OrderListParams{
 		Page:        page,
 		PageSize:    pageSize,
-		Status:      c.Query("status"),
-		OrderType:   c.Query("order_type"),
-		PaymentType: c.Query("payment_type"),
+		Status:      c.QueryValue("status"),
+		OrderType:   c.QueryValue("order_type"),
+		PaymentType: c.QueryValue("payment_type"),
 	})
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Paginated(c, sanitizePaymentOrdersForResponse(orders), int64(total), page, pageSize)
+	response.PaginatedContext(gatewayJSONResponder{ctx: c}, sanitizePaymentOrdersForResponse(orders), int64(total), page, pageSize)
 }
 
 // GetOrder returns a single order for the authenticated user.
 // GET /api/v1/payment/orders/:id
 func (h *PaymentHandler) GetOrder(c *gin.Context) {
-	subject, ok := requireAuth(c)
+	h.GetOrderGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) GetOrderGateway(c gatewayctx.GatewayContext) {
+	subject, ok := requireAuthGateway(c)
 	if !ok {
 		return
 	}
 
-	orderID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	orderID, err := strconv.ParseInt(c.PathParam("id"), 10, 64)
 	if err != nil {
-		response.BadRequest(c, "Invalid order ID")
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid order ID")
 		return
 	}
 
-	order, err := h.paymentService.GetOrder(c.Request.Context(), orderID, subject.UserID)
+	order, err := h.paymentService.GetOrder(c.Request().Context(), orderID, subject.UserID)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Success(c, sanitizePaymentOrderForResponse(order))
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, sanitizePaymentOrderForResponse(order))
 }
 
 // CancelOrder cancels a pending order for the authenticated user.
 // POST /api/v1/payment/orders/:id/cancel
 func (h *PaymentHandler) CancelOrder(c *gin.Context) {
-	subject, ok := requireAuth(c)
+	h.CancelOrderGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) CancelOrderGateway(c gatewayctx.GatewayContext) {
+	subject, ok := requireAuthGateway(c)
 	if !ok {
 		return
 	}
 
-	orderID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	orderID, err := strconv.ParseInt(c.PathParam("id"), 10, 64)
 	if err != nil {
-		response.BadRequest(c, "Invalid order ID")
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid order ID")
 		return
 	}
 
-	msg, err := h.paymentService.CancelOrder(c.Request.Context(), orderID, subject.UserID)
+	msg, err := h.paymentService.CancelOrder(c.Request().Context(), orderID, subject.UserID)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Success(c, gin.H{"message": msg})
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, gin.H{"message": msg})
 }
 
 // RefundRequestBody is the request body for requesting a refund.
@@ -407,38 +467,46 @@ type RefundRequestBody struct {
 // RequestRefund submits a refund request for a completed order.
 // POST /api/v1/payment/orders/:id/refund-request
 func (h *PaymentHandler) RequestRefund(c *gin.Context) {
-	subject, ok := requireAuth(c)
+	h.RequestRefundGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) RequestRefundGateway(c gatewayctx.GatewayContext) {
+	subject, ok := requireAuthGateway(c)
 	if !ok {
 		return
 	}
 
-	orderID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	orderID, err := strconv.ParseInt(c.PathParam("id"), 10, 64)
 	if err != nil {
-		response.BadRequest(c, "Invalid order ID")
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid order ID")
 		return
 	}
 
 	var req RefundRequestBody
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	if err := c.BindJSON(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
 
-	if err := h.paymentService.RequestRefund(c.Request.Context(), orderID, subject.UserID, req.Reason); err != nil {
-		response.ErrorFrom(c, err)
+	if err := h.paymentService.RequestRefund(c.Request().Context(), orderID, subject.UserID, req.Reason); err != nil {
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Success(c, gin.H{"message": "refund requested"})
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, gin.H{"message": "refund requested"})
 }
 
 // GetRefundEligibleProviders returns provider instance IDs that allow user refund.
 func (h *PaymentHandler) GetRefundEligibleProviders(c *gin.Context) {
-	ids, err := h.configService.GetUserRefundEligibleInstanceIDs(c.Request.Context())
+	h.GetRefundEligibleProvidersGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) GetRefundEligibleProvidersGateway(c gatewayctx.GatewayContext) {
+	ids, err := h.configService.GetUserRefundEligibleInstanceIDs(c.Request().Context())
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Success(c, gin.H{"provider_instance_ids": ids})
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, gin.H{"provider_instance_ids": ids})
 }
 
 // VerifyOrderRequest is the request body for verifying a payment order.
@@ -454,56 +522,40 @@ type ResolveOrderByResumeTokenRequest struct {
 // if payment was made, and processes it if so.
 // POST /api/v1/payment/orders/verify
 func (h *PaymentHandler) VerifyOrder(c *gin.Context) {
-	subject, ok := requireAuth(c)
+	h.VerifyOrderGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) VerifyOrderGateway(c gatewayctx.GatewayContext) {
+	subject, ok := requireAuthGateway(c)
 	if !ok {
 		return
 	}
 
 	var req VerifyOrderRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	if err := c.BindJSON(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
 
-	order, err := h.paymentService.VerifyOrderByOutTradeNo(c.Request.Context(), req.OutTradeNo, subject.UserID)
+	order, err := h.paymentService.VerifyOrderByOutTradeNo(c.Request().Context(), req.OutTradeNo, subject.UserID)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Success(c, sanitizePaymentOrderForResponse(order))
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, sanitizePaymentOrderForResponse(order))
 }
 
-// PublicOrderResult is returned after a signed resume-token lookup. The token
-// proves possession of the checkout session, so the result keeps the legacy
-// frontend contract needed by payment result pages.
+// PublicOrderResult is the limited order info returned by the public verify endpoint.
+// No user details are exposed — only payment status information.
 type PublicOrderResult struct {
-	ID                  int64      `json:"id"`
-	OutTradeNo          string     `json:"out_trade_no"`
-	Amount              float64    `json:"amount"`
-	PayAmount           float64    `json:"pay_amount"`
-	FeeRate             float64    `json:"fee_rate"`
-	Currency            string     `json:"currency"`
-	PaymentType         string     `json:"payment_type"`
-	OrderType           string     `json:"order_type"`
-	Status              string     `json:"status"`
-	CreatedAt           time.Time  `json:"created_at"`
-	ExpiresAt           time.Time  `json:"expires_at"`
-	PaidAt              *time.Time `json:"paid_at,omitempty"`
-	CompletedAt         *time.Time `json:"completed_at,omitempty"`
-	RefundAmount        float64    `json:"refund_amount"`
-	RefundReason        *string    `json:"refund_reason,omitempty"`
-	RefundRequestedAt   *time.Time `json:"refund_requested_at,omitempty"`
-	RefundRequestedBy   *string    `json:"refund_requested_by,omitempty"`
-	RefundRequestReason *string    `json:"refund_request_reason,omitempty"`
-	PlanID              *int64     `json:"plan_id,omitempty"`
-}
-
-// PublicOrderVerifyResult is returned by the legacy anonymous out_trade_no
-// lookup. Keep this intentionally minimal because out_trade_no is not secret.
-type PublicOrderVerifyResult struct {
+	ID          int64      `json:"id"`
 	OutTradeNo  string     `json:"out_trade_no"`
+	Amount      float64    `json:"amount"`
+	PayAmount   float64    `json:"pay_amount"`
+	FeeRate     float64    `json:"fee_rate"`
+	PaymentType string     `json:"payment_type"`
+	OrderType   string     `json:"order_type"`
 	Status      string     `json:"status"`
-	Paid        bool       `json:"paid"`
 	CreatedAt   time.Time  `json:"created_at"`
 	ExpiresAt   time.Time  `json:"expires_at"`
 	PaidAt      *time.Time `json:"paid_at,omitempty"`
@@ -512,33 +564,14 @@ type PublicOrderVerifyResult struct {
 
 func buildPublicOrderResult(order *dbent.PaymentOrder) PublicOrderResult {
 	return PublicOrderResult{
-		ID:                  order.ID,
-		OutTradeNo:          order.OutTradeNo,
-		Amount:              order.Amount,
-		PayAmount:           order.PayAmount,
-		FeeRate:             order.FeeRate,
-		Currency:            service.PaymentOrderCurrency(order),
-		PaymentType:         order.PaymentType,
-		OrderType:           order.OrderType,
-		Status:              order.Status,
-		CreatedAt:           order.CreatedAt,
-		ExpiresAt:           order.ExpiresAt,
-		PaidAt:              order.PaidAt,
-		CompletedAt:         order.CompletedAt,
-		RefundAmount:        order.RefundAmount,
-		RefundReason:        order.RefundReason,
-		RefundRequestedAt:   order.RefundRequestedAt,
-		RefundRequestedBy:   order.RefundRequestedBy,
-		RefundRequestReason: order.RefundRequestReason,
-		PlanID:              order.PlanID,
-	}
-}
-
-func buildPublicOrderVerifyResult(order *dbent.PaymentOrder) PublicOrderVerifyResult {
-	return PublicOrderVerifyResult{
+		ID:          order.ID,
 		OutTradeNo:  order.OutTradeNo,
+		Amount:      order.Amount,
+		PayAmount:   order.PayAmount,
+		FeeRate:     order.FeeRate,
+		PaymentType: order.PaymentType,
+		OrderType:   order.OrderType,
 		Status:      order.Status,
-		Paid:        publicOrderStatusPaid(order.Status),
 		CreatedAt:   order.CreatedAt,
 		ExpiresAt:   order.ExpiresAt,
 		PaidAt:      order.PaidAt,
@@ -546,71 +579,66 @@ func buildPublicOrderVerifyResult(order *dbent.PaymentOrder) PublicOrderVerifyRe
 	}
 }
 
-func publicOrderStatusPaid(status string) bool {
-	switch status {
-	case service.OrderStatusPaid,
-		service.OrderStatusCompleted,
-		service.OrderStatusRefundRequested,
-		service.OrderStatusRefunding,
-		service.OrderStatusRefundPending,
-		service.OrderStatusPartiallyRefunded,
-		service.OrderStatusRefunded,
-		service.OrderStatusRefundFailed:
-		return true
-	default:
-		return false
-	}
-}
-
 // VerifyOrderPublic keeps the legacy anonymous out_trade_no lookup available as
 // a compatibility path for older result pages and staggered deploys.
 // POST /api/v1/payment/public/orders/verify
 func (h *PaymentHandler) VerifyOrderPublic(c *gin.Context) {
+	h.VerifyOrderPublicGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) VerifyOrderPublicGateway(c gatewayctx.GatewayContext) {
 	var req VerifyOrderRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	if err := c.BindJSON(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
 
-	order, err := h.paymentService.VerifyOrderPublic(c.Request.Context(), req.OutTradeNo)
+	order, err := h.paymentService.VerifyOrderPublic(c.Request().Context(), req.OutTradeNo)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Success(c, buildPublicOrderVerifyResult(order))
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, buildPublicOrderResult(order))
 }
 
 // ResolveOrderPublicByResumeToken resolves a payment order from a signed resume token.
 // POST /api/v1/payment/public/orders/resolve
 func (h *PaymentHandler) ResolveOrderPublicByResumeToken(c *gin.Context) {
+	h.ResolveOrderPublicByResumeTokenGateway(gatewayctx.FromGin(c))
+}
+
+func (h *PaymentHandler) ResolveOrderPublicByResumeTokenGateway(c gatewayctx.GatewayContext) {
 	var req ResolveOrderByResumeTokenRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+	if err := c.BindJSON(&req); err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid request: "+err.Error())
 		return
 	}
 
-	order, err := h.paymentService.GetPublicOrderByResumeToken(c.Request.Context(), req.ResumeToken)
+	order, err := h.paymentService.GetPublicOrderByResumeToken(c.Request().Context(), req.ResumeToken)
 	if err != nil {
-		response.ErrorFrom(c, err)
+		response.ErrorFromContext(gatewayJSONResponder{ctx: c}, err)
 		return
 	}
-	response.Success(c, buildPublicOrderResult(order))
+	response.SuccessContext(gatewayJSONResponder{ctx: c}, buildPublicOrderResult(order))
 }
 
 // requireAuth extracts the authenticated subject from the context.
 // Returns the subject and true on success; on failure it writes an Unauthorized response and returns false.
 func requireAuth(c *gin.Context) (middleware2.AuthSubject, bool) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	return requireAuthGateway(gatewayctx.FromGin(c))
+}
+
+func requireAuthGateway(c gatewayctx.GatewayContext) (middleware2.AuthSubject, bool) {
+	subject, ok := middleware2.GetAuthSubjectFromGatewayContext(c)
 	if !ok {
-		response.Unauthorized(c, "User not authenticated")
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusUnauthorized, "User not authenticated")
 		return middleware2.AuthSubject{}, false
 	}
 	return subject, true
 }
 
-// isMobile detects mobile user agents.
-func isMobile(c *gin.Context) bool {
-	ua := strings.ToLower(c.GetHeader("User-Agent"))
+func isMobileGateway(c gatewayctx.GatewayContext) bool {
+	ua := strings.ToLower(c.HeaderValue("User-Agent"))
 	for _, kw := range []string{"mobile", "android", "iphone", "ipad", "ipod"} {
 		if strings.Contains(ua, kw) {
 			return true
@@ -619,69 +647,35 @@ func isMobile(c *gin.Context) bool {
 	return false
 }
 
-type PaymentOrderResult struct {
-	ID                  int64      `json:"id"`
-	UserID              int64      `json:"user_id"`
-	Amount              float64    `json:"amount"`
-	PayAmount           float64    `json:"pay_amount"`
-	FeeRate             float64    `json:"fee_rate"`
-	Currency            string     `json:"currency"`
-	PaymentType         string     `json:"payment_type"`
-	OutTradeNo          string     `json:"out_trade_no"`
-	Status              string     `json:"status"`
-	OrderType           string     `json:"order_type"`
-	CreatedAt           time.Time  `json:"created_at"`
-	ExpiresAt           time.Time  `json:"expires_at"`
-	PaidAt              *time.Time `json:"paid_at,omitempty"`
-	CompletedAt         *time.Time `json:"completed_at,omitempty"`
-	RefundAmount        float64    `json:"refund_amount"`
-	RefundReason        *string    `json:"refund_reason,omitempty"`
-	RefundRequestedAt   *time.Time `json:"refund_requested_at,omitempty"`
-	RefundRequestedBy   *string    `json:"refund_requested_by,omitempty"`
-	RefundRequestReason *string    `json:"refund_request_reason,omitempty"`
-	PlanID              *int64     `json:"plan_id,omitempty"`
-	ProviderInstanceID  *string    `json:"provider_instance_id,omitempty"`
+func isWeChatBrowserGateway(c gatewayctx.GatewayContext) bool {
+	return strings.Contains(strings.ToLower(c.HeaderValue("User-Agent")), "micromessenger")
 }
 
-func sanitizePaymentOrdersForResponse(orders []*dbent.PaymentOrder) []PaymentOrderResult {
-	out := make([]PaymentOrderResult, 0, len(orders))
+// isMobile detects mobile user agents.
+func isMobile(c *gin.Context) bool {
+	return isMobileGateway(gatewayctx.FromGin(c))
+}
+
+func sanitizePaymentOrdersForResponse(orders []*dbent.PaymentOrder) []*dbent.PaymentOrder {
+	if len(orders) == 0 {
+		return orders
+	}
+	out := make([]*dbent.PaymentOrder, 0, len(orders))
 	for _, order := range orders {
-		if item := sanitizePaymentOrderForResponse(order); item != nil {
-			out = append(out, *item)
-		}
+		out = append(out, sanitizePaymentOrderForResponse(order))
 	}
 	return out
 }
 
-func sanitizePaymentOrderForResponse(order *dbent.PaymentOrder) *PaymentOrderResult {
+func sanitizePaymentOrderForResponse(order *dbent.PaymentOrder) *dbent.PaymentOrder {
 	if order == nil {
 		return nil
 	}
-	return &PaymentOrderResult{
-		ID:                  order.ID,
-		UserID:              order.UserID,
-		Amount:              order.Amount,
-		PayAmount:           order.PayAmount,
-		FeeRate:             order.FeeRate,
-		Currency:            service.PaymentOrderCurrency(order),
-		PaymentType:         order.PaymentType,
-		OutTradeNo:          order.OutTradeNo,
-		Status:              order.Status,
-		OrderType:           order.OrderType,
-		CreatedAt:           order.CreatedAt,
-		ExpiresAt:           order.ExpiresAt,
-		PaidAt:              order.PaidAt,
-		CompletedAt:         order.CompletedAt,
-		RefundAmount:        order.RefundAmount,
-		RefundReason:        order.RefundReason,
-		RefundRequestedAt:   order.RefundRequestedAt,
-		RefundRequestedBy:   order.RefundRequestedBy,
-		RefundRequestReason: order.RefundRequestReason,
-		PlanID:              order.PlanID,
-		ProviderInstanceID:  order.ProviderInstanceID,
-	}
+	cloned := *order
+	cloned.ProviderSnapshot = nil
+	return &cloned
 }
 
 func isWeChatBrowser(c *gin.Context) bool {
-	return strings.Contains(strings.ToLower(c.GetHeader("User-Agent")), "micromessenger")
+	return isWeChatBrowserGateway(gatewayctx.FromGin(c))
 }

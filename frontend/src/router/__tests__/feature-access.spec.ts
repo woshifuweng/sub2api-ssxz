@@ -53,6 +53,14 @@ vi.mock('@/stores/adminSettings', () => ({
   useAdminSettingsStore: () => ({ customMenuItems: [] }),
 }))
 
+vi.mock('@/stores/reseller', () => ({
+  useResellerStore: () => ({
+    fetchMyRole: vi.fn(),
+    isReseller: false,
+    isAgent: false,
+  }),
+}))
+
 vi.mock('@/stores/adminCompliance', () => ({
   useAdminComplianceStore: () => ({
     initialized: true,
@@ -155,7 +163,7 @@ describe('feature route guard', () => {
   })
 
   it.each([
-    ['payment', { requiresPayment: true }, { payment_enabled: false }, '/dashboard'],
+    ['payment', { requiresPayment: true }, { payment_enabled: false }, '/app/dashboard'],
     [
       'risk control',
       { requiresRiskControl: true },

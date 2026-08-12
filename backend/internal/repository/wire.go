@@ -13,6 +13,13 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+func ProvideBalanceLedgerRepositories(repo service.BalanceLedgerRepository) []service.BalanceLedgerRepository {
+	if repo == nil {
+		return nil
+	}
+	return []service.BalanceLedgerRepository{repo}
+}
+
 // ProvideConcurrencyCache 创建并发控制缓存，从配置读取 TTL 参数
 // 性能优化：TTL 可配置，支持长时间运行的 LLM 请求场景
 func ProvideConcurrencyCache(rdb *redis.Client, cfg *config.Config) service.ConcurrencyCache {
@@ -72,8 +79,13 @@ var ProviderSet = wire.NewSet(
 	NewCompositeModelRouteRepository,
 	NewAccountRepository,
 	NewAdminAccountRepository,
+	NewSoraAccountRepository,    // Sora 账号扩展表仓储
+	NewSoraGenerationRepository, // Sora 生成记录仓储
+	NewChatWorkspaceRepository,
 	NewScheduledTestPlanRepository,   // 定时测试计划仓储
 	NewScheduledTestResultRepository, // 定时测试结果仓储
+	NewProxyMaintenancePlanRepository,
+	NewProxyMaintenanceResultRepository,
 	NewProxyRepository,
 	NewRedeemCodeRepository,
 	NewPromoCodeRepository,
@@ -83,8 +95,10 @@ var ProviderSet = wire.NewSet(
 	NewUsageBillingRepository,
 	NewBatchImageRepository,
 	NewIdempotencyRepository,
+	NewAdminTaskStateRepository,
 	NewUsageCleanupRepository,
 	NewDashboardAggregationRepository,
+	NewDashboardOperationsRepository,
 	NewSettingRepository,
 	NewOpsRepository,
 	NewAuditLogRepository,
@@ -101,9 +115,11 @@ var ProviderSet = wire.NewSet(
 	NewChannelMonitorRequestTemplateRepository,
 	NewContentModerationRepository,
 	NewAffiliateRepository,
+	NewResellerRepository,
+	NewBalanceLedgerRepository,
+	ProvideBalanceLedgerRepositories,
 	NewUserPlatformQuotaRepository,     // T14: user × platform quota
 	NewUserPlatformQuotaServiceAdapter, // T14: adapter → service.UserPlatformQuotaRepository
-
 	// Cache implementations
 	NewGatewayCache,
 	NewBillingCache,
@@ -122,6 +138,8 @@ var ProviderSet = wire.NewSet(
 	NewIdentityCache,
 	NewRedeemCache,
 	NewUpdateCache,
+	NewIdempotencyCache,
+	NewTaskStateCache,
 	NewGeminiTokenCache,
 	NewImageTaskStore,
 	NewBatchImageQueue,

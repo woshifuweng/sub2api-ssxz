@@ -30,6 +30,7 @@ type RateLimitService struct {
 	settingService        *SettingService
 	tokenCacheInvalidator TokenCacheInvalidator
 	runtimeBlocker        AccountRuntimeBlocker
+	balanceNotifyService  *BalanceNotifyService
 	usageCacheMu          sync.RWMutex
 	usageCache            map[int64]*geminiUsageCacheEntry
 }
@@ -112,6 +113,23 @@ func (s *RateLimitService) SetTokenCacheInvalidator(invalidator TokenCacheInvali
 	s.tokenCacheInvalidator = invalidator
 }
 
+// SetBalanceNotifyService wires the existing operator alert mechanism without
+// changing the rate-limit constructor used by unit tests.
+func (s *RateLimitService) SetBalanceNotifyService(notifier *BalanceNotifyService) {
+	if s != nil {
+		s.balanceNotifyService = notifier
+	}
+}
+
+// NotifyAccountState exposes the upstream-state alert hook to gateway
+// implementations that detect provider-specific exhaustion.
+func (s *RateLimitService) NotifyAccountState(ctx context.Context, account *Account, status string) {
+	if s == nil || s.balanceNotifyService == nil {
+		return
+	}
+	s.balanceNotifyService.NotifyUpstreamAccountState(ctx, account, status)
+}
+
 func (s *RateLimitService) SetAccountRuntimeBlocker(blocker AccountRuntimeBlocker) {
 	s.runtimeBlocker = blocker
 }
@@ -177,6 +195,10 @@ func (s *RateLimitService) CheckErrorPolicy(ctx context.Context, account *Accoun
 // 返回是否应该停止该账号的调度
 func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Account, statusCode int, headers http.Header, responseBody []byte, requestedModel ...string) (shouldDisable bool) {
 	ctx = withTempUnschedulableModel(ctx, requestedModel)
+	if account != nil && account.IgnorePauseSchedulingErrors() {
+		slog.Info("account_pause_scheduling_ignored", "account_id", account.ID, "status_code", statusCode, "reason", "ignore_pause_scheduling_errors")
+		return false
+	}
 	customErrorCodesEnabled := account.IsCustomErrorCodesEnabled()
 
 	// 池模式默认不标记本地账号状态；但管理员显式配置的临时不可调度规则优先。
@@ -775,6 +797,19 @@ func (s *RateLimitService) handleAuthError(ctx context.Context, account *Account
 		return
 	}
 	slog.Warn("account_disabled_auth_error", "account_id", account.ID, "error", errorMsg)
+	s.NotifyAccountState(ctx, account, classifyUpstreamAccountAlertStatus(errorMsg))
+}
+
+func classifyUpstreamAccountAlertStatus(errorMsg string) string {
+	lower := strings.ToLower(errorMsg)
+	switch {
+	case strings.Contains(lower, "quota"), strings.Contains(lower, "exhaust"), strings.Contains(lower, "credit balance"), strings.Contains(lower, "insufficient balance"):
+		return "exhausted"
+	case strings.Contains(lower, "banned"), strings.Contains(lower, "violation"), strings.Contains(lower, "suspended"), strings.Contains(lower, "revoked"), strings.Contains(lower, "disabled"):
+		return "banned"
+	default:
+		return "unavailable"
+	}
 }
 
 func buildForbiddenErrorMessage(prefix string, upstreamMsg string, responseBody []byte, fallback string) string {
@@ -922,6 +957,7 @@ func (s *RateLimitService) handleCustomErrorCode(ctx context.Context, account *A
 		return
 	}
 	slog.Warn("account_disabled_custom_error", "account_id", account.ID, "status_code", statusCode, "error", errorMsg)
+	s.NotifyAccountState(ctx, account, "unavailable")
 }
 
 // handle429 处理429限流错误
@@ -1903,6 +1939,10 @@ func (s *RateLimitService) GetTempUnschedStatus(ctx context.Context, accountID i
 }
 
 func (s *RateLimitService) HandleTempUnschedulable(ctx context.Context, account *Account, statusCode int, responseBody []byte, requestedModel ...string) bool {
+	if account != nil && account.IgnorePauseSchedulingErrors() {
+		slog.Info("account_temp_unschedulable_ignored", "account_id", account.ID, "status_code", statusCode)
+		return false
+	}
 	if account == nil {
 		return false
 	}
@@ -2284,6 +2324,10 @@ func truncateTempUnschedMessage(body []byte, maxBytes int) string {
 // 返回是否应该停止该账号的调度
 func (s *RateLimitService) HandleStreamTimeout(ctx context.Context, account *Account, model string) bool {
 	if account == nil {
+		return false
+	}
+	if account.IgnorePauseSchedulingErrors() {
+		slog.Info("account_stream_timeout_pause_ignored", "account_id", account.ID, "model", model)
 		return false
 	}
 

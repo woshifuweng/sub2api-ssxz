@@ -13,23 +13,36 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
-      args:
-        NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}
-    container_name: sub2api-dev
+    container_name: "${SUB2API_CONTAINER_NAME:-sub2api-dev}"
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
     ports:
       - "${BIND_HOST:-127.0.0.1}:${SERVER_PORT:-8080}:8080"
     volumes:
-      - ./data:/app/data:Z
+      - "${SUB2API_DATA_DIR:-./data}:/app/data"
     environment:
       - AUTO_SETUP=true
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8080
       - SERVER_MODE=debug
-      - ENABLE_SERVER_TIMING=${ENABLE_SERVER_TIMING:-false}
+      - SERVER_RUNTIME_MODE=gnet
+      - SERVER_H2C_ENABLED=true
       - RUN_MODE=${RUN_MODE:-standard}
+      - PROCESS_MODE=single
+      - RUST_SIDECAR_ENABLED=true
+      - RUST_SIDECAR_AUTO_START=true
+      - RUST_SIDECAR_BINARY_PATH=/app/bin/sub2api-rust-proxyd
+      - RUST_SIDECAR_SOCKET_PATH=/tmp/sub2api-rust-sidecar.sock
+      - RUST_SIDECAR_UPSTREAM_SOCKET_PATH=/tmp/sub2api-rust-upstream.sock
+      - RUST_SIDECAR_HEALTHCHECK_TIMEOUT_SECONDS=10
+      - RUST_SIDECAR_FAIL_CLOSED=true
+      - RUST_SIDECAR_H2C_DELEGATE_ENABLED=true
+      - RUST_SIDECAR_RESPONSES_WS_ENABLED=true
+      - RUST_FFI_ENABLED=true
+      - RUST_FFI_LIBRARY_PATH=/app/lib/libstreamcore.so
+      - RUST_FFI_HASH_ENABLED=true
+      - RUST_FFI_STREAMING_ENABLED=true
       - DATABASE_HOST=postgres
       - DATABASE_PORT=5432
       - DATABASE_USER=${POSTGRES_USER:-sub2api}
@@ -87,7 +100,7 @@ services:
     networks:
       - sub2api-network
     healthcheck:
-      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://localhost:8080/health"]
+      test: ["CMD-SHELL", "test -x /app/bin/sub2api-rust-proxyd && test -r /app/lib/libstreamcore.so && python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX); s.settimeout(5); s.connect(\"/tmp/sub2api-rust-sidecar.sock\"); s.sendall(b\"GET /healthz HTTP/1.1\\r\\nHost: rust-sidecar\\r\\nConnection: close\\r\\n\\r\\n\"); data=s.recv(512); sys.exit(0 if b\"200\" in data and b\"proxyd\" in data else 1)' && wget -q -T 5 -O /dev/null http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -95,10 +108,10 @@ services:
 
   postgres:
     image: postgres:18-alpine
-    container_name: sub2api-postgres-dev
+    container_name: "${POSTGRES_CONTAINER_NAME:-sub2api-postgres-dev}"
     restart: unless-stopped
     volumes:
-      - ./postgres_data:/var/lib/postgresql/data:Z
+      - "${POSTGRES_DATA_DIR:-./postgres_data}:/var/lib/postgresql/data"
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-sub2api}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
@@ -116,14 +129,10 @@ services:
 
   redis:
     image: redis:8-alpine
-    container_name: sub2api-redis-dev
+    container_name: "${REDIS_CONTAINER_NAME:-sub2api-redis-dev}"
     restart: unless-stopped
     volumes:
-      - ./redis_data:/data:Z
-    # The command is one quoted script for the inner `sh -c`. Compose keeps
-    # the newlines inside the quoted string, so every line needs a trailing
-    # `\` — without it, `redis-server` on the first line runs with no flags
-    # at all, and the --save/--appendonly/--appendfsync lines are never read.
+      - "${REDIS_DATA_DIR:-./redis_data}:/data"
     command: >
         sh -c '
           redis-server \

@@ -74,11 +74,11 @@ func (h *OpsHandler) ListIngressRejects(c *gin.Context) {
 		}
 		filter.ClientIP = addr.String()
 	}
-	if filter.UserID, err = parseOptionalPositiveID(c, "user_id"); err != nil {
+	if filter.UserID, err = parseOptionalIngressRejectPositiveID(c, "user_id"); err != nil {
 		response.BadRequest(c, err.Error())
 		return
 	}
-	if filter.APIKeyID, err = parseOptionalPositiveID(c, "api_key_id"); err != nil {
+	if filter.APIKeyID, err = parseOptionalIngressRejectPositiveID(c, "api_key_id"); err != nil {
 		response.BadRequest(c, err.Error())
 		return
 	}
@@ -114,7 +114,7 @@ func parseIngressRejectEnum(c *gin.Context, name string, allowed map[string]stru
 	return value, nil
 }
 
-func parseOptionalPositiveID(c *gin.Context, name string) (*int64, error) {
+func parseOptionalIngressRejectPositiveID(c *gin.Context, name string) (*int64, error) {
 	raw := strings.TrimSpace(c.Query(name))
 	if raw == "" {
 		return nil, nil

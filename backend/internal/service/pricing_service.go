@@ -131,6 +131,8 @@ type LiteLLMModelPricing struct {
 	// 此类条目只可用于图片计费，token 计费必须回退到 fallback 或 fail-closed，
 	// 否则 token 流量会被按 $0 计费。零值（false）表示条目具备 token 价格。
 	TokenPricingAbsent bool `json:"-"`
+	MaxInputTokens     *int `json:"max_input_tokens,omitempty"`
+	MaxOutputTokens    *int `json:"max_output_tokens,omitempty"`
 }
 
 // PricingRemoteClient 远程价格数据获取接口
@@ -160,6 +162,8 @@ type LiteLLMRawEntry struct {
 	OutputCostPerImage                  *float64 `json:"output_cost_per_image"`
 	OutputCostPerImageToken             *float64 `json:"output_cost_per_image_token"`
 	InputCostPerImageToken              *float64 `json:"input_cost_per_image_token"`
+	MaxInputTokens                      *int     `json:"max_input_tokens"`
+	MaxOutputTokens                     *int     `json:"max_output_tokens"`
 }
 
 // PricingService 动态价格服务
@@ -189,6 +193,11 @@ func NewPricingService(cfg *config.Config, remoteClient PricingRemoteClient) *Pr
 
 // Initialize 初始化价格服务
 func (s *PricingService) Initialize() error {
+	return s.InitializeWithBackground(true)
+}
+
+// InitializeWithBackground initializes pricing data and optionally starts the periodic sync loop.
+func (s *PricingService) InitializeWithBackground(enableBackground bool) error {
 	// 确保数据目录存在
 	if err := os.MkdirAll(s.cfg.Pricing.DataDir, 0755); err != nil {
 		logger.LegacyPrintf("service.pricing", "[Pricing] Failed to create data directory: %v", err)
@@ -203,7 +212,9 @@ func (s *PricingService) Initialize() error {
 	}
 
 	// 启动定时更新
-	s.startUpdateScheduler()
+	if enableBackground {
+		s.startUpdateScheduler()
+	}
 
 	logger.LegacyPrintf("service.pricing", "[Pricing] Service initialized with %d models", len(s.pricingData))
 	return nil
@@ -499,6 +510,8 @@ func (s *PricingService) parsePricingData(body []byte) (map[string]*LiteLLMModel
 		if entry.InputCostPerImageToken != nil {
 			pricing.InputCostPerImageToken = *entry.InputCostPerImageToken
 		}
+		pricing.MaxInputTokens = entry.MaxInputTokens
+		pricing.MaxOutputTokens = entry.MaxOutputTokens
 
 		result[modelName] = pricing
 	}

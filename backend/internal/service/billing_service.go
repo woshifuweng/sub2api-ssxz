@@ -161,7 +161,10 @@ type CostBreakdown struct {
 	CacheReadCost             float64
 	TotalCost                 float64
 	ActualCost                float64 // 应用倍率后的实际费用
-	BillingMode               string  // 计费模式（"token"/"per_request"/"image"），由 CalculateCostUnified 填充
+	ImageUnitPrice            float64
+	ImageQualityMultiplier    float64
+	ImageEffectiveMultiplier  float64
+	BillingMode               string // 计费模式（"token"/"per_request"/"image"），由 CalculateCostUnified 填充
 	LongContextBillingApplied bool
 }
 
@@ -263,6 +266,42 @@ func (s *BillingService) initFallbackPricing() {
 	s.fallbackPrices["claude-opus-4.8"] = s.fallbackPrices["claude-opus-4.7"]
 	s.fallbackPrices["claude-opus-5"] = s.fallbackPrices["claude-opus-4.8"]
 
+	// Claude Fable 5（官方：$10 输入 / $50 输出 per MTok）。
+	// 缺少此条时 getFallbackPricing 会掉到 claude-sonnet-4（$3/$15），造成 70% 少收。
+	s.fallbackPrices["claude-fable-5"] = &ModelPricing{
+		InputPricePerToken:         10e-6,   // $10 per MTok
+		OutputPricePerToken:        50e-6,   // $50 per MTok
+		CacheCreationPricePerToken: 12.5e-6, // $12.50 per MTok
+		CacheReadPricePerToken:     1e-6,    // $1.00 per MTok
+		CacheCreation5mPrice:       12.5e-6, // $12.50 per MTok
+		CacheCreation1hPrice:       20e-6,   // $20 per MTok
+		SupportsCacheBreakdown:     true,
+	}
+
+	// Claude Sonnet 5：官方 introductory 价（$2 输入 / $10 输出 per MTok），
+	// 2026-09-01 UTC 起转标准价（$3/$15）。切换见 getFallbackPricingAt。
+	// 缺少此条时会掉到 claude-3-5-sonnet（$3/$15），introductory 期内造成 50% 超收。
+	s.fallbackPrices["claude-sonnet-5"] = &ModelPricing{
+		InputPricePerToken:         2e-6,   // $2 per MTok
+		OutputPricePerToken:        10e-6,  // $10 per MTok
+		CacheCreationPricePerToken: 2.5e-6, // $2.50 per MTok
+		CacheReadPricePerToken:     0.2e-6, // $0.20 per MTok
+		CacheCreation5mPrice:       2.5e-6, // $2.50 per MTok
+		CacheCreation1hPrice:       4e-6,   // $4 per MTok
+		SupportsCacheBreakdown:     true,
+	}
+
+	// Claude Sonnet 5 标准价（2026-09-01 UTC 起生效）
+	s.fallbackPrices["claude-sonnet-5-standard"] = &ModelPricing{
+		InputPricePerToken:         3e-6,    // $3 per MTok
+		OutputPricePerToken:        15e-6,   // $15 per MTok
+		CacheCreationPricePerToken: 3.75e-6, // $3.75 per MTok
+		CacheReadPricePerToken:     0.3e-6,  // $0.30 per MTok
+		CacheCreation5mPrice:       3.75e-6, // $3.75 per MTok
+		CacheCreation1hPrice:       6e-6,    // $6 per MTok
+		SupportsCacheBreakdown:     true,
+	}
+
 	// Gemini 3.1 Pro
 	s.fallbackPrices["gemini-3.1-pro"] = &ModelPricing{
 		InputPricePerToken:         2e-6,   // $2 per MTok
@@ -297,9 +336,24 @@ func (s *BillingService) initFallbackPricing() {
 		LongContextInputMultiplier:     openAIGPT54LongContextInputMultiplier,
 		LongContextOutputMultiplier:    openAIGPT54LongContextOutputMultiplier,
 	}
-	// GPT-5.5 / GPT-5.5 Pro 暂无独立定价，回退到 GPT-5.4。
-	s.fallbackPrices["gpt-5.5"] = s.fallbackPrices["gpt-5.4"]
-	s.fallbackPrices["gpt-5.5-pro"] = s.fallbackPrices["gpt-5.4"]
+	// OpenAI GPT-5.5 官方价格（$5 输入 / $30 输出 per MTok，priority 双倍）。
+	// 曾别名到 GPT-5.4（$2.5/$15），fallback 生效时少收 50%。
+	// 缓存写入沿用 GPT-5.4/5.5 这代的 1× 输入价约定（官方价目表未单列该字段）。
+	s.fallbackPrices["gpt-5.5"] = &ModelPricing{
+		InputPricePerToken:             5e-6,   // $5 per MTok
+		InputPricePerTokenPriority:     10e-6,  // $10 per MTok
+		OutputPricePerToken:            30e-6,  // $30 per MTok
+		OutputPricePerTokenPriority:    60e-6,  // $60 per MTok
+		CacheCreationPricePerToken:     5e-6,   // $5 per MTok（1× 输入价）
+		CacheReadPricePerToken:         0.5e-6, // $0.50 per MTok
+		CacheReadPricePerTokenPriority: 1e-6,   // $1.00 per MTok
+		SupportsCacheBreakdown:         false,
+		LongContextInputThreshold:      openAIGPT54LongContextInputThreshold,
+		LongContextInputMultiplier:     openAIGPT54LongContextInputMultiplier,
+		LongContextOutputMultiplier:    openAIGPT54LongContextOutputMultiplier,
+	}
+	// GPT-5.5 Pro 暂无官方价目表数据，回退到 GPT-5.5。
+	s.fallbackPrices["gpt-5.5-pro"] = s.fallbackPrices["gpt-5.5"]
 
 	// OpenAI GPT-5.6 官方价格（USD/token）。缓存写入为输入价的 1.25 倍。
 	s.fallbackPrices["gpt-5.6-sol"] = &ModelPricing{
@@ -365,6 +419,18 @@ func (s *BillingService) initFallbackPricing() {
 		CacheReadPricePerTokenPriority: 0.35e-6,
 		SupportsCacheBreakdown:         false,
 	}
+	// OpenAI GPT-5.1（本地兜底，入门级，低于 GPT-5.2）
+	s.fallbackPrices["gpt-5.1"] = &ModelPricing{
+		InputPricePerToken:             1.25e-6, // $1.25 per MTok
+		InputPricePerTokenPriority:     2.5e-6,  // $2.50 per MTok
+		OutputPricePerToken:            10e-6,   // $10 per MTok
+		OutputPricePerTokenPriority:    20e-6,   // $20 per MTok
+		CacheCreationPricePerToken:     1.25e-6,
+		CacheReadPricePerToken:         0.125e-6,
+		CacheReadPricePerTokenPriority: 0.25e-6,
+		SupportsCacheBreakdown:         false,
+	}
+	s.fallbackPrices["gpt-5.1-codex"] = s.fallbackPrices["gpt-5.1"]
 	// Codex 族兜底统一按 GPT-5.3 Codex 价格计费
 	s.fallbackPrices["gpt-5.3-codex"] = &ModelPricing{
 		InputPricePerToken:             1.5e-6, // $1.5 per MTok
@@ -614,9 +680,34 @@ func (s *BillingService) initFallbackPricing() {
 	}
 }
 
-// getFallbackPricing 根据模型系列获取回退价格
+// claudeSonnet5StandardPricingStartsAt 是 Claude Sonnet 5 从 introductory 价
+// （$2/$10 per MTok）转为标准价（$3/$15 per MTok）的官方生效时刻。
+var claudeSonnet5StandardPricingStartsAt = time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC)
+
+// getFallbackPricing 根据模型系列获取回退价格（按当前时间解析时间敏感价格）
 func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
+	return s.getFallbackPricingAt(model, time.Now().UTC())
+}
+
+// getFallbackPricingAt 根据模型系列获取指定时刻的回退价格。
+// 部分模型存在官方限时 introductory 价，必须按请求时间解析，不能写死。
+func (s *BillingService) getFallbackPricingAt(model string, at time.Time) *ModelPricing {
 	modelLower := strings.ToLower(model)
+
+	// Claude Fable 5：型号名不含 opus/sonnet/haiku，必须显式匹配，
+	// 否则会掉到下方 claude 兜底（Sonnet 4，$3/$15），少收 70%。
+	if strings.Contains(modelLower, "fable-5") || strings.Contains(modelLower, "fable5") {
+		return s.fallbackPrices["claude-fable-5"]
+	}
+
+	// Claude Sonnet 5：必须先于通用 sonnet 分支判断。
+	// "sonnet-5" 不能用裸 "5" 匹配，否则 claude-sonnet-4-5 会被误判。
+	if strings.Contains(modelLower, "sonnet-5") || strings.Contains(modelLower, "sonnet5") {
+		if at.Before(claudeSonnet5StandardPricingStartsAt) {
+			return s.fallbackPrices["claude-sonnet-5"]
+		}
+		return s.fallbackPrices["claude-sonnet-5-standard"]
+	}
 
 	// 按模型系列匹配
 	if strings.Contains(modelLower, "opus") {
@@ -795,6 +886,10 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 			return s.fallbackPrices["gpt-5.4-nano"]
 		case "gpt-5.4":
 			return s.fallbackPrices["gpt-5.4"]
+		case "gpt-5.1":
+			return s.fallbackPrices["gpt-5.1"]
+		case "gpt-5.1-codex":
+			return s.fallbackPrices["gpt-5.1"]
 		case "gpt-5.2":
 			return s.fallbackPrices["gpt-5.2"]
 		case "gpt-5.3-codex", "gpt-5.3-codex-spark":
@@ -908,6 +1003,13 @@ func (s *BillingService) GetModelPricingWithChannel(model string, channelPricing
 	if channelPricing.CacheReadPrice != nil {
 		pricing.CacheReadPricePerToken = *channelPricing.CacheReadPrice
 		pricing.CacheReadPricePerTokenPriority = *channelPricing.CacheReadPrice
+	} else {
+		if pricing.CacheReadPricePerToken == 0 {
+			pricing.CacheReadPricePerToken = pricing.InputPricePerToken * 0.5
+		}
+		if pricing.CacheReadPricePerTokenPriority == 0 {
+			pricing.CacheReadPricePerTokenPriority = pricing.InputPricePerTokenPriority * 0.5
+		}
 	}
 	if channelPricing.ImageOutputPrice != nil {
 		pricing.ImageOutputPricePerToken = *channelPricing.ImageOutputPrice
@@ -915,7 +1017,6 @@ func (s *BillingService) GetModelPricingWithChannel(model string, channelPricing
 		pricing.ImageOutputPricePerToken = 0
 	}
 	pricing.ImageOutputPriceExplicit = true
-	applyChannelImageInputPrice(channelPricing, pricing)
 	return pricing, nil
 }
 
@@ -929,6 +1030,7 @@ type CostInput struct {
 	Tokens                    UsageTokens
 	RequestCount              int    // 按次计费时使用
 	SizeTier                  string // 按次/图片模式的层级标签（"1K","2K","4K","HD" 等）
+	Quality                   string // 图片质量层级（"low","auto","medium","high"）
 	RateMultiplier            float64
 	ServiceTier               string                // "priority","flex","" 等
 	Resolver                  *ModelPricingResolver // 定价解析器
@@ -1154,13 +1256,24 @@ func (s *BillingService) calculatePerRequestCost(resolved *ResolvedPricing, inpu
 		unitPrice = resolved.DefaultPerRequestPrice
 	}
 
-	totalCost := unitPrice * float64(count)
+	isImageCost := resolved.Mode == BillingModeImage || strings.TrimSpace(input.SizeTier) != ""
+	qualityMultiplier := 1.0
+	if isImageCost {
+		qualityMultiplier = imageQualityMultiplier(input.Quality)
+	}
+	totalCost := unitPrice * float64(count) * qualityMultiplier
 	actualCost := totalCost * input.RateMultiplier
 
-	return &CostBreakdown{
+	breakdown := &CostBreakdown{
 		TotalCost:  totalCost,
 		ActualCost: actualCost,
-	}, nil
+	}
+	if isImageCost {
+		breakdown.ImageUnitPrice = unitPrice
+		breakdown.ImageQualityMultiplier = qualityMultiplier
+		breakdown.ImageEffectiveMultiplier = qualityMultiplier * input.RateMultiplier
+	}
+	return breakdown, nil
 }
 
 // CalculateCost 计算使用费用
@@ -1467,17 +1580,22 @@ func (s *BillingService) CalculateWebSearchCost(callCount int, groupPrice *float
 // imageCount: 生成的图片数量
 // groupConfig: 分组配置的价格（可能为 nil，表示使用默认值）
 // rateMultiplier: 费率倍数
-func (s *BillingService) CalculateImageCost(model string, imageSize string, imageCount int, groupConfig *ImagePriceConfig, rateMultiplier float64) *CostBreakdown {
+func (s *BillingService) CalculateImageCost(model string, imageSize string, imageCount int, groupConfig *ImagePriceConfig, rateMultiplier float64, qualityArgs ...string) *CostBreakdown {
+	quality := ""
+	if len(qualityArgs) > 0 {
+		quality = qualityArgs[0]
+	}
 	if imageCount <= 0 {
 		return &CostBreakdown{}
 	}
-	imageSize = NormalizeImageBillingTierOrDefault(imageSize)
+	imageSize = normalizeImageBillingTierForModel(model, imageSize)
 
 	// 获取单价
 	unitPrice := s.getImageUnitPrice(model, imageSize, groupConfig)
 
 	// 计算总费用
-	totalCost := unitPrice * float64(imageCount)
+	qualityMultiplier := imageQualityMultiplier(quality)
+	totalCost := unitPrice * float64(imageCount) * qualityMultiplier
 
 	// 应用倍率（保存时强制 > 0；负数按 0 处理避免按 1x 误扣）
 	if rateMultiplier < 0 {
@@ -1486,9 +1604,12 @@ func (s *BillingService) CalculateImageCost(model string, imageSize string, imag
 	actualCost := totalCost * rateMultiplier
 
 	return &CostBreakdown{
-		TotalCost:   totalCost,
-		ActualCost:  actualCost,
-		BillingMode: string(BillingModeImage),
+		TotalCost:                totalCost,
+		ActualCost:               actualCost,
+		ImageUnitPrice:           unitPrice,
+		ImageQualityMultiplier:   qualityMultiplier,
+		ImageEffectiveMultiplier: qualityMultiplier * rateMultiplier,
+		BillingMode:              string(BillingModeImage),
 	}
 }
 

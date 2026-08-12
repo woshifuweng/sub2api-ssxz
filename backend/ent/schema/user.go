@@ -54,6 +54,8 @@ func (User) Fields() []ent.Field {
 			Default(0),
 		field.Int("concurrency").
 			Default(5),
+		field.Bool("unlimited_concurrency").
+			Default(false),
 		field.String("status").
 			MaxLen(20).
 			Default(domain.StatusActive),
@@ -114,6 +116,12 @@ func (User) Fields() []ent.Field {
 
 		// 用户级每分钟请求数上限（0 = 不限制）。仅当所在分组未设置 rpm_limit 时作为兜底生效。
 		field.Int("rpm_limit").
+			Default(0),
+
+		// Sora storage quotas. Zero means inherit the group/system policy.
+		field.Int64("sora_storage_quota_bytes").
+			Default(0),
+		field.Int64("sora_storage_used_bytes").
 			Default(0),
 	}
 }

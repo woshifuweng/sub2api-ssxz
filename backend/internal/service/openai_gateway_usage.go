@@ -508,7 +508,7 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageTokenCost(
 	serviceTier string,
 	longContextBillingEnabled bool,
 ) (*CostBreakdown, error) {
-	if s.resolver != nil && apiKey.Group != nil {
+	if s.modelPricingResolver != nil && apiKey.Group != nil {
 		gid := apiKey.Group.ID
 		return s.billingService.CalculateCostUnified(CostInput{
 			Ctx:                       ctx,
@@ -518,7 +518,7 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageTokenCost(
 			RequestCount:              1,
 			RateMultiplier:            multiplier,
 			ServiceTier:               serviceTier,
-			Resolver:                  s.resolver,
+			Resolver:                  s.modelPricingResolver,
 			LongContextBillingEnabled: &longContextBillingEnabled,
 		})
 	}
@@ -560,7 +560,7 @@ func (s *OpenAIGatewayService) calculateOpenAIImageCost(
 			RequestCount:   result.ImageCount,
 			SizeTier:       sizeTier,
 			RateMultiplier: multiplier,
-			Resolver:       s.resolver,
+			Resolver:       s.modelPricingResolver,
 			Resolved:       resolved,
 		})
 		if err == nil {
@@ -607,7 +607,7 @@ func (s *OpenAIGatewayService) calculateOpenAIVideoCost(
 			RequestCount:   videoCount,
 			SizeTier:       resolution,
 			RateMultiplier: multiplier,
-			Resolver:       s.resolver,
+			Resolver:       s.modelPricingResolver,
 			Resolved:       resolved,
 		})
 		if err == nil {
@@ -658,11 +658,11 @@ func groupMediaPricingLooksIncomplete(group *Group) bool {
 }
 
 func (s *OpenAIGatewayService) resolveOpenAIChannelPricing(ctx context.Context, billingModel string, apiKey *APIKey) *ResolvedPricing {
-	if s.resolver == nil || apiKey == nil || apiKey.Group == nil {
+	if s.modelPricingResolver == nil || apiKey == nil || apiKey.Group == nil {
 		return nil
 	}
 	gid := apiKey.Group.ID
-	resolved := s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid})
+	resolved := s.modelPricingResolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid})
 	if resolved.Source == PricingSourceChannel {
 		return resolved
 	}

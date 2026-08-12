@@ -3,6 +3,7 @@ package openai_ws_v2
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -71,6 +72,8 @@ type RelayOptions struct {
 	AfterClientWrite                func(msgType coderws.MessageType, payload []byte, writeErr error)
 	BeforeRelayCancel               func(exit RelayExit)
 	ReadClientFrame                 func(ctx context.Context, clientConn FrameConn) (coderws.MessageType, []byte, error)
+	TransformClientFrame            func(msgType coderws.MessageType, payload []byte) ([]byte, error)
+	BeforeClientFrame               func(msgType coderws.MessageType, payload []byte) error
 	OnTrace                         func(event RelayTraceEvent)
 	Now                             func() time.Time
 }
@@ -90,7 +93,9 @@ type relayState struct {
 	requestModelMu    sync.RWMutex
 	requestModel      string
 	lastResponseID    string
+	lastEventType     string
 	terminalEventType string
+	observedProtocol  bool
 	firstTokenMs      *int
 	turnTimingByID    map[string]*relayTurnTiming
 	activeTurn        *relayTurnTiming
@@ -115,6 +120,25 @@ type observedUpstreamEvent struct {
 type relayTurnTiming struct {
 	startAt      time.Time
 	firstTokenMs *int
+}
+
+type relayClientFrameError struct {
+	stage string
+	err   error
+}
+
+func (e *relayClientFrameError) Error() string {
+	if e == nil || e.err == nil {
+		return ""
+	}
+	return e.err.Error()
+}
+
+func (e *relayClientFrameError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
 }
 
 func Relay(
@@ -167,6 +191,32 @@ func Relay(
 		return upstreamConn.WriteFrame(writeCtx, msgType, payload)
 	}
 	writeClientFrameUpstream := func(msgType coderws.MessageType, payload []byte) error {
+		if options.TransformClientFrame != nil {
+			transformedPayload, err := options.TransformClientFrame(msgType, payload)
+			if err != nil {
+				emitRelayTrace(onTrace, RelayTraceEvent{
+					Stage:        "transform_client_frame_failed",
+					Direction:    "client_to_upstream",
+					MessageType:  relayMessageTypeString(msgType),
+					PayloadBytes: len(payload),
+					Error:        err.Error(),
+				})
+				return &relayClientFrameError{stage: "transform_client_frame", err: err}
+			}
+			payload = transformedPayload
+		}
+		if options.BeforeClientFrame != nil {
+			if err := options.BeforeClientFrame(msgType, payload); err != nil {
+				emitRelayTrace(onTrace, RelayTraceEvent{
+					Stage:        "before_client_frame_failed",
+					Direction:    "client_to_upstream",
+					MessageType:  relayMessageTypeString(msgType),
+					PayloadBytes: len(payload),
+					Error:        err.Error(),
+				})
+				return &relayClientFrameError{stage: "before_client_frame", err: err}
+			}
+		}
 		if msgType == coderws.MessageText && strings.TrimSpace(gjson.GetBytes(payload, "type").String()) == "response.create" {
 			state.setRequestModel(strings.TrimSpace(gjson.GetBytes(payload, "model").String()))
 		}
@@ -324,6 +374,7 @@ func Relay(
 		})
 		return result, nil
 	}
+	terminalObserved := relayHasObservedTerminalEvent(state)
 	if firstExit.stage == "read_client" && firstExit.graceful {
 		stage := "client_disconnected"
 		exitErr := firstExit.err
@@ -348,6 +399,29 @@ func Relay(
 		}
 	}
 	if firstExit.graceful && (!hasSecondExit || secondExit.graceful) {
+		if relayShouldFailIncompleteGracefulClose(state, combinedWroteDownstream, terminalObserved) {
+			recordIncompleteClose(combinedWroteDownstream)
+			incompleteExit := firstExit
+			if hasSecondExit && secondExit.stage != "" {
+				incompleteExit = secondExit
+			}
+			exitErr := relayIncompleteDisconnectError(incompleteExit.err)
+			emitRelayTrace(onTrace, RelayTraceEvent{
+				Stage:           "relay_exit",
+				Direction:       relayDirectionFromStage(incompleteExit.stage),
+				Graceful:        false,
+				WroteDownstream: combinedWroteDownstream,
+				Error:           relayErrorString(exitErr),
+			})
+			return result, &RelayExit{
+				Stage:           incompleteExit.stage,
+				Err:             exitErr,
+				WroteDownstream: combinedWroteDownstream,
+			}
+		}
+		if !terminalObserved && combinedWroteDownstream {
+			recordIncompleteClose(true)
+		}
 		emitRelayTrace(onTrace, RelayTraceEvent{
 			Stage:           "relay_complete",
 			Graceful:        true,
@@ -430,6 +504,11 @@ func runClientToUpstream(
 		}
 		markActivity()
 		if err := writeUpstream(msgType, payload); err != nil {
+			var frameErr *relayClientFrameError
+			if errors.As(err, &frameErr) {
+				exitCh <- relayExitSignal{stage: frameErr.stage, err: frameErr.err}
+				return
+			}
 			emitRelayTrace(onTrace, RelayTraceEvent{
 				Stage:        "write_upstream_failed",
 				Direction:    "client_to_upstream",
@@ -623,7 +702,7 @@ func relayMessageTypeString(msgType coderws.MessageType) string {
 
 func relayDirectionFromStage(stage string) string {
 	switch stage {
-	case "read_client", "write_upstream":
+	case "read_client", "write_upstream", "transform_client_frame", "before_client_frame":
 		return "client_to_upstream"
 	case "read_upstream", "write_client", "drain_terminal":
 		return "upstream_to_client"
@@ -656,6 +735,8 @@ func observeUpstreamMessage(
 	if eventType == "" {
 		return observedUpstreamEvent{}
 	}
+	state.lastEventType = eventType
+	state.observedProtocol = true
 	responseID := strings.TrimSpace(values[1].String())
 	if responseID == "" {
 		responseID = strings.TrimSpace(values[2].String())
@@ -910,6 +991,36 @@ func (s *relayState) currentRequestModel() string {
 	s.requestModelMu.RLock()
 	defer s.requestModelMu.RUnlock()
 	return s.requestModel
+}
+
+func relayHasObservedTerminalEvent(state *relayState) bool {
+	if state == nil {
+		return false
+	}
+	return strings.TrimSpace(state.terminalEventType) != ""
+}
+
+func relayShouldFailIncompleteGracefulClose(state *relayState, wroteDownstream bool, terminalObserved bool) bool {
+	if terminalObserved {
+		return false
+	}
+	if state != nil && strings.EqualFold(strings.TrimSpace(state.lastEventType), "error") {
+		return false
+	}
+	if !wroteDownstream {
+		return true
+	}
+	if wroteDownstream {
+		return false
+	}
+	return state != nil && state.observedProtocol
+}
+
+func relayIncompleteDisconnectError(err error) error {
+	if err == nil || isDisconnectError(err) {
+		return fmt.Errorf("stream closed before response.completed: %w", io.ErrUnexpectedEOF)
+	}
+	return err
 }
 
 func isDisconnectError(err error) bool {

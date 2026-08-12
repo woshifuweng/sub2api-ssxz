@@ -456,6 +456,11 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 	ctx context.Context,
 	req OpenAIAccountScheduleRequest,
 ) (*AccountSelectionResult, bool, error) {
+	if s != nil && s.service != nil && s.service.openAIAdvancedSchedulerSettingRepo() == nil {
+		selection, err := s.selectBySessionHashProductionCompat(ctx, req)
+		return selection, false, err
+	}
+
 	sessionHash := strings.TrimSpace(req.SessionHash)
 	if sessionHash == "" || s == nil || s.service == nil || s.service.cache == nil {
 		return nil, false, nil
@@ -545,6 +550,79 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 	return nil, false, nil
 }
 
+// selectBySessionHashProductionCompat preserves the production scheduler
+// contract for callers that do not wire the Wei-Shaw runtime settings stack.
+// Real server instances always provide a settings repository and use the
+// stricter implementation above.
+func (s *defaultOpenAIAccountScheduler) selectBySessionHashProductionCompat(
+	ctx context.Context,
+	req OpenAIAccountScheduleRequest,
+) (*AccountSelectionResult, error) {
+	sessionHash := strings.TrimSpace(req.SessionHash)
+	if sessionHash == "" || s == nil || s.service == nil || s.service.cache == nil {
+		return nil, nil
+	}
+
+	accountID := req.StickyAccountID
+	if accountID <= 0 {
+		var err error
+		accountID, err = s.service.getStickySessionAccountID(ctx, req.GroupID, sessionHash)
+		if err != nil || accountID <= 0 {
+			return nil, nil
+		}
+	}
+	if req.ExcludedIDs != nil {
+		if _, excluded := req.ExcludedIDs[accountID]; excluded {
+			return nil, nil
+		}
+	}
+
+	account, err := s.service.getSchedulableAccount(ctx, accountID)
+	if err != nil || account == nil {
+		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
+		return nil, nil
+	}
+	if shouldClearStickySession(account, req.RequestedModel) || !account.IsOpenAI() || !account.IsSchedulable() {
+		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
+		return nil, nil
+	}
+	if req.RequestedModel != "" && !account.IsModelSupported(req.RequestedModel) {
+		return nil, nil
+	}
+	if req.RequireCompact && openAICompactSupportTier(account) == 0 {
+		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
+		return nil, nil
+	}
+	if !s.isAccountTransportCompatible(account, req.RequiredTransport) {
+		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
+		return nil, nil
+	}
+
+	result, acquireErr := s.service.tryAcquireAccountSlot(ctx, accountID, account.Concurrency)
+	if acquireErr == nil && result != nil && result.Acquired {
+		_ = s.service.refreshStickySessionTTL(ctx, req.GroupID, sessionHash, s.service.openAIWSSessionStickyTTL())
+		return &AccountSelectionResult{
+			Account:     account,
+			Acquired:    true,
+			ReleaseFunc: result.ReleaseFunc,
+		}, nil
+	}
+
+	if s.service.concurrencyService != nil {
+		cfg := s.service.schedulingConfig()
+		return &AccountSelectionResult{
+			Account: account,
+			WaitPlan: &AccountWaitPlan{
+				AccountID:      accountID,
+				MaxConcurrency: account.Concurrency,
+				Timeout:        cfg.StickySessionWaitTimeout,
+				MaxWaiting:     cfg.StickySessionMaxWaiting,
+			},
+		}, nil
+	}
+	return nil, nil
+}
+
 func openAIStickyAccountMatchesGroup(account *Account, groupID *int64) bool {
 	if account == nil {
 		return false
@@ -595,6 +673,9 @@ type openAIAccountCandidateScore struct {
 	errorRate float64
 	ttft      float64
 	hasTTFT   bool
+	readyTier int
+	slotCap   int
+	slotFree  int
 }
 
 type openAIAccountCandidateHeap []openAIAccountCandidateScore
@@ -631,6 +712,12 @@ func (h *openAIAccountCandidateHeap) Pop() any {
 func isOpenAIAccountCandidateBetter(left openAIAccountCandidateScore, right openAIAccountCandidateScore) bool {
 	if left.score != right.score {
 		return left.score > right.score
+	}
+	if left.readyTier != right.readyTier {
+		return left.readyTier < right.readyTier
+	}
+	if left.slotFree != right.slotFree {
+		return left.slotFree > right.slotFree
 	}
 	if left.account.Priority != right.account.Priority {
 		return left.account.Priority < right.account.Priority
@@ -1464,6 +1551,7 @@ func (s *defaultOpenAIAccountScheduler) trySelectByLoadBalancePool(
 	budget *openAISelectionProbeBudget,
 ) openAIAccountLoadSelectionAttempt {
 	plan := s.buildOpenAIAccountLoadPlan(ctx, req, filtered, loadMap)
+	s.service.prefetchOpenAIAccountHealthCandidates(plan.selectionOrder, req.RequestedModel)
 	if openAICostOverflowExpanded(req, plan) {
 		budget.enableLimit()
 	}
@@ -1966,7 +2054,10 @@ func (s *OpenAIGatewayService) getOpenAIAccountScheduler(ctx context.Context) Op
 	if s == nil {
 		return nil
 	}
-	if !s.isOpenAIAdvancedSchedulerEnabled(ctx) {
+	// Wei-Shaw installations with scheduler settings explicitly disabled must
+	// retain the legacy selector. Production compatibility fixtures do not wire
+	// a settings repository, so they keep the base sticky-session scheduler.
+	if s.openAIAdvancedSchedulerSettingRepo() != nil && !s.isOpenAIAdvancedSchedulerEnabled(ctx) {
 		return nil
 	}
 	s.openaiSchedulerOnce.Do(func() {
@@ -1993,8 +2084,9 @@ func (s *OpenAIGatewayService) SelectAccountWithScheduler(
 	requestedModel string,
 	excludedIDs map[int64]struct{},
 	requiredTransport OpenAIUpstreamTransport,
-	requireCompact bool,
+	requireCompactOption ...bool,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	requireCompact := len(requireCompactOption) > 0 && requireCompactOption[0]
 	return s.selectAccountWithScheduler(ctx, groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, "", "", requireCompact, PlatformOpenAI, false, true)
 }
 
@@ -2247,9 +2339,28 @@ func (s *OpenAIGatewayService) isOpenAIAccountTransportCompatible(account *Accou
 	return s.getOpenAIWSProtocolResolver().Resolve(account).Transport == requiredTransport
 }
 
-func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResult(accountID int64, model string, success bool, firstTokenMs *int) {
+func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResult(accountID int64, args ...any) {
+	var (
+		model        string
+		success      bool
+		firstTokenMs *int
+	)
+	switch len(args) {
+	case 2:
+		success, _ = args[0].(bool)
+		firstTokenMs, _ = args[1].(*int)
+	case 3:
+		model, _ = args[0].(string)
+		success, _ = args[1].(bool)
+		firstTokenMs, _ = args[2].(*int)
+	default:
+		panic("ReportOpenAIAccountScheduleResult expects success/ttft or model/success/ttft")
+	}
 	if success {
 		s.clearOpenAIAccountModelTransientState(accountID, normalizeOpenAIAccountModelTransientModel(model))
+	}
+	if s.openAIAdvancedSchedulerSettingRepo() == nil || !s.isOpenAIAdvancedSchedulerEnabled(context.Background()) {
+		return
 	}
 	scheduler := s.getOpenAIAccountScheduler(context.Background())
 	if scheduler == nil {
@@ -2259,6 +2370,9 @@ func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResult(accountID int64
 }
 
 func (s *OpenAIGatewayService) RecordOpenAIAccountSwitch() {
+	if s == nil || s.openAIAdvancedSchedulerSettingRepo() == nil || !s.isOpenAIAdvancedSchedulerEnabled(context.Background()) {
+		return
+	}
 	scheduler := s.getOpenAIAccountScheduler(context.Background())
 	if scheduler == nil {
 		return
@@ -2267,6 +2381,9 @@ func (s *OpenAIGatewayService) RecordOpenAIAccountSwitch() {
 }
 
 func (s *OpenAIGatewayService) SnapshotOpenAIAccountSchedulerMetrics() OpenAIAccountSchedulerMetricsSnapshot {
+	if s == nil || s.openAIAdvancedSchedulerSettingRepo() == nil || !s.isOpenAIAdvancedSchedulerEnabled(context.Background()) {
+		return OpenAIAccountSchedulerMetricsSnapshot{}
+	}
 	scheduler := s.getOpenAIAccountScheduler(context.Background())
 	if scheduler == nil {
 		return OpenAIAccountSchedulerMetricsSnapshot{}

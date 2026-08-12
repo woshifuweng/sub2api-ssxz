@@ -1,228 +1,367 @@
 <template>
-  <div class="card p-4">
-    <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">
-      {{ t('admin.dashboard.tokenUsageTrend') }}
-    </h3>
-    <div v-if="loading" class="flex h-48 items-center justify-center">
+  <section
+    :class="[
+      'token-usage-trend',
+      variant === 'foundation' ? 'token-usage-trend--foundation' : 'card p-4',
+      { 'token-usage-trend--empty': variant === 'foundation' && !loading && trendData.length === 0 }
+    ]"
+  >
+    <header :class="{ 'token-usage-trend__header': variant === 'foundation' }">
+      <div>
+        <p v-if="variant === 'foundation'">Token 结构</p>
+        <h3>{{ t('admin.dashboard.tokenUsageTrend') }}</h3>
+      </div>
+      <span v-if="variant === 'foundation'">{{ trendData.length }} 个数据点</span>
+    </header>
+
+    <div v-if="loading" class="token-usage-trend__state">
       <LoadingSpinner />
     </div>
-    <div v-else-if="trendData.length > 0 && chartData" class="h-48">
+    <div v-else-if="trendData.length > 0 && chartData" class="token-usage-trend__chart">
       <Line :data="chartData" :options="lineOptions" />
     </div>
-    <div
-      v-else
-      class="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
-    >
-      {{ t('admin.dashboard.noDataAvailable') }}
+    <div v-else class="token-usage-trend__state token-usage-trend__state--empty">
+      <template v-if="showRangeShortcut">
+        <strong>所选区间无调用记录</strong>
+        <span v-if="lastCallAt" data-testid="trend-last-call">你最近一次调用在 {{ formatDateTime(lastCallAt) }}</span>
+        <span v-else>该账号还没有任何调用记录，完成一次模型调用后这里会显示趋势。</span>
+        <button
+          v-if="lastCallAt"
+          type="button"
+          class="token-usage-trend__range-button"
+          data-testid="trend-extend-range"
+          @click="$emit('extendRange')"
+        >
+          切换到近 30 天
+        </button>
+      </template>
+      <template v-else>
+        <strong>暂无 Token 趋势</strong>
+        <span>完成一次模型调用后，这里会显示输入与输出变化。</span>
+      </template>
     </div>
-  </div>
+  </section>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  Chart as ChartJS,
   CategoryScale,
+  Chart as ChartJS,
+  Filler,
+  Legend,
   LinearScale,
-  PointElement,
   LineElement,
+  PointElement,
   Title,
   Tooltip,
-  Legend,
-  Filler
+  type ChartData,
+  type ChartOptions
 } from 'chart.js'
 import { Line } from 'vue-chartjs'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { formatDateTime } from '@/utils/format'
 import type { TrendDataPoint } from '@/types'
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler
-)
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
 
 const { t } = useI18n()
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   trendData: TrendDataPoint[]
   loading?: boolean
-}>()
-
-const isDarkMode = computed(() => {
-  return document.documentElement.classList.contains('dark')
+  theme?: 'light' | 'dark'
+  variant?: 'default' | 'foundation'
+  lastCallAt?: string | null
+  showRangeShortcut?: boolean
+}>(), {
+  loading: false,
+  theme: undefined,
+  variant: 'default',
+  lastCallAt: null,
+  showRangeShortcut: false
 })
 
-const chartColors = computed(() => ({
-  text: isDarkMode.value ? '#e5e7eb' : '#374151',
-  grid: isDarkMode.value ? '#374151' : '#e5e7eb',
-  input: '#3b82f6',
-  output: '#10b981',
-  cacheCreation: '#f59e0b',
-  cacheRead: '#06b6d4',
-  cacheHitRate: '#8b5cf6'
-}))
+defineEmits(['extendRange'])
 
-const chartData = computed(() => {
+const isDarkMode = computed(() => {
+  if (props.theme) return props.theme === 'dark'
+  return typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+})
+
+const chartColors = computed(() => {
+  if (props.variant === 'foundation') {
+    return isDarkMode.value
+      ? {
+          text: '#a8b0bd',
+          grid: 'rgba(148, 163, 184, 0.16)',
+          input: '#e2e8f0',
+          output: '#94a3b8',
+          cacheCreation: '#64748b',
+          cacheRead: '#475569',
+          cacheHitRate: '#3b82f6'
+        }
+      : {
+          text: '#667085',
+          grid: 'rgba(100, 116, 139, 0.14)',
+          input: '#1f2937',
+          output: '#475569',
+          cacheCreation: '#718096',
+          cacheRead: '#a0aec0',
+          cacheHitRate: '#2563eb'
+        }
+  }
+
+  return {
+    text: isDarkMode.value ? '#e5e7eb' : '#374151',
+    grid: isDarkMode.value ? '#374151' : '#e5e7eb',
+    input: '#f2b84b',
+    output: '#d99b3d',
+    cacheCreation: '#f59e0b',
+    cacheRead: '#78716c',
+    cacheHitRate: '#3b82f6'
+  }
+})
+
+const chartData = computed<ChartData<'line'> | null>(() => {
   if (!props.trendData?.length) return null
 
   return {
-    labels: props.trendData.map((d) => d.date),
+    labels: props.trendData.map((point) => point.date),
     datasets: [
+      createDataset('Input', props.trendData.map((point) => point.input_tokens), chartColors.value.input),
+      createDataset('Output', props.trendData.map((point) => point.output_tokens), chartColors.value.output),
+      createDataset(
+        'Cache Creation',
+        props.trendData.map((point) => point.cache_creation_tokens),
+        chartColors.value.cacheCreation
+      ),
+      createDataset(
+        'Cache Read',
+        props.trendData.map((point) => point.cache_read_tokens),
+        chartColors.value.cacheRead
+      ),
       {
-        label: 'Input',
-        data: props.trendData.map((d) => d.input_tokens),
-        borderColor: chartColors.value.input,
-        backgroundColor: `${chartColors.value.input}20`,
-        fill: true,
-        tension: 0.3
-      },
-      {
-        label: 'Output',
-        data: props.trendData.map((d) => d.output_tokens),
-        borderColor: chartColors.value.output,
-        backgroundColor: `${chartColors.value.output}20`,
-        fill: true,
-        tension: 0.3
-      },
-      {
-        label: 'Cache Creation',
-        data: props.trendData.map((d) => d.cache_creation_tokens),
-        borderColor: chartColors.value.cacheCreation,
-        backgroundColor: `${chartColors.value.cacheCreation}20`,
-        fill: true,
-        tension: 0.3
-      },
-      {
-        label: 'Cache Read',
-        data: props.trendData.map((d) => d.cache_read_tokens),
-        borderColor: chartColors.value.cacheRead,
-        backgroundColor: `${chartColors.value.cacheRead}20`,
-        fill: true,
-        tension: 0.3
-      },
-      {
-        label: 'Cache Hit Rate',
-        data: props.trendData.map((d) => {
-          const totalPromptTokens = d.input_tokens + d.cache_read_tokens + d.cache_creation_tokens
-          return totalPromptTokens > 0 ? (d.cache_read_tokens / totalPromptTokens) * 100 : 0
-        }),
-        borderColor: chartColors.value.cacheHitRate,
-        backgroundColor: `${chartColors.value.cacheHitRate}20`,
-        borderDash: [5, 5],
-        fill: false,
-        tension: 0.3,
-        yAxisID: 'yPercent'
+        ...createDataset(
+          'Cache Hit Rate',
+          props.trendData.map((point) => {
+            const promptTokens = point.input_tokens + point.cache_creation_tokens + point.cache_read_tokens
+            return promptTokens > 0 ? (point.cache_read_tokens / promptTokens) * 100 : 0
+          }),
+          chartColors.value.cacheHitRate
+        ),
+        yAxisID: 'y1',
+        fill: false
       }
     ]
   }
 })
 
-const lineOptions = computed(() => ({
+const lineOptions = computed<ChartOptions<'line'>>(() => ({
   responsive: true,
   maintainAspectRatio: false,
+  animation: false,
   interaction: {
     intersect: false,
-    mode: 'index' as const
+    mode: 'index'
   },
   plugins: {
     legend: {
-      position: 'top' as const,
+      position: 'top',
+      align: 'start',
       labels: {
         color: chartColors.value.text,
         usePointStyle: true,
         pointStyle: 'circle',
         padding: 15,
-        font: {
-          size: 11
-        }
+        boxWidth: 7,
+        boxHeight: 7,
+        font: { size: 10 }
       }
     },
     tooltip: {
       callbacks: {
-        label: (context: any) => {
-          if (context.dataset.yAxisID === 'yPercent') {
-            return `${context.dataset.label}: ${context.raw.toFixed(1)}%`
-          }
-          return `${context.dataset.label}: ${formatTokens(context.raw)}`
-        },
-        footer: (tooltipItems: any) => {
+        label: (context) => `${context.dataset.label}: ${formatTokens(Number(context.raw))}`,
+        footer: (tooltipItems) => {
           const dataIndex = tooltipItems[0]?.dataIndex
-          if (dataIndex !== undefined && props.trendData[dataIndex]) {
-            const data = props.trendData[dataIndex]
-            return `Actual: $${formatCost(data.actual_cost)} | Standard: $${formatCost(data.cost)}`
-          }
-          return ''
+          if (dataIndex === undefined || !props.trendData[dataIndex]) return ''
+          const point = props.trendData[dataIndex]
+          return `Actual: $${formatCost(point.actual_cost)} | Standard: $${formatCost(point.cost)}`
         }
       }
     }
   },
   scales: {
     x: {
-      grid: {
-        color: chartColors.value.grid
-      },
-      ticks: {
-        color: chartColors.value.text,
-        font: {
-          size: 10
-        }
-      }
+      grid: { color: chartColors.value.grid },
+      ticks: { color: chartColors.value.text, font: { size: 10 }, maxRotation: 0 }
     },
     y: {
-      grid: {
-        color: chartColors.value.grid
-      },
+      beginAtZero: true,
+      grid: { color: chartColors.value.grid },
       ticks: {
         color: chartColors.value.text,
-        font: {
-          size: 10
-        },
-        callback: (value: string | number) => formatTokens(Number(value))
+        font: { size: 10 },
+        callback: (value) => formatTokens(Number(value))
       }
     },
-    yPercent: {
-      position: 'right' as const,
-      min: 0,
+    y1: {
+      beginAtZero: true,
       max: 100,
-      grid: {
-        drawOnChartArea: false
-      },
+      position: 'right',
+      grid: { display: false },
       ticks: {
         color: chartColors.value.cacheHitRate,
-        font: {
-          size: 10
-        },
-        callback: (value: string | number) => `${value}%`
+        font: { size: 10 },
+        callback: (value) => `${value}%`
       }
     }
   }
 }))
 
-const formatTokens = (value: number): string => {
-  if (value >= 1_000_000_000) {
-    return `${(value / 1_000_000_000).toFixed(2)}B`
-  } else if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(2)}M`
-  } else if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(2)}K`
+function createDataset(label: string, data: number[], color: string) {
+  return {
+    label,
+    data,
+    borderColor: color,
+    backgroundColor: `${color}14`,
+    borderWidth: 1.75,
+    pointRadius: 0,
+    pointHoverRadius: 3,
+    fill: true,
+    tension: 0.3
   }
+}
+
+function formatTokens(value: number): string {
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}B`
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`
+  if (value >= 1_000) return `${(value / 1_000).toFixed(2)}K`
   return value.toLocaleString()
 }
 
-const formatCost = (value: number): string => {
-  if (value >= 1000) {
-    return (value / 1000).toFixed(2) + 'K'
-  } else if (value >= 1) {
-    return value.toFixed(2)
-  } else if (value >= 0.01) {
-    return value.toFixed(3)
-  }
+function formatCost(value: number): string {
+  if (value >= 1000) return `${(value / 1000).toFixed(2)}K`
+  if (value >= 1) return value.toFixed(2)
+  if (value >= 0.01) return value.toFixed(3)
   return value.toFixed(4)
 }
 </script>
+
+<style scoped>
+.token-usage-trend > header h3 {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  font-weight: 650;
+  line-height: 1.25rem;
+}
+
+.token-usage-trend__chart,
+.token-usage-trend__state {
+  height: 12rem;
+}
+
+.token-usage-trend__state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.token-usage-trend__state--empty {
+  display: grid;
+  align-content: center;
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+  border: 1px dashed hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--muted) / 0.28);
+  color: #6b7280;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.token-usage-trend__state--empty strong {
+  color: hsl(var(--foreground));
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.token-usage-trend__state--empty span {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.6875rem;
+}
+
+.token-usage-trend__range-button {
+  justify-self: center;
+  margin-top: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 0.25rem 0.65rem;
+  color: hsl(var(--foreground));
+  background: hsl(var(--card));
+  font-size: 0.6875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.token-usage-trend__range-button:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.token-usage-trend--foundation {
+  min-width: 0;
+  min-height: 20rem;
+  padding: 1rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  color: hsl(var(--foreground));
+  background: hsl(var(--card));
+  box-shadow: 0 1px 2px hsl(var(--shadow));
+}
+
+.token-usage-trend--foundation.token-usage-trend--empty {
+  min-height: 10rem;
+}
+
+.token-usage-trend--foundation .token-usage-trend__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.token-usage-trend--foundation .token-usage-trend__header p,
+.token-usage-trend--foundation .token-usage-trend__header h3 {
+  margin: 0;
+}
+
+.token-usage-trend--foundation .token-usage-trend__header p,
+.token-usage-trend--foundation .token-usage-trend__header > span {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1rem;
+}
+
+.token-usage-trend--foundation .token-usage-trend__header h3 {
+  margin-top: 0.1rem;
+}
+
+.token-usage-trend--foundation .token-usage-trend__chart,
+.token-usage-trend--foundation .token-usage-trend__state {
+  height: 15rem;
+  padding-top: 0.75rem;
+}
+
+.token-usage-trend--foundation.token-usage-trend--empty .token-usage-trend__state {
+  height: 5rem;
+  padding-top: 0;
+}
+</style>

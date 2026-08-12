@@ -40,7 +40,7 @@
 
               <div class="space-y-1">
                 <p class="truncate text-sm text-gray-600 dark:text-gray-300">
-                  {{ primaryEmailDisplay }}
+                  {{ displayEmail }}
                 </p>
                 <div
                   v-if="sourceHints.length"
@@ -98,7 +98,7 @@
       </div>
     </section>
 
-    <div class="space-y-6">
+    <div class="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_320px]">
       <div data-testid="profile-main-column" class="space-y-6">
         <section
           data-testid="profile-basics-panel"
@@ -115,7 +115,7 @@
             </div>
           </div>
 
-          <div class="grid gap-6 sm:grid-cols-1 md:grid-cols-2">
+          <div class="grid gap-6 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
             <div class="rounded-3xl border border-gray-100 bg-gray-50/80 p-5 dark:border-dark-700 dark:bg-dark-900/30">
               <ProfileAvatarCard
                 :user="user"
@@ -139,7 +139,6 @@
           <ProfileIdentityBindingsSection
             :user="user"
             :linuxdo-enabled="linuxdoEnabled"
-            :dingtalk-enabled="dingtalkEnabled"
             :oidc-enabled="oidcEnabled"
             :oidc-provider-name="oidcProviderName"
             :wechat-enabled="wechatEnabled"
@@ -151,7 +150,35 @@
         </section>
       </div>
 
-      <div data-testid="profile-side-column" class="space-y-6">
+      <aside data-testid="profile-side-column" class="space-y-6">
+        <section class="card border border-gray-100 bg-white/90 p-6 dark:border-dark-700 dark:bg-dark-900/50">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+            {{ t('profile.overviewTitle') }}
+          </h3>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {{ t('profile.overviewDescription') }}
+          </p>
+
+          <div class="mt-5 grid gap-3">
+            <div class="rounded-2xl border border-gray-100 bg-gray-50/80 px-4 py-3 dark:border-dark-700 dark:bg-dark-900/30">
+              <p class="text-xs font-medium uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">
+                {{ t('profile.username') }}
+              </p>
+              <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
+                {{ user?.username || displayName }}
+              </p>
+            </div>
+            <div class="rounded-2xl border border-gray-100 bg-gray-50/80 px-4 py-3 dark:border-dark-700 dark:bg-dark-900/30">
+              <p class="text-xs font-medium uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">
+                {{ t('profile.email') }}
+              </p>
+              <p class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
+                {{ displayEmail || '-' }}
+              </p>
+            </div>
+          </div>
+        </section>
+
         <section
           v-if="sourceHints.length"
           class="card border border-gray-100 bg-white/90 p-6 dark:border-dark-700 dark:bg-dark-900/50"
@@ -174,7 +201,7 @@
             </div>
           </div>
         </section>
-      </div>
+      </aside>
     </div>
   </div>
 </template>
@@ -186,12 +213,11 @@ import Icon from '@/components/icons/Icon.vue'
 import ProfileAvatarCard from '@/components/user/profile/ProfileAvatarCard.vue'
 import ProfileEditForm from '@/components/user/profile/ProfileEditForm.vue'
 import ProfileIdentityBindingsSection from '@/components/user/profile/ProfileIdentityBindingsSection.vue'
-import type { User, UserAuthBindingStatus, UserAuthProvider, UserProfileSourceContext } from '@/types'
+import type { User, UserProfileSourceContext } from '@/types'
 
 const props = withDefaults(defineProps<{
   user: User | null
   linuxdoEnabled?: boolean
-  dingtalkEnabled?: boolean
   oidcEnabled?: boolean
   oidcProviderName?: string
   wechatEnabled?: boolean
@@ -199,7 +225,6 @@ const props = withDefaults(defineProps<{
   wechatMpEnabled?: boolean
 }>(), {
   linuxdoEnabled: false,
-  dingtalkEnabled: false,
   oidcEnabled: false,
   oidcProviderName: 'OIDC',
   wechatEnabled: false,
@@ -209,41 +234,26 @@ const props = withDefaults(defineProps<{
 
 const { t } = useI18n()
 
-function normalizeBindingStatus(binding: boolean | UserAuthBindingStatus | undefined): boolean | null {
-  if (typeof binding === 'boolean') {
-    return binding
-  }
-  if (!binding) {
-    return null
-  }
-  if (typeof binding.bound === 'boolean') {
-    return binding.bound
-  }
-  return Boolean(binding.provider_subject || binding.issuer || binding.provider_key)
-}
-
-function isEmailBound(user: User | null | undefined): boolean {
-  if (typeof user?.email_bound === 'boolean') {
-    return user.email_bound
-  }
-
-  const nested = user?.auth_bindings?.email ?? user?.identity_bindings?.email
-  const normalized = normalizeBindingStatus(nested)
-  return normalized ?? false
-}
-
 const avatarUrl = computed(() => props.user?.avatar_url?.trim() || '')
-const displayName = computed(() => props.user?.username?.trim() || props.user?.email?.trim() || t('profile.user'))
-const primaryEmailDisplay = computed(() => {
-  const email = props.user?.email?.trim() || ''
-  if (!email) {
-    return ''
-  }
-  if (email.endsWith('.invalid') && !isEmailBound(props.user)) {
-    return ''
-  }
-  return email
+
+function bindingIsExplicitlyUnbound(binding: unknown): boolean {
+  if (binding === false) return true
+  return Boolean(binding && typeof binding === 'object' && 'bound' in binding && binding.bound === false)
+}
+
+const displayEmail = computed(() => {
+  const currentUser = props.user
+  const email = currentUser?.email?.trim() || ''
+  if (!email) return ''
+
+  const emailUnbound = currentUser?.email_bound === false
+    || bindingIsExplicitlyUnbound(currentUser?.auth_bindings?.email)
+    || bindingIsExplicitlyUnbound(currentUser?.identity_bindings?.email)
+  const syntheticOAuthEmail = /@(?:[a-z0-9_-]+-)?connect\.invalid$/i.test(email)
+  return emailUnbound && syntheticOAuthEmail ? '' : email
 })
+
+const displayName = computed(() => props.user?.username?.trim() || displayEmail.value || t('profile.user'))
 const avatarInitial = computed(() => displayName.value.charAt(0).toUpperCase() || 'U')
 const memberSinceLabel = computed(() => {
   const raw = props.user?.created_at?.trim()
@@ -262,29 +272,22 @@ const memberSinceLabel = computed(() => {
   }).format(date)
 })
 
-const providerLabels = computed<Record<UserAuthProvider, string>>(() => ({
+type DisplayAuthProvider = 'email' | 'linuxdo' | 'oidc' | 'wechat'
+
+const providerLabels = computed<Record<DisplayAuthProvider, string>>(() => ({
   email: t('profile.authBindings.providers.email'),
   linuxdo: t('profile.authBindings.providers.linuxdo'),
-  dingtalk: t('profile.authBindings.providers.dingtalk'),
   oidc: t('profile.authBindings.providers.oidc', { providerName: props.oidcProviderName }),
-  wechat: t('profile.authBindings.providers.wechat'),
-  github: 'GitHub',
-  google: 'Google'
+  wechat: t('profile.authBindings.providers.wechat')
 }))
 
 function formatCurrency(value: number): string {
   return `$${value.toFixed(2)}`
 }
 
-function normalizeProvider(value: string): UserAuthProvider | null {
+function normalizeProvider(value: string): DisplayAuthProvider | null {
   const normalized = value.trim().toLowerCase()
-  if (
-    normalized === 'email' ||
-    normalized === 'linuxdo' ||
-    normalized === 'wechat' ||
-    normalized === 'github' ||
-    normalized === 'google'
-  ) {
+  if (normalized === 'email' || normalized === 'linuxdo' || normalized === 'wechat') {
     return normalized
   }
   if (normalized === 'oidc' || normalized.startsWith('oidc:') || normalized.startsWith('oidc/')) {
@@ -305,7 +308,7 @@ function readObjectString(source: Record<string, unknown>, ...keys: string[]): s
 
 function resolveThirdPartySource(
   rawSource: string | UserProfileSourceContext | null | undefined
-): { provider: UserAuthProvider; label: string } | null {
+): { provider: DisplayAuthProvider; label: string } | null {
   if (!rawSource) {
     return null
   }

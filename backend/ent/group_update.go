@@ -338,6 +338,27 @@ func (_u *GroupUpdate) AddDefaultValidityDays(v int) *GroupUpdate {
 	return _u
 }
 
+// SetSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field.
+func (_u *GroupUpdate) SetSoraStorageQuotaBytes(v int64) *GroupUpdate {
+	_u.mutation.ResetSoraStorageQuotaBytes()
+	_u.mutation.SetSoraStorageQuotaBytes(v)
+	return _u
+}
+
+// SetNillableSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableSoraStorageQuotaBytes(v *int64) *GroupUpdate {
+	if v != nil {
+		_u.SetSoraStorageQuotaBytes(*v)
+	}
+	return _u
+}
+
+// AddSoraStorageQuotaBytes adds value to the "sora_storage_quota_bytes" field.
+func (_u *GroupUpdate) AddSoraStorageQuotaBytes(v int64) *GroupUpdate {
+	_u.mutation.AddSoraStorageQuotaBytes(v)
+	return _u
+}
+
 // SetAllowImageGeneration sets the "allow_image_generation" field.
 func (_u *GroupUpdate) SetAllowImageGeneration(v bool) *GroupUpdate {
 	_u.mutation.SetAllowImageGeneration(v)
@@ -1416,6 +1437,12 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedDefaultValidityDays(); ok {
 		_spec.AddField(group.FieldDefaultValidityDays, field.TypeInt, value)
 	}
+	if value, ok := _u.mutation.SoraStorageQuotaBytes(); ok {
+		_spec.SetField(group.FieldSoraStorageQuotaBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedSoraStorageQuotaBytes(); ok {
+		_spec.AddField(group.FieldSoraStorageQuotaBytes, field.TypeInt64, value)
+	}
 	if value, ok := _u.mutation.AllowImageGeneration(); ok {
 		_spec.SetField(group.FieldAllowImageGeneration, field.TypeBool, value)
 	}
@@ -2228,6 +2255,27 @@ func (_u *GroupUpdateOne) SetNillableDefaultValidityDays(v *int) *GroupUpdateOne
 // AddDefaultValidityDays adds value to the "default_validity_days" field.
 func (_u *GroupUpdateOne) AddDefaultValidityDays(v int) *GroupUpdateOne {
 	_u.mutation.AddDefaultValidityDays(v)
+	return _u
+}
+
+// SetSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field.
+func (_u *GroupUpdateOne) SetSoraStorageQuotaBytes(v int64) *GroupUpdateOne {
+	_u.mutation.ResetSoraStorageQuotaBytes()
+	_u.mutation.SetSoraStorageQuotaBytes(v)
+	return _u
+}
+
+// SetNillableSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableSoraStorageQuotaBytes(v *int64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetSoraStorageQuotaBytes(*v)
+	}
+	return _u
+}
+
+// AddSoraStorageQuotaBytes adds value to the "sora_storage_quota_bytes" field.
+func (_u *GroupUpdateOne) AddSoraStorageQuotaBytes(v int64) *GroupUpdateOne {
+	_u.mutation.AddSoraStorageQuotaBytes(v)
 	return _u
 }
 
@@ -3338,6 +3386,12 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.AddedDefaultValidityDays(); ok {
 		_spec.AddField(group.FieldDefaultValidityDays, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.SoraStorageQuotaBytes(); ok {
+		_spec.SetField(group.FieldSoraStorageQuotaBytes, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedSoraStorageQuotaBytes(); ok {
+		_spec.AddField(group.FieldSoraStorageQuotaBytes, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.AllowImageGeneration(); ok {
 		_spec.SetField(group.FieldAllowImageGeneration, field.TypeBool, value)

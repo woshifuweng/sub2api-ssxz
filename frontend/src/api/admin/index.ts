@@ -10,6 +10,7 @@ import accountsAPI from './accounts'
 import proxiesAPI from './proxies'
 import redeemAPI from './redeem'
 import promoAPI from './promo'
+import affiliateAPI from './affiliate'
 import announcementsAPI from './announcements'
 import settingsAPI from './settings'
 import systemAPI from './system'
@@ -26,10 +27,11 @@ import apiKeysAPI from './apiKeys'
 import scheduledTestsAPI from './scheduledTests'
 import backupAPI from './backup'
 import tlsFingerprintProfileAPI from './tlsFingerprintProfile'
-import channelsAPI from './channels'
+import proxyMaintenanceAPI from './proxyMaintenance'
 import channelMonitorAPI from './channelMonitor'
 import channelMonitorTemplateAPI from './channelMonitorTemplate'
-import adminPaymentAPI from './payment'
+import channelsAPI from './channels'
+import paymentAPI from './payment'
 import affiliatesAPI from './affiliates'
 import riskControlAPI from './riskControl'
 import adminComplianceAPI from './compliance'
@@ -46,6 +48,7 @@ export const adminAPI = {
   proxies: proxiesAPI,
   redeem: redeemAPI,
   promo: promoAPI,
+  affiliate: affiliateAPI,
   announcements: announcementsAPI,
   settings: settingsAPI,
   system: systemAPI,
@@ -62,10 +65,11 @@ export const adminAPI = {
   scheduledTests: scheduledTestsAPI,
   backup: backupAPI,
   tlsFingerprintProfiles: tlsFingerprintProfileAPI,
-  channels: channelsAPI,
+  proxyMaintenance: proxyMaintenanceAPI,
   channelMonitor: channelMonitorAPI,
   channelMonitorTemplate: channelMonitorTemplateAPI,
-  payment: adminPaymentAPI,
+  channels: channelsAPI,
+  payment: paymentAPI,
   affiliates: affiliatesAPI,
   riskControl: riskControlAPI,
   compliance: adminComplianceAPI,
@@ -80,6 +84,7 @@ export {
   proxiesAPI,
   redeemAPI,
   promoAPI,
+  affiliateAPI,
   announcementsAPI,
   settingsAPI,
   systemAPI,
@@ -96,10 +101,11 @@ export {
   scheduledTestsAPI,
   backupAPI,
   tlsFingerprintProfileAPI,
-  channelsAPI,
+  proxyMaintenanceAPI,
   channelMonitorAPI,
   channelMonitorTemplateAPI,
-  adminPaymentAPI,
+  channelsAPI,
+  paymentAPI,
   affiliatesAPI,
   riskControlAPI,
   adminComplianceAPI,

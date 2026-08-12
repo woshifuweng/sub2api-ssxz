@@ -10,7 +10,31 @@ docker run -d \
   -p 8080:8080 \
   -e DATABASE_URL="postgres://user:pass@host:5432/sub2api" \
   -e REDIS_URL="redis://host:6379" \
-  weishaw/sub2api:latest
+  ghcr.io/dr-lin-eng/sub2api:latest
+```
+
+## Local Build
+
+Default image build:
+
+```bash
+./deploy/build_image.sh
+```
+
+Compatibility image build with retry:
+
+```bash
+./deploy/build_compat_image.sh --tag sub2api:compat
+```
+
+If Docker Hub is unstable in your environment, override the base images:
+
+```bash
+NODE_IMAGE=<your-node-image> \
+GOLANG_IMAGE=<your-go-image> \
+RUNTIME_IMAGE=<your-runtime-image> \
+POSTGRES_IMAGE=<your-postgres-image> \
+./deploy/build_compat_image.sh
 ```
 
 ## Docker Compose
@@ -20,7 +44,7 @@ version: '3.8'
 
 services:
   sub2api:
-    image: weishaw/sub2api:latest
+    image: ghcr.io/dr-lin-eng/sub2api:latest
     ports:
       - "8080:8080"
     environment:
@@ -72,5 +96,5 @@ volumes:
 
 ## Links
 
-- [GitHub Repository](https://github.com/weishaw/sub2api)
-- [Documentation](https://github.com/weishaw/sub2api#readme)
+- [GitHub Repository](https://github.com/DR-lin-eng/sub2api)
+- [Documentation](https://github.com/DR-lin-eng/sub2api#readme)

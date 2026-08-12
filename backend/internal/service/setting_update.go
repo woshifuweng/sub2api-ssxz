@@ -599,8 +599,8 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 		max:       settings.MaxClaudeCodeVersion,
 		expiresAt: time.Now().Add(versionBoundsCacheTTL).UnixNano(),
 	})
-	backendModeSF.Forget("backend_mode")
-	backendModeCache.Store(&cachedBackendMode{
+	s.backendModeSF.Forget("backend_mode")
+	s.backendModeCache.Store(&cachedBackendMode{
 		value:     settings.BackendModeEnabled,
 		expiresAt: time.Now().Add(backendModeCacheTTL).UnixNano(),
 	})

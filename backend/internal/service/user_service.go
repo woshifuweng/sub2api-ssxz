@@ -3,10 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"crypto/subtle"
-	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
@@ -34,10 +31,6 @@ var (
 	ErrBalanceNegative          = infraerrors.BadRequest("BALANCE_NEGATIVE", "balance cannot be negative")
 	ErrInsufficientPerms        = infraerrors.Forbidden("INSUFFICIENT_PERMISSIONS", "insufficient permissions")
 	ErrNotifyCodeUserRateLimit  = infraerrors.TooManyRequests("NOTIFY_CODE_USER_RATE_LIMIT", "too many verification codes requested, please try again later")
-	ErrAvatarInvalid            = infraerrors.BadRequest("AVATAR_INVALID", "avatar must be a valid image data URL or http(s) URL")
-	ErrAvatarTooLarge           = infraerrors.BadRequest("AVATAR_TOO_LARGE", "avatar image must be 100KB or smaller")
-	ErrAvatarNotImage           = infraerrors.BadRequest("AVATAR_NOT_IMAGE", "avatar content must be an image")
-	ErrIdentityProviderInvalid  = infraerrors.BadRequest("IDENTITY_PROVIDER_INVALID", "identity provider is invalid")
 	ErrIdentityRedirectInvalid  = infraerrors.BadRequest("IDENTITY_REDIRECT_INVALID", "identity redirect path is invalid")
 	ErrIdentityUnbindLastMethod = infraerrors.Conflict(
 		"IDENTITY_UNBIND_LAST_METHOD",
@@ -46,9 +39,8 @@ var (
 )
 
 const (
-	maxNotifyEmails      = 3 // Maximum number of notification emails per user
-	maxInlineAvatarBytes = 100 * 1024
-	targetAvatarBytes    = 20 * 1024
+	maxNotifyEmails   = 3 // Maximum number of notification emails per user
+	targetAvatarBytes = 20 * 1024
 
 	// User-level rate limiting for notify email verification codes
 	notifyCodeUserRateLimit  = 5
@@ -96,17 +88,20 @@ type UserListFilters struct {
 // 注意这里没有 balance / total_recharged：余额只能经由 AdjustBalance、
 // SetBalance、UpdateBalance、DeductBalance 等原子接口修改，Update 永远不碰它们。
 type UserUpdateFields struct {
-	Email        bool
-	Username     bool
-	Notes        bool
-	PasswordHash bool
-	Role         bool
-	Status       bool
-	Concurrency  bool
-	RPMLimit     bool
-	SignupSource bool
-	LastLoginAt  bool
-	LastActiveAt bool
+	Email                 bool
+	Username              bool
+	Notes                 bool
+	PasswordHash          bool
+	Role                  bool
+	Status                bool
+	Concurrency           bool
+	UnlimitedConcurrency  bool
+	RPMLimit              bool
+	SoraStorageQuotaBytes bool
+	SoraStorageUsedBytes  bool
+	SignupSource          bool
+	LastLoginAt           bool
+	LastActiveAt          bool
 	// BalanceNotifySettings 覆盖 balance_notify_enabled / _threshold_type / _threshold。
 	BalanceNotifySettings bool
 	// BalanceNotifyExtraEmails 与上一项分开，避免"改通知阈值"覆盖并发的"加通知邮箱"。
@@ -189,17 +184,6 @@ type RedeemUserAdjustmentRepository interface {
 	ApplyRedeemConcurrencyAdjustment(ctx context.Context, id int64, delta int) error
 }
 
-type UserAuthIdentityRecord struct {
-	ProviderType    string
-	ProviderKey     string
-	ProviderSubject string
-	VerifiedAt      *time.Time
-	Issuer          *string
-	Metadata        map[string]any
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-}
-
 type UserIdentitySummary struct {
 	Provider      string     `json:"provider"`
 	Bound         bool       `json:"bound"`
@@ -250,24 +234,6 @@ type UpdateProfileRequest struct {
 	Concurrency            *int     `json:"concurrency"`
 	BalanceNotifyEnabled   *bool    `json:"balance_notify_enabled"`
 	BalanceNotifyThreshold *float64 `json:"balance_notify_threshold"`
-}
-
-type UserAvatar struct {
-	StorageProvider string
-	StorageKey      string
-	URL             string
-	ContentType     string
-	ByteSize        int
-	SHA256          string
-}
-
-type UpsertUserAvatarInput struct {
-	StorageProvider string
-	StorageKey      string
-	URL             string
-	ContentType     string
-	ByteSize        int
-	SHA256          string
 }
 
 type userProfileIdentityTxRunner interface {
@@ -549,27 +515,6 @@ func (s *UserService) updateProfile(ctx context.Context, userID int64, req Updat
 	return user, oldConcurrency, nil
 }
 
-func (s *UserService) SetAvatar(ctx context.Context, userID int64, raw string) (*UserAvatar, error) {
-	avatarValue := strings.TrimSpace(raw)
-	if avatarValue == "" {
-		if err := s.userRepo.DeleteUserAvatar(ctx, userID); err != nil {
-			return nil, fmt.Errorf("delete avatar: %w", err)
-		}
-		return nil, nil
-	}
-
-	avatarInput, err := normalizeUserAvatarInput(avatarValue)
-	if err != nil {
-		return nil, err
-	}
-
-	avatar, err := s.userRepo.UpsertUserAvatar(ctx, userID, avatarInput)
-	if err != nil {
-		return nil, fmt.Errorf("upsert avatar: %w", err)
-	}
-	return avatar, nil
-}
-
 func applyUserAvatar(user *User, avatar *UserAvatar) {
 	if user == nil {
 		return
@@ -588,80 +533,6 @@ func applyUserAvatar(user *User, avatar *UserAvatar) {
 	user.AvatarMIME = avatar.ContentType
 	user.AvatarByteSize = avatar.ByteSize
 	user.AvatarSHA256 = avatar.SHA256
-}
-
-func normalizeUserAvatarInput(raw string) (UpsertUserAvatarInput, error) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return UpsertUserAvatarInput{}, ErrAvatarInvalid
-	}
-	if strings.HasPrefix(raw, "data:") {
-		return normalizeInlineUserAvatarInput(raw)
-	}
-
-	parsed, err := url.Parse(raw)
-	if err != nil || parsed == nil {
-		return UpsertUserAvatarInput{}, ErrAvatarInvalid
-	}
-	if !strings.EqualFold(parsed.Scheme, "http") && !strings.EqualFold(parsed.Scheme, "https") {
-		return UpsertUserAvatarInput{}, ErrAvatarInvalid
-	}
-	if strings.TrimSpace(parsed.Host) == "" {
-		return UpsertUserAvatarInput{}, ErrAvatarInvalid
-	}
-
-	return UpsertUserAvatarInput{
-		StorageProvider: "remote_url",
-		URL:             raw,
-	}, nil
-}
-
-func ValidateUserAvatar(raw string) error {
-	_, err := normalizeUserAvatarInput(raw)
-	return err
-}
-
-func normalizeInlineUserAvatarInput(raw string) (UpsertUserAvatarInput, error) {
-	body := strings.TrimPrefix(raw, "data:")
-	meta, encoded, ok := strings.Cut(body, ",")
-	if !ok {
-		return UpsertUserAvatarInput{}, ErrAvatarInvalid
-	}
-	meta = strings.TrimSpace(meta)
-	encoded = strings.TrimSpace(encoded)
-	if !strings.HasSuffix(strings.ToLower(meta), ";base64") {
-		return UpsertUserAvatarInput{}, ErrAvatarInvalid
-	}
-
-	contentType := strings.TrimSpace(meta[:len(meta)-len(";base64")])
-	if contentType == "" || !strings.HasPrefix(strings.ToLower(contentType), "image/") {
-		return UpsertUserAvatarInput{}, ErrAvatarNotImage
-	}
-
-	decoded, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		return UpsertUserAvatarInput{}, ErrAvatarInvalid
-	}
-	if len(decoded) > maxInlineAvatarBytes {
-		return UpsertUserAvatarInput{}, ErrAvatarTooLarge
-	}
-
-	if len(decoded) > targetAvatarBytes {
-		decoded, contentType, err = compressInlineAvatar(decoded)
-		if err != nil {
-			return UpsertUserAvatarInput{}, err
-		}
-		raw = "data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(decoded)
-	}
-
-	sum := sha256.Sum256(decoded)
-	return UpsertUserAvatarInput{
-		StorageProvider: "inline",
-		URL:             raw,
-		ContentType:     contentType,
-		ByteSize:        len(decoded),
-		SHA256:          hex.EncodeToString(sum[:]),
-	}, nil
 }
 
 func compressInlineAvatar(decoded []byte) ([]byte, string, error) {

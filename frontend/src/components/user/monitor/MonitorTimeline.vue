@@ -1,5 +1,5 @@
 <template>
-  <div class="mt-4 pt-3 border-t border-gray-100 dark:border-dark-700/60">
+  <div class="channel-monitor-timeline mt-4 pt-3">
     <div
       class="flex justify-between text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-2"
     >
@@ -9,7 +9,7 @@
 
     <div
       v-if="maintenance"
-      class="flex h-5 w-full items-center justify-center rounded border border-dashed border-gray-300 dark:border-dark-600 text-[10px] uppercase tracking-widest text-gray-400"
+        class="flex h-5 w-full items-center justify-center rounded border border-dashed text-[10px] uppercase tracking-widest text-gray-400"
     >
       {{ t('monitorCommon.maintenancePaused') }}
     </div>
@@ -113,3 +113,13 @@ const displayBars = computed<Bar[]>(() => {
   return bars
 })
 </script>
+
+<style scoped>
+.channel-monitor-timeline {
+  border-top: 1px solid var(--ssxz-border);
+}
+
+.channel-monitor-timeline [class*='border-dashed'] {
+  border-color: var(--ssxz-border-strong);
+}
+</style>

@@ -6,12 +6,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
 
 type stubAdminService struct {
 	users                               []service.User
 	apiKeys                             []service.APIKey
+	adminAPIKeyActorID                  int64
+	adminAPIKeyMutations                int
 	groups                              []service.Group
 	accounts                            []service.Account
 	accountSchedulerScoreFilterAccounts []service.Account
@@ -145,6 +148,11 @@ func newStubAdminService() *stubAdminService {
 		proxyCounts: []service.ProxyWithAccountCount{{Proxy: proxy, AccountCount: 1}},
 		redeems:     []service.RedeemCode{redeem},
 	}
+}
+
+func (s *stubAdminService) ListAdminAPIKeys(_ context.Context, params service.AdminAPIKeyListParams) (*service.AdminAPIKeyListResult, error) {
+	_ = params
+	return &service.AdminAPIKeyListResult{}, nil
 }
 
 func (s *stubAdminService) ListUsers(ctx context.Context, page, pageSize int, filters service.UserListFilters, sortBy, sortOrder string) ([]service.User, int64, error) {
@@ -740,6 +748,53 @@ func (s *stubAdminService) AdminUpdateAPIKeyGroupID(ctx context.Context, keyID i
 	return nil, service.ErrAPIKeyNotFound
 }
 
+func (s *stubAdminService) AdminSetAPIKeyEnabled(_ context.Context, keyID int64, enabled bool, actorUserID int64) (*service.APIKey, error) {
+	s.adminAPIKeyActorID = actorUserID
+	s.adminAPIKeyMutations++
+	for i := range s.apiKeys {
+		if s.apiKeys[i].ID == keyID {
+			if enabled {
+				s.apiKeys[i].Status = service.StatusAPIKeyActive
+			} else {
+				s.apiKeys[i].Status = service.StatusAPIKeyDisabled
+			}
+			key := s.apiKeys[i]
+			return &key, nil
+		}
+	}
+	return nil, service.ErrAPIKeyNotFound
+}
+
+func (s *stubAdminService) AdminChangeAPIKeyGroup(_ context.Context, keyID, groupID, actorUserID int64) (*service.AdminUpdateAPIKeyGroupIDResult, error) {
+	s.adminAPIKeyActorID = actorUserID
+	s.adminAPIKeyMutations++
+	for i := range s.apiKeys {
+		if s.apiKeys[i].ID == keyID {
+			if groupID == 0 {
+				s.apiKeys[i].GroupID = nil
+			} else {
+				gid := groupID
+				s.apiKeys[i].GroupID = &gid
+			}
+			key := s.apiKeys[i]
+			return &service.AdminUpdateAPIKeyGroupIDResult{APIKey: &key}, nil
+		}
+	}
+	return nil, service.ErrAPIKeyNotFound
+}
+
+func (s *stubAdminService) AdminDeleteAPIKey(_ context.Context, keyID int64, actorUserID int64) error {
+	s.adminAPIKeyActorID = actorUserID
+	s.adminAPIKeyMutations++
+	for i := range s.apiKeys {
+		if s.apiKeys[i].ID == keyID {
+			s.apiKeys = append(s.apiKeys[:i], s.apiKeys[i+1:]...)
+			return nil
+		}
+	}
+	return service.ErrAPIKeyNotFound
+}
+
 func (s *stubAdminService) AdminResetAPIKeyRateLimitUsage(ctx context.Context, keyID int64) (*service.APIKey, error) {
 	for i := range s.apiKeys {
 		if s.apiKeys[i].ID == keyID {
@@ -782,6 +837,10 @@ func (s *stubAdminService) ReplaceUserGroup(ctx context.Context, userID, oldGrou
 
 func (s *stubAdminService) RevertAccountProxyFallback(ctx context.Context, id int64) error {
 	return nil
+}
+
+func (s *stubAdminService) GetProxyUsageStats(context.Context, int64) (*usagestats.UsageStats, error) {
+	return &usagestats.UsageStats{}, nil
 }
 
 func (s *stubAdminService) CreateShadow(ctx context.Context, parentID int64, opts service.ShadowOptions) (*service.Account, error) {

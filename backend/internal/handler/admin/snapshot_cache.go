@@ -1,13 +1,11 @@
 package admin
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/rustbridge/ffi"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -20,6 +18,7 @@ type snapshotCacheEntry struct {
 type snapshotCache struct {
 	mu    sync.RWMutex
 	ttl   time.Duration
+	max   int
 	items map[string]snapshotCacheEntry
 	sf    singleflight.Group
 }
@@ -35,6 +34,7 @@ func newSnapshotCache(ttl time.Duration) *snapshotCache {
 	}
 	return &snapshotCache{
 		ttl:   ttl,
+		max:   256,
 		items: make(map[string]snapshotCacheEntry),
 	}
 }
@@ -73,7 +73,9 @@ func (c *snapshotCache) Set(key string, payload any) snapshotCacheEntry {
 		return entry
 	}
 	c.mu.Lock()
+	c.pruneExpiredLocked(time.Now())
 	c.items[key] = entry
+	c.evictOverflowLocked()
 	c.mu.Unlock()
 	return entry
 }
@@ -81,6 +83,17 @@ func (c *snapshotCache) Set(key string, payload any) snapshotCacheEntry {
 func (c *snapshotCache) GetOrLoad(key string, load func() (any, error)) (snapshotCacheEntry, bool, error) {
 	if load == nil {
 		return snapshotCacheEntry{}, false, nil
+	}
+	var stale snapshotCacheEntry
+	var hasStale bool
+	if c != nil && key != "" {
+		now := time.Now()
+		c.mu.RLock()
+		if entry, ok := c.items[key]; ok {
+			stale = entry
+			hasStale = !entry.ExpiresAt.IsZero() && now.After(entry.ExpiresAt)
+		}
+		c.mu.RUnlock()
 	}
 	if entry, ok := c.Get(key); ok {
 		return entry, true, nil
@@ -99,6 +112,9 @@ func (c *snapshotCache) GetOrLoad(key string, load func() (any, error)) (snapsho
 		}
 		payload, err := load()
 		if err != nil {
+			if hasStale {
+				return snapshotCacheLoadResult{Entry: stale, Hit: true}, nil
+			}
 			return nil, err
 		}
 		return snapshotCacheLoadResult{Entry: c.Set(key, payload), Hit: false}, nil
@@ -114,12 +130,40 @@ func (c *snapshotCache) GetOrLoad(key string, load func() (any, error)) (snapsho
 }
 
 func buildETagFromAny(payload any) string {
-	raw, err := json.Marshal(payload)
-	if err != nil {
-		return ""
+	return ffi.BuildETagFromAny(payload)
+}
+
+func (c *snapshotCache) pruneExpiredLocked(now time.Time) {
+	if c == nil {
+		return
 	}
-	sum := sha256.Sum256(raw)
-	return "\"" + hex.EncodeToString(sum[:]) + "\""
+	for key, entry := range c.items {
+		if now.After(entry.ExpiresAt) {
+			delete(c.items, key)
+		}
+	}
+}
+
+func (c *snapshotCache) evictOverflowLocked() {
+	if c == nil || c.max <= 0 || len(c.items) <= c.max {
+		return
+	}
+	for len(c.items) > c.max {
+		oldestKey := ""
+		var oldest time.Time
+		first := true
+		for key, entry := range c.items {
+			if first || entry.ExpiresAt.Before(oldest) {
+				oldestKey = key
+				oldest = entry.ExpiresAt
+				first = false
+			}
+		}
+		if oldestKey == "" {
+			return
+		}
+		delete(c.items, oldestKey)
+	}
 }
 
 func parseBoolQueryWithDefault(raw string, def bool) bool {

@@ -1035,6 +1035,12 @@ func writeOpenAIImagesUpstreamErrorResponse(c *gin.Context, err *OpenAIImagesUps
 	return true
 }
 
+// WriteOpenAIImagesUpstreamErrorResponse writes one OpenAI-compatible JSON
+// error while preserving the Images JSON keepalive contract.
+func WriteOpenAIImagesUpstreamErrorResponse(c *gin.Context, err *OpenAIImagesUpstreamError) bool {
+	return writeOpenAIImagesUpstreamErrorResponse(c, err)
+}
+
 func (s *OpenAIGatewayService) writeOpenAIImagesStreamEvent(c *gin.Context, flusher http.Flusher, eventName string, payload []byte) error {
 	if strings.TrimSpace(eventName) != "" {
 		if _, err := fmt.Fprintf(c.Writer, "event: %s\n", eventName); err != nil {

@@ -144,6 +144,20 @@ func (_c *UserCreate) SetNillableConcurrency(v *int) *UserCreate {
 	return _c
 }
 
+// SetUnlimitedConcurrency sets the "unlimited_concurrency" field.
+func (_c *UserCreate) SetUnlimitedConcurrency(v bool) *UserCreate {
+	_c.mutation.SetUnlimitedConcurrency(v)
+	return _c
+}
+
+// SetNillableUnlimitedConcurrency sets the "unlimited_concurrency" field if the given value is not nil.
+func (_c *UserCreate) SetNillableUnlimitedConcurrency(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetUnlimitedConcurrency(*v)
+	}
+	return _c
+}
+
 // SetStatus sets the "status" field.
 func (_c *UserCreate) SetStatus(v string) *UserCreate {
 	_c.mutation.SetStatus(v)
@@ -350,6 +364,34 @@ func (_c *UserCreate) SetRpmLimit(v int) *UserCreate {
 func (_c *UserCreate) SetNillableRpmLimit(v *int) *UserCreate {
 	if v != nil {
 		_c.SetRpmLimit(*v)
+	}
+	return _c
+}
+
+// SetSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field.
+func (_c *UserCreate) SetSoraStorageQuotaBytes(v int64) *UserCreate {
+	_c.mutation.SetSoraStorageQuotaBytes(v)
+	return _c
+}
+
+// SetNillableSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field if the given value is not nil.
+func (_c *UserCreate) SetNillableSoraStorageQuotaBytes(v *int64) *UserCreate {
+	if v != nil {
+		_c.SetSoraStorageQuotaBytes(*v)
+	}
+	return _c
+}
+
+// SetSoraStorageUsedBytes sets the "sora_storage_used_bytes" field.
+func (_c *UserCreate) SetSoraStorageUsedBytes(v int64) *UserCreate {
+	_c.mutation.SetSoraStorageUsedBytes(v)
+	return _c
+}
+
+// SetNillableSoraStorageUsedBytes sets the "sora_storage_used_bytes" field if the given value is not nil.
+func (_c *UserCreate) SetNillableSoraStorageUsedBytes(v *int64) *UserCreate {
+	if v != nil {
+		_c.SetSoraStorageUsedBytes(*v)
 	}
 	return _c
 }
@@ -616,6 +658,10 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultConcurrency
 		_c.mutation.SetConcurrency(v)
 	}
+	if _, ok := _c.mutation.UnlimitedConcurrency(); !ok {
+		v := user.DefaultUnlimitedConcurrency
+		_c.mutation.SetUnlimitedConcurrency(v)
+	}
 	if _, ok := _c.mutation.Status(); !ok {
 		v := user.DefaultStatus
 		_c.mutation.SetStatus(v)
@@ -655,6 +701,14 @@ func (_c *UserCreate) defaults() error {
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		v := user.DefaultRpmLimit
 		_c.mutation.SetRpmLimit(v)
+	}
+	if _, ok := _c.mutation.SoraStorageQuotaBytes(); !ok {
+		v := user.DefaultSoraStorageQuotaBytes
+		_c.mutation.SetSoraStorageQuotaBytes(v)
+	}
+	if _, ok := _c.mutation.SoraStorageUsedBytes(); !ok {
+		v := user.DefaultSoraStorageUsedBytes
+		_c.mutation.SetSoraStorageUsedBytes(v)
 	}
 	return nil
 }
@@ -700,6 +754,9 @@ func (_c *UserCreate) check() error {
 	if _, ok := _c.mutation.Concurrency(); !ok {
 		return &ValidationError{Name: "concurrency", err: errors.New(`ent: missing required field "User.concurrency"`)}
 	}
+	if _, ok := _c.mutation.UnlimitedConcurrency(); !ok {
+		return &ValidationError{Name: "unlimited_concurrency", err: errors.New(`ent: missing required field "User.unlimited_concurrency"`)}
+	}
 	if _, ok := _c.mutation.Status(); !ok {
 		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "User.status"`)}
 	}
@@ -744,6 +801,12 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		return &ValidationError{Name: "rpm_limit", err: errors.New(`ent: missing required field "User.rpm_limit"`)}
+	}
+	if _, ok := _c.mutation.SoraStorageQuotaBytes(); !ok {
+		return &ValidationError{Name: "sora_storage_quota_bytes", err: errors.New(`ent: missing required field "User.sora_storage_quota_bytes"`)}
+	}
+	if _, ok := _c.mutation.SoraStorageUsedBytes(); !ok {
+		return &ValidationError{Name: "sora_storage_used_bytes", err: errors.New(`ent: missing required field "User.sora_storage_used_bytes"`)}
 	}
 	return nil
 }
@@ -808,6 +871,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		_spec.SetField(user.FieldConcurrency, field.TypeInt, value)
 		_node.Concurrency = value
 	}
+	if value, ok := _c.mutation.UnlimitedConcurrency(); ok {
+		_spec.SetField(user.FieldUnlimitedConcurrency, field.TypeBool, value)
+		_node.UnlimitedConcurrency = value
+	}
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(user.FieldStatus, field.TypeString, value)
 		_node.Status = value
@@ -867,6 +934,14 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.RpmLimit(); ok {
 		_spec.SetField(user.FieldRpmLimit, field.TypeInt, value)
 		_node.RpmLimit = value
+	}
+	if value, ok := _c.mutation.SoraStorageQuotaBytes(); ok {
+		_spec.SetField(user.FieldSoraStorageQuotaBytes, field.TypeInt64, value)
+		_node.SoraStorageQuotaBytes = value
+	}
+	if value, ok := _c.mutation.SoraStorageUsedBytes(); ok {
+		_spec.SetField(user.FieldSoraStorageUsedBytes, field.TypeInt64, value)
+		_node.SoraStorageUsedBytes = value
 	}
 	if nodes := _c.mutation.APIKeysIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -1252,6 +1327,18 @@ func (u *UserUpsert) AddConcurrency(v int) *UserUpsert {
 	return u
 }
 
+// SetUnlimitedConcurrency sets the "unlimited_concurrency" field.
+func (u *UserUpsert) SetUnlimitedConcurrency(v bool) *UserUpsert {
+	u.Set(user.FieldUnlimitedConcurrency, v)
+	return u
+}
+
+// UpdateUnlimitedConcurrency sets the "unlimited_concurrency" field to the value that was provided on create.
+func (u *UserUpsert) UpdateUnlimitedConcurrency() *UserUpsert {
+	u.SetExcluded(user.FieldUnlimitedConcurrency)
+	return u
+}
+
 // SetStatus sets the "status" field.
 func (u *UserUpsert) SetStatus(v string) *UserUpsert {
 	u.Set(user.FieldStatus, v)
@@ -1480,6 +1567,42 @@ func (u *UserUpsert) AddRpmLimit(v int) *UserUpsert {
 	return u
 }
 
+// SetSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field.
+func (u *UserUpsert) SetSoraStorageQuotaBytes(v int64) *UserUpsert {
+	u.Set(user.FieldSoraStorageQuotaBytes, v)
+	return u
+}
+
+// UpdateSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field to the value that was provided on create.
+func (u *UserUpsert) UpdateSoraStorageQuotaBytes() *UserUpsert {
+	u.SetExcluded(user.FieldSoraStorageQuotaBytes)
+	return u
+}
+
+// AddSoraStorageQuotaBytes adds v to the "sora_storage_quota_bytes" field.
+func (u *UserUpsert) AddSoraStorageQuotaBytes(v int64) *UserUpsert {
+	u.Add(user.FieldSoraStorageQuotaBytes, v)
+	return u
+}
+
+// SetSoraStorageUsedBytes sets the "sora_storage_used_bytes" field.
+func (u *UserUpsert) SetSoraStorageUsedBytes(v int64) *UserUpsert {
+	u.Set(user.FieldSoraStorageUsedBytes, v)
+	return u
+}
+
+// UpdateSoraStorageUsedBytes sets the "sora_storage_used_bytes" field to the value that was provided on create.
+func (u *UserUpsert) UpdateSoraStorageUsedBytes() *UserUpsert {
+	u.SetExcluded(user.FieldSoraStorageUsedBytes)
+	return u
+}
+
+// AddSoraStorageUsedBytes adds v to the "sora_storage_used_bytes" field.
+func (u *UserUpsert) AddSoraStorageUsedBytes(v int64) *UserUpsert {
+	u.Add(user.FieldSoraStorageUsedBytes, v)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -1662,6 +1785,20 @@ func (u *UserUpsertOne) AddConcurrency(v int) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateConcurrency() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateConcurrency()
+	})
+}
+
+// SetUnlimitedConcurrency sets the "unlimited_concurrency" field.
+func (u *UserUpsertOne) SetUnlimitedConcurrency(v bool) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetUnlimitedConcurrency(v)
+	})
+}
+
+// UpdateUnlimitedConcurrency sets the "unlimited_concurrency" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateUnlimitedConcurrency() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateUnlimitedConcurrency()
 	})
 }
 
@@ -1928,6 +2065,48 @@ func (u *UserUpsertOne) AddRpmLimit(v int) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateRpmLimit() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateRpmLimit()
+	})
+}
+
+// SetSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field.
+func (u *UserUpsertOne) SetSoraStorageQuotaBytes(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetSoraStorageQuotaBytes(v)
+	})
+}
+
+// AddSoraStorageQuotaBytes adds v to the "sora_storage_quota_bytes" field.
+func (u *UserUpsertOne) AddSoraStorageQuotaBytes(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddSoraStorageQuotaBytes(v)
+	})
+}
+
+// UpdateSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateSoraStorageQuotaBytes() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateSoraStorageQuotaBytes()
+	})
+}
+
+// SetSoraStorageUsedBytes sets the "sora_storage_used_bytes" field.
+func (u *UserUpsertOne) SetSoraStorageUsedBytes(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetSoraStorageUsedBytes(v)
+	})
+}
+
+// AddSoraStorageUsedBytes adds v to the "sora_storage_used_bytes" field.
+func (u *UserUpsertOne) AddSoraStorageUsedBytes(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddSoraStorageUsedBytes(v)
+	})
+}
+
+// UpdateSoraStorageUsedBytes sets the "sora_storage_used_bytes" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateSoraStorageUsedBytes() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateSoraStorageUsedBytes()
 	})
 }
 
@@ -2282,6 +2461,20 @@ func (u *UserUpsertBulk) UpdateConcurrency() *UserUpsertBulk {
 	})
 }
 
+// SetUnlimitedConcurrency sets the "unlimited_concurrency" field.
+func (u *UserUpsertBulk) SetUnlimitedConcurrency(v bool) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetUnlimitedConcurrency(v)
+	})
+}
+
+// UpdateUnlimitedConcurrency sets the "unlimited_concurrency" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateUnlimitedConcurrency() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateUnlimitedConcurrency()
+	})
+}
+
 // SetStatus sets the "status" field.
 func (u *UserUpsertBulk) SetStatus(v string) *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
@@ -2545,6 +2738,48 @@ func (u *UserUpsertBulk) AddRpmLimit(v int) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateRpmLimit() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateRpmLimit()
+	})
+}
+
+// SetSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field.
+func (u *UserUpsertBulk) SetSoraStorageQuotaBytes(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetSoraStorageQuotaBytes(v)
+	})
+}
+
+// AddSoraStorageQuotaBytes adds v to the "sora_storage_quota_bytes" field.
+func (u *UserUpsertBulk) AddSoraStorageQuotaBytes(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddSoraStorageQuotaBytes(v)
+	})
+}
+
+// UpdateSoraStorageQuotaBytes sets the "sora_storage_quota_bytes" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateSoraStorageQuotaBytes() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateSoraStorageQuotaBytes()
+	})
+}
+
+// SetSoraStorageUsedBytes sets the "sora_storage_used_bytes" field.
+func (u *UserUpsertBulk) SetSoraStorageUsedBytes(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetSoraStorageUsedBytes(v)
+	})
+}
+
+// AddSoraStorageUsedBytes adds v to the "sora_storage_used_bytes" field.
+func (u *UserUpsertBulk) AddSoraStorageUsedBytes(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddSoraStorageUsedBytes(v)
+	})
+}
+
+// UpdateSoraStorageUsedBytes sets the "sora_storage_used_bytes" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateSoraStorageUsedBytes() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateSoraStorageUsedBytes()
 	})
 }
 

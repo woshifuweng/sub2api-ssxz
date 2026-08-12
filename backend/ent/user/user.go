@@ -33,6 +33,8 @@ const (
 	FieldFrozenBalance = "frozen_balance"
 	// FieldConcurrency holds the string denoting the concurrency field in the database.
 	FieldConcurrency = "concurrency"
+	// FieldUnlimitedConcurrency holds the string denoting the unlimited_concurrency field in the database.
+	FieldUnlimitedConcurrency = "unlimited_concurrency"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
 	// FieldUsername holds the string denoting the username field in the database.
@@ -63,6 +65,10 @@ const (
 	FieldTotalRecharged = "total_recharged"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
+	// FieldSoraStorageQuotaBytes holds the string denoting the sora_storage_quota_bytes field in the database.
+	FieldSoraStorageQuotaBytes = "sora_storage_quota_bytes"
+	// FieldSoraStorageUsedBytes holds the string denoting the sora_storage_used_bytes field in the database.
+	FieldSoraStorageUsedBytes = "sora_storage_used_bytes"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
 	EdgeAPIKeys = "api_keys"
 	// EdgeRedeemCodes holds the string denoting the redeem_codes edge name in mutations.
@@ -203,6 +209,7 @@ var Columns = []string{
 	FieldBalance,
 	FieldFrozenBalance,
 	FieldConcurrency,
+	FieldUnlimitedConcurrency,
 	FieldStatus,
 	FieldUsername,
 	FieldNotes,
@@ -218,6 +225,8 @@ var Columns = []string{
 	FieldBalanceNotifyExtraEmails,
 	FieldTotalRecharged,
 	FieldRpmLimit,
+	FieldSoraStorageQuotaBytes,
+	FieldSoraStorageUsedBytes,
 }
 
 var (
@@ -264,6 +273,8 @@ var (
 	DefaultFrozenBalance float64
 	// DefaultConcurrency holds the default value on creation for the "concurrency" field.
 	DefaultConcurrency int
+	// DefaultUnlimitedConcurrency holds the default value on creation for the "unlimited_concurrency" field.
+	DefaultUnlimitedConcurrency bool
 	// DefaultStatus holds the default value on creation for the "status" field.
 	DefaultStatus string
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
@@ -290,6 +301,10 @@ var (
 	DefaultTotalRecharged float64
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
+	// DefaultSoraStorageQuotaBytes holds the default value on creation for the "sora_storage_quota_bytes" field.
+	DefaultSoraStorageQuotaBytes int64
+	// DefaultSoraStorageUsedBytes holds the default value on creation for the "sora_storage_used_bytes" field.
+	DefaultSoraStorageUsedBytes int64
 )
 
 // OrderOption defines the ordering options for the User queries.
@@ -343,6 +358,11 @@ func ByFrozenBalance(opts ...sql.OrderTermOption) OrderOption {
 // ByConcurrency orders the results by the concurrency field.
 func ByConcurrency(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldConcurrency, opts...).ToFunc()
+}
+
+// ByUnlimitedConcurrency orders the results by the unlimited_concurrency field.
+func ByUnlimitedConcurrency(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUnlimitedConcurrency, opts...).ToFunc()
 }
 
 // ByStatus orders the results by the status field.
@@ -418,6 +438,16 @@ func ByTotalRecharged(opts ...sql.OrderTermOption) OrderOption {
 // ByRpmLimit orders the results by the rpm_limit field.
 func ByRpmLimit(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRpmLimit, opts...).ToFunc()
+}
+
+// BySoraStorageQuotaBytes orders the results by the sora_storage_quota_bytes field.
+func BySoraStorageQuotaBytes(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSoraStorageQuotaBytes, opts...).ToFunc()
+}
+
+// BySoraStorageUsedBytes orders the results by the sora_storage_used_bytes field.
+func BySoraStorageUsedBytes(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSoraStorageUsedBytes, opts...).ToFunc()
 }
 
 // ByAPIKeysCount orders the results by api_keys count.

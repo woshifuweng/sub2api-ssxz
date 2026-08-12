@@ -1090,15 +1090,15 @@ func TestOpenAISelectAccountWithLoadAwareness_PrefersLowerLoad(t *testing.T) {
 	groupID := int64(1)
 	repo := stubOpenAIAccountRepo{
 		accounts: []Account{
-			{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 1},
-			{ID: 2, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 1},
+			{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 100, Priority: 1},
+			{ID: 2, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 100, Priority: 1},
 		},
 	}
 	cache := &stubGatewayCache{}
 	concurrencyCache := stubConcurrencyCache{
 		loadMap: map[int64]*AccountLoadInfo{
-			1: {AccountID: 1, LoadRate: 80},
-			2: {AccountID: 2, LoadRate: 10},
+			1: {AccountID: 1, CurrentConcurrency: 80, LoadRate: 80},
+			2: {AccountID: 2, CurrentConcurrency: 10, LoadRate: 10},
 		},
 	}
 
@@ -1113,7 +1113,10 @@ func TestOpenAISelectAccountWithLoadAwareness_PrefersLowerLoad(t *testing.T) {
 		t.Fatalf("SelectAccountWithLoadAwareness error: %v", err)
 	}
 	if selection == nil || selection.Account == nil || selection.Account.ID != 2 {
-		t.Fatalf("expected account 2")
+		if selection == nil || selection.Account == nil {
+			t.Fatalf("expected account 2, got nil selection/account")
+		}
+		t.Fatalf("expected account 2, got account %d", selection.Account.ID)
 	}
 	if cache.sessionBindings["openai:load"] != 2 {
 		t.Fatalf("expected sticky session updated")
@@ -1229,6 +1232,7 @@ func TestOpenAISelectAccountWithLoadAwareness_AllFullWaitPlan(t *testing.T) {
 	}
 	cache := &stubGatewayCache{}
 	concurrencyCache := stubConcurrencyCache{
+		acquireResults: map[int64]bool{1: false},
 		loadMap: map[int64]*AccountLoadInfo{
 			1: {AccountID: 1, LoadRate: 100},
 		},
@@ -1281,14 +1285,14 @@ func TestOpenAISelectAccountWithLoadAwareness_MissingLoadInfo(t *testing.T) {
 	groupID := int64(1)
 	repo := stubOpenAIAccountRepo{
 		accounts: []Account{
-			{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 1},
-			{ID: 2, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 1},
+			{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 100, Priority: 1},
+			{ID: 2, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 100, Priority: 1},
 		},
 	}
 	cache := &stubGatewayCache{}
 	concurrencyCache := stubConcurrencyCache{
 		loadMap: map[int64]*AccountLoadInfo{
-			1: {AccountID: 1, LoadRate: 50},
+			1: {AccountID: 1, CurrentConcurrency: 50, LoadRate: 50},
 		},
 		skipDefaultLoad: true,
 	}
@@ -1304,7 +1308,10 @@ func TestOpenAISelectAccountWithLoadAwareness_MissingLoadInfo(t *testing.T) {
 		t.Fatalf("SelectAccountWithLoadAwareness error: %v", err)
 	}
 	if selection == nil || selection.Account == nil || selection.Account.ID != 2 {
-		t.Fatalf("expected account 2")
+		if selection == nil || selection.Account == nil {
+			t.Fatalf("expected account 2, got nil selection/account")
+		}
+		t.Fatalf("expected account 2, got account %d", selection.Account.ID)
 	}
 }
 
@@ -2792,8 +2799,9 @@ func TestOpenAIValidateUpstreamBaseURLEnabledEnforcesAllowlist(t *testing.T) {
 	cfg := &config.Config{
 		Security: config.SecurityConfig{
 			URLAllowlist: config.URLAllowlistConfig{
-				Enabled:       true,
-				UpstreamHosts: []string{"example.com"},
+				Enabled:              true,
+				EnforceUpstreamHosts: true,
+				UpstreamHosts:        []string{"example.com"},
 			},
 		},
 	}

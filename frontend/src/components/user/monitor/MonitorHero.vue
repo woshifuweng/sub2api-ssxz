@@ -1,5 +1,5 @@
 <template>
-  <section class="py-3 md:py-4">
+  <section class="channel-monitor-toolbar py-3 md:py-4">
     <div class="flex items-center justify-end gap-3 flex-wrap">
       <div
         role="tablist"
@@ -61,7 +61,7 @@ import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import AutoRefreshButton from '@/components/common/AutoRefreshButton.vue'
 export type MonitorWindow = '7d' | '15d' | '30d'
-export type OverallStatus = 'operational' | 'degraded'
+export type OverallStatus = 'operational' | 'degraded' | 'unknown'
 
 const props = defineProps<{
   overallStatus: OverallStatus
@@ -98,8 +98,10 @@ const overallChipClass = computed(() => {
     case 'operational':
       return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
     case 'degraded':
-    default:
       return 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+    case 'unknown':
+    default:
+      return 'bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-gray-300'
   }
 })
 
@@ -108,9 +110,57 @@ const overallDotClass = computed(() => {
     case 'operational':
       return 'bg-emerald-500 animate-pulse'
     case 'degraded':
-    default:
       return 'bg-amber-500 animate-pulse'
+    case 'unknown':
+    default:
+      return 'bg-gray-400'
   }
 })
 
 </script>
+
+<style scoped>
+.channel-monitor-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  padding-inline: 1rem;
+  background: var(--ssxz-surface-raised);
+  border-color: var(--ssxz-border);
+  box-shadow: var(--ssxz-shadow-card);
+}
+
+.channel-monitor-toolbar :deep([role='tablist']) {
+  border-color: var(--ssxz-border);
+  background: var(--ssxz-surface-muted);
+}
+
+.channel-monitor-toolbar :deep([role='tab'][aria-selected='true']) {
+  color: var(--ssxz-text);
+  background: var(--ssxz-surface);
+  box-shadow: var(--ssxz-shadow-button-subtle);
+}
+
+.channel-monitor-toolbar :deep(button[title='刷新']) {
+  color: var(--ssxz-text-muted);
+}
+
+.channel-monitor-toolbar :deep(button[title='刷新']:hover) {
+  color: var(--ssxz-text);
+  background: var(--ssxz-active);
+}
+
+@media (max-width: 520px) {
+  .channel-monitor-toolbar {
+    justify-content: stretch;
+    padding-inline: 0.75rem;
+  }
+
+  .channel-monitor-toolbar > :deep(.flex) {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+</style>

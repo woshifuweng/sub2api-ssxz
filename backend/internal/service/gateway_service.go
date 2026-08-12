@@ -14,12 +14,15 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/cespare/xxhash/v2"
 	gocache "github.com/patrickmn/go-cache"
@@ -591,6 +594,9 @@ type ForwardResult struct {
 	ImageOutputSizes   []string
 	ImageSizeSource    string
 	ImageSizeBreakdown map[string]int
+	VideoCount         int
+	MediaType          string
+	MediaURL           string
 }
 
 // GatewayFailureStage identifies which request stage failed. The zero value is
@@ -632,9 +638,13 @@ type UpstreamFailoverError struct {
 	ResponseBody             []byte      // 上游响应体，用于错误透传规则匹配
 	ResponseHeaders          http.Header // 上游响应头，用于透传 cf-ray/cf-mitigated/content-type 等诊断信息
 	ForceCacheBilling        bool        // Antigravity 粘性会话切换时设为 true
-	RetryableOnSameAccount   bool        // 临时性错误（如 Google 间歇性 400、空响应），应在同一账号上重试 N 次再切换
-	RequestScopedTransient   bool        // 故障因素与账号无关（如上游按客户端身份/模型容量降载）：可同账号重试，但不得据此对账号做临时封禁
-	SafeToFailoverAfterWrite bool        // 仅写出 SSE 注释等非语义字节时，仍可在同一客户端流中切换账号
+	TempUnscheduleFor        time.Duration
+	TempUnscheduleReason     string
+	FailedProxyID            int64
+	FailedProxyURL           string
+	RetryableOnSameAccount   bool // 临时性错误（如 Google 间歇性 400、空响应），应在同一账号上重试 N 次再切换
+	RequestScopedTransient   bool // 故障因素与账号无关（如上游按客户端身份/模型容量降载）：可同账号重试，但不得据此对账号做临时封禁
+	SafeToFailoverAfterWrite bool // 仅写出 SSE 注释等非语义字节时，仍可在同一客户端流中切换账号
 	Stage                    GatewayFailureStage
 	Scope                    GatewayFailureScope
 	Reason                   GatewayFailureReason
@@ -720,6 +730,8 @@ type GatewayService struct {
 	deferredService       *DeferredService
 	concurrencyService    *ConcurrencyService
 	claudeTokenProvider   *ClaudeTokenProvider
+	kiroTokenProvider     *KiroTokenProvider
+	kiroGatewayService    *KiroGatewayService
 	sessionLimitCache     SessionLimitCache // 会话数量限制缓存（仅 Anthropic OAuth/SetupToken）
 	rpmCache              RPMCache          // RPM 计数缓存（仅 Anthropic OAuth/SetupToken）
 	userGroupRateResolver *userGroupRateResolver
@@ -737,7 +749,87 @@ type GatewayService struct {
 	debugGatewayBodyFile  atomic.Pointer[os.File] // non-nil when SUB2API_DEBUG_GATEWAY_BODY is set
 	tlsFPProfileService   *TLSFingerprintProfileService
 	balanceNotifyService  *BalanceNotifyService
+	billingShortfallAlert BillingShortfallNotifier
 	userPlatformQuotaRepo UserPlatformQuotaRepository
+	gatewaySchedulerOnce  sync.Once
+	gatewayScheduler      GatewayAccountScheduler
+	gatewayAccountStats   *gatewayAccountRuntimeStats
+}
+
+func (s *GatewayService) SetKiroDeps(kiroTokenProvider *KiroTokenProvider, kiroGatewayService *KiroGatewayService) {
+	if s == nil {
+		return
+	}
+	s.kiroTokenProvider = kiroTokenProvider
+	s.kiroGatewayService = kiroGatewayService
+}
+
+func (s *GatewayService) applySampledTLSFingerprintProfile(req *http.Request, account *Account) *http.Request {
+	if req == nil || account == nil || !account.IsTLSFingerprintEnabled() {
+		return req
+	}
+	profileID := ""
+	if configuredID := account.GetTLSFingerprintProfileID(); configuredID > 0 {
+		profileID = strconv.FormatInt(configuredID, 10)
+	}
+	if profileID == "" && s != nil && s.identityService != nil {
+		if fp, err := s.identityService.GetSampledFingerprint(req.Context(), account.ID); err == nil && fp != nil {
+			profileID = strings.TrimSpace(fp.TLSProfileID)
+		}
+	}
+	if profileID == "" {
+		return req
+	}
+	ctx := context.WithValue(req.Context(), ctxkey.TLSFingerprintProfileID, profileID)
+	return req.WithContext(ctx)
+}
+
+func debugGatewayBodyLoggingEnabled() bool {
+	raw := strings.TrimSpace(os.Getenv(debugGatewayBodyEnv))
+	if raw == "" {
+		return false
+	}
+	switch strings.ToLower(raw) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		// U2 also accepts an absolute output path for gateway body diagnostics.
+		return filepath.IsAbs(raw)
+	}
+}
+
+func isClaudeCodeRequestContext(ctx context.Context, c gatewayctx.GatewayContext, parsed *ParsedRequest) bool {
+	if IsClaudeCodeClient(ctx) {
+		return true
+	}
+	if parsed == nil || c == nil {
+		return false
+	}
+	return isClaudeCodeClient(c.HeaderValue("User-Agent"), parsed.MetadataUserID)
+}
+
+func debugLogRequestBody(tag string, body []byte) {
+	if !debugGatewayBodyLoggingEnabled() {
+		return
+	}
+	if len(body) == 0 {
+		logger.LegacyPrintf("service.gateway", "[DEBUG_%s] body is empty", tag)
+		return
+	}
+	metadataResult := gjson.GetBytes(body, "metadata")
+	if metadataResult.Exists() {
+		logger.LegacyPrintf("service.gateway", "[DEBUG_%s] metadata = %s", tag, metadataResult.Raw)
+	} else {
+		logger.LegacyPrintf("service.gateway", "[DEBUG_%s] metadata field not found", tag)
+	}
+	logger.LegacyPrintf("service.gateway", "[DEBUG_%s] body (%d bytes) = %s", tag, len(body), string(body))
+}
+
+func (s *GatewayService) SetBillingShortfallNotifier(notifier BillingShortfallNotifier) {
+	if s == nil {
+		return
+	}
+	s.billingShortfallAlert = notifier
 }
 
 // NewGatewayService creates a new GatewayService

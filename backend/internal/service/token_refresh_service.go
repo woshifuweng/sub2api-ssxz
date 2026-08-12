@@ -1,16 +1,22 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	httppool "github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
+	openaipkg "github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/util/logredact"
 )
 
@@ -18,6 +24,9 @@ import (
 const tokenRefreshTempUnschedDuration = 10 * time.Minute
 
 const (
+	schedulerAdmissionProbeWorkerCount          = 1
+	schedulerAdmissionProbeQueueSize            = 128
+	schedulerAdmissionProbeCooldown             = time.Minute
 	defaultTokenRefreshCandidatePageSize        = 200
 	maxTokenRefreshCandidatePageSize            = 1000
 	defaultTokenRefreshProviderConcurrency      = 4
@@ -37,6 +46,12 @@ const (
 	defaultTokenRefreshCleanupTimeout           = 2 * time.Second
 )
 
+var schedulerAdmissionStatusPattern = regexp.MustCompile(`\bstatus[:= ]+(\d{3})\b`)
+
+type SchedulerAdmissionTester interface {
+	EnqueueSchedulerAdmissionTest(accountID int64)
+}
+
 type tokenRefreshRegistration struct {
 	platform  string
 	refresher TokenRefresher
@@ -55,16 +70,21 @@ type GrokOAuthRefreshMutationRepository interface {
 // TokenRefreshService OAuth token自动刷新服务
 // 定期检查并刷新即将过期的token
 type TokenRefreshService struct {
-	accountRepo      AccountRepository
-	candidatePager   OAuthRefreshCandidatePager
-	registrations    []tokenRefreshRegistration
-	refreshPolicy    BackgroundRefreshPolicy
-	cfg              *config.TokenRefreshConfig
-	cacheInvalidator TokenCacheInvalidator
-	schedulerCache   SchedulerCache   // 用于同步更新调度器缓存，解决 token 刷新后缓存不一致问题
-	tempUnschedCache TempUnschedCache // 用于清除 Redis 中的临时不可调度缓存
-	refreshAPI       *OAuthRefreshAPI // 统一刷新 API
-	runtimeBlocker   AccountRuntimeBlocker
+	accountRepo          AccountRepository
+	candidatePager       OAuthRefreshCandidatePager
+	registrations        []tokenRefreshRegistration
+	refreshPolicy        BackgroundRefreshPolicy
+	cfg                  *config.TokenRefreshConfig
+	rateLimitService     *RateLimitService
+	admissionCh          chan int64
+	admissionMu          sync.Mutex
+	admissionLastRun     map[int64]time.Time
+	openAIAdmissionProbe func(ctx context.Context, account *Account) error
+	cacheInvalidator     TokenCacheInvalidator
+	schedulerCache       SchedulerCache   // 用于同步更新调度器缓存，解决 token 刷新后缓存不一致问题
+	tempUnschedCache     TempUnschedCache // 用于清除 Redis 中的临时不可调度缓存
+	refreshAPI           *OAuthRefreshAPI // 统一刷新 API
+	runtimeBlocker       AccountRuntimeBlocker
 
 	// OpenAI privacy: 刷新成功后检查并设置 training opt-out
 	privacyClientFactory PrivacyClientFactory
@@ -110,6 +130,8 @@ func NewTokenRefreshService(
 		cacheInvalidator: cacheInvalidator,
 		schedulerCache:   schedulerCache,
 		tempUnschedCache: tempUnschedCache,
+		admissionCh:      make(chan int64, schedulerAdmissionProbeQueueSize),
+		admissionLastRun: make(map[int64]time.Time),
 		stopCh:           make(chan struct{}),
 		runCtx:           runCtx,
 		runCancel:        runCancel,
@@ -119,6 +141,7 @@ func NewTokenRefreshService(
 	}
 
 	openAIRefresher := NewOpenAITokenRefresher(openaiOAuthService, accountRepo)
+	openAIRefresher.SetSyncLinkedSoraAccounts(cfg.TokenRefresh.SyncLinkedSoraAccounts)
 
 	claudeRefresher := NewClaudeTokenRefresher(oauthService)
 	geminiRefresher := NewGeminiTokenRefresher(geminiOAuthService)
@@ -152,6 +175,14 @@ func (s *TokenRefreshService) eligiblePlatforms() []string {
 	return platforms
 }
 
+func (s *TokenRefreshService) SetSoraAccountRepo(repo SoraAccountRepository) {
+	for _, registration := range s.registrations {
+		if refresher, ok := registration.refresher.(*OpenAITokenRefresher); ok {
+			refresher.SetSoraAccountRepo(repo)
+		}
+	}
+}
+
 func (s *TokenRefreshService) candidateAfterID() int64 {
 	s.candidateMu.Lock()
 	defer s.candidateMu.Unlock()
@@ -180,6 +211,31 @@ func (s *TokenRefreshService) SetRefreshPolicy(policy BackgroundRefreshPolicy) {
 	s.refreshPolicy = policy
 }
 
+func (s *TokenRefreshService) SetRateLimitService(rateLimitService *RateLimitService) {
+	s.rateLimitService = rateLimitService
+}
+
+func (s *TokenRefreshService) EnqueueSchedulerAdmissionTest(accountID int64) {
+	if s == nil || accountID <= 0 || s.admissionCh == nil {
+		return
+	}
+
+	now := time.Now()
+	s.admissionMu.Lock()
+	if lastRun, ok := s.admissionLastRun[accountID]; ok && now.Sub(lastRun) < schedulerAdmissionProbeCooldown {
+		s.admissionMu.Unlock()
+		return
+	}
+	s.admissionLastRun[accountID] = now
+	s.admissionMu.Unlock()
+
+	select {
+	case s.admissionCh <- accountID:
+	default:
+		slog.Warn("token_refresh.scheduler_admission_queue_full", "account_id", accountID)
+	}
+}
+
 func (s *TokenRefreshService) SetAccountRuntimeBlocker(blocker AccountRuntimeBlocker) {
 	s.runtimeBlocker = blocker
 }
@@ -200,6 +256,13 @@ func (s *TokenRefreshService) notifyAccountSchedulingBlockCleared(accountID int6
 
 // Start 启动后台刷新服务
 func (s *TokenRefreshService) Start() {
+	if s.admissionCh != nil {
+		for worker := 0; worker < schedulerAdmissionProbeWorkerCount; worker++ {
+			s.wg.Add(1)
+			go s.schedulerAdmissionLoop()
+		}
+	}
+
 	if s.cfg == nil || !s.cfg.Enabled {
 		slog.Info("token_refresh.service_disabled")
 		return
@@ -255,6 +318,314 @@ func (s *TokenRefreshService) refreshLoop() {
 		case <-s.stopCh:
 			return
 		}
+	}
+}
+
+func (s *TokenRefreshService) schedulerAdmissionLoop() {
+	defer s.wg.Done()
+	for {
+		select {
+		case <-s.stopCh:
+			return
+		case accountID := <-s.admissionCh:
+			s.processSchedulerAdmissionTest(accountID)
+		}
+	}
+}
+
+func (s *TokenRefreshService) processSchedulerAdmissionTest(accountID int64) {
+	if s == nil || s.accountRepo == nil || accountID <= 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	account, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil || account == nil {
+		return
+	}
+	if !s.shouldRunSchedulerAdmissionTest(account) {
+		return
+	}
+	if s.shouldUseOpenAIAccessTokenAdmissionProbe(account) {
+		err = s.runOpenAIAccessTokenAdmissionProbe(ctx, account)
+	} else {
+		refresher, executor := s.matchAdmissionRefresher(account)
+		if refresher == nil || executor == nil {
+			return
+		}
+		err = s.runSchedulerAdmissionRefresh(ctx, account, refresher, executor)
+	}
+	if err == nil {
+		s.syncSchedulerAdmissionAccountState(ctx, account.ID)
+		slog.Info("token_refresh.scheduler_admission_refresh_succeeded",
+			"account_id", account.ID,
+			"platform", account.Platform,
+		)
+		return
+	}
+
+	statusCode := classifySchedulerAdmissionRefreshStatus(err)
+	switch statusCode {
+	case http.StatusUnauthorized:
+		s.handleSchedulerAdmissionAuthError(account, statusCode, err)
+	case http.StatusForbidden:
+		if account.Platform == PlatformOpenAI {
+			s.handleSchedulerAdmissionAuthError(account, statusCode, err)
+			return
+		}
+		s.handleSchedulerAdmissionRetryableError(account, err)
+	default:
+		s.handleSchedulerAdmissionRetryableError(account, err)
+	}
+}
+
+func (s *TokenRefreshService) shouldRunSchedulerAdmissionTest(account *Account) bool {
+	if account == nil || !account.IsSchedulable() {
+		return false
+	}
+	if account.Type != AccountTypeOAuth {
+		return false
+	}
+	if strings.TrimSpace(account.GetCredential("refresh_token")) != "" {
+		return true
+	}
+	return account.Platform == PlatformOpenAI && strings.TrimSpace(account.GetOpenAIAccessToken()) != ""
+}
+
+func (s *TokenRefreshService) shouldUseOpenAIAccessTokenAdmissionProbe(account *Account) bool {
+	if account == nil || account.Platform != PlatformOpenAI || account.Type != AccountTypeOAuth {
+		return false
+	}
+	return strings.TrimSpace(account.GetCredential("refresh_token")) == "" &&
+		strings.TrimSpace(account.GetOpenAIAccessToken()) != ""
+}
+
+func (s *TokenRefreshService) matchAdmissionRefresher(account *Account) (TokenRefresher, OAuthRefreshExecutor) {
+	if account == nil {
+		return nil, nil
+	}
+	for _, registration := range s.registrations {
+		if registration.refresher == nil || !registration.refresher.CanRefresh(account) {
+			continue
+		}
+		if registration.executor == nil {
+			continue
+		}
+		return registration.refresher, registration.executor
+	}
+	return nil, nil
+}
+
+func (s *TokenRefreshService) runSchedulerAdmissionRefresh(ctx context.Context, account *Account, refresher TokenRefresher, executor OAuthRefreshExecutor) error {
+	if s.refreshAPI != nil && executor != nil {
+		result, err := s.refreshAPI.RefreshNow(ctx, account, executor)
+		if err != nil {
+			return err
+		}
+		if result != nil && result.Account != nil {
+			account = result.Account
+		}
+		s.postRefreshActions(ctx, account)
+		return nil
+	}
+
+	newCredentials, err := refresher.Refresh(ctx, account)
+	if err != nil {
+		return err
+	}
+	if newCredentials != nil {
+		newCredentials["_token_version"] = time.Now().UnixMilli()
+		account.Credentials = newCredentials
+		if saveErr := s.accountRepo.Update(ctx, account); saveErr != nil {
+			return fmt.Errorf("failed to save credentials: %w", saveErr)
+		}
+	}
+	s.postRefreshActions(ctx, account)
+	return nil
+}
+
+func (s *TokenRefreshService) runOpenAIAccessTokenAdmissionProbe(ctx context.Context, account *Account) error {
+	if s == nil || account == nil {
+		return nil
+	}
+	if s.openAIAdmissionProbe != nil {
+		return s.openAIAdmissionProbe(ctx, account)
+	}
+	if !account.IsOpenAIOAuth() {
+		return nil
+	}
+	accessToken := strings.TrimSpace(account.GetOpenAIAccessToken())
+	if accessToken == "" {
+		return errors.New("no access token available")
+	}
+
+	payload := createOpenAITestPayload(openaipkg.DefaultTestModel, true)
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal openai admission probe payload: %w", err)
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, chatgptCodexURL, bytes.NewReader(payloadBytes))
+	if err != nil {
+		return fmt.Errorf("create openai admission probe request: %w", err)
+	}
+	req.Host = "chatgpt.com"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("OpenAI-Beta", "responses=experimental")
+	req.Header.Set("Originator", "codex_cli_rs")
+	req.Header.Set("Version", openAICodexProbeVersion)
+	req.Header.Set("User-Agent", codexCLIUserAgent)
+	if chatgptAccountID := account.GetChatGPTAccountID(); chatgptAccountID != "" {
+		req.Header.Set("chatgpt-account-id", chatgptAccountID)
+	}
+
+	proxyURL := ""
+	if account.ProxyID != nil && account.Proxy != nil {
+		proxyURL = account.Proxy.URL()
+	} else if account.ProxyID != nil && s.proxyRepo != nil {
+		if proxy, proxyErr := s.proxyRepo.GetByID(reqCtx, *account.ProxyID); proxyErr == nil && proxy != nil {
+			proxyURL = proxy.URL()
+		}
+	}
+
+	client, err := httppool.GetClient(httppool.Options{
+		ProxyURL:              proxyURL,
+		Timeout:               15 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
+	})
+	if err != nil {
+		return fmt.Errorf("build openai admission probe client: %w", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("openai admission probe request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	updates, resetAt, err := extractOpenAICodexProbeSnapshot(resp)
+	if err != nil {
+		return err
+	}
+
+	if len(updates) > 0 {
+		if updateErr := s.accountRepo.UpdateExtra(reqCtx, account.ID, updates); updateErr == nil {
+			mergeAccountExtra(account, updates)
+		}
+	}
+	if resetAt != nil {
+		_ = s.accountRepo.SetRateLimited(reqCtx, account.ID, *resetAt)
+		account.RateLimitResetAt = resetAt
+	}
+	return nil
+}
+
+func classifySchedulerAdmissionRefreshStatus(err error) int {
+	if err == nil {
+		return 0
+	}
+	if isNonRetryableRefreshError(err) {
+		return http.StatusUnauthorized
+	}
+	msg := strings.ToLower(err.Error())
+	if matches := schedulerAdmissionStatusPattern.FindStringSubmatch(msg); len(matches) == 2 {
+		switch matches[1] {
+		case "400":
+			return http.StatusBadRequest
+		case "401":
+			return http.StatusUnauthorized
+		case "402":
+			return http.StatusPaymentRequired
+		case "403":
+			return http.StatusForbidden
+		case "429":
+			return http.StatusTooManyRequests
+		case "500":
+			return http.StatusInternalServerError
+		case "502":
+			return http.StatusBadGateway
+		case "503":
+			return http.StatusServiceUnavailable
+		case "504":
+			return http.StatusGatewayTimeout
+		}
+	}
+	if strings.Contains(msg, "status 401") || strings.Contains(msg, "status=401") {
+		return http.StatusUnauthorized
+	}
+	return http.StatusBadGateway
+}
+
+func (s *TokenRefreshService) handleSchedulerAdmissionAuthError(account *Account, statusCode int, refreshErr error) {
+	if s == nil || account == nil || s.rateLimitService == nil {
+		return
+	}
+	writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if statusCode <= 0 {
+		statusCode = http.StatusUnauthorized
+	}
+	s.rateLimitService.HandleUpstreamError(writeCtx, account, statusCode, http.Header{}, []byte(refreshErr.Error()))
+	s.syncSchedulerAdmissionAccountState(writeCtx, account.ID)
+}
+
+func (s *TokenRefreshService) handleSchedulerAdmissionRetryableError(account *Account, refreshErr error) {
+	if s == nil || s.accountRepo == nil || account == nil || account.ID <= 0 {
+		return
+	}
+	writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	until := time.Now().Add(tokenRefreshTempUnschedDuration)
+	reason := fmt.Sprintf("scheduler admission refresh probe failed: %v", refreshErr)
+	if err := s.accountRepo.SetTempUnschedulable(writeCtx, account.ID, until, reason); err != nil {
+		slog.Warn("token_refresh.scheduler_admission_temp_unschedulable_failed",
+			"account_id", account.ID,
+			"error", err,
+		)
+		return
+	}
+	if s.tempUnschedCache != nil {
+		state := &TempUnschedState{
+			UntilUnix:       until.Unix(),
+			TriggeredAtUnix: time.Now().Unix(),
+			StatusCode:      http.StatusBadGateway,
+			ErrorMessage:    reason,
+		}
+		if err := s.tempUnschedCache.SetTempUnsched(writeCtx, account.ID, state); err != nil {
+			slog.Warn("token_refresh.scheduler_admission_temp_unsched_cache_failed",
+				"account_id", account.ID,
+				"error", err,
+			)
+		}
+	}
+	s.syncSchedulerAdmissionAccountState(writeCtx, account.ID)
+}
+
+func (s *TokenRefreshService) syncSchedulerAdmissionAccountState(ctx context.Context, accountID int64) {
+	if s == nil || s.schedulerCache == nil || s.accountRepo == nil || accountID <= 0 {
+		return
+	}
+	account, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil {
+		if errors.Is(err, ErrAccountNotFound) {
+			_ = s.schedulerCache.DeleteAccount(ctx, accountID)
+		}
+		return
+	}
+	if account == nil {
+		_ = s.schedulerCache.DeleteAccount(ctx, accountID)
+		return
+	}
+	if err := s.schedulerCache.SetAccount(ctx, account); err != nil {
+		slog.Warn("token_refresh.scheduler_admission_sync_cache_failed",
+			"account_id", accountID,
+			"error", err,
+		)
 	}
 }
 

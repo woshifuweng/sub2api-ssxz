@@ -657,6 +657,12 @@ type opsResolveRequest struct {
 	Resolved bool `json:"resolved"`
 }
 
+type opsRetryRequest struct {
+	Mode            string `json:"mode"`
+	PinnedAccountID *int64 `json:"pinned_account_id"`
+	Force           bool   `json:"force"`
+}
+
 // UpdateErrorResolution allows manual resolve/unresolve.
 // PUT /api/v1/admin/ops/errors/:id/resolve
 func (h *OpsHandler) UpdateErrorResolution(c *gin.Context) {
@@ -688,7 +694,7 @@ func (h *OpsHandler) UpdateErrorResolution(c *gin.Context) {
 		return
 	}
 	uid := subject.UserID
-	if err := h.opsService.UpdateErrorResolution(c.Request.Context(), id, req.Resolved, &uid); err != nil {
+	if err := h.opsService.UpdateErrorResolution(c.Request.Context(), id, req.Resolved, &uid, nil); err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}

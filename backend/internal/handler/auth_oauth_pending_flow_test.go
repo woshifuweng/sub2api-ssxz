@@ -2728,6 +2728,14 @@ func (s *oauthPendingFlowRefreshTokenCacheStub) DeleteUserRefreshTokens(context.
 	return nil
 }
 
+func (s *oauthPendingFlowRefreshTokenCacheStub) StoreConsumedRefreshTokenFamily(context.Context, string, string, time.Duration) error {
+	return nil
+}
+
+func (s *oauthPendingFlowRefreshTokenCacheStub) GetConsumedRefreshTokenFamily(context.Context, string) (string, bool, error) {
+	return "", false, nil
+}
+
 func (s *oauthPendingFlowRefreshTokenCacheStub) DeleteTokenFamily(context.Context, string) error {
 	return nil
 }

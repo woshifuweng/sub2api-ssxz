@@ -30,14 +30,16 @@
           @change="emitFiltersChanged"
         />
         <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
-          <button
+          <LiquidButton
+            variant="outline"
+            size="icon"
             @click="emit('refresh')"
             :disabled="loading"
-            class="btn btn-secondary"
             :title="t('common.refresh')"
+            :aria-label="t('common.refresh')"
           >
             <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-          </button>
+          </LiquidButton>
         </div>
       </div>
     </div>
@@ -87,37 +89,45 @@
 
       <template #cell-actions="{ row }">
         <div class="flex items-center gap-2">
-          <button
+          <LiquidButton
+            variant="plain"
+            size="sm"
             @click="emit('detail', row)"
-            class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700 dark:hover:bg-gray-800/50 dark:hover:text-gray-300"
+            class="h-8 gap-1.5 rounded-md px-2.5 text-gray-500 hover:bg-gray-50 hover:text-gray-700 dark:hover:bg-gray-800/50 dark:hover:text-gray-300"
           >
             <Icon name="eye" size="sm" />
             <span class="text-xs">{{ t('common.view') }}</span>
-          </button>
-          <button
+          </LiquidButton>
+          <LiquidButton
             v-if="row.status === 'PENDING'"
+            variant="plain"
+            size="sm"
             @click="emit('cancel', row)"
-            class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-yellow-50 hover:text-yellow-600 dark:hover:bg-yellow-900/20 dark:hover:text-yellow-400"
+            class="h-8 gap-1.5 rounded-md px-2.5 text-gray-500 hover:bg-yellow-50 hover:text-yellow-600 dark:hover:bg-yellow-900/20 dark:hover:text-yellow-400"
           >
             <Icon name="x" size="sm" />
             <span class="text-xs">{{ t('payment.orders.cancel') }}</span>
-          </button>
-          <button
+          </LiquidButton>
+          <LiquidButton
             v-if="row.status === 'FAILED'"
+            variant="plain"
+            size="sm"
             @click="emit('retry', row)"
-            class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
+            class="h-8 gap-1.5 rounded-md px-2.5 text-gray-500 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
           >
             <Icon name="refresh" size="sm" />
             <span class="text-xs">{{ t('payment.admin.retry') }}</span>
-          </button>
-          <button
+          </LiquidButton>
+          <LiquidButton
             v-if="canRefundRow(row)"
+            variant="plain"
+            size="sm"
             @click="emit('refund', row)"
-            class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+            class="h-8 gap-1.5 rounded-md px-2.5 text-gray-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
           >
             <Icon name="dollar" size="sm" />
             <span class="text-xs">{{ t('payment.admin.refund') }}</span>
-          </button>
+          </LiquidButton>
         </div>
       </template>
     </DataTable>
@@ -139,6 +149,7 @@ import { useI18n } from 'vue-i18n'
 import type { PaymentOrder } from '@/types/payment'
 import type { Column } from '@/components/common/types'
 import DataTable from '@/components/common/DataTable.vue'
+import LiquidButton from '@/components/common/LiquidButton.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -210,7 +221,6 @@ const statusFilterOptions = computed(() => [
   { value: 'FAILED', label: t('payment.status.failed') },
   { value: 'REFUNDED', label: t('payment.status.refunded') },
   { value: 'REFUND_REQUESTED', label: t('payment.status.refund_requested') },
-  { value: 'REFUND_PENDING', label: t('payment.status.refund_pending') },
   { value: 'REFUND_FAILED', label: t('payment.status.refund_failed') },
 ])
 
@@ -219,7 +229,6 @@ const paymentTypeFilterOptions = computed(() => [
   { value: 'alipay', label: t('payment.methods.alipay') },
   { value: 'wxpay', label: t('payment.methods.wxpay') },
   { value: 'stripe', label: t('payment.methods.stripe') },
-  { value: 'airwallex', label: t('payment.methods.airwallex') },
 ])
 
 const orderTypeFilterOptions = computed(() => [

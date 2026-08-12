@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -21,9 +22,11 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
+	kiropkg "github.com/Wei-Shaw/sub2api/internal/pkg/kiro"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
+	"github.com/Wei-Shaw/sub2api/internal/util/soraerror"
 	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -36,6 +39,11 @@ var sseDataPrefix = regexp.MustCompile(`^data:\s*`)
 const (
 	testClaudeAPIURL   = "https://api.anthropic.com/v1/messages?beta=true"
 	chatgptCodexAPIURL = "https://chatgpt.com/backend-api/codex/responses"
+	soraMeAPIURL       = "https://sora.chatgpt.com/backend/me" // Sora 用户信息接口，用于测试连接
+	soraBillingAPIURL  = "https://sora.chatgpt.com/backend/billing/subscriptions"
+	soraInviteMineURL  = "https://sora.chatgpt.com/backend/project_y/invite/mine"
+	soraBootstrapURL   = "https://sora.chatgpt.com/backend/m/bootstrap"
+	soraRemainingURL   = "https://sora.chatgpt.com/backend/nf/check"
 )
 
 // TestEvent represents a SSE event for account testing
@@ -52,15 +60,29 @@ type TestEvent struct {
 	Error    string `json:"error,omitempty"`
 }
 
+// AccountModelsRefreshResult is returned after refreshing an account's fetched model cache.
+type AccountModelsRefreshResult struct {
+	AccountID    int64                      `json:"account_id"`
+	Models       []string                   `json:"models"`
+	FetchedAt    *time.Time                 `json:"fetched_at,omitempty"`
+	Source       string                     `json:"source,omitempty"`
+	RefreshError string                     `json:"refresh_error,omitempty"`
+	Audit        AccountModelDiscoveryAudit `json:"audit"`
+}
+
 const (
 	defaultGeminiTextTestPrompt  = "hi"
 	defaultGeminiImageTestPrompt = "Generate a cute orange cat astronaut sticker on a clean pastel background."
 	defaultOpenAIImageTestPrompt = "Generate a cute orange cat astronaut sticker on a clean pastel background."
+	accountModelsRefreshTimeout  = 20 * time.Second
 )
 
-// isOpenAIImageModel checks if the model is an OpenAI image generation model (e.g. gpt-image-2).
+type openAIAccountTokenProvider interface {
+	GetAccessToken(ctx context.Context, account *Account) (string, error)
+}
+
 func isOpenAIImageModel(model string) bool {
-	return strings.HasPrefix(strings.ToLower(model), "gpt-image-")
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), "gpt-image-")
 }
 
 // AccountTestService handles account testing operations
@@ -69,13 +91,20 @@ type AccountTestService struct {
 	geminiTokenProvider       *GeminiTokenProvider
 	claudeTokenProvider       *ClaudeTokenProvider
 	grokTokenProvider         *GrokTokenProvider
+	openAITokenProvider       openAIAccountTokenProvider
 	antigravityGatewayService *AntigravityGatewayService
+	openAIGatewayService      *OpenAIGatewayService
 	httpUpstream              HTTPUpstream
 	cfg                       *config.Config
 	tlsFPProfileService       *TLSFingerprintProfileService
+	soraTestGuardMu           sync.Mutex
+	soraTestLastRun           map[int64]time.Time
+	soraTestCooldown          time.Duration
 	agentIdentityTaskMu       sync.Mutex
 	agentIdentityWS           agentIdentityWSConnectionInvalidator
 }
+
+const defaultSoraTestCooldown = 10 * time.Second
 
 // NewAccountTestService creates a new AccountTestService
 func NewAccountTestService(
@@ -83,39 +112,436 @@ func NewAccountTestService(
 	geminiTokenProvider *GeminiTokenProvider,
 	claudeTokenProvider *ClaudeTokenProvider,
 	grokTokenProvider *GrokTokenProvider,
+	openAITokenProvider *OpenAITokenProvider,
 	antigravityGatewayService *AntigravityGatewayService,
+	openAIGatewayService *OpenAIGatewayService,
 	httpUpstream HTTPUpstream,
 	cfg *config.Config,
-	tlsFPProfileService *TLSFingerprintProfileService,
+	tlsFPProfileServices ...*TLSFingerprintProfileService,
 ) *AccountTestService {
-	return &AccountTestService{
+	svc := &AccountTestService{
 		accountRepo:               accountRepo,
 		geminiTokenProvider:       geminiTokenProvider,
 		claudeTokenProvider:       claudeTokenProvider,
 		grokTokenProvider:         grokTokenProvider,
+		openAITokenProvider:       openAITokenProvider,
 		antigravityGatewayService: antigravityGatewayService,
+		openAIGatewayService:      openAIGatewayService,
 		httpUpstream:              httpUpstream,
 		cfg:                       cfg,
-		tlsFPProfileService:       tlsFPProfileService,
+		soraTestLastRun:           make(map[int64]time.Time),
+		soraTestCooldown:          defaultSoraTestCooldown,
 	}
+	if len(tlsFPProfileServices) > 0 {
+		svc.tlsFPProfileService = tlsFPProfileServices[0]
+	}
+	return svc
 }
 
 func (s *AccountTestService) validateUpstreamBaseURL(raw string) (string, error) {
-	if s.cfg == nil {
-		return "", errors.New("config is not available")
+	var allowInsecureHTTP bool
+	opts := urlvalidator.ValidationOptions{}
+	if s.cfg != nil {
+		allowInsecureHTTP = s.cfg.Security.URLAllowlist.AllowInsecureHTTP
+		allowedHosts := []string(nil)
+		if s.cfg.Security.URLAllowlist.EnforceUpstreamHosts {
+			allowedHosts = s.cfg.Security.URLAllowlist.UpstreamHosts
+		}
+		opts = urlvalidator.ValidationOptions{
+			AllowedHosts:     allowedHosts,
+			RequireAllowlist: s.cfg.Security.URLAllowlist.Enabled && s.cfg.Security.URLAllowlist.EnforceUpstreamHosts,
+			AllowPrivate:     s.cfg.Security.URLAllowlist.AllowPrivateHosts,
+		}
 	}
-	if !s.cfg.Security.URLAllowlist.Enabled {
-		return urlvalidator.ValidateURLFormat(raw, s.cfg.Security.URLAllowlist.AllowInsecureHTTP)
-	}
-	normalized, err := urlvalidator.ValidateHTTPSURL(raw, urlvalidator.ValidationOptions{
-		AllowedHosts:     s.cfg.Security.URLAllowlist.UpstreamHosts,
-		RequireAllowlist: true,
-		AllowPrivate:     s.cfg.Security.URLAllowlist.AllowPrivateHosts,
-	})
+	normalized, err := urlvalidator.ValidateHTTPURL(raw, allowInsecureHTTP, opts)
 	if err != nil {
 		return "", err
 	}
 	return normalized, nil
+}
+
+func buildVersionedModelsURL(baseURL, version string) string {
+	normalized := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if normalized == "" {
+		return ""
+	}
+	if strings.HasSuffix(normalized, "/models") {
+		return normalized
+	}
+	if strings.HasSuffix(normalized, version) {
+		return normalized + "/models"
+	}
+	return normalized + version + "/models"
+}
+
+func (s *AccountTestService) executeAccountRequest(req *http.Request, account *Account) (*http.Response, error) {
+	if s.httpUpstream == nil {
+		return nil, errors.New("http upstream is not configured")
+	}
+
+	proxyURL := ""
+	if account != nil && account.ProxyID != nil && account.Proxy != nil {
+		proxyURL = account.Proxy.URL()
+	}
+
+	enableTLSFingerprint := false
+	if account != nil {
+		enableTLSFingerprint = account.IsTLSFingerprintEnabled()
+	}
+
+	return s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, accountTestTLSProfile(enableTLSFingerprint))
+}
+
+func accountTestTLSProfile(enabled bool) *tlsfingerprint.Profile {
+	if !enabled {
+		return nil
+	}
+	return &tlsfingerprint.Profile{Name: "Built-in Default (Node.js 24.x)"}
+}
+
+func (s *AccountTestService) resolveOpenAIOAuthAccessToken(ctx context.Context, account *Account) (string, error) {
+	if account == nil {
+		return "", errors.New("account is nil")
+	}
+	if !account.IsOpenAIOAuth() {
+		token := strings.TrimSpace(account.GetOpenAIAccessToken())
+		if token == "" {
+			return "", errors.New("openai access token is not configured")
+		}
+		return token, nil
+	}
+
+	if s.openAITokenProvider != nil {
+		token, err := s.openAITokenProvider.GetAccessToken(ctx, account)
+		if strings.TrimSpace(token) != "" {
+			applyOpenAITokenMetadata(account, token)
+			return token, nil
+		}
+		if err != nil && strings.TrimSpace(account.GetOpenAIAccessToken()) == "" {
+			return "", err
+		}
+	}
+
+	token := strings.TrimSpace(account.GetOpenAIAccessToken())
+	if token == "" {
+		return "", errors.New("openai access token is not configured")
+	}
+	return token, nil
+}
+
+func applyOpenAITokenMetadata(account *Account, token string) {
+	if account == nil || strings.TrimSpace(token) == "" {
+		return
+	}
+	if account.Credentials == nil {
+		account.Credentials = map[string]any{}
+	}
+	account.Credentials["access_token"] = strings.TrimSpace(token)
+
+	claims, err := openai.DecodeAccessToken(token)
+	if err != nil || claims == nil {
+		return
+	}
+	if claims.Exp > 0 {
+		account.Credentials["expires_at"] = time.Unix(claims.Exp, 0).UTC().Format(time.RFC3339)
+	}
+	if info := claims.GetUserInfo(); info != nil {
+		if strings.TrimSpace(info.ChatGPTAccountID) != "" {
+			account.Credentials["chatgpt_account_id"] = strings.TrimSpace(info.ChatGPTAccountID)
+		}
+		if strings.TrimSpace(info.ChatGPTUserID) != "" {
+			account.Credentials["chatgpt_user_id"] = strings.TrimSpace(info.ChatGPTUserID)
+		}
+		if strings.TrimSpace(info.OrganizationID) != "" {
+			account.Credentials["organization_id"] = strings.TrimSpace(info.OrganizationID)
+		}
+		if strings.TrimSpace(info.Email) != "" {
+			account.Credentials["email"] = strings.TrimSpace(info.Email)
+		}
+		if strings.TrimSpace(info.PlanType) != "" {
+			account.Credentials["plan_type"] = strings.TrimSpace(info.PlanType)
+		}
+	}
+}
+
+func (s *AccountTestService) fetchOpenAIAvailableModels(ctx context.Context, account *Account) ([]string, string, error) {
+	baseURL := account.GetOpenAIBaseURL()
+	if strings.TrimSpace(baseURL) == "" {
+		baseURL = "https://api.openai.com"
+	}
+	normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
+	if err != nil {
+		return nil, "", fmt.Errorf("invalid openai base_url: %w", err)
+	}
+
+	modelsURL := buildVersionedModelsURL(normalizedBaseURL, "/v1")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, modelsURL, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	switch {
+	case account.IsOpenAIOAuth():
+		token, err := s.resolveOpenAIOAuthAccessToken(ctx, account)
+		if err != nil {
+			return nil, "", fmt.Errorf("resolve openai access token: %w", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		if chatgptAccountID := strings.TrimSpace(account.GetChatGPTAccountID()); chatgptAccountID != "" {
+			req.Header.Set("chatgpt-account-id", chatgptAccountID)
+		}
+		if orgID := strings.TrimSpace(account.GetOpenAIOrganizationID()); orgID != "" {
+			req.Header.Set("OpenAI-Organization", orgID)
+		}
+	case account.IsOpenAIApiKey():
+		apiKey := strings.TrimSpace(account.GetOpenAIApiKey())
+		if apiKey == "" {
+			return nil, "", errors.New("openai api_key is not configured")
+		}
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	default:
+		return nil, "", fmt.Errorf("openai account type %q does not support model refresh", account.Type)
+	}
+
+	resp, err := s.executeAccountRequest(req, account)
+	if err != nil {
+		return nil, "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("openai models request returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var payload struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, "", fmt.Errorf("parse openai models response: %w", err)
+	}
+
+	models := make([]string, 0, len(payload.Data))
+	for _, item := range payload.Data {
+		models = append(models, item.ID)
+	}
+	return NormalizeFetchedModelIDs(models), "openai_v1_models", nil
+}
+
+func (s *AccountTestService) fetchAnthropicAvailableModels(ctx context.Context, account *Account) ([]string, string, error) {
+	if account == nil {
+		return nil, "", errors.New("account is nil")
+	}
+	if account.IsBedrock() {
+		return nil, "", errors.New("bedrock accounts do not support model refresh")
+	}
+	if account.Type != AccountTypeAPIKey && !account.IsOAuth() {
+		return nil, "", fmt.Errorf("anthropic account type %q does not support model refresh", account.Type)
+	}
+
+	baseURL := "https://api.anthropic.com"
+	if account.Type == AccountTypeAPIKey {
+		baseURL = account.GetBaseURL()
+		if strings.TrimSpace(baseURL) == "" {
+			baseURL = "https://api.anthropic.com"
+		}
+	}
+	normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
+	if err != nil {
+		return nil, "", fmt.Errorf("invalid anthropic base_url: %w", err)
+	}
+
+	modelsURL := buildVersionedModelsURL(normalizedBaseURL, "/v1")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, modelsURL, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("anthropic-version", "2023-06-01")
+	if account.IsOAuth() {
+		token := strings.TrimSpace(account.GetCredential("access_token"))
+		if token == "" {
+			return nil, "", errors.New("anthropic access_token is not configured")
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("anthropic-beta", claude.DefaultBetaHeader)
+	} else {
+		apiKey := strings.TrimSpace(account.GetCredential("api_key"))
+		if apiKey == "" {
+			return nil, "", errors.New("anthropic api_key is not configured")
+		}
+		req.Header.Set("x-api-key", apiKey)
+		req.Header.Set("anthropic-beta", claude.APIKeyBetaHeader)
+	}
+
+	resp, err := s.executeAccountRequest(req, account)
+	if err != nil {
+		return nil, "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("anthropic models request returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var payload struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, "", fmt.Errorf("parse anthropic models response: %w", err)
+	}
+
+	models := make([]string, 0, len(payload.Data))
+	for _, item := range payload.Data {
+		models = append(models, item.ID)
+	}
+	return NormalizeFetchedModelIDs(models), "anthropic_v1_models", nil
+}
+
+func (s *AccountTestService) fetchGeminiAvailableModels(ctx context.Context, account *Account) ([]string, string, error) {
+	if account == nil {
+		return nil, "", errors.New("account is nil")
+	}
+
+	baseURL := account.GetGeminiBaseURL(geminicli.AIStudioBaseURL)
+	normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
+	if err != nil {
+		return nil, "", fmt.Errorf("invalid gemini base_url: %w", err)
+	}
+
+	modelsURL := buildVersionedModelsURL(normalizedBaseURL, "/v1beta")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, modelsURL, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	switch account.Type {
+	case AccountTypeAPIKey:
+		apiKey := strings.TrimSpace(account.GetCredential("api_key"))
+		if apiKey == "" {
+			return nil, "", errors.New("gemini api_key is not configured")
+		}
+		req.Header.Set("x-goog-api-key", apiKey)
+	case AccountTypeOAuth:
+		if s.geminiTokenProvider == nil {
+			return nil, "", errors.New("gemini token provider is not configured")
+		}
+		accessToken, err := s.geminiTokenProvider.GetAccessToken(ctx, account)
+		if err != nil {
+			return nil, "", fmt.Errorf("get gemini access token: %w", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+accessToken)
+	default:
+		return nil, "", fmt.Errorf("gemini account type %q does not support model refresh", account.Type)
+	}
+
+	resp, err := s.executeAccountRequest(req, account)
+	if err != nil {
+		return nil, "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("gemini models request returned %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var payload struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, "", fmt.Errorf("parse gemini models response: %w", err)
+	}
+
+	models := make([]string, 0, len(payload.Models))
+	for _, item := range payload.Models {
+		models = append(models, item.Name)
+	}
+	return NormalizeFetchedModelIDs(models), "gemini_v1beta_models", nil
+}
+
+func (s *AccountTestService) fetchAvailableModelsForAccount(ctx context.Context, account *Account) ([]string, string, error) {
+	switch {
+	case account == nil:
+		return nil, "", errors.New("account is nil")
+	case account.IsOpenAI():
+		return s.fetchOpenAIAvailableModels(ctx, account)
+	case account.IsGemini():
+		return s.fetchGeminiAvailableModels(ctx, account)
+	case account.IsAnthropic() && !account.IsBedrock():
+		return s.fetchAnthropicAvailableModels(ctx, account)
+	default:
+		return nil, "", fmt.Errorf("platform %q does not support model refresh", account.Platform)
+	}
+}
+
+// FetchAndCacheAvailableModels fetches the real upstream model list for an account and persists it in accounts.extra.
+func (s *AccountTestService) FetchAndCacheAvailableModels(ctx context.Context, accountID int64) (*AccountModelsRefreshResult, error) {
+	if s.accountRepo == nil {
+		return nil, errors.New("account repository is not configured")
+	}
+
+	account, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	refreshCtx, cancel := context.WithTimeout(ctx, accountModelsRefreshTimeout)
+	defer cancel()
+
+	modelIDs, source, err := s.fetchAvailableModelsForAccount(refreshCtx, account)
+	if err != nil {
+		refreshErr := truncateModelsRefreshError(err)
+		if refreshErr != "" {
+			updates := map[string]any{
+				AccountExtraModelsRefreshErrorKey: refreshErr,
+			}
+			for key, value := range BuildAccountModelDiscoveryExtraUpdates(account, account.GetFetchedModelIDs(), time.Now().UTC(), account.GetExtraString(AccountExtraModelsSourceKey), refreshErr) {
+				updates[key] = value
+			}
+			_ = s.accountRepo.UpdateExtra(refreshCtx, account.ID, updates)
+			mergeAccountExtra(account, map[string]any{
+				AccountExtraModelsRefreshErrorKey: refreshErr,
+			})
+		}
+		audit := BuildAccountModelDiscoveryAudit(account, account.GetFetchedModelIDs(), account.GetExtraString(AccountExtraModelsSourceKey), time.Now().UTC(), refreshErr)
+		return &AccountModelsRefreshResult{
+			AccountID:    account.ID,
+			Models:       account.GetFetchedModelIDs(),
+			FetchedAt:    account.GetModelsFetchedAt(),
+			Source:       strings.TrimSpace(account.GetExtraString(AccountExtraModelsSourceKey)),
+			RefreshError: refreshErr,
+			Audit:        audit,
+		}, err
+	}
+
+	fetchedAt := time.Now().UTC()
+	updates := BuildFetchedModelsExtraUpdates(modelIDs, fetchedAt, source)
+	for key, value := range BuildAccountModelDiscoveryExtraUpdates(account, modelIDs, fetchedAt, source, "") {
+		updates[key] = value
+	}
+	if err := s.accountRepo.UpdateExtra(refreshCtx, account.ID, updates); err != nil {
+		return nil, err
+	}
+	mergeAccountExtra(account, updates)
+
+	audit := BuildAccountModelDiscoveryAudit(account, account.GetFetchedModelIDs(), source, fetchedAt, "")
+	return &AccountModelsRefreshResult{
+		AccountID: account.ID,
+		Models:    account.GetFetchedModelIDs(),
+		FetchedAt: account.GetModelsFetchedAt(),
+		Source:    strings.TrimSpace(account.GetExtraString(AccountExtraModelsSourceKey)),
+		Audit:     audit,
+	}, nil
 }
 
 // generateSessionString generates a Claude Code style session string.
@@ -176,9 +602,17 @@ func createTestPayload(modelID string) (map[string]any, error) {
 // TestAccountConnection tests an account's connection by sending a test request
 // All account types use full Claude Code client characteristics, only auth header differs
 // modelID is optional - if empty, defaults to claude.DefaultTestModel
-// mode is optional - "compact" routes OpenAI accounts to the /responses/compact probe path
-func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int64, modelID string, prompt string, mode string) error {
-	ctx := c.Request.Context()
+func (s *AccountTestService) TestAccountConnection(rawContext any, accountID int64, modelID string, prompt string, modes ...string) error {
+	var c gatewayctx.GatewayContext
+	switch value := rawContext.(type) {
+	case gatewayctx.GatewayContext:
+		c = value
+	case *gin.Context:
+		c = gatewayctx.FromGin(value)
+	default:
+		return fmt.Errorf("unsupported account test context %T", rawContext)
+	}
+	ctx := c.Request().Context()
 
 	// Get account
 	account, err := s.accountRepo.GetByID(ctx, accountID)
@@ -202,27 +636,133 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 
 	// Route to platform-specific test method
 	if account.IsOpenAI() {
-		return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode))
+		if len(modes) > 0 && normalizeAccountTestMode(modes[0]) == AccountTestModeCompact {
+			testModelID := modelID
+			if strings.TrimSpace(testModelID) == "" {
+				testModelID = openai.DefaultTestModel
+			}
+			testModelID = resolveOpenAICompactForwardModel(account, testModelID)
+			return s.testOpenAICompactConnection(c, account, testModelID)
+		}
+		return s.testOpenAIAccountConnection(c, account, modelID, prompt)
 	}
 
 	if account.IsGemini() {
 		return s.testGeminiAccountConnection(c, account, modelID, prompt)
 	}
 
-	if account.Platform == PlatformGrok {
-		return s.testGrokAccountConnection(c, account, modelID)
+	if account.Platform == PlatformKiro {
+		return s.testKiroAccountConnection(c, account, modelID)
 	}
 
 	if account.Platform == PlatformAntigravity {
 		return s.routeAntigravityTest(c, account, modelID, prompt)
 	}
 
+	if account.Platform == PlatformSora {
+		return s.testSoraAccountConnection(c, account)
+	}
+
 	return s.testClaudeAccountConnection(c, account, modelID)
 }
 
+func (s *AccountTestService) testKiroAccountConnection(c gatewayctx.GatewayContext, account *Account, modelID string) error {
+	ctx := c.Request().Context()
+	testModelID := modelID
+	if strings.TrimSpace(testModelID) == "" {
+		testModelID = "claude-sonnet-4-5-20250929"
+	}
+
+	c.SetHeader("Content-Type", "text/event-stream")
+	c.SetHeader("Cache-Control", "no-cache")
+	c.SetHeader("Connection", "keep-alive")
+	c.SetHeader("X-Accel-Buffering", "no")
+	_ = c.Flush()
+
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+
+	accessToken := account.GetCredential("access_token")
+	expiresAt := account.GetCredentialAsTime("expires_at")
+	if accessToken == "" || expiresAt == nil || expiresAt.Before(time.Now().Add(3*time.Minute)) {
+		refresher := NewKiroTokenRefresher()
+		newCreds, err := refresher.Refresh(ctx, account)
+		if err != nil {
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to refresh Kiro token: %s", err.Error()))
+		}
+		account.Credentials = newCreds
+		if err := s.accountRepo.Update(ctx, account); err != nil {
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to persist refreshed Kiro token: %s", err.Error()))
+		}
+		accessToken = account.GetCredential("access_token")
+	}
+	if accessToken == "" {
+		return s.sendErrorAndEnd(c, "No Kiro access token available")
+	}
+
+	payload := map[string]any{
+		"model": testModelID,
+		"messages": []map[string]any{
+			{
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "text", "text": "hi"},
+				},
+			},
+		},
+		"max_tokens": 128,
+		"stream":     true,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return s.sendErrorAndEnd(c, "Failed to create Kiro test payload")
+	}
+
+	converted, err := kiropkg.ConvertAnthropicRequest(body)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to convert Kiro payload: %s", err.Error()))
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		fmt.Sprintf("https://q.%s.amazonaws.com/generateAssistantResponse", KiroRegion(account)),
+		bytes.NewReader(converted.Body),
+	)
+	if err != nil {
+		return s.sendErrorAndEnd(c, "Failed to create Kiro request")
+	}
+
+	machineID := kiropkg.GenerateMachineID(account.GetCredential("machine_id"), "", account.GetCredential("refresh_token"))
+	host := fmt.Sprintf("q.%s.amazonaws.com", KiroRegion(account))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("host", host)
+	req.Header.Set("Connection", "close")
+	req.Header.Set("x-amzn-codewhisperer-optout", "true")
+	req.Header.Set("x-amzn-kiro-agent-mode", "vibe")
+	req.Header.Set("x-amz-user-agent", fmt.Sprintf("aws-sdk-js/1.0.27 KiroIDE-%s-%s", KiroVersion(account), machineID))
+	req.Header.Set("User-Agent", fmt.Sprintf("aws-sdk-js/1.0.27 ua/2.1 os/%s lang/js md/nodejs#%s api/codewhispererstreaming#1.0.27 m/E KiroIDE-%s-%s", KiroSystemVersion(account), KiroNodeVersion(account), KiroVersion(account), machineID))
+	req.Header.Set("amz-sdk-invocation-id", generateRequestID())
+	req.Header.Set("amz-sdk-request", "attempt=1; max=3")
+
+	resp, err := s.httpUpstream.Do(req, accountProxyURL(account), account.ID, account.Concurrency)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Kiro request failed: %s", err.Error()))
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Kiro API returned %d", resp.StatusCode))
+	}
+
+	s.sendEvent(c, TestEvent{Type: "content", Text: "Kiro connection OK"})
+	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+	return nil
+}
+
 // testClaudeAccountConnection tests an Anthropic Claude account's connection
-func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account *Account, modelID string) error {
-	ctx := c.Request.Context()
+func (s *AccountTestService) testClaudeAccountConnection(c gatewayctx.GatewayContext, account *Account, modelID string) error {
+	ctx := c.Request().Context()
 
 	// Determine the model to use
 	testModelID := modelID
@@ -239,21 +779,23 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	if account.IsBedrock() {
 		return s.testBedrockAccountConnection(c, ctx, account, testModelID)
 	}
-	if account.Type == AccountTypeServiceAccount {
-		return s.testClaudeVertexServiceAccountConnection(c, ctx, account, testModelID)
-	}
 
 	// Determine authentication method and API URL
 	var authToken string
+	var useBearer bool
 	var apiURL string
 
 	if account.IsOAuth() {
+		// OAuth or Setup Token - use Bearer token
+		useBearer = true
 		apiURL = testClaudeAPIURL
 		authToken = account.GetCredential("access_token")
 		if authToken == "" {
 			return s.sendErrorAndEnd(c, "No access token available")
 		}
 	} else if account.Type == "apikey" {
+		// API Key - use x-api-key header
+		useBearer = false
 		authToken = account.GetCredential("api_key")
 		if authToken == "" {
 			return s.sendErrorAndEnd(c, "No API key available")
@@ -273,11 +815,11 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	}
 
 	// Set SSE headers
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Writer.Header().Set("X-Accel-Buffering", "no")
-	c.Writer.Flush()
+	c.SetHeader("Content-Type", "text/event-stream")
+	c.SetHeader("Cache-Control", "no-cache")
+	c.SetHeader("Connection", "keep-alive")
+	c.SetHeader("X-Accel-Buffering", "no")
+	_ = c.Flush()
 
 	// Create Claude Code style payload (same for all account types)
 	payload, err := createTestPayload(testModelID)
@@ -304,16 +846,13 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	}
 
 	// Set authentication header
-	if account.IsOAuth() {
+	if useBearer {
 		req.Header.Set("anthropic-beta", claude.DefaultBetaHeader)
 		req.Header.Set("Authorization", "Bearer "+authToken)
 	} else {
 		req.Header.Set("anthropic-beta", claude.APIKeyBetaHeader)
-		setAnthropicAPIKeyAuthHeader(req.Header, account, authToken)
+		req.Header.Set("x-api-key", authToken)
 	}
-
-	// 账号级请求头覆写：测试请求与真实转发保持一致的最终头
-	account.ApplyHeaderOverrides(req.Header)
 
 	// Get proxy URL
 	proxyURL := ""
@@ -321,7 +860,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 		proxyURL = account.Proxy.URL()
 	}
 
-	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
+	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, accountTestTLSProfile(account.IsTLSFingerprintEnabled()))
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
 	}
@@ -343,76 +882,8 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	return s.processClaudeStream(c, resp.Body)
 }
 
-func (s *AccountTestService) testClaudeVertexServiceAccountConnection(c *gin.Context, ctx context.Context, account *Account, testModelID string) error {
-	if mappedModel, matched := account.ResolveMappedModel(testModelID); matched {
-		testModelID = mappedModel
-	} else {
-		testModelID = normalizeVertexAnthropicModelID(claude.NormalizeModelID(testModelID))
-	}
-
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Writer.Header().Set("X-Accel-Buffering", "no")
-	c.Writer.Flush()
-
-	payload, err := createTestPayload(testModelID)
-	if err != nil {
-		return s.sendErrorAndEnd(c, "Failed to create test payload")
-	}
-	payloadBytes, _ := json.Marshal(payload)
-	vertexBody, err := buildVertexAnthropicRequestBody(payloadBytes)
-	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to create Vertex request body: %s", err.Error()))
-	}
-
-	if s.claudeTokenProvider == nil {
-		return s.sendErrorAndEnd(c, "Claude token provider not configured")
-	}
-	accessToken, err := s.claudeTokenProvider.GetAccessToken(ctx, account)
-	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to get service account access token: %s", err.Error()))
-	}
-
-	fullURL, err := buildVertexAnthropicURL(account.VertexProjectID(), account.VertexLocation(testModelID), testModelID, true)
-	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to build Vertex URL: %s", err.Error()))
-	}
-
-	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fullURL, bytes.NewReader(vertexBody))
-	if err != nil {
-		return s.sendErrorAndEnd(c, "Failed to create request")
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
-
-	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
-	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		errMsg := fmt.Sprintf("API returned %d: %s", resp.StatusCode, string(body))
-		if resp.StatusCode == http.StatusForbidden {
-			_ = s.accountRepo.SetError(ctx, account.ID, errMsg)
-		}
-		return s.sendErrorAndEnd(c, errMsg)
-	}
-
-	return s.processClaudeStream(c, resp.Body)
-}
-
 // testBedrockAccountConnection tests a Bedrock (SigV4 or API Key) account using non-streaming invoke
-func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx context.Context, account *Account, testModelID string) error {
+func (s *AccountTestService) testBedrockAccountConnection(c gatewayctx.GatewayContext, ctx context.Context, account *Account, testModelID string) error {
 	region := bedrockRuntimeRegion(account)
 	resolvedModelID, ok := ResolveBedrockModelID(account, testModelID)
 	if !ok {
@@ -421,11 +892,11 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 	testModelID = resolvedModelID
 
 	// Set SSE headers (test UI expects SSE)
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Writer.Header().Set("X-Accel-Buffering", "no")
-	c.Writer.Flush()
+	c.SetHeader("Content-Type", "text/event-stream")
+	c.SetHeader("Cache-Control", "no-cache")
+	c.SetHeader("Connection", "keep-alive")
+	c.SetHeader("X-Accel-Buffering", "no")
+	_ = c.Flush()
 
 	// Create a minimal Bedrock-compatible payload (no stream, no cache_control)
 	bedrockPayload := map[string]any{
@@ -479,7 +950,7 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 		proxyURL = account.Proxy.URL()
 	}
 
-	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, nil)
+	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, accountTestTLSProfile(false))
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
 	}
@@ -515,9 +986,8 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 }
 
 // testOpenAIAccountConnection tests an OpenAI account's connection
-func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account *Account, modelID string, prompt string, mode string) error {
-	ctx := c.Request.Context()
-	mode = normalizeAccountTestMode(mode)
+func (s *AccountTestService) testOpenAIAccountConnection(c gatewayctx.GatewayContext, account *Account, modelID string, prompt string) error {
+	ctx := c.Request().Context()
 
 	// Default to openai.DefaultTestModel for OpenAI testing
 	testModelID := modelID
@@ -525,60 +995,51 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 		testModelID = openai.DefaultTestModel
 	}
 
-	// Align test routing with gateway behavior: OpenAI accounts apply normal
-	// account model mapping, and compact mode applies compact-only mapping on top.
-	testModelID = account.GetMappedModel(testModelID)
-	if mode == AccountTestModeCompact {
-		testModelID = resolveOpenAICompactForwardModel(account, testModelID)
-		return s.testOpenAICompactConnection(c, account, testModelID)
+	// For API Key accounts with model mapping, map the model
+	if account.Type == "apikey" {
+		mapping := account.GetModelMapping()
+		if len(mapping) > 0 {
+			if mappedModel, exists := mapping[testModelID]; exists {
+				testModelID = mappedModel
+			}
+		}
 	}
 
-	// Route to image generation test if an image model is selected
 	if isOpenAIImageModel(testModelID) {
 		imagePrompt := strings.TrimSpace(prompt)
 		if imagePrompt == "" {
 			imagePrompt = defaultOpenAIImageTestPrompt
 		}
-		if account.Type == "apikey" {
-			return s.testOpenAIImageAPIKey(c, ctx, account, testModelID, imagePrompt)
-		}
-		return s.testOpenAIImageOAuth(c, ctx, account, testModelID, imagePrompt)
-	}
-
-	credentialAccount := account
-	if account.IsCredentialShadow() {
-		resolved, err := resolveCredentialAccount(ctx, s.accountRepo, account)
-		if err != nil {
-			return s.sendErrorAndEnd(c, err.Error())
-		}
-		credentialAccount = resolved
+		return s.testOpenAIImageConnection(c, ctx, account, testModelID, imagePrompt)
 	}
 
 	// Determine authentication method and API URL
 	var authToken string
 	var apiURL string
 	var isOAuth bool
+	var useChatCompletionsTest bool
+	var chatgptAccountID string
+	var err error
 
-	if credentialAccount.IsOAuth() {
+	if account.IsOAuth() {
 		isOAuth = true
-		// Agent Identity signs each request and does not retain the OAuth token.
-		if !credentialAccount.IsOpenAIAgentIdentity() {
-			authToken = credentialAccount.GetOpenAIAccessToken()
-		}
-		if authToken == "" && !credentialAccount.IsOpenAIAgentIdentity() {
-			return s.sendErrorAndEnd(c, "No access token available")
+		// OAuth - use Bearer token with ChatGPT internal API
+		authToken, err = s.resolveOpenAIOAuthAccessToken(ctx, account)
+		if err != nil {
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to resolve OpenAI access token: %s", err.Error()))
 		}
 
 		// OAuth uses ChatGPT internal API
 		apiURL = chatgptCodexAPIURL
-	} else if credentialAccount.Type == "apikey" {
+		chatgptAccountID = account.GetChatGPTAccountID()
+	} else if account.Type == "apikey" {
 		// API Key - use Platform API
-		authToken = credentialAccount.GetOpenAIApiKey()
+		authToken = account.GetOpenAIApiKey()
 		if authToken == "" {
 			return s.sendErrorAndEnd(c, "No API key available")
 		}
 
-		baseURL := credentialAccount.GetOpenAIBaseURL()
+		baseURL := account.GetOpenAIBaseURL()
 		if baseURL == "" {
 			baseURL = "https://api.openai.com"
 		}
@@ -586,80 +1047,52 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 		if err != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
 		}
-		if !openai_compat.ShouldUseResponsesAPI(account.Extra) {
-			return s.testOpenAIChatCompletionsConnection(c, account, testModelID, prompt, normalizedBaseURL, authToken)
+		if shouldUseOpenAICompatibleChatCompletionsTest(account, normalizedBaseURL) {
+			useChatCompletionsTest = true
+			apiURL = buildOpenAICompatibleChatCompletionsURL(normalizedBaseURL)
+		} else {
+			apiURL = strings.TrimSuffix(normalizedBaseURL, "/") + "/responses"
 		}
-		apiURL = buildOpenAIResponsesURL(normalizedBaseURL)
 	} else {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported account type: %s", account.Type))
 	}
 
 	// Set SSE headers
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Writer.Header().Set("X-Accel-Buffering", "no")
-	c.Writer.Flush()
+	c.SetHeader("Content-Type", "text/event-stream")
+	c.SetHeader("Cache-Control", "no-cache")
+	c.SetHeader("Connection", "keep-alive")
+	c.SetHeader("X-Accel-Buffering", "no")
+	_ = c.Flush()
 
-	// Create OpenAI Responses API payload. OAuth accounts use ChatGPT Codex
-	// upstream and must apply the same model normalization as real forwarding.
-	upstreamTestModelID := testModelID
-	if isOAuth {
-		upstreamTestModelID = normalizeOpenAIModelForUpstream(credentialAccount, testModelID)
+	var payload map[string]any
+	if useChatCompletionsTest {
+		payload = createOpenAICompatibleChatCompletionsTestPayload(testModelID, prompt)
+	} else {
+		// Create OpenAI Responses API payload
+		payload = createOpenAITestPayload(testModelID, isOAuth)
 	}
-	payload := createOpenAITestPayload(upstreamTestModelID, isOAuth)
 	payloadBytes, _ := json.Marshal(payload)
 
-	// Send test_start event once. A task-invalid Agent Identity response may
-	// restart this probe after registering a replacement task.
-	if !agentIdentityTaskRecoveryWasTried(ctx) {
-		s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
-	}
+	// Send test_start event
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
 
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader(payloadBytes))
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Failed to create request")
 	}
-	req = req.WithContext(WithHTTPUpstreamProfile(req.Context(), HTTPUpstreamProfileOpenAI))
 
 	// Set common headers
 	req.Header.Set("Content-Type", "application/json")
-	if !isOAuth {
-		applyOpenAICodexProbeHeaders(req.Header)
-	}
-	if credentialAccount.IsOpenAIAgentIdentity() {
-		authHeaders, authErr := buildAgentIdentityAuthenticationHeaders(ctx, s.accountRepo, s.agentIdentityWS, &s.agentIdentityTaskMu, credentialAccount)
-		if authErr != nil {
-			return s.sendErrorAndEnd(c, "Failed to build Agent Identity authentication")
-		}
-		for key, values := range authHeaders {
-			for _, value := range values {
-				req.Header.Add(key, value)
-			}
-		}
-	} else {
-		req.Header.Set("Authorization", "Bearer "+authToken)
-	}
+	req.Header.Set("Authorization", "Bearer "+authToken)
 
 	// Set OAuth-specific headers for ChatGPT internal API
 	if isOAuth {
 		req.Host = "chatgpt.com"
 		req.Header.Set("accept", "text/event-stream")
-		req.Header.Set("OpenAI-Beta", "responses=experimental")
-		req.Header.Set("Originator", "codex_cli_rs")
-		if customUA := strings.TrimSpace(credentialAccount.GetOpenAIUserAgent()); customUA != "" {
-			req.Header.Set("User-Agent", customUA)
-		} else {
-			req.Header.Set("User-Agent", codexCLIUserAgent)
+		if chatgptAccountID != "" {
+			req.Header.Set("chatgpt-account-id", chatgptAccountID)
 		}
-		setOpenAIChatGPTAccountHeaders(req.Header, credentialAccount)
-		// 与真实转发一致：账号级自定义 UA 同样作为管理员显式配置传入，否则测试用的身份
-		// 与该账号真实出站的身份不是同一个（issue #3901 的配对不变式由收口保证）。
-		enforceCodexIdentityHeadersWithUA(req.Header, credentialAccount.GetOpenAIUserAgent())
 	}
-
-	// 账号级请求头覆写：测试请求与真实转发保持一致的最终头
-	credentialAccount.ApplyHeaderOverrides(req.Header)
 
 	// Get proxy URL
 	proxyURL := ""
@@ -667,7 +1100,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 		proxyURL = account.Proxy.URL()
 	}
 
-	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
+	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, accountTestTLSProfile(account.IsTLSFingerprintEnabled()))
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
 	}
@@ -678,399 +1111,36 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 			_ = s.accountRepo.UpdateExtra(ctx, account.ID, updates)
 			mergeAccountExtra(account, updates)
 		}
+		if snapshot := ParseCodexRateLimitHeaders(resp.Header); snapshot != nil {
+			if resetAt := codexRateLimitResetAtFromSnapshot(snapshot, time.Now()); resetAt != nil {
+				_ = s.accountRepo.SetRateLimited(ctx, account.ID, *resetAt)
+				account.RateLimitResetAt = resetAt
+			}
+		}
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		body = redactAgentIdentitySensitiveBodyForAccount(ctx, s.accountRepo, credentialAccount, body)
-		if !agentIdentityTaskRecoveryWasTried(ctx) && credentialAccount.IsOpenAIAgentIdentity() && isAgentIdentityTaskInvalidHTTPResponse(resp.StatusCode, body) {
-			expectedTaskID := credentialAccount.GetCredential("task_id")
-			if err := ensureAgentIdentityTaskForAccount(ctx, s.accountRepo, s.agentIdentityWS, &s.agentIdentityTaskMu, credentialAccount, expectedTaskID); err != nil {
-				return s.sendErrorAndEnd(c, fmt.Sprintf("Agent Identity task recovery failed: %s", err.Error()))
+		if isOAuth && s.accountRepo != nil {
+			if resetAt := (&RateLimitService{}).calculateOpenAI429ResetTime(resp.Header); resetAt != nil {
+				_ = s.accountRepo.SetRateLimited(ctx, account.ID, *resetAt)
+				account.RateLimitResetAt = resetAt
 			}
-			c.Request = c.Request.WithContext(markAgentIdentityTaskRecoveryTried(ctx))
-			return s.testOpenAIAccountConnection(c, account, modelID, prompt, mode)
-		}
-		if resp.StatusCode == http.StatusTooManyRequests {
-			s.reconcileOpenAI429State(ctx, account, resp.Header, body)
-		}
-		// 401 Unauthorized: 标记账号为永久错误
-		if resp.StatusCode == http.StatusUnauthorized && s.accountRepo != nil {
-			errMsg := fmt.Sprintf("Authentication failed (401): %s", string(body))
-			_ = s.accountRepo.SetError(ctx, account.ID, errMsg)
 		}
 		return s.sendErrorAndEnd(c, fmt.Sprintf("API returned %d: %s", resp.StatusCode, string(body)))
+	}
+
+	if useChatCompletionsTest {
+		return s.processOpenAIChatCompletionsStream(c, resp.Body)
 	}
 
 	// Process SSE stream
 	return s.processOpenAIStream(c, resp.Body)
 }
 
-// testGrokAccountConnection tests a Grok OAuth or API-key account through xAI's Responses API.
-func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *Account, modelID string) error {
-	ctx := c.Request.Context()
-
-	if s.httpUpstream == nil {
-		return s.sendErrorAndEnd(c, "HTTP upstream not configured")
-	}
-
-	testModelID := strings.TrimSpace(modelID)
-	if testModelID == "" {
-		testModelID = grokDefaultResponsesModel
-	}
-	if mapped := strings.TrimSpace(account.GetMappedModel(testModelID)); mapped != "" {
-		testModelID = mapped
-	}
-
-	var authToken string
-	switch account.Type {
-	case AccountTypeOAuth:
-		if s.grokTokenProvider == nil {
-			return s.sendErrorAndEnd(c, "Grok token provider not configured")
-		}
-		var err error
-		// 手动测试不走生产调度资格门：关闭调度、限流/过载/临时冷却中的账号
-		// 也应能被管理员探测（#4598），与 Codex/OpenAI 测试行为一致。
-		authToken, err = s.grokTokenProvider.GetAccessTokenForManualTest(ctx, account)
-		if err != nil {
-			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to get Grok access token: %s", err.Error()))
-		}
-	case AccountTypeAPIKey:
-		authToken = strings.TrimSpace(account.GetCredential("api_key"))
-		if authToken == "" {
-			return s.sendErrorAndEnd(c, "Grok API key is missing")
-		}
-	default:
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported Grok account type: %s", account.Type))
-	}
-
-	apiURL, err := buildGrokResponsesURL(account, s.cfg)
-	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid Grok base URL: %s", err.Error()))
-	}
-
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Writer.Header().Set("X-Accel-Buffering", "no")
-	c.Writer.Flush()
-
-	payloadBytes, err := buildGrokQuotaProbeBody(testModelID)
-	if err != nil {
-		return s.sendErrorAndEnd(c, "Failed to create Grok test payload")
-	}
-
-	if !agentIdentityTaskRecoveryWasTried(ctx) {
-		s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(payloadBytes))
-	if err != nil {
-		return s.sendErrorAndEnd(c, "Failed to create Grok request")
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json, text/event-stream")
-	req.Header.Set("Authorization", "Bearer "+authToken)
-	if account.IsGrokOAuth() {
-		applyGrokCLIHeaders(req.Header)
-	}
-	// 连通性测试与真实转发保持同一套账号级请求头覆写。
-	account.ApplyHeaderOverrides(req.Header)
-
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
-
-	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
-	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok Responses API request failed: %s", err.Error()))
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	now := time.Now()
-	snapshot := parseGrokQuotaSnapshot(resp.Header, resp.StatusCode, now)
-	if snapshot != nil && s.accountRepo != nil {
-		resetAt, limited := grokRateLimitResetAtForAccount(account, snapshot, now)
-		if limited {
-			normalizeGrokExhaustedWindowResets(snapshot, resetAt, now)
-		}
-		_ = s.accountRepo.UpdateExtra(ctx, account.ID, map[string]any{
-			grokQuotaSnapshotExtraKey: snapshot,
-		})
-		if limited {
-			persistGrokRateLimit(ctx, s.accountRepo, account, resetAt)
-		} else if isSuccessfulGrokRateLimitRecovery(account, snapshot) {
-			clearGrokRateLimitAfterRecovery(ctx, s.accountRepo, account)
-		}
-	} else if s.accountRepo != nil && isSuccessfulGrokRateLimitRecovery(account, &xai.QuotaSnapshot{StatusCode: resp.StatusCode}) {
-		clearGrokRateLimitAfterRecovery(ctx, s.accountRepo, account)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		if resp.StatusCode == http.StatusPaymentRequired && s.accountRepo != nil {
-			stateCtx, cancel := openAIAccountStateContext(ctx)
-			defer cancel()
-			_ = s.accountRepo.SetTempUnschedulable(
-				stateCtx,
-				account.ID,
-				time.Now().Add(30*time.Minute),
-				"grok payment required",
-			)
-		}
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok Responses API returned %d: %s", resp.StatusCode, string(body)))
-	}
-
-	return s.processOpenAIStream(c, resp.Body)
-}
-
-// testOpenAIChatCompletionsConnection tests an OpenAI-compatible APIKey account
-// through the raw /v1/chat/completions endpoint.
-func (s *AccountTestService) testOpenAIChatCompletionsConnection(
-	c *gin.Context,
-	account *Account,
-	testModelID string,
-	prompt string,
-	normalizedBaseURL string,
-	authToken string,
-) error {
-	ctx := c.Request.Context()
-	apiURL := buildOpenAIChatCompletionsURL(normalizedBaseURL)
-
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Writer.Header().Set("X-Accel-Buffering", "no")
-	c.Writer.Flush()
-
-	payload := createOpenAIChatCompletionsTestPayload(testModelID, prompt)
-	payloadBytes, _ := json.Marshal(payload)
-
-	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
-	s.sendEvent(c, TestEvent{Type: "status", Text: "正在通过 /v1/chat/completions 测试连接"})
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(payloadBytes))
-	if err != nil {
-		return s.sendErrorAndEnd(c, "Failed to create Chat Completions request")
-	}
-	req = req.WithContext(WithHTTPUpstreamProfile(req.Context(), HTTPUpstreamProfileOpenAI))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "text/event-stream")
-	req.Header.Set("Authorization", "Bearer "+authToken)
-
-	// 账号级请求头覆写：测试请求与真实转发保持一致的最终头
-	account.ApplyHeaderOverrides(req.Header)
-
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
-
-	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
-	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Chat Completions API (/v1/chat/completions) request failed: %s", err.Error()))
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		if resp.StatusCode == http.StatusTooManyRequests {
-			s.reconcileOpenAI429State(ctx, account, resp.Header, body)
-		}
-		if resp.StatusCode == http.StatusUnauthorized && s.accountRepo != nil {
-			errMsg := fmt.Sprintf("Chat Completions authentication failed (401): %s", string(body))
-			_ = s.accountRepo.SetError(ctx, account.ID, errMsg)
-		}
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Chat Completions API (/v1/chat/completions) returned %d: %s", resp.StatusCode, string(body)))
-	}
-
-	return s.processOpenAIChatCompletionsStream(c, resp.Body)
-}
-
-// testOpenAICompactConnection probes /responses/compact and persists the
-// resulting capability state on the account.
-func (s *AccountTestService) testOpenAICompactConnection(c *gin.Context, account *Account, testModelID string) error {
-	ctx := c.Request.Context()
-	credentialAccount := account
-	if account.IsShadow() {
-		resolved, err := resolveCredentialAccount(ctx, s.accountRepo, account)
-		if err != nil {
-			return s.sendErrorAndEnd(c, "Failed to resolve account credentials")
-		}
-		credentialAccount = resolved
-	}
-
-	authToken := ""
-	apiURL := ""
-	isOAuth := false
-
-	switch {
-	case credentialAccount.IsOAuth():
-		isOAuth = true
-		if !credentialAccount.IsOpenAIAgentIdentity() {
-			authToken = credentialAccount.GetOpenAIAccessToken()
-		}
-		if authToken == "" && !credentialAccount.IsOpenAIAgentIdentity() {
-			return s.sendErrorAndEnd(c, "No access token available")
-		}
-		apiURL = chatgptCodexAPIURL + "/compact"
-	case account.Type == AccountTypeAPIKey:
-		authToken = account.GetOpenAIApiKey()
-		if authToken == "" {
-			return s.sendErrorAndEnd(c, "No API key available")
-		}
-		baseURL := account.GetOpenAIBaseURL()
-		if baseURL == "" {
-			baseURL = "https://api.openai.com"
-		}
-		normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
-		if err != nil {
-			return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
-		}
-		apiURL = appendOpenAIResponsesRequestPathSuffix(buildOpenAIResponsesURL(normalizedBaseURL), "/compact")
-	default:
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported account type: %s", account.Type))
-	}
-
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Writer.Header().Set("X-Accel-Buffering", "no")
-	c.Writer.Flush()
-
-	payloadBytes, _ := json.Marshal(createOpenAICompactProbePayload(testModelID))
-	if !agentIdentityTaskRecoveryWasTried(ctx) {
-		s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader(payloadBytes))
-	if err != nil {
-		return s.sendErrorAndEnd(c, "Failed to create request")
-	}
-	req = req.WithContext(WithHTTPUpstreamProfile(req.Context(), HTTPUpstreamProfileOpenAI))
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	if credentialAccount.IsOpenAIAgentIdentity() {
-		authHeaders, authErr := buildAgentIdentityAuthenticationHeaders(ctx, s.accountRepo, s.agentIdentityWS, &s.agentIdentityTaskMu, credentialAccount)
-		if authErr != nil {
-			return s.sendErrorAndEnd(c, "Failed to build Agent Identity authentication")
-		}
-		for key, values := range authHeaders {
-			for _, value := range values {
-				req.Header.Add(key, value)
-			}
-		}
-	} else {
-		req.Header.Set("Authorization", "Bearer "+authToken)
-	}
-	applyOpenAICodexProbeHeaders(req.Header)
-	probeSessionID := compactProbeSessionID(account.ID)
-	req.Header.Set("Session_ID", probeSessionID)
-	req.Header.Set("Conversation_ID", probeSessionID)
-
-	if isOAuth {
-		req.Host = "chatgpt.com"
-		setOpenAIChatGPTAccountHeaders(req.Header, credentialAccount)
-	}
-
-	// 账号级请求头覆写：测试请求与真实转发保持一致的最终头
-	account.ApplyHeaderOverrides(req.Header)
-
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
-
-	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
-	if err != nil {
-		if s.accountRepo != nil {
-			updates := buildOpenAICompactProbeExtraUpdates(nil, nil, err, time.Now())
-			_ = s.accountRepo.UpdateExtra(ctx, account.ID, updates)
-			mergeAccountExtra(account, updates)
-		}
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
-	body = redactAgentIdentitySensitiveBodyForAccount(ctx, s.accountRepo, credentialAccount, body)
-	if !agentIdentityTaskRecoveryWasTried(ctx) && credentialAccount.IsOpenAIAgentIdentity() && isAgentIdentityTaskInvalidHTTPResponse(resp.StatusCode, body) {
-		expectedTaskID := credentialAccount.GetCredential("task_id")
-		if err := ensureAgentIdentityTaskForAccount(ctx, s.accountRepo, s.agentIdentityWS, &s.agentIdentityTaskMu, credentialAccount, expectedTaskID); err != nil {
-			return s.sendErrorAndEnd(c, fmt.Sprintf("Agent Identity task recovery failed: %s", err.Error()))
-		}
-		c.Request = c.Request.WithContext(markAgentIdentityTaskRecoveryTried(ctx))
-		return s.testOpenAICompactConnection(c, account, testModelID)
-	}
-
-	if s.accountRepo != nil {
-		updates := buildOpenAICompactProbeExtraUpdates(resp, body, nil, time.Now())
-		if codexUpdates, err := extractOpenAICodexProbeUpdates(resp); err == nil && len(codexUpdates) > 0 {
-			updates = mergeExtraUpdates(updates, codexUpdates)
-		}
-		if len(updates) > 0 {
-			_ = s.accountRepo.UpdateExtra(ctx, account.ID, updates)
-			mergeAccountExtra(account, updates)
-		}
-		// 探测如返回 429,主动同步限流状态,避免后续短时间内继续选中。
-		if resp.StatusCode == http.StatusTooManyRequests {
-			s.reconcileOpenAI429State(ctx, account, resp.Header, body)
-		}
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusUnauthorized && s.accountRepo != nil {
-			errMsg := fmt.Sprintf("Authentication failed (401): %s", string(body))
-			_ = s.accountRepo.SetError(ctx, account.ID, errMsg)
-		}
-		return s.sendErrorAndEnd(c, fmt.Sprintf("API returned %d: %s", resp.StatusCode, string(body)))
-	}
-
-	s.sendEvent(c, TestEvent{Type: "content", Text: "Compact probe succeeded"})
-	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
-	return nil
-}
-
-func (s *AccountTestService) reconcileOpenAI429State(ctx context.Context, account *Account, headers http.Header, body []byte) {
-	if s == nil || s.accountRepo == nil || account == nil {
-		return
-	}
-
-	persistOpenAI429PlanType(ctx, s.accountRepo, account, body)
-
-	var resetAt *time.Time
-	if calculated := calculateOpenAI429ResetTime(headers); calculated != nil {
-		resetAt = calculated
-	} else if unixTs := parseOpenAIRateLimitResetTime(body); unixTs != nil {
-		t := time.Unix(*unixTs, 0)
-		resetAt = &t
-	}
-	if resetAt == nil {
-		return
-	}
-
-	if err := s.accountRepo.SetRateLimited(ctx, account.ID, *resetAt); err != nil {
-		return
-	}
-
-	now := time.Now()
-	account.RateLimitedAt = &now
-	account.RateLimitResetAt = resetAt
-
-	if account.Status == StatusError {
-		if err := s.accountRepo.ClearError(ctx, account.ID); err != nil {
-			return
-		}
-		account.Status = StatusActive
-		account.ErrorMessage = ""
-	}
-}
-
 // testGeminiAccountConnection tests a Gemini account's connection
-func (s *AccountTestService) testGeminiAccountConnection(c *gin.Context, account *Account, modelID string, prompt string) error {
-	ctx := c.Request.Context()
+func (s *AccountTestService) testGeminiAccountConnection(c gatewayctx.GatewayContext, account *Account, modelID string, prompt string) error {
+	ctx := c.Request().Context()
 
 	// Determine the model to use
 	testModelID := modelID
@@ -1078,8 +1148,8 @@ func (s *AccountTestService) testGeminiAccountConnection(c *gin.Context, account
 		testModelID = geminicli.DefaultTestModel
 	}
 
-	// For static upstream credentials with model mapping, map the model
-	if account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount {
+	// For API Key accounts with model mapping, map the model
+	if account.Type == AccountTypeAPIKey {
 		mapping := account.GetModelMapping()
 		if len(mapping) > 0 {
 			if mappedModel, exists := mapping[testModelID]; exists {
@@ -1089,11 +1159,11 @@ func (s *AccountTestService) testGeminiAccountConnection(c *gin.Context, account
 	}
 
 	// Set SSE headers
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Writer.Header().Set("X-Accel-Buffering", "no")
-	c.Writer.Flush()
+	c.SetHeader("Content-Type", "text/event-stream")
+	c.SetHeader("Cache-Control", "no-cache")
+	c.SetHeader("Connection", "keep-alive")
+	c.SetHeader("X-Accel-Buffering", "no")
+	_ = c.Flush()
 
 	// Create test payload (Gemini format)
 	payload := createGeminiTestPayload(testModelID, prompt)
@@ -1107,8 +1177,6 @@ func (s *AccountTestService) testGeminiAccountConnection(c *gin.Context, account
 		req, err = s.buildGeminiAPIKeyRequest(ctx, account, testModelID, payload)
 	case AccountTypeOAuth:
 		req, err = s.buildGeminiOAuthRequest(ctx, account, testModelID, payload)
-	case AccountTypeServiceAccount:
-		req, err = s.buildGeminiServiceAccountRequest(ctx, account, testModelID, payload)
 	default:
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported account type: %s", account.Type))
 	}
@@ -1126,7 +1194,7 @@ func (s *AccountTestService) testGeminiAccountConnection(c *gin.Context, account
 		proxyURL = account.Proxy.URL()
 	}
 
-	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
+	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, accountTestTLSProfile(account.IsTLSFingerprintEnabled()))
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
 	}
@@ -1141,9 +1209,790 @@ func (s *AccountTestService) testGeminiAccountConnection(c *gin.Context, account
 	return s.processGeminiStream(c, resp.Body)
 }
 
+type soraProbeStep struct {
+	Name       string `json:"name"`
+	Status     string `json:"status"`
+	HTTPStatus int    `json:"http_status,omitempty"`
+	ErrorCode  string `json:"error_code,omitempty"`
+	Message    string `json:"message,omitempty"`
+}
+
+type soraProbeSummary struct {
+	Status string          `json:"status"`
+	Steps  []soraProbeStep `json:"steps"`
+}
+
+type soraProbeRecorder struct {
+	steps []soraProbeStep
+}
+
+func (r *soraProbeRecorder) addStep(name, status string, httpStatus int, errorCode, message string) {
+	r.steps = append(r.steps, soraProbeStep{
+		Name:       name,
+		Status:     status,
+		HTTPStatus: httpStatus,
+		ErrorCode:  strings.TrimSpace(errorCode),
+		Message:    strings.TrimSpace(message),
+	})
+}
+
+func (r *soraProbeRecorder) finalize() soraProbeSummary {
+	meSuccess := false
+	partial := false
+	for _, step := range r.steps {
+		if step.Name == "me" {
+			meSuccess = strings.EqualFold(step.Status, "success")
+			continue
+		}
+		if strings.EqualFold(step.Status, "failed") {
+			partial = true
+		}
+	}
+
+	status := "success"
+	if !meSuccess {
+		status = "failed"
+	} else if partial {
+		status = "partial_success"
+	}
+
+	return soraProbeSummary{
+		Status: status,
+		Steps:  append([]soraProbeStep(nil), r.steps...),
+	}
+}
+
+func (s *AccountTestService) testOpenAIImageConnection(
+	c gatewayctx.GatewayContext,
+	ctx context.Context,
+	account *Account,
+	modelID string,
+	prompt string,
+) error {
+	if s.openAIGatewayService == nil {
+		return s.sendErrorAndEnd(c, "OpenAI image test service is not configured")
+	}
+
+	c.SetHeader("Content-Type", "text/event-stream")
+	c.SetHeader("Cache-Control", "no-cache")
+	c.SetHeader("Connection", "keep-alive")
+	c.SetHeader("X-Accel-Buffering", "no")
+	_ = c.Flush()
+
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: modelID})
+
+	payload := map[string]any{
+		"model":           modelID,
+		"prompt":          prompt,
+		"n":               1,
+		"response_format": "b64_json",
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to build image request: %s", err.Error()))
+	}
+
+	recorder := httptest.NewRecorder()
+	ginCtx, _ := gin.CreateTestContext(recorder)
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(payloadBytes))
+	req = req.WithContext(ctx)
+	req.Header.Set("Content-Type", "application/json")
+	ginCtx.Request = req
+	innerCtx := gatewayctx.FromGin(ginCtx)
+
+	parsed, err := s.openAIGatewayService.ParseOpenAIImagesRequestContext(innerCtx, payloadBytes)
+	if err != nil {
+		return s.sendErrorAndEnd(c, err.Error())
+	}
+
+	if account.IsOpenAIOAuth() {
+		s.sendEvent(c, TestEvent{Type: "content", Text: "Calling Codex /responses image tool"})
+	}
+
+	if _, err := s.openAIGatewayService.ForwardImagesContext(ctx, innerCtx, account, payloadBytes, parsed, ""); err != nil {
+		return s.sendErrorAndEnd(c, err.Error())
+	}
+
+	var resp struct {
+		Data []struct {
+			B64JSON       string `json:"b64_json"`
+			URL           string `json:"url"`
+			RevisedPrompt string `json:"revised_prompt"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &resp); err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to parse image response: %s", err.Error()))
+	}
+	if len(resp.Data) == 0 {
+		return s.sendErrorAndEnd(c, "No images returned from API")
+	}
+
+	for _, item := range resp.Data {
+		if revised := strings.TrimSpace(item.RevisedPrompt); revised != "" {
+			s.sendEvent(c, TestEvent{Type: "content", Text: revised})
+		}
+
+		switch {
+		case strings.TrimSpace(item.B64JSON) != "":
+			s.sendEvent(c, TestEvent{
+				Type:     "image",
+				ImageURL: "data:image/png;base64," + item.B64JSON,
+				MimeType: "image/png",
+			})
+		case strings.TrimSpace(item.URL) != "":
+			s.sendEvent(c, TestEvent{
+				Type:     "image",
+				ImageURL: item.URL,
+				MimeType: "image/*",
+			})
+		}
+	}
+
+	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+	return nil
+}
+
+func (s *AccountTestService) emitSoraProbeSummary(c gatewayctx.GatewayContext, rec *soraProbeRecorder) {
+	if rec == nil {
+		return
+	}
+	summary := rec.finalize()
+	code := ""
+	for _, step := range summary.Steps {
+		if strings.EqualFold(step.Status, "failed") && strings.TrimSpace(step.ErrorCode) != "" {
+			code = step.ErrorCode
+			break
+		}
+	}
+	s.sendEvent(c, TestEvent{
+		Type:   "sora_test_result",
+		Status: summary.Status,
+		Code:   code,
+		Data:   summary,
+	})
+}
+
+func (s *AccountTestService) acquireSoraTestPermit(accountID int64) (time.Duration, bool) {
+	if accountID <= 0 {
+		return 0, true
+	}
+	s.soraTestGuardMu.Lock()
+	defer s.soraTestGuardMu.Unlock()
+
+	if s.soraTestLastRun == nil {
+		s.soraTestLastRun = make(map[int64]time.Time)
+	}
+	cooldown := s.soraTestCooldown
+	if cooldown <= 0 {
+		cooldown = defaultSoraTestCooldown
+	}
+
+	now := time.Now()
+	if lastRun, ok := s.soraTestLastRun[accountID]; ok {
+		elapsed := now.Sub(lastRun)
+		if elapsed < cooldown {
+			return cooldown - elapsed, false
+		}
+	}
+	s.soraTestLastRun[accountID] = now
+	return 0, true
+}
+
+func ceilSeconds(d time.Duration) int {
+	if d <= 0 {
+		return 1
+	}
+	sec := int(d / time.Second)
+	if d%time.Second != 0 {
+		sec++
+	}
+	if sec < 1 {
+		sec = 1
+	}
+	return sec
+}
+
+// testSoraAPIKeyAccountConnection 测试 Sora apikey 类型账号的连通性。
+// 向上游 base_url 发送轻量级 prompt-enhance 请求验证连通性和 API Key 有效性。
+func (s *AccountTestService) testSoraAPIKeyAccountConnection(c gatewayctx.GatewayContext, account *Account) error {
+	ctx := c.Request().Context()
+
+	apiKey := account.GetCredential("api_key")
+	if apiKey == "" {
+		return s.sendErrorAndEnd(c, "Sora apikey 账号缺少 api_key 凭证")
+	}
+
+	baseURL := account.GetBaseURL()
+	if baseURL == "" {
+		return s.sendErrorAndEnd(c, "Sora apikey 账号缺少 base_url")
+	}
+
+	// 验证 base_url 格式
+	normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("base_url 无效: %s", err.Error()))
+	}
+	upstreamURL := strings.TrimSuffix(normalizedBaseURL, "/") + "/sora/v1/chat/completions"
+
+	// 设置 SSE 头
+	c.SetHeader("Content-Type", "text/event-stream")
+	c.SetHeader("Cache-Control", "no-cache")
+	c.SetHeader("Connection", "keep-alive")
+	c.SetHeader("X-Accel-Buffering", "no")
+	_ = c.Flush()
+
+	if wait, ok := s.acquireSoraTestPermit(account.ID); !ok {
+		msg := fmt.Sprintf("Sora 账号测试过于频繁，请 %d 秒后重试", ceilSeconds(wait))
+		return s.sendErrorAndEnd(c, msg)
+	}
+
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: "sora-upstream"})
+
+	// 构建轻量级 prompt-enhance 请求作为连通性测试
+	testPayload := map[string]any{
+		"model":    "prompt-enhance-short-10s",
+		"messages": []map[string]string{{"role": "user", "content": "test"}},
+		"stream":   false,
+	}
+	payloadBytes, _ := json.Marshal(testPayload)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, upstreamURL, bytes.NewReader(payloadBytes))
+	if err != nil {
+		return s.sendErrorAndEnd(c, "构建测试请求失败")
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	// 获取代理 URL
+	proxyURL := ""
+	if account.ProxyID != nil && account.Proxy != nil {
+		proxyURL = account.Proxy.URL()
+	}
+
+	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("上游连接失败: %s", err.Error()))
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+
+	if resp.StatusCode == http.StatusOK {
+		s.sendEvent(c, TestEvent{Type: "content", Text: fmt.Sprintf("上游连接成功 (%s)", upstreamURL)})
+		s.sendEvent(c, TestEvent{Type: "content", Text: fmt.Sprintf("API Key 有效 (HTTP %d)", resp.StatusCode)})
+		s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+		return nil
+	}
+
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("上游认证失败 (HTTP %d)，请检查 API Key 是否正确", resp.StatusCode))
+	}
+
+	// 其他错误但能连通（如 400 参数错误）也算连通性测试通过
+	if resp.StatusCode == http.StatusBadRequest {
+		s.sendEvent(c, TestEvent{Type: "content", Text: fmt.Sprintf("上游连接成功 (%s)", upstreamURL)})
+		s.sendEvent(c, TestEvent{Type: "content", Text: fmt.Sprintf("API Key 有效（上游返回 %d，参数校验错误属正常）", resp.StatusCode)})
+		s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+		return nil
+	}
+
+	return s.sendErrorAndEnd(c, fmt.Sprintf("上游返回异常 HTTP %d: %s", resp.StatusCode, truncateSoraErrorBody(respBody, 256)))
+}
+
+// testSoraAccountConnection 测试 Sora 账号的连接
+// OAuth 类型：调用 /backend/me 接口验证 access_token 有效性
+// APIKey 类型：向上游 base_url 发送轻量级 prompt-enhance 请求验证连通性
+func (s *AccountTestService) testSoraAccountConnection(c gatewayctx.GatewayContext, account *Account) error {
+	// apikey 类型走独立测试流程
+	if account.Type == AccountTypeAPIKey {
+		return s.testSoraAPIKeyAccountConnection(c, account)
+	}
+
+	ctx := c.Request().Context()
+	recorder := &soraProbeRecorder{}
+
+	authToken := account.GetCredential("access_token")
+	if authToken == "" {
+		recorder.addStep("me", "failed", http.StatusUnauthorized, "missing_access_token", "No access token available")
+		s.emitSoraProbeSummary(c, recorder)
+		return s.sendErrorAndEnd(c, "No access token available")
+	}
+
+	// Set SSE headers
+	c.SetHeader("Content-Type", "text/event-stream")
+	c.SetHeader("Cache-Control", "no-cache")
+	c.SetHeader("Connection", "keep-alive")
+	c.SetHeader("X-Accel-Buffering", "no")
+	_ = c.Flush()
+
+	if wait, ok := s.acquireSoraTestPermit(account.ID); !ok {
+		msg := fmt.Sprintf("Sora 账号测试过于频繁，请 %d 秒后重试", ceilSeconds(wait))
+		recorder.addStep("rate_limit", "failed", http.StatusTooManyRequests, "test_rate_limited", msg)
+		s.emitSoraProbeSummary(c, recorder)
+		return s.sendErrorAndEnd(c, msg)
+	}
+
+	// Send test_start event
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: "sora"})
+
+	req, err := http.NewRequestWithContext(ctx, "GET", soraMeAPIURL, nil)
+	if err != nil {
+		recorder.addStep("me", "failed", 0, "request_build_failed", err.Error())
+		s.emitSoraProbeSummary(c, recorder)
+		return s.sendErrorAndEnd(c, "Failed to create request")
+	}
+
+	// 使用 Sora 客户端标准请求头
+	req.Header.Set("Authorization", "Bearer "+authToken)
+	req.Header.Set("User-Agent", "Sora/1.2026.007 (Android 15; 24122RKC7C; build 2600700)")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Origin", "https://sora.chatgpt.com")
+	req.Header.Set("Referer", "https://sora.chatgpt.com/")
+
+	// Get proxy URL
+	proxyURL := ""
+	if account.ProxyID != nil && account.Proxy != nil {
+		proxyURL = account.Proxy.URL()
+	}
+	enableSoraTLSFingerprint := s.shouldEnableSoraTLSFingerprint()
+
+	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, accountTestTLSProfile(enableSoraTLSFingerprint))
+	if err != nil {
+		recorder.addStep("me", "failed", 0, "network_error", err.Error())
+		s.emitSoraProbeSummary(c, recorder)
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		if isCloudflareChallengeResponse(resp.StatusCode, resp.Header, body) {
+			recorder.addStep("me", "failed", resp.StatusCode, "cf_challenge", "Cloudflare challenge detected")
+			s.emitSoraProbeSummary(c, recorder)
+			s.logSoraCloudflareChallenge(account, proxyURL, soraMeAPIURL, resp.Header, body)
+			return s.sendErrorAndEnd(c, formatCloudflareChallengeMessage(fmt.Sprintf("Sora request blocked by Cloudflare challenge (HTTP %d). Please switch to a clean proxy/network and retry.", resp.StatusCode), resp.Header, body))
+		}
+		upstreamCode, upstreamMessage := soraerror.ExtractUpstreamErrorCodeAndMessage(body)
+		switch {
+		case resp.StatusCode == http.StatusUnauthorized && strings.EqualFold(upstreamCode, "token_invalidated"):
+			recorder.addStep("me", "failed", resp.StatusCode, "token_invalidated", "Sora token invalidated")
+			s.emitSoraProbeSummary(c, recorder)
+			return s.sendErrorAndEnd(c, "Sora token 已失效（token_invalidated），请重新授权账号")
+		case strings.EqualFold(upstreamCode, "unsupported_country_code"):
+			recorder.addStep("me", "failed", resp.StatusCode, "unsupported_country_code", "Sora is unavailable in current egress region")
+			s.emitSoraProbeSummary(c, recorder)
+			return s.sendErrorAndEnd(c, "Sora 在当前网络出口地区不可用（unsupported_country_code），请切换到支持地区后重试")
+		case strings.TrimSpace(upstreamMessage) != "":
+			recorder.addStep("me", "failed", resp.StatusCode, upstreamCode, upstreamMessage)
+			s.emitSoraProbeSummary(c, recorder)
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Sora API returned %d: %s", resp.StatusCode, upstreamMessage))
+		default:
+			recorder.addStep("me", "failed", resp.StatusCode, upstreamCode, "Sora me endpoint failed")
+			s.emitSoraProbeSummary(c, recorder)
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Sora API returned %d: %s", resp.StatusCode, truncateSoraErrorBody(body, 512)))
+		}
+	}
+	recorder.addStep("me", "success", resp.StatusCode, "", "me endpoint ok")
+
+	// 解析 /me 响应，提取用户信息
+	var meResp map[string]any
+	if err := json.Unmarshal(body, &meResp); err != nil {
+		// 能收到 200 就说明 token 有效
+		s.sendEvent(c, TestEvent{Type: "content", Text: "Sora connection OK (token valid)"})
+	} else {
+		// 尝试提取用户名或邮箱信息
+		info := "Sora connection OK"
+		if name, ok := meResp["name"].(string); ok && name != "" {
+			info = fmt.Sprintf("Sora connection OK - User: %s", name)
+		} else if email, ok := meResp["email"].(string); ok && email != "" {
+			info = fmt.Sprintf("Sora connection OK - Email: %s", email)
+		}
+		s.sendEvent(c, TestEvent{Type: "content", Text: info})
+	}
+
+	// 追加轻量能力检查：订阅信息查询（失败仅告警，不中断连接测试）
+	subReq, err := http.NewRequestWithContext(ctx, "GET", soraBillingAPIURL, nil)
+	if err == nil {
+		subReq.Header.Set("Authorization", "Bearer "+authToken)
+		subReq.Header.Set("User-Agent", "Sora/1.2026.007 (Android 15; 24122RKC7C; build 2600700)")
+		subReq.Header.Set("Accept", "application/json")
+		subReq.Header.Set("Accept-Language", "en-US,en;q=0.9")
+		subReq.Header.Set("Origin", "https://sora.chatgpt.com")
+		subReq.Header.Set("Referer", "https://sora.chatgpt.com/")
+
+		subResp, subErr := s.httpUpstream.DoWithTLS(subReq, proxyURL, account.ID, account.Concurrency, accountTestTLSProfile(enableSoraTLSFingerprint))
+		if subErr != nil {
+			recorder.addStep("subscription", "failed", 0, "network_error", subErr.Error())
+			s.sendEvent(c, TestEvent{Type: "content", Text: fmt.Sprintf("Subscription check skipped: %s", subErr.Error())})
+		} else {
+			subBody, _ := io.ReadAll(subResp.Body)
+			_ = subResp.Body.Close()
+			if subResp.StatusCode == http.StatusOK {
+				recorder.addStep("subscription", "success", subResp.StatusCode, "", "subscription endpoint ok")
+				if summary := parseSoraSubscriptionSummary(subBody); summary != "" {
+					s.sendEvent(c, TestEvent{Type: "content", Text: summary})
+				} else {
+					s.sendEvent(c, TestEvent{Type: "content", Text: "Subscription check OK"})
+				}
+			} else {
+				if isCloudflareChallengeResponse(subResp.StatusCode, subResp.Header, subBody) {
+					recorder.addStep("subscription", "failed", subResp.StatusCode, "cf_challenge", "Cloudflare challenge detected")
+					s.logSoraCloudflareChallenge(account, proxyURL, soraBillingAPIURL, subResp.Header, subBody)
+					s.sendEvent(c, TestEvent{Type: "content", Text: formatCloudflareChallengeMessage(fmt.Sprintf("Subscription check blocked by Cloudflare challenge (HTTP %d)", subResp.StatusCode), subResp.Header, subBody)})
+				} else {
+					upstreamCode, upstreamMessage := soraerror.ExtractUpstreamErrorCodeAndMessage(subBody)
+					recorder.addStep("subscription", "failed", subResp.StatusCode, upstreamCode, upstreamMessage)
+					s.sendEvent(c, TestEvent{Type: "content", Text: fmt.Sprintf("Subscription check returned %d", subResp.StatusCode)})
+				}
+			}
+		}
+	}
+
+	// 追加 Sora2 能力探测（对齐 sora2api 的测试思路）：邀请码 + 剩余额度。
+	s.testSora2Capabilities(c, ctx, account, authToken, proxyURL, enableSoraTLSFingerprint, recorder)
+
+	s.emitSoraProbeSummary(c, recorder)
+	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+	return nil
+}
+
+func (s *AccountTestService) testSora2Capabilities(
+	c gatewayctx.GatewayContext,
+	ctx context.Context,
+	account *Account,
+	authToken string,
+	proxyURL string,
+	enableTLSFingerprint bool,
+	recorder *soraProbeRecorder,
+) {
+	inviteStatus, inviteHeader, inviteBody, err := s.fetchSoraTestEndpoint(
+		ctx,
+		account,
+		authToken,
+		soraInviteMineURL,
+		proxyURL,
+		enableTLSFingerprint,
+	)
+	if err != nil {
+		if recorder != nil {
+			recorder.addStep("sora2_invite", "failed", 0, "network_error", err.Error())
+		}
+		s.sendEvent(c, TestEvent{Type: "content", Text: fmt.Sprintf("Sora2 invite check skipped: %s", err.Error())})
+		return
+	}
+
+	if inviteStatus == http.StatusUnauthorized {
+		bootstrapStatus, _, _, bootstrapErr := s.fetchSoraTestEndpoint(
+			ctx,
+			account,
+			authToken,
+			soraBootstrapURL,
+			proxyURL,
+			enableTLSFingerprint,
+		)
+		if bootstrapErr == nil && bootstrapStatus == http.StatusOK {
+			if recorder != nil {
+				recorder.addStep("sora2_bootstrap", "success", bootstrapStatus, "", "bootstrap endpoint ok")
+			}
+			s.sendEvent(c, TestEvent{Type: "content", Text: "Sora2 bootstrap OK, retry invite check"})
+			inviteStatus, inviteHeader, inviteBody, err = s.fetchSoraTestEndpoint(
+				ctx,
+				account,
+				authToken,
+				soraInviteMineURL,
+				proxyURL,
+				enableTLSFingerprint,
+			)
+			if err != nil {
+				if recorder != nil {
+					recorder.addStep("sora2_invite", "failed", 0, "network_error", err.Error())
+				}
+				s.sendEvent(c, TestEvent{Type: "content", Text: fmt.Sprintf("Sora2 invite retry failed: %s", err.Error())})
+				return
+			}
+		} else if recorder != nil {
+			code := ""
+			msg := ""
+			if bootstrapErr != nil {
+				code = "network_error"
+				msg = bootstrapErr.Error()
+			}
+			recorder.addStep("sora2_bootstrap", "failed", bootstrapStatus, code, msg)
+		}
+	}
+
+	if inviteStatus != http.StatusOK {
+		if isCloudflareChallengeResponse(inviteStatus, inviteHeader, inviteBody) {
+			if recorder != nil {
+				recorder.addStep("sora2_invite", "failed", inviteStatus, "cf_challenge", "Cloudflare challenge detected")
+			}
+			s.logSoraCloudflareChallenge(account, proxyURL, soraInviteMineURL, inviteHeader, inviteBody)
+			s.sendEvent(c, TestEvent{Type: "content", Text: formatCloudflareChallengeMessage(fmt.Sprintf("Sora2 invite check blocked by Cloudflare challenge (HTTP %d)", inviteStatus), inviteHeader, inviteBody)})
+			return
+		}
+		upstreamCode, upstreamMessage := soraerror.ExtractUpstreamErrorCodeAndMessage(inviteBody)
+		if recorder != nil {
+			recorder.addStep("sora2_invite", "failed", inviteStatus, upstreamCode, upstreamMessage)
+		}
+		s.sendEvent(c, TestEvent{Type: "content", Text: fmt.Sprintf("Sora2 invite check returned %d", inviteStatus)})
+		return
+	}
+	if recorder != nil {
+		recorder.addStep("sora2_invite", "success", inviteStatus, "", "invite endpoint ok")
+	}
+
+	if summary := parseSoraInviteSummary(inviteBody); summary != "" {
+		s.sendEvent(c, TestEvent{Type: "content", Text: summary})
+	} else {
+		s.sendEvent(c, TestEvent{Type: "content", Text: "Sora2 invite check OK"})
+	}
+
+	remainingStatus, remainingHeader, remainingBody, remainingErr := s.fetchSoraTestEndpoint(
+		ctx,
+		account,
+		authToken,
+		soraRemainingURL,
+		proxyURL,
+		enableTLSFingerprint,
+	)
+	if remainingErr != nil {
+		if recorder != nil {
+			recorder.addStep("sora2_remaining", "failed", 0, "network_error", remainingErr.Error())
+		}
+		s.sendEvent(c, TestEvent{Type: "content", Text: fmt.Sprintf("Sora2 remaining check skipped: %s", remainingErr.Error())})
+		return
+	}
+	if remainingStatus != http.StatusOK {
+		if isCloudflareChallengeResponse(remainingStatus, remainingHeader, remainingBody) {
+			if recorder != nil {
+				recorder.addStep("sora2_remaining", "failed", remainingStatus, "cf_challenge", "Cloudflare challenge detected")
+			}
+			s.logSoraCloudflareChallenge(account, proxyURL, soraRemainingURL, remainingHeader, remainingBody)
+			s.sendEvent(c, TestEvent{Type: "content", Text: formatCloudflareChallengeMessage(fmt.Sprintf("Sora2 remaining check blocked by Cloudflare challenge (HTTP %d)", remainingStatus), remainingHeader, remainingBody)})
+			return
+		}
+		upstreamCode, upstreamMessage := soraerror.ExtractUpstreamErrorCodeAndMessage(remainingBody)
+		if recorder != nil {
+			recorder.addStep("sora2_remaining", "failed", remainingStatus, upstreamCode, upstreamMessage)
+		}
+		s.sendEvent(c, TestEvent{Type: "content", Text: fmt.Sprintf("Sora2 remaining check returned %d", remainingStatus)})
+		return
+	}
+	if recorder != nil {
+		recorder.addStep("sora2_remaining", "success", remainingStatus, "", "remaining endpoint ok")
+	}
+	if summary := parseSoraRemainingSummary(remainingBody); summary != "" {
+		s.sendEvent(c, TestEvent{Type: "content", Text: summary})
+	} else {
+		s.sendEvent(c, TestEvent{Type: "content", Text: "Sora2 remaining check OK"})
+	}
+}
+
+func (s *AccountTestService) fetchSoraTestEndpoint(
+	ctx context.Context,
+	account *Account,
+	authToken string,
+	url string,
+	proxyURL string,
+	enableTLSFingerprint bool,
+) (int, http.Header, []byte, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return 0, nil, nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+authToken)
+	req.Header.Set("User-Agent", "Sora/1.2026.007 (Android 15; 24122RKC7C; build 2600700)")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Origin", "https://sora.chatgpt.com")
+	req.Header.Set("Referer", "https://sora.chatgpt.com/")
+
+	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, accountTestTLSProfile(enableTLSFingerprint))
+	if err != nil {
+		return 0, nil, nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return resp.StatusCode, resp.Header, nil, readErr
+	}
+	return resp.StatusCode, resp.Header, body, nil
+}
+
+func parseSoraSubscriptionSummary(body []byte) string {
+	var subResp struct {
+		Data []struct {
+			Plan struct {
+				ID    string `json:"id"`
+				Title string `json:"title"`
+			} `json:"plan"`
+			EndTS string `json:"end_ts"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &subResp); err != nil {
+		return ""
+	}
+	if len(subResp.Data) == 0 {
+		return ""
+	}
+
+	first := subResp.Data[0]
+	parts := make([]string, 0, 3)
+	if first.Plan.Title != "" {
+		parts = append(parts, first.Plan.Title)
+	}
+	if first.Plan.ID != "" {
+		parts = append(parts, first.Plan.ID)
+	}
+	if first.EndTS != "" {
+		parts = append(parts, "end="+first.EndTS)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "Subscription: " + strings.Join(parts, " | ")
+}
+
+func parseSoraInviteSummary(body []byte) string {
+	var inviteResp struct {
+		InviteCode    string `json:"invite_code"`
+		RedeemedCount int64  `json:"redeemed_count"`
+		TotalCount    int64  `json:"total_count"`
+	}
+	if err := json.Unmarshal(body, &inviteResp); err != nil {
+		return ""
+	}
+
+	parts := []string{"Sora2: supported"}
+	if inviteResp.InviteCode != "" {
+		parts = append(parts, "invite="+inviteResp.InviteCode)
+	}
+	if inviteResp.TotalCount > 0 {
+		parts = append(parts, fmt.Sprintf("used=%d/%d", inviteResp.RedeemedCount, inviteResp.TotalCount))
+	}
+	return strings.Join(parts, " | ")
+}
+
+func parseSoraRemainingSummary(body []byte) string {
+	var remainingResp struct {
+		RateLimitAndCreditBalance struct {
+			EstimatedNumVideosRemaining int64 `json:"estimated_num_videos_remaining"`
+			RateLimitReached            bool  `json:"rate_limit_reached"`
+			AccessResetsInSeconds       int64 `json:"access_resets_in_seconds"`
+		} `json:"rate_limit_and_credit_balance"`
+	}
+	if err := json.Unmarshal(body, &remainingResp); err != nil {
+		return ""
+	}
+	info := remainingResp.RateLimitAndCreditBalance
+	parts := []string{fmt.Sprintf("Sora2 remaining: %d", info.EstimatedNumVideosRemaining)}
+	if info.RateLimitReached {
+		parts = append(parts, "rate_limited=true")
+	}
+	if info.AccessResetsInSeconds > 0 {
+		parts = append(parts, fmt.Sprintf("reset_in=%ds", info.AccessResetsInSeconds))
+	}
+	return strings.Join(parts, " | ")
+}
+
+func (s *AccountTestService) shouldEnableSoraTLSFingerprint() bool {
+	if s == nil || s.cfg == nil {
+		return true
+	}
+	return !s.cfg.Sora.Client.DisableTLSFingerprint
+}
+
+func isCloudflareChallengeResponse(statusCode int, headers http.Header, body []byte) bool {
+	return soraerror.IsCloudflareChallengeResponse(statusCode, headers, body)
+}
+
+func formatCloudflareChallengeMessage(base string, headers http.Header, body []byte) string {
+	return soraerror.FormatCloudflareChallengeMessage(base, headers, body)
+}
+
+func extractCloudflareRayID(headers http.Header, body []byte) string {
+	return soraerror.ExtractCloudflareRayID(headers, body)
+}
+
+func extractSoraEgressIPHint(headers http.Header) string {
+	if headers == nil {
+		return "unknown"
+	}
+	candidates := []string{
+		"x-openai-public-ip",
+		"x-envoy-external-address",
+		"cf-connecting-ip",
+		"x-forwarded-for",
+	}
+	for _, key := range candidates {
+		if value := strings.TrimSpace(headers.Get(key)); value != "" {
+			return value
+		}
+	}
+	return "unknown"
+}
+
+func sanitizeProxyURLForLog(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "<invalid_proxy_url>"
+	}
+	if u.User != nil {
+		u.User = nil
+	}
+	return u.String()
+}
+
+func endpointPathForLog(endpoint string) string {
+	parsed, err := url.Parse(strings.TrimSpace(endpoint))
+	if err != nil || parsed.Path == "" {
+		return endpoint
+	}
+	return parsed.Path
+}
+
+func (s *AccountTestService) logSoraCloudflareChallenge(account *Account, proxyURL, endpoint string, headers http.Header, body []byte) {
+	accountID := int64(0)
+	platform := ""
+	proxyID := "none"
+	if account != nil {
+		accountID = account.ID
+		platform = account.Platform
+		if account.ProxyID != nil {
+			proxyID = fmt.Sprintf("%d", *account.ProxyID)
+		}
+	}
+	cfRay := extractCloudflareRayID(headers, body)
+	if cfRay == "" {
+		cfRay = "unknown"
+	}
+	log.Printf(
+		"[SoraCFChallenge] account_id=%d platform=%s endpoint=%s path=%s proxy_id=%s proxy_url=%s cf_ray=%s egress_ip_hint=%s",
+		accountID,
+		platform,
+		endpoint,
+		endpointPathForLog(endpoint),
+		proxyID,
+		sanitizeProxyURLForLog(proxyURL),
+		cfRay,
+		extractSoraEgressIPHint(headers),
+	)
+}
+
+func truncateSoraErrorBody(body []byte, max int) string {
+	return soraerror.TruncateBody(body, max)
+}
+
 // routeAntigravityTest 路由 Antigravity 账号的测试请求。
 // APIKey 类型走原生协议（与 gateway_handler 路由一致），OAuth/Upstream 走 CRS 中转。
-func (s *AccountTestService) routeAntigravityTest(c *gin.Context, account *Account, modelID string, prompt string) error {
+func (s *AccountTestService) routeAntigravityTest(c gatewayctx.GatewayContext, account *Account, modelID string, prompt string) error {
 	if account.Type == AccountTypeAPIKey {
 		if strings.HasPrefix(modelID, "gemini-") {
 			return s.testGeminiAccountConnection(c, account, modelID, prompt)
@@ -1155,8 +2004,8 @@ func (s *AccountTestService) routeAntigravityTest(c *gin.Context, account *Accou
 
 // testAntigravityAccountConnection tests an Antigravity account's connection
 // 支持 Claude 和 Gemini 两种协议，使用非流式请求
-func (s *AccountTestService) testAntigravityAccountConnection(c *gin.Context, account *Account, modelID string) error {
-	ctx := c.Request.Context()
+func (s *AccountTestService) testAntigravityAccountConnection(c gatewayctx.GatewayContext, account *Account, modelID string) error {
+	ctx := c.Request().Context()
 
 	// 默认模型：Claude 使用 claude-sonnet-4-5，Gemini 使用 gemini-3-pro-preview
 	testModelID := modelID
@@ -1169,11 +2018,11 @@ func (s *AccountTestService) testAntigravityAccountConnection(c *gin.Context, ac
 	}
 
 	// Set SSE headers
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Writer.Header().Set("X-Accel-Buffering", "no")
-	c.Writer.Flush()
+	c.SetHeader("Content-Type", "text/event-stream")
+	c.SetHeader("Cache-Control", "no-cache")
+	c.SetHeader("Connection", "keep-alive")
+	c.SetHeader("X-Accel-Buffering", "no")
+	_ = c.Flush()
 
 	// Send test_start event
 	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
@@ -1267,27 +2116,6 @@ func (s *AccountTestService) buildGeminiOAuthRequest(ctx context.Context, accoun
 	return s.buildCodeAssistRequest(ctx, accessToken, projectID, modelID, payload)
 }
 
-func (s *AccountTestService) buildGeminiServiceAccountRequest(ctx context.Context, account *Account, modelID string, payload []byte) (*http.Request, error) {
-	if s.geminiTokenProvider == nil {
-		return nil, fmt.Errorf("gemini token provider not configured")
-	}
-	accessToken, err := s.geminiTokenProvider.GetAccessToken(ctx, account)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get service account access token: %w", err)
-	}
-	fullURL, err := buildVertexGeminiURL(account.VertexProjectID(), account.VertexLocation(modelID), modelID, "streamGenerateContent", true)
-	if err != nil {
-		return nil, err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fullURL, bytes.NewReader(payload))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	return req, nil
-}
-
 // buildCodeAssistRequest builds request for Google Code Assist API (used by Gemini CLI and Antigravity)
 func (s *AccountTestService) buildCodeAssistRequest(ctx context.Context, accessToken, projectID, modelID string, payload []byte) (*http.Request, error) {
 	var inner map[string]any
@@ -1374,7 +2202,7 @@ func createGeminiTestPayload(modelID string, prompt string) []byte {
 }
 
 // processGeminiStream processes SSE stream from Gemini API
-func (s *AccountTestService) processGeminiStream(c *gin.Context, body io.Reader) error {
+func (s *AccountTestService) processGeminiStream(c gatewayctx.GatewayContext, body io.Reader) error {
 	reader := bufio.NewReader(body)
 
 	for {
@@ -1483,18 +2311,40 @@ func createOpenAITestPayload(modelID string, isOAuth bool) map[string]any {
 	return payload
 }
 
-func createOpenAIChatCompletionsTestPayload(modelID string, prompt string) map[string]any {
-	testPrompt := strings.TrimSpace(prompt)
-	if testPrompt == "" {
-		testPrompt = "hi"
+func buildOpenAICompatibleChatCompletionsURL(baseURL string) string {
+	normalized := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if strings.HasSuffix(normalized, "/chat/completions") {
+		return normalized
 	}
+	if strings.HasSuffix(normalized, "/v1") {
+		return normalized + "/chat/completions"
+	}
+	return normalized + "/v1/chat/completions"
+}
 
+func shouldUseOpenAICompatibleChatCompletionsTest(account *Account, normalizedBaseURL string) bool {
+	if account.IsOpenAIPassthroughEnabled() {
+		return true
+	}
+	parsedURL, err := url.Parse(strings.TrimSpace(normalizedBaseURL))
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(parsedURL.Hostname())
+	return host != "" && host != "api.openai.com"
+}
+
+func createOpenAICompatibleChatCompletionsTestPayload(modelID string, prompt string) map[string]any {
+	textPrompt := strings.TrimSpace(prompt)
+	if textPrompt == "" {
+		textPrompt = "hi"
+	}
 	return map[string]any{
 		"model": modelID,
-		"messages": []map[string]any{
+		"messages": []map[string]string{
 			{
 				"role":    "user",
-				"content": testPrompt,
+				"content": textPrompt,
 			},
 		},
 		"stream": true,
@@ -1502,7 +2352,7 @@ func createOpenAIChatCompletionsTestPayload(modelID string, prompt string) map[s
 }
 
 // processClaudeStream processes the SSE stream from Claude API
-func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader) error {
+func (s *AccountTestService) processClaudeStream(c gatewayctx.GatewayContext, body io.Reader) error {
 	reader := bufio.NewReader(body)
 
 	for {
@@ -1555,96 +2405,16 @@ func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader)
 	}
 }
 
-// processOpenAIChatCompletionsStream processes SSE chunks from the
-// OpenAI-compatible Chat Completions API.
-func (s *AccountTestService) processOpenAIChatCompletionsStream(c *gin.Context, body io.Reader) error {
-	reader := bufio.NewReader(body)
-	seenJSON := false
-	seenFinish := false
-
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				if seenFinish {
-					s.sendEvent(c, TestEvent{Type: "status", Text: "已通过 /v1/chat/completions 验证"})
-					s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
-					return nil
-				}
-				if seenJSON {
-					return s.sendErrorAndEnd(c, "Chat Completions stream from /v1/chat/completions ended before [DONE]")
-				}
-				return s.sendErrorAndEnd(c, "Invalid Chat Completions response from /v1/chat/completions: expected SSE JSON data")
-			}
-			return s.sendErrorAndEnd(c, fmt.Sprintf("Chat Completions stream read error from /v1/chat/completions: %s", err.Error()))
-		}
-
-		line = strings.TrimSpace(line)
-		if line == "" || !sseDataPrefix.MatchString(line) {
-			continue
-		}
-
-		jsonStr := sseDataPrefix.ReplaceAllString(line, "")
-		if jsonStr == "[DONE]" {
-			s.sendEvent(c, TestEvent{Type: "status", Text: "已通过 /v1/chat/completions 验证"})
-			s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
-			return nil
-		}
-
-		var data map[string]any
-		if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
-			return s.sendErrorAndEnd(c, "Invalid Chat Completions response from /v1/chat/completions: expected JSON data")
-		}
-		seenJSON = true
-
-		if errData, ok := data["error"].(map[string]any); ok {
-			errorMsg := "Chat Completions API (/v1/chat/completions) returned an error"
-			if msg, ok := errData["message"].(string); ok && msg != "" {
-				errorMsg = msg
-			}
-			return s.sendErrorAndEnd(c, fmt.Sprintf("Chat Completions API (/v1/chat/completions) error: %s", errorMsg))
-		}
-
-		choices, ok := data["choices"].([]any)
-		if !ok {
-			continue
-		}
-		for _, choiceValue := range choices {
-			choice, ok := choiceValue.(map[string]any)
-			if !ok {
-				continue
-			}
-			if delta, ok := choice["delta"].(map[string]any); ok {
-				if text, ok := delta["content"].(string); ok && text != "" {
-					s.sendEvent(c, TestEvent{Type: "content", Text: text})
-				}
-			}
-			if message, ok := choice["message"].(map[string]any); ok {
-				if text, ok := message["content"].(string); ok && text != "" {
-					s.sendEvent(c, TestEvent{Type: "content", Text: text})
-				}
-			}
-			if finishReason, ok := choice["finish_reason"].(string); ok && finishReason != "" {
-				seenFinish = true
-			}
-		}
-	}
-}
-
 // processOpenAIStream processes the SSE stream from OpenAI Responses API
-func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader) error {
+func (s *AccountTestService) processOpenAIStream(c gatewayctx.GatewayContext, body io.Reader) error {
 	reader := bufio.NewReader(body)
-	seenCompleted := false
 
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
-				if seenCompleted {
-					s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
-					return nil
-				}
-				return s.sendErrorAndEnd(c, "Stream ended before response.completed")
+				s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+				return nil
 			}
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Stream read error: %s", err.Error()))
 		}
@@ -1656,11 +2426,8 @@ func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader)
 
 		jsonStr := sseDataPrefix.ReplaceAllString(line, "")
 		if jsonStr == "[DONE]" {
-			if seenCompleted {
-				s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
-				return nil
-			}
-			return s.sendErrorAndEnd(c, "Stream ended before response.completed")
+			s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+			return nil
 		}
 
 		var data map[string]any
@@ -1676,19 +2443,9 @@ func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader)
 			if delta, ok := data["delta"].(string); ok && delta != "" {
 				s.sendEvent(c, TestEvent{Type: "content", Text: delta})
 			}
-		case "response.completed", "response.done":
+		case "response.completed":
 			s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 			return nil
-		case "response.failed":
-			errorMsg := "OpenAI response failed"
-			if responseData, ok := data["response"].(map[string]any); ok {
-				if errData, ok := responseData["error"].(map[string]any); ok {
-					if msg, ok := errData["message"].(string); ok && msg != "" {
-						errorMsg = msg
-					}
-				}
-			}
-			return s.sendErrorAndEnd(c, errorMsg)
 		case "error":
 			errorMsg := "Unknown error"
 			if errData, ok := data["error"].(map[string]any); ok {
@@ -1701,243 +2458,93 @@ func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader)
 	}
 }
 
-// testOpenAIImageAPIKey tests OpenAI image generation using an API Key account.
-func (s *AccountTestService) testOpenAIImageAPIKey(c *gin.Context, ctx context.Context, account *Account, modelID, prompt string) error {
-	authToken := account.GetOpenAIApiKey()
-	if authToken == "" {
-		return s.sendErrorAndEnd(c, "No API key available")
-	}
+// processOpenAIChatCompletionsStream processes OpenAI-compatible chat/completions
+// SSE responses used by third-party API-key passthrough accounts.
+func (s *AccountTestService) processOpenAIChatCompletionsStream(c gatewayctx.GatewayContext, body io.Reader) error {
+	reader := bufio.NewReader(body)
 
-	baseURL := account.GetOpenAIBaseURL()
-	if baseURL == "" {
-		baseURL = "https://api.openai.com"
-	}
-	normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
-	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
-	}
-	apiURL := buildOpenAIImagesURL(normalizedBaseURL, openAIImagesGenerationsEndpoint)
-
-	// Set SSE headers
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Writer.Header().Set("X-Accel-Buffering", "no")
-	c.Writer.Flush()
-
-	s.sendEvent(c, TestEvent{Type: "test_start", Model: modelID})
-
-	payload := map[string]any{
-		"model":           modelID,
-		"prompt":          prompt,
-		"n":               1,
-		"response_format": "b64_json",
-	}
-	payloadBytes, _ := json.Marshal(payload)
-
-	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader(payloadBytes))
-	if err != nil {
-		return s.sendErrorAndEnd(c, "Failed to create request")
-	}
-	req = req.WithContext(WithHTTPUpstreamProfile(req.Context(), HTTPUpstreamProfileOpenAI))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+authToken)
-
-	// 账号级请求头覆写：测试请求与真实转发保持一致的最终头
-	account.ApplyHeaderOverrides(req.Header)
-
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
-
-	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
-	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to read response: %s", err.Error()))
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("API returned %d: %s", resp.StatusCode, string(body)))
-	}
-
-	// Parse {"data": [{"b64_json": "...", "revised_prompt": "..."}]}
-	var result struct {
-		Data []struct {
-			B64JSON       string `json:"b64_json"`
-			RevisedPrompt string `json:"revised_prompt"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to parse response: %s", err.Error()))
-	}
-
-	if len(result.Data) == 0 {
-		return s.sendErrorAndEnd(c, "No images returned from API")
-	}
-
-	for _, item := range result.Data {
-		if item.RevisedPrompt != "" {
-			s.sendEvent(c, TestEvent{Type: "content", Text: item.RevisedPrompt})
-		}
-		if item.B64JSON != "" {
-			s.sendEvent(c, TestEvent{
-				Type:     "image",
-				ImageURL: "data:image/png;base64," + item.B64JSON,
-				MimeType: "image/png",
-			})
-		}
-	}
-
-	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
-	return nil
-}
-
-// testOpenAIImageOAuth tests OpenAI image generation using an OAuth account via Codex /responses API.
-func (s *AccountTestService) testOpenAIImageOAuth(c *gin.Context, ctx context.Context, account *Account, modelID, prompt string) error {
-	credentialAccount := account
-	if account.IsShadow() {
-		resolved, err := resolveCredentialAccount(ctx, s.accountRepo, account)
+	for {
+		line, err := reader.ReadString('\n')
 		if err != nil {
-			return s.sendErrorAndEnd(c, "Failed to resolve account credentials")
+			if err == io.EOF {
+				s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+				return nil
+			}
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Stream read error: %s", err.Error()))
 		}
-		credentialAccount = resolved
-	}
-	authToken := ""
-	if !credentialAccount.IsOpenAIAgentIdentity() {
-		authToken = credentialAccount.GetOpenAIAccessToken()
-	}
-	if authToken == "" && !credentialAccount.IsOpenAIAgentIdentity() {
-		return s.sendErrorAndEnd(c, "No access token available")
-	}
 
-	// Set SSE headers
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Writer.Header().Set("X-Accel-Buffering", "no")
-	c.Writer.Flush()
-
-	s.sendEvent(c, TestEvent{Type: "test_start", Model: modelID})
-	s.sendEvent(c, TestEvent{Type: "content", Text: "Calling Codex /responses image tool...\n"})
-
-	parsed := &OpenAIImagesRequest{
-		Endpoint: openAIImagesGenerationsEndpoint,
-		Model:    strings.TrimSpace(modelID),
-		Prompt:   prompt,
-	}
-	applyOpenAIImagesDefaults(parsed)
-
-	responsesBody, err := buildOpenAIImagesResponsesRequest(parsed, parsed.Model)
-	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to build image request: %s", err.Error()))
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, chatgptCodexAPIURL, bytes.NewReader(responsesBody))
-	if err != nil {
-		return s.sendErrorAndEnd(c, "Failed to create request")
-	}
-	req = req.WithContext(WithHTTPUpstreamProfile(req.Context(), HTTPUpstreamProfileOpenAI))
-	req.Host = "chatgpt.com"
-	if credentialAccount.IsOpenAIAgentIdentity() {
-		authHeaders, authErr := buildAgentIdentityAuthenticationHeaders(ctx, s.accountRepo, s.agentIdentityWS, &s.agentIdentityTaskMu, credentialAccount)
-		if authErr != nil {
-			return s.sendErrorAndEnd(c, "Failed to build Agent Identity authentication")
+		line = strings.TrimSpace(line)
+		if line == "" || !sseDataPrefix.MatchString(line) {
+			continue
 		}
-		for key, values := range authHeaders {
-			for _, value := range values {
-				req.Header.Add(key, value)
+
+		jsonStr := sseDataPrefix.ReplaceAllString(line, "")
+		if jsonStr == "[DONE]" {
+			s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+			return nil
+		}
+
+		var data map[string]any
+		if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
+			continue
+		}
+
+		if errData, ok := data["error"].(map[string]any); ok {
+			errorMsg := "Unknown error"
+			if msg, ok := errData["message"].(string); ok {
+				errorMsg = msg
+			}
+			return s.sendErrorAndEnd(c, errorMsg)
+		}
+
+		choices, ok := data["choices"].([]any)
+		if !ok || len(choices) == 0 {
+			continue
+		}
+		choice, ok := choices[0].(map[string]any)
+		if !ok {
+			continue
+		}
+		if delta, ok := choice["delta"].(map[string]any); ok {
+			if text, ok := delta["content"].(string); ok && text != "" {
+				s.sendEvent(c, TestEvent{Type: "content", Text: text})
 			}
 		}
-	} else {
-		req.Header.Set("Authorization", "Bearer "+authToken)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "text/event-stream")
-	req.Header.Set("OpenAI-Beta", "responses=experimental")
-	req.Header.Set("originator", "codex_cli_rs")
-	if customUA := strings.TrimSpace(credentialAccount.GetOpenAIUserAgent()); customUA != "" {
-		req.Header.Set("User-Agent", customUA)
-	} else {
-		req.Header.Set("User-Agent", codexCLIUserAgent)
-	}
-	setOpenAIChatGPTAccountHeaders(req.Header, credentialAccount)
-	// 与真实转发一致：账号级自定义 UA 同样作为管理员显式配置传入，否则测试用的身份
-	// 与该账号真实出站的身份不是同一个（issue #3901 的配对不变式由收口保证）。
-	enforceCodexIdentityHeadersWithUA(req.Header, credentialAccount.GetOpenAIUserAgent())
-
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
-	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
-	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Responses API request failed: %s", err.Error()))
-	}
-	defer func() {
-		if resp != nil && resp.Body != nil {
-			_ = resp.Body.Close()
+		if finishReason, ok := choice["finish_reason"].(string); ok && finishReason != "" {
+			s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+			return nil
 		}
-	}()
-	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
-		body = redactAgentIdentitySensitiveBodyForAccount(ctx, s.accountRepo, credentialAccount, body)
-		message := strings.TrimSpace(extractUpstreamErrorMessage(body))
-		if message == "" {
-			message = fmt.Sprintf("Responses API returned %d", resp.StatusCode)
-		}
-		return s.sendErrorAndEnd(c, message)
 	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to read image response: %s", err.Error()))
-	}
-	body = redactAgentIdentitySensitiveBodyForAccount(ctx, s.accountRepo, credentialAccount, body)
-
-	results, _, _, _, _, err := collectOpenAIImagesFromResponsesBody(body)
-	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to parse image response: %s", err.Error()))
-	}
-	if len(results) == 0 {
-		return s.sendErrorAndEnd(c, "No images returned from responses API")
-	}
-
-	for _, item := range results {
-		if item.RevisedPrompt != "" {
-			s.sendEvent(c, TestEvent{Type: "content", Text: item.RevisedPrompt})
-		}
-		mimeType := openAIImageOutputMIMEType(item.OutputFormat)
-		s.sendEvent(c, TestEvent{
-			Type:     "image",
-			ImageURL: "data:" + mimeType + ";base64," + item.Result,
-			MimeType: mimeType,
-		})
-	}
-
-	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
-	return nil
 }
 
-func (s *AccountTestService) sendEvent(c *gin.Context, event TestEvent) {
+// sendEvent sends a SSE event to the client
+func (s *AccountTestService) sendEvent(c gatewayctx.GatewayContext, event TestEvent) {
 	eventJSON, _ := json.Marshal(event)
-	if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", eventJSON); err != nil {
+	if _, err := c.WriteBytes(0, []byte("data: "+string(eventJSON)+"\n\n")); err != nil {
 		log.Printf("failed to write SSE event: %v", err)
 		return
 	}
-	c.Writer.Flush()
+	_ = c.Flush()
 }
 
 // sendErrorAndEnd sends an error event and ends the stream
-func (s *AccountTestService) sendErrorAndEnd(c *gin.Context, errorMsg string) error {
-	log.Printf("Account test error: %s", errorMsg)
+func (s *AccountTestService) sendErrorAndEnd(c gatewayctx.GatewayContext, errorMsg string) error {
+	if !shouldSuppressAccountTestErrorLog(errorMsg) {
+		log.Printf("Account test error: %s", errorMsg)
+	}
 	s.sendEvent(c, TestEvent{Type: "error", Error: errorMsg})
 	return fmt.Errorf("%s", errorMsg)
+}
+
+func shouldSuppressAccountTestErrorLog(errorMsg string) bool {
+	msg := strings.ToLower(strings.TrimSpace(errorMsg))
+	if msg == "" {
+		return false
+	}
+	return strings.Contains(msg, "account not found") ||
+		strings.Contains(msg, "context canceled") ||
+		strings.Contains(msg, "token_invalidated") ||
+		strings.Contains(msg, "authentication token has been invalidated")
 }
 
 // RunTestBackground executes an account test in-memory (no real HTTP client),
@@ -1949,7 +2556,7 @@ func (s *AccountTestService) RunTestBackground(ctx context.Context, accountID in
 	ginCtx, _ := gin.CreateTestContext(w)
 	ginCtx.Request = (&http.Request{}).WithContext(ctx)
 
-	testErr := s.TestAccountConnection(ginCtx, accountID, modelID, "", AccountTestModeDefault)
+	testErr := s.TestAccountConnection(gatewayctx.FromGin(ginCtx), accountID, modelID, "")
 
 	finishedAt := time.Now()
 	body := w.Body.String()

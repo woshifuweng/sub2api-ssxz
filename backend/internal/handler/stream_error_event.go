@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -33,6 +34,65 @@ type responsesFailedBody struct {
 type responsesFailedEvent struct {
 	Type     string              `json:"type"`
 	Response responsesFailedBody `json:"response"`
+}
+
+type legacyStreamError struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}
+
+type legacyStreamErrorEvent struct {
+	Type  string            `json:"type"`
+	Error legacyStreamError `json:"error"`
+}
+
+func writeLegacyStreamErrorContext(c gatewayctx.GatewayContext, event, errType, message string) {
+	payload := legacyStreamErrorEvent{
+		Type: "error",
+		Error: legacyStreamError{
+			Type:    errType,
+			Message: message,
+		},
+	}
+	if event == "" {
+		_ = gatewayctx.WriteSSEData(c, payload)
+		return
+	}
+	_ = gatewayctx.WriteSSEEvent(c, event, payload)
+}
+
+func responseUsesSSEContext(c gatewayctx.GatewayContext) bool {
+	if c == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(c.Header().Get("Content-Type")), "text/event-stream")
+}
+
+func writeResponsesFailedSSEContext(c gatewayctx.GatewayContext, errType, message string) bool {
+	if c == nil {
+		return false
+	}
+
+	payload, err := json.Marshal(responsesFailedEvent{
+		Type: "response.failed",
+		Response: responsesFailedBody{
+			ID:     synthesizeResponseIDContext(c),
+			Object: "response",
+			Model:  requestModelContext(c),
+			Status: "failed",
+			Output: []any{},
+			Error: responsesFailedError{
+				Code:    mapResponsesErrorCode(errType),
+				Message: message,
+			},
+		},
+	})
+	if err != nil {
+		return false
+	}
+
+	_ = gatewayctx.WriteSSEEvent(c, "response.failed", json.RawMessage(payload))
+	return true
 }
 
 // writeResponsesFailedSSE emits a `response.failed` SSE event in the OpenAI
@@ -120,12 +180,37 @@ func inboundIsResponses(c *gin.Context) bool {
 	return strings.HasSuffix(p, "/responses") || strings.Contains(p, "/responses/")
 }
 
+func inboundIsResponsesContext(c gatewayctx.GatewayContext) bool {
+	if c == nil {
+		return false
+	}
+	p := strings.TrimRight(c.Path(), "/")
+	if p == "" && c.Request() != nil && c.Request().URL != nil {
+		p = strings.TrimRight(c.Request().URL.Path, "/")
+	}
+	if p == "" {
+		return false
+	}
+	return strings.HasSuffix(p, "/responses") || strings.Contains(p, "/responses/")
+}
+
 // synthesizeResponseID 为合成的 response.failed 事件生成一个稳定的 id。
 // 优先复用 server 端生成的 request_id（存在 request.Context 里，由 request_logger 写入），
 // 以便客户端报错能与 server 日志关联；缺失时回退 uuid。
 func synthesizeResponseID(c *gin.Context) string {
 	if c != nil && c.Request != nil {
 		if rid, ok := c.Request.Context().Value(ctxkey.RequestID).(string); ok {
+			if rid = strings.TrimSpace(rid); rid != "" {
+				return "resp_" + strings.ReplaceAll(rid, "-", "")
+			}
+		}
+	}
+	return "resp_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+}
+
+func synthesizeResponseIDContext(c gatewayctx.GatewayContext) string {
+	if c != nil && c.Request() != nil {
+		if rid, ok := c.Request().Context().Value(ctxkey.RequestID).(string); ok {
 			if rid = strings.TrimSpace(rid); rid != "" {
 				return "resp_" + strings.ReplaceAll(rid, "-", "")
 			}
@@ -141,6 +226,18 @@ func requestModel(c *gin.Context) string {
 		return ""
 	}
 	if v, ok := c.Get(opsModelKey); ok {
+		if s, ok := v.(string); ok {
+			return strings.TrimSpace(s)
+		}
+	}
+	return ""
+}
+
+func requestModelContext(c gatewayctx.GatewayContext) string {
+	if c == nil {
+		return ""
+	}
+	if v, ok := c.Value(opsModelKey); ok {
 		if s, ok := v.(string); ok {
 			return strings.TrimSpace(s)
 		}

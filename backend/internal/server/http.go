@@ -3,9 +3,11 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -13,11 +15,13 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/websearch"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/Wei-Shaw/sub2api/internal/web"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 )
 
 // ProviderSet 提供服务器层的依赖
@@ -36,15 +40,29 @@ func ProvideRouter(
 	apiKeyAuth middleware2.APIKeyAuthMiddleware,
 	auditLog middleware2.AuditLogMiddleware,
 	stepUpAuth middleware2.StepUpAuthMiddleware,
+	authService *service.AuthService,
+	userService *service.UserService,
 	apiKeyService *service.APIKeyService,
 	subscriptionService *service.SubscriptionService,
 	opsService *service.OpsService,
 	settingService *service.SettingService,
+	auditService *service.AuditLogService,
 	compositeResolver *service.CompositeRouteResolver,
+	sqlDB *sql.DB,
 	redisClient *redis.Client,
 ) *gin.Engine {
 	if cfg.Server.Mode == "release" {
 		gin.SetMode(gin.ReleaseMode)
+	}
+
+	var frontendServer *web.FrontendServer
+	if web.HasEmbeddedFrontend() {
+		fs, err := web.NewFrontendServer(settingService)
+		if err != nil {
+			log.Printf("Warning: Failed to create frontend server with settings injection: %v, using legacy mode", err)
+		} else {
+			frontendServer = fs
+		}
 	}
 
 	r := gin.New()
@@ -87,43 +105,43 @@ func ProvideRouter(
 		service.SetWebSearchManager(websearch.NewManager(configs, redisClient))
 	})
 
-	return SetupRouter(r, handlers, jwtAuth, optionalJWTAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, redisClient)
+	router := SetupRouter(r, handlers, jwtAuth, optionalJWTAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, sqlDB, redisClient, frontendServer)
+	registerRouterExecutableRuntimeConfig(router, buildExecutableRuntimeConfig(cfg, handlers, apiKeyService, subscriptionService, settingService, authService, userService, redisClient, frontendServer, auditService))
+	return router
 }
 
-func configureTrustedProxies(r *gin.Engine, cfg config.ServerConfig) {
-	if cfg.TrustedProxiesConfigured {
-		if err := r.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+func derefInt64(p *int64) int64 {
+	if p == nil {
+		return 0
+	}
+	return *p
+}
+
+// configureTrustedProxies applies the trusted proxy trust chain to the engine.
+// A non-empty list is installed as-is; an empty list explicitly disables the
+// trust chain so that forwarded headers are ignored and ClientIP falls back to
+// the transport peer address. Installation failures (e.g. malformed CIDR) leave
+// gin without any trusted CIDR, which also fails closed.
+func configureTrustedProxies(r *gin.Engine, serverCfg config.ServerConfig) {
+	if len(serverCfg.TrustedProxies) > 0 {
+		if err := r.SetTrustedProxies(serverCfg.TrustedProxies); err != nil {
 			log.Printf("Failed to set trusted proxies: %v", err)
-			_ = r.SetTrustedProxies(nil)
 		}
-		if len(cfg.TrustedProxies) == 0 && cfg.Mode == "release" {
-			log.Printf("Warning: server.trusted_proxies is explicitly empty; forwarded client IP trust is disabled")
-		}
-	} else {
-		if err := r.SetTrustedProxies(nil); err != nil {
-			log.Printf("Failed to disable trusted proxies: %v", err)
-		}
-		if cfg.Mode == "release" {
-			log.Printf("Warning: server.trusted_proxies is not configured; disabling the forwarded-IP compatibility switch will use direct peer addresses only")
-		}
+		return
+	}
+	if err := r.SetTrustedProxies(nil); err != nil {
+		log.Printf("Failed to disable trusted proxies: %v", err)
+	}
+	if serverCfg.Mode == "release" {
+		log.Printf("Warning: server.trusted_proxies is empty in release mode; client IP trust chain is disabled")
 	}
 }
 
-// ProvideHTTPServer 提供 HTTP 服务器
-func ProvideHTTPServer(cfg *config.Config, router *gin.Engine) *http.Server {
-	httpHandler := http.Handler(router)
-	server := &http.Server{
-		Addr:           cfg.Server.Address(),
-		Handler:        httpHandler,
-		MaxHeaderBytes: cfg.Server.MaxHeaderBytes,
-		// ReadHeaderTimeout: 读取请求头的超时时间，防止慢速请求头攻击
-		ReadHeaderTimeout: time.Duration(cfg.Server.ReadHeaderTimeout) * time.Second,
-		// IdleTimeout: 空闲连接超时时间，释放不活跃的连接资源
-		IdleTimeout: time.Duration(cfg.Server.IdleTimeout) * time.Second,
-		// 注意：不设置 WriteTimeout，因为流式响应可能持续十几分钟
-		// 不设置 ReadTimeout，因为大请求体可能需要较长时间读取
-	}
-
+// BuildHTTPHandler wraps the base HTTP handler with server-level transport features
+// such as max request body size and optional h2c support. The returned handler can
+// be attached to any http.Server and served from an injected listener.
+func BuildHTTPHandler(cfg *config.Config, base http.Handler) http.Handler {
+	httpHandler := base
 	globalMaxSize := cfg.Server.MaxRequestBodySize
 	if globalMaxSize <= 0 {
 		globalMaxSize = cfg.Gateway.MaxBodySize
@@ -136,36 +154,106 @@ func ProvideHTTPServer(cfg *config.Config, router *gin.Engine) *http.Server {
 	// 根据配置决定是否启用 H2C
 	if cfg.Server.H2C.Enabled {
 		h2cConfig := cfg.Server.H2C
-		if err := http2.ConfigureServer(server, &http2.Server{
+		httpHandler = h2c.NewHandler(httpHandler, &http2.Server{
 			MaxConcurrentStreams:         h2cConfig.MaxConcurrentStreams,
 			IdleTimeout:                  time.Duration(h2cConfig.IdleTimeout) * time.Second,
 			MaxReadFrameSize:             uint32(h2cConfig.MaxReadFrameSize),
 			MaxUploadBufferPerConnection: int32(h2cConfig.MaxUploadBufferPerConnection),
 			MaxUploadBufferPerStream:     int32(h2cConfig.MaxUploadBufferPerStream),
-		}); err != nil {
-			log.Printf("Failed to configure HTTP/2 Cleartext (h2c): %v", err)
-		} else {
-			protocols := new(http.Protocols)
-			protocols.SetHTTP1(true)
-			protocols.SetUnencryptedHTTP2(true)
-			server.Protocols = protocols
-			log.Printf("HTTP/2 Cleartext (h2c) enabled: max_concurrent_streams=%d, idle_timeout=%ds, max_read_frame_size=%d, max_upload_buffer_per_connection=%d, max_upload_buffer_per_stream=%d",
-				h2cConfig.MaxConcurrentStreams,
-				h2cConfig.IdleTimeout,
-				h2cConfig.MaxReadFrameSize,
-				h2cConfig.MaxUploadBufferPerConnection,
-				h2cConfig.MaxUploadBufferPerStream,
-			)
-		}
+		})
+		log.Printf("HTTP/2 Cleartext (h2c) enabled: max_concurrent_streams=%d, idle_timeout=%ds, max_read_frame_size=%d, max_upload_buffer_per_connection=%d, max_upload_buffer_per_stream=%d",
+			h2cConfig.MaxConcurrentStreams,
+			h2cConfig.IdleTimeout,
+			h2cConfig.MaxReadFrameSize,
+			h2cConfig.MaxUploadBufferPerConnection,
+			h2cConfig.MaxUploadBufferPerStream,
+		)
 	}
 
-	server.Handler = httpHandler
-	return server
+	return httpHandler
 }
 
-func derefInt64(p *int64) int64 {
-	if p == nil {
-		return 0
+// NewHTTPServer constructs an http.Server from config and a prebuilt handler.
+// It is safe to call Serve(listener) on the returned server for injected-listener
+// runtimes such as master-worker supervision.
+func NewHTTPServer(cfg *config.Config, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:    cfg.Server.Address(),
+		Handler: handler,
+		// ReadHeaderTimeout: 读取请求头的超时时间，防止慢速请求头攻击
+		ReadHeaderTimeout: time.Duration(cfg.Server.ReadHeaderTimeout) * time.Second,
+		// IdleTimeout: 空闲连接超时时间，释放不活跃的连接资源
+		IdleTimeout: time.Duration(cfg.Server.IdleTimeout) * time.Second,
+		// 注意：不设置 WriteTimeout，因为流式响应可能持续十几分钟
+		// 不设置 ReadTimeout，因为大请求体可能需要较长时间读取
 	}
-	return *p
+}
+
+// ProvideHTTPServer 提供 HTTP 服务器
+func ProvideHTTPServer(cfg *config.Config, router *gin.Engine) *http.Server {
+	httpServer := NewHTTPServer(cfg, BuildHTTPHandler(cfg, router))
+	registerHTTPServerMetadata(httpServer, BuildRouteManifest(router))
+	registerHTTPServerExecutableRuntimeConfig(httpServer, executableRuntimeForRouter(router))
+	return httpServer
+}
+
+var (
+	httpServerMetadataMu         sync.RWMutex
+	httpServerMetadata           = map[*http.Server]RouteManifest{}
+	httpServerExecutableMetadata = map[*http.Server]*executableRuntimeConfig{}
+	routerExecutableMetadata     = map[*gin.Engine]*executableRuntimeConfig{}
+)
+
+func registerHTTPServerMetadata(server *http.Server, manifest RouteManifest) {
+	if server == nil {
+		return
+	}
+	httpServerMetadataMu.Lock()
+	defer httpServerMetadataMu.Unlock()
+	httpServerMetadata[server] = cloneRouteManifest(manifest)
+}
+
+func registerRouterExecutableRuntimeConfig(router *gin.Engine, cfg *executableRuntimeConfig) {
+	if router == nil || cfg == nil {
+		return
+	}
+	httpServerMetadataMu.Lock()
+	defer httpServerMetadataMu.Unlock()
+	routerExecutableMetadata[router] = cfg
+}
+
+func registerHTTPServerExecutableRuntimeConfig(server *http.Server, cfg *executableRuntimeConfig) {
+	if server == nil || cfg == nil {
+		return
+	}
+	httpServerMetadataMu.Lock()
+	defer httpServerMetadataMu.Unlock()
+	httpServerExecutableMetadata[server] = cfg
+}
+
+func executableRuntimeForRouter(router *gin.Engine) *executableRuntimeConfig {
+	if router == nil {
+		return nil
+	}
+	httpServerMetadataMu.RLock()
+	defer httpServerMetadataMu.RUnlock()
+	return routerExecutableMetadata[router]
+}
+
+func routeManifestForHTTPServer(server *http.Server) RouteManifest {
+	if server == nil {
+		return nil
+	}
+	httpServerMetadataMu.RLock()
+	defer httpServerMetadataMu.RUnlock()
+	return cloneRouteManifest(httpServerMetadata[server])
+}
+
+func executableRuntimeForHTTPServer(server *http.Server) *executableRuntimeConfig {
+	if server == nil {
+		return nil
+	}
+	httpServerMetadataMu.RLock()
+	defer httpServerMetadataMu.RUnlock()
+	return httpServerExecutableMetadata[server]
 }

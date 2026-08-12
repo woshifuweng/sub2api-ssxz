@@ -38,9 +38,14 @@ type OpsErrorLog struct {
 
 	Severity string `json:"severity"`
 
-	StatusCode int    `json:"status_code"`
-	Platform   string `json:"platform"`
-	Model      string `json:"model"`
+	StatusCode       int    `json:"status_code"`
+	Platform         string `json:"platform"`
+	Model            string `json:"model"`
+	InboundEndpoint  string `json:"inbound_endpoint"`
+	UpstreamEndpoint string `json:"upstream_endpoint"`
+	RequestedModel   string `json:"requested_model"`
+	UpstreamModel    string `json:"upstream_model"`
+	RequestType      *int16 `json:"request_type"`
 
 	Resolved           bool       `json:"resolved"`
 	ResolvedAt         *time.Time `json:"resolved_at"`
@@ -64,12 +69,7 @@ type OpsErrorLog struct {
 	RequestPath string  `json:"request_path"`
 	Stream      bool    `json:"stream"`
 
-	InboundEndpoint  string `json:"inbound_endpoint"`
-	UpstreamEndpoint string `json:"upstream_endpoint"`
-	RequestedModel   string `json:"requested_model"`
-	UpstreamModel    string `json:"upstream_model"`
-	RequestType      *int16 `json:"request_type"`
-	UserAgent        string `json:"user_agent"`
+	UserAgent string `json:"user_agent"`
 
 	// 关联 api_key 名称（LEFT JOIN api_keys 取得；软删只覆盖 key 列，name 保留，故已删 key 仍有原名）。
 	APIKeyName    string `json:"api_key_name,omitempty"`
@@ -94,8 +94,20 @@ type OpsErrorLogDetail struct {
 	ResponseLatencyMs  *int64 `json:"response_latency_ms"`
 	TimeToFirstTokenMs *int64 `json:"time_to_first_token_ms"`
 
+	// Retry context
+	RequestBody          string `json:"request_body"`
+	RequestBodyTruncated bool   `json:"request_body_truncated"`
+	RequestBodyBytes     *int   `json:"request_body_bytes"`
+	RequestHeaders       string `json:"request_headers,omitempty"`
+
 	// vNext metric semantics
 	IsBusinessLimited bool `json:"is_business_limited"`
+
+	// Deleted key owner info is populated for invalid keys that were deleted earlier.
+	AttemptedKeyPrefix    string `json:"attempted_key_prefix,omitempty"`
+	DeletedKeyOwnerUserID *int64 `json:"deleted_key_owner_user_id,omitempty"`
+	DeletedKeyOwnerEmail  string `json:"deleted_key_owner_email,omitempty"`
+	DeletedKeyName        string `json:"deleted_key_name,omitempty"`
 
 	// Bound (non-deleted) key prefix, snapshotted at error time.
 	APIKeyPrefix string `json:"api_key_prefix,omitempty"`
@@ -126,6 +138,10 @@ type OpsErrorLogFilter struct {
 	// by admin drill-down from the usage page).
 	UserID   *int64
 	APIKeyID *int64
+
+	// MatchDeletedKeyOwner widens user ownership to errors attributed to a deleted key.
+	// It is only enabled by the user-facing error endpoint; admin queries retain exact scope.
+	MatchDeletedKeyOwner bool
 
 	// Model matches against requested_model first, then model.
 	Model string

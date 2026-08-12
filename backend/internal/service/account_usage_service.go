@@ -817,6 +817,25 @@ func (s *AccountUsageService) persistOpenAICodexProbeSnapshot(accountID int64, u
 	}()
 }
 
+func extractOpenAICodexProbeSnapshot(resp *http.Response) (map[string]any, *time.Time, error) {
+	if resp == nil {
+		return nil, nil, nil
+	}
+	if snapshot := ParseCodexRateLimitHeaders(resp.Header); snapshot != nil {
+		baseTime := time.Now()
+		updates := buildCodexUsageExtraUpdates(snapshot, baseTime)
+		resetAt := codexRateLimitResetAtFromSnapshot(snapshot, baseTime)
+		if len(updates) > 0 {
+			return updates, resetAt, nil
+		}
+		return nil, resetAt, nil
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, nil, fmt.Errorf("openai codex probe returned status %d", resp.StatusCode)
+	}
+	return nil, nil, nil
+}
+
 func extractOpenAICodexProbeUpdates(resp *http.Response) (map[string]any, error) {
 	if resp == nil {
 		return nil, nil
@@ -1675,4 +1694,65 @@ func buildGeminiUsageProgress(used, limit int64, resetAt time.Time, tokens int64
 // 用于账号列表页面显示当前窗口费用
 func (s *AccountUsageService) GetAccountWindowStats(ctx context.Context, accountID int64, startTime time.Time) (*usagestats.AccountStats, error) {
 	return s.usageLogRepo.GetAccountWindowStats(ctx, accountID, startTime)
+}
+
+// GetAccountWindowStatsBatch returns account usage for a shared time window.
+// It prefers the repository batch query and falls back to bounded concurrent reads.
+func (s *AccountUsageService) GetAccountWindowStatsBatch(ctx context.Context, accountIDs []int64, startTime time.Time) (map[int64]*usagestats.AccountStats, error) {
+	uniqueIDs := make([]int64, 0, len(accountIDs))
+	seen := make(map[int64]struct{}, len(accountIDs))
+	for _, accountID := range accountIDs {
+		if accountID <= 0 {
+			continue
+		}
+		if _, exists := seen[accountID]; exists {
+			continue
+		}
+		seen[accountID] = struct{}{}
+		uniqueIDs = append(uniqueIDs, accountID)
+	}
+
+	result := make(map[int64]*usagestats.AccountStats, len(uniqueIDs))
+	if len(uniqueIDs) == 0 {
+		return result, nil
+	}
+
+	if batchReader, ok := s.usageLogRepo.(accountWindowStatsBatchReader); ok {
+		statsByAccount, err := batchReader.GetAccountWindowStatsBatch(ctx, uniqueIDs, startTime)
+		if err == nil {
+			for _, accountID := range uniqueIDs {
+				if stats, exists := statsByAccount[accountID]; exists && stats != nil {
+					result[accountID] = stats
+				} else {
+					result[accountID] = &usagestats.AccountStats{}
+				}
+			}
+			return result, nil
+		}
+	}
+
+	var mu sync.Mutex
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(8)
+	for _, accountID := range uniqueIDs {
+		id := accountID
+		group.Go(func() error {
+			stats, err := s.usageLogRepo.GetAccountWindowStats(groupCtx, id, startTime)
+			if err != nil {
+				return nil
+			}
+			mu.Lock()
+			result[id] = stats
+			mu.Unlock()
+			return nil
+		})
+	}
+	_ = group.Wait()
+
+	for _, accountID := range uniqueIDs {
+		if _, exists := result[accountID]; !exists {
+			result[accountID] = &usagestats.AccountStats{}
+		}
+	}
+	return result, nil
 }

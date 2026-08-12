@@ -32,6 +32,10 @@ vi.mock('@/composables/useClipboard', () => ({
   useClipboard: () => ({ copyToClipboard }),
 }))
 
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ path: '/affiliate' }),
+}))
+
 vi.mock('vue-i18n', async (importOriginal) => {
   const actual = await importOriginal<typeof import('vue-i18n')>()
   return {
@@ -67,6 +71,9 @@ describe('AffiliateView', () => {
         stubs: {
           AppLayout: { template: '<main><slot /></main>' },
           Icon: true,
+          LiquidButton: {
+            template: '<button v-bind="$attrs"><slot /></button>',
+          },
         },
       },
     })
@@ -79,27 +86,19 @@ describe('AffiliateView', () => {
       expect(value.classes()).toEqual(expect.arrayContaining([
         'min-w-0',
         'break-all',
-        'sm:flex-1',
+        'flex-1',
         'sm:truncate',
       ]))
-      expect(Array.from(value.element.parentElement?.classList ?? [])).toEqual(expect.arrayContaining([
-        'flex-col',
-        'items-stretch',
-        'sm:flex-row',
-        'sm:items-center',
-      ]))
+      expect(value.element.parentElement?.classList.contains('affiliate-copy-row')).toBe(true)
     }
 
-    const copyButtons = wrapper.findAll('button').filter((button) =>
-      ['affiliate.copyCode', 'affiliate.copyLink'].includes(button.text()),
-    )
+    const copyButtons = [
+      wrapper.get('[data-testid="copy-affiliate-code"]'),
+      wrapper.get('[data-testid="copy-affiliate-link"]'),
+    ]
     expect(copyButtons).toHaveLength(2)
     for (const button of copyButtons) {
-      expect(button.classes()).toEqual(expect.arrayContaining([
-        'w-full',
-        'sm:w-auto',
-        'sm:shrink-0',
-      ]))
+      expect(button.element.parentElement?.classList.contains('affiliate-copy-row')).toBe(true)
     }
 
     await copyButtons[0].trigger('click')

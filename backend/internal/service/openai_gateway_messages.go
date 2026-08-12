@@ -16,6 +16,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -269,6 +270,14 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		return nil, policyErr
 	}
 	responsesBody = updatedBody
+	if account.IsOpenAIChatWebMode() {
+		var reasoningEffort *string
+		if responsesReq.Reasoning != nil && strings.TrimSpace(responsesReq.Reasoning.Effort) != "" {
+			effort := strings.TrimSpace(responsesReq.Reasoning.Effort)
+			reasoningEffort = &effort
+		}
+		return s.forwardOpenAIChatWebConversationContext(ctx, gatewayctx.FromGin(c), account, responsesBody, originalModel, reasoningEffort, isStream, startTime)
+	}
 	grokCacheIdentity := ""
 	if account.Platform == PlatformGrok {
 		grokIntentBody := responsesBody
@@ -287,8 +296,14 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		}
 	}
 
-	// 5. Get access token
-	token, _, err := s.getRequestCredential(ctx, c, account)
+	// 5. Get access token. Grok keeps its request-scoped credential/failover
+	// contract, while Agent Identity signs each built OpenAI request instead.
+	var token string
+	if account.Platform == PlatformGrok {
+		token, _, err = s.getRequestCredential(ctx, c, account)
+	} else {
+		token, err = s.getOpenAIRequestAccessToken(ctx, account)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("get access token: %w", err)
 	}
@@ -545,6 +560,15 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 		return nil, err
 	}
 
+	if finalResponse == nil {
+		if acc != nil && acc.HasContent() {
+			finalResponse = &apicompat.ResponsesResponse{
+				Object: "response",
+				Status: "completed",
+				Output: acc.BuildOutput(),
+			}
+		}
+	}
 	if finalResponse == nil {
 		writeAnthropicError(c, http.StatusBadGateway, "api_error", "Upstream stream ended without a terminal response event")
 		return nil, fmt.Errorf("upstream stream ended without terminal event")

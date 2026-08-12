@@ -13,6 +13,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/gin-gonic/gin"
 )
 
@@ -618,6 +619,414 @@ func stripThinkingFromClaudeRequest(req *antigravity.ClaudeRequest) (bool, error
 	}
 
 	return changed, nil
+}
+
+func (s *AntigravityGatewayService) ForwardContext(ctx context.Context, c gatewayctx.GatewayContext, account *Account, body []byte, isStickySession bool) (*ForwardResult, error) {
+	// 上游透传账号直接转发，不走 OAuth token 刷新
+	if account.Type == AccountTypeUpstream {
+		return s.ForwardUpstreamContext(ctx, c, account, body)
+	}
+
+	startTime := time.Now()
+
+	sessionID := getSessionIDContext(c)
+	prefix := logPrefix(sessionID, account.Name)
+
+	var claudeReq antigravity.ClaudeRequest
+	if err := json.Unmarshal(body, &claudeReq); err != nil {
+		return nil, s.writeClaudeErrorContext(c, http.StatusBadRequest, "invalid_request_error", "Invalid request body")
+	}
+	if strings.TrimSpace(claudeReq.Model) == "" {
+		return nil, s.writeClaudeErrorContext(c, http.StatusBadRequest, "invalid_request_error", "Missing model")
+	}
+
+	originalModel := claudeReq.Model
+	mappedModel := s.getMappedModel(account, claudeReq.Model)
+	if mappedModel == "" {
+		return nil, s.writeClaudeErrorContext(c, http.StatusForbidden, "permission_error", fmt.Sprintf("model %s not in whitelist", claudeReq.Model))
+	}
+	thinkingEnabled := claudeReq.Thinking != nil && (claudeReq.Thinking.Type == "enabled" || claudeReq.Thinking.Type == "adaptive")
+	mappedModel = applyThinkingModelSuffix(mappedModel, thinkingEnabled)
+	if mappedModel != "" && mappedModel != originalModel {
+		SetOpsUpstreamModelContext(c, mappedModel)
+	}
+	billingModel := mappedModel
+	SetOpsUpstreamModelContext(c, mappedModel)
+
+	if s.tokenProvider == nil {
+		return nil, s.writeClaudeErrorContext(c, http.StatusBadGateway, "api_error", "Antigravity token provider not configured")
+	}
+	accessToken, err := s.tokenProvider.GetAccessToken(ctx, account)
+	if err != nil {
+		return nil, &UpstreamFailoverError{
+			StatusCode:   http.StatusBadGateway,
+			ResponseBody: []byte(`{"error":{"type":"authentication_error","message":"Failed to get upstream access token"},"type":"error"}`),
+		}
+	}
+
+	projectID := strings.TrimSpace(account.GetCredential("project_id"))
+
+	proxyURL := ""
+	if account.ProxyID != nil && account.Proxy != nil {
+		proxyURL = account.Proxy.URL()
+	}
+
+	transformOpts := s.getClaudeTransformOptions(ctx)
+	transformOpts.EnableIdentityPatch = true
+
+	geminiBody, err := antigravity.TransformClaudeToGeminiWithOptions(&claudeReq, projectID, mappedModel, transformOpts)
+	if err != nil {
+		return nil, s.writeClaudeErrorContext(c, http.StatusBadRequest, "invalid_request_error", "Invalid request")
+	}
+
+	action := "streamGenerateContent"
+
+	result, err := s.antigravityRetryLoop(antigravityRetryLoopParams{
+		ctx:             ctx,
+		prefix:          prefix,
+		account:         account,
+		proxyURL:        proxyURL,
+		accessToken:     accessToken,
+		action:          action,
+		body:            geminiBody,
+		c:               c,
+		httpUpstream:    s.httpUpstream,
+		settingService:  s.settingService,
+		accountRepo:     s.accountRepo,
+		handleError:     s.handleUpstreamError,
+		requestedModel:  originalModel,
+		isStickySession: isStickySession,
+		groupID:         0,
+		sessionHash:     "",
+	})
+	if err != nil {
+		if switchErr, ok := IsAntigravityAccountSwitchError(err); ok {
+			return nil, &UpstreamFailoverError{
+				StatusCode:        http.StatusServiceUnavailable,
+				ForceCacheBilling: switchErr.IsStickySession,
+			}
+		}
+		if c.Context().Err() != nil {
+			return nil, s.writeClaudeErrorContext(c, http.StatusBadGateway, "client_disconnected", "Client disconnected before upstream response")
+		}
+		return nil, s.writeClaudeErrorContext(c, http.StatusBadGateway, "upstream_error", "Upstream request failed after retries")
+	}
+	resp := result.resp
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+
+		if resp.StatusCode == http.StatusBadRequest && isSignatureRelatedError(respBody) && s.settingService.IsSignatureRectifierEnabled(ctx) {
+			upstreamMsg := strings.TrimSpace(extractAntigravityErrorMessage(respBody))
+			upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
+			logBody, maxBytes := s.getLogConfig()
+			upstreamDetail := s.getUpstreamErrorDetail(respBody)
+			appendOpsUpstreamErrorContext(c, OpsUpstreamErrorEvent{
+				Platform:           account.Platform,
+				AccountID:          account.ID,
+				AccountName:        account.Name,
+				UpstreamStatusCode: resp.StatusCode,
+				UpstreamRequestID:  resp.Header.Get("x-request-id"),
+				UpstreamURL: func() string {
+					if resp != nil && resp.Request != nil && resp.Request.URL != nil {
+						return safeUpstreamURL(resp.Request.URL.String())
+					}
+					return ""
+				}(),
+				Kind:    "signature_error",
+				Message: upstreamMsg,
+				Detail:  upstreamDetail,
+			})
+
+			retryStages := []struct {
+				name  string
+				strip func(*antigravity.ClaudeRequest) (bool, error)
+			}{
+				{name: "thinking-only", strip: stripThinkingFromClaudeRequest},
+				{name: "thinking+tools", strip: stripSignatureSensitiveBlocksFromClaudeRequest},
+			}
+
+			for _, stage := range retryStages {
+				retryClaudeReq := claudeReq
+				retryClaudeReq.Messages = append([]antigravity.ClaudeMessage(nil), claudeReq.Messages...)
+
+				stripped, stripErr := stage.strip(&retryClaudeReq)
+				if stripErr != nil || !stripped {
+					continue
+				}
+
+				logger.LegacyPrintf("service.antigravity_gateway", "Antigravity account %d: detected signature-related 400, retrying once (%s)", account.ID, stage.name)
+
+				retryGeminiBody, txErr := antigravity.TransformClaudeToGeminiWithOptions(&retryClaudeReq, projectID, mappedModel, s.getClaudeTransformOptions(ctx))
+				if txErr != nil {
+					continue
+				}
+				retryResult, retryErr := s.antigravityRetryLoop(antigravityRetryLoopParams{
+					ctx:             ctx,
+					prefix:          prefix,
+					account:         account,
+					proxyURL:        proxyURL,
+					accessToken:     accessToken,
+					action:          action,
+					body:            retryGeminiBody,
+					c:               c,
+					httpUpstream:    s.httpUpstream,
+					settingService:  s.settingService,
+					accountRepo:     s.accountRepo,
+					handleError:     s.handleUpstreamError,
+					requestedModel:  originalModel,
+					isStickySession: isStickySession,
+					groupID:         0,
+					sessionHash:     "",
+				})
+				if retryErr != nil {
+					appendOpsUpstreamErrorContext(c, OpsUpstreamErrorEvent{
+						Platform:           account.Platform,
+						AccountID:          account.ID,
+						AccountName:        account.Name,
+						UpstreamStatusCode: 0,
+						Kind:               "signature_retry_request_error",
+						Message:            sanitizeUpstreamErrorMessage(retryErr.Error()),
+					})
+					logger.LegacyPrintf("service.antigravity_gateway", "Antigravity account %d: signature retry request failed (%s): %v", account.ID, stage.name, retryErr)
+					continue
+				}
+
+				retryResp := retryResult.resp
+				if retryResp.StatusCode < 400 {
+					_ = resp.Body.Close()
+					resp = retryResp
+					respBody = nil
+					break
+				}
+
+				retryBody, _ := io.ReadAll(io.LimitReader(retryResp.Body, 8<<10))
+				_ = retryResp.Body.Close()
+				if retryResp.StatusCode == http.StatusTooManyRequests {
+					retryBaseURL := ""
+					if retryResp.Request != nil && retryResp.Request.URL != nil {
+						retryBaseURL = retryResp.Request.URL.Scheme + "://" + retryResp.Request.URL.Host
+					}
+					logger.LegacyPrintf("service.antigravity_gateway", "%s status=429 rate_limited base_url=%s retry_stage=%s body=%s", prefix, retryBaseURL, stage.name, truncateForLog(retryBody, 200))
+				}
+				kind := "signature_retry"
+				if strings.TrimSpace(stage.name) != "" {
+					kind = "signature_retry_" + strings.ReplaceAll(stage.name, "+", "_")
+				}
+				retryUpstreamMsg := strings.TrimSpace(extractAntigravityErrorMessage(retryBody))
+				retryUpstreamMsg = sanitizeUpstreamErrorMessage(retryUpstreamMsg)
+				retryUpstreamDetail := ""
+				if logBody {
+					retryUpstreamDetail = truncateString(string(retryBody), maxBytes)
+				}
+				appendOpsUpstreamErrorContext(c, OpsUpstreamErrorEvent{
+					Platform:           account.Platform,
+					AccountID:          account.ID,
+					AccountName:        account.Name,
+					UpstreamStatusCode: retryResp.StatusCode,
+					UpstreamRequestID:  retryResp.Header.Get("x-request-id"),
+					Kind:               kind,
+					Message:            retryUpstreamMsg,
+					Detail:             retryUpstreamDetail,
+				})
+
+				if retryResp.StatusCode != http.StatusBadRequest || !isSignatureRelatedError(retryBody) {
+					respBody = retryBody
+					resp = &http.Response{
+						StatusCode: retryResp.StatusCode,
+						Header:     retryResp.Header.Clone(),
+						Body:       io.NopCloser(bytes.NewReader(retryBody)),
+					}
+					break
+				}
+
+				respBody = retryBody
+				resp = &http.Response{
+					StatusCode: retryResp.StatusCode,
+					Header:     retryResp.Header.Clone(),
+					Body:       io.NopCloser(bytes.NewReader(retryBody)),
+				}
+			}
+		}
+
+		if resp.StatusCode == http.StatusBadRequest && respBody != nil && !isSignatureRelatedError(respBody) {
+			errMsg := strings.TrimSpace(extractAntigravityErrorMessage(respBody))
+			if isThinkingBudgetConstraintError(errMsg) && s.settingService.IsBudgetRectifierEnabled(ctx) {
+				appendOpsUpstreamErrorContext(c, OpsUpstreamErrorEvent{
+					Platform:           account.Platform,
+					AccountID:          account.ID,
+					AccountName:        account.Name,
+					UpstreamStatusCode: resp.StatusCode,
+					UpstreamRequestID:  resp.Header.Get("x-request-id"),
+					Kind:               "budget_constraint_error",
+					Message:            errMsg,
+					Detail:             s.getUpstreamErrorDetail(respBody),
+				})
+
+				if claudeReq.Thinking == nil || claudeReq.Thinking.Type != "adaptive" {
+					retryClaudeReq := claudeReq
+					retryClaudeReq.Messages = append([]antigravity.ClaudeMessage(nil), claudeReq.Messages...)
+					retryClaudeReq.Thinking = &antigravity.ThinkingConfig{
+						Type:         "enabled",
+						BudgetTokens: BudgetRectifyBudgetTokens,
+					}
+					if retryClaudeReq.MaxTokens < BudgetRectifyMinMaxTokens {
+						retryClaudeReq.MaxTokens = BudgetRectifyMaxTokens
+					}
+
+					logger.LegacyPrintf("service.antigravity_gateway", "Antigravity account %d: detected budget_tokens constraint error, retrying with rectified budget (budget_tokens=%d, max_tokens=%d)", account.ID, BudgetRectifyBudgetTokens, BudgetRectifyMaxTokens)
+
+					retryGeminiBody, txErr := antigravity.TransformClaudeToGeminiWithOptions(&retryClaudeReq, projectID, mappedModel, transformOpts)
+					if txErr == nil {
+						retryResult, retryErr := s.antigravityRetryLoop(antigravityRetryLoopParams{
+							ctx:             ctx,
+							prefix:          prefix,
+							account:         account,
+							proxyURL:        proxyURL,
+							accessToken:     accessToken,
+							action:          action,
+							body:            retryGeminiBody,
+							c:               c,
+							httpUpstream:    s.httpUpstream,
+							settingService:  s.settingService,
+							accountRepo:     s.accountRepo,
+							handleError:     s.handleUpstreamError,
+							requestedModel:  originalModel,
+							isStickySession: isStickySession,
+							groupID:         0,
+							sessionHash:     "",
+						})
+						if retryErr == nil {
+							retryResp := retryResult.resp
+							if retryResp.StatusCode < 400 {
+								_ = resp.Body.Close()
+								resp = retryResp
+								respBody = nil
+							} else {
+								retryBody, _ := io.ReadAll(io.LimitReader(retryResp.Body, 2<<20))
+								_ = retryResp.Body.Close()
+								respBody = retryBody
+								resp = &http.Response{
+									StatusCode: retryResp.StatusCode,
+									Header:     retryResp.Header.Clone(),
+									Body:       io.NopCloser(bytes.NewReader(retryBody)),
+								}
+							}
+						} else {
+							logger.LegacyPrintf("service.antigravity_gateway", "Antigravity account %d: budget rectifier retry failed: %v", account.ID, retryErr)
+						}
+					}
+				}
+			}
+		}
+
+		if resp.StatusCode >= 400 {
+			if resp.StatusCode == http.StatusBadRequest && isPromptTooLongError(respBody) {
+				upstreamMsg := strings.TrimSpace(extractAntigravityErrorMessage(respBody))
+				upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
+				upstreamDetail := s.getUpstreamErrorDetail(respBody)
+				logBody, maxBytes := s.getLogConfig()
+				if logBody {
+					logger.LegacyPrintf("service.antigravity_gateway", "%s status=400 prompt_too_long=true upstream_message=%q request_id=%s body=%s", prefix, upstreamMsg, resp.Header.Get("x-request-id"), truncateForLog(respBody, maxBytes))
+				}
+				appendOpsUpstreamErrorContext(c, OpsUpstreamErrorEvent{
+					Platform:           account.Platform,
+					AccountID:          account.ID,
+					AccountName:        account.Name,
+					UpstreamStatusCode: resp.StatusCode,
+					UpstreamRequestID:  resp.Header.Get("x-request-id"),
+					Kind:               "prompt_too_long",
+					Message:            upstreamMsg,
+					Detail:             upstreamDetail,
+				})
+				return nil, &PromptTooLongError{
+					StatusCode: resp.StatusCode,
+					RequestID:  resp.Header.Get("x-request-id"),
+					Body:       respBody,
+				}
+			}
+
+			s.handleUpstreamError(ctx, prefix, account, resp.StatusCode, resp.Header, respBody, originalModel, 0, "", isStickySession)
+
+			if resp.StatusCode == http.StatusBadRequest {
+				msg := strings.ToLower(strings.TrimSpace(extractAntigravityErrorMessage(respBody)))
+				if isGoogleProjectConfigError(msg) {
+					upstreamMsg := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractAntigravityErrorMessage(respBody)))
+					upstreamDetail := s.getUpstreamErrorDetail(respBody)
+					log.Printf("%s status=400 google_config_error failover=true upstream_message=%q account=%d", prefix, upstreamMsg, account.ID)
+					appendOpsUpstreamErrorContext(c, OpsUpstreamErrorEvent{
+						Platform:           account.Platform,
+						AccountID:          account.ID,
+						AccountName:        account.Name,
+						UpstreamStatusCode: resp.StatusCode,
+						UpstreamRequestID:  resp.Header.Get("x-request-id"),
+						Kind:               "failover",
+						Message:            upstreamMsg,
+						Detail:             upstreamDetail,
+					})
+					return nil, &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: true}
+				}
+			}
+
+			if s.shouldFailoverUpstreamError(resp.StatusCode) {
+				upstreamMsg := strings.TrimSpace(extractAntigravityErrorMessage(respBody))
+				upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
+				upstreamDetail := s.getUpstreamErrorDetail(respBody)
+				appendOpsUpstreamErrorContext(c, OpsUpstreamErrorEvent{
+					Platform:           account.Platform,
+					AccountID:          account.ID,
+					AccountName:        account.Name,
+					UpstreamStatusCode: resp.StatusCode,
+					UpstreamRequestID:  resp.Header.Get("x-request-id"),
+					Kind:               "failover",
+					Message:            upstreamMsg,
+					Detail:             upstreamDetail,
+				})
+				return nil, &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody}
+			}
+
+			return nil, s.writeMappedClaudeErrorContext(c, account, resp.StatusCode, resp.Header.Get("x-request-id"), respBody)
+		}
+	}
+
+	requestID := resp.Header.Get("x-request-id")
+	if requestID != "" {
+		c.SetHeader("x-request-id", requestID)
+	}
+
+	var usage *ClaudeUsage
+	var firstTokenMs *int
+	var clientDisconnect bool
+	if claudeReq.Stream {
+		streamRes, err := s.handleClaudeStreamingResponseContext(c, resp, startTime, originalModel)
+		if err != nil {
+			logger.LegacyPrintf("service.antigravity_gateway", "%s status=stream_error error=%v", prefix, err)
+			return nil, err
+		}
+		usage = streamRes.usage
+		firstTokenMs = streamRes.firstTokenMs
+		clientDisconnect = streamRes.clientDisconnect
+	} else {
+		streamRes, err := s.handleClaudeStreamToNonStreamingContext(c, resp, startTime, originalModel)
+		if err != nil {
+			logger.LegacyPrintf("service.antigravity_gateway", "%s status=stream_collect_error error=%v", prefix, err)
+			return nil, err
+		}
+		usage = streamRes.usage
+		firstTokenMs = streamRes.firstTokenMs
+	}
+
+	return &ForwardResult{
+		RequestID:        requestID,
+		Usage:            *usage,
+		Model:            originalModel,
+		UpstreamModel:    billingModel,
+		Stream:           claudeReq.Stream,
+		Duration:         time.Since(startTime),
+		FirstTokenMs:     firstTokenMs,
+		ClientDisconnect: clientDisconnect,
+	}, nil
 }
 
 // stripSignatureSensitiveBlocksFromClaudeRequest is a stronger retry degradation that additionally converts

@@ -1,6 +1,8 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <AdminPageHeader title="通道监控" description="实时通道可用性与健康检测" />
+
+    <TablePageLayout class="admin-b2-outline-scope">
       <template #filters>
         <MonitorFiltersBar
           v-model:search="searchQuery"
@@ -128,6 +130,7 @@ import type {
 } from '@/api/admin/channelMonitor'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -324,3 +327,19 @@ onUnmounted(() => {
   abortController?.abort()
 })
 </script>
+
+<style scoped>
+.admin-b2-outline-scope :deep(.table-scroll-container),
+.admin-b2-outline-scope :deep(.table-wrapper),
+.admin-b2-outline-scope :deep(.table-wrapper table),
+.admin-b2-outline-scope :deep(.table-wrapper tbody) {
+  background: transparent !important;
+  border-color: var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b2-outline-scope :deep(thead),
+.admin-b2-outline-scope :deep(.table-header) {
+  background: var(--ssxz-surface-raised) !important;
+}
+</style>

@@ -13,6 +13,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,6 +21,53 @@ type antigravityStreamResult struct {
 	usage            *ClaudeUsage
 	firstTokenMs     *int
 	clientDisconnect bool // 客户端是否在流式传输过程中断开
+}
+
+type antigravityGatewayWriter struct {
+	ctx          gatewayctx.GatewayContext
+	disconnected bool
+	prefix       string
+}
+
+func newAntigravityGatewayWriter(ctx gatewayctx.GatewayContext, prefix string) *antigravityGatewayWriter {
+	return &antigravityGatewayWriter{ctx: ctx, prefix: prefix}
+}
+
+func (cw *antigravityGatewayWriter) Write(p []byte) bool {
+	if cw == nil || cw.disconnected || cw.ctx == nil {
+		return false
+	}
+	if _, err := cw.ctx.WriteBytes(0, p); err != nil {
+		cw.markDisconnected()
+		return false
+	}
+	if err := cw.ctx.Flush(); err != nil {
+		cw.markDisconnected()
+		return false
+	}
+	return true
+}
+
+func (cw *antigravityGatewayWriter) Fprintf(format string, args ...any) bool {
+	if cw == nil || cw.disconnected {
+		return false
+	}
+	return cw.Write([]byte(fmt.Sprintf(format, args...)))
+}
+
+func (cw *antigravityGatewayWriter) Disconnected() bool {
+	if cw == nil {
+		return false
+	}
+	return cw.disconnected
+}
+
+func (cw *antigravityGatewayWriter) markDisconnected() {
+	if cw == nil {
+		return
+	}
+	cw.disconnected = true
+	logger.LegacyPrintf("service.antigravity_gateway", "Client disconnected during streaming (%s), continuing to drain upstream for billing", cw.prefix)
 }
 
 // antigravityClientWriter 封装流式响应的客户端写入，自动检测断开并标记。
@@ -654,6 +702,16 @@ func (s *AntigravityGatewayService) writeClaudeError(c *gin.Context, status int,
 	return fmt.Errorf("%s", message)
 }
 
+func (s *AntigravityGatewayService) writeClaudeErrorContext(c gatewayctx.GatewayContext, status int, errType, message string) error {
+	if c != nil {
+		c.WriteJSON(status, gin.H{
+			"type":  "error",
+			"error": gin.H{"type": errType, "message": message},
+		})
+	}
+	return fmt.Errorf("%s", message)
+}
+
 // WriteMappedClaudeError 导出版本，供 handler 层使用（如 fallback 错误处理）
 func (s *AntigravityGatewayService) WriteMappedClaudeError(c *gin.Context, account *Account, upstreamStatus int, upstreamRequestID string, body []byte) error {
 	return s.writeMappedClaudeError(c, account, upstreamStatus, upstreamRequestID, body)
@@ -1191,4 +1249,83 @@ func isImageGenerationModel(model string) bool {
 		modelLower == "gemini-2.5-flash-image" ||
 		modelLower == "gemini-2.5-flash-image-preview" ||
 		strings.HasPrefix(modelLower, "gemini-2.5-flash-image-")
+}
+
+func (s *AntigravityGatewayService) WriteMappedClaudeErrorContext(c gatewayctx.GatewayContext, account *Account, upstreamStatus int, upstreamRequestID string, body []byte) error {
+	return s.writeMappedClaudeErrorContext(c, account, upstreamStatus, upstreamRequestID, body)
+}
+
+func (s *AntigravityGatewayService) writeMappedClaudeErrorContext(c gatewayctx.GatewayContext, account *Account, upstreamStatus int, upstreamRequestID string, body []byte) error {
+	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(body))
+	upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
+	logBody, maxBytes := s.getLogConfig()
+	upstreamDetail := s.getUpstreamErrorDetail(body)
+	setOpsUpstreamErrorContext(c, upstreamStatus, upstreamMsg, upstreamDetail)
+	appendOpsUpstreamErrorContext(c, OpsUpstreamErrorEvent{
+		Platform:           account.Platform,
+		AccountID:          account.ID,
+		AccountName:        account.Name,
+		UpstreamStatusCode: upstreamStatus,
+		UpstreamRequestID:  upstreamRequestID,
+		Kind:               "http_error",
+		Message:            upstreamMsg,
+		Detail:             upstreamDetail,
+	})
+
+	if logBody {
+		logger.LegacyPrintf("service.antigravity_gateway", "[antigravity-Forward] upstream_error status=%d body=%s", upstreamStatus, truncateForLog(body, maxBytes))
+	}
+
+	if ptStatus, ptErrType, ptErrMsg, matched := applyErrorPassthroughRuleContext(
+		c, account.Platform, upstreamStatus, body,
+		0, "", "",
+	); matched {
+		c.WriteJSON(ptStatus, gin.H{
+			"type":  "error",
+			"error": gin.H{"type": ptErrType, "message": ptErrMsg},
+		})
+		if upstreamMsg == "" {
+			return fmt.Errorf("upstream error: %d", upstreamStatus)
+		}
+		return fmt.Errorf("upstream error: %d message=%s", upstreamStatus, upstreamMsg)
+	}
+
+	var statusCode int
+	var errType, errMsg string
+
+	switch upstreamStatus {
+	case 400:
+		statusCode = http.StatusBadRequest
+		errType = "invalid_request_error"
+		errMsg = getPassthroughOrDefault(upstreamMsg, "Invalid request")
+	case 401:
+		statusCode = http.StatusBadGateway
+		errType = "authentication_error"
+		errMsg = "Upstream authentication failed"
+	case 403:
+		statusCode = http.StatusBadGateway
+		errType = "permission_error"
+		errMsg = "Upstream access forbidden"
+	case 429:
+		statusCode = http.StatusTooManyRequests
+		errType = "rate_limit_error"
+		errMsg = "Upstream rate limit exceeded"
+	case 529:
+		statusCode = http.StatusServiceUnavailable
+		errType = "overloaded_error"
+		errMsg = "Upstream service overloaded"
+	default:
+		statusCode = http.StatusBadGateway
+		errType = "upstream_error"
+		errMsg = "Upstream request failed"
+	}
+
+	c.WriteJSON(statusCode, gin.H{
+		"type":  "error",
+		"error": gin.H{"type": errType, "message": errMsg},
+	})
+	if upstreamMsg == "" {
+		return fmt.Errorf("upstream error: %d", upstreamStatus)
+	}
+	return fmt.Errorf("upstream error: %d message=%s", upstreamStatus, upstreamMsg)
 }

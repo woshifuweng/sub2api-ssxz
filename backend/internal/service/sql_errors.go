@@ -10,5 +10,5 @@ func isSQLNoRowsError(err error) bool {
 	if err == nil {
 		return false
 	}
-	return errors.Is(err, sql.ErrNoRows) || strings.Contains(err.Error(), "no rows in result set")
+	return errors.Is(err, sql.ErrNoRows) || strings.Contains(strings.ToLower(err.Error()), "no rows in result set")
 }

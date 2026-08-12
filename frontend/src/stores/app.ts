@@ -6,13 +6,21 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Toast, ToastType, PublicSettings } from '@/types'
-import { i18n } from '@/i18n'
+import { DEFAULT_SITE_NAME, normalizeSiteName } from '@/utils/brand'
 import {
   checkUpdates as checkUpdatesAPI,
   type VersionInfo,
   type ReleaseInfo
 } from '@/api/admin/system'
 import { getPublicSettings as fetchPublicSettingsAPI } from '@/api/auth'
+
+type ToastOptions = {
+  title?: string
+  subtitle?: string
+  progress?: number
+}
+
+type ToastPatch = Partial<Omit<Toast, 'id'>>
 
 export const useAppStore = defineStore('app', () => {
   // ==================== State ====================
@@ -26,7 +34,7 @@ export const useAppStore = defineStore('app', () => {
   // Public settings cache state
   const publicSettingsLoaded = ref<boolean>(false)
   const publicSettingsLoading = ref<boolean>(false)
-  const siteName = ref<string>('Sub2API')
+  const siteName = ref<string>(DEFAULT_SITE_NAME)
   const siteLogo = ref<string>('')
   const siteVersion = ref<string>('')
   const contactInfo = ref<string>('')
@@ -104,14 +112,21 @@ export const useAppStore = defineStore('app', () => {
    * @param type - Type of toast (success, error, info, warning)
    * @param message - Toast message content
    * @param duration - Auto-dismiss duration in ms (undefined = no auto-dismiss)
+   * @param options - Optional title/subtitle/progress metadata
    * @returns Toast ID for manual dismissal
    */
-  function showToast(type: ToastType, message: string, duration?: number): string {
+  function showToast(type: ToastType, message: string, duration?: number, options?: ToastOptions): string {
     const id = `toast-${++toastIdCounter}`
+    const normalizedProgress = typeof options?.progress === 'number'
+      ? Math.min(100, Math.max(0, Math.round(options.progress)))
+      : undefined
     const toast: Toast = {
       id,
       type,
       message,
+      title: options?.title,
+      subtitle: options?.subtitle,
+      progress: normalizedProgress,
       duration,
       startTime: duration !== undefined ? Date.now() : undefined
     }
@@ -120,12 +135,48 @@ export const useAppStore = defineStore('app', () => {
 
     // Auto-dismiss if duration is specified
     if (duration !== undefined) {
-      setTimeout(() => {
-        hideToast(id)
-      }, duration)
+      scheduleToastAutoDismiss(id, duration)
     }
 
     return id
+  }
+
+  function scheduleToastAutoDismiss(id: string, duration: number): void {
+    if (duration <= 0) return
+    setTimeout(() => {
+      hideToast(id)
+    }, duration)
+  }
+
+  /**
+   * Update an existing toast in place.
+   * Useful for long-running tasks that need progress/status updates.
+   */
+  function updateToast(id: string, patch: ToastPatch): boolean {
+    const index = toasts.value.findIndex((t) => t.id === id)
+    if (index === -1) return false
+
+    const current = toasts.value[index]
+    const next: Toast = {
+      ...current,
+      ...patch
+    }
+
+    if (typeof patch.progress === 'number') {
+      next.progress = Math.min(100, Math.max(0, Math.round(patch.progress)))
+    }
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'duration')) {
+      if (typeof patch.duration === 'number') {
+        next.startTime = Date.now()
+        scheduleToastAutoDismiss(id, patch.duration)
+      } else {
+        next.startTime = undefined
+      }
+    }
+
+    toasts.value[index] = next
+    return true
   }
 
   /**
@@ -212,10 +263,7 @@ export const useAppStore = defineStore('app', () => {
     try {
       return await operation()
     } catch (error) {
-      const message =
-        errorMessage ||
-        (error as { message?: string }).message ||
-        i18n.global.t('common.unknownError')
+      const message = errorMessage || (error as { message?: string }).message || 'An error occurred'
       showError(message)
       return null
     } finally {
@@ -294,10 +342,11 @@ export const useAppStore = defineStore('app', () => {
       window.__APP_CONFIG__ = { ...config }
     }
     cachedPublicSettings.value = config
-    siteName.value = config.site_name || 'Sub2API'
+    siteName.value = normalizeSiteName(config.site_name)
     siteLogo.value = config.site_logo || ''
     siteVersion.value = config.version || ''
-    contactInfo.value = config.contact_info || ''
+    // 空串/纯空白都视为「未配置」，避免消费方渲染出空白联系方式区块
+    contactInfo.value = (config.contact_info || '').trim()
     apiBaseUrl.value = config.api_base_url || ''
     docUrl.value = config.doc_url || ''
     publicSettingsLoaded.value = true
@@ -348,6 +397,11 @@ export const useAppStore = defineStore('app', () => {
         home_content: '',
         compact_home_enabled: false,
         hide_ccs_import_button: false,
+        purchase_subscription_enabled: false,
+        purchase_subscription_url: '',
+        purchase_link_cny_10: '',
+        purchase_link_cny_30: '',
+        purchase_link_cny_100: '',
         payment_enabled: false,
         table_default_page_size: 20,
         table_page_size_options: [10, 20, 50, 100],
@@ -360,6 +414,7 @@ export const useAppStore = defineStore('app', () => {
         wechat_oauth_mobile_enabled: false,
         oidc_oauth_enabled: false,
         oidc_oauth_provider_name: 'OIDC',
+        sora_client_enabled: false,
         github_oauth_enabled: false,
         google_oauth_enabled: false,
         backend_mode_enabled: false,
@@ -471,6 +526,7 @@ export const useAppStore = defineStore('app', () => {
     setMobileOpen,
     setLoading,
     showToast,
+    updateToast,
     showSuccess,
     showError,
     showInfo,

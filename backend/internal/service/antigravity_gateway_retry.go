@@ -18,6 +18,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/gin-gonic/gin"
 )
 
@@ -30,7 +31,7 @@ type antigravityRetryLoopParams struct {
 	accessToken     string
 	action          string
 	body            []byte
-	c               *gin.Context
+	c               any
 	httpUpstream    HTTPUpstream
 	settingService  *SettingService
 	accountRepo     AccountRepository // 用于智能重试的模型级别限流
@@ -531,7 +532,7 @@ urlFallbackLoop:
 			}
 			if err != nil {
 				safeErr := sanitizeUpstreamErrorMessage(err.Error())
-				appendOpsUpstreamError(p.c, OpsUpstreamErrorEvent{
+				appendOpsUpstreamErrorAny(p.c, OpsUpstreamErrorEvent{
 					Platform:           p.account.Platform,
 					AccountID:          p.account.ID,
 					AccountName:        p.account.Name,
@@ -553,7 +554,7 @@ urlFallbackLoop:
 					continue
 				}
 				logger.LegacyPrintf("service.antigravity_gateway", "%s status=request_failed retries_exhausted error=%v", p.prefix, err)
-				setOpsUpstreamError(p.c, 0, safeErr, "")
+				setOpsUpstreamErrorAny(p.c, 0, safeErr, "")
 				return nil, fmt.Errorf("upstream request failed after retries: %w", err)
 			}
 
@@ -608,7 +609,7 @@ urlFallbackLoop:
 					if attempt < antigravityMaxRetries {
 						upstreamMsg := strings.TrimSpace(extractAntigravityErrorMessage(respBody))
 						upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
-						appendOpsUpstreamError(p.c, OpsUpstreamErrorEvent{
+						appendOpsUpstreamErrorAny(p.c, OpsUpstreamErrorEvent{
 							Platform:           p.account.Platform,
 							AccountID:          p.account.ID,
 							AccountName:        p.account.Name,
@@ -643,7 +644,7 @@ urlFallbackLoop:
 					if attempt < antigravityMaxRetries {
 						upstreamMsg := strings.TrimSpace(extractAntigravityErrorMessage(respBody))
 						upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
-						appendOpsUpstreamError(p.c, OpsUpstreamErrorEvent{
+						appendOpsUpstreamErrorAny(p.c, OpsUpstreamErrorEvent{
 							Platform:           p.account.Platform,
 							AccountID:          p.account.ID,
 							AccountName:        p.account.Name,
@@ -750,6 +751,13 @@ func getSessionID(c *gin.Context) string {
 		return ""
 	}
 	return c.GetHeader("session_id")
+}
+
+func getSessionIDContext(c gatewayctx.GatewayContext) string {
+	if c == nil {
+		return ""
+	}
+	return strings.TrimSpace(c.HeaderValue("session_id"))
 }
 
 // logPrefix 生成统一的日志前缀

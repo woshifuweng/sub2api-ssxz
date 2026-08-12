@@ -15,12 +15,6 @@ const (
 	MonitorBodyOverrideModeReplace = "replace"
 )
 
-// MonitorAPIMode 描述 OpenAI provider 的请求协议。
-//
-//   - chat_completions  OpenAI-compatible Chat Completions: /v1/chat/completions + messages
-//   - responses         OpenAI Responses API: /v1/responses + instructions/input
-//
-// 非 OpenAI provider 固定使用 chat_completions 作为占位默认值，避免为每个 provider 单独扩表。
 const (
 	MonitorAPIModeChatCompletions = "chat_completions"
 	MonitorAPIModeResponses       = "responses"
@@ -39,22 +33,17 @@ type ChannelMonitor struct {
 	GroupName       string
 	Enabled         bool
 	IntervalSeconds int
-	JitterSeconds   int // 每次调度 ± [0, jitter] 的随机偏移（秒），0 = 固定间隔
+	JitterSeconds   int
 	LastCheckedAt   *time.Time
 	CreatedBy       int64
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 
 	// 请求自定义快照（来自模板拷贝 or 用户手填，运行时直接读取）
-	TemplateID       *int64            // 仅用于 UI 分组 + 一键应用，运行时不用
-	ExtraHeaders     map[string]string // 与 adapter 默认 headers 合并，用户优先
-	BodyOverrideMode string            // off / merge / replace
-	BodyOverride     map[string]any    // 仅 mode != off 时使用
-
-	// DuplicateOperationID is internal persistence metadata used to recover an
-	// already committed duplicate after an ambiguous idempotency-store failure.
-	// Repository implementations must keep it out of ExtraHeaders so it can
-	// never be serialized to clients or forwarded to an upstream provider.
+	TemplateID           *int64            // 仅用于 UI 分组 + 一键应用，运行时不用
+	ExtraHeaders         map[string]string // 与 adapter 默认 headers 合并，用户优先
+	BodyOverrideMode     string            // off / merge / replace
+	BodyOverride         map[string]any    // 仅 mode != off 时使用
 	DuplicateOperationID string
 
 	// APIKeyDecryptFailed 表示 APIKey 字段无法解密（密钥不一致或损坏）。

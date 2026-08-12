@@ -166,6 +166,9 @@ func isBlockedHost(host string) bool {
 	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
 		return true
 	}
+	if host == "metadata" || host == "metadata.google.internal" || strings.HasSuffix(host, ".metadata.google.internal") {
+		return true
+	}
 	if ip := net.ParseIP(host); ip != nil {
 		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
 			return true

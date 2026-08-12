@@ -41,7 +41,7 @@
         </span>
       </div>
 
-      <div class="space-y-1.5">
+      <div v-if="!isSoraAccount" class="space-y-1.5">
         <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
           {{ t('admin.accounts.selectTestModel') }}
         </label>
@@ -54,16 +54,18 @@
           :placeholder="loadingModels ? t('common.loading') + '...' : t('admin.accounts.selectTestModel')"
         />
       </div>
+      <div
+        v-else
+        class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
+      >
+        {{ t('admin.accounts.soraTestHint') }}
+      </div>
 
       <div v-if="isOpenAIAccount" class="space-y-1.5">
         <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
           {{ t('admin.accounts.openai.testMode') }}
         </label>
-        <Select
-          v-model="testMode"
-          :options="openAITestModeOptions"
-          :disabled="status === 'connecting'"
-        />
+        <Select v-model="testMode" :options="openAITestModeOptions" :disabled="status === 'connecting'" />
       </div>
 
       <div v-if="supportsImageTest" class="space-y-1.5">
@@ -144,7 +146,12 @@
           >
             <img :src="image.url" :alt="`test-image-${index + 1}`" class="max-h-[360px] w-full object-contain" />
             <div class="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover/img:bg-black/20">
-              <Icon name="eye" size="lg" class="text-white opacity-0 drop-shadow-lg transition-opacity group-hover/img:opacity-100" :stroke-width="2" />
+              <Icon
+                name="eye"
+                size="lg"
+                class="text-white opacity-0 drop-shadow-lg transition-opacity group-hover/img:opacity-100"
+                :stroke-width="2"
+              />
             </div>
             <div class="border-t border-gray-100 px-3 py-1.5 text-xs text-gray-500 dark:border-dark-500 dark:text-gray-300">
               {{ image.mimeType || 'image/*' }}
@@ -153,7 +160,6 @@
         </div>
       </div>
 
-      <!-- Image Lightbox -->
       <Teleport to="body">
         <Transition name="fade">
           <div
@@ -181,15 +187,17 @@
         <div class="flex items-center gap-3">
           <span class="flex items-center gap-1">
             <Icon name="grid" size="sm" :stroke-width="2" />
-            {{ t('admin.accounts.testModel') }}
+            {{ isSoraAccount ? t('admin.accounts.soraTestTarget') : t('admin.accounts.testModel') }}
           </span>
         </div>
         <span class="flex items-center gap-1">
           <Icon name="chat" size="sm" :stroke-width="2" />
           {{
-            supportsImageTest
-              ? t('admin.accounts.imageTestMode')
-              : t('admin.accounts.testPrompt')
+            isSoraAccount
+              ? t('admin.accounts.soraTestMode')
+              : supportsImageTest
+                ? t('admin.accounts.imageTestMode')
+                : t('admin.accounts.testPrompt')
           }}
         </span>
       </div>
@@ -200,15 +208,16 @@
         <button
           @click="handleClose"
           class="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-dark-600 dark:text-gray-300 dark:hover:bg-dark-500"
+          :disabled="status === 'connecting'"
         >
           {{ t('common.close') }}
         </button>
         <button
           @click="startTest"
-          :disabled="status === 'connecting' || !selectedModelId"
+          :disabled="status === 'connecting' || (!isSoraAccount && !selectedModelId)"
           :class="[
             'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all',
-            status === 'connecting' || !selectedModelId
+            status === 'connecting' || (!isSoraAccount && !selectedModelId)
               ? 'cursor-not-allowed bg-primary-400 text-white'
               : status === 'success'
                 ? 'bg-green-500 text-white hover:bg-green-600'
@@ -286,6 +295,7 @@ const selectedModelId = ref('')
 const testPrompt = ref('')
 const loadingModels = ref(false)
 let abortController: AbortController | null = null
+const isSoraAccount = computed(() => props.account?.platform === 'sora')
 const generatedImages = ref<PreviewImage[]>([])
 const previewImageUrl = ref('')
 const testMode = ref<'default' | 'compact'>('default')
@@ -296,6 +306,7 @@ const openAITestModeOptions = computed(() => [
 ])
 const prioritizedGeminiModels = ['gemini-3.1-flash-image', 'gemini-2.5-flash-image', 'gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-flash-preview', 'gemini-3-pro-preview', 'gemini-2.0-flash']
 const supportsGeminiImageTest = computed(() => {
+  if (isSoraAccount.value) return false
   const modelID = selectedModelId.value.toLowerCase()
   if (!modelID.startsWith('gemini-') || !modelID.includes('-image')) return false
 
@@ -303,8 +314,10 @@ const supportsGeminiImageTest = computed(() => {
 })
 
 const supportsOpenAIImageTest = computed(() => {
+  if (isSoraAccount.value) return false
   const modelID = selectedModelId.value.toLowerCase()
   if (!modelID.startsWith('gpt-image-')) return false
+
   return props.account?.platform === 'openai'
 })
 
@@ -344,6 +357,12 @@ watch(selectedModelId, () => {
 
 const loadAvailableModels = async () => {
   if (!props.account) return
+  if (props.account.platform === 'sora') {
+    availableModels.value = []
+    selectedModelId.value = ''
+    loadingModels.value = false
+    return
+  }
 
   loadingModels.value = true
   selectedModelId.value = '' // Reset selection before loading
@@ -406,7 +425,7 @@ const scrollToBottom = async () => {
 }
 
 const startTest = async () => {
-  if (!props.account || !selectedModelId.value) return
+  if (!props.account || (!isSoraAccount.value && !selectedModelId.value)) return
 
   resetState()
   status.value = 'connecting'
@@ -415,23 +434,18 @@ const startTest = async () => {
   addLine('', 'text-gray-300')
 
   abortStream()
-
   abortController = new AbortController()
 
   try {
-    const requestBody: {
-      model_id: string
-      prompt: string
-      mode?: 'default' | 'compact'
-    } = {
-      model_id: selectedModelId.value,
-      prompt: supportsImageTest.value ? testPrompt.value.trim() : ''
-    }
-    if (isOpenAIAccount.value) {
-      requestBody.mode = testMode.value
-    }
+    const requestBody: { model_id?: string; prompt?: string; mode?: 'default' | 'compact' } =
+      isSoraAccount.value
+        ? {}
+        : {
+            model_id: selectedModelId.value,
+            prompt: supportsImageTest.value ? testPrompt.value.trim() : ''
+          }
+    if (isOpenAIAccount.value) requestBody.mode = testMode.value
 
-    // Use the configured API base; EventSource does not support POST.
     const url = buildApiUrl(`/admin/accounts/${props.account.id}/test`)
 
     // Use fetch with streaming for SSE since EventSource doesn't support POST
@@ -486,9 +500,9 @@ const startTest = async () => {
       return
     }
     status.value = 'error'
-    const msg = error instanceof Error ? error.message : 'Unknown error'
-    errorMessage.value = msg
-    addLine(`Error: ${msg}`, 'text-red-400')
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    errorMessage.value = message
+    addLine(`Error: ${message}`, 'text-red-400')
   }
 }
 
@@ -508,7 +522,9 @@ const handleEvent = (event: {
         addLine(t('admin.accounts.usingModel', { model: event.model }), 'text-cyan-400')
       }
       addLine(
-        supportsImageTest.value
+        isSoraAccount.value
+          ? t('admin.accounts.soraTestingFlow')
+          : supportsImageTest.value
             ? t('admin.accounts.sendingImageRequest')
             : t('admin.accounts.sendingTestMessage'),
         'text-gray-400'
@@ -531,12 +547,6 @@ const handleEvent = (event: {
           mimeType: event.mime_type
         })
         addLine(t('admin.accounts.imageReceived', { count: generatedImages.value.length }), 'text-purple-300')
-      }
-      break
-
-    case 'status':
-      if (event.text) {
-        addLine(event.text, 'text-cyan-300')
       }
       break
 
@@ -576,6 +586,7 @@ const copyOutput = () => {
 .fade-leave-active {
   transition: opacity 0.2s ease;
 }
+
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;

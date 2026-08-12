@@ -46,7 +46,7 @@ func TestGatewayEnsureForwardErrorResponse_AppendsSSEAfterWritten(t *testing.T) 
 	c.String(http.StatusTeapot, "already written")
 
 	h := &GatewayHandler{}
-	wrote := h.ensureForwardErrorResponse(c, false)
+	wrote := h.ensureForwardErrorResponse(c, true)
 
 	require.True(t, wrote)
 	require.Equal(t, http.StatusTeapot, w.Code)
@@ -80,7 +80,7 @@ func TestGatewayEnsureForwardErrorResponse_ResponsesRouteAfterWrittenEmitsRespon
 	_, _ = c.Writer.WriteString(":\n\n")
 
 	h := &GatewayHandler{}
-	wrote := h.ensureForwardErrorResponse(c, false)
+	wrote := h.ensureForwardErrorResponse(c, true)
 
 	require.True(t, wrote)
 	body := w.Body.String()

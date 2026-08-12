@@ -21,6 +21,7 @@ type CreateUsageLogRequest struct {
 	UserID                int64   `json:"user_id"`
 	APIKeyID              int64   `json:"api_key_id"`
 	AccountID             int64   `json:"account_id"`
+	ChannelID             int64   `json:"channel_id"`
 	RequestID             string  `json:"request_id"`
 	Model                 string  `json:"model"`
 	InputTokens           int     `json:"input_tokens"`
@@ -97,6 +98,7 @@ func (s *UsageService) Create(ctx context.Context, req CreateUsageLogRequest) (*
 		UserID:                req.UserID,
 		APIKeyID:              req.APIKeyID,
 		AccountID:             req.AccountID,
+		ChannelID:             optionalInt64Ptr(req.ChannelID),
 		RequestID:             req.RequestID,
 		Model:                 req.Model,
 		InputTokens:           req.InputTokens,
@@ -124,8 +126,8 @@ func (s *UsageService) Create(ctx context.Context, req CreateUsageLogRequest) (*
 	// 扣除用户余额
 	balanceUpdated := false
 	if inserted && req.ActualCost > 0 {
-		if err := s.userRepo.UpdateBalance(txCtx, req.UserID, -req.ActualCost); err != nil {
-			return nil, fmt.Errorf("update user balance: %w", err)
+		if err := s.userRepo.DeductBalance(txCtx, req.UserID, req.ActualCost); err != nil {
+			return nil, fmt.Errorf("deduct user balance: %w", err)
 		}
 		balanceUpdated = true
 	}

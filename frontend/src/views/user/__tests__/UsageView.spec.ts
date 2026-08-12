@@ -5,7 +5,7 @@ import UsageView from '../UsageView.vue'
 
 const {
   query,
-  getStats,
+  getStatsByDateRange,
   getDashboardModels,
   getDashboardSnapshotV2,
   list,
@@ -16,7 +16,7 @@ const {
   showInfo,
 } = vi.hoisted(() => ({
   query: vi.fn(),
-  getStats: vi.fn(),
+  getStatsByDateRange: vi.fn(),
   getDashboardModels: vi.fn(),
   getDashboardSnapshotV2: vi.fn(),
   list: vi.fn(),
@@ -67,7 +67,7 @@ const messages: Record<string, string> = {
 vi.mock('@/api', () => ({
   usageAPI: {
     query,
-    getStats,
+    getStatsByDateRange,
     getDashboardModels,
     getDashboardSnapshotV2,
   },
@@ -150,7 +150,7 @@ function mountUsageView() {
 describe('user UsageView', () => {
   beforeEach(() => {
     query.mockReset()
-    getStats.mockReset()
+    getStatsByDateRange.mockReset()
     getDashboardModels.mockReset()
     getDashboardSnapshotV2.mockReset()
     list.mockReset()
@@ -161,7 +161,7 @@ describe('user UsageView', () => {
     showInfo.mockReset()
 
     query.mockResolvedValue({ items: [usageLog], total: 1, pages: 1 })
-    getStats.mockResolvedValue({
+    getStatsByDateRange.mockResolvedValue({
       total_requests: 1,
       total_input_tokens: 10,
       total_output_tokens: 20,
@@ -196,7 +196,7 @@ describe('user UsageView', () => {
     await flushPromises()
 
     expect(query).toHaveBeenCalled()
-    expect(getStats).toHaveBeenCalled()
+    expect(getStatsByDateRange).toHaveBeenCalled()
     expect(getDashboardModels).toHaveBeenCalled()
     expect(getDashboardSnapshotV2).toHaveBeenCalledWith(expect.objectContaining({
       include_trend: true,

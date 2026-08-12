@@ -5290,6 +5290,11 @@ const deleteConfirmMessage = computed(() => {
 
 const loadLiveCapability = async () => {
   if (liveCapability.value) return liveCapability.value;
+  // Keep older admin API test doubles and deployments without the optional
+  // capability endpoint fail-closed instead of throwing during mount.
+  if (typeof adminAPI.groups.getLiveCapability !== "function") {
+    return { supported: false };
+  }
   if (!liveCapabilityRequest) {
     liveCapabilityRequest = adminAPI.groups
       .getLiveCapability()

@@ -216,6 +216,16 @@
           </div>
         </template>
 
+        <template #cell-request_id="{ row }">
+          <code
+            v-if="row.request_id"
+            class="block max-w-[260px] break-all rounded bg-gray-100 px-2 py-1 text-xs text-gray-700 dark:bg-dark-700 dark:text-gray-300"
+          >
+            {{ row.request_id }}
+          </code>
+          <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
+        </template>
+
         <template #cell-created_at="{ value }">
           <span class="text-sm text-gray-600 dark:text-gray-400">{{ formatDateTime(value) }}</span>
         </template>

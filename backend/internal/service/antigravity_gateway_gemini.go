@@ -13,6 +13,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/gin-gonic/gin"
 )
 
@@ -39,6 +40,17 @@ func WithForwardGeminiSession(groupID int64, sessionHash string) ForwardGeminiOp
 		opts.groupID = groupID
 		opts.sessionHash = sessionHash
 	}
+}
+
+func (s *AntigravityGatewayService) ForwardGeminiContext(ctx context.Context, c gatewayctx.GatewayContext, account *Account, originalModel string, action string, stream bool, body []byte, isStickySession bool, options ...ForwardGeminiOption) (*ForwardResult, error) {
+	if c == nil {
+		return nil, fmt.Errorf("missing gateway context")
+	}
+	ginContext, ok := c.Native().(*gin.Context)
+	if !ok || ginContext == nil {
+		return nil, fmt.Errorf("antigravity gemini requires gin gateway context")
+	}
+	return s.ForwardGemini(ctx, ginContext, account, originalModel, action, stream, body, isStickySession, options...)
 }
 
 func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Context, account *Account, originalModel string, action string, stream bool, body []byte, isStickySession bool, options ...ForwardGeminiOption) (*ForwardResult, error) {

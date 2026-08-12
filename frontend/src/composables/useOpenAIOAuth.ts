@@ -2,7 +2,9 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
-import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
+import { buildAuthErrorMessage } from '@/utils/authError'
+import { extractI18nErrorMessage } from '@/utils/apiError'
+import { parseOpenAIRefreshTokenInput } from '@/utils/openaiRefreshTokenParser'
 
 export interface OpenAITokenInfo {
   access_token?: string
@@ -25,12 +27,17 @@ export interface OpenAITokenInfo {
   [key: string]: unknown
 }
 
-export type OpenAIOAuthPlatform = 'openai'
+export type OpenAIOAuthPlatform = 'openai' | 'sora'
 
-export function useOpenAIOAuth() {
+interface UseOpenAIOAuthOptions {
+  platform?: OpenAIOAuthPlatform
+}
+
+export function useOpenAIOAuth(options?: UseOpenAIOAuthOptions) {
   const appStore = useAppStore()
   const { t } = useI18n()
-  const endpointPrefix = '/admin/openai'
+  const oauthPlatform = options?.platform ?? 'openai'
+  const endpointPrefix = oauthPlatform === 'sora' ? '/admin/sora' : '/admin/openai'
 
   // State
   const authUrl = ref('')
@@ -82,7 +89,7 @@ export function useOpenAIOAuth() {
       }
       return true
     } catch (err: any) {
-      error.value = extractApiErrorMessage(err, t('admin.accounts.oauth.openai.failedToGenerateUrl'))
+      error.value = err.response?.data?.detail || 'Failed to generate OpenAI auth URL'
       appStore.showError(error.value)
       return false
     } finally {
@@ -132,13 +139,13 @@ export function useOpenAIOAuth() {
   }
 
   // Validate refresh token and get full token info
-  // clientId: 指定 OAuth client_id（用于第三方渠道获取的 RT，如 app_LlGpXReQgckcGGUo2JrYvtJK）
   const validateRefreshToken = async (
-    refreshToken: string,
+    refreshTokenInput: string,
     proxyId?: number | null,
-    clientId?: string
+    clientIdOverride?: string
   ): Promise<OpenAITokenInfo | null> => {
-    if (!refreshToken.trim()) {
+    const parsed = parseOpenAIRefreshTokenInput(refreshTokenInput)
+    if (!parsed?.refreshToken) {
       error.value = 'Missing refresh token'
       return null
     }
@@ -149,19 +156,14 @@ export function useOpenAIOAuth() {
     try {
       // Use dedicated refresh-token endpoint
       const tokenInfo = await adminAPI.accounts.refreshOpenAIToken(
-        refreshToken.trim(),
+        parsed.refreshToken,
         proxyId,
         `${endpointPrefix}/refresh-token`,
-        clientId
+        clientIdOverride?.trim() || parsed.clientId
       )
       return tokenInfo as OpenAITokenInfo
     } catch (err: any) {
-      error.value = extractI18nErrorMessage(
-        err,
-        t,
-        'admin.accounts.oauth.openai.errors',
-        t('admin.accounts.oauth.openai.failedToValidateRT')
-      )
+      error.value = buildAuthErrorMessage(err, { fallback: 'Failed to validate refresh token' })
       appStore.showError(error.value)
       return null
     } finally {
@@ -169,23 +171,76 @@ export function useOpenAIOAuth() {
     }
   }
 
-  // Build credentials for OpenAI OAuth account (aligned with backend BuildAccountCredentials)
+  // Validate Sora session token and get access token
+  const validateSessionToken = async (
+    sessionToken: string,
+    proxyId?: number | null,
+    endpoint?: string
+  ): Promise<OpenAITokenInfo | null> => {
+    if (!sessionToken.trim()) {
+      error.value = 'Missing session token'
+      return null
+    }
+    loading.value = true
+    error.value = ''
+    try {
+      const tokenInfo = await adminAPI.accounts.validateSoraSessionToken(
+        sessionToken.trim(),
+        proxyId,
+        endpoint || `${endpointPrefix}/st2at`
+      )
+      return tokenInfo as OpenAITokenInfo
+    } catch (err: any) {
+      error.value = err.response?.data?.detail || 'Failed to validate session token'
+      appStore.showError(error.value)
+      return null
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const validateAccessToken = async (
+    accessToken: string,
+    endpoint?: string
+  ): Promise<OpenAITokenInfo | null> => {
+    if (!accessToken.trim()) {
+      error.value = 'Missing access token'
+      return null
+    }
+
+    loading.value = true
+    error.value = ''
+    try {
+      const tokenInfo = await adminAPI.accounts.inspectOpenAIAccessToken(
+        accessToken.trim(),
+        endpoint || '/admin/openai/at2info'
+      )
+      return tokenInfo as OpenAITokenInfo
+    } catch (err: any) {
+      error.value = buildAuthErrorMessage(err, { fallback: 'Failed to validate access token' })
+      appStore.showError(error.value)
+      return null
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Build credentials for OpenAI OAuth account
   const buildCredentials = (tokenInfo: OpenAITokenInfo): Record<string, unknown> => {
     const creds: Record<string, unknown> = {
       access_token: tokenInfo.access_token,
-      expires_at: tokenInfo.expires_at
+      refresh_token: tokenInfo.refresh_token,
+      token_type: tokenInfo.token_type,
+      expires_in: tokenInfo.expires_in,
+      expires_at: tokenInfo.expires_at,
+      scope: tokenInfo.scope
     }
 
-    // 仅在返回了新的 refresh_token 时才写入，防止用空值覆盖已有令牌
-    if (tokenInfo.refresh_token) {
-      creds.refresh_token = tokenInfo.refresh_token
+    if (tokenInfo.client_id) {
+      creds.client_id = tokenInfo.client_id
     }
-    if (tokenInfo.id_token) {
-      creds.id_token = tokenInfo.id_token
-    }
-    if (tokenInfo.email) {
-      creds.email = tokenInfo.email
-    }
+
+    // Include OpenAI specific IDs (required for forwarding)
     if (tokenInfo.chatgpt_account_id) {
       creds.chatgpt_account_id = tokenInfo.chatgpt_account_id
     }
@@ -200,9 +255,6 @@ export function useOpenAIOAuth() {
     }
     if (tokenInfo.subscription_expires_at) {
       creds.subscription_expires_at = tokenInfo.subscription_expires_at
-    }
-    if (tokenInfo.client_id) {
-      creds.client_id = tokenInfo.client_id
     }
 
     return creds
@@ -235,6 +287,8 @@ export function useOpenAIOAuth() {
     generateAuthUrl,
     exchangeAuthCode,
     validateRefreshToken,
+    validateSessionToken,
+    validateAccessToken,
     buildCredentials,
     buildExtraInfo
   }

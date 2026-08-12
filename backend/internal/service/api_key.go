@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
@@ -28,14 +29,16 @@ func IsWindowExpired(windowStart *time.Time, duration time.Duration) bool {
 }
 
 type APIKey struct {
-	ID          int64
-	UserID      int64
-	Key         string
-	Name        string
-	GroupID     *int64
-	Status      string
-	IPWhitelist []string
-	IPBlacklist []string
+	ID            int64
+	UserID        int64
+	Key           string
+	Name          string
+	GroupID       *int64
+	GroupIDs      []int64
+	Status        string
+	AllowedModels []string
+	IPWhitelist   []string
+	IPBlacklist   []string
 	// 预编译的 IP 规则，用于认证热路径避免重复 ParseIP/ParseCIDR。
 	CompiledIPWhitelist *ip.CompiledIPRules `json:"-"`
 	CompiledIPBlacklist *ip.CompiledIPRules `json:"-"`
@@ -45,6 +48,7 @@ type APIKey struct {
 	UpdatedAt           time.Time
 	User                *User
 	Group               *Group
+	Groups              []*Group
 	CurrentConcurrency  int
 
 	// Quota fields
@@ -62,6 +66,109 @@ type APIKey struct {
 	Window5hStart *time.Time // Start of current 5h window
 	Window1dStart *time.Time // Start of current 1d window
 	Window7dStart *time.Time // Start of current 7d window
+}
+
+func NormalizeAPIKeyAllowedModels(models []string) []string {
+	if len(models) == 0 {
+		return []string{}
+	}
+	seen := make(map[string]struct{}, len(models))
+	out := make([]string, 0, len(models))
+	for _, model := range models {
+		model = strings.TrimSpace(model)
+		if model == "" {
+			continue
+		}
+		if _, exists := seen[model]; exists {
+			continue
+		}
+		seen[model] = struct{}{}
+		out = append(out, model)
+	}
+	if len(out) == 0 {
+		return []string{}
+	}
+	return out
+}
+
+func (k *APIKey) AllowsModel(model string) bool {
+	if k == nil || len(k.AllowedModels) == 0 {
+		return true
+	}
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return true
+	}
+	for _, allowed := range k.AllowedModels {
+		if strings.TrimSpace(allowed) == model {
+			return true
+		}
+	}
+	return false
+}
+
+func NormalizeAPIKeyGroupIDs(primary *int64, groupIDs []int64) []int64 {
+	seen := make(map[int64]struct{}, len(groupIDs)+1)
+	out := make([]int64, 0, len(groupIDs)+1)
+
+	appendID := func(id int64) {
+		if id <= 0 {
+			return
+		}
+		if _, exists := seen[id]; exists {
+			return
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+
+	for _, id := range groupIDs {
+		appendID(id)
+	}
+	if len(out) == 0 && primary != nil {
+		appendID(*primary)
+	}
+	if len(out) > 0 && primary != nil && *primary > 0 && out[0] != *primary {
+		normalized := make([]int64, 0, len(out))
+		normalized = append(normalized, *primary)
+		for _, id := range out {
+			if id != *primary {
+				normalized = append(normalized, id)
+			}
+		}
+		out = normalized
+	}
+
+	return out
+}
+
+func PrimaryAPIKeyGroupID(groupIDs []int64) *int64 {
+	for _, id := range groupIDs {
+		if id > 0 {
+			gid := id
+			return &gid
+		}
+	}
+	return nil
+}
+
+// GroupIDForUsage returns the group that should be used for channel attribution.
+// A multi-group key is resolved by the routing layer first, which sets GroupID
+// on the selected clone. Only a single unambiguous GroupIDs entry is safe to
+// use as a fallback; choosing the first group on a multi-group key could
+// attribute usage to the wrong channel.
+func (k *APIKey) GroupIDForUsage() *int64 {
+	if k == nil {
+		return nil
+	}
+	if k.GroupID != nil && *k.GroupID > 0 {
+		return k.GroupID
+	}
+	if len(k.GroupIDs) == 1 && k.GroupIDs[0] > 0 {
+		groupID := k.GroupIDs[0]
+		return &groupID
+	}
+	return nil
 }
 
 func (k *APIKey) IsActive() bool {

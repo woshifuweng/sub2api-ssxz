@@ -183,7 +183,7 @@ func (r *productionPathRateRepo) GetByID(_ context.Context, id int64) (*Account,
 	if account == nil {
 		return nil, ErrAccountNotFound
 	}
-	return snapshotOAuthRefreshAccount(account), nil
+	return cloneOAuthRefreshAccount(account), nil
 }
 
 func (r *productionPathRateRepo) UpdateCredentials(_ context.Context, id int64, credentials map[string]any) error {
@@ -672,12 +672,12 @@ func TestTokenRefreshService_ProductionPathRatesOnlyActualRefreshAfterSameAccoun
 	accountOne.Credentials["needs_refresh"] = true
 	accountTwo := grokPoolAccount(72)
 	accountTwo.Credentials["needs_refresh"] = true
-	firstSelection := snapshotOAuthRefreshAccount(&accountOne)
-	contendingSelection := snapshotOAuthRefreshAccount(&accountOne)
-	differentSelection := snapshotOAuthRefreshAccount(&accountTwo)
+	firstSelection := cloneOAuthRefreshAccount(&accountOne)
+	contendingSelection := cloneOAuthRefreshAccount(&accountOne)
+	differentSelection := cloneOAuthRefreshAccount(&accountTwo)
 	repo := &productionPathRateRepo{accounts: map[int64]*Account{
-		accountOne.ID: snapshotOAuthRefreshAccount(&accountOne),
-		accountTwo.ID: snapshotOAuthRefreshAccount(&accountTwo),
+		accountOne.ID: cloneOAuthRefreshAccount(&accountOne),
+		accountTwo.ID: cloneOAuthRefreshAccount(&accountTwo),
 	}}
 	executor := &productionPathRateExecutor{
 		firstStarted: make(chan struct{}),
@@ -742,7 +742,7 @@ func TestTokenRefreshService_ProductionPathRatesOnlyActualRefreshAfterSameAccoun
 
 func TestTokenRefreshService_ProviderTripBeforeRateAdmissionSkipsWithoutAccountMutation(t *testing.T) {
 	account := grokPoolAccount(73)
-	stored := snapshotOAuthRefreshAccount(&account)
+	stored := cloneOAuthRefreshAccount(&account)
 	repo := &breakerTripAccountRepo{productionPathRateRepo: &productionPathRateRepo{
 		accounts: map[int64]*Account{account.ID: stored},
 	}}

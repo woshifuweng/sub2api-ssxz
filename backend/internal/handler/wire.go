@@ -9,6 +9,18 @@ import (
 	"github.com/google/wire"
 )
 
+type adminTaskStateCacheSetup struct{}
+
+func ProvideDashboardHandler(
+	dashboardService *service.DashboardService,
+	aggregationService *service.DashboardAggregationService,
+	operationsService *service.DashboardOperationsService,
+) *admin.DashboardHandler {
+	handler := admin.NewDashboardHandler(dashboardService, aggregationService)
+	handler.SetOperationsService(operationsService)
+	return handler
+}
+
 // ProvideAdminHandlers creates the AdminHandlers struct
 func ProvideAdminHandlers(
 	dashboardHandler *admin.DashboardHandler,
@@ -35,6 +47,7 @@ func ProvideAdminHandlers(
 	errorPassthroughHandler *admin.ErrorPassthroughHandler,
 	tlsFingerprintProfileHandler *admin.TLSFingerprintProfileHandler,
 	apiKeyHandler *admin.AdminAPIKeyHandler,
+	affiliateHandler *admin.AffiliateHandler,
 	scheduledTestHandler *admin.ScheduledTestHandler,
 	channelHandler *admin.ChannelHandler,
 	channelMonitorHandler *admin.ChannelMonitorHandler,
@@ -42,10 +55,10 @@ func ProvideAdminHandlers(
 	contentModerationHandler *admin.ContentModerationHandler,
 	promptAuditHandler *securityaudit.PromptAdminHandler,
 	paymentHandler *admin.PaymentHandler,
-	affiliateHandler *admin.AffiliateHandler,
 	complianceHandler *admin.ComplianceHandler,
 	auditLogHandler *admin.AuditLogHandler,
 	upstreamBillingProbe *service.UpstreamBillingProbeService,
+	proxyMaintenanceHandler *admin.ProxyMaintenanceHandler,
 	ollamaCloudUsage *service.OllamaCloudUsageService,
 ) *AdminHandlers {
 	accountHandler.SetUpstreamBillingProbeService(upstreamBillingProbe)
@@ -85,6 +98,7 @@ func ProvideAdminHandlers(
 		Affiliate:              affiliateHandler,
 		Compliance:             complianceHandler,
 		AuditLog:               auditLogHandler,
+		ProxyMaintenance:       proxyMaintenanceHandler,
 	}
 }
 
@@ -157,11 +171,12 @@ func ProvideSettingHandler(settingService *service.SettingService, buildInfo Bui
 }
 
 // ProvideAdminSettingHandler creates admin.SettingHandler with notification template APIs.
-func ProvideAdminSettingHandler(settingService *service.SettingService, emailService *service.EmailService, turnstileService *service.TurnstileService, aliyunCaptchaService *service.AliyunCaptchaService, opsService *service.OpsService, paymentConfigService *service.PaymentConfigService, paymentService *service.PaymentService, userAttributeService *service.UserAttributeService, notificationEmailService *service.NotificationEmailService, totpService *service.TotpService, userService *service.UserService) *admin.SettingHandler {
+func ProvideAdminSettingHandler(settingService *service.SettingService, emailService *service.EmailService, turnstileService *service.TurnstileService, aliyunCaptchaService *service.AliyunCaptchaService, opsService *service.OpsService, paymentConfigService *service.PaymentConfigService, paymentService *service.PaymentService, userAttributeService *service.UserAttributeService, notificationEmailService *service.NotificationEmailService, totpService *service.TotpService, userService *service.UserService, soraS3Storage *service.SoraS3Storage) *admin.SettingHandler {
 	h := admin.NewSettingHandler(settingService, emailService, turnstileService, opsService, paymentConfigService, paymentService, userAttributeService)
 	h.SetNotificationEmailService(notificationEmailService)
 	h.SetAliyunCaptchaService(aliyunCaptchaService)
 	h.SetStepUpDeps(totpService, userService)
+	h.SetSoraS3Storage(soraS3Storage)
 	return h
 }
 
@@ -178,6 +193,8 @@ func ProvideHandlers(
 	adminHandlers *AdminHandlers,
 	gatewayHandler *GatewayHandler,
 	openaiGatewayHandler *OpenAIGatewayHandler,
+	soraGatewayHandler *SoraGatewayHandler,
+	soraClientHandler *SoraClientHandler,
 	settingHandler *SettingHandler,
 	totpHandler *TotpHandler,
 	passkeyHandler *PasskeyHandler,
@@ -189,6 +206,11 @@ func ProvideHandlers(
 	batchImageHandler *BatchImageHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
+	imageStudioHandler *ImageStudioHandler,
+	chatStudioHandler *ChatStudioHandler,
+	chatWorkspaceHandler *ChatWorkspaceHandler,
+	resellerHandler *ResellerHandler,
+	_ *adminTaskStateCacheSetup,
 ) *Handlers {
 	return &Handlers{
 		Auth:             authHandler,
@@ -202,6 +224,8 @@ func ProvideHandlers(
 		Admin:            adminHandlers,
 		Gateway:          gatewayHandler,
 		OpenAIGateway:    openaiGatewayHandler,
+		SoraGateway:      soraGatewayHandler,
+		SoraClient:       soraClientHandler,
 		Setting:          settingHandler,
 		Totp:             totpHandler,
 		Passkey:          passkeyHandler,
@@ -211,7 +235,17 @@ func ProvideHandlers(
 		ModelPlaza:       modelPlazaHandler,
 		AsyncImage:       asyncImageHandler,
 		BatchImage:       batchImageHandler,
+		ImageStudio:      imageStudioHandler,
+		ChatStudio:       chatStudioHandler,
+		ChatWorkspace:    chatWorkspaceHandler,
+		Reseller:         resellerHandler,
 	}
+}
+
+func ProvideAdminTaskStateCacheSetup(cache service.TaskStateCache, repo service.AdminTaskStateRepository) *adminTaskStateCacheSetup {
+	admin.SetDefaultTaskStateCache(cache)
+	admin.SetDefaultTaskStateRepository(repo)
+	return &adminTaskStateCacheSetup{}
 }
 
 // ProviderSet is the Wire provider set for all handlers
@@ -236,9 +270,18 @@ var ProviderSet = wire.NewSet(
 	NewModelPlazaHandler,
 	NewAsyncImageHandler,
 	ProvideBatchImageHandler,
+	NewSoraGatewayHandler,
+	NewSoraClientHandler,
+	ProvideAdminTaskStateCacheSetup,
+	NewImageStudioHandler,
+	NewChatStudioHandler,
+	NewWorkspaceSub2APITextBridge,
+	wire.Bind(new(service.WorkspaceSub2APITextBridge), new(*WorkspaceSub2APITextBridge)),
+	NewChatWorkspaceHandler,
+	NewResellerHandler,
 
 	// Admin handlers
-	admin.NewDashboardHandler,
+	ProvideDashboardHandler,
 	admin.NewUserHandler,
 	admin.NewGroupHandler,
 	admin.ProvideAccountHandler,
@@ -262,15 +305,16 @@ var ProviderSet = wire.NewSet(
 	admin.NewErrorPassthroughHandler,
 	admin.NewTLSFingerprintProfileHandler,
 	admin.NewAdminAPIKeyHandler,
+	admin.NewAffiliateHandler,
 	admin.NewScheduledTestHandler,
 	admin.NewChannelHandler,
 	admin.NewChannelMonitorHandler,
 	admin.NewChannelMonitorRequestTemplateHandler,
 	admin.NewContentModerationHandler,
 	admin.NewPaymentHandler,
-	admin.NewAffiliateHandler,
 	admin.NewComplianceHandler,
 	admin.NewAuditLogHandler,
+	admin.NewProxyMaintenanceHandler,
 
 	// AdminHandlers and Handlers constructors
 	ProvideAdminHandlers,

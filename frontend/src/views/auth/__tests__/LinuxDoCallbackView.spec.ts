@@ -258,7 +258,7 @@ describe('LinuxDoCallbackView', () => {
 
     expect(setToken).not.toHaveBeenCalled()
     expect(showSuccess).toHaveBeenCalledWith('profile.authBindings.bindSuccess')
-    expect(replace).toHaveBeenCalledWith('/profile')
+    expect(replace).toHaveBeenCalledWith('/app/profile')
   })
 
   it('supports bind completion after adoption confirmation', async () => {

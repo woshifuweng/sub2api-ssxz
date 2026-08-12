@@ -10,6 +10,8 @@ import (
 	"net/textproto"
 	"net/url"
 	"os"
+	"runtime"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -19,8 +21,13 @@ import (
 )
 
 const (
-	RunModeStandard = "standard"
-	RunModeSimple   = "simple"
+	RunModeStandard          = "standard"
+	RunModeSimple            = "simple"
+	ProcessModeSingle        = "single"
+	ProcessModeMasterWorker  = "master_worker"
+	ServerRuntimeModeNetHTTP = "nethttp"
+	ServerRuntimeModeHybrid  = "hybrid"
+	ServerRuntimeModeGnet    = "gnet"
 )
 
 // 使用量记录队列溢出策略
@@ -83,6 +90,7 @@ type Config struct {
 	Default                 DefaultConfig                 `mapstructure:"default"`
 	RateLimit               RateLimitConfig               `mapstructure:"rate_limit"`
 	Pricing                 PricingConfig                 `mapstructure:"pricing"`
+	Workspace               WorkspaceConfig               `mapstructure:"workspace"`
 	Gateway                 GatewayConfig                 `mapstructure:"gateway"`
 	APIKeyAuth              APIKeyAuthCacheConfig         `mapstructure:"api_key_auth_cache"`
 	SubscriptionCache       SubscriptionCacheConfig       `mapstructure:"subscription_cache"`
@@ -91,12 +99,17 @@ type Config struct {
 	DashboardAgg            DashboardAggregationConfig    `mapstructure:"dashboard_aggregation"`
 	UsageCleanup            UsageCleanupConfig            `mapstructure:"usage_cleanup"`
 	Concurrency             ConcurrencyConfig             `mapstructure:"concurrency"`
+	Process                 ProcessConfig                 `mapstructure:"process"`
 	TokenRefresh            TokenRefreshConfig            `mapstructure:"token_refresh"`
+	Sora                    SoraConfig                    `mapstructure:"sora"`
+	OpenAI                  OpenAIConfig                  `mapstructure:"openai"`
 	RunMode                 string                        `mapstructure:"run_mode" yaml:"run_mode"`
 	Timezone                string                        `mapstructure:"timezone"` // e.g. "Asia/Shanghai", "UTC"
 	Gemini                  GeminiConfig                  `mapstructure:"gemini"`
 	Update                  UpdateConfig                  `mapstructure:"update"`
 	Idempotency             IdempotencyConfig             `mapstructure:"idempotency"`
+	AccountImport           AccountImportConfig           `mapstructure:"account_import"`
+	Rust                    RustConfig                    `mapstructure:"rust"`
 	BatchImage              BatchImageConfig              `mapstructure:"batch_image"`
 	ImageStorage            ImageStorageConfig            `mapstructure:"image_storage"`
 }
@@ -156,6 +169,9 @@ type GeminiTierQuotaConfig struct {
 }
 
 type UpdateConfig struct {
+	// Repo 指定在线更新查询的 GitHub 仓库，格式为 owner/name
+	// 例如: "DR-lin-eng/sub2api"
+	Repo string `mapstructure:"repo"`
 	// ProxyURL 用于访问 GitHub 的代理地址
 	// 支持 http/https/socks5/socks5h 协议
 	// 例如: "http://127.0.0.1:7890", "socks5://127.0.0.1:1080"
@@ -179,6 +195,16 @@ type IdempotencyConfig struct {
 	CleanupIntervalSeconds int `mapstructure:"cleanup_interval_seconds"`
 	// CleanupBatchSize 每次清理的最大记录数。
 	CleanupBatchSize int `mapstructure:"cleanup_batch_size"`
+}
+
+type AccountImportConfig struct {
+	WorkerCount      int           `mapstructure:"worker_count"`
+	ChunkSize        int           `mapstructure:"chunk_size"`
+	QueueTTL         time.Duration `mapstructure:"queue_ttl"`
+	MaxFastPathRows  int           `mapstructure:"max_fast_path_rows"`
+	ClaimTTL         time.Duration `mapstructure:"claim_ttl"`
+	RecoveryInterval time.Duration `mapstructure:"recovery_interval"`
+	MaxChunkAttempts int           `mapstructure:"max_chunk_attempts"`
 }
 
 type BatchImageConfig struct {
@@ -292,96 +318,6 @@ type LinuxDoConnectConfig struct {
 	UserInfoEmailPath    string `mapstructure:"userinfo_email_path"`
 	UserInfoIDPath       string `mapstructure:"userinfo_id_path"`
 	UserInfoUsernamePath string `mapstructure:"userinfo_username_path"`
-}
-
-type WeChatConnectConfig struct {
-	Enabled             bool   `mapstructure:"enabled"`
-	AppID               string `mapstructure:"app_id"`
-	AppSecret           string `mapstructure:"app_secret"`
-	OpenAppID           string `mapstructure:"open_app_id"`
-	OpenAppSecret       string `mapstructure:"open_app_secret"`
-	MPAppID             string `mapstructure:"mp_app_id"`
-	MPAppSecret         string `mapstructure:"mp_app_secret"`
-	MobileAppID         string `mapstructure:"mobile_app_id"`
-	MobileAppSecret     string `mapstructure:"mobile_app_secret"`
-	OpenEnabled         bool   `mapstructure:"open_enabled"`
-	MPEnabled           bool   `mapstructure:"mp_enabled"`
-	MobileEnabled       bool   `mapstructure:"mobile_enabled"`
-	Mode                string `mapstructure:"mode"`
-	Scopes              string `mapstructure:"scopes"`
-	RedirectURL         string `mapstructure:"redirect_url"`
-	FrontendRedirectURL string `mapstructure:"frontend_redirect_url"`
-}
-
-type OIDCConnectConfig struct {
-	Enabled                 bool   `mapstructure:"enabled"`
-	ProviderName            string `mapstructure:"provider_name"` // 显示名: "Keycloak" 等
-	ClientID                string `mapstructure:"client_id"`
-	ClientSecret            string `mapstructure:"client_secret"`
-	IssuerURL               string `mapstructure:"issuer_url"`
-	DiscoveryURL            string `mapstructure:"discovery_url"`
-	AuthorizeURL            string `mapstructure:"authorize_url"`
-	TokenURL                string `mapstructure:"token_url"`
-	UserInfoURL             string `mapstructure:"userinfo_url"`
-	JWKSURL                 string `mapstructure:"jwks_url"`
-	Scopes                  string `mapstructure:"scopes"`                // 默认 "openid email profile"
-	RedirectURL             string `mapstructure:"redirect_url"`          // 后端回调地址（需在提供方后台登记）
-	FrontendRedirectURL     string `mapstructure:"frontend_redirect_url"` // 前端接收 token 的路由（默认：/auth/oidc/callback）
-	TokenAuthMethod         string `mapstructure:"token_auth_method"`     // client_secret_post / client_secret_basic / none
-	UsePKCE                 bool   `mapstructure:"use_pkce"`
-	ValidateIDToken         bool   `mapstructure:"validate_id_token"`
-	UsePKCEExplicit         bool   `mapstructure:"-" yaml:"-"`
-	ValidateIDTokenExplicit bool   `mapstructure:"-" yaml:"-"`
-	AllowedSigningAlgs      string `mapstructure:"allowed_signing_algs"`   // 默认 "RS256,ES256,PS256"
-	ClockSkewSeconds        int    `mapstructure:"clock_skew_seconds"`     // 默认 120
-	RequireEmailVerified    bool   `mapstructure:"require_email_verified"` // 默认 false
-
-	// 可选：用于从 userinfo JSON 中提取字段的 gjson 路径。
-	// 为空时，服务端会尝试一组常见字段名。
-	UserInfoEmailPath    string `mapstructure:"userinfo_email_path"`
-	UserInfoIDPath       string `mapstructure:"userinfo_id_path"`
-	UserInfoUsernamePath string `mapstructure:"userinfo_username_path"`
-}
-
-type DingTalkConnectConfig struct {
-	Enabled             bool   `mapstructure:"enabled"`
-	ClientID            string `mapstructure:"client_id"`
-	ClientSecret        string `mapstructure:"client_secret"`
-	AuthorizeURL        string `mapstructure:"authorize_url"`
-	TokenURL            string `mapstructure:"token_url"`
-	UserInfoURL         string `mapstructure:"userinfo_url"`
-	Scopes              string `mapstructure:"scopes"`
-	RedirectURL         string `mapstructure:"redirect_url"`
-	FrontendRedirectURL string `mapstructure:"frontend_redirect_url"`
-
-	// 平台底座 + 业务行为
-	DingTalkAppKind string `mapstructure:"dingtalk_app_kind"` // 仅 "internal_app"（V4 fail-closed）
-	AppType         string `mapstructure:"app_type"`          // "public" (default) | "internal"
-
-	// Corp 限定（none | internal_only）
-	CorpRestrictionPolicy   string `mapstructure:"corp_restriction_policy"`
-	InternalCorpID          string `mapstructure:"internal_corp_id"`
-	BypassRegistration      bool   `mapstructure:"bypass_registration"`
-	SyncCorpEmail           bool   `mapstructure:"sync_corp_email"`
-	SyncDisplayName         bool   `mapstructure:"sync_display_name"`
-	SyncDept                bool   `mapstructure:"sync_dept"`
-	SyncCorpEmailAttrKey    string `mapstructure:"sync_corp_email_attr_key"`
-	SyncDisplayNameAttrKey  string `mapstructure:"sync_display_name_attr_key"`
-	SyncDeptAttrKey         string `mapstructure:"sync_dept_attr_key"`
-	SyncCorpEmailAttrName   string `mapstructure:"sync_corp_email_attr_name"`
-	SyncDisplayNameAttrName string `mapstructure:"sync_display_name_attr_name"`
-	SyncDeptAttrName        string `mapstructure:"sync_dept_attr_name"`
-
-	// 邮箱 + Username
-	RequireEmail            bool   `mapstructure:"require_email"`
-	UsernameOverwritePolicy string `mapstructure:"username_overwrite_policy"`
-
-	// Attribute（私有版扩展点；开源版仅声明）
-	UsernameAttributeKey         string   `mapstructure:"username_attribute_key"`
-	EnableAttributeMatching      bool     `mapstructure:"enable_attribute_matching"`
-	EnableAttributeSync          bool     `mapstructure:"enable_attribute_sync"`
-	AttributeSyncFields          []string `mapstructure:"attribute_sync_fields"`
-	AttributeSyncOverwritePolicy string   `mapstructure:"attribute_sync_overwrite_policy"`
 }
 
 type EmailOAuthProviderConfig struct {
@@ -620,6 +556,8 @@ func normalizeWeChatConnectConfig(cfg *WeChatConnectConfig) {
 type TokenRefreshConfig struct {
 	// 是否启用自动刷新
 	Enabled bool `mapstructure:"enabled"`
+	// 是否把主账号刷新后的 token 同步到关联的 Sora 账号
+	SyncLinkedSoraAccounts bool `mapstructure:"sync_linked_sora_accounts"`
 	// 检查间隔（分钟）
 	CheckIntervalMinutes int `mapstructure:"check_interval_minutes"`
 	// 提前刷新时间（小时），在token过期前多久开始刷新
@@ -661,6 +599,7 @@ type ServerConfig struct {
 	Host                     string    `mapstructure:"host"`
 	Port                     int       `mapstructure:"port"`
 	Mode                     string    `mapstructure:"mode"`                  // debug/release
+	RuntimeMode              string    `mapstructure:"runtime_mode"`          // nethttp/hybrid/gnet
 	EnableServerTiming       bool      `mapstructure:"enable_server_timing"`  // Admin UI Server-Timing response header
 	FrontendURL              string    `mapstructure:"frontend_url"`          // 前端基础 URL，用于生成邮件中的外部链接
 	ReadHeaderTimeout        int       `mapstructure:"read_header_timeout"`   // 读取请求头超时（秒）
@@ -797,11 +736,12 @@ func (c *Config) SetTrustForwardedIPForAPIKeyACL(enabled bool) {
 }
 
 type URLAllowlistConfig struct {
-	Enabled           bool     `mapstructure:"enabled"`
-	UpstreamHosts     []string `mapstructure:"upstream_hosts"`
-	PricingHosts      []string `mapstructure:"pricing_hosts"`
-	CRSHosts          []string `mapstructure:"crs_hosts"`
-	AllowPrivateHosts bool     `mapstructure:"allow_private_hosts"`
+	Enabled              bool     `mapstructure:"enabled"`
+	UpstreamHosts        []string `mapstructure:"upstream_hosts"`
+	EnforceUpstreamHosts bool     `mapstructure:"enforce_upstream_hosts"`
+	PricingHosts         []string `mapstructure:"pricing_hosts"`
+	CRSHosts             []string `mapstructure:"crs_hosts"`
+	AllowPrivateHosts    bool     `mapstructure:"allow_private_hosts"`
 	// 关闭 URL 白名单校验时，是否允许 http URL（默认只允许 https）
 	AllowInsecureHTTP bool `mapstructure:"allow_insecure_http"`
 }
@@ -861,6 +801,97 @@ type ConcurrencyConfig struct {
 	PingInterval int `mapstructure:"ping_interval"`
 }
 
+type ProcessConfig struct {
+	Mode                           string `mapstructure:"mode"`
+	WorkerCount                    int    `mapstructure:"worker_count"`
+	GracefulShutdownTimeoutSeconds int    `mapstructure:"graceful_shutdown_timeout_seconds"`
+	WorkerReadyTimeoutSeconds      int    `mapstructure:"worker_ready_timeout_seconds"`
+	ReloadTimeoutSeconds           int    `mapstructure:"reload_timeout_seconds"`
+	RespawnBackoffMS               int    `mapstructure:"respawn_backoff_ms"`
+	LogReopenSignalEnabled         bool   `mapstructure:"log_reopen_signal_enabled"`
+	ConfigReloadSignalEnabled      bool   `mapstructure:"config_reload_signal_enabled"`
+	EnableCPUAffinity              bool   `mapstructure:"enable_cpu_affinity"`
+}
+
+// OpenAIConfig OpenAI 相关配置
+type OpenAIConfig struct {
+	ChatWeb OpenAIChatWebConfig `mapstructure:"chatweb"`
+}
+
+// OpenAIChatWebConfig ChatGPT Web 相关配置
+type OpenAIChatWebConfig struct {
+	CurlCFFISidecar OpenAIChatWebCurlCFFISidecarConfig `mapstructure:"curl_cffi_sidecar"`
+}
+
+// OpenAIChatWebCurlCFFISidecarConfig ChatGPT Web 专用 curl_cffi sidecar 配置
+type OpenAIChatWebCurlCFFISidecarConfig struct {
+	Enabled             bool   `mapstructure:"enabled"`
+	BaseURL             string `mapstructure:"base_url"`
+	Impersonate         string `mapstructure:"impersonate"`
+	TimeoutSeconds      int    `mapstructure:"timeout_seconds"`
+	SessionReuseEnabled bool   `mapstructure:"session_reuse_enabled"`
+	SessionTTLSeconds   int    `mapstructure:"session_ttl_seconds"`
+}
+
+// SoraConfig 直连 Sora 配置
+type SoraConfig struct {
+	Client  SoraClientConfig  `mapstructure:"client"`
+	Storage SoraStorageConfig `mapstructure:"storage"`
+}
+
+// SoraClientConfig 直连 Sora 客户端配置
+type SoraClientConfig struct {
+	BaseURL                            string                    `mapstructure:"base_url"`
+	TimeoutSeconds                     int                       `mapstructure:"timeout_seconds"`
+	MaxRetries                         int                       `mapstructure:"max_retries"`
+	CloudflareChallengeCooldownSeconds int                       `mapstructure:"cloudflare_challenge_cooldown_seconds"`
+	PollIntervalSeconds                int                       `mapstructure:"poll_interval_seconds"`
+	MaxPollAttempts                    int                       `mapstructure:"max_poll_attempts"`
+	RecentTaskLimit                    int                       `mapstructure:"recent_task_limit"`
+	RecentTaskLimitMax                 int                       `mapstructure:"recent_task_limit_max"`
+	Debug                              bool                      `mapstructure:"debug"`
+	UseOpenAITokenProvider             bool                      `mapstructure:"use_openai_token_provider"`
+	Headers                            map[string]string         `mapstructure:"headers"`
+	UserAgent                          string                    `mapstructure:"user_agent"`
+	DisableTLSFingerprint              bool                      `mapstructure:"disable_tls_fingerprint"`
+	CurlCFFISidecar                    SoraCurlCFFISidecarConfig `mapstructure:"curl_cffi_sidecar"`
+}
+
+// SoraCurlCFFISidecarConfig Sora 专用 curl_cffi sidecar 配置
+type SoraCurlCFFISidecarConfig struct {
+	Enabled             bool   `mapstructure:"enabled"`
+	BaseURL             string `mapstructure:"base_url"`
+	Impersonate         string `mapstructure:"impersonate"`
+	TimeoutSeconds      int    `mapstructure:"timeout_seconds"`
+	SessionReuseEnabled bool   `mapstructure:"session_reuse_enabled"`
+	SessionTTLSeconds   int    `mapstructure:"session_ttl_seconds"`
+}
+
+// SoraStorageConfig 媒体存储配置
+type SoraStorageConfig struct {
+	Type                   string                   `mapstructure:"type"`
+	LocalPath              string                   `mapstructure:"local_path"`
+	FallbackToUpstream     bool                     `mapstructure:"fallback_to_upstream"`
+	MaxConcurrentDownloads int                      `mapstructure:"max_concurrent_downloads"`
+	DownloadTimeoutSeconds int                      `mapstructure:"download_timeout_seconds"`
+	MaxDownloadBytes       int64                    `mapstructure:"max_download_bytes"`
+	Debug                  bool                     `mapstructure:"debug"`
+	Cleanup                SoraStorageCleanupConfig `mapstructure:"cleanup"`
+}
+
+// SoraStorageCleanupConfig 媒体清理配置
+type SoraStorageCleanupConfig struct {
+	Enabled       bool   `mapstructure:"enabled"`
+	Schedule      string `mapstructure:"schedule"`
+	RetentionDays int    `mapstructure:"retention_days"`
+}
+
+// SoraModelFiltersConfig Sora 模型过滤配置
+type SoraModelFiltersConfig struct {
+	// HidePromptEnhance 是否隐藏 prompt-enhance 模型
+	HidePromptEnhance bool `mapstructure:"hide_prompt_enhance"`
+}
+
 type ImageConcurrencyConfig struct {
 	// Enabled: 是否启用图片生成独立并发限制，默认关闭以保持现有行为
 	Enabled bool `mapstructure:"enabled"`
@@ -878,6 +909,38 @@ const (
 	ImageConcurrencyOverflowModeReject = "reject"
 	ImageConcurrencyOverflowModeWait   = "wait"
 )
+
+// RustConfig Rust sidecar/FFI integration configuration.
+type RustConfig struct {
+	Sidecar RustSidecarConfig `mapstructure:"sidecar"`
+	FFI     RustFFIConfig     `mapstructure:"ffi"`
+}
+
+// RustSidecarConfig controls external Rust protocol sidecar integration.
+type RustSidecarConfig struct {
+	Enabled                   bool     `mapstructure:"enabled"`
+	AutoStart                 bool     `mapstructure:"auto_start"`
+	BinaryPath                string   `mapstructure:"binary_path"`
+	Args                      []string `mapstructure:"args"`
+	SocketPath                string   `mapstructure:"socket_path"`
+	UpstreamSocketPath        string   `mapstructure:"upstream_socket_path"`
+	RequestTimeoutSeconds     int      `mapstructure:"request_timeout_seconds"`
+	UpgradeIdleTimeoutSeconds int      `mapstructure:"upgrade_idle_timeout_seconds"`
+	WebSocketMaxMessageBytes  int      `mapstructure:"websocket_max_message_bytes"`
+	HealthcheckTimeoutSeconds int      `mapstructure:"healthcheck_timeout_seconds"`
+	FailClosed                bool     `mapstructure:"fail_closed"`
+	H2CDelegateEnabled        bool     `mapstructure:"h2c_delegate_enabled"`
+	ResponsesWSEnabled        bool     `mapstructure:"responses_ws_enabled"`
+}
+
+// RustFFIConfig controls optional in-process Rust acceleration hooks.
+type RustFFIConfig struct {
+	Enabled            bool   `mapstructure:"enabled"`
+	LibraryPath        string `mapstructure:"library_path"`
+	HashEnabled        bool   `mapstructure:"hash_enabled"`
+	StreamingEnabled   bool   `mapstructure:"streaming_enabled"`
+	CompressionEnabled bool   `mapstructure:"compression_enabled"`
+}
 
 // GatewayConfig API网关相关配置
 type GatewayConfig struct {
@@ -936,6 +999,8 @@ type GatewayConfig struct {
 	OpenAICompactModel string `mapstructure:"openai_compact_model"`
 	// OpenAIWS: OpenAI Responses WebSocket 配置（默认开启，可按需回滚到 HTTP）
 	OpenAIWS GatewayOpenAIWSConfig `mapstructure:"openai_ws"`
+	// OpenAI: OpenAI HTTP/streaming stabilization config
+	OpenAI GatewayOpenAIConfig `mapstructure:"openai"`
 	// Live: ChatGPT Frameless Live 会话配置。
 	Live GatewayLiveConfig `mapstructure:"live"`
 	// OpenAIScheduler: OpenAI 高级调度器粘性逃逸配置
@@ -996,6 +1061,24 @@ type GatewayConfig struct {
 
 	// 是否允许对部分 400 错误触发 failover（默认关闭以避免改变语义）
 	FailoverOn400 bool `mapstructure:"failover_on_400"`
+
+	// Sora 请求配置
+	// SoraMaxBodySize: Sora 请求体最大字节数（0 表示使用 gateway.max_body_size）
+	SoraMaxBodySize int64 `mapstructure:"sora_max_body_size"`
+	// SoraStreamTimeoutSeconds: Sora 流式请求总超时（秒，0 表示不限制）
+	SoraStreamTimeoutSeconds int `mapstructure:"sora_stream_timeout_seconds"`
+	// SoraRequestTimeoutSeconds: Sora 非流式请求超时（秒，0 表示不限制）
+	SoraRequestTimeoutSeconds int `mapstructure:"sora_request_timeout_seconds"`
+	// SoraStreamMode: stream 缺失时行为（force/error）
+	SoraStreamMode string `mapstructure:"sora_stream_mode"`
+	// SoraModelFilters: 模型过滤配置
+	SoraModelFilters SoraModelFiltersConfig `mapstructure:"sora_model_filters"`
+	// SoraMediaRequireAPIKey: 是否要求 /sora/media 携带 API Key
+	SoraMediaRequireAPIKey bool `mapstructure:"sora_media_require_api_key"`
+	// SoraMediaSigningKey: /sora/media 临时签名密钥（空表示禁用签名）
+	SoraMediaSigningKey string `mapstructure:"sora_media_signing_key"`
+	// SoraMediaSignedURLTTLSeconds: 签名 URL 有效期（秒，<=0 表示禁用）
+	SoraMediaSignedURLTTLSeconds int `mapstructure:"sora_media_signed_url_ttl_seconds"`
 
 	// 账户切换最大次数（遇到上游错误时切换到其他账户的次数上限）
 	MaxAccountSwitches int `mapstructure:"max_account_switches"`
@@ -1109,6 +1192,8 @@ type GatewayOpenAIWSConfig struct {
 	ModeRouterV2Enabled bool `mapstructure:"mode_router_v2_enabled"`
 	// IngressModeDefault: ingress 默认模式（off/ctx_pool/passthrough/http_bridge）
 	IngressModeDefault string `mapstructure:"ingress_mode_default"`
+	// DialHTTPVersion: upstream WS 握手使用的 HTTP 版本（auto/1.1/2）
+	DialHTTPVersion string `mapstructure:"dial_http_version"`
 	// ClientFirstMessageTimeoutSeconds bounds the total time to read and decompress
 	// the first client response.create message after the WebSocket upgrade.
 	ClientFirstMessageTimeoutSeconds int `mapstructure:"client_first_message_timeout_seconds"`
@@ -1140,6 +1225,8 @@ type GatewayOpenAIWSConfig struct {
 	StoreDisabledForceNewConn bool `mapstructure:"store_disabled_force_new_conn"`
 	// PrewarmGenerateEnabled: 是否启用 WSv2 generate=false 预热（默认 false）
 	PrewarmGenerateEnabled bool `mapstructure:"prewarm_generate_enabled"`
+	// PrewarmGenerateTimeoutMS: 后台 generate=false probe 短超时（毫秒）
+	PrewarmGenerateTimeoutMS int `mapstructure:"prewarm_generate_timeout_ms"`
 	// ClientReadLimitBytes: 入站客户端 WS 单帧读取上限。
 	ClientReadLimitBytes int64 `mapstructure:"client_read_limit_bytes"`
 	// HTTPBridgeEnabled: 首包过大时，保持客户端 WS，改用 HTTP Responses 上游。
@@ -1201,6 +1288,44 @@ type GatewayOpenAIWSConfig struct {
 	StickyPreviousResponseTTLSeconds int `mapstructure:"sticky_previous_response_ttl_seconds"`
 
 	SchedulerScoreWeights GatewayOpenAIWSSchedulerScoreWeights `mapstructure:"scheduler_score_weights"`
+}
+
+// GatewayOpenAIConfig contains OpenAI HTTP streaming stabilization settings.
+type GatewayOpenAIConfig struct {
+	Streaming             GatewayOpenAIStreamingConfig             `mapstructure:"streaming"`
+	ProxyCircuitBreaker   GatewayOpenAIProxyCircuitBreakerConfig   `mapstructure:"proxy_circuit_breaker"`
+	AccountCircuitBreaker GatewayOpenAIAccountCircuitBreakerConfig `mapstructure:"account_circuit_breaker"`
+	HealthPrefetch        GatewayOpenAIHealthPrefetchConfig        `mapstructure:"health_prefetch"`
+}
+
+// GatewayOpenAIStreamingConfig controls request-phase budgets and HTTP relay flushing.
+type GatewayOpenAIStreamingConfig struct {
+	ConnectQuickFailMS        int `mapstructure:"connect_quick_fail_ms"`
+	HeaderQuickFailMS         int `mapstructure:"header_quick_fail_ms"`
+	StreamIdleTimeoutMS       int `mapstructure:"stream_idle_timeout_ms"`
+	LargeBodyThresholdBytes   int `mapstructure:"large_body_threshold_bytes"`
+	XLargeBodyThresholdBytes  int `mapstructure:"xlarge_body_threshold_bytes"`
+	HugeBodyThresholdBytes    int `mapstructure:"huge_body_threshold_bytes"`
+	HTTPStreamFlushBatchSize  int `mapstructure:"http_stream_flush_batch_size"`
+	HTTPStreamFlushIntervalMS int `mapstructure:"http_stream_flush_interval_ms"`
+}
+
+type GatewayOpenAIProxyCircuitBreakerConfig struct {
+	FailureThreshold int `mapstructure:"failure_threshold"`
+	CooldownMS       int `mapstructure:"cooldown_ms"`
+}
+
+type GatewayOpenAIAccountCircuitBreakerConfig struct {
+	CooldownMS int `mapstructure:"cooldown_ms"`
+}
+
+type GatewayOpenAIHealthPrefetchConfig struct {
+	Enabled         bool `mapstructure:"enabled"`
+	TopN            int  `mapstructure:"top_n"`
+	WorkerCount     int  `mapstructure:"worker_count"`
+	QueueSize       int  `mapstructure:"queue_size"`
+	CooldownSeconds int  `mapstructure:"cooldown_seconds"`
+	TimeoutMS       int  `mapstructure:"timeout_ms"`
 }
 
 // GatewayOpenAIWSSchedulerScoreWeights 账号调度打分权重。
@@ -1346,8 +1471,18 @@ type GatewaySchedulingConfig struct {
 	PreferSoonestReset bool `mapstructure:"prefer_soonest_reset"`
 
 	// 负载计算
-	LoadBatchEnabled    bool `mapstructure:"load_batch_enabled"`
-	LoadBatchCacheTTLMS int  `mapstructure:"load_batch_cache_ttl_ms"`
+	LoadBatchEnabled bool `mapstructure:"load_batch_enabled"`
+	// LBTopK: 通用 Gateway 运行时反馈调度时参与加权选择的 top-k 候选数量
+	LBTopK int `mapstructure:"lb_top_k"`
+	// RuntimeStatsAlpha: 通用 Gateway 调度器运行时指标的 EWMA 平滑系数
+	RuntimeStatsAlpha float64 `mapstructure:"runtime_stats_alpha"`
+	// FairWaitQueueEnabled: 是否启用 ticket 化公平等待队列
+	FairWaitQueueEnabled bool `mapstructure:"fair_wait_queue_enabled"`
+	// RuntimeSyncBatchMS: OpenAI/runtime state sync debounce window (milliseconds)
+	RuntimeSyncBatchMS int `mapstructure:"runtime_sync_batch_ms"`
+	// SchedulerScoreWeights: 通用 Gateway 调度器打分权重
+	SchedulerScoreWeights GatewaySchedulerScoreWeights `mapstructure:"scheduler_score_weights"`
+	LoadBatchCacheTTLMS   int                          `mapstructure:"load_batch_cache_ttl_ms"`
 	// 快照桶读取时的 MGET 分块大小
 	SnapshotMGetChunkSize int `mapstructure:"snapshot_mget_chunk_size"`
 	// 快照重建时的缓存写入分块大小
@@ -1380,8 +1515,29 @@ type GatewaySchedulingConfig struct {
 	FullRebuildIntervalSeconds int `mapstructure:"full_rebuild_interval_seconds"`
 }
 
+// GatewaySchedulerScoreWeights 通用 Gateway 调度打分权重。
+type GatewaySchedulerScoreWeights struct {
+	Priority  float64 `mapstructure:"priority"`
+	Load      float64 `mapstructure:"load"`
+	Queue     float64 `mapstructure:"queue"`
+	ErrorRate float64 `mapstructure:"error_rate"`
+	TTFT      float64 `mapstructure:"ttft"`
+}
+
 func (s *ServerConfig) Address() string {
 	return fmt.Sprintf("%s:%d", s.Host, s.Port)
+}
+
+func NormalizeServerRuntimeMode(raw string) string {
+	mode := strings.ToLower(strings.TrimSpace(raw))
+	switch mode {
+	case ServerRuntimeModeHybrid, ServerRuntimeModeGnet:
+		return mode
+	case "", ServerRuntimeModeNetHTTP:
+		return ServerRuntimeModeNetHTTP
+	default:
+		return mode
+	}
 }
 
 // DatabaseConfig 数据库连接配置
@@ -1513,6 +1669,7 @@ type OpsMetricsCollectorCacheConfig struct {
 
 type JWTConfig struct {
 	Secret     string `mapstructure:"secret"`
+	Env        string `mapstructure:"env"`
 	ExpireHour int    `mapstructure:"expire_hour"`
 	// AccessTokenExpireMinutes: Access Token有效期（分钟）
 	// - >0: 使用分钟配置（优先级高于 ExpireHour）
@@ -1545,6 +1702,98 @@ type DefaultConfig struct {
 	UserBalance     float64 `mapstructure:"user_balance"`
 	APIKeyPrefix    string  `mapstructure:"api_key_prefix"`
 	RateMultiplier  float64 `mapstructure:"rate_multiplier"`
+}
+
+type WorkspaceConfig struct {
+	TextProvider      WorkspaceTextProviderConfig      `mapstructure:"text_provider"`
+	ImageExecution    WorkspaceImageExecutionConfig    `mapstructure:"image_execution"`
+	ImageRealProvider WorkspaceImageRealProviderConfig `mapstructure:"image_real_provider"`
+	AvailableChannels WorkspaceAvailableChannelsConfig `mapstructure:"available_channels"`
+	SoraClient        WorkspaceSoraClientConfig        `mapstructure:"sora_client"`
+	WebSearch         WorkspaceWebSearchConfig         `mapstructure:"web_search"`
+}
+
+type WorkspaceTextProviderConfig struct {
+	Enabled                 bool                                      `mapstructure:"enabled"`
+	KillSwitch              bool                                      `mapstructure:"kill_switch"`
+	StagingOnly             bool                                      `mapstructure:"staging_only"`
+	Environment             string                                    `mapstructure:"environment"`
+	TestProviderLabel       string                                    `mapstructure:"test_provider_label"`
+	LowCostModelAllowlist   []string                                  `mapstructure:"low_cost_model_allowlist"`
+	MaxRequestsPerTestRun   int                                       `mapstructure:"max_requests_per_test_run"`
+	BillingEligibilityKnown bool                                      `mapstructure:"billing_eligibility_known"`
+	BillingEligible         bool                                      `mapstructure:"billing_eligible"`
+	BillingPolicy           string                                    `mapstructure:"billing_policy"`
+	UsagePolicy             string                                    `mapstructure:"usage_policy"`
+	FailurePolicy           string                                    `mapstructure:"failure_policy"`
+	BetaAllowlist           WorkspaceTextProviderBetaConfig           `mapstructure:"beta_allowlist"`
+	BetaRequestCaps         WorkspaceTextProviderBetaRequestCapConfig `mapstructure:"beta_request_caps"`
+	OpenAICompatible        WorkspaceOpenAICompatibleConfig           `mapstructure:"openai_compatible"`
+}
+
+type WorkspaceTextProviderBetaConfig struct {
+	Enabled               bool     `mapstructure:"enabled"`
+	AllowedUserIDs        []int64  `mapstructure:"allowed_user_ids"`
+	AllowedGroupIDs       []int64  `mapstructure:"allowed_group_ids"`
+	AllowedProviderLabels []string `mapstructure:"allowed_provider_labels"`
+	AllowedModels         []string `mapstructure:"allowed_models"`
+}
+
+type WorkspaceTextProviderBetaRequestCapConfig struct {
+	DailyRequestCap    int `mapstructure:"daily_request_cap"`
+	TestRunRequestCap  int `mapstructure:"test_run_request_cap"`
+	ProviderRequestCap int `mapstructure:"provider_request_cap"`
+	ModelRequestCap    int `mapstructure:"model_request_cap"`
+}
+
+type WorkspaceOpenAICompatibleConfig struct {
+	BaseURL        string `mapstructure:"base_url"`
+	Model          string `mapstructure:"model"`
+	APIKey         string `mapstructure:"api_key"`
+	TimeoutSeconds int    `mapstructure:"timeout_seconds"`
+}
+
+type WorkspaceImageExecutionConfig struct {
+	Enabled               bool     `mapstructure:"enabled"`
+	KillSwitch            bool     `mapstructure:"kill_switch"`
+	FakeProviderEnabled   bool     `mapstructure:"fake_provider_enabled"`
+	AllowedUserIDs        []int64  `mapstructure:"allowed_user_ids"`
+	AllowedModels         []string `mapstructure:"allowed_models"`
+	AllowedProviderLabels []string `mapstructure:"allowed_provider_labels"`
+	MaxRequestsPerTestRun int      `mapstructure:"max_requests_per_test_run"`
+}
+
+type WorkspaceImageRealProviderConfig struct {
+	Enabled               bool     `mapstructure:"enabled"`
+	KillSwitch            bool     `mapstructure:"kill_switch"`
+	StagingOnly           bool     `mapstructure:"staging_only"`
+	Environment           string   `mapstructure:"environment"`
+	ProviderLabel         string   `mapstructure:"provider_label"`
+	AllowedUserIDs        []int64  `mapstructure:"allowed_user_ids"`
+	AllowedModels         []string `mapstructure:"allowed_models"`
+	AllowedProviderLabels []string `mapstructure:"allowed_provider_labels"`
+	MaxRequestsPerTestRun int      `mapstructure:"max_requests_per_test_run"`
+}
+
+type WorkspaceAvailableChannelsConfig struct {
+	StagingOverrideEnabled bool `mapstructure:"staging_override_enabled"`
+}
+
+type WorkspaceSoraClientConfig struct {
+	StagingOverrideEnabled bool `mapstructure:"staging_override_enabled"`
+}
+
+type WorkspaceWebSearchConfig struct {
+	Enabled               bool    `mapstructure:"enabled"`
+	KillSwitch            bool    `mapstructure:"kill_switch"`
+	Provider              string  `mapstructure:"provider"`
+	APIKey                string  `mapstructure:"api_key"`
+	AllowedUserIDs        []int64 `mapstructure:"allowed_user_ids"`
+	MaxResults            int     `mapstructure:"max_results"`
+	MaxReadURLs           int     `mapstructure:"max_read_urls"`
+	TimeoutMS             int     `mapstructure:"timeout_ms"`
+	DailyCapPerUser       int     `mapstructure:"daily_cap_per_user"`
+	MaxContentLengthBytes int64   `mapstructure:"max_content_length_bytes"`
 }
 
 type RateLimitConfig struct {
@@ -1717,6 +1966,7 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	if cfg.Server.Mode == "" {
 		cfg.Server.Mode = "debug"
 	}
+	cfg.Server.RuntimeMode = NormalizeServerRuntimeMode(cfg.Server.RuntimeMode)
 	cfg.Server.FrontendURL = strings.TrimSpace(cfg.Server.FrontendURL)
 	cfg.JWT.Secret = strings.TrimSpace(cfg.JWT.Secret)
 	cfg.LinuxDo.ClientID = strings.TrimSpace(cfg.LinuxDo.ClientID)
@@ -1769,6 +2019,159 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	cfg.Log.Environment = strings.TrimSpace(cfg.Log.Environment)
 	cfg.Log.StacktraceLevel = strings.ToLower(strings.TrimSpace(cfg.Log.StacktraceLevel))
 	cfg.Log.Output.FilePath = strings.TrimSpace(cfg.Log.Output.FilePath)
+	cfg.Workspace.TextProvider.Environment = strings.ToLower(strings.TrimSpace(cfg.Workspace.TextProvider.Environment))
+	cfg.Workspace.TextProvider.TestProviderLabel = strings.TrimSpace(cfg.Workspace.TextProvider.TestProviderLabel)
+	cfg.Workspace.TextProvider.LowCostModelAllowlist = normalizeStringSlice(cfg.Workspace.TextProvider.LowCostModelAllowlist)
+	cfg.Workspace.TextProvider.BetaAllowlist.AllowedUserIDs = normalizePositiveInt64Slice(firstNonEmptyInt64Slice(
+		cfg.Workspace.TextProvider.BetaAllowlist.AllowedUserIDs,
+		parseEnvInt64List("WORKSPACE_TEXT_PROVIDER_BETA_ALLOWED_USER_IDS"),
+	))
+	cfg.Workspace.TextProvider.BetaAllowlist.AllowedGroupIDs = normalizePositiveInt64Slice(firstNonEmptyInt64Slice(
+		cfg.Workspace.TextProvider.BetaAllowlist.AllowedGroupIDs,
+		parseEnvInt64List("WORKSPACE_TEXT_PROVIDER_BETA_ALLOWED_GROUP_IDS"),
+	))
+	cfg.Workspace.TextProvider.BetaAllowlist.AllowedProviderLabels = normalizeStringSlice(firstNonEmptyStringSlice(
+		cfg.Workspace.TextProvider.BetaAllowlist.AllowedProviderLabels,
+		parseEnvStringList("WORKSPACE_TEXT_PROVIDER_BETA_ALLOWED_PROVIDER_LABELS"),
+	))
+	cfg.Workspace.TextProvider.BetaAllowlist.AllowedModels = normalizeStringSlice(firstNonEmptyStringSlice(
+		cfg.Workspace.TextProvider.BetaAllowlist.AllowedModels,
+		parseEnvStringList("WORKSPACE_TEXT_PROVIDER_BETA_ALLOWED_MODELS"),
+	))
+	cfg.Workspace.TextProvider.BetaRequestCaps.DailyRequestCap = firstNonZeroConfigInt(
+		cfg.Workspace.TextProvider.BetaRequestCaps.DailyRequestCap,
+		parseEnvInt("WORKSPACE_TEXT_PROVIDER_BETA_DAILY_REQUEST_CAP"),
+	)
+	cfg.Workspace.TextProvider.BetaRequestCaps.TestRunRequestCap = firstNonZeroConfigInt(
+		cfg.Workspace.TextProvider.BetaRequestCaps.TestRunRequestCap,
+		parseEnvInt("WORKSPACE_TEXT_PROVIDER_BETA_TEST_RUN_REQUEST_CAP"),
+	)
+	cfg.Workspace.TextProvider.BetaRequestCaps.ProviderRequestCap = firstNonZeroConfigInt(
+		cfg.Workspace.TextProvider.BetaRequestCaps.ProviderRequestCap,
+		parseEnvInt("WORKSPACE_TEXT_PROVIDER_BETA_PROVIDER_REQUEST_CAP"),
+	)
+	cfg.Workspace.TextProvider.BetaRequestCaps.ModelRequestCap = firstNonZeroConfigInt(
+		cfg.Workspace.TextProvider.BetaRequestCaps.ModelRequestCap,
+		parseEnvInt("WORKSPACE_TEXT_PROVIDER_BETA_MODEL_REQUEST_CAP"),
+	)
+	cfg.Workspace.TextProvider.BillingPolicy = strings.ToLower(strings.TrimSpace(cfg.Workspace.TextProvider.BillingPolicy))
+	cfg.Workspace.TextProvider.UsagePolicy = strings.ToLower(strings.TrimSpace(cfg.Workspace.TextProvider.UsagePolicy))
+	cfg.Workspace.TextProvider.FailurePolicy = strings.ToLower(strings.TrimSpace(cfg.Workspace.TextProvider.FailurePolicy))
+	cfg.Workspace.TextProvider.OpenAICompatible.BaseURL = firstNonEmptyConfigValue(
+		cfg.Workspace.TextProvider.OpenAICompatible.BaseURL,
+		os.Getenv("DEEPSEEK_BASE_URL"),
+	)
+	cfg.Workspace.TextProvider.OpenAICompatible.Model = firstNonEmptyConfigValue(
+		cfg.Workspace.TextProvider.OpenAICompatible.Model,
+		os.Getenv("DEEPSEEK_MODEL"),
+	)
+	cfg.Workspace.TextProvider.OpenAICompatible.APIKey = firstNonEmptyConfigValue(
+		cfg.Workspace.TextProvider.OpenAICompatible.APIKey,
+		os.Getenv("DEEPSEEK_API_KEY"),
+	)
+	cfg.Workspace.TextProvider.OpenAICompatible.BaseURL = strings.TrimSpace(cfg.Workspace.TextProvider.OpenAICompatible.BaseURL)
+	cfg.Workspace.TextProvider.OpenAICompatible.Model = strings.TrimSpace(cfg.Workspace.TextProvider.OpenAICompatible.Model)
+	cfg.Workspace.TextProvider.OpenAICompatible.APIKey = strings.TrimSpace(cfg.Workspace.TextProvider.OpenAICompatible.APIKey)
+	cfg.Workspace.ImageExecution.AllowedUserIDs = normalizePositiveInt64Slice(firstNonEmptyInt64Slice(
+		cfg.Workspace.ImageExecution.AllowedUserIDs,
+		parseEnvInt64List("WORKSPACE_IMAGE_EXECUTION_ALLOWED_USER_IDS"),
+	))
+	cfg.Workspace.ImageExecution.AllowedModels = normalizeStringSlice(firstNonEmptyStringSlice(
+		cfg.Workspace.ImageExecution.AllowedModels,
+		parseEnvStringList("WORKSPACE_IMAGE_EXECUTION_ALLOWED_MODELS"),
+	))
+	cfg.Workspace.ImageExecution.AllowedProviderLabels = normalizeStringSlice(firstNonEmptyStringSlice(
+		cfg.Workspace.ImageExecution.AllowedProviderLabels,
+		parseEnvStringList("WORKSPACE_IMAGE_EXECUTION_ALLOWED_PROVIDER_LABELS"),
+	))
+	cfg.Workspace.ImageExecution.MaxRequestsPerTestRun = firstNonZeroConfigInt(
+		cfg.Workspace.ImageExecution.MaxRequestsPerTestRun,
+		parseEnvInt("WORKSPACE_IMAGE_EXECUTION_MAX_REQUESTS_PER_TEST_RUN"),
+	)
+	cfg.Workspace.ImageRealProvider.Environment = strings.TrimSpace(firstNonEmptyWorkspaceConfigString(
+		cfg.Workspace.ImageRealProvider.Environment,
+		os.Getenv("WORKSPACE_IMAGE_REAL_PROVIDER_ENVIRONMENT"),
+	))
+	cfg.Workspace.ImageRealProvider.ProviderLabel = strings.TrimSpace(firstNonEmptyWorkspaceConfigString(
+		cfg.Workspace.ImageRealProvider.ProviderLabel,
+		os.Getenv("WORKSPACE_IMAGE_REAL_PROVIDER_LABEL"),
+	))
+	cfg.Workspace.ImageRealProvider.AllowedUserIDs = normalizePositiveInt64Slice(firstNonEmptyInt64Slice(
+		cfg.Workspace.ImageRealProvider.AllowedUserIDs,
+		parseEnvInt64List("WORKSPACE_IMAGE_REAL_PROVIDER_ALLOWED_USER_IDS"),
+	))
+	cfg.Workspace.ImageRealProvider.AllowedModels = normalizeStringSlice(firstNonEmptyStringSlice(
+		cfg.Workspace.ImageRealProvider.AllowedModels,
+		parseEnvStringList("WORKSPACE_IMAGE_REAL_PROVIDER_ALLOWED_MODELS"),
+	))
+	cfg.Workspace.ImageRealProvider.AllowedProviderLabels = normalizeStringSlice(firstNonEmptyStringSlice(
+		cfg.Workspace.ImageRealProvider.AllowedProviderLabels,
+		parseEnvStringList("WORKSPACE_IMAGE_REAL_PROVIDER_ALLOWED_PROVIDER_LABELS"),
+	))
+	cfg.Workspace.ImageRealProvider.MaxRequestsPerTestRun = firstNonZeroConfigInt(
+		cfg.Workspace.ImageRealProvider.MaxRequestsPerTestRun,
+		parseEnvInt("WORKSPACE_IMAGE_REAL_PROVIDER_MAX_REQUESTS_PER_TEST_RUN"),
+	)
+	cfg.Workspace.WebSearch.Provider = strings.ToLower(strings.TrimSpace(cfg.Workspace.WebSearch.Provider))
+	if cfg.Workspace.WebSearch.Provider == "" {
+		cfg.Workspace.WebSearch.Provider = "jina"
+	}
+	cfg.Workspace.WebSearch.APIKey = strings.TrimSpace(firstNonEmptyConfigValue(
+		cfg.Workspace.WebSearch.APIKey,
+		os.Getenv("JINA_API_KEY"),
+	))
+	cfg.Workspace.WebSearch.AllowedUserIDs = normalizePositiveInt64Slice(firstNonEmptyInt64Slice(
+		cfg.Workspace.WebSearch.AllowedUserIDs,
+		parseEnvInt64List("WORKSPACE_WEB_SEARCH_ALLOWED_USER_IDS"),
+	))
+	cfg.Workspace.WebSearch.MaxResults = firstNonZeroConfigInt(
+		cfg.Workspace.WebSearch.MaxResults,
+		parseEnvInt("WORKSPACE_WEB_SEARCH_MAX_RESULTS"),
+	)
+	cfg.Workspace.WebSearch.MaxReadURLs = firstNonZeroConfigInt(
+		cfg.Workspace.WebSearch.MaxReadURLs,
+		parseEnvInt("WORKSPACE_WEB_SEARCH_MAX_READ_URLS"),
+	)
+	cfg.Workspace.WebSearch.TimeoutMS = firstNonZeroConfigInt(
+		cfg.Workspace.WebSearch.TimeoutMS,
+		parseEnvInt("WORKSPACE_WEB_SEARCH_TIMEOUT_MS"),
+	)
+	cfg.Workspace.WebSearch.DailyCapPerUser = firstNonZeroConfigInt(
+		cfg.Workspace.WebSearch.DailyCapPerUser,
+		parseEnvInt("WORKSPACE_WEB_SEARCH_DAILY_CAP_PER_USER"),
+	)
+	if cfg.Workspace.WebSearch.MaxResults < 0 {
+		cfg.Workspace.WebSearch.MaxResults = 0
+	}
+	if cfg.Workspace.WebSearch.MaxReadURLs < 0 {
+		cfg.Workspace.WebSearch.MaxReadURLs = 0
+	}
+	if cfg.Workspace.WebSearch.TimeoutMS < 0 {
+		cfg.Workspace.WebSearch.TimeoutMS = 0
+	}
+	if cfg.Workspace.WebSearch.DailyCapPerUser < 0 {
+		cfg.Workspace.WebSearch.DailyCapPerUser = 0
+	}
+	if cfg.Workspace.WebSearch.MaxContentLengthBytes < 0 {
+		cfg.Workspace.WebSearch.MaxContentLengthBytes = 0
+	}
+	cfg.Gateway.SoraMediaSigningKey = strings.TrimSpace(firstNonEmptyConfigValue(
+		cfg.Gateway.SoraMediaSigningKey,
+		os.Getenv("GATEWAY_SORA_MEDIA_SIGNING_KEY"),
+	))
+	cfg.Gateway.SoraMediaSignedURLTTLSeconds = firstNonZeroConfigInt(
+		cfg.Gateway.SoraMediaSignedURLTTLSeconds,
+		parseEnvInt("GATEWAY_SORA_MEDIA_SIGNED_URL_TTL_SECONDS"),
+	)
+	if raw := strings.TrimSpace(os.Getenv("GATEWAY_SORA_MEDIA_REQUIRE_API_KEY")); raw != "" {
+		if value, err := strconv.ParseBool(raw); err == nil {
+			cfg.Gateway.SoraMediaRequireAPIKey = value
+		}
+	}
+	cfg.Process.Mode = strings.ToLower(strings.TrimSpace(cfg.Process.Mode))
+	if cfg.Process.Mode == "" {
+		cfg.Process.Mode = ProcessModeSingle
+	}
 	cfg.Gateway.ForcedCodexInstructionsTemplateFile = strings.TrimSpace(cfg.Gateway.ForcedCodexInstructionsTemplateFile)
 	if cfg.Gateway.ForcedCodexInstructionsTemplateFile != "" {
 		content, err := os.ReadFile(cfg.Gateway.ForcedCodexInstructionsTemplateFile)
@@ -1870,6 +2273,7 @@ func setDefaults() {
 	viper.SetDefault("server.host", "0.0.0.0")
 	viper.SetDefault("server.port", 8080)
 	viper.SetDefault("server.mode", "release")
+	viper.SetDefault("server.runtime_mode", ServerRuntimeModeNetHTTP)
 	viper.SetDefault("server.enable_server_timing", false)
 	viper.SetDefault("server.frontend_url", "")
 	viper.SetDefault("server.read_header_timeout", 10) // 10秒读取请求头
@@ -1883,6 +2287,24 @@ func setDefaults() {
 	viper.SetDefault("server.h2c.max_read_frame_size", 1<<20)              // 1MB（够用）
 	viper.SetDefault("server.h2c.max_upload_buffer_per_connection", 2<<20) // 2MB
 	viper.SetDefault("server.h2c.max_upload_buffer_per_stream", 512<<10)   // 512KB
+	viper.SetDefault("rust.sidecar.enabled", false)
+	viper.SetDefault("rust.sidecar.auto_start", false)
+	viper.SetDefault("rust.sidecar.binary_path", "")
+	viper.SetDefault("rust.sidecar.args", []string{})
+	viper.SetDefault("rust.sidecar.socket_path", "/tmp/sub2api-rust-sidecar.sock")
+	viper.SetDefault("rust.sidecar.upstream_socket_path", "/tmp/sub2api-rust-upstream.sock")
+	viper.SetDefault("rust.sidecar.request_timeout_seconds", 30)
+	viper.SetDefault("rust.sidecar.upgrade_idle_timeout_seconds", 120)
+	viper.SetDefault("rust.sidecar.websocket_max_message_bytes", 64<<20)
+	viper.SetDefault("rust.sidecar.healthcheck_timeout_seconds", 3)
+	viper.SetDefault("rust.sidecar.fail_closed", true)
+	viper.SetDefault("rust.sidecar.h2c_delegate_enabled", false)
+	viper.SetDefault("rust.sidecar.responses_ws_enabled", false)
+	viper.SetDefault("rust.ffi.enabled", false)
+	viper.SetDefault("rust.ffi.library_path", "")
+	viper.SetDefault("rust.ffi.hash_enabled", false)
+	viper.SetDefault("rust.ffi.streaming_enabled", false)
+	viper.SetDefault("rust.ffi.compression_enabled", false)
 
 	// Log
 	viper.SetDefault("log.level", "info")
@@ -1903,6 +2325,60 @@ func setDefaults() {
 	viper.SetDefault("log.sampling.initial", 100)
 	viper.SetDefault("log.sampling.thereafter", 100)
 
+	// Workspace text provider gate. Defaults intentionally fail closed.
+	viper.SetDefault("workspace.text_provider.enabled", false)
+	viper.SetDefault("workspace.text_provider.kill_switch", true)
+	viper.SetDefault("workspace.text_provider.staging_only", true)
+	viper.SetDefault("workspace.text_provider.environment", "")
+	viper.SetDefault("workspace.text_provider.test_provider_label", "")
+	viper.SetDefault("workspace.text_provider.low_cost_model_allowlist", []string{})
+	viper.SetDefault("workspace.text_provider.max_requests_per_test_run", 0)
+	viper.SetDefault("workspace.text_provider.billing_eligibility_known", false)
+	viper.SetDefault("workspace.text_provider.billing_eligible", false)
+	viper.SetDefault("workspace.text_provider.billing_policy", "")
+	viper.SetDefault("workspace.text_provider.usage_policy", "")
+	viper.SetDefault("workspace.text_provider.failure_policy", "")
+	viper.SetDefault("workspace.text_provider.beta_allowlist.enabled", false)
+	viper.SetDefault("workspace.text_provider.beta_allowlist.allowed_user_ids", []int64{})
+	viper.SetDefault("workspace.text_provider.beta_allowlist.allowed_group_ids", []int64{})
+	viper.SetDefault("workspace.text_provider.beta_allowlist.allowed_provider_labels", []string{})
+	viper.SetDefault("workspace.text_provider.beta_allowlist.allowed_models", []string{})
+	viper.SetDefault("workspace.text_provider.beta_request_caps.daily_request_cap", 0)
+	viper.SetDefault("workspace.text_provider.beta_request_caps.test_run_request_cap", 0)
+	viper.SetDefault("workspace.text_provider.beta_request_caps.provider_request_cap", 0)
+	viper.SetDefault("workspace.text_provider.beta_request_caps.model_request_cap", 0)
+	viper.SetDefault("workspace.text_provider.openai_compatible.base_url", "")
+	viper.SetDefault("workspace.text_provider.openai_compatible.model", "")
+	viper.SetDefault("workspace.text_provider.openai_compatible.api_key", "")
+	viper.SetDefault("workspace.text_provider.openai_compatible.timeout_seconds", 30)
+	viper.SetDefault("workspace.image_execution.enabled", false)
+	viper.SetDefault("workspace.image_execution.kill_switch", true)
+	viper.SetDefault("workspace.image_execution.fake_provider_enabled", false)
+	viper.SetDefault("workspace.image_execution.allowed_user_ids", []int64{})
+	viper.SetDefault("workspace.image_execution.allowed_models", []string{})
+	viper.SetDefault("workspace.image_execution.allowed_provider_labels", []string{})
+	viper.SetDefault("workspace.image_execution.max_requests_per_test_run", 0)
+	viper.SetDefault("workspace.image_real_provider.enabled", false)
+	viper.SetDefault("workspace.image_real_provider.kill_switch", true)
+	viper.SetDefault("workspace.image_real_provider.staging_only", true)
+	viper.SetDefault("workspace.image_real_provider.environment", "")
+	viper.SetDefault("workspace.image_real_provider.provider_label", "")
+	viper.SetDefault("workspace.image_real_provider.allowed_user_ids", []int64{})
+	viper.SetDefault("workspace.image_real_provider.allowed_models", []string{})
+	viper.SetDefault("workspace.image_real_provider.allowed_provider_labels", []string{})
+	viper.SetDefault("workspace.image_real_provider.max_requests_per_test_run", 0)
+	viper.SetDefault("workspace.available_channels.staging_override_enabled", false)
+	viper.SetDefault("workspace.sora_client.staging_override_enabled", false)
+	viper.SetDefault("workspace.web_search.enabled", false)
+	viper.SetDefault("workspace.web_search.kill_switch", true)
+	viper.SetDefault("workspace.web_search.provider", "jina")
+	viper.SetDefault("workspace.web_search.allowed_user_ids", []int64{})
+	viper.SetDefault("workspace.web_search.max_results", 5)
+	viper.SetDefault("workspace.web_search.max_read_urls", 3)
+	viper.SetDefault("workspace.web_search.timeout_ms", 8000)
+	viper.SetDefault("workspace.web_search.daily_cap_per_user", 20)
+	viper.SetDefault("workspace.web_search.max_content_length_bytes", int64(1024*1024))
+
 	// CORS
 	viper.SetDefault("cors.allowed_origins", []string{})
 	viper.SetDefault("cors.allow_credentials", true)
@@ -1915,7 +2391,7 @@ func setDefaults() {
 	viper.SetDefault("webauthn.rp_origins", []string{})
 
 	// Security
-	viper.SetDefault("security.url_allowlist.enabled", false)
+	viper.SetDefault("security.url_allowlist.enabled", true)
 	viper.SetDefault("security.url_allowlist.upstream_hosts", []string{
 		"api.openai.com",
 		"api.anthropic.com",
@@ -1928,12 +2404,13 @@ func setDefaults() {
 		"cloudcode-pa.googleapis.com",
 		"*.openai.azure.com",
 	})
+	viper.SetDefault("security.url_allowlist.enforce_upstream_hosts", true)
 	viper.SetDefault("security.url_allowlist.pricing_hosts", []string{
 		"raw.githubusercontent.com",
 	})
 	viper.SetDefault("security.url_allowlist.crs_hosts", []string{})
-	viper.SetDefault("security.url_allowlist.allow_private_hosts", true)
-	viper.SetDefault("security.url_allowlist.allow_insecure_http", true)
+	viper.SetDefault("security.url_allowlist.allow_private_hosts", false)
+	viper.SetDefault("security.url_allowlist.allow_insecure_http", false)
 	viper.SetDefault("security.response_headers.enabled", true)
 	viper.SetDefault("security.response_headers.additional_allowed", []string{})
 	viper.SetDefault("security.response_headers.force_remove", []string{})
@@ -2035,8 +2512,8 @@ func setDefaults() {
 	viper.SetDefault("database.password", "postgres")
 	viper.SetDefault("database.dbname", "sub2api")
 	viper.SetDefault("database.sslmode", "prefer")
-	viper.SetDefault("database.max_open_conns", 256)
-	viper.SetDefault("database.max_idle_conns", 128)
+	viper.SetDefault("database.max_open_conns", 60)
+	viper.SetDefault("database.max_idle_conns", 20)
 	viper.SetDefault("database.conn_max_lifetime_minutes", 30)
 	viper.SetDefault("database.conn_max_idle_time_minutes", 5)
 	viper.SetDefault("database.user_platform_quota_flusher_enabled", false)
@@ -2165,6 +2642,7 @@ func setDefaults() {
 	viper.SetDefault("pricing.fallback_file", "./resources/model-pricing/model_prices_and_context_window.json")
 	viper.SetDefault("pricing.update_interval_hours", 24)
 	viper.SetDefault("pricing.hash_check_interval_minutes", 10)
+	viper.SetDefault("update.repo", "DR-lin-eng/sub2api")
 
 	// Timezone (default to Asia/Shanghai for Chinese users)
 	viper.SetDefault("timezone", "Asia/Shanghai")
@@ -2246,6 +2724,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_ws.enabled", true)
 	viper.SetDefault("gateway.openai_ws.mode_router_v2_enabled", false)
 	viper.SetDefault("gateway.openai_ws.ingress_mode_default", "ctx_pool")
+	viper.SetDefault("gateway.openai_ws.dial_http_version", "auto")
 	viper.SetDefault("gateway.openai_ws.client_first_message_timeout_seconds", DefaultOpenAIWSClientFirstMessageTimeoutSeconds)
 	viper.SetDefault("gateway.openai_ws.ingress_inter_turn_idle_timeout_seconds", 300)
 	viper.SetDefault("gateway.openai_ws.max_ingress_connections_per_api_key", 64)
@@ -2257,6 +2736,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_ws.store_disabled_conn_mode", "strict")
 	viper.SetDefault("gateway.openai_ws.store_disabled_force_new_conn", true)
 	viper.SetDefault("gateway.openai_ws.prewarm_generate_enabled", false)
+	viper.SetDefault("gateway.openai_ws.prewarm_generate_timeout_ms", 1000)
 	viper.SetDefault("gateway.openai_ws.client_read_limit_bytes", 64*1024*1024)
 	viper.SetDefault("gateway.openai_ws.http_bridge_enabled", true)
 	viper.SetDefault("gateway.openai_ws.http_bridge_threshold_bytes", 15*1024*1024)
@@ -2294,6 +2774,23 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.queue", 0.7)
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.error_rate", 0.8)
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.ttft", 0.5)
+	viper.SetDefault("gateway.openai.streaming.connect_quick_fail_ms", 5000)
+	viper.SetDefault("gateway.openai.streaming.header_quick_fail_ms", 12000)
+	viper.SetDefault("gateway.openai.streaming.stream_idle_timeout_ms", 120000)
+	viper.SetDefault("gateway.openai.streaming.large_body_threshold_bytes", 64*1024)
+	viper.SetDefault("gateway.openai.streaming.xlarge_body_threshold_bytes", 256*1024)
+	viper.SetDefault("gateway.openai.streaming.huge_body_threshold_bytes", 1024*1024)
+	viper.SetDefault("gateway.openai.streaming.http_stream_flush_batch_size", 8)
+	viper.SetDefault("gateway.openai.streaming.http_stream_flush_interval_ms", 25)
+	viper.SetDefault("gateway.openai.proxy_circuit_breaker.failure_threshold", 2)
+	viper.SetDefault("gateway.openai.proxy_circuit_breaker.cooldown_ms", 300000)
+	viper.SetDefault("gateway.openai.account_circuit_breaker.cooldown_ms", 120000)
+	viper.SetDefault("gateway.openai.health_prefetch.enabled", true)
+	viper.SetDefault("gateway.openai.health_prefetch.top_n", 3)
+	viper.SetDefault("gateway.openai.health_prefetch.worker_count", 1)
+	viper.SetDefault("gateway.openai.health_prefetch.queue_size", 16)
+	viper.SetDefault("gateway.openai.health_prefetch.cooldown_seconds", 60)
+	viper.SetDefault("gateway.openai.health_prefetch.timeout_ms", 3500)
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.reset", 0.0)
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.quota_headroom", 0.0)
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.upstream_cost", 0.0)
@@ -2343,13 +2840,22 @@ func setDefaults() {
 	viper.SetDefault("gateway.scheduling.fallback_selection_mode", "last_used")
 	viper.SetDefault("gateway.scheduling.prefer_soonest_reset", false)
 	viper.SetDefault("gateway.scheduling.load_batch_enabled", true)
+	viper.SetDefault("gateway.scheduling.lb_top_k", 5)
+	viper.SetDefault("gateway.scheduling.runtime_stats_alpha", 0.2)
+	viper.SetDefault("gateway.scheduling.fair_wait_queue_enabled", true)
+	viper.SetDefault("gateway.scheduling.runtime_sync_batch_ms", 1000)
+	viper.SetDefault("gateway.scheduling.scheduler_score_weights.priority", 1.0)
+	viper.SetDefault("gateway.scheduling.scheduler_score_weights.load", 1.0)
+	viper.SetDefault("gateway.scheduling.scheduler_score_weights.queue", 0.7)
+	viper.SetDefault("gateway.scheduling.scheduler_score_weights.error_rate", 0.8)
+	viper.SetDefault("gateway.scheduling.scheduler_score_weights.ttft", 0.5)
 	viper.SetDefault("gateway.scheduling.load_batch_cache_ttl_ms", 200)
 	viper.SetDefault("gateway.scheduling.snapshot_mget_chunk_size", 128)
 	viper.SetDefault("gateway.scheduling.snapshot_write_chunk_size", 256)
 	viper.SetDefault("gateway.scheduling.slot_cleanup_interval", 30*time.Second)
 	viper.SetDefault("gateway.scheduling.db_fallback_enabled", true)
-	viper.SetDefault("gateway.scheduling.db_fallback_timeout_seconds", 0)
-	viper.SetDefault("gateway.scheduling.db_fallback_max_qps", 0)
+	viper.SetDefault("gateway.scheduling.db_fallback_timeout_seconds", 5)
+	viper.SetDefault("gateway.scheduling.db_fallback_max_qps", 10)
 	viper.SetDefault("gateway.scheduling.outbox_poll_interval_seconds", 1)
 	viper.SetDefault("gateway.scheduling.outbox_lag_warn_seconds", 5)
 	viper.SetDefault("gateway.scheduling.outbox_lag_rebuild_seconds", 10)
@@ -2387,6 +2893,57 @@ func setDefaults() {
 	viper.SetDefault("gateway.tls_fingerprint.enabled", true)
 	viper.SetDefault("concurrency.ping_interval", 10)
 
+	// Process model
+	viper.SetDefault("process.mode", ProcessModeSingle)
+	viper.SetDefault("process.worker_count", 0)
+	viper.SetDefault("process.graceful_shutdown_timeout_seconds", 30)
+	viper.SetDefault("process.worker_ready_timeout_seconds", 20)
+	viper.SetDefault("process.reload_timeout_seconds", 60)
+	viper.SetDefault("process.respawn_backoff_ms", 2000)
+	viper.SetDefault("process.log_reopen_signal_enabled", true)
+	viper.SetDefault("process.config_reload_signal_enabled", true)
+	viper.SetDefault("process.enable_cpu_affinity", false)
+
+	// Sora 直连配置
+	viper.SetDefault("sora.client.base_url", "https://sora.chatgpt.com/backend")
+	viper.SetDefault("sora.client.timeout_seconds", 120)
+	viper.SetDefault("sora.client.max_retries", 3)
+	viper.SetDefault("sora.client.cloudflare_challenge_cooldown_seconds", 900)
+	viper.SetDefault("sora.client.poll_interval_seconds", 2)
+	viper.SetDefault("sora.client.max_poll_attempts", 600)
+	viper.SetDefault("sora.client.recent_task_limit", 50)
+	viper.SetDefault("sora.client.recent_task_limit_max", 200)
+	viper.SetDefault("sora.client.debug", false)
+	viper.SetDefault("sora.client.use_openai_token_provider", false)
+	viper.SetDefault("sora.client.headers", map[string]string{})
+	viper.SetDefault("sora.client.user_agent", "Sora/1.2026.007 (Android 15; 24122RKC7C; build 2600700)")
+	viper.SetDefault("sora.client.disable_tls_fingerprint", false)
+	viper.SetDefault("sora.client.curl_cffi_sidecar.enabled", true)
+	viper.SetDefault("sora.client.curl_cffi_sidecar.base_url", "http://sora-curl-cffi-sidecar:8080")
+	viper.SetDefault("sora.client.curl_cffi_sidecar.impersonate", "chrome131")
+	viper.SetDefault("sora.client.curl_cffi_sidecar.timeout_seconds", 60)
+	viper.SetDefault("sora.client.curl_cffi_sidecar.session_reuse_enabled", true)
+	viper.SetDefault("sora.client.curl_cffi_sidecar.session_ttl_seconds", 3600)
+
+	viper.SetDefault("sora.storage.type", "local")
+	viper.SetDefault("sora.storage.local_path", "")
+	viper.SetDefault("sora.storage.fallback_to_upstream", true)
+	viper.SetDefault("sora.storage.max_concurrent_downloads", 4)
+	viper.SetDefault("sora.storage.download_timeout_seconds", 120)
+	viper.SetDefault("sora.storage.max_download_bytes", int64(200<<20))
+	viper.SetDefault("sora.storage.debug", false)
+	viper.SetDefault("sora.storage.cleanup.enabled", true)
+	viper.SetDefault("sora.storage.cleanup.retention_days", 7)
+	viper.SetDefault("sora.storage.cleanup.schedule", "0 3 * * *")
+
+	// OpenAI ChatWeb curl_cffi sidecar 配置（优先走 sidecar，失败回退 Go client）
+	viper.SetDefault("openai.chatweb.curl_cffi_sidecar.enabled", true)
+	viper.SetDefault("openai.chatweb.curl_cffi_sidecar.base_url", "http://openai-chatweb-curl-cffi-sidecar:8080")
+	viper.SetDefault("openai.chatweb.curl_cffi_sidecar.impersonate", "chrome131")
+	viper.SetDefault("openai.chatweb.curl_cffi_sidecar.timeout_seconds", 60)
+	viper.SetDefault("openai.chatweb.curl_cffi_sidecar.session_reuse_enabled", true)
+	viper.SetDefault("openai.chatweb.curl_cffi_sidecar.session_ttl_seconds", 3600)
+
 	// TokenRefresh
 	viper.SetDefault("token_refresh.enabled", true)
 	viper.SetDefault("token_refresh.check_interval_minutes", 5)        // 每5分钟检查一次
@@ -2411,6 +2968,13 @@ func setDefaults() {
 	// Subscription Maintenance (bounded queue + worker pool)
 	viper.SetDefault("subscription_maintenance.worker_count", 2)
 	viper.SetDefault("subscription_maintenance.queue_size", 1024)
+	viper.SetDefault("account_import.worker_count", 2)
+	viper.SetDefault("account_import.chunk_size", 100)
+	viper.SetDefault("account_import.queue_ttl", "24h")
+	viper.SetDefault("account_import.max_fast_path_rows", 5000)
+	viper.SetDefault("account_import.claim_ttl", "2m")
+	viper.SetDefault("account_import.recovery_interval", "30s")
+	viper.SetDefault("account_import.max_chunk_attempts", 5)
 
 	setEnvReachableDefaults()
 }
@@ -2635,6 +3199,72 @@ func (c *Config) Validate() error {
 		}
 		warnIfInsecureURL("server.frontend_url", c.Server.FrontendURL)
 	}
+	switch c.Server.RuntimeMode {
+	case ServerRuntimeModeNetHTTP, ServerRuntimeModeHybrid, ServerRuntimeModeGnet:
+	default:
+		return fmt.Errorf("server.runtime_mode must be one of: %s/%s/%s", ServerRuntimeModeNetHTTP, ServerRuntimeModeHybrid, ServerRuntimeModeGnet)
+	}
+	if c.Rust.Sidecar.RequestTimeoutSeconds <= 0 {
+		return fmt.Errorf("rust.sidecar.request_timeout_seconds must be positive")
+	}
+	if c.Rust.Sidecar.UpgradeIdleTimeoutSeconds <= 0 {
+		return fmt.Errorf("rust.sidecar.upgrade_idle_timeout_seconds must be positive")
+	}
+	if c.Rust.Sidecar.WebSocketMaxMessageBytes <= 0 {
+		return fmt.Errorf("rust.sidecar.websocket_max_message_bytes must be positive")
+	}
+	if c.Rust.Sidecar.HealthcheckTimeoutSeconds <= 0 {
+		return fmt.Errorf("rust.sidecar.healthcheck_timeout_seconds must be positive")
+	}
+	if c.Rust.Sidecar.Enabled && strings.TrimSpace(c.Rust.Sidecar.SocketPath) == "" {
+		return fmt.Errorf("rust.sidecar.socket_path is required when rust.sidecar.enabled=true")
+	}
+	if c.Rust.Sidecar.Enabled && strings.TrimSpace(c.Rust.Sidecar.UpstreamSocketPath) == "" {
+		return fmt.Errorf("rust.sidecar.upstream_socket_path is required when rust.sidecar.enabled=true")
+	}
+	if c.Rust.Sidecar.AutoStart && !c.Rust.Sidecar.Enabled {
+		return fmt.Errorf("rust.sidecar.enabled must be true when rust.sidecar.auto_start=true")
+	}
+	if c.Rust.Sidecar.AutoStart && strings.TrimSpace(c.Rust.Sidecar.BinaryPath) == "" {
+		return fmt.Errorf("rust.sidecar.binary_path is required when rust.sidecar.auto_start=true")
+	}
+	if (c.Rust.Sidecar.H2CDelegateEnabled || c.Rust.Sidecar.ResponsesWSEnabled) && !c.Rust.Sidecar.Enabled {
+		return fmt.Errorf("rust.sidecar.enabled must be true when any rust.sidecar feature is enabled")
+	}
+	if c.Rust.Sidecar.H2CDelegateEnabled && !c.Server.H2C.Enabled {
+		return fmt.Errorf("server.h2c.enabled must be true when rust.sidecar.h2c_delegate_enabled=true")
+	}
+	if c.Rust.Sidecar.Enabled && c.Process.Mode != ProcessModeSingle {
+		return fmt.Errorf("rust.sidecar currently supports process.mode=single only")
+	}
+	if c.Rust.FFI.Enabled && strings.TrimSpace(c.Rust.FFI.LibraryPath) == "" {
+		return fmt.Errorf("rust.ffi.library_path is required when rust.ffi.enabled=true")
+	}
+	switch c.Process.Mode {
+	case ProcessModeSingle, ProcessModeMasterWorker:
+	case "":
+		return fmt.Errorf("process.mode is required")
+	default:
+		return fmt.Errorf("process.mode must be one of: %s/%s", ProcessModeSingle, ProcessModeMasterWorker)
+	}
+	if c.Process.WorkerCount < 0 {
+		return fmt.Errorf("process.worker_count must be non-negative")
+	}
+	if c.Process.GracefulShutdownTimeoutSeconds <= 0 {
+		return fmt.Errorf("process.graceful_shutdown_timeout_seconds must be positive")
+	}
+	if c.Process.WorkerReadyTimeoutSeconds <= 0 {
+		return fmt.Errorf("process.worker_ready_timeout_seconds must be positive")
+	}
+	if c.Process.ReloadTimeoutSeconds <= 0 {
+		return fmt.Errorf("process.reload_timeout_seconds must be positive")
+	}
+	if c.Process.RespawnBackoffMS < 0 {
+		return fmt.Errorf("process.respawn_backoff_ms must be non-negative")
+	}
+	if c.Process.Mode == ProcessModeMasterWorker && c.Process.EnableCPUAffinity && runtime.GOOS != "linux" {
+		slog.Warn("process.enable_cpu_affinity is only effective on linux; ignoring on current platform", "goos", runtime.GOOS)
+	}
 	if c.WebAuthn.Enabled {
 		c.WebAuthn.RPDisplayName = strings.TrimSpace(c.WebAuthn.RPDisplayName)
 		c.WebAuthn.RPID = strings.ToLower(strings.TrimSpace(c.WebAuthn.RPID))
@@ -2699,6 +3329,18 @@ func (c *Config) Validate() error {
 	}
 	if c.Security.CSP.Enabled && strings.TrimSpace(c.Security.CSP.Policy) == "" {
 		return fmt.Errorf("security.csp.policy is required when CSP is enabled")
+	}
+	if !c.Security.URLAllowlist.Enabled {
+		return fmt.Errorf("security.url_allowlist.enabled must be true")
+	}
+	if !c.Security.URLAllowlist.EnforceUpstreamHosts {
+		return fmt.Errorf("security.url_allowlist.enforce_upstream_hosts must be true")
+	}
+	if c.Security.URLAllowlist.AllowPrivateHosts {
+		return fmt.Errorf("security.url_allowlist.allow_private_hosts must be false")
+	}
+	if c.Security.URLAllowlist.AllowInsecureHTTP {
+		return fmt.Errorf("security.url_allowlist.allow_insecure_http must be false")
 	}
 	if c.LinuxDo.Enabled {
 		if strings.TrimSpace(c.LinuxDo.ClientID) == "" {
@@ -3117,6 +3759,75 @@ func (c *Config) Validate() error {
 	if c.Gateway.ProxyProbeResponseReadMaxBytes <= 0 {
 		return fmt.Errorf("gateway.proxy_probe_response_read_max_bytes must be positive")
 	}
+	if c.Gateway.SoraMaxBodySize < 0 {
+		return fmt.Errorf("gateway.sora_max_body_size must be non-negative")
+	}
+	if c.Gateway.SoraStreamTimeoutSeconds < 0 {
+		return fmt.Errorf("gateway.sora_stream_timeout_seconds must be non-negative")
+	}
+	if c.Gateway.SoraRequestTimeoutSeconds < 0 {
+		return fmt.Errorf("gateway.sora_request_timeout_seconds must be non-negative")
+	}
+	if c.Gateway.SoraMediaSignedURLTTLSeconds < 0 {
+		return fmt.Errorf("gateway.sora_media_signed_url_ttl_seconds must be non-negative")
+	}
+	if mode := strings.TrimSpace(strings.ToLower(c.Gateway.SoraStreamMode)); mode != "" {
+		switch mode {
+		case "force", "error":
+		default:
+			return fmt.Errorf("gateway.sora_stream_mode must be one of: force/error")
+		}
+	}
+	if c.Sora.Client.TimeoutSeconds < 0 {
+		return fmt.Errorf("sora.client.timeout_seconds must be non-negative")
+	}
+	if c.Sora.Client.MaxRetries < 0 {
+		return fmt.Errorf("sora.client.max_retries must be non-negative")
+	}
+	if c.Sora.Client.CloudflareChallengeCooldownSeconds < 0 {
+		return fmt.Errorf("sora.client.cloudflare_challenge_cooldown_seconds must be non-negative")
+	}
+	if c.Sora.Client.PollIntervalSeconds < 0 {
+		return fmt.Errorf("sora.client.poll_interval_seconds must be non-negative")
+	}
+	if c.Sora.Client.MaxPollAttempts < 0 {
+		return fmt.Errorf("sora.client.max_poll_attempts must be non-negative")
+	}
+	if c.Sora.Client.RecentTaskLimit < 0 {
+		return fmt.Errorf("sora.client.recent_task_limit must be non-negative")
+	}
+	if c.Sora.Client.RecentTaskLimitMax < 0 {
+		return fmt.Errorf("sora.client.recent_task_limit_max must be non-negative")
+	}
+	if c.Sora.Client.RecentTaskLimitMax > 0 && c.Sora.Client.RecentTaskLimit > 0 &&
+		c.Sora.Client.RecentTaskLimitMax < c.Sora.Client.RecentTaskLimit {
+		c.Sora.Client.RecentTaskLimitMax = c.Sora.Client.RecentTaskLimit
+	}
+	if c.Sora.Client.CurlCFFISidecar.TimeoutSeconds < 0 {
+		return fmt.Errorf("sora.client.curl_cffi_sidecar.timeout_seconds must be non-negative")
+	}
+	if c.Sora.Client.CurlCFFISidecar.SessionTTLSeconds < 0 {
+		return fmt.Errorf("sora.client.curl_cffi_sidecar.session_ttl_seconds must be non-negative")
+	}
+	if !c.Sora.Client.CurlCFFISidecar.Enabled {
+		return fmt.Errorf("sora.client.curl_cffi_sidecar.enabled must be true")
+	}
+	if strings.TrimSpace(c.Sora.Client.CurlCFFISidecar.BaseURL) == "" {
+		return fmt.Errorf("sora.client.curl_cffi_sidecar.base_url is required")
+	}
+	if c.OpenAI.ChatWeb.CurlCFFISidecar.TimeoutSeconds < 0 {
+		return fmt.Errorf("openai.chatweb.curl_cffi_sidecar.timeout_seconds must be non-negative")
+	}
+	if c.OpenAI.ChatWeb.CurlCFFISidecar.SessionTTLSeconds < 0 {
+		return fmt.Errorf("openai.chatweb.curl_cffi_sidecar.session_ttl_seconds must be non-negative")
+	}
+	if c.OpenAI.ChatWeb.CurlCFFISidecar.Enabled &&
+		strings.TrimSpace(c.OpenAI.ChatWeb.CurlCFFISidecar.BaseURL) == "" {
+		return fmt.Errorf("openai.chatweb.curl_cffi_sidecar.base_url is required when enabled")
+	}
+	if c.Sora.Storage.MaxConcurrentDownloads < 0 {
+		return fmt.Errorf("sora.storage.max_concurrent_downloads must be non-negative")
+	}
 	if c.Gateway.ResponseHeaderTimeout < 0 {
 		return fmt.Errorf("gateway.response_header_timeout must be non-negative")
 	}
@@ -3274,6 +3985,9 @@ func (c *Config) Validate() error {
 	if c.Gateway.OpenAIWS.PrewarmCooldownMS < 0 {
 		return fmt.Errorf("gateway.openai_ws.prewarm_cooldown_ms must be non-negative")
 	}
+	if c.Gateway.OpenAIWS.PrewarmGenerateTimeoutMS < 0 {
+		return fmt.Errorf("gateway.openai_ws.prewarm_generate_timeout_ms must be non-negative")
+	}
 	if c.Gateway.OpenAIWS.ClientReadLimitBytes <= 0 {
 		return fmt.Errorf("gateway.openai_ws.client_read_limit_bytes must be positive")
 	}
@@ -3309,6 +4023,13 @@ func (c *Config) Validate() error {
 			slog.Warn("gateway.openai_ws.ingress_mode_default is deprecated, treating as ctx_pool; please update to off|ctx_pool|passthrough|http_bridge", "value", mode)
 		default:
 			return fmt.Errorf("gateway.openai_ws.ingress_mode_default must be one of off|ctx_pool|passthrough|http_bridge")
+		}
+	}
+	if version := strings.ToLower(strings.TrimSpace(c.Gateway.OpenAIWS.DialHTTPVersion)); version != "" {
+		switch version {
+		case "auto", "1.1", "2":
+		default:
+			return fmt.Errorf("gateway.openai_ws.dial_http_version must be one of auto|1.1|2")
 		}
 	}
 	if mode := strings.ToLower(strings.TrimSpace(c.Gateway.OpenAIWS.StoreDisabledConnMode)); mode != "" {
@@ -3364,6 +4085,67 @@ func (c *Config) Validate() error {
 	weightSum := weights.BaseWeightSum()
 	if weightSum <= 0 {
 		return fmt.Errorf("gateway.openai_ws.scheduler_score_weights must not all be zero")
+	}
+	if c.Gateway.OpenAI.Streaming.ConnectQuickFailMS < 0 {
+		return fmt.Errorf("gateway.openai.streaming.connect_quick_fail_ms must be non-negative")
+	}
+	if c.Gateway.OpenAI.Streaming.HeaderQuickFailMS < 0 {
+		return fmt.Errorf("gateway.openai.streaming.header_quick_fail_ms must be non-negative")
+	}
+	if c.Gateway.OpenAI.Streaming.StreamIdleTimeoutMS < 0 {
+		return fmt.Errorf("gateway.openai.streaming.stream_idle_timeout_ms must be non-negative")
+	}
+	if c.Gateway.OpenAI.Streaming.LargeBodyThresholdBytes < 0 {
+		return fmt.Errorf("gateway.openai.streaming.large_body_threshold_bytes must be non-negative")
+	}
+	if c.Gateway.OpenAI.Streaming.XLargeBodyThresholdBytes < 0 {
+		return fmt.Errorf("gateway.openai.streaming.xlarge_body_threshold_bytes must be non-negative")
+	}
+	if c.Gateway.OpenAI.Streaming.HugeBodyThresholdBytes < 0 {
+		return fmt.Errorf("gateway.openai.streaming.huge_body_threshold_bytes must be non-negative")
+	}
+	if c.Gateway.OpenAI.Streaming.LargeBodyThresholdBytes > 0 &&
+		c.Gateway.OpenAI.Streaming.XLargeBodyThresholdBytes > 0 &&
+		c.Gateway.OpenAI.Streaming.XLargeBodyThresholdBytes < c.Gateway.OpenAI.Streaming.LargeBodyThresholdBytes {
+		return fmt.Errorf("gateway.openai.streaming.xlarge_body_threshold_bytes must be >= large_body_threshold_bytes")
+	}
+	if c.Gateway.OpenAI.Streaming.XLargeBodyThresholdBytes > 0 &&
+		c.Gateway.OpenAI.Streaming.HugeBodyThresholdBytes > 0 &&
+		c.Gateway.OpenAI.Streaming.HugeBodyThresholdBytes < c.Gateway.OpenAI.Streaming.XLargeBodyThresholdBytes {
+		return fmt.Errorf("gateway.openai.streaming.huge_body_threshold_bytes must be >= xlarge_body_threshold_bytes")
+	}
+	if c.Gateway.OpenAI.Streaming.HTTPStreamFlushBatchSize <= 0 {
+		return fmt.Errorf("gateway.openai.streaming.http_stream_flush_batch_size must be positive")
+	}
+	if c.Gateway.OpenAI.Streaming.HTTPStreamFlushIntervalMS < 0 {
+		return fmt.Errorf("gateway.openai.streaming.http_stream_flush_interval_ms must be non-negative")
+	}
+	if c.Gateway.OpenAI.ProxyCircuitBreaker.FailureThreshold <= 0 {
+		return fmt.Errorf("gateway.openai.proxy_circuit_breaker.failure_threshold must be positive")
+	}
+	if c.Gateway.OpenAI.ProxyCircuitBreaker.CooldownMS < 0 {
+		return fmt.Errorf("gateway.openai.proxy_circuit_breaker.cooldown_ms must be non-negative")
+	}
+	if c.Gateway.OpenAI.AccountCircuitBreaker.CooldownMS < 0 {
+		return fmt.Errorf("gateway.openai.account_circuit_breaker.cooldown_ms must be non-negative")
+	}
+	if c.Gateway.OpenAI.HealthPrefetch.TopN < 0 {
+		return fmt.Errorf("gateway.openai.health_prefetch.top_n must be non-negative")
+	}
+	if c.Gateway.OpenAI.HealthPrefetch.TopN > 10 {
+		return fmt.Errorf("gateway.openai.health_prefetch.top_n must be <= 10")
+	}
+	if c.Gateway.OpenAI.HealthPrefetch.WorkerCount < 0 {
+		return fmt.Errorf("gateway.openai.health_prefetch.worker_count must be non-negative")
+	}
+	if c.Gateway.OpenAI.HealthPrefetch.QueueSize < 0 {
+		return fmt.Errorf("gateway.openai.health_prefetch.queue_size must be non-negative")
+	}
+	if c.Gateway.OpenAI.HealthPrefetch.CooldownSeconds < 0 {
+		return fmt.Errorf("gateway.openai.health_prefetch.cooldown_seconds must be non-negative")
+	}
+	if c.Gateway.OpenAI.HealthPrefetch.TimeoutMS < 0 {
+		return fmt.Errorf("gateway.openai.health_prefetch.timeout_ms must be non-negative")
 	}
 	if math.IsNaN(weightSum) || math.IsInf(weightSum, 0) {
 		return fmt.Errorf("gateway.openai_ws.scheduler_score_weights base-weight sum must be finite")
@@ -3459,6 +4241,22 @@ func (c *Config) Validate() error {
 	if c.Gateway.Scheduling.FallbackMaxWaiting <= 0 {
 		return fmt.Errorf("gateway.scheduling.fallback_max_waiting must be positive")
 	}
+	if c.Gateway.Scheduling.LBTopK <= 0 {
+		return fmt.Errorf("gateway.scheduling.lb_top_k must be positive")
+	}
+	if c.Gateway.Scheduling.RuntimeStatsAlpha <= 0 || c.Gateway.Scheduling.RuntimeStatsAlpha > 1 {
+		return fmt.Errorf("gateway.scheduling.runtime_stats_alpha must be within (0,1]")
+	}
+	if c.Gateway.Scheduling.RuntimeSyncBatchMS < 0 {
+		return fmt.Errorf("gateway.scheduling.runtime_sync_batch_ms must be non-negative")
+	}
+	schedulingWeights := c.Gateway.Scheduling.SchedulerScoreWeights
+	if schedulingWeights.Priority < 0 || schedulingWeights.Load < 0 || schedulingWeights.Queue < 0 || schedulingWeights.ErrorRate < 0 || schedulingWeights.TTFT < 0 {
+		return fmt.Errorf("gateway.scheduling.scheduler_score_weights.* must be non-negative")
+	}
+	if schedulingWeights.Priority == 0 && schedulingWeights.Load == 0 && schedulingWeights.Queue == 0 && schedulingWeights.ErrorRate == 0 && schedulingWeights.TTFT == 0 {
+		return fmt.Errorf("gateway.scheduling.scheduler_score_weights must not all be zero")
+	}
 	if c.Gateway.Scheduling.LoadBatchCacheTTLMS < 0 {
 		return fmt.Errorf("gateway.scheduling.load_batch_cache_ttl_ms must be non-negative")
 	}
@@ -3518,6 +4316,27 @@ func (c *Config) Validate() error {
 	if c.Concurrency.PingInterval < 5 || c.Concurrency.PingInterval > 30 {
 		return fmt.Errorf("concurrency.ping_interval must be between 5-30 seconds")
 	}
+	if c.AccountImport.WorkerCount <= 0 {
+		return fmt.Errorf("account_import.worker_count must be positive")
+	}
+	if c.AccountImport.ChunkSize <= 0 {
+		return fmt.Errorf("account_import.chunk_size must be positive")
+	}
+	if c.AccountImport.QueueTTL <= 0 {
+		return fmt.Errorf("account_import.queue_ttl must be positive")
+	}
+	if c.AccountImport.MaxFastPathRows <= 0 {
+		return fmt.Errorf("account_import.max_fast_path_rows must be positive")
+	}
+	if c.AccountImport.ClaimTTL <= 0 {
+		return fmt.Errorf("account_import.claim_ttl must be positive")
+	}
+	if c.AccountImport.RecoveryInterval <= 0 {
+		return fmt.Errorf("account_import.recovery_interval must be positive")
+	}
+	if c.AccountImport.MaxChunkAttempts <= 0 {
+		return fmt.Errorf("account_import.max_chunk_attempts must be positive")
+	}
 	if err := ValidateDingTalkConfig(c.DingTalk); err != nil {
 		return fmt.Errorf("dingtalk_connect: %w", err)
 	}
@@ -3537,6 +4356,97 @@ func normalizeStringSlice(values []string) []string {
 		normalized = append(normalized, trimmed)
 	}
 	return normalized
+}
+
+func normalizePositiveInt64Slice(values []int64) []int64 {
+	if len(values) == 0 {
+		return values
+	}
+	normalized := make([]int64, 0, len(values))
+	for _, value := range values {
+		if value > 0 {
+			normalized = append(normalized, value)
+		}
+	}
+	return normalized
+}
+
+func parseEnvStringList(key string) []string {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return nil
+	}
+	values := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == ';' || r == '\n' || r == '\t'
+	})
+	return normalizeStringSlice(values)
+}
+
+func parseEnvInt64List(key string) []int64 {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return nil
+	}
+	parts := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == ';' || r == '\n' || r == '\t'
+	})
+	values := make([]int64, 0, len(parts))
+	for _, part := range parts {
+		value, err := strconv.ParseInt(strings.TrimSpace(part), 10, 64)
+		if err == nil && value > 0 {
+			values = append(values, value)
+		}
+	}
+	return values
+}
+
+func parseEnvInt(key string) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return 0
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0
+	}
+	return value
+}
+
+func firstNonEmptyStringSlice(primary, fallback []string) []string {
+	if len(primary) > 0 {
+		return primary
+	}
+	return fallback
+}
+
+func firstNonEmptyWorkspaceConfigString(primary, fallback string) string {
+	if strings.TrimSpace(primary) != "" {
+		return primary
+	}
+	return fallback
+}
+
+func firstNonEmptyInt64Slice(primary, fallback []int64) []int64 {
+	if len(primary) > 0 {
+		return primary
+	}
+	return fallback
+}
+
+func firstNonZeroConfigInt(primary, fallback int) int {
+	if primary != 0 {
+		return primary
+	}
+	return fallback
+}
+
+func firstNonEmptyConfigValue(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func isWeakJWTSecret(secret string) bool {
@@ -3595,6 +4505,15 @@ func GetServerAddress() string {
 
 // ValidateAbsoluteHTTPURL 验证是否为有效的绝对 HTTP(S) URL
 func ValidateAbsoluteHTTPURL(raw string) error {
+	return validateAbsoluteHTTPURL(raw, false)
+}
+
+// ValidateAbsoluteHTTPSURL 验证是否为有效的绝对 HTTPS URL
+func ValidateAbsoluteHTTPSURL(raw string) error {
+	return validateAbsoluteHTTPURL(raw, true)
+}
+
+func validateAbsoluteHTTPURL(raw string, httpsOnly bool) error {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return fmt.Errorf("empty url")
@@ -3606,7 +4525,11 @@ func ValidateAbsoluteHTTPURL(raw string) error {
 	if !u.IsAbs() {
 		return fmt.Errorf("must be absolute")
 	}
-	if !isHTTPScheme(u.Scheme) {
+	if httpsOnly {
+		if !strings.EqualFold(u.Scheme, "https") {
+			return fmt.Errorf("unsupported scheme: %s", u.Scheme)
+		}
+	} else if !isHTTPScheme(u.Scheme) {
 		return fmt.Errorf("unsupported scheme: %s", u.Scheme)
 	}
 	if strings.TrimSpace(u.Host) == "" {

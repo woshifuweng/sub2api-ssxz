@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +33,14 @@ func TestAccountTestService_OpenAIImageOAuthHandlesOutputItemDoneFallback(t *tes
 			)),
 		},
 	}
-	svc := &AccountTestService{httpUpstream: upstream}
+	gatewaySvc := &OpenAIGatewayService{
+		httpUpstream: upstream,
+		cfg:          &config.Config{},
+	}
+	svc := &AccountTestService{
+		httpUpstream:         upstream,
+		openAIGatewayService: gatewaySvc,
+	}
 	account := &Account{
 		ID:       53,
 		Name:     "openai-oauth",
@@ -43,7 +51,7 @@ func TestAccountTestService_OpenAIImageOAuthHandlesOutputItemDoneFallback(t *tes
 		},
 	}
 
-	err := svc.testOpenAIImageOAuth(c, context.Background(), account, "gpt-image-2", "draw a cat")
+	err := svc.testOpenAIImageConnection(gatewayctx.FromGin(c), context.Background(), account, "gpt-image-2", "draw a cat")
 	require.NoError(t, err)
 	require.NotNil(t, upstream.lastReq)
 	require.Equal(t, HTTPUpstreamProfileOpenAI, HTTPUpstreamProfileFromContext(upstream.lastReq.Context()))
@@ -67,9 +75,14 @@ func TestAccountTestService_OpenAIImageAPIKeyUsesConfiguredV1BaseURL(t *testing.
 			Body: io.NopCloser(strings.NewReader(`{"data":[{"b64_json":"aGVsbG8=","revised_prompt":"draw a cat"}]}`)),
 		},
 	}
-	svc := &AccountTestService{
+	gatewaySvc := &OpenAIGatewayService{
 		httpUpstream: upstream,
 		cfg:          &config.Config{},
+	}
+	svc := &AccountTestService{
+		httpUpstream:         upstream,
+		cfg:                  &config.Config{},
+		openAIGatewayService: gatewaySvc,
 	}
 	account := &Account{
 		ID:       54,
@@ -82,7 +95,7 @@ func TestAccountTestService_OpenAIImageAPIKeyUsesConfiguredV1BaseURL(t *testing.
 		},
 	}
 
-	err := svc.testOpenAIImageAPIKey(c, context.Background(), account, "gpt-image-2", "draw a cat")
+	err := svc.testOpenAIImageConnection(gatewayctx.FromGin(c), context.Background(), account, "gpt-image-2", "draw a cat")
 	require.NoError(t, err)
 	require.NotNil(t, upstream.lastReq)
 	require.Equal(t, HTTPUpstreamProfileOpenAI, HTTPUpstreamProfileFromContext(upstream.lastReq.Context()))

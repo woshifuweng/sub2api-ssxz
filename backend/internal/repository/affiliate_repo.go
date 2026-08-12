@@ -780,19 +780,23 @@ ON CONFLICT (user_id) DO NOTHING`, userID, code)
 
 func queryAffiliateByUserID(ctx context.Context, client affiliateQueryExecer, userID int64) (*service.AffiliateSummary, error) {
 	rows, err := client.QueryContext(ctx, `
-SELECT user_id,
-       aff_code,
-       aff_code_custom,
-       aff_rebate_rate_percent,
-       inviter_id,
-       aff_count,
-       aff_quota::double precision,
-       aff_frozen_quota::double precision,
-       aff_history_quota::double precision,
-       created_at,
-       updated_at
-FROM user_affiliates
-WHERE user_id = $1`, userID)
+SELECT ua.user_id,
+       ua.aff_code,
+       ua.aff_code_custom,
+       ua.aff_rebate_rate_percent,
+       ua.inviter_id,
+       ua.aff_count,
+       ua.aff_quota::double precision,
+       ua.aff_frozen_quota::double precision,
+       ua.aff_history_quota::double precision,
+       ua.created_at,
+       ua.updated_at,
+       (rr.user_id IS NOT NULL),
+       COALESCE(rr.status, ''),
+       rr.revoked_at
+FROM user_affiliates ua
+LEFT JOIN user_reseller_roles rr ON rr.user_id = ua.user_id
+WHERE ua.user_id = $1`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -807,6 +811,7 @@ WHERE user_id = $1`, userID)
 	var out service.AffiliateSummary
 	var inviterID sql.NullInt64
 	var rebateRate sql.NullFloat64
+	var resellerRevokedAt sql.NullTime
 	if err := rows.Scan(
 		&out.UserID,
 		&out.AffCode,
@@ -819,6 +824,9 @@ WHERE user_id = $1`, userID)
 		&out.AffHistoryQuota,
 		&out.CreatedAt,
 		&out.UpdatedAt,
+		&out.HasResellerRole,
+		&out.ResellerStatus,
+		&resellerRevokedAt,
 	); err != nil {
 		return nil, err
 	}
@@ -829,24 +837,31 @@ WHERE user_id = $1`, userID)
 		v := rebateRate.Float64
 		out.AffRebateRatePercent = &v
 	}
+	if resellerRevokedAt.Valid {
+		out.ResellerRevokedAt = &resellerRevokedAt.Time
+	}
 	return &out, nil
 }
 
 func queryAffiliateByCode(ctx context.Context, client affiliateQueryExecer, code string) (*service.AffiliateSummary, error) {
 	rows, err := client.QueryContext(ctx, `
-SELECT user_id,
-       aff_code,
-       aff_code_custom,
-       aff_rebate_rate_percent,
-       inviter_id,
-       aff_count,
-       aff_quota::double precision,
-       aff_frozen_quota::double precision,
-       aff_history_quota::double precision,
-       created_at,
-       updated_at
-FROM user_affiliates
-WHERE aff_code = $1
+SELECT ua.user_id,
+       ua.aff_code,
+       ua.aff_code_custom,
+       ua.aff_rebate_rate_percent,
+       ua.inviter_id,
+       ua.aff_count,
+       ua.aff_quota::double precision,
+       ua.aff_frozen_quota::double precision,
+       ua.aff_history_quota::double precision,
+       ua.created_at,
+       ua.updated_at,
+       (rr.user_id IS NOT NULL),
+       COALESCE(rr.status, ''),
+       rr.revoked_at
+FROM user_affiliates ua
+LEFT JOIN user_reseller_roles rr ON rr.user_id = ua.user_id
+WHERE ua.aff_code = $1
 LIMIT 1`, strings.ToUpper(strings.TrimSpace(code)))
 	if err != nil {
 		return nil, err
@@ -863,6 +878,7 @@ LIMIT 1`, strings.ToUpper(strings.TrimSpace(code)))
 	var out service.AffiliateSummary
 	var inviterID sql.NullInt64
 	var rebateRate sql.NullFloat64
+	var resellerRevokedAt sql.NullTime
 	if err := rows.Scan(
 		&out.UserID,
 		&out.AffCode,
@@ -875,6 +891,9 @@ LIMIT 1`, strings.ToUpper(strings.TrimSpace(code)))
 		&out.AffHistoryQuota,
 		&out.CreatedAt,
 		&out.UpdatedAt,
+		&out.HasResellerRole,
+		&out.ResellerStatus,
+		&resellerRevokedAt,
 	); err != nil {
 		return nil, err
 	}
@@ -884,6 +903,9 @@ LIMIT 1`, strings.ToUpper(strings.TrimSpace(code)))
 	if rebateRate.Valid {
 		v := rebateRate.Float64
 		out.AffRebateRatePercent = &v
+	}
+	if resellerRevokedAt.Valid {
+		out.ResellerRevokedAt = &resellerRevokedAt.Time
 	}
 	return &out, nil
 }
@@ -1138,17 +1160,26 @@ func (r *affiliateRepository) ListUsersWithCustomSettings(ctx context.Context, f
 		pageSize = 20
 	}
 	offset := (page - 1) * pageSize
-	likePattern := "%" + strings.TrimSpace(filter.Search) + "%"
+	searchTerm := strings.TrimSpace(filter.Search)
+	likePattern := "%" + searchTerm + "%"
 
-	const baseFrom = `
+	const adminAffiliateWhere = `
+WHERE (
+    ua.aff_code_custom = true
+    OR ua.aff_rebate_rate_percent IS NOT NULL
+    OR ua.aff_count > 0
+    OR ua.aff_quota <> 0
+    OR ua.aff_frozen_quota <> 0
+    OR ua.aff_history_quota <> 0
+)
+  AND (u.email ILIKE $1 OR u.username ILIKE $1 OR CAST(u.id AS TEXT) = $2)`
+
+	const countFrom = `
 FROM user_affiliates ua
-JOIN users u ON u.id = ua.user_id
-WHERE (ua.aff_code_custom = true OR ua.aff_rebate_rate_percent IS NOT NULL)
-  AND (u.email ILIKE $1 OR u.username ILIKE $1)`
+JOIN users u ON u.id = ua.user_id`
 
 	client := clientFromContext(ctx, r.client)
-
-	total, err := scanInt64(ctx, client, "SELECT COUNT(*)"+baseFrom, likePattern)
+	total, err := scanInt64(ctx, client, "SELECT COUNT(*)"+countFrom+adminAffiliateWhere, likePattern, searchTerm)
 	if err != nil {
 		return nil, 0, fmt.Errorf("count affiliate admin entries: %w", err)
 	}
@@ -1160,11 +1191,36 @@ SELECT ua.user_id,
        ua.aff_code,
        ua.aff_code_custom,
        ua.aff_rebate_rate_percent,
-       ua.aff_count` + baseFrom + `
+       ua.aff_count,
+       ua.aff_quota::double precision,
+       ua.aff_frozen_quota::double precision,
+       ua.aff_history_quota::double precision,
+       COALESCE(ls.accrued_rebate_total, 0)::double precision,
+       COALESCE(ls.transferred_rebate_total, 0)::double precision,
+       COALESCE(rs.invitee_recharge_total, 0)::double precision
+FROM user_affiliates ua
+JOIN users u ON u.id = ua.user_id
+LEFT JOIN (
+    SELECT user_id,
+           COALESCE(SUM(CASE WHEN action = 'accrue' THEN amount ELSE 0 END), 0)::double precision AS accrued_rebate_total,
+           COALESCE(SUM(CASE WHEN action = 'transfer' THEN amount ELSE 0 END), 0)::double precision AS transferred_rebate_total
+    FROM user_affiliate_ledger
+    GROUP BY user_id
+) ls ON ls.user_id = ua.user_id
+LEFT JOIN (
+    SELECT invitee.inviter_id AS user_id,
+           COALESCE(SUM(po.amount), 0)::double precision AS invitee_recharge_total
+    FROM user_affiliates invitee
+    JOIN payment_orders po ON po.user_id = invitee.user_id
+    WHERE invitee.inviter_id IS NOT NULL
+      AND po.order_type = 'balance'
+      AND po.status = 'COMPLETED'
+    GROUP BY invitee.inviter_id
+) rs ON rs.user_id = ua.user_id` + adminAffiliateWhere + `
 ORDER BY ua.updated_at DESC
-LIMIT $2 OFFSET $3`
+LIMIT $3 OFFSET $4`
 
-	rows, err := client.QueryContext(ctx, listQuery, likePattern, pageSize, offset)
+	rows, err := client.QueryContext(ctx, listQuery, likePattern, searchTerm, pageSize, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list affiliate admin entries: %w", err)
 	}
@@ -1174,8 +1230,21 @@ LIMIT $2 OFFSET $3`
 	for rows.Next() {
 		var e service.AffiliateAdminEntry
 		var rebate sql.NullFloat64
-		if err := rows.Scan(&e.UserID, &e.Email, &e.Username, &e.AffCode,
-			&e.AffCodeCustom, &rebate, &e.AffCount); err != nil {
+		if err := rows.Scan(
+			&e.UserID,
+			&e.Email,
+			&e.Username,
+			&e.AffCode,
+			&e.AffCodeCustom,
+			&rebate,
+			&e.AffCount,
+			&e.AffQuota,
+			&e.AffFrozenQuota,
+			&e.AffHistoryQuota,
+			&e.AccruedRebateTotal,
+			&e.TransferredRebateTotal,
+			&e.InviteeRechargeTotal,
+		); err != nil {
 			return nil, 0, err
 		}
 		if rebate.Valid {

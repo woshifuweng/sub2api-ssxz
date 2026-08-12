@@ -1,0 +1,377 @@
+package service
+
+import (
+	"net/url"
+	"regexp"
+	"sort"
+	"strings"
+	"time"
+)
+
+const (
+	AccountCredentialMaskedValue               = "[configured]"
+	AccountExtraFetchedModelsKey               = "fetched_models"
+	AccountExtraModelsFetchedAtKey             = "models_fetched_at"
+	AccountExtraModelsRefreshErrorKey          = "models_refresh_error"
+	AccountExtraModelsRefreshIntervalSecKey    = "models_refresh_interval_seconds"
+	AccountExtraModelsSourceKey                = "models_source"
+	AccountExtraModelsDiscoveryProviderTypeKey = "models_discovery_provider_type"
+	AccountExtraModelsDiscoveryProtocolKey     = "models_discovery_protocol"
+	AccountExtraModelsDiscoveryBaseURLHostKey  = "models_discovery_base_url_host"
+	AccountExtraModelsDiscoveryModelCountKey   = "models_discovery_model_count"
+	AccountExtraModelsDiscoveryAuditedAtKey    = "models_discovery_audited_at"
+)
+
+var modelDiscoverySecretPattern = regexp.MustCompile(`(?i)\b(sk-[a-z0-9_-]+|ya29\.[a-z0-9_-]+|ghp_[a-z0-9_]+)\b`)
+
+func IsMaskedCredentialValue(value any) bool {
+	text, ok := value.(string)
+	if !ok {
+		return false
+	}
+	return strings.TrimSpace(text) == AccountCredentialMaskedValue
+}
+
+func MaskSensitiveCredentials(in map[string]any) map[string]any {
+	if in == nil {
+		return nil
+	}
+
+	out := make(map[string]any, len(in))
+	for key, value := range in {
+		if nested, ok := value.(map[string]any); ok {
+			out[key] = MaskSensitiveCredentials(nested)
+			continue
+		}
+		if IsSensitiveCredentialKey(key) && value != nil {
+			out[key] = AccountCredentialMaskedValue
+			continue
+		}
+		out[key] = value
+	}
+	return out
+}
+
+func MergeCredentialUpdatesPreservingSecrets(existing, incoming map[string]any) map[string]any {
+	if existing == nil && incoming == nil {
+		return nil
+	}
+
+	out := cloneJSONMap(existing)
+	if out == nil {
+		out = make(map[string]any, len(incoming))
+	}
+	for key, value := range incoming {
+		if IsSensitiveCredentialKey(key) && IsMaskedCredentialValue(value) {
+			if _, ok := out[key]; ok {
+				continue
+			}
+			delete(out, key)
+			continue
+		}
+		out[key] = value
+	}
+	return out
+}
+
+func StripMaskedSensitiveCredentialUpdates(incoming map[string]any) map[string]any {
+	if len(incoming) == 0 {
+		return nil
+	}
+
+	out := make(map[string]any, len(incoming))
+	for key, value := range incoming {
+		if IsSensitiveCredentialKey(key) && IsMaskedCredentialValue(value) {
+			continue
+		}
+		out[key] = value
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func normalizeAccountExtraModelIDs(raw any) []string {
+	var values []string
+	switch typed := raw.(type) {
+	case []string:
+		values = typed
+	case []any:
+		values = make([]string, 0, len(typed))
+		for _, item := range typed {
+			if text, ok := item.(string); ok {
+				values = append(values, text)
+			}
+		}
+	default:
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, item := range values {
+		id := strings.TrimSpace(item)
+		if id == "" {
+			continue
+		}
+		if strings.HasPrefix(id, "models/") {
+			id = strings.TrimPrefix(id, "models/")
+		}
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func NormalizeFetchedModelIDs(ids []string) []string {
+	items := make([]any, 0, len(ids))
+	for _, id := range ids {
+		items = append(items, id)
+	}
+	return normalizeAccountExtraModelIDs(items)
+}
+
+func (a *Account) GetFetchedModelIDs() []string {
+	if a == nil || a.Extra == nil {
+		return nil
+	}
+	return normalizeAccountExtraModelIDs(a.Extra[AccountExtraFetchedModelsKey])
+}
+
+func (a *Account) GetModelsFetchedAt() *time.Time {
+	if a == nil || a.Extra == nil {
+		return nil
+	}
+	raw, _ := a.Extra[AccountExtraModelsFetchedAtKey].(string)
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	if parsed, err := time.Parse(time.RFC3339Nano, raw); err == nil {
+		return &parsed
+	}
+	if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
+		return &parsed
+	}
+	return nil
+}
+
+func (a *Account) GetModelsRefreshError() string {
+	if a == nil || a.Extra == nil {
+		return ""
+	}
+	text, _ := a.Extra[AccountExtraModelsRefreshErrorKey].(string)
+	return strings.TrimSpace(text)
+}
+
+func (a *Account) GetModelsRefreshIntervalSeconds() int {
+	if a == nil || a.Extra == nil {
+		return 0
+	}
+	return a.getExtraInt(AccountExtraModelsRefreshIntervalSecKey)
+}
+
+func (a *Account) ShouldRefreshFetchedModels(now time.Time) bool {
+	if a == nil {
+		return false
+	}
+	interval := a.GetModelsRefreshIntervalSeconds()
+	if interval <= 0 {
+		return false
+	}
+	lastFetchedAt := a.GetModelsFetchedAt()
+	if lastFetchedAt == nil {
+		return true
+	}
+	return !now.Before(lastFetchedAt.Add(time.Duration(interval) * time.Second))
+}
+
+func BuildFetchedModelsExtraUpdates(modelIDs []string, fetchedAt time.Time, source string) map[string]any {
+	return map[string]any{
+		AccountExtraFetchedModelsKey:      NormalizeFetchedModelIDs(modelIDs),
+		AccountExtraModelsFetchedAtKey:    fetchedAt.UTC().Format(time.RFC3339Nano),
+		AccountExtraModelsRefreshErrorKey: "",
+		AccountExtraModelsSourceKey:       strings.TrimSpace(source),
+	}
+}
+
+type AccountModelDiscoveryAudit struct {
+	AccountID            int64     `json:"account_id"`
+	ProviderType         string    `json:"provider_type"`
+	Protocol             string    `json:"protocol"`
+	BaseURLHost          string    `json:"base_url_host,omitempty"`
+	ModelsSource         string    `json:"models_source,omitempty"`
+	ModelsReturnedCount  int       `json:"models_returned_count"`
+	ServerSideKeyPresent bool      `json:"server_side_key_present"`
+	AuditedAt            time.Time `json:"audited_at"`
+	RefreshError         string    `json:"refresh_error,omitempty"`
+}
+
+func BuildAccountModelDiscoveryAudit(account *Account, modelIDs []string, source string, auditedAt time.Time, refreshError string) AccountModelDiscoveryAudit {
+	if auditedAt.IsZero() {
+		auditedAt = time.Now().UTC()
+	}
+	if account == nil {
+		return AccountModelDiscoveryAudit{
+			ProviderType:        "unknown",
+			Protocol:            "unknown",
+			ModelsSource:        strings.TrimSpace(source),
+			ModelsReturnedCount: len(NormalizeFetchedModelIDs(modelIDs)),
+			AuditedAt:           auditedAt.UTC(),
+			RefreshError:        sanitizeModelsDiscoveryError(refreshError),
+		}
+	}
+
+	providerType, protocol, host := accountModelDiscoveryProfile(account)
+	return AccountModelDiscoveryAudit{
+		AccountID:            account.ID,
+		ProviderType:         providerType,
+		Protocol:             protocol,
+		BaseURLHost:          host,
+		ModelsSource:         strings.TrimSpace(source),
+		ModelsReturnedCount:  len(NormalizeFetchedModelIDs(modelIDs)),
+		ServerSideKeyPresent: accountHasServerSideCredential(account),
+		AuditedAt:            auditedAt.UTC(),
+		RefreshError:         sanitizeModelsDiscoveryError(refreshError),
+	}
+}
+
+func BuildAccountModelDiscoveryExtraUpdates(account *Account, modelIDs []string, auditedAt time.Time, source string, refreshError string) map[string]any {
+	audit := BuildAccountModelDiscoveryAudit(account, modelIDs, source, auditedAt, refreshError)
+	return map[string]any{
+		AccountExtraModelsDiscoveryProviderTypeKey: audit.ProviderType,
+		AccountExtraModelsDiscoveryProtocolKey:     audit.Protocol,
+		AccountExtraModelsDiscoveryBaseURLHostKey:  audit.BaseURLHost,
+		AccountExtraModelsDiscoveryModelCountKey:   audit.ModelsReturnedCount,
+		AccountExtraModelsDiscoveryAuditedAtKey:    audit.AuditedAt.Format(time.RFC3339Nano),
+	}
+}
+
+func accountModelDiscoveryProfile(account *Account) (providerType, protocol, baseURLHost string) {
+	if account == nil {
+		return "unknown", "unknown", ""
+	}
+
+	switch {
+	case account.IsOpenAI():
+		host := hostFromURL(account.GetOpenAIBaseURL())
+		return providerTypeFromOpenAIHost(host), "openai_v1_models", host
+	case account.IsGemini():
+		host := hostFromURL(account.GetGeminiBaseURL(""))
+		return "gemini", "gemini_v1beta_models", host
+	case account.IsAnthropic() && !account.IsBedrock():
+		host := hostFromURL(account.GetBaseURL())
+		return "anthropic", "anthropic_v1_models", host
+	default:
+		provider := strings.ToLower(strings.TrimSpace(account.Platform))
+		if provider == "" {
+			provider = "unknown"
+		}
+		return provider, "unsupported", ""
+	}
+}
+
+func providerTypeFromOpenAIHost(host string) string {
+	host = strings.ToLower(strings.TrimSpace(host))
+	switch host {
+	case "api.deepseek.com":
+		return "deepseek"
+	case "api.openai.com":
+		return "openai"
+	case "":
+		return "openai_compatible"
+	default:
+		return "openai_compatible"
+	}
+}
+
+func hostFromURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed == nil {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(parsed.Hostname()))
+}
+
+func accountHasServerSideCredential(account *Account) bool {
+	if account == nil || account.Credentials == nil {
+		return false
+	}
+	for key, value := range account.Credentials {
+		if !IsSensitiveCredentialKey(key) {
+			continue
+		}
+		text, ok := value.(string)
+		if !ok {
+			return true
+		}
+		text = strings.TrimSpace(text)
+		if text != "" && text != AccountCredentialMaskedValue {
+			return true
+		}
+	}
+	return false
+}
+
+func sanitizeModelsDiscoveryError(message string) string {
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return ""
+	}
+	replacements := []string{
+		"Authorization", "[redacted-header]",
+		"authorization", "[redacted-header]",
+		"Bearer", "[redacted-bearer]",
+		"api_key", "[redacted-key]",
+		"access_token", "[redacted-token]",
+		"refresh_token", "[redacted-token]",
+		"cookie", "[redacted-cookie]",
+		"Cookie", "[redacted-cookie]",
+	}
+	replacer := strings.NewReplacer(replacements...)
+	message = replacer.Replace(message)
+	message = modelDiscoverySecretPattern.ReplaceAllString(message, "[redacted-secret]")
+	return strings.TrimSpace(message)
+}
+
+func truncateModelsRefreshError(err error) string {
+	if err == nil {
+		return ""
+	}
+	const maxLen = 512
+	message := sanitizeModelsDiscoveryError(err.Error())
+	if len(message) > maxLen {
+		return message[:maxLen]
+	}
+	return message
+}
+
+func (a *Account) OpenAIPlanType() string {
+	if a == nil || !a.IsOpenAI() {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(a.GetCredential("plan_type")))
+}
+
+func cloneJSONMap(in map[string]any) map[string]any {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]any, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}

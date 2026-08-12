@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"log"
 	"strings"
 	"time"
 )
@@ -75,6 +76,8 @@ func (r *ClaudeTokenRefresher) Refresh(ctx context.Context, account *Account) (m
 type OpenAITokenRefresher struct {
 	openaiOAuthService *OpenAIOAuthService
 	accountRepo        AccountRepository
+	soraAccountRepo    SoraAccountRepository
+	syncLinkedSora     bool
 }
 
 // NewOpenAITokenRefresher 创建 OpenAI token刷新器
@@ -88,6 +91,16 @@ func NewOpenAITokenRefresher(openaiOAuthService *OpenAIOAuthService, accountRepo
 // CacheKey 返回用于分布式锁的缓存键
 func (r *OpenAITokenRefresher) CacheKey(account *Account) string {
 	return OpenAITokenCacheKey(account)
+}
+
+// SetSoraAccountRepo configures the Sora extension repository used during linked token sync.
+func (r *OpenAITokenRefresher) SetSoraAccountRepo(repo SoraAccountRepository) {
+	r.soraAccountRepo = repo
+}
+
+// SetSyncLinkedSoraAccounts controls whether linked Sora account tokens are synchronized.
+func (r *OpenAITokenRefresher) SetSyncLinkedSoraAccounts(enabled bool) {
+	r.syncLinkedSora = enabled
 }
 
 // CanRefresh 检查是否能处理此账号
@@ -128,5 +141,46 @@ func (r *OpenAITokenRefresher) Refresh(ctx context.Context, account *Account) (m
 	newCredentials = MergeCredentials(account.Credentials, newCredentials)
 	newCredentials = NormalizeOpenAIPersonalAccessTokenCredentials(account, tokenInfo, newCredentials)
 
+	if r.accountRepo != nil && r.syncLinkedSora {
+		go r.syncLinkedSoraAccounts(context.Background(), account.ID, newCredentials)
+	}
+
 	return newCredentials, nil
+}
+
+func (r *OpenAITokenRefresher) syncLinkedSoraAccounts(ctx context.Context, openaiAccountID int64, newCredentials map[string]any) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	soraAccounts, err := r.accountRepo.FindByExtraField(ctx, "linked_openai_account_id", openaiAccountID)
+	if err != nil {
+		log.Printf("[TokenSync] failed to find linked Sora accounts: openai_account_id=%d err=%v", openaiAccountID, err)
+		return
+	}
+
+	for _, soraAccount := range soraAccounts {
+		if soraAccount.Credentials == nil {
+			soraAccount.Credentials = make(map[string]any)
+		}
+		soraAccount.Credentials["access_token"] = newCredentials["access_token"]
+		soraAccount.Credentials["refresh_token"] = newCredentials["refresh_token"]
+		if expiresAt, ok := newCredentials["expires_at"]; ok {
+			soraAccount.Credentials["expires_at"] = expiresAt
+		}
+
+		if err := r.accountRepo.Update(ctx, &soraAccount); err != nil {
+			log.Printf("[TokenSync] failed to update linked Sora account: sora_account_id=%d openai_account_id=%d err=%v", soraAccount.ID, openaiAccountID, err)
+			continue
+		}
+
+		if r.soraAccountRepo != nil {
+			updates := map[string]any{
+				"access_token":  newCredentials["access_token"],
+				"refresh_token": newCredentials["refresh_token"],
+			}
+			if err := r.soraAccountRepo.Upsert(ctx, soraAccount.ID, updates); err != nil {
+				log.Printf("[TokenSync] failed to update sora_accounts: account_id=%d openai_account_id=%d err=%v", soraAccount.ID, openaiAccountID, err)
+			}
+		}
+	}
 }

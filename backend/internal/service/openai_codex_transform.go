@@ -1070,6 +1070,44 @@ func normalizeOpenAIModelForUpstream(account *Account, model string) string {
 	return strings.TrimSpace(model)
 }
 
+func firstNonEmptyString(values ...any) string {
+	for _, value := range values {
+		if s, ok := value.(string); ok && strings.TrimSpace(s) != "" {
+			return s
+		}
+	}
+	return ""
+}
+
+func isOpenAIImageGenerationModel(model string) bool {
+	return IsGPTImageGenerationModel(model) || isGrokImageGenerationModel(model)
+}
+
+func splitOpenAIModelReasoningVariant(model string) (baseModel string, reasoningEffort string, stripped bool) {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return "", "", false
+	}
+
+	for i := len(model) - 1; i >= 0; i-- {
+		switch model[i] {
+		case '-', '_', ' ':
+			suffix := strings.TrimSpace(model[i+1:])
+			effort := normalizeOpenAIReasoningEffort(suffix)
+			if suffix != "" && (effort != "" || strings.EqualFold(suffix, "none") || strings.EqualFold(suffix, "minimal")) {
+				base := strings.TrimSpace(model[:i])
+				if base == "" {
+					return model, effort, false
+				}
+				return base, effort, true
+			}
+			return model, "", false
+		}
+	}
+
+	return model, "", false
+}
+
 func SupportsVerbosity(model string) bool {
 	if !strings.HasPrefix(model, "gpt-") {
 		return true

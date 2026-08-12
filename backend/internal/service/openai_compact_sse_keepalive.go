@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/server/gatewayctx"
 	"github.com/gin-gonic/gin"
 )
 
@@ -179,6 +180,19 @@ func OpenAICompactKeepaliveAdjustedWrittenSize(c *gin.Context) int {
 		return real
 	}
 	return -1
+}
+
+// OpenAICompactKeepaliveAdjustedWrittenSizeContext is the transport-neutral
+// counterpart used by GatewayContext handlers. Gin transports preserve the
+// heartbeat-aware accounting; other transports fall back to their response size.
+func OpenAICompactKeepaliveAdjustedWrittenSizeContext(c gatewayctx.GatewayContext) int {
+	if c == nil {
+		return -1
+	}
+	if native, ok := c.Native().(*gin.Context); ok {
+		return OpenAICompactKeepaliveAdjustedWrittenSize(native)
+	}
+	return c.ResponseSize()
 }
 
 // openAICompactKeepaliveWriter 包装 gin.ResponseWriter：写侧方法先停拍心跳

@@ -97,7 +97,7 @@ func (r *tokenRefreshAccountRepo) GetByID(ctx context.Context, id int64) (*Accou
 	if err != nil || !r.snapshotReads {
 		return account, err
 	}
-	return snapshotOAuthRefreshAccount(account), nil
+	return cloneOAuthRefreshAccount(account), nil
 }
 
 func (r *tokenRefreshAccountRepo) SetError(ctx context.Context, id int64, errorMsg string) error {
@@ -333,7 +333,7 @@ func (b *tokenRefreshRuntimeBlocker) ClearAccountSchedulingBlock(int64) {
 func (s *tokenCacheInvalidatorStub) InvalidateToken(ctx context.Context, account *Account) error {
 	s.calls++
 	s.ctxErr = ctx.Err()
-	s.lastAccount = snapshotOAuthRefreshAccount(account)
+	s.lastAccount = cloneOAuthRefreshAccount(account)
 	return s.err
 }
 
@@ -347,7 +347,7 @@ type tokenRefreshSchedulerCache struct {
 func (s *tokenRefreshSchedulerCache) SetAccount(ctx context.Context, account *Account) error {
 	s.setAccountCalls++
 	s.ctxErr = ctx.Err()
-	s.lastAccount = snapshotOAuthRefreshAccount(account)
+	s.lastAccount = cloneOAuthRefreshAccount(account)
 	return nil
 }
 
