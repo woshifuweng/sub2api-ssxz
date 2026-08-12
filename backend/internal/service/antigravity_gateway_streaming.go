@@ -23,6 +23,28 @@ type antigravityStreamResult struct {
 	clientDisconnect bool // 客户端是否在流式传输过程中断开
 }
 
+// observeAntigravityGeminiSSELine records the upstream model when a Gemini
+// compatible stream is forwarded through the standard Gin path.
+func (s *AntigravityGatewayService) observeAntigravityGeminiSSELine(c *gin.Context, line string) {
+	observer := upstreamResponseModelObserverFromContext(c)
+	if observer == nil {
+		observer = beginUpstreamResponseModelObservation(c)
+	}
+	trimmed := strings.TrimSpace(line)
+	if !strings.HasPrefix(trimmed, "data:") {
+		return
+	}
+	payload := strings.TrimSpace(strings.TrimPrefix(trimmed, "data:"))
+	if payload == "" || payload == "[DONE]" {
+		return
+	}
+	raw := []byte(payload)
+	if inner, err := s.unwrapV1InternalResponse(raw); err == nil && len(inner) > 0 {
+		raw = inner
+	}
+	observer.ObserveGemini(raw)
+}
+
 type antigravityGatewayWriter struct {
 	ctx          gatewayctx.GatewayContext
 	disconnected bool
@@ -823,7 +845,10 @@ func (s *AntigravityGatewayService) writeGoogleError(c *gin.Context, status int,
 
 // collectClaudeStreamResponse 收集上游流式响应，转换为 Claude 非流式格式返回
 // 用于处理客户端非流式请求但上游只支持流式的情况
-func (s *AntigravityGatewayService) collectClaudeStreamResponse(resp *http.Response, startTime time.Time, originalModel string) ([]byte, *antigravityStreamResult, error) {
+func (s *AntigravityGatewayService) collectClaudeStreamResponse(c *gin.Context, resp *http.Response, startTime time.Time, originalModel string) ([]byte, *antigravityStreamResult, error) {
+	if upstreamResponseModelObserverFromContext(c) == nil {
+		beginUpstreamResponseModelObservation(c)
+	}
 	scanner := bufio.NewScanner(resp.Body)
 	maxLineSize := defaultMaxLineSize
 	if s.settingService.cfg != nil && s.settingService.cfg.Gateway.MaxLineSize > 0 {
@@ -918,6 +943,7 @@ func (s *AntigravityGatewayService) collectClaudeStreamResponse(resp *http.Respo
 			if parseErr != nil {
 				continue
 			}
+			upstreamResponseModelObserverFromContext(c).ObserveGemini(inner)
 
 			var parsed map[string]any
 			if err := json.Unmarshal(inner, &parsed); err != nil {
@@ -999,7 +1025,7 @@ returnResponse:
 // handleClaudeStreamToNonStreaming 收集上游流式响应，转换为 Claude 非流式格式返回
 // 用于处理客户端非流式请求但上游只支持流式的情况
 func (s *AntigravityGatewayService) handleClaudeStreamToNonStreaming(c *gin.Context, resp *http.Response, startTime time.Time, originalModel string) (*antigravityStreamResult, error) {
-	claudeResp, streamRes, err := s.collectClaudeStreamResponse(resp, startTime, originalModel)
+	claudeResp, streamRes, err := s.collectClaudeStreamResponse(c, resp, startTime, originalModel)
 	if err != nil {
 		var failoverErr *UpstreamFailoverError
 		if errors.As(err, &failoverErr) {

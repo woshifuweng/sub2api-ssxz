@@ -579,6 +579,10 @@ type AdminUsageLog struct {
 	UpstreamModel *string `json:"upstream_model,omitempty"`
 	// BillingModel is the model whose pricing was applied.
 	BillingModel *string `json:"billing_model,omitempty"`
+	// UpstreamResponseModel is the raw model declared by the upstream response.
+	UpstreamResponseModel *string `json:"upstream_response_model,omitempty"`
+	// UpstreamModelMismatch is nil when the upstream did not declare a model.
+	UpstreamModelMismatch *bool `json:"upstream_model_mismatch,omitempty"`
 
 	// ChannelID 渠道 ID
 	ChannelID *int64 `json:"channel_id,omitempty"`

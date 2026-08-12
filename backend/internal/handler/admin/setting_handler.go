@@ -190,6 +190,7 @@ func (h *SettingHandler) buildSystemSettingsDTO(ctx context.Context, settings *s
 		TencentCaptchaAppSecretKeyConfigured:                   settings.TencentCaptchaAppSecretKeyConfigured,
 		TencentCaptchaCloudSecretIDConfigured:                  settings.TencentCaptchaCloudSecretIDConfigured,
 		TencentCaptchaCloudSecretKeyConfigured:                 settings.TencentCaptchaCloudSecretKeyConfigured,
+		TencentCaptchaRegion:                                   settings.TencentCaptchaRegion,
 		AliyunCaptchaEnabled:                                   settings.AliyunCaptchaEnabled,
 		AliyunCaptchaAccessKeyID:                               settings.AliyunCaptchaAccessKeyID,
 		AliyunCaptchaAccessKeySecretConfigured:                 settings.AliyunCaptchaAccessKeySecretConfigured,

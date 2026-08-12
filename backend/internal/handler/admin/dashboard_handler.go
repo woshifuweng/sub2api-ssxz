@@ -86,6 +86,18 @@ func parseTimeRangeGateway(c gatewayctx.GatewayContext) (time.Time, time.Time) {
 	return startTime, endTime
 }
 
+func parseOptionalBoolDashboardFilterGateway(c gatewayctx.GatewayContext, name string) (*bool, error) {
+	raw := strings.TrimSpace(c.QueryValue(name))
+	if raw == "" {
+		return nil, nil
+	}
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return nil, err
+	}
+	return &value, nil
+}
+
 // GetStats handles getting dashboard statistics
 // GET /api/v1/admin/dashboard/stats
 func (h *DashboardHandler) GetStats(c *gin.Context) {
@@ -296,6 +308,7 @@ func (h *DashboardHandler) GetUsageTrendGateway(c gatewayctx.GatewayContext) {
 	var requestType *int16
 	var stream *bool
 	var billingType *int8
+	var upstreamModelMismatch *bool
 
 	if userIDStr := c.QueryValue("user_id"); userIDStr != "" {
 		if id, err := strconv.ParseInt(userIDStr, 10, 64); err == nil {
@@ -345,8 +358,13 @@ func (h *DashboardHandler) GetUsageTrendGateway(c gatewayctx.GatewayContext) {
 			return
 		}
 	}
+	upstreamModelMismatch, err := parseOptionalBoolDashboardFilterGateway(c, "upstream_model_mismatch")
+	if err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid upstream_model_mismatch value, use true or false")
+		return
+	}
 
-	trend, hit, err := h.getUsageTrendCached(c.Request().Context(), startTime, endTime, granularity, userID, apiKeyID, accountID, groupID, model, requestType, stream, billingType)
+	trend, hit, err := h.getUsageTrendCached(c.Request().Context(), startTime, endTime, granularity, userID, apiKeyID, accountID, groupID, model, requestType, stream, billingType, upstreamModelMismatch)
 	if err != nil {
 		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusInternalServerError, "Failed to get usage trend")
 		return
@@ -377,6 +395,7 @@ func (h *DashboardHandler) GetModelStatsGateway(c gatewayctx.GatewayContext) {
 	var requestType *int16
 	var stream *bool
 	var billingType *int8
+	var upstreamModelMismatch *bool
 
 	if userIDStr := c.QueryValue("user_id"); userIDStr != "" {
 		if id, err := strconv.ParseInt(userIDStr, 10, 64); err == nil {
@@ -430,8 +449,13 @@ func (h *DashboardHandler) GetModelStatsGateway(c gatewayctx.GatewayContext) {
 			return
 		}
 	}
+	upstreamModelMismatch, err := parseOptionalBoolDashboardFilterGateway(c, "upstream_model_mismatch")
+	if err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid upstream_model_mismatch value, use true or false")
+		return
+	}
 
-	stats, hit, err := h.getModelStatsCached(c.Request().Context(), startTime, endTime, userID, apiKeyID, accountID, groupID, modelSource, requestType, stream, billingType)
+	stats, hit, err := h.getModelStatsCached(c.Request().Context(), startTime, endTime, userID, apiKeyID, accountID, groupID, modelSource, requestType, stream, billingType, upstreamModelMismatch)
 	if err != nil {
 		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusInternalServerError, "Failed to get model statistics")
 		return
@@ -459,6 +483,7 @@ func (h *DashboardHandler) GetGroupStatsGateway(c gatewayctx.GatewayContext) {
 	var requestType *int16
 	var stream *bool
 	var billingType *int8
+	var upstreamModelMismatch *bool
 
 	if userIDStr := c.QueryValue("user_id"); userIDStr != "" {
 		if id, err := strconv.ParseInt(userIDStr, 10, 64); err == nil {
@@ -505,8 +530,13 @@ func (h *DashboardHandler) GetGroupStatsGateway(c gatewayctx.GatewayContext) {
 			return
 		}
 	}
+	upstreamModelMismatch, err := parseOptionalBoolDashboardFilterGateway(c, "upstream_model_mismatch")
+	if err != nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusBadRequest, "Invalid upstream_model_mismatch value, use true or false")
+		return
+	}
 
-	stats, hit, err := h.getGroupStatsCached(c.Request().Context(), startTime, endTime, userID, apiKeyID, accountID, groupID, requestType, stream, billingType)
+	stats, hit, err := h.getGroupStatsCached(c.Request().Context(), startTime, endTime, userID, apiKeyID, accountID, groupID, requestType, stream, billingType, upstreamModelMismatch)
 	if err != nil {
 		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusInternalServerError, "Failed to get group statistics")
 		return

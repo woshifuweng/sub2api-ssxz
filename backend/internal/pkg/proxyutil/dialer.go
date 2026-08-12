@@ -17,10 +17,23 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	_ "github.com/bdandy/go-socks4"
 	"golang.org/x/net/proxy"
 )
+
+const (
+	// socks5DialTimeout bounds the TCP connection to a SOCKS proxy itself.
+	socks5DialTimeout = 10 * time.Second
+	// socks5DialKeepAlive retains the standard TCP keepalive cadence.
+	socks5DialKeepAlive = 30 * time.Second
+)
+
+var socks5ForwardDialer = &net.Dialer{
+	Timeout:   socks5DialTimeout,
+	KeepAlive: socks5DialKeepAlive,
+}
 
 type contextDialerFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 
@@ -59,7 +72,7 @@ func ConfigureTransportProxy(transport *http.Transport, proxyURL *url.URL) error
 		return nil
 
 	case "socks4", "socks4a", "socks5", "socks5h":
-		forward := proxy.Dialer(proxy.Direct)
+		forward := proxy.Dialer(socks5ForwardDialer)
 		if transport != nil && transport.DialContext != nil {
 			forward = contextDialerFunc(transport.DialContext)
 		}

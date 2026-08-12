@@ -67,6 +67,7 @@ func (h *SettingHandler) GetPublicSettingsGateway(c gatewayctx.GatewayContext) {
 		TurnstileSiteKey:                 settings.TurnstileSiteKey,
 		TencentCaptchaEnabled:            settings.TencentCaptchaEnabled,
 		TencentCaptchaAppID:              settings.TencentCaptchaAppID,
+		TencentCaptchaRegion:             settings.TencentCaptchaRegion,
 		AliyunCaptchaEnabled:             settings.AliyunCaptchaEnabled,
 		AliyunCaptchaSceneID:             settings.AliyunCaptchaSceneID,
 		AliyunCaptchaPrefix:              settings.AliyunCaptchaPrefix,
