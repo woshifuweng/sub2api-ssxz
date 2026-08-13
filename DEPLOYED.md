@@ -792,3 +792,17 @@ Codex 侧无 Linux/WSL `bash`，只做了等价只读检查。事后由 Git Bash
 
 回滚方式：将 `/opt/sub2api/backups/sub2api-pre-migration194195-20260809-231003` 复制回
 `/opt/sub2api/sub2api`，然后重启 `sub2api`。注意：二进制回滚不会自动撤销已经执行的 194/195 schema 变更；这两条 migration 均为向后兼容的新增列/索引。
+
+## v0.1.176b — VERSION 升位（2026-08-14）
+
+| 项目 | 值 |
+|---|---|
+| 版本 | `0.1.176-ssxz.20260813` |
+| 二进制 | `sub2api_linux_u2merge_176b` |
+| MD5 | `66fa3f286547e93c7902cb5a20e9e249` |
+| 大小 | `127,856,802 bytes` |
+| U2 commit | `cf5f771bb23e92e8ee9a88134440a72f53553ccc` |
+| 变更 | VERSION 升位 `0.1.173` → `0.1.176`，管理后台版本比较口径对齐上游 |
+| 前端入口 | `/assets/index-BZNeSdtl.js`（未变） |
+| 回滚备份 | `/opt/sub2api/backups/sub2api-pre-u2176b-20260813`（MD5 `8a2c17491cbec49e3850197effbad7b9`） |
+| 部署验收 | 版本端点 200；控制路由 401；负控路由 404；CSP 保留 `pay.ldxp.cn`；服务 `active` / `NRestarts=0` / `ExecMainStatus=0` |
