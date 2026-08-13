@@ -259,18 +259,24 @@ func (s *OpenAIOAuthService) enrichTokenInfo(ctx context.Context, tokenInfo *Ope
 			orgID = claims.OpenAIAuth.POID
 		}
 	}
+	forcePersonalSubscriptionLookup := false
 	if info := fetchChatGPTAccountInfo(ctx, s.privacyClientFactory, tokenInfo.AccessToken, proxyURL, orgID); info != nil {
-		if shouldApplyChatGPTAccountInfoPlanType(tokenInfo.PlanType, info.PlanType) {
+		appliedAccountInfoPlanType := shouldApplyChatGPTAccountInfoPlanType(tokenInfo.PlanType, info.PlanType)
+		if appliedAccountInfoPlanType {
 			tokenInfo.PlanType = info.PlanType
 		}
 		if info.SubscriptionExpiresAt != "" {
-			tokenInfo.SubscriptionExpiresAt = info.SubscriptionExpiresAt
+			if appliedAccountInfoPlanType || chatGPTAccountInfoBelongsToTokenAccount(tokenInfo, info) {
+				tokenInfo.SubscriptionExpiresAt = info.SubscriptionExpiresAt
+			} else {
+				forcePersonalSubscriptionLookup = true
+			}
 		}
 		if tokenInfo.Email == "" && info.Email != "" {
 			tokenInfo.Email = info.Email
 		}
 	}
-	if strings.TrimSpace(tokenInfo.SubscriptionExpiresAt) == "" {
+	if forcePersonalSubscriptionLookup || strings.TrimSpace(tokenInfo.SubscriptionExpiresAt) == "" {
 		tokenInfo.SubscriptionExpiresAt = fetchChatGPTSubscriptionExpiresAt(
 			ctx,
 			s.privacyClientFactory,
@@ -284,6 +290,15 @@ func (s *OpenAIOAuthService) enrichTokenInfo(ctx context.Context, tokenInfo *Ope
 
 func shouldApplyChatGPTAccountInfoPlanType(current, candidate string) bool {
 	return strings.TrimSpace(candidate) != "" && strings.TrimSpace(current) == ""
+}
+
+func chatGPTAccountInfoBelongsToTokenAccount(tokenInfo *OpenAITokenInfo, info *ChatGPTAccountInfo) bool {
+	personalID := strings.TrimSpace(tokenInfo.ChatGPTAccountID)
+	sourceID := strings.TrimSpace(info.AccountID)
+	if personalID == "" || sourceID == "" {
+		return true
+	}
+	return strings.EqualFold(personalID, sourceID)
 }
 
 func resolveChatGPTSubscriptionAccountID(tokenInfo *OpenAITokenInfo, orgID string) string {

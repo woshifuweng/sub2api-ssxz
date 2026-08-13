@@ -307,6 +307,10 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 					h.handleFailoverExhaustedContext(c, failoverErr, streamStarted)
 					return
 				}
+				if c.Writer.Size() != writerSizeBeforeForward {
+					h.handleFailoverExhaustedContext(c, failoverErr, true)
+					return
+				}
 				if openAIFirstOutputFailoverExhausted(failoverErr, &firstOutputTimeoutSwitchCount) {
 					h.handleFailoverExhaustedContext(c, failoverErr, streamStarted)
 					return
@@ -321,11 +325,13 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 							zap.Int("upstream_status", failoverErr.StatusCode),
 							zap.Int("retry_limit", retryLimit),
 							zap.Int("retry_count", sameAccountRetryCount[account.ID]),
+							zap.Duration("retry_delay", sameAccountRetryDelayFor(failoverErr, sameAccountRetryCount[account.ID])),
 						)
+						retryDelay := sameAccountRetryDelayFor(failoverErr, sameAccountRetryCount[account.ID])
 						select {
 						case <-c.Context().Done():
 							return
-						case <-time.After(sameAccountRetryDelay):
+						case <-time.After(retryDelay):
 						}
 						continue
 					}

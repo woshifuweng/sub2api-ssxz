@@ -1031,6 +1031,13 @@ const billingModelSourceOptions = computed(() => [
       "Bill by final upstream model",
     ),
   },
+  {
+    value: "response_model",
+    label: t(
+      "admin.channels.form.billingModelSourceResponse",
+      "Bill by upstream response model",
+    ),
+  },
 ]);
 
 // ── State ──
