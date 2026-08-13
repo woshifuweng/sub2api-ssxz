@@ -806,3 +806,17 @@ Codex 侧无 Linux/WSL `bash`，只做了等价只读检查。事后由 Git Bash
 | 前端入口 | `/assets/index-BZNeSdtl.js`（未变） |
 | 回滚备份 | `/opt/sub2api/backups/sub2api-pre-u2176b-20260813`（MD5 `8a2c17491cbec49e3850197effbad7b9`） |
 | 部署验收 | 版本端点 200；控制路由 401；负控路由 404；CSP 保留 `pay.ldxp.cn`；服务 `active` / `NRestarts=0` / `ExecMainStatus=0` |
+
+## Light Mode — 白天模式上线（2026-08-13）
+
+| 项目 | 值 |
+|---|---|
+| 版本 | `0.1.176-ssxz.20260813` |
+| 二进制 | `sub2api_linux_lightmode` |
+| MD5 | `b1ae15f620389c6c4ce00fbacfcb3ac6` |
+| 大小 | `127,860,898 bytes` |
+| 变更 | 白天模式 CSS 变量集成（`style.css`） |
+| 前端入口 | `/assets/index-p-Tnwl9w.js` |
+| 回滚备份 | `/opt/sub2api/backups/sub2api-pre-lightmode-20260813` |
+| 部署验收 | 版本端点返回预期版本；服务 `active` / `NRestarts=0` / `ExecMainStatus=0`；线上 MD5 与候选一致 |
+| 备注 | 按授权跳过 post-deploy 模型探测；未改 OAuth、生产数据库或 `channel_model_pricing` |
