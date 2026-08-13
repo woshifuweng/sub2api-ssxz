@@ -9,6 +9,7 @@
         :id="resolvedId"
         :class="[
           'f0-input-control',
+          inputClass,
           { 'f0-input-control--leading': $slots.leading, 'f0-input-control--trailing': $slots.trailing }
         ]"
         :type="type"
@@ -54,6 +55,7 @@ const props = withDefaults(
     placeholder?: string
     autocomplete?: string
     inputmode?: 'none' | 'text' | 'decimal' | 'numeric' | 'tel' | 'search' | 'email' | 'url'
+    inputClass?: string
     help?: string
     error?: string
     required?: boolean

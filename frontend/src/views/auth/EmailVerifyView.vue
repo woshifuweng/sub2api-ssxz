@@ -195,6 +195,7 @@ import {
 } from '@/api/auth'
 import { apiClient } from '@/api/client'
 import { buildAuthErrorMessage } from '@/utils/authError'
+import { extractApiErrorCode } from '@/utils/apiError'
 import { DEFAULT_SITE_NAME, normalizeSiteName } from '@/utils/brand'
 import {
   formatRegistrationEmailSuffixWhitelistForMessage,
@@ -272,6 +273,7 @@ const aliyunCaptchaPrefix = ref<string>('')
 const aliyunCaptchaRegion = ref<string>('cn')
 const siteName = ref<string>(DEFAULT_SITE_NAME)
 const registrationEmailSuffixWhitelist = ref<string[]>([])
+const emailDomainQuotaEnabled = ref(false)
 
 // Turnstile for resend
 const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
@@ -378,6 +380,7 @@ onMounted(async () => {
     registrationEmailSuffixWhitelist.value = normalizeRegistrationEmailSuffixWhitelist(
       settings.registration_email_suffix_whitelist || []
     )
+    emailDomainQuotaEnabled.value = settings.registration_email_domain_quota_enabled === true
   } catch (error) {
     console.error('Failed to load public settings:', error)
   }
@@ -487,7 +490,7 @@ function isPendingOAuthFlow(): boolean {
 }
 
 function shouldBypassRegistrationEmailPolicy(): boolean {
-  return isPendingOAuthFlow() || Boolean(pendingAuthToken.value.trim())
+  return emailDomainQuotaEnabled.value || isPendingOAuthFlow() || Boolean(pendingAuthToken.value.trim())
 }
 
 function resolvePendingOAuthCallbackRoute(provider: string): string {
@@ -580,7 +583,7 @@ async function sendCode(): Promise<void> {
 
     showResendTurnstile.value = false
   } catch (error: unknown) {
-    errorMessage.value = buildAuthErrorMessage(error, {
+    errorMessage.value = buildRegistrationErrorMessage(error, {
       fallback: t('auth.sendCodeFailed')
     })
 
@@ -749,7 +752,7 @@ async function handleVerify(): Promise<void> {
     // Pending OAuth may provide its own safe return path; regular users enter the app dashboard.
     await router.push(pendingRedirect.value || '/app/dashboard')
   } catch (error: unknown) {
-    errorMessage.value = buildAuthErrorMessage(error, {
+    errorMessage.value = buildRegistrationErrorMessage(error, {
       fallback: t('auth.verifyFailed')
     })
 
@@ -762,6 +765,13 @@ async function handleVerify(): Promise<void> {
     }
     isLoading.value = false
   }
+}
+
+function buildRegistrationErrorMessage(error: unknown, options: { fallback: string }): string {
+  if (extractApiErrorCode(error) === 'EMAIL_DOMAIN_REGISTRATION_LIMIT') {
+    return t('auth.emailDomainRegistrationLimit')
+  }
+  return buildAuthErrorMessage(error, options)
 }
 
 function handleBack(): void {

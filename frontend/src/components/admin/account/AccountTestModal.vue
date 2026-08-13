@@ -437,7 +437,7 @@ const startTest = async () => {
   abortController = new AbortController()
 
   try {
-    const requestBody: { model_id?: string; prompt?: string; mode?: 'default' | 'compact' } =
+    const requestBody: { model_id?: string; prompt?: string; mode?: 'default' | 'compact' | 'text' } =
       isSoraAccount.value
         ? {}
         : {
@@ -445,6 +445,7 @@ const startTest = async () => {
             prompt: supportsImageTest.value ? testPrompt.value.trim() : ''
           }
     if (isOpenAIAccount.value) requestBody.mode = testMode.value
+    else if (props.account.platform === 'grok') requestBody.mode = 'text'
 
     const url = buildApiUrl(`/admin/accounts/${props.account.id}/test`)
 

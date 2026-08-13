@@ -134,6 +134,8 @@ interface NavItem {
   action?: 'image-workbench'
   iconSvg?: string
   hideInSimpleMode?: boolean
+  expandOnly?: boolean
+  children?: NavItem[]
 }
 
 const { t } = useI18n()

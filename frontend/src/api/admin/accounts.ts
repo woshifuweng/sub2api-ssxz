@@ -281,6 +281,22 @@ export async function refreshCredentials(id: number): Promise<Account> {
   return data
 }
 
+/** Apply OAuth credentials without replacing unrelated account extras. */
+export async function applyOAuthCredentials(
+  id: number,
+  payload: {
+    type: 'oauth' | 'setup-token'
+    credentials: Record<string, unknown>
+    extra?: Record<string, unknown>
+  }
+): Promise<Account> {
+  const { data } = await apiClient.post<Account>(
+    `/admin/accounts/${id}/apply-oauth-credentials`,
+    payload
+  )
+  return data
+}
+
 /**
  * Get account usage statistics
  * @param id - Account ID
@@ -1197,8 +1213,9 @@ export const accountsAPI = {
   checkMixedChannelRisk,
   delete: deleteAccount,
   toggleStatus,
-  testAccount,
-  refreshCredentials,
+    testAccount,
+    refreshCredentials,
+    applyOAuthCredentials,
   getStats,
   clearError,
   getUsage,

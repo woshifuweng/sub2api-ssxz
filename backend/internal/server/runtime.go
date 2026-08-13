@@ -314,24 +314,24 @@ func cloneHTTPServer(base *http.Server) *http.Server {
 	if base == nil {
 		return nil
 	}
-	return &http.Server{
-		Addr:                         base.Addr,
-		Handler:                      base.Handler,
-		DisableGeneralOptionsHandler: base.DisableGeneralOptionsHandler,
-		TLSConfig:                    base.TLSConfig,
-		ReadTimeout:                  base.ReadTimeout,
-		ReadHeaderTimeout:            base.ReadHeaderTimeout,
-		WriteTimeout:                 base.WriteTimeout,
-		IdleTimeout:                  base.IdleTimeout,
-		MaxHeaderBytes:               base.MaxHeaderBytes,
-		TLSNextProto:                 base.TLSNextProto,
-		ConnState:                    base.ConnState,
-		ErrorLog:                     base.ErrorLog,
-		BaseContext:                  base.BaseContext,
-		ConnContext:                  base.ConnContext,
-		HTTP2:                        base.HTTP2,
-		Protocols:                    base.Protocols,
-	}
+	cloned := new(http.Server)
+	cloned.Addr = base.Addr
+	cloned.Handler = base.Handler
+	cloned.DisableGeneralOptionsHandler = base.DisableGeneralOptionsHandler
+	cloned.TLSConfig = base.TLSConfig
+	cloned.ReadTimeout = base.ReadTimeout
+	cloned.ReadHeaderTimeout = base.ReadHeaderTimeout
+	cloned.WriteTimeout = base.WriteTimeout
+	cloned.IdleTimeout = base.IdleTimeout
+	cloned.MaxHeaderBytes = base.MaxHeaderBytes
+	cloned.TLSNextProto = base.TLSNextProto
+	cloned.ConnState = base.ConnState
+	cloned.ErrorLog = base.ErrorLog
+	cloned.BaseContext = base.BaseContext
+	cloned.ConnContext = base.ConnContext
+	cloned.HTTP2 = base.HTTP2
+	cloned.Protocols = base.Protocols
+	return cloned
 }
 
 type protocolTarget int

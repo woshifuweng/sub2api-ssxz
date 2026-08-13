@@ -2589,6 +2589,7 @@
         :show-agent-identity-option="form.platform === 'openai'"
         :show-codex-pat-option="form.platform === 'openai'"
         :show-sso-option="form.platform === 'grok'"
+        :show-email-password-option="false"
         :platform="form.platform"
         :show-project-id="geminiOAuthType === 'code_assist'"
         :initial-input-method="form.platform === 'openai' && accountCategory === 'webapi' ? 'session_token' : 'manual'"
@@ -3179,7 +3180,6 @@ const codexFingerprintModeOptions = computed(() => [
   { value: 'session' as CodexFingerprintMode, label: t('admin.accounts.openai.codexFingerprintSession') },
   { value: 'full' as CodexFingerprintMode, label: t('admin.accounts.openai.codexFingerprintFull') },
 ])
-type AnthropicAPIKeyAuthScheme = 'x_api_key' | 'authorization_bearer'
 const anthropicPassthroughEnabled = ref(false)
 const ignorePauseSchedulingErrors = ref(false)
 const mixedScheduling = ref(false) // For antigravity accounts: enable mixed scheduling

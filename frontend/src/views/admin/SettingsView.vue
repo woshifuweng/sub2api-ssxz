@@ -3474,6 +3474,31 @@
 
         <!-- Tab: Gateway — Claude Code, Scheduling -->
         <div v-show="activeTab === 'gateway'" class="space-y-6">
+          <div class="card">
+            <div class="space-y-5 p-6">
+              <div class="grid gap-5 border-b border-gray-100 pb-5 dark:border-dark-700 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                <div>
+                  <label for="grok-default-text-model" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.settings.gatewayForwarding.grokDefaultTextModel") }}
+                  </label>
+                  <input
+                    id="grok-default-text-model"
+                    v-model.trim="form.grok_default_text_model"
+                    type="text"
+                    class="input mt-2 w-full"
+                    data-testid="grok-default-text-model"
+                    placeholder="grok-4.5"
+                  />
+                </div>
+                <div class="flex items-center justify-between gap-5 md:min-w-72">
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.settings.gatewayForwarding.grokCrossClientMap") }}
+                  </label>
+                  <Toggle v-model="form.grok_cross_client_model_map_enabled" data-testid="grok-cross-client-model-map-toggle" />
+                </div>
+              </div>
+            </div>
+          </div>
           <div data-testid="upstream-billing-probe-settings" class="card">
             <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
               <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
@@ -6120,6 +6145,8 @@ const form = reactive<SettingsForm>({
   model_plaza_enabled: false,
   model_plaza_require_auth: false,
   model_plaza_description: "",
+  grok_default_text_model: "grok-4.5",
+  grok_cross_client_model_map_enabled: false,
 } as unknown as SettingsForm);
 
 // 人机验证 UI 状态：单卡片「总开关 + 服务商单选」，落库仍是三个独立
@@ -7536,9 +7563,13 @@ async function saveSettings() {
       enable_model_fallback: form.enable_model_fallback,
       fallback_model_anthropic: form.fallback_model_anthropic,
       fallback_model_openai: form.fallback_model_openai,
-      fallback_model_gemini: form.fallback_model_gemini,
-      fallback_model_antigravity: form.fallback_model_antigravity,
-      enable_identity_patch: form.enable_identity_patch,
+        fallback_model_gemini: form.fallback_model_gemini,
+        fallback_model_antigravity: form.fallback_model_antigravity,
+        grok_default_text_model:
+          form.grok_default_text_model?.trim() || "grok-4.5",
+        grok_cross_client_model_map_enabled:
+          form.grok_cross_client_model_map_enabled,
+        enable_identity_patch: form.enable_identity_patch,
       identity_patch_prompt: form.identity_patch_prompt,
       min_claude_code_version: form.min_claude_code_version,
       max_claude_code_version: form.max_claude_code_version,

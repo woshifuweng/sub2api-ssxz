@@ -326,6 +326,7 @@ export interface SystemSettings {
   registration_enabled: boolean
   email_verify_enabled: boolean
   registration_email_suffix_whitelist: string[]
+  registration_email_domain_quota_enabled: boolean
   promo_code_enabled: boolean
   password_reset_enabled: boolean
   /**
@@ -429,6 +430,8 @@ export interface SystemSettings {
   fallback_model_openai: string
   fallback_model_gemini: string
   fallback_model_antigravity: string
+  grok_default_text_model: string
+  grok_cross_client_model_map_enabled: boolean
 
   // Identity patch configuration (Claude -> Gemini)
   enable_identity_patch: boolean
@@ -571,6 +574,7 @@ export interface UpdateSettingsRequest {
   registration_enabled?: boolean;
   email_verify_enabled?: boolean;
   registration_email_suffix_whitelist?: string[];
+  registration_email_domain_quota_enabled?: boolean;
   promo_code_enabled?: boolean;
   password_reset_enabled?: boolean;
   frontend_url?: string;
@@ -749,6 +753,8 @@ export interface UpdateSettingsRequest {
   fallback_model_openai?: string;
   fallback_model_gemini?: string;
   fallback_model_antigravity?: string;
+  grok_default_text_model?: string;
+  grok_cross_client_model_map_enabled?: boolean;
   enable_identity_patch?: boolean;
   identity_patch_prompt?: string;
   ops_monitoring_enabled?: boolean;

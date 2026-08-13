@@ -27,6 +27,7 @@
         :label="t('auth.emailLabel')"
         :placeholder="t('auth.emailPlaceholder')"
         :error="errors.email"
+        :input-class="errors.email ? 'input-error' : undefined"
         :disabled="registrationActionDisabled"
       >
         <template #leading>
@@ -310,7 +311,7 @@ import {
   type OAuthLoginStart
 } from '@/api/auth'
 import { buildAuthErrorMessage } from '@/utils/authError'
-import { extractI18nErrorMessage } from '@/utils/apiError'
+import { extractApiErrorCode, extractI18nErrorMessage } from '@/utils/apiError'
 import { DEFAULT_SITE_NAME, normalizeSiteName } from '@/utils/brand'
 import {
   formatRegistrationEmailSuffixWhitelistForMessage,
@@ -368,6 +369,7 @@ const oidcOAuthProviderName = ref('OIDC')
 const githubOAuthEnabled = ref(false)
 const googleOAuthEnabled = ref(false)
 const registrationEmailSuffixWhitelist = ref<string[]>([])
+const emailDomainQuotaEnabled = ref(false)
 const loginAgreementEnabled = ref(false)
 const loginAgreementMode = ref<'modal' | 'checkbox' | string>('modal')
 const loginAgreementUpdatedAt = ref('')
@@ -493,6 +495,7 @@ onMounted(async () => {
     registrationEmailSuffixWhitelist.value = normalizeRegistrationEmailSuffixWhitelist(
       settings.registration_email_suffix_whitelist || []
     )
+    emailDomainQuotaEnabled.value = settings.registration_email_domain_quota_enabled === true
     applyLoginAgreementSettings(settings)
 
     if (promoCodeEnabled.value) {
@@ -792,6 +795,7 @@ function validateForm(): boolean {
     errors.email = t('auth.invalidEmail')
     isValid = false
   } else if (
+    !emailDomainQuotaEnabled.value &&
     !isRegistrationEmailSuffixAllowed(formData.email, registrationEmailSuffixWhitelist.value)
   ) {
     errors.email = buildEmailSuffixNotAllowedMessage()
@@ -893,7 +897,7 @@ async function handleRegister(): Promise<void> {
     appStore.showSuccess(t('auth.accountCreatedSuccess', { siteName: siteName.value }))
     await router.push('/app/dashboard')
   } catch (error: unknown) {
-    errorMessage.value = buildAuthErrorMessage(error, {
+    errorMessage.value = buildRegistrationErrorMessage(error, {
       fallback: t('auth.registrationFailed')
     })
     appStore.showError(errorMessage.value)
@@ -901,6 +905,13 @@ async function handleRegister(): Promise<void> {
     if (captchaEnabled.value) resetCaptchaProof()
     isLoading.value = false
   }
+}
+
+function buildRegistrationErrorMessage(error: unknown, options: { fallback: string }): string {
+  if (extractApiErrorCode(error) === 'EMAIL_DOMAIN_REGISTRATION_LIMIT') {
+    return t('auth.emailDomainRegistrationLimit')
+  }
+  return buildAuthErrorMessage(error, options)
 }
 </script>
 

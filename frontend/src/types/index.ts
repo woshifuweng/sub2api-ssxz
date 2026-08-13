@@ -193,6 +193,7 @@ export interface PublicSettings {
   registration_enabled: boolean
   email_verify_enabled: boolean
   registration_email_suffix_whitelist: string[]
+  registration_email_domain_quota_enabled?: boolean
   promo_code_enabled: boolean
   password_reset_enabled: boolean
   invitation_code_enabled: boolean
@@ -204,6 +205,7 @@ export interface PublicSettings {
   turnstile_enabled: boolean
   tencent_captcha_enabled?: boolean
   tencent_captcha_app_id?: string
+  tencent_captcha_region?: string
   passkey_enabled?: boolean
   turnstile_site_key: string
   aliyun_captcha_enabled?: boolean
@@ -238,6 +240,8 @@ export interface PublicSettings {
   sora_client_enabled: boolean
   channel_monitor_enabled: boolean
   channel_monitor_default_interval_seconds: number
+  channel_monitor_mode?: string
+  channel_monitor_hide_throughput?: boolean
   available_channels_enabled: boolean
   web_search?: {
     available: boolean
@@ -623,6 +627,12 @@ export interface AdminGroup extends Group {
   // 模型路由配置（仅管理员可见，内部信息）
   model_routing: Record<string, number[]> | null
   model_routing_enabled: boolean
+
+  video_model_prices?: Record<string, Record<string, number>> | null
+  search_price_per_1k?: number | null
+  audio_realtime_price_per_min?: number | null
+  audio_tts_price_per_million_chars?: number | null
+  audio_stt_price_per_hour?: number | null
 
   // MCP XML 协议注入（仅 antigravity 平台使用）
   mcp_xml_inject: boolean
@@ -1035,6 +1045,9 @@ export interface TempUnschedulableState {
   matched_keyword: string
   rule_index: number
   error_message: string
+  trigger_count?: number
+  trigger_threshold?: number
+  trigger_window_minutes?: number
 }
 
 export interface TempUnschedulableStatus {
@@ -1363,6 +1376,9 @@ export interface GrokBillingSummary {
   monthly_updated_at?: string
   partial?: boolean
   failed_windows?: string[]
+  prepaid_balance?: number | null
+  monthly_used?: number | null
+  monthly_limit?: number | null
 }
 
 export interface AccountUsageInfo {
@@ -1740,6 +1756,8 @@ export interface UsageLogAccountSummary {
 
 export interface AdminUsageLog extends UsageLog {
   upstream_model?: string | null
+  upstream_response_model?: string | null
+  upstream_model_mismatch?: boolean | null
   billing_model?: string | null
 
   // 账号计费倍率（仅管理员可见）
