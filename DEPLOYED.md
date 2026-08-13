@@ -209,6 +209,110 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags embed -trimpath \
 
 ## 部署记录（新的写在最上面）
 
+### 2026-08-13 U2 主干 + 上游 176 合并（含 VersionBadge 品牌修复）
+
+| 字段 | 值 |
+|---|---|
+| 版本 | `0.1.3-ssxz.20260813` |
+| 二进制文件 | `sub2api_linux_u2merge_176` |
+| 二进制 MD5 | `8a2c17491cbec49e3850197effbad7b9` |
+| 二进制大小 | `127,856,802 bytes` |
+| dist 文件数/字节 | `234 / 6,853,009` |
+| 前端入口 | `assets/index-BZNeSdtl.js` |
+| 新增 migration | `221_group_model_pricing.sql`（`ADD COLUMN` 幂等） |
+| `schema_migrations` 总行数 | `296` |
+| 上游底座 | `v0.1.176`（commit `7ab3cf3d5`） |
+| VersionBadge 修复 | `ab2025c8b` — 受控部署不再显示上游 GitHub 链接 |
+| 回滚基线 | `/opt/sub2api/backups/sub2api-pre-u2176-20260813`，MD5=`283acdf0784aa05b6e8fd82469c51b5f` |
+| 部署时间 | `2026-08-13 UTC` |
+| 服务状态 | `active / NRestarts=0 / ExecMainStatus=0` |
+
+### 2026-08-13 U2 主干 + 上游 172/173/175 合并（含登录修复）
+
+以 U2 为基础合并上游 v0.1.172 + v0.1.173 + v0.1.175，同时修复 `LoginView.vue` 登录表单组件缺失 import 导致的 P0 问题。
+新增 17 个 migration（channel_monitor_v2 系列 + 视频/音频/搜索定价列），全部在启动时自动执行，均为幂等 DDL。
+
+| 项目 | 结果 |
+|---|---|
+| 上游底座 tag | `v0.1.171` + 合并 `v0.1.172` + `v0.1.173` + `v0.1.175` |
+| 版本 | `0.1.3-ssxz.20260813` |
+| 二进制 MD5 | `283acdf0784aa05b6e8fd82469c51b5f` |
+| 二进制大小 | `127,684,770 bytes` |
+| dist 文件数 / 字节 | 233 / 6,844,814 |
+| 前端入口 | `assets/index-BbQfzQZb.js` |
+| 备份（U2-CSP 回滚基线） | `/opt/sub2api/backups/sub2api-pre-u2175-20260813` |
+| 部署时间 | 2026-08-13 ~18:57 UTC |
+| `NRestarts` / `ExecMainStatus` | NRestarts=0 / ExecMainStatus=0 |
+| Migration 执行 | 17 条新 migration 已记录（schema_migrations 共 295 行）|
+
+**post-check 结果（20/22 PASS）：**
+
+| 检查项 | 结果 |
+|---|---|
+| service active | ✅ PASS |
+| ExecMainStatus=0 | ✅ PASS |
+| NRestarts=0 | ✅ PASS |
+| candidate/upload/live MD5=283acdf0784aa05b6e8fd82469c51b5f | ✅ PASS |
+| version=0.1.3-ssxz.20260813 | ✅ PASS |
+| 全部路由探针（admin + reseller + user/reseller/role）| ✅ PASS（全 401）|
+| negative route=404 | ✅ PASS |
+| CSP frame-src 'self' + 4 域名 + pay.ldxp.cn | ✅ PASS |
+| frame-ancestors='none' | ✅ PASS |
+| live assets = candidate dist | ✅ PASS |
+| entry=index-BbQfzQZb.js | ✅ PASS |
+| /image/=200 | ✅ PASS |
+| Redis PING=PONG | ✅ PASS |
+| deployed asset baseline unchanged | ✅ PASS |
+| authenticated customer route（gpt-5.5 probe）| ⚠️ 502（上游 channel 问题，**与上次 U2 部署相同，非本次引入**）|
+
+回滚方式：将 `/opt/sub2api/backups/sub2api-pre-u2175-20260813` 复制回 `/opt/sub2api/sub2api`，重启 `sub2api`。
+回滚后版本恢复 `0.1.3-ssxz.20260812-u2`，MD5 `a5c09e196c4f7ee6bd3241c32753137b`。
+
+### 2026-08-12 U2 主干切换（v0.1.171 底座）
+
+切换到以上游 v0.1.171 为底座的干净合并树（U2），包含全部 SSXZ 定制（B2/B3/B6/B7/B8a 1021 个文件）、
+reseller 功能、OAuth 接管补丁、channel_id 计费修复、CSP `pay.ldxp.cn`/`'self'`。
+migration 不跑（U2 的所有 migration 文件名在生产库的 `schema_migrations` 里全部已记录）。
+
+| 项目 | 结果 |
+|---|---|
+| 上游底座 tag | `v0.1.171` = commit `f0e7a9c7a` |
+| 版本 | `0.1.3-ssxz.20260812-u2` |
+| 二进制 MD5 | `a5c09e196c4f7ee6bd3241c32753137b` |
+| 二进制大小 | `125,694,114 bytes` |
+| dist 文件数 / 字节 | 222 / 6,070,463 |
+| 前端入口 | `assets/index-Ba8mxLWq.js` |
+| 备份（P 线回滚基线） | `/opt/sub2api/backups/sub2api-pre-u2-20260812` |
+| 部署时间 | 2026-08-12 ~19:38 UTC |
+| `NRestarts` / `ExecMainStatus` | NRestarts=0 / ExecMainStatus=0 |
+
+**post-check 结果（25/26 PASS）：**
+
+| 检查项 | 结果 |
+|---|---|
+| service active | ✅ PASS |
+| ExecMainStatus=0 | ✅ PASS |
+| NRestarts=0 | ✅ PASS |
+| candidate/upload/live MD5=a5c09e196c4f7ee6bd3241c32753137b | ✅ PASS |
+| version=0.1.3-ssxz.20260812-u2 | ✅ PASS |
+| DEPLOYED.md 版本/MD5 attestation | ✅ PASS |
+| 全部路由探针（admin + reseller + user/reseller/role） | ✅ PASS（全 401）|
+| negative route=404 | ✅ PASS |
+| CSP frame-src 'self' + 4 域名 + pay.ldxp.cn | ✅ PASS |
+| frame-ancestors='none' | ✅ PASS |
+| live assets = candidate dist | ✅ PASS |
+| entry=index-Ba8mxLWq.js | ✅ PASS |
+| /image/=200 | ✅ PASS |
+| Redis PING=PONG | ✅ PASS |
+| deployed asset baseline unchanged | ✅ PASS |
+| authenticated customer route（gpt-5.5 probe）| ⚠️ 502（上游 channel 问题，**非 U2 回归**；/v1/models 正常，routing 正常）|
+
+回滚方式：将 `/opt/sub2api/backups/sub2api-pre-u2-20260812` 复制回 `/opt/sub2api/sub2api`，重启 `sub2api`。
+回滚后版本恢复 `0.1.3-ssxz.20260809`，MD5 `226e2af3abd9a1db32de2c520f946d41`。
+
+回滚方式：将 `/opt/sub2api/backups/sub2api-pre-u2-20260812` 复制回 `/opt/sub2api/sub2api`，重启 `sub2api`。
+回滚后版本恢复 `0.1.3-ssxz.20260809`，MD5 `226e2af3abd9a1db32de2c520f946d41`。
+
 ### 2026-08-07（待部署）— 前端重建 + 兑换码去验证码 + 版本误报修复
 
 **为什么这次一定要重建前端**：这是「我做的 UI 组件消失了」的真正原因，不是代码被别的线顶掉。
