@@ -246,6 +246,7 @@ type openAIWSConn struct {
 
 	handshakeHeaders http.Header
 	betaFeatures     string
+	routingAffinity  string
 
 	leaseCh   chan struct{}
 	closedCh  chan struct{}
@@ -309,6 +310,12 @@ func (c *openAIWSConn) acquire(ctx context.Context) error {
 		case <-c.closedCh:
 			return errOpenAIWSConnClosed
 		case <-c.leaseCh:
+			// Cancellation and lease delivery can become ready together. Keep the
+			// token available when the waiter is already canceled.
+			if err := ctx.Err(); err != nil {
+				c.release()
+				return err
+			}
 			select {
 			case <-c.closedCh:
 				c.release()
@@ -531,6 +538,10 @@ func (c *openAIWSConn) handshakeHeader(name string) string {
 
 func (c *openAIWSConn) matchesBetaFeatures(betaFeatures string) bool {
 	return c != nil && c.betaFeatures == betaFeatures
+}
+
+func (c *openAIWSConn) matchesRoutingAffinity(routingAffinity string) bool {
+	return c != nil && c.routingAffinity == routingAffinity
 }
 
 func (c *openAIWSConn) isPrewarmed() bool {
@@ -858,8 +869,7 @@ retryAcquire:
 	var evicted []*openAIWSConn
 	ap := p.getOrCreateAccountPool(accountID)
 	ap.mu.Lock()
-	sanitizedReq := sanitizeOpenAIWSAcquireRequestForBackgroundPrewarm(req)
-	ap.lastAcquire = cloneOpenAIWSAcquireRequestPtr(&sanitizedReq)
+	acquireGeneration := ap.generation
 	now := time.Now()
 	if ap.lastCleanupAt.IsZero() || now.Sub(ap.lastCleanupAt) >= openAIWSAcquireCleanupInterval {
 		evicted = p.cleanupAccountLocked(ap, now, effectiveMaxConns)
@@ -908,6 +918,7 @@ retryAcquire:
 					reused:    true,
 				}
 				p.metrics.acquireReuseTotal.Add(1)
+				p.recordLastSuccessfulAcquire(accountID, acquireGeneration, req)
 				p.ensureTargetIdleAsync(accountID)
 				return lease, nil
 			}
@@ -955,6 +966,7 @@ retryAcquire:
 				reused:    true,
 			}
 			p.metrics.acquireReuseTotal.Add(1)
+			p.recordLastSuccessfulAcquire(accountID, acquireGeneration, req)
 			p.ensureTargetIdleAsync(accountID)
 			return lease, nil
 		}
@@ -977,12 +989,14 @@ retryAcquire:
 				}
 				lease := &openAIWSConnLease{pool: p, accountID: accountID, conn: conn, connPick: connPick, reused: true}
 				p.metrics.acquireReuseTotal.Add(1)
+				p.recordLastSuccessfulAcquire(accountID, acquireGeneration, req)
 				p.ensureTargetIdleAsync(accountID)
 				return lease, nil
 			}
 		}
 
-		best := p.pickLeastBusyConnLocked(ap, "", betaFeatures)
+		routingAffinity := normalizeOpenAIWSRoutingAffinity(req.Headers)
+		best := p.pickLeastBusyConnWithRoutingAffinityLocked(ap, betaFeatures, routingAffinity)
 		if best != nil && best.tryAcquire() {
 			connPick := time.Since(pickStartedAt)
 			p.recordConnPickDuration(connPick)
@@ -1000,11 +1014,12 @@ retryAcquire:
 			}
 			lease := &openAIWSConnLease{pool: p, accountID: accountID, conn: best, connPick: connPick, reused: true}
 			p.metrics.acquireReuseTotal.Add(1)
+			p.recordLastSuccessfulAcquire(accountID, acquireGeneration, req)
 			p.ensureTargetIdleAsync(accountID)
 			return lease, nil
 		}
 		for _, conn := range ap.conns {
-			if conn == nil || conn == best || !conn.matchesBetaFeatures(betaFeatures) {
+			if conn == nil || conn == best || !conn.matchesBetaFeatures(betaFeatures) || !conn.matchesRoutingAffinity(routingAffinity) {
 				continue
 			}
 			if conn.tryAcquire() {
@@ -1031,12 +1046,18 @@ retryAcquire:
 	}
 
 	if !req.ForceNewConn && len(ap.conns)+ap.creating >= effectiveMaxConns {
-		compatible := p.pickLeastBusyConnLocked(ap, "", betaFeatures)
-		if idle := p.pickOldestIdleConnWithDifferentBetaFeaturesLocked(ap, betaFeatures); idle != nil {
+		routingAffinity := normalizeOpenAIWSRoutingAffinity(req.Headers)
+		compatible := p.pickLeastBusyConnWithRoutingAffinityLocked(ap, betaFeatures, routingAffinity)
+		if idle := p.pickOldestIdleConnWithoutBetaFeaturesOrRoutingAffinityLocked(ap, betaFeatures, routingAffinity); idle != nil {
 			delete(ap.conns, idle.id)
 			evicted = append(evicted, idle)
 			p.metrics.scaleDownTotal.Add(1)
 		} else if compatible == nil {
+			// A compatible connection with a different routing hint remains a
+			// valid soft fallback when the pool is full.
+			if fallback := p.pickLeastBusyConnLocked(ap, "", betaFeatures); fallback != nil {
+				compatible = fallback
+			} else {
 			hasConnection := false
 			for _, conn := range ap.conns {
 				if conn != nil {
@@ -1057,6 +1078,7 @@ retryAcquire:
 				return nil, ctx.Err()
 			case <-changedCh:
 				goto retryAcquire
+			}
 			}
 		}
 	}
@@ -1081,6 +1103,17 @@ retryAcquire:
 		ap = p.getOrCreateAccountPool(accountID)
 		ap.mu.Lock()
 		ap.creating--
+		if ap.generation != acquireGeneration {
+			ap.signalChangedLocked()
+			ap.mu.Unlock()
+			if conn != nil {
+				conn.close()
+			}
+			if retry < 1 {
+				return p.acquire(ctx, req, retry+1)
+			}
+			return nil, errOpenAIWSConnClosed
+		}
 		if dialErr != nil {
 			ap.prewarmFails++
 			ap.prewarmFailAt = time.Now()
@@ -1091,17 +1124,17 @@ retryAcquire:
 		ap.conns[conn.id] = conn
 		ap.prewarmFails = 0
 		ap.prewarmFailAt = time.Time{}
+		if !conn.tryAcquire() {
+			ap.signalChangedLocked()
+			ap.mu.Unlock()
+			conn.close()
+			return nil, errOpenAIWSConnClosed
+		}
+		ap.signalChangedLocked()
 		ap.mu.Unlock()
 		p.metrics.acquireCreateTotal.Add(1)
-
-		if !conn.tryAcquire() {
-			if err := conn.acquire(ctx); err != nil {
-				conn.close()
-				p.evictConn(accountID, conn.id)
-				return nil, err
-			}
-		}
 		lease := &openAIWSConnLease{pool: p, accountID: accountID, conn: conn, connPick: connPick}
+		p.recordLastSuccessfulAcquire(accountID, acquireGeneration, req)
 		p.ensureTargetIdleAsync(accountID)
 		return lease, nil
 	}
@@ -1155,8 +1188,25 @@ retryAcquire:
 	p.metrics.acquireQueueWaitMs.Add(queueWait.Milliseconds())
 	lease := &openAIWSConnLease{pool: p, accountID: accountID, conn: target, queueWait: queueWait, connPick: connPick, reused: true}
 	p.metrics.acquireReuseTotal.Add(1)
+	p.recordLastSuccessfulAcquire(accountID, acquireGeneration, req)
 	p.ensureTargetIdleAsync(accountID)
 	return lease, nil
+}
+
+func (p *openAIWSConnPool) recordLastSuccessfulAcquire(accountID int64, generation uint64, req openAIWSAcquireRequest) {
+	if p == nil || accountID <= 0 {
+		return
+	}
+	ap, ok := p.getAccountPool(accountID)
+	if !ok || ap == nil {
+		return
+	}
+	ap.mu.Lock()
+	defer ap.mu.Unlock()
+	if ap.generation != generation {
+		return
+	}
+	ap.lastAcquire = cloneOpenAIWSAcquireRequestPtr(&req)
 }
 
 func (p *openAIWSConnPool) recordConnPickDuration(duration time.Duration) {
@@ -1193,6 +1243,22 @@ func (p *openAIWSConnPool) pickOldestIdleConnWithDifferentBetaFeaturesLocked(ap 
 	var oldest *openAIWSConn
 	for _, conn := range ap.conns {
 		if conn == nil || conn.matchesBetaFeatures(betaFeatures) || conn.isLeased() || conn.waiters.Load() > 0 || p.isConnPinnedLocked(ap, conn.id) {
+			continue
+		}
+		if oldest == nil || conn.lastUsedAt().Before(oldest.lastUsedAt()) {
+			oldest = conn
+		}
+	}
+	return oldest
+}
+
+func (p *openAIWSConnPool) pickOldestIdleConnWithoutBetaFeaturesOrRoutingAffinityLocked(ap *openAIWSAccountPool, betaFeatures, routingAffinity string) *openAIWSConn {
+	if ap == nil || len(ap.conns) == 0 {
+		return nil
+	}
+	var oldest *openAIWSConn
+	for _, conn := range ap.conns {
+		if conn == nil || (conn.matchesBetaFeatures(betaFeatures) && conn.matchesRoutingAffinity(routingAffinity)) || conn.isLeased() || conn.waiters.Load() > 0 || p.isConnPinnedLocked(ap, conn.id) {
 			continue
 		}
 		if oldest == nil || conn.lastUsedAt().Before(oldest.lastUsedAt()) {
@@ -1365,6 +1431,28 @@ func (p *openAIWSConnPool) pickLeastBusyConnLocked(ap *openAIWSAccountPool, pref
 		if best == nil ||
 			waiters < bestWaiters ||
 			(waiters == bestWaiters && lastUsed.Before(bestLastUsed)) {
+			best = conn
+			bestWaiters = waiters
+			bestLastUsed = lastUsed
+		}
+	}
+	return best
+}
+
+func (p *openAIWSConnPool) pickLeastBusyConnWithRoutingAffinityLocked(ap *openAIWSAccountPool, betaFeatures, routingAffinity string) *openAIWSConn {
+	if ap == nil || len(ap.conns) == 0 {
+		return nil
+	}
+	var best *openAIWSConn
+	var bestWaiters int32
+	var bestLastUsed time.Time
+	for _, conn := range ap.conns {
+		if conn == nil || !conn.matchesBetaFeatures(betaFeatures) || !conn.matchesRoutingAffinity(routingAffinity) {
+			continue
+		}
+		waiters := conn.waiters.Load()
+		lastUsed := conn.lastUsedAt()
+		if best == nil || waiters < bestWaiters || (waiters == bestWaiters && lastUsed.Before(bestLastUsed)) {
 			best = conn
 			bestWaiters = waiters
 			bestLastUsed = lastUsed
@@ -1591,6 +1679,7 @@ func (p *openAIWSConnPool) ClearAccount(accountID int64) {
 	ap.prewarmUntil = time.Time{}
 	ap.prewarmFails = 0
 	ap.prewarmFailAt = time.Time{}
+	ap.signalChangedLocked()
 	ap.mu.Unlock()
 	closeOpenAIWSConns(conns)
 }
@@ -1705,6 +1794,7 @@ func (p *openAIWSConnPool) dialConn(ctx context.Context, req openAIWSAcquireRequ
 	id := p.nextConnID(req.Account.ID)
 	pooledConn := newOpenAIWSConn(id, req.Account.ID, conn, handshakeHeaders)
 	pooledConn.betaFeatures = normalizeOpenAIWSBetaFeatures(req.Headers)
+	pooledConn.routingAffinity = normalizeOpenAIWSRoutingAffinity(req.Headers)
 	return pooledConn, nil
 }
 
@@ -1921,6 +2011,32 @@ func normalizeOpenAIWSBetaFeatures(headers http.Header) string {
 	}
 	sort.Strings(normalized)
 	return strings.Join(normalized, ",")
+}
+
+func normalizeOpenAIWSRoutingAffinity(headers http.Header) string {
+	canonicalName := http.CanonicalHeaderKey(openAICodexRoutingHintHeader)
+	if values, ok := headers[canonicalName]; ok {
+		for _, value := range values {
+			if value = strings.TrimSpace(value); value != "" {
+				return value
+			}
+		}
+	}
+	variantNames := make([]string, 0)
+	for name := range headers {
+		if name != canonicalName && strings.EqualFold(strings.TrimSpace(name), openAICodexRoutingHintHeader) {
+			variantNames = append(variantNames, name)
+		}
+	}
+	sort.Strings(variantNames)
+	for _, name := range variantNames {
+		for _, value := range headers[name] {
+			if value = strings.TrimSpace(value); value != "" {
+				return value
+			}
+		}
+	}
+	return ""
 }
 
 func cloneHeader(src http.Header) http.Header {

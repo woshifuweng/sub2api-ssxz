@@ -1,10 +1,11 @@
 package service
 
 type SystemSettings struct {
-	RegistrationEnabled              bool
-	EmailVerifyEnabled               bool
-	RegistrationEmailSuffixWhitelist []string
-	PromoCodeEnabled                 bool
+	RegistrationEnabled                 bool
+	EmailVerifyEnabled                  bool
+	RegistrationEmailSuffixWhitelist    []string
+	RegistrationEmailDomainQuotaEnabled bool
+	PromoCodeEnabled                    bool
 	// PasswordResetEnabled 是「生效值」：已与 EmailVerifyEnabled 取与，
 	// 邮箱验证关闭时恒为 false。鉴权/功能判定用这个。
 	PasswordResetEnabled bool
@@ -213,9 +214,14 @@ type SystemSettings struct {
 	AdminRechargeRebateEnabled  bool
 	DefaultUserRPMLimit         int
 
-	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
-	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
-	AvailableChannelsEnabled             bool `json:"available_channels_enabled"`
+	ChannelMonitorEnabled                bool   `json:"channel_monitor_enabled"`
+	ChannelMonitorMode                   string `json:"channel_monitor_mode"`
+	ChannelMonitorDefaultIntervalSeconds int    `json:"channel_monitor_default_interval_seconds"`
+	ChannelMonitorHideThroughput         bool   `json:"channel_monitor_hide_throughput"`
+	AvailableChannelsEnabled             bool   `json:"available_channels_enabled"`
+	GrokDefaultTextModel                 string `json:"grok_default_text_model"`
+	GrokCrossClientModelMapEnabled       bool   `json:"grok_cross_client_model_map_enabled"`
+	GrokDefaultBaseURLMode               string `json:"grok_default_base_url_mode"`
 
 	EnableFingerprintUnification           bool
 	EnableMetadataPassthrough              bool
@@ -280,6 +286,7 @@ type SystemSettings struct {
 	AccountQuotaNotifyEnabled       bool
 	AccountQuotaNotifyEmails        []NotifyEmailEntry
 	DefaultPlatformQuotas           map[string]*DefaultPlatformQuotaSetting `json:"default_platform_quotas"`
+	AccountSchedulingThresholds     map[string]int                          `json:"account_scheduling_thresholds"`
 	AllowUserViewErrorRequests      bool
 }
 
@@ -289,37 +296,38 @@ type DefaultSubscriptionSetting struct {
 }
 
 type PublicSettings struct {
-	RegistrationEnabled              bool
-	EmailVerifyEnabled               bool
-	RegistrationEmailSuffixWhitelist []string
-	PromoCodeEnabled                 bool
-	PasswordResetEnabled             bool
-	InvitationCodeEnabled            bool
-	TotpEnabled                      bool // TOTP 双因素认证
-	PasskeyEnabled                   bool
-	LoginAgreementEnabled            bool
-	LoginAgreementMode               string
-	LoginAgreementUpdatedAt          string
-	LoginAgreementRevision           string
-	LoginAgreementDocuments          []LoginAgreementDocument
-	TurnstileEnabled                 bool
-	TurnstileSiteKey                 string
-	TencentCaptchaEnabled            bool
-	TencentCaptchaAppID              string
-	TencentCaptchaRegion             string
-	AliyunCaptchaEnabled             bool
-	AliyunCaptchaSceneID             string
-	AliyunCaptchaPrefix              string
-	AliyunCaptchaRegion              string
-	SiteName                         string
-	SiteLogo                         string
-	SiteSubtitle                     string
-	APIBaseURL                       string
-	ContactInfo                      string
-	DocURL                           string
-	HomeContent                      string
-	CompactHomeEnabled               bool
-	HideCcsImportButton              bool
+	RegistrationEnabled                 bool
+	EmailVerifyEnabled                  bool
+	RegistrationEmailSuffixWhitelist    []string
+	RegistrationEmailDomainQuotaEnabled bool
+	PromoCodeEnabled                    bool
+	PasswordResetEnabled                bool
+	InvitationCodeEnabled               bool
+	TotpEnabled                         bool // TOTP 双因素认证
+	PasskeyEnabled                      bool
+	LoginAgreementEnabled               bool
+	LoginAgreementMode                  string
+	LoginAgreementUpdatedAt             string
+	LoginAgreementRevision              string
+	LoginAgreementDocuments             []LoginAgreementDocument
+	TurnstileEnabled                    bool
+	TurnstileSiteKey                    string
+	TencentCaptchaEnabled               bool
+	TencentCaptchaAppID                 string
+	TencentCaptchaRegion                string
+	AliyunCaptchaEnabled                bool
+	AliyunCaptchaSceneID                string
+	AliyunCaptchaPrefix                 string
+	AliyunCaptchaRegion                 string
+	SiteName                            string
+	SiteLogo                            string
+	SiteSubtitle                        string
+	APIBaseURL                          string
+	ContactInfo                         string
+	DocURL                              string
+	HomeContent                         string
+	CompactHomeEnabled                  bool
+	HideCcsImportButton                 bool
 
 	PurchaseSubscriptionEnabled bool
 	PurchaseSubscriptionURL     string
@@ -339,8 +347,13 @@ type PublicSettings struct {
 	OIDCOAuthProviderName    string
 
 	ChannelMonitorEnabled                bool
+	ChannelMonitorMode                   string
 	ChannelMonitorDefaultIntervalSeconds int
+	ChannelMonitorHideThroughput         bool
 	AvailableChannelsEnabled             bool
+	GrokDefaultTextModel                 string
+	GrokCrossClientModelMapEnabled       bool
+	GrokDefaultBaseURLMode               string
 	WebSearch                            PublicWorkspaceWebSearchSettings
 	ModelPlazaEnabled                    bool
 	ModelPlazaRequireAuth                bool

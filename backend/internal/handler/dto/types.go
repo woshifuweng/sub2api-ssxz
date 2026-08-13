@@ -117,22 +117,27 @@ type Group struct {
 	VideoRateIndependent         bool    `json:"video_rate_independent"`
 	VideoRateMultiplier          float64 `json:"video_rate_multiplier"`
 	// 高峰时段倍率配置
-	PeakRateEnabled            bool     `json:"peak_rate_enabled"`
-	PeakStart                  string   `json:"peak_start"`
-	PeakEnd                    string   `json:"peak_end"`
-	PeakRateMultiplier         float64  `json:"peak_rate_multiplier"`
-	ImagePrice1K               *float64 `json:"image_price_1k"`
-	ImagePrice2K               *float64 `json:"image_price_2k"`
-	ImagePrice4K               *float64 `json:"image_price_4k"`
-	SoraImagePrice360          *float64 `json:"sora_image_price_360"`
-	SoraImagePrice540          *float64 `json:"sora_image_price_540"`
-	SoraVideoPricePerRequest   *float64 `json:"sora_video_price_per_request"`
-	SoraVideoPricePerRequestHD *float64 `json:"sora_video_price_per_request_hd"`
-	VideoPrice480P             *float64 `json:"video_price_480p"`
-	VideoPrice720P             *float64 `json:"video_price_720p"`
-	VideoPrice1080P            *float64 `json:"video_price_1080p"`
+	PeakRateEnabled            bool                          `json:"peak_rate_enabled"`
+	PeakStart                  string                        `json:"peak_start"`
+	PeakEnd                    string                        `json:"peak_end"`
+	PeakRateMultiplier         float64                       `json:"peak_rate_multiplier"`
+	ImagePrice1K               *float64                      `json:"image_price_1k"`
+	ImagePrice2K               *float64                      `json:"image_price_2k"`
+	ImagePrice4K               *float64                      `json:"image_price_4k"`
+	SoraImagePrice360          *float64                      `json:"sora_image_price_360"`
+	SoraImagePrice540          *float64                      `json:"sora_image_price_540"`
+	SoraVideoPricePerRequest   *float64                      `json:"sora_video_price_per_request"`
+	SoraVideoPricePerRequestHD *float64                      `json:"sora_video_price_per_request_hd"`
+	VideoPrice480P             *float64                      `json:"video_price_480p"`
+	VideoPrice720P             *float64                      `json:"video_price_720p"`
+	VideoPrice1080P            *float64                      `json:"video_price_1080p"`
+	VideoModelPrices           map[string]map[string]float64 `json:"video_model_prices,omitempty"`
 	// Codex alpha/search 网页搜索单次价格（USD/次）；null 表示使用默认价 0.01
-	WebSearchPricePerCall *float64 `json:"web_search_price_per_call"`
+	WebSearchPricePerCall        *float64 `json:"web_search_price_per_call"`
+	SearchPricePer1k             *float64 `json:"search_price_per_1k"`
+	AudioRealtimePricePerMin     *float64 `json:"audio_realtime_price_per_min"`
+	AudioTtsPricePerMillionChars *float64 `json:"audio_tts_price_per_million_chars"`
+	AudioSttPricePerHour         *float64 `json:"audio_stt_price_per_hour"`
 
 	// Claude Code 客户端限制
 	ClaudeCodeOnly  bool   `json:"claude_code_only"`

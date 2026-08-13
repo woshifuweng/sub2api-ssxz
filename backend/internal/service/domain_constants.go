@@ -47,6 +47,14 @@ const (
 	PlatformComposite   = domain.PlatformComposite
 )
 
+// AllowedSchedulingThresholdPlatforms lists platforms with native usage windows
+// that can drive automatic scheduling-threshold evaluation.
+var AllowedSchedulingThresholdPlatforms = []string{
+	PlatformOpenAI,
+	PlatformAnthropic,
+	PlatformGrok,
+}
+
 // Account type constants
 const (
 	AccountTypeOAuth      = domain.AccountTypeOAuth      // OAuth类型账号（full scope: profile + inference）
@@ -109,18 +117,19 @@ const DingTalkConnectSyntheticEmailDomain = "@dingtalk-connect.invalid"
 // Setting keys
 const (
 	// 注册设置
-	SettingKeyRegistrationEnabled              = "registration_enabled"                // 是否开放注册
-	SettingKeyEmailVerifyEnabled               = "email_verify_enabled"                // 是否开启邮件验证
-	SettingKeyRegistrationEmailSuffixWhitelist = "registration_email_suffix_whitelist" // 注册邮箱后缀白名单（JSON 数组）
-	SettingKeyPromoCodeEnabled                 = "promo_code_enabled"                  // 是否启用优惠码功能
-	SettingKeyPasswordResetEnabled             = "password_reset_enabled"              // 是否启用忘记密码功能（需要先开启邮件验证）
-	SettingKeyFrontendURL                      = "frontend_url"                        // 前端基础URL，用于生成邮件中的重置密码链接
-	SettingKeyInvitationCodeEnabled            = "invitation_code_enabled"             // 是否启用邀请码注册
-	SettingKeyAffiliateEnabled                 = "affiliate_enabled"                   // 邀请返利功能总开关
-	SettingKeyAffiliateRebateRate              = "affiliate_rebate_rate"               // 邀请返利比例（百分比，0-100）
-	SettingKeyAffiliateRebateFreezeHours       = "affiliate_rebate_freeze_hours"       // 返利冻结期（小时，0=不冻结）
-	SettingKeyAffiliateRebateDurationDays      = "affiliate_rebate_duration_days"      // 返利有效期（天，0=永久）
-	SettingKeyAffiliateRebatePerInviteeCap     = "affiliate_rebate_per_invitee_cap"    // 单人返利上限（0=无上限）
+	SettingKeyRegistrationEnabled                 = "registration_enabled"                // 是否开放注册
+	SettingKeyEmailVerifyEnabled                  = "email_verify_enabled"                // 是否开启邮件验证
+	SettingKeyRegistrationEmailSuffixWhitelist    = "registration_email_suffix_whitelist" // 注册邮箱后缀白名单（JSON 数组）
+	SettingKeyRegistrationEmailDomainQuotaEnabled = "registration_email_domain_quota_enabled"
+	SettingKeyPromoCodeEnabled                    = "promo_code_enabled"               // 是否启用优惠码功能
+	SettingKeyPasswordResetEnabled                = "password_reset_enabled"           // 是否启用忘记密码功能（需要先开启邮件验证）
+	SettingKeyFrontendURL                         = "frontend_url"                     // 前端基础URL，用于生成邮件中的重置密码链接
+	SettingKeyInvitationCodeEnabled               = "invitation_code_enabled"          // 是否启用邀请码注册
+	SettingKeyAffiliateEnabled                    = "affiliate_enabled"                // 邀请返利功能总开关
+	SettingKeyAffiliateRebateRate                 = "affiliate_rebate_rate"            // 邀请返利比例（百分比，0-100）
+	SettingKeyAffiliateRebateFreezeHours          = "affiliate_rebate_freeze_hours"    // 返利冻结期（小时，0=不冻结）
+	SettingKeyAffiliateRebateDurationDays         = "affiliate_rebate_duration_days"   // 返利有效期（天，0=永久）
+	SettingKeyAffiliateRebatePerInviteeCap        = "affiliate_rebate_per_invitee_cap" // 单人返利上限（0=无上限）
 
 	// 邮件服务设置
 	SettingKeySMTPHost     = "smtp_host"      // SMTP服务器地址
@@ -244,9 +253,27 @@ const (
 	// When false: runner skips scheduling and user-facing endpoints return an empty list.
 	SettingKeyChannelMonitorEnabled = "channel_monitor_enabled"
 
+	// SettingKeyChannelMonitorMode selects exclusive implementation:
+	// "v1" active probes, "v2" passive aggregation. Default "v1" (opt-in to v2).
+	SettingKeyChannelMonitorMode = "channel_monitor_mode"
+
+	// ChannelMonitorModeV1/V2 are the only accepted mode values.
+	ChannelMonitorModeV1 = "v1"
+	ChannelMonitorModeV2 = "v2"
+
 	// SettingKeyChannelMonitorDefaultIntervalSeconds controls the default interval (seconds)
 	// pre-filled when creating a new channel monitor from the admin UI. Range: [15, 3600].
 	SettingKeyChannelMonitorDefaultIntervalSeconds = "channel_monitor_default_interval_seconds"
+
+	// SettingKeyChannelMonitorHideThroughput hides absolute throughput rates from
+	// non-admin monitor responses so they cannot be used to infer fleet volume.
+	SettingKeyChannelMonitorHideThroughput = "channel_monitor_hide_throughput"
+
+	// Grok defaults apply only when an account does not pin an explicit upstream
+	// or model mapping. They do not enable any OAuth provider.
+	SettingKeyGrokDefaultTextModel           = "grok_default_text_model"
+	SettingKeyGrokCrossClientModelMapEnabled = "grok_cross_client_model_map_enabled"
+	SettingKeyGrokDefaultBaseURLMode         = "grok_default_base_url_mode"
 
 	// SettingKeyAvailableChannelsEnabled is a DB-backed soft switch for the "Available Channels"
 	// user-facing aggregate view. When false: user endpoint returns an empty list and the
@@ -433,6 +460,10 @@ const (
 // SettingKeyDefaultPlatformQuotas —— 系统全局：每用户 × 平台日/周/月 USD 上限（JSON）。
 // 值为 map[platform]{daily,weekly,monthly}，null/缺省 = 不限制；0 = 禁用；>0 = USD 上限。
 const SettingKeyDefaultPlatformQuotas = "default_platform_quotas"
+
+// SettingKeyAccountSchedulingThresholds stores per-platform automatic
+// scheduling thresholds as a JSON map.
+const SettingKeyAccountSchedulingThresholds = "account_scheduling_thresholds"
 
 // SettingKeyAuthSourcePlatformQuotas 返回某 auth source 的 platform quota JSON key。
 // 形如 auth_source_default_{source}_platform_quotas

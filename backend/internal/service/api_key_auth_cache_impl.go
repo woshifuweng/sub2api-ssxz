@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 18 // v18: include group profit control fields (force refresh of pre-fix snapshots)
+const apiKeyAuthSnapshotVersion = 19 // v19: include search/audio/video-model pricing fields
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -335,7 +335,7 @@ func (s *APIKeyService) applyAuthCacheEntry(key string, entry *APIKeyAuthCacheEn
 	return s.snapshotToAPIKey(key, entry.Snapshot), true, nil
 }
 
-func (s *APIKeyService) snapshotFromAPIKey(_ context.Context, apiKey *APIKey) *APIKeyAuthSnapshot {
+func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) *APIKeyAuthSnapshot {
 	if apiKey == nil || apiKey.User == nil {
 		return nil
 	}
@@ -357,13 +357,27 @@ func (s *APIKeyService) snapshotFromAPIKey(_ context.Context, apiKey *APIKey) *A
 		RateLimit1d:   apiKey.RateLimit1d,
 		RateLimit7d:   apiKey.RateLimit7d,
 		User: APIKeyAuthUserSnapshot{
-			ID:            apiKey.User.ID,
-			Status:        apiKey.User.Status,
-			Role:          apiKey.User.Role,
-			Balance:       apiKey.User.Balance,
-			Concurrency:   apiKey.User.EffectiveConcurrency(),
-			AllowedGroups: append([]int64(nil), apiKey.User.AllowedGroups...),
+			ID:                         apiKey.User.ID,
+			Status:                     apiKey.User.Status,
+			Role:                       apiKey.User.Role,
+			Balance:                    apiKey.User.Balance,
+			Concurrency:                apiKey.User.EffectiveConcurrency(),
+			AllowedGroups:              append([]int64(nil), apiKey.User.AllowedGroups...),
+			Email:                      apiKey.User.Email,
+			Username:                   apiKey.User.Username,
+			BalanceNotifyEnabled:       apiKey.User.BalanceNotifyEnabled,
+			BalanceNotifyThresholdType: apiKey.User.BalanceNotifyThresholdType,
+			BalanceNotifyThreshold:     apiKey.User.BalanceNotifyThreshold,
+			BalanceNotifyExtraEmails:   apiKey.User.BalanceNotifyExtraEmails,
+			TotalRecharged:             apiKey.User.TotalRecharged,
+			RPMLimit:                   apiKey.User.RPMLimit,
 		},
+	}
+	if apiKey.GroupID != nil && *apiKey.GroupID > 0 && s.userGroupRateRepo != nil {
+		override, err := s.userGroupRateRepo.GetRPMOverrideByUserAndGroup(ctx, apiKey.UserID, *apiKey.GroupID)
+		if err == nil && override != nil {
+			snapshot.User.UserGroupRPMOverride = override
+		}
 	}
 	if apiKey.Group != nil {
 		snapshot.Group = &APIKeyAuthGroupSnapshot{
@@ -396,11 +410,26 @@ func (s *APIKeyService) snapshotFromAPIKey(_ context.Context, apiKey *APIKey) *A
 			ModelRoutingEnabled:             apiKey.Group.ModelRoutingEnabled,
 			MCPXMLInject:                    apiKey.Group.MCPXMLInject,
 			AllowImageGeneration:            apiKey.Group.AllowImageGeneration,
+			AllowBatchImageGeneration:       apiKey.Group.AllowBatchImageGeneration,
+			ImageRateIndependent:            apiKey.Group.ImageRateIndependent,
+			ImageRateMultiplier:             apiKey.Group.ImageRateMultiplier,
+			VideoRateIndependent:            apiKey.Group.VideoRateIndependent,
+			VideoRateMultiplier:             apiKey.Group.VideoRateMultiplier,
+			VideoPrice480P:                  apiKey.Group.VideoPrice480P,
+			VideoPrice720P:                  apiKey.Group.VideoPrice720P,
+			VideoPrice1080P:                 apiKey.Group.VideoPrice1080P,
+			VideoModelPrices:                NormalizeVideoModelPrices(apiKey.Group.VideoModelPrices),
+			SearchPricePer1k:                apiKey.Group.SearchPricePer1k,
+			AudioRealtimePricePerMin:        apiKey.Group.AudioRealtimePricePerMin,
+			AudioTTSPricePerMillionChars:    apiKey.Group.AudioTTSPricePerMillionChars,
+			AudioSTTPricePerHour:            apiKey.Group.AudioSTTPricePerHour,
 			SupportedModelScopes:            apiKey.Group.SupportedModelScopes,
 			AllowMessagesDispatch:           apiKey.Group.AllowMessagesDispatch,
 			AllowLive:                       apiKey.Group.AllowLive,
 			DefaultMappedModel:              apiKey.Group.DefaultMappedModel,
 			MessagesDispatchModelConfig:     apiKey.Group.MessagesDispatchModelConfig,
+			ModelsListConfig:                apiKey.Group.ModelsListConfig,
+			RPMLimit:                        apiKey.Group.RPMLimit,
 			MaxReasoningEffort:              apiKey.Group.MaxReasoningEffort,
 			ReasoningEffortMappings:         apiKey.Group.ReasoningEffortMappings,
 			ProfitControlEnabled:            apiKey.Group.ProfitControlEnabled,
@@ -433,12 +462,21 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 		RateLimit1d:   snapshot.RateLimit1d,
 		RateLimit7d:   snapshot.RateLimit7d,
 		User: &User{
-			ID:            snapshot.User.ID,
-			Status:        snapshot.User.Status,
-			Role:          snapshot.User.Role,
-			Balance:       snapshot.User.Balance,
-			Concurrency:   snapshot.User.Concurrency,
-			AllowedGroups: append([]int64(nil), snapshot.User.AllowedGroups...),
+			ID:                         snapshot.User.ID,
+			Status:                     snapshot.User.Status,
+			Role:                       snapshot.User.Role,
+			Balance:                    snapshot.User.Balance,
+			Concurrency:                snapshot.User.Concurrency,
+			AllowedGroups:              append([]int64(nil), snapshot.User.AllowedGroups...),
+			Email:                      snapshot.User.Email,
+			Username:                   snapshot.User.Username,
+			BalanceNotifyEnabled:       snapshot.User.BalanceNotifyEnabled,
+			BalanceNotifyThresholdType: snapshot.User.BalanceNotifyThresholdType,
+			BalanceNotifyThreshold:     snapshot.User.BalanceNotifyThreshold,
+			BalanceNotifyExtraEmails:   snapshot.User.BalanceNotifyExtraEmails,
+			TotalRecharged:             snapshot.User.TotalRecharged,
+			RPMLimit:                   snapshot.User.RPMLimit,
+			UserGroupRPMOverride:       snapshot.User.UserGroupRPMOverride,
 		},
 	}
 	if snapshot.Group != nil {
@@ -473,11 +511,26 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			ModelRoutingEnabled:             snapshot.Group.ModelRoutingEnabled,
 			MCPXMLInject:                    snapshot.Group.MCPXMLInject,
 			AllowImageGeneration:            snapshot.Group.AllowImageGeneration,
+			AllowBatchImageGeneration:       snapshot.Group.AllowBatchImageGeneration,
+			ImageRateIndependent:            snapshot.Group.ImageRateIndependent,
+			ImageRateMultiplier:             snapshot.Group.ImageRateMultiplier,
+			VideoRateIndependent:            snapshot.Group.VideoRateIndependent,
+			VideoRateMultiplier:             snapshot.Group.VideoRateMultiplier,
+			VideoPrice480P:                  snapshot.Group.VideoPrice480P,
+			VideoPrice720P:                  snapshot.Group.VideoPrice720P,
+			VideoPrice1080P:                 snapshot.Group.VideoPrice1080P,
+			VideoModelPrices:                NormalizeVideoModelPrices(snapshot.Group.VideoModelPrices),
+			SearchPricePer1k:                snapshot.Group.SearchPricePer1k,
+			AudioRealtimePricePerMin:        snapshot.Group.AudioRealtimePricePerMin,
+			AudioTTSPricePerMillionChars:    snapshot.Group.AudioTTSPricePerMillionChars,
+			AudioSTTPricePerHour:            snapshot.Group.AudioSTTPricePerHour,
 			SupportedModelScopes:            snapshot.Group.SupportedModelScopes,
 			AllowMessagesDispatch:           snapshot.Group.AllowMessagesDispatch,
 			AllowLive:                       snapshot.Group.AllowLive,
 			DefaultMappedModel:              snapshot.Group.DefaultMappedModel,
 			MessagesDispatchModelConfig:     snapshot.Group.MessagesDispatchModelConfig,
+			ModelsListConfig:                snapshot.Group.ModelsListConfig,
+			RPMLimit:                        snapshot.Group.RPMLimit,
 			MaxReasoningEffort:              snapshot.Group.MaxReasoningEffort,
 			ReasoningEffortMappings:         snapshot.Group.ReasoningEffortMappings,
 			ProfitControlEnabled:            snapshot.Group.ProfitControlEnabled,
@@ -519,6 +572,21 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 				ModelRoutingEnabled:             group.ModelRoutingEnabled,
 				MCPXMLInject:                    group.MCPXMLInject,
 				AllowImageGeneration:            group.AllowImageGeneration,
+				AllowBatchImageGeneration:       group.AllowBatchImageGeneration,
+				ImageRateIndependent:             group.ImageRateIndependent,
+				ImageRateMultiplier:              group.ImageRateMultiplier,
+				VideoRateIndependent:             group.VideoRateIndependent,
+				VideoRateMultiplier:              group.VideoRateMultiplier,
+				VideoPrice480P:                   group.VideoPrice480P,
+				VideoPrice720P:                   group.VideoPrice720P,
+				VideoPrice1080P:                  group.VideoPrice1080P,
+				VideoModelPrices:                 NormalizeVideoModelPrices(group.VideoModelPrices),
+				SearchPricePer1k:                 group.SearchPricePer1k,
+				AudioRealtimePricePerMin:         group.AudioRealtimePricePerMin,
+				AudioTTSPricePerMillionChars:     group.AudioTTSPricePerMillionChars,
+				AudioSTTPricePerHour:             group.AudioSTTPricePerHour,
+				ModelsListConfig:                 group.ModelsListConfig,
+				RPMLimit:                         group.RPMLimit,
 				SupportedModelScopes:            group.SupportedModelScopes,
 				AllowMessagesDispatch:           group.AllowMessagesDispatch,
 				AllowLive:                       group.AllowLive,

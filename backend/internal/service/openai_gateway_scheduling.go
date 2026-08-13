@@ -68,7 +68,20 @@ func explicitOpenAISessionID(c *gin.Context, body []byte) string {
 	if sessionID == "" && len(body) > 0 {
 		sessionID = strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String())
 	}
+	if sessionID == "" && isGrokRequestContext(c) && len(body) > 0 {
+		sessionID = grokPreviousResponseSessionSeed(body)
+	}
 	return sessionID
+}
+
+// grokPreviousResponseSessionSeed returns a stable sticky seed from a Responses
+// previous_response_id. Only response IDs participate in Grok session affinity.
+func grokPreviousResponseSessionSeed(body []byte) string {
+	id := strings.TrimSpace(gjson.GetBytes(body, "previous_response_id").String())
+	if id == "" || ClassifyOpenAIPreviousResponseIDKind(id) != OpenAIPreviousResponseIDKindResponseID {
+		return ""
+	}
+	return "grok-prev-resp:" + id
 }
 
 // explicitOpenAIRequestSessionID extends the common OpenAI session signals

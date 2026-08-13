@@ -96,6 +96,7 @@ type AccountTestService struct {
 	openAIGatewayService      *OpenAIGatewayService
 	httpUpstream              HTTPUpstream
 	cfg                       *config.Config
+	settingService            *SettingService
 	tlsFPProfileService       *TLSFingerprintProfileService
 	soraTestGuardMu           sync.Mutex
 	soraTestLastRun           map[int64]time.Time
@@ -136,6 +137,14 @@ func NewAccountTestService(
 		svc.tlsFPProfileService = tlsFPProfileServices[0]
 	}
 	return svc
+}
+
+// SetSettingService supplies runtime settings used by account tests, including
+// the configured Grok base URL. It is optional to preserve isolated tests.
+func (s *AccountTestService) SetSettingService(settingService *SettingService) {
+	if s != nil {
+		s.settingService = settingService
+	}
 }
 
 func (s *AccountTestService) validateUpstreamBaseURL(raw string) (string, error) {

@@ -629,6 +629,8 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKeyContext(
 	parsed *OpenAIImagesRequest,
 	channelMappedModel string,
 ) (*OpenAIForwardResult, error) {
+	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
+	defer releaseUpstreamCtx()
 	startTime := time.Now()
 	requestModel := strings.TrimSpace(parsed.Model)
 	if mapped := strings.TrimSpace(channelMappedModel); mapped != "" {
@@ -667,11 +669,11 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKeyContext(
 		setOpsUpstreamRequestBodyContext(c, forwardBody)
 	}
 
-	token, _, err := s.GetAccessToken(ctx, account)
+	token, _, err := s.GetAccessToken(upstreamCtx, account)
 	if err != nil {
 		return nil, err
 	}
-	upstreamReq, err := s.buildOpenAIImagesRequestContext(ctx, c, account, forwardBody, forwardContentType, token, parsed.Endpoint)
+	upstreamReq, err := s.buildOpenAIImagesRequestContext(upstreamCtx, c, account, forwardBody, forwardContentType, token, parsed.Endpoint)
 	if err != nil {
 		return nil, err
 	}

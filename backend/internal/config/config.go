@@ -1105,6 +1105,9 @@ type GatewayConfig struct {
 	// UserMessageQueue: 用户消息串行队列配置
 	// 对 role:"user" 的真实用户消息实施账号级串行化 + RPM 自适应延迟
 	UserMessageQueue UserMessageQueueConfig `mapstructure:"user_message_queue"`
+
+	// Grok holds Grok/xAI gateway scheduling and free-tier soft-gate settings.
+	Grok GatewayGrokConfig `mapstructure:"grok"`
 }
 
 type GatewayLiveConfig struct {
@@ -1160,6 +1163,18 @@ type UserMessageQueueConfig struct {
 	MaxDelayMs int `mapstructure:"max_delay_ms"`
 	// CleanupIntervalSeconds: 孤儿锁清理间隔（秒），0 表示禁用
 	CleanupIntervalSeconds int `mapstructure:"cleanup_interval_seconds"`
+}
+
+// GatewayGrokConfig holds Grok-specific gateway scheduling knobs.
+// PasswordAuthEnabled defaults to false and remains disabled unless operators
+// explicitly enable it in configuration.
+type GatewayGrokConfig struct {
+	PasswordAuthEnabled        bool  `mapstructure:"password_auth_enabled"`
+	FreeQuotaSoftGateEnabled   bool  `mapstructure:"free_quota_soft_gate_enabled"`
+	FreeQuotaTokenLimit        int64 `mapstructure:"free_quota_token_limit"`
+	FreeQuotaSoftGatePercent   int   `mapstructure:"free_quota_soft_gate_percent"`
+	FreeQuotaWindowHours       int   `mapstructure:"free_quota_window_hours"`
+	FreeQuotaStatsCacheSeconds int   `mapstructure:"free_quota_stats_cache_seconds"`
 }
 
 // WaitTimeout 返回等待超时的 time.Duration
@@ -2806,6 +2821,14 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_proxy_stream_circuit.failure_threshold", 2)
 	viper.SetDefault("gateway.openai_proxy_stream_circuit.window_seconds", 60)
 	viper.SetDefault("gateway.openai_proxy_stream_circuit.ttl_seconds", 600)
+	// Grok free-tier local soft gate. Detection is strict: accounts without an
+	// explicit free-tier marker fail open, so this default does not affect them.
+	viper.SetDefault("gateway.grok.free_quota_soft_gate_enabled", true)
+	viper.SetDefault("gateway.grok.password_auth_enabled", false)
+	viper.SetDefault("gateway.grok.free_quota_token_limit", int64(500_000))
+	viper.SetDefault("gateway.grok.free_quota_soft_gate_percent", 95)
+	viper.SetDefault("gateway.grok.free_quota_window_hours", 24)
+	viper.SetDefault("gateway.grok.free_quota_stats_cache_seconds", 60)
 	viper.SetDefault("gateway.image_concurrency.enabled", false)
 	viper.SetDefault("gateway.image_concurrency.max_concurrent_requests", 0)
 	viper.SetDefault("gateway.image_concurrency.overflow_mode", ImageConcurrencyOverflowModeReject)
@@ -4336,6 +4359,20 @@ func (c *Config) Validate() error {
 	}
 	if c.AccountImport.MaxChunkAttempts <= 0 {
 		return fmt.Errorf("account_import.max_chunk_attempts must be positive")
+	}
+	if c.Gateway.Grok.FreeQuotaSoftGateEnabled {
+		if c.Gateway.Grok.FreeQuotaTokenLimit <= 0 {
+			return fmt.Errorf("gateway.grok.free_quota_token_limit must be positive")
+		}
+		if c.Gateway.Grok.FreeQuotaSoftGatePercent < 1 || c.Gateway.Grok.FreeQuotaSoftGatePercent > 100 {
+			return fmt.Errorf("gateway.grok.free_quota_soft_gate_percent must be between 1 and 100")
+		}
+		if c.Gateway.Grok.FreeQuotaWindowHours <= 0 {
+			return fmt.Errorf("gateway.grok.free_quota_window_hours must be positive")
+		}
+	}
+	if c.Gateway.Grok.FreeQuotaStatsCacheSeconds < 0 {
+		return fmt.Errorf("gateway.grok.free_quota_stats_cache_seconds must be non-negative")
 	}
 	if err := ValidateDingTalkConfig(c.DingTalk); err != nil {
 		return fmt.Errorf("dingtalk_connect: %w", err)

@@ -42,7 +42,16 @@ type APIKeyAuthUserSnapshot struct {
 	Concurrency int     `json:"concurrency"`
 	// AllowedGroups 是独占分组准入白名单。缓存命中路径上 CanBindGroup 依赖它，
 	// 缺失会让独占分组校验静默放行（e5c51dce9 整合曾丢过该字段）。
-	AllowedGroups []int64 `json:"allowed_groups,omitempty"`
+	AllowedGroups              []int64            `json:"allowed_groups,omitempty"`
+	Email                      string             `json:"email"`
+	Username                   string             `json:"username"`
+	BalanceNotifyEnabled       bool               `json:"balance_notify_enabled"`
+	BalanceNotifyThresholdType string             `json:"balance_notify_threshold_type"`
+	BalanceNotifyThreshold     *float64           `json:"balance_notify_threshold,omitempty"`
+	BalanceNotifyExtraEmails   []NotifyEmailEntry `json:"balance_notify_extra_emails,omitempty"`
+	TotalRecharged             float64            `json:"total_recharged"`
+	RPMLimit                   int                `json:"rpm_limit"`
+	UserGroupRPMOverride       *int               `json:"user_group_rpm_override,omitempty"`
 }
 
 // APIKeyAuthGroupSnapshot 分组快照
@@ -77,10 +86,23 @@ type APIKeyAuthGroupSnapshot struct {
 
 	// Model routing is used by gateway account selection, so it must be part of auth cache snapshot.
 	// Only anthropic groups use these fields; others may leave them empty.
-	ModelRouting         map[string][]int64 `json:"model_routing,omitempty"`
-	ModelRoutingEnabled  bool               `json:"model_routing_enabled"`
-	MCPXMLInject         bool               `json:"mcp_xml_inject"`
-	AllowImageGeneration bool               `json:"allow_image_generation"`
+	ModelRouting                 map[string][]int64            `json:"model_routing,omitempty"`
+	ModelRoutingEnabled          bool                          `json:"model_routing_enabled"`
+	MCPXMLInject                 bool                          `json:"mcp_xml_inject"`
+	AllowImageGeneration         bool                          `json:"allow_image_generation"`
+	AllowBatchImageGeneration    bool                          `json:"allow_batch_image_generation"`
+	ImageRateIndependent         bool                          `json:"image_rate_independent"`
+	ImageRateMultiplier          float64                       `json:"image_rate_multiplier"`
+	VideoRateIndependent         bool                          `json:"video_rate_independent"`
+	VideoRateMultiplier          float64                       `json:"video_rate_multiplier"`
+	VideoPrice480P               *float64                      `json:"video_price_480p,omitempty"`
+	VideoPrice720P               *float64                      `json:"video_price_720p,omitempty"`
+	VideoPrice1080P              *float64                      `json:"video_price_1080p,omitempty"`
+	VideoModelPrices             map[string]map[string]float64 `json:"video_model_prices,omitempty"`
+	SearchPricePer1k             *float64                      `json:"search_price_per_1k,omitempty"`
+	AudioRealtimePricePerMin     *float64                      `json:"audio_realtime_price_per_min,omitempty"`
+	AudioTTSPricePerMillionChars *float64                      `json:"audio_tts_price_per_million_chars,omitempty"`
+	AudioSTTPricePerHour         *float64                      `json:"audio_stt_price_per_hour,omitempty"`
 
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes []string `json:"supported_model_scopes,omitempty"`
@@ -90,6 +112,8 @@ type APIKeyAuthGroupSnapshot struct {
 	AllowLive                   bool                              `json:"allow_live"`
 	DefaultMappedModel          string                            `json:"default_mapped_model,omitempty"`
 	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config,omitempty"`
+	ModelsListConfig            GroupModelsListConfig             `json:"models_list_config,omitempty"`
+	RPMLimit                    int                               `json:"rpm_limit"`
 
 	// MaxReasoningEffort OpenAI/Codex 请求的推理强度上限，空字符串表示不限制。
 	MaxReasoningEffort string `json:"max_reasoning_effort,omitempty"`

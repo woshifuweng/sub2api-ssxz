@@ -169,8 +169,9 @@ func ProvideAccountTestService(
 	httpUpstream HTTPUpstream,
 	cfg *config.Config,
 	tlsFPProfileService *TLSFingerprintProfileService,
+	settingService *SettingService,
 ) *AccountTestService {
-	return NewAccountTestService(
+	svc := NewAccountTestService(
 		accountRepo,
 		geminiTokenProvider,
 		claudeTokenProvider,
@@ -182,6 +183,8 @@ func ProvideAccountTestService(
 		cfg,
 		tlsFPProfileService,
 	)
+	svc.SetSettingService(settingService)
+	return svc
 }
 
 func ProvideGrokQuotaService(

@@ -17,7 +17,7 @@ import (
 // submitOpenAIUsageRecordTask keeps image-generating requests on the mandatory
 // settlement path while ordinary token requests retain the bounded worker path.
 func (h *OpenAIGatewayHandler) submitOpenAIUsageRecordTask(parent context.Context, result *service.OpenAIForwardResult, task service.UsageRecordTask) {
-	if result != nil && result.ImageCount > 0 {
+	if result != nil && (result.ImageCount > 0 || result.SearchCount > 0 || result.AudioUsage != nil) {
 		h.submitMandatoryUsageRecordTask(parent, task)
 		return
 	}

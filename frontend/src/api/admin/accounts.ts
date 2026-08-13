@@ -320,6 +320,19 @@ export async function getUsage(
   return data
 }
 
+export interface BatchAccountUsageResponse {
+  usage: Record<string, AccountUsageInfo>
+  errors: Record<string, string>
+}
+
+export async function getBatchUsage(accountIds: number[], force?: boolean): Promise<BatchAccountUsageResponse> {
+  const { data } = await apiClient.post<BatchAccountUsageResponse>('/admin/accounts/usage/batch', {
+    account_ids: accountIds,
+    force: force === true
+  })
+  return data
+}
+
 /**
  * Clear account rate limit status
  * @param id - Account ID
@@ -1189,6 +1202,7 @@ export const accountsAPI = {
   getStats,
   clearError,
   getUsage,
+  getBatchUsage,
   getTodayStats,
   getBatchTodayStats,
   clearRateLimit,

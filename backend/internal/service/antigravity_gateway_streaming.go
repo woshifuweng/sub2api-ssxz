@@ -38,11 +38,11 @@ func (s *AntigravityGatewayService) observeAntigravityGeminiSSELine(c *gin.Conte
 	if payload == "" || payload == "[DONE]" {
 		return
 	}
-	raw := []byte(payload)
-	if inner, err := s.unwrapV1InternalResponse(raw); err == nil && len(inner) > 0 {
-		raw = inner
-	}
-	observer.ObserveGemini(raw)
+	// Observe the original payload: ObserveGemini supports both the v1internal
+	// wrapper and direct Gemini response shapes. The main stream handler will
+	// unwrap the same line for business processing, so unwrapping here would be
+	// duplicate work on every SSE event.
+	observer.ObserveGemini([]byte(payload))
 }
 
 type antigravityGatewayWriter struct {
@@ -290,6 +290,7 @@ func (s *AntigravityGatewayService) handleGeminiStreamingResponse(c *gin.Context
 			lastDataAt = time.Now()
 
 			line := ev.line
+			s.observeAntigravityGeminiSSELine(c, line)
 			trimmed := strings.TrimRight(line, "\r\n")
 			if strings.HasPrefix(trimmed, "data:") {
 				payload := strings.TrimSpace(strings.TrimPrefix(trimmed, "data:"))
@@ -447,6 +448,7 @@ func (s *AntigravityGatewayService) handleGeminiStreamToNonStreaming(c *gin.Cont
 			}
 
 			line := ev.line
+			s.observeAntigravityGeminiSSELine(c, line)
 			trimmed := strings.TrimRight(line, "\r\n")
 
 			if !strings.HasPrefix(trimmed, "data:") {

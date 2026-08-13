@@ -209,7 +209,12 @@ type CreateGroupInput struct {
 	VideoPrice480P               *float64
 	VideoPrice720P               *float64
 	VideoPrice1080P              *float64
+	VideoModelPrices             map[string]map[string]float64
 	WebSearchPricePerCall        *float64
+	SearchPricePer1k             *float64
+	AudioRealtimePricePerMin     *float64
+	AudioTTSPricePerMillionChars *float64
+	AudioSTTPricePerHour         *float64
 	ImageRateMultiplier          *float64
 	AllowImageGeneration         bool
 	AllowBatchImageGeneration    bool
@@ -291,7 +296,12 @@ type UpdateGroupInput struct {
 	VideoPrice480P               *float64
 	VideoPrice720P               *float64
 	VideoPrice1080P              *float64
+	VideoModelPrices             map[string]map[string]float64
 	WebSearchPricePerCall        *float64
+	SearchPricePer1k             *float64
+	AudioRealtimePricePerMin     *float64
+	AudioTTSPricePerMillionChars *float64
+	AudioSTTPricePerHour         *float64
 }
 
 type CreateAccountInput struct {

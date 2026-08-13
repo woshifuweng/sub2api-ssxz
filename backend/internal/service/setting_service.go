@@ -22,8 +22,71 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"golang.org/x/sync/singleflight"
 )
+
+const (
+	GrokDefaultBaseURLModeAPI     = "api"
+	GrokDefaultBaseURLModeUSEast1 = "us-east-1"
+	GrokDefaultBaseURLModeUSWest2 = "us-west-2"
+	GrokDefaultBaseURLModeEUWest1 = "eu-west-1"
+	GrokDefaultBaseURLModeCLI     = "cli"
+)
+
+func normalizeGrokDefaultBaseURLMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case GrokDefaultBaseURLModeAPI, GrokDefaultBaseURLModeUSEast1,
+		GrokDefaultBaseURLModeUSWest2, GrokDefaultBaseURLModeEUWest1,
+		GrokDefaultBaseURLModeCLI:
+		return strings.ToLower(strings.TrimSpace(mode))
+	default:
+		return GrokDefaultBaseURLModeCLI
+	}
+}
+
+func GrokBaseURLForMode(mode string) string {
+	switch normalizeGrokDefaultBaseURLMode(mode) {
+	case GrokDefaultBaseURLModeAPI:
+		return xai.DefaultBaseURL
+	case GrokDefaultBaseURLModeUSEast1:
+		return xai.DefaultUSEast1BaseURL
+	case GrokDefaultBaseURLModeUSWest2:
+		return xai.DefaultUSWest2BaseURL
+	case GrokDefaultBaseURLModeEUWest1:
+		return xai.DefaultEUWest1BaseURL
+	default:
+		return xai.DefaultCLIBaseURL
+	}
+}
+
+func (s *SettingService) GetGrokDefaultBaseURLMode(ctx context.Context) string {
+	if s == nil || s.settingRepo == nil {
+		return GrokDefaultBaseURLModeCLI
+	}
+	dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gatewayForwardingDBTimeout)
+	defer cancel()
+	raw, err := s.settingRepo.GetValue(dbCtx, SettingKeyGrokDefaultBaseURLMode)
+	if err != nil {
+		return GrokDefaultBaseURLModeCLI
+	}
+	return normalizeGrokDefaultBaseURLMode(raw)
+}
+
+func (s *SettingService) GetGrokDefaultBaseURL(ctx context.Context) string {
+	return GrokBaseURLForMode(s.GetGrokDefaultBaseURLMode(ctx))
+}
+
+func (s *SettingService) ResolveGrokBaseURL(ctx context.Context, account *Account) string {
+	defaultBaseURL := xai.DefaultCLIBaseURL
+	if s != nil {
+		defaultBaseURL = s.GetGrokDefaultBaseURL(ctx)
+	}
+	if account == nil {
+		return defaultBaseURL
+	}
+	return account.GetGrokBaseURLOr(defaultBaseURL)
+}
 
 var (
 	ErrRegistrationDisabled          = infraerrors.Forbidden("REGISTRATION_DISABLED", "registration is currently disabled")
@@ -138,27 +201,29 @@ type DefaultSubscriptionGroupReader interface {
 
 // SettingService 系统设置服务
 type SettingService struct {
-	settingRepo                 SettingRepository
-	defaultSubGroupReader       DefaultSubscriptionGroupReader
-	proxyRepo                   ProxyRepository // for resolving websearch provider proxy URLs
-	cfg                         *config.Config
-	onUpdate                    func() // Callback when settings are updated (for cache invalidation)
-	onS3Update                  func() // Callback when Sora S3 settings are updated
-	onTLSFingerprintUpdate      func() // Callback when TLS fingerprint settings are updated
-	version                     string // Application version
-	hotSettings                 sync.Map
-	hotSettingsSF               singleflight.Group
-	webSearchManagerBuilder     WebSearchManagerBuilder
-	antigravityUAVersionCache   atomic.Value // *cachedAntigravityUserAgentVersion
-	antigravityUAVersionSF      singleflight.Group
-	openAICodexUACache          atomic.Value // *cachedOpenAICodexUserAgent
-	openAICodexUASF             singleflight.Group
-	openAICodexVersionCache     atomic.Value // *cachedOpenAICodexClientVersion
-	openAICodexVersionSF        singleflight.Group
-	codexRestrictionPolicyCache atomic.Value // *cachedCodexRestrictionPolicy
-	codexRestrictionPolicySF    singleflight.Group
-	backendModeCache            atomic.Value // *cachedBackendMode
-	backendModeSF               singleflight.Group
+	settingRepo                      SettingRepository
+	defaultSubGroupReader            DefaultSubscriptionGroupReader
+	proxyRepo                        ProxyRepository // for resolving websearch provider proxy URLs
+	cfg                              *config.Config
+	onUpdate                         func() // Callback when settings are updated (for cache invalidation)
+	onS3Update                       func() // Callback when Sora S3 settings are updated
+	onTLSFingerprintUpdate           func() // Callback when TLS fingerprint settings are updated
+	channelMonitorRuntimeListenersMu sync.Mutex
+	channelMonitorRuntimeListeners   []func()
+	version                          string // Application version
+	hotSettings                      sync.Map
+	hotSettingsSF                    singleflight.Group
+	webSearchManagerBuilder          WebSearchManagerBuilder
+	antigravityUAVersionCache        atomic.Value // *cachedAntigravityUserAgentVersion
+	antigravityUAVersionSF           singleflight.Group
+	openAICodexUACache               atomic.Value // *cachedOpenAICodexUserAgent
+	openAICodexUASF                  singleflight.Group
+	openAICodexVersionCache          atomic.Value // *cachedOpenAICodexClientVersion
+	openAICodexVersionSF             singleflight.Group
+	codexRestrictionPolicyCache      atomic.Value // *cachedCodexRestrictionPolicy
+	codexRestrictionPolicySF         singleflight.Group
+	backendModeCache                 atomic.Value // *cachedBackendMode
+	backendModeSF                    singleflight.Group
 
 	cyberSessionBlockRuntimeCache atomic.Value // *cachedCyberSessionBlockRuntime
 	cyberSessionBlockRuntimeSF    singleflight.Group
@@ -513,6 +578,46 @@ func sanitizePublicEmbeddedURL(raw string) string {
 // This is used for cache invalidation (e.g., HTML cache in frontend server)
 func (s *SettingService) SetOnUpdateCallback(callback func()) {
 	s.onUpdate = callback
+}
+
+// SubscribeChannelMonitorRuntime registers a listener that runs after the
+// monitor runtime settings are persisted, so monitor workers can react without
+// waiting for their next polling interval.
+func (s *SettingService) SubscribeChannelMonitorRuntime(listener func()) (unsubscribe func()) {
+	if s == nil || listener == nil {
+		return func() {}
+	}
+	s.channelMonitorRuntimeListenersMu.Lock()
+	s.channelMonitorRuntimeListeners = append(s.channelMonitorRuntimeListeners, listener)
+	idx := len(s.channelMonitorRuntimeListeners) - 1
+	s.channelMonitorRuntimeListenersMu.Unlock()
+	return func() {
+		s.channelMonitorRuntimeListenersMu.Lock()
+		defer s.channelMonitorRuntimeListenersMu.Unlock()
+		if idx >= 0 && idx < len(s.channelMonitorRuntimeListeners) {
+			s.channelMonitorRuntimeListeners[idx] = nil
+		}
+	}
+}
+
+func (s *SettingService) notifyChannelMonitorRuntimeListeners() {
+	if s == nil {
+		return
+	}
+	s.channelMonitorRuntimeListenersMu.Lock()
+	listeners := make([]func(), 0, len(s.channelMonitorRuntimeListeners))
+	for _, listener := range s.channelMonitorRuntimeListeners {
+		if listener != nil {
+			listeners = append(listeners, listener)
+		}
+	}
+	s.channelMonitorRuntimeListenersMu.Unlock()
+	for _, listener := range listeners {
+		func(fn func()) {
+			defer func() { _ = recover() }()
+			fn()
+		}(listener)
+	}
 }
 
 // SetOnS3UpdateCallback 设置 Sora S3 配置变更时的回调函数（用于刷新 S3 客户端缓存）。
