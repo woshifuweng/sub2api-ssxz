@@ -357,7 +357,7 @@
 
               <!-- Priority 5: Up to date - show GitHub link -->
               <a
-                v-else-if="releaseInfo?.html_url && releaseInfo.html_url !== '#'"
+                v-else-if="runtimeActionsEnabled && releaseInfo?.html_url && releaseInfo.html_url !== '#'"
                 :href="releaseInfo.html_url"
                 target="_blank"
                 rel="noopener noreferrer"
