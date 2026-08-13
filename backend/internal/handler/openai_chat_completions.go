@@ -307,7 +307,7 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 					h.handleFailoverExhaustedContext(c, failoverErr, streamStarted)
 					return
 				}
-				if c.Writer.Size() != writerSizeBeforeForward {
+				if c.ResponseSize() != writerSizeBeforeForward {
 					h.handleFailoverExhaustedContext(c, failoverErr, true)
 					return
 				}

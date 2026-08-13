@@ -327,7 +327,9 @@ func (s *OpenAIGatewayService) executeSingleOpenAIChatWebImageTurnContext(
 	applyOpenAIChatWebSentinelHeaders(headers, sentinelBundle)
 
 	conversationURL := openAIChatWebBaseURL + "/backend-api/conversation"
-	httpReq, err := http.NewRequestWithContext(withOpenAIChatWebImageTimeout(ctx), http.MethodPost, conversationURL, bytes.NewReader(payloadRaw))
+	requestCtx, cancelRequest := withOpenAIChatWebImageTimeout(ctx)
+	defer cancelRequest()
+	httpReq, err := http.NewRequestWithContext(requestCtx, http.MethodPost, conversationURL, bytes.NewReader(payloadRaw))
 	if err != nil {
 		return nil, err
 	}
@@ -460,8 +462,10 @@ func (s *OpenAIGatewayService) uploadOpenAIChatWebImageContext(
 		"reset_rate_limits":   false,
 	}
 	initRaw, _ := json.Marshal(initPayload)
+	initCtx, cancelInit := withOpenAIChatWebImageTimeout(ctx)
+	defer cancelInit()
 	initResp, _, err := s.doOpenAIChatWebJSONRequest(
-		withOpenAIChatWebImageTimeout(ctx),
+		initCtx,
 		account,
 		http.MethodPost,
 		openAIChatWebBaseURL+"/backend-api/files",
@@ -478,7 +482,9 @@ func (s *OpenAIGatewayService) uploadOpenAIChatWebImageContext(
 		return "", fmt.Errorf("chatweb file upload init returned no upload_url or file_id")
 	}
 
-	putReq, err := http.NewRequestWithContext(withOpenAIChatWebImageTimeout(ctx), http.MethodPut, uploadURL, bytes.NewReader(upload.Data))
+	putCtx, cancelPut := withOpenAIChatWebImageTimeout(ctx)
+	defer cancelPut()
+	putReq, err := http.NewRequestWithContext(putCtx, http.MethodPut, uploadURL, bytes.NewReader(upload.Data))
 	if err != nil {
 		return "", err
 	}
@@ -517,8 +523,10 @@ func (s *OpenAIGatewayService) uploadOpenAIChatWebImageContext(
 		"file_name":           fileName,
 	}
 	processRaw, _ := json.Marshal(processPayload)
+	processCtx, cancelProcess := withOpenAIChatWebImageTimeout(ctx)
+	defer cancelProcess()
 	if _, _, err := s.doOpenAIChatWebJSONRequest(
-		withOpenAIChatWebImageTimeout(ctx),
+		processCtx,
 		account,
 		http.MethodPost,
 		openAIChatWebBaseURL+"/backend-api/files/process_upload_stream",
@@ -578,8 +586,10 @@ func (s *OpenAIGatewayService) fetchOpenAIChatWebConversationOutputIDsContext(
 		referer,
 		"*/*",
 	)
+	requestCtx, cancelRequest := withOpenAIChatWebImageTimeout(ctx)
+	defer cancelRequest()
 	payload, _, err := s.doOpenAIChatWebJSONRequest(
-		withOpenAIChatWebImageTimeout(ctx),
+		requestCtx,
 		account,
 		http.MethodGet,
 		openAIChatWebBaseURL+"/backend-api/conversation/"+conversationID,
@@ -620,8 +630,10 @@ func (s *OpenAIGatewayService) fetchOpenAIChatWebDownloadURLContext(
 		referer,
 		"*/*",
 	)
+	requestCtx, cancelRequest := withOpenAIChatWebImageTimeout(ctx)
+	defer cancelRequest()
 	payload, _, err := s.doOpenAIChatWebJSONRequest(
-		withOpenAIChatWebImageTimeout(ctx),
+		requestCtx,
 		account,
 		http.MethodGet,
 		url,
@@ -639,7 +651,9 @@ func (s *OpenAIGatewayService) downloadOpenAIChatWebImageBase64Context(
 	account *Account,
 	downloadURL string,
 ) (string, error) {
-	req, err := http.NewRequestWithContext(withOpenAIChatWebImageTimeout(ctx), http.MethodGet, downloadURL, nil)
+	requestCtx, cancelRequest := withOpenAIChatWebImageTimeout(ctx)
+	defer cancelRequest()
+	req, err := http.NewRequestWithContext(requestCtx, http.MethodGet, downloadURL, nil)
 	if err != nil {
 		return "", err
 	}
@@ -1443,10 +1457,9 @@ func chatWebInt(value any, fallback int) int {
 	return fallback
 }
 
-func withOpenAIChatWebImageTimeout(ctx context.Context) context.Context {
+func withOpenAIChatWebImageTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	timeoutCtx, _ := context.WithTimeout(ctx, openAIChatWebImagesTimeout)
-	return timeoutCtx
+	return context.WithTimeout(ctx, openAIChatWebImagesTimeout)
 }

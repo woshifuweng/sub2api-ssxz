@@ -257,7 +257,7 @@ func (h *APIKeyHandler) CreateGateway(c gatewayctx.GatewayContext) {
 		return
 	}
 	if err := validateAPIKeyCreateRequest(req); err != nil {
-		response.BadRequest(c, "Invalid request: numeric limits must be finite and non-negative, and expires_in_days must be greater than zero")
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusBadRequest, "Invalid request: numeric limits must be finite and non-negative, and expires_in_days must be greater than zero")
 		return
 	}
 
@@ -326,7 +326,7 @@ func (h *APIKeyHandler) UpdateGateway(c gatewayctx.GatewayContext) {
 		return
 	}
 	if err := validateAPIKeyUpdateRequest(req); err != nil {
-		response.BadRequest(c, "Invalid request: numeric limits must be finite and non-negative")
+		response.ErrorContext(apiKeyGatewayResponder{ctx: c}, http.StatusBadRequest, "Invalid request: numeric limits must be finite and non-negative")
 		return
 	}
 

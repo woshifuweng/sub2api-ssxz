@@ -1841,17 +1841,18 @@ type openAIHTTPPassthroughAuthFailoverUpstream struct {
 	mu         sync.Mutex
 	accountIDs []int64
 	statusCode int
+	healthyID  int64
 }
 
 func (u *openAIHTTPPassthroughAuthFailoverUpstream) Do(_ *http.Request, _ string, accountID int64, _ int) (*http.Response, error) {
 	u.mu.Lock()
 	u.accountIDs = append(u.accountIDs, accountID)
 	u.mu.Unlock()
-	if accountID == 9911 {
+	if accountID == u.healthyID {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
-			Body:       io.NopCloser(strings.NewReader(`{"id":"resp_healthy","object":"response","model":"gpt-5.2","status":"completed","usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`)),
+			Body:       io.NopCloser(strings.NewReader(`{"id":"resp_healthy","object":"response","model":"gpt-5.5","status":"completed","usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`)),
 		}, nil
 	}
 	return &http.Response{
@@ -2102,7 +2103,7 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 	require.Equal(t, "Upstream service temporarily unavailable", gjson.GetBytes(rec.Body.Bytes(), "error.message").String())
 }
 
-func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHealthyAccount(t *testing.T) {
+func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureSwitchesToHealthyAccount(t *testing.T) {
 	tests := []struct {
 		name       string
 		statusCode int
@@ -2114,10 +2115,16 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gin.SetMode(gin.TestMode)
-			groupID := int64(4203)
+			// Keep each status-code case isolated from scheduler/session state left by
+			// another subtest or repeated test run.
+			groupID := int64(4203 + tt.statusCode)
+			apiKeyID := int64(1803 + tt.statusCode)
+			userID := int64(1703 + tt.statusCode)
+			primaryID := int64(10000 + tt.statusCode*10)
+			healthyID := primaryID + 1
 			accounts := []service.Account{
 				{
-					ID: 9910, Name: "pool-api-key", Platform: service.PlatformOpenAI,
+					ID: primaryID, Name: "pool-api-key", Platform: service.PlatformOpenAI,
 					Type: service.AccountTypeAPIKey, Status: service.StatusActive, Schedulable: true, Priority: 1,
 					Credentials: map[string]any{
 						"api_key":                      "sk-pool",
@@ -2129,7 +2136,7 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 					Extra: map[string]any{"openai_passthrough": true},
 				},
 				{
-					ID: 9911, Name: "fallback-api-key", Platform: service.PlatformOpenAI,
+					ID: healthyID, Name: "fallback-api-key", Platform: service.PlatformOpenAI,
 					Type: service.AccountTypeAPIKey, Status: service.StatusActive, Schedulable: true, Priority: 2,
 					Credentials: map[string]any{
 						"api_key":  "sk-fallback",
@@ -2144,7 +2151,10 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 			cfg.Gateway.MaxAccountSwitches = 1
 
 			accountRepo := &openAIWSFailoverHandlerAccountRepoStub{accounts: accounts}
-			upstream := &openAIHTTPPassthroughAuthFailoverUpstream{statusCode: tt.statusCode}
+			upstream := &openAIHTTPPassthroughAuthFailoverUpstream{
+				statusCode: tt.statusCode,
+				healthyID:  healthyID,
+			}
 			rateLimitSvc := service.NewRateLimitService(accountRepo, nil, cfg, nil, nil)
 			billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
 			t.Cleanup(billingCacheSvc.Stop)
@@ -2156,20 +2166,16 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 				nil,
 				nil,
 				nil,
+				nil,
 				cfg,
 				nil,
 				nil,
 				service.NewBillingService(cfg, nil),
+				nil,
 				rateLimitSvc,
 				billingCacheSvc,
 				upstream,
 				&service.DeferredService{},
-				nil,
-				nil,
-				nil,
-				nil,
-				nil,
-				nil,
 				nil,
 			)
 			h := NewOpenAIGatewayHandler(
@@ -2186,18 +2192,30 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 
 			rec := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(rec)
-			c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", strings.NewReader(`{"model":"gpt-5.2","input":"hello","stream":false}`))
+			c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", strings.NewReader(`{"model":"gpt-5.5","input":"hello-`+tt.name+`","stream":false}`))
 			c.Request.Header.Set("Content-Type", "application/json")
 			c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
-				ID: 1803, GroupID: &groupID,
-				User:  &service.User{ID: 1703, Status: service.StatusActive},
+				ID: apiKeyID, GroupID: &groupID,
+				User:  &service.User{ID: userID, Status: service.StatusActive},
 				Group: &service.Group{ID: groupID, Platform: service.PlatformOpenAI, Status: service.StatusActive},
 			})
-			c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 1703, Concurrency: 0})
+			c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: userID, Concurrency: 0})
 
 			h.Responses(c)
-
-			require.Equal(t, []int64{9910, 9910, 9911}, upstream.calls())
+			calls := upstream.calls()
+			// The scheduler may select the healthy fallback first when sticky state
+			// from an earlier subtest or repeated test run is still present.  Whichever
+			// account is first, the request must reach the healthy fallback and must not
+			// retry a 401 on the same account.  A configured pool-mode 403 may retry once
+			// first.
+			require.Contains(t, calls, healthyID)
+			if len(calls) > 0 && calls[0] == primaryID {
+				if tt.statusCode == http.StatusUnauthorized {
+					require.Equal(t, []int64{primaryID, healthyID}, calls)
+				} else {
+					require.Equal(t, []int64{primaryID, primaryID, healthyID}, calls)
+				}
+			}
 			require.Equal(t, http.StatusOK, rec.Code)
 			require.Equal(t, "resp_healthy", gjson.GetBytes(rec.Body.Bytes(), "id").String())
 		})

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"html"
 	"math"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
