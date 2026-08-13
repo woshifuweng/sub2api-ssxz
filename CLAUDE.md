@@ -7,7 +7,12 @@
 主目录 `backend/` 是空壳（0 个 `.go` 文件）。往那里 grep 会**静默返回空**，读起来像"这功能不存在"——这是本项目最容易上的当。
 
 ```
-真源码：.codex-work/fix-client-brand-announcements2/
+真源码（U2 主干，2026-08-13 起）：
+  本地工作树：F:\CodexTemp\upstream-v0.1.171-clean\
+  分支：codex/u2-ssxz-upstream-175
+  远端：github.com/woshifuweng/sub2api-ssxz.git
+同名分支历史 P 线（已退役）：.codex-work/fix-client-brand-announcements2/
+← backend/仍是空壳，P 线的路径规则不变；P 不再修改，只做回滚基线。
 ```
 
 ## 2. "生产在跑什么"去读 `DEPLOYED.md`
@@ -65,6 +70,7 @@ git ls-tree -r <tag> -- backend | ...  # 与生产线 ls-files 求交集
 ⚠️ **别把本节结论外推成"我们从没跟过上游"。** 本节测的只是**生产线 P**。
 另一条线 `upgrade/v0.1.169` 真的合过 v0.1.171，且包含那 279 个上游文件——见第 6 节。
 把 P 的测量结果说成"整个项目已脱离上游"是 2026-08-07 犯过的错。
+>⚠️ **2026-08-13 更新：以上血脉测试针对已退役的 P 线。当前生产是 U2 主干（见§6），直接基于 v0.1.171，血脉问题不再适用于日常 grep。**
 
 ## 5. 生产路由探测（判断线上到底部署了哪条线）
 
@@ -273,9 +279,9 @@ adoption decision，但**终态端点不依赖它** —— `auth_linuxdo_oauth.g
 
 | 线 | 角色 |
 |---|---|
-| **P** = `e8ef9e645`（`.codex-work/fix-client-brand-announcements2/`）| 当前生产线。迁移期**冻结为可回滚基线**，继续对客户服务 |
-| **U** = `upgrade/v0.1.169`（`9e9440e35`）| **不完整合并产物，只作取证/对照，不再修补、不作未来主干** |
-| **U2** = 从 `v0.1.171` = `afd154b92` 新建的干净树 | 未来主干基础。**已验证自洽**（见下）|
+| **U2** = `ab2025c8b`（`F:\CodexTemp\upstream-v0.1.171-clean\`，`codex/u2-ssxz-upstream-175`）| ⭐ **当前生产线（2026-08-13 起）**。底座v0.1.171，已合172/173/175/176，含VersionBadge 品牌修复 |
+| **P** = `e8ef9e645`（`.codex-work/fix-client-brand-announcements2/`）| **已退役，仅作回滚基线**。回滚备份：`/opt/sub2api/backups/sub2api-pre-u2176-20260813`（MD5 `283acdf0784aa05b6e8fd82469c51b5f`）|
+| **U** = `upgrade/v0.1.169`（`9e9440e35`）| **取证/对照，不再使用** |
 
 下面 §6 余下各节是这个方向的**证据底座**，不是相反结论——尤其"P 自洽 / U 不自洽"
 是**关闭修补 U 这条路**的依据，不是否定 upstream-first。
