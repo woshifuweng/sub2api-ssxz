@@ -1292,7 +1292,12 @@ func (h *AccountHandler) TestGateway(c gatewayctx.GatewayContext) {
 	}
 
 	// Use AccountTestService to test the account with SSE streaming
-	if err := h.accountTestService.TestAccountConnection(c, accountID, req.ModelID, req.Prompt, service.AccountTestModeDefault); err != nil {
+	ginContext, ok := c.Native().(*gin.Context)
+	if !ok || ginContext == nil {
+		response.ErrorContext(gatewayJSONResponder{ctx: c}, http.StatusInternalServerError, "Account test requires the Gin transport")
+		return
+	}
+	if err := h.accountTestService.TestAccountConnection(ginContext, accountID, req.ModelID, req.Prompt, service.AccountTestModeDefault); err != nil {
 		// Error already sent via SSE, just log
 		return
 	}
