@@ -203,6 +203,8 @@ import TotpLoginModal from '@/components/auth/TotpLoginModal.vue'
 import WechatOAuthSection from '@/components/auth/WechatOAuthSection.vue'
 import Icon from '@/components/icons/Icon.vue'
 import TurnstileWidget from '@/components/CaptchaChallenge.vue'
+import { FoundationButton, FoundationInput } from '@/components/foundation'
+import LiquidButton from '@/components/common/LiquidButton.vue'
 import { useAuthStore, useAppStore } from '@/stores'
 import {
   buildOAuthLoginStartURL,
