@@ -199,7 +199,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_usage_logs_upstream_model_mismatch_c
 runner 主键是**完整文件名**，所以两边不冲突、各记一行、上游那 2 个会正常执行。
 **不构成闸门**，但号段从此双轨，以后自己加 migration 别再用 19x。
 
-### ✅ P 的等价补丁已写好并通过全部闸门（**未部署**，2026-08-07）
+### ✅ P 的等价补丁已部署生产（**2026-08-08 00:58 UTC**，4988a280b）
 
 **不整版合 172，只把那 15 行搬到 P。** 理由：整版 208 文件要过 §6 那整套账本，
 而洞只有 1 个文件；先堵洞、再按 upstream-first 慢慢换主干，两件事解耦。
@@ -209,14 +209,34 @@ runner 主键是**完整文件名**，所以两边不冲突、各记一行、上
 分支/提交:     hotfix/oauth-pending-account-takeover  →  4988a280b
 改动:          auth_oauth_pending_flow.go +15 行（闸门）
                auth_oauth_pending_takeover_guard_test.go +128 行（新增回归测试）
-二进制 MD5:    0d857a0730c5535e2076efadf818d6cb   （122,386,601 字节）
+二进制（可部署）: sub2api_linux_hotfix_4988a280b
+                 93,733,026 字节 · MD5 8e24a2433d24fa3b545aace7ab67592b
+                 版本戳 0.1.3-ssxz.20260807.1（与线上 …20260807 可区分，便于验证真上线）
+构建命令:        与 DEPLOYED.md:260 一致（-tags embed -trimpath -s -w + 三个 -X）
 ```
+
+⛔ **差点造成全站黑屏的坑（已避开，必须写死）：`dist` 只有 `index.html` 被 git 跟踪，
+188 个 asset chunk 全部未跟踪。** 所以 `git worktree add` 建出来的新树里 `dist` 只有 1 个文件
+（815 字节），直接 `-tags embed` 编出的二进制**只嵌了 index.html**，上线后每个 JS/CSS 都 404。
+
+⚠️ **假绿灯判据**：我一开始用 `git diff` 比两边 `dist`，得到"完全一致"——**git 只比跟踪文件**。
+**必须按文件系统比**（文件数 + 字节数）：P = **189 文件 / 5,379,192 字节**。
+体量自检：正确的 embed 二进制 ≈ **93.7 MB**，只嵌 index.html 的 ≈ **88.3 MB**，差的 5.4 MB 就是它。
+
+修法：编译前把 P 的 `backend/internal/web/dist` 整个复制进隔离树，再 `-tags embed`。
+（本次前端零改动 → 用 P 的 dist 就等于线上那份，天然避开"embed 了旧前端"那个老坑。）
+
+⚠️ **`strings`/`grep` 在这台机器上查不了大二进制**（对生产二进制查 `0.1.3-ssxz` 都返回 0，
+而生产明明在发这个版本号）。**必须用 PowerShell 读字节转 Latin-1 再 `IndexOf`**，
+并且**永远带一个必须命中的控制组**（拿生产二进制当控制组），否则"没找到"全是假阴性。
 
 | 闸门 | 结果 |
 |---|---|
 | `go vet` 该包 | ✅ 0 |
 | 生产交叉编译 `GOOS=linux GOARCH=amd64 CGO_ENABLED=0` | ✅ 0 |
-| **全量 `go test ./...`** | ✅ **37 包 ok / 0 FAIL** |
+| **全量 `go test ./...`**（不带 embed）| ✅ **37 包 ok / 0 FAIL** |
+| **全量 `go test -tags embed ./...`**（=上线形态）| 37 ok / **1 包 panic**：`internal/server`，`embed_on.go:158` nil deref。**在 P 上跑同一条命令 panic 在同一行同一调用链**（已实测）→ **P 原有，非本补丁引入**；生产 NRestarts=0 |
+| `internal/web` 测试（只在 `-tags embed` 下存在）| ✅ ok |
 | 新增回归测试 11 个子用例 | ✅ 全绿 |
 
 补丁与上游**逐字相同，只有一处必要改写**：P 的函数是 gateway-context 版
@@ -266,8 +286,8 @@ adoption decision，但**终态端点不依赖它** —— `auth_linuxdo_oauth.g
 |---|---|---|
 | 含 v0.1.171 / `b9545e8dd` | **否 / 否** | **是 / 是** |
 | 上游新增生产 Go 文件（279 个去重） | **有 0 个** | **有 279 个** |
-| Reseller 经销商文件 | **0 个** | **31 个** |
-| `channel_id=NULL` 计费修复 | 无 | 有（就是 U 的 tip）|
+| Reseller 经销商文件 | **已恢复并随 r2 上线**（当前已部署提交 `c346c69e3`） | **31 个** |
+| `channel_id=NULL` 计费修复 | **已含 `8413e2149`**（已确认是已部署提交 `c346c69e3` 的祖先） | 172 缺失，后续方向为 **P→172** |
 | migration 最大号 / 文件数 | 138 / 118 | 204 / 263 |
 | 今天那 5 个修复 | 有 | **全无**（Turnstile 仍在闸上、无 AppSectionShell、无 parseVersion 修复）|
 | `dist` 前端产物 | 已跟踪，入口 `index-Bn3BFivZ.js`，`?v=` 0 处 | **未跟踪，不可复现** |
@@ -680,18 +700,18 @@ U2 比 P 多 **142** 个条目 = 138 个 `.sql` + 4 个 `.go` 回归测试
 带破坏性 DDL 的 4 个：`090_drop_sora.sql` · `127_drop_channel_monitor_deleted_at.sql` ·
 `136_remove_ops_retry_replay.sql`（DROP TABLE+TRUNCATE）· `180_audit_logs.sql`（TRUNCATE）。
 
-### ⚠️ 账本盲区二（B8）：只活在 U 上的 SSXZ 工作，一个都没进 845
+### ⚠️ 账本盲区二（B8）：历史盲区记录（含已纠正的误判）
 
 账本基数 1381 是拿 **fork / P / U2 三棵树**算的，**没有 U**。所以任何"只在 U 上做过、
 P 没有"的定制，结构上不可能出现在 B1–B7 里。已实测漏掉的：
 
-| 只活在 U 的东西 | 实测 |
+| B8 记录 | 实测 |
 |---|---|
 | Reseller 经销商代码 | U **31 个**文件；U2 **0**、P **0** |
 | Reseller migration `200`/`201` | 生产库**已记录**、表和数据都在；U2 有 **0 个** reseller migration |
-| `channel_id=NULL` 计费修复（`9e9440e35`）| 只在 U 的 tip |
+| **已作废：曾误判为只活在 U** — `channel_id=NULL` 计费修复 | **P 已含 `8413e2149`**（本轮已用 `merge-base --is-ancestor` 确认它是已部署提交 `c346c69e3` 的祖先）；缺口在 172，方向固定为 **P→172** |
 
-→ **真实重放盘子 > 907。**
+→ **账本总盘已对齐为 1023：B1–B7 共 907，另加 B8a 的 116。**
 
 **B8a 已量出 = 116 个**（用「存在性」测法：**U 有 + U2 无 + P 无**，零误判，
 不用去减上游那 3134 个提交——因为上游改过的文件必然在 U2 里存在，天然被排除掉）：
@@ -741,11 +761,11 @@ B8b（U/U2/P 三方都有、但 U 与另两个都不同）**先不量**：那一
 
 ### 优先项（客户正在受影响，与主干迁移解耦、可先做）
 
-1. **Reseller** —— 生产库已有 200/201 和数据，P 有 0 个 reseller 文件 → 8 条路由现在 404。
-   已实测可整块搬：15 个前端 + 5 个后端（非测试），22 个 `@/` 依赖里 P 只缺 5 个，
-   其中 4 个本身就是 reseller 文件，**唯一外部依赖是 `@/components/common/LiquidButton.vue`**
-2. **`channel_id=NULL` 计费修复**（`9e9440e35`）——只挑 3 个符号，
-   `usageChannelMappingForAPIKey` / `channelMappingResolver` / `GroupIDForUsage`，**不要整文件覆盖**
+1. **Reseller（已完成）** —— 已随 r2 上线，当前已部署提交为 `c346c69e3`；不再列为 P 的待修项。
+2. **`channel_id=NULL` 计费修复（P 已完成，172 待补）** —— `8413e2149` 已确认是
+   已部署提交 `c346c69e3` 的祖先。缺口在 172，方向固定为 **P→172**；后续只重放
+   `usageChannelMappingForAPIKey` / `channelMappingResolver` / `GroupIDForUsage` 三个符号的语义，
+   **不要整文件覆盖**。
 
 - **唯一主干**：任何时刻只有一条线可以编译部署。**必须先立**——
   否则合过的东西会被另一条线的部署第三次顶掉
