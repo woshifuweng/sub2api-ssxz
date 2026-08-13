@@ -953,6 +953,33 @@
   --ssxz-surface-elevated: var(--ssxz-surface-raised);
   --ssxz-surface-subtle: var(--ssxz-bg-subtle);
   --ssxz-text-primary: var(--ssxz-text);
+
+  /*
+   * Light-mode semantic aliases for the supplied shadcn-style component.
+   * The existing application remains SSXZ-variable based; these aliases let
+   * compatible UI pieces use the same light palette without introducing a
+   * second theme or changing the ThemeToggle mechanism.
+   */
+  --background: var(--ssxz-bg);
+  --foreground: var(--ssxz-text);
+  --color-foreground: var(--ssxz-text);
+  --card: var(--ssxz-surface);
+  --card-foreground: var(--ssxz-text);
+  --popover: var(--ssxz-surface-raised);
+  --popover-foreground: var(--ssxz-text);
+  --primary: var(--ssxz-primary);
+  --primary-foreground: var(--ssxz-action-text);
+  --secondary: var(--ssxz-surface-muted);
+  --secondary-foreground: var(--ssxz-text);
+  --muted: var(--ssxz-surface-muted);
+  --muted-foreground: var(--ssxz-text-muted);
+  --accent: var(--ssxz-accent-soft);
+  --accent-foreground: var(--ssxz-accent-strong);
+  --destructive: var(--ssxz-danger);
+  --destructive-foreground: #ffffff;
+  --border: var(--ssxz-border);
+  --input: var(--ssxz-input);
+  --ring: var(--ssxz-focus);
 }
 
 .dark {
@@ -998,6 +1025,28 @@
   --ssxz-focus-ring: 0 0 0 3px rgb(168 191 213 / 0.3);
 
   --ssxz-glow-subtle: rgb(170 180 194 / 0.08);
+
+  /* Keep the supplied semantic token names theme-aware for dark-compatible consumers. */
+  --background: var(--ssxz-bg);
+  --foreground: var(--ssxz-text);
+  --color-foreground: var(--ssxz-text);
+  --card: var(--ssxz-surface);
+  --card-foreground: var(--ssxz-text);
+  --popover: var(--ssxz-surface-raised);
+  --popover-foreground: var(--ssxz-text);
+  --primary: var(--ssxz-primary);
+  --primary-foreground: var(--ssxz-action-text);
+  --secondary: var(--ssxz-surface-muted);
+  --secondary-foreground: var(--ssxz-text);
+  --muted: var(--ssxz-surface-muted);
+  --muted-foreground: var(--ssxz-text-muted);
+  --accent: var(--ssxz-accent-soft);
+  --accent-foreground: var(--ssxz-accent-strong);
+  --destructive: var(--ssxz-danger);
+  --destructive-foreground: var(--ssxz-action-text);
+  --border: var(--ssxz-border);
+  --input: var(--ssxz-input);
+  --ring: var(--ssxz-focus);
 }
 
 html,
