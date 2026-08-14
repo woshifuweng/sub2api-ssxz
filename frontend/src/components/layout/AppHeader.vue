@@ -11,7 +11,7 @@
           <Icon name="menu" size="md" />
         </button>
 
-        <div class="flex items-center gap-3">
+        <div class="flex items-start gap-3">
           <div class="hidden lg:block">
             <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ pageTitle }}
@@ -21,7 +21,7 @@
             </p>
           </div>
 
-          <VersionBadge v-if="authStore.isAdmin" :runtime-actions-enabled="false" />
+          <VersionBadge v-if="authStore.isAdmin" :runtime-actions-enabled="false" class="mt-0.5" />
         </div>
       </div>
 

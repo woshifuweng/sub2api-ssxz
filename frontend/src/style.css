@@ -920,8 +920,8 @@
     -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --ssxz-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  --ssxz-sidebar-width: 208px;
-  --ssxz-sidebar-collapsed-width: 60px;
+  --ssxz-sidebar-width: 240px;
+  --ssxz-sidebar-collapsed-width: 64px;
   --ssxz-header-height: 56px;
   --ssxz-content-max: 1540px;
   --ssxz-space-page-x: 24px;

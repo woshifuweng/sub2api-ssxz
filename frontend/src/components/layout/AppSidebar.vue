@@ -744,15 +744,15 @@ onBeforeUnmount(() => {
 
 .ssxz-sidebar-subtitle {
   color: var(--ssxz-text-muted);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
 }
 
 .ssxz-sidebar-expanded {
-  width: var(--ssxz-sidebar-width, 248px);
+  width: var(--ssxz-sidebar-width, 240px);
 }
 
 .ssxz-sidebar-collapsed {
-  width: var(--ssxz-sidebar-collapsed-width, 72px);
+  width: var(--ssxz-sidebar-collapsed-width, 64px);
 }
 
 .ssxz-sidebar-collapsed .sidebar-header {

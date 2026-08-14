@@ -17,7 +17,7 @@ defineProps<{ title: string; description?: string }>()
 <style scoped>
 .admin-page-header {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   margin-bottom: 24px;
   padding-bottom: 24px;

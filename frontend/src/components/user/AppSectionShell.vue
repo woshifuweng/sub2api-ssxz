@@ -90,7 +90,9 @@
               <Icon name="book" size="sm" />
               <span class="hidden sm:inline">{{ t('nav.docs') }}</span>
             </RouterLink>
+            <AnnouncementBell v-if="authStore.isAuthenticated" />
             <ThemeToggle />
+            <LocaleSwitcher />
             <div v-if="authStore.isAuthenticated" class="relative">
               <div class="ssxz-account-cluster">
                 <span class="ssxz-balance-pill" :title="userBalanceTitle">{{ t('appShell.balance') }} {{ userBalance }}</span>
@@ -144,6 +146,8 @@ import BrandLogo from '@/components/common/BrandLogo.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
+import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
+import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import type { ChatConversation } from '@/api/chatWorkspace'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
