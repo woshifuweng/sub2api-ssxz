@@ -1,5 +1,10 @@
 <template>
-  <AppLayout>
+  <AppSectionShell
+    :title="t('channelStatus.title')"
+    :subtitle="t('channelStatus.description')"
+    :eyebrow="t('channelStatus.eyebrow')"
+    icon="server"
+  >
     <MonitorHero
       :overall-status="overallStatus"
       :interval-seconds="DEFAULT_INTERVAL_SECONDS"
@@ -25,7 +30,7 @@
       :title="detailTitle"
       @close="closeDetail"
     />
-  </AppLayout>
+  </AppSectionShell>
 </template>
 
 <script setup lang="ts">
@@ -39,7 +44,7 @@ import {
   type UserMonitorView,
   type UserMonitorDetail,
 } from '@/api/channelMonitor'
-import AppLayout from '@/components/layout/AppLayout.vue'
+import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import MonitorHero, {
   type MonitorWindow,
   type OverallStatus,
