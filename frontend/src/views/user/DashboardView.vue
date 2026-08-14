@@ -97,7 +97,6 @@
               :period-label="rangeLabel"
               :has-any-usage="(stats.total_requests || 0) > 0"
             />
-            <UserDashboardQuickActions />
           </div>
 
           <details
@@ -175,7 +174,6 @@ import { FoundationProvider } from "@/components/foundation";
 import UserDashboardStats from "@/components/user/dashboard/UserDashboardStats.vue";
 import UserDashboardCharts from "@/components/user/dashboard/UserDashboardCharts.vue";
 import UserDashboardRecentUsage from "@/components/user/dashboard/UserDashboardRecentUsage.vue";
-import UserDashboardQuickActions from "@/components/user/dashboard/UserDashboardQuickActions.vue";
 import Icon from "@/components/icons/Icon.vue";
 import type { ModelStat, TrendDataPoint, UsageLog } from "@/types";
 

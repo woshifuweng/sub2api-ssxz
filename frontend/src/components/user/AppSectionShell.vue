@@ -27,19 +27,22 @@
       </RouterLink>
 
       <nav class="ssxz-primary-nav" :aria-label="t('appShell.primaryNavigation')">
-        <button
-          v-for="item in mainNavItems"
-          :key="item.to"
-          type="button"
-          class="ssxz-nav-item"
-          :class="{ 'is-active': isActive(item.to) }"
-          :title="item.label"
-          :aria-label="item.label"
-          @click="handlePrimaryNav(item.to)"
-        >
-          <Icon :name="item.icon" size="sm" />
-          <span class="ssxz-sidebar-text">{{ item.label }}</span>
-        </button>
+        <div v-for="group in mainNavGroups" :key="group.groupLabel" class="ssxz-nav-group">
+          <span class="ssxz-nav-group-label ssxz-sidebar-text">{{ group.groupLabel }}</span>
+          <button
+            v-for="item in group.items"
+            :key="item.to"
+            type="button"
+            class="ssxz-nav-item"
+            :class="{ 'is-active': isActive(item.to) }"
+            :title="item.label"
+            :aria-label="item.label"
+            @click="handlePrimaryNav(item.to)"
+          >
+            <Icon :name="item.icon" size="sm" />
+            <span class="ssxz-sidebar-text">{{ item.label }}</span>
+          </button>
+        </div>
       </nav>
 
       <section v-if="showHistorySection" class="ssxz-history" :aria-label="t('appShell.conversationHistory')">
@@ -156,6 +159,8 @@ import { getSafeLocalStorageItem, setSafeLocalStorageItem } from '@/utils/safeSt
 import { formatCurrency, formatCurrencyTitle } from '@/utils/format'
 
 type IconName = InstanceType<typeof Icon>['$props']['name']
+type NavItem = { label: string; to: string; icon: IconName }
+type NavGroup = { groupLabel: string; items: NavItem[] }
 
 const props = withDefaults(defineProps<{
   title: string
@@ -191,27 +196,54 @@ const mobileNavOpen = ref(false)
 const isDesktopViewport = ref(false)
 let desktopMediaQuery: MediaQueryList | null = null
 
-const mainNavItems = computed<Array<{ label: string; to: string; icon: IconName }>>(() => [
-  { label: t('nav.dashboard'), to: '/app/dashboard', icon: 'home' },
-  { label: t('nav.apiKeys'), to: '/app/keys', icon: 'key' },
-  { label: t('nav.image'), to: '/app/image', icon: 'photo' },
-  { label: t('nav.models'), to: '/app/available-channels', icon: 'calculator' },
-  { label: t('nav.usage'), to: '/app/usage', icon: 'chartBar' },
-  { label: t('nav.channelStatus'), to: '/app/channel-status', icon: 'chartBar' },
-  { label: t('nav.billing'), to: '/app/purchase', icon: 'creditCard' },
-  { label: t('nav.orders'), to: '/app/orders', icon: 'document' },
-  { label: t('nav.redeem'), to: '/app/redeem', icon: 'gift' },
-  ...(appStore.cachedPublicSettings?.affiliate_enabled
-    ? [{ label: t('nav.affiliate'), to: '/app/affiliate', icon: 'users' as IconName }]
-    : []),
-  ...(isResellerAgent.value
-    ? [{ label: t('nav.reseller'), to: '/app/reseller', icon: 'users' as IconName }]
-    : []),
-  ...(isResellerManager.value
-    ? [{ label: t('nav.resellerManager'), to: '/app/reseller/manager', icon: 'users' as IconName }]
-    : []),
-  { label: t('nav.account'), to: '/app/profile', icon: 'userCircle' }
-])
+const mainNavGroups = computed<NavGroup[]>(() => {
+  const billingItems: NavItem[] = [
+    { label: t('nav.billing'), to: '/app/purchase', icon: 'creditCard' },
+    { label: t('nav.orders'), to: '/app/orders', icon: 'document' },
+    { label: t('nav.redeem'), to: '/app/redeem', icon: 'gift' },
+  ]
+  if (appStore.cachedPublicSettings?.affiliate_enabled) {
+    billingItems.push({ label: t('nav.affiliate'), to: '/app/affiliate', icon: 'users' as IconName })
+  }
+  const accountItems: NavItem[] = []
+  if (isResellerAgent.value) {
+    accountItems.push({ label: t('nav.reseller'), to: '/app/reseller', icon: 'users' as IconName })
+  }
+  if (isResellerManager.value) {
+    accountItems.push({ label: t('nav.resellerManager'), to: '/app/reseller/manager', icon: 'users' as IconName })
+  }
+  accountItems.push({ label: t('nav.account'), to: '/app/profile', icon: 'userCircle' })
+  return [
+    {
+      groupLabel: t('nav.groupOverview'),
+      items: [{ label: t('nav.dashboard'), to: '/app/dashboard', icon: 'home' }]
+    },
+    {
+      groupLabel: t('nav.groupUse'),
+      items: [
+        { label: t('nav.chat'), to: '/app/chat', icon: 'chat' },
+        { label: t('nav.image'), to: '/app/image', icon: 'photo' },
+        { label: t('nav.apiKeys'), to: '/app/keys', icon: 'key' },
+      ]
+    },
+    {
+      groupLabel: t('nav.groupInformation'),
+      items: [
+        { label: t('nav.models'), to: '/app/available-channels', icon: 'calculator' },
+        { label: t('nav.channelStatus'), to: '/app/channel-status', icon: 'server' },
+        { label: t('nav.usage'), to: '/app/usage', icon: 'chartBar' },
+      ]
+    },
+    {
+      groupLabel: t('nav.groupBilling'),
+      items: billingItems
+    },
+    {
+      groupLabel: t('nav.groupAccount'),
+      items: accountItems
+    }
+  ]
+})
 
 const userLabel = computed(() => authStore.user?.username || authStore.user?.email?.split('@')[0] || t('appShell.accountFallback'))
 const userInitial = computed(() => userLabel.value.slice(0, 1).toUpperCase())
@@ -535,6 +567,21 @@ watch(() => route.fullPath || route.path, closeMobileNav)
     padding-right: 0;
     padding-left: 0;
   }
+
+  .ssxz-sidebar-collapsed .ssxz-nav-group-label {
+    height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    overflow: hidden;
+  }
+
+  .ssxz-sidebar-collapsed .ssxz-nav-group {
+    padding-top: 0.3rem;
+  }
+
+  .ssxz-sidebar-collapsed .ssxz-nav-group:first-child {
+    padding-top: 0;
+  }
 }
 
 .ssxz-sidebar-text {
@@ -583,7 +630,26 @@ watch(() => route.fullPath || route.path, closeMobileNav)
 
 .ssxz-primary-nav {
   display: grid;
-  gap: 0.55rem;
+  gap: 0;
+}
+
+.ssxz-nav-group {
+  display: grid;
+  gap: 0.1rem;
+  padding-top: 0.7rem;
+}
+
+.ssxz-nav-group:first-child {
+  padding-top: 0;
+}
+
+.ssxz-nav-group-label {
+  color: var(--ssxz-subtle);
+  font-size: 0.68rem;
+  font-weight: 760;
+  letter-spacing: 0.05em;
+  padding: 0 0.9rem 0.22rem;
+  text-transform: uppercase;
 }
 
 @media (prefers-reduced-motion: reduce) {
