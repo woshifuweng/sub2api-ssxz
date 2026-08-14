@@ -1098,10 +1098,13 @@ tbody tr:hover .sticky-col {
 }
 
 .sticky-header-cell,
-.dark .sticky-header-cell,
+.dark .sticky-header-cell {
+  background-color: var(--ssxz-bg-subtle);
+}
+
 tbody .sticky-col,
 .dark tbody .sticky-col {
-  background-color: var(--ssxz-bg-subtle);
+  background-color: var(--ssxz-table-sticky-surface);
 }
 
 tbody tr:hover .sticky-col,

@@ -527,7 +527,20 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/monitor',
-    redirect: redirectLegacyRoute('/app/channel-status')
+    name: 'LegacyMonitor',
+    component: () => import('@/views/user/ChannelStatusView.vue'),
+    meta: {
+      requiresAuth: true,
+      title: 'Channel Status'
+    },
+    beforeEnter: (to) => {
+      const authStore = useAuthStore()
+      return {
+        path: authStore.isAdmin ? '/admin/channels/monitor' : '/app/channel-status',
+        query: to.query,
+        hash: to.hash
+      }
+    }
   },
   {
     path: '/sora',

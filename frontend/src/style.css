@@ -891,6 +891,7 @@
   --ssxz-surface-raised: #f7f8f9;
   --ssxz-surface-muted: #eceff2;
   --ssxz-surface-code: #f3f5f6;
+  --ssxz-table-sticky-surface: var(--ssxz-surface);
   --ssxz-code-surface: var(--ssxz-surface-code);
   --ssxz-border: #dde1e5;
   --ssxz-border-strong: #c4cad1;
@@ -992,6 +993,7 @@
   --ssxz-surface-raised: #0b0b0d;
   --ssxz-surface-muted: #111115;
   --ssxz-surface-code: #111115;
+  --ssxz-table-sticky-surface: var(--ssxz-bg);
   --ssxz-code-surface: var(--ssxz-surface-code);
   --ssxz-border: #2a2a30;
   --ssxz-border-strong: #33333a;
@@ -1100,6 +1102,8 @@ body::before {
 }
 
 .sidebar-header {
+  box-sizing: border-box;
+  height: var(--ssxz-header-height);
   min-height: var(--ssxz-header-height);
   border-color: var(--ssxz-border) !important;
 }
