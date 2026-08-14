@@ -736,7 +736,7 @@ onBeforeUnmount(() => {
 .ssxz-sidebar-product {
   overflow: hidden;
   color: var(--ssxz-text);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -748,7 +748,7 @@ onBeforeUnmount(() => {
 }
 
 .ssxz-sidebar-expanded {
-  width: var(--ssxz-sidebar-width, 240px);
+  width: var(--ssxz-sidebar-width, 256px);
 }
 
 .ssxz-sidebar-collapsed {

@@ -66,7 +66,7 @@ defineExpose({ replayTour })
 
 @media (min-width: 1024px) {
   .ssxz-admin-main {
-    margin-left: var(--ssxz-sidebar-width, 240px);
+    margin-left: var(--ssxz-sidebar-width, 256px);
   }
 
   .ssxz-admin-main.is-collapsed {

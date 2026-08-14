@@ -3271,8 +3271,9 @@ onUnmounted(() => {
 }
 
 .keys-page-surface--workbench :deep(.keys-actions-column) {
-  width: 12.5rem;
-  min-width: 12.5rem;
+  /* Five 2.15rem action buttons plus gaps and cell padding need this width. */
+  width: 14.5rem;
+  min-width: 14.5rem;
 }
 
 .keys-row-actions {
