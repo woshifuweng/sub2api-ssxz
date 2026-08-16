@@ -23,10 +23,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletionsContext(
 	if !ok || native == nil {
 		return nil, errors.New("openai chat forwarding requires a gin context")
 	}
-	if account != nil && account.IsOpenAIChatWebMode() {
-		return s.ForwardAsChatCompletions(ctx, native, account, body, promptCacheKey, defaultMappedModel)
-	}
-	return s.ForwardContext(ctx, c, account, body, defaultMappedModel)
+	return s.ForwardAsChatCompletions(ctx, native, account, body, promptCacheKey, defaultMappedModel)
 }
 
 // ForwardAsAnthropicContext adapts the gateway-context handler path to the
