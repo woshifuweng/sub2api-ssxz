@@ -3,7 +3,51 @@
 > 这份文件只回答一个问题：**生产现在跑的是哪条代码线。**
 > 它是唯一权威。与 `HANDOFF.md`、memory、`VERSION` 文件冲突时**以本文件为准**；
 > 本文件与生产实测冲突时**以实测为准**，并立刻回来改这份文件。
-> 最后核验：2026-08-07 部署后（核验方法见文末，任何人可自行复跑）
+> 最后核验：2026-08-17 后台国际化修复部署后（核验方法见文末，任何人可自行复跑）
+
+## 当前生产摘要（2026-08-17 后台国际化修复）
+
+- 生产版本：`0.1.176-ssxz.20260817`
+- commit：`460c0bf24`（`codex/u2-ssxz-upstream-175`）
+- 线上 MD5：`bbb3c5ff69ee9e7c31e231509b83f584`（128,348,322 bytes）
+- 前端入口：`/assets/index-ppyqrmCi.js`（239 文件 / 7,339,340 bytes）
+- 服务状态：`active` / `NRestarts=0` / `ExecMainStatus=0`
+- 回滚备份：`/opt/sub2api/backups/sub2api-pre-i18nfix-20260817`
+- 本次改动：合并加载旧版与模块化中英文语言包，补齐后台静态文案，并增加运行时与全后台翻译覆盖测试。
+- 本次未修改生产数据库、OAuth 开关、migration 或 `channel_model_pricing`。
+
+## 上一次生产摘要（2026-08-17 后台布局修复，已被本次覆盖）
+
+- 生产版本：`0.1.176-ssxz.20260817`
+- 线上 MD5：`73a0304dc2b51f6ccdde79ea35a07ac6`（127,869,090 bytes）
+- 回滚备份：`/opt/sub2api/backups/sub2api-pre-admin-layout-20260817`
+- 服务状态：`active` / `NRestarts=0` / `ExecMainStatus=0`
+
+## 历史生产摘要（2026-08-14 第二次部署）
+
+- 生产版本：`0.1.3-ssxz.20260814.2`
+- commit：`13ed1f101`（`codex/u2-ssxz-upstream-175`）
+- 线上 MD5：`66c039d7223bd0ccc6d76ba0f10fc6ae`（127,864,994 bytes）
+- 前端入口：`/assets/index-DowKwre_.js`（234 文件 / 6.85MB）
+- 服务状态：`active` / `NRestarts=0` / `ExecMainStatus=0`
+- 回滚备份：`/opt/sub2api/backups/sub2api-pre-anthropic-fallback-20260814-233540`
+- 本次未修改生产数据库、OAuth 开关或计费配置。
+- 本次改动：
+  - `d82dc7f43` sidebar 分组（AppSectionShell.vue 5 组 + Dashboard 清理）
+  - `962c32d57` 修复 Anthropic 模型定价页消失（`available_channel_handler.go` 补回展示层 fallback）
+  - `13ed1f101` wire_gen.go 同步 billingService 参数
+
+## 上一次生产摘要（2026-08-14 第一次部署，已被本次覆盖）
+
+- 生产版本：`0.1.176-ssxz.20260814`
+- 二进制：`sub2api_linux_iconfix_255775e3a`
+- 线上 MD5：`9dbf6b8669ce385f78ac62785dbbc953`（127,860,898 bytes）
+- 前端入口：`/assets/index-BNkVZ9xY.js`
+- 服务状态：`active` / `NRestarts=0` / `ExecMainStatus=0`
+- 回滚备份：`/opt/sub2api/backups/sub2api-pre-iconfix-20260814`
+- 本次未修改生产数据库、OAuth 开关或计费配置。
+
+以下较早章节保留为历史部署记录；判断当前线上状态以上述摘要和最新部署记录为准。
 
 ## 先跑这一条，别做考古
 
@@ -820,3 +864,63 @@ Codex 侧无 Linux/WSL `bash`，只做了等价只读检查。事后由 Git Bash
 | 回滚备份 | `/opt/sub2api/backups/sub2api-pre-lightmode-20260813` |
 | 部署验收 | 版本端点返回预期版本；服务 `active` / `NRestarts=0` / `ExecMainStatus=0`；线上 MD5 与候选一致 |
 | 备注 | 按授权跳过 post-deploy 模型探测；未改 OAuth、生产数据库或 `channel_model_pricing` |
+
+## 过夜任务上线（2026-08-14）
+
+| 项目 | 值 |
+|---|---|
+| 版本 | `0.1.176-ssxz.20260814` |
+| 二进制 | `sub2api_linux_overnight_0bcccbfad` |
+| MD5 | `f97e1ce249665569656148f3071a19a6` |
+| 大小 | `127,860,898 bytes` |
+| 前端入口 | `/assets/index-BlRSeHbL.js`（dist 234 文件 / 6,857,016 bytes） |
+| 本次提交 | `255775e3a` — Header 补齐、既有 UI 修复及网关测试断言修正 |
+| 回滚备份 | `/opt/sub2api/backups/sub2api-pre-overnight-20260814`（原线上 MD5 `6f1af8feea5a48deb17f14961b4f40db`） |
+| 服务状态 | `active` / `NRestarts=0` / `ExecMainStatus=0` |
+| 部署范围 | 未修改生产数据库、OAuth 开关或计费配置 |
+
+回滚方式：
+
+```bash
+ssh ssxz-server "cp -a /opt/sub2api/backups/sub2api-pre-overnight-20260814 /opt/sub2api/sub2api && systemctl restart sub2api"
+```
+
+## 图标修复上线（2026-08-14）
+
+| 项目 | 值 |
+|---|---|
+| 版本 | `0.1.176-ssxz.20260814` |
+| 二进制 | `sub2api_linux_iconfix_255775e3a` |
+| MD5 | `9dbf6b8669ce385f78ac62785dbbc953` |
+| 大小 | `127,860,898 bytes` |
+| 变更 | terminal 图标去掉外框矩形 |
+| 前端入口 | `/assets/index-BNkVZ9xY.js`（dist 234 文件 / 6,856,905 bytes） |
+| 回滚备份 | `/opt/sub2api/backups/sub2api-pre-iconfix-20260814`（原线上 MD5 `f97e1ce249665569656148f3071a19a6`） |
+| 服务状态 | `active` / `NRestarts=0` / `ExecMainStatus=0` |
+| 部署范围 | 未修改生产数据库、OAuth 开关、计费配置或 migration |
+
+回滚方式：
+
+```bash
+ssh ssxz-server "cp -a /opt/sub2api/backups/sub2api-pre-iconfix-20260814 /opt/sub2api/sub2api && systemctl restart sub2api"
+```
+
+## 后台国际化修复上线（2026-08-17）
+
+| 项目 | 值 |
+|---|---|
+| 版本 | `0.1.176-ssxz.20260817` |
+| 二进制 | `sub2api_linux_i18nfix_460c0bf24` |
+| MD5 | `bbb3c5ff69ee9e7c31e231509b83f584` |
+| 大小 | `128,348,322 bytes` |
+| U2 commit | `460c0bf24` — 完整加载旧版基础语言包与模块化后台语言包 |
+| 前端入口 | `/assets/index-ppyqrmCi.js`（dist 239 文件 / 7,339,340 bytes；`?v=` 为 0） |
+| 验证 | `vue-tsc` 0 error；Vitest 224 文件 / 1537 用例全通过；服务 `active` / `NRestarts=0` / `ExecMainStatus=0` |
+| 回滚备份 | `/opt/sub2api/backups/sub2api-pre-i18nfix-20260817`（原线上 MD5 `73a0304dc2b51f6ccdde79ea35a07ac6`） |
+| 部署范围 | 未修改生产数据库、OAuth 开关、migration 或 `channel_model_pricing` |
+
+回滚方式：
+
+```bash
+ssh ssxz-server "cp -a /opt/sub2api/backups/sub2api-pre-i18nfix-20260817 /opt/sub2api/sub2api && systemctl restart sub2api"
+```
