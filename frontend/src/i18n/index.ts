@@ -7,9 +7,37 @@ type LocaleMessages = Record<string, any>
 const LOCALE_KEY = 'sub2api_locale'
 const DEFAULT_LOCALE: LocaleCode = 'zh'
 
+function isMessageObject(value: unknown): value is LocaleMessages {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function mergeLocaleMessages(base: LocaleMessages, additions: LocaleMessages): LocaleMessages {
+  const merged: LocaleMessages = { ...base }
+
+  for (const [key, value] of Object.entries(additions)) {
+    const existing = merged[key]
+    merged[key] = isMessageObject(existing) && isMessageObject(value)
+      ? mergeLocaleMessages(existing, value)
+      : value
+  }
+
+  return merged
+}
+
+async function loadMergedLocale(locale: LocaleCode): Promise<{ default: LocaleMessages }> {
+  // Both legacy locale files and newer modular locale directories are still in
+  // active use. Load both explicitly and let the newer modular messages win.
+  const [legacy, modular] = await Promise.all([
+    locale === 'en' ? import('./locales/en.ts') : import('./locales/zh.ts'),
+    locale === 'en' ? import('./locales/en/index') : import('./locales/zh/index')
+  ])
+
+  return { default: mergeLocaleMessages(legacy.default, modular.default) }
+}
+
 const localeLoaders: Record<LocaleCode, () => Promise<{ default: LocaleMessages }>> = {
-  en: () => import('./locales/en'),
-  zh: () => import('./locales/zh')
+  en: () => loadMergedLocale('en'),
+  zh: () => loadMergedLocale('zh')
 }
 
 function isLocaleCode(value: string): value is LocaleCode {
