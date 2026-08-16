@@ -1,5 +1,5 @@
 <template>
-  <div class="ssxz-admin-shell min-h-screen">
+  <div class="ssxz-admin-shell min-h-screen" :class="{ 'is-admin-route': isAdminRoute }">
     <!-- Sidebar -->
     <AppSidebar />
 
@@ -22,6 +22,7 @@
 <script setup lang="ts">
 import '@/styles/onboarding.css'
 import { computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
 import { useOnboardingTour } from '@/composables/useOnboardingTour'
@@ -31,8 +32,10 @@ import AppHeader from './AppHeader.vue'
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
+const route = useRoute()
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const isAdmin = computed(() => authStore.user?.role === 'admin')
+const isAdminRoute = computed(() => route.path === '/admin' || route.path.startsWith('/admin/'))
 
 const { replayTour } = useOnboardingTour({
   storageKey: isAdmin.value ? 'admin_guide' : 'user_guide',
@@ -105,5 +108,25 @@ defineExpose({ replayTour })
 .ssxz-admin-shell :deep(.dark\:border-dark-700),
 .ssxz-admin-shell :deep(.dark\:border-dark-800) {
   border-color: var(--ssxz-border, #1f2937) !important;
+}
+
+/* Admin tables are denser than the client workbench. Keep this scoped to /admin
+   so client pages retain their existing spacing and horizontal-scroll behavior. */
+@media (min-width: 1024px) {
+  .ssxz-admin-shell.is-admin-route .ssxz-admin-content {
+    max-width: none;
+    padding-inline: 16px;
+  }
+
+  .ssxz-admin-shell.is-admin-route :deep(.table-scroll-container .table-wrapper table) {
+    min-width: 100% !important;
+  }
+
+  .ssxz-admin-shell.is-admin-route :deep(.table-scroll-container .table-wrapper th),
+  .ssxz-admin-shell.is-admin-route :deep(.table-scroll-container .table-wrapper td) {
+    padding-inline: 12px !important;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }
 </style>
