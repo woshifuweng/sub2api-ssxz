@@ -2214,6 +2214,13 @@ const isMaskedApiKey = (key?: string | null): boolean => {
 
 type CcsImportPlatform = "openai" | "gemini" | "anthropic" | "antigravity";
 
+const CCS_CLAUDE_MODELS = {
+  fable: "claude-fable-5",
+  haiku: "claude-3-5-haiku",
+  sonnet: "claude-sonnet-5",
+  opus: "claude-opus-4-8",
+} as const;
+
 const normalizeCcsImportPlatform = (
   value?: string | null,
 ): CcsImportPlatform | null => {
@@ -2876,7 +2883,7 @@ const resolveCcsDefaultModel = (
       ? "gpt-5.5"
       : platform === "anthropic" ||
           (platform === "antigravity" && clientType === "claude")
-        ? "claude-opus-4-8"
+        ? CCS_CLAUDE_MODELS.fable
         : "";
   const allowedModels = (row.allowed_models || [])
     .map((model) => model.trim())
@@ -2888,6 +2895,48 @@ const resolveCcsDefaultModel = (
   )
     return preferred;
   return allowedModels[0] || "";
+};
+
+const resolveCcsClaudeModels = (
+  row: ApiKey,
+  platform: CcsImportPlatform,
+  clientType: "claude" | "gemini",
+) => {
+  if (
+    clientType !== "claude" ||
+    (platform !== "anthropic" && platform !== "antigravity")
+  ) {
+    return null;
+  }
+
+  const allowedModels = (row.allowed_models || [])
+    .map((model) => model.trim())
+    .filter(Boolean);
+  const isAvailable = (model: string) =>
+    allowedModels.length === 0 || allowedModels.includes(model);
+  const defaultModel =
+    [
+      CCS_CLAUDE_MODELS.fable,
+      CCS_CLAUDE_MODELS.sonnet,
+      CCS_CLAUDE_MODELS.opus,
+      CCS_CLAUDE_MODELS.haiku,
+    ].find(isAvailable) || allowedModels[0] || "";
+
+  return {
+    defaultModel,
+    fableModel: isAvailable(CCS_CLAUDE_MODELS.fable)
+      ? CCS_CLAUDE_MODELS.fable
+      : "",
+    haikuModel: isAvailable(CCS_CLAUDE_MODELS.haiku)
+      ? CCS_CLAUDE_MODELS.haiku
+      : "",
+    sonnetModel: isAvailable(CCS_CLAUDE_MODELS.sonnet)
+      ? CCS_CLAUDE_MODELS.sonnet
+      : "",
+    opusModel: isAvailable(CCS_CLAUDE_MODELS.opus)
+      ? CCS_CLAUDE_MODELS.opus
+      : "",
+  };
 };
 
 const executeCcsImport = (row: ApiKey, clientType: "claude" | "gemini") => {
@@ -2941,7 +2990,10 @@ const executeCcsImport = (row: ApiKey, clientType: "claude" | "gemini") => {
   const providerName = normalizeSiteName(
     publicSettings.value?.site_name || DEFAULT_SITE_NAME,
   );
-  const defaultModel = resolveCcsDefaultModel(row, platform, clientType);
+  const claudeModels = resolveCcsClaudeModels(row, platform, clientType);
+  const defaultModel =
+    claudeModels?.defaultModel ||
+    resolveCcsDefaultModel(row, platform, clientType);
 
   const params = new URLSearchParams({
     resource: "provider",
@@ -2958,6 +3010,29 @@ const executeCcsImport = (row: ApiKey, clientType: "claude" | "gemini") => {
     usageAutoInterval: "30",
   });
   if (defaultModel) params.set("model", defaultModel);
+  if (claudeModels) {
+    if (claudeModels.haikuModel) {
+      params.set("haikuModel", claudeModels.haikuModel);
+    }
+    if (claudeModels.sonnetModel) {
+      params.set("sonnetModel", claudeModels.sonnetModel);
+    }
+    if (claudeModels.opusModel) {
+      params.set("opusModel", claudeModels.opusModel);
+    }
+    if (claudeModels.fableModel) {
+      params.set(
+        "config",
+        btoa(
+          JSON.stringify({
+            env: {
+              ANTHROPIC_DEFAULT_FABLE_MODEL: claudeModels.fableModel,
+            },
+          }),
+        ),
+      );
+    }
+  }
   const deeplink = `ccswitch://v1/import?${params.toString()}`;
 
   try {

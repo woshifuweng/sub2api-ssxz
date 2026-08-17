@@ -182,6 +182,9 @@ const DataTableStub = {
         <div data-test="current-concurrency">
           <slot name="cell-current_concurrency" :value="row.current_concurrency" :row="row" />
         </div>
+        <div data-test="actions">
+          <slot name="cell-actions" :row="row" />
+        </div>
         <div
           v-if="columns.some((col) => col.key === 'last_used_ip')"
           data-test="last-used-ip"
@@ -243,6 +246,9 @@ const mountView = async () => {
         BalanceWarningBanner: true,
         GroupBadge: true,
         GroupOptionItem: true,
+        LiquidButton: {
+          template: '<button v-bind="$attrs"><slot /></button>',
+        },
         Teleport: true,
       },
     },
@@ -362,5 +368,64 @@ describe('user KeysView column settings', () => {
     const wrapper = await mountView()
 
     expect(visibleColumnMeta(wrapper).find((column) => column.key === 'name')?.sortable).toBe(true)
+  })
+
+  it('imports Claude keys with separate model mappings instead of a single Opus default', async () => {
+    listKeys.mockResolvedValue({
+      items: [{
+        ...createApiKey(),
+        group: {
+          id: 11,
+          platform: 'anthropic',
+        },
+      }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-testid="api-key-ccs-import"]').trigger('click')
+
+    expect(openSpy).toHaveBeenCalledTimes(1)
+    const deeplink = String(openSpy.mock.calls[0]?.[0])
+    const params = new URLSearchParams(deeplink.split('?')[1])
+    expect(params.get('model')).toBe('claude-fable-5')
+    expect(params.get('haikuModel')).toBe('claude-3-5-haiku')
+    expect(params.get('sonnetModel')).toBe('claude-sonnet-5')
+    expect(params.get('opusModel')).toBe('claude-opus-4-8')
+    expect(JSON.parse(atob(params.get('config') || ''))).toEqual({
+      env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-fable-5' },
+    })
+  })
+
+  it('does not import Claude model aliases that a restricted key cannot use', async () => {
+    listKeys.mockResolvedValue({
+      items: [{
+        ...createApiKey(),
+        allowed_models: ['claude-opus-4-8'],
+        group: {
+          id: 11,
+          platform: 'anthropic',
+        },
+      }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-testid="api-key-ccs-import"]').trigger('click')
+
+    const deeplink = String(openSpy.mock.calls[0]?.[0])
+    const params = new URLSearchParams(deeplink.split('?')[1])
+    expect(params.get('model')).toBe('claude-opus-4-8')
+    expect(params.get('haikuModel')).toBeNull()
+    expect(params.get('sonnetModel')).toBeNull()
+    expect(params.get('config')).toBeNull()
   })
 })
