@@ -3,9 +3,35 @@
 > 这份文件只回答一个问题：**生产现在跑的是哪条代码线。**
 > 它是唯一权威。与 `HANDOFF.md`、memory、`VERSION` 文件冲突时**以本文件为准**；
 > 本文件与生产实测冲突时**以实测为准**，并立刻回来改这份文件。
-> 最后核验：2026-08-17 后台国际化修复部署后（核验方法见文末，任何人可自行复跑）
+> 最后核验：2026-08-24 近期安全加固部署后（核验方法见文末，任何人可自行复跑）
 
-## 当前生产摘要（2026-08-17 后台国际化修复）
+## 当前生产摘要（2026-08-24 近期安全加固）
+
+- 生产版本：`0.1.176-ssxz.20260824-security`
+- 源码 commit：`85fd1c2a8062e41646a1ff92354a508fc11b3eb3`（远端分支 `codex/security-hardening-20260824`）
+- 线上 MD5：`f957ad9f4897b54e1a3f9edb1f80dbb5`（128,430,242 bytes）
+- Go 工具链：`go1.26.6` / `linux/amd64` / `CGO_ENABLED=0`
+- 前端入口：`/assets/index-C1NEpc15.js`（239 文件 / 7,415,928 bytes，`?v=` 0 处）
+- 服务状态：`active` / `NRestarts=0` / `ExecMainStatus=0`
+- 回滚备份：`/opt/sub2api/backups/sub2api-pre-security-20260824`（MD5 `07f29fc7d77049d8d6e483b176078f2c`）
+- 本次加固：注册成功路径增加全局/域名/邮箱三级限速；WebSocket 默认同源；持久化错误正文脱敏；前端生产依赖升级；增加 `Permissions-Policy`；合入邀请注册并发原子性修复；增加发布前安全闸门。
+- 主机加固：清理两个无生产依赖的遗留测试容器及匿名卷；关闭 SSH X11/端口转发；隐藏 nginx 版本。
+- 全量门禁：`go vet`、`go test`、`govulncheck`、`vue-tsc`、224 个前端测试文件 / 1539 个用例、前端生产构建全部通过；生产依赖 high/critical 均为 0，代码可达 Go 漏洞为 0。
+- 本次未修改生产数据库、migration、OAuth 开关或 `channel_model_pricing`。
+
+## 上一次生产摘要（2026-08-24 Go 1.26.6 安全重构建，已被本次覆盖）
+
+- 生产版本：`0.1.176-ssxz.20260818`（业务版本未变）
+- 源码 commit：`5c3bc1a61a7a1a0679042df3c4be223b210394e5`
+- 线上 MD5：`07f29fc7d77049d8d6e483b176078f2c`（128,516,258 bytes）
+- Go 工具链：`go1.26.6` / `linux/amd64` / `CGO_ENABLED=0`
+- 前端入口：`/assets/index-xHKXj2HA.js`（239 文件 / 7,340,125 bytes，`?v=` 0 处）
+- 服务状态：`active` / `NRestarts=0` / `ExecMainStatus=0`
+- 回滚备份：`/opt/sub2api/backups/sub2api-pre-go1266-20260824`（MD5 `31b683555c1ae5f81a5fa464e0faa0a6`）
+- 本次仅用 Go 1.26.6 重建并替换同一 commit 的二进制，以修复运行时安全漏洞；`go test ./...`、`go vet ./...`、`govulncheck ./...` 均通过，代码可达漏洞为 0。
+- 本次未修改业务代码、前端产物、生产数据库、migration、OAuth 开关或 `channel_model_pricing`。
+
+## 上一次生产摘要（2026-08-17 后台国际化修复，已被本次覆盖）
 
 - 生产版本：`0.1.176-ssxz.20260817`
 - commit：`460c0bf24`（`codex/u2-ssxz-upstream-175`）
@@ -55,20 +81,21 @@
 curl -s https://api.ssxzapi.com/api/v1/settings/public | grep -o '"version":"[^"]*"'
 ```
 
-2026-08-07 起生产二进制带 ldflags 版本戳，这条命令直接返回代码线身份：
+生产二进制带 ldflags 版本戳，这条命令直接返回当前代码线身份。2026-08-24 安全版本的期望输出是：
 
 ```
-"version":"0.1.3-ssxz.20260807"
+"version":"0.1.176-ssxz.20260824-security"
 ```
 
-`0.1.3` = 我们 fork 自己的发布计数器（与上游 `0.1.17x` 是两套编号，不可比大小）；
-`-ssxz.<日期>` = 构建日期戳，由构建命令注入，**认这个，不认 VERSION 文件**。
+`0.1.176` = 当前上游底座版本；`-ssxz.<日期>-security` = 本次安全构建身份。判断线上版本以接口实测、MD5 与本文件顶部摘要三者共同为准。
 
 下面的"三条指纹考古法"是版本戳失效时（有人漏加 ldflags）的备用手段，平时不需要。
 
 ---
 
-## 结论
+## 历史结论（2026-08-07，已失效，仅留档）
+
+> 以下 P 线判断是当时的调查记录，不能用于判断当前生产。当前生产身份只看本文件顶部“当前生产摘要”。
 
 生产跑的是 **`codex/fix-client-brand-announcements` 线**——即本地 HEAD `2202c5b60` 所在那条。
 
@@ -923,4 +950,25 @@ ssh ssxz-server "cp -a /opt/sub2api/backups/sub2api-pre-iconfix-20260814 /opt/su
 
 ```bash
 ssh ssxz-server "cp -a /opt/sub2api/backups/sub2api-pre-i18nfix-20260817 /opt/sub2api/sub2api && systemctl restart sub2api"
+```
+
+## Chat Completions 兼容修复上线（2026-08-17）
+
+| 项目 | 值 |
+|---|---|
+| 版本 | `0.1.176-ssxz.20260817.1` |
+| U2 commit | `ea0bb0119` — 修复聊天兼容请求错误转发 |
+| 二进制 MD5 | `4dfee7d8c35b767ce05b4b7a9529d452` |
+| 二进制大小 | `128,344,226 bytes` |
+| 前端 | 未重建、未替换；入口仍为 `/assets/index-ppyqrmCi.js`，HTML 中 `?v=` 为 0 |
+| 自动测试 | `internal/service`、`internal/handler` 通过；新增 Chat 与 Responses 双路径回归测试通过 |
+| 生产验收 | `gpt-5.4-mini`、`gpt-5.5`、`gpt-5.6-sol`、`gpt-5.6-terra` 的 `/v1/responses` 与 `/v1/chat/completions` 均返回 200；`/health` 与 `/login` 返回 200 |
+| 服务状态 | `active` / `NRestarts=0` / `ExecMainStatus=0` |
+| 回滚备份 | `/opt/sub2api/backups/sub2api-pre-chatcompat-20260817-070746`（原线上 MD5 `bbb3c5ff69ee9e7c31e231509b83f584`） |
+| 变更边界 | 未修改企业客户 Key、7折分组、模型权限、账号配置、数据库、倍率、计费价格或 `channel_model_pricing`；Moli 账号保持原状 |
+
+回滚方式：
+
+```bash
+ssh ssxz-server "cp -a /opt/sub2api/backups/sub2api-pre-chatcompat-20260817-070746 /opt/sub2api/sub2api && systemctl restart sub2api"
 ```
