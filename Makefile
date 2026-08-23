@@ -1,4 +1,4 @@
-.PHONY: build build-backend build-frontend build-datamanagementd test test-backend test-frontend test-datamanagementd secret-scan docker-build docker-build-compat
+.PHONY: build build-backend build-frontend build-datamanagementd test test-backend test-frontend test-datamanagementd secret-scan security-preflight docker-build docker-build-compat
 
 # 一键编译前后端
 build: build-backend build-frontend
@@ -27,6 +27,10 @@ test-datamanagementd:
 
 secret-scan:
 	@python3 tools/secret_scan.py
+
+# 发布前安全闸门（Windows/PowerShell 构建机）
+security-preflight:
+	@powershell -NoProfile -ExecutionPolicy Bypass -File tools/security_preflight.ps1
 
 docker-build:
 	@./deploy/build_image.sh
