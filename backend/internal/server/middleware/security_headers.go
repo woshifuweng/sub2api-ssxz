@@ -62,6 +62,9 @@ const (
 	ChainDianShopDomain = "https://pay.ldxp.cn"
 	// HSTSHeaderValue enables one year of HTTPS-only access in production.
 	HSTSHeaderValue = "max-age=31536000"
+	// PermissionsPolicyHeaderValue disables browser capabilities that the product
+	// does not use, limiting the impact of injected or embedded third-party code.
+	PermissionsPolicyHeaderValue = "camera=(), geolocation=(), microphone=(), usb=()"
 )
 
 var requiredCSPDirectiveValues = []struct {
@@ -163,6 +166,7 @@ func ApplySecurityHeadersContext(c gatewayctx.GatewayContext, cfg config.CSPConf
 	c.SetHeader("X-Content-Type-Options", "nosniff")
 	c.SetHeader("X-Frame-Options", "DENY")
 	c.SetHeader("Referrer-Policy", "strict-origin-when-cross-origin")
+	c.SetHeader("Permissions-Policy", PermissionsPolicyHeaderValue)
 	if gin.Mode() == gin.ReleaseMode {
 		c.SetHeader("Strict-Transport-Security", HSTSHeaderValue)
 	}

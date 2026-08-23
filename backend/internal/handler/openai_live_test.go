@@ -2,13 +2,16 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -73,6 +76,48 @@ func TestLiveSidebandLocationMatchesCreateRoute(t *testing.T) {
 		"/backend-api/codex/call_123",
 		liveSidebandLocation("/backend-api/codex/realtime/calls", "call_123"),
 	)
+}
+
+func TestLiveSidebandWebSocketOriginPolicy(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := coderws.Accept(w, r, liveSidebandAcceptOptions())
+		if err != nil {
+			return
+		}
+		_ = conn.Close(coderws.StatusNormalClosure, "")
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	for _, tc := range []struct {
+		name       string
+		origin     string
+		wantStatus int
+	}{
+		{name: "non-browser API client", wantStatus: http.StatusSwitchingProtocols},
+		{name: "same origin browser", origin: server.URL, wantStatus: http.StatusSwitchingProtocols},
+		{name: "cross site browser", origin: "https://attacker.example", wantStatus: http.StatusForbidden},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			headers := http.Header{}
+			if tc.origin != "" {
+				headers.Set("Origin", tc.origin)
+			}
+			conn, response, err := coderws.Dial(context.Background(), wsURL, &coderws.DialOptions{HTTPHeader: headers})
+			if conn != nil {
+				_ = conn.CloseNow()
+			}
+			if tc.wantStatus == http.StatusSwitchingProtocols {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			require.NotNil(t, response)
+			require.Equal(t, tc.wantStatus, response.StatusCode)
+		})
+	}
 }
 
 func TestLiveEnabledForAPIKey(t *testing.T) {

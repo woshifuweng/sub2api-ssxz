@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -15,6 +16,12 @@ import (
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/cespare/xxhash/v2"
 	"golang.org/x/sync/singleflight"
+)
+
+var (
+	opsPlainTextBearerRegex = regexp.MustCompile(`(?i)\b(Bearer\s+)[A-Za-z0-9._~+/=-]{6,}`)
+	opsPlainTextSecretRegex = regexp.MustCompile(`(?i)\b((?:api[_-]?key|apikey|access[_-]?token|refresh[_-]?token|id[_-]?token|session[_-]?token|token|session|cookie|set-cookie|authorization|password|passwd|pwd|secret|client[_-]?secret|private[_-]?key)\s*[:=]\s*)(["']?)[^"'\s,;]+`)
+	opsPlainTextEmailRegex  = regexp.MustCompile(`(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b`)
 )
 
 var ErrOpsDisabled = infraerrors.NotFound("OPS_DISABLED", "Ops monitoring is disabled")
@@ -992,7 +999,12 @@ func sanitizeErrorBodyForStorage(raw string, maxBytes int) (sanitized string, tr
 		return out, trunc
 	}
 
-	// Non-JSON: best-effort truncate.
+	// Non-JSON: redact common credential/PII shapes before truncating. This keeps
+	// useful upstream diagnostics without persisting reusable secrets.
+	raw = sanitizeUpstreamErrorMessage(raw)
+	raw = opsPlainTextBearerRegex.ReplaceAllString(raw, `${1}[REDACTED]`)
+	raw = opsPlainTextSecretRegex.ReplaceAllString(raw, `${1}[REDACTED]`)
+	raw = opsPlainTextEmailRegex.ReplaceAllString(raw, `[REDACTED_EMAIL]`)
 	if maxBytes > 0 && len(raw) > maxBytes {
 		return truncateString(raw, maxBytes), true
 	}

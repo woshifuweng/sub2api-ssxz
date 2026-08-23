@@ -1,13 +1,18 @@
 package handler
 
 import (
+	"context"
+	"crypto/sha256"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
+	appmiddleware "github.com/Wei-Shaw/sub2api/internal/middleware"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -29,9 +34,20 @@ type AuthHandler struct {
 	affiliateSvc         *service.AffiliateService
 	totpService          *service.TotpService
 	userAttributeService *service.UserAttributeService
+	registrationLimiter  registrationAttemptLimiter
 
 	dingTalkClientInstance *DingTalkClient
 	dingTalkClientMu       sync.Mutex
+}
+
+type registrationAttemptLimiter interface {
+	Allow(context.Context, string, int, time.Duration) (appmiddleware.AllowResult, error)
+}
+
+type registrationRateLimitRule struct {
+	key    string
+	limit  int
+	window time.Duration
 }
 
 // NewAuthHandler creates a new AuthHandler
@@ -47,6 +63,79 @@ func NewAuthHandler(cfg *config.Config, authService *service.AuthService, userSe
 		totpService:          totpService,
 		userAttributeService: userAttributeService,
 	}
+}
+
+// SetRegistrationRateLimiter wires the shared Redis limiter into the registration
+// handler so distributed attempts can also be bounded by email/domain/global scope.
+func (h *AuthHandler) SetRegistrationRateLimiter(limiter *appmiddleware.RateLimiter) {
+	if h != nil {
+		h.registrationLimiter = limiter
+	}
+}
+
+func registrationRateLimitKeys(email string) []string {
+	normalized := strings.ToLower(strings.TrimSpace(email))
+	domain := "invalid"
+	if at := strings.LastIndexByte(normalized, '@'); at >= 0 && at+1 < len(normalized) {
+		domain = normalized[at+1:]
+	}
+	hash := func(value string) string {
+		return strconv.FormatUint(uint64FromSHA256(value), 16)
+	}
+	return []string{
+		"auth-register-global",
+		"auth-register-domain:" + hash(domain),
+		"auth-register-email:" + hash(normalized),
+	}
+}
+
+func uint64FromSHA256(value string) uint64 {
+	sum := sha256.Sum256([]byte(value))
+	var out uint64
+	for _, b := range sum[:8] {
+		out = out<<8 | uint64(b)
+	}
+	return out
+}
+
+func (h *AuthHandler) allowRegistrationAttempt(c gatewayctx.GatewayContext, email string) bool {
+	// Route setup always injects this limiter. Keeping nil as a compatibility no-op
+	// avoids breaking isolated handler tests and non-server tooling.
+	if h == nil || h.registrationLimiter == nil {
+		return true
+	}
+
+	keys := registrationRateLimitKeys(email)
+	rules := []registrationRateLimitRule{
+		{key: keys[0], limit: 100, window: 10 * time.Minute},
+		{key: keys[1], limit: 30, window: 10 * time.Minute},
+		{key: keys[2], limit: 3, window: time.Hour},
+	}
+	for _, rule := range rules {
+		result, err := h.registrationLimiter.Allow(c.Request().Context(), rule.key, rule.limit, rule.window)
+		if err == nil && result.Allowed {
+			continue
+		}
+		retryAfter := rule.window
+		if result.RetryAfter > 0 {
+			retryAfter = result.RetryAfter
+		}
+		seconds := int(retryAfter.Round(time.Second) / time.Second)
+		if seconds < 1 {
+			seconds = 1
+		}
+		c.SetHeader("Retry-After", strconv.Itoa(seconds))
+		c.WriteJSON(http.StatusTooManyRequests, gin.H{
+			"error":   "rate limit exceeded",
+			"message": "Too many registration attempts, please try again later",
+		})
+		c.Abort()
+		if err != nil {
+			slog.Warn("registration abuse limiter unavailable; request rejected")
+		}
+		return false
+	}
+	return true
 }
 
 // RegisterRequest represents the registration request payload
@@ -172,6 +261,9 @@ func (h *AuthHandler) RegisterGateway(c gatewayctx.GatewayContext) {
 	// Turnstile 验证（邮箱验证码注册场景避免重复校验一次性 token）
 	if err := h.authService.VerifyTurnstileForRegister(c.Request().Context(), req.TurnstileToken, ip.GetClientIPContext(c), req.VerifyCode); err != nil {
 		response.ErrorFromContext(authJSONResponder{ctx: c}, err)
+		return
+	}
+	if !h.allowRegistrationAttempt(c, req.Email) {
 		return
 	}
 

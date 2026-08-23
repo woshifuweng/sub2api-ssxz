@@ -1805,6 +1805,7 @@ let createdKeyCopyTimer: ReturnType<typeof setTimeout> | null = null;
 let baseUrlCopyTimer: ReturnType<typeof setTimeout> | null = null;
 let baseUrlRootCopyTimer: ReturnType<typeof setTimeout> | null = null;
 let createdKeyExampleCopyTimer: ReturnType<typeof setTimeout> | null = null;
+let ccSwitchFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 const usageStats = ref<Record<string, BatchApiKeyUsageStats>>({});
 const userGroupRates = ref<Record<number, number>>({});
 
@@ -3039,11 +3040,13 @@ const executeCcsImport = (row: ApiKey, clientType: "claude" | "gemini") => {
     window.open(deeplink, "_self");
 
     // Check if the protocol handler worked by detecting if we're still focused
-    setTimeout(() => {
-      if (document.hasFocus()) {
+    if (ccSwitchFallbackTimer) clearTimeout(ccSwitchFallbackTimer);
+    ccSwitchFallbackTimer = setTimeout(() => {
+      if (typeof document !== "undefined" && document.hasFocus()) {
         // Still focused means the protocol handler likely failed
         appStore.showError(t("keys.ccSwitchNotInstalled"));
       }
+      ccSwitchFallbackTimer = null;
     }, 100);
   } catch (error) {
     appStore.showError(t("keys.ccSwitchNotInstalled"));
@@ -3162,6 +3165,8 @@ onUnmounted(() => {
   if (createdKeyCopyTimer) clearTimeout(createdKeyCopyTimer);
   if (baseUrlCopyTimer) clearTimeout(baseUrlCopyTimer);
   if (baseUrlRootCopyTimer) clearTimeout(baseUrlRootCopyTimer);
+  if (createdKeyExampleCopyTimer) clearTimeout(createdKeyExampleCopyTimer);
+  if (ccSwitchFallbackTimer) clearTimeout(ccSwitchFallbackTimer);
 });
 </script>
 

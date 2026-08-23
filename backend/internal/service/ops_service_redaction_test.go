@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -95,5 +96,26 @@ func TestShrinkToEssentials_IncludesThinking(t *testing.T) {
 	out := shrinkToEssentials(root)
 	if _, ok := out["thinking"]; !ok {
 		t.Fatalf("expected thinking to be included in essentials: %#v", out)
+	}
+}
+
+func TestSanitizeErrorBodyForStorage_RedactsPlainTextCredentialsAndPII(t *testing.T) {
+	t.Parallel()
+
+	raw := `upstream failed: Authorization: Bearer sk-secret-token; Cookie: session=abc123; ` +
+		`email=alice@example.com; password=hunter2; ` +
+		`url=https://upstream.example/path?access_token=query-secret&api_key=another-secret`
+
+	out, truncated := sanitizeErrorBodyForStorage(raw, 4096)
+	if truncated {
+		t.Fatal("small redacted body should not be truncated")
+	}
+	for _, secret := range []string{"sk-secret-token", "abc123", "alice@example.com", "hunter2", "query-secret", "another-secret"} {
+		if strings.Contains(out, secret) {
+			t.Fatalf("plain-text secret %q was not redacted: %s", secret, out)
+		}
+	}
+	if !strings.Contains(out, "[REDACTED]") && !strings.Contains(out, "***") {
+		t.Fatalf("expected visible redaction marker, got %q", out)
 	}
 }
