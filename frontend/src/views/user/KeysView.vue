@@ -3277,6 +3277,7 @@ onUnmounted(() => {
 
 .keys-row-actions {
   display: flex;
+  min-height: 100%;
   align-items: center;
   justify-content: flex-end;
   gap: 0.35rem;
@@ -3372,7 +3373,13 @@ onUnmounted(() => {
   cursor: not-allowed;
 }
 
+.keys-action-button--primary {
+  color: var(--ssxz-action);
+}
+
 .keys-action-button--primary:hover {
+  border-color: var(--ssxz-action);
+  background: hsl(var(--ssxz-action-rgb) / 0.08);
   color: var(--ssxz-action);
 }
 
