@@ -1245,7 +1245,6 @@ func (s *GatewayService) calculateTokenCost(
 			Tokens:         tokens,
 			RequestCount:   1,
 			RateMultiplier: multiplier,
-			PricingAt:      pricingAt,
 			ServiceTier:    optionalStringValue(result.ServiceTier),
 			Resolver:       s.resolver,
 			Resolved:       resolved,
@@ -1257,7 +1256,7 @@ func (s *GatewayService) calculateTokenCost(
 		gid := apiKey.Group.ID
 		cost, err = s.billingService.CalculateCostUnified(CostInput{
 			Ctx: ctx, Model: billingModel, GroupID: &gid, Group: apiKey.Group,
-			Tokens: tokens, RequestCount: 1, RateMultiplier: multiplier, PricingAt: pricingAt,
+			Tokens: tokens, RequestCount: 1, RateMultiplier: multiplier,
 			ServiceTier: optionalStringValue(result.ServiceTier), Resolver: s.resolver,
 		})
 	} else {

@@ -99,6 +99,8 @@ type ChannelModelPricing struct {
 	ImageInputPrice  *float64          `json:"image_input_price"`
 	ImageOutputPrice *float64          `json:"image_output_price"`
 	PerRequestPrice  *float64          `json:"per_request_price"`
+	ContextLength    *int              `json:"context_length,omitempty"`
+	MaxOutputTokens  *int              `json:"max_output_tokens,omitempty"`
 	Intervals        []PricingInterval `json:"intervals"`
 	CreatedAt        time.Time         `json:"created_at,omitempty"`
 	UpdatedAt        time.Time         `json:"updated_at,omitempty"`

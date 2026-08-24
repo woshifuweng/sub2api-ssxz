@@ -693,13 +693,6 @@ func TestFilterValidIntervals(t *testing.T) {
 			wantLen: 1,
 		},
 		{
-			name: "interval with only multiplier kept",
-			intervals: []PricingInterval{
-				{MinTokens: 272000, InputMultiplier: testPtrFloat64(2)},
-			},
-			wantLen: 1,
-		},
-		{
 			name: "mixed valid and invalid",
 			intervals: []PricingInterval{
 				{MinTokens: 0, MaxTokens: testPtrInt(128000), InputPrice: testPtrFloat64(1e-6)},
