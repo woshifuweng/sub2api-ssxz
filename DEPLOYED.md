@@ -3,16 +3,17 @@
 > 这份文件只回答一个问题：**生产现在跑的是哪条代码线。**
 > 它是唯一权威。与 `HANDOFF.md`、memory、`VERSION` 文件冲突时**以本文件为准**；
 > 本文件与生产实测冲突时**以实测为准**，并立刻回来改这份文件。
-> 最后核验：2026-08-24 上游 v0.1.179 选择性合并部署后（核验方法见文末，任何人可自行复跑）
+> 最后核验：2026-08-24 后台账号批量用量接口修复部署后（核验方法见文末，任何人可自行复跑）
 
-## 当前生产摘要（2026-08-24 上游 v0.1.179 选择性合并）
+## 当前生产摘要（2026-08-24 后台账号批量用量接口修复）
 
 - 生产版本：`0.1.179-ssxz.20260824`
-- 源码 commit：`db2f6d160b5c71ffba983899b71ebe23518a9290`（远端分支 `fork/codex/upstream-v179-security-20260824`）
-- 线上 MD5：`2cd275082012f2710c52dc82bed17496`（129,482,914 bytes）
-- 前端入口：`/assets/index-DIc5NBzx.js`（240 文件 / 7,524,223 bytes，`?v=` 0 处）
-- 服务状态：`active` / `NRestarts=0` / `ExecMainStatus=0`（MainPID `3353104`）
-- 回滚备份：`/opt/sub2api/backups/sub2api-pre-v179-security-20260824`（MD5 `f957ad9f4897b54e1a3f9edb1f80dbb5`）
+- 源码 commit：`74178321f11ebdff43414e3feb499eb93a660f6a`（远端分支 `fork/codex/upstream-v179-security-20260824`）
+- 线上 MD5：`82837e63ff0a2cf163604d407b1e698c`（129,491,106 bytes）
+- 前端入口：`/assets/index-BBDDr_rx.js`（240 文件 / 7,524,222 bytes，`?v=` 0 处）
+- 服务状态：`active` / `NRestarts=0` / `ExecMainStatus=0`（MainPID `3426882`）
+- 回滚备份：`/opt/sub2api/backups/sub2api-pre-admin-account-usage-20260824-1847`（MD5 `2cd275082012f2710c52dc82bed17496`）；自动快照 `/opt/sub2api/backups/sub2api.20260824-184900` 同源。
+- 本次修复：恢复后台账号页依赖的 `POST /api/v1/admin/accounts/usage/batch`，并把筛选文案 `全部Privacy状态` 修正为 `全部隐私状态`。
 - 已吸收：v0.1.177—v0.1.179 中通过本项目门禁的安全修复、稳定性修复、运维改进与不触碰计费覆盖层的功能。
 - 明确排除：`225_backfill_codex_fingerprint_seed.sql`；渠道模型分时倍率、区间倍率及 fast/flex 计费变更。排除项没有进入候选二进制，也没有在生产执行。
 - 本次新增并执行 6 条安全 migration：`222_group_usage_daily_rollups.sql`、`223_group_usage_rollup_timezone.sql`、`224_user_platform_quotas_add_cn_providers.sql`、`226_add_usage_log_effective_model_indexes_notx.sql`、`226_channel_monitor_quota_mode.sql`、`227_composite_routes_add_cn_providers.sql`；`schema_migrations` 总行数 `302`。
@@ -294,6 +295,23 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags embed -trimpath \
   `runtimeActionsEnabled` prop 决定（默认 false），不是 `BuildType`。
 
 ## 部署记录（新的写在最上面）
+
+### 2026-08-24 后台账号批量用量接口与隐私筛选文案修复
+
+| 字段 | 值 |
+|---|---|
+| 版本 | `0.1.179-ssxz.20260824` |
+| 源码 HEAD | `74178321f11ebdff43414e3feb499eb93a660f6a` |
+| 远端分支 | `fork/codex/upstream-v179-security-20260824` |
+| 二进制 MD5 / 大小 | `82837e63ff0a2cf163604d407b1e698c` / `129,491,106 bytes` |
+| 前端 dist | 240 文件 / 7,524,222 bytes |
+| 前端入口 | `/assets/index-BBDDr_rx.js`（HTTP 200，`?v=` 0 处） |
+| 服务 | `active / NRestarts=0 / ExecMainStatus=0` |
+| 回滚基线 | `/opt/sub2api/backups/sub2api-pre-admin-account-usage-20260824-1847`，MD5 `2cd275082012f2710c52dc82bed17496` |
+
+**验收：** 未登录请求该新路由返回 401、随机不存在路由返回 404；登录后的 Chrome 实测请求返回 200，账号用量数据正常出现，筛选器可在 `Privacy` 与 `全部隐私状态` 间切换并恢复，控制台 0 error / 0 warning。部署后 journal 无 panic、FATAL、checksum 或 migration 错误。
+
+**边界：** 本次未执行 migration，未修改生产数据库、OAuth 开关、`channel_model_pricing` 或其他业务数据。
 
 ### 2026-08-24 上游 v0.1.179 选择性合并上线
 
