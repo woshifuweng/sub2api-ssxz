@@ -3,9 +3,24 @@
 > 这份文件只回答一个问题：**生产现在跑的是哪条代码线。**
 > 它是唯一权威。与 `HANDOFF.md`、memory、`VERSION` 文件冲突时**以本文件为准**；
 > 本文件与生产实测冲突时**以实测为准**，并立刻回来改这份文件。
-> 最后核验：2026-08-24 近期安全加固部署后（核验方法见文末，任何人可自行复跑）
+> 最后核验：2026-08-24 上游 v0.1.179 选择性合并部署后（核验方法见文末，任何人可自行复跑）
 
-## 当前生产摘要（2026-08-24 近期安全加固）
+## 当前生产摘要（2026-08-24 上游 v0.1.179 选择性合并）
+
+- 生产版本：`0.1.179-ssxz.20260824`
+- 源码 commit：`db2f6d160b5c71ffba983899b71ebe23518a9290`（远端分支 `fork/codex/upstream-v179-security-20260824`）
+- 线上 MD5：`2cd275082012f2710c52dc82bed17496`（129,482,914 bytes）
+- 前端入口：`/assets/index-DIc5NBzx.js`（240 文件 / 7,524,223 bytes，`?v=` 0 处）
+- 服务状态：`active` / `NRestarts=0` / `ExecMainStatus=0`（MainPID `3353104`）
+- 回滚备份：`/opt/sub2api/backups/sub2api-pre-v179-security-20260824`（MD5 `f957ad9f4897b54e1a3f9edb1f80dbb5`）
+- 已吸收：v0.1.177—v0.1.179 中通过本项目门禁的安全修复、稳定性修复、运维改进与不触碰计费覆盖层的功能。
+- 明确排除：`225_backfill_codex_fingerprint_seed.sql`；渠道模型分时倍率、区间倍率及 fast/flex 计费变更。排除项没有进入候选二进制，也没有在生产执行。
+- 本次新增并执行 6 条安全 migration：`222_group_usage_daily_rollups.sql`、`223_group_usage_rollup_timezone.sql`、`224_user_platform_quotas_add_cn_providers.sql`、`226_add_usage_log_effective_model_indexes_notx.sql`、`226_channel_monitor_quota_mode.sql`、`227_composite_routes_add_cn_providers.sql`；`schema_migrations` 总行数 `302`。
+- 全量门禁：`go vet`、`go test`、`vue-tsc`、237 个前端测试文件 / 1628 个用例、前端生产构建、PostgreSQL 14.22 克隆 migration 预演全部通过。
+- 线上验收：版本、健康检查、入口资源、CSP、路由正负控、PostgreSQL、Redis、容器、磁盘、内存和服务日志均通过；未发现持续错误。
+- 本次未修改 OAuth 开关、`channel_model_pricing` 或生产业务数据。二进制回滚不会撤销上述 6 条增量 schema 变更。
+
+## 上一次生产摘要（2026-08-24 近期安全加固，已被本次覆盖）
 
 - 生产版本：`0.1.176-ssxz.20260824-security`
 - 源码 commit：`85fd1c2a8062e41646a1ff92354a508fc11b3eb3`（远端分支 `codex/security-hardening-20260824`）
@@ -81,13 +96,13 @@
 curl -s https://api.ssxzapi.com/api/v1/settings/public | grep -o '"version":"[^"]*"'
 ```
 
-生产二进制带 ldflags 版本戳，这条命令直接返回当前代码线身份。2026-08-24 安全版本的期望输出是：
+生产二进制带 ldflags 版本戳，这条命令直接返回当前代码线身份。2026-08-24 v0.1.179 版本的期望输出是：
 
 ```
-"version":"0.1.176-ssxz.20260824-security"
+"version":"0.1.179-ssxz.20260824"
 ```
 
-`0.1.176` = 当前上游底座版本；`-ssxz.<日期>-security` = 本次安全构建身份。判断线上版本以接口实测、MD5 与本文件顶部摘要三者共同为准。
+`0.1.179` = 当前上游底座版本；`-ssxz.<日期>` = 本次 SSXZ 构建身份。判断线上版本以接口实测、MD5 与本文件顶部摘要三者共同为准。
 
 下面的"三条指纹考古法"是版本戳失效时（有人漏加 ldflags）的备用手段，平时不需要。
 
@@ -279,6 +294,24 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags embed -trimpath \
   `runtimeActionsEnabled` prop 决定（默认 false），不是 `BuildType`。
 
 ## 部署记录（新的写在最上面）
+
+### 2026-08-24 上游 v0.1.179 选择性合并上线
+
+| 字段 | 值 |
+|---|---|
+| 版本 | `0.1.179-ssxz.20260824` |
+| 源码 HEAD | `db2f6d160b5c71ffba983899b71ebe23518a9290` |
+| 远端分支 | `fork/codex/upstream-v179-security-20260824` |
+| 二进制 MD5 / 大小 | `2cd275082012f2710c52dc82bed17496` / `129,482,914 bytes` |
+| 前端 dist | 240 文件 / 7,524,223 bytes |
+| 前端入口 | `/assets/index-DIc5NBzx.js`（HTTP 200，`?v=` 0 处） |
+| Migration | 6 条新增均执行并验真；`schema_migrations=302` |
+| 服务 | `active / NRestarts=0 / ExecMainStatus=0` |
+| 回滚基线 | `/opt/sub2api/backups/sub2api-pre-v179-security-20260824`，MD5 `f957ad9f4897b54e1a3f9edb1f80dbb5` |
+
+**选择性合并边界：** 保留通过门禁的上游安全、稳定性、运维和非计费覆盖层改进；主动排除破坏性指纹回填 `225_backfill_codex_fingerprint_seed.sql`，以及渠道分时倍率、区间倍率和 fast/flex 计费变更。生产未打开 OAuth 开关，未修改 `channel_model_pricing`，未写入业务数据。
+
+**回滚边界：** 回滚命令为 `cp -a /opt/sub2api/backups/sub2api-pre-v179-security-20260824 /opt/sub2api/sub2api && systemctl restart sub2api`。这是二进制级回滚；已经执行的 6 条增量 schema 变更不会被二进制回滚撤销。
 
 ### 2026-08-13 U2 主干 + 上游 176 合并（含 VersionBadge 品牌修复）
 

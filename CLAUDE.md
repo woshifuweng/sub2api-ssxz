@@ -7,10 +7,11 @@
 主目录 `backend/` 是空壳（0 个 `.go` 文件）。往那里 grep 会**静默返回空**，读起来像"这功能不存在"——这是本项目最容易上的当。
 
 ```
-真源码（U2 主干，2026-08-13 起）：
-  本地工作树：F:\CodexTemp\upstream-v0.1.171-clean\
-  分支：codex/u2-ssxz-upstream-175
+真源码（U2 主干，2026-08-24 起）：
+  本地工作树：F:\CodexTemp\upstream-v179-security-20260824\
+  分支：codex/upstream-v179-security-20260824
   远端：github.com/woshifuweng/sub2api-ssxz.git
+  当前生产 HEAD：db2f6d160（上游底座 v0.1.179，选择性吸收；生产身份仍以 DEPLOYED.md 为准）
 同名分支历史 P 线（已退役）：.codex-work/fix-client-brand-announcements2/
 ← backend/仍是空壳，P 线的路径规则不变；P 不再修改，只做回滚基线。
 ```
@@ -279,7 +280,7 @@ adoption decision，但**终态端点不依赖它** —— `auth_linuxdo_oauth.g
 
 | 线 | 角色 |
 |---|---|
-| **U2** = `ab2025c8b`（`F:\CodexTemp\upstream-v0.1.171-clean\`，`codex/u2-ssxz-upstream-175`）| ⭐ **当前生产线（2026-08-13 起）**。底座v0.1.171，已合172/173/175/176，含VersionBadge 品牌修复 |
+| **U2** = `db2f6d160`（`F:\CodexTemp\upstream-v179-security-20260824\`，`codex/upstream-v179-security-20260824`）| ⭐ **当前生产线（2026-08-24 起）**。底座已选择性推进到 v0.1.179；保留 SSXZ 定制与安全加固，排除破坏性指纹回填及渠道倍率/分时计费改动。完整线上身份见 `DEPLOYED.md` |
 | **P** = `e8ef9e645`（`.codex-work/fix-client-brand-announcements2/`）| **已退役，仅作回滚基线**。回滚备份：`/opt/sub2api/backups/sub2api-pre-u2176-20260813`（MD5 `283acdf0784aa05b6e8fd82469c51b5f`）|
 | **U** = `upgrade/v0.1.169`（`9e9440e35`）| **取证/对照，不再使用** |
 
