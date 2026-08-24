@@ -742,17 +742,6 @@ func checkPricesNotNegative(p ChannelModelPricing) error {
 			return infraerrors.BadRequest("NEGATIVE_PRICE", fmt.Sprintf("%s must be >= 0", c.field))
 		}
 	}
-	for _, c := range []struct {
-		field string
-		val   *float64
-	}{
-		{"fast_multiplier", p.FastMultiplier},
-		{"flex_multiplier", p.FlexMultiplier},
-	} {
-		if c.val != nil && *c.val <= 0 {
-			return infraerrors.BadRequest("INVALID_MULTIPLIER", fmt.Sprintf("%s must be > 0", c.field))
-		}
-	}
 	return nil
 }
 
@@ -760,9 +749,7 @@ func checkIntervalsHavePrices(p ChannelModelPricing) error {
 	for _, iv := range p.Intervals {
 		if iv.InputPrice == nil && iv.OutputPrice == nil &&
 			iv.CacheWritePrice == nil && iv.CacheReadPrice == nil &&
-			iv.PerRequestPrice == nil && iv.InputMultiplier == nil &&
-			iv.OutputMultiplier == nil && iv.CacheWriteMultiplier == nil &&
-			iv.CacheReadMultiplier == nil {
+			iv.PerRequestPrice == nil {
 			return infraerrors.BadRequest(
 				"INTERVAL_MISSING_PRICE",
 				fmt.Sprintf("interval [%d, %s] has no price fields set for model %v",
