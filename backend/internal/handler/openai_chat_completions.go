@@ -143,6 +143,8 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 	) {
 		return
 	}
+	ccPricingCtx, pricingAt := h.gatewayService.WithOpenAIRequestPricingContext(c.Context(), apiKey.GroupID)
+	c.SetRequest(c.Request().WithContext(ccPricingCtx))
 
 	sessionHash := h.resolveOpenAIStickySessionHashContext(c, apiKey, subject.UserID, reqModel, reqStream, body)
 	promptCacheKey := h.gatewayService.ExtractSessionIDContext(c, body)
@@ -161,10 +163,15 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 	firstOutputTimeoutSwitchCount := 0
 	failedAccountIDs := make(map[int64]struct{})
 	sameAccountRetryCount := make(map[int64]int)
+	profitVetoCount := 0
 	var lastFailoverErr *service.UpstreamFailoverError
+	var oauth429FailoverState service.OpenAIOAuth429FailoverState
 
 	for {
 		if !openAIRequestAllowsFailoverReplayContext(c) {
+			return
+		}
+		if failoverClientGoneContext(c) {
 			return
 		}
 		c.SetValue("openai_chat_completions_fallback_model", "")
@@ -177,7 +184,7 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 			reqModel,
 			failedAccountIDs,
 			service.OpenAIUpstreamTransportAny,
-			h.selectOpenAIAccountWithScheduler(apiKey),
+			h.selectOpenAIAccountWithSchedulerForCapability(apiKey, service.OpenAIEndpointCapabilityChatCompletions, false, true),
 		)
 		var (
 			selection        *service.AccountSelectionResult
@@ -208,7 +215,7 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 						defaultModel,
 						failedAccountIDs,
 						service.OpenAIUpstreamTransportAny,
-						h.selectOpenAIAccountWithScheduler(apiKey),
+						h.selectOpenAIAccountWithSchedulerForCapability(apiKey, service.OpenAIEndpointCapabilityChatCompletions, false, true),
 					)
 					if err == nil && groupSelection != nil {
 						selection = groupSelection.Selection
@@ -218,7 +225,8 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 					}
 				}
 				if err != nil {
-					h.handleStreamingAwareErrorContext(c, http.StatusServiceUnavailable, "no_available_account", "No available upstream account supports the requested model", streamStarted)
+					classification := classifyOpenAICompatibleNoAccountErrorGateway(c, h.gatewayService, apiKey, reqModel, reqModel)
+					h.handleStreamingAwareErrorContext(c, classification.Status, classification.ErrType, classification.Message, streamStarted)
 					return
 				}
 			} else {
@@ -246,7 +254,8 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 			}
 		}
 		if selection == nil || selection.Account == nil {
-			h.handleStreamingAwareErrorContext(c, http.StatusServiceUnavailable, "no_available_account", "No available upstream account supports the requested model", streamStarted)
+			classification := classifyOpenAICompatibleNoAccountErrorGateway(c, h.gatewayService, apiKey, reqModel, reqModel)
+			h.handleStreamingAwareErrorContext(c, classification.Status, classification.ErrType, classification.Message, streamStarted)
 			return
 		}
 		account := selection.Account
@@ -255,8 +264,16 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 		_ = scheduleDecision
 		setOpsSelectedAccountGateway(c, account.ID, account.Platform)
 
-		accountReleaseFunc, acquired := h.acquireResponsesAccountSlotContext(c, selectedAPIKey.GroupID, sessionHash, selection, reqStream, &streamStarted, reqLog)
-		if !acquired {
+		accountReleaseFunc, slotResult := h.acquireResponsesAccountSlotWithProfitGateContext(c, selectedAPIKey.GroupID, sessionHash, selection, reqStream, &streamStarted, reqLog)
+		if slotResult == openAISlotAcquireProfitVetoed {
+			if !recordOpenAIProfitVeto(failedAccountIDs, account.ID, &profitVetoCount) {
+				reqLog.Warn("openai_chat_completions.profit_veto_attempts_exhausted", zap.Int("profit_veto_count", profitVetoCount))
+				h.handleStreamingAwareErrorContext(c, http.StatusServiceUnavailable, "api_error", profitVetoExhaustedMessage, streamStarted)
+				return
+			}
+			continue
+		}
+		if slotResult != openAISlotAcquireOK {
 			return
 		}
 
@@ -272,7 +289,8 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 		} else {
 			result, err = h.gatewayService.ForwardAsChatCompletionsContext(c.Context(), c, account, forwardBody, promptCacheKey, defaultMappedModel)
 		}
-		h.recordCyberPolicyIfMarkedContext(c, selectedAPIKey, account, subscription, reqModel, err != nil, body, clientRequestedUsageFieldsContext(c, channelMapping, reqModel, ""))
+		usageChannelMapping := usageChannelMappingForAPIKey(c.Context(), h.gatewayService, selectedAPIKey, reqModel)
+		h.recordCyberPolicyIfMarkedContext(c, selectedAPIKey, account, subscription, reqModel, err != nil, body, clientRequestedUsageFieldsContext(c, usageChannelMapping, reqModel, ""))
 
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()
 		if accountReleaseFunc != nil {
@@ -287,6 +305,47 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 		if err == nil && result != nil && result.FirstTokenMs != nil {
 			service.SetOpsLatencyMsContext(c, service.OpsTimeToFirstTokenMsKey, int64(*result.FirstTokenMs))
 		}
+		// #5148 对齐：错误返回携带的部分 result（流中断前上游已计量的 usage）照常
+		// 入账；failover 错误恒定 result=nil，不会重复计费。
+		submitChatUsage := func(res *service.OpenAIForwardResult) {
+			if res == nil {
+				return
+			}
+			userAgent := c.HeaderValue("User-Agent")
+			clientIP := c.ClientIP()
+			quotaPlatform := service.QuotaPlatform(c.Context(), selectedAPIKey)
+			sessionID := extractClientSessionIDContext(c)
+			cyberBlocked := getOpsCyberPolicyContext(c) != nil
+			h.submitOpenAIUsageRecordTask(c.Context(), res, func(ctx context.Context) {
+				if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
+					Result:             res,
+					APIKey:             selectedAPIKey,
+					User:               selectedAPIKey.User,
+					Account:            account,
+					Subscription:       subscription,
+					InboundEndpoint:    GetInboundEndpointContext(c),
+					UpstreamEndpoint:   resolveOpenAIUpstreamEndpointContext(c, account, res),
+					UserAgent:          userAgent,
+					IPAddress:          clientIP,
+					RequestPayloadHash: service.HashUsageRequestPayload(body),
+					APIKeyService:      h.apiKeyService,
+					QuotaPlatform:      quotaPlatform,
+					SessionID:          sessionID,
+					ChannelUsageFields: clientRequestedUsageFieldsContext(c, usageChannelMapping, reqModel, res.UpstreamModel),
+					PricingAt:          pricingAt,
+					CyberBlocked:       cyberBlocked,
+				}); err != nil {
+					logger.L().With(
+						zap.String("component", "handler.openai_gateway.chat_completions"),
+						zap.Int64("user_id", subject.UserID),
+						zap.Int64("api_key_id", selectedAPIKey.ID),
+						zap.Any("group_id", selectedAPIKey.GroupID),
+						zap.String("model", reqModel),
+						zap.Int64("account_id", account.ID),
+					).Error("openai_chat_completions.record_usage_failed", zap.Error(err))
+				}
+			})
+		}
 		if err != nil {
 			var failoverErr *service.UpstreamFailoverError
 			if errors.As(err, &failoverErr) {
@@ -294,6 +353,9 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 				failoverErr = adjustOpenAIFailoverForLargeStreamingRequest(failoverErr, body, reqStream, h.cfg)
 				if !openAIForwardMayFailoverContext(c, writerSizeBeforeForward, failoverErr) {
 					h.handleFailoverExhaustedContext(c, failoverErr, true)
+					return
+				}
+				if failoverClientGoneContext(c) {
 					return
 				}
 				if failoverErr.SafeToFailoverAfterWrite && c.ResponseWritten() {
@@ -346,6 +408,10 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 					return
 				}
 				switchCount++
+				if h.gatewayService.ShouldStopOpenAIOAuth429Failover(account, failoverErr.StatusCode, switchCount, &oauth429FailoverState) {
+					h.handleFailoverExhaustedContext(c, failoverErr, streamStarted)
+					return
+				}
 				reqLog.Warn("openai_chat_completions.upstream_failover_switching",
 					zap.Int64("account_id", account.ID),
 					zap.Int("upstream_status", failoverErr.StatusCode),
@@ -361,6 +427,7 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 				zap.Bool("fallback_error_response_written", wroteFallback),
 				zap.Error(err),
 			)
+			submitChatUsage(result)
 			return
 		}
 		if result != nil {
@@ -372,46 +439,7 @@ func (h *OpenAIGatewayHandler) ChatCompletionsGateway(c gatewayctx.GatewayContex
 		if err := h.gatewayService.PromoteStickySession(c.Context(), selectedAPIKey.GroupID, sessionHash, account.ID); err != nil {
 			reqLog.Warn("openai_chat_completions.promote_sticky_session_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 		}
-
-		userAgent := c.HeaderValue("User-Agent")
-		clientIP := c.ClientIP()
-		sessionID := extractClientSessionIDContext(c)
-
-		cyberBlocked := getOpsCyberPolicyContext(c) != nil
-		quotaPlatform := service.QuotaPlatform(c.Context(), selectedAPIKey)
-		upstreamModel := ""
-		if result != nil {
-			upstreamModel = result.UpstreamModel
-		}
-		usageChannelMapping := usageChannelMappingForAPIKey(c.Context(), h.gatewayService, selectedAPIKey, reqModel)
-		h.submitOpenAIUsageRecordTask(c.Context(), result, func(ctx context.Context) {
-			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
-				Result:             result,
-				APIKey:             selectedAPIKey,
-				User:               selectedAPIKey.User,
-				Account:            account,
-				Subscription:       subscription,
-				InboundEndpoint:    GetInboundEndpointContext(c),
-				UpstreamEndpoint:   resolveOpenAIUpstreamEndpointContext(c, account, result),
-				UserAgent:          userAgent,
-				IPAddress:          clientIP,
-				RequestPayloadHash: service.HashUsageRequestPayload(body),
-				APIKeyService:      h.apiKeyService,
-				QuotaPlatform:      quotaPlatform,
-				SessionID:          sessionID,
-				ChannelUsageFields: clientRequestedUsageFieldsContext(c, usageChannelMapping, reqModel, upstreamModel),
-				CyberBlocked:       cyberBlocked,
-			}); err != nil {
-				logger.L().With(
-					zap.String("component", "handler.openai_gateway.chat_completions"),
-					zap.Int64("user_id", subject.UserID),
-					zap.Int64("api_key_id", selectedAPIKey.ID),
-					zap.Any("group_id", selectedAPIKey.GroupID),
-					zap.String("model", reqModel),
-					zap.Int64("account_id", account.ID),
-				).Error("openai_chat_completions.record_usage_failed", zap.Error(err))
-			}
-		})
+		submitChatUsage(result)
 		reqLog.Debug("openai_chat_completions.request_completed",
 			zap.Int64("account_id", account.ID),
 			zap.Int("switch_count", switchCount),

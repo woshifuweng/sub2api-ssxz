@@ -797,11 +797,11 @@ sub2api/
 
 ## Star History
 
-<a href="https://star-history.com/#DR-lin-eng/sub2api&Date">
+<a href="https://star-history.dera.page/#DR-lin-eng/sub2api&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=DR-lin-eng/sub2api&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=DR-lin-eng/sub2api&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=DR-lin-eng/sub2api&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=DR-lin-eng/sub2api&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=DR-lin-eng/sub2api&type=Date" />
+   <img alt="Star History Chart" src="https://star-history.dera.page/svg?repos=DR-lin-eng/sub2api&type=Date" />
  </picture>
 </a>
 

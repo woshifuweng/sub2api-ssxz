@@ -23,7 +23,7 @@ func (h *OpenAIGatewayHandler) normalizeOpenAIResponsesCompactRequestContext(c g
 	pathBasedCompact := isOpenAIRemoteCompactPathContext(c)
 	bodySignalCompact := service.HasCompactionTriggerInInput(body) && isOpenAIResponsesRootPath(path)
 
-	if bodySignalCompact && openAIRemoteCompactionV2Enabled(c) && gjson.GetBytes(body, "stream").Bool() {
+	if bodySignalCompact && isOpenAIRemoteCompactionV2Request(body) {
 		return body, true
 	}
 
@@ -57,16 +57,4 @@ func isOpenAIResponsesRootPath(path string) bool {
 	default:
 		return false
 	}
-}
-
-func openAIRemoteCompactionV2Enabled(c gatewayctx.GatewayContext) bool {
-	if c == nil {
-		return false
-	}
-	for _, feature := range strings.Split(c.HeaderValue("x-codex-beta-features"), ",") {
-		if strings.TrimSpace(feature) == "remote_compaction_v2" {
-			return true
-		}
-	}
-	return false
 }

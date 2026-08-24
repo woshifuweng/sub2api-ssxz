@@ -1,9 +1,7 @@
 package service
 
 import (
-	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/config"
-	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"go.uber.org/zap"
 )
@@ -33,18 +31,6 @@ func ProvideUserPlatformQuotaUsageFlusher(
 ) *UserPlatformQuotaUsageFlusher {
 	svc := NewUserPlatformQuotaUsageFlusher(cfg, cache, quotaRepo, tw)
 	svc.Start()
-	return svc
-}
-
-func ProvideOpenAIQuotaService(
-	accountRepo AccountRepository,
-	proxyRepo ProxyRepository,
-	tokenProvider *OpenAITokenProvider,
-	privacyClientFactory PrivacyClientFactory,
-	openAIGatewayService *OpenAIGatewayService,
-) *OpenAIQuotaService {
-	svc := NewOpenAIQuotaService(accountRepo, proxyRepo, tokenProvider, privacyClientFactory)
-	svc.agentIdentityWS = openAIGatewayService
 	return svc
 }
 
@@ -127,75 +113,6 @@ func ProvideAntigravityGatewayService(
 	)
 }
 
-func ProvideAccountUsageService(
-	accountRepo AccountRepository,
-	usageLogRepo UsageLogRepository,
-	usageFetcher ClaudeUsageFetcher,
-	geminiQuotaService *GeminiQuotaService,
-	antigravityQuotaFetcher *AntigravityQuotaFetcher,
-	grokQuotaFetcher *GrokQuotaFetcher,
-	grokQuotaService *GrokQuotaService,
-	openAIQuotaService *OpenAIQuotaService,
-	cache *UsageCache,
-	identityCache IdentityCache,
-	tlsFPProfileService *TLSFingerprintProfileService,
-	openAIGatewayService *OpenAIGatewayService,
-) *AccountUsageService {
-	svc := NewAccountUsageService(
-		accountRepo,
-		usageLogRepo,
-		usageFetcher,
-		geminiQuotaService,
-		antigravityQuotaFetcher,
-		grokQuotaFetcher,
-		grokQuotaService,
-		openAIQuotaService,
-		cache,
-		identityCache,
-		tlsFPProfileService,
-	)
-	svc.agentIdentityWS = openAIGatewayService
-	return svc
-}
-
-func ProvideAccountTestService(
-	accountRepo AccountRepository,
-	geminiTokenProvider *GeminiTokenProvider,
-	claudeTokenProvider *ClaudeTokenProvider,
-	grokTokenProvider *GrokTokenProvider,
-	openAITokenProvider *OpenAITokenProvider,
-	antigravityGatewayService *AntigravityGatewayService,
-	openAIGatewayService *OpenAIGatewayService,
-	httpUpstream HTTPUpstream,
-	cfg *config.Config,
-	tlsFPProfileService *TLSFingerprintProfileService,
-	settingService *SettingService,
-) *AccountTestService {
-	svc := NewAccountTestService(
-		accountRepo,
-		geminiTokenProvider,
-		claudeTokenProvider,
-		grokTokenProvider,
-		antigravityGatewayService,
-		httpUpstream,
-		cfg,
-		tlsFPProfileService,
-	)
-	svc.SetSettingService(settingService)
-	return svc
-}
-
-func ProvideGrokQuotaService(
-	accountRepo AccountRepository,
-	proxyRepo ProxyRepository,
-	tokenProvider *GrokTokenProvider,
-	httpUpstream HTTPUpstream,
-	cfg *config.Config,
-	usageLogRepo UsageLogRepository,
-) *GrokQuotaService {
-	return NewGrokQuotaService(accountRepo, proxyRepo, tokenProvider, httpUpstream, cfg, usageLogRepo)
-}
-
 func ProvideGrokTokenProvider(
 	accountRepo AccountRepository,
 	tokenCache GeminiTokenCache,
@@ -257,22 +174,5 @@ func ProvideAPIKeyService(
 	svc := NewAPIKeyService(apiKeyRepo, userRepo, groupRepo, userSubRepo, userGroupRateRepo, cache, cfg)
 	svc.SetRateLimitCacheInvalidator(billingCacheService)
 	svc.SetConcurrencyService(concurrencyService)
-	return svc
-}
-
-func ProvidePaymentService(
-	entClient *dbent.Client,
-	registry *payment.Registry,
-	loadBalancer payment.LoadBalancer,
-	redeemService *RedeemService,
-	subscriptionSvc *SubscriptionService,
-	configService *PaymentConfigService,
-	userRepo UserRepository,
-	groupRepo GroupRepository,
-	affiliateService *AffiliateService,
-	notificationEmailService *NotificationEmailService,
-) *PaymentService {
-	svc := NewPaymentService(entClient, registry, loadBalancer, redeemService, subscriptionSvc, configService, userRepo, groupRepo, affiliateService)
-	svc.SetNotificationEmailService(notificationEmailService)
 	return svc
 }

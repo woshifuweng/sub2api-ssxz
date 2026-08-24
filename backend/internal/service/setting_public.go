@@ -233,6 +233,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyChannelMonitorMode,
 		SettingKeyChannelMonitorDefaultIntervalSeconds,
 		SettingKeyChannelMonitorHideThroughput,
+		SettingKeyChannelMonitorShowQuota,
 		SettingKeyRegistrationEmailDomainQuotaEnabled,
 		SettingKeyGrokDefaultTextModel,
 		SettingKeyGrokCrossClientModelMapEnabled,
@@ -369,6 +370,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		ChannelMonitorMode:                   normalizeChannelMonitorMode(settings[SettingKeyChannelMonitorMode]),
 		ChannelMonitorDefaultIntervalSeconds: parseChannelMonitorInterval(settings[SettingKeyChannelMonitorDefaultIntervalSeconds]),
 		ChannelMonitorHideThroughput:         !isFalseSettingValue(settings[SettingKeyChannelMonitorHideThroughput]),
+		ChannelMonitorShowQuota:              settings[SettingKeyChannelMonitorShowQuota] == "true",
 		GrokDefaultTextModel:                 firstNonEmpty(strings.TrimSpace(settings[SettingKeyGrokDefaultTextModel]), "grok-4.5"),
 		GrokCrossClientModelMapEnabled:       !isFalseSettingValue(settings[SettingKeyGrokCrossClientModelMapEnabled]),
 		GrokDefaultBaseURLMode:               normalizeGrokDefaultBaseURLMode(settings[SettingKeyGrokDefaultBaseURLMode]),
@@ -441,6 +443,10 @@ type ChannelMonitorRuntime struct {
 	DefaultIntervalSeconds int
 	// HideThroughput omits absolute throughput rates from user-facing V2 APIs.
 	HideThroughput bool
+	// ShowQuota: when true, user-facing monitor views keep the quota/balance
+	// snapshots; otherwise the user handler strips them server-side.
+	// Parsed fail-closed (only literal "true" enables). Admin always sees them.
+	ShowQuota bool
 }
 
 // ActiveProbesAllowed reports whether V1 active provider probes may run.
@@ -469,6 +475,7 @@ func (s *SettingService) GetChannelMonitorRuntime(ctx context.Context) ChannelMo
 		SettingKeyChannelMonitorMode,
 		SettingKeyChannelMonitorDefaultIntervalSeconds,
 		SettingKeyChannelMonitorHideThroughput,
+		SettingKeyChannelMonitorShowQuota,
 	})
 	if err != nil {
 		return ChannelMonitorRuntime{
@@ -483,6 +490,7 @@ func (s *SettingService) GetChannelMonitorRuntime(ctx context.Context) ChannelMo
 		Mode:                   normalizeChannelMonitorMode(vals[SettingKeyChannelMonitorMode]),
 		DefaultIntervalSeconds: parseChannelMonitorInterval(vals[SettingKeyChannelMonitorDefaultIntervalSeconds]),
 		HideThroughput:         !isFalseSettingValue(vals[SettingKeyChannelMonitorHideThroughput]),
+		ShowQuota:              vals[SettingKeyChannelMonitorShowQuota] == "true",
 	}
 }
 
@@ -612,6 +620,7 @@ type PublicSettingsInjectionPayload struct {
 	WeChatOAuthMobileEnabled            bool                     `json:"wechat_oauth_mobile_enabled"`
 	OIDCOAuthEnabled                    bool                     `json:"oidc_oauth_enabled"`
 	OIDCOAuthProviderName               string                   `json:"oidc_oauth_provider_name"`
+	SoraClientEnabled                   bool                     `json:"sora_client_enabled"`
 	GitHubOAuthEnabled                  bool                     `json:"github_oauth_enabled"`
 	GoogleOAuthEnabled                  bool                     `json:"google_oauth_enabled"`
 	BackendModeEnabled                  bool                     `json:"backend_mode_enabled"`
@@ -628,20 +637,25 @@ type PublicSettingsInjectionPayload struct {
 	// Feature flags — MUST match the opt-in/opt-out registry in
 	// frontend/src/utils/featureFlags.ts. Missing a field here is the bug
 	// that hid the "可用渠道" menu on page refresh.
-	ChannelMonitorEnabled                bool                             `json:"channel_monitor_enabled"`
-	ChannelMonitorMode                   string                           `json:"channel_monitor_mode"`
-	ChannelMonitorDefaultIntervalSeconds int                              `json:"channel_monitor_default_interval_seconds"`
-	ChannelMonitorHideThroughput         bool                             `json:"channel_monitor_hide_throughput"`
-	AvailableChannelsEnabled             bool                             `json:"available_channels_enabled"`
-	GrokDefaultTextModel                 string                           `json:"grok_default_text_model"`
-	GrokCrossClientModelMapEnabled       bool                             `json:"grok_cross_client_model_map_enabled"`
-	GrokDefaultBaseURLMode               string                           `json:"grok_default_base_url_mode"`
-	WebSearch                            PublicWorkspaceWebSearchSettings `json:"web_search"`
-	ModelPlazaEnabled                    bool                             `json:"model_plaza_enabled"`
-	ModelPlazaRequireAuth                bool                             `json:"model_plaza_require_auth"`
-	AffiliateEnabled                     bool                             `json:"affiliate_enabled"`
-	RiskControlEnabled                   bool                             `json:"risk_control_enabled"`
-	AllowUserViewErrorRequests           bool                             `json:"allow_user_view_error_requests"`
+	ChannelMonitorEnabled                bool   `json:"channel_monitor_enabled"`
+	ChannelMonitorMode                   string `json:"channel_monitor_mode"`
+	ChannelMonitorDefaultIntervalSeconds int    `json:"channel_monitor_default_interval_seconds"`
+	// ChannelMonitorHideThroughput is public so the user UI can hide RPM/TPM
+	// without waiting for API redaction alone (defense in depth).
+	ChannelMonitorHideThroughput bool `json:"channel_monitor_hide_throughput"`
+	// ChannelMonitorShowQuota gates the user-facing quota/balance display on
+	// monitors; fail-closed (absent/false = hidden). Admin UI always shows it.
+	ChannelMonitorShowQuota        bool                             `json:"channel_monitor_show_quota"`
+	AvailableChannelsEnabled       bool                             `json:"available_channels_enabled"`
+	GrokDefaultTextModel           string                           `json:"grok_default_text_model"`
+	GrokCrossClientModelMapEnabled bool                             `json:"grok_cross_client_model_map_enabled"`
+	GrokDefaultBaseURLMode         string                           `json:"grok_default_base_url_mode"`
+	WebSearch                      PublicWorkspaceWebSearchSettings `json:"web_search"`
+	ModelPlazaEnabled              bool                             `json:"model_plaza_enabled"`
+	ModelPlazaRequireAuth          bool                             `json:"model_plaza_require_auth"`
+	AffiliateEnabled               bool                             `json:"affiliate_enabled"`
+	RiskControlEnabled             bool                             `json:"risk_control_enabled"`
+	AllowUserViewErrorRequests     bool                             `json:"allow_user_view_error_requests"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -702,6 +716,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		WeChatOAuthMobileEnabled:            settings.WeChatOAuthMobileEnabled,
 		OIDCOAuthEnabled:                    settings.OIDCOAuthEnabled,
 		OIDCOAuthProviderName:               settings.OIDCOAuthProviderName,
+		SoraClientEnabled:                   settings.SoraClientEnabled,
 		GitHubOAuthEnabled:                  settings.GitHubOAuthEnabled,
 		GoogleOAuthEnabled:                  settings.GoogleOAuthEnabled,
 		BackendModeEnabled:                  settings.BackendModeEnabled,
@@ -718,6 +733,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		ChannelMonitorMode:                   settings.ChannelMonitorMode,
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
 		ChannelMonitorHideThroughput:         settings.ChannelMonitorHideThroughput,
+		ChannelMonitorShowQuota:              settings.ChannelMonitorShowQuota,
 		AvailableChannelsEnabled:             settings.AvailableChannelsEnabled,
 		GrokDefaultTextModel:                 settings.GrokDefaultTextModel,
 		GrokCrossClientModelMapEnabled:       settings.GrokCrossClientModelMapEnabled,

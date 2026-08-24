@@ -29,6 +29,44 @@ export type DefaultPlatformQuotasMap = Partial<Record<PlatformType, PlatformQuot
 
 const PLATFORMS: PlatformType[] = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok']
 
+export type SchedulingThresholdPlatformType =
+  | 'openai'
+  | 'anthropic'
+  | 'grok'
+  | 'kimi'
+  | 'zhipu'
+
+export type AccountSchedulingThresholdsMap = Record<SchedulingThresholdPlatformType, number>
+
+// Keep aligned with backend AllowedSchedulingThresholdPlatforms. DeepSeek is
+// balance-based, so it uses balance checks instead of a usage threshold.
+export const SCHEDULING_THRESHOLD_PLATFORMS: SchedulingThresholdPlatformType[] = [
+  'openai',
+  'anthropic',
+  'grok',
+  'kimi',
+  'zhipu',
+]
+
+export function normalizeAccountSchedulingThresholdsMap(
+  input?: Partial<Record<SchedulingThresholdPlatformType, number>> | null,
+): AccountSchedulingThresholdsMap {
+  const result = {} as AccountSchedulingThresholdsMap
+  for (const platform of SCHEDULING_THRESHOLD_PLATFORMS) {
+    const value = input?.[platform]
+    result[platform] = typeof value === 'number' && Number.isFinite(value)
+      ? Math.min(100, Math.max(1, Math.trunc(value)))
+      : 100
+  }
+  return result
+}
+
+export function sanitizeAccountSchedulingThresholdsMap(
+  input?: Partial<Record<SchedulingThresholdPlatformType, number>> | null,
+): AccountSchedulingThresholdsMap {
+  return normalizeAccountSchedulingThresholdsMap(input)
+}
+
 export function normalizePlatformQuotasMap(
   input?: DefaultPlatformQuotasMap | null
 ): DefaultPlatformQuotasMap {
@@ -433,6 +471,9 @@ export interface SystemSettings {
   grok_default_text_model: string
   grok_cross_client_model_map_enabled: boolean
 
+  // Per-platform account auto-pause thresholds (100 = disabled)
+  account_scheduling_thresholds: AccountSchedulingThresholdsMap
+
   // Identity patch configuration (Claude -> Gemini)
   enable_identity_patch: boolean
   identity_patch_prompt: string
@@ -558,7 +599,10 @@ export interface SystemSettings {
 
   // Channel Monitor feature switch
   channel_monitor_enabled: boolean;
+  channel_monitor_mode?: 'v1' | 'v2';
   channel_monitor_default_interval_seconds: number;
+  channel_monitor_hide_throughput?: boolean;
+  channel_monitor_show_quota?: boolean;
 
   // Available Channels feature switch
   available_channels_enabled: boolean;
@@ -755,6 +799,7 @@ export interface UpdateSettingsRequest {
   fallback_model_antigravity?: string;
   grok_default_text_model?: string;
   grok_cross_client_model_map_enabled?: boolean;
+  account_scheduling_thresholds?: AccountSchedulingThresholdsMap;
   enable_identity_patch?: boolean;
   identity_patch_prompt?: string;
   ops_monitoring_enabled?: boolean;
@@ -850,7 +895,10 @@ export interface UpdateSettingsRequest {
 
   // Channel Monitor feature switch
   channel_monitor_enabled?: boolean;
+  channel_monitor_mode?: 'v1' | 'v2';
   channel_monitor_default_interval_seconds?: number;
+  channel_monitor_hide_throughput?: boolean;
+  channel_monitor_show_quota?: boolean;
 
   // Available Channels feature switch
   available_channels_enabled?: boolean;

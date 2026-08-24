@@ -1059,6 +1059,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 		applyOpsLatencyFieldsFromContext(c, entry)
 
 		applyOpsUpstreamFieldsFromContext(c, entry)
+		suppressOpsUpstreamAttributionForLocalModelConfiguration(c, entry)
 
 		if apiKey != nil {
 			entry.APIKeyID = &apiKey.ID
@@ -1213,7 +1214,11 @@ func isCountTokensRequest(c *gin.Context) bool {
 	if c == nil || c.Request == nil || c.Request.URL == nil {
 		return false
 	}
-	return strings.Contains(c.Request.URL.Path, "/count_tokens")
+	return isTokenCountRequestPath(c.Request.URL.Path)
+}
+
+func isTokenCountRequestPath(path string) bool {
+	return strings.Contains(path, "/count_tokens") || strings.Contains(path, "/responses/input_tokens")
 }
 
 func extractOpsRetryRequestHeaders(c *gin.Context) *string {
@@ -1251,6 +1256,90 @@ func applyOpsLatencyFieldsFromContext(c *gin.Context, entry *service.OpsInsertEr
 	entry.UpstreamLatencyMs = getContextLatencyMs(c, service.OpsUpstreamLatencyMsKey)
 	entry.ResponseLatencyMs = getContextLatencyMs(c, service.OpsResponseLatencyMsKey)
 	entry.TimeToFirstTokenMs = getContextLatencyMs(c, service.OpsTimeToFirstTokenMsKey)
+}
+
+// applyOpsUpstreamFieldsFromContext captures attempt-level upstream context.
+// A final account_auth event owns the top-level status and forces it to zero;
+// prior inference statuses remain available in UpstreamErrors.
+func applyOpsUpstreamFieldsFromContext(c *gin.Context, entry *service.OpsInsertErrorLogInput) {
+	if c == nil || entry == nil {
+		return
+	}
+	if v, ok := c.Get(service.OpsUpstreamStatusCodeKey); ok {
+		switch t := v.(type) {
+		case int:
+			if t > 0 {
+				code := t
+				entry.UpstreamStatusCode = &code
+			}
+		case int64:
+			if t > 0 {
+				code := int(t)
+				entry.UpstreamStatusCode = &code
+			}
+		}
+	}
+	if v, ok := c.Get(service.OpsUpstreamErrorMessageKey); ok {
+		if value, ok := v.(string); ok {
+			if message := strings.TrimSpace(value); message != "" {
+				entry.UpstreamErrorMessage = &message
+			}
+		}
+	}
+	if v, ok := c.Get(service.OpsUpstreamErrorDetailKey); ok {
+		if value, ok := v.(string); ok {
+			if detail := strings.TrimSpace(value); detail != "" {
+				entry.UpstreamErrorDetail = &detail
+			}
+		}
+	}
+	if v, ok := c.Get(service.OpsUpstreamErrorsKey); ok {
+		if events, ok := v.([]*service.OpsUpstreamErrorEvent); ok && len(events) > 0 {
+			entry.UpstreamErrors = events
+			last := events[len(events)-1]
+			if last == nil {
+				return
+			}
+			if last.Stage == string(service.GatewayFailureStageAccountAuth) {
+				code := 0
+				entry.UpstreamStatusCode = &code
+				entry.UpstreamErrorMessage = nil
+				if message := strings.TrimSpace(last.Message); message != "" {
+					entry.UpstreamErrorMessage = &message
+				}
+				entry.UpstreamErrorDetail = nil
+				if detail := strings.TrimSpace(last.Detail); detail != "" {
+					entry.UpstreamErrorDetail = &detail
+				}
+			} else {
+				if entry.UpstreamStatusCode == nil && last.UpstreamStatusCode > 0 {
+					code := last.UpstreamStatusCode
+					entry.UpstreamStatusCode = &code
+				}
+				if entry.UpstreamErrorMessage == nil && strings.TrimSpace(last.Message) != "" {
+					message := strings.TrimSpace(last.Message)
+					entry.UpstreamErrorMessage = &message
+				}
+				if entry.UpstreamErrorDetail == nil && strings.TrimSpace(last.Detail) != "" {
+					detail := strings.TrimSpace(last.Detail)
+					entry.UpstreamErrorDetail = &detail
+				}
+			}
+		}
+	}
+}
+
+func suppressOpsUpstreamAttributionForLocalModelConfiguration(c *gin.Context, entry *service.OpsInsertErrorLogInput) {
+	if entry == nil || !service.HasOpsClientBusinessLimited(c) || service.OpsClientBusinessLimitedReason(c) != service.OpsClientBusinessLimitedReasonLocalModelConfiguration {
+		return
+	}
+	entry.AccountID = nil
+	entry.UpstreamEndpoint = ""
+	entry.UpstreamModel = ""
+	entry.UpstreamStatusCode = nil
+	entry.UpstreamErrorMessage = nil
+	entry.UpstreamErrorDetail = nil
+	entry.UpstreamErrors = nil
 }
 
 func getContextLatencyMs(c *gin.Context, key string) *int64 {
@@ -1469,20 +1558,27 @@ func classifyOpsErrorLog(c *gin.Context, errType, message, code string, status i
 	phase = classifyOpsPhase(errType, message, code)
 	routingCapacityLimited := isOpsRoutingCapacityLimited(c)
 	clientBusinessLimited := service.HasOpsClientBusinessLimited(c)
+	localModelConfiguration := clientBusinessLimited && service.OpsClientBusinessLimitedReason(c) == service.OpsClientBusinessLimitedReasonLocalModelConfiguration
 	upstreamError := hasOpsUpstreamErrorContext(c)
-	if upstreamError && !routingCapacityLimited {
+	accountAuthFailure := hasOpsAccountAuthFailure(c)
+	if localModelConfiguration {
+		phase = "routing"
+	} else if accountAuthFailure && !routingCapacityLimited {
+		phase = "account_auth"
+	} else if upstreamError && !routingCapacityLimited {
 		phase = "upstream"
+	}
+	if clientBusinessLimited && !upstreamError && !routingCapacityLimited && !localModelConfiguration {
+		phase = "auth"
 	}
 	if routingCapacityLimited {
 		phase = "routing"
 	}
-	if clientBusinessLimited && !upstreamError && !routingCapacityLimited {
-		phase = "auth"
-	}
 	msg := strings.ToLower(message)
-	localClientAuthError := !upstreamError && phase == "auth" && isOpsClientAuthError(code, msg)
-	localBusinessLimited := !upstreamError && classifyOpsIsBusinessLimited(errType, phase, code, status, message, localClientAuthError)
-	isBusinessLimited = routingCapacityLimited || (clientBusinessLimited && !upstreamError) || localBusinessLimited
+	effectiveUpstreamError := upstreamError && !localModelConfiguration
+	localClientAuthError := !effectiveUpstreamError && phase == "auth" && isOpsClientAuthError(code, msg)
+	localBusinessLimited := !effectiveUpstreamError && classifyOpsIsBusinessLimited(errType, phase, code, status, message, localClientAuthError)
+	isBusinessLimited = localModelConfiguration || routingCapacityLimited || (clientBusinessLimited && !effectiveUpstreamError) || localBusinessLimited
 	errorOwner = classifyOpsErrorOwner(phase, message)
 	errorSource = classifyOpsErrorSource(phase, message)
 	return phase, isBusinessLimited, errorOwner, errorSource
@@ -1595,6 +1691,22 @@ func hasOpsUpstreamErrorContext(c *gin.Context) bool {
 	return false
 }
 
+func hasOpsAccountAuthFailure(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	if v, ok := c.Get(service.OpsUpstreamErrorsKey); ok {
+		if events, ok := v.([]*service.OpsUpstreamErrorEvent); ok {
+			for i := len(events) - 1; i >= 0; i-- {
+				if events[i] != nil {
+					return events[i].Stage == string(service.GatewayFailureStageAccountAuth)
+				}
+			}
+		}
+	}
+	return false
+}
+
 func isOpsNoAvailableAccountMessage(message string) bool {
 	msg := strings.ToLower(message)
 	return strings.Contains(msg, opsErrNoAvailableAccounts) ||
@@ -1678,7 +1790,7 @@ func shouldSkipOpsErrorLog(ctx context.Context, ops *service.OpsService, message
 	combinedLower := msgLower + "\n" + bodyLower
 
 	// Check if count_tokens errors should be ignored
-	if settings.IgnoreCountTokensErrors && strings.Contains(requestPath, "/count_tokens") {
+	if settings.IgnoreCountTokensErrors && isTokenCountRequestPath(requestPath) {
 		return true
 	}
 
@@ -1722,62 +1834,4 @@ func shouldSkipOpsErrorLog(ctx context.Context, ops *service.OpsService, message
 
 func shouldSkipOpsErrorLogForCyber(c *gin.Context) bool {
 	return service.GetOpsCyberPolicy(c) != nil
-}
-
-// applyOpsUpstreamFieldsFromContext captures upstream error context set by gateway
-// services (if present). It never affects the client response; it only enriches Ops
-// troubleshooting data on the error-log entry.
-func applyOpsUpstreamFieldsFromContext(c *gin.Context, entry *service.OpsInsertErrorLogInput) {
-	if c == nil || entry == nil {
-		return
-	}
-	if v, ok := c.Get(service.OpsUpstreamStatusCodeKey); ok {
-		switch t := v.(type) {
-		case int:
-			if t > 0 {
-				code := t
-				entry.UpstreamStatusCode = &code
-			}
-		case int64:
-			if t > 0 {
-				code := int(t)
-				entry.UpstreamStatusCode = &code
-			}
-		}
-	}
-	if v, ok := c.Get(service.OpsUpstreamErrorMessageKey); ok {
-		if s, ok := v.(string); ok {
-			if msg := strings.TrimSpace(s); msg != "" {
-				entry.UpstreamErrorMessage = &msg
-			}
-		}
-	}
-	if v, ok := c.Get(service.OpsUpstreamErrorDetailKey); ok {
-		if s, ok := v.(string); ok {
-			if detail := strings.TrimSpace(s); detail != "" {
-				entry.UpstreamErrorDetail = &detail
-			}
-		}
-	}
-	if v, ok := c.Get(service.OpsUpstreamErrorsKey); ok {
-		if events, ok := v.([]*service.OpsUpstreamErrorEvent); ok && len(events) > 0 {
-			entry.UpstreamErrors = events
-			// Best-effort backfill the single upstream fields from the last event when missing.
-			last := events[len(events)-1]
-			if last != nil {
-				if entry.UpstreamStatusCode == nil && last.UpstreamStatusCode > 0 {
-					code := last.UpstreamStatusCode
-					entry.UpstreamStatusCode = &code
-				}
-				if entry.UpstreamErrorMessage == nil && strings.TrimSpace(last.Message) != "" {
-					msg := strings.TrimSpace(last.Message)
-					entry.UpstreamErrorMessage = &msg
-				}
-				if entry.UpstreamErrorDetail == nil && strings.TrimSpace(last.Detail) != "" {
-					detail := strings.TrimSpace(last.Detail)
-					entry.UpstreamErrorDetail = &detail
-				}
-			}
-		}
-	}
 }

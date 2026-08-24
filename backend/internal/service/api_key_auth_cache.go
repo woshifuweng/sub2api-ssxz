@@ -103,6 +103,8 @@ type APIKeyAuthGroupSnapshot struct {
 	AudioRealtimePricePerMin     *float64                      `json:"audio_realtime_price_per_min,omitempty"`
 	AudioTTSPricePerMillionChars *float64                      `json:"audio_tts_price_per_million_chars,omitempty"`
 	AudioSTTPricePerHour         *float64                      `json:"audio_stt_price_per_hour,omitempty"`
+	LongContextPricingEnabled    bool                          `json:"long_context_pricing_enabled"`
+	ModelPricing                 []ChannelModelPricing         `json:"model_pricing,omitempty"`
 
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes []string `json:"supported_model_scopes,omitempty"`

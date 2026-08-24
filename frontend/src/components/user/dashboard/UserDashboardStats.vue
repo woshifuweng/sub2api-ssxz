@@ -82,6 +82,7 @@
     >
       <span>{{ t('dashboard.input') }} {{ formatTokens(stats.today_input_tokens || 0) }}</span>
       <span>{{ t('dashboard.output') }} {{ formatTokens(stats.today_output_tokens || 0) }}</span>
+      <span>{{ t('dashboard.cache') }} {{ formatTokens((stats.today_cache_creation_tokens || 0) + (stats.today_cache_read_tokens || 0)) }}</span>
     </ProgressMetricCard>
 
     <ProgressMetricCard
@@ -97,6 +98,7 @@
     >
       <span>{{ t('dashboard.input') }} {{ formatTokens(stats.total_input_tokens || 0) }}</span>
       <span>{{ t('dashboard.output') }} {{ formatTokens(stats.total_output_tokens || 0) }}</span>
+      <span>{{ t('dashboard.cache') }} {{ formatTokens((stats.total_cache_creation_tokens || 0) + (stats.total_cache_read_tokens || 0)) }}</span>
     </ProgressMetricCard>
 
     <ProgressMetricCard

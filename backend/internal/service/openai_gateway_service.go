@@ -80,6 +80,9 @@ const (
 	// 官方身份时整体回退到本常量，因此它必须跟随官方 CLI 的当前发布版本，
 	// 落后多个版本会让这些请求稳定落在被优先丢弃的一侧。
 	codexCLIVersion = "0.146.0"
+	// openAICodexProbeVersion keeps SSXZ admission probes on the same declared
+	// client version as normal Codex gateway traffic.
+	openAICodexProbeVersion = codexCLIVersion
 	// Codex 限额快照仅用于后台展示/诊断，不需要每个成功请求都立即落库。
 	openAICodexSnapshotPersistMinInterval = 30 * time.Second
 )
@@ -300,8 +303,9 @@ type OpenAIForwardResult struct {
 	SearchCount           int
 	AudioUsage            *AudioUsage
 
-	wsReplayInput       []json.RawMessage
-	wsReplayInputExists bool
+	wsReplayInput                []json.RawMessage
+	wsReplayInputExists          bool
+	wsAccountFailoverReplayInput []json.RawMessage
 }
 
 // SucceededForScheduling reports whether a result can clear model-scoped
@@ -429,7 +433,7 @@ type OpenAIGatewayService struct {
 	schedulerSnapshot     *SchedulerSnapshotService
 	concurrencyService    *ConcurrencyService
 	billingService        *BillingService
-	modelPricingResolver  *ModelPricingResolver
+	resolver              *ModelPricingResolver
 	rateLimitService      *RateLimitService
 	billingCacheService   *BillingCacheService
 	identityService       *IdentityService
@@ -492,6 +496,11 @@ type OpenAIGatewayService struct {
 	healthPrefetchStopOnce              sync.Once
 	healthPrefetchWG                    sync.WaitGroup
 	healthPrefetchState                 sync.Map
+	// openaiCodexTurnStateOrigins: 下游会话 seed → openAICodexTurnStateOrigin，
+	// 记录最近一次向该会话下发 x-codex-turn-state 的铸造账号，供出站守卫
+	// 剥离跨账号回带（openai_codex_turn_state.go）。
+	openaiCodexTurnStateOrigins sync.Map
+	openaiCodexTurnStateWrites  atomic.Uint64
 }
 
 func (s *OpenAIGatewayService) SetGrokTokenProvider(provider *GrokTokenProvider) {
@@ -567,21 +576,21 @@ func NewOpenAIGatewayService(
 	openAITokenProvider *OpenAITokenProvider,
 ) *OpenAIGatewayService {
 	svc := &OpenAIGatewayService{
-		accountRepo:          accountRepo,
-		groupRepo:            groupRepo,
-		usageLogRepo:         usageLogRepo,
-		usageBillingRepo:     usageBillingRepo,
-		userRepo:             userRepo,
-		userSubRepo:          userSubRepo,
-		cache:                cache,
-		cfg:                  cfg,
-		codexDetector:        NewOpenAICodexClientRestrictionDetector(cfg),
-		schedulerSnapshot:    schedulerSnapshot,
-		concurrencyService:   concurrencyService,
-		billingService:       billingService,
-		modelPricingResolver: modelPricingResolver,
-		rateLimitService:     rateLimitService,
-		billingCacheService:  billingCacheService,
+		accountRepo:         accountRepo,
+		groupRepo:           groupRepo,
+		usageLogRepo:        usageLogRepo,
+		usageBillingRepo:    usageBillingRepo,
+		userRepo:            userRepo,
+		userSubRepo:         userSubRepo,
+		cache:               cache,
+		cfg:                 cfg,
+		codexDetector:       NewOpenAICodexClientRestrictionDetector(cfg),
+		schedulerSnapshot:   schedulerSnapshot,
+		concurrencyService:  concurrencyService,
+		billingService:      billingService,
+		resolver:            modelPricingResolver,
+		rateLimitService:    rateLimitService,
+		billingCacheService: billingCacheService,
 		userGroupRateResolver: newUserGroupRateResolver(
 			userGroupRateRepo,
 			nil,
@@ -2038,7 +2047,7 @@ func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Acco
 			}
 			return apiKey, "apikey", nil
 		}
-		apiKey := account.GetOpenAIApiKey()
+		apiKey := strings.TrimSpace(account.GetOpenAIProtocolAPIKey())
 		if apiKey == "" {
 			return "", "", errors.New("api_key not found in credentials")
 		}
@@ -5697,14 +5706,14 @@ func (s *OpenAIGatewayService) calculateOpenAIImageCostLegacy(ctx context.Contex
 	}
 	imageSize = normalizeImageBillingTierForModel(model, imageSize)
 
-	if s.modelPricingResolver != nil && apiKey != nil && apiKey.GroupID != nil {
-		resolved := s.modelPricingResolver.Resolve(ctx, PricingInput{
+	if s.resolver != nil && apiKey != nil && apiKey.GroupID != nil {
+		resolved := s.resolver.Resolve(ctx, PricingInput{
 			Model:   model,
 			GroupID: apiKey.GroupID,
 		})
 		if resolved != nil && resolved.Source == PricingSourceChannel &&
 			(resolved.Mode == BillingModeImage || resolved.Mode == BillingModePerRequest) {
-			unitPrice := s.modelPricingResolver.GetRequestTierPrice(resolved, imageSize)
+			unitPrice := s.resolver.GetRequestTierPrice(resolved, imageSize)
 			if unitPrice <= 0 {
 				unitPrice = resolved.DefaultPerRequestPrice
 			}
@@ -5732,13 +5741,13 @@ func (s *OpenAIGatewayService) calculateOpenAIImageCostLegacy(ctx context.Contex
 }
 
 func (s *OpenAIGatewayService) calculateOpenAITokenCost(ctx context.Context, model string, tokens UsageTokens, multiplier float64, serviceTier string, apiKey *APIKey) (*CostBreakdown, error) {
-	if s.modelPricingResolver != nil && apiKey != nil && apiKey.GroupID != nil {
-		resolved := s.modelPricingResolver.Resolve(ctx, PricingInput{
+	if s.resolver != nil && apiKey != nil && apiKey.GroupID != nil {
+		resolved := s.resolver.Resolve(ctx, PricingInput{
 			Model:   model,
 			GroupID: apiKey.GroupID,
 		})
 		if resolved != nil && resolved.Source == PricingSourceChannel && resolved.Mode == BillingModeToken {
-			pricing := s.modelPricingResolver.GetIntervalPricing(resolved, tokens.InputTokens+tokens.CacheReadTokens)
+			pricing := s.resolver.GetIntervalPricing(resolved, tokens.InputTokens+tokens.CacheReadTokens)
 			if pricing != nil {
 				return CalculateCostFromModelPricing(pricing, tokens, multiplier, serviceTier)
 			}

@@ -228,20 +228,29 @@ export interface PublicSettings {
   purchase_link_cny_100: string
   payment_enabled: boolean
   balance_low_notify_enabled: boolean
+  account_quota_notify_enabled: boolean
   balance_low_notify_threshold: number
   custom_menu_items: CustomMenuItem[]
+  custom_endpoints: CustomEndpoint[]
   linuxdo_oauth_enabled: boolean
+  dingtalk_oauth_enabled?: boolean
   wechat_oauth_enabled: boolean
-  wechat_oauth_open_enabled: boolean
-  wechat_oauth_mp_enabled: boolean
-  wechat_oauth_mobile_enabled: boolean
+  wechat_oauth_open_enabled?: boolean
+  wechat_oauth_mp_enabled?: boolean
+  wechat_oauth_mobile_enabled?: boolean
   oidc_oauth_enabled: boolean
   oidc_oauth_provider_name: string
+  github_oauth_enabled: boolean
+  google_oauth_enabled: boolean
   sora_client_enabled: boolean
   channel_monitor_enabled: boolean
   channel_monitor_default_interval_seconds: number
-  channel_monitor_mode?: string
+  /** Exclusive mode: v1 active probes or v2 passive aggregation. Default v2. */
+  channel_monitor_mode?: 'v1' | 'v2'
+  /** When true, user monitor hides RPM/TPM so scale cannot be reverse-estimated. */
   channel_monitor_hide_throughput?: boolean
+  /** When true, user monitor shows account quota/balance snapshots (default off). */
+  channel_monitor_show_quota?: boolean
   available_channels_enabled: boolean
   web_search?: {
     available: boolean
@@ -252,9 +261,11 @@ export interface PublicSettings {
   risk_control_enabled: boolean
   table_default_page_size: number
   table_page_size_options: number[]
+  server_timezone?: string
   server_utc_offset?: string
   service_quota_enabled: boolean
   affiliate_enabled: boolean
+  allow_user_view_error_requests?: boolean
   backend_mode_enabled: boolean
   version: string
 }
@@ -543,6 +554,9 @@ export type GroupPlatform =
   | 'grok'
   | 'sora'
   | 'kiro'
+  | 'kimi'
+  | 'zhipu'
+  | 'deepseek'
   | 'composite'
 
 export type VideoModelPrices = Record<string, Record<string, number>>
@@ -801,6 +815,7 @@ export interface AccountListFilters {
   plan?: string
   oauth_type?: string
   tier_id?: string
+  privacy_mode?: string
 }
 
 export interface CreateGroupRequest {
@@ -935,6 +950,9 @@ export type AccountPlatform =
   | 'grok'
   | 'sora'
   | 'kiro'
+  | 'kimi'
+  | 'zhipu'
+  | 'deepseek'
 export type AccountType =
   | 'oauth'
   | 'setup-token'

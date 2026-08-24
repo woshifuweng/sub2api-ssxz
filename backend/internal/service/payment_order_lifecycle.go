@@ -26,6 +26,7 @@ const (
 	rateLimitModeFixed         = "fixed"
 	checkPaidResultAlreadyPaid = "already_paid"
 	checkPaidResultCancelled   = "cancelled"
+	pendingWxpayReconcileLimit = 20
 )
 
 func (s *PaymentService) checkCancelRateLimit(ctx context.Context, userID int64, cfg *PaymentConfig) error {
@@ -140,6 +141,14 @@ func (s *PaymentService) cancelCore(ctx context.Context, o *dbent.PaymentOrder, 
 }
 
 func (s *PaymentService) checkPaid(ctx context.Context, o *dbent.PaymentOrder) string {
+	return s.checkPaidWithOptions(ctx, o, true)
+}
+
+func (s *PaymentService) reconcilePaid(ctx context.Context, o *dbent.PaymentOrder) string {
+	return s.checkPaidWithOptions(ctx, o, false)
+}
+
+func (s *PaymentService) checkPaidWithOptions(ctx context.Context, o *dbent.PaymentOrder, cancelIfUnpaid bool) string {
 	prov, err := s.getOrderProvider(ctx, o)
 	if err != nil {
 		return ""
@@ -186,8 +195,10 @@ func (s *PaymentService) checkPaid(ctx context.Context, o *dbent.PaymentOrder) s
 		}
 		return checkPaidResultAlreadyPaid
 	}
-	if cp, ok := prov.(payment.CancelableProvider); ok {
-		_ = cp.CancelPayment(ctx, queryRef)
+	if cancelIfUnpaid {
+		if cp, ok := prov.(payment.CancelableProvider); ok {
+			_ = cp.CancelPayment(ctx, queryRef)
+		}
 	}
 	return ""
 }
@@ -282,6 +293,37 @@ func (s *PaymentService) VerifyOrderByOutTradeNo(ctx context.Context, outTradeNo
 		}
 	}
 	return o, nil
+}
+
+// ReconcilePendingWxpayOrders actively checks recent pending WeChat orders so
+// missed provider notifications do not wait until order expiry to fulfill.
+func (s *PaymentService) ReconcilePendingWxpayOrders(ctx context.Context) (int, error) {
+	now := time.Now()
+	orders, err := s.entClient.PaymentOrder.Query().
+		Where(
+			paymentorder.StatusEQ(OrderStatusPending),
+			paymentorder.ExpiresAtGT(now),
+			paymentorder.Or(
+				paymentorder.PaymentTypeEQ(payment.TypeWxpay),
+				paymentorder.PaymentTypeHasPrefix(payment.TypeWxpay+"_"),
+				paymentorder.ProviderKeyEQ(payment.TypeWxpay),
+				paymentorder.ProviderKeyHasPrefix(payment.TypeWxpay+"_"),
+			),
+		).
+		Order(dbent.Asc(paymentorder.FieldCreatedAt)).
+		Limit(pendingWxpayReconcileLimit).
+		All(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("query pending wxpay orders: %w", err)
+	}
+
+	recovered := 0
+	for _, order := range orders {
+		if s.reconcilePaid(ctx, order) == checkPaidResultAlreadyPaid {
+			recovered++
+		}
+	}
+	return recovered, nil
 }
 
 // VerifyOrderPublic returns the currently persisted public order state without

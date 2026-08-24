@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 19 // v19: include search/audio/video-model pricing fields
+const apiKeyAuthSnapshotVersion = 20 // v20: group long-context and model pricing fields (force refresh of pre-fix snapshots)
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -423,6 +423,8 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			AudioRealtimePricePerMin:        apiKey.Group.AudioRealtimePricePerMin,
 			AudioTTSPricePerMillionChars:    apiKey.Group.AudioTTSPricePerMillionChars,
 			AudioSTTPricePerHour:            apiKey.Group.AudioSTTPricePerHour,
+			LongContextPricingEnabled:       apiKey.Group.LongContextPricingEnabled,
+			ModelPricing:                    apiKey.Group.ModelPricing,
 			SupportedModelScopes:            apiKey.Group.SupportedModelScopes,
 			AllowMessagesDispatch:           apiKey.Group.AllowMessagesDispatch,
 			AllowLive:                       apiKey.Group.AllowLive,
@@ -524,6 +526,8 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			AudioRealtimePricePerMin:        snapshot.Group.AudioRealtimePricePerMin,
 			AudioTTSPricePerMillionChars:    snapshot.Group.AudioTTSPricePerMillionChars,
 			AudioSTTPricePerHour:            snapshot.Group.AudioSTTPricePerHour,
+			LongContextPricingEnabled:       snapshot.Group.LongContextPricingEnabled,
+			ModelPricing:                    snapshot.Group.ModelPricing,
 			SupportedModelScopes:            snapshot.Group.SupportedModelScopes,
 			AllowMessagesDispatch:           snapshot.Group.AllowMessagesDispatch,
 			AllowLive:                       snapshot.Group.AllowLive,
@@ -573,20 +577,22 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 				MCPXMLInject:                    group.MCPXMLInject,
 				AllowImageGeneration:            group.AllowImageGeneration,
 				AllowBatchImageGeneration:       group.AllowBatchImageGeneration,
-				ImageRateIndependent:             group.ImageRateIndependent,
-				ImageRateMultiplier:              group.ImageRateMultiplier,
-				VideoRateIndependent:             group.VideoRateIndependent,
-				VideoRateMultiplier:              group.VideoRateMultiplier,
-				VideoPrice480P:                   group.VideoPrice480P,
-				VideoPrice720P:                   group.VideoPrice720P,
-				VideoPrice1080P:                  group.VideoPrice1080P,
-				VideoModelPrices:                 NormalizeVideoModelPrices(group.VideoModelPrices),
-				SearchPricePer1k:                 group.SearchPricePer1k,
-				AudioRealtimePricePerMin:         group.AudioRealtimePricePerMin,
-				AudioTTSPricePerMillionChars:     group.AudioTTSPricePerMillionChars,
-				AudioSTTPricePerHour:             group.AudioSTTPricePerHour,
-				ModelsListConfig:                 group.ModelsListConfig,
-				RPMLimit:                         group.RPMLimit,
+				ImageRateIndependent:            group.ImageRateIndependent,
+				ImageRateMultiplier:             group.ImageRateMultiplier,
+				VideoRateIndependent:            group.VideoRateIndependent,
+				VideoRateMultiplier:             group.VideoRateMultiplier,
+				VideoPrice480P:                  group.VideoPrice480P,
+				VideoPrice720P:                  group.VideoPrice720P,
+				VideoPrice1080P:                 group.VideoPrice1080P,
+				VideoModelPrices:                NormalizeVideoModelPrices(group.VideoModelPrices),
+				SearchPricePer1k:                group.SearchPricePer1k,
+				AudioRealtimePricePerMin:        group.AudioRealtimePricePerMin,
+				AudioTTSPricePerMillionChars:    group.AudioTTSPricePerMillionChars,
+				AudioSTTPricePerHour:            group.AudioSTTPricePerHour,
+				LongContextPricingEnabled:       group.LongContextPricingEnabled,
+				ModelPricing:                    group.ModelPricing,
+				ModelsListConfig:                group.ModelsListConfig,
+				RPMLimit:                        group.RPMLimit,
 				SupportedModelScopes:            group.SupportedModelScopes,
 				AllowMessagesDispatch:           group.AllowMessagesDispatch,
 				AllowLive:                       group.AllowLive,

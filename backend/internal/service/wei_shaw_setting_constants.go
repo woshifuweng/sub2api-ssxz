@@ -148,14 +148,6 @@ const (
 	SettingKeyAllowUserViewErrorRequests                = "allow_user_view_error_requests"
 )
 
-var AllowedQuotaPlatforms = []string{
-	PlatformAnthropic,
-	PlatformOpenAI,
-	PlatformGemini,
-	PlatformAntigravity,
-	PlatformGrok,
-}
-
 func IsAllowedQuotaPlatform(platform string) bool {
 	for _, allowed := range AllowedQuotaPlatforms {
 		if platform == allowed {

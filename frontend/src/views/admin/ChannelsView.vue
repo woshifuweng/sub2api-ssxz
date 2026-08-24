@@ -571,15 +571,31 @@
                 <label class="input-label text-xs mb-0">{{
                   t("admin.channels.form.modelPricing", "Model Pricing")
                 }}</label>
-                <LiquidButton
-                  type="button"
-                  @click="addPricingEntry(sIdx)"
-                  class="text-xs text-primary-600 hover:text-primary-700"
-                  variant="plain"
-                  size="sm"
-                >
-                  + {{ t("common.add", "Add") }}
-                </LiquidButton>
+                <div class="flex items-center gap-2">
+                  <LiquidButton
+                    type="button"
+                    @click="syncLatestModels(sIdx)"
+                    :disabled="syncingPlatform === section.platform"
+                    class="text-xs text-gray-500 hover:text-primary-600 disabled:opacity-50"
+                    variant="plain"
+                    size="sm"
+                  >
+                    {{
+                      syncingPlatform === section.platform
+                        ? t("admin.channels.form.syncingModels")
+                        : t("admin.channels.form.syncLatestModels")
+                    }}
+                  </LiquidButton>
+                  <LiquidButton
+                    type="button"
+                    @click="addPricingEntry(sIdx)"
+                    class="text-xs text-primary-600 hover:text-primary-700"
+                    variant="plain"
+                    size="sm"
+                  >
+                    + {{ t("common.add", "Add") }}
+                  </LiquidButton>
+                </div>
               </div>
               <div
                 v-if="section.model_pricing.length === 0"
@@ -598,6 +614,8 @@
                   :key="idx"
                   :entry="entry"
                   :platform="section.platform"
+                  enable-time-pricing
+                  enable-tier-multipliers
                   @update="updatePricingEntry(sIdx, idx, $event)"
                   @remove="removePricingEntry(sIdx, idx)"
                 />
@@ -897,9 +915,14 @@ import {
   mTokToPerToken,
   perTokenToMTok,
   apiIntervalsToForm,
+  apiTimePricingToForm,
+  createDefaultTimePricingForm,
   formIntervalsToAPI,
+  formTimePricingToAPI,
   findModelConflict,
+  isValidPositiveMultiplier,
   validateIntervals,
+  validateTimePricing,
 } from "@/components/admin/channel/types";
 import type { AdminGroup, GroupPlatform } from "@/types";
 import type { Column } from "@/components/common/types";
@@ -1089,7 +1112,15 @@ const platformOrder: GroupPlatform[] = [
   "openai",
   "gemini",
   "antigravity",
+  "grok",
+  "sora",
+  "kiro",
+  "kimi",
+  "zhipu",
+  "deepseek",
 ];
+// Composite pricing/mapping may target every concrete schedulable provider.
+const compositePlatforms: GroupPlatform[] = ['anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'kimi', 'zhipu', 'deepseek'];
 
 // ── Helpers ──
 function formatDate(value: string): string {
@@ -1129,7 +1160,9 @@ function togglePlatform(platform: GroupPlatform) {
 
 function getGroupsForPlatform(platform: GroupPlatform): AdminGroup[] {
   return allGroups.value.filter(
-    (g) => g.platform === platform || g.platform === "composite",
+    (g) =>
+      g.platform === platform ||
+      (g.platform === "composite" && compositePlatforms.includes(platform)),
   );
 }
 
@@ -1186,11 +1219,60 @@ function addPricingEntry(sectionIdx: number) {
     output_price: null,
     cache_write_price: null,
     cache_read_price: null,
+    fast_multiplier: null,
+    flex_multiplier: null,
     image_input_price: null,
     image_output_price: null,
     per_request_price: null,
     intervals: [],
+    time_pricing: createDefaultTimePricingForm(),
   });
+}
+
+const syncingPlatform = ref<string | null>(null);
+
+async function syncLatestModels(sectionIdx: number) {
+  const platform = form.platforms[sectionIdx].platform;
+  if (syncingPlatform.value) return;
+  syncingPlatform.value = platform;
+  try {
+    const result = await adminAPI.channels.syncPricingModels(platform);
+    // Collect all model names already present in this platform's pricing entries
+    const existingModels = new Set<string>();
+    for (const entry of form.platforms[sectionIdx].model_pricing) {
+      for (const m of entry.models) existingModels.add(m);
+    }
+    const newModels = result.models.filter((m) => !existingModels.has(m));
+    if (newModels.length === 0) {
+      appStore.showSuccess(t("admin.channels.form.syncModelsAlreadyUpToDate"));
+      return;
+    }
+    // Add new models as a single new pricing entry (user fills in prices)
+    form.platforms[sectionIdx].model_pricing.push({
+      models: newModels,
+      billing_mode: "token",
+      input_price: null,
+      output_price: null,
+      cache_write_price: null,
+      cache_read_price: null,
+      fast_multiplier: null,
+      flex_multiplier: null,
+      image_input_price: null,
+      image_output_price: null,
+      per_request_price: null,
+      intervals: [],
+      time_pricing: createDefaultTimePricingForm(),
+    });
+    appStore.showSuccess(
+      t("admin.channels.form.syncModelsSuccess", { count: newModels.length }),
+    );
+  } catch (error) {
+    appStore.showError(
+      extractApiErrorMessage(error, t("admin.channels.form.syncModelsError")),
+    );
+  } finally {
+    syncingPlatform.value = null;
+  }
 }
 
 function updatePricingEntry(
@@ -1255,6 +1337,7 @@ function addRulePricingEntry(sectionIdx: number, ruleIndex: number) {
     image_output_price: null,
     per_request_price: null,
     intervals: [],
+    time_pricing: createDefaultTimePricingForm(),
   });
 }
 
@@ -1403,6 +1486,7 @@ function accountStatsRulesToAPI(): AccountStatsPricingRule[] {
                 ? Number(p.per_request_price)
                 : null,
             intervals: formIntervalsToAPI(p.intervals || []),
+            time_pricing: null,
           })),
       });
     }
@@ -1446,6 +1530,8 @@ function formToAPI(): {
         output_price: mTokToPerToken(entry.output_price),
         cache_write_price: mTokToPerToken(entry.cache_write_price),
         cache_read_price: mTokToPerToken(entry.cache_read_price),
+        fast_multiplier: entry.fast_multiplier != null && entry.fast_multiplier !== '' ? Number(entry.fast_multiplier) : null,
+        flex_multiplier: entry.flex_multiplier != null && entry.flex_multiplier !== '' ? Number(entry.flex_multiplier) : null,
         image_input_price: mTokToPerToken(entry.image_input_price),
         image_output_price: mTokToPerToken(entry.image_output_price),
         per_request_price:
@@ -1453,6 +1539,7 @@ function formToAPI(): {
             ? Number(entry.per_request_price)
             : null,
         intervals: formIntervalsToAPI(entry.intervals || []),
+        time_pricing: formTimePricingToAPI(entry.time_pricing),
       });
     }
   }
@@ -1494,7 +1581,7 @@ function apiToForm(channel: Channel): PlatformSection[] {
   for (const gid of channel.group_ids || []) {
     const p = groupPlatformMap.get(gid);
     if (p === "composite") {
-      platformOrder.forEach((platform) => activePlatforms.add(platform));
+      compositePlatforms.forEach((platform) => activePlatforms.add(platform));
     } else if (p) {
       activePlatforms.add(p);
     }
@@ -1514,25 +1601,29 @@ function apiToForm(channel: Channel): PlatformSection[] {
 
     const groupIds = (channel.group_ids || []).filter((gid) => {
       const groupPlatform = groupPlatformMap.get(gid);
-      return groupPlatform === platform || groupPlatform === "composite";
+      return (
+        groupPlatform === platform ||
+        (groupPlatform === "composite" && compositePlatforms.includes(platform))
+      );
     });
     const mapping = (channel.model_mapping || {})[platform] || {};
     const pricing = (channel.model_pricing || [])
       .filter((p) => (p.platform || "anthropic") === platform)
-      .map(
-        (p) =>
-          ({
-            models: p.models || [],
-            billing_mode: p.billing_mode,
-            input_price: perTokenToMTok(p.input_price),
-            output_price: perTokenToMTok(p.output_price),
-            cache_write_price: perTokenToMTok(p.cache_write_price),
-            cache_read_price: perTokenToMTok(p.cache_read_price),
-            image_output_price: perTokenToMTok(p.image_output_price),
-            per_request_price: p.per_request_price,
-            intervals: apiIntervalsToForm(p.intervals || []),
-          }) as PricingFormEntry,
-      );
+      .map((p) => ({
+        models: p.models || [],
+        billing_mode: p.billing_mode,
+        input_price: perTokenToMTok(p.input_price),
+        output_price: perTokenToMTok(p.output_price),
+        cache_write_price: perTokenToMTok(p.cache_write_price),
+        cache_read_price: perTokenToMTok(p.cache_read_price),
+        fast_multiplier: p.fast_multiplier,
+        flex_multiplier: p.flex_multiplier,
+        image_input_price: perTokenToMTok(p.image_input_price),
+        image_output_price: perTokenToMTok(p.image_output_price),
+        per_request_price: p.per_request_price,
+        intervals: apiIntervalsToForm(p.intervals || []),
+        time_pricing: apiTimePricingToForm(p.time_pricing),
+      }) as PricingFormEntry);
 
     // Read web_search_emulation from features_config
     const fc = channel.features_config;
@@ -1718,20 +1809,19 @@ function distributeRulesToPlatforms(apiRules: AccountStatsPricingRule[]) {
       name: apiRule.name || "",
       group_ids: [...(apiRule.group_ids || [])],
       account_ids: [...(apiRule.account_ids || [])],
-      pricing: (apiRule.pricing || []).map(
-        (p) =>
-          ({
-            models: [...(p.models || [])],
-            billing_mode: p.billing_mode,
-            input_price: perTokenToMTok(p.input_price),
-            output_price: perTokenToMTok(p.output_price),
-            cache_write_price: perTokenToMTok(p.cache_write_price),
-            cache_read_price: perTokenToMTok(p.cache_read_price),
-            image_output_price: perTokenToMTok(p.image_output_price),
-            per_request_price: p.per_request_price,
-            intervals: apiIntervalsToForm(p.intervals || []),
-          }) as PricingFormEntry,
-      ),
+      pricing: (apiRule.pricing || []).map((p) => ({
+        models: [...(p.models || [])],
+        billing_mode: p.billing_mode,
+        input_price: perTokenToMTok(p.input_price),
+        output_price: perTokenToMTok(p.output_price),
+        cache_write_price: perTokenToMTok(p.cache_write_price),
+        cache_read_price: perTokenToMTok(p.cache_read_price),
+        image_input_price: perTokenToMTok(p.image_input_price),
+        image_output_price: perTokenToMTok(p.image_output_price),
+        per_request_price: p.per_request_price,
+        intervals: apiIntervalsToForm(p.intervals || []),
+        time_pricing: createDefaultTimePricingForm(),
+      }) as PricingFormEntry),
     };
     section.account_stats_pricing_rules.push(formRule);
   }
@@ -1860,8 +1950,24 @@ async function handleSubmit() {
   // 校验区间合法性（范围、重叠等）
   for (const section of form.platforms.filter((s) => s.enabled)) {
     for (const entry of section.model_pricing) {
+      if (
+        !isValidPositiveMultiplier(entry.fast_multiplier) ||
+        !isValidPositiveMultiplier(entry.flex_multiplier)
+      ) {
+        const platformLabel = t(
+          "admin.groups.platforms." + section.platform,
+          section.platform,
+        );
+        const modelLabel =
+          entry.models.join(", ") || t("admin.channels.form.unnamed");
+        appStore.showError(
+          `${platformLabel} - ${modelLabel}: ${t("admin.channels.form.multiplierPositive")}`,
+        );
+        activeTab.value = section.platform;
+        return;
+      }
       if (!entry.intervals || entry.intervals.length === 0) continue;
-      const intervalErr = validateIntervals(entry.intervals);
+      const intervalErr = validateIntervals(entry.intervals, entry.billing_mode, t);
       if (intervalErr) {
         const platformLabel = t(
           "admin.groups.platforms." + section.platform,
@@ -1870,6 +1976,24 @@ async function handleSubmit() {
         const modelLabel =
           entry.models.join(", ") || t("admin.channels.form.unnamed");
         appStore.showError(`${platformLabel} - ${modelLabel}: ${intervalErr}`);
+        activeTab.value = section.platform;
+        return;
+      }
+    }
+  }
+
+  // 校验时间段定价，并切换到对应平台便于修正
+  for (const section of form.platforms.filter((s) => s.enabled)) {
+    for (const entry of section.model_pricing) {
+      const timePricingError = validateTimePricing(entry.time_pricing, t);
+      if (timePricingError) {
+        const platformLabel = t(
+          "admin.groups.platforms." + section.platform,
+          section.platform,
+        );
+        const modelLabel =
+          entry.models.join(", ") || t("admin.channels.form.unnamed");
+        appStore.showError(`${platformLabel} - ${modelLabel}: ${timePricingError}`);
         activeTab.value = section.platform;
         return;
       }

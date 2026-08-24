@@ -29,6 +29,13 @@
       @change="$emit('change')"
     />
     <Select
+      :model-value="filters.privacy_mode || ''"
+      class="w-40"
+      :options="privacyOptions"
+      @update:model-value="updateField('privacy_mode', $event)"
+      @change="$emit('change')"
+    />
+    <Select
       :model-value="filters.group || ''"
       class="w-40"
       :options="groupOptions"
@@ -68,8 +75,9 @@ import { useI18n } from 'vue-i18n'
 import Select from '@/components/common/Select.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import type { AdminGroup, AccountListFilters } from '@/types'
+import { CONCRETE_PLATFORM_OPTIONS } from '@/constants/platforms'
 
-type AccountFiltersModel = AccountListFilters & { group?: string }
+type AccountFiltersModel = AccountListFilters & { group?: string; privacy_mode?: string }
 
 const props = defineProps<{
   searchQuery: string
@@ -122,11 +130,7 @@ const updateTierID = (event: Event) => {
 
 const platformOptions = computed(() => [
   { value: '', label: t('admin.accounts.allPlatforms') },
-  { value: 'anthropic', label: 'Anthropic' },
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'gemini', label: 'Gemini' },
-  { value: 'kiro', label: 'Kiro' },
-  { value: 'antigravity', label: 'Antigravity' },
+  ...CONCRETE_PLATFORM_OPTIONS,
   { value: 'sora', label: 'Sora' },
   { value: 'kiro', label: 'Kiro' }
 ])
@@ -145,7 +149,16 @@ const statusOptions = computed(() => [
   { value: 'inactive', label: t('admin.accounts.status.inactive') },
   { value: 'error', label: t('admin.accounts.status.error') },
   { value: 'rate_limited', label: t('admin.accounts.status.rateLimited') },
-  { value: 'temp_unschedulable', label: t('admin.accounts.status.tempUnschedulable') }
+  { value: 'temp_unschedulable', label: t('admin.accounts.status.tempUnschedulable') },
+  { value: 'unschedulable', label: t('admin.accounts.status.unschedulable') }
+])
+
+const privacyOptions = computed(() => [
+  { value: '', label: t('admin.accounts.allPrivacyModes') },
+  { value: '__unset__', label: t('admin.accounts.privacyUnset') },
+  { value: 'training_off', label: 'Privacy' },
+  { value: 'training_set_cf_blocked', label: 'CF' },
+  { value: 'training_set_failed', label: 'Fail' }
 ])
 
 const groupOptions = computed(() => [
