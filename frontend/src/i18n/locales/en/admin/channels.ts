@@ -81,13 +81,6 @@ export default {
           perRequestPrice: 'per-request price'
         }
       },
-      timePricingValidation: {
-        timezone: 'Select a valid IANA time zone',
-        format: 'Start and end times must use HH:mm:ss format',
-        range: 'Start time must be earlier than end time; split ranges across midnight',
-        overlap: 'Time periods must not overlap',
-        multiplier: 'Multiplier must be greater than 0 with at most two decimal places'
-      },
       deleteConfirm: 'Are you sure you want to delete channel "{name}"? This cannot be undone.',
       columns: {
         name: 'Name',
@@ -138,13 +131,6 @@ export default {
         cacheWriteMultiplier: 'Cache Write Mult.',
         cacheReadMultiplier: 'Cache Read Mult.',
         intervals: 'Context Intervals (optional)',
-        timePricing: 'Time-based pricing (optional)',
-        timezone: 'Time zone',
-        addTimePeriod: 'Add period',
-        startTime: 'Start time',
-        endTime: 'End time',
-        multiplier: 'Multiplier',
-        removeTimePeriod: 'Remove period',
         minTokens: 'Min',
         maxTokens: 'Max',
         inclusive: '(inclusive)',

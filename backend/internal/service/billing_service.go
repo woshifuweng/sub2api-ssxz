@@ -207,27 +207,6 @@ type CostBreakdown struct {
 	LongContextBillingApplied bool
 }
 
-func applyCostBreakdownMultiplier(cost *CostBreakdown, multiplier float64) {
-	if cost == nil || multiplier == 1 {
-		return
-	}
-	cost.InputCost *= multiplier
-	cost.ImageInputCost *= multiplier
-	cost.OutputCost *= multiplier
-	cost.ImageOutputCost *= multiplier
-	cost.CacheCreationCost *= multiplier
-	cost.CacheReadCost *= multiplier
-	cost.TotalCost *= multiplier
-	cost.ActualCost *= multiplier
-}
-
-func resolvedChannelTimeMultiplier(resolved *ResolvedPricing, at time.Time) float64 {
-	if resolved == nil || resolved.Source != PricingSourceChannel || resolved.channelPricing == nil {
-		return 1
-	}
-	return resolved.channelPricing.TimePricing.MultiplierAt(at)
-}
-
 // ErrModelPricingUnavailable indicates that none of the configured pricing
 // sources can price the requested model.
 var ErrModelPricingUnavailable = errors.New("pricing not found")
@@ -1224,7 +1203,6 @@ type CostInput struct {
 	SizeTier                  string  // 按次/图片模式的层级标签（"1K","2K","4K","HD" 等）
 	Quality                   string  // 图片质量层级（"low","auto","medium","high"）
 	RateMultiplier            float64
-	PricingAt                 time.Time             // 渠道分时定价使用的计费时刻
 	ServiceTier               string                // "priority","flex","" 等
 	Resolver                  *ModelPricingResolver // 定价解析器
 	Resolved                  *ResolvedPricing      // 可选：预解析的定价结果（避免重复 Resolve 调用）
@@ -1308,9 +1286,7 @@ func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input Cos
 	// 官方长上下文阶梯仅在无区间定价时应用（区间定价已包含上下文分层）。
 	applyLongCtx := len(resolved.Intervals) == 0 && contextTierPricingEnabled
 
-	breakdown := s.computeTokenBreakdown(pricing, input.Tokens, input.RateMultiplier, input.ServiceTier, applyLongCtx)
-	applyCostBreakdownMultiplier(breakdown, resolvedChannelTimeMultiplier(resolved, input.PricingAt))
-	return breakdown, nil
+	return s.computeTokenBreakdown(pricing, input.Tokens, input.RateMultiplier, input.ServiceTier, applyLongCtx), nil
 }
 
 // computeTokenBreakdown 是 token 计费的核心逻辑，由 calculateTokenCost 和 calculateCostInternal 共用。
