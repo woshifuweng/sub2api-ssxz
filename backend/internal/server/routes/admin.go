@@ -339,6 +339,7 @@ func ExecutableAdminRoutes(h *handler.Handlers) []gatewayctx.RouteDef {
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/admin/accounts/:id/stats", Handler: h.Admin.Account.GetStatsGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "admin_auth"}},
 			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/admin/accounts/:id/clear-error", Handler: h.Admin.Account.ClearErrorGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "admin_auth"}},
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/admin/accounts/:id/usage", Handler: h.Admin.Account.GetUsageGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "admin_auth"}},
+			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/admin/accounts/usage/batch", Handler: h.Admin.Account.GetBatchUsageGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "admin_auth"}},
 			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/admin/accounts/:id/clear-rate-limit", Handler: h.Admin.Account.ClearRateLimitGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "admin_auth"}},
 			gatewayctx.RouteDef{Method: http.MethodPost, Path: "/api/v1/admin/accounts/:id/reset-quota", Handler: h.Admin.Account.ResetQuotaGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "admin_auth"}},
 			gatewayctx.RouteDef{Method: http.MethodGet, Path: "/api/v1/admin/accounts/:id/temp-unschedulable", Handler: h.Admin.Account.GetTempUnschedulableGateway, Middleware: []string{"request_logger", "cors", "security_headers", "client_request_id", "admin_auth"}},
@@ -850,6 +851,7 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 		accounts.POST("/:id/clear-error", h.Admin.Account.ClearError)
 		accounts.POST("/:id/revert-proxy-fallback", h.Admin.Account.RevertProxyFallback)
 		accounts.GET("/:id/usage", h.Admin.Account.GetUsage)
+		accounts.POST("/usage/batch", h.Admin.Account.GetBatchUsage)
 		accounts.GET("/:id/today-stats", h.Admin.Account.GetTodayStats)
 		accounts.POST("/today-stats/batch", h.Admin.Account.GetBatchTodayStats)
 		accounts.POST("/:id/clear-rate-limit", h.Admin.Account.ClearRateLimit)
