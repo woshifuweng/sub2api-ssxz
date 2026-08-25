@@ -1080,7 +1080,14 @@ func firstNonEmptyString(values ...any) string {
 }
 
 func isOpenAIImageGenerationModel(model string) bool {
-	return IsGPTImageGenerationModel(model) || isGrokImageGenerationModel(model)
+	return IsGPTImageGenerationModel(model) ||
+		isGrokImageGenerationModel(model) ||
+		isNanoBananaImageGenerationModel(model)
+}
+
+func isNanoBananaImageGenerationModel(model string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(model))
+	return strings.HasPrefix(normalized, "nano-banana-")
 }
 
 func splitOpenAIModelReasoningVariant(model string) (baseModel string, reasoningEffort string, stripped bool) {

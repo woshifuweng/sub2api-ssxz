@@ -1606,6 +1606,44 @@ func (a *Account) GetOpenAIBaseURL() string {
 	}
 }
 
+// GetMappedOpenAIImageSize maps a public image size to the provider-specific
+// value configured on the account. This keeps the public API stable when an
+// OpenAI-compatible upstream uses dimensions instead of aliases such as 4K.
+func (a *Account) GetMappedOpenAIImageSize(size string) string {
+	size = strings.TrimSpace(size)
+	if a == nil || size == "" || a.Credentials == nil {
+		return size
+	}
+
+	lookup := func(key, value string) (string, bool) {
+		if strings.EqualFold(strings.TrimSpace(key), size) {
+			mapped := strings.TrimSpace(value)
+			if mapped != "" {
+				return mapped, true
+			}
+		}
+		return "", false
+	}
+
+	switch mappings := a.Credentials["image_size_mapping"].(type) {
+	case map[string]any:
+		for key, raw := range mappings {
+			if value, ok := raw.(string); ok {
+				if mapped, found := lookup(key, value); found {
+					return mapped
+				}
+			}
+		}
+	case map[string]string:
+		for key, value := range mappings {
+			if mapped, found := lookup(key, value); found {
+				return mapped
+			}
+		}
+	}
+	return size
+}
+
 // GetAccountMode 返回国产供应商账号的接入模式（payg / coding）；非国产供应商或未设置时
 // 返回空串。存储于 credentials["account_mode"]。
 func (a *Account) GetAccountMode() string {

@@ -362,6 +362,47 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_AllowsGrokImageModels(t *t
 	}
 }
 
+func TestOpenAIGatewayServiceParseOpenAIImagesRequest_AllowsNanoBananaImageModels(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	for _, model := range []string{"nano-banana-2", "nano-banana-pro"} {
+		t.Run(model, func(t *testing.T) {
+			body := []byte(fmt.Sprintf(`{"model":%q,"prompt":"draw a cat"}`, model))
+			req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = req
+
+			svc := &OpenAIGatewayService{}
+			parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+			require.NoError(t, err)
+			require.NotNil(t, parsed)
+			require.Equal(t, model, parsed.Model)
+			require.Equal(t, OpenAIImagesCapabilityNative, parsed.RequiredCapability)
+		})
+	}
+}
+
+func TestRewriteOpenAIImagesSize_JSON(t *testing.T) {
+	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","size":"4K"}`)
+
+	rewritten, contentType, err := rewriteOpenAIImagesSize(body, "application/json", "4096x4096")
+
+	require.NoError(t, err)
+	require.Equal(t, "application/json", contentType)
+	require.JSONEq(t, `{"model":"gpt-image-2","prompt":"draw a cat","size":"4096x4096"}`, string(rewritten))
+}
+
+func TestAccountGetMappedOpenAIImageSize(t *testing.T) {
+	account := &Account{Credentials: map[string]any{
+		"image_size_mapping": map[string]any{"4K": "4096x4096"},
+	}}
+
+	require.Equal(t, "4096x4096", account.GetMappedOpenAIImageSize("4k"))
+	require.Equal(t, "2K", account.GetMappedOpenAIImageSize("2K"))
+}
+
 func TestOpenAIGatewayServiceParseOpenAIImagesRequest_JSONEditURLs(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	body := []byte(`{
