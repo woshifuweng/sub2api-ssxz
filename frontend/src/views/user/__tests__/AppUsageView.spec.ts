@@ -135,9 +135,9 @@ describe('AppUsageView compact usage details', () => {
     authStore.refreshUser.mockResolvedValue(authStore.user)
     copyToClipboard.mockResolvedValue(true)
     usageAPI.getStatsByDateRange.mockResolvedValue({
-      total_requests: 3,
-      total_tokens: 98,
-      total_actual_cost: 0.43384
+      total_requests: 2,
+      total_tokens: 94,
+      total_actual_cost: 0.43
     })
     usageAPI.getDashboardTrend.mockResolvedValue({
       trend: [],
@@ -184,28 +184,9 @@ describe('AppUsageView compact usage details', () => {
           duration_ms: 76000,
           first_token_ms: 6200,
           created_at: '2026-08-29T08:01:00Z'
-        },
-        {
-          id: 103,
-          request_id: 'req-usage-3',
-          api_key_id: 7,
-          model: 'gpt-5.5',
-          inbound_endpoint: '/v1/responses',
-          input_tokens: 4,
-          output_tokens: 0,
-          cache_creation_tokens: 0,
-          cache_read_tokens: 0,
-          total_cost: 0.00384,
-          actual_cost: 0.00384,
-          billing_type: 0,
-          image_count: 0,
-          image_size: null,
-          duration_ms: 119999,
-          first_token_ms: 700,
-          created_at: '2026-08-29T08:02:00Z'
         }
       ],
-      total: 3,
+      total: 2,
       pages: 1
     })
   })
@@ -216,18 +197,15 @@ describe('AppUsageView compact usage details', () => {
 
     const headers = wrapper.findAll('thead th').map((header) => header.text())
     expect(headers.slice(0, 5)).toEqual(['Created at', 'Model', 'Usage', 'Duration', 'Fee'])
-    expect(wrapper.findAll('tr.usage-row')).toHaveLength(3)
+    expect(wrapper.findAll('tr.usage-row')).toHaveLength(2)
     expect(wrapper.findAll('tr.usage-detail-row')).toHaveLength(0)
     expect(wrapper.get('table').text()).not.toContain('/v1/responses')
     expect(wrapper.get('table').text()).not.toContain('req-usage-1')
     expect(wrapper.get('table').text()).not.toContain('Balance charge')
 
     const rows = wrapper.findAll('tr.usage-row')
-    expect(rows[0].text()).toContain('$0.28')
-    expect(rows[1].text()).toContain('$0.00')
-    expect.soft(rows[2].text()).toContain('$0.00384')
-    expect.soft(rows[2].text()).toContain('2m')
-    rows.forEach((row) => expect.soft(row.text()).not.toContain('1m 60s'))
+    expect(rows[0].findAll('td')[4].text()).toBe('$0.28')
+    expect(rows[1].findAll('td')[4].text()).toBe('$0.00')
 
     await rows[0].trigger('click')
 
@@ -250,6 +228,41 @@ describe('AppUsageView compact usage details', () => {
       page: 1,
       page_size: 20
     }))
+  })
+
+  it('preserves sub-cent fees and rounds durations at the next minute', async () => {
+    usageAPI.query.mockResolvedValue({
+      items: [
+        {
+          id: 103,
+          request_id: 'req-usage-3',
+          api_key_id: 7,
+          model: 'gpt-5.5',
+          inbound_endpoint: '/v1/responses',
+          input_tokens: 4,
+          output_tokens: 0,
+          cache_creation_tokens: 0,
+          cache_read_tokens: 0,
+          total_cost: 0.00384,
+          actual_cost: 0.00384,
+          billing_type: 0,
+          image_count: 0,
+          image_size: null,
+          duration_ms: 119999,
+          first_token_ms: 700,
+          created_at: '2026-08-29T08:02:00Z'
+        }
+      ],
+      total: 1,
+      pages: 1
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const cells = wrapper.get('tr.usage-row').findAll('td')
+    expect.soft(cells[3].text()).toBe('2m')
+    expect.soft(cells[4].text()).toBe('$0.00384')
   })
 
   it('copies the support code without collapsing the expanded row', async () => {
