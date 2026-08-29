@@ -179,15 +179,23 @@
                   :class="{ 'is-expanded': isRowExpanded(row) }"
                   @click="toggleRow(row)"
                 >
-                  <td :title="formatDateTime(row.created_at)">
+                  <td
+                    class="time-cell"
+                    :data-label="t('usage.workbench.createdAt')"
+                    :title="formatDateTime(row.created_at)"
+                  >
                     {{ formatShortDateTime(row.created_at) }}
                   </td>
-                  <td class="model-cell">{{ row.model || '-' }}</td>
-                  <td class="num-cell">{{ formatUsageAmount(row) }}</td>
-                  <td class="num-cell" :class="{ 'is-slow': isSlowRow(row) }">
+                  <td class="model-cell" :data-label="t('usage.workbench.model')">{{ row.model || '-' }}</td>
+                  <td class="num-cell" :data-label="t('usage.workbench.amount')">{{ formatUsageAmount(row) }}</td>
+                  <td
+                    class="num-cell"
+                    :class="{ 'is-slow': isSlowRow(row) }"
+                    :data-label="t('usage.workbench.duration')"
+                  >
                     <span :title="durationCellTitle(row)">{{ formatLatency(row.duration_ms) }}</span>
                   </td>
-                  <td class="num-cell">
+                  <td class="num-cell fee-cell" :data-label="t('usage.workbench.fee')">
                     <span
                       :class="{ 'is-muted-fee': isNoCharge(row) }"
                       :title="formatCostTitle(row.actual_cost)"
@@ -1381,6 +1389,126 @@ function toDateKey(date: Date) {
 
   .usage-pagination > div {
     justify-content: space-between;
+  }
+}
+
+@media (max-width: 640px) {
+  .usage-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    padding: 0.75rem;
+  }
+
+  .usage-table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .usage-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    border: 0;
+    padding: 0;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .usage-table tbody {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .usage-row {
+    position: relative;
+    display: grid;
+    width: 100%;
+    max-width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem 1rem;
+    margin-top: 0.75rem;
+    border: 1px solid var(--ssxz-border);
+    border-radius: var(--ssxz-radius-card);
+    background: var(--ssxz-surface);
+    padding: 0.8rem 3rem 0.8rem 0.9rem;
+  }
+
+  .usage-row:first-child {
+    margin-top: 0;
+  }
+
+  .usage-row td {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.65rem;
+    border-bottom: 0;
+    padding: 0.2rem 0;
+    text-align: right;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .usage-row td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    color: var(--ssxz-text-muted);
+    font-family: inherit;
+    font-size: 0.72rem;
+    font-weight: 800;
+  }
+
+  .usage-row .time-cell,
+  .usage-row .model-cell,
+  .usage-row .fee-cell {
+    grid-column: 1 / -1;
+  }
+
+  .usage-row .model-cell,
+  .usage-row td > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .usage-row .row-toggle-cell {
+    position: absolute;
+    top: 0.65rem;
+    right: 0.65rem;
+    display: block;
+    width: auto;
+    padding: 0;
+  }
+
+  .usage-row.is-expanded {
+    border-radius: var(--ssxz-radius-card) var(--ssxz-radius-card) 0 0;
+  }
+
+  .usage-detail-row {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    border: 1px solid var(--ssxz-border);
+    border-top: 0;
+    border-radius: 0 0 var(--ssxz-radius-card) var(--ssxz-radius-card);
+    background: color-mix(in srgb, var(--ssxz-surface-muted) 55%, transparent);
+  }
+
+  .usage-detail-row td {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    border-bottom: 0;
+    border-radius: inherit;
+    padding: 0.8rem 0.9rem 0.95rem;
   }
 }
 </style>

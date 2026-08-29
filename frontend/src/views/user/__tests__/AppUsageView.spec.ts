@@ -681,4 +681,32 @@ describe('AppUsageView compact usage details', () => {
     expect(values).toHaveLength(3)
     expect(source).toMatch(/\.usage-table th\.num-cell,\s*\.usage-table td\.num-cell\s*{\s*text-align:\s*right;/)
   })
+
+  it('exposes mobile card labels and the 640px responsive layout contract', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const cells = wrapper.get('tr.usage-row').findAll('td')
+    const toggle = wrapper.get('tr.usage-row .row-toggle-cell button.row-toggle')
+    const source = readFileSync(resolve(process.cwd(), 'src/views/user/AppUsageView.vue'), 'utf8')
+    const mobileStyles = source.match(/@media\s*\(max-width:\s*640px\)\s*{([\s\S]*)}\s*<\/style>/)?.[1]
+
+    expect(cells.slice(0, 5).map((cell) => cell.attributes('data-label'))).toEqual([
+      'Created at',
+      'Model',
+      'Usage',
+      'Duration',
+      'Fee'
+    ])
+    expect(toggle.attributes('type')).toBe('button')
+    expect(mobileStyles).toBeDefined()
+    expect(mobileStyles).toMatch(/\.usage-table-wrap\s*{[\s\S]*?max-width:\s*100%;[\s\S]*?overflow-x:\s*(?:clip|hidden);/)
+    expect(mobileStyles).toMatch(/\.usage-table\s*{[\s\S]*?max-width:\s*100%;[\s\S]*?min-width:\s*0;/)
+    expect(mobileStyles).toMatch(/\.usage-table thead\s*{[\s\S]*?position:\s*absolute;[\s\S]*?clip:/)
+    expect(mobileStyles).toMatch(/\.usage-table tbody\s*{[\s\S]*?display:\s*block;/)
+    expect(mobileStyles).toMatch(/\.usage-row\s*{[\s\S]*?display:\s*grid;[\s\S]*?border:\s*1px solid var\(--ssxz-border\);[\s\S]*?border-radius:\s*var\(--ssxz-radius-card\);/)
+    expect(mobileStyles).toMatch(/\.usage-row td::before\s*{[\s\S]*?content:\s*attr\(data-label\);/)
+    expect(mobileStyles).toMatch(/\.usage-row \.row-toggle-cell\s*{[\s\S]*?position:\s*absolute;[\s\S]*?top:[\s\S]*?right:/)
+    expect(mobileStyles).toMatch(/\.usage-detail-row\s*{[\s\S]*?display:\s*block;[\s\S]*?border:\s*1px solid var\(--ssxz-border\);[\s\S]*?border-top:\s*0;[\s\S]*?border-radius:\s*0 0 var\(--ssxz-radius-card\) var\(--ssxz-radius-card\);/)
+  })
 })
