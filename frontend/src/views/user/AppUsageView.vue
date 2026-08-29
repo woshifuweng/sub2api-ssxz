@@ -89,7 +89,7 @@
             <h3>{{ t('usage.workbench.usageDetailsTitle') }}</h3>
             <p>{{ t('usage.workbench.usageDetailsDescription') }}</p>
           </div>
-          <button type="button" class="btn btn-secondary btn-sm refresh-button" :disabled="loading" @click="refreshUsageOverview">
+          <button type="button" class="btn btn-secondary btn-sm refresh-button" :disabled="controlsDisabled" @click="refreshUsageOverview">
             <Icon name="refresh" size="xs" />
             {{ t('usage.workbench.refresh') }}
           </button>
@@ -102,6 +102,7 @@
               data-testid="usage-api-key-filter"
               :model-value="filters.api_key_id"
               :options="apiKeyOptions"
+              :disabled="controlsDisabled"
               @update:model-value="updateApiKeyFilter"
             />
           </label>
@@ -111,23 +112,24 @@
               v-model.trim="filters.model"
               class="f0-input-control"
               type="search"
+              :disabled="controlsDisabled"
               :placeholder="t('usage.workbench.modelFilterPlaceholder')"
               @keyup.enter="applyFilters"
             />
           </label>
           <label class="filter-field">
             <span>{{ t('usage.workbench.startDate') }}</span>
-            <input v-model="filters.start_date" class="f0-input-control" type="date" @change="applyFilters" />
+            <input v-model="filters.start_date" class="f0-input-control" type="date" :disabled="controlsDisabled" @change="applyFilters" />
           </label>
           <label class="filter-field">
             <span>{{ t('usage.workbench.endDate') }}</span>
-            <input v-model="filters.end_date" class="f0-input-control" type="date" @change="applyFilters" />
+            <input v-model="filters.end_date" class="f0-input-control" type="date" :disabled="controlsDisabled" @change="applyFilters" />
           </label>
           <div class="filter-actions">
-            <button type="button" class="btn btn-secondary" @click="resetFilters">
+            <button type="button" class="btn btn-secondary" :disabled="controlsDisabled" @click="resetFilters">
               {{ t('common.reset') }}
             </button>
-            <button type="button" class="btn btn-primary" :disabled="exporting || totalRows === 0" @click="exportToCSV">
+            <button type="button" class="btn btn-primary" :disabled="controlsDisabled || totalRows === 0" @click="exportToCSV">
               <Icon name="download" size="xs" />
               {{ exporting ? t('usage.exporting') : t('usage.exportCsv') }}
             </button>
@@ -260,11 +262,11 @@
         <div v-if="!loading && totalRows > 0" class="usage-pagination">
           <span>{{ t('usage.workbench.paginationSummary', { total: totalRows }) }}</span>
           <div>
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="page <= 1" @click="changePage(page - 1)">
+            <button type="button" class="btn btn-secondary btn-sm" :disabled="controlsDisabled || page <= 1" @click="changePage(page - 1)">
               {{ t('pagination.previous') }}
             </button>
             <strong>{{ page }} / {{ totalPages }}</strong>
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="page >= totalPages" @click="changePage(page + 1)">
+            <button type="button" class="btn btn-secondary btn-sm" :disabled="controlsDisabled || page >= totalPages" @click="changePage(page + 1)">
               {{ t('pagination.next') }}
             </button>
           </div>
@@ -378,6 +380,7 @@ const apiKeyOptions = computed(() => [
   { value: null, label: t('usage.allApiKeys') },
   ...apiKeys.value.map((key) => ({ value: key.id, label: key.name }))
 ])
+const controlsDisabled = computed(() => loading.value || exporting.value)
 const chartMax = computed(() => Math.max(1, ...monthlySeries.value.map((item) => chartMetric(item))))
 
 onMounted(() => {
@@ -468,6 +471,7 @@ function refreshBalance() {
 }
 
 function refreshUsageOverview() {
+  if (controlsDisabled.value) return
   void loadUsageOverview()
   void refreshBalance()
 }
@@ -482,16 +486,19 @@ async function loadApiKeys() {
 }
 
 function applyFilters() {
+  if (controlsDisabled.value) return
   page.value = 1
   void loadUsageOverview()
 }
 
 function updateApiKeyFilter(value: string | number | boolean | null) {
+  if (controlsDisabled.value) return
   filters.value.api_key_id = typeof value === 'number' ? value : undefined
   applyFilters()
 }
 
 function resetFilters() {
+  if (controlsDisabled.value) return
   filters.value = {
     api_key_id: undefined,
     model: '',
@@ -502,6 +509,7 @@ function resetFilters() {
 }
 
 function changePage(nextPage: number) {
+  if (controlsDisabled.value) return
   page.value = Math.min(Math.max(1, nextPage), totalPages.value)
   void loadUsageOverview()
 }
@@ -514,20 +522,22 @@ function escapeCSVValue(value: unknown) {
 }
 
 async function exportToCSV() {
-  if (totalRows.value === 0) return
+  if (controlsDisabled.value || totalRows.value === 0) return
+  const exportFilters = { ...filters.value }
+  const exportTotalRows = totalRows.value
   exporting.value = true
   try {
     const rows: UsageLog[] = []
     const exportPageSize = 100
-    const pages = Math.ceil(totalRows.value / exportPageSize)
+    const pages = Math.ceil(exportTotalRows / exportPageSize)
     for (let exportPage = 1; exportPage <= pages; exportPage += 1) {
       const response = await usageAPI.query({
         page: exportPage,
         page_size: exportPageSize,
-        api_key_id: filters.value.api_key_id ? Number(filters.value.api_key_id) : undefined,
-        model: filters.value.model?.trim() || undefined,
-        start_date: filters.value.start_date,
-        end_date: filters.value.end_date
+        api_key_id: exportFilters.api_key_id ? Number(exportFilters.api_key_id) : undefined,
+        model: exportFilters.model?.trim() || undefined,
+        start_date: exportFilters.start_date,
+        end_date: exportFilters.end_date
       })
       rows.push(...response.items)
     }
@@ -546,9 +556,14 @@ async function exportToCSV() {
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `usage_${filters.value.start_date}_to_${filters.value.end_date}.csv`
-    link.click()
-    window.URL.revokeObjectURL(url)
+    link.download = `usage_${exportFilters.start_date}_to_${exportFilters.end_date}.csv`
+    try {
+      document.body.appendChild(link)
+      link.click()
+    } finally {
+      link.remove()
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 0)
+    }
     appStore.showSuccess(t('usage.exportSuccess'))
   } catch {
     appStore.showError(t('usage.exportFailed'))

@@ -107,9 +107,10 @@ vi.mock('@/components/icons/Icon.vue', () => ({
 }))
 vi.mock('@/components/common/Select.vue', () => ({
   default: {
-    props: ['modelValue', 'options'],
+    name: 'SelectStub',
+    props: ['modelValue', 'options', 'disabled'],
     emits: ['update:modelValue'],
-    template: '<select />'
+    template: '<select :disabled="disabled" />'
   }
 }))
 
@@ -136,6 +137,52 @@ function deferred<T>() {
     reject = fail
   })
   return { promise, resolve, reject }
+}
+
+function startProgrammaticLoad(wrapper: ReturnType<typeof mountView>, model: string) {
+  const setupState = (wrapper.vm as unknown as {
+    $: {
+      setupState: {
+        filters: { model?: string }
+        loadUsageOverview: () => Promise<void>
+      }
+    }
+  }).$.setupState
+  setupState.filters.model = model
+  return setupState.loadUsageOverview()
+}
+
+function mockObjectURLs() {
+  const createObjectURLDescriptor = Object.getOwnPropertyDescriptor(window.URL, 'createObjectURL')
+  const revokeObjectURLDescriptor = Object.getOwnPropertyDescriptor(window.URL, 'revokeObjectURL')
+  const createObjectURL = vi.fn(() => 'blob:usage-export')
+  const revokeObjectURL = vi.fn()
+
+  Object.defineProperty(window.URL, 'createObjectURL', {
+    configurable: true,
+    value: createObjectURL
+  })
+  Object.defineProperty(window.URL, 'revokeObjectURL', {
+    configurable: true,
+    value: revokeObjectURL
+  })
+
+  return {
+    createObjectURL,
+    revokeObjectURL,
+    restore() {
+      if (createObjectURLDescriptor) {
+        Object.defineProperty(window.URL, 'createObjectURL', createObjectURLDescriptor)
+      } else {
+        Reflect.deleteProperty(window.URL, 'createObjectURL')
+      }
+      if (revokeObjectURLDescriptor) {
+        Object.defineProperty(window.URL, 'revokeObjectURL', revokeObjectURLDescriptor)
+      } else {
+        Reflect.deleteProperty(window.URL, 'revokeObjectURL')
+      }
+    }
+  }
 }
 
 function usageRow(id: number, model: string) {
@@ -356,9 +403,7 @@ describe('AppUsageView compact usage details', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const modelInput = wrapper.get('input[type="search"]')
-    await modelInput.setValue('newer-model')
-    await modelInput.trigger('keyup.enter')
+    void startProgrammaticLoad(wrapper, 'newer-model')
 
     olderQuery.resolve({ items: [usageRow(201, 'older-model')], total: 1, pages: 1 })
     await flushPromises()
@@ -380,9 +425,7 @@ describe('AppUsageView compact usage details', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const modelInput = wrapper.get('input[type="search"]')
-    await modelInput.setValue('newer-model')
-    await modelInput.trigger('keyup.enter')
+    void startProgrammaticLoad(wrapper, 'newer-model')
 
     expect(usageAPI.query).toHaveBeenLastCalledWith(expect.objectContaining({ model: 'newer-model' }))
 
@@ -398,6 +441,135 @@ describe('AppUsageView compact usage details', () => {
     expect(wrapper.get('tr.usage-row .model-cell').text()).toBe('newer-model')
     expect(wrapper.get('tr.usage-detail-row').text()).toContain('req-202')
     expect(wrapper.find('.usage-empty.compact').exists()).toBe(false)
+  })
+
+  it('disables conflicting controls and freezes export filters and page count', async () => {
+    const firstExportPage = deferred<{ items: ReturnType<typeof usageRow>[], total: number, pages: number }>()
+    usageAPI.query
+      .mockResolvedValueOnce({ items: [usageRow(301, 'visible-model')], total: 101, pages: 6 })
+      .mockImplementationOnce(() => firstExportPage.promise)
+      .mockResolvedValueOnce({ items: [usageRow(302, 'export-page-2')], total: 101, pages: 2 })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const modelInput = wrapper.get('input[type="search"]')
+    const dateInputs = wrapper.findAll('input[type="date"]')
+    await modelInput.setValue('original-model')
+    const originalStartDate = (dateInputs[0].element as HTMLInputElement).value
+    const originalEndDate = (dateInputs[1].element as HTMLInputElement).value
+    const objectURLs = mockObjectURLs()
+    const appendChildSpy = vi.spyOn(document.body, 'appendChild')
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
+
+    try {
+      const filterButtons = wrapper.findAll('.filter-actions button')
+      await filterButtons[1].trigger('click')
+      await wrapper.vm.$nextTick()
+
+      const apiKeySelect = wrapper.getComponent({ name: 'SelectStub' })
+      const paginationButtons = wrapper.findAll('.usage-pagination button')
+      expect.soft(apiKeySelect.attributes('disabled')).toBeDefined()
+      expect.soft(modelInput.attributes('disabled')).toBeDefined()
+      expect.soft(dateInputs.every((input) => input.attributes('disabled') !== undefined)).toBe(true)
+      expect.soft(filterButtons[0].attributes('disabled')).toBeDefined()
+      expect.soft(filterButtons[1].attributes('disabled')).toBeDefined()
+      expect.soft(wrapper.get('.refresh-button').attributes('disabled')).toBeDefined()
+      expect.soft(paginationButtons).toHaveLength(2)
+      expect.soft(paginationButtons.every((button) => button.attributes('disabled') !== undefined)).toBe(true)
+
+      await modelInput.setValue('changed-model')
+      await modelInput.trigger('keyup.enter')
+      await dateInputs[0].setValue('2026-01-01')
+      await dateInputs[1].setValue('2026-01-31')
+      apiKeySelect.vm.$emit('update:modelValue', 7)
+      await filterButtons[0].trigger('click')
+      await wrapper.get('.refresh-button').trigger('click')
+      await paginationButtons[1].trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect.soft(usageAPI.query).toHaveBeenCalledTimes(2)
+      expect.soft(authStore.refreshUser).toHaveBeenCalledTimes(1)
+
+      firstExportPage.resolve({ items: [usageRow(303, 'export-page-1')], total: 101, pages: 2 })
+      await flushPromises()
+
+      expect(usageAPI.query.mock.calls.slice(1).map(([query]) => query)).toEqual([
+        {
+          page: 1,
+          page_size: 100,
+          api_key_id: undefined,
+          model: 'original-model',
+          start_date: originalStartDate,
+          end_date: originalEndDate
+        },
+        {
+          page: 2,
+          page_size: 100,
+          api_key_id: undefined,
+          model: 'original-model',
+          start_date: originalStartDate,
+          end_date: originalEndDate
+        }
+      ])
+      const anchor = appendChildSpy.mock.calls
+        .map(([node]) => node)
+        .find((node): node is HTMLAnchorElement => node instanceof HTMLAnchorElement)
+      expect.soft(anchor?.download).toBe(`usage_${originalStartDate}_to_${originalEndDate}.csv`)
+      expect.soft(document.body.contains(anchor || null)).toBe(false)
+      expect.soft(clickSpy).toHaveBeenCalledTimes(1)
+      expect.soft(appStore.showSuccess).toHaveBeenCalledTimes(1)
+      await vi.runOnlyPendingTimersAsync()
+      expect(objectURLs.revokeObjectURL).toHaveBeenCalledWith('blob:usage-export')
+    } finally {
+      wrapper.unmount()
+      vi.useRealTimers()
+      clickSpy.mockRestore()
+      appendChildSpy.mockRestore()
+      objectURLs.restore()
+    }
+  })
+
+  it('appends and removes the download anchor and still schedules cleanup when click throws', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const objectURLs = mockObjectURLs()
+    const appendChildSpy = vi.spyOn(document.body, 'appendChild')
+    const removeSpy = vi.spyOn(Element.prototype, 'remove')
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {
+      throw new Error('download click failed')
+    })
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
+
+    try {
+      await wrapper.findAll('.filter-actions button')[1].trigger('click')
+      await flushPromises()
+
+      const anchor = appendChildSpy.mock.calls
+        .map(([node]) => node)
+        .find((node): node is HTMLAnchorElement => node instanceof HTMLAnchorElement)
+      expect(anchor).toBeDefined()
+      expect.soft(anchor?.href).toBe('blob:usage-export')
+      expect.soft(anchor?.download).toMatch(/^usage_\d{4}-\d{2}-\d{2}_to_\d{4}-\d{2}-\d{2}\.csv$/)
+      expect.soft(clickSpy).toHaveBeenCalledTimes(1)
+      expect.soft(removeSpy.mock.instances).toContain(anchor)
+      expect.soft(document.body.contains(anchor || null)).toBe(false)
+      expect.soft(objectURLs.revokeObjectURL).not.toHaveBeenCalled()
+      expect.soft(appStore.showError).toHaveBeenCalledTimes(1)
+
+      await vi.runOnlyPendingTimersAsync()
+
+      expect(objectURLs.revokeObjectURL).toHaveBeenCalledWith('blob:usage-export')
+    } finally {
+      wrapper.unmount()
+      vi.useRealTimers()
+      clickSpy.mockRestore()
+      removeSpy.mockRestore()
+      appendChildSpy.mockRestore()
+      objectURLs.restore()
+    }
   })
 
   it('copies the support code without collapsing the expanded row', async () => {
