@@ -1675,7 +1675,7 @@ import { useClipboard } from "@/composables/useClipboard";
 import { getPersistedPageSize } from "@/composables/usePersistedPageSize";
 
 const { t } = useI18n();
-import { keysAPI, authAPI, usageAPI, userGroupsAPI, userChannelsAPI } from "@/api";
+import { keysAPI, authAPI, usageAPI, userGroupsAPI } from "@/api";
 import AppLayout from "@/components/layout/AppLayout.vue";
 import AppSectionShell from "@/components/user/AppSectionShell.vue";
 import BalanceWarningBanner from "@/components/user/BalanceWarningBanner.vue";
@@ -1694,7 +1694,6 @@ import GroupOptionItem from "@/components/common/GroupOptionItem.vue";
 import PlatformIcon from "@/components/common/PlatformIcon.vue";
 import ModelWhitelistSelector from "@/components/account/ModelWhitelistSelector.vue";
 import type { ApiKey, Group, PublicSettings } from "@/types";
-import type { UserAvailableGroup } from "@/api/channels";
 import type { Column } from "@/components/common/types";
 import type { BatchApiKeyUsageStats } from "@/api/usage";
 import {
@@ -2422,27 +2421,7 @@ const loadApiKeys = async () => {
 
 const loadGroups = async () => {
   try {
-    const channels = await userChannelsAPI.getAvailable();
-    const availableGroups = new Map<number, UserAvailableGroup>();
-    for (const channel of channels) {
-      for (const platform of channel.platforms) {
-        for (const group of platform.groups) {
-          if (!availableGroups.has(group.id)) {
-            availableGroups.set(group.id, group);
-          }
-        }
-      }
-    }
-    groups.value = Array.from(availableGroups.values()).map((group) => ({
-      id: group.id,
-      name: group.name,
-      description: group.description || null,
-      platform: group.platform as Group["platform"],
-      rate_multiplier: group.rate_multiplier,
-      is_exclusive: group.is_exclusive,
-      status: "active",
-      subscription_type: group.subscription_type as Group["subscription_type"],
-    })) as Group[];
+    groups.value = await userGroupsAPI.getAvailable();
     if (
       showCreateModal.value &&
       !showEditModal.value &&

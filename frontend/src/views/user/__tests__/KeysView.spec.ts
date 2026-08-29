@@ -320,6 +320,42 @@ describe('user KeysView column settings', () => {
     expect(visibleColumnKeys(wrapper)).not.toContain('last_used_at')
   })
 
+  it('loads every bindable group for key creation instead of only groups exposed by channels', async () => {
+    getAvailableGroups.mockResolvedValue([
+      {
+        id: 24,
+        name: '特惠分组',
+        description: 'Special offer text group',
+        platform: 'openai',
+        rate_multiplier: 0.08,
+        is_exclusive: false,
+        status: 'active',
+        subscription_type: 'standard',
+      },
+      {
+        id: 18,
+        name: 'GPT-Image（生成图片1 2k）',
+        description: 'Image generation group',
+        platform: 'openai',
+        rate_multiplier: 1,
+        is_exclusive: false,
+        status: 'active',
+        subscription_type: 'standard',
+      },
+    ])
+    getAvailableChannels.mockResolvedValue([])
+
+    const wrapper = await mountView()
+
+    expect(getAvailableGroups).toHaveBeenCalledTimes(1)
+    expect(getAvailableChannels).not.toHaveBeenCalled()
+    expect((wrapper.vm as unknown as { groupOptions: Array<{ label: string }> }).groupOptions)
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ label: '特惠分组' }),
+        expect.objectContaining({ label: 'GPT-Image（生成图片1 2k）' }),
+      ]))
+  })
+
   it('shows a hidden column when toggled and persists the preference', async () => {
     const wrapper = await mountView()
 
