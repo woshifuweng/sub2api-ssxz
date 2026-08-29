@@ -188,6 +188,14 @@ function readBlobText(blob: Blob) {
   })
 }
 
+function extractCssDeclarationBlock(css: string, selector: string) {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = css.match(new RegExp(`(?:^|})\\s*${escapedSelector}\\s*\\{([^{}]*)\\}`))
+
+  if (!match) throw new Error(`Missing CSS declaration block for ${selector}`)
+  return match[1]
+}
+
 function usageRow(id: number, model: string) {
   return {
     id,
@@ -700,13 +708,51 @@ describe('AppUsageView compact usage details', () => {
     ])
     expect(toggle.attributes('type')).toBe('button')
     expect(mobileStyles).toBeDefined()
-    expect(mobileStyles).toMatch(/\.usage-table-wrap\s*{[\s\S]*?max-width:\s*100%;[\s\S]*?overflow-x:\s*(?:clip|hidden);/)
-    expect(mobileStyles).toMatch(/\.usage-table\s*{[\s\S]*?max-width:\s*100%;[\s\S]*?min-width:\s*0;/)
-    expect(mobileStyles).toMatch(/\.usage-table thead\s*{[\s\S]*?position:\s*absolute;[\s\S]*?clip:/)
-    expect(mobileStyles).toMatch(/\.usage-table tbody\s*{[\s\S]*?display:\s*block;/)
-    expect(mobileStyles).toMatch(/\.usage-row\s*{[\s\S]*?display:\s*grid;[\s\S]*?border:\s*1px solid var\(--ssxz-border\);[\s\S]*?border-radius:\s*var\(--ssxz-radius-card\);/)
-    expect(mobileStyles).toMatch(/\.usage-row td::before\s*{[\s\S]*?content:\s*attr\(data-label\);/)
-    expect(mobileStyles).toMatch(/\.usage-row \.row-toggle-cell\s*{[\s\S]*?position:\s*absolute;[\s\S]*?top:[\s\S]*?right:/)
-    expect(mobileStyles).toMatch(/\.usage-detail-row\s*{[\s\S]*?display:\s*block;[\s\S]*?border:\s*1px solid var\(--ssxz-border\);[\s\S]*?border-top:\s*0;[\s\S]*?border-radius:\s*0 0 var\(--ssxz-radius-card\) var\(--ssxz-radius-card\);/)
+
+    const tableWrapBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-table-wrap')
+    expect(tableWrapBlock).toMatch(/^\s*max-width:\s*100%;\s*$/m)
+    expect(tableWrapBlock).toMatch(/^\s*overflow-x:\s*(?:clip|hidden);\s*$/m)
+
+    const tableBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-table')
+    expect(tableBlock).toMatch(/^\s*max-width:\s*100%;\s*$/m)
+    expect(tableBlock).toMatch(/^\s*min-width:\s*0;\s*$/m)
+
+    const tableHeadBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-table thead')
+    expect(tableHeadBlock).toMatch(/^\s*position:\s*absolute;\s*$/m)
+    expect(tableHeadBlock).toMatch(/^\s*clip:\s*[^;]+;\s*$/m)
+
+    const tableBodyBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-table tbody')
+    expect(tableBodyBlock).toMatch(/^\s*display:\s*block;\s*$/m)
+
+    const usageRowBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-row')
+    expect(usageRowBlock).toMatch(/^\s*display:\s*grid;\s*$/m)
+    expect(usageRowBlock).toMatch(/^\s*width:\s*100%;\s*$/m)
+    expect(usageRowBlock).toMatch(/^\s*max-width:\s*100%;\s*$/m)
+    expect(usageRowBlock).toMatch(/^\s*margin-top:\s*0\.75rem;\s*$/m)
+    expect(usageRowBlock).toMatch(/^\s*border:\s*1px solid var\(--ssxz-border\);\s*$/m)
+    expect(usageRowBlock).toMatch(/^\s*border-radius:\s*var\(--ssxz-radius-card\);\s*$/m)
+
+    const usageCellBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-row td')
+    expect(usageCellBlock).toMatch(/^\s*white-space:\s*normal;\s*$/m)
+    expect(usageCellBlock).toMatch(/^\s*overflow-wrap:\s*anywhere;\s*$/m)
+    expect(usageCellBlock).toMatch(/^\s*word-break:\s*break-word;\s*$/m)
+
+    const labelBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-row td::before')
+    expect(labelBlock).toMatch(/^\s*content:\s*attr\(data-label\);\s*$/m)
+
+    const toggleBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-row .row-toggle-cell')
+    expect(toggleBlock).toMatch(/^\s*position:\s*absolute;\s*$/m)
+    expect(toggleBlock).toMatch(/^\s*top:\s*0\.65rem;\s*$/m)
+    expect(toggleBlock).toMatch(/^\s*right:\s*0\.65rem;\s*$/m)
+
+    const expandedRowBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-row.is-expanded')
+    expect(expandedRowBlock).toMatch(/^\s*border-radius:\s*var\(--ssxz-radius-card\) var\(--ssxz-radius-card\) 0 0;\s*$/m)
+
+    const detailRowBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-detail-row')
+    expect(detailRowBlock).toMatch(/^\s*display:\s*block;\s*$/m)
+    expect(detailRowBlock).toMatch(/^\s*width:\s*100%;\s*$/m)
+    expect(detailRowBlock).toMatch(/^\s*max-width:\s*100%;\s*$/m)
+    expect(detailRowBlock).toMatch(/^\s*border-top:\s*0;\s*$/m)
+    expect(detailRowBlock).toMatch(/^\s*border-radius:\s*0 0 var\(--ssxz-radius-card\) var\(--ssxz-radius-card\);\s*$/m)
   })
 })
