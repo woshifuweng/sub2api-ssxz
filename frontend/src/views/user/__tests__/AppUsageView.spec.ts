@@ -130,10 +130,12 @@ function mountView() {
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
-  const promise = new Promise<T>((next) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((next, fail) => {
     resolve = next
+    reject = fail
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 function usageRow(id: number, model: string) {
@@ -295,7 +297,80 @@ describe('AppUsageView compact usage details', () => {
     expect.soft(cells[4].text()).toBe('$0.00384')
   })
 
-  it('keeps the newest model-filter results when an older load resolves last', async () => {
+  it('keeps summary statistics on the current month when detail dates change', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const initialStatsCall = usageAPI.getStatsByDateRange.mock.calls[0]
+
+    await wrapper.findAll('input[type="date"]')[0].setValue('2026-08-15')
+    await flushPromises()
+
+    expect(usageAPI.query).toHaveBeenLastCalledWith(expect.objectContaining({ start_date: '2026-08-15' }))
+    expect(usageAPI.getStatsByDateRange).toHaveBeenLastCalledWith(...initialStatsCall)
+  })
+
+  it('loads usage independently and deduplicates overlapping balance refreshes', async () => {
+    const balanceRefresh = deferred<typeof authStore.user>()
+    authStore.refreshUser.mockReturnValue(balanceRefresh.promise)
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.findAll('tr.usage-row')).toHaveLength(2)
+    expect(authStore.refreshUser).toHaveBeenCalledTimes(1)
+
+    await wrapper.get('.refresh-button').trigger('click')
+    await flushPromises()
+    expect(usageAPI.query).toHaveBeenCalledTimes(2)
+    expect(authStore.refreshUser).toHaveBeenCalledTimes(1)
+
+    const modelInput = wrapper.get('input[type="search"]')
+    await modelInput.setValue('filtered-model')
+    await modelInput.trigger('keyup.enter')
+    await flushPromises()
+    expect(usageAPI.query).toHaveBeenCalledTimes(3)
+    expect(authStore.refreshUser).toHaveBeenCalledTimes(1)
+
+    balanceRefresh.resolve(authStore.user)
+    await flushPromises()
+    authStore.refreshUser.mockRejectedValueOnce(new Error('balance refresh failed'))
+    await wrapper.get('.refresh-button').trigger('click')
+    await flushPromises()
+    expect(authStore.refreshUser).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('.usage-summary-card p.is-warning').exists()).toBe(true)
+
+    await modelInput.setValue('second-filter')
+    await modelInput.trigger('keyup.enter')
+    await flushPromises()
+    expect(authStore.refreshUser).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('.usage-summary-card p.is-warning').exists()).toBe(true)
+  })
+
+  it('keeps loading active when an older load finishes before the newer load', async () => {
+    const olderQuery = deferred<{ items: ReturnType<typeof usageRow>[], total: number, pages: number }>()
+    const newerQuery = deferred<{ items: ReturnType<typeof usageRow>[], total: number, pages: number }>()
+    usageAPI.query
+      .mockImplementationOnce(() => olderQuery.promise)
+      .mockImplementationOnce(() => newerQuery.promise)
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const modelInput = wrapper.get('input[type="search"]')
+    await modelInput.setValue('newer-model')
+    await modelInput.trigger('keyup.enter')
+
+    olderQuery.resolve({ items: [usageRow(201, 'older-model')], total: 1, pages: 1 })
+    await flushPromises()
+    expect(wrapper.get('.refresh-button').attributes('disabled')).toBeDefined()
+
+    newerQuery.resolve({ items: [usageRow(202, 'newer-model')], total: 1, pages: 1 })
+    await flushPromises()
+    expect(wrapper.get('.refresh-button').attributes('disabled')).toBeUndefined()
+    expect(wrapper.get('tr.usage-row .model-cell').text()).toBe('newer-model')
+  })
+
+  it('keeps newer expanded details when an older load rejects last', async () => {
     const olderQuery = deferred<{ items: ReturnType<typeof usageRow>[], total: number, pages: number }>()
     const newerQuery = deferred<{ items: ReturnType<typeof usageRow>[], total: number, pages: number }>()
     usageAPI.query
@@ -315,9 +390,14 @@ describe('AppUsageView compact usage details', () => {
     await flushPromises()
     expect(wrapper.get('tr.usage-row .model-cell').text()).toBe('newer-model')
 
-    olderQuery.resolve({ items: [usageRow(201, 'older-model')], total: 1, pages: 1 })
+    await wrapper.get('tr.usage-row').trigger('click')
+    expect(wrapper.get('tr.usage-detail-row').text()).toContain('req-202')
+
+    olderQuery.reject(new Error('stale request failed'))
     await flushPromises()
     expect(wrapper.get('tr.usage-row .model-cell').text()).toBe('newer-model')
+    expect(wrapper.get('tr.usage-detail-row').text()).toContain('req-202')
+    expect(wrapper.find('.usage-empty.compact').exists()).toBe(false)
   })
 
   it('copies the support code without collapsing the expanded row', async () => {

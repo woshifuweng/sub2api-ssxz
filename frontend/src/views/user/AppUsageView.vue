@@ -89,7 +89,7 @@
             <h3>{{ t('usage.workbench.usageDetailsTitle') }}</h3>
             <p>{{ t('usage.workbench.usageDetailsDescription') }}</p>
           </div>
-          <button type="button" class="btn btn-secondary btn-sm refresh-button" :disabled="loading" @click="loadUsageOverview">
+          <button type="button" class="btn btn-secondary btn-sm refresh-button" :disabled="loading" @click="refreshUsageOverview">
             <Icon name="refresh" size="xs" />
             {{ t('usage.workbench.refresh') }}
           </button>
@@ -320,6 +320,7 @@ const expandedRowKey = ref<string | null>(null)
 const totalRows = ref(0)
 const totalPages = ref(1)
 let loadRequestSequence = 0
+let balanceRefreshPromise: Promise<void> | null = null
 
 const today = new Date()
 const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
@@ -382,6 +383,7 @@ const chartMax = computed(() => Math.max(1, ...monthlySeries.value.map((item) =>
 onMounted(() => {
   void loadApiKeys()
   void loadUsageOverview()
+  void refreshBalance()
 })
 
 async function loadUsageOverview() {
@@ -396,13 +398,12 @@ async function loadUsageOverview() {
   detailsLoadError.value = false
   statsLoadError.value = false
   trendLoadError.value = false
-  balanceRefreshError.value = false
   expandedRowKey.value = null
 
-  const [statsResult, logsResult, trendResult, userResult] = await Promise.allSettled([
+  const [statsResult, logsResult, trendResult] = await Promise.allSettled([
     usageAPI.getStatsByDateRange(
-      requestedStartDate,
-      requestedEndDate,
+      monthStartKey,
+      todayKey,
       requestedApiKeyId
     ),
     usageAPI.query({
@@ -417,8 +418,7 @@ async function loadUsageOverview() {
       start_date: trendStartKey,
       end_date: todayKey,
       granularity: 'day'
-    }),
-    authStore.refreshUser()
+    })
   ])
 
   if (requestSequence !== loadRequestSequence) return
@@ -448,11 +448,28 @@ async function loadUsageOverview() {
     trendLoadError.value = true
   }
 
-  if (userResult?.status === 'rejected') {
-    balanceRefreshError.value = true
-  }
-
   loading.value = false
+}
+
+function refreshBalance() {
+  if (balanceRefreshPromise) return balanceRefreshPromise
+
+  balanceRefreshError.value = false
+  const refreshPromise = authStore.refreshUser()
+    .then(() => undefined)
+    .catch(() => {
+      balanceRefreshError.value = true
+    })
+    .finally(() => {
+      if (balanceRefreshPromise === refreshPromise) balanceRefreshPromise = null
+    })
+  balanceRefreshPromise = refreshPromise
+  return refreshPromise
+}
+
+function refreshUsageOverview() {
+  void loadUsageOverview()
+  void refreshBalance()
 }
 
 async function loadApiKeys() {
