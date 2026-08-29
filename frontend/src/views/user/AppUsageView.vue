@@ -159,63 +159,101 @@
             <thead>
               <tr>
                 <th>{{ t('usage.workbench.createdAt') }}</th>
-                <th>{{ t('usage.workbench.kind') }}</th>
-                <th>{{ t('usage.workbench.endpoint') }}</th>
                 <th>{{ t('usage.workbench.model') }}</th>
-                <th>{{ t('usage.workbench.source') }}</th>
-                <th>{{ t('usage.workbench.amount') }}</th>
-                <th>{{ t('usage.workbench.billingBasis') }}</th>
-                <th>{{ t('usage.workbench.performance') }}</th>
-                <th>{{ t('usage.workbench.supportCode') }}</th>
-                <th>{{ t('usage.workbench.fee') }}</th>
+                <th class="num-cell">{{ t('usage.workbench.amount') }}</th>
+                <th class="num-cell">{{ t('usage.workbench.duration') }}</th>
+                <th class="num-cell fee-th" :title="t('usage.workbench.feeTooltip')">
+                  {{ t('usage.workbench.fee') }}
+                </th>
+                <th class="row-toggle-th">
+                  <span class="sr-only">{{ t('usage.workbench.expandRow') }}</span>
+                </th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="row in usageRows" :key="row.id || row.request_id">
-                <td>{{ formatDateTime(row.created_at) }}</td>
-                <td>{{ formatUsageKind(row) }}</td>
-                <td><code>{{ resolveEndpoint(row) }}</code></td>
-                <td class="model-cell">{{ row.model || '-' }}</td>
-                <td>{{ formatSource(row) }}</td>
-                <td>{{ formatUsageAmount(row) }}</td>
-                <td class="billing-cell">
-                  <span>{{ formatBillingType(row) }}</span>
-                  <small>{{ formatBillingBasis(row) }}</small>
-                </td>
-                <td class="performance-cell">
-                  <span class="performance-badge" :class="performanceBadgeClass(row)">
-                    {{ formatPerformanceStatus(row) }}
-                  </span>
-                  <small>{{ formatPerformanceSummary(row) }}</small>
-                  <small v-if="formatPerformanceHint(row)" class="performance-hint">
-                    {{ formatPerformanceHint(row) }}
-                  </small>
-                </td>
-                <td class="support-cell">
-                  <template v-if="resolveSupportCode(row)">
-                    <code>{{ resolveSupportCode(row) }}</code>
+              <template v-for="row in usageRows" :key="rowKey(row)">
+                <tr
+                  class="usage-row"
+                  :class="{ 'is-expanded': isRowExpanded(row) }"
+                  @click="toggleRow(row)"
+                >
+                  <td :title="formatDateTime(row.created_at)">
+                    {{ formatShortDateTime(row.created_at) }}
+                  </td>
+                  <td class="model-cell">{{ row.model || '-' }}</td>
+                  <td class="num-cell">{{ formatUsageAmount(row) }}</td>
+                  <td class="num-cell" :class="{ 'is-slow': isSlowRow(row) }">
+                    <span :title="durationCellTitle(row)">{{ formatLatency(row.duration_ms) }}</span>
+                  </td>
+                  <td class="num-cell">
+                    <span
+                      :class="{ 'is-muted-fee': isNoCharge(row) }"
+                      :title="formatCostTitle(row.actual_cost)"
+                    >{{ formatCost(row.actual_cost) }}</span>
+                  </td>
+                  <td class="row-toggle-cell">
                     <button
                       type="button"
-                      class="support-code-button"
-                      :aria-label="t('usage.workbench.copySupportCode')"
-                      :title="t('usage.workbench.copySupportCode')"
-                      @click="copySupportCode(row)"
+                      class="row-toggle"
+                      :aria-expanded="isRowExpanded(row)"
+                      :aria-label="isRowExpanded(row) ? t('usage.workbench.collapseRow') : t('usage.workbench.expandRow')"
+                      @click.stop="toggleRow(row)"
                     >
-                      {{ copiedSupportCode === resolveSupportCode(row) ? t('usage.workbench.copied') : t('usage.workbench.copy') }}
+                      <Icon name="chevronDown" size="xs" />
                     </button>
-                  </template>
-                  <span v-else>-</span>
-                </td>
-                <td>
-                  <span :title="formatCostTitle(row.actual_cost)">{{ formatCost(row.actual_cost) }}</span>
-                  <small v-if="isNoCharge(row)" class="usage-cost-note">
-                    {{ t('usage.workbench.noCharge') }}
-                  </small>
-                  <small v-else-if="isZeroTokenCharged(row)" class="usage-cost-note">
-                    {{ t('usage.workbench.zeroTokenCharged') }}
-                  </small>
-                </td>
-              </tr>
+                  </td>
+                </tr>
+                <tr v-if="isRowExpanded(row)" class="usage-detail-row">
+                  <td colspan="6">
+                    <dl class="usage-detail-grid">
+                      <div v-if="resolveSupportCode(row)">
+                        <dt>{{ t('usage.workbench.supportCode') }}</dt>
+                        <dd>
+                          <code>{{ resolveSupportCode(row) }}</code>
+                          <button
+                            type="button"
+                            class="support-code-button"
+                            :aria-label="t('usage.workbench.copySupportCode')"
+                            :title="t('usage.workbench.copySupportCode')"
+                            @click.stop="copySupportCode(row)"
+                          >
+                            {{ copiedSupportCode === resolveSupportCode(row) ? t('usage.workbench.copied') : t('usage.workbench.copy') }}
+                          </button>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>{{ t('usage.workbench.kind') }}</dt>
+                        <dd>{{ formatUsageKind(row) }} · {{ formatSource(row) }}</dd>
+                      </div>
+                      <div>
+                        <dt>{{ t('usage.workbench.endpoint') }}</dt>
+                        <dd><code>{{ resolveEndpoint(row) }}</code></dd>
+                      </div>
+                      <div>
+                        <dt>{{ t('usage.workbench.billingBasis') }}</dt>
+                        <dd>{{ formatBillingType(row) }} · {{ formatBillingBasis(row) }}</dd>
+                      </div>
+                      <div v-if="!isImageRow(row)">
+                        <dt>{{ t('usage.tokenDetails') }}</dt>
+                        <dd>{{ formatTokenBreakdown(row) }}</dd>
+                      </div>
+                      <div>
+                        <dt>{{ t('usage.workbench.performance') }}</dt>
+                        <dd>
+                          <span class="performance-badge" :class="performanceBadgeClass(row)">
+                            {{ formatPerformanceStatus(row) }}
+                          </span>
+                          {{ formatPerformanceSummary(row) }}
+                        </dd>
+                      </div>
+                      <div v-if="detailNote(row)">
+                        <dt>{{ t('usage.workbench.detailNote') }}</dt>
+                        <dd>{{ detailNote(row) }}</dd>
+                      </div>
+                    </dl>
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
         </div>
@@ -276,7 +314,8 @@ const copiedSupportCode = ref<string | null>(null)
 const apiKeys = ref<ApiKey[]>([])
 const exporting = ref(false)
 const page = ref(1)
-const pageSize = 8
+const pageSize = 20
+const expandedRowKey = ref<string | null>(null)
 const totalRows = ref(0)
 const totalPages = ref(1)
 
@@ -349,6 +388,7 @@ async function loadUsageOverview() {
   statsLoadError.value = false
   trendLoadError.value = false
   balanceRefreshError.value = false
+  expandedRowKey.value = null
 
   const [statsResult, logsResult, trendResult, userResult] = await Promise.allSettled([
     usageAPI.getStatsByDateRange(
@@ -545,6 +585,51 @@ function resolveSupportCode(row: UsageLog) {
   return row.request_id || ''
 }
 
+function rowKey(row: UsageLog) {
+  return String(row.id ?? row.request_id ?? '')
+}
+
+function isRowExpanded(row: UsageLog) {
+  return expandedRowKey.value === rowKey(row)
+}
+
+function toggleRow(row: UsageLog) {
+  const key = rowKey(row)
+  expandedRowKey.value = expandedRowKey.value === key ? null : key
+}
+
+function isImageRow(row: UsageLog) {
+  return Number(row.image_count || 0) > 0
+}
+
+function isSlowRow(row: UsageLog) {
+  return isSlowFirstToken(row) || isSlowTotalDuration(row)
+}
+
+function durationCellTitle(row: UsageLog) {
+  const summary = formatPerformanceSummary(row)
+  const hint = formatPerformanceHint(row)
+  return hint ? `${summary}\n${hint}` : summary
+}
+
+function formatTokenBreakdown(row: UsageLog) {
+  return t('usage.workbench.tokenBreakdown', {
+    input: formatNumber(Number(row.input_tokens || 0)),
+    output: formatNumber(Number(row.output_tokens || 0)),
+    cacheWrite: formatNumber(Number(row.cache_creation_tokens || 0)),
+    cacheRead: formatNumber(Number(row.cache_read_tokens || 0))
+  })
+}
+
+function detailNote(row: UsageLog) {
+  const notes: string[] = []
+  if (isNoCharge(row)) notes.push(t('usage.workbench.noCharge'))
+  else if (isZeroTokenCharged(row)) notes.push(t('usage.workbench.zeroTokenCharged'))
+  const hint = formatPerformanceHint(row)
+  if (hint) notes.push(hint)
+  return notes.join(' ')
+}
+
 async function copySupportCode(row: UsageLog) {
   const supportCode = resolveSupportCode(row)
   if (!supportCode) return
@@ -676,6 +761,19 @@ function formatDateTime(value: string) {
   if (Number.isNaN(date.getTime())) return '-'
   return date.toLocaleString(undefined, {
     year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })
+}
+
+function formatShortDateTime(value: string) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  return date.toLocaleString(undefined, {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -994,7 +1092,7 @@ function toDateKey(date: Date) {
 
 .usage-table {
   width: 100%;
-  min-width: 58rem;
+  min-width: 40rem;
   border-collapse: collapse;
   color: var(--ssxz-text-secondary);
   font-size: 0.86rem;
@@ -1003,9 +1101,10 @@ function toDateKey(date: Date) {
 .usage-table th,
 .usage-table td {
   border-bottom: 1px solid var(--ssxz-border);
-  padding: 0.8rem 0.75rem;
+  padding: 0.5rem 0.75rem;
   text-align: left;
   vertical-align: middle;
+  white-space: nowrap;
 }
 
 .usage-table th {
@@ -1020,26 +1119,119 @@ function toDateKey(date: Date) {
 
 .model-cell {
   color: var(--ssxz-text-primary);
-  font-weight: 800;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
-.billing-cell,
-.performance-cell,
-.support-cell {
-  display: grid;
-  min-width: 9rem;
-  gap: 0.18rem;
+.num-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
-.billing-cell span {
-  color: var(--ssxz-text-primary);
-  font-weight: 800;
+.usage-table th.num-cell {
+  text-align: right;
 }
 
-.billing-cell small {
+.fee-th {
+  cursor: help;
+  text-decoration: underline dotted color-mix(in srgb, var(--ssxz-text-muted) 65%, transparent);
+  text-underline-offset: 0.2em;
+}
+
+.usage-row {
+  cursor: pointer;
+}
+
+.usage-row .is-slow span,
+.num-cell.is-slow span {
+  color: var(--ssxz-warning, #b45309);
+  font-weight: 750;
+}
+
+.is-muted-fee {
   color: var(--ssxz-text-muted);
-  font-size: 0.74rem;
-  line-height: 1.35;
+}
+
+.row-toggle-th,
+.row-toggle-cell {
+  width: 2.2rem;
+  padding-right: 0.5rem;
+  padding-left: 0.25rem;
+}
+
+.row-toggle {
+  display: grid;
+  width: 1.6rem;
+  height: 1.6rem;
+  place-items: center;
+  border: 0;
+  border-radius: var(--ssxz-radius-button);
+  background: transparent;
+  color: var(--ssxz-text-muted);
+  cursor: pointer;
+}
+
+.row-toggle:hover,
+.row-toggle:focus-visible {
+  background: var(--ssxz-action-soft);
+  color: var(--ssxz-action);
+}
+
+.row-toggle :deep(svg) {
+  transition: transform 140ms ease;
+}
+
+.usage-row.is-expanded .row-toggle :deep(svg) {
+  transform: rotate(180deg);
+}
+
+.usage-row.is-expanded td {
+  border-bottom: 0;
+}
+
+.usage-detail-row td {
+  background: color-mix(in srgb, var(--ssxz-surface-muted) 55%, transparent);
+  padding: 0.8rem 1rem 0.95rem;
+  white-space: normal;
+}
+
+.usage-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.7rem 1.4rem;
+  margin: 0;
+}
+
+.usage-detail-grid div {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.usage-detail-grid dt {
+  color: var(--ssxz-text-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.usage-detail-grid dd {
+  margin: 0;
+  color: var(--ssxz-text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.usage-detail-grid code {
+  width: fit-content;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  border-radius: 0.45rem;
+  background: color-mix(in srgb, var(--ssxz-surface-muted) 80%, transparent);
+  color: var(--ssxz-text-primary);
+  padding: 0.16rem 0.34rem;
+  font-size: 0.76rem;
 }
 
 .performance-badge {
@@ -1065,27 +1257,6 @@ function toDateKey(date: Date) {
   color: var(--ssxz-text-muted);
 }
 
-.performance-cell small {
-  color: var(--ssxz-text-muted);
-  font-size: 0.74rem;
-  line-height: 1.35;
-}
-
-.performance-hint {
-  max-width: 15rem;
-}
-
-.support-cell code {
-  width: fit-content;
-  max-width: 14rem;
-  overflow-wrap: anywhere;
-  border-radius: 0.45rem;
-  background: color-mix(in srgb, var(--ssxz-surface-muted) 80%, transparent);
-  color: var(--ssxz-text-primary);
-  padding: 0.16rem 0.34rem;
-  font-size: 0.74rem;
-}
-
 .support-code-button {
   width: fit-content;
   border: 0;
@@ -1102,12 +1273,19 @@ function toDateKey(date: Date) {
   text-decoration: underline;
 }
 
-.usage-cost-note {
-  display: block;
-  margin-top: 0.16rem;
-  color: var(--ssxz-text-muted);
-  font-size: 0.72rem;
-  font-weight: 750;
+@media (max-width: 1100px) {
+  .usage-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filter-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+
+  .filter-actions .btn {
+    min-width: 6rem;
+  }
 }
 
 @media (max-width: 860px) {
@@ -1116,6 +1294,10 @@ function toDateKey(date: Date) {
   }
 
   .usage-explainer {
+    grid-template-columns: 1fr;
+  }
+
+  .usage-detail-grid {
     grid-template-columns: 1fr;
   }
 
