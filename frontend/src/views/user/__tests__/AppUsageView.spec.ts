@@ -189,11 +189,14 @@ function readBlobText(blob: Blob) {
 }
 
 function extractCssDeclarationBlock(css: string, selector: string) {
-  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const match = css.match(new RegExp(`(?:^|})\\s*${escapedSelector}\\s*\\{([^{}]*)\\}`))
+  const flatRulePattern = /([^{}]+)\{([^{}]*)\}/g
 
-  if (!match) throw new Error(`Missing CSS declaration block for ${selector}`)
-  return match[1]
+  for (const match of css.matchAll(flatRulePattern)) {
+    const selectors = match[1].split(',').map((candidate) => candidate.trim())
+    if (selectors.includes(selector)) return match[2]
+  }
+
+  throw new Error(`Missing CSS declaration block for ${selector}`)
 }
 
 function usageRow(id: number, model: string) {
@@ -728,11 +731,13 @@ describe('AppUsageView compact usage details', () => {
     expect(usageRowBlock).toMatch(/^\s*display:\s*grid;\s*$/m)
     expect(usageRowBlock).toMatch(/^\s*width:\s*100%;\s*$/m)
     expect(usageRowBlock).toMatch(/^\s*max-width:\s*100%;\s*$/m)
+    expect(usageRowBlock).toMatch(/^\s*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);\s*$/m)
     expect(usageRowBlock).toMatch(/^\s*margin-top:\s*0\.75rem;\s*$/m)
     expect(usageRowBlock).toMatch(/^\s*border:\s*1px solid var\(--ssxz-border\);\s*$/m)
     expect(usageRowBlock).toMatch(/^\s*border-radius:\s*var\(--ssxz-radius-card\);\s*$/m)
 
     const usageCellBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-row td')
+    expect(usageCellBlock).toMatch(/^\s*min-width:\s*0;\s*$/m)
     expect(usageCellBlock).toMatch(/^\s*white-space:\s*normal;\s*$/m)
     expect(usageCellBlock).toMatch(/^\s*overflow-wrap:\s*anywhere;\s*$/m)
     expect(usageCellBlock).toMatch(/^\s*word-break:\s*break-word;\s*$/m)
@@ -745,6 +750,14 @@ describe('AppUsageView compact usage details', () => {
     expect(toggleBlock).toMatch(/^\s*top:\s*0\.65rem;\s*$/m)
     expect(toggleBlock).toMatch(/^\s*right:\s*0\.65rem;\s*$/m)
 
+    const firstRowBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-row:first-child')
+    expect(firstRowBlock).toMatch(/^\s*margin-top:\s*0;\s*$/m)
+
+    for (const selector of ['.usage-row .time-cell', '.usage-row .model-cell', '.usage-row .fee-cell']) {
+      const fullWidthCellBlock = extractCssDeclarationBlock(mobileStyles!, selector)
+      expect(fullWidthCellBlock).toMatch(/^\s*grid-column:\s*1 \/ -1;\s*$/m)
+    }
+
     const expandedRowBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-row.is-expanded')
     expect(expandedRowBlock).toMatch(/^\s*border-radius:\s*var\(--ssxz-radius-card\) var\(--ssxz-radius-card\) 0 0;\s*$/m)
 
@@ -752,7 +765,14 @@ describe('AppUsageView compact usage details', () => {
     expect(detailRowBlock).toMatch(/^\s*display:\s*block;\s*$/m)
     expect(detailRowBlock).toMatch(/^\s*width:\s*100%;\s*$/m)
     expect(detailRowBlock).toMatch(/^\s*max-width:\s*100%;\s*$/m)
+    expect(detailRowBlock).toMatch(/^\s*border:\s*1px solid var\(--ssxz-border\);\s*$/m)
     expect(detailRowBlock).toMatch(/^\s*border-top:\s*0;\s*$/m)
     expect(detailRowBlock).toMatch(/^\s*border-radius:\s*0 0 var\(--ssxz-radius-card\) var\(--ssxz-radius-card\);\s*$/m)
+
+    const detailCellBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-detail-row td')
+    expect(detailCellBlock).toMatch(/^\s*display:\s*block;\s*$/m)
+    expect(detailCellBlock).toMatch(/^\s*width:\s*100%;\s*$/m)
+    expect(detailCellBlock).toMatch(/^\s*max-width:\s*100%;\s*$/m)
+    expect(detailCellBlock).toMatch(/^\s*border-bottom:\s*0;\s*$/m)
   })
 })
