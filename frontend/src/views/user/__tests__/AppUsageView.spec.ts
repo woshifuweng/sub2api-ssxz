@@ -128,6 +128,36 @@ function mountView() {
   })
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((next) => {
+    resolve = next
+  })
+  return { promise, resolve }
+}
+
+function usageRow(id: number, model: string) {
+  return {
+    id,
+    request_id: `req-${id}`,
+    api_key_id: 7,
+    model,
+    inbound_endpoint: '/v1/responses',
+    input_tokens: 1,
+    output_tokens: 0,
+    cache_creation_tokens: 0,
+    cache_read_tokens: 0,
+    total_cost: 0.01,
+    actual_cost: 0.01,
+    billing_type: 0,
+    image_count: 0,
+    image_size: null,
+    duration_ms: 1000,
+    first_token_ms: 500,
+    created_at: '2026-08-29T08:03:00Z'
+  }
+}
+
 describe('AppUsageView compact usage details', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -263,6 +293,31 @@ describe('AppUsageView compact usage details', () => {
     const cells = wrapper.get('tr.usage-row').findAll('td')
     expect.soft(cells[3].text()).toBe('2m')
     expect.soft(cells[4].text()).toBe('$0.00384')
+  })
+
+  it('keeps the newest model-filter results when an older load resolves last', async () => {
+    const olderQuery = deferred<{ items: ReturnType<typeof usageRow>[], total: number, pages: number }>()
+    const newerQuery = deferred<{ items: ReturnType<typeof usageRow>[], total: number, pages: number }>()
+    usageAPI.query
+      .mockImplementationOnce(() => olderQuery.promise)
+      .mockImplementationOnce(() => newerQuery.promise)
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const modelInput = wrapper.get('input[type="search"]')
+    await modelInput.setValue('newer-model')
+    await modelInput.trigger('keyup.enter')
+
+    expect(usageAPI.query).toHaveBeenLastCalledWith(expect.objectContaining({ model: 'newer-model' }))
+
+    newerQuery.resolve({ items: [usageRow(202, 'newer-model')], total: 1, pages: 1 })
+    await flushPromises()
+    expect(wrapper.get('tr.usage-row .model-cell').text()).toBe('newer-model')
+
+    olderQuery.resolve({ items: [usageRow(201, 'older-model')], total: 1, pages: 1 })
+    await flushPromises()
+    expect(wrapper.get('tr.usage-row .model-cell').text()).toBe('newer-model')
   })
 
   it('copies the support code without collapsing the expanded row', async () => {

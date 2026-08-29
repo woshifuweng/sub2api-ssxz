@@ -287,6 +287,7 @@ import { useClipboard } from '@/composables/useClipboard'
 import type { ApiKey, TrendDataPoint, UsageLog, UsageQueryParams, UsageStatsResponse } from '@/types'
 import {
   formatCurrency as formatMoney,
+  formatCurrencyExact,
   formatCurrencyTitle as formatMoneyTitle
 } from '@/utils/format'
 
@@ -318,6 +319,7 @@ const pageSize = 20
 const expandedRowKey = ref<string | null>(null)
 const totalRows = ref(0)
 const totalPages = ref(1)
+let loadRequestSequence = 0
 
 const today = new Date()
 const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
@@ -383,6 +385,13 @@ onMounted(() => {
 })
 
 async function loadUsageOverview() {
+  const requestSequence = ++loadRequestSequence
+  const requestedPage = page.value
+  const requestedApiKeyId = filters.value.api_key_id ? Number(filters.value.api_key_id) : undefined
+  const requestedModel = filters.value.model?.trim() || undefined
+  const requestedStartDate = filters.value.start_date || monthStartKey
+  const requestedEndDate = filters.value.end_date || todayKey
+
   loading.value = true
   detailsLoadError.value = false
   statsLoadError.value = false
@@ -392,17 +401,17 @@ async function loadUsageOverview() {
 
   const [statsResult, logsResult, trendResult, userResult] = await Promise.allSettled([
     usageAPI.getStatsByDateRange(
-      monthStartKey,
-      todayKey,
-      filters.value.api_key_id ? Number(filters.value.api_key_id) : undefined
+      requestedStartDate,
+      requestedEndDate,
+      requestedApiKeyId
     ),
     usageAPI.query({
-      page: page.value,
+      page: requestedPage,
       page_size: pageSize,
-      api_key_id: filters.value.api_key_id ? Number(filters.value.api_key_id) : undefined,
-      model: filters.value.model?.trim() || undefined,
-      start_date: filters.value.start_date || monthStartKey,
-      end_date: filters.value.end_date || todayKey
+      api_key_id: requestedApiKeyId,
+      model: requestedModel,
+      start_date: requestedStartDate,
+      end_date: requestedEndDate
     }),
     usageAPI.getDashboardTrend({
       start_date: trendStartKey,
@@ -411,6 +420,8 @@ async function loadUsageOverview() {
     }),
     authStore.refreshUser()
   ])
+
+  if (requestSequence !== loadRequestSequence) return
 
   if (statsResult.status === 'fulfilled') {
     usageStats.value = statsResult.value
@@ -725,14 +736,17 @@ function formatLatency(value: number | null | undefined) {
     const digits = ms < 10000 ? 1 : 0
     return `${(ms / 1000).toFixed(digits)} s`
   }
-  const minutes = Math.floor(ms / 60000)
-  const seconds = Math.round((ms % 60000) / 1000)
+  const totalSeconds = Math.round(ms / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
   if (seconds <= 0) return `${minutes}m`
   return `${minutes}m ${seconds}s`
 }
 
 function formatCost(value: number | null | undefined) {
-  return formatMoney(Number(value || 0))
+  const amount = Number(value || 0)
+  if (amount !== 0 && Math.abs(amount) < 0.01) return formatCurrencyExact(amount)
+  return formatMoney(amount)
 }
 
 function formatCostTitle(value: number | null | undefined) {
