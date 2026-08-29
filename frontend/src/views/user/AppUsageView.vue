@@ -554,15 +554,19 @@ async function exportToCSV() {
     ].map(escapeCSVValue).join(','))
     const blob = new Blob([[header.join(','), ...body].join('\n')], { type: 'text/csv;charset=utf-8' })
     const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `usage_${exportFilters.start_date}_to_${exportFilters.end_date}.csv`
+    let link: HTMLAnchorElement | null = null
     try {
+      link = document.createElement('a')
+      link.href = url
+      link.download = `usage_${exportFilters.start_date}_to_${exportFilters.end_date}.csv`
       document.body.appendChild(link)
       link.click()
     } finally {
-      link.remove()
-      window.setTimeout(() => window.URL.revokeObjectURL(url), 0)
+      try {
+        link?.remove()
+      } finally {
+        window.setTimeout(() => window.URL.revokeObjectURL(url), 0)
+      }
     }
     appStore.showSuccess(t('usage.exportSuccess'))
   } catch {

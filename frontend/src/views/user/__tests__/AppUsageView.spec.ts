@@ -139,23 +139,13 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
-function startProgrammaticLoad(wrapper: ReturnType<typeof mountView>, model: string) {
-  const setupState = (wrapper.vm as unknown as {
-    $: {
-      setupState: {
-        filters: { model?: string }
-        loadUsageOverview: () => Promise<void>
-      }
-    }
-  }).$.setupState
-  setupState.filters.model = model
-  return setupState.loadUsageOverview()
-}
-
 function mockObjectURLs() {
   const createObjectURLDescriptor = Object.getOwnPropertyDescriptor(window.URL, 'createObjectURL')
   const revokeObjectURLDescriptor = Object.getOwnPropertyDescriptor(window.URL, 'revokeObjectURL')
-  const createObjectURL = vi.fn(() => 'blob:usage-export')
+  const createObjectURL = vi.fn((blob: Blob) => {
+    void blob
+    return 'blob:usage-export'
+  })
   const revokeObjectURL = vi.fn()
 
   Object.defineProperty(window.URL, 'createObjectURL', {
@@ -183,6 +173,19 @@ function mockObjectURLs() {
       }
     }
   }
+}
+
+function waitForZeroDelayCleanup() {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, 0))
+}
+
+function readBlobText(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => resolve(String(reader.result)))
+    reader.addEventListener('error', () => reject(reader.error))
+    reader.readAsText(blob)
+  })
 }
 
 function usageRow(id: number, model: string) {
@@ -393,54 +396,85 @@ describe('AppUsageView compact usage details', () => {
     expect(wrapper.find('.usage-summary-card p.is-warning').exists()).toBe(true)
   })
 
-  it('keeps loading active when an older load finishes before the newer load', async () => {
-    const olderQuery = deferred<{ items: ReturnType<typeof usageRow>[], total: number, pages: number }>()
-    const newerQuery = deferred<{ items: ReturnType<typeof usageRow>[], total: number, pages: number }>()
+  it('blocks filter, reset, refresh and page actions while a filter load is pending', async () => {
+    const pendingQuery = deferred<{ items: ReturnType<typeof usageRow>[], total: number, pages: number }>()
     usageAPI.query
-      .mockImplementationOnce(() => olderQuery.promise)
-      .mockImplementationOnce(() => newerQuery.promise)
+      .mockResolvedValueOnce({ items: [usageRow(201, 'initial-model')], total: 41, pages: 3 })
+      .mockImplementationOnce(() => pendingQuery.promise)
 
     const wrapper = mountView()
     await flushPromises()
 
-    void startProgrammaticLoad(wrapper, 'newer-model')
+    const modelInput = wrapper.get('input[type="search"]')
+    const dateInputs = wrapper.findAll('input[type="date"]')
+    const apiKeySelect = wrapper.getComponent({ name: 'SelectStub' })
+    const filterButtons = wrapper.findAll('.filter-actions button')
+    const paginationButtons = wrapper.findAll('.usage-pagination button')
+    await modelInput.setValue('held-model')
+    await modelInput.trigger('keyup.enter')
+    await wrapper.vm.$nextTick()
 
-    olderQuery.resolve({ items: [usageRow(201, 'older-model')], total: 1, pages: 1 })
-    await flushPromises()
-    expect(wrapper.get('.refresh-button').attributes('disabled')).toBeDefined()
+    expect.soft(usageAPI.query).toHaveBeenLastCalledWith(expect.objectContaining({ model: 'held-model' }))
+    expect.soft(modelInput.attributes('disabled')).toBeDefined()
+    expect.soft(dateInputs.every((input) => input.attributes('disabled') !== undefined)).toBe(true)
+    expect.soft(apiKeySelect.attributes('disabled')).toBeDefined()
+    expect.soft(filterButtons[0].attributes('disabled')).toBeDefined()
+    expect.soft(wrapper.get('.refresh-button').attributes('disabled')).toBeDefined()
+    expect.soft(wrapper.find('.usage-pagination').exists()).toBe(false)
 
-    newerQuery.resolve({ items: [usageRow(202, 'newer-model')], total: 1, pages: 1 })
+    await modelInput.setValue('blocked-model')
+    await modelInput.trigger('keyup.enter')
+    await dateInputs[0].setValue('2026-01-01')
+    apiKeySelect.vm.$emit('update:modelValue', 7)
+    await filterButtons[0].trigger('click')
+    await wrapper.get('.refresh-button').trigger('click')
+    await paginationButtons[1].trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect.soft(usageAPI.query).toHaveBeenCalledTimes(2)
+    expect.soft(authStore.refreshUser).toHaveBeenCalledTimes(1)
+
+    pendingQuery.resolve({ items: [usageRow(202, 'held-model-result')], total: 41, pages: 3 })
     await flushPromises()
-    expect(wrapper.get('.refresh-button').attributes('disabled')).toBeUndefined()
-    expect(wrapper.get('tr.usage-row .model-cell').text()).toBe('newer-model')
+
+    expect.soft(wrapper.get('.refresh-button').attributes('disabled')).toBeUndefined()
+    expect.soft(wrapper.get('tr.usage-row .model-cell').text()).toBe('held-model-result')
+    expect(wrapper.get('.usage-pagination').text()).toContain('1 / 3')
   })
 
-  it('keeps newer expanded details when an older load rejects last', async () => {
-    const olderQuery = deferred<{ items: ReturnType<typeof usageRow>[], total: number, pages: number }>()
-    const newerQuery = deferred<{ items: ReturnType<typeof usageRow>[], total: number, pages: number }>()
+  it('blocks repeated page, filter and refresh actions while pagination is pending', async () => {
+    const pendingPage = deferred<{ items: ReturnType<typeof usageRow>[], total: number, pages: number }>()
     usageAPI.query
-      .mockImplementationOnce(() => olderQuery.promise)
-      .mockImplementationOnce(() => newerQuery.promise)
+      .mockResolvedValueOnce({ items: [usageRow(203, 'page-one')], total: 41, pages: 3 })
+      .mockImplementationOnce(() => pendingPage.promise)
 
     const wrapper = mountView()
     await flushPromises()
 
-    void startProgrammaticLoad(wrapper, 'newer-model')
+    const paginationButtons = wrapper.findAll('.usage-pagination button')
+    await paginationButtons[1].trigger('click')
+    await wrapper.vm.$nextTick()
 
-    expect(usageAPI.query).toHaveBeenLastCalledWith(expect.objectContaining({ model: 'newer-model' }))
+    expect.soft(usageAPI.query).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }))
+    expect.soft(wrapper.get('.refresh-button').attributes('disabled')).toBeDefined()
+    expect.soft(wrapper.find('.usage-pagination').exists()).toBe(false)
 
-    newerQuery.resolve({ items: [usageRow(202, 'newer-model')], total: 1, pages: 1 })
+    const modelInput = wrapper.get('input[type="search"]')
+    await modelInput.setValue('blocked-model')
+    await modelInput.trigger('keyup.enter')
+    await wrapper.get('.refresh-button').trigger('click')
+    await paginationButtons[0].trigger('click')
+    await paginationButtons[1].trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect.soft(usageAPI.query).toHaveBeenCalledTimes(2)
+    expect.soft(authStore.refreshUser).toHaveBeenCalledTimes(1)
+
+    pendingPage.resolve({ items: [usageRow(204, 'page-two-result')], total: 41, pages: 3 })
     await flushPromises()
-    expect(wrapper.get('tr.usage-row .model-cell').text()).toBe('newer-model')
 
-    await wrapper.get('tr.usage-row').trigger('click')
-    expect(wrapper.get('tr.usage-detail-row').text()).toContain('req-202')
-
-    olderQuery.reject(new Error('stale request failed'))
-    await flushPromises()
-    expect(wrapper.get('tr.usage-row .model-cell').text()).toBe('newer-model')
-    expect(wrapper.get('tr.usage-detail-row').text()).toContain('req-202')
-    expect(wrapper.find('.usage-empty.compact').exists()).toBe(false)
+    expect.soft(wrapper.get('tr.usage-row .model-cell').text()).toBe('page-two-result')
+    expect(wrapper.get('.usage-pagination').text()).toContain('2 / 3')
   })
 
   it('disables conflicting controls and freezes export filters and page count', async () => {
@@ -461,7 +495,6 @@ describe('AppUsageView compact usage details', () => {
     const objectURLs = mockObjectURLs()
     const appendChildSpy = vi.spyOn(document.body, 'appendChild')
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
-    vi.useFakeTimers({ toFake: ['setTimeout'] })
 
     try {
       const filterButtons = wrapper.findAll('.filter-actions button')
@@ -520,34 +553,35 @@ describe('AppUsageView compact usage details', () => {
       expect.soft(document.body.contains(anchor || null)).toBe(false)
       expect.soft(clickSpy).toHaveBeenCalledTimes(1)
       expect.soft(appStore.showSuccess).toHaveBeenCalledTimes(1)
-      await vi.runOnlyPendingTimersAsync()
+      await waitForZeroDelayCleanup()
       expect(objectURLs.revokeObjectURL).toHaveBeenCalledWith('blob:usage-export')
     } finally {
       wrapper.unmount()
-      vi.useRealTimers()
       clickSpy.mockRestore()
       appendChildSpy.mockRestore()
       objectURLs.restore()
     }
   })
 
-  it('appends and removes the download anchor and still schedules cleanup when click throws', async () => {
+  it('still schedules object URL cleanup when clicking and removing the anchor throw', async () => {
     const wrapper = mountView()
     await flushPromises()
 
     const objectURLs = mockObjectURLs()
     const appendChildSpy = vi.spyOn(document.body, 'appendChild')
-    const removeSpy = vi.spyOn(Element.prototype, 'remove')
+    const removeSpy = vi.spyOn(Element.prototype, 'remove').mockImplementation(() => {
+      throw new Error('anchor removal failed')
+    })
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {
       throw new Error('download click failed')
     })
-    vi.useFakeTimers({ toFake: ['setTimeout'] })
+    let anchor: HTMLAnchorElement | undefined
 
     try {
       await wrapper.findAll('.filter-actions button')[1].trigger('click')
       await flushPromises()
 
-      const anchor = appendChildSpy.mock.calls
+      anchor = appendChildSpy.mock.calls
         .map(([node]) => node)
         .find((node): node is HTMLAnchorElement => node instanceof HTMLAnchorElement)
       expect(anchor).toBeDefined()
@@ -555,19 +589,70 @@ describe('AppUsageView compact usage details', () => {
       expect.soft(anchor?.download).toMatch(/^usage_\d{4}-\d{2}-\d{2}_to_\d{4}-\d{2}-\d{2}\.csv$/)
       expect.soft(clickSpy).toHaveBeenCalledTimes(1)
       expect.soft(removeSpy.mock.instances).toContain(anchor)
-      expect.soft(document.body.contains(anchor || null)).toBe(false)
-      expect.soft(objectURLs.revokeObjectURL).not.toHaveBeenCalled()
       expect.soft(appStore.showError).toHaveBeenCalledTimes(1)
 
-      await vi.runOnlyPendingTimersAsync()
+      await waitForZeroDelayCleanup()
 
       expect(objectURLs.revokeObjectURL).toHaveBeenCalledWith('blob:usage-export')
     } finally {
-      wrapper.unmount()
-      vi.useRealTimers()
       clickSpy.mockRestore()
       removeSpy.mockRestore()
       appendChildSpy.mockRestore()
+      anchor?.remove()
+      wrapper.unmount()
+      objectURLs.restore()
+    }
+  })
+
+  it('still schedules object URL cleanup when creating the download anchor throws', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const objectURLs = mockObjectURLs()
+    const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation(() => {
+      throw new Error('anchor creation failed')
+    })
+
+    try {
+      await wrapper.findAll('.filter-actions button')[1].trigger('click')
+      await flushPromises()
+      await waitForZeroDelayCleanup()
+
+      expect.soft(objectURLs.createObjectURL).toHaveBeenCalledTimes(1)
+      expect.soft(createElementSpy).toHaveBeenCalledWith('a')
+      expect.soft(objectURLs.revokeObjectURL).toHaveBeenCalledWith('blob:usage-export')
+      expect(appStore.showError).toHaveBeenCalledTimes(1)
+    } finally {
+      createElementSpy.mockRestore()
+      wrapper.unmount()
+      objectURLs.restore()
+    }
+  })
+
+  it('keeps formula-like values escaped in the generated CSV Blob', async () => {
+    usageAPI.query
+      .mockResolvedValueOnce({ items: [usageRow(305, 'visible-model')], total: 1, pages: 1 })
+      .mockResolvedValueOnce({ items: [usageRow(306, '=2+2')], total: 1, pages: 1 })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const objectURLs = mockObjectURLs()
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+
+    try {
+      await wrapper.findAll('.filter-actions button')[1].trigger('click')
+      await flushPromises()
+
+      const [blob] = objectURLs.createObjectURL.mock.calls[0]
+      const csv = await readBlobText(blob)
+      expect(csv).toContain(",'=2+2,")
+
+      await waitForZeroDelayCleanup()
+      expect(objectURLs.revokeObjectURL).toHaveBeenCalledWith('blob:usage-export')
+    } finally {
+      clickSpy.mockRestore()
+      wrapper.unmount()
       objectURLs.restore()
     }
   })
