@@ -1129,7 +1129,8 @@ function toDateKey(date: Date) {
   font-variant-numeric: tabular-nums;
 }
 
-.usage-table th.num-cell {
+.usage-table th.num-cell,
+.usage-table td.num-cell {
   text-align: right;
 }
 

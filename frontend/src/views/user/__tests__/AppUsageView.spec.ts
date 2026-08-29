@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -235,5 +237,18 @@ describe('AppUsageView compact usage details', () => {
 
     expect(copyToClipboard).toHaveBeenCalledWith('req-usage-1', 'Support code copied')
     expect(wrapper.findAll('tr.usage-detail-row')).toHaveLength(1)
+  })
+
+  it('aligns numeric headers and values on the same right edge', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const headers = wrapper.findAll('thead th.num-cell')
+    const values = wrapper.get('tr.usage-row').findAll('td.num-cell')
+    const source = readFileSync(resolve(process.cwd(), 'src/views/user/AppUsageView.vue'), 'utf8')
+
+    expect(headers).toHaveLength(3)
+    expect(values).toHaveLength(3)
+    expect(source).toMatch(/\.usage-table th\.num-cell,\s*\.usage-table td\.num-cell\s*{\s*text-align:\s*right;/)
   })
 })
