@@ -199,6 +199,26 @@ function extractCssDeclarationBlock(css: string, selector: string) {
   throw new Error(`Missing CSS declaration block for ${selector}`)
 }
 
+function extractBalancedCssBlock(css: string, marker: string) {
+  const markerIndex = css.indexOf(marker)
+  if (markerIndex === -1) throw new Error(`Missing CSS marker: ${marker}`)
+
+  let openingBraceIndex = markerIndex + marker.length
+  while (/\s/.test(css[openingBraceIndex] || '')) openingBraceIndex += 1
+  if (css[openingBraceIndex] !== '{') throw new Error(`Missing opening brace after CSS marker: ${marker}`)
+
+  let depth = 0
+  for (let index = openingBraceIndex; index < css.length; index += 1) {
+    if (css[index] === '{') depth += 1
+    if (css[index] !== '}') continue
+
+    depth -= 1
+    if (depth === 0) return css.slice(openingBraceIndex + 1, index)
+  }
+
+  throw new Error(`Unbalanced CSS braces for marker: ${marker}`)
+}
+
 function usageRow(id: number, model: string) {
   return {
     id,
@@ -693,6 +713,15 @@ describe('AppUsageView compact usage details', () => {
     expect(source).toMatch(/\.usage-table th\.num-cell,\s*\.usage-table td\.num-cell\s*{\s*text-align:\s*right;/)
   })
 
+  it('rejects missing or unbalanced mobile media blocks', () => {
+    const marker = '@media (max-width: 640px)'
+
+    expect(() => extractBalancedCssBlock('.usage-row { display: grid; }', marker))
+      .toThrow(`Missing CSS marker: ${marker}`)
+    expect(() => extractBalancedCssBlock(`${marker} { .usage-row { display: grid; }`, marker))
+      .toThrow(`Unbalanced CSS braces for marker: ${marker}`)
+  })
+
   it('exposes mobile card labels and the 640px responsive layout contract', async () => {
     const wrapper = mountView()
     await flushPromises()
@@ -700,7 +729,7 @@ describe('AppUsageView compact usage details', () => {
     const cells = wrapper.get('tr.usage-row').findAll('td')
     const toggle = wrapper.get('tr.usage-row .row-toggle-cell button.row-toggle')
     const source = readFileSync(resolve(process.cwd(), 'src/views/user/AppUsageView.vue'), 'utf8')
-    const mobileStyles = source.match(/@media\s*\(max-width:\s*640px\)\s*{([\s\S]*)}\s*<\/style>/)?.[1]
+    const mobileStyles = extractBalancedCssBlock(source, '@media (max-width: 640px)')
 
     expect(cells.slice(0, 5).map((cell) => cell.attributes('data-label'))).toEqual([
       'Created at',
@@ -710,24 +739,23 @@ describe('AppUsageView compact usage details', () => {
       'Fee'
     ])
     expect(toggle.attributes('type')).toBe('button')
-    expect(mobileStyles).toBeDefined()
 
-    const tableWrapBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-table-wrap')
+    const tableWrapBlock = extractCssDeclarationBlock(mobileStyles, '.usage-table-wrap')
     expect(tableWrapBlock).toMatch(/^\s*max-width:\s*100%;\s*$/m)
     expect(tableWrapBlock).toMatch(/^\s*overflow-x:\s*(?:clip|hidden);\s*$/m)
 
-    const tableBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-table')
+    const tableBlock = extractCssDeclarationBlock(mobileStyles, '.usage-table')
     expect(tableBlock).toMatch(/^\s*max-width:\s*100%;\s*$/m)
     expect(tableBlock).toMatch(/^\s*min-width:\s*0;\s*$/m)
 
-    const tableHeadBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-table thead')
+    const tableHeadBlock = extractCssDeclarationBlock(mobileStyles, '.usage-table thead')
     expect(tableHeadBlock).toMatch(/^\s*position:\s*absolute;\s*$/m)
     expect(tableHeadBlock).toMatch(/^\s*clip:\s*[^;]+;\s*$/m)
 
-    const tableBodyBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-table tbody')
+    const tableBodyBlock = extractCssDeclarationBlock(mobileStyles, '.usage-table tbody')
     expect(tableBodyBlock).toMatch(/^\s*display:\s*block;\s*$/m)
 
-    const usageRowBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-row')
+    const usageRowBlock = extractCssDeclarationBlock(mobileStyles, '.usage-row')
     expect(usageRowBlock).toMatch(/^\s*display:\s*grid;\s*$/m)
     expect(usageRowBlock).toMatch(/^\s*width:\s*100%;\s*$/m)
     expect(usageRowBlock).toMatch(/^\s*max-width:\s*100%;\s*$/m)
@@ -736,32 +764,32 @@ describe('AppUsageView compact usage details', () => {
     expect(usageRowBlock).toMatch(/^\s*border:\s*1px solid var\(--ssxz-border\);\s*$/m)
     expect(usageRowBlock).toMatch(/^\s*border-radius:\s*var\(--ssxz-radius-card\);\s*$/m)
 
-    const usageCellBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-row td')
+    const usageCellBlock = extractCssDeclarationBlock(mobileStyles, '.usage-row td')
     expect(usageCellBlock).toMatch(/^\s*min-width:\s*0;\s*$/m)
     expect(usageCellBlock).toMatch(/^\s*white-space:\s*normal;\s*$/m)
     expect(usageCellBlock).toMatch(/^\s*overflow-wrap:\s*anywhere;\s*$/m)
     expect(usageCellBlock).toMatch(/^\s*word-break:\s*break-word;\s*$/m)
 
-    const labelBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-row td::before')
+    const labelBlock = extractCssDeclarationBlock(mobileStyles, '.usage-row td::before')
     expect(labelBlock).toMatch(/^\s*content:\s*attr\(data-label\);\s*$/m)
 
-    const toggleBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-row .row-toggle-cell')
+    const toggleBlock = extractCssDeclarationBlock(mobileStyles, '.usage-row .row-toggle-cell')
     expect(toggleBlock).toMatch(/^\s*position:\s*absolute;\s*$/m)
     expect(toggleBlock).toMatch(/^\s*top:\s*0\.65rem;\s*$/m)
     expect(toggleBlock).toMatch(/^\s*right:\s*0\.65rem;\s*$/m)
 
-    const firstRowBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-row:first-child')
+    const firstRowBlock = extractCssDeclarationBlock(mobileStyles, '.usage-row:first-child')
     expect(firstRowBlock).toMatch(/^\s*margin-top:\s*0;\s*$/m)
 
     for (const selector of ['.usage-row .time-cell', '.usage-row .model-cell', '.usage-row .fee-cell']) {
-      const fullWidthCellBlock = extractCssDeclarationBlock(mobileStyles!, selector)
+      const fullWidthCellBlock = extractCssDeclarationBlock(mobileStyles, selector)
       expect(fullWidthCellBlock).toMatch(/^\s*grid-column:\s*1 \/ -1;\s*$/m)
     }
 
-    const expandedRowBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-row.is-expanded')
+    const expandedRowBlock = extractCssDeclarationBlock(mobileStyles, '.usage-row.is-expanded')
     expect(expandedRowBlock).toMatch(/^\s*border-radius:\s*var\(--ssxz-radius-card\) var\(--ssxz-radius-card\) 0 0;\s*$/m)
 
-    const detailRowBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-detail-row')
+    const detailRowBlock = extractCssDeclarationBlock(mobileStyles, '.usage-detail-row')
     expect(detailRowBlock).toMatch(/^\s*display:\s*block;\s*$/m)
     expect(detailRowBlock).toMatch(/^\s*width:\s*100%;\s*$/m)
     expect(detailRowBlock).toMatch(/^\s*max-width:\s*100%;\s*$/m)
@@ -769,7 +797,7 @@ describe('AppUsageView compact usage details', () => {
     expect(detailRowBlock).toMatch(/^\s*border-top:\s*0;\s*$/m)
     expect(detailRowBlock).toMatch(/^\s*border-radius:\s*0 0 var\(--ssxz-radius-card\) var\(--ssxz-radius-card\);\s*$/m)
 
-    const detailCellBlock = extractCssDeclarationBlock(mobileStyles!, '.usage-detail-row td')
+    const detailCellBlock = extractCssDeclarationBlock(mobileStyles, '.usage-detail-row td')
     expect(detailCellBlock).toMatch(/^\s*display:\s*block;\s*$/m)
     expect(detailCellBlock).toMatch(/^\s*width:\s*100%;\s*$/m)
     expect(detailCellBlock).toMatch(/^\s*max-width:\s*100%;\s*$/m)
