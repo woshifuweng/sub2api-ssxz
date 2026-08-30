@@ -93,6 +93,10 @@ describe('ModelPricingView subscription type', () => {
     expect(await renderedSubscriptionType('subscription')).toBe('subscription')
   })
 
+  it('preserves standard groups', async () => {
+    expect(await renderedSubscriptionType('standard')).toBe('standard')
+  })
+
   it('falls back to standard for unknown subscription types', async () => {
     expect(await renderedSubscriptionType('legacy')).toBe('standard')
   })
