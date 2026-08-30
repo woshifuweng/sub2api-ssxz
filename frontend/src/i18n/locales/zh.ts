@@ -997,7 +997,7 @@ export default {
       trendLoadError: '月度趋势暂时无法加载',
       trendLoadErrorHint: '明细和余额仍可单独刷新；趋势加载失败时不会展示成空趋势。',
       usageDetailsTitle: '用量明细',
-      usageDetailsDescription: '默认展示时间、模型、用量、耗时和实际扣费；点击任意记录可查看接口、分组、定位码、计费依据和完整耗时。',
+      usageDetailsDescription: '每条记录直接展示 API 密钥、模型、接口、IP、分组、类型、计费方式、Token、费用、耗时、时间和定位码；表格较宽时可在表内左右滑动。',
       refresh: '刷新',
       loading: '正在加载用量',
       detailsLoadError: '用量明细暂时无法加载',

@@ -995,7 +995,7 @@ export default {
       trendLoadError: 'Monthly trend is temporarily unavailable',
       trendLoadErrorHint: 'Details and balance can still be refreshed separately; unavailable trends are not presented as empty data.',
       usageDetailsTitle: 'Usage details',
-      usageDetailsDescription: 'Shows time, model, usage, duration, and final charge by default. Click any record for endpoint, group, support code, billing basis, and full timing details.',
+      usageDetailsDescription: 'Each row shows the API key, model, endpoint, IP, group, request type, billing mode, tokens, charge, latency, time, and support code. Scroll inside the table when it is wider than the page.',
       refresh: 'Refresh',
       loading: 'Loading usage',
       detailsLoadError: 'Usage details are temporarily unavailable',

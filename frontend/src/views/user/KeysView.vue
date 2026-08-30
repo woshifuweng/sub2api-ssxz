@@ -3311,7 +3311,7 @@ onUnmounted(() => {
 
 .keys-page-surface--workbench :deep(table) {
   width: 100%;
-  min-width: 84.5rem;
+  min-width: 85.5rem;
   table-layout: fixed;
 }
 
@@ -3330,6 +3330,7 @@ onUnmounted(() => {
 }
 
 .keys-page-surface--workbench :deep(.table-scroll-container td) {
+  overflow: hidden;
   height: 3.5rem;
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
@@ -3341,7 +3342,7 @@ onUnmounted(() => {
 .keys-page-surface--workbench :deep(.keys-col-name) { width: 11rem; }
 .keys-page-surface--workbench :deep(.keys-col-key) { width: 9rem; }
 .keys-page-surface--workbench :deep(.keys-col-group) { width: 14rem; }
-.keys-page-surface--workbench :deep(.keys-col-usage) { width: 10rem; }
+.keys-page-surface--workbench :deep(.keys-col-usage) { width: 11rem; }
 .keys-page-surface--workbench :deep(.keys-col-rate) { width: 10rem; }
 .keys-page-surface--workbench :deep(.keys-col-status) { width: 7rem; }
 .keys-page-surface--workbench :deep(.keys-col-expires) { width: 9.5rem; }
@@ -3418,9 +3419,18 @@ onUnmounted(() => {
 
 .keys-usage-cell {
   display: flex;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
   gap: 0.5rem;
+  overflow: hidden;
   white-space: nowrap;
+}
+
+.keys-usage-cell > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .keys-usage-bar {

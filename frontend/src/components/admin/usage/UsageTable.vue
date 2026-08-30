@@ -45,7 +45,10 @@
         </template>
 
         <template #cell-api_key="{ row }">
-          <span class="text-sm text-gray-900 dark:text-white">{{ row.api_key?.name || '-' }}</span>
+          <span
+            class="block max-w-full truncate text-sm text-gray-900 dark:text-white"
+            :title="row.api_key?.name || ''"
+          >{{ row.api_key?.name || '-' }}</span>
         </template>
 
         <template #cell-account="{ row }">
@@ -110,7 +113,11 @@
         </template>
 
         <template #cell-group="{ row }">
-          <span v-if="row.group" class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+          <span
+            v-if="row.group"
+            class="inline-flex max-w-full items-center truncate rounded px-2 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200"
+            :title="row.group.name"
+          >
             {{ row.group.name }}
           </span>
           <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>

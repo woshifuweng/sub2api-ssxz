@@ -873,7 +873,7 @@ function toDateKey(date: Date) {
 
 .usage-native-table :deep(table) {
   width: 100%;
-  min-width: 89.5rem;
+  min-width: 97.5rem;
   table-layout: fixed;
 }
 
@@ -891,6 +891,7 @@ function toDateKey(date: Date) {
 }
 
 .usage-native-table :deep(td) {
+  overflow: hidden;
   border-color: color-mix(in srgb, var(--ssxz-border) 70%, transparent);
   color: var(--ssxz-body);
   vertical-align: middle;
@@ -900,12 +901,12 @@ function toDateKey(date: Date) {
   background: color-mix(in srgb, var(--ssxz-action-soft) 34%, transparent);
 }
 
-.usage-native-table :deep(.usage-col-api-key) { width: 7.5rem; }
+.usage-native-table :deep(.usage-col-api-key) { width: 10rem; }
 .usage-native-table :deep(.usage-col-model) { width: 7.5rem; }
 .usage-native-table :deep(.usage-col-reasoning) { width: 5rem; }
-.usage-native-table :deep(.usage-col-endpoint) { width: 7rem; }
-.usage-native-table :deep(.usage-col-ip) { width: 7rem; }
-.usage-native-table :deep(.usage-col-group) { width: 8rem; }
+.usage-native-table :deep(.usage-col-endpoint) { width: 8rem; }
+.usage-native-table :deep(.usage-col-ip) { width: 8.5rem; }
+.usage-native-table :deep(.usage-col-group) { width: 11rem; }
 .usage-native-table :deep(.usage-col-type) { width: 4.5rem; }
 .usage-native-table :deep(.usage-col-billing) { width: 5.5rem; }
 .usage-native-table :deep(.usage-col-tokens) { width: 8.5rem; }
@@ -916,6 +917,7 @@ function toDateKey(date: Date) {
 
 .usage-native-table :deep(.usage-col-group > span),
 .usage-native-table :deep(.usage-col-support > div) {
+  min-width: 0;
   max-width: 100%;
 }
 
