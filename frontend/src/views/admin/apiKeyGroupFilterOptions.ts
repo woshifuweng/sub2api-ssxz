@@ -6,7 +6,6 @@ export interface ApiKeyGroupFilterOption {
   kind?: 'group'
   disabled?: boolean
 }
-
 export interface ApiKeyGroupFilterLabels {
   all: string
   exclusive: string

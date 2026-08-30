@@ -158,8 +158,10 @@ export default {
   // Navigation
   nav: {
     dashboard: 'Dashboard',
+    chat: 'Chat',
     announcements: 'Announcements',
     apiKeys: 'API Keys',
+    adminApiKeys: 'All API Keys',
     batchImage: 'Batch Images',
     usage: 'Usage',
     redeem: 'Redeem',
@@ -192,6 +194,11 @@ export default {
     mySubscriptions: 'My Subscriptions',
     buySubscription: 'Recharge / Subscription',
     docs: 'Docs',
+    reseller: 'Reseller rebates',
+    resellerManager: 'Agent management',
+    resellerAdmin: 'Reseller management',
+    resellerAgents: 'Agents',
+    resellerWithdrawals: 'Transfer reviews',
     myOrders: 'My Orders',
     orderManagement: 'Orders',
     paymentDashboard: 'Payment Dashboard',

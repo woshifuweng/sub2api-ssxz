@@ -16,11 +16,13 @@ describe('site_logo sanitization', () => {
   })
 
   it('HomeView applies sanitizeUrl to siteLogo', () => {
-    expect(homeViewSource).toContain('sanitizeUrl(appStore.cachedPublicSettings?.site_logo || appStore.siteLogo')
+    expect(homeViewSource).toContain('sanitizeUrl(')
+    expect(homeViewSource).toContain('normalizeSiteLogo(appStore.cachedPublicSettings?.site_logo || appStore.siteLogo')
   })
 
   it('KeyUsageView applies sanitizeUrl to siteLogo', () => {
-    expect(keyUsageViewSource).toContain('sanitizeUrl(appStore.cachedPublicSettings?.site_logo || appStore.siteLogo')
+    expect(keyUsageViewSource).toContain('sanitizeUrl(')
+    expect(keyUsageViewSource).toContain('normalizeSiteLogo(appStore.cachedPublicSettings?.site_logo || appStore.siteLogo')
   })
 
   it('all three pass allowRelative and allowDataUrl options', () => {

@@ -5,6 +5,7 @@
 
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useResellerStore } from '@/stores/reseller'
 import { useAppStore } from '@/stores/app'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
 import { useAdminComplianceStore } from '@/stores/adminCompliance'
@@ -13,6 +14,8 @@ import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { getSetupStatus } from '@/api/setup'
 import { resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveRouteDocumentTitle } from './title'
+import { redirectLegacyRoute } from './legacyRedirect'
+import { hasRequiredResellerRole, resellerAccessFallback } from './resellerAccess'
 
 /**
  * Route definitions with lazy loading
@@ -37,6 +40,16 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: false,
       title: 'Home'
+    }
+  },
+  {
+    path: '/docs',
+    name: 'PublicDocs',
+    component: () => import('@/views/public/PublicDocsView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Documentation',
+      titleKey: 'docs.title'
     }
   },
   {
@@ -189,10 +202,14 @@ const routes: RouteRecordRaw[] = [
   // ==================== User Routes ====================
   {
     path: '/',
-    redirect: '/home'
+    redirect: redirectLegacyRoute('/home')
   },
   {
-    path: '/dashboard',
+    path: '/app',
+    redirect: redirectLegacyRoute('/app/dashboard')
+  },
+  {
+    path: '/app/dashboard',
     name: 'Dashboard',
     component: () => import('@/views/user/DashboardView.vue'),
     meta: {
@@ -204,7 +221,27 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/keys',
+    path: '/dashboard',
+    redirect: redirectLegacyRoute('/app/dashboard')
+  },
+  {
+    path: '/app/chat',
+    name: 'ChatWorkspace',
+    component: () => import('@/views/user/AppWorkspaceView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Chat',
+      titleKey: 'chat.title',
+      descriptionKey: 'chat.description'
+    }
+  },
+  {
+    path: '/chat',
+    redirect: redirectLegacyRoute('/app/chat')
+  },
+  {
+    path: '/app/keys',
     name: 'Keys',
     component: () => import('@/views/user/KeysView.vue'),
     meta: {
@@ -216,9 +253,12 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/batch-image',
+    path: '/keys',
+    redirect: redirectLegacyRoute('/app/keys')
+  },
+  {
+    path: '/app/image',
     name: 'BatchImageGuide',
-    alias: '/docs/batch-image',
     component: () => import('@/views/user/BatchImageGuideView.vue'),
     meta: {
       requiresAuth: true,
@@ -229,7 +269,15 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/usage',
+    path: '/batch-image',
+    redirect: redirectLegacyRoute('/app/image')
+  },
+  {
+    path: '/docs/batch-image',
+    redirect: redirectLegacyRoute('/app/image')
+  },
+  {
+    path: '/app/usage',
     name: 'Usage',
     component: () => import('@/views/user/UsageView.vue'),
     meta: {
@@ -241,7 +289,11 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/redeem',
+    path: '/usage',
+    redirect: redirectLegacyRoute('/app/usage')
+  },
+  {
+    path: '/app/redeem',
     name: 'Redeem',
     component: () => import('@/views/user/RedeemView.vue'),
     meta: {
@@ -253,7 +305,11 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/affiliate',
+    path: '/redeem',
+    redirect: redirectLegacyRoute('/app/redeem')
+  },
+  {
+    path: '/app/affiliate',
     name: 'Affiliate',
     component: () => import('@/views/user/AffiliateView.vue'),
     meta: {
@@ -265,7 +321,83 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/available-channels',
+    path: '/app/reseller',
+    name: 'ResellerAgent',
+    component: () => import('@/views/reseller/AgentDashboard.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      resellerRole: 'agent',
+      title: 'Reseller Dashboard',
+      titleKey: 'reseller.pages.dashboard.title'
+    }
+  },
+  {
+    path: '/app/reseller/withdrawals',
+    name: 'ResellerWithdrawals',
+    component: () => import('@/views/reseller/AgentWithdrawals.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      resellerRole: 'agent',
+      title: 'Reseller Withdrawals',
+      titleKey: 'reseller.pages.withdrawals.title'
+    }
+  },
+  {
+    path: '/app/reseller/recruits',
+    name: 'ResellerRecruits',
+    component: () => import('@/views/reseller/AgentRecruits.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      resellerRole: 'agent',
+      title: 'Reseller Recruits',
+      titleKey: 'reseller.pages.recruits.title'
+    }
+  },
+  {
+    path: '/app/reseller/commission',
+    name: 'ResellerCommission',
+    component: () => import('@/views/reseller/AgentCommission.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      resellerRole: 'agent',
+      title: 'Reseller Commission',
+      titleKey: 'reseller.pages.commission.title'
+    }
+  },
+  {
+    path: '/app/reseller/invite',
+    name: 'ResellerInvite',
+    component: () => import('@/views/reseller/AgentInvite.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      resellerRole: 'agent',
+      title: 'Reseller Invite Tools',
+      titleKey: 'reseller.pages.invite.title'
+    }
+  },
+  {
+    path: '/app/reseller/manager',
+    name: 'ResellerManager',
+    component: () => import('@/views/reseller/ManagerDashboard.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      resellerRole: 'agent_manager',
+      title: 'Reseller Manager',
+      titleKey: 'reseller.pages.manager.title'
+    }
+  },
+  {
+    path: '/affiliate',
+    redirect: redirectLegacyRoute('/app/affiliate')
+  },
+  {
+    path: '/app/available-channels',
     name: 'UserAvailableChannels',
     component: () => import('@/views/user/AvailableChannelsView.vue'),
     meta: {
@@ -277,7 +409,34 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/profile',
+    path: '/app/channel-status',
+    name: 'UserChannelStatus',
+    component: () => import('@/views/user/ChannelStatusView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Channel Status',
+      titleKey: 'nav.channelStatus'
+    }
+  },
+  {
+    path: '/app/docs',
+    name: 'AppDocs',
+    component: () => import('@/views/user/DocsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Documentation',
+      titleKey: 'docs.title',
+      descriptionKey: 'docs.description'
+    }
+  },
+  {
+    path: '/available-channels',
+    redirect: redirectLegacyRoute('/app/available-channels')
+  },
+  {
+    path: '/app/profile',
     name: 'Profile',
     component: () => import('@/views/user/ProfileView.vue'),
     meta: {
@@ -287,6 +446,10 @@ const routes: RouteRecordRaw[] = [
       titleKey: 'profile.title',
       descriptionKey: 'profile.description'
     }
+  },
+  {
+    path: '/profile',
+    redirect: redirectLegacyRoute('/app/profile')
   },
   {
     path: '/subscriptions',
@@ -301,7 +464,7 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/purchase',
+    path: '/app/purchase',
     name: 'PurchaseSubscription',
     component: () => import('@/views/user/PaymentView.vue'),
     meta: {
@@ -314,7 +477,11 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/orders',
+    path: '/purchase',
+    redirect: redirectLegacyRoute('/app/purchase')
+  },
+  {
+    path: '/app/orders',
     name: 'OrderList',
     component: () => import('@/views/user/UserOrdersView.vue'),
     meta: {
@@ -324,6 +491,10 @@ const routes: RouteRecordRaw[] = [
       titleKey: 'nav.myOrders',
       requiresPayment: true
     }
+  },
+  {
+    path: '/orders',
+    redirect: redirectLegacyRoute('/app/orders')
   },
   {
     path: '/payment/qrcode',
@@ -399,7 +570,7 @@ const routes: RouteRecordRaw[] = [
   // ==================== Admin Routes ====================
   {
     path: '/admin',
-    redirect: '/admin/dashboard'
+    redirect: redirectLegacyRoute('/admin/dashboard')
   },
   {
     path: '/admin/dashboard',
@@ -450,6 +621,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/api-keys',
+    name: 'AdminAPIKeys',
+    component: () => import('@/views/admin/ApiKeysView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'API Key Inventory',
+      titleKey: 'admin.apiKeyInventory.title',
+      descriptionKey: 'admin.apiKeyInventory.description'
+    }
+  },
+  {
     path: '/admin/groups',
     name: 'AdminGroups',
     component: () => import('@/views/admin/GroupsView.vue'),
@@ -463,7 +646,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/admin/channels',
-    redirect: '/admin/channels/pricing'
+    redirect: redirectLegacyRoute('/admin/channels/pricing')
   },
   {
     path: '/admin/channels/pricing',
@@ -491,13 +674,14 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/monitor',
-    name: 'ChannelStatus',
-    component: () => import('@/views/user/ChannelStatusView.vue'),
+    name: 'AdminChannelMonitorLegacy',
+    component: () => import('@/views/admin/ChannelMonitorView.vue'),
     meta: {
       requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Channel Status',
-      titleKey: 'nav.channelStatus'
+      requiresAdmin: true,
+      title: 'Channel Monitor',
+      titleKey: 'admin.channelMonitor.title',
+      descriptionKey: 'admin.channelMonitor.description'
     }
   },
   {
@@ -636,7 +820,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/admin/affiliates',
-    redirect: '/admin/affiliates/invites'
+    redirect: redirectLegacyRoute('/admin/affiliates/invites')
   },
   {
     path: '/admin/affiliates/invites',
@@ -672,6 +856,34 @@ const routes: RouteRecordRaw[] = [
       title: 'Affiliate Transfer Records',
       titleKey: 'nav.affiliateTransferRecords',
       descriptionKey: 'admin.affiliates.transfersDescription'
+    }
+  },
+  {
+    path: '/admin/reseller',
+    redirect: redirectLegacyRoute('/admin/reseller/agents')
+  },
+  {
+    path: '/admin/reseller/agents',
+    name: 'AdminResellerAgents',
+    component: () => import('@/views/admin/reseller/AdminAgents.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Reseller Management',
+      titleKey: 'reseller.admin.agents.title',
+      descriptionKey: 'reseller.admin.agents.description'
+    }
+  },
+  {
+    path: '/admin/reseller/withdrawals',
+    name: 'AdminResellerWithdrawals',
+    component: () => import('@/views/admin/reseller/AdminWithdrawals.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Reseller Withdrawals',
+      titleKey: 'reseller.admin.withdrawals.title',
+      descriptionKey: 'reseller.admin.withdrawals.description'
     }
   },
 
@@ -750,7 +962,7 @@ let authInitialized = false
 const navigationLoading = useNavigationLoadingState()
 // 延迟初始化预加载，传入 router 实例
 let routePrefetch: ReturnType<typeof useRoutePrefetch> | null = null
-const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/setup', '/payment/result', '/payment/airwallex', '/legal']
+const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/docs', '/key-usage', '/setup', '/payment/result', '/payment/airwallex', '/legal']
 const BACKEND_MODE_CALLBACK_PATHS = [
   '/auth/callback',
   '/auth/linuxdo/callback',
@@ -826,7 +1038,7 @@ router.beforeEach(async (to, _from, next) => {
         return
       }
       // Admin users go to admin dashboard, regular users go to user dashboard
-      next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+      next(authStore.isAdmin ? '/admin/dashboard' : '/app/dashboard')
       return
     }
     // Model Plaza:公开路由但受「启用开关 + 可选强制登录」双重控制(后端同口径 fail-closed)
@@ -845,7 +1057,7 @@ router.beforeEach(async (to, _from, next) => {
           authStore.isAuthenticated
             ? authStore.isAdmin
               ? '/admin/dashboard'
-              : '/dashboard'
+              : '/app/dashboard'
             : '/home'
         )
         return
@@ -885,8 +1097,19 @@ router.beforeEach(async (to, _from, next) => {
   // Check admin requirement
   if (requiresAdmin && !authStore.isAdmin) {
     // User is authenticated but not admin, redirect to user dashboard
-    next('/dashboard')
+    next('/app/dashboard')
     return
+  }
+
+  if (to.meta.resellerRole && authStore.user) {
+    const resellerStore = useResellerStore()
+    const resellerRole = await resellerStore.fetchRole(authStore.user.id)
+    const allowed = hasRequiredResellerRole(to.meta.resellerRole, resellerRole)
+
+    if (!allowed) {
+      next(resellerAccessFallback(resellerRole))
+      return
+    }
   }
 
   if (requiresAdmin && authStore.isAdmin) {
@@ -922,7 +1145,7 @@ router.beforeEach(async (to, _from, next) => {
     appStore.publicSettingsLoaded &&
     appStore.cachedPublicSettings?.payment_enabled === false
   ) {
-    next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+    next(authStore.isAdmin ? '/admin/dashboard' : '/app/dashboard')
     return
   }
 
@@ -931,7 +1154,7 @@ router.beforeEach(async (to, _from, next) => {
     appStore.publicSettingsLoaded &&
     appStore.cachedPublicSettings?.risk_control_enabled === false
   ) {
-    next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
+    next(authStore.isAdmin ? '/admin/settings' : '/app/dashboard')
     return
   }
 
@@ -942,12 +1165,13 @@ router.beforeEach(async (to, _from, next) => {
       '/admin/subscriptions',
       '/admin/redeem',
       '/subscriptions',
-      '/redeem'
+      '/redeem',
+      '/app/redeem'
     ]
 
     if (restrictedPaths.some((path) => to.path.startsWith(path))) {
       // 简易模式下访问受限页面,重定向到仪表板
-      next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+      next(authStore.isAdmin ? '/admin/dashboard' : '/app/dashboard')
       return
     }
   }

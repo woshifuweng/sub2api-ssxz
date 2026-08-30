@@ -331,6 +331,8 @@ export default {
     latencyFirstToken: '首字',
     latencyDuration: '总耗时',
     time: '时间',
+    requestTraceId: '请求追踪码（排障用）',
+    requestTraceIdDescription: '请求追踪码是每次请求唯一的排障标识，可复制给管理员定位问题；它不是 API Key。',
     ws: 'WS',
     stream: '流式',
     sync: '同步',

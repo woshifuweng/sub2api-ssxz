@@ -170,8 +170,14 @@ const DataTableStub = {
           <slot name="cell-id" :value="row.id" :row="row" />
         </div>
         <slot name="cell-name" :value="row.name" :row="row" />
+        <div data-test="group-cell">
+          <slot name="cell-group" :row="row" />
+        </div>
         <div data-test="current-concurrency">
           <slot name="cell-current_concurrency" :value="row.current_concurrency" :row="row" />
+        </div>
+        <div data-test="usage-cell">
+          <slot name="cell-usage" :row="row" />
         </div>
         <div
           v-if="columns.some((col) => col.key === 'last_used_ip')"
@@ -303,6 +309,32 @@ describe('user KeysView column settings', () => {
     expect(visibleColumnKeys(wrapper)).not.toContain('last_used_at')
     expect(visibleColumnKeys(wrapper)).not.toContain('last_used_ip')
     expect(visibleColumnKeys(wrapper)).not.toContain('id')
+  })
+
+  it('constrains group badges and reserves a minimum width for usage', async () => {
+    listKeys.mockResolvedValueOnce({
+      items: [{
+        ...createApiKey(),
+        group: {
+          id: 9,
+          name: 'A very long group name that must not cover usage',
+          platform: 'openai',
+          subscription_type: 'standard',
+          rate_multiplier: 1,
+        },
+      }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+
+    const wrapper = await mountView()
+    const groupButton = wrapper.get('[data-test="group-cell"] button')
+    const usageCell = wrapper.get('[data-test="usage-cell"] > div')
+
+    expect(groupButton.classes()).toEqual(expect.arrayContaining(['min-w-0', 'max-w-full']))
+    expect(usageCell.classes()).toContain('min-w-[7.5rem]')
   })
 
   it('shows a hidden column when toggled and persists the preference', async () => {

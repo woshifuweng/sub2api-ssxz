@@ -155,7 +155,7 @@ describe('feature route guard', () => {
   })
 
   it.each([
-    ['payment', { requiresPayment: true }, { payment_enabled: false }, '/dashboard'],
+    ['payment', { requiresPayment: true }, { payment_enabled: false }, '/app/dashboard'],
     [
       'risk control',
       { requiresRiskControl: true },

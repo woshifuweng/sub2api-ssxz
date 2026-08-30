@@ -5,6 +5,9 @@ import channelMonitorV2 from './channelMonitorV2'
 import batchImage from './batchImage'
 import admin from './admin'
 import misc from './misc'
+import reseller from './reseller'
+import docs from './docs'
+import chat from './chat'
 
 export default {
   ...landing,
@@ -14,4 +17,7 @@ export default {
   ...batchImage,
   admin,
   ...misc,
+  ...reseller,
+  ...docs,
+  ...chat,
 }

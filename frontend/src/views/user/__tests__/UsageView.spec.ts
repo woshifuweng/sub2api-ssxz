@@ -49,6 +49,8 @@ const messages: Record<string, string> = {
   'usage.allApiKeys': 'All API Keys',
   'usage.apiKeyFilter': 'API Key',
   'usage.model': 'Model',
+  'usage.requestTraceId': 'Request trace ID (troubleshooting)',
+  'usage.requestTraceIdDescription': 'A unique identifier for troubleshooting this request. It is not an API key.',
   'usage.type': 'Type',
   'usage.ws': 'WS',
   'usage.stream': 'Stream',
@@ -95,6 +97,11 @@ vi.mock('vue-i18n', async () => {
 
 const simpleStub = { template: '<div><slot /></div>' }
 const chartStub = { template: '<div />' }
+const usageTableStub = {
+  name: 'UsageTableStub',
+  props: ['columns', 'showModelRouting'],
+  template: '<div data-test="usage-table" />',
+}
 
 const usageLog = {
   id: 1,
@@ -137,7 +144,7 @@ function mountUsageView() {
         DateRangePicker: true,
         Icon: true,
         UsageStatsCards: chartStub,
-        UsageTable: chartStub,
+        UsageTable: usageTableStub,
         ModelDistributionChart: chartStub,
         GroupDistributionChart: chartStub,
         EndpointDistributionChart: chartStub,
@@ -205,6 +212,26 @@ describe('user UsageView', () => {
     }))
     expect(list).toHaveBeenCalledWith(1, 100)
     expect(getAvailable).toHaveBeenCalled()
+  })
+
+  it('shows group and troubleshooting trace ID while hiding internal model routing', async () => {
+    const wrapper = mountUsageView()
+    await flushPromises()
+
+    const table = wrapper.getComponent({ name: 'UsageTableStub' })
+    const columns = table.props('columns') as Array<{ key: string; label: string }>
+
+    expect(columns).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: 'group', label: 'Group' }),
+      expect.objectContaining({
+        key: 'request_id',
+        label: 'Request trace ID (troubleshooting)',
+      }),
+    ]))
+    expect(table.props('showModelRouting')).toBe(false)
+    expect(wrapper.text()).toContain(
+      'A unique identifier for troubleshooting this request. It is not an API key.',
+    )
   })
 
   it('exports csv with current filters and without admin-only fields', async () => {

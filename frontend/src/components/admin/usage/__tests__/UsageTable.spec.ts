@@ -256,6 +256,36 @@ describe('admin UsageTable tooltip', () => {
     expect(text).toContain('claude-sonnet-4-20250514')
   })
 
+  it('shows only the requested model when model routing details are disabled', () => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [{
+          ...baseImageRow,
+          request_id: 'req-user-model-1',
+          model: 'claude-sonnet-4',
+          upstream_model: 'internal-routed-model',
+          model_mapping_chain: 'claude-sonnet-4→internal-routed-model',
+          upstream_response_model: 'internal-response-model',
+          upstream_model_mismatch: true,
+        }],
+        loading: false,
+        columns: [{ key: 'model', label: 'Model' }],
+        showModelRouting: false,
+      },
+      global: {
+        stubs: {
+          DataTable: DataTableStub,
+          EmptyState: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('claude-sonnet-4')
+    expect(wrapper.text()).not.toContain('internal-routed-model')
+    expect(wrapper.text()).not.toContain('internal-response-model')
+  })
+
 	it.each([
 		{
 			name: 'possible version variant',

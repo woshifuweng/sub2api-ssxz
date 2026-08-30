@@ -326,6 +326,8 @@ export default {
     latencyFirstToken: 'First',
     latencyDuration: 'Total',
     time: 'Time',
+    requestTraceId: 'Request trace ID (troubleshooting)',
+    requestTraceIdDescription: 'This is the unique troubleshooting identifier for a request. Copy it when asking for help; it is not an API key.',
     ws: 'WS',
     stream: 'Stream',
     sync: 'Sync',
