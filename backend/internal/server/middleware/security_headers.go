@@ -39,6 +39,16 @@ const (
 	TencentCaptchaWorkerSource = "blob:"
 	// StripeDomain is the domain for Stripe.js SDK
 	StripeDomain = "https://*.stripe.com"
+	// StripeJSDomain is the concrete Stripe.js origin used by the browser SDK.
+	StripeJSDomain = "https://js.stripe.com"
+	// StripeHooksDomain hosts Stripe payment frames.
+	StripeHooksDomain = "https://hooks.stripe.com"
+	// Stripe API and telemetry origins used by Stripe Elements.
+	StripeAPIDomain = "https://api.stripe.com"
+	StripeQDomain   = "https://q.stripe.com"
+	StripeRDomain   = "https://r.stripe.com"
+	// ChainDianShopDomain is the hosted recharge shop embedded by SSXZ.
+	ChainDianShopDomain = "https://pay.ldxp.cn"
 	// AirwallexStaticDomain 是 Airwallex 生产环境 SDK 脚本域名。
 	AirwallexStaticDomain = "https://static.airwallex.com"
 	// AirwallexCheckoutDomain 是 Airwallex 生产环境收银台元素和 iframe 域名。
@@ -76,6 +86,13 @@ var requiredCSPDirectiveValues = []struct {
 	{"worker-src", TencentCaptchaWorkerSource},
 	{"script-src", StripeDomain},
 	{"frame-src", StripeDomain},
+	{"script-src", StripeJSDomain},
+	{"frame-src", StripeJSDomain},
+	{"frame-src", StripeHooksDomain},
+	{"connect-src", StripeAPIDomain},
+	{"connect-src", StripeQDomain},
+	{"connect-src", StripeRDomain},
+	{"frame-src", ChainDianShopDomain},
 	{"script-src", AirwallexStaticDomain},
 	{"script-src", AirwallexCheckoutDomain},
 	{"style-src", AirwallexStaticDomain},
