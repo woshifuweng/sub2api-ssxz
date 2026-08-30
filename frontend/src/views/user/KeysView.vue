@@ -161,12 +161,7 @@
             :columns="columns"
             :data="apiKeys"
             :loading="loading"
-            :class="{
-              'keys-data-table--rate-limit-visible':
-                isColumnVisible('rate_limit'),
-              'keys-data-table--last-used-visible':
-                isColumnVisible('last_used_at'),
-            }"
+            :class="`keys-data-table--optional-columns-${visibleOptionalColumnCount}`"
             :sticky-first-column="false"
             :sticky-actions-column="false"
           >
@@ -407,6 +402,23 @@
                   {{ t("keys.noExpiration") }}
                 </span>
               </div>
+            </template>
+
+            <template #cell-expires_at="{ value }">
+              <span
+                v-if="value"
+                :class="[
+                  'text-sm',
+                  new Date(value) < new Date()
+                    ? 'text-red-500 dark:text-red-400'
+                    : 'text-gray-500 dark:text-dark-400',
+                ]"
+              >
+                {{ formatDateTime(value) }}
+              </span>
+              <span v-else class="text-sm text-gray-400 dark:text-dark-500">
+                {{ t("keys.noExpiration") }}
+              </span>
             </template>
 
             <template #cell-last_used_at="{ value }">
@@ -1757,6 +1769,12 @@ const allColumns = computed<Column[]>(() => [
     sortable: true,
     class: "keys-col-status",
   },
+  {
+    key: "expires_at",
+    label: t("keys.expiresAt"),
+    sortable: true,
+    class: "keys-col-expires",
+  },
   { key: "last_used_at", label: t("keys.lastUsedAt"), sortable: true, class: "keys-col-last-used" },
   { key: "created_at", label: t("keys.created"), sortable: true, class: "keys-col-created" },
   {
@@ -1767,18 +1785,28 @@ const allColumns = computed<Column[]>(() => [
   },
 ]);
 
-const DEFAULT_HIDDEN_COLUMNS = ["rate_limit", "last_used_at"];
+const OPTIONAL_COLUMN_KEYS = [
+  "rate_limit",
+  "expires_at",
+  "last_used_at",
+] as const;
+const DEFAULT_HIDDEN_COLUMNS = [...OPTIONAL_COLUMN_KEYS];
 const HIDDEN_COLUMNS_STORAGE_KEY = "ssxz-api-key-hidden-columns-v1";
 const hiddenColumns = reactive<Set<string>>(new Set());
 
 const toggleableColumns = computed(() =>
   allColumns.value.filter(
-    (column) => !["name", "actions"].includes(column.key),
+    (column) => !["name", "status", "actions"].includes(column.key),
   ),
 );
 
 const columns = computed<Column[]>(() =>
   allColumns.value.filter((column) => !hiddenColumns.has(column.key)),
+);
+
+const visibleOptionalColumnCount = computed(
+  () =>
+    OPTIONAL_COLUMN_KEYS.filter((key) => !hiddenColumns.has(key)).length,
 );
 
 const loadSavedColumns = () => {
@@ -3353,18 +3381,18 @@ onUnmounted(() => {
 }
 
 .keys-page-surface--workbench
-  :deep(.keys-data-table--rate-limit-visible table),
-.keys-page-surface--workbench
-  :deep(.keys-data-table--last-used-visible table) {
+  :deep(.keys-data-table--optional-columns-1 table) {
   min-width: 79rem;
 }
 
 .keys-page-surface--workbench
-  :deep(
-    .keys-data-table--rate-limit-visible.keys-data-table--last-used-visible
-      table
-  ) {
+  :deep(.keys-data-table--optional-columns-2 table) {
   min-width: 89rem;
+}
+
+.keys-page-surface--workbench
+  :deep(.keys-data-table--optional-columns-3 table) {
+  min-width: 99rem;
 }
 
 .keys-page-surface--workbench :deep(.table-scroll-container .table-wrapper) {
@@ -3396,6 +3424,7 @@ onUnmounted(() => {
 .keys-page-surface--workbench :deep(.keys-col-usage) { width: 11rem; }
 .keys-page-surface--workbench :deep(.keys-col-rate) { width: 10rem; }
 .keys-page-surface--workbench :deep(.keys-col-status) { width: 9rem; }
+.keys-page-surface--workbench :deep(.keys-col-expires) { width: 9.5rem; }
 .keys-page-surface--workbench :deep(.keys-col-last-used) { width: 10rem; }
 .keys-page-surface--workbench :deep(.keys-col-created) { width: 9.5rem; }
 
@@ -3725,10 +3754,6 @@ onUnmounted(() => {
 }
 
 @media (max-width: 767px) {
-  .keys-page-surface {
-    overflow-x: clip;
-  }
-
   .keys-access-row {
     align-items: flex-start;
     flex-direction: column;

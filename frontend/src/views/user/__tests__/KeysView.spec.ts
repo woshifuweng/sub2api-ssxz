@@ -366,6 +366,7 @@ describe('user KeysView column settings', () => {
       'actions',
     ])
     expect(visibleColumnKeys(wrapper)).not.toContain('rate_limit')
+    expect(visibleColumnKeys(wrapper)).not.toContain('expires_at')
     expect(visibleColumnKeys(wrapper)).not.toContain('last_used_at')
   })
 
@@ -425,7 +426,7 @@ describe('user KeysView column settings', () => {
     expect(wrapper.get('[data-field="status"]').text()).toContain('Status / Expires')
     expect(wrapper.get('[data-field="status"]').text()).toContain('No expiration')
     expect(wrapper.findAll('[data-field]').every((field) => field.classes().includes('min-w-0'))).toBe(true)
-    expect(source).toMatch(/@media \(max-width: 767px\)[\s\S]*\.keys-page-surface\s*\{[\s\S]*overflow-x:\s*clip/)
+    expect(source).not.toContain('overflow-x: clip')
 
     wrapper.unmount()
     viewport.remove()
@@ -523,28 +524,60 @@ describe('user KeysView column settings', () => {
 
     expect(visibleColumnKeys(wrapper)).toContain('rate_limit')
     expect(localStorage.getItem('ssxz-api-key-hidden-columns-v1')).toBe(
-      JSON.stringify(['last_used_at'])
+      JSON.stringify(['expires_at', 'last_used_at'])
     )
   })
 
-  it('expands the table only when optional rate-limit or last-used columns are enabled', async () => {
+  it('keeps expiration as a default-hidden sortable column that can be enabled', async () => {
+    listKeys.mockResolvedValue({
+      items: [{ ...createApiKey(), expires_at: '2030-01-02T03:04:05Z' }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    const wrapper = await mountView({ realDataTable: true })
+    const table = wrapper.findComponent({ name: 'DataTable' })
+
+    expect(wrapper.find('th.keys-col-expires').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="keys-column-settings-trigger"]').trigger('click')
+    await getButtonByText(wrapper, 'Expires').trigger('click')
+    await nextTick()
+
+    const expirationHeader = wrapper.get('th.keys-col-expires')
+    expect(expirationHeader.text()).toContain('Expires')
+    expect(expirationHeader.attributes('aria-sort')).toBe('none')
+    expect(wrapper.get('td.keys-col-expires').text()).toContain('2030')
+
+    await expirationHeader.trigger('click')
+    expect(expirationHeader.attributes('aria-sort')).toBe('ascending')
+    expect(table.classes()).toContain('keys-data-table--optional-columns-1')
+  })
+
+  it('expands the table by the number of enabled optional columns', async () => {
     const source = readFileSync(resolve(process.cwd(), 'src/views/user/KeysView.vue'), 'utf8')
     const wrapper = await mountView()
     const table = wrapper.findComponent({ name: 'DataTable' })
 
-    expect(table.classes()).not.toContain('keys-data-table--rate-limit-visible')
-    expect(table.classes()).not.toContain('keys-data-table--last-used-visible')
+    expect(table.classes()).toContain('keys-data-table--optional-columns-0')
 
     await wrapper.get('[data-testid="keys-column-settings-trigger"]').trigger('click')
     await getButtonByText(wrapper, 'Rate Limit').trigger('click')
+    await nextTick()
+    expect(table.classes()).toContain('keys-data-table--optional-columns-1')
+
     await getButtonByText(wrapper, 'Last Used').trigger('click')
     await nextTick()
+    expect(table.classes()).toContain('keys-data-table--optional-columns-2')
 
-    expect(table.classes()).toContain('keys-data-table--rate-limit-visible')
-    expect(table.classes()).toContain('keys-data-table--last-used-visible')
-    expect(source).toMatch(/keys-data-table--rate-limit-visible[\s\S]*min-width:\s*79rem/)
-    expect(source).toMatch(/keys-data-table--last-used-visible[\s\S]*min-width:\s*79rem/)
-    expect(source).toMatch(/keys-data-table--rate-limit-visible\.keys-data-table--last-used-visible[\s\S]*min-width:\s*89rem/)
+    await getButtonByText(wrapper, 'Expires').trigger('click')
+    await nextTick()
+    expect(table.classes()).toContain('keys-data-table--optional-columns-3')
+
+    expect(source).toMatch(/keys-data-table--optional-columns-1[\s\S]*min-width:\s*79rem/)
+    expect(source).toMatch(/keys-data-table--optional-columns-2[\s\S]*min-width:\s*89rem/)
+    expect(source).toMatch(/keys-data-table--optional-columns-3[\s\S]*min-width:\s*99rem/)
   })
 
   it('restores column preferences from localStorage on mount', async () => {
@@ -557,15 +590,16 @@ describe('user KeysView column settings', () => {
       'usage',
       'rate_limit',
       'status',
+      'expires_at',
       'last_used_at',
       'actions',
     ])
   })
 
-  it('safely migrates old hidden-column settings after combined columns replace key and expiration', async () => {
+  it('migrates an old preference that hid status but kept expiration visible', async () => {
     localStorage.setItem(
       'ssxz-api-key-hidden-columns-v1',
-      JSON.stringify(['key', 'expires_at', 'rate_limit', 'last_used_at', 'removed_column'])
+      JSON.stringify(['status'])
     )
 
     const wrapper = await mountView()
@@ -574,12 +608,25 @@ describe('user KeysView column settings', () => {
       'name',
       'group',
       'usage',
+      'rate_limit',
       'status',
+      'expires_at',
+      'last_used_at',
       'created_at',
       'actions',
     ])
+    expect(localStorage.getItem('ssxz-api-key-hidden-columns-v1')).toBe(JSON.stringify([]))
+  })
+
+  it('migrates the reverse old preference while keeping expiration hidden and status visible', async () => {
+    localStorage.setItem('ssxz-api-key-hidden-columns-v1', JSON.stringify(['expires_at']))
+
+    const wrapper = await mountView()
+
+    expect(visibleColumnKeys(wrapper)).toContain('status')
+    expect(visibleColumnKeys(wrapper)).not.toContain('expires_at')
     expect(localStorage.getItem('ssxz-api-key-hidden-columns-v1')).toBe(
-      JSON.stringify(['rate_limit', 'last_used_at'])
+      JSON.stringify(['expires_at'])
     )
   })
 
@@ -593,7 +640,9 @@ describe('user KeysView column settings', () => {
     expect(columnMenuText).toContain('Group')
     expect(columnMenuText).toContain('Usage')
     expect(columnMenuText).toContain('Rate Limit')
+    expect(columnMenuText).toContain('Expires')
     expect(columnMenuText).not.toContain('Name')
+    expect(columnMenuText).not.toContain('Status / Expires')
     expect(columnMenuText).not.toContain('Actions')
   })
 
