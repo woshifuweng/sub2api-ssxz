@@ -26,6 +26,19 @@
 - [ ] Only dedicated staging users can own active staging API keys.
 - [ ] Provider, image, text, and web-search kill switches are active.
 - [ ] No paid request is used for a staging smoke test.
+- [ ] Billing preflight uses the same bounded output limit, model price, and
+      customer group multiplier as the forwarded request.
+- [ ] Payment order creation and reseller conversion retries are idempotent.
+- [ ] A usage-settlement shortfall creates a durable ledger event and alert.
+
+## Sensitive operations
+
+- [ ] Step-up 2FA is enabled and verified for balance changes, refunds, payment
+      configuration/providers/plans, affiliate transfers, redeem generation,
+      reseller withdrawals, and system settings.
+- [ ] Admin API-key authentication cannot satisfy a step-up challenge.
+- [ ] Public payment lookups are body-limited and IP-rate-limited; webhook body
+      limits reject oversized input instead of truncating and acknowledging it.
 
 ## Deployment evidence
 
@@ -37,6 +50,6 @@
 - [ ] Startup logs contain no backup, update, probe, refresh, provider, or SMTP
       attempts.
 
-The repository still lacks the broader unified-workspace security strategy
-document referenced by the security review workflow. That separate document is
-not silently inferred from this staging checklist.
+The executable business journeys and workspace trust boundaries are defined in
+`business-regression-matrix.md` and
+`unified-chat-workspace-v1-security-strategy.md`.
