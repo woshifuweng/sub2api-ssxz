@@ -44,8 +44,10 @@ restarted as part of this procedure.
 
 - Production PID and activation timestamp are unchanged; public health is 200.
 - Production/staging API key and password-hash overlap are both zero.
-- Staging has zero schedulable provider accounts, reusable login sessions, and
-  enabled provider/payment/monitor configurations.
+- Staging has zero schedulable provider accounts, pending login sessions,
+  passkeys, non-test identities, and enabled provider/payment/monitor
+  configurations. A normal email identity created by either dedicated staging
+  login is allowed.
 - Staging login and local health return 200.
 - Staging sockets connect only to loopback PostgreSQL and dedicated Redis.
 - Staging starts without pricing, update, backup, probe, refresh, report, or

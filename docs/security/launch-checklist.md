@@ -14,7 +14,9 @@
 - [ ] Password-hash overlap is zero.
 - [ ] Provider account credentials and proxy credentials are absent.
 - [ ] OAuth, passkey, pending login, SMTP, payment, webhook, object-storage, and
-      monitoring credentials are absent or disabled.
+      monitoring credentials are absent or disabled. Only normal email
+      identities owned by the two dedicated staging users may be created after
+      a login smoke test.
 - [ ] Customer email, IP, message, prompt, media, and free-form audit content is
       redacted.
 

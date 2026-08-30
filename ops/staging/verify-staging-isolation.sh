@@ -52,8 +52,14 @@ active_non_test_keys="$(count_query "
 ")"
 auth_sessions="$(count_query "
   SELECT (SELECT count(*) FROM pending_auth_sessions)
-       + (SELECT count(*) FROM auth_identities)
+       + (SELECT count(*) FROM auth_identity_channels)
        + (SELECT count(*) FROM passkey_credentials)
+       + (SELECT count(*) FROM auth_identities i
+          WHERE i.provider_type <> 'email'
+             OR i.user_id NOT IN (
+               SELECT id FROM users
+               WHERE lower(email) IN (lower('$STAGING_ADMIN_EMAIL'), lower('$STAGING_BETA_EMAIL'))
+             ))
 ")"
 provider_configs="$(count_query "
   SELECT (SELECT count(*) FROM payment_provider_instances WHERE enabled OR config <> '{}')
