@@ -62,6 +62,59 @@ redis.call("PEXPIRE", KEYS[4], ARGV[3])
 return 1
 `)
 
+var deleteRefreshTokenScript = redis.NewScript(`
+local value = redis.call("GET", KEYS[1])
+if not value then
+    return 0
+end
+
+local decoded, data = pcall(cjson.decode, value)
+redis.call("DEL", KEYS[1])
+if decoded and type(data) == "table" then
+    if data.user_id then
+        redis.call("SREM", ARGV[2] .. data.user_id, ARGV[1])
+    end
+    if data.family_id then
+        redis.call("SREM", ARGV[3] .. data.family_id, ARGV[1])
+    end
+end
+return 1
+`)
+
+var deleteUserRefreshTokensScript = redis.NewScript(`
+local tokenHashes = redis.call("SMEMBERS", KEYS[1])
+for _, tokenHash in ipairs(tokenHashes) do
+    local tokenKey = ARGV[1] .. tokenHash
+    local value = redis.call("GET", tokenKey)
+    if value then
+        local decoded, data = pcall(cjson.decode, value)
+        if decoded and type(data) == "table" and data.family_id then
+            redis.call("SREM", ARGV[2] .. data.family_id, tokenHash)
+        end
+    end
+    redis.call("DEL", tokenKey)
+end
+redis.call("DEL", KEYS[1])
+return #tokenHashes
+`)
+
+var deleteTokenFamilyScript = redis.NewScript(`
+local tokenHashes = redis.call("SMEMBERS", KEYS[1])
+for _, tokenHash in ipairs(tokenHashes) do
+    local tokenKey = ARGV[1] .. tokenHash
+    local value = redis.call("GET", tokenKey)
+    if value then
+        local decoded, data = pcall(cjson.decode, value)
+        if decoded and type(data) == "table" and data.user_id then
+            redis.call("SREM", ARGV[2] .. data.user_id, tokenHash)
+        end
+    end
+    redis.call("DEL", tokenKey)
+end
+redis.call("DEL", KEYS[1])
+return #tokenHashes
+`)
+
 // NewRefreshTokenCache creates a new RefreshTokenCache implementation.
 func NewRefreshTokenCache(rdb *redis.Client) service.RefreshTokenCache {
 	return &refreshTokenCache{rdb: rdb}
@@ -146,62 +199,34 @@ func (c *refreshTokenCache) RotateRefreshToken(
 }
 
 func (c *refreshTokenCache) DeleteRefreshToken(ctx context.Context, tokenHash string) error {
-	key := refreshTokenKey(tokenHash)
-	return c.rdb.Del(ctx, key).Err()
+	return deleteRefreshTokenScript.Run(
+		ctx,
+		c.rdb,
+		[]string{refreshTokenKey(tokenHash)},
+		tokenHash,
+		userRefreshTokensPrefix,
+		tokenFamilyPrefix,
+	).Err()
 }
 
 func (c *refreshTokenCache) DeleteUserRefreshTokens(ctx context.Context, userID int64) error {
-	// Get all token hashes for this user
-	tokenHashes, err := c.GetUserTokenHashes(ctx, userID)
-	if err != nil && err != redis.Nil {
-		return fmt.Errorf("get user token hashes: %w", err)
-	}
-
-	if len(tokenHashes) == 0 {
-		return nil
-	}
-
-	// Build keys to delete
-	keys := make([]string, 0, len(tokenHashes)+1)
-	for _, hash := range tokenHashes {
-		keys = append(keys, refreshTokenKey(hash))
-	}
-	keys = append(keys, userRefreshTokensKey(userID))
-
-	// Delete all keys in a pipeline
-	pipe := c.rdb.Pipeline()
-	for _, key := range keys {
-		pipe.Del(ctx, key)
-	}
-	_, err = pipe.Exec(ctx)
-	return err
+	return deleteUserRefreshTokensScript.Run(
+		ctx,
+		c.rdb,
+		[]string{userRefreshTokensKey(userID)},
+		refreshTokenKeyPrefix,
+		tokenFamilyPrefix,
+	).Err()
 }
 
 func (c *refreshTokenCache) DeleteTokenFamily(ctx context.Context, familyID string) error {
-	// Get all token hashes in this family
-	tokenHashes, err := c.GetFamilyTokenHashes(ctx, familyID)
-	if err != nil && err != redis.Nil {
-		return fmt.Errorf("get family token hashes: %w", err)
-	}
-
-	if len(tokenHashes) == 0 {
-		return nil
-	}
-
-	// Build keys to delete
-	keys := make([]string, 0, len(tokenHashes)+1)
-	for _, hash := range tokenHashes {
-		keys = append(keys, refreshTokenKey(hash))
-	}
-	keys = append(keys, tokenFamilyKey(familyID))
-
-	// Delete all keys in a pipeline
-	pipe := c.rdb.Pipeline()
-	for _, key := range keys {
-		pipe.Del(ctx, key)
-	}
-	_, err = pipe.Exec(ctx)
-	return err
+	return deleteTokenFamilyScript.Run(
+		ctx,
+		c.rdb,
+		[]string{tokenFamilyKey(familyID)},
+		refreshTokenKeyPrefix,
+		userRefreshTokensPrefix,
+	).Err()
 }
 
 func (c *refreshTokenCache) AddToUserTokenSet(ctx context.Context, userID int64, tokenHash string, ttl time.Duration) error {
