@@ -553,6 +553,70 @@ describe('admin UsageTable IP geolocation batch toolbar', () => {
   })
 })
 
+describe('admin UsageTable grouped details', () => {
+  const GroupedDetailsDataTableStub = {
+    props: ['data'],
+    template: `
+      <div>
+        <div v-for="row in data" :key="row.request_id">
+          <slot name="cell-model" :row="row" :value="row.model" />
+          <slot name="cell-endpoint" :row="row" />
+          <slot name="cell-group" :row="row" />
+          <slot name="cell-created_at" :row="row" :value="row.created_at" />
+        </div>
+      </div>
+    `,
+  }
+
+  it('renders the grouped detail cells and keeps the IP batch toolbar available', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { clipboard: { writeText } })
+    ipGeoMocks.getEntry.mockReturnValue({ status: 'success', label: 'CN · Guangdong · Shenzhen', detail: {} })
+
+    const wrapper = mount(UsageTable, {
+      props: {
+        groupedDetails: true,
+        data: [{
+          request_id: 'req-grouped-details-123456789',
+          title: 'Customer response title',
+          model: 'gpt-5.6-sol',
+          reasoning_effort: 'high',
+          inbound_endpoint: '/v1/responses',
+          ip_address: '121.35.47.43',
+          group: { name: 'Team Alpha' },
+          request_type: 'stream',
+          billing_mode: 'token',
+          created_at: '2026-08-30T12:34:56Z',
+        }],
+        loading: false,
+        columns: [],
+      },
+      global: {
+        stubs: {
+          DataTable: GroupedDetailsDataTableStub,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    expect(wrapper.find('[data-testid="grouped-detail-model"]').text()).toContain('High')
+    expect(wrapper.find('[data-testid="grouped-detail-endpoint"]').text()).toContain('/v1/responses')
+    expect(wrapper.find('[data-testid="grouped-detail-endpoint"]').text()).toContain('121.35.47.43')
+    expect(wrapper.find('[data-testid="grouped-detail-endpoint"]').text()).toContain('CN · Guangdong · Shenzhen')
+    expect(wrapper.find('[data-testid="grouped-detail-group"]').text()).toContain('Team Alpha')
+    expect(wrapper.find('[data-testid="grouped-detail-group"]').text()).toContain('usage.stream')
+    expect(wrapper.find('[data-testid="grouped-detail-group"]').text()).toContain('Token')
+    expect(wrapper.find('[data-testid="grouped-detail-created-at"]').text()).toContain('req-grouped-details-123456789')
+    expect(wrapper.find('[data-testid="grouped-detail-created-at"]').text()).toContain('Customer response title')
+
+    await wrapper.get('[data-testid="grouped-detail-copy"]').trigger('click')
+    expect(writeText).toHaveBeenCalledWith('req-grouped-details-123456789')
+    expect(wrapper.text()).toContain('usage.ipGeo.batchFetch')
+  })
+})
+
 // A DataTable stub that also renders cell-user, so the deleted badge can be asserted.
 const DataTableStubWithUser = {
   props: ['data'],

@@ -58,7 +58,10 @@
         </template>
 
         <template #cell-model="{ row }">
-          <div class="space-y-0.5 text-xs">
+          <div v-if="groupedDetails" data-testid="grouped-detail-model" class="text-xs text-gray-600 dark:text-gray-400">
+            {{ formatReasoningEffort(row.reasoning_effort) }}
+          </div>
+          <div v-else class="space-y-0.5 text-xs">
             <div v-if="row.model_mapping_chain && row.model_mapping_chain.includes('→')" class="space-y-0.5">
               <div v-for="(step, i) in row.model_mapping_chain.split('→')" :key="i"
                    class="break-all"
@@ -102,7 +105,7 @@
         </template>
 
         <template #cell-endpoint="{ row }">
-          <div class="max-w-[320px] space-y-1 text-xs">
+          <div :data-testid="groupedDetails ? 'grouped-detail-endpoint' : undefined" class="max-w-[320px] space-y-1 text-xs">
             <div class="break-all text-gray-700 dark:text-gray-300">
               <span class="font-medium text-gray-500 dark:text-gray-400">{{ t('usage.inbound') }}:</span>
               <span class="ml-1">{{ row.inbound_endpoint?.trim() || '-' }}</span>
@@ -111,18 +114,33 @@
               <span class="font-medium text-gray-500 dark:text-gray-400">{{ t('usage.upstream') }}:</span>
               <span class="ml-1">{{ row.upstream_endpoint?.trim() || '-' }}</span>
             </div>
+            <div v-if="groupedDetails && row.ip_address" class="break-all text-gray-700 dark:text-gray-300">
+              <span class="font-medium text-gray-500 dark:text-gray-400">IP:</span>
+              <span class="ml-1 font-mono">{{ row.ip_address }}</span>
+              <IpGeoCell :ip="row.ip_address" />
+            </div>
           </div>
         </template>
 
         <template #cell-group="{ row }">
-          <span
-            v-if="row.group"
-            class="inline-flex max-w-full items-center truncate rounded px-2 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200"
-            :title="row.group.name"
-          >
-            {{ row.group.name }}
-          </span>
-          <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
+          <div :data-testid="groupedDetails ? 'grouped-detail-group' : undefined" class="space-y-1">
+            <span
+              v-if="row.group"
+              class="inline-flex max-w-full items-center truncate rounded px-2 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200"
+              :title="row.group.name"
+            >
+              {{ row.group.name }}
+            </span>
+            <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
+            <div v-if="groupedDetails" class="flex flex-wrap gap-1">
+              <span class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium" :class="getRequestTypeBadgeClass(row)">
+                {{ getRequestTypeLabel(row) }}
+              </span>
+              <span class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium" :class="getBillingModeBadgeClass(getDisplayBillingMode(row))">
+                {{ getBillingModeLabel(getDisplayBillingMode(row), t) }}
+              </span>
+            </div>
+          </div>
         </template>
 
         <template #cell-stream="{ row }">
@@ -243,8 +261,27 @@
           </div>
         </template>
 
-        <template #cell-created_at="{ value }">
-          <span class="text-sm text-gray-600 dark:text-gray-400">{{ formatDateTime(value) }}</span>
+        <template #cell-created_at="{ row, value }">
+          <div v-if="groupedDetails" data-testid="grouped-detail-created-at" class="space-y-0.5">
+            <span class="block text-sm text-gray-600 dark:text-gray-400">{{ formatDateTime(value) }}</span>
+            <span v-if="row.request_id" class="block max-w-[160px] truncate font-mono text-xs text-gray-500 dark:text-gray-400" :title="row.request_id">
+              {{ row.request_id }}
+            </span>
+            <span v-if="row.title" class="block max-w-[240px] truncate text-xs text-gray-600 dark:text-gray-400" :title="row.title">
+              {{ row.title }}
+            </span>
+            <button
+              v-if="row.request_id"
+              data-testid="grouped-detail-copy"
+              type="button"
+              class="rounded p-0.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-gray-300"
+              :title="copiedRequestId === row.request_id ? t('keys.copied') : t('keys.copyToClipboard')"
+              @click="copyRequestId(row.request_id)"
+            >
+              <Icon :name="copiedRequestId === row.request_id ? 'check' : 'copy'" size="sm" class="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <span v-else class="text-sm text-gray-600 dark:text-gray-400">{{ formatDateTime(value) }}</span>
         </template>
 
         <template #cell-request_id="{ row }">
@@ -569,6 +606,7 @@ interface Props {
   defaultSortOrder?: 'asc' | 'desc'
   showAccountBilling?: boolean
   showUpstreamEndpoint?: boolean
+  groupedDetails?: boolean
   /** 嵌入统一卡片内使用：去掉自身卡片外观 */
   flat?: boolean
   stickyFirstColumn?: boolean
@@ -582,6 +620,7 @@ const props = withDefaults(defineProps<Props>(), {
   defaultSortOrder: 'asc',
   showAccountBilling: true,
   showUpstreamEndpoint: true,
+  groupedDetails: false,
   flat: false,
   stickyFirstColumn: true,
   stickyActionsColumn: true
@@ -598,7 +637,7 @@ const showAccountBilling = props.showAccountBilling
 const showUpstreamEndpoint = props.showUpstreamEndpoint
 const ipGeoBatchLoading = ref(false)
 
-const showIpGeoToolbar = computed(() => props.columns.some((col) => col.key === 'ip_address'))
+const showIpGeoToolbar = computed(() => props.columns.some((col) => col.key === 'ip_address') || (props.groupedDetails && currentPageIps.value.length > 0))
 
 const sentUpstreamModel = (row: AdminUsageLog): string => row.upstream_model?.trim() || row.model?.trim() || ''
 
