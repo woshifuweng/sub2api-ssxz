@@ -22,6 +22,27 @@ type ToastOptions = {
 
 type ToastPatch = Partial<Omit<Toast, 'id'>>
 
+function parseBaseVersion(version: string): number[] | null {
+  const match = version.trim().match(/^v?(\d+(?:\.\d+)*)(?:-[0-9a-z]+(?:[.-][0-9a-z]+)*)?$/i)
+  return match ? match[1].split('.').map(Number) : null
+}
+
+function resolveHasUpdate(current: string, latest: string, fallback: boolean): boolean {
+  const currentParts = parseBaseVersion(current)
+  const latestParts = parseBaseVersion(latest)
+  if (!currentParts || !latestParts) return fallback
+
+  const length = Math.max(currentParts.length, latestParts.length)
+  for (let index = 0; index < length; index++) {
+    const currentPart = currentParts[index] ?? 0
+    const latestPart = latestParts[index] ?? 0
+    if (latestPart > currentPart) return true
+    if (latestPart < currentPart) return false
+  }
+
+  return false
+}
+
 export const useAppStore = defineStore('app', () => {
   // ==================== State ====================
 
@@ -309,13 +330,18 @@ export const useAppStore = defineStore('app', () => {
     versionLoading.value = true
     try {
       const data = await checkUpdatesAPI(force)
+      const effectiveHasUpdate = resolveHasUpdate(
+        data.current_version,
+        data.latest_version,
+        data.has_update
+      )
       currentVersion.value = data.current_version
       latestVersion.value = data.latest_version
-      hasUpdate.value = data.has_update
+      hasUpdate.value = effectiveHasUpdate
       buildType.value = data.build_type || 'source'
       releaseInfo.value = data.release_info || null
       versionLoaded.value = true
-      return data
+      return { ...data, has_update: effectiveHasUpdate }
     } catch (error) {
       console.error('Failed to fetch version:', error)
       return null

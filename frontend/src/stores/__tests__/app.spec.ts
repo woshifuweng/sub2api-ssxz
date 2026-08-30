@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { getPublicSettings } from '@/api/auth'
+import { checkUpdates, type VersionInfo } from '@/api/admin/system'
 import type { PublicSettings } from '@/types'
 
 function createDeferred<T>() {
@@ -63,6 +64,17 @@ function createPublicSettings(overrides: Partial<PublicSettings> = {}): PublicSe
   }
 }
 
+function createVersionInfo(overrides: Partial<VersionInfo> = {}): VersionInfo {
+  return {
+    current_version: '1.0.0',
+    latest_version: '1.0.0',
+    has_update: false,
+    cached: false,
+    build_type: 'source',
+    ...overrides,
+  }
+}
+
 // Mock API 模块
 vi.mock('@/api/admin/system', () => ({
   checkUpdates: vi.fn(),
@@ -78,6 +90,7 @@ describe('useAppStore', () => {
     vi.useFakeTimers()
     localStorage.clear()
     vi.mocked(getPublicSettings).mockReset()
+    vi.mocked(checkUpdates).mockReset()
     // 清除 window.__APP_CONFIG__
     delete (window as any).__APP_CONFIG__
   })
@@ -318,6 +331,83 @@ describe('useAppStore', () => {
       expect(store.sidebarCollapsed).toBe(false)
       expect(store.loading).toBe(false)
       expect(store.toasts).toHaveLength(0)
+    })
+  })
+
+  // --- 版本检查 ---
+
+  describe('版本检查', () => {
+    it('当前 SSXZ 构建与 latest 数字基础版相同时不提示更新', async () => {
+      vi.mocked(checkUpdates).mockResolvedValue(createVersionInfo({
+        current_version: '0.1.183-ssxz.20260830.10',
+        latest_version: '0.1.183',
+        has_update: true,
+      }))
+      const store = useAppStore()
+
+      const result = await store.fetchVersion()
+
+      expect(store.hasUpdate).toBe(false)
+      expect(result?.has_update).toBe(false)
+    })
+
+    it('latest 数字基础版更高时提示更新', async () => {
+      vi.mocked(checkUpdates).mockResolvedValue(createVersionInfo({
+        current_version: 'v0.1.183-ssxz.20260830.10',
+        latest_version: 'v0.1.184-rc.1',
+        has_update: false,
+      }))
+      const store = useAppStore()
+
+      const result = await store.fetchVersion()
+
+      expect(store.hasUpdate).toBe(true)
+      expect(result?.has_update).toBe(true)
+    })
+
+    it('latest 数字基础版更低时不提示更新', async () => {
+      vi.mocked(checkUpdates).mockResolvedValue(createVersionInfo({
+        current_version: '0.1.183-ssxz.20260830.10',
+        latest_version: '0.1.182',
+        has_update: true,
+      }))
+      const store = useAppStore()
+
+      const result = await store.fetchVersion()
+
+      expect(store.hasUpdate).toBe(false)
+      expect(result?.has_update).toBe(false)
+    })
+
+    it('按数字而不是字符串比较多位版本号', async () => {
+      vi.mocked(checkUpdates).mockResolvedValue(createVersionInfo({
+        current_version: '1.9.9',
+        latest_version: '1.10.0',
+        has_update: false,
+      }))
+      const store = useAppStore()
+
+      const result = await store.fetchVersion()
+
+      expect(store.hasUpdate).toBe(true)
+      expect(result?.has_update).toBe(true)
+    })
+
+    it.each([
+      ['dev-build', '1.2.3', true],
+      ['1.2.3', 'latest', false],
+    ])('版本无法解析时回退后端判断（current=%s, latest=%s）', async (current, latest, fallback) => {
+      vi.mocked(checkUpdates).mockResolvedValue(createVersionInfo({
+        current_version: current,
+        latest_version: latest,
+        has_update: fallback,
+      }))
+      const store = useAppStore()
+
+      const result = await store.fetchVersion()
+
+      expect(store.hasUpdate).toBe(fallback)
+      expect(result?.has_update).toBe(fallback)
     })
   })
 
