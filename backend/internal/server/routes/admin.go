@@ -821,7 +821,7 @@ func registerAffiliateRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUp
 			users.POST("/batch-rate", gin.HandlerFunc(stepUpAuth), h.Admin.Affiliate.BatchSetRate)
 			users.GET("/:user_id/overview", h.Admin.Affiliate.GetUserOverview)
 			users.PUT("/:user_id", gin.HandlerFunc(stepUpAuth), h.Admin.Affiliate.UpdateUserSettings)
-			users.DELETE("/:user_id", h.Admin.Affiliate.ClearUserSettings)
+			users.DELETE("/:user_id", gin.HandlerFunc(stepUpAuth), h.Admin.Affiliate.ClearUserSettings)
 		}
 	}
 }
@@ -836,11 +836,11 @@ func registerAdminResellerRoutes(admin *gin.RouterGroup, h *handler.Handlers, st
 		reseller.GET("/agents", h.Reseller.AdminListAgents)
 		reseller.GET("/agents/:id", h.Reseller.AdminGetAgentDetail)
 		reseller.GET("/agents/:id/recruits", h.Reseller.AdminGetAgentRecruits)
-		reseller.PATCH("/agents/:id", h.Reseller.AdminUpdateAgent)
-		reseller.POST("/agents/:id/disable", h.Reseller.AdminDisableAgent)
-		reseller.POST("/agents/:id/enable", h.Reseller.AdminEnableAgent)
-		reseller.POST("/agents/:id/role", h.Reseller.AdminGrantRole)
-		reseller.DELETE("/agents/:id/role", h.Reseller.AdminRevokeRole)
+		reseller.PATCH("/agents/:id", gin.HandlerFunc(stepUpAuth), h.Reseller.AdminUpdateAgent)
+		reseller.POST("/agents/:id/disable", gin.HandlerFunc(stepUpAuth), h.Reseller.AdminDisableAgent)
+		reseller.POST("/agents/:id/enable", gin.HandlerFunc(stepUpAuth), h.Reseller.AdminEnableAgent)
+		reseller.POST("/agents/:id/role", gin.HandlerFunc(stepUpAuth), h.Reseller.AdminGrantRole)
+		reseller.DELETE("/agents/:id/role", gin.HandlerFunc(stepUpAuth), h.Reseller.AdminRevokeRole)
 		reseller.GET("/withdrawals", h.Reseller.AdminListWithdrawals)
 		reseller.POST("/withdrawals/:id/review", gin.HandlerFunc(stepUpAuth), h.Reseller.AdminReviewWithdrawal)
 	}

@@ -91,7 +91,7 @@ func RegisterPaymentRoutes(
 		{
 			adminOrders.GET("", adminPaymentHandler.ListOrders)
 			adminOrders.GET("/:id", adminPaymentHandler.GetOrderDetail)
-			adminOrders.POST("/:id/cancel", adminPaymentHandler.CancelOrder)
+			adminOrders.POST("/:id/cancel", gin.HandlerFunc(stepUpAuth), adminPaymentHandler.CancelOrder)
 			adminOrders.POST("/:id/retry", gin.HandlerFunc(stepUpAuth), adminPaymentHandler.RetryFulfillment)
 			adminOrders.POST("/:id/refund", gin.HandlerFunc(stepUpAuth), adminPaymentHandler.ProcessRefund)
 			adminOrders.POST("/:id/refund/query", gin.HandlerFunc(stepUpAuth), adminPaymentHandler.QueryAndFinalizeRefund)

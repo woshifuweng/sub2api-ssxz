@@ -336,6 +336,12 @@ func TestPaymentOrderIdempotencyFingerprintUsesBusinessInputsOnly(t *testing.T) 
 	third, err := paymentOrderIdempotencyFingerprint(differentAmount)
 	require.NoError(t, err)
 	require.NotEqual(t, first, third)
+
+	differentMethod := base
+	differentMethod.PaymentType = payment.TypeStripe
+	fourth, err := paymentOrderIdempotencyFingerprint(differentMethod)
+	require.NoError(t, err)
+	require.NotEqual(t, first, fourth)
 }
 
 func TestPaymentOrderIdempotencySnapshotPreservesCheckoutCredentials(t *testing.T) {
