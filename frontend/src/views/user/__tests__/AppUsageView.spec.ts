@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { usageAPI, keysAPI, authStore, appStore, copyToClipboard } = vi.hoisted(() => ({
+const { usageAPI, keysAPI, authStore, appStore } = vi.hoisted(() => ({
   usageAPI: {
     getStatsByDateRange: vi.fn(),
     query: vi.fn(),
@@ -23,8 +23,7 @@ const { usageAPI, keysAPI, authStore, appStore, copyToClipboard } = vi.hoisted((
   appStore: {
     showSuccess: vi.fn(),
     showError: vi.fn()
-  },
-  copyToClipboard: vi.fn()
+  }
 }))
 
 const messages: Record<string, string> = {
@@ -88,9 +87,6 @@ function translate(key: string, params?: Record<string, unknown>) {
 vi.mock('@/api', () => ({ usageAPI, keysAPI }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => appStore }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => authStore }))
-vi.mock('@/composables/useClipboard', () => ({
-  useClipboard: () => ({ copyToClipboard })
-}))
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
   return { ...actual, useI18n: () => ({ t: translate }) }
@@ -190,37 +186,6 @@ function readBlobText(blob: Blob) {
   })
 }
 
-function extractCssDeclarationBlock(css: string, selector: string) {
-  const flatRulePattern = /([^{}]+)\{([^{}]*)\}/g
-
-  for (const match of css.matchAll(flatRulePattern)) {
-    const selectors = match[1].split(',').map((candidate) => candidate.trim())
-    if (selectors.includes(selector)) return match[2]
-  }
-
-  throw new Error(`Missing CSS declaration block for ${selector}`)
-}
-
-function extractBalancedCssBlock(css: string, marker: string) {
-  const markerIndex = css.indexOf(marker)
-  if (markerIndex === -1) throw new Error(`Missing CSS marker: ${marker}`)
-
-  let openingBraceIndex = markerIndex + marker.length
-  while (/\s/.test(css[openingBraceIndex] || '')) openingBraceIndex += 1
-  if (css[openingBraceIndex] !== '{') throw new Error(`Missing opening brace after CSS marker: ${marker}`)
-
-  let depth = 0
-  for (let index = openingBraceIndex; index < css.length; index += 1) {
-    if (css[index] === '{') depth += 1
-    if (css[index] !== '}') continue
-
-    depth -= 1
-    if (depth === 0) return css.slice(openingBraceIndex + 1, index)
-  }
-
-  throw new Error(`Unbalanced CSS braces for marker: ${marker}`)
-}
-
 function usageRow(id: number, model: string) {
   return {
     id,
@@ -248,7 +213,6 @@ describe('AppUsageView compact usage details', () => {
     vi.clearAllMocks()
     keysAPI.list.mockResolvedValue({ items: [], total: 0, pages: 0 })
     authStore.refreshUser.mockResolvedValue(authStore.user)
-    copyToClipboard.mockResolvedValue(true)
     usageAPI.getStatsByDateRange.mockResolvedValue({
       total_requests: 2,
       total_tokens: 94,
@@ -308,41 +272,46 @@ describe('AppUsageView compact usage details', () => {
     })
   })
 
-  it('keeps scan-critical fields in the main row and reveals diagnostics on demand', async () => {
+  it('reuses the complete upstream usage table instead of hiding core fields in row details', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/user/AppUsageView.vue'), 'utf8')
+
+    expect(source).toContain("import UsageTable from '@/components/admin/usage/UsageTable.vue'")
+    expect(source).toContain('<UsageTable')
+
+    for (const key of [
+      'api_key',
+      'model',
+      'reasoning_effort',
+      'endpoint',
+      'ip_address',
+      'group',
+      'stream',
+      'billing_mode',
+      'tokens',
+      'cost',
+      'latency',
+      'created_at',
+      'request_id'
+    ]) {
+      expect(source).toContain(`key: '${key}'`)
+    }
+  })
+
+  it('keeps complete scan-critical fields in the main desktop row', async () => {
     const wrapper = mountView()
     await flushPromises()
 
     const headers = wrapper.findAll('thead th').map((header) => header.text())
-    expect(headers.slice(0, 5)).toEqual(['Created at', 'Model', 'Usage', 'Duration', 'Fee'])
-    expect(wrapper.findAll('tr.usage-row')).toHaveLength(2)
-    expect(wrapper.findAll('tr.usage-detail-row')).toHaveLength(0)
-    expect(wrapper.get('table').text()).not.toContain('/v1/responses')
-    expect(wrapper.get('table').text()).not.toContain('req-usage-1')
-    expect(wrapper.get('table').text()).not.toContain('Balance charge')
+    expect(headers).toHaveLength(13)
+    expect(wrapper.findAll('tbody tr[data-row-id]')).toHaveLength(2)
 
-    const rows = wrapper.findAll('tr.usage-row')
-    expect(rows[0].findAll('td')[4].text()).toBe('$0.28')
-    expect(rows[1].findAll('td')[4].text()).toBe('$0.00')
-
-    await rows[0].trigger('click')
-
-    expect(wrapper.findAll('tr.usage-detail-row')).toHaveLength(1)
-    expect(wrapper.get('tr.usage-detail-row').text()).toContain('/v1/responses')
-    expect(wrapper.get('tr.usage-detail-row').text()).toContain('Enterprise 70%')
-    expect(wrapper.get('tr.usage-detail-row').text()).toContain('Third-party access')
-    expect(wrapper.get('tr.usage-detail-row').text()).toContain('req-usage-1')
-    expect(wrapper.get('tr.usage-detail-row').text()).toContain('Balance charge')
-    expect(wrapper.get('tr.usage-detail-row').text()).toContain('Input 60')
-
-    await rows[1].trigger('click')
-
-    expect(wrapper.findAll('tr.usage-detail-row')).toHaveLength(1)
-    expect(wrapper.get('tr.usage-detail-row').text()).toContain('req-usage-2')
-    expect(wrapper.get('tr.usage-detail-row').text()).toContain('Slightly slower start')
-    expect(wrapper.get('tr.usage-detail-row').text()).toContain('No charge')
-
-    await wrapper.findAll('tr.usage-row')[1].trigger('click')
-    expect(wrapper.findAll('tr.usage-detail-row')).toHaveLength(0)
+    const tableText = wrapper.get('[data-testid="usage-native-table"]').text()
+    expect(tableText).toContain('enterprise-key')
+    expect(tableText).toContain('/v1/responses')
+    expect(tableText).toContain('Enterprise 70%')
+    expect(tableText).toContain('req-usage-1')
+    expect(tableText).toContain('$0.280000')
+    expect(tableText).toContain('60')
     expect(usageAPI.query).toHaveBeenCalledWith(expect.objectContaining({
       page: 1,
       page_size: 20
@@ -379,9 +348,9 @@ describe('AppUsageView compact usage details', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const cells = wrapper.get('tr.usage-row').findAll('td')
-    expect.soft(cells[3].text()).toBe('2m')
-    expect.soft(cells[4].text()).toBe('$0.00384')
+    const row = wrapper.get('tbody tr[data-row-id="103"]')
+    expect.soft(row.get('.usage-col-latency').text()).toContain('2m 0s')
+    expect.soft(row.get('.usage-col-cost').text()).toContain('$0.003840')
   })
 
   it('keeps summary statistics on the current month when detail dates change', async () => {
@@ -403,7 +372,7 @@ describe('AppUsageView compact usage details', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.findAll('tr.usage-row')).toHaveLength(2)
+    expect(wrapper.findAll('tbody tr[data-row-id]')).toHaveLength(2)
     expect(authStore.refreshUser).toHaveBeenCalledTimes(1)
 
     await wrapper.get('.refresh-button').trigger('click')
@@ -475,7 +444,7 @@ describe('AppUsageView compact usage details', () => {
     await flushPromises()
 
     expect.soft(wrapper.get('.refresh-button').attributes('disabled')).toBeUndefined()
-    expect.soft(wrapper.get('tr.usage-row .model-cell').text()).toBe('held-model-result')
+    expect.soft(wrapper.get('tbody tr[data-row-id] .usage-col-model').text()).toBe('held-model-result')
     expect(wrapper.get('.usage-pagination').text()).toContain('1 / 3')
   })
 
@@ -510,7 +479,7 @@ describe('AppUsageView compact usage details', () => {
     pendingPage.resolve({ items: [usageRow(204, 'page-two-result')], total: 41, pages: 3 })
     await flushPromises()
 
-    expect.soft(wrapper.get('tr.usage-row .model-cell').text()).toBe('page-two-result')
+    expect.soft(wrapper.get('tbody tr[data-row-id] .usage-col-model').text()).toBe('page-two-result')
     expect(wrapper.get('.usage-pagination').text()).toContain('2 / 3')
   })
 
@@ -694,119 +663,24 @@ describe('AppUsageView compact usage details', () => {
     }
   })
 
-  it('copies the support code without collapsing the expanded row', async () => {
+  it('keeps the support code visible with a copy control', async () => {
     const wrapper = mountView()
     await flushPromises()
 
-    await wrapper.get('tr.usage-row').trigger('click')
-    await wrapper.get('.support-code-button').trigger('click')
-    await flushPromises()
-
-    expect(copyToClipboard).toHaveBeenCalledWith('req-usage-1', 'Support code copied')
-    expect(wrapper.findAll('tr.usage-detail-row')).toHaveLength(1)
+    const supportCell = wrapper.get('tbody tr[data-row-id="101"] .usage-col-support')
+    expect(supportCell.text()).toContain('req-usage-1')
+    expect(supportCell.find('button').exists()).toBe(true)
   })
 
-  it('aligns numeric headers and values on the same right edge', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    const headers = wrapper.findAll('thead th.num-cell')
-    const values = wrapper.get('tr.usage-row').findAll('td.num-cell')
+  it('keeps wide data inside the table and delegates mobile rendering to the native DataTable cards', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/views/user/AppUsageView.vue'), 'utf8')
+    const nativeTableSource = readFileSync(resolve(process.cwd(), 'src/components/admin/usage/UsageTable.vue'), 'utf8')
+    const dataTableSource = readFileSync(resolve(process.cwd(), 'src/components/common/DataTable.vue'), 'utf8')
 
-    expect(headers).toHaveLength(3)
-    expect(values).toHaveLength(3)
-    expect(source).toMatch(/\.usage-table th\.num-cell,\s*\.usage-table td\.num-cell\s*{\s*text-align:\s*right;/)
-  })
-
-  it('rejects missing or unbalanced mobile media blocks', () => {
-    const marker = '@media (max-width: 640px)'
-
-    expect(() => extractBalancedCssBlock('.usage-row { display: grid; }', marker))
-      .toThrow(`Missing CSS marker: ${marker}`)
-    expect(() => extractBalancedCssBlock(`${marker} { .usage-row { display: grid; }`, marker))
-      .toThrow(`Unbalanced CSS braces for marker: ${marker}`)
-  })
-
-  it('exposes mobile card labels and the 640px responsive layout contract', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    const cells = wrapper.get('tr.usage-row').findAll('td')
-    const toggle = wrapper.get('tr.usage-row .row-toggle-cell button.row-toggle')
-    const source = readFileSync(resolve(process.cwd(), 'src/views/user/AppUsageView.vue'), 'utf8')
-    const mobileStyles = extractBalancedCssBlock(source, '@media (max-width: 640px)')
-
-    expect(cells.slice(0, 5).map((cell) => cell.attributes('data-label'))).toEqual([
-      'Created at',
-      'Model',
-      'Usage',
-      'Duration',
-      'Fee'
-    ])
-    expect(toggle.attributes('type')).toBe('button')
-
-    const tableWrapBlock = extractCssDeclarationBlock(mobileStyles, '.usage-table-wrap')
-    expect(tableWrapBlock).toMatch(/^\s*max-width:\s*100%;\s*$/m)
-    expect(tableWrapBlock).toMatch(/^\s*overflow-x:\s*(?:clip|hidden);\s*$/m)
-
-    const tableBlock = extractCssDeclarationBlock(mobileStyles, '.usage-table')
-    expect(tableBlock).toMatch(/^\s*max-width:\s*100%;\s*$/m)
-    expect(tableBlock).toMatch(/^\s*min-width:\s*0;\s*$/m)
-
-    const tableHeadBlock = extractCssDeclarationBlock(mobileStyles, '.usage-table thead')
-    expect(tableHeadBlock).toMatch(/^\s*position:\s*absolute;\s*$/m)
-    expect(tableHeadBlock).toMatch(/^\s*clip:\s*[^;]+;\s*$/m)
-
-    const tableBodyBlock = extractCssDeclarationBlock(mobileStyles, '.usage-table tbody')
-    expect(tableBodyBlock).toMatch(/^\s*display:\s*block;\s*$/m)
-
-    const usageRowBlock = extractCssDeclarationBlock(mobileStyles, '.usage-row')
-    expect(usageRowBlock).toMatch(/^\s*display:\s*grid;\s*$/m)
-    expect(usageRowBlock).toMatch(/^\s*width:\s*100%;\s*$/m)
-    expect(usageRowBlock).toMatch(/^\s*max-width:\s*100%;\s*$/m)
-    expect(usageRowBlock).toMatch(/^\s*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);\s*$/m)
-    expect(usageRowBlock).toMatch(/^\s*margin-top:\s*0\.75rem;\s*$/m)
-    expect(usageRowBlock).toMatch(/^\s*border:\s*1px solid var\(--ssxz-border\);\s*$/m)
-    expect(usageRowBlock).toMatch(/^\s*border-radius:\s*var\(--ssxz-radius-card\);\s*$/m)
-
-    const usageCellBlock = extractCssDeclarationBlock(mobileStyles, '.usage-row td')
-    expect(usageCellBlock).toMatch(/^\s*min-width:\s*0;\s*$/m)
-    expect(usageCellBlock).toMatch(/^\s*white-space:\s*normal;\s*$/m)
-    expect(usageCellBlock).toMatch(/^\s*overflow-wrap:\s*anywhere;\s*$/m)
-    expect(usageCellBlock).toMatch(/^\s*word-break:\s*break-word;\s*$/m)
-
-    const labelBlock = extractCssDeclarationBlock(mobileStyles, '.usage-row td::before')
-    expect(labelBlock).toMatch(/^\s*content:\s*attr\(data-label\);\s*$/m)
-
-    const toggleBlock = extractCssDeclarationBlock(mobileStyles, '.usage-row .row-toggle-cell')
-    expect(toggleBlock).toMatch(/^\s*position:\s*absolute;\s*$/m)
-    expect(toggleBlock).toMatch(/^\s*top:\s*0\.65rem;\s*$/m)
-    expect(toggleBlock).toMatch(/^\s*right:\s*0\.65rem;\s*$/m)
-
-    const firstRowBlock = extractCssDeclarationBlock(mobileStyles, '.usage-row:first-child')
-    expect(firstRowBlock).toMatch(/^\s*margin-top:\s*0;\s*$/m)
-
-    for (const selector of ['.usage-row .time-cell', '.usage-row .model-cell', '.usage-row .fee-cell']) {
-      const fullWidthCellBlock = extractCssDeclarationBlock(mobileStyles, selector)
-      expect(fullWidthCellBlock).toMatch(/^\s*grid-column:\s*1 \/ -1;\s*$/m)
-    }
-
-    const expandedRowBlock = extractCssDeclarationBlock(mobileStyles, '.usage-row.is-expanded')
-    expect(expandedRowBlock).toMatch(/^\s*border-radius:\s*var\(--ssxz-radius-card\) var\(--ssxz-radius-card\) 0 0;\s*$/m)
-
-    const detailRowBlock = extractCssDeclarationBlock(mobileStyles, '.usage-detail-row')
-    expect(detailRowBlock).toMatch(/^\s*display:\s*block;\s*$/m)
-    expect(detailRowBlock).toMatch(/^\s*width:\s*100%;\s*$/m)
-    expect(detailRowBlock).toMatch(/^\s*max-width:\s*100%;\s*$/m)
-    expect(detailRowBlock).toMatch(/^\s*border:\s*1px solid var\(--ssxz-border\);\s*$/m)
-    expect(detailRowBlock).toMatch(/^\s*border-top:\s*0;\s*$/m)
-    expect(detailRowBlock).toMatch(/^\s*border-radius:\s*0 0 var\(--ssxz-radius-card\) var\(--ssxz-radius-card\);\s*$/m)
-
-    const detailCellBlock = extractCssDeclarationBlock(mobileStyles, '.usage-detail-row td')
-    expect(detailCellBlock).toMatch(/^\s*display:\s*block;\s*$/m)
-    expect(detailCellBlock).toMatch(/^\s*width:\s*100%;\s*$/m)
-    expect(detailCellBlock).toMatch(/^\s*max-width:\s*100%;\s*$/m)
-    expect(detailCellBlock).toMatch(/^\s*border-bottom:\s*0;\s*$/m)
+    expect(source).toMatch(/\.usage-native-table\s+:deep\(\.table-wrapper\)[\s\S]*overflow-x:\s*auto/)
+    expect(source).toMatch(/\.usage-native-table\s+:deep\(table\)[\s\S]*min-width:\s*89\.5rem/)
+    expect(nativeTableSource).toContain('<DataTable')
+    expect(dataTableSource).toContain('v-if="!isDesktopViewport"')
+    expect(dataTableSource).toContain(':data-field="column.key"')
   })
 })

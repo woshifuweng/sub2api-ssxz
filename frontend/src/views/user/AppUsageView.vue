@@ -156,120 +156,14 @@
           </RouterLink>
         </div>
 
-        <div v-else class="usage-table-wrap">
-          <table class="usage-table f0-table">
-            <thead>
-              <tr>
-                <th>{{ t('usage.workbench.createdAt') }}</th>
-                <th>{{ t('usage.workbench.model') }}</th>
-                <th class="num-cell">{{ t('usage.workbench.amount') }}</th>
-                <th class="num-cell">{{ t('usage.workbench.duration') }}</th>
-                <th class="num-cell fee-th" :title="t('usage.workbench.feeTooltip')">
-                  {{ t('usage.workbench.fee') }}
-                </th>
-                <th class="row-toggle-th">
-                  <span class="sr-only">{{ t('usage.workbench.expandRow') }}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <template v-for="row in usageRows" :key="rowKey(row)">
-                <tr
-                  class="usage-row"
-                  :class="{ 'is-expanded': isRowExpanded(row) }"
-                  @click="toggleRow(row)"
-                >
-                  <td
-                    class="time-cell"
-                    :data-label="t('usage.workbench.createdAt')"
-                    :title="formatDateTime(row.created_at)"
-                  >
-                    {{ formatShortDateTime(row.created_at) }}
-                  </td>
-                  <td class="model-cell" :data-label="t('usage.workbench.model')">{{ row.model || '-' }}</td>
-                  <td class="num-cell" :data-label="t('usage.workbench.amount')">{{ formatUsageAmount(row) }}</td>
-                  <td
-                    class="num-cell"
-                    :class="{ 'is-slow': isSlowRow(row) }"
-                    :data-label="t('usage.workbench.duration')"
-                  >
-                    <span :title="durationCellTitle(row)">{{ formatLatency(row.duration_ms) }}</span>
-                  </td>
-                  <td class="num-cell fee-cell" :data-label="t('usage.workbench.fee')">
-                    <span
-                      :class="{ 'is-muted-fee': isNoCharge(row) }"
-                      :title="formatCostTitle(row.actual_cost)"
-                    >{{ formatCost(row.actual_cost) }}</span>
-                  </td>
-                  <td class="row-toggle-cell">
-                    <button
-                      type="button"
-                      class="row-toggle"
-                      :aria-expanded="isRowExpanded(row)"
-                      :aria-label="isRowExpanded(row) ? t('usage.workbench.collapseRow') : t('usage.workbench.expandRow')"
-                      @click.stop="toggleRow(row)"
-                    >
-                      <Icon name="chevronDown" size="xs" />
-                    </button>
-                  </td>
-                </tr>
-                <tr v-if="isRowExpanded(row)" class="usage-detail-row">
-                  <td colspan="6">
-                    <dl class="usage-detail-grid">
-                      <div v-if="resolveSupportCode(row)">
-                        <dt>{{ t('usage.workbench.supportCode') }}</dt>
-                        <dd>
-                          <code>{{ resolveSupportCode(row) }}</code>
-                          <button
-                            type="button"
-                            class="support-code-button"
-                            :aria-label="t('usage.workbench.copySupportCode')"
-                            :title="t('usage.workbench.copySupportCode')"
-                            @click.stop="copySupportCode(row)"
-                          >
-                            {{ copiedSupportCode === resolveSupportCode(row) ? t('usage.workbench.copied') : t('usage.workbench.copy') }}
-                          </button>
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>{{ t('usage.workbench.kind') }}</dt>
-                        <dd>{{ formatUsageKind(row) }} · {{ formatSource(row) }}</dd>
-                      </div>
-                      <div>
-                        <dt>{{ t('usage.workbench.endpoint') }}</dt>
-                        <dd><code>{{ resolveEndpoint(row) }}</code></dd>
-                      </div>
-                      <div>
-                        <dt>{{ t('usage.workbench.group') }}</dt>
-                        <dd>{{ resolveGroupName(row) }}</dd>
-                      </div>
-                      <div>
-                        <dt>{{ t('usage.workbench.billingBasis') }}</dt>
-                        <dd>{{ formatBillingType(row) }} · {{ formatBillingBasis(row) }}</dd>
-                      </div>
-                      <div v-if="!isImageRow(row)">
-                        <dt>{{ t('usage.tokenDetails') }}</dt>
-                        <dd>{{ formatTokenBreakdown(row) }}</dd>
-                      </div>
-                      <div>
-                        <dt>{{ t('usage.workbench.performance') }}</dt>
-                        <dd>
-                          <span class="performance-badge" :class="performanceBadgeClass(row)">
-                            {{ formatPerformanceStatus(row) }}
-                          </span>
-                          {{ formatPerformanceSummary(row) }}
-                        </dd>
-                      </div>
-                      <div v-if="detailNote(row)">
-                        <dt>{{ t('usage.workbench.detailNote') }}</dt>
-                        <dd>{{ detailNote(row) }}</dd>
-                      </div>
-                    </dl>
-                  </td>
-                </tr>
-              </template>
-            </tbody>
-          </table>
+        <div v-else class="usage-native-table" data-testid="usage-native-table">
+          <UsageTable
+            :data="usageRows"
+            :columns="usageTableColumns"
+            :show-account-billing="false"
+            :show-upstream-endpoint="false"
+            flat
+          />
         </div>
         <div v-if="!loading && totalRows > 0" class="usage-pagination">
           <span>{{ t('usage.workbench.paginationSummary', { total: totalRows }) }}</span>
@@ -294,14 +188,14 @@ import { useI18n } from 'vue-i18n'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import Select from '@/components/common/Select.vue'
+import UsageTable from '@/components/admin/usage/UsageTable.vue'
 import { keysAPI, usageAPI } from '@/api'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
-import { useClipboard } from '@/composables/useClipboard'
 import type { ApiKey, TrendDataPoint, UsageLog, UsageQueryParams, UsageStatsResponse } from '@/types'
+import type { Column } from '@/components/common/types'
 import {
   formatCurrency as formatMoney,
-  formatCurrencyExact,
   formatCurrencyTitle as formatMoneyTitle
 } from '@/utils/format'
 
@@ -316,7 +210,6 @@ interface MonthlyUsage {
 const { t } = useI18n()
 const authStore = useAuthStore()
 const appStore = useAppStore()
-const { copyToClipboard } = useClipboard()
 const usageRows = ref<UsageLog[]>([])
 const usageStats = ref<UsageStatsResponse | null>(null)
 const monthlySeries = ref<MonthlyUsage[]>([])
@@ -325,12 +218,10 @@ const detailsLoadError = ref(false)
 const statsLoadError = ref(false)
 const trendLoadError = ref(false)
 const balanceRefreshError = ref(false)
-const copiedSupportCode = ref<string | null>(null)
 const apiKeys = ref<ApiKey[]>([])
 const exporting = ref(false)
 const page = ref(1)
 const pageSize = 20
-const expandedRowKey = ref<string | null>(null)
 const totalRows = ref(0)
 const totalPages = ref(1)
 let loadRequestSequence = 0
@@ -392,6 +283,21 @@ const apiKeyOptions = computed(() => [
   { value: null, label: t('usage.allApiKeys') },
   ...apiKeys.value.map((key) => ({ value: key.id, label: key.name }))
 ])
+const usageTableColumns = computed<Column[]>(() => [
+  { key: 'api_key', label: t('usage.apiKeyFilter'), class: 'usage-col-api-key' },
+  { key: 'model', label: t('usage.model'), sortable: true, class: 'usage-col-model' },
+  { key: 'reasoning_effort', label: t('usage.reasoningEffort'), class: 'usage-col-reasoning' },
+  { key: 'endpoint', label: t('usage.endpoint'), class: 'usage-col-endpoint' },
+  { key: 'ip_address', label: t('admin.usage.ipAddress'), class: 'usage-col-ip' },
+  { key: 'group', label: t('admin.usage.group'), class: 'usage-col-group' },
+  { key: 'stream', label: t('usage.type'), class: 'usage-col-type' },
+  { key: 'billing_mode', label: t('admin.usage.billingMode'), class: 'usage-col-billing' },
+  { key: 'tokens', label: t('usage.tokens'), class: 'usage-col-tokens' },
+  { key: 'cost', label: t('usage.cost'), class: 'usage-col-cost' },
+  { key: 'latency', label: t('usage.duration'), class: 'usage-col-latency' },
+  { key: 'created_at', label: t('usage.time'), sortable: true, class: 'usage-col-time' },
+  { key: 'request_id', label: t('usage.workbench.supportCode'), class: 'usage-col-support' }
+])
 const controlsDisabled = computed(() => loading.value || exporting.value)
 const chartMax = computed(() => Math.max(1, ...monthlySeries.value.map((item) => chartMetric(item))))
 
@@ -413,7 +319,6 @@ async function loadUsageOverview() {
   detailsLoadError.value = false
   statsLoadError.value = false
   trendLoadError.value = false
-  expandedRowKey.value = null
 
   const [statsResult, logsResult, trendResult] = await Promise.allSettled([
     usageAPI.getStatsByDateRange(
@@ -629,14 +534,6 @@ function formatMonthlyValue(item: MonthlyUsage) {
   return t('usage.workbench.requestCount', { count: formatNumber(item.requests) })
 }
 
-function formatUsageKind(row: UsageLog) {
-  const endpoint = resolveEndpoint(row)
-  if (row.image_count > 0 || endpoint.includes('/images/')) return t('usage.workbench.usageKindImage')
-  if (endpoint.includes('/chat/')) return t('usage.workbench.usageKindChat')
-  if (hasApiKey(row)) return t('usage.workbench.usageKindThirdParty')
-  return t('usage.workbench.usageKindWeb')
-}
-
 function resolveEndpoint(row: UsageLog) {
   return row.inbound_endpoint || '-'
 }
@@ -652,208 +549,12 @@ function resolveGroupName(row: UsageLog) {
   return t('usage.workbench.noGroup')
 }
 
-function hasApiKey(row: UsageLog) {
-  return Boolean(row.api_key_id || row.api_key?.id)
-}
-
-function rowKey(row: UsageLog) {
-  return String(row.id ?? row.request_id ?? '')
-}
-
-function isRowExpanded(row: UsageLog) {
-  return expandedRowKey.value === rowKey(row)
-}
-
-function toggleRow(row: UsageLog) {
-  const key = rowKey(row)
-  expandedRowKey.value = expandedRowKey.value === key ? null : key
-}
-
-function isImageRow(row: UsageLog) {
-  return Number(row.image_count || 0) > 0
-}
-
-function isSlowRow(row: UsageLog) {
-  return isSlowFirstToken(row) || isSlowTotalDuration(row)
-}
-
-function durationCellTitle(row: UsageLog) {
-  const summary = formatPerformanceSummary(row)
-  const hint = formatPerformanceHint(row)
-  return hint ? `${summary}\n${hint}` : summary
-}
-
-function formatTokenBreakdown(row: UsageLog) {
-  return t('usage.workbench.tokenBreakdown', {
-    input: formatNumber(Number(row.input_tokens || 0)),
-    output: formatNumber(Number(row.output_tokens || 0)),
-    cacheWrite: formatNumber(Number(row.cache_creation_tokens || 0)),
-    cacheRead: formatNumber(Number(row.cache_read_tokens || 0))
-  })
-}
-
-function detailNote(row: UsageLog) {
-  const notes: string[] = []
-  if (isNoCharge(row)) notes.push(t('usage.workbench.noCharge'))
-  else if (isZeroTokenCharged(row)) notes.push(t('usage.workbench.zeroTokenCharged'))
-  const hint = formatPerformanceHint(row)
-  if (hint) notes.push(hint)
-  return notes.join(' ')
-}
-
-async function copySupportCode(row: UsageLog) {
-  const supportCode = resolveSupportCode(row)
-  if (!supportCode) return
-  const copied = await copyToClipboard(supportCode, t('usage.workbench.supportCodeCopied'))
-  if (!copied) return
-  copiedSupportCode.value = supportCode
-  window.setTimeout(() => {
-    if (copiedSupportCode.value === supportCode) copiedSupportCode.value = null
-  }, 2000)
-}
-
-function formatSource(row: UsageLog) {
-  return hasApiKey(row) ? t('usage.workbench.usageKindThirdParty') : t('usage.workbench.usageKindWeb')
-}
-
-function formatUsageAmount(row: UsageLog) {
-  if (row.image_count > 0) {
-    const count = formatNumber(Number(row.image_count || 0))
-    if (row.image_size) return t('usage.workbench.imageAmountWithSize', { count, size: row.image_size })
-    return t('usage.workbench.imageAmount', { count })
-  }
-  const tokens = Number(row.input_tokens || 0) + Number(row.output_tokens || 0) + Number(row.cache_creation_tokens || 0) + Number(row.cache_read_tokens || 0)
-  return t('usage.workbench.tokenAmount', { count: formatNumber(tokens) })
-}
-
-function formatBillingType(row: UsageLog) {
-  if (isNoCharge(row)) return t('usage.workbench.billingNoCharge')
-  if (Number(row.billing_type) === 1) return t('usage.workbench.billingSubscription')
-  return t('usage.workbench.billingBalance')
-}
-
-function formatBillingBasis(row: UsageLog) {
-  const standardCost = Number(row.total_cost || 0)
-  const actualCost = Number(row.actual_cost || 0)
-  if (isNoCharge(row)) return t('usage.workbench.noChargeBasis')
-  if (standardCost > 0 && Math.abs(standardCost - actualCost) > 0.000001) {
-    return t('usage.workbench.standardVsActual', {
-      standard: formatCost(standardCost),
-      actual: formatCost(actualCost)
-    })
-  }
-  return t('usage.workbench.actualChargeBasis', { amount: formatCost(actualCost) })
-}
-
-function formatPerformanceStatus(row: UsageLog) {
-  if (!hasLatencyRecord(row)) return t('usage.workbench.performanceUnknown')
-  if (isSlowFirstToken(row)) return t('usage.workbench.performanceSlowFirstToken')
-  if (isSlowTotalDuration(row)) return t('usage.workbench.performanceSlowTotal')
-  return t('usage.workbench.performanceHealthy')
-}
-
-function formatPerformanceSummary(row: UsageLog) {
-  if (!hasLatencyRecord(row)) return t('usage.workbench.performanceNoRecord')
-  return t('usage.workbench.performanceSummary', {
-    firstToken: formatLatency(row.first_token_ms),
-    duration: formatLatency(row.duration_ms)
-  })
-}
-
-function formatPerformanceHint(row: UsageLog) {
-  if (isSlowFirstToken(row)) return t('usage.workbench.performanceSlowFirstTokenHint')
-  if (isSlowTotalDuration(row)) return t('usage.workbench.performanceSlowTotalHint')
-  return ''
-}
-
-function performanceBadgeClass(row: UsageLog) {
-  if (!hasLatencyRecord(row)) return 'is-muted'
-  if (isSlowFirstToken(row) || isSlowTotalDuration(row)) return 'is-warning'
-  return 'is-normal'
-}
-
-function hasLatencyRecord(row: UsageLog) {
-  return isFiniteLatency(row.duration_ms) || isFiniteLatency(row.first_token_ms)
-}
-
-function isSlowFirstToken(row: UsageLog) {
-  return isFiniteLatency(row.first_token_ms) && Number(row.first_token_ms) > 5000
-}
-
-function isSlowTotalDuration(row: UsageLog) {
-  return isFiniteLatency(row.duration_ms) && Number(row.duration_ms) >= 60000
-}
-
-function isFiniteLatency(value: number | null | undefined) {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
-}
-
-function formatLatency(value: number | null | undefined) {
-  if (!isFiniteLatency(value)) return '-'
-  const ms = Number(value)
-  if (ms < 1000) return `${Math.round(ms)} ms`
-  if (ms < 60000) {
-    const digits = ms < 10000 ? 1 : 0
-    return `${(ms / 1000).toFixed(digits)} s`
-  }
-  const totalSeconds = Math.round(ms / 1000)
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-  if (seconds <= 0) return `${minutes}m`
-  return `${minutes}m ${seconds}s`
-}
-
-function formatCost(value: number | null | undefined) {
-  const amount = Number(value || 0)
-  if (amount !== 0 && Math.abs(amount) < 0.01) return formatCurrencyExact(amount)
-  return formatMoney(amount)
-}
-
 function formatCostTitle(value: number | null | undefined) {
   return formatMoneyTitle(Number(value || 0))
 }
 
-function isNoCharge(row: UsageLog) {
-  return Number(row.actual_cost || 0) <= 0
-}
-
-function isZeroTokenCharged(row: UsageLog) {
-  const tokenTotal = Number(row.input_tokens || 0)
-    + Number(row.output_tokens || 0)
-    + Number(row.cache_creation_tokens || 0)
-    + Number(row.cache_read_tokens || 0)
-  return tokenTotal <= 0 && Number(row.actual_cost || 0) > 0
-}
-
 function formatNumber(value: number) {
   return Number(value || 0).toLocaleString()
-}
-
-function formatDateTime(value: string) {
-  if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '-'
-  return date.toLocaleString(undefined, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  })
-}
-
-function formatShortDateTime(value: string) {
-  if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '-'
-  return date.toLocaleString(undefined, {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  })
 }
 
 function toDateKey(date: Date) {
@@ -941,8 +642,7 @@ function toDateKey(date: Date) {
 
 .usage-summary-card span,
 .panel-heading p,
-.usage-empty span,
-.usage-table th {
+.usage-empty span {
   color: var(--ssxz-text-muted);
 }
 
@@ -1159,193 +859,83 @@ function toDateKey(date: Date) {
   line-height: 1.6;
 }
 
-.usage-table-wrap {
+.usage-native-table {
+  overflow: hidden;
+  padding: 0.75rem;
+}
+
+.usage-native-table :deep(.overflow-auto),
+.usage-native-table :deep(.table-wrapper) {
+  max-width: 100%;
   overflow-x: auto;
-  padding: 0.85rem;
+  overscroll-behavior-inline: contain;
 }
 
-.usage-table {
+.usage-native-table :deep(table) {
   width: 100%;
-  min-width: 40rem;
-  border-collapse: collapse;
-  color: var(--ssxz-text-secondary);
-  font-size: 0.86rem;
+  min-width: 89.5rem;
+  table-layout: fixed;
 }
 
-.usage-table th,
-.usage-table td {
-  border-bottom: 1px solid var(--ssxz-border);
-  padding: 0.5rem 0.75rem;
-  text-align: left;
-  vertical-align: middle;
+.usage-native-table :deep(.table-header),
+.usage-native-table :deep(.table-body) {
+  background: var(--ssxz-surface-raised);
+}
+
+.usage-native-table :deep(th) {
+  background: color-mix(in srgb, var(--ssxz-surface-muted) 72%, transparent);
+  color: var(--ssxz-subtle);
+  font-size: 0.72rem;
+  letter-spacing: 0;
   white-space: nowrap;
 }
 
-.usage-table th {
-  background: color-mix(in srgb, var(--ssxz-surface-muted) 70%, transparent);
-  font-size: 0.76rem;
-  font-weight: 850;
+.usage-native-table :deep(td) {
+  border-color: color-mix(in srgb, var(--ssxz-border) 70%, transparent);
+  color: var(--ssxz-body);
+  vertical-align: middle;
 }
 
-.usage-table tbody tr:hover {
-  background: color-mix(in srgb, var(--ssxz-action-soft) 38%, transparent);
+.usage-native-table :deep(tbody tr:hover) {
+  background: color-mix(in srgb, var(--ssxz-action-soft) 34%, transparent);
 }
 
-.model-cell {
-  color: var(--ssxz-text-primary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.8rem;
-  font-weight: 700;
+.usage-native-table :deep(.usage-col-api-key) { width: 7.5rem; }
+.usage-native-table :deep(.usage-col-model) { width: 7.5rem; }
+.usage-native-table :deep(.usage-col-reasoning) { width: 5rem; }
+.usage-native-table :deep(.usage-col-endpoint) { width: 7rem; }
+.usage-native-table :deep(.usage-col-ip) { width: 7rem; }
+.usage-native-table :deep(.usage-col-group) { width: 8rem; }
+.usage-native-table :deep(.usage-col-type) { width: 4.5rem; }
+.usage-native-table :deep(.usage-col-billing) { width: 5.5rem; }
+.usage-native-table :deep(.usage-col-tokens) { width: 8.5rem; }
+.usage-native-table :deep(.usage-col-cost) { width: 6rem; }
+.usage-native-table :deep(.usage-col-latency) { width: 7.5rem; }
+.usage-native-table :deep(.usage-col-time) { width: 8rem; }
+.usage-native-table :deep(.usage-col-support) { width: 7rem; }
+
+.usage-native-table :deep(.usage-col-group > span),
+.usage-native-table :deep(.usage-col-support > div) {
+  max-width: 100%;
 }
 
-.num-cell {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.usage-table th.num-cell,
-.usage-table td.num-cell {
-  text-align: right;
-}
-
-.fee-th {
-  cursor: help;
-  text-decoration: underline dotted color-mix(in srgb, var(--ssxz-text-muted) 65%, transparent);
-  text-underline-offset: 0.2em;
-}
-
-.usage-row {
-  cursor: pointer;
-}
-
-.usage-row .is-slow span,
-.num-cell.is-slow span {
-  color: var(--ssxz-warning, #b45309);
-  font-weight: 750;
-}
-
-.is-muted-fee {
-  color: var(--ssxz-text-muted);
-}
-
-.row-toggle-th,
-.row-toggle-cell {
-  width: 2.2rem;
-  padding-right: 0.5rem;
-  padding-left: 0.25rem;
-}
-
-.row-toggle {
-  display: grid;
-  width: 1.6rem;
-  height: 1.6rem;
-  place-items: center;
-  border: 0;
-  border-radius: var(--ssxz-radius-button);
-  background: transparent;
-  color: var(--ssxz-text-muted);
-  cursor: pointer;
-}
-
-.row-toggle:hover,
-.row-toggle:focus-visible {
+.usage-native-table :deep(.usage-col-group > span) {
+  overflow: hidden;
   background: var(--ssxz-action-soft);
   color: var(--ssxz-action);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.row-toggle :deep(svg) {
-  transition: transform 140ms ease;
-}
+@media (max-width: 767px) {
+  .usage-native-table {
+    padding: 0.75rem;
+  }
 
-.usage-row.is-expanded .row-toggle :deep(svg) {
-  transform: rotate(180deg);
-}
-
-.usage-row.is-expanded td {
-  border-bottom: 0;
-}
-
-.usage-detail-row td {
-  background: color-mix(in srgb, var(--ssxz-surface-muted) 55%, transparent);
-  padding: 0.8rem 1rem 0.95rem;
-  white-space: normal;
-}
-
-.usage-detail-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-  gap: 0.7rem 1.4rem;
-  margin: 0;
-}
-
-.usage-detail-grid div {
-  display: grid;
-  min-width: 0;
-  gap: 0.2rem;
-}
-
-.usage-detail-grid dt {
-  color: var(--ssxz-text-muted);
-  font-size: 0.76rem;
-  font-weight: 800;
-}
-
-.usage-detail-grid dd {
-  margin: 0;
-  color: var(--ssxz-text-secondary);
-  font-size: 0.8rem;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-.usage-detail-grid code {
-  width: fit-content;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  border-radius: 0.45rem;
-  background: color-mix(in srgb, var(--ssxz-surface-muted) 80%, transparent);
-  color: var(--ssxz-text-primary);
-  padding: 0.16rem 0.34rem;
-  font-size: 0.76rem;
-}
-
-.performance-badge {
-  width: fit-content;
-  border-radius: 999px;
-  padding: 0.14rem 0.48rem;
-  font-size: 0.72rem;
-  font-weight: 850;
-}
-
-.performance-badge.is-normal {
-  background: color-mix(in srgb, var(--ssxz-success, #16a34a) 14%, transparent);
-  color: var(--ssxz-success, #15803d);
-}
-
-.performance-badge.is-warning {
-  background: color-mix(in srgb, var(--ssxz-warning, #d97706) 18%, transparent);
-  color: var(--ssxz-warning, #b45309);
-}
-
-.performance-badge.is-muted {
-  background: color-mix(in srgb, var(--ssxz-surface-muted) 84%, transparent);
-  color: var(--ssxz-text-muted);
-}
-
-.support-code-button {
-  width: fit-content;
-  border: 0;
-  background: transparent;
-  color: var(--ssxz-action);
-  cursor: pointer;
-  font-size: 0.72rem;
-  font-weight: 800;
-  padding: 0;
-  text-align: left;
-}
-
-.support-code-button:hover {
-  text-decoration: underline;
+  .usage-native-table :deep(.space-y-3 > div) {
+    border-color: var(--ssxz-border);
+    background: var(--ssxz-surface-raised);
+  }
 }
 
 @media (max-width: 1100px) {
@@ -1408,123 +998,4 @@ function toDateKey(date: Date) {
   }
 }
 
-@media (max-width: 640px) {
-  .usage-table-wrap {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: hidden;
-    padding: 0.75rem;
-  }
-
-  .usage-table {
-    display: block;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-  }
-
-  .usage-table thead {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    border: 0;
-    padding: 0;
-    clip: rect(0 0 0 0);
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .usage-table tbody {
-    display: block;
-    width: 100%;
-    max-width: 100%;
-  }
-
-  .usage-row {
-    position: relative;
-    display: grid;
-    width: 100%;
-    max-width: 100%;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.35rem 1rem;
-    margin-top: 0.75rem;
-    border: 1px solid var(--ssxz-border);
-    border-radius: var(--ssxz-radius-card);
-    background: var(--ssxz-surface);
-    padding: 0.8rem 3rem 0.8rem 0.9rem;
-  }
-
-  .usage-row:first-child {
-    margin-top: 0;
-  }
-
-  .usage-row td {
-    display: flex;
-    min-width: 0;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.65rem;
-    border-bottom: 0;
-    padding: 0.2rem 0;
-    text-align: right;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }
-
-  .usage-row td::before {
-    content: attr(data-label);
-    flex: 0 0 auto;
-    color: var(--ssxz-text-muted);
-    font-family: inherit;
-    font-size: 0.72rem;
-    font-weight: 800;
-  }
-
-  .usage-row .time-cell,
-  .usage-row .model-cell,
-  .usage-row .fee-cell {
-    grid-column: 1 / -1;
-  }
-
-  .usage-row .model-cell,
-  .usage-row td > span {
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .usage-row .row-toggle-cell {
-    position: absolute;
-    top: 0.65rem;
-    right: 0.65rem;
-    display: block;
-    width: auto;
-    padding: 0;
-  }
-
-  .usage-row.is-expanded {
-    border-radius: var(--ssxz-radius-card) var(--ssxz-radius-card) 0 0;
-  }
-
-  .usage-detail-row {
-    display: block;
-    width: 100%;
-    max-width: 100%;
-    border: 1px solid var(--ssxz-border);
-    border-top: 0;
-    border-radius: 0 0 var(--ssxz-radius-card) var(--ssxz-radius-card);
-    background: color-mix(in srgb, var(--ssxz-surface-muted) 55%, transparent);
-  }
-
-  .usage-detail-row td {
-    display: block;
-    width: 100%;
-    max-width: 100%;
-    border-bottom: 0;
-    border-radius: inherit;
-    padding: 0.8rem 0.9rem 0.95rem;
-  }
-}
 </style>

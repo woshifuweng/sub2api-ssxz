@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
@@ -319,6 +321,26 @@ describe('user KeysView column settings', () => {
     ])
     expect(visibleColumnKeys(wrapper)).not.toContain('rate_limit')
     expect(visibleColumnKeys(wrapper)).not.toContain('last_used_at')
+  })
+
+  it('gives every desktop column an explicit layout contract so group badges cannot cover usage', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/user/KeysView.vue'), 'utf8')
+
+    for (const className of [
+      'keys-col-name',
+      'keys-col-key',
+      'keys-col-group',
+      'keys-col-usage',
+      'keys-col-status',
+      'keys-col-expires',
+      'keys-col-created',
+      'keys-actions-column'
+    ]) {
+      expect(source).toContain(className)
+    }
+
+    expect(source).toContain('keys-group-cell')
+    expect(source).toMatch(/:deep\(\.table-scroll-container \.table-wrapper\)[\s\S]*overflow-x:\s*auto/)
   })
 
   it('renders the backend disabled status as a translated label', async () => {

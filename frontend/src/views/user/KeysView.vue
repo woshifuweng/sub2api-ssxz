@@ -209,26 +209,23 @@
             </template>
 
             <template #cell-group="{ row }">
-              <div class="relative">
+              <div class="keys-group-cell" :title="keyGroupTitle(row)">
                 <LiquidButton
                   :ref="(el) => setGroupButtonRef(row.id, el)"
                   @click="editKey(row)"
-                  class="-mx-2 -my-1 flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-dark-700"
+                  class="keys-group-button"
                   :title="t('common.edit')"
                   variant="plain"
                   size="sm"
                 >
                   <div
-                    v-if="(row.groups && row.groups.length > 0) || row.group"
-                    class="flex flex-wrap items-center gap-1.5"
+                    v-if="keyGroups(row).length > 0"
+                    class="keys-group-badges"
                   >
                     <GroupBadge
-                      v-for="group in row.groups && row.groups.length > 0
-                        ? row.groups.slice(0, 2)
-                        : row.group
-                          ? [row.group]
-                          : []"
+                      v-for="group in keyGroups(row).slice(0, 1)"
                       :key="group.id"
+                      class="keys-group-badge"
                       :name="formatGroupDisplayName(group)"
                       :platform="group.platform"
                       :subscription-type="group.subscription_type"
@@ -236,10 +233,10 @@
                       variant="outline"
                     />
                     <span
-                      v-if="row.groups && row.groups.length > 2"
-                      class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-dark-700 dark:text-gray-300"
+                      v-if="keyGroups(row).length > 1"
+                      class="keys-group-more"
                     >
-                      +{{ row.groups.length - 2 }}
+                      +{{ keyGroups(row).length - 1 }}
                     </span>
                   </div>
                   <span
@@ -1730,15 +1727,15 @@ const pageShellProps = computed(() =>
 );
 
 const allColumns = computed<Column[]>(() => [
-  { key: "name", label: t("common.name"), sortable: true },
-  { key: "key", label: t("keys.apiKey"), sortable: false },
-  { key: "group", label: t("keys.group"), sortable: false },
-  { key: "usage", label: t("keys.usage"), sortable: false },
-  { key: "rate_limit", label: t("keys.rateLimitColumn"), sortable: false },
-  { key: "status", label: t("common.status"), sortable: true },
-  { key: "expires_at", label: t("keys.expiresAt"), sortable: true },
-  { key: "last_used_at", label: t("keys.lastUsedAt"), sortable: true },
-  { key: "created_at", label: t("keys.created"), sortable: true },
+  { key: "name", label: t("common.name"), sortable: true, class: "keys-col-name" },
+  { key: "key", label: t("keys.apiKey"), sortable: false, class: "keys-col-key" },
+  { key: "group", label: t("keys.group"), sortable: false, class: "keys-col-group" },
+  { key: "usage", label: t("keys.usage"), sortable: false, class: "keys-col-usage" },
+  { key: "rate_limit", label: t("keys.rateLimitColumn"), sortable: false, class: "keys-col-rate" },
+  { key: "status", label: t("common.status"), sortable: true, class: "keys-col-status" },
+  { key: "expires_at", label: t("keys.expiresAt"), sortable: true, class: "keys-col-expires" },
+  { key: "last_used_at", label: t("keys.lastUsedAt"), sortable: true, class: "keys-col-last-used" },
+  { key: "created_at", label: t("keys.created"), sortable: true, class: "keys-col-created" },
   {
     key: "actions",
     label: t("common.actions"),
@@ -2073,6 +2070,16 @@ const statusOptions = computed(() => [
 
 function formatGroupDisplayName(group: Pick<Group, "name">) {
   return group.name?.trim() || "";
+}
+
+function keyGroups(row: ApiKey): Group[] {
+  if (row.groups?.length) return row.groups;
+  return row.group ? [row.group] : [];
+}
+
+function keyGroupTitle(row: ApiKey): string {
+  const names = keyGroups(row).map(formatGroupDisplayName).filter(Boolean);
+  return names.length ? names.join("、") : t("keys.noGroup");
 }
 
 function formatGroupDescription(group: Pick<Group, "description">) {
@@ -3304,13 +3311,14 @@ onUnmounted(() => {
 
 .keys-page-surface--workbench :deep(table) {
   width: 100%;
-  min-width: 100%;
+  min-width: 84.5rem;
   table-layout: fixed;
 }
 
 .keys-page-surface--workbench :deep(.table-scroll-container .table-wrapper) {
   max-height: none;
-  overflow-x: hidden;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
 }
 
 .keys-page-surface--workbench :deep(.table-scroll-container th) {
@@ -3330,6 +3338,16 @@ onUnmounted(() => {
   white-space: normal;
 }
 
+.keys-page-surface--workbench :deep(.keys-col-name) { width: 11rem; }
+.keys-page-surface--workbench :deep(.keys-col-key) { width: 9rem; }
+.keys-page-surface--workbench :deep(.keys-col-group) { width: 14rem; }
+.keys-page-surface--workbench :deep(.keys-col-usage) { width: 10rem; }
+.keys-page-surface--workbench :deep(.keys-col-rate) { width: 10rem; }
+.keys-page-surface--workbench :deep(.keys-col-status) { width: 7rem; }
+.keys-page-surface--workbench :deep(.keys-col-expires) { width: 9.5rem; }
+.keys-page-surface--workbench :deep(.keys-col-last-used) { width: 10rem; }
+.keys-page-surface--workbench :deep(.keys-col-created) { width: 10.5rem; }
+
 .keys-page-surface--workbench :deep(.keys-actions-column) {
   /* Five 2.15rem action buttons plus gaps and cell padding need this width. */
   width: 14.5rem;
@@ -3343,6 +3361,59 @@ onUnmounted(() => {
   justify-content: flex-end;
   gap: 0.35rem;
   white-space: nowrap;
+}
+
+.keys-group-cell,
+.keys-group-button,
+.keys-group-badges {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.keys-group-button {
+  display: flex;
+  cursor: pointer;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.4rem;
+  overflow: hidden;
+  border-radius: 0.65rem;
+  padding: 0.3rem 0.4rem;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.keys-group-button:hover,
+.keys-group-button:focus-visible {
+  background: var(--ssxz-surface-muted);
+  outline: none;
+}
+
+.keys-group-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  overflow: hidden;
+}
+
+.keys-group-badge {
+  min-width: 0;
+  max-width: calc(100% - 2.5rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.keys-group-more {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--ssxz-surface-muted);
+  color: var(--ssxz-text-muted);
+  padding: 0.14rem 0.42rem;
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .keys-usage-cell {
