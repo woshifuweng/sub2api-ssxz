@@ -6,7 +6,7 @@
 
 **Architecture:** Preserve the upstream-first Sub2API architecture and the existing SSXZ visual layer. Add narrowly scoped Go/Vitest regression tests around business boundaries, shell gates that compose existing test suites, and a disposable-database restore drill. Production remains read-only during implementation; code is validated locally and in the isolated staging environment before any separate production release decision.
 
-**Tech Stack:** Go 1.26, Gin, Ent, PostgreSQL, Redis, Vue 3, TypeScript, Vitest, Playwright-compatible browser checks, Bash, systemd.
+**Tech Stack:** Go 1.27, Gin, Ent, PostgreSQL, Redis, Vue 3, TypeScript, Vitest, Playwright-compatible browser checks, Bash, systemd.
 
 ---
 
@@ -21,8 +21,8 @@
 - [x] Run frontend lint: `pnpm --dir frontend run lint:check`.
 - [x] Run frontend typecheck: `pnpm --dir frontend run typecheck`.
 - [x] Run frontend tests with bounded workers: `pnpm --dir frontend exec vitest run --minWorkers=1 --maxWorkers=4`.
-- [ ] Add the exact low-balance, group lifecycle, idempotency, finance authorization, restore, responsive UI, and release-gate scenarios to the business regression matrix.
-- [ ] Commit the plan and matrix update.
+- [x] Add the exact low-balance, group lifecycle, idempotency, finance authorization, restore, responsive UI, and release-gate scenarios to the business regression matrix.
+- [x] Commit the plan and matrix update.
 
 ## Task 2: Add a real low-balance pricing matrix
 
@@ -32,12 +32,12 @@
 - Modify: `backend/internal/handler/gateway_handler_billing_error_test.go`
 - Modify: `backend/internal/handler/openai_gateway_handler_test.go`
 
-- [ ] Add failing tests for an omitted output limit receiving the 16,384 cap without replacing an explicit client limit.
-- [ ] Add failing tests proving a `$5.00` balance with a `0.35x` customer-group multiplier is checked against the calculated request estimate, not a fixed reserve.
-- [ ] Cover the exact boundaries: zero balance, one cent below estimate, exactly equal to estimate, and balance above estimate.
-- [ ] Prove an insufficient request is rejected before an upstream call, while an affordable request reaches the forwarding boundary.
-- [ ] Run the focused service and handler tests, then the complete backend suite.
-- [ ] Commit the low-balance regression matrix.
+- [x] Add failing tests for an omitted output limit receiving the 16,384 cap without replacing an explicit client limit.
+- [x] Add failing tests proving a `$5.00` balance with a `0.35x` customer-group multiplier is checked against the calculated request estimate, not a fixed reserve.
+- [x] Cover the exact boundaries: zero balance, one cent below estimate, exactly equal to estimate, and balance above estimate.
+- [x] Prove an insufficient request is rejected before an upstream call, while an affordable request reaches the forwarding boundary.
+- [x] Run the focused service and handler tests, then the complete backend suite.
+- [x] Commit the low-balance regression matrix.
 
 ## Task 3: Close the API-key and group lifecycle boundary
 
@@ -47,12 +47,12 @@
 - Modify: `backend/internal/handler/api_key_group_routing_test.go`
 - Modify: `backend/internal/repository/api_key_policy_compat_test.go`
 
-- [ ] Add a failing test showing an explicitly cleared `group_ids: []` persists as empty and cannot silently fall back to an old primary group.
-- [ ] Add a failing test showing a key bound to a disabled or soft-deleted group fails closed with `GROUP_NOT_ALLOWED`.
-- [ ] Add a multi-group test showing the selected request group is also the usage/billing group.
-- [ ] Verify cache hydration cannot restore a stale deleted binding.
-- [ ] Run focused middleware, handler, repository, and integration tests.
-- [ ] Commit the API-key/group lifecycle protection.
+- [x] Add a failing test showing an explicitly cleared `group_ids: []` persists as empty and cannot silently fall back to an old primary group.
+- [x] Add a failing test showing a key bound to a disabled or soft-deleted group fails closed with `GROUP_NOT_ALLOWED`.
+- [x] Add a multi-group test showing the selected request group is also the usage/billing group.
+- [x] Verify cache hydration cannot restore a stale deleted binding.
+- [x] Run focused middleware, handler, repository, and integration tests.
+- [x] Commit the API-key/group lifecycle protection.
 
 ## Task 4: Prove money mutations are replay-safe and properly authorized
 
@@ -63,13 +63,13 @@
 - Modify: `backend/internal/server/routes/finance_step_up_route_test.go`
 - Modify: `backend/internal/server/middleware/step_up_test.go`
 
-- [ ] Prove the same payment idempotency key plus the same business payload replays the stored checkout response without creating another order.
-- [ ] Prove the same key plus a changed amount or payment method returns an idempotency conflict.
-- [ ] Prove the same withdrawal key replays one request and a changed amount is rejected.
-- [ ] Prove every balance, refund, redeem, affiliate, withdrawal, provider, and payment-plan mutation route requires step-up authentication.
-- [ ] Prove an API-key-authenticated admin cannot satisfy step-up authentication.
-- [ ] Run focused tests and the complete backend suite.
-- [ ] Commit the money-mutation regression protection.
+- [x] Prove the same payment idempotency key plus the same business payload replays the stored checkout response without creating another order.
+- [x] Prove the same key plus a changed amount or payment method returns an idempotency conflict.
+- [x] Prove the same withdrawal key replays one request and a changed amount is rejected.
+- [x] Prove every balance, refund, redeem, affiliate, withdrawal, provider, and payment-plan mutation route requires step-up authentication.
+- [x] Prove an API-key-authenticated admin cannot satisfy step-up authentication.
+- [x] Run focused tests and the complete backend suite.
+- [x] Commit the money-mutation regression protection.
 
 ## Task 5: Verify settlement durability and reconciliation evidence
 
@@ -79,12 +79,12 @@
 - Modify: `backend/internal/service/gateway_usage_billing_shortfall_test.go`
 - Modify: `docs/security/business-regression-matrix.md`
 
-- [ ] Prove concurrent settlement cannot make a user balance negative.
-- [ ] Prove the durable deduplication row, charged amount, and shortfall record agree after an overdraft race.
-- [ ] Prove a retry with the same request ID does not charge twice.
-- [ ] Prove the operational alert includes request, user, key, expected charge, actual charge, and shortfall identifiers without secrets.
-- [ ] Run focused unit/integration tests and the complete backend suite.
-- [ ] Commit settlement and reconciliation hardening.
+- [x] Prove concurrent settlement cannot make a user balance negative.
+- [x] Prove the durable deduplication row, charged amount, and shortfall record agree after an overdraft race.
+- [x] Prove a retry with the same request ID does not charge twice.
+- [x] Prove the operational alert includes request, user, key, expected charge, actual charge, and shortfall identifiers without secrets.
+- [x] Run focused unit/integration tests and the complete backend suite.
+- [x] Commit settlement and reconciliation hardening.
 
 ## Task 6: Make backup restoration a release prerequisite
 
@@ -95,13 +95,13 @@
 - Modify: `ops/production/preflight-systemd-release.sh`
 - Modify: `ops/production/test-preflight-systemd-release.sh`
 
-- [ ] Write shell tests for rejecting missing, empty, stale, or invalid PostgreSQL custom-format backups.
-- [ ] Implement a restore verifier that creates one uniquely named disposable database, restores the backup, verifies required migrations and critical table counts, and drops only that verified disposable database on exit.
-- [ ] Ensure the verifier refuses production/staging database names and unresolved or broad targets.
-- [ ] Add the restore verifier to the release preflight before service cutover.
-- [ ] Run shell tests locally.
-- [ ] On the server, run one read-only-source restore drill from the latest production backup into a disposable database and retain sanitized evidence.
-- [ ] Commit restore-gate hardening.
+- [x] Write shell tests for rejecting missing, empty, stale, or invalid PostgreSQL custom-format backups.
+- [x] Implement a restore verifier that creates one uniquely named disposable database, restores the backup, verifies required migrations and critical table counts, and drops only that verified disposable database on exit.
+- [x] Ensure the verifier refuses production/staging database names and unresolved or broad targets.
+- [x] Add the restore verifier to the release preflight before service cutover.
+- [x] Run shell tests locally.
+- [x] On the server, run one read-only-source restore drill from the latest production backup into a disposable database and retain sanitized evidence.
+- [x] Commit restore-gate hardening.
 
 ## Task 7: Consolidate a bounded commercial release gate
 
@@ -111,10 +111,10 @@
 - Modify: `ops/production/README.md`
 - Modify: `docs/security/launch-checklist.md`
 
-- [ ] Write shell tests proving every required backend, frontend, migration, isolation, restore, and release-preflight command is invoked and any failure stops the gate.
-- [ ] Implement a bounded-concurrency gate that produces a timestamped, sanitized evidence directory.
-- [ ] Include frontend lint, typecheck, Vitest, backend full tests, migration regressions, staging isolation, backup restore, and release preflight tests.
-- [ ] Document the exact operator command and expected artifacts.
+- [x] Write shell tests proving every required backend, frontend, migration, isolation, restore, and release-preflight command is invoked and any failure stops the gate.
+- [x] Implement a bounded-concurrency gate that produces a timestamped, sanitized evidence directory.
+- [x] Include frontend lint, typecheck, Vitest, backend full tests, migration regressions, staging isolation, backup restore, and release preflight tests.
+- [x] Document the exact operator command and expected artifacts.
 - [ ] Run the gate locally without production writes.
 - [ ] Commit the commercial release gate.
 

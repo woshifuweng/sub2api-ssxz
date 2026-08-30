@@ -86,3 +86,47 @@ bash ops/production/test-verify-backup-restore.sh
 
 The test suite uses temporary directories and fake `runuser`, `curl`, and
 `systemctl`; it never touches a real service.
+
+## Commercial regression gate
+
+`run-commercial-regression-gate.sh` is the mandatory quality gate before a
+candidate can enter the guarded systemd release flow. It runs each stage
+sequentially while bounding the internal Go and Vitest worker counts. A failure
+stops the gate immediately.
+
+Source mode verifies shell release tooling, all normal/unit/integration Go
+tests, Go vet, frontend lint/typecheck/full Vitest, and the production frontend
+build:
+
+```bash
+GATE_MODE=source GATE_PARALLELISM=4 \
+  bash ops/production/run-commercial-regression-gate.sh
+```
+
+Release mode adds the live read-only staging isolation check and a real restore
+of the selected backup into a disposable database. Both files are mandatory;
+omitting either one is a hard failure:
+
+```bash
+sudo env \
+  GATE_MODE=release \
+  GATE_PARALLELISM=4 \
+  STAGING_ENV_FILE=/etc/sub2api/staging.env \
+  PRODUCTION_DATABASE_NAME=sub2api \
+  BACKUP_FILE=/opt/sub2api/backups/<release-backup>/sub2api.dump \
+  bash ops/production/run-commercial-regression-gate.sh
+```
+
+Each run creates a private timestamp-and-process-specific directory under
+`.codex-evidence/` by default. `metadata.txt` records only the mode, commit,
+time, and worker bounds; `summary.tsv` points to one mode-`0600` log per check.
+Use `GATE_EVIDENCE_ROOT` to archive evidence outside the checkout. The gate does
+not activate a release or restart a service.
+
+Test the gate's own fail-closed orchestration with:
+
+```bash
+bash -n ops/production/run-commercial-regression-gate.sh
+bash -n ops/production/test-commercial-regression-gate.sh
+bash ops/production/test-commercial-regression-gate.sh
+```
