@@ -24,6 +24,8 @@
         :server-side-sort="serverSideSort"
         :default-sort-key="defaultSortKey"
         :default-sort-order="defaultSortOrder"
+        :sticky-first-column="stickyFirstColumn"
+        :sticky-actions-column="stickyActionsColumn"
         @sort="(key, order) => $emit('sort', key, order)"
       >
         <template #cell-user="{ row }">
@@ -569,6 +571,8 @@ interface Props {
   showUpstreamEndpoint?: boolean
   /** 嵌入统一卡片内使用：去掉自身卡片外观 */
   flat?: boolean
+  stickyFirstColumn?: boolean
+  stickyActionsColumn?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -578,7 +582,9 @@ const props = withDefaults(defineProps<Props>(), {
   defaultSortOrder: 'asc',
   showAccountBilling: true,
   showUpstreamEndpoint: true,
-  flat: false
+  flat: false,
+  stickyFirstColumn: true,
+  stickyActionsColumn: true
 })
 const emit = defineEmits<{
   userClick: [userID: number, email?: string]

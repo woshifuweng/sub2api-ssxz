@@ -342,7 +342,9 @@ describe('user KeysView column settings', () => {
     expect(source).toContain('keys-group-cell')
     expect(source).toMatch(/:deep\(\.table-scroll-container \.table-wrapper\)[\s\S]*overflow-x:\s*auto/)
     expect(source).toMatch(/:deep\(\.table-scroll-container td\)[\s\S]*overflow:\s*hidden/)
-    expect(source).toMatch(/\.keys-col-usage\)[^\n]*width:\s*12\.5rem/)
+    expect(source).toMatch(/\.keys-col-usage\)[^\n]*width:\s*14rem/)
+    expect(source).toContain(':sticky-first-column="false"')
+    expect(source).toContain(':sticky-actions-column="false"')
   })
 
   it('renders the backend disabled status as a translated label', async () => {

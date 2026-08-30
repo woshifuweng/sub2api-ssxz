@@ -162,6 +162,8 @@
             :columns="usageTableColumns"
             :show-account-billing="false"
             :show-upstream-endpoint="false"
+            :sticky-first-column="false"
+            :sticky-actions-column="false"
             flat
           />
         </div>
