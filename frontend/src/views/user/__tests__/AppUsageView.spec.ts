@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import en from '@/i18n/locales/en'
+import zh from '@/i18n/locales/zh'
 
 const { usageAPI, keysAPI, authStore, appStore } = vi.hoisted(() => ({
   usageAPI: {
@@ -294,6 +296,15 @@ describe('AppUsageView compact usage details', () => {
     for (const key of ['reasoning_effort', 'ip_address', 'stream', 'billing_mode', 'request_id']) {
       expect(columnsSource).not.toContain(`key: '${key}'`)
     }
+  })
+
+  it('uses the existing customer billing label instead of exposing a missing translation key', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/user/AppUsageView.vue'), 'utf8')
+
+    expect(zh.usage.workbench.billingBasis).toBe('计费方式')
+    expect(en.usage.workbench.billingBasis).toBe('Billing')
+    expect(source).toContain("t('usage.workbench.billingBasis')")
+    expect(source).not.toContain("t('admin.usage.billingMode')")
   })
 
   it('keeps complete scan-critical fields in the main desktop row', async () => {
