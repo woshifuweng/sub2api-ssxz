@@ -3,22 +3,23 @@
 > 这份文件只回答一个问题：**生产现在跑的是哪条代码线。**
 > 它是唯一权威。与 `HANDOFF.md`、memory、`VERSION` 文件冲突时**以本文件为准**；
 > 本文件与生产实测冲突时**以实测为准**，并立刻回来改这份文件。
-> 最后核验：2026-08-30 v0.1.183 SSXZ 合并版部署及品牌配置复核后（核验方法见文末，任何人可自行复跑）
+> 最后核验：2026-08-30 v0.1.183 SSXZ `.4` 完整修复部署及生产页面验收后（核验方法见文末，任何人可自行复跑）
 
 ## 当前生产摘要（2026-08-30 v0.1.183 SSXZ 合并版）
 
-- 生产版本：`0.1.183-ssxz.20260830.1`
-- 源码 commit：`cc673af2cb19ab911dcf23b2ddca2ae4551747ba`（远端分支 `codex/upstream-v183-ssxz-20260830`）
-- 线上二进制：MD5 `cdab6038f1392a51c2d0f0948079c964`，SHA256 `7255ed3f46ca624b0f774e95bc4e2e726d008870b9a711c8d3a809ffbedd5528`，`120,271,008` bytes。
+- 生产版本：`0.1.183-ssxz.20260830.4`
+- 源码 commit：`cf6e05948e6326506e4178a1eed0504c814f0b21`（远端分支 `codex/upstream-v183-ssxz-20260830`）
+- 线上二进制：MD5 `59163a5cae48551c71580ecfe2cfaa99`，SHA256 `cc3e9274c1f5269a52edbe0d7d7b57be6c5d11443ef4d87f2e2929e9147c2f71`，`120,979,616` bytes。
 - 上游底座：Wei-Shaw/Sub2API `v0.1.183`；以前述底座为主，迁移并保留 SSXZ 品牌、业务服务、安全加固、权限分流和生产配置，没有整包覆盖生产数据或配置。
-- 前端入口：`/assets/index-Bc433Lm1.js`；嵌入式前端 `213` 文件 / `6,837,441` bytes，资源闭包检查无缺失、无 `?v=` 引用。
+- 前端入口：`/assets/index-DTSt7ie0.js`；嵌入式前端 `240` 文件 / `7,532,022` bytes。
 - 服务状态：生产与 staging 均为 `active` / `NRestarts=0` / `ExecMainStatus=0`；生产 PostgreSQL、Redis、公开路由、鉴权正负控和日志复核通过。
-- 数据库：`schema_migrations` 共 `307` 条，最新 `230_plugin_artifacts.sql`；本次执行 5 条向后兼容 migration：`225_backfill_codex_fingerprint_seed.sql`、`225_channel_model_time_pricing.sql`、`228_channel_pricing_multipliers.sql`、`229_plugins.sql`、`230_plugin_artifacts.sql`。
-- 回滚基线：旧生产二进制 `/opt/sub2api/backups/sub2api-pre-v183-20260830-110948`（MD5 `0b06a2fc5fe3ace0f33f53b09b2945b1`）；数据库 `/opt/sub2api/backups/db-pre-v183-20260830-110948.dump`（SHA256 `dce24cc2c3dc75bf52d8b286c841b63f10644b5f9d3ba458988295cfca4cabc2`）；配置 `/opt/sub2api/backups/config-pre-v183-20260830-110948.yaml`（SHA256 `8434c9c199d9ca7b25d2b2cf25c7f1e5274ba7e379918a225e0b2f77cd80c926`）。
-- 本轮发现并修复：补回 Stripe 与充值页 CSP 白名单；修正 staging 日志目录权限；把合并后残留的公开品牌 `Sub2API` 恢复为 `SSXZ AI`，副标题恢复为 `AI 接口服务平台`。
-- 真实链路：使用既有受控 Key 调用 `POST /v1/responses`，`gpt-5.6-sol` 返回 HTTP 200；调用后服务无重启、无持续错误。
-- 未改动用户、余额、API Key、计费倍率和 OAuth 开关。磁盘使用率为 `84%`，不阻断本次发布，但列为近期运维清理/扩容事项。
-- 回滚边界：二进制可直接恢复旧备份；5 条已执行 migration 不会随二进制回滚自动撤销。若必须恢复数据库，应在停服并确认数据窗口后使用上述 `pg_restore` 备份，不能覆盖部署后的新增业务数据。
+- 数据库：`schema_migrations` 共 `308` 条，最新 `231_ssxz_backfill_exclusive_api_key_grants.sql`；该迁移只为历史专属 API Key 补齐用户分组授权，不修改余额、倍率或使用记录。
+- 回滚基线：`.4` 发布前二进制与配置快照 `/opt/sub2api/backups/v183r4-prod-before-20260830-1238`（SHA 清单已验证）；完整数据库回滚点 `/opt/sub2api/backups/v183r2-before-20260830-1200`；旧 v179 二进制基线 `/opt/sub2api/backups/sub2api-pre-v183-20260830-110948`。
+- 本轮发现并修复：保留 SSXZ 自有 UI；补齐历史企业专属分组授权并验证真实调用；修复用户用量页第三方接入识别与分组展示；修复 API Key 停用状态和邀请返利翻译代码；恢复管理员运营总览后端统计服务与路由。
+- 真实链路：staging 与生产均使用既有企业 Key 调用 `POST /v1/responses` / `gpt-5.4-mini` 返回 HTTP 200；管理员运营汇总真实数据已加载；生产服务无重启、无持续错误。
+- 门禁：前端 `238` 个测试文件 / `1646` 条用例、类型检查和生产构建通过；后端 `go test ./...`、`go vet ./...` 通过；生产深浅色真人页面验收覆盖管理员仪表盘/使用记录/API Key/账号页，以及用户用量/API Key/邀请返利/渠道状态。
+- 未改动 OAuth 开关和生产计费倍率；为真实企业链路验收产生了正常的小额测试用量。磁盘使用率为 `86%`，不阻断本次发布，但仍需近期清理或扩容。
+- 回滚边界：`.4` 没有新增 schema；二进制可直接恢复 `.3` 快照。迁移 231 已在 `.3` 前执行且向后兼容，二进制回滚不会自动撤销；不要用旧数据库覆盖部署后的新增业务数据。
 
 ## 上一次生产摘要（2026-08-24 后台账号批量用量接口修复，已被本次覆盖）
 
@@ -115,7 +116,7 @@ curl -s https://api.ssxzapi.com/api/v1/settings/public | grep -o '"version":"[^"
 生产二进制带 ldflags 版本戳，这条命令直接返回当前代码线身份。2026-08-30 v0.1.183 SSXZ 合并版的期望输出是：
 
 ```
-"version":"0.1.183-ssxz.20260830.1"
+"version":"0.1.183-ssxz.20260830.4"
 ```
 
 `0.1.183` = 当前上游底座版本；`-ssxz.<日期>.<修订>` = 本次 SSXZ 构建身份。判断线上版本以接口实测、MD5 与本文件顶部摘要三者共同为准。
