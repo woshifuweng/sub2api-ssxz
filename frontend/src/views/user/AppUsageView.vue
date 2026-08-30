@@ -290,7 +290,7 @@ const usageTableColumns = computed<Column[]>(() => [
   { key: 'api_key', label: t('usage.apiKeyFilter'), class: 'usage-col-api-key' },
   { key: 'model', label: `${t('usage.model')} / ${t('usage.reasoningEffort')}`, sortable: true, class: 'usage-col-model-context' },
   { key: 'endpoint', label: `${t('usage.endpoint')} / ${t('admin.usage.ipAddress')}`, class: 'usage-col-route' },
-  { key: 'group', label: `${t('admin.usage.group')} / ${t('usage.workbench.billingBasis')}`, class: 'usage-col-group-context' },
+  { key: 'group', label: `${t('admin.usage.group')} / ${t('usage.type')} / ${t('usage.workbench.billingBasis')}`, class: 'usage-col-group-context' },
   { key: 'tokens', label: t('usage.tokens'), class: 'usage-col-tokens' },
   { key: 'cost', label: t('usage.cost'), class: 'usage-col-cost' },
   { key: 'latency', label: t('usage.duration'), class: 'usage-col-latency' },

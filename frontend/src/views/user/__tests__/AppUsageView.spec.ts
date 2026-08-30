@@ -42,6 +42,8 @@ const messages: Record<string, string> = {
   'usage.workbench.group': 'Group',
   'usage.workbench.noGroup': 'No group recorded',
   'usage.workbench.billingBasis': 'Billing',
+  'usage.type': 'Type',
+  'admin.usage.group': 'Group',
   'usage.workbench.performance': 'Processing time',
   'usage.workbench.supportCode': 'Support code',
   'usage.workbench.copySupportCode': 'Copy support code',
@@ -298,13 +300,21 @@ describe('AppUsageView compact usage details', () => {
     }
   })
 
-  it('uses the existing customer billing label instead of exposing a missing translation key', () => {
+  it('uses translated group, type and billing labels in the grouped column title', async () => {
     const source = readFileSync(resolve(process.cwd(), 'src/views/user/AppUsageView.vue'), 'utf8')
 
+    expect(zh.admin.usage.group).toBe('分组')
+    expect(en.admin.usage.group).toBe('Group')
+    expect(zh.usage.type).toBe('类型')
+    expect(en.usage.type).toBe('Type')
     expect(zh.usage.workbench.billingBasis).toBe('计费方式')
     expect(en.usage.workbench.billingBasis).toBe('Billing')
-    expect(source).toContain("t('usage.workbench.billingBasis')")
+    expect(source).toContain("`${t('admin.usage.group')} / ${t('usage.type')} / ${t('usage.workbench.billingBasis')}`")
     expect(source).not.toContain("t('admin.usage.billingMode')")
+
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.get('thead .usage-col-group-context').text()).toBe('Group / Type / Billing')
   })
 
   it('keeps complete scan-critical fields in the main desktop row', async () => {

@@ -644,6 +644,107 @@ describe('admin UsageTable grouped details', () => {
     expect(wrapper.find('[data-testid="grouped-detail-copy"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('usage.ipGeo.batchFetch')
   })
+
+  it('renders all eight grouped fields through the real DataTable mobile cards at 390px', async () => {
+    const originalMatchMedia = window.matchMedia
+    const originalInnerWidth = Object.getOwnPropertyDescriptor(window, 'innerWidth')
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }))
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
+
+    const viewport = document.createElement('div')
+    viewport.style.width = '390px'
+    document.body.appendChild(viewport)
+    ipGeoMocks.getEntry.mockReturnValue({ status: 'success', label: 'CN · Guangdong · Shenzhen', detail: {} })
+
+    const wrapper = mount(UsageTable, {
+      attachTo: viewport,
+      props: {
+        groupedDetails: true,
+        showAccountBilling: false,
+        showUpstreamEndpoint: false,
+        stickyFirstColumn: false,
+        stickyActionsColumn: false,
+        data: [{
+          id: 801,
+          request_id: 'req-mobile-grouped-801',
+          api_key: { name: 'mobile-key' },
+          model: 'gpt-5.6-sol',
+          reasoning_effort: 'high',
+          inbound_endpoint: '/v1/responses',
+          ip_address: '121.35.47.43',
+          group: { name: 'Mobile Team' },
+          request_type: 'stream',
+          billing_mode: 'token',
+          input_tokens: 120,
+          output_tokens: 30,
+          cache_creation_tokens: 0,
+          cache_read_tokens: 0,
+          total_cost: 0.02,
+          actual_cost: 0.02,
+          duration_ms: 1200,
+          first_token_ms: 300,
+          created_at: '2026-08-30T12:34:56Z',
+        }],
+        loading: false,
+        columns: [
+          { key: 'api_key', label: 'API key' },
+          { key: 'model', label: 'Model / Reasoning' },
+          { key: 'endpoint', label: 'Endpoint / IP' },
+          { key: 'group', label: 'Group / Type / Billing' },
+          { key: 'tokens', label: 'Tokens' },
+          { key: 'cost', label: 'Cost' },
+          { key: 'latency', label: 'Latency' },
+          { key: 'created_at', label: 'Time / Locator' },
+        ],
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    try {
+      await nextTick()
+
+      expect(viewport.style.width).toBe('390px')
+      expect(wrapper.find('table').exists()).toBe(false)
+      expect(wrapper.findAll('[data-field]').map((field) => field.attributes('data-field'))).toEqual([
+        'api_key',
+        'model',
+        'endpoint',
+        'group',
+        'tokens',
+        'cost',
+        'latency',
+        'created_at',
+      ])
+      expect(wrapper.get('[data-field="model"]').text()).toContain('gpt-5.6-sol')
+      expect(wrapper.get('[data-field="model"]').text()).toContain('High')
+      expect(wrapper.get('[data-field="endpoint"]').text()).toContain('/v1/responses')
+      expect(wrapper.get('[data-field="endpoint"]').text()).toContain('121.35.47.43')
+      expect(wrapper.get('[data-field="group"]').text()).toContain('Mobile Team')
+      expect(wrapper.get('[data-field="group"]').text()).toContain('usage.stream')
+      expect(wrapper.get('[data-field="group"]').text()).toContain('Token')
+      expect(wrapper.get('[data-field="created_at"]').text()).toContain('2026')
+      expect(wrapper.get('[data-field="created_at"]').text()).toContain('req-mobile-grouped-801')
+    } finally {
+      wrapper.unmount()
+      viewport.remove()
+      window.matchMedia = originalMatchMedia
+      if (originalInnerWidth) Object.defineProperty(window, 'innerWidth', originalInnerWidth)
+    }
+  })
 })
 
 // A DataTable stub that also renders cell-user, so the deleted badge can be asserted.
