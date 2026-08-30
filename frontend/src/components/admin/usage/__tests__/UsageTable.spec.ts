@@ -578,7 +578,6 @@ describe('admin UsageTable grouped details', () => {
         groupedDetails: true,
         data: [{
           request_id: 'req-grouped-details-123456789',
-          title: 'Customer response title',
           model: 'gpt-5.6-sol',
           reasoning_effort: 'high',
           inbound_endpoint: '/v1/responses',
@@ -609,8 +608,6 @@ describe('admin UsageTable grouped details', () => {
     expect(wrapper.find('[data-testid="grouped-detail-group"]').text()).toContain('usage.stream')
     expect(wrapper.find('[data-testid="grouped-detail-group"]').text()).toContain('Token')
     expect(wrapper.find('[data-testid="grouped-detail-created-at"]').text()).toContain('req-grouped-details-123456789')
-    expect(wrapper.find('[data-testid="grouped-detail-created-at"]').text()).toContain('Customer response title')
-
     await wrapper.get('[data-testid="grouped-detail-copy"]').trigger('click')
     expect(writeText).toHaveBeenCalledWith('req-grouped-details-123456789')
     expect(wrapper.text()).toContain('usage.ipGeo.batchFetch')

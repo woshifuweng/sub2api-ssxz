@@ -267,9 +267,6 @@
             <span v-if="row.request_id" class="block max-w-[160px] truncate font-mono text-xs text-gray-500 dark:text-gray-400" :title="row.request_id">
               {{ row.request_id }}
             </span>
-            <span v-if="row.title" class="block max-w-[240px] truncate text-xs text-gray-600 dark:text-gray-400" :title="row.title">
-              {{ row.title }}
-            </span>
             <button
               v-if="row.request_id"
               data-testid="grouped-detail-copy"
