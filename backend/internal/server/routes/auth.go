@@ -32,7 +32,7 @@ func RegisterAuthRoutes(
 	auth.Use(servermiddleware.BackendModeAuthGuard(settingService))
 	// 登录前入口只接受小型 JSON；即使客户端使用分块传输，也由 MaxBytesReader
 	// 在读取阶段硬性截断，避免认证与 OAuth 入口被超大请求体拖垮。
-	auth.Use(servermiddleware.RequestBodyLimit(publicAuthMaxBodySize))
+	auth.Use(servermiddleware.StrictRequestBodyLimit(publicAuthMaxBodySize))
 	// 认证事件（登录/注册/2FA/token 刷新失败）入审计
 	auth.Use(gin.HandlerFunc(auditLog))
 	{
