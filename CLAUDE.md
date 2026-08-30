@@ -7,11 +7,11 @@
 主目录 `backend/` 是空壳（0 个 `.go` 文件）。往那里 grep 会**静默返回空**，读起来像"这功能不存在"——这是本项目最容易上的当。
 
 ```
-真源码（U2 主干，2026-08-24 起）：
-  本地工作树：F:\CodexTemp\upstream-v179-security-20260824\
-  分支：codex/upstream-v179-security-20260824
+真源码（U2 主干，2026-08-30 起）：
+  本地工作树：F:\CodexTemp\upstream-v183-ssxz-20260830\
+  分支：codex/upstream-v183-ssxz-20260830
   远端：github.com/woshifuweng/sub2api-ssxz.git
-  当前生产 HEAD：74178321f（上游底座 v0.1.179，含后台账号批量用量接口修复；生产身份仍以 DEPLOYED.md 为准）
+  当前生产 HEAD：cc673af2c（上游底座 v0.1.183，含 SSXZ 覆盖层与 CSP 修复；生产身份仍以 DEPLOYED.md 为准）
 同名分支历史 P 线（已退役）：.codex-work/fix-client-brand-announcements2/
 ← backend/仍是空壳，P 线的路径规则不变；P 不再修改，只做回滚基线。
 ```

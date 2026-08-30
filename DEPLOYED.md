@@ -3,9 +3,24 @@
 > 这份文件只回答一个问题：**生产现在跑的是哪条代码线。**
 > 它是唯一权威。与 `HANDOFF.md`、memory、`VERSION` 文件冲突时**以本文件为准**；
 > 本文件与生产实测冲突时**以实测为准**，并立刻回来改这份文件。
-> 最后核验：2026-08-24 后台账号批量用量接口修复部署后（核验方法见文末，任何人可自行复跑）
+> 最后核验：2026-08-30 v0.1.183 SSXZ 合并版部署及品牌配置复核后（核验方法见文末，任何人可自行复跑）
 
-## 当前生产摘要（2026-08-24 后台账号批量用量接口修复）
+## 当前生产摘要（2026-08-30 v0.1.183 SSXZ 合并版）
+
+- 生产版本：`0.1.183-ssxz.20260830.1`
+- 源码 commit：`cc673af2cb19ab911dcf23b2ddca2ae4551747ba`（远端分支 `codex/upstream-v183-ssxz-20260830`）
+- 线上二进制：MD5 `cdab6038f1392a51c2d0f0948079c964`，SHA256 `7255ed3f46ca624b0f774e95bc4e2e726d008870b9a711c8d3a809ffbedd5528`，`120,271,008` bytes。
+- 上游底座：Wei-Shaw/Sub2API `v0.1.183`；以前述底座为主，迁移并保留 SSXZ 品牌、业务服务、安全加固、权限分流和生产配置，没有整包覆盖生产数据或配置。
+- 前端入口：`/assets/index-Bc433Lm1.js`；嵌入式前端 `213` 文件 / `6,837,441` bytes，资源闭包检查无缺失、无 `?v=` 引用。
+- 服务状态：生产与 staging 均为 `active` / `NRestarts=0` / `ExecMainStatus=0`；生产 PostgreSQL、Redis、公开路由、鉴权正负控和日志复核通过。
+- 数据库：`schema_migrations` 共 `307` 条，最新 `230_plugin_artifacts.sql`；本次执行 5 条向后兼容 migration：`225_backfill_codex_fingerprint_seed.sql`、`225_channel_model_time_pricing.sql`、`228_channel_pricing_multipliers.sql`、`229_plugins.sql`、`230_plugin_artifacts.sql`。
+- 回滚基线：旧生产二进制 `/opt/sub2api/backups/sub2api-pre-v183-20260830-110948`（MD5 `0b06a2fc5fe3ace0f33f53b09b2945b1`）；数据库 `/opt/sub2api/backups/db-pre-v183-20260830-110948.dump`（SHA256 `dce24cc2c3dc75bf52d8b286c841b63f10644b5f9d3ba458988295cfca4cabc2`）；配置 `/opt/sub2api/backups/config-pre-v183-20260830-110948.yaml`（SHA256 `8434c9c199d9ca7b25d2b2cf25c7f1e5274ba7e379918a225e0b2f77cd80c926`）。
+- 本轮发现并修复：补回 Stripe 与充值页 CSP 白名单；修正 staging 日志目录权限；把合并后残留的公开品牌 `Sub2API` 恢复为 `SSXZ AI`，副标题恢复为 `AI 接口服务平台`。
+- 真实链路：使用既有受控 Key 调用 `POST /v1/responses`，`gpt-5.6-sol` 返回 HTTP 200；调用后服务无重启、无持续错误。
+- 未改动用户、余额、API Key、计费倍率和 OAuth 开关。磁盘使用率为 `84%`，不阻断本次发布，但列为近期运维清理/扩容事项。
+- 回滚边界：二进制可直接恢复旧备份；5 条已执行 migration 不会随二进制回滚自动撤销。若必须恢复数据库，应在停服并确认数据窗口后使用上述 `pg_restore` 备份，不能覆盖部署后的新增业务数据。
+
+## 上一次生产摘要（2026-08-24 后台账号批量用量接口修复，已被本次覆盖）
 
 - 生产版本：`0.1.179-ssxz.20260824`
 - 源码 commit：`74178321f11ebdff43414e3feb499eb93a660f6a`（远端分支 `fork/codex/upstream-v179-security-20260824`）
@@ -97,13 +112,13 @@
 curl -s https://api.ssxzapi.com/api/v1/settings/public | grep -o '"version":"[^"]*"'
 ```
 
-生产二进制带 ldflags 版本戳，这条命令直接返回当前代码线身份。2026-08-24 v0.1.179 版本的期望输出是：
+生产二进制带 ldflags 版本戳，这条命令直接返回当前代码线身份。2026-08-30 v0.1.183 SSXZ 合并版的期望输出是：
 
 ```
-"version":"0.1.179-ssxz.20260824"
+"version":"0.1.183-ssxz.20260830.1"
 ```
 
-`0.1.179` = 当前上游底座版本；`-ssxz.<日期>` = 本次 SSXZ 构建身份。判断线上版本以接口实测、MD5 与本文件顶部摘要三者共同为准。
+`0.1.183` = 当前上游底座版本；`-ssxz.<日期>.<修订>` = 本次 SSXZ 构建身份。判断线上版本以接口实测、MD5 与本文件顶部摘要三者共同为准。
 
 下面的"三条指纹考古法"是版本戳失效时（有人漏加 ldflags）的备用手段，平时不需要。
 
