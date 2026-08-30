@@ -119,7 +119,7 @@
                         <GroupOptionItem
                           :name="group.name"
                           :platform="groupPlatform(group, row.platform)"
-                          :subscription-type="group.subscription_type as 'standard' | 'subscription'"
+                          :subscription-type="normalizeSubscriptionType(group.subscription_type)"
                           :rate-multiplier="group.rate_multiplier"
                           :user-rate-multiplier="userGroupRates[group.id] ?? null"
                           :description="group.description"
@@ -231,6 +231,10 @@ function groupPlatform(group: UserAvailableGroup, fallback: PricingPlatform): Gr
     return platform
   }
   return fallback
+}
+
+function normalizeSubscriptionType(value: string): 'standard' | 'subscription' {
+  return value === 'subscription' ? 'subscription' : 'standard'
 }
 
 function toggleSort() {
