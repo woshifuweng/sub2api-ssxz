@@ -156,6 +156,12 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Request body is empty")
 		return
 	}
+	body, _, err = service.EnforceUnboundedTokenRequestLimit(body, "max_tokens", "max_tokens")
+	if err != nil {
+		logRequestBodyParseFailure(reqLog, body, err)
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to apply output token limit")
+		return
+	}
 
 	setOpsRequestContext(c, "", false)
 

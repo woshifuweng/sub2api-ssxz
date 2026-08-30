@@ -11,27 +11,10 @@ import (
 )
 
 const (
-	// Requests without an explicit output cap still need a conservative balance
-	// budget before they are allowed to reach a provider.
-	unboundedTokenRequestSafetyOutputTokens = 500000
-	unboundedTokenRequestMinimumSafetyCost  = 10.0
 	// Requests that omit an output limit receive this platform cap before forwarding.
 	// Explicit client limits remain untouched.
 	unboundedTokenRequestMaxOutputTokens = 16384
 )
-
-func applyUnboundedTokenRequestSafetyFloor(cost *CostBreakdown) *CostBreakdown {
-	if cost == nil {
-		return nil
-	}
-	if cost.TotalCost < unboundedTokenRequestMinimumSafetyCost {
-		cost.TotalCost = unboundedTokenRequestMinimumSafetyCost
-	}
-	if cost.ActualCost < unboundedTokenRequestMinimumSafetyCost {
-		cost.ActualCost = unboundedTokenRequestMinimumSafetyCost
-	}
-	return cost
-}
 
 // EnforceUnboundedTokenRequestLimit injects a platform cap only when clients omit
 // every recognized output-token field. Explicit values, including malformed ones,
@@ -72,9 +55,8 @@ func (s *GatewayService) EstimateGatewayTokenRequestCostWithLongContext(ctx cont
 	}
 
 	outputTokens := estimateGatewayRequestOutputTokens(parsed)
-	usesSafetyBudget := outputTokens <= 0
-	if usesSafetyBudget {
-		outputTokens = unboundedTokenRequestSafetyOutputTokens
+	if outputTokens <= 0 {
+		outputTokens = unboundedTokenRequestMaxOutputTokens
 	}
 	defaultMultiplier := 0.0
 	if s.cfg != nil {
@@ -87,9 +69,6 @@ func (s *GatewayService) EstimateGatewayTokenRequestCostWithLongContext(ctx cont
 	}, multiplier, longContextThreshold, longContextMultiplier)
 	if err != nil {
 		return nil, err
-	}
-	if usesSafetyBudget {
-		return applyUnboundedTokenRequestSafetyFloor(cost), nil
 	}
 	return cost, nil
 }
@@ -166,7 +145,14 @@ func estimateGatewayRequestOutputTokens(parsed *ParsedRequest) int {
 	if parsed.MaxTokens > 0 {
 		return parsed.MaxTokens
 	}
-	for _, path := range []string{"generationConfig.maxOutputTokens", "generation_config.max_output_tokens", "maxOutputTokens"} {
+	for _, path := range []string{
+		"max_completion_tokens",
+		"max_output_tokens",
+		"generationConfig.maxOutputTokens",
+		"generation_config.max_output_tokens",
+		"maxOutputTokens",
+		"output_config.max_tokens",
+	} {
 		if value := positiveJSONInt(parsed.Body.Bytes(), path); value > 0 {
 			return value
 		}

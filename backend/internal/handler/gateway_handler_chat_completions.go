@@ -68,6 +68,16 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		h.chatCompletionsErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 		return
 	}
+	body, _, err = service.EnforceUnboundedTokenRequestLimit(
+		body,
+		"max_completion_tokens",
+		"max_completion_tokens",
+		"max_tokens",
+	)
+	if err != nil {
+		h.chatCompletionsErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to apply output token limit")
+		return
+	}
 
 	// Extract model and stream
 	modelResult := gjson.GetBytes(body, "model")
@@ -118,6 +128,11 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 	}
 
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
+	bodyRef := service.NewRequestBodyRef(body)
+	parsedReq, parseErr := service.ParseGatewayRequest(bodyRef, "chat_completions")
+	if parseErr != nil || parsedReq == nil {
+		parsedReq = &service.ParsedRequest{Model: reqModel, Stream: reqStream, Body: bodyRef}
+	}
 
 	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
 
@@ -132,8 +147,14 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		defer userReleaseFunc()
 	}
 
-	// 2. Re-check billing
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
+	// 2. Re-check billing against the same bounded output limit forwarded upstream.
+	estimatedActualCost := 0.0
+	if estimatedCost, estimateErr := h.gatewayService.EstimateGatewayTokenRequestCost(c.Request.Context(), parsedReq, apiKey, apiKey.User); estimateErr != nil {
+		reqLog.Warn("gateway.cc.request_cost_estimate_failed", zap.Error(estimateErr))
+	} else if estimatedCost != nil {
+		estimatedActualCost = estimatedCost.ActualCost
+	}
+	if err := h.billingCacheService.CheckBillingEligibilityForCost(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey), estimatedActualCost); err != nil {
 		reqLog.Info("gateway.cc.billing_check_failed", zap.Error(err))
 		status, code, message, retryAfter := billingErrorDetails(err)
 		if retryAfter > 0 {
@@ -143,12 +164,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		return
 	}
 
-	// Parse request for session hash
-	bodyRef := service.NewRequestBodyRef(body)
-	parsedReq, _ := service.ParseGatewayRequest(bodyRef, "chat_completions")
-	if parsedReq == nil {
-		parsedReq = &service.ParsedRequest{Model: reqModel, Stream: reqStream, Body: bodyRef}
-	}
+	// Reuse the bounded request for session hashing and forwarding.
 	parsedReq.SessionContext = &service.SessionContext{
 		ClientIP:  ip.GetClientIP(c),
 		UserAgent: c.GetHeader("User-Agent"),

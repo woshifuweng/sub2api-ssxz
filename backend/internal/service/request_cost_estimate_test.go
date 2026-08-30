@@ -10,37 +10,115 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func TestEstimateGatewayTokenRequestCostUsesSafetyBudgetWithoutCap(t *testing.T) {
+func TestEstimateGatewayTokenRequestCostUsesForwardedServerCapWhenClientOmitsLimit(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Default.RateMultiplier = 1
 	svc := &GatewayService{billingService: NewBillingService(cfg, nil), cfg: cfg}
-	parsed, err := ParseGatewayRequest(NewRequestBodyRef([]byte(`{"model":"claude-sonnet-4","messages":[{"role":"user","content":"hello"}]}`)), domain.PlatformAnthropic)
+	parsedWithoutLimit, err := ParseGatewayRequest(NewRequestBodyRef([]byte(`{"model":"claude-sonnet-4","messages":[{"role":"user","content":"hello"}]}`)), domain.PlatformAnthropic)
+	require.NoError(t, err)
+	parsedWithServerCap, err := ParseGatewayRequest(NewRequestBodyRef([]byte(`{"model":"claude-sonnet-4","messages":[{"role":"user","content":"hello"}],"max_tokens":16384}`)), domain.PlatformAnthropic)
 	require.NoError(t, err)
 
-	cost, err := svc.EstimateGatewayTokenRequestCost(context.Background(), parsed, nil, nil)
+	withoutLimitCost, err := svc.EstimateGatewayTokenRequestCost(context.Background(), parsedWithoutLimit, nil, nil)
 	require.NoError(t, err)
-	require.NotNil(t, cost)
-	require.GreaterOrEqual(t, cost.ActualCost, unboundedTokenRequestMinimumSafetyCost)
+	require.NotNil(t, withoutLimitCost)
+	serverCapCost, err := svc.EstimateGatewayTokenRequestCost(context.Background(), parsedWithServerCap, nil, nil)
+	require.NoError(t, err)
+	require.NotNil(t, serverCapCost)
+	// The explicit JSON is slightly longer, so input-token estimation may differ by
+	// a few bytes; the output-token budget must still be the same 16,384 cap.
+	require.InDelta(t, serverCapCost.ActualCost, withoutLimitCost.ActualCost, 0.001)
+	require.Less(t, withoutLimitCost.ActualCost, 10.0)
+}
+
+func TestEstimateGatewayTokenRequestCostHonorsChatCompletionsLimit(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Default.RateMultiplier = 1
+	svc := &GatewayService{billingService: NewBillingService(cfg, nil), cfg: cfg}
+	explicit, err := ParseGatewayRequest(NewRequestBodyRef([]byte(`{"model":"claude-sonnet-4","messages":[],"max_completion_tokens":2048}`)), "chat_completions")
+	require.NoError(t, err)
+	serverCap, err := ParseGatewayRequest(NewRequestBodyRef([]byte(`{"model":"claude-sonnet-4","messages":[],"max_completion_tokens":16384}`)), "chat_completions")
+	require.NoError(t, err)
+
+	explicitCost, err := svc.EstimateGatewayTokenRequestCost(context.Background(), explicit, nil, nil)
+	require.NoError(t, err)
+	serverCapCost, err := svc.EstimateGatewayTokenRequestCost(context.Background(), serverCap, nil, nil)
+	require.NoError(t, err)
+	require.Less(t, explicitCost.ActualCost, serverCapCost.ActualCost)
 }
 
 func TestEnforceUnboundedTokenRequestLimit(t *testing.T) {
 	tests := []struct {
-		name        string
-		body        string
-		wantChanged bool
-		wantLimit   int64
+		name            string
+		body            string
+		targetPath      string
+		recognizedPaths []string
+		wantChanged     bool
+		wantLimit       int64
 	}{
 		{
-			name:        "injects server cap when omitted",
-			body:        `{"model":"gpt-5.5","input":"hello"}`,
+			name:            "injects responses cap when omitted",
+			body:            `{"model":"gpt-5.5","input":"hello"}`,
+			targetPath:      "max_output_tokens",
+			recognizedPaths: []string{"max_output_tokens"},
+			wantChanged:     true,
+			wantLimit:       unboundedTokenRequestMaxOutputTokens,
+		},
+		{
+			name:            "preserves explicit responses cap",
+			body:            `{"model":"gpt-5.5","input":"hello","max_output_tokens":2048}`,
+			targetPath:      "max_output_tokens",
+			recognizedPaths: []string{"max_output_tokens"},
+			wantChanged:     false,
+			wantLimit:       2048,
+		},
+		{
+			name:            "injects chat completions cap when omitted",
+			body:            `{"model":"gpt-5.5","messages":[{"role":"user","content":"hello"}]}`,
+			targetPath:      "max_completion_tokens",
+			recognizedPaths: []string{"max_completion_tokens", "max_tokens"},
+			wantChanged:     true,
+			wantLimit:       unboundedTokenRequestMaxOutputTokens,
+		},
+		{
+			name:            "preserves legacy chat completions cap",
+			body:            `{"model":"gpt-5.5","messages":[],"max_tokens":1024}`,
+			targetPath:      "max_completion_tokens",
+			recognizedPaths: []string{"max_completion_tokens", "max_tokens"},
+			wantChanged:     false,
+			wantLimit:       1024,
+		},
+		{
+			name:            "injects anthropic cap when omitted",
+			body:            `{"model":"claude-sonnet-4","messages":[{"role":"user","content":"hello"}]}`,
+			targetPath:      "max_tokens",
+			recognizedPaths: []string{"max_tokens"},
+			wantChanged:     true,
+			wantLimit:       unboundedTokenRequestMaxOutputTokens,
+		},
+		{
+			name:       "injects gemini cap when omitted",
+			body:       `{"contents":[{"role":"user","parts":[{"text":"hello"}]}]}`,
+			targetPath: "generationConfig.maxOutputTokens",
+			recognizedPaths: []string{
+				"generationConfig.maxOutputTokens",
+				"generation_config.max_output_tokens",
+				"maxOutputTokens",
+			},
 			wantChanged: true,
 			wantLimit:   unboundedTokenRequestMaxOutputTokens,
 		},
 		{
-			name:        "preserves explicit client cap",
-			body:        `{"model":"gpt-5.5","input":"hello","max_output_tokens":2048}`,
+			name:       "preserves alternate gemini cap",
+			body:       `{"generation_config":{"max_output_tokens":4096}}`,
+			targetPath: "generationConfig.maxOutputTokens",
+			recognizedPaths: []string{
+				"generationConfig.maxOutputTokens",
+				"generation_config.max_output_tokens",
+				"maxOutputTokens",
+			},
 			wantChanged: false,
-			wantLimit:   2048,
+			wantLimit:   4096,
 		},
 	}
 
@@ -48,12 +126,23 @@ func TestEnforceUnboundedTokenRequestLimit(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, changed, err := EnforceUnboundedTokenRequestLimit(
 				[]byte(tt.body),
-				"max_output_tokens",
-				"max_output_tokens",
+				tt.targetPath,
+				tt.recognizedPaths...,
 			)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantChanged, changed)
-			require.Equal(t, tt.wantLimit, gjson.GetBytes(got, "max_output_tokens").Int())
+			if changed {
+				require.Equal(t, tt.wantLimit, gjson.GetBytes(got, tt.targetPath).Int())
+			} else {
+				found := int64(0)
+				for _, path := range tt.recognizedPaths {
+					if value := gjson.GetBytes(got, path); value.Exists() {
+						found = value.Int()
+						break
+					}
+				}
+				require.Equal(t, tt.wantLimit, found)
+			}
 		})
 	}
 }
