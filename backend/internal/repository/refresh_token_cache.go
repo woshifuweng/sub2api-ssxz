@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -35,18 +36,60 @@ type refreshTokenCache struct {
 	rdb *redis.Client
 }
 
+var storeRefreshTokenScript = redis.NewScript(`
+redis.call("SET", KEYS[1], ARGV[1], "PX", ARGV[3])
+redis.call("SADD", KEYS[2], ARGV[2])
+redis.call("PEXPIRE", KEYS[2], ARGV[3])
+redis.call("SADD", KEYS[3], ARGV[2])
+redis.call("PEXPIRE", KEYS[3], ARGV[3])
+return 1
+`)
+
+var rotateRefreshTokenScript = redis.NewScript(`
+local oldValue = redis.call("GET", KEYS[1])
+if not oldValue then
+    return 0
+end
+
+redis.call("DEL", KEYS[1])
+redis.call("SET", KEYS[2], ARGV[1], "PX", ARGV[3])
+redis.call("SREM", KEYS[3], ARGV[4])
+redis.call("SADD", KEYS[3], ARGV[2])
+redis.call("PEXPIRE", KEYS[3], ARGV[3])
+redis.call("SREM", KEYS[4], ARGV[4])
+redis.call("SADD", KEYS[4], ARGV[2])
+redis.call("PEXPIRE", KEYS[4], ARGV[3])
+return 1
+`)
+
 // NewRefreshTokenCache creates a new RefreshTokenCache implementation.
 func NewRefreshTokenCache(rdb *redis.Client) service.RefreshTokenCache {
 	return &refreshTokenCache{rdb: rdb}
 }
 
 func (c *refreshTokenCache) StoreRefreshToken(ctx context.Context, tokenHash string, data *service.RefreshTokenData, ttl time.Duration) error {
-	key := refreshTokenKey(tokenHash)
+	if data == nil {
+		return errors.New("refresh token data is nil")
+	}
+	if ttl <= 0 {
+		return errors.New("refresh token ttl must be positive")
+	}
 	val, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("marshal refresh token data: %w", err)
 	}
-	return c.rdb.Set(ctx, key, val, ttl).Err()
+	return storeRefreshTokenScript.Run(
+		ctx,
+		c.rdb,
+		[]string{
+			refreshTokenKey(tokenHash),
+			userRefreshTokensKey(data.UserID),
+			tokenFamilyKey(data.FamilyID),
+		},
+		val,
+		tokenHash,
+		ttl.Milliseconds(),
+	).Err()
 }
 
 func (c *refreshTokenCache) GetRefreshToken(ctx context.Context, tokenHash string) (*service.RefreshTokenData, error) {
@@ -63,6 +106,43 @@ func (c *refreshTokenCache) GetRefreshToken(ctx context.Context, tokenHash strin
 		return nil, fmt.Errorf("unmarshal refresh token data: %w", err)
 	}
 	return &data, nil
+}
+
+func (c *refreshTokenCache) RotateRefreshToken(
+	ctx context.Context,
+	oldTokenHash string,
+	newTokenHash string,
+	newData *service.RefreshTokenData,
+	ttl time.Duration,
+) (bool, error) {
+	if newData == nil {
+		return false, errors.New("refresh token data is nil")
+	}
+	if ttl <= 0 {
+		return false, errors.New("refresh token ttl must be positive")
+	}
+	payload, err := json.Marshal(newData)
+	if err != nil {
+		return false, fmt.Errorf("marshal refresh token data: %w", err)
+	}
+	result, err := rotateRefreshTokenScript.Run(
+		ctx,
+		c.rdb,
+		[]string{
+			refreshTokenKey(oldTokenHash),
+			refreshTokenKey(newTokenHash),
+			userRefreshTokensKey(newData.UserID),
+			tokenFamilyKey(newData.FamilyID),
+		},
+		payload,
+		newTokenHash,
+		ttl.Milliseconds(),
+		oldTokenHash,
+	).Int()
+	if err != nil {
+		return false, err
+	}
+	return result == 1, nil
 }
 
 func (c *refreshTokenCache) DeleteRefreshToken(ctx context.Context, tokenHash string) error {

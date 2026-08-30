@@ -634,6 +634,64 @@ func TestAuthServiceBindEmailIdentity_RevokesExistingAccessAndRefreshTokens(t *t
 	require.True(t, errors.Is(err, service.ErrTokenRevoked) || errors.Is(err, service.ErrRefreshTokenInvalid))
 }
 
+func TestAuthServiceRefreshTokenPair_ConcurrentUseIssuesAtMostOneReplacement(t *testing.T) {
+	ctx := context.Background()
+	refreshTokenCache := newEmailBindRefreshTokenCacheStub()
+	user := &service.User{
+		ID:           52,
+		Email:        "rotation@example.com",
+		Username:     "rotation-user",
+		PasswordHash: "rotation-password-hash",
+		Role:         service.RoleUser,
+		Status:       service.StatusActive,
+		TokenVersion: 2,
+	}
+	userRepo := newEmailBindUserRepoStub(user)
+	cfg := &config.Config{
+		JWT: config.JWTConfig{
+			Secret:                   "test-rotation-secret",
+			ExpireHour:               1,
+			AccessTokenExpireMinutes: 60,
+			RefreshTokenExpireDays:   7,
+		},
+	}
+	svc := service.NewAuthService(nil, userRepo, nil, refreshTokenCache, cfg, nil, nil, nil, nil, nil, nil, nil, nil)
+
+	pair, err := svc.GenerateTokenPair(ctx, user, "")
+	require.NoError(t, err)
+
+	const workers = 16
+	start := make(chan struct{})
+	results := make(chan error, workers)
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, refreshErr := svc.RefreshTokenPair(ctx, pair.RefreshToken)
+			results <- refreshErr
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+
+	successes := 0
+	for refreshErr := range results {
+		if refreshErr == nil {
+			successes++
+			continue
+		}
+		require.True(t,
+			errors.Is(refreshErr, service.ErrRefreshTokenInvalid) || errors.Is(refreshErr, service.ErrRefreshTokenReused),
+			"unexpected refresh error: %v",
+			refreshErr,
+		)
+	}
+	require.Equal(t, 1, successes)
+}
+
 func TestAuthServiceEmailIdentityBinding_RejectsEmailOutsideRegistrationSuffixWhitelist(t *testing.T) {
 	ctx := context.Background()
 	cache := &emailBindCacheStub{
@@ -892,6 +950,14 @@ func (s *emailBindRefreshTokenCacheStub) StoreRefreshToken(_ context.Context, to
 	defer s.mu.Unlock()
 	cloned := *data
 	s.tokens[tokenHash] = &cloned
+	if s.userSets[data.UserID] == nil {
+		s.userSets[data.UserID] = make(map[string]struct{})
+	}
+	s.userSets[data.UserID][tokenHash] = struct{}{}
+	if s.families[data.FamilyID] == nil {
+		s.families[data.FamilyID] = make(map[string]struct{})
+	}
+	s.families[data.FamilyID][tokenHash] = struct{}{}
 	return nil
 }
 
@@ -904,6 +970,32 @@ func (s *emailBindRefreshTokenCacheStub) GetRefreshToken(_ context.Context, toke
 	}
 	cloned := *data
 	return &cloned, nil
+}
+
+func (s *emailBindRefreshTokenCacheStub) RotateRefreshToken(_ context.Context, oldTokenHash, newTokenHash string, newData *service.RefreshTokenData, _ time.Duration) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.tokens[oldTokenHash]; !ok {
+		return false, nil
+	}
+	delete(s.tokens, oldTokenHash)
+	for _, tokenSet := range s.userSets {
+		delete(tokenSet, oldTokenHash)
+	}
+	for _, tokenSet := range s.families {
+		delete(tokenSet, oldTokenHash)
+	}
+	cloned := *newData
+	s.tokens[newTokenHash] = &cloned
+	if s.userSets[newData.UserID] == nil {
+		s.userSets[newData.UserID] = make(map[string]struct{})
+	}
+	s.userSets[newData.UserID][newTokenHash] = struct{}{}
+	if s.families[newData.FamilyID] == nil {
+		s.families[newData.FamilyID] = make(map[string]struct{})
+	}
+	s.families[newData.FamilyID][newTokenHash] = struct{}{}
+	return true, nil
 }
 
 func (s *emailBindRefreshTokenCacheStub) DeleteRefreshToken(_ context.Context, tokenHash string) error {
