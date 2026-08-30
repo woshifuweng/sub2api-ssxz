@@ -678,7 +678,7 @@ describe('AppUsageView compact usage details', () => {
     const dataTableSource = readFileSync(resolve(process.cwd(), 'src/components/common/DataTable.vue'), 'utf8')
 
     expect(source).toMatch(/\.usage-native-table\s+:deep\(\.table-wrapper\)[\s\S]*overflow-x:\s*auto/)
-    expect(source).toMatch(/\.usage-native-table\s+:deep\(table\)[\s\S]*min-width:\s*97\.5rem/)
+    expect(source).toMatch(/\.usage-native-table\s+:deep\(table\)[\s\S]*min-width:\s*105\.5rem/)
     expect(source).toMatch(/\.usage-native-table\s+:deep\(td\)[\s\S]*overflow:\s*hidden/)
     expect(nativeTableSource).toContain('<DataTable')
     expect(nativeTableSource).toContain('block max-w-full truncate')

@@ -342,7 +342,7 @@ describe('user KeysView column settings', () => {
     expect(source).toContain('keys-group-cell')
     expect(source).toMatch(/:deep\(\.table-scroll-container \.table-wrapper\)[\s\S]*overflow-x:\s*auto/)
     expect(source).toMatch(/:deep\(\.table-scroll-container td\)[\s\S]*overflow:\s*hidden/)
-    expect(source).toMatch(/\.keys-col-usage\)[^\n]*width:\s*11rem/)
+    expect(source).toMatch(/\.keys-col-usage\)[^\n]*width:\s*12\.5rem/)
   })
 
   it('renders the backend disabled status as a translated label', async () => {

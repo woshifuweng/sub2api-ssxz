@@ -873,7 +873,7 @@ function toDateKey(date: Date) {
 
 .usage-native-table :deep(table) {
   width: 100%;
-  min-width: 97.5rem;
+  min-width: 105.5rem;
   table-layout: fixed;
 }
 
@@ -909,11 +909,11 @@ function toDateKey(date: Date) {
 .usage-native-table :deep(.usage-col-group) { width: 11rem; }
 .usage-native-table :deep(.usage-col-type) { width: 4.5rem; }
 .usage-native-table :deep(.usage-col-billing) { width: 5.5rem; }
-.usage-native-table :deep(.usage-col-tokens) { width: 8.5rem; }
-.usage-native-table :deep(.usage-col-cost) { width: 6rem; }
+.usage-native-table :deep(.usage-col-tokens) { width: 9.5rem; }
+.usage-native-table :deep(.usage-col-cost) { width: 7.5rem; }
 .usage-native-table :deep(.usage-col-latency) { width: 7.5rem; }
-.usage-native-table :deep(.usage-col-time) { width: 8rem; }
-.usage-native-table :deep(.usage-col-support) { width: 7rem; }
+.usage-native-table :deep(.usage-col-time) { width: 10rem; }
+.usage-native-table :deep(.usage-col-support) { width: 10.5rem; }
 
 .usage-native-table :deep(.usage-col-group > span),
 .usage-native-table :deep(.usage-col-support > div) {

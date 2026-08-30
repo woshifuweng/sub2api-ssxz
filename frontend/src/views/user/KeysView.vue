@@ -3311,7 +3311,7 @@ onUnmounted(() => {
 
 .keys-page-surface--workbench :deep(table) {
   width: 100%;
-  min-width: 85.5rem;
+  min-width: 88rem;
   table-layout: fixed;
 }
 
@@ -3342,7 +3342,7 @@ onUnmounted(() => {
 .keys-page-surface--workbench :deep(.keys-col-name) { width: 11rem; }
 .keys-page-surface--workbench :deep(.keys-col-key) { width: 9rem; }
 .keys-page-surface--workbench :deep(.keys-col-group) { width: 14rem; }
-.keys-page-surface--workbench :deep(.keys-col-usage) { width: 11rem; }
+.keys-page-surface--workbench :deep(.keys-col-usage) { width: 12.5rem; }
 .keys-page-surface--workbench :deep(.keys-col-rate) { width: 10rem; }
 .keys-page-surface--workbench :deep(.keys-col-status) { width: 7rem; }
 .keys-page-surface--workbench :deep(.keys-col-expires) { width: 9.5rem; }
