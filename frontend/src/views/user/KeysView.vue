@@ -161,56 +161,63 @@
             :columns="columns"
             :data="apiKeys"
             :loading="loading"
+            :class="{
+              'keys-data-table--rate-limit-visible':
+                isColumnVisible('rate_limit'),
+              'keys-data-table--last-used-visible':
+                isColumnVisible('last_used_at'),
+            }"
             :sticky-first-column="false"
             :sticky-actions-column="false"
           >
-            <template #cell-key="{ value, row }">
-              <div class="flex items-center gap-2">
-                <code class="code text-xs">
-                  {{ maskKey(value) }}
-                </code>
-                <LiquidButton
-                  @click="copyToClipboard(row)"
-                  class="rounded-lg p-1 transition-colors"
-                  :class="[
-                    'hover:bg-gray-100 dark:hover:bg-dark-700',
-                    copiedKeyId === row.id
-                      ? 'text-primary-600 dark:text-primary-400'
-                      : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300',
-                  ]"
-                  :title="
-                    copiedKeyId === row.id
-                      ? t('keys.copied')
-                      : t('keys.copyToClipboard')
-                  "
-                  variant="plain"
-                  size="icon"
-                >
-                  <Icon
-                    v-if="copiedKeyId === row.id"
-                    name="check"
-                    size="sm"
-                    :stroke-width="2"
-                  />
-                  <Icon v-else name="clipboard" size="sm" />
-                </LiquidButton>
-              </div>
-            </template>
-
             <template #cell-name="{ value, row }">
-              <div class="flex items-center gap-1.5">
-                <span class="font-medium text-gray-900 dark:text-white">{{
-                  value
-                }}</span>
-                <Icon
-                  v-if="
-                    row.ip_whitelist?.length > 0 || row.ip_blacklist?.length > 0
-                  "
-                  name="shield"
-                  size="sm"
-                  class="text-primary-600 dark:text-primary-300"
-                  :title="t('keys.ipRestrictionEnabled')"
-                />
+              <div class="keys-name-key-cell" data-testid="keys-name-key-cell">
+                <div class="flex min-w-0 items-center gap-1.5">
+                  <span
+                    class="truncate font-medium text-gray-900 dark:text-white"
+                    >{{ value }}</span
+                  >
+                  <Icon
+                    v-if="
+                      row.ip_whitelist?.length > 0 ||
+                      row.ip_blacklist?.length > 0
+                    "
+                    name="shield"
+                    size="sm"
+                    class="shrink-0 text-primary-600 dark:text-primary-300"
+                    :title="t('keys.ipRestrictionEnabled')"
+                  />
+                </div>
+                <div class="keys-name-key-cell__key">
+                  <code class="code text-xs">
+                    {{ maskKey(row.key) }}
+                  </code>
+                  <LiquidButton
+                    @click="copyToClipboard(row)"
+                    class="rounded-lg p-1 transition-colors"
+                    :class="[
+                      'hover:bg-gray-100 dark:hover:bg-dark-700',
+                      copiedKeyId === row.id
+                        ? 'text-primary-600 dark:text-primary-400'
+                        : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300',
+                    ]"
+                    :title="
+                      copiedKeyId === row.id
+                        ? t('keys.copied')
+                        : t('keys.copyToClipboard')
+                    "
+                    variant="plain"
+                    size="icon"
+                  >
+                    <Icon
+                      v-if="copiedKeyId === row.id"
+                      name="check"
+                      size="sm"
+                      :stroke-width="2"
+                    />
+                    <Icon v-else name="clipboard" size="sm" />
+                  </LiquidButton>
+                </div>
               </div>
             </template>
 
@@ -365,39 +372,41 @@
               >
             </template>
 
-            <template #cell-expires_at="{ value }">
-              <span
-                v-if="value"
-                :class="[
-                  'text-sm',
-                  new Date(value) < new Date()
-                    ? 'text-red-500 dark:text-red-400'
-                    : 'text-gray-500 dark:text-dark-400',
-                ]"
+            <template #cell-status="{ value, row }">
+              <div
+                class="keys-status-expiry-cell"
+                data-testid="keys-status-expiry-cell"
               >
-                {{ formatDateTime(value) }}
-              </span>
-              <span v-else class="text-sm text-gray-400 dark:text-dark-500">{{
-                t("keys.noExpiration")
-              }}</span>
-            </template>
-
-            <template #cell-status="{ value }">
-              <span class="keys-status-cell" data-testid="keys-status-cell">
-                <span
-                  :class="[
-                    'keys-status-dot',
-                    value === 'quota_exhausted' || value === 'expired'
-                      ? 'keys-status-dot--danger'
-                      : value === 'inactive'
-                        ? 'keys-status-dot--muted'
-                        : '',
-                  ]"
-                />
-                <span class="text-sm text-gray-500 dark:text-gray-400">
-                  {{ t("keys.status." + value) }}
+                <span class="keys-status-cell" data-testid="keys-status-cell">
+                  <span
+                    :class="[
+                      'keys-status-dot',
+                      value === 'quota_exhausted' || value === 'expired'
+                        ? 'keys-status-dot--danger'
+                        : value === 'inactive'
+                          ? 'keys-status-dot--muted'
+                          : '',
+                    ]"
+                  />
+                  <span class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ t("keys.status." + value) }}
+                  </span>
                 </span>
-              </span>
+                <span
+                  v-if="row.expires_at"
+                  :class="[
+                    'text-xs',
+                    new Date(row.expires_at) < new Date()
+                      ? 'text-red-500 dark:text-red-400'
+                      : 'text-gray-400 dark:text-dark-400',
+                  ]"
+                >
+                  {{ formatDateTime(row.expires_at) }}
+                </span>
+                <span v-else class="text-xs text-gray-400 dark:text-dark-500">
+                  {{ t("keys.noExpiration") }}
+                </span>
+              </div>
             </template>
 
             <template #cell-last_used_at="{ value }">
@@ -1733,13 +1742,21 @@ const pageShellProps = computed(() =>
 );
 
 const allColumns = computed<Column[]>(() => [
-  { key: "name", label: t("common.name"), sortable: true, class: "keys-col-name" },
-  { key: "key", label: t("keys.apiKey"), sortable: false, class: "keys-col-key" },
+  {
+    key: "name",
+    label: `${t("common.name")} / ${t("keys.apiKey")}`,
+    sortable: true,
+    class: "keys-col-name",
+  },
   { key: "group", label: t("keys.group"), sortable: false, class: "keys-col-group" },
   { key: "usage", label: t("keys.usage"), sortable: false, class: "keys-col-usage" },
   { key: "rate_limit", label: t("keys.rateLimitColumn"), sortable: false, class: "keys-col-rate" },
-  { key: "status", label: t("common.status"), sortable: true, class: "keys-col-status" },
-  { key: "expires_at", label: t("keys.expiresAt"), sortable: true, class: "keys-col-expires" },
+  {
+    key: "status",
+    label: `${t("common.status")} / ${t("keys.expiresAt")}`,
+    sortable: true,
+    class: "keys-col-status",
+  },
   { key: "last_used_at", label: t("keys.lastUsedAt"), sortable: true, class: "keys-col-last-used" },
   { key: "created_at", label: t("keys.created"), sortable: true, class: "keys-col-created" },
   {
@@ -1756,7 +1773,7 @@ const hiddenColumns = reactive<Set<string>>(new Set());
 
 const toggleableColumns = computed(() =>
   allColumns.value.filter(
-    (column) => !["name", "key", "actions"].includes(column.key),
+    (column) => !["name", "actions"].includes(column.key),
   ),
 );
 
@@ -1768,15 +1785,27 @@ const loadSavedColumns = () => {
   hiddenColumns.clear();
   try {
     const saved = localStorage.getItem(HIDDEN_COLUMNS_STORAGE_KEY);
-    const columnKeys = new Set(allColumns.value.map((column) => column.key));
     const parsed = saved ? JSON.parse(saved) : DEFAULT_HIDDEN_COLUMNS;
     if (!Array.isArray(parsed))
       throw new Error("Invalid API key column settings");
-    parsed
-      .filter(
-        (key): key is string => typeof key === "string" && columnKeys.has(key),
-      )
-      .forEach((key) => hiddenColumns.add(key));
+    const hideableColumnKeys = new Set(
+      toggleableColumns.value.map((column) => column.key),
+    );
+    const normalized = [
+      ...new Set(
+        parsed.filter(
+          (key): key is string =>
+            typeof key === "string" && hideableColumnKeys.has(key),
+        ),
+      ),
+    ];
+    normalized.forEach((key) => hiddenColumns.add(key));
+    if (saved && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
+      localStorage.setItem(
+        HIDDEN_COLUMNS_STORAGE_KEY,
+        JSON.stringify(normalized),
+      );
+    }
   } catch {
     DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key));
   }
@@ -3166,6 +3195,8 @@ onUnmounted(() => {
 <style scoped>
 .keys-page-surface {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .keys-purchase-link {
@@ -3317,8 +3348,23 @@ onUnmounted(() => {
 
 .keys-page-surface--workbench :deep(table) {
   width: 100%;
-  min-width: 89.5rem;
+  min-width: 69rem;
   table-layout: fixed;
+}
+
+.keys-page-surface--workbench
+  :deep(.keys-data-table--rate-limit-visible table),
+.keys-page-surface--workbench
+  :deep(.keys-data-table--last-used-visible table) {
+  min-width: 79rem;
+}
+
+.keys-page-surface--workbench
+  :deep(
+    .keys-data-table--rate-limit-visible.keys-data-table--last-used-visible
+      table
+  ) {
+  min-width: 89rem;
 }
 
 .keys-page-surface--workbench :deep(.table-scroll-container .table-wrapper) {
@@ -3345,15 +3391,13 @@ onUnmounted(() => {
   white-space: normal;
 }
 
-.keys-page-surface--workbench :deep(.keys-col-name) { width: 11rem; }
-.keys-page-surface--workbench :deep(.keys-col-key) { width: 9rem; }
-.keys-page-surface--workbench :deep(.keys-col-group) { width: 14rem; }
-.keys-page-surface--workbench :deep(.keys-col-usage) { width: 14rem; }
+.keys-page-surface--workbench :deep(.keys-col-name) { width: 13rem; }
+.keys-page-surface--workbench :deep(.keys-col-group) { width: 11rem; }
+.keys-page-surface--workbench :deep(.keys-col-usage) { width: 11rem; }
 .keys-page-surface--workbench :deep(.keys-col-rate) { width: 10rem; }
-.keys-page-surface--workbench :deep(.keys-col-status) { width: 7rem; }
-.keys-page-surface--workbench :deep(.keys-col-expires) { width: 9.5rem; }
+.keys-page-surface--workbench :deep(.keys-col-status) { width: 9rem; }
 .keys-page-surface--workbench :deep(.keys-col-last-used) { width: 10rem; }
-.keys-page-surface--workbench :deep(.keys-col-created) { width: 10.5rem; }
+.keys-page-surface--workbench :deep(.keys-col-created) { width: 9.5rem; }
 
 .keys-page-surface--workbench :deep(.keys-actions-column) {
   /* Five 2.15rem action buttons plus gaps and cell padding need this width. */
@@ -3367,6 +3411,26 @@ onUnmounted(() => {
   align-items: center;
   justify-content: flex-end;
   gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.keys-name-key-cell {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.keys-name-key-cell__key {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.keys-name-key-cell__key code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -3466,6 +3530,11 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.5rem;
   white-space: nowrap;
+}
+
+.keys-status-expiry-cell {
+  display: grid;
+  gap: 0.2rem;
 }
 
 .keys-status-dot {
@@ -3656,6 +3725,10 @@ onUnmounted(() => {
 }
 
 @media (max-width: 767px) {
+  .keys-page-surface {
+    overflow-x: clip;
+  }
+
   .keys-access-row {
     align-items: flex-start;
     flex-direction: column;
@@ -3683,6 +3756,11 @@ onUnmounted(() => {
   .keys-page-surface--workbench :deep(.table-scroll-container) {
     min-height: 16rem;
     border-radius: 1rem;
+  }
+
+  .keys-row-actions {
+    max-width: 100%;
+    flex-wrap: wrap;
   }
 }
 </style>

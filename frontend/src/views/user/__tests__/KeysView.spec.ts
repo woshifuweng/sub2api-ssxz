@@ -50,6 +50,7 @@ const messages: Record<string, string> = {
   'keys.currentConcurrency': 'Current Concurrency',
   'keys.lastUsedAt': 'Last Used',
   'keys.lastUsedIP': 'Last Used IP',
+  'keys.noExpiration': 'No expiration',
   'keys.rateLimitColumn': 'Rate Limit',
   'keys.searchPlaceholder': 'Search name or key...',
   'keys.status.active': 'Active',
@@ -181,9 +182,20 @@ const DataTableStub = {
         >
           <slot name="cell-id" :value="row.id" :row="row" />
         </div>
-        <slot name="cell-name" :value="row.name" :row="row" />
+        <div
+          v-if="columns.some((col) => col.key === 'name')"
+          data-test="name-key-cell"
+        >
+          <slot name="cell-name" :value="row.name" :row="row" />
+        </div>
         <div data-test="current-concurrency">
           <slot name="cell-current_concurrency" :value="row.current_concurrency" :row="row" />
+        </div>
+        <div
+          v-if="columns.some((col) => col.key === 'status')"
+          data-test="status-expiry-cell"
+        >
+          <slot name="cell-status" :value="row.status" :row="row" />
         </div>
         <div data-test="actions">
           <slot name="cell-actions" :row="row" />
@@ -230,30 +242,65 @@ const IconStub = {
   template: '<span data-test="icon">{{ name }}</span>',
 }
 
-const mountView = async () => {
+const stubDesktopMatchMedia = () => {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: true,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }))
+}
+
+const stubMobileMatchMedia = () => {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }))
+}
+
+const mountView = async ({
+  realDataTable = false,
+  attachTo,
+}: {
+  realDataTable?: boolean
+  attachTo?: HTMLElement
+} = {}) => {
+  const stubs: Record<string, unknown> = {
+    AppLayout: AppLayoutStub,
+    TablePageLayout: TablePageLayoutStub,
+    Pagination: PaginationStub,
+    BaseDialog: true,
+    ConfirmDialog: true,
+    EmptyState: true,
+    Select: SelectStub,
+    SearchInput: SearchInputStub,
+    Icon: IconStub,
+    UseKeyModal: true,
+    EndpointPopover: true,
+    BalanceWarningBanner: true,
+    GroupBadge: true,
+    GroupOptionItem: true,
+    LiquidButton: {
+      template: '<button v-bind="$attrs"><slot /></button>',
+    },
+    Teleport: true,
+  }
+  if (!realDataTable) stubs.DataTable = DataTableStub
+
   const wrapper = mount(KeysView, {
+    attachTo,
     global: {
-      stubs: {
-        AppLayout: AppLayoutStub,
-        TablePageLayout: TablePageLayoutStub,
-        DataTable: DataTableStub,
-        Pagination: PaginationStub,
-        BaseDialog: true,
-        ConfirmDialog: true,
-        EmptyState: true,
-        Select: SelectStub,
-        SearchInput: SearchInputStub,
-        Icon: IconStub,
-        UseKeyModal: true,
-        EndpointPopover: true,
-        BalanceWarningBanner: true,
-        GroupBadge: true,
-        GroupOptionItem: true,
-        LiquidButton: {
-          template: '<button v-bind="$attrs"><slot /></button>',
-        },
-        Teleport: true,
-      },
+      stubs,
     },
   })
   await flushPromises()
@@ -278,6 +325,7 @@ const getButtonByText = (wrapper: VueWrapper, text: string) => {
 describe('user KeysView column settings', () => {
   beforeEach(() => {
     localStorage.clear()
+    stubDesktopMatchMedia()
 
     listKeys.mockReset()
     getPublicSettings.mockReset()
@@ -311,11 +359,9 @@ describe('user KeysView column settings', () => {
 
     expect(visibleColumnKeys(wrapper)).toEqual([
       'name',
-      'key',
       'group',
       'usage',
       'status',
-      'expires_at',
       'created_at',
       'actions',
     ])
@@ -323,26 +369,96 @@ describe('user KeysView column settings', () => {
     expect(visibleColumnKeys(wrapper)).not.toContain('last_used_at')
   })
 
-  it('gives every desktop column an explicit layout contract so group badges cannot cover usage', () => {
-    const source = readFileSync(resolve(process.cwd(), 'src/views/user/KeysView.vue'), 'utf8')
+  it('combines the key name and masked API key while keeping copy available', async () => {
+    const plaintextKey = 'sk-test-key-1234567890'
+    listKeys.mockResolvedValue({
+      items: [{ ...createApiKey(), key: plaintextKey }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    const wrapper = await mountView()
+    const cell = wrapper.get('[data-test="name-key-cell"]')
 
-    for (const className of [
+    expect(cell.text()).toContain('test-key')
+    expect(cell.text()).toContain('sk-test-...7890')
+
+    await cell.get('button').trigger('click')
+    expect(copyToClipboard.mock.calls[0]?.[0]).toBe(plaintextKey)
+  })
+
+  it('combines status and expiration in the default status column', async () => {
+    listKeys.mockResolvedValue({
+      items: [{ ...createApiKey(), expires_at: '2030-01-02T03:04:05Z' }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    const wrapper = await mountView()
+    const cell = wrapper.get('[data-test="status-expiry-cell"]')
+
+    expect(cell.text()).toContain('Active')
+    expect(cell.text()).toContain('2030')
+  })
+
+  it('renders every combined default field in the native 390px mobile cards without a wide table', async () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/user/KeysView.vue'), 'utf8')
+    stubMobileMatchMedia()
+    const viewport = document.createElement('div')
+    viewport.style.width = '390px'
+    document.body.appendChild(viewport)
+    const wrapper = await mountView({ realDataTable: true, attachTo: viewport })
+
+    expect(viewport.style.width).toBe('390px')
+    expect(wrapper.find('table').exists()).toBe(false)
+    expect(wrapper.findAll('[data-field]').map((field) => field.attributes('data-field'))).toEqual([
+      'name',
+      'group',
+      'usage',
+      'status',
+      'created_at',
+    ])
+    expect(wrapper.get('[data-field="name"]').text()).toContain('Name / API Key')
+    expect(wrapper.get('[data-field="name"]').text()).toContain('sk-test-key')
+    expect(wrapper.get('[data-field="status"]').text()).toContain('Status / Expires')
+    expect(wrapper.get('[data-field="status"]').text()).toContain('No expiration')
+    expect(wrapper.findAll('[data-field]').every((field) => field.classes().includes('min-w-0'))).toBe(true)
+    expect(source).toMatch(/@media \(max-width: 767px\)[\s\S]*\.keys-page-surface\s*\{[\s\S]*overflow-x:\s*clip/)
+
+    wrapper.unmount()
+    viewport.remove()
+  })
+
+  it('keeps the default desktop table and its six physical columns within about 70rem', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/user/KeysView.vue'), 'utf8')
+    const defaultColumnClasses = [
       'keys-col-name',
-      'keys-col-key',
       'keys-col-group',
       'keys-col-usage',
       'keys-col-status',
-      'keys-col-expires',
       'keys-col-created',
       'keys-actions-column'
-    ]) {
-      expect(source).toContain(className)
-    }
+    ]
+    const columnWidths = defaultColumnClasses.map((className) => {
+      const match = source.match(
+        new RegExp(`:deep\\(\\.${className}\\)\\s*\\{[\\s\\S]*?width:\\s*([\\d.]+)rem`)
+      )
+      expect(match, `missing width for ${className}`).not.toBeNull()
+      return Number(match?.[1])
+    })
+    const tableMinWidth = Number(
+      source.match(/:deep\(table\)\s*\{[\s\S]*?min-width:\s*([\d.]+)rem/)?.[1]
+    )
 
+    expect(tableMinWidth).toBeLessThanOrEqual(70)
+    expect(columnWidths.reduce((total, width) => total + width, 0)).toBeLessThanOrEqual(70)
+    expect(source).toContain('keys-name-key-cell')
+    expect(source).toContain('keys-status-expiry-cell')
     expect(source).toContain('keys-group-cell')
     expect(source).toMatch(/:deep\(\.table-scroll-container \.table-wrapper\)[\s\S]*overflow-x:\s*auto/)
     expect(source).toMatch(/:deep\(\.table-scroll-container td\)[\s\S]*overflow:\s*hidden/)
-    expect(source).toMatch(/\.keys-col-usage\)[^\n]*width:\s*14rem/)
     expect(source).toContain(':sticky-first-column="false"')
     expect(source).toContain(':sticky-actions-column="false"')
   })
@@ -411,6 +527,26 @@ describe('user KeysView column settings', () => {
     )
   })
 
+  it('expands the table only when optional rate-limit or last-used columns are enabled', async () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/user/KeysView.vue'), 'utf8')
+    const wrapper = await mountView()
+    const table = wrapper.findComponent({ name: 'DataTable' })
+
+    expect(table.classes()).not.toContain('keys-data-table--rate-limit-visible')
+    expect(table.classes()).not.toContain('keys-data-table--last-used-visible')
+
+    await wrapper.get('[data-testid="keys-column-settings-trigger"]').trigger('click')
+    await getButtonByText(wrapper, 'Rate Limit').trigger('click')
+    await getButtonByText(wrapper, 'Last Used').trigger('click')
+    await nextTick()
+
+    expect(table.classes()).toContain('keys-data-table--rate-limit-visible')
+    expect(table.classes()).toContain('keys-data-table--last-used-visible')
+    expect(source).toMatch(/keys-data-table--rate-limit-visible[\s\S]*min-width:\s*79rem/)
+    expect(source).toMatch(/keys-data-table--last-used-visible[\s\S]*min-width:\s*79rem/)
+    expect(source).toMatch(/keys-data-table--rate-limit-visible\.keys-data-table--last-used-visible[\s\S]*min-width:\s*89rem/)
+  })
+
   it('restores column preferences from localStorage on mount', async () => {
     localStorage.setItem('ssxz-api-key-hidden-columns-v1', JSON.stringify(['group', 'created_at']))
 
@@ -418,14 +554,33 @@ describe('user KeysView column settings', () => {
 
     expect(visibleColumnKeys(wrapper)).toEqual([
       'name',
-      'key',
       'usage',
       'rate_limit',
       'status',
-      'expires_at',
       'last_used_at',
       'actions',
     ])
+  })
+
+  it('safely migrates old hidden-column settings after combined columns replace key and expiration', async () => {
+    localStorage.setItem(
+      'ssxz-api-key-hidden-columns-v1',
+      JSON.stringify(['key', 'expires_at', 'rate_limit', 'last_used_at', 'removed_column'])
+    )
+
+    const wrapper = await mountView()
+
+    expect(visibleColumnKeys(wrapper)).toEqual([
+      'name',
+      'group',
+      'usage',
+      'status',
+      'created_at',
+      'actions',
+    ])
+    expect(localStorage.getItem('ssxz-api-key-hidden-columns-v1')).toBe(
+      JSON.stringify(['rate_limit', 'last_used_at'])
+    )
   })
 
   it('does not include always-visible columns in the toggleable menu', async () => {
