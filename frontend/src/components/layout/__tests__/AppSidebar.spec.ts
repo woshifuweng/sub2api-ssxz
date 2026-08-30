@@ -6,6 +6,14 @@ import { describe, expect, it } from 'vitest'
 
 const componentPath = resolve(dirname(fileURLToPath(import.meta.url)), '../AppSidebar.vue')
 const componentSource = readFileSync(componentPath, 'utf8')
+const imageWorkbenchViewSource = readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), '../../../views/user/AppImageWorkbenchView.vue'),
+  'utf8',
+)
+const imageWorkbenchConfigSource = readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), '../../../constants/imageWorkbench.ts'),
+  'utf8',
+)
 const headerSource = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../AppHeader.vue'), 'utf8')
 const stylePath = resolve(dirname(fileURLToPath(import.meta.url)), '../../../style.css')
 const styleSource = readFileSync(stylePath, 'utf8')
@@ -41,6 +49,18 @@ describe('AppSidebar custom SVG styles', () => {
     expect(componentSource).toContain('display: block;')
     expect(componentSource).not.toContain('stroke: currentColor;')
     expect(componentSource).not.toContain('fill: none;')
+  })
+})
+
+describe('AppSidebar image workbench link', () => {
+  it('opens the formal workbench domain without putting an API key in the URL', () => {
+    expect(imageWorkbenchConfigSource).toContain("https://image.ssxzapi.com/")
+    expect(componentSource).toContain("window.open(IMAGE_WORKBENCH_URL, '_blank', 'noopener,noreferrer')")
+    expect(componentSource).not.toContain('/image/?apiKey=')
+    expect(componentSource).not.toContain('keysAPI')
+    expect(imageWorkbenchViewSource).toContain('window.location.replace(IMAGE_WORKBENCH_URL)')
+    expect(imageWorkbenchViewSource).not.toContain('apiKey=')
+    expect(imageWorkbenchViewSource).not.toContain('revealKey')
   })
 })
 

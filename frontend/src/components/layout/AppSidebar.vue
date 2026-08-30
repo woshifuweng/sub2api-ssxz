@@ -61,7 +61,6 @@
               type="button"
               class="sidebar-link mb-1 w-full text-left"
               :title="sidebarCollapsed ? item.label : undefined"
-              :disabled="imageWorkbenchOpening"
               data-testid="sidebar-image-workbench"
               @click="openImageWorkbench"
             >
@@ -123,7 +122,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Images } from '@lucide/vue'
 import BrandLogo from '@/components/common/BrandLogo.vue'
-import { keysAPI } from '@/api/keys'
+import { IMAGE_WORKBENCH_URL } from '@/constants/imageWorkbench'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore, useResellerStore } from '@/stores'
 import { sanitizeSvg } from '@/utils/sanitize'
 
@@ -150,7 +149,6 @@ const resellerStore = useResellerStore()
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const mobileOpen = computed(() => appStore.mobileOpen)
 const isAdmin = computed(() => authStore.isAdmin)
-const imageWorkbenchOpening = ref(false)
 const sidebarNavRef = ref<HTMLElement | null>(null)
 
 // Site settings from appStore (cached, no flicker)
@@ -597,30 +595,9 @@ function closeMobile() {
   appStore.setMobileOpen(false)
 }
 
-async function openImageWorkbench() {
-  if (imageWorkbenchOpening.value) return
-
-  imageWorkbenchOpening.value = true
-  try {
-    const response = await keysAPI.list(1, 100, { status: 'active' })
-    const userApiKey = response.items.find((item) => item.status === 'active' && item.key.trim())?.key.trim()
-
-    if (!userApiKey) {
-      appStore.showWarning(t('nav.imageWorkbenchNoKey'))
-      return
-    }
-
-    window.open(
-      `/image/?apiKey=${encodeURIComponent(userApiKey)}`,
-      '_blank',
-      'noopener,noreferrer'
-    )
-    closeMobile()
-  } catch {
-    appStore.showError(t('nav.imageWorkbenchKeyError'))
-  } finally {
-    imageWorkbenchOpening.value = false
-  }
+function openImageWorkbench() {
+  window.open(IMAGE_WORKBENCH_URL, '_blank', 'noopener,noreferrer')
+  closeMobile()
 }
 
 function handleMenuItemClick(itemPath: string) {
