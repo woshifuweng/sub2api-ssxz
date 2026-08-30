@@ -10,9 +10,28 @@ const headerSource = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)
 const stylePath = resolve(dirname(fileURLToPath(import.meta.url)), '../../../style.css')
 const styleSource = readFileSync(stylePath, 'utf8')
 
-function getStyleBlock(source: string, selector: string) {
+function getStyleBlocks(source: string, selector: string) {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return source.match(new RegExp(`${escapedSelector}\\s*\\{[^}]*\\}`))?.[0] ?? ''
+  return [...source.matchAll(new RegExp(`(?:^|\\n)\\s*${escapedSelector}\\s*\\{([^}]*)\\}`, 'g'))]
+    .map((match) => match[1])
+}
+
+function getStyleBlock(source: string, selector: string, requiredProperty?: string) {
+  const blocks = getStyleBlocks(source, selector)
+  const block = requiredProperty
+    ? blocks.find((candidate) => getStyleDeclaration(candidate, requiredProperty) !== undefined)
+    : blocks[0]
+
+  if (block === undefined) {
+    throw new Error(`Missing CSS block for ${selector}`)
+  }
+
+  return block
+}
+
+function getStyleDeclaration(block: string, property: string) {
+  const escapedProperty = property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return block.match(new RegExp(`(?:^|\\n)\\s*${escapedProperty}\\s*:\\s*([^;]+);`))?.[1].trim()
 }
 
 describe('AppSidebar custom SVG styles', () => {
@@ -49,9 +68,28 @@ describe('AppSidebar scroll position persistence', () => {
 })
 
 describe('AppSidebar header styles', () => {
-  it('keeps the app header title, version, and divider aligned to the shared height', () => {
-    const shellBlock = getStyleBlock(headerSource, '.app-header-shell')
-    const innerBlock = getStyleBlock(headerSource, '.app-header-inner')
+  it('prevents the shared 56px header height from regressing to 57px', () => {
+    const tokenName = '--ssxz-header-height'
+    const tokenReference = `var(${tokenName})`
+    const tokenReferenceWithFallback = `var(${tokenName}, 56px)`
+    const rootBlock = getStyleBlock(styleSource, ':root', tokenName)
+    const sidebarHeaderBlock = getStyleBlock(styleSource, '.sidebar-header', 'height')
+    const shellBlock = getStyleBlock(headerSource, '.app-header-shell', 'height')
+    const innerBlock = getStyleBlock(headerSource, '.app-header-inner', 'height')
+
+    expect(getStyleDeclaration(rootBlock, tokenName)).toBe('56px')
+    expect(getStyleDeclaration(sidebarHeaderBlock, 'height')).toBe(tokenReference)
+    expect(getStyleDeclaration(sidebarHeaderBlock, 'min-height')).toBe(tokenReference)
+    expect(getStyleDeclaration(shellBlock, 'box-sizing')).toBe('border-box')
+    expect(getStyleDeclaration(shellBlock, 'height')).toBe(tokenReferenceWithFallback)
+    expect(getStyleDeclaration(shellBlock, 'min-height')).toBeUndefined()
+    expect(getStyleDeclaration(innerBlock, 'height')).toBe(
+      `calc(${tokenReferenceWithFallback} - 1px)`,
+    )
+    expect(getStyleDeclaration(innerBlock, 'min-height')).toBeUndefined()
+  })
+
+  it('keeps the app header title and version vertically centered', () => {
     const clusterBlock = getStyleBlock(headerSource, '.app-header-title-cluster')
     const copyBlock = getStyleBlock(headerSource, '.app-header-title-copy')
     const titleBlock = getStyleBlock(headerSource, '.app-header-title-copy h1')
@@ -65,27 +103,22 @@ describe('AppSidebar header styles', () => {
     )
     expect(headerSource).not.toContain('class="mt-0.5"')
 
-    expect(shellBlock).toContain('height: var(--ssxz-header-height, 56px);')
-    expect(shellBlock).not.toContain('min-height:')
-    expect(innerBlock).toContain('height: var(--ssxz-header-height, 56px);')
-    expect(innerBlock).not.toContain('min-height:')
+    expect(getStyleDeclaration(clusterBlock, 'display')).toBe('flex')
+    expect(getStyleDeclaration(clusterBlock, 'align-items')).toBe('center')
+    expect(getStyleDeclaration(clusterBlock, 'gap')).toBe('12px')
+    expect(getStyleDeclaration(clusterBlock, 'min-width')).toBe('0')
+    expect(getStyleDeclaration(copyBlock, 'min-width')).toBe('0')
 
-    expect(clusterBlock).toContain('display: flex;')
-    expect(clusterBlock).toContain('align-items: center;')
-    expect(clusterBlock).toContain('gap: 12px;')
-    expect(clusterBlock).toContain('min-width: 0;')
-    expect(copyBlock).toContain('min-width: 0;')
+    expect(getStyleDeclaration(titleBlock, 'margin')).toBe('0')
+    expect(getStyleDeclaration(titleBlock, 'font-size')).toBe('18px')
+    expect(getStyleDeclaration(titleBlock, 'font-weight')).toBe('600')
+    expect(getStyleDeclaration(titleBlock, 'line-height')).toBe('20px')
+    expect(getStyleDeclaration(descriptionBlock, 'margin')).toBe('2px 0 0')
+    expect(getStyleDeclaration(descriptionBlock, 'font-size')).toBe('12px')
+    expect(getStyleDeclaration(descriptionBlock, 'line-height')).toBe('16px')
 
-    expect(titleBlock).toContain('margin: 0;')
-    expect(titleBlock).toContain('font-size: 18px;')
-    expect(titleBlock).toContain('font-weight: 600;')
-    expect(titleBlock).toContain('line-height: 20px;')
-    expect(descriptionBlock).toContain('margin: 2px 0 0;')
-    expect(descriptionBlock).toContain('font-size: 12px;')
-    expect(descriptionBlock).toContain('line-height: 16px;')
-
-    expect(versionBlock).toContain('flex: none;')
-    expect(versionBlock).toContain('align-self: center;')
+    expect(getStyleDeclaration(versionBlock, 'flex')).toBe('none')
+    expect(getStyleDeclaration(versionBlock, 'align-self')).toBe('center')
   })
 
   it('does not clip the version badge dropdown', () => {

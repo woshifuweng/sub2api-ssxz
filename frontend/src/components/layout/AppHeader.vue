@@ -336,7 +336,7 @@ onBeforeUnmount(() => {
 }
 
 .app-header-inner {
-  height: var(--ssxz-header-height, 56px);
+  height: calc(var(--ssxz-header-height, 56px) - 1px);
 }
 
 .app-header-title-cluster {
