@@ -240,6 +240,10 @@
                         <dd><code>{{ resolveEndpoint(row) }}</code></dd>
                       </div>
                       <div>
+                        <dt>{{ t('usage.workbench.group') }}</dt>
+                        <dd>{{ resolveGroupName(row) }}</dd>
+                      </div>
+                      <div>
                         <dt>{{ t('usage.workbench.billingBasis') }}</dt>
                         <dd>{{ formatBillingType(row) }} · {{ formatBillingBasis(row) }}</dd>
                       </div>
@@ -549,11 +553,12 @@ async function exportToCSV() {
       })
       rows.push(...response.items)
     }
-    const header = ['Time', 'Model', 'Endpoint', 'Input Tokens', 'Output Tokens', 'Standard Cost', 'Actual Cost', 'Support Code']
+    const header = ['Time', 'Model', 'Endpoint', 'Group', 'Input Tokens', 'Output Tokens', 'Standard Cost', 'Actual Cost', 'Support Code']
     const body = rows.map((row) => [
       row.created_at,
       row.model,
       resolveEndpoint(row),
+      resolveGroupName(row),
       row.input_tokens,
       row.output_tokens,
       row.total_cost,
@@ -628,7 +633,7 @@ function formatUsageKind(row: UsageLog) {
   const endpoint = resolveEndpoint(row)
   if (row.image_count > 0 || endpoint.includes('/images/')) return t('usage.workbench.usageKindImage')
   if (endpoint.includes('/chat/')) return t('usage.workbench.usageKindChat')
-  if (row.api_key_id) return t('usage.workbench.usageKindThirdParty')
+  if (hasApiKey(row)) return t('usage.workbench.usageKindThirdParty')
   return t('usage.workbench.usageKindWeb')
 }
 
@@ -638,6 +643,17 @@ function resolveEndpoint(row: UsageLog) {
 
 function resolveSupportCode(row: UsageLog) {
   return row.request_id || ''
+}
+
+function resolveGroupName(row: UsageLog) {
+  const name = row.group?.name?.trim()
+  if (name) return name
+  if (row.group_id) return `#${row.group_id}`
+  return t('usage.workbench.noGroup')
+}
+
+function hasApiKey(row: UsageLog) {
+  return Boolean(row.api_key_id || row.api_key?.id)
 }
 
 function rowKey(row: UsageLog) {
@@ -697,7 +713,7 @@ async function copySupportCode(row: UsageLog) {
 }
 
 function formatSource(row: UsageLog) {
-  return row.api_key_id ? t('usage.workbench.usageKindThirdParty') : t('usage.workbench.usageKindWeb')
+  return hasApiKey(row) ? t('usage.workbench.usageKindThirdParty') : t('usage.workbench.usageKindWeb')
 }
 
 function formatUsageAmount(row: UsageLog) {

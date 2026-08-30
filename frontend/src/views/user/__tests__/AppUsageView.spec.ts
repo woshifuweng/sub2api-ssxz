@@ -38,6 +38,8 @@ const messages: Record<string, string> = {
   'usage.workbench.collapseRow': 'Hide details',
   'usage.workbench.kind': 'Type',
   'usage.workbench.endpoint': 'Endpoint',
+  'usage.workbench.group': 'Group',
+  'usage.workbench.noGroup': 'No group recorded',
   'usage.workbench.billingBasis': 'Billing',
   'usage.workbench.performance': 'Processing time',
   'usage.workbench.supportCode': 'Support code',
@@ -263,7 +265,9 @@ describe('AppUsageView compact usage details', () => {
         {
           id: 101,
           request_id: 'req-usage-1',
-          api_key_id: 7,
+          api_key: { id: 7, name: 'enterprise-key' },
+          group_id: 23,
+          group: { id: 23, name: 'Enterprise 70%' },
           model: 'gpt-5.5',
           inbound_endpoint: '/v1/responses',
           input_tokens: 60,
@@ -324,6 +328,8 @@ describe('AppUsageView compact usage details', () => {
 
     expect(wrapper.findAll('tr.usage-detail-row')).toHaveLength(1)
     expect(wrapper.get('tr.usage-detail-row').text()).toContain('/v1/responses')
+    expect(wrapper.get('tr.usage-detail-row').text()).toContain('Enterprise 70%')
+    expect(wrapper.get('tr.usage-detail-row').text()).toContain('Third-party access')
     expect(wrapper.get('tr.usage-detail-row').text()).toContain('req-usage-1')
     expect(wrapper.get('tr.usage-detail-row').text()).toContain('Balance charge')
     expect(wrapper.get('tr.usage-detail-row').text()).toContain('Input 60')
