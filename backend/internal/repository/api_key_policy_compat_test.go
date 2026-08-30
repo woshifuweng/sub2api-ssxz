@@ -44,4 +44,18 @@ func TestAPIKeyRepositoryCreateUpdateReadPolicyFields(t *testing.T) {
 	require.Equal(t, []string{"claude-opus-4"}, updated.AllowedModels)
 	require.Equal(t, []int64{groupOne.ID, groupTwo.ID}, updated.GroupIDs)
 	require.Len(t, updated.Groups, 2)
+
+	// Internal lifecycle operations may explicitly clear a group binding. A nil
+	// primary is authoritative and must not resurrect the hydrated GroupIDs
+	// snapshot from before the clear.
+	updated.GroupID = nil
+	require.NotEmpty(t, updated.GroupIDs)
+	require.NoError(t, repo.Update(ctx, updated, service.APIKeyUpdateFields{GroupID: true}))
+
+	cleared, err := repo.GetByKeyForAuth(ctx, key.Key)
+	require.NoError(t, err)
+	require.Nil(t, cleared.GroupID)
+	require.Empty(t, cleared.GroupIDs)
+	require.Empty(t, cleared.Groups)
+	require.Nil(t, cleared.Group)
 }

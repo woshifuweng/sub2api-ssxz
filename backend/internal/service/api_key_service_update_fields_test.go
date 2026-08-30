@@ -19,6 +19,16 @@ type updateFieldsAPIKeyRepoStub struct {
 	updateFields []APIKeyUpdateFields
 }
 
+type updateFieldsUserRepoStub struct {
+	UserRepository
+	user *User
+}
+
+func (s *updateFieldsUserRepoStub) GetByID(context.Context, int64) (*User, error) {
+	clone := *s.user
+	return &clone, nil
+}
+
 // IncrementQuotaUsed 模拟计费热路径上的原子递增：只动 quota_used。
 func (s *updateFieldsAPIKeyRepoStub) IncrementQuotaUsed(_ context.Context, _ int64, amount float64) (float64, error) {
 	s.key.QuotaUsed += amount
@@ -118,6 +128,28 @@ func TestAPIKeyUpdate_DeclaresStatusWhenReactivated(t *testing.T) {
 	_, err := svc.Update(context.Background(), 1, 7, UpdateAPIKeyRequest{Quota: &quota})
 	require.NoError(t, err)
 	require.Equal(t, []APIKeyUpdateFields{{Quota: true, Status: true}}, repo.updateFields)
+}
+
+func TestAPIKeyUpdate_RejectsExplicitEmptyGroupListWithoutPersisting(t *testing.T) {
+	groupID := int64(9)
+	key := &APIKey{
+		ID:       1,
+		UserID:   7,
+		Key:      "sk-test",
+		Status:   StatusActive,
+		GroupID:  &groupID,
+		GroupIDs: []int64{groupID},
+	}
+	svc, repo := newUpdateFieldsAPIKeyService(key)
+	svc.userRepo = &updateFieldsUserRepoStub{user: &User{ID: key.UserID, Status: StatusActive}}
+	emptyGroups := []int64{}
+
+	_, err := svc.Update(context.Background(), key.ID, key.UserID, UpdateAPIKeyRequest{GroupIDs: &emptyGroups})
+
+	require.ErrorIs(t, err, ErrAPIKeyGroupRequired)
+	require.Empty(t, repo.updateFields, "an invalid empty binding must never reach persistence")
+	require.Equal(t, []int64{groupID}, repo.key.GroupIDs)
+	require.Equal(t, groupID, *repo.key.GroupID)
 }
 
 // 计费热路径把 Key 标记为配额耗尽时只写 status，
