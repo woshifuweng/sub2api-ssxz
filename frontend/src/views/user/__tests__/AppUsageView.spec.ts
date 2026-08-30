@@ -272,28 +272,27 @@ describe('AppUsageView compact usage details', () => {
     })
   })
 
-  it('reuses the complete upstream usage table instead of hiding core fields in row details', () => {
+  it('uses eight grouped columns without hiding any usage details', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/views/user/AppUsageView.vue'), 'utf8')
+    const columnsSource = source.match(/const usageTableColumns = computed<Column\[\]>\(\(\) => \[([\s\S]*?)\n\]\)/)?.[1]
 
     expect(source).toContain("import UsageTable from '@/components/admin/usage/UsageTable.vue'")
     expect(source).toContain('<UsageTable')
-
-    for (const key of [
+    expect(source).toContain(':grouped-details="true"')
+    expect(columnsSource).toBeDefined()
+    expect([...columnsSource!.matchAll(/key:\s*'([^']+)'/g)].map((match) => match[1])).toEqual([
       'api_key',
       'model',
-      'reasoning_effort',
       'endpoint',
-      'ip_address',
       'group',
-      'stream',
-      'billing_mode',
       'tokens',
       'cost',
       'latency',
-      'created_at',
-      'request_id'
-    ]) {
-      expect(source).toContain(`key: '${key}'`)
+      'created_at'
+    ])
+
+    for (const key of ['reasoning_effort', 'ip_address', 'stream', 'billing_mode', 'request_id']) {
+      expect(columnsSource).not.toContain(`key: '${key}'`)
     }
   })
 
@@ -302,7 +301,7 @@ describe('AppUsageView compact usage details', () => {
     await flushPromises()
 
     const headers = wrapper.findAll('thead th').map((header) => header.text())
-    expect(headers).toHaveLength(13)
+    expect(headers).toHaveLength(8)
     expect(wrapper.findAll('tbody tr[data-row-id]')).toHaveLength(2)
 
     const tableText = wrapper.get('[data-testid="usage-native-table"]').text()
@@ -444,7 +443,7 @@ describe('AppUsageView compact usage details', () => {
     await flushPromises()
 
     expect.soft(wrapper.get('.refresh-button').attributes('disabled')).toBeUndefined()
-    expect.soft(wrapper.get('tbody tr[data-row-id] .usage-col-model').text()).toBe('held-model-result')
+    expect.soft(wrapper.get('tbody tr[data-row-id] .usage-col-model-context').text()).toContain('held-model-result')
     expect(wrapper.get('.usage-pagination').text()).toContain('1 / 3')
   })
 
@@ -479,7 +478,7 @@ describe('AppUsageView compact usage details', () => {
     pendingPage.resolve({ items: [usageRow(204, 'page-two-result')], total: 41, pages: 3 })
     await flushPromises()
 
-    expect.soft(wrapper.get('tbody tr[data-row-id] .usage-col-model').text()).toBe('page-two-result')
+    expect.soft(wrapper.get('tbody tr[data-row-id] .usage-col-model-context').text()).toContain('page-two-result')
     expect(wrapper.get('.usage-pagination').text()).toContain('2 / 3')
   })
 
@@ -663,11 +662,11 @@ describe('AppUsageView compact usage details', () => {
     }
   })
 
-  it('keeps the support code visible with a copy control', async () => {
+  it('keeps the support code visible with a copy control in the grouped activity column', async () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const supportCell = wrapper.get('tbody tr[data-row-id="101"] .usage-col-support')
+    const supportCell = wrapper.get('tbody tr[data-row-id="101"] .usage-col-activity [data-testid="grouped-detail-created-at"]')
     expect(supportCell.text()).toContain('req-usage-1')
     expect(supportCell.find('button').exists()).toBe(true)
   })
@@ -678,7 +677,15 @@ describe('AppUsageView compact usage details', () => {
     const dataTableSource = readFileSync(resolve(process.cwd(), 'src/components/common/DataTable.vue'), 'utf8')
 
     expect(source).toMatch(/\.usage-native-table\s+:deep\(\.table-wrapper\)[\s\S]*overflow-x:\s*auto/)
-    expect(source).toMatch(/\.usage-native-table\s+:deep\(table\)[\s\S]*min-width:\s*105\.5rem/)
+    expect(source).toMatch(/\.usage-native-table\s+:deep\(table\)[\s\S]*min-width:\s*86\.5rem/)
+    expect(source).toContain('.usage-native-table :deep(.usage-col-api-key) { width: 10rem; }')
+    expect(source).toContain('.usage-native-table :deep(.usage-col-model-context) { width: 8.5rem; }')
+    expect(source).toContain('.usage-native-table :deep(.usage-col-route) { width: 16rem; }')
+    expect(source).toContain('.usage-native-table :deep(.usage-col-group-context) { width: 14rem; }')
+    expect(source).toContain('.usage-native-table :deep(.usage-col-tokens) { width: 10.5rem; }')
+    expect(source).toContain('.usage-native-table :deep(.usage-col-cost) { width: 7.5rem; }')
+    expect(source).toContain('.usage-native-table :deep(.usage-col-latency) { width: 8.5rem; }')
+    expect(source).toContain('.usage-native-table :deep(.usage-col-activity) { width: 11.5rem; }')
     expect(source).toMatch(/\.usage-native-table\s+:deep\(td\)[\s\S]*overflow:\s*hidden/)
     expect(nativeTableSource).toContain('<DataTable')
     expect(nativeTableSource).toContain('block max-w-full truncate')

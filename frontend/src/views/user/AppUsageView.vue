@@ -160,6 +160,7 @@
           <UsageTable
             :data="usageRows"
             :columns="usageTableColumns"
+            :grouped-details="true"
             :show-account-billing="false"
             :show-upstream-endpoint="false"
             :sticky-first-column="false"
@@ -287,18 +288,13 @@ const apiKeyOptions = computed(() => [
 ])
 const usageTableColumns = computed<Column[]>(() => [
   { key: 'api_key', label: t('usage.apiKeyFilter'), class: 'usage-col-api-key' },
-  { key: 'model', label: t('usage.model'), sortable: true, class: 'usage-col-model' },
-  { key: 'reasoning_effort', label: t('usage.reasoningEffort'), class: 'usage-col-reasoning' },
-  { key: 'endpoint', label: t('usage.endpoint'), class: 'usage-col-endpoint' },
-  { key: 'ip_address', label: t('admin.usage.ipAddress'), class: 'usage-col-ip' },
-  { key: 'group', label: t('admin.usage.group'), class: 'usage-col-group' },
-  { key: 'stream', label: t('usage.type'), class: 'usage-col-type' },
-  { key: 'billing_mode', label: t('admin.usage.billingMode'), class: 'usage-col-billing' },
+  { key: 'model', label: `${t('usage.model')} / ${t('usage.reasoningEffort')}`, sortable: true, class: 'usage-col-model-context' },
+  { key: 'endpoint', label: `${t('usage.endpoint')} / ${t('admin.usage.ipAddress')}`, class: 'usage-col-route' },
+  { key: 'group', label: `${t('admin.usage.group')} / ${t('admin.usage.billingMode')}`, class: 'usage-col-group-context' },
   { key: 'tokens', label: t('usage.tokens'), class: 'usage-col-tokens' },
   { key: 'cost', label: t('usage.cost'), class: 'usage-col-cost' },
   { key: 'latency', label: t('usage.duration'), class: 'usage-col-latency' },
-  { key: 'created_at', label: t('usage.time'), sortable: true, class: 'usage-col-time' },
-  { key: 'request_id', label: t('usage.workbench.supportCode'), class: 'usage-col-support' }
+  { key: 'created_at', label: `${t('usage.time')} / ${t('usage.workbench.supportCode')}`, sortable: true, class: 'usage-col-activity' }
 ])
 const controlsDisabled = computed(() => loading.value || exporting.value)
 const chartMax = computed(() => Math.max(1, ...monthlySeries.value.map((item) => chartMetric(item))))
@@ -567,6 +563,7 @@ function toDateKey(date: Date) {
 <style scoped>
 .usage-workbench {
   display: grid;
+  min-width: 0;
   gap: 1.5rem;
 }
 
@@ -862,6 +859,8 @@ function toDateKey(date: Date) {
 }
 
 .usage-native-table {
+  max-width: 100%;
+  min-width: 0;
   overflow: hidden;
   padding: 0.75rem;
 }
@@ -875,7 +874,7 @@ function toDateKey(date: Date) {
 
 .usage-native-table :deep(table) {
   width: 100%;
-  min-width: 105.5rem;
+  min-width: 86.5rem;
   table-layout: fixed;
 }
 
@@ -904,29 +903,25 @@ function toDateKey(date: Date) {
 }
 
 .usage-native-table :deep(.usage-col-api-key) { width: 10rem; }
-.usage-native-table :deep(.usage-col-model) { width: 7.5rem; }
-.usage-native-table :deep(.usage-col-reasoning) { width: 5rem; }
-.usage-native-table :deep(.usage-col-endpoint) { width: 8rem; }
-.usage-native-table :deep(.usage-col-ip) { width: 8.5rem; }
-.usage-native-table :deep(.usage-col-group) { width: 11rem; }
-.usage-native-table :deep(.usage-col-type) { width: 4.5rem; }
-.usage-native-table :deep(.usage-col-billing) { width: 5.5rem; }
-.usage-native-table :deep(.usage-col-tokens) { width: 9.5rem; }
+.usage-native-table :deep(.usage-col-model-context) { width: 8.5rem; }
+.usage-native-table :deep(.usage-col-route) { width: 16rem; }
+.usage-native-table :deep(.usage-col-group-context) { width: 14rem; }
+.usage-native-table :deep(.usage-col-tokens) { width: 10.5rem; }
 .usage-native-table :deep(.usage-col-cost) { width: 7.5rem; }
-.usage-native-table :deep(.usage-col-latency) { width: 7.5rem; }
-.usage-native-table :deep(.usage-col-time) { width: 10rem; }
-.usage-native-table :deep(.usage-col-support) { width: 10.5rem; }
+.usage-native-table :deep(.usage-col-latency) { width: 8.5rem; }
+.usage-native-table :deep(.usage-col-activity) { width: 11.5rem; }
 
-.usage-native-table :deep(.usage-col-group > span),
-.usage-native-table :deep(.usage-col-support > div) {
+.usage-native-table :deep(.usage-col-model-context > *),
+.usage-native-table :deep(.usage-col-route > *),
+.usage-native-table :deep(.usage-col-group-context > *),
+.usage-native-table :deep(.usage-col-activity > *) {
   min-width: 0;
   max-width: 100%;
 }
 
-.usage-native-table :deep(.usage-col-group > span) {
+.usage-native-table :deep(.usage-col-model-context [data-testid='grouped-detail-model']) {
+  margin-top: 0.25rem;
   overflow: hidden;
-  background: var(--ssxz-action-soft);
-  color: var(--ssxz-action);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
