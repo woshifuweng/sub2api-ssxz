@@ -1,5 +1,8 @@
 <template>
-  <header class="app-header-shell sticky top-0 z-30 border-b">
+  <header
+    class="app-header-shell sticky top-0 z-30 border-b"
+    :class="{ 'is-admin-header': authStore.isAdmin }"
+  >
     <div class="app-header-inner flex items-center justify-between px-4 md:px-6">
       <!-- Left: Mobile Menu Toggle + Page Title -->
       <div class="flex items-center gap-4">
@@ -11,12 +14,12 @@
           <Icon name="menu" size="md" />
         </button>
 
-        <div class="app-header-title-cluster">
+        <div class="app-header-title-cluster flex items-start gap-3">
           <div class="app-header-title-copy hidden lg:block">
-            <h1 class="text-gray-900 dark:text-white">
+            <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ pageTitle }}
             </h1>
-            <p v-if="pageDescription" class="text-gray-500 dark:text-dark-400">
+            <p v-if="pageDescription" class="text-xs text-gray-500 dark:text-dark-400">
               {{ pageDescription }}
             </p>
           </div>
@@ -328,42 +331,51 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .app-header-shell {
-  box-sizing: border-box;
-  height: var(--ssxz-header-height, 56px);
+  min-height: var(--ssxz-header-height, 56px);
   background: var(--ssxz-surface-raised);
   border-color: var(--ssxz-border);
   color: var(--ssxz-text);
 }
 
 .app-header-inner {
-  height: calc(var(--ssxz-header-height, 56px) - 1px);
+  min-height: var(--ssxz-header-height, 56px);
 }
 
-.app-header-title-cluster {
+.app-header-shell.is-admin-header {
+  box-sizing: border-box;
+  height: var(--ssxz-header-height, 56px);
+}
+
+.app-header-shell.is-admin-header .app-header-inner {
+  height: calc(var(--ssxz-header-height, 56px) - 1px);
+  min-height: calc(var(--ssxz-header-height, 56px) - 1px);
+}
+
+.app-header-shell.is-admin-header .app-header-title-cluster {
   display: flex;
   align-items: center;
   gap: 12px;
   min-width: 0;
 }
 
-.app-header-title-copy {
+.app-header-shell.is-admin-header .app-header-title-copy {
   min-width: 0;
 }
 
-.app-header-title-copy h1 {
+.app-header-shell.is-admin-header .app-header-title-copy h1 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
   line-height: 20px;
 }
 
-.app-header-title-copy p {
+.app-header-shell.is-admin-header .app-header-title-copy p {
   margin: 2px 0 0;
   font-size: 12px;
   line-height: 16px;
 }
 
-.app-header-version {
+.app-header-shell.is-admin-header .app-header-version {
   flex: none;
   align-self: center;
 }

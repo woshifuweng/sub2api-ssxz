@@ -74,34 +74,75 @@ describe('AppSidebar header styles', () => {
     const tokenReferenceWithFallback = `var(${tokenName}, 56px)`
     const rootBlock = getStyleBlock(styleSource, ':root', tokenName)
     const sidebarHeaderBlock = getStyleBlock(styleSource, '.sidebar-header', 'height')
-    const shellBlock = getStyleBlock(headerSource, '.app-header-shell', 'height')
-    const innerBlock = getStyleBlock(headerSource, '.app-header-inner', 'height')
+    const customerShellBlock = getStyleBlock(headerSource, '.app-header-shell', 'min-height')
+    const customerInnerBlock = getStyleBlock(headerSource, '.app-header-inner', 'min-height')
+    const adminShellBlock = getStyleBlock(
+      headerSource,
+      '.app-header-shell.is-admin-header',
+      'height',
+    )
+    const adminInnerBlock = getStyleBlock(
+      headerSource,
+      '.app-header-shell.is-admin-header .app-header-inner',
+      'height',
+    )
 
     expect(getStyleDeclaration(rootBlock, tokenName)).toBe('56px')
     expect(getStyleDeclaration(sidebarHeaderBlock, 'height')).toBe(tokenReference)
     expect(getStyleDeclaration(sidebarHeaderBlock, 'min-height')).toBe(tokenReference)
-    expect(getStyleDeclaration(shellBlock, 'box-sizing')).toBe('border-box')
-    expect(getStyleDeclaration(shellBlock, 'height')).toBe(tokenReferenceWithFallback)
-    expect(getStyleDeclaration(shellBlock, 'min-height')).toBeUndefined()
-    expect(getStyleDeclaration(innerBlock, 'height')).toBe(
+    expect(getStyleDeclaration(customerShellBlock, 'min-height')).toBe(tokenReferenceWithFallback)
+    expect(getStyleDeclaration(customerShellBlock, 'height')).toBeUndefined()
+    expect(getStyleDeclaration(customerInnerBlock, 'min-height')).toBe(tokenReferenceWithFallback)
+    expect(getStyleDeclaration(customerInnerBlock, 'height')).toBeUndefined()
+    expect(getStyleDeclaration(adminShellBlock, 'box-sizing')).toBe('border-box')
+    expect(getStyleDeclaration(adminShellBlock, 'height')).toBe(tokenReferenceWithFallback)
+    expect(getStyleDeclaration(adminInnerBlock, 'height')).toBe(
       `calc(${tokenReferenceWithFallback} - 1px)`,
     )
-    expect(getStyleDeclaration(innerBlock, 'min-height')).toBeUndefined()
+    expect(getStyleDeclaration(adminInnerBlock, 'min-height')).toBe(
+      `calc(${tokenReferenceWithFallback} - 1px)`,
+    )
   })
 
-  it('keeps the app header title and version vertically centered', () => {
-    const clusterBlock = getStyleBlock(headerSource, '.app-header-title-cluster')
-    const copyBlock = getStyleBlock(headerSource, '.app-header-title-copy')
-    const titleBlock = getStyleBlock(headerSource, '.app-header-title-copy h1')
-    const descriptionBlock = getStyleBlock(headerSource, '.app-header-title-copy p')
-    const versionBlock = getStyleBlock(headerSource, '.app-header-version')
+  it('scopes title and version alignment to admins without changing customer classes', () => {
+    const adminHeaderSelector = '.app-header-shell.is-admin-header'
+    const clusterBlock = getStyleBlock(
+      headerSource,
+      `${adminHeaderSelector} .app-header-title-cluster`,
+    )
+    const copyBlock = getStyleBlock(
+      headerSource,
+      `${adminHeaderSelector} .app-header-title-copy`,
+    )
+    const titleBlock = getStyleBlock(
+      headerSource,
+      `${adminHeaderSelector} .app-header-title-copy h1`,
+    )
+    const descriptionBlock = getStyleBlock(
+      headerSource,
+      `${adminHeaderSelector} .app-header-title-copy p`,
+    )
+    const versionBlock = getStyleBlock(
+      headerSource,
+      `${adminHeaderSelector} .app-header-version`,
+    )
 
-    expect(headerSource).toContain('class="app-header-title-cluster"')
+    expect(headerSource).toContain(`:class="{ 'is-admin-header': authStore.isAdmin }"`)
+    expect(headerSource).toContain('class="app-header-title-cluster flex items-start gap-3"')
     expect(headerSource).toContain('class="app-header-title-copy hidden lg:block"')
+    expect(headerSource).toContain(
+      'class="text-lg font-semibold text-gray-900 dark:text-white"',
+    )
+    expect(headerSource).toContain('class="text-xs text-gray-500 dark:text-dark-400"')
     expect(headerSource).toMatch(
       /<VersionBadge\s+v-if="authStore\.isAdmin"\s+:runtime-actions-enabled="false"\s+class="app-header-version"\s*\/>/,
     )
     expect(headerSource).not.toContain('class="mt-0.5"')
+    expect(getStyleBlocks(headerSource, '.app-header-title-cluster')).toHaveLength(0)
+    expect(getStyleBlocks(headerSource, '.app-header-title-copy')).toHaveLength(0)
+    expect(getStyleBlocks(headerSource, '.app-header-title-copy h1')).toHaveLength(0)
+    expect(getStyleBlocks(headerSource, '.app-header-title-copy p')).toHaveLength(0)
+    expect(getStyleBlocks(headerSource, '.app-header-version')).toHaveLength(0)
 
     expect(getStyleDeclaration(clusterBlock, 'display')).toBe('flex')
     expect(getStyleDeclaration(clusterBlock, 'align-items')).toBe('center')
