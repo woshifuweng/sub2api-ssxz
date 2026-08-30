@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 const (
@@ -13,6 +15,9 @@ const (
 	// budget before they are allowed to reach a provider.
 	unboundedTokenRequestSafetyOutputTokens = 500000
 	unboundedTokenRequestMinimumSafetyCost  = 10.0
+	// Requests that omit an output limit receive this platform cap before forwarding.
+	// Explicit client limits remain untouched.
+	unboundedTokenRequestMaxOutputTokens = 16384
 )
 
 func applyUnboundedTokenRequestSafetyFloor(cost *CostBreakdown) *CostBreakdown {
@@ -26,6 +31,31 @@ func applyUnboundedTokenRequestSafetyFloor(cost *CostBreakdown) *CostBreakdown {
 		cost.ActualCost = unboundedTokenRequestMinimumSafetyCost
 	}
 	return cost
+}
+
+// EnforceUnboundedTokenRequestLimit injects a platform cap only when clients omit
+// every recognized output-token field. Explicit values, including malformed ones,
+// are left to the normal validation path instead of being silently rewritten.
+func EnforceUnboundedTokenRequestLimit(body []byte, targetPath string, recognizedPaths ...string) ([]byte, bool, error) {
+	if !gjson.ValidBytes(body) {
+		return nil, false, fmt.Errorf("invalid json")
+	}
+	if len(recognizedPaths) == 0 {
+		recognizedPaths = []string{targetPath}
+	}
+	for _, path := range recognizedPaths {
+		result := gjson.GetBytes(body, path)
+		if !result.Exists() || result.Type == gjson.Null {
+			continue
+		}
+		return body, false, nil
+	}
+
+	limited, err := sjson.SetBytes(body, targetPath, unboundedTokenRequestMaxOutputTokens)
+	if err != nil {
+		return nil, false, fmt.Errorf("set output token limit: %w", err)
+	}
+	return limited, true, nil
 }
 
 func (s *GatewayService) EstimateGatewayTokenRequestCost(ctx context.Context, parsed *ParsedRequest, apiKey *APIKey, user *User) (*CostBreakdown, error) {
@@ -69,9 +99,8 @@ func (s *OpenAIGatewayService) EstimateOpenAITokenRequestCost(ctx context.Contex
 		return nil, nil
 	}
 	outputTokens := estimateOpenAIRequestOutputTokenLimit(body)
-	usesSafetyBudget := outputTokens <= 0
-	if usesSafetyBudget {
-		outputTokens = unboundedTokenRequestSafetyOutputTokens
+	if outputTokens <= 0 {
+		outputTokens = unboundedTokenRequestMaxOutputTokens
 	}
 	defaultMultiplier := 0.0
 	if s.cfg != nil {
@@ -95,9 +124,6 @@ func (s *OpenAIGatewayService) EstimateOpenAITokenRequestCost(ctx context.Contex
 	)
 	if err != nil {
 		return nil, err
-	}
-	if usesSafetyBudget {
-		return applyUnboundedTokenRequestSafetyFloor(cost), nil
 	}
 	return cost, nil
 }

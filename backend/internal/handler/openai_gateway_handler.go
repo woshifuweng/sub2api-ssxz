@@ -387,6 +387,11 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 		return
 	}
+	body, _, err = service.EnforceUnboundedTokenRequestLimit(body, "max_output_tokens", "max_output_tokens")
+	if err != nil {
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to apply output token limit")
+		return
+	}
 
 	// 使用 gjson 只读提取字段做校验，避免完整 Unmarshal
 	modelResult := gjson.GetBytes(body, "model")
@@ -1930,6 +1935,11 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	}
 	if !gjson.ValidBytes(firstMessage) {
 		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "invalid JSON payload")
+		return
+	}
+	firstMessage, _, err = service.EnforceUnboundedTokenRequestLimit(firstMessage, "max_output_tokens", "max_output_tokens")
+	if err != nil {
+		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "invalid response.create payload")
 		return
 	}
 	reqModel := strings.TrimSpace(gjson.GetBytes(firstMessage, "model").String())
