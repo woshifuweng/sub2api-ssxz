@@ -29,6 +29,7 @@ func TestLogUsageBillingShortfall_EmitsReconciliationFields(t *testing.T) {
 		"api_key_id=7",
 		"request_id=req-shortfall-1",
 		"balance_cost=10",
+		"balance_charged=5",
 		"balance_shortfall=5",
 	} {
 		require.True(t, strings.Contains(logLine, want), "missing %q in %q", want, logLine)

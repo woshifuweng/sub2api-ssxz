@@ -370,11 +370,16 @@ func logUsageBillingShortfall(cmd *UsageBillingCommand, result *UsageBillingAppl
 	if cmd == nil || result == nil || !result.BalanceOverdrafted || result.BalanceShortfall <= 0.00000001 {
 		return
 	}
+	charged := cmd.BalanceCost - result.BalanceShortfall
+	if charged < 0 {
+		charged = 0
+	}
 	attrs := []any{
 		"user_id", cmd.UserID,
 		"api_key_id", cmd.APIKeyID,
 		"request_id", cmd.RequestID,
 		"balance_cost", cmd.BalanceCost,
+		"balance_charged", charged,
 		"balance_shortfall", result.BalanceShortfall,
 	}
 	if result.NewBalance != nil {
