@@ -601,6 +601,7 @@ describe('admin UsageTable grouped details', () => {
     })
 
     expect(wrapper.find('[data-testid="grouped-detail-model"]').text()).toContain('High')
+    expect(wrapper.text()).toContain('gpt-5.6-sol')
     expect(wrapper.find('[data-testid="grouped-detail-endpoint"]').text()).toContain('/v1/responses')
     expect(wrapper.find('[data-testid="grouped-detail-endpoint"]').text()).toContain('121.35.47.43')
     expect(wrapper.find('[data-testid="grouped-detail-endpoint"]').text()).toContain('CN · Guangdong · Shenzhen')
@@ -611,6 +612,37 @@ describe('admin UsageTable grouped details', () => {
     await wrapper.get('[data-testid="grouped-detail-copy"]').trigger('click')
     expect(writeText).toHaveBeenCalledWith('req-grouped-details-123456789')
     expect(wrapper.text()).toContain('usage.ipGeo.batchFetch')
+  })
+
+  it('keeps grouped labels safe when optional detail fields are missing', () => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        groupedDetails: true,
+        data: [{
+          model: 'gpt-5.6-sol',
+          request_type: 'sync',
+          billing_mode: 'per_request',
+          group: null,
+        }],
+        loading: false,
+        columns: [],
+      },
+      global: {
+        stubs: {
+          DataTable: GroupedDetailsDataTableStub,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    expect(wrapper.find('[data-testid="grouped-detail-group"]').text()).toContain('-')
+    expect(wrapper.find('[data-testid="grouped-detail-group"]').text()).toContain('usage.sync')
+    expect(wrapper.find('[data-testid="grouped-detail-group"]').text()).toContain('Per request')
+    expect(wrapper.find('[data-testid="grouped-detail-model"]').text()).toBe('-')
+    expect(wrapper.find('[data-testid="grouped-detail-copy"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('usage.ipGeo.batchFetch')
   })
 })
 

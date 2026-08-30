@@ -58,10 +58,7 @@
         </template>
 
         <template #cell-model="{ row }">
-          <div v-if="groupedDetails" data-testid="grouped-detail-model" class="text-xs text-gray-600 dark:text-gray-400">
-            {{ formatReasoningEffort(row.reasoning_effort) }}
-          </div>
-          <div v-else class="space-y-0.5 text-xs">
+          <div class="space-y-0.5 text-xs">
             <div v-if="row.model_mapping_chain && row.model_mapping_chain.includes('→')" class="space-y-0.5">
               <div v-for="(step, i) in row.model_mapping_chain.split('→')" :key="i"
                    class="break-all"
@@ -95,6 +92,9 @@
                 {{ isLikelyModelVariant(row) ? t('usage.modelVariant') : t('usage.modelMismatch') }}
               </span>
             </div>
+          </div>
+          <div v-if="groupedDetails" data-testid="grouped-detail-model" class="text-xs text-gray-600 dark:text-gray-400">
+            {{ formatReasoningEffort(row.reasoning_effort) }}
           </div>
         </template>
 
