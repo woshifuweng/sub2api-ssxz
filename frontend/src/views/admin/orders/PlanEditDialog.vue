@@ -88,6 +88,7 @@
       </div>
     </template>
   </BaseDialog>
+  <TotpStepUpDialog :controller="stepUp" />
 </template>
 
 <script setup lang="ts">
@@ -105,6 +106,8 @@ import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import { platformTextClass } from '@/utils/platformColors'
+import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
+import { isStepUpCancelled, useStepUp } from '@/composables/useStepUp'
 
 const props = defineProps<{
   show: boolean
@@ -120,6 +123,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const stepUp = useStepUp()
 
 const saving = ref(false)
 const planForm = reactive({ name: '', group_id: null as number | null, description: '', price: 0, original_price: 0, currency: '', validity_days: 30, validity_unit: 'days', sort_order: 0, for_sale: true })
@@ -217,12 +221,15 @@ async function handleSavePlan() {
   saving.value = true
   try {
     const data = buildPlanPayload()
-    if (props.plan) { await adminPaymentAPI.updatePlan(props.plan.id, data) }
-    else { await adminPaymentAPI.createPlan(data) }
+    if (props.plan) { await stepUp.run(() => adminPaymentAPI.updatePlan(props.plan!.id, data)) }
+    else { await stepUp.run(() => adminPaymentAPI.createPlan(data)) }
     appStore.showSuccess(t('common.saved'))
     emit('close')
     emit('saved')
-  } catch (err: unknown) { appStore.showError(extractApiErrorMessage(err, t('common.error'))) }
+  } catch (err: unknown) {
+    if (isStepUpCancelled(err)) return
+    appStore.showError(extractApiErrorMessage(err, t('common.error')))
+  }
   finally { saving.value = false }
 }
 </script>

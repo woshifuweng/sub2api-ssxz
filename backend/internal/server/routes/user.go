@@ -14,6 +14,7 @@ func RegisterUserRoutes(
 	h *handler.Handlers,
 	jwtAuth middleware.JWTAuthMiddleware,
 	auditLog middleware.AuditLogMiddleware,
+	stepUpAuth middleware.StepUpAuthMiddleware,
 	settingService *service.SettingService,
 	panelRateLimiter *middleware.PanelRateLimiter,
 ) {
@@ -32,7 +33,7 @@ func RegisterUserRoutes(
 			user.PUT("/password", h.User.ChangePassword)
 			user.PUT("", h.User.UpdateProfile)
 			user.GET("/aff", h.User.GetAffiliate)
-			user.POST("/aff/transfer", h.User.TransferAffiliateQuota)
+			user.POST("/aff/transfer", gin.HandlerFunc(stepUpAuth), h.User.TransferAffiliateQuota)
 			user.POST("/account-bindings/email/send-code", h.User.SendEmailBindingCode)
 			user.POST("/account-bindings/email", h.User.BindEmailIdentity)
 			user.DELETE("/account-bindings/:provider", h.User.UnbindIdentity)
@@ -155,7 +156,7 @@ func RegisterUserRoutes(
 			monitorV2.GET("/users", h.ChannelMonitorV2.Users)
 		}
 
-		registerUserResellerRoutes(authenticated, h)
+		registerUserResellerRoutes(authenticated, h, stepUpAuth)
 		registerChatWorkspaceRoutes(authenticated, h, panelRateLimiter)
 	}
 }
@@ -175,7 +176,7 @@ func registerChatWorkspaceRoutes(authenticated *gin.RouterGroup, h *handler.Hand
 	}
 }
 
-func registerUserResellerRoutes(authenticated *gin.RouterGroup, h *handler.Handlers) {
+func registerUserResellerRoutes(authenticated *gin.RouterGroup, h *handler.Handlers, stepUpAuth middleware.StepUpAuthMiddleware) {
 	if h == nil || h.Reseller == nil {
 		return
 	}
@@ -189,7 +190,7 @@ func registerUserResellerRoutes(authenticated *gin.RouterGroup, h *handler.Handl
 		reseller.GET("/recruits/:userId/logs", h.Reseller.GetRecruitLogs)
 		reseller.GET("/recruits/:userId/recharges", h.Reseller.GetRecruitRecharges)
 		reseller.GET("/withdrawals", h.Reseller.GetMyWithdrawals)
-		reseller.POST("/withdrawals", h.Reseller.RequestWithdraw)
+		reseller.POST("/withdrawals", gin.HandlerFunc(stepUpAuth), h.Reseller.RequestWithdraw)
 		reseller.POST("/withdrawals/:id/cancel", h.Reseller.CancelWithdrawal)
 		reseller.GET("/invite", h.Reseller.InviteHandler)
 		reseller.GET("/commission", h.Reseller.CommissionHandler)

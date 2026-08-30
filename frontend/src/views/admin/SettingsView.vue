@@ -5908,6 +5908,7 @@
         </div>
       </div>
     </div>
+    <TotpStepUpDialog :controller="stepUp" />
   </AppLayout>
 </template>
 
@@ -5959,12 +5960,14 @@ import ImageUpload from "@/components/common/ImageUpload.vue";
 import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
 import PaymentProviderDialog from "@/components/payment/PaymentProviderDialog.vue";
 import PaymentProviderList from "@/components/payment/PaymentProviderList.vue";
+import TotpStepUpDialog from "@/components/auth/TotpStepUpDialog.vue";
 import BackupSettings from "@/views/admin/BackupView.vue";
 import DataManagementSettings from "@/views/admin/DataManagementView.vue";
 import OpenAIFastPolicyUserSelector from "@/views/admin/settings/OpenAIFastPolicyUserSelector.vue";
 import type { ProviderInstance } from "@/types/payment";
 import type { TypeOption } from "@/components/payment/providerConfig";
 import { useClipboard } from "@/composables/useClipboard";
+import { isStepUpCancelled, useStepUp } from "@/composables/useStepUp";
 import { useAppStore } from "@/stores";
 import { useAdminSettingsStore } from "@/stores/adminSettings";
 import {
@@ -5983,6 +5986,7 @@ import {
 
 const { t, locale } = useI18n();
 const appStore = useAppStore();
+const stepUp = useStepUp();
 const adminSettingsStore = useAdminSettingsStore();
 const isZhLocale = computed(() => locale.value.startsWith("zh"));
 
@@ -7761,10 +7765,11 @@ async function deleteProvider() {
   const provider = deletingProvider.value;
   if (!provider) return;
   try {
-    await adminAPI.payment.deleteProvider(provider.id);
+    await stepUp.run(() => adminAPI.payment.deleteProvider(provider.id));
     appStore.showSuccess(t("admin.settings.settingsSaved"));
     await loadPaymentProviders();
   } catch (error: any) {
+    if (isStepUpCancelled(error)) return;
     appStore.showError(error?.message || t("common.unknownError"));
   } finally {
     deletingProvider.value = null;
@@ -7775,14 +7780,15 @@ async function saveProvider(payload: ProviderPayload) {
   savingProvider.value = true;
   try {
     if (editingProvider.value) {
-      await adminAPI.payment.updateProvider(editingProvider.value.id, payload);
+      await stepUp.run(() => adminAPI.payment.updateProvider(editingProvider.value!.id, payload));
     } else {
-      await adminAPI.payment.createProvider(payload);
+      await stepUp.run(() => adminAPI.payment.createProvider(payload));
     }
     appStore.showSuccess(t("admin.settings.settingsSaved"));
     closeProviderDialog();
     await loadPaymentProviders();
   } catch (error: any) {
+    if (isStepUpCancelled(error)) return;
     appStore.showError(error?.message || t("common.unknownError"));
   } finally {
     savingProvider.value = false;
@@ -7794,11 +7800,12 @@ async function toggleProviderField(
   field: "enabled" | "refund_enabled" | "allow_user_refund",
 ) {
   try {
-    await adminAPI.payment.updateProvider(provider.id, {
+    await stepUp.run(() => adminAPI.payment.updateProvider(provider.id, {
       [field]: !provider[field],
-    });
+    }));
     await loadPaymentProviders();
   } catch (error: any) {
+    if (isStepUpCancelled(error)) return;
     appStore.showError(error?.message || t("common.unknownError"));
   }
 }
@@ -7811,24 +7818,26 @@ async function toggleProviderType(provider: ProviderInstance, type: string) {
     ? supportedTypes.filter((value) => value !== type)
     : [...supportedTypes, type];
   try {
-    await adminAPI.payment.updateProvider(provider.id, {
+    await stepUp.run(() => adminAPI.payment.updateProvider(provider.id, {
       supported_types: nextTypes,
-    });
+    }));
     await loadPaymentProviders();
   } catch (error: any) {
+    if (isStepUpCancelled(error)) return;
     appStore.showError(error?.message || t("common.unknownError"));
   }
 }
 
 async function reorderProviders(items: { id: number; sort_order: number }[]) {
   try {
-    await Promise.all(
+    await stepUp.run(() => Promise.all(
       items.map((item) =>
         adminAPI.payment.updateProvider(item.id, { sort_order: item.sort_order }),
       ),
-    );
+    ));
     await loadPaymentProviders();
   } catch (error: any) {
+    if (isStepUpCancelled(error)) return;
     appStore.showError(error?.message || t("common.unknownError"));
   }
 }
@@ -8302,7 +8311,7 @@ async function saveSettings() {
       form.account_scheduling_thresholds,
     );
     appendAuthSourceDefaultsToUpdateRequest(payload, authSourceDefaults);
-    const updated = await adminAPI.settings.updateSettings(payload);
+    const updated = await stepUp.run(() => adminAPI.settings.updateSettings(payload));
     if (!(await saveWebSearchConfig())) return;
     Object.assign(form, updated);
     form.account_scheduling_thresholds = normalizeAccountSchedulingThresholdsMap(
@@ -8345,6 +8354,7 @@ async function saveSettings() {
     await adminSettingsStore.fetch(true);
     appStore.showSuccess(t("admin.settings.settingsSaved"));
   } catch (error: any) {
+    if (isStepUpCancelled(error)) return;
     appStore.showError(
       t("admin.settings.failedToSave") +
         ": " +

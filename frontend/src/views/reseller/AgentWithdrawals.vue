@@ -159,6 +159,7 @@
       @confirm="confirmCancel"
       @cancel="cancelTarget = null"
     />
+    <TotpStepUpDialog :controller="stepUp" />
   </AppSectionShell>
 </template>
 
@@ -167,6 +168,7 @@ import { computed, onMounted, ref } from 'vue'
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import LiquidButton from '@/components/common/LiquidButton.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -177,9 +179,11 @@ import { useAppStore } from '@/stores/app'
 import { useResellerStore } from '@/stores/reseller'
 import { formatNumber, formatRelativeTime } from '@/utils/format'
 import { extractApiErrorMessage } from '@/utils/apiError'
+import { isStepUpCancelled, useStepUp } from '@/composables/useStepUp'
 
 const appStore = useAppStore()
 const resellerStore = useResellerStore()
+const stepUp = useStepUp()
 const amount = ref('')
 const submitting = ref(false)
 const pendingConversion = ref<{ amount: number; idempotencyKey: string } | null>(null)
@@ -241,15 +245,16 @@ async function submitConversion(): Promise<void> {
 
   submitting.value = true
   try {
-    await resellerAPI.requestBalanceConversion(value, {
+    await stepUp.run(() => resellerAPI.requestBalanceConversion(value, {
       idempotencyKey: getConversionIdempotencyKey(value)
-    })
+    }))
     pendingConversion.value = null
     amount.value = ''
     withdrawModalOpen.value = false
     appStore.showSuccess('兑换申请已提交')
     await loadPage(1)
   } catch (error) {
+    if (isStepUpCancelled(error)) return
     appStore.showError(extractApiErrorMessage(error, '兑换申请提交失败'))
   } finally {
     submitting.value = false

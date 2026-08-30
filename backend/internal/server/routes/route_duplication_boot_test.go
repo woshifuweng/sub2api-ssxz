@@ -48,6 +48,7 @@ func TestNativeRouterBootHasNoDuplicateResellerRoutes(t *testing.T) {
 		RegisterUserRoutes(v1, handlers,
 			middleware.JWTAuthMiddleware(noop),
 			middleware.AuditLogMiddleware(noop),
+			middleware.StepUpAuthMiddleware(noop),
 			nil,
 			nil,
 		)

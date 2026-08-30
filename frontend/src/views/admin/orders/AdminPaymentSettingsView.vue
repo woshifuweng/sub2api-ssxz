@@ -166,6 +166,7 @@
         @confirm="deleteProvider"
         @cancel="deletingProvider = null"
       />
+      <TotpStepUpDialog :controller="stepUp" />
     </div>
   </AppLayout>
 </template>
@@ -200,7 +201,9 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'
 import PaymentProviderDialog from '@/components/payment/PaymentProviderDialog.vue'
 import PaymentProviderList from '@/components/payment/PaymentProviderList.vue'
+import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import type { TypeOption } from '@/components/payment/providerConfig'
+import { isStepUpCancelled, useStepUp } from '@/composables/useStepUp'
 
 type ProviderPayload = {
   provider_key: string
@@ -220,6 +223,7 @@ type PaymentProviderDialogExpose = {
 }
 
 const appStore = useAppStore()
+const stepUp = useStepUp()
 
 const paymentTypeOptions: TypeOption[] = [
   { value: 'easypay', label: '易支付' },
@@ -365,11 +369,12 @@ function configPayload(): UpdatePaymentConfigRequest {
 async function saveConfig() {
   savingConfig.value = true
   try {
-    await adminPaymentAPI.updateConfig(configPayload())
+    await stepUp.run(() => adminPaymentAPI.updateConfig(configPayload()))
     appStore.showSuccess('支付配置已保存')
     await loadConfig()
     await appStore.fetchPublicSettings?.(true)
   } catch (error) {
+    if (isStepUpCancelled(error)) return
     appStore.showError('支付配置保存失败')
   } finally {
     savingConfig.value = false
@@ -394,14 +399,15 @@ async function saveProvider(payload: ProviderPayload) {
   savingProvider.value = true
   try {
     if (editingProvider.value) {
-      await adminPaymentAPI.updateProvider(editingProvider.value.id, payload)
+      await stepUp.run(() => adminPaymentAPI.updateProvider(editingProvider.value!.id, payload))
     } else {
-      await adminPaymentAPI.createProvider(payload)
+      await stepUp.run(() => adminPaymentAPI.createProvider(payload))
     }
     appStore.showSuccess('支付渠道已保存')
     showProviderDialog.value = false
     await loadProviders()
   } catch (error) {
+    if (isStepUpCancelled(error)) return
     appStore.showError('支付渠道保存失败')
   } finally {
     savingProvider.value = false
@@ -409,7 +415,7 @@ async function saveProvider(payload: ProviderPayload) {
 }
 
 async function updateProvider(provider: ProviderInstance, patch: Partial<ProviderInstance>) {
-  await adminPaymentAPI.updateProvider(provider.id, patch)
+  await stepUp.run(() => adminPaymentAPI.updateProvider(provider.id, patch))
   await loadProviders()
 }
 
@@ -417,6 +423,7 @@ async function toggleProviderField(provider: ProviderInstance, field: 'enabled' 
   try {
     await updateProvider(provider, { [field]: !provider[field] })
   } catch (error) {
+    if (isStepUpCancelled(error)) return
     appStore.showError('支付渠道更新失败')
   }
 }
@@ -428,15 +435,17 @@ async function toggleProviderType(provider: ProviderInstance, type: string) {
   try {
     await updateProvider(provider, { supported_types: supported })
   } catch (error) {
+    if (isStepUpCancelled(error)) return
     appStore.showError('支付渠道更新失败')
   }
 }
 
 async function reorderProviders(updates: { id: number; sort_order: number }[]) {
   try {
-    await Promise.all(updates.map((item) => adminPaymentAPI.updateProvider(item.id, { sort_order: item.sort_order })))
+    await stepUp.run(() => Promise.all(updates.map((item) => adminPaymentAPI.updateProvider(item.id, { sort_order: item.sort_order }))))
     await loadProviders()
   } catch (error) {
+    if (isStepUpCancelled(error)) return
     appStore.showError('支付渠道排序失败')
   }
 }
@@ -449,11 +458,12 @@ async function deleteProvider() {
   if (!deletingProvider.value) return
   const providerID = deletingProvider.value.id
   try {
-    await adminPaymentAPI.deleteProvider(providerID)
+    await stepUp.run(() => adminPaymentAPI.deleteProvider(providerID))
     appStore.showSuccess('支付渠道已删除')
     deletingProvider.value = null
     await loadProviders()
   } catch (error) {
+    if (isStepUpCancelled(error)) return
     appStore.showError('支付渠道删除失败')
   }
 }

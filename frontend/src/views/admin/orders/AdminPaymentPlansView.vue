@@ -115,6 +115,7 @@
       @confirm="handleDeletePlan"
       @cancel="showDeletePlanDialog = false"
     />
+    <TotpStepUpDialog :controller="stepUp" />
   </AppLayout>
 </template>
 
@@ -154,11 +155,14 @@ import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
 import Icon from "@/components/icons/Icon.vue";
 import GroupBadge from "@/components/common/GroupBadge.vue";
 import PlanEditDialog from "./PlanEditDialog.vue";
+import TotpStepUpDialog from "@/components/auth/TotpStepUpDialog.vue";
+import { isStepUpCancelled, useStepUp } from "@/composables/useStepUp";
 import { platformTextClass } from "@/utils/platformColors";
 import { currencySymbol } from "@/components/payment/currency";
 
 const { t } = useI18n();
 const appStore = useAppStore();
+const stepUp = useStepUp();
 
 function planCurrencySymbol(currency?: string): string {
   return currencySymbol(currency || "USD");
@@ -247,9 +251,10 @@ function openPlanEdit(plan: SubscriptionPlan | null) {
 /** Quick toggle for_sale from the list */
 async function toggleForSale(plan: SubscriptionPlan) {
   try {
-    await adminPaymentAPI.updatePlan(plan.id, { for_sale: !plan.for_sale });
+    await stepUp.run(() => adminPaymentAPI.updatePlan(plan.id, { for_sale: !plan.for_sale }));
     plan.for_sale = !plan.for_sale;
   } catch (err: unknown) {
+    if (isStepUpCancelled(err)) return;
     appStore.showError(
       extractI18nErrorMessage(err, t, "payment.errors", t("common.error")),
     );
@@ -263,11 +268,12 @@ function confirmDeletePlan(plan: SubscriptionPlan) {
 async function handleDeletePlan() {
   if (!deletingPlanId.value) return;
   try {
-    await adminPaymentAPI.deletePlan(deletingPlanId.value);
+    await stepUp.run(() => adminPaymentAPI.deletePlan(deletingPlanId.value!));
     appStore.showSuccess(t("common.deleted"));
     showDeletePlanDialog.value = false;
     loadPlans();
   } catch (err: unknown) {
+    if (isStepUpCancelled(err)) return;
     appStore.showError(
       extractI18nErrorMessage(err, t, "payment.errors", t("common.error")),
     );
