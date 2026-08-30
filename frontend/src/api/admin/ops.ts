@@ -107,7 +107,7 @@ export interface OpsThroughputTrendResponse {
 
 export type OpsRequestKind = 'success' | 'error'
 export type OpsRequestDetailsKind = OpsRequestKind | 'all'
-export type OpsRequestDetailsSort = 'created_at_desc' | 'duration_desc'
+export type OpsRequestDetailsSort = 'created_at_desc' | 'duration_desc' | 'first_token_desc'
 
 export interface OpsRequestDetail {
   kind: OpsRequestKind
@@ -117,6 +117,7 @@ export interface OpsRequestDetail {
   platform?: string
   model?: string
   duration_ms?: number | null
+  first_token_ms?: number | null
   status_code?: number | null
 
   error_id?: number | null
@@ -338,7 +339,128 @@ export interface OpsUserConcurrencyStatsResponse {
   timestamp?: string
 }
 
-export async function getConcurrencyStats(platform?: string, groupId?: number | null): Promise<OpsConcurrencyStatsResponse> {
+export interface GatewaySchedulerRuntimeEntry {
+  account_id: number
+  platform: string
+  priority: number
+  current_concurrency: number
+  waiting_count: number
+  load_rate: number
+  ready_tier: number
+  ttft_ewma_ms?: number | null
+  error_rate_ewma: number
+  sticky_hits: number
+  load_balance_hits: number
+  switches: number
+  last_selected_at?: string | null
+}
+
+export interface GatewaySchedulerRuntimeMetrics {
+  select_total: number
+  sticky_session_hit_total: number
+  load_balance_select_total: number
+  account_switch_total: number
+  scheduler_latency_ms_total: number
+  scheduler_latency_ms_avg: number
+  sticky_hit_ratio: number
+  account_switch_rate: number
+  load_skew_avg: number
+  runtime_stats_account_count: number
+}
+
+export interface HTTPUpstreamMetricsSnapshot {
+  isolation_mode: string
+  active_clients: number
+  cache_hit_total: number
+  cache_miss_total: number
+  client_create_total: number
+  evict_idle_total: number
+  evict_lru_total: number
+  evict_config_change_total: number
+  limit_reject_total: number
+}
+
+export interface GatewaySchedulerRuntimeResponse {
+  metrics: GatewaySchedulerRuntimeMetrics
+  transport: HTTPUpstreamMetricsSnapshot
+  active_scheduling_accounts: number
+  pool_accounts_total: number
+  items: GatewaySchedulerRuntimeEntry[]
+  timestamp: string
+}
+
+export interface OpenAIWSRuntimeResponse {
+  acquire_total: number
+  reuse_total: number
+  create_total: number
+  queue_wait_ms_total: number
+  conn_pick_ms_total: number
+  scale_up_total: number
+  scale_down_total: number
+  prewarm_success_total: number
+  prewarm_fallback_total: number
+  fallback_reason_counts: Record<string, number>
+  retry?: {
+    retry_attempts_total?: number
+    retry_backoff_ms_total?: number
+    retry_exhausted_total?: number
+    non_retryable_fast_fallback_total?: number
+  }
+  passthrough?: Record<string, number>
+  relay?: {
+    incomplete_close_total?: number
+    client_write_blocked_total?: number
+    final_flush_fail_total?: number
+    first_token_after_header_ms_total?: number
+    first_token_after_header_count?: number
+    stream_closed_after_content_total?: number
+  }
+  circuits?: {
+    open_proxy_count?: number
+    open_account_count?: number
+    proxies?: Array<Record<string, any>>
+    accounts?: Array<Record<string, any>>
+  }
+  transport?: {
+    proxy_client_cache_hits?: number
+    proxy_client_cache_misses?: number
+    transport_reuse_ratio?: number
+    http1_dial_total?: number
+    http2_dial_total?: number
+    fallback_to_http1_total?: number
+  }
+  gnet_http1?: {
+    http1_classified_total?: number
+    h2c_classified_total?: number
+    sidecar_classified_total?: number
+    classify_error_total?: number
+    enqueue_drop_total?: number
+    http1_enqueue_drop_total?: number
+    h2c_enqueue_drop_total?: number
+    sidecar_enqueue_drop_total?: number
+    response_total?: number
+    buffered_response_total?: number
+    inline_buffer_hit_total?: number
+    heap_buffer_spill_total?: number
+    content_length_auto_total?: number
+    chunked_fallback_total?: number
+    chunked_flush_total?: number
+    chunked_header_total?: number
+    direct_write_after_flush_total?: number
+    async_write_total?: number
+    buffered_response_ratio?: number
+    inline_buffer_hit_ratio?: number
+    chunked_fallback_ratio?: number
+    http1_classification_ratio?: number
+  }
+  timestamp: string
+}
+
+export async function getConcurrencyStats(
+  platform?: string,
+  groupId?: number | null,
+  options?: { includeAccount?: boolean; accountLimit?: number }
+): Promise<OpsConcurrencyStatsResponse> {
   const params: Record<string, any> = {}
   if (platform) {
     params.platform = platform
@@ -346,13 +468,39 @@ export async function getConcurrencyStats(platform?: string, groupId?: number | 
   if (typeof groupId === 'number' && groupId > 0) {
     params.group_id = groupId
   }
+  if (typeof options?.includeAccount === 'boolean') {
+    params.include_account = options.includeAccount
+  }
+  if (typeof options?.accountLimit === 'number' && options.accountLimit > 0) {
+    params.account_limit = options.accountLimit
+  }
 
   const { data } = await apiClient.get<OpsConcurrencyStatsResponse>('/admin/ops/concurrency', { params })
   return data
 }
 
-export async function getUserConcurrencyStats(): Promise<OpsUserConcurrencyStatsResponse> {
-  const { data } = await apiClient.get<OpsUserConcurrencyStatsResponse>('/admin/ops/user-concurrency')
+export async function getUserConcurrencyStats(limit?: number): Promise<OpsUserConcurrencyStatsResponse> {
+  const params: Record<string, any> = {}
+  if (typeof limit === 'number' && limit > 0) {
+    params.limit = limit
+  }
+  const { data } = await apiClient.get<OpsUserConcurrencyStatsResponse>('/admin/ops/user-concurrency', { params })
+  return data
+}
+
+export async function getGatewaySchedulerRuntime(platform?: string, groupId?: number | null, limit?: number): Promise<GatewaySchedulerRuntimeResponse> {
+  const params: Record<string, any> = {}
+  if (platform) params.platform = platform
+  if (typeof groupId === 'number' && groupId > 0) params.group_id = groupId
+  if (typeof limit === 'number' && limit > 0) params.limit = limit
+  const { data } = await apiClient.get<GatewaySchedulerRuntimeResponse>('/admin/ops/gateway-scheduler', { params })
+  return data
+}
+
+export async function getOpenAIWSRuntime(platform?: string): Promise<OpenAIWSRuntimeResponse> {
+  const params: Record<string, any> = {}
+  if (platform) params.platform = platform
+  const { data } = await apiClient.get<OpenAIWSRuntimeResponse>('/admin/ops/openai-ws-runtime', { params })
   return data
 }
 
@@ -400,13 +548,23 @@ export interface OpsAccountAvailabilityStatsResponse {
   timestamp?: string
 }
 
-export async function getAccountAvailabilityStats(platform?: string, groupId?: number | null): Promise<OpsAccountAvailabilityStatsResponse> {
+export async function getAccountAvailabilityStats(
+  platform?: string,
+  groupId?: number | null,
+  options?: { includeAccount?: boolean; accountLimit?: number }
+): Promise<OpsAccountAvailabilityStatsResponse> {
   const params: Record<string, any> = {}
   if (platform) {
     params.platform = platform
   }
   if (typeof groupId === 'number' && groupId > 0) {
     params.group_id = groupId
+  }
+  if (typeof options?.includeAccount === 'boolean') {
+    params.include_account = options.includeAccount
+  }
+  if (typeof options?.accountLimit === 'number' && options.accountLimit > 0) {
+    params.account_limit = options.accountLimit
   }
   const { data } = await apiClient.get<OpsAccountAvailabilityStatsResponse>('/admin/ops/account-availability', { params })
   return data
@@ -677,6 +835,8 @@ export type MetricType =
   | 'success_rate'
   | 'error_rate'
   | 'upstream_error_rate'
+  | 'p95_latency_ms'
+  | 'p99_latency_ms'
   | 'cpu_usage_percent'
   | 'memory_usage_percent'
   | 'concurrency_queue_depth'
@@ -798,6 +958,9 @@ export interface OpsAdvancedSettings {
   display_alert_events: boolean
   auto_refresh_enabled: boolean
   auto_refresh_interval_seconds: number
+  lazy_runtime_cards: boolean
+  realtime_summary_limit: number
+  pause_refresh_when_hidden: boolean
 }
 
 export interface OpsDataRetentionSettings {
@@ -903,6 +1066,11 @@ export interface OpsErrorLog {
   status_code: number
   platform: string
   model: string
+  inbound_endpoint?: string
+  upstream_endpoint?: string
+  requested_model?: string
+  upstream_model?: string
+  request_type?: number | null
 
   resolved: boolean
   resolved_at?: string | null
@@ -928,11 +1096,6 @@ export interface OpsErrorLog {
   stream?: boolean
 
   // Error observability context (endpoint + model mapping)
-  inbound_endpoint?: string
-  upstream_endpoint?: string
-  requested_model?: string
-  upstream_model?: string
-  request_type?: number | null
   user_agent?: string
 
 }
@@ -1315,6 +1478,8 @@ export const opsAPI = {
   getOpenAITokenStats,
   getConcurrencyStats,
   getUserConcurrencyStats,
+  getGatewaySchedulerRuntime,
+  getOpenAIWSRuntime,
   getAccountAvailabilityStats,
   getRealtimeTrafficSummary,
   subscribeQPS,

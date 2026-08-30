@@ -9,10 +9,10 @@
     <form class="space-y-6" @submit.prevent="submit">
       <div class="agent-context">
         <div class="min-w-0">
-          <p class="truncate font-medium text-gray-900 dark:text-white">
+          <p class="truncate font-medium text-[var(--ssxz-text)]">
             {{ agent?.username || `用户 ${agent?.user_id ?? ''}` }}
           </p>
-          <p class="truncate text-sm text-gray-500 dark:text-gray-400">
+          <p class="truncate text-sm text-[var(--ssxz-text-muted)]">
             {{ agent?.email || '--' }}
           </p>
         </div>
@@ -243,14 +243,14 @@ async function submit(): Promise<void> {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid light-dark(#e5e7eb, #374151);
+  border-bottom: 1px solid var(--ssxz-border);
   padding-bottom: 1rem;
 }
 
 .field-hint {
   display: block;
   margin-top: 0.4rem;
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.75rem;
 }
 
@@ -260,8 +260,8 @@ async function submit(): Promise<void> {
   cursor: pointer;
   flex-direction: column;
   gap: 0.35rem;
-  border: 1px solid light-dark(#e5e7eb, #374151);
-  border-radius: 0.75rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
   padding: 0.85rem;
   transition:
     border-color 150ms ease,
@@ -270,17 +270,17 @@ async function submit(): Promise<void> {
 
 .policy-option:hover,
 .policy-option--selected {
-  border-color: light-dark(#9ca3af, #6b7280);
-  background: light-dark(#ffffff, #1f2937);
+  border-color: var(--ssxz-text-subtle);
+  background: var(--ssxz-surface-raised);
 }
 
 .policy-option strong {
-  color: light-dark(#111827, #f9fafb);
+  color: var(--ssxz-text);
   font-size: 0.875rem;
 }
 
 .policy-option span {
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.75rem;
 }
 
@@ -288,7 +288,7 @@ async function submit(): Promise<void> {
   display: inline-flex;
   flex: none;
   align-items: center;
-  border: 1px solid light-dark(#e5e7eb, #374151);
+  border: 1px solid var(--ssxz-border);
   border-radius: 999px;
   padding: 0.2rem 0.55rem;
   font-size: 0.72rem;
@@ -296,11 +296,11 @@ async function submit(): Promise<void> {
 }
 
 .status-badge--active {
-  color: #22c55e;
+  color: var(--ssxz-success);
 }
 
 .status-badge--disabled,
 .status-badge--revoked {
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
 }
 </style>

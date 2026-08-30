@@ -1,6 +1,8 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <AdminPageHeader title="订阅管理" description="订阅套餐与用户订阅状态" />
+
+    <TablePageLayout class="admin-b4-outline-scope">
       <template #filters>
         <!-- Top Toolbar: Left (search + filters) / Right (actions) -->
         <div class="flex flex-wrap items-start justify-between gap-4">
@@ -158,6 +160,10 @@
               :title="t('admin.subscriptions.guide.showGuide')"
             >
               <Icon name="questionCircle" size="md" />
+            </button>
+            <button @click="showBulkAssignModal = true" class="btn btn-secondary">
+              <Icon name="users" size="md" class="mr-2" />
+              {{ t('admin.subscriptions.bulkAssign.action') }}
             </button>
             <button @click="showAssignModal = true" class="btn btn-primary">
               <Icon name="plus" size="md" class="mr-2" />
@@ -443,6 +449,13 @@
       />
       </template>
     </TablePageLayout>
+
+    <BulkAssignSubscriptionsDialog
+      :show="showBulkAssignModal"
+      :groups="groups"
+      @close="showBulkAssignModal = false"
+      @assigned="loadSubscriptions"
+    />
 
     <!-- Assign Subscription Modal -->
     <BaseDialog
@@ -772,6 +785,7 @@ import type { Column } from '@/components/common/types'
 import { formatDateTimeToMinute } from '@/utils/format'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -782,6 +796,7 @@ import Select from '@/components/common/Select.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
 import Icon from '@/components/icons/Icon.vue'
+import BulkAssignSubscriptionsDialog from '@/components/admin/subscription/BulkAssignSubscriptionsDialog.vue'
 import {
   getRemainingDurationParts,
   getRemainingExpiryDuration,
@@ -968,6 +983,7 @@ const pagination = reactive({
 })
 
 const showAssignModal = ref(false)
+const showBulkAssignModal = ref(false)
 const showExtendModal = ref(false)
 const showRevokeDialog = ref(false)
 const showRestoreDialog = ref(false)
@@ -1481,5 +1497,21 @@ onUnmounted(() => {
 
 .reset-info {
   @apply flex items-center gap-1 pl-12 text-[10px] text-blue-600 dark:text-blue-400;
+}
+</style>
+
+<style scoped>
+.admin-b4-outline-scope :deep(.table-scroll-container),
+.admin-b4-outline-scope :deep(.table-wrapper),
+.admin-b4-outline-scope :deep(.table-wrapper table),
+.admin-b4-outline-scope :deep(.table-wrapper tbody) {
+  background: transparent !important;
+  border-color: var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b4-outline-scope :deep(thead),
+.admin-b4-outline-scope :deep(.table-header) {
+  background: var(--ssxz-surface-raised) !important;
 }
 </style>

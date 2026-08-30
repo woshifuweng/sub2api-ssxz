@@ -3,7 +3,6 @@ import { setActivePinia, createPinia } from 'pinia'
 import { useAppStore } from '@/stores/app'
 import { getPublicSettings } from '@/api/auth'
 import type { PublicSettings } from '@/types'
-import { DEFAULT_SITE_LOGO } from '@/utils/branding'
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -58,7 +57,6 @@ function createPublicSettings(overrides: Partial<PublicSettings> = {}): PublicSe
     available_channels_enabled: false,
     model_plaza_enabled: false,
     model_plaza_require_auth: false,
-    plugin_management_enabled: false,
     service_quota_enabled: false,
     affiliate_enabled: false,
     ...overrides,
@@ -411,7 +409,7 @@ describe('useAppStore', () => {
 
       expect(result).toBe(true)
       expect(store.siteName).toBe('TestSite')
-      expect(store.siteLogo).toBe(DEFAULT_SITE_LOGO)
+      expect(store.siteLogo).toBe('/logo.png')
       expect(store.siteVersion).toBe('1.0.0')
       expect(store.publicSettingsLoaded).toBe(true)
     })

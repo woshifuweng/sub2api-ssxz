@@ -112,7 +112,7 @@ import type { UserSubscription } from '@/types'
 import { useAppStore } from '@/stores/app'
 import { hasPeakRate as groupHasPeakRate, formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
 import { planValiditySuffix } from './validity'
-import { currencySymbol } from '@/components/payment/currency'
+import { currencySymbol } from './currency'
 import {
   platformAccentBarClass,
   platformBadgeLightClass,
@@ -156,12 +156,10 @@ const rateDisplay = computed(() => {
 
 const appStore = useAppStore()
 const planCurrencySymbol = computed(() => currencySymbol(props.plan.currency || 'USD'))
-
 const hasPeakRate = computed(() => groupHasPeakRate(props.plan))
-
-const peakRateDisplay = computed(() => {
-  return formatPeakRateWindow(props.plan, serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset))
-})
+const peakRateDisplay = computed(() =>
+  formatPeakRateWindow(props.plan, serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset)),
+)
 
 const MODEL_SCOPE_LABELS: Record<string, string> = {
   claude: 'Claude',
@@ -176,5 +174,7 @@ const modelScopeLabels = computed(() => {
   return scopes.map(s => MODEL_SCOPE_LABELS[s] || s)
 })
 
-const validitySuffix = computed(() => planValiditySuffix(props.plan, t))
+const validitySuffix = computed(() => {
+  return planValiditySuffix(props.plan, t)
+})
 </script>

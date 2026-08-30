@@ -13,6 +13,9 @@ export interface OpsRequestDetailsPreset {
   title: string
   kind?: OpsRequestDetailsParams['kind']
   sort?: OpsRequestDetailsParams['sort']
+  user_id?: number
+  api_key_id?: number
+  request_id?: string
   min_duration_ms?: number
   max_duration_ms?: number
 }
@@ -23,7 +26,6 @@ interface Props {
   preset: OpsRequestDetailsPreset
   platform?: string
   groupId?: number | null
-  resumeState?: boolean
 }
 
 const props = defineProps<Props>()
@@ -53,6 +55,15 @@ const rangeLabel = computed(() => {
   return t('admin.ops.requestDetails.rangeMinutes', { n: minutes })
 })
 
+const isTTFTView = computed(() => props.preset.sort === 'first_token_desc')
+const metricColumnLabel = computed(() =>
+  isTTFTView.value ? t('admin.ops.requestDetails.table.ttft') : t('admin.ops.requestDetails.table.duration')
+)
+
+function formatMetricMs(value: number | null | undefined): string {
+  return typeof value === 'number' ? `${value} ms` : '-'
+}
+
 function buildTimeParams(): Pick<OpsRequestDetailsParams, 'start_time' | 'end_time'> {
   const minutes = parseTimeRangeMinutes(props.timeRange)
   const endTime = new Date()
@@ -81,6 +92,11 @@ const fetchData = async () => {
 
     if (typeof props.preset.min_duration_ms === 'number') params.min_duration_ms = props.preset.min_duration_ms
     if (typeof props.preset.max_duration_ms === 'number') params.max_duration_ms = props.preset.max_duration_ms
+    if (typeof props.preset.user_id === 'number' && props.preset.user_id > 0) params.user_id = props.preset.user_id
+    if (typeof props.preset.api_key_id === 'number' && props.preset.api_key_id > 0) params.api_key_id = props.preset.api_key_id
+
+    const requestId = (props.preset.request_id || '').trim()
+    if (requestId) params.request_id = requestId
 
     const res = await opsAPI.listRequestDetails(params)
     items.value = res.items || []
@@ -99,12 +115,12 @@ watch(
   () => props.modelValue,
   (open) => {
     if (open) {
-      if (props.resumeState) return
       page.value = 1
       pageSize.value = 10
       fetchData()
     }
-  }
+  },
+  { immediate: true }
 )
 
 watch(
@@ -114,6 +130,9 @@ watch(
     props.groupId,
     props.preset.kind,
     props.preset.sort,
+    props.preset.user_id,
+    props.preset.api_key_id,
+    props.preset.request_id,
     props.preset.min_duration_ms,
     props.preset.max_duration_ms
   ],
@@ -144,6 +163,7 @@ async function handleCopyRequestId(requestId: string) {
 
 function openErrorDetail(errorId: number | null | undefined) {
   if (!errorId) return
+  close()
   emit('openErrorDetail', errorId)
 }
 
@@ -244,7 +264,7 @@ const kindBadgeClass = (kind: string) => {
                     {{ t('admin.ops.requestDetails.table.model') }}
                   </th>
                   <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                    {{ t('admin.ops.requestDetails.table.duration') }}
+                    {{ metricColumnLabel }}
                   </th>
                   <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                     {{ t('admin.ops.requestDetails.table.status') }}
@@ -274,7 +294,7 @@ const kindBadgeClass = (kind: string) => {
                     {{ row.model || '-' }}
                   </td>
                   <td class="whitespace-nowrap px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
-                    {{ typeof row.duration_ms === 'number' ? `${row.duration_ms} ms` : '-' }}
+                    {{ formatMetricMs(isTTFTView ? row.first_token_ms : row.duration_ms) }}
                   </td>
                   <td class="whitespace-nowrap px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
                     {{ row.status_code ?? '-' }}

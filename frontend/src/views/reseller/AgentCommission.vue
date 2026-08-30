@@ -1,7 +1,9 @@
 <template>
-  <ResellerPageLayout
-    :title="t('reseller.pages.commission.title')"
-    :description="t('reseller.pages.commission.description')"
+  <AppSectionShell
+    title="佣金明细"
+    subtitle="查看下线消费带来的逐笔佣金记录"
+    eyebrow="RESELLER"
+    icon="document"
   >
     <div class="commission-page">
       <section class="card commission-summary">
@@ -73,11 +75,11 @@
                 <td>{{ formatDateTime(item.time) }}</td>
                 <td>{{ maskEmail(item.source_user_masked_email) }}</td>
                 <td>{{ formatCurrency(item.source_consumption_usd) }}</td>
-                <td class="font-medium text-gray-900 dark:text-white">{{ formatCurrency(item.commission_usd) }}</td>
+                <td class="font-medium text-[var(--ssxz-text)]">{{ formatCurrency(item.commission_usd) }}</td>
                 <td>{{ formatRate(item.commission_rate) }}</td>
               </tr>
               <tr v-if="commission.items.length === 0">
-                <td colspan="5" class="py-10 text-center text-gray-500 dark:text-gray-400">暂无佣金记录</td>
+                <td colspan="5" class="py-10 text-center text-[var(--ssxz-text-muted)]">暂无佣金记录</td>
               </tr>
             </tbody>
           </table>
@@ -93,13 +95,12 @@
         />
       </section>
     </div>
-  </ResellerPageLayout>
+  </AppSectionShell>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import ResellerPageLayout from '@/components/reseller/ResellerPageLayout.vue'
+import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import LiquidButton from '@/components/common/LiquidButton.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -108,7 +109,6 @@ import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatCurrency, formatDateTime } from '@/utils/format'
 
 type Preset = 'week' | 'month' | 'last_month' | 'custom'
-const { t } = useI18n()
 
 const presets: Array<{ value: Preset; label: string }> = [
   { value: 'week', label: '本周' },
@@ -194,17 +194,17 @@ onMounted(() => void loadPage(1))
 .commission-page { display: grid; gap: 1.25rem; }
 .commission-summary { display: flex; gap: 3rem; padding: 1.25rem 1.5rem; }
 .commission-summary div { display: grid; gap: 0.4rem; }
-.commission-summary span, .commission-header p, .date-field span { color: light-dark(#6b7280, #9ca3af); font-size: 0.8rem; }
-.commission-summary strong { color: light-dark(#111827, #f9fafb); font-size: 1.75rem; }
+.commission-summary span, .commission-header p, .date-field span { color: var(--ssxz-text-muted); font-size: 0.8rem; }
+.commission-summary strong { color: var(--ssxz-text); font-size: 1.75rem; }
 .commission-total strong { font-size: 1.5rem; }
-.commission-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid light-dark(#e5e7eb, #374151); padding: 1rem 1.25rem; }
-.commission-header h2 { color: light-dark(#111827, #f9fafb); font-size: 1rem; font-weight: 600; }
+.commission-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--ssxz-border); padding: 1rem 1.25rem; }
+.commission-header h2 { color: var(--ssxz-text); font-size: 1rem; font-weight: 600; }
 .commission-header p { margin-top: 0.25rem; }
 .commission-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 1rem 1.25rem; }
 .date-field { display: flex; align-items: center; gap: 0.4rem; }
 .commission-table { width: 100%; font-size: 0.82rem; text-align: left; }
-.commission-table th { background: light-dark(#f9fafb, #111827); padding: 0.75rem 1rem; color: light-dark(#6b7280, #9ca3af); font-weight: 500; }
-.commission-table td { border-top: 1px solid light-dark(#e5e7eb, #374151); padding: 0.85rem 1rem; color: light-dark(#4b5563, #d1d5db); }
-.commission-empty { padding: 2.5rem; color: light-dark(#6b7280, #9ca3af); text-align: center; }
+.commission-table th { background: var(--ssxz-surface-sunken); padding: 0.75rem 1rem; color: var(--ssxz-text-muted); font-weight: 500; }
+.commission-table td { border-top: 1px solid var(--ssxz-border); padding: 0.85rem 1rem; color: var(--ssxz-text-secondary); }
+.commission-empty { padding: 2.5rem; color: var(--ssxz-text-muted); text-align: center; }
 @media (max-width: 639px) { .commission-summary { flex-direction: column; gap: 1rem; } .commission-header { align-items: stretch; flex-direction: column; } }
 </style>

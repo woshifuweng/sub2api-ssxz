@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import LinuxDoOAuthSection from '@/components/auth/LinuxDoOAuthSection.vue'
 import DingTalkOAuthSection from '@/components/auth/DingTalkOAuthSection.vue'
 import OidcOAuthSection from '@/components/auth/OidcOAuthSection.vue'
+import FoundationButton from '@/components/foundation/FoundationButton.vue'
 
 const routeState = vi.hoisted(() => ({
   query: {} as Record<string, unknown>
@@ -30,9 +31,13 @@ describe('OAuth login sections', () => {
     ['oidc', OidcOAuthSection]
   ] as const)('emits a %s start request from the original button', async (provider, component) => {
     const originalHref = window.location.href
-    const wrapper = mount(component, { props: { affCode: 'AFF456' } })
+    const wrapper = mount(component, {
+      props: { affCode: 'AFF456' },
+      global: { components: { FoundationButton } }
+    })
 
-    await wrapper.get('button').trigger('click')
+    const button = wrapper.find('button')
+    await (button.exists() ? button : wrapper.get('.auth-oauth-button')).trigger('click')
 
     expect(wrapper.emitted('start')?.[0]?.[0]).toEqual({
       provider,

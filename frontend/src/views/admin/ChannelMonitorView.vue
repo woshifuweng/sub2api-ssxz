@@ -1,3 +1,6 @@
+Exit code: 0
+Wall time: 0.1 seconds
+Output:
 <template>
   <AppLayout>
     <div class="w-full min-w-0 space-y-6 pb-8">

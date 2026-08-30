@@ -10,23 +10,21 @@ const homeViewSource = readFileSync(resolve(dir, '../../../views/HomeView.vue'),
 const keyUsageViewSource = readFileSync(resolve(dir, '../../../views/KeyUsageView.vue'), 'utf8')
 
 describe('site_logo sanitization', () => {
-  it('AppSidebar imports sanitizeUrl and applies it to siteLogo', () => {
-    expect(sidebarSource).toContain("import { sanitizeUrl } from '@/utils/url'")
-    expect(sidebarSource).toContain('sanitizeUrl(appStore.siteLogo')
+  it('AppSidebar uses the static branded logo rather than a raw setting URL', () => {
+    expect(sidebarSource).toContain('<BrandLogo')
+    expect(sidebarSource).not.toContain(':src="appStore.siteLogo"')
   })
 
   it('HomeView applies sanitizeUrl to siteLogo', () => {
-    expect(homeViewSource).toContain('sanitizeUrl(')
-    expect(homeViewSource).toContain('normalizeSiteLogo(appStore.cachedPublicSettings?.site_logo || appStore.siteLogo')
+    expect(homeViewSource).toMatch(/sanitizeUrl\([\s\S]{0,180}cachedPublicSettings\?\.site_logo\s*\|\|\s*appStore\.siteLogo/)
   })
 
   it('KeyUsageView applies sanitizeUrl to siteLogo', () => {
-    expect(keyUsageViewSource).toContain('sanitizeUrl(')
-    expect(keyUsageViewSource).toContain('normalizeSiteLogo(appStore.cachedPublicSettings?.site_logo || appStore.siteLogo')
+    expect(keyUsageViewSource).toMatch(/sanitizeUrl\([\s\S]{0,220}cachedPublicSettings\?\.site_logo\s*\|\|\s*appStore\.siteLogo/)
   })
 
-  it('all three pass allowRelative and allowDataUrl options', () => {
-    for (const src of [sidebarSource, homeViewSource, keyUsageViewSource]) {
+  it('dynamic logo consumers allow safe relative and data image URLs', () => {
+    for (const src of [homeViewSource, keyUsageViewSource]) {
       expect(src).toContain('allowRelative: true')
       expect(src).toContain('allowDataUrl: true')
     }

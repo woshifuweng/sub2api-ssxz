@@ -87,7 +87,7 @@ describe('WechatPaymentCallbackView', () => {
     await flushPromises()
 
     expect(replaceMock).toHaveBeenCalledWith({
-      path: '/purchase',
+      path: '/app/purchase',
       query: {
         from: 'wechat',
         wechat_resume: '1',

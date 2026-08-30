@@ -21,6 +21,22 @@
         </div>
       </div>
 
+      <div
+        v-if="keyStatusWarning"
+        class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
+        data-testid="key-status-warning"
+      >
+        <Icon name="exclamationCircle" size="md" class="mt-0.5 flex-shrink-0 text-amber-500" />
+        <div>
+          <p class="text-sm font-semibold text-amber-900 dark:text-amber-100">
+            {{ t(keyStatusWarning.titleKey) }}
+          </p>
+          <p class="mt-1 text-sm leading-6 text-amber-700 dark:text-amber-300">
+            {{ t(keyStatusWarning.descriptionKey) }}
+          </p>
+        </div>
+      </div>
+
       <!-- Platform-specific content -->
       <template v-else>
         <!-- Description -->
@@ -133,8 +149,198 @@
           </nav>
         </div>
 
+        <!-- Third-party client guide -->
+        <div v-if="isThirdPartyTab" class="space-y-4">
+          <div class="rounded-xl border border-primary-100 bg-primary-50/80 p-4 dark:border-primary-800/60 dark:bg-primary-900/20">
+            <div class="flex items-start gap-3">
+              <Icon name="infoCircle" size="md" class="mt-0.5 flex-shrink-0 text-primary-500" />
+              <div class="space-y-1">
+                <p class="text-sm font-semibold text-gray-900 dark:text-white">
+                  {{ t('keys.useKeyModal.thirdParty.title') }}
+                </p>
+                <p class="text-sm text-gray-600 dark:text-gray-300">
+                  {{ t('keys.useKeyModal.thirdParty.description') }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div
+            class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900/80"
+            data-testid="third-party-quick-start"
+          >
+            <p class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.thirdParty.quickStartTitle') }}
+            </p>
+            <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+              {{ t('keys.useKeyModal.thirdParty.quickStartDescription') }}
+            </p>
+            <dl class="mt-3 grid gap-2 text-sm sm:grid-cols-[8rem_1fr]">
+              <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.quickStartBaseUrl') }}</dt>
+              <dd class="break-all font-mono text-gray-900 dark:text-gray-100">{{ openAICompatibleBaseUrl }}</dd>
+              <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.quickStartApiKey') }}</dt>
+              <dd class="text-gray-900 dark:text-gray-100">{{ t('keys.useKeyModal.thirdParty.quickStartApiKeyHint') }}</dd>
+              <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.quickStartModel') }}</dt>
+              <dd class="text-gray-900 dark:text-gray-100">{{ t('keys.useKeyModal.thirdParty.quickStartModelHint') }}</dd>
+              <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.quickStartSpeed') }}</dt>
+              <dd class="text-gray-900 dark:text-gray-100">{{ t('keys.useKeyModal.thirdParty.quickStartSpeedHint') }}</dd>
+            </dl>
+          </div>
+
+          <div
+            class="rounded-xl border border-primary-100 bg-primary-50/70 p-4 dark:border-primary-800/50 dark:bg-primary-900/20"
+            data-testid="cc-switch-setup-card"
+          >
+            <p class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.thirdParty.ccSwitchQuickTitle') }}
+            </p>
+            <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+              {{ t('keys.useKeyModal.thirdParty.ccSwitchQuickDescription') }}
+            </p>
+            <ol class="mt-3 space-y-1.5 text-sm text-gray-700 dark:text-gray-300">
+              <li>{{ t('keys.useKeyModal.thirdParty.ccSwitchQuickOfficialSite') }}</li>
+              <li>{{ t('keys.useKeyModal.thirdParty.ccSwitchQuickRequestUrl') }}</li>
+              <li>{{ t('keys.useKeyModal.thirdParty.ccSwitchQuickApiKey') }}</li>
+              <li>{{ t('keys.useKeyModal.thirdParty.ccSwitchQuickModel') }}</li>
+              <li>{{ t('keys.useKeyModal.thirdParty.ccSwitchQuickRestart') }}</li>
+            </ol>
+            <dl
+              class="mt-3 grid gap-2 rounded-lg border border-primary-100 bg-white/70 p-3 text-sm dark:border-primary-800/50 dark:bg-dark-900/60 sm:grid-cols-[8rem_1fr]"
+              data-testid="cc-switch-field-values"
+            >
+              <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.ccSwitchHomepageLabel') }}</dt>
+              <dd class="break-all font-mono text-gray-900 dark:text-gray-100">{{ siteHomepageUrl }}</dd>
+              <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.ccSwitchRequestUrlLabel') }}</dt>
+              <dd class="break-all font-mono text-gray-900 dark:text-gray-100">{{ openAICompatibleBaseUrl }}</dd>
+            </dl>
+          </div>
+
+          <div class="grid gap-3 md:grid-cols-2">
+            <div
+              v-for="client in thirdPartyClients"
+              :key="client.title"
+              class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900/80"
+            >
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">
+                {{ client.title }}
+              </p>
+              <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                {{ client.description }}
+              </p>
+              <ul class="mt-3 space-y-1.5 text-xs text-gray-500 dark:text-gray-400">
+                <li v-for="field in client.fields" :key="field" class="leading-5">
+                  {{ field }}
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <details
+            class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900/80"
+            data-testid="third-party-advanced-help"
+          >
+            <summary class="cursor-pointer select-none text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.thirdParty.advancedHelpTitle') }}
+            </summary>
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              {{ t('keys.useKeyModal.thirdParty.advancedHelpDescription') }}
+            </p>
+
+            <div class="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-900/70">
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">
+                {{ t('keys.useKeyModal.thirdParty.connectionTitle') }}
+              </p>
+              <dl class="mt-3 space-y-2 text-sm">
+                <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <dt class="text-gray-500 dark:text-gray-400">Base URL</dt>
+                  <dd class="break-all font-mono text-gray-900 dark:text-gray-100">{{ openAICompatibleBaseUrl }}</dd>
+                </div>
+                <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <dt class="text-gray-500 dark:text-gray-400">API Key</dt>
+                  <dd class="text-gray-900 dark:text-gray-100">
+                    {{ t('keys.useKeyModal.thirdParty.apiKeyHint') }}
+                  </dd>
+                </div>
+                <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.modelLabel') }}</dt>
+                  <dd class="text-gray-900 dark:text-gray-100">
+                    {{ t('keys.useKeyModal.thirdParty.modelHint') }}
+                  </dd>
+                </div>
+                <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <dt class="text-gray-500 dark:text-gray-400">{{ t('keys.useKeyModal.thirdParty.modelsEndpointLabel') }}</dt>
+                  <dd class="break-all font-mono text-gray-900 dark:text-gray-100">{{ modelsEndpointUrl }}</dd>
+                </div>
+              </dl>
+            </div>
+
+            <div
+              class="mt-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900/80"
+              data-testid="third-party-connection-checklist"
+            >
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">
+                {{ t('keys.useKeyModal.thirdParty.connectionChecklistTitle') }}
+              </p>
+              <ul class="mt-3 space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistBaseUrl') }}</li>
+                <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistEndpoint') }}</li>
+                <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistFullKey') }}</li>
+                <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistModels') }}</li>
+                <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistBalance') }}</li>
+                <li>{{ t('keys.useKeyModal.thirdParty.connectionChecklistRestart') }}</li>
+              </ul>
+            </div>
+
+            <div
+              class="mt-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900/80"
+              data-testid="third-party-troubleshooting"
+            >
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">
+                {{ t('keys.useKeyModal.thirdParty.troubleshootingTitle') }}
+              </p>
+              <dl class="mt-3 space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                <div
+                  v-for="item in troubleshootingItems"
+                  :key="item.code"
+                  class="grid gap-1 sm:grid-cols-[5rem_1fr]"
+                >
+                  <dt class="font-mono font-semibold text-gray-900 dark:text-gray-100">
+                    {{ item.code }}
+                  </dt>
+                  <dd>{{ item.description }}</dd>
+                </div>
+              </dl>
+              <p class="mt-3 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                {{ t('keys.useKeyModal.thirdParty.troubleshootingUsageHint') }}
+              </p>
+            </div>
+
+            <div class="mt-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+              <Icon name="exclamationCircle" size="md" class="mt-0.5 flex-shrink-0 text-amber-500" />
+              <p class="text-sm text-amber-700 dark:text-amber-300">
+                {{ t('keys.useKeyModal.thirdParty.securityNote') }}
+              </p>
+            </div>
+          </details>
+        </div>
+
         <!-- Code Blocks (Stacked for multi-file platforms) -->
-        <div class="space-y-4">
+        <div
+          v-else-if="!hasUsableApiKey"
+          class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
+          data-testid="full-key-missing-warning"
+        >
+          <Icon name="exclamationCircle" size="md" class="mt-0.5 flex-shrink-0 text-amber-500" />
+          <div>
+            <p class="text-sm font-semibold text-amber-900 dark:text-amber-100">
+              {{ t('keys.useKeyModal.fullKeyMissingTitle') }}
+            </p>
+            <p class="mt-1 text-sm leading-6 text-amber-700 dark:text-amber-300">
+              {{ t('keys.useKeyModal.fullKeyMissingDescription') }}
+            </p>
+          </div>
+        </div>
+        <div v-else class="space-y-4">
           <div
             v-for="(file, index) in currentFiles"
             :key="index"
@@ -173,9 +379,9 @@
         </div>
 
         <!-- Usage Note -->
-        <div v-if="showPlatformNote" class="flex items-start gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800">
-          <Icon name="infoCircle" size="md" class="text-blue-500 flex-shrink-0 mt-0.5" />
-          <p class="text-sm text-blue-700 dark:text-blue-300">
+        <div v-if="showPlatformNote" class="flex items-start gap-3 p-3 rounded-lg bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800">
+          <Icon name="infoCircle" size="md" class="text-primary-500 flex-shrink-0 mt-0.5" />
+          <p class="text-sm text-primary-700 dark:text-primary-300">
             {{ platformNote }}
           </p>
         </div>
@@ -208,7 +414,9 @@ interface Props {
   apiKey: string
   baseUrl: string
   platform: GroupPlatform | null
+  allowedModels?: string[]
   allowMessagesDispatch?: boolean
+  keyStatus?: 'active' | 'inactive' | 'quota_exhausted' | 'expired'
 }
 
 interface Emits {
@@ -236,23 +444,23 @@ const { copyToClipboard: clipboardCopy } = useClipboard()
 
 const copiedIndex = ref<number | null>(null)
 const activeTab = ref<string>('unix')
-const activeClientTab = ref<string>('claude')
 type CodexAuthMode = 'legacy' | 'api-key'
 const codexAuthMode = ref<CodexAuthMode>('legacy')
+const activeClientTab = ref<string>('third-party')
 
 // Reset tabs when platform changes
 const defaultClientTab = computed(() => {
   switch (props.platform) {
     case 'openai':
-      return 'codex'
+      return 'third-party'
     case 'grok':
       return 'grok'
     case 'gemini':
-      return 'gemini'
+      return 'third-party'
     case 'antigravity':
-      return 'claude'
+      return 'third-party'
     default:
-      return 'claude'
+      return 'third-party'
   }
 })
 
@@ -338,9 +546,15 @@ const SparkleIcon = {
 
 const clientTabs = computed((): TabConfig[] => {
   if (!props.platform) return []
+  const thirdPartyTab: TabConfig = {
+    id: 'third-party',
+    label: t('keys.useKeyModal.cliTabs.thirdParty'),
+    icon: TerminalIcon
+  }
   switch (props.platform) {
     case 'openai': {
       const tabs: TabConfig[] = [
+        thirdPartyTab,
         { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
         { id: 'codex-ws', label: t('keys.useKeyModal.cliTabs.codexCliWs'), icon: TerminalIcon },
       ]
@@ -352,11 +566,13 @@ const clientTabs = computed((): TabConfig[] => {
     }
     case 'gemini':
       return [
+        thirdPartyTab,
         { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: SparkleIcon },
         { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
       ]
     case 'antigravity':
       return [
+        thirdPartyTab,
         { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
         { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: SparkleIcon },
         { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
@@ -370,6 +586,7 @@ const clientTabs = computed((): TabConfig[] => {
       ]
     default:
       return [
+        thirdPartyTab,
         { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
         { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
       ]
@@ -389,7 +606,38 @@ const openaiTabs: TabConfig[] = [
   { id: 'windows', label: 'Windows', icon: WindowsIcon }
 ]
 
-const showShellTabs = computed(() => activeClientTab.value !== 'opencode')
+const isThirdPartyTab = computed(() => activeClientTab.value === 'third-party')
+const showShellTabs = computed(() => activeClientTab.value !== 'opencode' && !isThirdPartyTab.value)
+const isMaskedApiKey = (key: string) => key === '[redacted]' || key.includes('...')
+const hasUsableApiKey = computed(() => props.apiKey !== '' && !isMaskedApiKey(props.apiKey))
+const keyStatusWarning = computed(() => {
+  switch (props.keyStatus) {
+    case 'inactive':
+      return {
+        titleKey: 'keys.useKeyModal.statusWarning.inactiveTitle',
+        descriptionKey: 'keys.useKeyModal.statusWarning.inactiveDescription'
+      }
+    case 'expired':
+      return {
+        titleKey: 'keys.useKeyModal.statusWarning.expiredTitle',
+        descriptionKey: 'keys.useKeyModal.statusWarning.expiredDescription'
+      }
+    case 'quota_exhausted':
+      return {
+        titleKey: 'keys.useKeyModal.statusWarning.quotaExhaustedTitle',
+        descriptionKey: 'keys.useKeyModal.statusWarning.quotaExhaustedDescription'
+      }
+    default:
+      return null
+  }
+})
+const firstAllowedModel = computed(() =>
+  props.allowedModels
+    ?.map((model) => model.trim())
+    .find(Boolean) || ''
+)
+const openAIExampleModel = computed(() => firstAllowedModel.value || 'your-model-name')
+const geminiExampleModel = computed(() => firstAllowedModel.value || 'gemini-2.0-flash')
 
 const showCodexAuthMode = computed(() =>
   props.platform === 'openai' &&
@@ -405,6 +653,9 @@ const currentTabs = computed(() => {
 })
 
 const platformDescription = computed(() => {
+  if (isThirdPartyTab.value) {
+    return t('keys.useKeyModal.thirdParty.intro')
+  }
   switch (props.platform) {
     case 'openai':
       if (activeClientTab.value === 'claude') {
@@ -465,7 +716,77 @@ const platformNote = computed(() => {
   }
 })
 
-const showPlatformNote = computed(() => activeClientTab.value !== 'opencode')
+const showPlatformNote = computed(() =>
+  hasUsableApiKey.value && activeClientTab.value !== 'opencode' && !isThirdPartyTab.value
+)
+
+const openAICompatibleBaseUrl = computed(() => {
+  const baseUrl = props.baseUrl || window.location.origin
+  const trimmed = baseUrl.replace(/\/+$/, '')
+  return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
+})
+
+const siteHomepageUrl = computed(() => {
+  const baseUrl = props.baseUrl || window.location.origin
+  return baseUrl.replace(/\/v1\/?$/, '').replace(/\/+$/, '')
+})
+
+const modelsEndpointUrl = computed(() => `${openAICompatibleBaseUrl.value}/models`)
+
+const troubleshootingItems = computed(() => [
+  {
+    code: '401',
+    description: t('keys.useKeyModal.thirdParty.troubleshooting401')
+  },
+  {
+    code: '403',
+    description: t('keys.useKeyModal.thirdParty.troubleshooting403')
+  },
+  {
+    code: '429',
+    description: t('keys.useKeyModal.thirdParty.troubleshooting429')
+  },
+  {
+    code: '503',
+    description: t('keys.useKeyModal.thirdParty.troubleshooting503')
+  },
+  {
+    code: t('keys.useKeyModal.thirdParty.troubleshootingModelsCode'),
+    description: t('keys.useKeyModal.thirdParty.troubleshootingModels')
+  }
+])
+
+const thirdPartyClients = computed(() => [
+  {
+    title: 'Cherry Studio',
+    description: t('keys.useKeyModal.thirdParty.cherryStudio'),
+    fields: [
+      t('keys.useKeyModal.thirdParty.cherryStudioFields.provider'),
+      t('keys.useKeyModal.thirdParty.cherryStudioFields.baseUrl'),
+      t('keys.useKeyModal.thirdParty.cherryStudioFields.apiKey'),
+      t('keys.useKeyModal.thirdParty.cherryStudioFields.model')
+    ]
+  },
+  {
+    title: 'Chatbox',
+    description: t('keys.useKeyModal.thirdParty.chatbox'),
+    fields: [
+      t('keys.useKeyModal.thirdParty.chatboxFields.provider'),
+      t('keys.useKeyModal.thirdParty.chatboxFields.apiHost'),
+      t('keys.useKeyModal.thirdParty.chatboxFields.apiKey'),
+      t('keys.useKeyModal.thirdParty.chatboxFields.model')
+    ]
+  },
+  {
+    title: t('keys.useKeyModal.thirdParty.otherClientsTitle'),
+    description: t('keys.useKeyModal.thirdParty.otherClients'),
+    fields: [
+      t('keys.useKeyModal.thirdParty.otherClientFields.baseUrl'),
+      t('keys.useKeyModal.thirdParty.otherClientFields.apiKey'),
+      t('keys.useKeyModal.thirdParty.otherClientFields.model')
+    ]
+  }
+])
 
 const escapeHtml = (value: string) => value
   .replace(/&/g, '&amp;')
@@ -478,7 +799,7 @@ const wrapToken = (className: string, value: string) =>
   `<span class="${className}">${escapeHtml(value)}</span>`
 
 const keyword = (value: string) => wrapToken('text-emerald-300', value)
-const variable = (value: string) => wrapToken('text-sky-200', value)
+const variable = (value: string) => wrapToken('text-primary-200', value)
 const operator = (value: string) => wrapToken('text-slate-400', value)
 const string = (value: string) => wrapToken('text-amber-200', value)
 const comment = (value: string) => wrapToken('text-slate-500', value)
@@ -506,6 +827,8 @@ const currentFiles = computed((): FileConfig[] => {
 
   if (activeClientTab.value === 'opencode') {
     switch (props.platform) {
+      case 'kiro':
+        return [generateOpenCodeConfig('anthropic', apiBase, apiKey)]
       case 'anthropic':
         return [generateOpenCodeConfig('anthropic', apiBase, apiKey)]
       case 'openai':
@@ -525,6 +848,8 @@ const currentFiles = computed((): FileConfig[] => {
   }
 
   switch (props.platform) {
+    case 'kiro':
+      return generateAnthropicFiles(baseUrl, apiKey)
     case 'openai':
       if (activeClientTab.value === 'claude') {
         return generateAnthropicFiles(baseUrl, apiKey)
@@ -666,7 +991,7 @@ function generateGrokClaudeFiles(baseUrl: string, apiKey: string): FileConfig[] 
 }
 
 function generateGeminiCliContent(baseUrl: string, apiKey: string): FileConfig {
-  const model = 'gemini-2.0-flash'
+  const model = geminiExampleModel.value
   const modelComment = t('keys.useKeyModal.gemini.modelComment')
   let path: string
   let content: string
@@ -713,18 +1038,23 @@ ${keyword('$env:')}${variable('GEMINI_MODEL')}${operator('=')}${string(`"${model
 function generateOpenAIFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
+  const model = openAIExampleModel.value
+  const isModelRestricted = Boolean(props.allowedModels?.length)
+  const providerName = isModelRestricted ? 'ssxz' : 'OpenAI'
+  const selectedModel = isModelRestricted ? model : 'gpt-5.5'
+  const reasoningEffort = isModelRestricted ? 'medium' : 'xhigh'
 
   // config.toml content
-  const configContent = `model_provider = "OpenAI"
-model = "gpt-5.5"
-review_model = "gpt-5.5"
-model_reasoning_effort = "xhigh"
+  const configContent = `model_provider = "${providerName}"
+model = "${selectedModel}"
+review_model = "${selectedModel}"
+model_reasoning_effort = "${reasoningEffort}"
 disable_response_storage = true
 network_access = "enabled"
 windows_wsl_setup_acknowledged = true
 
-[model_providers.OpenAI]
-name = "OpenAI"
+[model_providers.ssxz]
+name = "SSXZ API"
 base_url = "${baseUrl}"
 wire_api = "responses"
 ${generateCodexProviderAuthConfig()}
@@ -976,18 +1306,23 @@ supports_websockets = false
 function generateOpenAIWsFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
+  const model = openAIExampleModel.value
+  const isModelRestricted = Boolean(props.allowedModels?.length)
+  const providerName = isModelRestricted ? 'ssxz' : 'OpenAI'
+  const selectedModel = isModelRestricted ? model : 'gpt-5.5'
+  const reasoningEffort = isModelRestricted ? 'medium' : 'xhigh'
 
   // config.toml content with WebSocket v2
-  const configContent = `model_provider = "OpenAI"
-model = "gpt-5.5"
-review_model = "gpt-5.5"
-model_reasoning_effort = "xhigh"
+  const configContent = `model_provider = "${providerName}"
+model = "${selectedModel}"
+review_model = "${selectedModel}"
+model_reasoning_effort = "${reasoningEffort}"
 disable_response_storage = true
 network_access = "enabled"
 windows_wsl_setup_acknowledged = true
 
-[model_providers.OpenAI]
-name = "OpenAI"
+[model_providers.ssxz]
+name = "SSXZ API"
 base_url = "${baseUrl}"
 wire_api = "responses"
 supports_websockets = true
@@ -1141,8 +1476,8 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
         xhigh: {}
       }
     },
-    'gpt-5.4-mini': {
-      name: 'GPT-5.4 Mini',
+    'gpt-5.4-nano': {
+      name: 'GPT-5.4 Nano',
       limit: {
         context: 400000,
         output: 128000

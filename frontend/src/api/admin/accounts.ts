@@ -14,17 +14,20 @@ import type {
   ClaudeModel,
   AccountUsageStatsResponse,
   TempUnschedulableStatus,
+  AccountListFilters,
+  AccountModelsRefreshResult,
   AdminDataPayload,
   AdminDataImportResult,
-  CodexSessionImportRequest,
-  CodexSessionImportResult,
-  OpenAICodexPATCreateRequest,
+  AdminDataImportTask,
+  AdminDataImportUploadSession,
+  AdminDataExportTask,
   CheckMixedChannelRequest,
   CheckMixedChannelResponse,
+  OllamaCloudUsageSettings,
+  OllamaCloudUsageState,
   UpstreamBillingProbeResult,
   UpstreamBillingProbeSettings,
-  OllamaCloudUsageSettings,
-  OllamaCloudUsageState
+  BatchTestAccountsResponse
 } from '@/types'
 
 /**
@@ -37,18 +40,7 @@ import type {
 export async function list(
   page: number = 1,
   pageSize: number = 20,
-  filters?: {
-    platform?: string
-    type?: string
-    status?: string
-    group?: string
-    search?: string
-    privacy_mode?: string
-    lite?: string
-    include_scheduler_score?: string
-    sort_by?: string
-    sort_order?: 'asc' | 'desc'
-  },
+  filters?: AccountListFilters,
   options?: {
     signal?: AbortSignal
   }
@@ -73,18 +65,7 @@ export interface AccountListWithEtagResult {
 export async function listWithEtag(
   page: number = 1,
   pageSize: number = 20,
-  filters?: {
-    platform?: string
-    type?: string
-    status?: string
-    group?: string
-    search?: string
-    privacy_mode?: string
-    lite?: string
-    include_scheduler_score?: string
-    sort_by?: string
-    sort_order?: 'asc' | 'desc'
-  },
+  filters?: AccountListFilters,
   options?: {
     signal?: AbortSignal
     etag?: string | null
@@ -132,6 +113,54 @@ export async function getById(id: number): Promise<Account> {
   return data
 }
 
+export interface CodexSessionImportPayload {
+  content?: string
+  contents?: string[]
+  name?: string
+  notes?: string
+  group_ids?: number[]
+  proxy_id?: number
+  concurrency?: number
+  priority?: number
+  rate_multiplier?: number
+  load_factor?: number
+  expires_at?: number
+  auto_pause_on_expired?: boolean
+  credential_extras?: Record<string, unknown>
+  extra?: Record<string, unknown>
+  update_existing?: boolean
+  skip_default_group_bind?: boolean
+  confirm_mixed_channel_risk?: boolean
+}
+
+export async function importCodexSession(payload: CodexSessionImportPayload) {
+  const { data } = await apiClient.post('/admin/accounts/import/codex-session', payload)
+  return data
+}
+
+export interface OpenAICodexPATPayload {
+  access_token: string
+  name?: string
+  notes?: string
+  group_ids?: number[]
+  proxy_id?: number
+  concurrency?: number
+  priority?: number
+  rate_multiplier?: number
+  load_factor?: number
+  expires_at?: number
+  auto_pause_on_expired?: boolean
+  credential_extras?: Record<string, unknown>
+  extra?: Record<string, unknown>
+  skip_default_group_bind?: boolean
+  confirm_mixed_channel_risk?: boolean
+}
+
+export async function createOpenAICodexPAT(payload: OpenAICodexPATPayload) {
+  const { data } = await apiClient.post('/admin/openai/create-from-codex-pat', payload)
+  return data
+}
+
 /**
  * Create new account
  * @param accountData - Account data
@@ -142,11 +171,6 @@ export async function create(accountData: CreateAccountRequest): Promise<Account
   return data
 }
 
-/**
- * Duplicate an account while keeping credentials on the server.
- * @param id - Source account ID
- * @returns Newly created account
- */
 const duplicateOperationKeys = new Map<number, string>()
 
 function duplicateOperationStorageKey(id: number): string {
@@ -170,10 +194,12 @@ function storeDuplicateOperationKey(id: number, key: string | null): void {
   }
 }
 
+/** Duplicate an account while retaining one idempotency key across ambiguous retries. */
 export async function duplicate(id: number): Promise<Account> {
   let idempotencyKey = duplicateOperationKeys.get(id) ?? getStoredDuplicateOperationKey(id)
   if (!idempotencyKey) {
-    const requestID = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const requestID =
+      globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
     idempotencyKey = `account-duplicate-${id}-${requestID}`
   }
   duplicateOperationKeys.set(id, idempotencyKey)
@@ -255,15 +281,7 @@ export async function refreshCredentials(id: number): Promise<Account> {
   return data
 }
 
-/**
- * Apply OAuth credentials after re-authorization.
- *
- * Unlike `update()`, this endpoint:
- * - never overwrites the whole `extra` JSONB (merges incrementally instead),
- *   so persistent settings like `base_rpm`, `window_cost_limit`, `max_sessions`,
- *   `quota_*` and `privacy_mode` are preserved
- * - clears the account error and invalidates the token cache server-side
- */
+/** Apply OAuth credentials without replacing unrelated account extras. */
 export async function applyOAuthCredentials(
   id: number,
   payload: {
@@ -307,12 +325,13 @@ export async function clearError(id: number): Promise<Account> {
  * @param id - Account ID
  * @returns Account usage info
  */
-export async function getUsage(id: number, source?: 'passive' | 'active', force?: boolean): Promise<AccountUsageInfo> {
-  const params: Record<string, string> = {}
-  if (source) params.source = source
-  if (force) params.force = 'true'
+export async function getUsage(
+  id: number,
+  source?: 'passive' | 'active',
+  force?: boolean
+): Promise<AccountUsageInfo> {
   const { data } = await apiClient.get<AccountUsageInfo>(`/admin/accounts/${id}/usage`, {
-    params: Object.keys(params).length > 0 ? params : undefined
+    params: source || force ? { source, force } : undefined
   })
   return data
 }
@@ -439,20 +458,27 @@ export async function batchCreate(accounts: CreateAccountRequest[]): Promise<{
  * @param request - Batch update request containing account IDs, field name, and value
  * @returns Results of batch update
  */
-export async function batchUpdateCredentials(request: {
+export type BatchCredentialField = 'account_uuid' | 'org_uuid' | 'intercept_warmup_requests'
+
+export interface BatchUpdateCredentialsRequest {
   account_ids: number[]
-  field: string
-  value: any
-}): Promise<{
+  field: BatchCredentialField
+  value: string | boolean | null
+}
+
+export interface BatchUpdateCredentialsResult {
   success: number
   failed: number
   results: Array<{ account_id: number; success: boolean; error?: string }>
-}> {
-  const { data } = await apiClient.post<{
-    success: number
-    failed: number
-    results: Array<{ account_id: number; success: boolean; error?: string }>
-  }>('/admin/accounts/batch-update-credentials', request)
+}
+
+export async function batchUpdateCredentials(
+  request: BatchUpdateCredentialsRequest
+): Promise<BatchUpdateCredentialsResult> {
+  const { data } = await apiClient.post<BatchUpdateCredentialsResult>(
+    '/admin/accounts/batch-update-credentials',
+    request
+  )
   return data
 }
 
@@ -543,13 +569,10 @@ export interface SyncUpstreamModelsResult {
   models: string[]
 }
 
-/**
- * Sync live supported models from the account's upstream model-list endpoint
- * @param id - Account ID
- * @returns List of model IDs returned by the upstream
- */
 export async function syncUpstreamModels(id: number): Promise<SyncUpstreamModelsResult> {
-  const { data } = await apiClient.post<SyncUpstreamModelsResult>(`/admin/accounts/${id}/models/sync-upstream`)
+  const { data } = await apiClient.post<SyncUpstreamModelsResult>(
+    `/admin/accounts/${id}/models/sync-upstream`
+  )
   return data
 }
 
@@ -560,13 +583,23 @@ export interface SyncUpstreamPreviewParams {
   api_key: string
 }
 
+export async function syncUpstreamModelsPreview(
+  params: SyncUpstreamPreviewParams
+): Promise<SyncUpstreamModelsResult> {
+  const { data } = await apiClient.post<SyncUpstreamModelsResult>(
+    '/admin/accounts/models/sync-upstream-preview',
+    params
+  )
+  return data
+}
+
 /**
- * Preview upstream models without a saved account (create-flow)
- * @param params - Connection credentials
- * @returns List of model IDs returned by the upstream
+ * Refresh fetched model list for an account
+ * @param id - Account ID
+ * @returns Refreshed model fetch result
  */
-export async function syncUpstreamModelsPreview(params: SyncUpstreamPreviewParams): Promise<SyncUpstreamModelsResult> {
-  const { data } = await apiClient.post<SyncUpstreamModelsResult>('/admin/accounts/models/sync-upstream-preview', params)
+export async function refreshModels(id: number): Promise<AccountModelsRefreshResult> {
+  const { data } = await apiClient.post<AccountModelsRefreshResult>(`/admin/accounts/${id}/models/refresh`)
   return data
 }
 
@@ -623,67 +656,194 @@ export async function syncFromCrs(params: {
       action: string
       error?: string
     }>
-  }>('/admin/accounts/sync/crs', params, {
-    timeout: 180000 // 180s timeout: sync refreshes each existing account's OAuth token serially
-  })
+  }>('/admin/accounts/sync/crs', params)
   return data
 }
 
 export async function exportData(options?: {
   ids?: number[]
-  filters?: {
-    platform?: string
-    type?: string
-    status?: string
-    group?: string
-    privacy_mode?: string
-    search?: string
-    sort_by?: string
-    sort_order?: 'asc' | 'desc'
-  }
+  filters?: Pick<AccountListFilters, 'platform' | 'type' | 'status' | 'search' | 'group' | 'plan' | 'oauth_type' | 'tier_id'>
   includeProxies?: boolean
-}): Promise<AdminDataPayload> {
+}): Promise<{ blob: Blob; filename: string }> {
   const params: Record<string, string> = {}
   if (options?.ids && options.ids.length > 0) {
     params.ids = options.ids.join(',')
   } else if (options?.filters) {
-    const { platform, type, status, group, privacy_mode, search, sort_by, sort_order } = options.filters
+    const { platform, type, status, search, group, plan, oauth_type, tier_id } = options.filters
     if (platform) params.platform = platform
     if (type) params.type = type
     if (status) params.status = status
-    if (group) params.group = group
-    if (privacy_mode) params.privacy_mode = privacy_mode
     if (search) params.search = search
-    if (sort_by) params.sort_by = sort_by
-    if (sort_order) params.sort_order = sort_order
+    if (group) params.group = group
+    if (plan) params.plan = plan
+    if (oauth_type) params.oauth_type = oauth_type
+    if (tier_id) params.tier_id = tier_id
   }
   if (options?.includeProxies === false) {
     params.include_proxies = 'false'
   }
-  const { data } = await apiClient.get<AdminDataPayload>('/admin/accounts/data', { params })
-  return data
+  params.download = '1'
+
+  const response = await apiClient.get<Blob>('/admin/accounts/data', {
+    params,
+    responseType: 'blob',
+    timeout: 0
+  })
+
+  const disposition = String(response.headers['content-disposition'] || '')
+  const match = disposition.match(/filename="?([^"]+)"?/)
+  const filename = match?.[1] || 'sub2api-account-export.json'
+  return { blob: response.data, filename }
 }
 
 export async function importData(payload: {
-  data: AdminDataPayload
+  file?: File
+  data?: AdminDataPayload
+  group_ids?: number[]
   skip_default_group_bind?: boolean
 }): Promise<AdminDataImportResult> {
+  if (payload.file) {
+    const formData = new FormData()
+    formData.append('file', payload.file)
+    for (const id of payload.group_ids || []) {
+      formData.append('group_ids', String(id))
+    }
+    if (typeof payload.skip_default_group_bind === 'boolean') {
+      formData.append('skip_default_group_bind', String(payload.skip_default_group_bind))
+    }
+    const { data } = await apiClient.post<AdminDataImportResult>('/admin/accounts/data', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      },
+      timeout: 0,
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity
+    })
+    return data
+  }
+
   const { data } = await apiClient.post<AdminDataImportResult>('/admin/accounts/data', {
     data: payload.data,
+    group_ids: payload.group_ids,
     skip_default_group_bind: payload.skip_default_group_bind
+  }, {
+    timeout: 0,
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity
   })
   return data
 }
 
-export async function importCodexSession(payload: CodexSessionImportRequest): Promise<CodexSessionImportResult> {
-  const { data } = await apiClient.post<CodexSessionImportResult>('/admin/accounts/import/codex-session', payload, {
-    timeout: 120000 // 120s timeout for large session imports
+export async function createImportTask(payload: {
+  file: File
+  group_ids?: number[]
+  skip_default_group_bind?: boolean
+  onUploadProgress?: (progress: number) => void
+}): Promise<AdminDataImportTask> {
+  const formData = new FormData()
+  formData.append('file', payload.file)
+  for (const id of payload.group_ids || []) {
+    formData.append('group_ids', String(id))
+  }
+  if (typeof payload.skip_default_group_bind === 'boolean') {
+    formData.append('skip_default_group_bind', String(payload.skip_default_group_bind))
+  }
+  const { data } = await apiClient.post<AdminDataImportTask>('/admin/accounts/data/tasks', formData, {
+    timeout: 0,
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity,
+    onUploadProgress: payload.onUploadProgress
+      ? (event) => {
+          const total = Number(event.total || 0)
+          const loaded = Number(event.loaded || 0)
+          if (total > 0) {
+            payload.onUploadProgress!(Math.min(100, Math.max(0, Math.round((loaded / total) * 100))))
+          }
+        }
+      : undefined
   })
   return data
 }
 
-export async function createOpenAICodexPAT(payload: OpenAICodexPATCreateRequest): Promise<Account> {
-  const { data } = await apiClient.post<Account>('/admin/openai/create-from-codex-pat', payload)
+export async function getImportTask(taskID: string): Promise<AdminDataImportTask> {
+  const { data } = await apiClient.get<AdminDataImportTask>(`/admin/accounts/data/tasks/${taskID}`)
+  return data
+}
+
+export async function createImportUploadSession(payload: {
+  filename: string
+  total_bytes: number
+  group_ids?: number[]
+  skip_default_group_bind?: boolean
+}): Promise<AdminDataImportUploadSession> {
+  const { data } = await apiClient.post<AdminDataImportUploadSession>('/admin/accounts/data/upload-sessions', payload, {
+    timeout: 0
+  })
+  return data
+}
+
+export async function getImportUploadSession(sessionID: string): Promise<AdminDataImportUploadSession> {
+  const { data } = await apiClient.get<AdminDataImportUploadSession>(`/admin/accounts/data/upload-sessions/${sessionID}`, {
+    timeout: 0
+  })
+  return data
+}
+
+export async function uploadImportChunk(payload: {
+  session_id: string
+  offset: number
+  chunk: Blob
+  onUploadProgress?: (progress: number) => void
+}): Promise<AdminDataImportUploadSession> {
+  const { data } = await apiClient.put<AdminDataImportUploadSession>(
+    `/admin/accounts/data/upload-sessions/${payload.session_id}`,
+    payload.chunk,
+    {
+      params: { offset: payload.offset },
+      timeout: 0,
+      headers: {
+        'Content-Type': 'application/octet-stream'
+      },
+      onUploadProgress: payload.onUploadProgress
+        ? (event) => {
+            const total = Number(event.total || payload.chunk.size || 0)
+            const loaded = Number(event.loaded || 0)
+            if (total > 0) {
+              payload.onUploadProgress!(Math.min(100, Math.max(0, Math.round((loaded / total) * 100))))
+            }
+          }
+        : undefined
+    }
+  )
+  return data
+}
+
+export async function finalizeImportUploadSession(sessionID: string): Promise<AdminDataImportTask> {
+  const { data } = await apiClient.post<AdminDataImportTask>(`/admin/accounts/data/upload-sessions/${sessionID}/finalize`, {}, {
+    timeout: 0
+  })
+  return data
+}
+
+export async function createExportTask(payload?: {
+  ids?: number[]
+  filters?: Pick<AccountListFilters, 'platform' | 'type' | 'status' | 'search' | 'group' | 'plan' | 'oauth_type' | 'tier_id'>
+  include_proxies?: boolean
+}): Promise<AdminDataExportTask> {
+  const { data } = await apiClient.post<AdminDataExportTask>('/admin/accounts/data/export-tasks', {
+    ids: payload?.ids,
+    filters: payload?.filters,
+    include_proxies: payload?.include_proxies
+  }, {
+    timeout: 0
+  })
+  return data
+}
+
+export async function getExportTask(taskID: string): Promise<AdminDataExportTask> {
+  const { data } = await apiClient.get<AdminDataExportTask>(`/admin/accounts/data/export-tasks/${taskID}`, {
+    timeout: 0
+  })
   return data
 }
 
@@ -716,8 +876,46 @@ export async function refreshOpenAIToken(
   if (proxyId) {
     payload.proxy_id = proxyId
   }
-  if (clientId) {
-    payload.client_id = clientId
+  if (clientId?.trim()) {
+    payload.client_id = clientId.trim()
+  }
+  const { data } = await apiClient.post<Record<string, unknown>>(endpoint, payload)
+  return data
+}
+
+/**
+ * Validate Sora session token and exchange to access token
+ * @param sessionToken - Sora session token
+ * @param proxyId - Optional proxy ID
+ * @param endpoint - API endpoint path
+ * @returns Token information including access_token
+ */
+export async function validateSoraSessionToken(
+  sessionToken: string,
+  proxyId?: number | null,
+  endpoint: string = '/admin/sora/st2at'
+): Promise<Record<string, unknown>> {
+  const payload: { session_token: string; proxy_id?: number } = {
+    session_token: sessionToken
+  }
+  if (proxyId) {
+    payload.proxy_id = proxyId
+  }
+  const { data } = await apiClient.post<Record<string, unknown>>(endpoint, payload)
+  return data
+}
+
+/**
+ * Inspect OpenAI / ChatGPT Web access token and extract structured account info.
+ * @param accessToken - ChatGPT Web access token
+ * @param endpoint - API endpoint path
+ */
+export async function inspectOpenAIAccessToken(
+  accessToken: string,
+  endpoint: string = '/admin/openai/at2info'
+): Promise<Record<string, unknown>> {
+  const payload: { access_token: string } = {
+    access_token: accessToken
   }
   const { data } = await apiClient.post<Record<string, unknown>>(endpoint, payload)
   return data
@@ -783,10 +981,24 @@ export async function batchRefresh(accountIds: number[]): Promise<BatchOperation
 }
 
 /**
- * Set privacy for an Antigravity OAuth account
- * @param id - Account ID
- * @returns Updated account
+ * Batch-test account liveness
+ * @param accountIds - Array of account IDs
+ * @param modelId - Optional model ID override
+ * @returns Batch test result
  */
+export async function batchTest(accountIds: number[], modelId?: string): Promise<BatchTestAccountsResponse> {
+  const payload: { account_ids: number[]; model_id?: string } = {
+    account_ids: accountIds,
+  }
+  if (modelId && modelId.trim()) {
+    payload.model_id = modelId.trim()
+  }
+  const { data } = await apiClient.post<BatchTestAccountsResponse>('/admin/accounts/batch-test', payload, {
+    timeout: 120000,
+  })
+  return data
+}
+
 export async function setPrivacy(id: number): Promise<Account> {
   const { data } = await apiClient.post<Account>(`/admin/accounts/${id}/set-privacy`)
   return data
@@ -969,19 +1181,27 @@ export async function saveOllamaCloudUsageSession(id: number, session: string): 
 }
 
 export async function deleteOllamaCloudUsageSession(id: number): Promise<OllamaCloudUsageState> {
-  const { data } = await apiClient.delete<OllamaCloudUsageState>(`/admin/accounts/${id}/ollama-cloud-usage/session`)
+  const { data } = await apiClient.delete<OllamaCloudUsageState>(
+    `/admin/accounts/${id}/ollama-cloud-usage/session`
+  )
   return data
 }
 
-export async function setOllamaCloudUsageAutoRefresh(id: number, enabled: boolean): Promise<OllamaCloudUsageState> {
-  const { data } = await apiClient.put<OllamaCloudUsageState>(`/admin/accounts/${id}/ollama-cloud-usage/auto-refresh`, {
-    enabled
-  })
+export async function setOllamaCloudUsageAutoRefresh(
+  id: number,
+  enabled: boolean
+): Promise<OllamaCloudUsageState> {
+  const { data } = await apiClient.put<OllamaCloudUsageState>(
+    `/admin/accounts/${id}/ollama-cloud-usage/auto-refresh`,
+    { enabled }
+  )
   return data
 }
 
 export async function refreshOllamaCloudUsage(id: number): Promise<OllamaCloudUsageState> {
-  const { data } = await apiClient.post<OllamaCloudUsageState>(`/admin/accounts/${id}/ollama-cloud-usage/refresh`)
+  const { data } = await apiClient.post<OllamaCloudUsageState>(
+    `/admin/accounts/${id}/ollama-cloud-usage/refresh`
+  )
   return data
 }
 
@@ -995,9 +1215,9 @@ export const accountsAPI = {
   checkMixedChannelRisk,
   delete: deleteAccount,
   toggleStatus,
-  testAccount,
-  refreshCredentials,
-  applyOAuthCredentials,
+    testAccount,
+    refreshCredentials,
+    applyOAuthCredentials,
   getStats,
   clearError,
   getUsage,
@@ -1013,22 +1233,34 @@ export const accountsAPI = {
   getAvailableModels,
   syncUpstreamModels,
   syncUpstreamModelsPreview,
+  refreshModels,
   generateAuthUrl,
   exchangeCode,
   refreshOpenAIToken,
+  validateSoraSessionToken,
+  inspectOpenAIAccessToken,
   batchCreate,
+  importCodexSession,
+  createOpenAICodexPAT,
   batchUpdateCredentials,
   bulkUpdate,
   previewFromCrs,
   syncFromCrs,
   exportData,
   importData,
-  importCodexSession,
-  createOpenAICodexPAT,
+  createImportTask,
+  getImportTask,
+  createImportUploadSession,
+  getImportUploadSession,
+  uploadImportChunk,
+  finalizeImportUploadSession,
+  createExportTask,
+  getExportTask,
   getAntigravityDefaultModelMapping,
   batchDelete,
   batchClearError,
   batchRefresh,
+  batchTest,
   setPrivacy,
   revertProxyFallback,
   refreshOpenAIQuota,

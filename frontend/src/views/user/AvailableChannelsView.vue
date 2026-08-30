@@ -1,127 +1,166 @@
 <template>
-  <AppLayout>
+  <component :is="pageShell" v-bind="pageShellProps">
     <TablePageLayout>
       <template #filters>
-        <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
-          <div class="flex flex-1 flex-wrap items-center gap-3">
-            <div class="relative w-full sm:w-80">
-              <Icon
-                name="search"
-                size="md"
-                class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
-              />
+        <div class="pricing-toolbar">
+          <div class="pricing-actions">
+            <div class="pricing-search">
+              <Icon name="search" size="md" class="pricing-search__icon" />
               <input
                 v-model="searchQuery"
                 type="text"
                 :placeholder="t('availableChannels.searchPlaceholder')"
-                class="input pl-10"
+                class="f0-input-control f0-input-control--leading"
               />
             </div>
-          </div>
-
-          <div class="flex w-full flex-shrink-0 flex-wrap items-center justify-end gap-3 lg:w-auto">
-            <button
+            <LiquidButton
               @click="loadChannels"
               :disabled="loading"
-              class="btn btn-secondary"
               :title="t('common.refresh', 'Refresh')"
+              variant="outline"
+              size="icon"
             >
-              <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-            </button>
+              <Icon
+                name="refresh"
+                size="md"
+                :class="loading ? 'animate-spin' : ''"
+              />
+            </LiquidButton>
           </div>
         </div>
       </template>
 
       <template #table>
         <AvailableChannelsTable
-          :columns="columnLabels"
-          :rows="filteredChannels"
+          :rows="channels"
           :loading="loading"
           :user-group-rates="userGroupRates"
-          pricing-key-prefix="availableChannels.pricing"
-          :no-pricing-label="t('availableChannels.noPricing')"
-          :no-models-label="t('availableChannels.noModels')"
-          :empty-label="t('availableChannels.empty')"
+          :search-query="searchQuery"
+          :empty-label="emptyLabel"
         />
       </template>
     </TablePageLayout>
-  </AppLayout>
+  </component>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import AppLayout from '@/components/layout/AppLayout.vue'
-import TablePageLayout from '@/components/layout/TablePageLayout.vue'
-import Icon from '@/components/icons/Icon.vue'
-import AvailableChannelsTable from '@/components/channels/AvailableChannelsTable.vue'
-import userChannelsAPI, { type UserAvailableChannel } from '@/api/channels'
-import userGroupsAPI from '@/api/groups'
-import { useAppStore } from '@/stores/app'
-import { extractApiErrorMessage } from '@/utils/apiError'
+import LiquidButton from "@/components/common/LiquidButton.vue";
+import { computed, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
+import { useRoute } from "vue-router";
+import AppLayout from "@/components/layout/AppLayout.vue";
+import AppSectionShell from "@/components/user/AppSectionShell.vue";
+import TablePageLayout from "@/components/layout/TablePageLayout.vue";
+import Icon from "@/components/icons/Icon.vue";
+import AvailableChannelsTable from "@/components/channels/AvailableChannelsTable.vue";
+import userChannelsAPI, { type UserAvailableChannel } from "@/api/channels";
+import userGroupsAPI from "@/api/groups";
+import { useAppStore } from "@/stores/app";
+import { extractApiErrorMessage } from "@/utils/apiError";
 
-const { t } = useI18n()
-const appStore = useAppStore()
+const { t } = useI18n();
+const route = useRoute();
+const appStore = useAppStore();
 
-const channels = ref<UserAvailableChannel[]>([])
-const userGroupRates = ref<Record<number, number>>({})
-const loading = ref(false)
-const searchQuery = ref('')
+const useWorkbenchShell = computed(
+  () => route.path === "/app/available-channels",
+);
+const pageShell = computed(() =>
+  useWorkbenchShell.value ? AppSectionShell : AppLayout,
+);
+const pageShellProps = computed(() =>
+  useWorkbenchShell.value
+    ? {
+        title: t("availableChannels.title"),
+        subtitle: t("availableChannels.description"),
+        eyebrow: t("availableChannels.eyebrow"),
+        icon: "server",
+      }
+    : {},
+);
 
-const columnLabels = computed(() => ({
-  name: t('availableChannels.columns.name'),
-  description: t('availableChannels.columns.description'),
-  platform: t('availableChannels.columns.platform'),
-  groups: t('availableChannels.columns.groups'),
-  supportedModels: t('availableChannels.columns.supportedModels'),
-}))
+const channels = ref<UserAvailableChannel[]>([]);
+const userGroupRates = ref<Record<number, number>>({});
+const loading = ref(false);
+const searchQuery = ref("");
 
-/**
- * 搜索过滤：
- * - 命中渠道名/描述 → 整个渠道（所有 platforms）都保留
- * - 否则按 platform/group/model 维度在 sections 里过滤，保留有匹配的 section
- * - 所有 sections 都不匹配时，渠道本身被过滤掉
- */
-const filteredChannels = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return channels.value
-  return channels.value
-    .map((ch) => {
-      const nameHit = ch.name.toLowerCase().includes(q)
-      const descHit = (ch.description || '').toLowerCase().includes(q)
-      if (nameHit || descHit) return ch
-      const matchingSections = ch.platforms.filter(
-        (p) =>
-          p.platform.toLowerCase().includes(q) ||
-          p.groups.some((g) => g.name.toLowerCase().includes(q)) ||
-          p.supported_models.some((m) => m.name.toLowerCase().includes(q)),
-      )
-      if (matchingSections.length === 0) return null
-      return { ...ch, platforms: matchingSections }
-    })
-    .filter((ch): ch is UserAvailableChannel => ch !== null)
-})
+const emptyLabel = computed(() =>
+  appStore.cachedPublicSettings?.available_channels_enabled === true
+    ? t("availableChannels.empty")
+    : t("availableChannels.emptyDisabled"),
+);
 
 async function loadChannels() {
-  loading.value = true
+  loading.value = true;
   try {
-    // 渠道列表和用户专属倍率并发拉取。专属倍率失败不阻塞渠道展示——
-    // 失败时只是无法渲染专属倍率角标，降级为仅显示默认倍率。
+    // 渠道列表和用户专属倍率并发拉取。专属倍率失败不阻塞模型目录展示，
+    // 价格会降级为按分组默认倍率计算。
     const [list, rates] = await Promise.all([
       userChannelsAPI.getAvailable(),
       userGroupsAPI.getUserGroupRates().catch((err: unknown) => {
-        console.error('Failed to load user group rates:', err)
-        return {} as Record<number, number>
+        console.error("Failed to load user group rates:", err);
+        return {} as Record<number, number>;
       }),
-    ])
-    channels.value = list
-    userGroupRates.value = rates
+    ]);
+    channels.value = list;
+    userGroupRates.value = rates;
   } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, t('common.error')))
+    appStore.showError(extractApiErrorMessage(err, t("common.error")));
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
-onMounted(loadChannels)
+onMounted(loadChannels);
 </script>
+
+<style scoped>
+.pricing-toolbar {
+  display: block;
+}
+
+.pricing-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+:deep(.table-page-layout) {
+  gap: 1.5rem;
+  height: auto;
+}
+
+:deep(.layout-section-scrollable) {
+  min-height: 18rem;
+}
+
+:deep(.table-scroll-container) {
+  overflow: visible;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.pricing-search {
+  position: relative;
+  width: min(100%, 24rem);
+}
+
+.pricing-search__icon {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 0.75rem;
+  color: var(--ssxz-text-muted);
+  transform: translateY(-50%);
+}
+
+@media (max-width: 640px) {
+  .pricing-actions,
+  .pricing-search {
+    width: 100%;
+  }
+}
+</style>

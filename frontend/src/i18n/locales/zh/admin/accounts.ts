@@ -86,6 +86,10 @@ export default {
       allTypes: '全部类型',
       allStatus: '全部状态',
       allGroups: '全部分组',
+      fromModel: '源模型',
+      toModel: '目标模型',
+      soraBaseUrlRequired: '请填写 Sora 服务地址',
+      soraBaseUrlInvalidScheme: 'Sora 服务地址必须以 http:// 或 https:// 开头',
       ungroupedGroup: '未分配分组',
       oauthType: 'OAuth',
       // Schedulable toggle
@@ -212,7 +216,7 @@ export default {
         batchCompleted: '已完成 {count} 个账号的倍率探测',
         batchPartial: '倍率探测部分完成：成功 {success} 个，失败 {failed} 个'
       },
-      allPrivacyModes: '全部Privacy状态',
+      allPrivacyModes: '全部隐私状态',
       privacyUnset: '未设置',
       privacyTrainingOff: '已关闭训练数据共享',
       privacyCfBlocked: '被 Cloudflare 拦截，训练可能仍开启',
@@ -335,9 +339,7 @@ export default {
         balance: '余额 --',
         window5h: '5 小时窗口',
         windowWeekly: '每周窗口',
-        probe: '查询',
         probeTooltip: '请求供应商额度端点，查询 5 小时 / 每周滚动窗口用量',
-        balanceProbeTooltip: '请求供应商余额端点，查询账户余额',
         balanceLow: '余额不足',
         noBalanceEndpoint: '该平台暂无余额查询接口',
         resetSoon: '即将重置',
@@ -486,14 +488,6 @@ export default {
         resetAccountRecoveryFailed: '窗口已重置，但账号状态恢复失败，请手动恢复账号状态。',
         resetAccountRefreshFailed: '窗口、账号状态和重置次数缓存已更新，但无法加载最新账号显示。',
         refreshCachePersistFailed: '已显示实时次数，但到期明细获取失败，仍保留原有缓存明细。',
-        autoStatus: {
-          checking: '检测中',
-          available: '卡可用',
-          resetting: '自动重置中',
-          success: '自动重置成功',
-          noCredit: '无卡',
-          failed: '自动重置失败'
-        },
         confirmTitle: '确认重置周限',
         confirmMessage: '将消耗 1 次重置次数立即恢复当前窗口，剩余 {count} 次。此操作不可撤销，确定继续吗？'
       },
@@ -722,8 +716,8 @@ export default {
           '仅在 /responses/compact 请求中生效。当上游 compact 端点需要特殊 compact 模型时使用。',
         compactSupported: '支持 Compact',
         compactUnsupported: '不支持 Compact',
-        compactAuto: 'Compact Auto',
-        compactUnknown: 'Compact Auto',
+        compactAuto: '自动压缩',
+        compactUnknown: '自动（待探测）',
         compactLastChecked: '最近探测',
         testMode: '测试模式',
         testModeDefault: '常规请求',
@@ -893,14 +887,6 @@ export default {
 	  autoPause5hDisabled: '禁用 5h 自动暂停',
 	  autoPause7dDisabled: '禁用 7d 自动暂停',
 	  autoPauseDisabledHint: '开启后该账号永不进入自动暂停（即使全局默认阈值已配置）。',
-	  autoResetCredit: {
-	    title: '自动使用重置卡',
-	    hint: '仅在实际用量达到阈值时使用最早到期的可用卡；默认关闭。无卡或失败时账号保持暂停。',
-	    threshold5h: '5h 自动用卡阈值(%)',
-	    threshold7d: '7d 自动用卡阈值(%)',
-	    thresholdHint: '两个窗口独立判断，任一达到自身阈值即触发。可填写 0.1–100，默认均为 100。',
-	    thresholdInvalid: '自动使用重置卡阈值必须在 0.1% 到 100% 之间。'
-	  },
       // Quota control (Anthropic OAuth/SetupToken only)
       quotaControl: {
         title: '配额控制',

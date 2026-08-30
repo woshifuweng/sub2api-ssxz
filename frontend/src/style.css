@@ -72,51 +72,98 @@
   /* ============ 按钮样式 ============ */
   .btn {
     @apply inline-flex items-center justify-center gap-2;
-    @apply rounded-xl px-4 py-2.5 text-sm font-medium;
-    @apply transition-all duration-200 ease-out;
-    @apply focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:ring-offset-2;
-    @apply disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50;
-    @apply active:scale-[0.98];
+    @apply px-4 py-2 text-sm font-medium;
+    min-height: 2.5rem;
+    border-radius: var(--ssxz-radius-button, 8px);
+    transition:
+      background-color 160ms ease,
+      border-color 160ms ease,
+      color 160ms ease,
+      box-shadow 160ms ease,
+      transform 120ms ease;
+    will-change: transform;
+    @apply focus:outline-none disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn:focus-visible {
+    outline: none;
+    box-shadow: var(--ssxz-shadow-button), var(--ssxz-focus-ring);
   }
 
   .btn-primary {
-    @apply bg-gradient-to-r from-primary-500 to-primary-600;
-    @apply text-white shadow-md shadow-primary-500/25;
-    @apply hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:shadow-primary-500/30;
-    @apply dark:shadow-primary-500/20;
+    background: var(--ssxz-action);
+    border: 1px solid var(--ssxz-action);
+    color: var(--ssxz-action-text);
+    box-shadow: var(--ssxz-shadow-button);
+  }
+
+  .btn-primary:hover {
+    background: var(--ssxz-action-hover);
+    border-color: var(--ssxz-action-hover);
+    box-shadow: var(--ssxz-shadow-button-hover);
+    transform: translateY(-1px);
   }
 
   .btn-secondary {
-    @apply bg-white dark:bg-dark-800;
-    @apply text-gray-700 dark:text-gray-200;
-    @apply border border-gray-200 dark:border-dark-600;
-    @apply shadow-sm hover:bg-gray-50 dark:hover:bg-dark-700;
-    @apply hover:border-gray-300 dark:hover:border-dark-500;
+    background: transparent;
+    border: 1px solid var(--ssxz-border-strong);
+    color: var(--ssxz-text);
+    box-shadow: var(--ssxz-shadow-button-subtle);
+  }
+
+  .btn-secondary:hover {
+    background: color-mix(in srgb, var(--ssxz-text) 6%, transparent);
+    border-color: var(--ssxz-border-strong);
+    box-shadow: var(--ssxz-shadow-button);
+    transform: translateY(-1px);
   }
 
   .btn-ghost {
-    @apply bg-transparent text-gray-600 dark:text-gray-300;
-    @apply hover:bg-gray-100 dark:hover:bg-dark-800;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--ssxz-text-muted);
+  }
+
+  .btn-ghost:hover {
+    background: var(--ssxz-surface-raised);
+    color: var(--ssxz-text);
+    transform: translateY(-1px);
   }
 
   .btn-danger {
-    @apply bg-gradient-to-r from-red-500 to-red-600;
-    @apply text-white shadow-md shadow-red-500/25;
-    @apply hover:from-red-600 hover:to-red-700 hover:shadow-lg hover:shadow-red-500/30;
+    background: var(--ssxz-error);
+    border: 1px solid var(--ssxz-error);
+    color: #fff;
+    box-shadow: var(--ssxz-shadow-button-subtle);
   }
 
   .btn-success {
-    @apply bg-gradient-to-r from-emerald-500 to-emerald-600;
-    @apply text-white shadow-md shadow-emerald-500/25;
-    @apply hover:from-emerald-600 hover:to-emerald-700 hover:shadow-lg hover:shadow-emerald-500/30;
-    @apply dark:shadow-emerald-500/20;
+    background: color-mix(in srgb, var(--ssxz-success) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ssxz-success) 42%, transparent);
+    color: #86efac;
+    box-shadow: none;
   }
 
   .btn-warning {
-    @apply bg-gradient-to-r from-amber-500 to-amber-600;
-    @apply text-white shadow-md shadow-amber-500/25;
-    @apply hover:from-amber-600 hover:to-amber-700 hover:shadow-lg hover:shadow-amber-500/30;
-    @apply dark:shadow-amber-500/20;
+    background: color-mix(in srgb, var(--ssxz-warning) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ssxz-warning) 42%, transparent);
+    color: #fcd34d;
+    box-shadow: none;
+  }
+
+  .btn:not(:disabled):active {
+    transform: translateY(1px);
+    box-shadow: none;
+  }
+
+  .btn:disabled {
+    box-shadow: none;
+    transform: none;
+  }
+
+  .btn > svg,
+  .stat-icon > svg {
+    stroke-width: 1.75;
   }
 
   .btn-stripe {
@@ -156,7 +203,8 @@
   }
 
   .btn-lg {
-    @apply rounded-2xl px-6 py-3 text-base;
+    @apply px-6 py-3 text-base;
+    border-radius: var(--ssxz-radius-button, 8px);
   }
 
   .btn-icon {
@@ -165,14 +213,23 @@
 
   /* ============ 输入框样式 ============ */
   .input {
-    @apply w-full rounded-xl px-4 py-2.5 text-sm;
-    @apply bg-white dark:bg-dark-800;
-    @apply border border-gray-200 dark:border-dark-600;
-    @apply text-gray-900 dark:text-gray-100;
-    @apply placeholder:text-gray-400 dark:placeholder:text-dark-400;
-    @apply transition-all duration-200;
-    @apply focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30;
-    @apply disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-dark-900;
+    @apply w-full px-3.5 py-2.5 text-sm;
+    min-height: 2.5rem;
+    border-radius: var(--ssxz-radius-button, 8px);
+    background: var(--ssxz-surface-code);
+    border: 1px solid var(--ssxz-border);
+    color: var(--ssxz-text);
+    transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+    @apply focus:outline-none disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .input::placeholder {
+    color: var(--ssxz-text-subtle);
+  }
+
+  .input:focus {
+    border-color: var(--ssxz-primary);
+    box-shadow: var(--ssxz-focus-ring);
   }
 
   .dark .input[type='date'],
@@ -188,11 +245,13 @@
   }
 
   .input-label {
-    @apply mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300;
+    @apply mb-1.5 block text-sm font-medium;
+    color: var(--ssxz-text-secondary);
   }
 
   .input-hint {
-    @apply mt-1 text-xs text-gray-500 dark:text-dark-400;
+    @apply mt-1 text-xs;
+    color: var(--ssxz-text-muted);
   }
 
   .input-error-text {
@@ -212,37 +271,43 @@
 
   /* ============ 玻璃效果 ============ */
   .glass {
-    @apply bg-white/80 backdrop-blur-xl dark:bg-dark-800/80;
+    background: color-mix(in srgb, var(--ssxz-surface) 94%, transparent);
+    backdrop-filter: blur(12px);
   }
 
   .glass-card {
-    @apply bg-white/70 dark:bg-dark-800/70;
-    @apply backdrop-blur-xl;
-    @apply rounded-2xl;
-    @apply border border-white/20 dark:border-dark-700/50;
-    @apply shadow-glass;
-    @apply transition-all duration-300;
+    background: color-mix(in srgb, var(--ssxz-surface) 94%, transparent);
+    border: 1px solid var(--ssxz-border);
+    border-radius: var(--ssxz-radius-card);
+    box-shadow: var(--ssxz-shadow-card);
+    backdrop-filter: blur(12px);
+    transition: border-color 160ms ease, background-color 160ms ease;
   }
 
   /* ============ 卡片样式 ============ */
   .card {
-    @apply bg-white dark:bg-dark-800/50;
-    @apply rounded-2xl;
-    @apply border border-gray-100 dark:border-dark-700/50;
-    @apply shadow-card;
-    @apply transition-all duration-300;
+    background: var(--ssxz-surface);
+    border: 1px solid var(--ssxz-border);
+    border-radius: var(--ssxz-radius-card, 10px);
+    box-shadow: var(--ssxz-shadow-card);
+    transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
   }
 
   .card-hover {
-    @apply hover:-translate-y-0.5 hover:shadow-card-hover;
-    @apply hover:border-gray-200 dark:hover:border-dark-600;
+    @apply hover:shadow-card-hover;
+  }
+
+  .card-hover:hover {
+    border-color: var(--ssxz-border-strong);
+    background: var(--ssxz-surface-raised);
+    box-shadow: var(--ssxz-shadow-card-hover);
   }
 
   .card-glass {
-    @apply bg-white/70 dark:bg-dark-800/70;
-    @apply backdrop-blur-xl;
-    @apply border border-white/20 dark:border-dark-700/50;
-    @apply shadow-glass;
+    background: color-mix(in srgb, var(--ssxz-surface) 94%, transparent);
+    border: 1px solid var(--ssxz-border);
+    box-shadow: var(--ssxz-shadow-card);
+    backdrop-filter: blur(12px);
   }
 
   .card-header {
@@ -271,8 +336,10 @@
     @apply text-xl;
   }
 
+  .stat-icon-neutral,
   .stat-icon-primary {
-    @apply bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400;
+    background: var(--ssxz-surface-muted);
+    color: var(--ssxz-text-secondary);
   }
 
   .stat-icon-success {
@@ -309,7 +376,10 @@
 
   /* ============ 表格样式 ============ */
   .table-container {
-    @apply overflow-x-auto rounded-xl border border-gray-200 dark:border-dark-700;
+    @apply overflow-x-auto;
+    border: 1px solid var(--ssxz-border);
+    border-radius: var(--ssxz-radius-card, 10px);
+    background: var(--ssxz-surface);
   }
 
   .table {
@@ -317,16 +387,16 @@
   }
 
   .table th {
-    @apply px-4 py-3 text-left font-medium;
-    @apply text-gray-600 dark:text-dark-300;
-    @apply bg-gray-50 dark:bg-dark-800/50;
-    @apply border-b border-gray-200 dark:border-dark-700;
+    @apply px-4 py-3 text-left text-xs font-medium;
+    color: var(--ssxz-text-muted);
+    background: var(--ssxz-bg-subtle);
+    border-bottom: 1px solid var(--ssxz-border);
   }
 
   .table td {
     @apply px-4 py-3;
-    @apply text-gray-700 dark:text-gray-300;
-    @apply border-b border-gray-100 dark:border-dark-800;
+    color: var(--ssxz-text-secondary);
+    border-bottom: 1px solid var(--ssxz-border);
   }
 
   .table tr:last-child td {
@@ -335,83 +405,109 @@
 
   .table tbody tr {
     @apply transition-colors duration-150;
-    @apply hover:bg-gray-50 dark:hover:bg-dark-800/30;
+  }
+
+  .table tbody tr:hover {
+    background: var(--ssxz-surface-raised);
   }
 
   /* ============ 徽章样式 ============ */
   .badge {
     @apply inline-flex items-center gap-1;
     @apply rounded-full px-2.5 py-0.5 text-xs font-medium;
+    border: 1px solid var(--ssxz-border);
+    background: var(--ssxz-surface-raised);
+    color: var(--ssxz-text-muted);
   }
 
   .badge-primary {
-    @apply bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400;
+    background: var(--ssxz-primary-soft);
+    border-color: color-mix(in srgb, var(--ssxz-primary) 38%, transparent);
+    color: var(--ssxz-accent-strong);
   }
 
   .badge-success {
-    @apply bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400;
+    background: color-mix(in srgb, var(--ssxz-success) 12%, transparent);
+    border-color: color-mix(in srgb, var(--ssxz-success) 34%, transparent);
+    color: var(--ssxz-success);
   }
 
   .badge-warning {
-    @apply bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400;
+    background: color-mix(in srgb, var(--ssxz-warning) 12%, transparent);
+    border-color: color-mix(in srgb, var(--ssxz-warning) 34%, transparent);
+    color: var(--ssxz-warning);
   }
 
   .badge-danger {
-    @apply bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400;
+    background: color-mix(in srgb, var(--ssxz-error) 12%, transparent);
+    border-color: color-mix(in srgb, var(--ssxz-error) 34%, transparent);
+    color: var(--ssxz-error);
   }
 
   .badge-gray {
-    @apply bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-dark-300;
+    background: var(--ssxz-surface-raised);
+    color: var(--ssxz-text-muted);
   }
 
   .badge-purple {
-    @apply bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400;
+    background: var(--ssxz-primary-soft);
+    border-color: color-mix(in srgb, var(--ssxz-primary) 30%, transparent);
+    color: var(--ssxz-accent-strong);
   }
 
   /* ============ 下拉菜单 ============ */
   .dropdown {
     @apply absolute z-50;
-    @apply bg-white dark:bg-dark-800;
-    @apply rounded-xl;
-    @apply border border-gray-200 dark:border-dark-700;
-    @apply shadow-lg;
+    background: var(--ssxz-surface-raised);
+    border: 1px solid var(--ssxz-border-strong);
+    border-radius: var(--ssxz-radius-card);
+    box-shadow: var(--ssxz-shadow);
     @apply py-1;
     @apply origin-top-right animate-scale-in;
   }
 
   .dropdown-item {
     @apply px-4 py-2 text-sm;
-    @apply text-gray-700 dark:text-gray-300;
-    @apply hover:bg-gray-100 dark:hover:bg-dark-700;
+    color: var(--ssxz-text-muted);
     @apply cursor-pointer transition-colors;
     @apply flex items-center gap-2;
+  }
+
+  .dropdown-item:hover {
+    background: var(--ssxz-surface-muted);
+    color: var(--ssxz-text);
   }
 
   /* ============ 模态框 ============ */
   .modal-overlay {
     @apply fixed inset-0 z-50;
-    @apply bg-black/50 backdrop-blur-sm;
+    /* Keep the scrim neutral; steel blue belongs to action/focus accents only. */
+    background: rgb(0 0 0 / 0.72);
+    backdrop-filter: blur(4px);
     @apply flex items-center justify-center p-2 sm:p-4;
   }
 
   .modal-content {
     @apply w-full;
     @apply max-h-[95vh] sm:max-h-[90vh];
-    @apply bg-white dark:bg-dark-800;
-    @apply rounded-2xl shadow-2xl;
-    @apply border border-gray-200 dark:border-dark-700;
+    background: var(--ssxz-surface);
+    border: 1px solid var(--ssxz-border-strong);
+    border-radius: var(--ssxz-radius-dialog, 12px);
+    box-shadow: var(--ssxz-shadow-dialog);
     @apply flex flex-col;
   }
 
   .modal-header {
-    @apply border-b border-gray-200 px-4 py-3 dark:border-dark-700;
+    @apply px-4 py-3;
+    border-bottom: 1px solid var(--ssxz-border);
     @apply sm:px-6 sm:py-4;
     @apply flex items-center justify-between;
     @apply flex-shrink-0;
   }
 
   .modal-title {
-    @apply text-lg font-semibold text-gray-900 dark:text-white;
+    @apply text-lg font-semibold;
+    color: var(--ssxz-text);
   }
 
   .modal-body {
@@ -421,7 +517,8 @@
   }
 
   .modal-footer {
-    @apply border-t border-gray-200 px-4 py-3 dark:border-dark-700;
+    @apply px-4 py-3;
+    border-top: 1px solid var(--ssxz-border);
     @apply sm:px-6 sm:py-4;
     @apply flex items-center justify-end gap-3;
     @apply flex-shrink-0;
@@ -560,9 +657,9 @@
   }
 
   .sidebar-link {
-    @apply flex items-center gap-3 rounded-xl py-2.5;
+    @apply flex items-center gap-3 rounded-xl py-3;
     @apply overflow-hidden;
-    @apply text-sm font-medium;
+    @apply text-base font-medium;
     @apply text-gray-600 dark:text-dark-300;
     @apply transition-all duration-200;
     @apply hover:bg-gray-100 dark:hover:bg-dark-800;
@@ -583,7 +680,7 @@
 
   .sidebar-section-title {
     @apply mb-2 px-3;
-    @apply text-xs font-semibold uppercase tracking-wider;
+    @apply text-sm font-semibold uppercase tracking-wider;
     @apply text-gray-400 dark:text-dark-500;
   }
 
@@ -604,19 +701,22 @@
   .empty-state {
     @apply flex flex-col items-center justify-center px-4 py-12;
     @apply text-center;
+    color: var(--ssxz-text-muted);
   }
 
   .empty-state-icon {
     @apply mb-4 h-16 w-16;
-    @apply text-gray-300 dark:text-dark-600;
+    color: var(--ssxz-text-subtle);
   }
 
   .empty-state-title {
-    @apply mb-1 text-lg font-medium text-gray-900 dark:text-white;
+    @apply mb-1 text-base font-medium;
+    color: var(--ssxz-text);
   }
 
   .empty-state-description {
-    @apply max-w-sm text-sm text-gray-500 dark:text-dark-400;
+    @apply max-w-sm text-sm;
+    color: var(--ssxz-text-muted);
   }
 
   /* ============ 加载状态 ============ */
@@ -637,7 +737,9 @@
   /* ============ 标签页 ============ */
   .tabs {
     @apply flex gap-1 p-1;
-    @apply rounded-xl bg-gray-100 dark:bg-dark-800;
+    border: 1px solid var(--ssxz-border);
+    border-radius: var(--ssxz-radius-button);
+    background: var(--ssxz-bg-subtle);
   }
 
   .tab {
@@ -648,25 +750,26 @@
   }
 
   .tab-active {
-    @apply bg-white dark:bg-dark-700;
-    @apply text-gray-900 dark:text-white;
-    @apply shadow-sm;
+    background: var(--ssxz-surface-raised);
+    color: var(--ssxz-text);
   }
 
   /* ============ 进度条 ============ */
   .progress {
-    @apply h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-dark-700;
+    @apply h-2 overflow-hidden rounded-full;
+    background: var(--ssxz-surface-muted);
   }
 
   .progress-bar {
-    @apply h-full bg-gradient-to-r from-primary-500 to-primary-400;
+    @apply h-full bg-primary-500;
     @apply transition-all duration-300;
   }
 
   /* ============ 开关 ============ */
   .switch {
     @apply relative h-6 w-11 cursor-pointer rounded-full;
-    @apply bg-gray-300 dark:bg-dark-600;
+    background: var(--ssxz-surface-muted);
+    border: 1px solid var(--ssxz-border);
     @apply transition-colors duration-200;
   }
 
@@ -687,15 +790,19 @@
   /* ============ 代码块 ============ */
   .code {
     @apply font-mono text-sm;
-    @apply bg-gray-100 dark:bg-dark-800;
+    background: var(--ssxz-surface-code);
+    border: 1px solid var(--ssxz-border);
     @apply rounded px-1.5 py-0.5;
-    @apply text-primary-600 dark:text-primary-400;
+    color: var(--ssxz-accent);
   }
 
   .code-block {
     @apply font-mono text-sm;
-    @apply bg-gray-900 text-gray-100;
-    @apply overflow-x-auto rounded-xl p-4;
+    background: var(--ssxz-surface-code);
+    color: var(--ssxz-text-secondary);
+    border: 1px solid var(--ssxz-border);
+    @apply overflow-x-auto p-4;
+    border-radius: var(--ssxz-radius-card);
   }
 
   /* ============ Tour Description ============ */
@@ -716,8 +823,10 @@
   }
 
   .tour-info-box {
-    @apply rounded-md border-l-4 border-blue-500 bg-blue-50 px-3 py-2 text-xs text-blue-900;
-    @apply dark:border-blue-400 dark:bg-blue-950/40 dark:text-blue-200;
+    @apply rounded-md border-l-4 px-3 py-2 text-xs;
+    border-color: var(--ssxz-accent);
+    background: var(--ssxz-accent-soft);
+    color: var(--ssxz-text-secondary);
   }
 
   .tour-success-box {
@@ -750,7 +859,7 @@
 @layer utilities {
   /* 文字渐变 */
   .text-gradient {
-    @apply bg-gradient-to-r from-primary-500 to-accent-500 bg-clip-text text-transparent;
+    color: var(--ssxz-text);
   }
 
   /* 玻璃效果 */
@@ -775,4 +884,269 @@
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
+}
+
+/* SSXZ global design system: F0 monochrome base with semantic state colors. */
+:root {
+  color-scheme: light;
+
+  --ssxz-bg: #f6f7f8;
+  --ssxz-bg-subtle: #f0f2f4;
+  --ssxz-surface: #ffffff;
+  --ssxz-surface-raised: #f7f8f9;
+  --ssxz-surface-muted: #eceff2;
+  --ssxz-surface-code: #f3f5f6;
+  --ssxz-table-sticky-surface: var(--ssxz-surface);
+  --ssxz-code-surface: var(--ssxz-surface-code);
+  --ssxz-border: #dde1e5;
+  --ssxz-border-strong: #c4cad1;
+
+  --ssxz-text: #17191d;
+  --ssxz-text-secondary: #3f4650;
+  --ssxz-text-muted: #66707c;
+  --ssxz-text-subtle: #88929e;
+
+  --ssxz-primary: #4f6882;
+  --ssxz-primary-hover: #415a73;
+  --ssxz-primary-soft: rgb(79 104 130 / 0.1);
+  --ssxz-accent: #617991;
+  --ssxz-accent-strong: #405b76;
+  --ssxz-accent-soft: rgb(97 121 145 / 0.1);
+  --ssxz-action: #17191d;
+  --ssxz-action-hover: #262a30;
+  --ssxz-action-text: #ffffff;
+  --ssxz-nav-active-border: #c4cad1;
+  --ssxz-placeholder-border: #272b31;
+  --ssxz-success: #22c55e;
+  --ssxz-warning: #f59e0b;
+  --ssxz-danger: #ef4444;
+  --ssxz-error: #ef4444;
+
+  --ssxz-font-sans: Inter, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui,
+    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ssxz-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --ssxz-sidebar-width: 256px;
+  --ssxz-sidebar-collapsed-width: 64px;
+  --ssxz-header-height: 56px;
+  --ssxz-content-max: 1540px;
+  --ssxz-space-page-x: 24px;
+  --ssxz-space-page-y: 24px;
+  --ssxz-radius-button: 8px;
+  --ssxz-radius-card: 10px;
+  --ssxz-radius-dialog: 12px;
+  --ssxz-shadow-button: 0 1px 2px rgb(17 24 39 / 0.12), 0 4px 10px rgb(17 24 39 / 0.06);
+  --ssxz-shadow-button-hover: 0 2px 3px rgb(17 24 39 / 0.14), 0 7px 16px rgb(17 24 39 / 0.1);
+  --ssxz-shadow-button-subtle: 0 1px 2px rgb(17 24 39 / 0.06);
+  --ssxz-shadow-card: 0 1px 2px rgb(17 24 39 / 0.08), 0 8px 22px rgb(17 24 39 / 0.05);
+  --ssxz-shadow-card-hover: 0 2px 4px rgb(17 24 39 / 0.1), 0 12px 28px rgb(17 24 39 / 0.08);
+  --ssxz-shadow-sm: 0 8px 24px rgb(17 24 39 / 0.08);
+  --ssxz-shadow: 0 18px 48px rgb(17 24 39 / 0.1);
+  --ssxz-shadow-dialog: 0 24px 64px rgb(17 24 39 / 0.14);
+  --ssxz-shadow-lg: var(--ssxz-shadow-dialog);
+  --ssxz-focus-ring: 0 0 0 3px rgb(97 121 145 / 0.28);
+
+  /* Backward-compatible semantic aliases used by existing PR360 page work. */
+  --ssxz-action-soft: var(--ssxz-primary-soft);
+  --ssxz-active: var(--ssxz-primary-soft);
+  --ssxz-body: var(--ssxz-text-secondary);
+  --ssxz-canvas: var(--ssxz-code-surface);
+  --ssxz-disabled: var(--ssxz-surface-muted);
+  --ssxz-focus: var(--ssxz-primary-hover);
+  --ssxz-glow-subtle: rgb(85 98 115 / 0.08);
+  --ssxz-input: var(--ssxz-code-surface);
+  --ssxz-subtle: var(--ssxz-text-subtle);
+  --ssxz-surface-elevated: var(--ssxz-surface-raised);
+  --ssxz-surface-subtle: var(--ssxz-bg-subtle);
+  --ssxz-text-primary: var(--ssxz-text);
+
+  /*
+   * Light-mode semantic aliases for the supplied shadcn-style component.
+   * The existing application remains SSXZ-variable based; these aliases let
+   * compatible UI pieces use the same light palette without introducing a
+   * second theme or changing the ThemeToggle mechanism.
+   */
+  --background: var(--ssxz-bg);
+  --foreground: var(--ssxz-text);
+  --color-foreground: var(--ssxz-text);
+  --card: var(--ssxz-surface);
+  --card-foreground: var(--ssxz-text);
+  --popover: var(--ssxz-surface-raised);
+  --popover-foreground: var(--ssxz-text);
+  --primary: var(--ssxz-primary);
+  --primary-foreground: var(--ssxz-action-text);
+  --secondary: var(--ssxz-surface-muted);
+  --secondary-foreground: var(--ssxz-text);
+  --muted: var(--ssxz-surface-muted);
+  --muted-foreground: var(--ssxz-text-muted);
+  --accent: var(--ssxz-accent-soft);
+  --accent-foreground: var(--ssxz-accent-strong);
+  --destructive: var(--ssxz-danger);
+  --destructive-foreground: #ffffff;
+  --border: var(--ssxz-border);
+  --input: var(--ssxz-input);
+  --ring: var(--ssxz-focus);
+}
+
+.dark {
+  color-scheme: dark;
+
+  /* Outline-first neutral palette: hierarchy comes from hairlines, not filled cards. */
+  --ssxz-bg: #0b0b0d;
+  --ssxz-bg-subtle: #0b0b0d;
+  --ssxz-surface: transparent;
+  --ssxz-surface-raised: #0b0b0d;
+  --ssxz-surface-muted: #111115;
+  --ssxz-surface-code: #111115;
+  --ssxz-table-sticky-surface: var(--ssxz-bg);
+  --ssxz-code-surface: var(--ssxz-surface-code);
+  --ssxz-border: #2a2a30;
+  --ssxz-border-strong: #33333a;
+
+  --ssxz-text: #f4f4f5;
+  --ssxz-text-secondary: #70707a;
+  --ssxz-text-muted: #70707a;
+  --ssxz-text-subtle: #55555d;
+
+  --ssxz-primary: #9db6ce;
+  --ssxz-primary-hover: #b3c7db;
+  --ssxz-primary-soft: rgb(157 182 206 / 0.12);
+  --ssxz-accent: #a8bfd5;
+  --ssxz-accent-strong: #c7d8e8;
+  --ssxz-accent-soft: rgb(168 191 213 / 0.12);
+  --ssxz-action: #f4f4f5;
+  --ssxz-action-hover: #e4e4e7;
+  --ssxz-action-text: #0b0b0d;
+  --ssxz-nav-active-border: #33333a;
+  --ssxz-placeholder-border: #e4e4e7;
+
+  --ssxz-shadow-button: 0 1px 2px rgb(0 0 0 / 0.4), 0 5px 12px rgb(0 0 0 / 0.2);
+  --ssxz-shadow-button-hover: 0 2px 3px rgb(0 0 0 / 0.48), 0 8px 18px rgb(0 0 0 / 0.28);
+  --ssxz-shadow-button-subtle: 0 1px 2px rgb(0 0 0 / 0.28);
+  --ssxz-shadow-card: 0 1px 2px rgb(0 0 0 / 0.34), 0 10px 24px rgb(0 0 0 / 0.2);
+  --ssxz-shadow-card-hover: 0 2px 4px rgb(0 0 0 / 0.4), 0 14px 30px rgb(0 0 0 / 0.28);
+  --ssxz-shadow-sm: 0 8px 24px rgb(0 0 0 / 0.24);
+  --ssxz-shadow: 0 18px 48px rgb(0 0 0 / 0.34);
+  --ssxz-shadow-dialog: 0 24px 64px rgb(0 0 0 / 0.42);
+  --ssxz-shadow-lg: var(--ssxz-shadow-dialog);
+  --ssxz-focus-ring: 0 0 0 3px rgb(168 191 213 / 0.3);
+
+  --ssxz-glow-subtle: rgb(170 180 194 / 0.08);
+
+  /* Keep the supplied semantic token names theme-aware for dark-compatible consumers. */
+  --background: var(--ssxz-bg);
+  --foreground: var(--ssxz-text);
+  --color-foreground: var(--ssxz-text);
+  --card: var(--ssxz-surface);
+  --card-foreground: var(--ssxz-text);
+  --popover: var(--ssxz-surface-raised);
+  --popover-foreground: var(--ssxz-text);
+  --primary: var(--ssxz-primary);
+  --primary-foreground: var(--ssxz-action-text);
+  --secondary: var(--ssxz-surface-muted);
+  --secondary-foreground: var(--ssxz-text);
+  --muted: var(--ssxz-surface-muted);
+  --muted-foreground: var(--ssxz-text-muted);
+  --accent: var(--ssxz-accent-soft);
+  --accent-foreground: var(--ssxz-accent-strong);
+  --destructive: var(--ssxz-danger);
+  --destructive-foreground: var(--ssxz-action-text);
+  --border: var(--ssxz-border);
+  --input: var(--ssxz-input);
+  --ring: var(--ssxz-focus);
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+  background: var(--ssxz-bg);
+  color: var(--ssxz-text);
+  font-family: var(--ssxz-font-sans);
+}
+
+body {
+  color: var(--ssxz-text);
+  font-variant-numeric: tabular-nums;
+  font-synthesis: none;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.026;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+#app {
+  position: relative;
+  z-index: 1;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--ssxz-accent) 28%, transparent);
+  color: var(--ssxz-text);
+}
+
+.ssxz-shell-surface {
+  background: color-mix(in srgb, var(--ssxz-surface) 92%, transparent);
+  border: 1px solid var(--ssxz-border);
+  box-shadow: var(--ssxz-shadow-sm);
+}
+
+.ssxz-admin-shell .sidebar,
+.sidebar {
+  width: var(--ssxz-sidebar-width);
+  background: var(--ssxz-bg) !important;
+  border-color: var(--ssxz-border) !important;
+  color: var(--ssxz-text-secondary);
+  transition: width 200ms ease, transform 300ms ease;
+}
+
+.sidebar-header {
+  box-sizing: border-box;
+  height: var(--ssxz-header-height);
+  min-height: var(--ssxz-header-height);
+  border-color: var(--ssxz-border) !important;
+}
+
+.sidebar-link {
+  min-height: 3rem;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid transparent;
+  border-radius: var(--ssxz-radius-button);
+  color: var(--ssxz-text-muted) !important;
+  font-size: 0.9375rem;
+  font-synthesis: none;
+  font-weight: 500;
+  line-height: 1.35;
+  padding: 0.7rem 0.9rem;
+}
+
+.sidebar-link:hover {
+  background: color-mix(in srgb, var(--ssxz-primary) 16%, transparent) !important;
+  color: var(--ssxz-text) !important;
+}
+
+.sidebar-link-active {
+  background: transparent !important;
+  border-color: var(--ssxz-nav-active-border) !important;
+  box-shadow: inset 0 0 0 1px var(--ssxz-nav-active-border);
+  color: var(--ssxz-text) !important;
+}
+
+.sidebar-section-title {
+  color: var(--ssxz-text-subtle) !important;
+  letter-spacing: 0.04em;
+}
+
+.app-header-shell {
+  min-height: var(--ssxz-header-height);
+  background: color-mix(in srgb, var(--ssxz-surface-raised) 84%, transparent);
+  border-color: var(--ssxz-border) !important;
+  color: var(--ssxz-text);
 }

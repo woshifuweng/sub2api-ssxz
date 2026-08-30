@@ -54,10 +54,7 @@
 
         <template #cell-model="{ row }">
           <div class="space-y-0.5 text-xs">
-            <span v-if="!showModelRouting" class="font-medium text-gray-900 dark:text-white">
-              {{ row.model }}
-            </span>
-            <div v-else-if="row.model_mapping_chain && row.model_mapping_chain.includes('→')" class="space-y-0.5">
+            <div v-if="row.model_mapping_chain && row.model_mapping_chain.includes('→')" class="space-y-0.5">
               <div v-for="(step, i) in row.model_mapping_chain.split('→')" :key="i"
                    class="break-all"
                    :class="i === 0 ? 'font-medium text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'"
@@ -75,7 +72,7 @@
             </div>
             <span v-else class="font-medium text-gray-900 dark:text-white">{{ row.model }}</span>
             <div
-              v-if="showModelRouting && row.upstream_model_mismatch === true && row.upstream_response_model"
+              v-if="row.upstream_model_mismatch === true && row.upstream_response_model"
               class="break-all pl-3 text-[11px]"
               :class="isLikelyModelVariant(row) ? 'text-amber-600 dark:text-amber-400' : 'text-orange-600 dark:text-orange-400'"
               :title="modelAuditTitle(row)"
@@ -113,7 +110,7 @@
         </template>
 
         <template #cell-group="{ row }">
-          <span v-if="row.group" class="inline-flex max-w-full items-center rounded px-2 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+          <span v-if="row.group" class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
             {{ row.group.name }}
           </span>
           <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
@@ -242,8 +239,8 @@
         </template>
 
         <template #cell-request_id="{ row }">
-          <div v-if="row.request_id" class="flex min-w-0 max-w-[160px] items-center gap-1.5">
-            <span class="min-w-0 flex-1 truncate font-mono text-xs text-gray-500 dark:text-gray-400" :title="row.request_id">
+          <div v-if="row.request_id" class="flex max-w-[160px] items-center gap-1.5">
+            <span class="truncate font-mono text-xs text-gray-500 dark:text-gray-400" :title="row.request_id">
               {{ row.request_id }}
             </span>
             <button
@@ -563,7 +560,6 @@ interface Props {
   defaultSortOrder?: 'asc' | 'desc'
   showAccountBilling?: boolean
   showUpstreamEndpoint?: boolean
-  showModelRouting?: boolean
   /** 嵌入统一卡片内使用：去掉自身卡片外观 */
   flat?: boolean
 }
@@ -575,7 +571,6 @@ const props = withDefaults(defineProps<Props>(), {
   defaultSortOrder: 'asc',
   showAccountBilling: true,
   showUpstreamEndpoint: true,
-  showModelRouting: true,
   flat: false
 })
 const emit = defineEmits<{
@@ -588,7 +583,6 @@ const appStore = useAppStore()
 const copiedRequestId = ref<string | null>(null)
 const showAccountBilling = props.showAccountBilling
 const showUpstreamEndpoint = props.showUpstreamEndpoint
-const showModelRouting = props.showModelRouting
 const ipGeoBatchLoading = ref(false)
 
 const showIpGeoToolbar = computed(() => props.columns.some((col) => col.key === 'ip_address'))

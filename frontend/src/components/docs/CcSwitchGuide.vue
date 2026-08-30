@@ -1,85 +1,134 @@
 <template>
-  <article id="cc-switch-guide" class="space-y-8" data-testid="cc-switch-guide">
-    <header>
-      <h2 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t('docs.guide.title') }}</h2>
-      <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{{ t('docs.guide.summary') }}</p>
-    </header>
-
-    <section v-for="section in sections" :key="section.title" class="space-y-4">
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ section.title }}</h3>
-      <p class="text-sm leading-7 text-gray-600 dark:text-gray-300">{{ section.body }}</p>
-      <a
-        v-if="section.link"
-        class="font-medium text-primary-600 hover:underline dark:text-primary-400"
-        :href="section.link"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        {{ t('docs.guide.officialLink') }}
-      </a>
-      <p
-        v-if="section.warning"
-        class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200"
-      >
-        {{ t('docs.guide.warning') }}
-      </p>
-      <img
-        v-for="image in section.images"
-        :key="image.src"
-        :src="image.src"
-        :alt="image.alt"
-        class="mx-auto max-h-[42rem] max-w-full rounded-xl border border-gray-200 bg-gray-100 object-contain shadow-sm dark:border-dark-700 dark:bg-dark-900"
-        loading="lazy"
-      />
-    </section>
-  </article>
+  <article
+    id="cc-switch-guide"
+    data-testid="cc-switch-guide"
+    class="cc-switch-guide"
+    v-html="guideHtml"
+  />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { renderRichContent } from '@/utils/sanitize'
+import guideMarkdown from '../../../../docs/教程/CC-Switch一键接入SSXZ.md?raw'
+import downloadImage from '../../../../docs/教程/assets/cc-switch/01-official-download-windows-macos.png'
+import mainWindowImage from '../../../../docs/教程/assets/cc-switch/02-cc-switch-main-window.png'
+import importButtonImage from '../../../../docs/教程/assets/cc-switch/03-ssxz-import-to-ccs-button.png'
+import browserPromptImage from '../../../../docs/教程/assets/cc-switch/04-browser-open-cc-switch-dialog.png'
+import importConfirmationImage from '../../../../docs/教程/assets/cc-switch/05-cc-switch-import-confirmation.png'
+import selectedProviderImage from '../../../../docs/教程/assets/cc-switch/06-ssxz-selected-redacted.png'
+import successImage from '../../../../docs/教程/assets/cc-switch/07-claude-code-success-history.png'
 
-const { t } = useI18n()
-const assetBase = '/docs/cc-switch'
+const guideAssets: Record<string, string> = {
+  './assets/cc-switch/01-official-download-windows-macos.png': downloadImage,
+  './assets/cc-switch/02-cc-switch-main-window.png': mainWindowImage,
+  './assets/cc-switch/03-ssxz-import-to-ccs-button.png': importButtonImage,
+  './assets/cc-switch/04-browser-open-cc-switch-dialog.png': browserPromptImage,
+  './assets/cc-switch/05-cc-switch-import-confirmation.png': importConfirmationImage,
+  './assets/cc-switch/06-ssxz-selected-redacted.png': selectedProviderImage,
+  './assets/cc-switch/07-claude-code-success-history.png': successImage
+}
 
-const sections = computed(() => [
-  {
-    title: t('docs.guide.prepareTitle'),
-    body: t('docs.guide.prepareBody'),
-    link: 'https://github.com/farion1231/cc-switch',
-    warning: true,
-    images: [
-      { src: `${assetBase}/01-official-download-windows-macos.png`, alt: t('docs.guide.images.download') },
-      { src: `${assetBase}/02-cc-switch-main-window.png`, alt: t('docs.guide.images.window') }
-    ]
-  },
-  {
-    title: t('docs.guide.step1Title'),
-    body: t('docs.guide.step1Body'),
-    images: [
-      { src: `${assetBase}/03-ssxz-import-to-ccs-button.png`, alt: t('docs.guide.images.importButton') }
-    ]
-  },
-  {
-    title: t('docs.guide.step2Title'),
-    body: t('docs.guide.step2Body'),
-    images: [
-      { src: `${assetBase}/04-browser-open-cc-switch-dialog.png`, alt: t('docs.guide.images.browserPrompt') },
-      { src: `${assetBase}/05-cc-switch-import-confirmation.png`, alt: t('docs.guide.images.confirmation') }
-    ]
-  },
-  {
-    title: t('docs.guide.step3Title'),
-    body: t('docs.guide.step3Body'),
-    images: [
-      { src: `${assetBase}/06-ssxz-selected-redacted.png`, alt: t('docs.guide.images.selected') },
-      { src: `${assetBase}/07-claude-code-success-history.png`, alt: t('docs.guide.images.success') }
-    ]
-  },
-  {
-    title: t('docs.guide.finishTitle'),
-    body: t('docs.guide.finishBody'),
-    images: []
-  }
-])
+const guideHtml = computed(() => {
+  const source = Object.entries(guideAssets).reduce(
+    (content, [assetPath, assetUrl]) => content.split(assetPath).join(assetUrl),
+    guideMarkdown
+  )
+  return renderRichContent(source)
+})
 </script>
+
+<style scoped>
+.cc-switch-guide {
+  min-width: 0;
+  color: hsl(var(--foreground));
+}
+
+.cc-switch-guide :deep(h1),
+.cc-switch-guide :deep(h2) {
+  text-wrap: balance;
+}
+
+.cc-switch-guide :deep(h1) {
+  margin: 0;
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  line-height: 1.2;
+}
+
+.cc-switch-guide :deep(h2) {
+  margin: 2.25rem 0 0.75rem;
+  padding-top: 0.25rem;
+  font-size: 1.125rem;
+  line-height: 1.6rem;
+}
+
+.cc-switch-guide :deep(p),
+.cc-switch-guide :deep(li) {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.875rem;
+  line-height: 1.75;
+}
+
+.cc-switch-guide :deep(p) {
+  margin: 0.75rem 0;
+}
+
+.cc-switch-guide :deep(ol),
+.cc-switch-guide :deep(ul) {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.75rem 0;
+  padding-left: 1.4rem;
+}
+
+.cc-switch-guide :deep(strong) {
+  color: hsl(var(--foreground));
+}
+
+.cc-switch-guide :deep(a) {
+  color: hsl(var(--foreground));
+  font-weight: 650;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2rem;
+}
+
+.cc-switch-guide :deep(code) {
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.35rem;
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted));
+  font-family: var(--font-mono, "Cascadia Code", monospace);
+  font-size: 0.8125rem;
+}
+
+.cc-switch-guide :deep(blockquote) {
+  margin: 1rem 0;
+  border-left: 3px solid hsl(var(--border));
+  padding: 0.25rem 0 0.25rem 1rem;
+  background: hsl(var(--muted) / 0.45);
+}
+
+.cc-switch-guide :deep(blockquote p) {
+  margin: 0.4rem 0;
+}
+
+.cc-switch-guide :deep(img) {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 42rem;
+  margin: 1rem auto 1.5rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--muted));
+  box-shadow: 0 8px 24px hsl(var(--shadow));
+  object-fit: contain;
+}
+
+@media (max-width: 520px) {
+  .cc-switch-guide :deep(h1) {
+    font-size: 1.5rem;
+  }
+}
+</style>

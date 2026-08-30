@@ -9,7 +9,7 @@
       <div class="flex flex-wrap items-center justify-end gap-2">
         <div
           v-if="showSourceToggle"
-          class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 dark:border-dark-700 dark:bg-dark-800"
+          class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 dark:border-gray-700 dark:bg-dark-800"
         >
           <button
             type="button"
@@ -44,7 +44,7 @@
         </div>
         <div
           v-if="showMetricToggle"
-          class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 dark:border-dark-700 dark:bg-dark-800"
+          class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 dark:border-gray-700 dark:bg-dark-800"
         >
           <button
             type="button"
@@ -101,12 +101,12 @@
     </div>
     <div
       v-else-if="activeView === 'model_distribution' && displayModelStats.length > 0 && chartData"
-      class="flex flex-col items-center gap-4 sm:flex-row sm:gap-6"
+      class="flex items-center gap-6"
     >
-      <div class="h-48 w-48 shrink-0">
+      <div class="h-48 w-48">
         <Doughnut :data="chartData" :options="doughnutOptions" />
       </div>
-      <div class="max-h-48 w-full min-w-0 flex-1 overflow-auto">
+      <div class="max-h-48 flex-1 overflow-y-auto">
         <table class="w-full text-xs">
           <thead>
             <tr class="text-gray-500 dark:text-gray-400">
@@ -114,25 +114,22 @@
               <th class="pb-2 text-right">{{ t('admin.dashboard.requests') }}</th>
               <th class="pb-2 text-right">{{ t('admin.dashboard.tokens') }}</th>
               <th class="pb-2 text-right">{{ t('admin.dashboard.actual') }}</th>
-              <th v-if="showAccountCost" class="pb-2 text-right">{{ t('admin.dashboard.accountCost') }}</th>
               <th class="pb-2 text-right">{{ t('admin.dashboard.standard') }}</th>
             </tr>
           </thead>
           <tbody>
             <template v-for="model in displayModelStats" :key="model.model">
               <tr
-                class="border-t border-gray-100 transition-colors dark:border-dark-700"
-                :class="enableBreakdown ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700/40' : ''"
-                @click="enableBreakdown && toggleBreakdown('model', model.model)"
+                class="border-t border-gray-100 cursor-pointer transition-colors hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-dark-700/40"
+                @click="toggleBreakdown('model', model.model)"
               >
                 <td
-                  class="max-w-[100px] truncate py-1.5 font-medium"
-                  :class="enableBreakdown ? 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300' : 'text-gray-900 dark:text-white'"
+                  class="max-w-[100px] truncate py-1.5 font-medium text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
                   :title="model.model"
                 >
                   <span class="inline-flex items-center gap-1">
-                    <svg v-if="enableBreakdown && expandedKey === `model-${model.model}`" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    <svg v-else-if="enableBreakdown" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    <svg v-if="expandedKey === `model-${model.model}`" class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    <svg v-else class="h-3 w-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                     {{ model.model }}
                   </span>
                 </td>
@@ -142,22 +139,18 @@
                 <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
                   {{ formatTokens(model.total_tokens) }}
                 </td>
-                <td class="py-1.5 text-right text-green-600 dark:text-green-400">
+                <td class="py-1.5 text-right text-amber-700 dark:text-amber-300">
                   ${{ formatCost(model.actual_cost) }}
-                </td>
-                <td v-if="showAccountCost" class="py-1.5 text-right text-orange-500 dark:text-orange-400">
-                  ${{ formatCost(model.account_cost) }}
                 </td>
                 <td class="py-1.5 text-right text-gray-400 dark:text-gray-500">
                   ${{ formatCost(model.cost) }}
                 </td>
               </tr>
               <tr v-if="expandedKey === `model-${model.model}`">
-                <td :colspan="distributionColspan" class="p-0">
+                <td colspan="5" class="p-0">
                   <UserBreakdownSubTable
                     :items="breakdownItems"
                     :loading="breakdownLoading"
-                    :show-account-cost="showAccountCost"
                   />
                 </td>
               </tr>
@@ -182,11 +175,11 @@
     >
       {{ t('admin.dashboard.failedToLoad') }}
     </div>
-    <div v-else-if="rankingDisplayItems.length > 0 && rankingChartData" class="flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
-      <div class="h-48 w-48 shrink-0">
+    <div v-else-if="rankingDisplayItems.length > 0 && rankingChartData" class="flex items-center gap-6">
+      <div class="h-48 w-48">
         <Doughnut :data="rankingChartData" :options="rankingDoughnutOptions" />
       </div>
-      <div class="max-h-48 w-full min-w-0 flex-1 overflow-auto">
+      <div class="max-h-48 flex-1 overflow-y-auto">
         <table class="w-full text-xs">
           <thead>
             <tr class="text-gray-500 dark:text-gray-400">
@@ -200,7 +193,7 @@
             <tr
               v-for="(item, index) in rankingDisplayItems"
               :key="item.isOther ? 'others' : `${item.user_id}-${index}`"
-              class="border-t border-gray-100 transition-colors dark:border-dark-700"
+              class="border-t border-gray-100 transition-colors dark:border-gray-700"
               :class="item.isOther
                 ? 'bg-gray-50/70 dark:bg-dark-700/20'
                 : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700/40'"
@@ -208,7 +201,8 @@
             >
               <td class="py-1.5">
                 <div class="flex min-w-0 items-center gap-2">
-                  <span class="shrink-0 text-[11px] font-semibold text-gray-500 dark:text-gray-400">
+                  <span v-if="item.isOther" class="shrink-0 text-[11px] font-semibold text-gray-500 dark:text-gray-400">-</span>
+                  <span v-else class="shrink-0 text-[11px] font-semibold text-gray-500 dark:text-gray-400">
                     {{ item.isOther ? 'Σ' : `#${index + 1}` }}
                   </span>
                   <span
@@ -225,7 +219,7 @@
               <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
                 {{ formatTokens(item.tokens) }}
               </td>
-              <td class="py-1.5 text-right text-green-600 dark:text-green-400">
+              <td class="py-1.5 text-right text-amber-700 dark:text-amber-300">
                 ${{ formatCost(item.actual_cost) }}
               </td>
             </tr>
@@ -273,13 +267,10 @@ const props = withDefaults(defineProps<{
   metric?: DistributionMetric
   showSourceToggle?: boolean
   showMetricToggle?: boolean
-  enableBreakdown?: boolean
-  showAccountCost?: boolean
   rankingLoading?: boolean
   rankingError?: boolean
   startDate?: string
   endDate?: string
-  filters?: Record<string, any>
 }>(), {
   upstreamModelStats: () => [],
   mappingModelStats: () => [],
@@ -293,8 +284,6 @@ const props = withDefaults(defineProps<{
   metric: 'tokens',
   showSourceToggle: false,
   showMetricToggle: false,
-  enableBreakdown: true,
-  showAccountCost: true,
   rankingLoading: false,
   rankingError: false
 })
@@ -314,7 +303,6 @@ const toggleBreakdown = async (type: string, id: string) => {
   breakdownItems.value = []
   try {
     const res = await getUserBreakdown({
-      ...props.filters,
       start_date: props.startDate,
       end_date: props.endDate,
       model: id,
@@ -335,23 +323,21 @@ const emit = defineEmits<{
 }>()
 
 const enableRankingView = computed(() => props.enableRankingView)
-const showAccountCost = computed(() => props.showAccountCost)
-const distributionColspan = computed(() => showAccountCost.value ? 6 : 5)
 const activeView = ref<'model_distribution' | 'spending_ranking'>('model_distribution')
 
 const chartColors = [
-  '#3b82f6',
-  '#10b981',
+  '#f2b84b',
+  '#d99b3d',
+  '#a9742a',
   '#f59e0b',
   '#ef4444',
-  '#8b5cf6',
-  '#ec4899',
-  '#14b8a6',
+  '#a78bfa',
+  '#78716c',
   '#f97316',
-  '#6366f1',
-  '#84cc16',
-  '#06b6d4',
-  '#a855f7'
+  '#eab308',
+  '#fb7185',
+  '#57534e',
+  '#facc15'
 ]
 
 const displayModelStats = computed(() => {
@@ -363,7 +349,7 @@ const displayModelStats = computed(() => {
   if (!sourceStats?.length) return []
 
   const metricKey = props.metric === 'actual_cost' ? 'actual_cost' : 'total_tokens'
-  return [...sourceStats].sort((a, b) => toFiniteNumber(b[metricKey]) - toFiniteNumber(a[metricKey]))
+  return [...sourceStats].sort((a, b) => b[metricKey] - a[metricKey])
 })
 
 const chartData = computed(() => {
@@ -373,7 +359,7 @@ const chartData = computed(() => {
     labels: displayModelStats.value.map((m) => m.model),
     datasets: [
       {
-        data: displayModelStats.value.map((m) => toFiniteNumber(props.metric === 'actual_cost' ? m.actual_cost : m.total_tokens)),
+        data: displayModelStats.value.map((m) => props.metric === 'actual_cost' ? m.actual_cost : m.total_tokens),
         backgroundColor: chartColors.slice(0, displayModelStats.value.length),
         borderWidth: 0
       }
@@ -385,8 +371,10 @@ const rankingChartData = computed(() => {
   if (!props.rankingItems?.length) return null
 
   const labels = props.rankingItems.map((item, index) => `#${index + 1} ${getRankingUserLabel(item)}`)
-  const data = props.rankingItems.map((item) => toFiniteNumber(item.actual_cost))
-  const backgroundColor = chartColors.slice(0, props.rankingItems.length)
+  const data = props.rankingItems.map((item) => item.actual_cost)
+  const backgroundColor = props.rankingItems.map((_, index) =>
+    index === 0 ? '#3b82f6' : chartColors[index % chartColors.length]
+  )
 
   if (otherRankingItem.value) {
     labels.push(t('admin.dashboard.spendingRankingOther'))
@@ -409,9 +397,9 @@ const rankingChartData = computed(() => {
 const otherRankingItem = computed<RankingDisplayItem | null>(() => {
   if (!props.rankingItems?.length) return null
 
-  const rankedActualCost = props.rankingItems.reduce((sum, item) => sum + toFiniteNumber(item.actual_cost), 0)
-  const rankedRequests = props.rankingItems.reduce((sum, item) => sum + toFiniteNumber(item.requests), 0)
-  const rankedTokens = props.rankingItems.reduce((sum, item) => sum + toFiniteNumber(item.tokens), 0)
+  const rankedActualCost = props.rankingItems.reduce((sum, item) => sum + item.actual_cost, 0)
+  const rankedRequests = props.rankingItems.reduce((sum, item) => sum + item.requests, 0)
+  const rankedTokens = props.rankingItems.reduce((sum, item) => sum + item.tokens, 0)
 
   const otherActualCost = Math.max((props.rankingTotalActualCost || 0) - rankedActualCost, 0)
   const otherRequests = Math.max((props.rankingTotalRequests || 0) - rankedRequests, 0)
@@ -492,7 +480,7 @@ const formatTokens = (value: number): string => {
 }
 
 const formatNumber = (value: number): string => {
-  return toFiniteNumber(value).toLocaleString()
+  return value.toLocaleString()
 }
 
 const getRankingUserLabel = (item: UserSpendingRankingItem): string => {
@@ -506,20 +494,14 @@ const getRankingRowLabel = (item: RankingDisplayItem): string => {
   return getRankingUserLabel(item)
 }
 
-const toFiniteNumber = (value: unknown): number => {
-  const numberValue = Number(value)
-  return Number.isFinite(numberValue) ? numberValue : 0
-}
-
-const formatCost = (value: number | null | undefined): string => {
-  const safeValue = toFiniteNumber(value)
-  if (safeValue >= 1000) {
-    return (safeValue / 1000).toFixed(2) + 'K'
-  } else if (safeValue >= 1) {
-    return safeValue.toFixed(2)
-  } else if (safeValue >= 0.01) {
-    return safeValue.toFixed(3)
+const formatCost = (value: number): string => {
+  if (value >= 1000) {
+    return (value / 1000).toFixed(2) + 'K'
+  } else if (value >= 1) {
+    return value.toFixed(2)
+  } else if (value >= 0.01) {
+    return value.toFixed(3)
   }
-  return safeValue.toFixed(4)
+  return value.toFixed(4)
 }
 </script>

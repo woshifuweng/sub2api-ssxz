@@ -7,6 +7,7 @@ import { apiClient } from './client'
 import type {
   PaymentConfig,
   SubscriptionPlan,
+  PaymentChannel,
   MethodLimitsResponse,
   CheckoutInfoResponse,
   CreateOrderRequest,
@@ -34,6 +35,11 @@ export const paymentAPI = {
     return apiClient.get<SubscriptionPlan[]>('/payment/plans')
   },
 
+  /** Get available payment channels */
+  getChannels() {
+    return apiClient.get<PaymentChannel[]>('/payment/channels')
+  },
+
   /** Get all checkout page data in a single call */
   getCheckoutInfo() {
     return apiClient.get<CheckoutInfoResponse>('/payment/checkout-info')
@@ -45,8 +51,13 @@ export const paymentAPI = {
   },
 
   /** Create a new payment order */
-  createOrder(data: CreateOrderRequest) {
-    return apiClient.post<CreateOrderResult>('/payment/orders', data)
+  createOrder(data: CreateOrderRequest, options?: { idempotencyKey?: string }) {
+    const idempotencyKey = options?.idempotencyKey?.trim()
+    return apiClient.post<CreateOrderResult>(
+      '/payment/orders',
+      data,
+      idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : undefined
+    )
   },
 
   /** Get current user's orders */

@@ -11,6 +11,7 @@ const {
   getDashboardApiKeysUsage,
   getAvailableGroups,
   getUserGroupRates,
+  getAvailableChannels,
   showError,
   showSuccess,
   copyToClipboard,
@@ -22,6 +23,7 @@ const {
   getDashboardApiKeysUsage: vi.fn(),
   getAvailableGroups: vi.fn(),
   getUserGroupRates: vi.fn(),
+  getAvailableChannels: vi.fn(),
   showError: vi.fn(),
   showSuccess: vi.fn(),
   copyToClipboard: vi.fn(),
@@ -73,6 +75,9 @@ vi.mock('@/api', () => ({
     getAvailable: getAvailableGroups,
     getUserGroupRates,
   },
+  userChannelsAPI: {
+    getAvailable: getAvailableChannels,
+  },
 }))
 
 vi.mock('@/stores/app', () => ({
@@ -87,6 +92,10 @@ vi.mock('@/stores/onboarding', () => ({
     isCurrentStep,
     nextStep,
   }),
+}))
+
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ path: '/keys' }),
 }))
 
 vi.mock('@/composables/useClipboard', () => ({
@@ -159,8 +168,8 @@ const DataTableStub = {
     <div>
       <div data-test="columns">{{ columns.map((col) => col.key).join(',') }}</div>
       <div data-test="columns-meta">{{ JSON.stringify(columns.map((col) => ({ key: col.key, sortable: !!col.sortable }))) }}</div>
-      <button data-test="sort-current-concurrency" @click="$emit('sort', 'current_concurrency', 'asc')">
-        Sort Current Concurrency
+      <button data-test="sort-name" @click="$emit('sort', 'name', 'asc')">
+        Sort Name
       </button>
       <div v-for="row in data" :key="row.id">
         <div
@@ -170,14 +179,11 @@ const DataTableStub = {
           <slot name="cell-id" :value="row.id" :row="row" />
         </div>
         <slot name="cell-name" :value="row.name" :row="row" />
-        <div data-test="group-cell">
-          <slot name="cell-group" :row="row" />
-        </div>
         <div data-test="current-concurrency">
           <slot name="cell-current_concurrency" :value="row.current_concurrency" :row="row" />
         </div>
-        <div data-test="usage-cell">
-          <slot name="cell-usage" :row="row" />
+        <div data-test="actions">
+          <slot name="cell-actions" :row="row" />
         </div>
         <div
           v-if="columns.some((col) => col.key === 'last_used_ip')"
@@ -237,8 +243,12 @@ const mountView = async () => {
         Icon: IconStub,
         UseKeyModal: true,
         EndpointPopover: true,
+        BalanceWarningBanner: true,
         GroupBadge: true,
         GroupOptionItem: true,
+        LiquidButton: {
+          template: '<button v-bind="$attrs"><slot /></button>',
+        },
         Teleport: true,
       },
     },
@@ -271,6 +281,7 @@ describe('user KeysView column settings', () => {
     getDashboardApiKeysUsage.mockReset()
     getAvailableGroups.mockReset()
     getUserGroupRates.mockReset()
+    getAvailableChannels.mockReset()
     showError.mockReset()
     showSuccess.mockReset()
     copyToClipboard.mockReset()
@@ -288,39 +299,120 @@ describe('user KeysView column settings', () => {
     getDashboardApiKeysUsage.mockResolvedValue({ stats: {} })
     getAvailableGroups.mockResolvedValue([])
     getUserGroupRates.mockResolvedValue({})
+    getAvailableChannels.mockResolvedValue([])
     isCurrentStep.mockReturnValue(false)
   })
 
-  it('uses the default API key columns with low-frequency columns hidden', async () => {
+  it('uses the current default API key columns with low-frequency columns hidden', async () => {
     const wrapper = await mountView()
 
     expect(visibleColumnKeys(wrapper)).toEqual([
       'name',
       'key',
       'group',
-      'current_concurrency',
       'usage',
-      'expires_at',
       'status',
+      'expires_at',
       'created_at',
       'actions',
     ])
     expect(visibleColumnKeys(wrapper)).not.toContain('rate_limit')
     expect(visibleColumnKeys(wrapper)).not.toContain('last_used_at')
-    expect(visibleColumnKeys(wrapper)).not.toContain('last_used_ip')
-    expect(visibleColumnKeys(wrapper)).not.toContain('id')
   })
 
-  it('constrains group badges and reserves a minimum width for usage', async () => {
-    listKeys.mockResolvedValueOnce({
+  it('loads every bindable group for key creation instead of only groups exposed by channels', async () => {
+    getAvailableGroups.mockResolvedValue([
+      {
+        id: 24,
+        name: '特惠分组',
+        description: 'Special offer text group',
+        platform: 'openai',
+        rate_multiplier: 0.08,
+        is_exclusive: false,
+        status: 'active',
+        subscription_type: 'standard',
+      },
+      {
+        id: 18,
+        name: 'GPT-Image（生成图片1 2k）',
+        description: 'Image generation group',
+        platform: 'openai',
+        rate_multiplier: 1,
+        is_exclusive: false,
+        status: 'active',
+        subscription_type: 'standard',
+      },
+    ])
+    getAvailableChannels.mockResolvedValue([])
+
+    const wrapper = await mountView()
+
+    expect(getAvailableGroups).toHaveBeenCalledTimes(1)
+    expect(getAvailableChannels).not.toHaveBeenCalled()
+    expect((wrapper.vm as unknown as { groupOptions: Array<{ label: string }> }).groupOptions)
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ label: '特惠分组' }),
+        expect.objectContaining({ label: 'GPT-Image（生成图片1 2k）' }),
+      ]))
+  })
+
+  it('shows a hidden column when toggled and persists the preference', async () => {
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-testid="keys-column-settings-trigger"]').trigger('click')
+    await getButtonByText(wrapper, 'Rate Limit').trigger('click')
+    await nextTick()
+
+    expect(visibleColumnKeys(wrapper)).toContain('rate_limit')
+    expect(localStorage.getItem('ssxz-api-key-hidden-columns-v1')).toBe(
+      JSON.stringify(['last_used_at'])
+    )
+  })
+
+  it('restores column preferences from localStorage on mount', async () => {
+    localStorage.setItem('ssxz-api-key-hidden-columns-v1', JSON.stringify(['group', 'created_at']))
+
+    const wrapper = await mountView()
+
+    expect(visibleColumnKeys(wrapper)).toEqual([
+      'name',
+      'key',
+      'usage',
+      'rate_limit',
+      'status',
+      'expires_at',
+      'last_used_at',
+      'actions',
+    ])
+  })
+
+  it('does not include always-visible columns in the toggleable menu', async () => {
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-testid="keys-column-settings-trigger"]').trigger('click')
+    await nextTick()
+
+    const columnMenuText = wrapper.get('[data-testid="keys-column-settings-menu"]').text()
+    expect(columnMenuText).toContain('Group')
+    expect(columnMenuText).toContain('Usage')
+    expect(columnMenuText).toContain('Rate Limit')
+    expect(columnMenuText).not.toContain('Name')
+    expect(columnMenuText).not.toContain('Actions')
+  })
+
+  it('marks the key name as sortable', async () => {
+    const wrapper = await mountView()
+
+    expect(visibleColumnMeta(wrapper).find((column) => column.key === 'name')?.sortable).toBe(true)
+  })
+
+  it('imports Claude keys with separate model mappings instead of a single Opus default', async () => {
+    listKeys.mockResolvedValue({
       items: [{
         ...createApiKey(),
         group: {
-          id: 9,
-          name: 'A very long group name that must not cover usage',
-          platform: 'openai',
-          subscription_type: 'standard',
-          rate_multiplier: 1,
+          id: 11,
+          platform: 'anthropic',
         },
       }],
       total: 1,
@@ -328,146 +420,48 @@ describe('user KeysView column settings', () => {
       page_size: 20,
       pages: 1,
     })
-
-    const wrapper = await mountView()
-    const groupButton = wrapper.get('[data-test="group-cell"] button')
-    const usageCell = wrapper.get('[data-test="usage-cell"] > div')
-
-    expect(groupButton.classes()).toEqual(expect.arrayContaining(['min-w-0', 'max-w-full']))
-    expect(usageCell.classes()).toContain('min-w-[7.5rem]')
-  })
-
-  it('shows a hidden column when toggled and persists the preference', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
     const wrapper = await mountView()
 
-    await wrapper.get('button[title="Column Settings"]').trigger('click')
-    await getButtonByText(wrapper, 'Rate Limit').trigger('click')
-    await nextTick()
+    await wrapper.get('[data-testid="api-key-ccs-import"]').trigger('click')
 
-    expect(visibleColumnKeys(wrapper)).toContain('rate_limit')
-    expect(localStorage.getItem('api-key-hidden-columns')).toBe(
-      JSON.stringify(['id', 'last_used_at', 'last_used_ip'])
-    )
-    expect(localStorage.getItem('api-key-column-settings-version')).toBe('3')
+    expect(openSpy).toHaveBeenCalledTimes(1)
+    const deeplink = String(openSpy.mock.calls[0]?.[0])
+    const params = new URLSearchParams(deeplink.split('?')[1])
+    expect(params.get('model')).toBe('claude-fable-5')
+    expect(params.get('haikuModel')).toBe('claude-3-5-haiku')
+    expect(params.get('sonnetModel')).toBe('claude-sonnet-5')
+    expect(params.get('opusModel')).toBe('claude-opus-4-8')
+    expect(JSON.parse(atob(params.get('config') || ''))).toEqual({
+      env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-fable-5' },
+    })
   })
 
-  it('shows the API key ID column when toggled', async () => {
-    const wrapper = await mountView()
-
-    await wrapper.get('button[title="Column Settings"]').trigger('click')
-    await getButtonByText(wrapper, 'ID').trigger('click')
-    await nextTick()
-
-    expect(visibleColumnKeys(wrapper)).toContain('id')
-    expect(wrapper.get('[data-test="key-id"]').text()).toBe('#1')
-    expect(visibleColumnMeta(wrapper).find((column) => column.key === 'id')?.sortable).toBe(true)
-  })
-
-  it('shows the last used IP column when toggled', async () => {
-    listKeys.mockResolvedValueOnce({
-      items: [{ ...createApiKey(), last_used_ip: '203.0.113.10' }],
+  it('does not import Claude model aliases that a restricted key cannot use', async () => {
+    listKeys.mockResolvedValue({
+      items: [{
+        ...createApiKey(),
+        allowed_models: ['claude-opus-4-8'],
+        group: {
+          id: 11,
+          platform: 'anthropic',
+        },
+      }],
       total: 1,
       page: 1,
       page_size: 20,
       pages: 1,
     })
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
     const wrapper = await mountView()
 
-    await wrapper.get('button[title="Column Settings"]').trigger('click')
-    await getButtonByText(wrapper, 'Last Used IP').trigger('click')
-    await nextTick()
+    await wrapper.get('[data-testid="api-key-ccs-import"]').trigger('click')
 
-    expect(visibleColumnKeys(wrapper)).toContain('last_used_ip')
-    expect(wrapper.get('[data-test="last-used-ip"]').text()).toBe('203.0.113.10')
-  })
-
-  it('restores column preferences from localStorage on mount', async () => {
-    localStorage.setItem('api-key-hidden-columns', JSON.stringify(['group', 'created_at']))
-    localStorage.setItem('api-key-column-settings-version', '1')
-
-    const wrapper = await mountView()
-
-    expect(visibleColumnKeys(wrapper)).toEqual([
-      'name',
-      'key',
-      'current_concurrency',
-      'usage',
-      'rate_limit',
-      'expires_at',
-      'status',
-      'last_used_at',
-      'actions',
-    ])
-    expect(localStorage.getItem('api-key-hidden-columns')).toBe(
-      JSON.stringify(['group', 'created_at', 'last_used_ip', 'id'])
-    )
-    expect(localStorage.getItem('api-key-column-settings-version')).toBe('3')
-  })
-
-  it('does not include always-visible columns in the toggleable menu', async () => {
-    const wrapper = await mountView()
-
-    await wrapper.get('button[title="Column Settings"]').trigger('click')
-    await nextTick()
-
-    const columnMenuText = wrapper.text()
-    expect(columnMenuText).toContain('API Key')
-    expect(columnMenuText).toContain('ID')
-    expect(columnMenuText).toContain('Current Concurrency')
-    expect(columnMenuText).toContain('Rate Limit')
-    expect(columnMenuText).toContain('Last Used IP')
-    expect(columnMenuText).not.toContain('Name')
-    expect(columnMenuText).not.toContain('Actions')
-  })
-
-  it('renders the current concurrency value', async () => {
-    const wrapper = await mountView()
-
-    expect(wrapper.get('[data-test="current-concurrency"]').text()).toBe('3')
-  })
-
-  it('marks current concurrency as sortable', async () => {
-    const wrapper = await mountView()
-
-    const currentConcurrencyColumn = visibleColumnMeta(wrapper).find(
-      (column) => column.key === 'current_concurrency'
-    )
-    expect(currentConcurrencyColumn?.sortable).toBe(true)
-  })
-
-  it('keeps filters and selected page size when sorting by current concurrency', async () => {
-    getAvailableGroups.mockResolvedValue([{ id: 42, name: 'OpenAI' }])
-    const wrapper = await mountView()
-
-    await wrapper.get('[data-test="page-size-50"]').trigger('click')
-    await flushPromises()
-
-    await wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('update:modelValue', 'target')
-    await wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('search')
-    await flushPromises()
-
-    const selects = wrapper.findAllComponents({ name: 'Select' })
-    await selects[0].vm.$emit('update:modelValue', 42)
-    await flushPromises()
-    await selects[1].vm.$emit('update:modelValue', 'active')
-    await flushPromises()
-
-    listKeys.mockClear()
-
-    await wrapper.get('[data-test="sort-current-concurrency"]').trigger('click')
-    await flushPromises()
-
-    expect(listKeys).toHaveBeenLastCalledWith(
-      1,
-      50,
-      {
-        search: 'target',
-        status: 'active',
-        group_id: 42,
-        sort_by: 'current_concurrency',
-        sort_order: 'asc',
-      },
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
-    )
+    const deeplink = String(openSpy.mock.calls[0]?.[0])
+    const params = new URLSearchParams(deeplink.split('?')[1])
+    expect(params.get('model')).toBe('claude-opus-4-8')
+    expect(params.get('haikuModel')).toBeNull()
+    expect(params.get('sonnetModel')).toBeNull()
+    expect(params.get('config')).toBeNull()
   })
 })

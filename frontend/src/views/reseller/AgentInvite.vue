@@ -1,7 +1,9 @@
 <template>
-  <ResellerPageLayout
-    :title="t('reseller.pages.invite.title')"
-    :description="t('reseller.pages.invite.description')"
+  <AppSectionShell
+    title="推广工具"
+    subtitle="分享邀请码和邀请链接，查看招募进展"
+    eyebrow="RESELLER"
+    icon="users"
   >
     <div class="invite-page">
       <div v-if="loadError" class="card invite-empty">{{ loadError }}</div>
@@ -60,14 +62,13 @@
         </section>
       </template>
     </div>
-  </ResellerPageLayout>
+  </AppSectionShell>
 </template>
 
 <script setup lang="ts">
 import { nextTick, onMounted, ref } from 'vue'
 import QRCode from 'qrcode'
-import { useI18n } from 'vue-i18n'
-import ResellerPageLayout from '@/components/reseller/ResellerPageLayout.vue'
+import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import LiquidButton from '@/components/common/LiquidButton.vue'
 import resellerAPI, { type InviteResponse } from '@/api/reseller'
@@ -75,7 +76,6 @@ import { useClipboard } from '@/composables/useClipboard'
 import { extractApiErrorMessage } from '@/utils/apiError'
 
 const { copyToClipboard } = useClipboard()
-const { t } = useI18n()
 const loading = ref(true)
 const loadError = ref('')
 const qrCanvas = ref<HTMLCanvasElement | null>(null)
@@ -115,17 +115,17 @@ onMounted(() => void loadInvite())
 .invite-page { display: grid; gap: 1.25rem; }
 .invite-grid { display: grid; gap: 2rem; grid-template-columns: minmax(0, 1fr) 260px; padding: 1.5rem; }
 .invite-copy { display: grid; align-content: center; justify-items: start; gap: 0.7rem; }
-.invite-label, .invite-copy p, .invite-qr-wrap span, .invite-stat span, .invite-stat small { color: light-dark(#6b7280, #9ca3af); font-size: 0.8rem; }
+.invite-label, .invite-copy p, .invite-qr-wrap span, .invite-stat span, .invite-stat small { color: var(--ssxz-text-muted); font-size: 0.8rem; }
 .invite-copy p { margin: 0; max-width: 34rem; }
-.invite-code { color: light-dark(#111827, #f9fafb); font-size: 2.25rem; letter-spacing: 0.08em; }
+.invite-code { color: var(--ssxz-text); font-size: 2.25rem; letter-spacing: 0.08em; }
 .invite-qr-wrap { display: grid; justify-items: center; gap: 0.6rem; }
 .invite-qr { width: 220px; height: 220px; border-radius: 0.5rem; background: white; }
 .invite-link-card { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.25rem 1.5rem; }
-.invite-url { margin-top: 0.4rem; overflow-wrap: anywhere; color: light-dark(#111827, #f9fafb); font-size: 0.9rem; }
+.invite-url { margin-top: 0.4rem; overflow-wrap: anywhere; color: var(--ssxz-text); font-size: 0.9rem; }
 .invite-stats { display: grid; gap: 1rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .invite-stat { display: grid; gap: 0.45rem; padding: 1.25rem 1.5rem; }
-.invite-stat strong { color: light-dark(#111827, #f9fafb); font-size: 1.75rem; }
-.invite-empty { padding: 3rem 1.5rem; color: light-dark(#6b7280, #9ca3af); text-align: center; }
+.invite-stat strong { color: var(--ssxz-text); font-size: 1.75rem; }
+.invite-empty { padding: 3rem 1.5rem; color: var(--ssxz-text-muted); text-align: center; }
 @media (max-width: 767px) { .invite-grid { grid-template-columns: minmax(0, 1fr); } .invite-link-card { align-items: stretch; flex-direction: column; } }
 @media (max-width: 479px) { .invite-stats { grid-template-columns: minmax(0, 1fr); } }
 </style>

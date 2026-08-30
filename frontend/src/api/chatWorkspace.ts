@@ -5,7 +5,8 @@
 
 import { apiClient } from './client'
 
-export const chatWorkspaceBackendEnabled = true
+export const chatWorkspaceBackendEnabled =
+  import.meta.env.VITE_CHAT_WORKSPACE_BACKEND_ENABLED === 'true'
 
 function assertChatWorkspaceBackendEnabled(action: string) {
   if (!chatWorkspaceBackendEnabled) {

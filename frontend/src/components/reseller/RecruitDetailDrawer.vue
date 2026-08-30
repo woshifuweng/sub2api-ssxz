@@ -272,25 +272,25 @@ watch(
 
 <style scoped>
 .recruit-detail { display: grid; gap: 1.25rem; }
-.detail-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid light-dark(#e5e7eb, #374151); padding-bottom: 1rem; }
-.detail-header h3 { overflow: hidden; color: light-dark(#111827, #f9fafb); font-size: 1rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.detail-header p { margin-top: 0.25rem; color: light-dark(#6b7280, #9ca3af); font-size: 0.8rem; }
-.detail-grid { display: grid; gap: 1px; overflow: hidden; border: 1px solid light-dark(#e5e7eb, #374151); border-radius: 0.75rem; background: light-dark(#e5e7eb, #374151); grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.detail-grid > div { background: light-dark(#ffffff, #1f2937); padding: 0.8rem; }
-.detail-grid dt { color: light-dark(#6b7280, #9ca3af); font-size: 0.72rem; }
-.detail-grid dd { margin-top: 0.3rem; color: light-dark(#111827, #f9fafb); font-size: 0.85rem; font-weight: 500; }
+.detail-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--ssxz-border); padding-bottom: 1rem; }
+.detail-header h3 { overflow: hidden; color: var(--ssxz-text); font-size: 1rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.detail-header p { margin-top: 0.25rem; color: var(--ssxz-text-muted); font-size: 0.8rem; }
+.detail-grid { display: grid; gap: 1px; overflow: hidden; border: 1px solid var(--ssxz-border); border-radius: var(--ssxz-radius-card); background: var(--ssxz-border); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.detail-grid > div { background: var(--ssxz-surface); padding: 0.8rem; }
+.detail-grid dt { color: var(--ssxz-text-muted); font-size: 0.72rem; }
+.detail-grid dd { margin-top: 0.3rem; color: var(--ssxz-text); font-size: 0.85rem; font-weight: 500; }
 .status-badge { display: inline-flex; flex: none; border-radius: 999px; padding: 0.2rem 0.55rem; font-size: 0.72rem; font-weight: 600; }
-.status-badge--active { background: color-mix(in srgb, #22c55e 12%, transparent); color: #22c55e; }
-.status-badge--muted { background: color-mix(in srgb, light-dark(#6b7280, #9ca3af) 12%, transparent); color: light-dark(#6b7280, #9ca3af); }
-.detail-tabs { display: flex; gap: 0.25rem; border-bottom: 1px solid light-dark(#e5e7eb, #374151); }
-.detail-tab { border-bottom: 2px solid transparent; padding: 0.65rem 0.9rem; color: light-dark(#6b7280, #9ca3af); font-size: 0.82rem; }
-.detail-tab--active { border-color: #3b82f6; color: light-dark(#111827, #f9fafb); }
+.status-badge--active { background: color-mix(in srgb, var(--ssxz-success) 12%, transparent); color: var(--ssxz-success); }
+.status-badge--muted { background: color-mix(in srgb, var(--ssxz-text-muted) 12%, transparent); color: var(--ssxz-text-muted); }
+.detail-tabs { display: flex; gap: 0.25rem; border-bottom: 1px solid var(--ssxz-border); }
+.detail-tab { border-bottom: 2px solid transparent; padding: 0.65rem 0.9rem; color: var(--ssxz-text-muted); font-size: 0.82rem; }
+.detail-tab--active { border-color: var(--ssxz-accent); color: var(--ssxz-text); }
 .records-wrap { overflow-x: auto; }
 .records-table { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 0.8rem; }
-.records-table th, .records-table td { border-bottom: 1px solid light-dark(#e5e7eb, #374151); padding: 0.7rem 0.8rem; text-align: left; }
-.records-table th { color: light-dark(#6b7280, #9ca3af); font-weight: 500; }
-.records-table td { color: light-dark(#4b5563, #d1d5db); }
-.empty-cell, .drawer-empty { padding: 2rem; color: light-dark(#6b7280, #9ca3af); text-align: center; }
-.drawer-footer { display: flex; justify-content: flex-start; border-top: 1px solid light-dark(#e5e7eb, #374151); padding-top: 1rem; }
+.records-table th, .records-table td { border-bottom: 1px solid var(--ssxz-border); padding: 0.7rem 0.8rem; text-align: left; }
+.records-table th { color: var(--ssxz-text-muted); font-weight: 500; }
+.records-table td { color: var(--ssxz-text-secondary); }
+.empty-cell, .drawer-empty { padding: 2rem; color: var(--ssxz-text-muted); text-align: center; }
+.drawer-footer { display: flex; justify-content: flex-start; border-top: 1px solid var(--ssxz-border); padding-top: 1rem; }
 @media (max-width: 640px) { .detail-grid { grid-template-columns: minmax(0, 1fr); } .detail-header { align-items: flex-start; flex-direction: column; } }
 </style>

@@ -196,7 +196,7 @@ import {
 import { apiClient } from '@/api/client'
 import { buildAuthErrorMessage } from '@/utils/authError'
 import { extractApiErrorCode } from '@/utils/apiError'
-import { DEFAULT_SITE_NAME, normalizeSiteName } from '@/utils/branding'
+import { DEFAULT_SITE_NAME, normalizeSiteName } from '@/utils/brand'
 import {
   formatRegistrationEmailSuffixWhitelistForMessage,
   isRegistrationEmailSuffixAllowed,
@@ -273,8 +273,7 @@ const aliyunCaptchaPrefix = ref<string>('')
 const aliyunCaptchaRegion = ref<string>('cn')
 const siteName = ref<string>(DEFAULT_SITE_NAME)
 const registrationEmailSuffixWhitelist = ref<string[]>([])
-// 域名限量注册开关：开启时非白名单域名可注册 1 个账户（由后端判定），前端不做白名单预检。
-const emailDomainQuotaEnabled = ref<boolean>(false)
+const emailDomainQuotaEnabled = ref(false)
 
 // Turnstile for resend
 const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
@@ -339,9 +338,13 @@ onMounted(async () => {
       initialTencentCaptchaRandstr.value = registerData.tencent_captcha_randstr || ''
       promoCode.value = registerData.promo_code || ''
       invitationCode.value = registerData.invitation_code || ''
-      affCode.value = registerData.aff_code || loadAffiliateReferralCode()
+      affCode.value =
+        registerData.aff_code || registerData.affiliate_code || loadAffiliateReferralCode()
       pendingAuthToken.value = registerData.pending_auth_token || activePendingSession?.token || ''
-      pendingAuthTokenField.value = registerData.pending_auth_token_field || activePendingSession?.token_field || 'pending_auth_token'
+      pendingAuthTokenField.value =
+        registerData.pending_auth_token_field ||
+        activePendingSession?.token_field ||
+        'pending_auth_token'
       pendingProvider.value = registerData.pending_provider || activePendingSession?.provider || ''
       pendingRedirect.value = registerData.pending_redirect || activePendingSession?.redirect || ''
       pendingAdoptionDecision.value = registerData.pending_adoption_decision
@@ -486,11 +489,8 @@ function isPendingOAuthFlow(): boolean {
   return Boolean(pendingProvider.value.trim())
 }
 
-// 域名限量注册开启时交由后端按额度判定；pending OAuth / 换绑流程沿用后端策略，前端不预检。
 function shouldBypassRegistrationEmailPolicy(): boolean {
-  return (
-    emailDomainQuotaEnabled.value || isPendingOAuthFlow() || Boolean(pendingAuthToken.value.trim())
-  )
+  return emailDomainQuotaEnabled.value || isPendingOAuthFlow() || Boolean(pendingAuthToken.value.trim())
 }
 
 function resolvePendingOAuthCallbackRoute(provider: string): string {
@@ -583,7 +583,9 @@ async function sendCode(): Promise<void> {
 
     showResendTurnstile.value = false
   } catch (error: unknown) {
-    errorMessage.value = buildRegistrationErrorMessage(error, t('auth.sendCodeFailed'))
+    errorMessage.value = buildRegistrationErrorMessage(error, {
+      fallback: t('auth.sendCodeFailed')
+    })
 
     appStore.showError(errorMessage.value)
   } finally {
@@ -719,7 +721,7 @@ async function handleVerify(): Promise<void> {
       await authStore.setToken(data.access_token)
       authStore.clearPendingAuthSession?.()
     } else {
-      // Register with verification code
+      // Register with verification code.
       await authStore.register({
         email: email.value,
         password: password.value,
@@ -728,11 +730,15 @@ async function handleVerify(): Promise<void> {
           turnstileEnabled.value || aliyunCaptchaEnabled.value
             ? initialTurnstileToken.value || undefined
             : undefined,
-        tencent_captcha_ticket: tencentCaptchaEnabled.value ? initialTurnstileToken.value || undefined : undefined,
-        tencent_captcha_randstr: tencentCaptchaEnabled.value ? initialTencentCaptchaRandstr.value || undefined : undefined,
+        tencent_captcha_ticket: tencentCaptchaEnabled.value
+          ? initialTurnstileToken.value || undefined
+          : undefined,
+        tencent_captcha_randstr: tencentCaptchaEnabled.value
+          ? initialTencentCaptchaRandstr.value || undefined
+          : undefined,
         promo_code: promoCode.value || undefined,
         invitation_code: invitationCode.value || undefined,
-        ...(affCode.value ? { aff_code: affCode.value } : {})
+        affiliate_code: affCode.value || undefined
       })
     }
 
@@ -743,10 +749,12 @@ async function handleVerify(): Promise<void> {
     // Show success toast
     appStore.showSuccess(t('auth.accountCreatedSuccess', { siteName: siteName.value }))
 
-    // Redirect to dashboard
-    await router.push(pendingRedirect.value || '/dashboard')
+    // Pending OAuth may provide its own safe return path; regular users enter the app dashboard.
+    await router.push(pendingRedirect.value || '/app/dashboard')
   } catch (error: unknown) {
-    errorMessage.value = buildRegistrationErrorMessage(error, t('auth.verifyFailed'))
+    errorMessage.value = buildRegistrationErrorMessage(error, {
+      fallback: t('auth.verifyFailed')
+    })
 
     appStore.showError(errorMessage.value)
   } finally {
@@ -757,6 +765,13 @@ async function handleVerify(): Promise<void> {
     }
     isLoading.value = false
   }
+}
+
+function buildRegistrationErrorMessage(error: unknown, options: { fallback: string }): string {
+  if (extractApiErrorCode(error) === 'EMAIL_DOMAIN_REGISTRATION_LIMIT') {
+    return t('auth.emailDomainRegistrationLimit')
+  }
+  return buildAuthErrorMessage(error, options)
 }
 
 function handleBack(): void {
@@ -781,13 +796,6 @@ function buildEmailSuffixNotAllowedMessage(): string {
       more: (count) => t('auth.emailSuffixAllowedMore', { count })
     })
   })
-}
-
-function buildRegistrationErrorMessage(error: unknown, fallback: string): string {
-  if (extractApiErrorCode(error) === 'EMAIL_DOMAIN_REGISTRATION_LIMIT') {
-    return t('auth.emailDomainRegistrationLimit')
-  }
-  return buildAuthErrorMessage(error, { fallback })
 }
 </script>
 

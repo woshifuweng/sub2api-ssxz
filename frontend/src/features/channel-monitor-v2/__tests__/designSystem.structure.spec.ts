@@ -13,6 +13,16 @@ function read(rel: string) {
 }
 
 describe('channel-monitor-v2 design system structure', () => {
+  it('user channel status views stay inside the user workspace shell', () => {
+    for (const rel of ['views/user/ChannelStatusV1View.vue', 'views/user/ChannelStatusV2View.vue']) {
+      const src = read(rel)
+      expect(src).toMatch(/<AppSectionShell(?:\s|>)/)
+      expect(src).toContain("@/components/user/AppSectionShell.vue")
+      expect(src).not.toContain('<AppLayout>')
+      expect(src).not.toContain("@/components/layout/AppLayout.vue")
+    }
+  })
+
   it('user ChannelStatus V2 shell uses page-header, card, btn, tabs utilities', () => {
     // Route wrapper may switch V1/V2; design chrome lives on the V2 implementation.
     const src = read('views/user/ChannelStatusV2View.vue')

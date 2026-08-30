@@ -48,14 +48,26 @@
         <ToggleSwitch :label="t('admin.settings.payment.refundEnabled')" :checked="provider.refund_enabled" @toggle="emit('toggleField', 'refund_enabled')" />
         <ToggleSwitch v-if="provider.refund_enabled" :label="t('admin.settings.payment.allowUserRefund')" :checked="provider.allow_user_refund" @toggle="emit('toggleField', 'allow_user_refund')" />
         <div class="flex items-center gap-2 border-l border-gray-200 pl-3 dark:border-dark-600">
-          <button type="button" @click="emit('edit')" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400">
+          <LiquidButton
+            type="button"
+            variant="plain"
+            size="sm"
+            @click="emit('edit')"
+            class="h-8 gap-1.5 rounded-md px-2.5 text-gray-500 hover:bg-primary-50 hover:text-primary-600 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
+          >
             <Icon name="edit" size="sm" />
             <span class="text-xs">{{ t('common.edit') }}</span>
-          </button>
-          <button type="button" @click="emit('delete')" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400">
+          </LiquidButton>
+          <LiquidButton
+            type="button"
+            variant="plain"
+            size="sm"
+            @click="emit('delete')"
+            class="h-8 gap-1.5 rounded-md px-2.5 text-gray-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+          >
             <Icon name="trash" size="sm" />
             <span class="text-xs">{{ t('common.delete') }}</span>
-          </button>
+          </LiquidButton>
         </div>
       </div>
     </div>
@@ -65,18 +77,18 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import LiquidButton from '@/components/common/LiquidButton.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ToggleSwitch from './ToggleSwitch.vue'
 import type { ProviderInstance } from '@/types/payment'
 import type { TypeOption } from './providerConfig'
-import { PAYMENT_MODE_QRCODE, PAYMENT_MODE_POPUP, PAYMENT_MODE_REDIRECT } from './providerConfig'
+import { PAYMENT_MODE_QRCODE, PAYMENT_MODE_POPUP } from './providerConfig'
 
 const PROVIDER_KEY_LABELS: Record<string, string> = {
   easypay: 'admin.settings.payment.providerEasypay',
   alipay: 'admin.settings.payment.providerAlipay',
   wxpay: 'admin.settings.payment.providerWxpay',
   stripe: 'admin.settings.payment.providerStripe',
-  airwallex: 'admin.settings.payment.providerAirwallex',
 }
 
 const props = defineProps<{
@@ -99,11 +111,10 @@ const keyLabel = computed(() => t(PROVIDER_KEY_LABELS[props.provider.provider_ke
 const modeLabel = computed(() => {
   if (props.provider.payment_mode === PAYMENT_MODE_QRCODE) return t('admin.settings.payment.modeQRCode')
   if (props.provider.payment_mode === PAYMENT_MODE_POPUP) return t('admin.settings.payment.modePopup')
-  if (props.provider.payment_mode === PAYMENT_MODE_REDIRECT) return t('admin.settings.payment.modeRedirect')
   return ''
 })
 
 function isSelected(type: string): boolean {
-  return Array.isArray(props.provider.supported_types) && props.provider.supported_types.includes(type)
+  return props.provider.supported_types.includes(type)
 }
 </script>

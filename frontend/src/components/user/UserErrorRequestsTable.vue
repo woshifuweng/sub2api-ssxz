@@ -12,7 +12,7 @@
         default-sort-key="created_at"
         default-sort-order="desc"
         @sort="onSort"
-        @rowClick="(row) => openDetail(row.id)"
+        @rowClick="handleRowClick"
       >
         <template #cell-model="{ row }">
           <span v-if="row.model" class="text-sm font-medium text-gray-900 dark:text-white">{{ row.model }}</span>
@@ -159,6 +159,10 @@ const emit = defineEmits<{
 
 function onSort(key: string, order: 'asc' | 'desc') {
   emit('sort', mapErrorSortKey(key), order)
+}
+
+function handleRowClick(row: UserErrorRequest): void {
+  openDetail(row.id)
 }
 
 const { t } = useI18n()

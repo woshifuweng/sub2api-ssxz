@@ -135,6 +135,7 @@ export async function create(userData: {
   role?: 'admin' | 'user'
   balance?: number
   concurrency?: number
+  unlimited_concurrency?: boolean
   rpm_limit?: number
   allowed_groups?: number[] | null
 }): Promise<AdminUser> {

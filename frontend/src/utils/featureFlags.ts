@@ -109,16 +109,6 @@ export const FeatureFlags = {
     mode: 'opt-in',
     label: 'Model Plaza',
   }),
-  pluginManagement: defineFlag({
-    key: 'plugin_management_enabled',
-    mode: 'opt-in',
-    label: 'Plugin Management',
-  }),
-  payment: defineFlag({
-    key: 'payment_enabled',
-    mode: 'opt-out',
-    label: 'Payment',
-  }),
   riskControl: defineFlag({
     key: 'risk_control_enabled',
     mode: 'opt-in',
@@ -128,6 +118,11 @@ export const FeatureFlags = {
     key: 'affiliate_enabled',
     mode: 'opt-in',
     label: 'Affiliate',
+  }),
+  payment: defineFlag({
+    key: 'payment_enabled',
+    mode: 'opt-out',
+    label: 'Payment',
   }),
 } as const
 

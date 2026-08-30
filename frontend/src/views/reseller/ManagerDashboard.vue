@@ -1,12 +1,14 @@
 <template>
-  <ResellerPageLayout
-    :title="t('reseller.pages.manager.title')"
-    :description="t('reseller.pages.manager.description')"
+  <AppSectionShell
+    title="管理 Agent"
+    subtitle="查看直属 Agent 数据并维护角色"
+    eyebrow="RESELLER MANAGER"
+    icon="badge"
   >
     <div class="manager-page">
       <div
         v-if="loading"
-        class="card p-10 text-center text-sm text-gray-500 dark:text-gray-400"
+        class="card p-10 text-center text-sm text-[var(--ssxz-text-muted)]"
       >
         正在加载 Agent 数据...
       </div>
@@ -108,7 +110,7 @@
                   </td>
                 </tr>
                 <tr v-if="agents.items.length === 0">
-                  <td colspan="6" class="py-10 text-center text-gray-500 dark:text-gray-400">
+                  <td colspan="6" class="py-10 text-center text-[var(--ssxz-text-muted)]">
                     暂无直属 Agent
                   </td>
                 </tr>
@@ -135,7 +137,7 @@
       @close="closeRoleDialog"
     >
       <div class="space-y-4">
-        <p class="text-sm text-gray-600 dark:text-gray-300">
+        <p class="text-sm text-[var(--ssxz-text-secondary)]">
           {{ roleTarget?.email || `用户 ${roleTarget?.user_id ?? ''}` }}
         </p>
         <label class="block">
@@ -163,13 +165,12 @@
         </div>
       </template>
     </BaseDialog>
-  </ResellerPageLayout>
+  </AppSectionShell>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import ResellerPageLayout from '@/components/reseller/ResellerPageLayout.vue'
+import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import Input from '@/components/common/Input.vue'
@@ -186,7 +187,6 @@ import { formatRelativeTime } from '@/utils/format'
 import { extractApiErrorMessage } from '@/utils/apiError'
 
 const appStore = useAppStore()
-const { t } = useI18n()
 const loading = ref(true)
 const saving = ref(false)
 const loadError = ref('')
@@ -307,12 +307,12 @@ onMounted(() => void loadPage(1))
 }
 
 .manager-stat span {
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.8rem;
 }
 
 .manager-stat strong {
-  color: light-dark(#111827, #f9fafb);
+  color: var(--ssxz-text);
   font-size: 1.75rem;
 }
 
@@ -326,7 +326,7 @@ onMounted(() => void loadPage(1))
 
 .manager-add-form h2,
 .manager-header h2 {
-  color: light-dark(#111827, #f9fafb);
+  color: var(--ssxz-text);
   font-size: 1rem;
   font-weight: 600;
 }
@@ -334,7 +334,7 @@ onMounted(() => void loadPage(1))
 .manager-add-form p,
 .manager-header p {
   margin-top: 0.25rem;
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.8rem;
 }
 
@@ -344,7 +344,7 @@ onMounted(() => void loadPage(1))
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid light-dark(#e5e7eb, #374151);
+  border-bottom: 1px solid var(--ssxz-border);
   padding: 1rem 1.25rem;
 }
 
@@ -361,16 +361,16 @@ onMounted(() => void loadPage(1))
 }
 
 .manager-table th {
-  background: light-dark(#f9fafb, #111827);
+  background: var(--ssxz-surface-sunken);
   padding: 0.75rem 1rem;
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-weight: 500;
 }
 
 .manager-table td {
-  border-top: 1px solid light-dark(#e5e7eb, #374151);
+  border-top: 1px solid var(--ssxz-border);
   padding: 0.85rem 1rem;
-  color: light-dark(#4b5563, #d1d5db);
+  color: var(--ssxz-text-secondary);
 }
 
 .manager-table td strong,
@@ -380,12 +380,12 @@ onMounted(() => void loadPage(1))
 
 .manager-table td small {
   margin-top: 0.2rem;
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
 }
 
 .manager-empty {
   padding: 2.5rem;
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   text-align: center;
 }
 

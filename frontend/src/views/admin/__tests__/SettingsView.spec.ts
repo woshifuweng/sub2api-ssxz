@@ -22,6 +22,11 @@ const {
   getStreamTimeoutSettings,
   getRectifierSettings,
   getBetaPolicySettings,
+  getTLSFingerprintSettings,
+  updateTLSFingerprintSettings,
+  createTLSFingerprintProfile,
+  updateTLSFingerprintProfile,
+  deleteTLSFingerprintProfile,
   getUpstreamBillingProbeSettings,
   updateUpstreamBillingProbeSettings,
   getOllamaCloudUsageSettings,
@@ -56,6 +61,11 @@ const {
   getStreamTimeoutSettings: vi.fn(),
   getRectifierSettings: vi.fn(),
   getBetaPolicySettings: vi.fn(),
+  getTLSFingerprintSettings: vi.fn(),
+  updateTLSFingerprintSettings: vi.fn(),
+  createTLSFingerprintProfile: vi.fn(),
+  updateTLSFingerprintProfile: vi.fn(),
+  deleteTLSFingerprintProfile: vi.fn(),
   getUpstreamBillingProbeSettings: vi.fn().mockResolvedValue({
     enabled: true,
     interval_minutes: 30,
@@ -97,6 +107,11 @@ vi.mock("@/api", () => ({
       getStreamTimeoutSettings,
       getRectifierSettings,
       getBetaPolicySettings,
+      getTLSFingerprintSettings,
+      updateTLSFingerprintSettings,
+      createTLSFingerprintProfile,
+      updateTLSFingerprintProfile,
+      deleteTLSFingerprintProfile,
     },
     accounts: {
       getUpstreamBillingProbeSettings,
@@ -394,7 +409,8 @@ const baseSettingsResponse = {
   backend_mode_enabled: false,
   custom_menu_items: [],
   custom_endpoints: [],
-  frontend_url: "",
+  // P/SSXZ validates this field before any settings payload is submitted.
+  frontend_url: "https://example.com",
   smtp_host: "",
   smtp_port: 587,
   smtp_username: "",
@@ -558,6 +574,7 @@ function mountView() {
         ProxySelector: true,
         ImageUpload: ImageUploadStub,
         BackupSettings: true,
+        DataManagementSettings: true,
       },
     },
   });
@@ -638,6 +655,11 @@ describe("admin SettingsView payment visible method controls", () => {
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
     getBetaPolicySettings.mockReset();
+    getTLSFingerprintSettings.mockReset();
+    updateTLSFingerprintSettings.mockReset();
+    createTLSFingerprintProfile.mockReset();
+    updateTLSFingerprintProfile.mockReset();
+    deleteTLSFingerprintProfile.mockReset();
     getUpstreamBillingProbeSettings.mockReset();
     updateUpstreamBillingProbeSettings.mockReset();
     getOllamaCloudUsageSettings.mockReset();
@@ -697,6 +719,11 @@ describe("admin SettingsView payment visible method controls", () => {
     getBetaPolicySettings.mockResolvedValue({
       rules: [],
     });
+    getTLSFingerprintSettings.mockResolvedValue({
+      enabled: false,
+      items: [],
+    });
+    updateTLSFingerprintSettings.mockImplementation(async (payload) => payload);
     getUpstreamBillingProbeSettings.mockResolvedValue({
       enabled: true,
       interval_minutes: 30,
@@ -1241,6 +1268,7 @@ describe("admin SettingsView payment visible method controls", () => {
           ProxySelector: true,
           ImageUpload: ImageUploadStub,
           BackupSettings: true,
+          DataManagementSettings: true,
         },
       },
     });
@@ -1518,6 +1546,7 @@ describe("admin SettingsView payment visible method controls", () => {
           ProxySelector: true,
           ImageUpload: ImageUploadStub,
           BackupSettings: true,
+          DataManagementSettings: true,
         },
       },
     });

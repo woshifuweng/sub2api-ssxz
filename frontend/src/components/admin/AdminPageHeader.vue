@@ -1,24 +1,53 @@
-<script setup lang="ts">
-defineProps<{
-  title: string
-  description?: string
-}>()
-</script>
-
 <template>
-  <header
-    class="mb-6 flex min-w-0 flex-col gap-4 border-b border-gray-200 pb-6 sm:flex-row sm:items-start sm:justify-between dark:border-dark-700"
-  >
-    <div class="min-w-0">
-      <h1 class="m-0 text-xl font-bold leading-snug text-gray-900 dark:text-white">
-        {{ title }}
-      </h1>
-      <p v-if="description" class="mt-1 text-sm leading-relaxed text-gray-500 dark:text-dark-400">
-        {{ description }}
-      </p>
+  <div class="admin-page-header">
+    <div class="admin-page-header__title-block">
+      <h1 class="admin-page-header__title">{{ title }}</h1>
+      <p v-if="description" class="admin-page-header__desc">{{ description }}</p>
     </div>
-    <div v-if="$slots.actions" class="flex shrink-0 flex-wrap items-center gap-2">
+    <div v-if="$slots.actions" class="admin-page-header__actions">
       <slot name="actions" />
     </div>
-  </header>
+  </div>
 </template>
+
+<script setup lang="ts">
+defineProps<{ title: string; description?: string }>()
+</script>
+
+<style scoped>
+.admin-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--ssxz-border);
+}
+
+.admin-page-header__title-block {
+  min-width: 0;
+}
+
+.admin-page-header__title {
+  margin: 0;
+  color: var(--ssxz-text-primary);
+  font-size: 20px;
+  font-synthesis: none;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.admin-page-header__desc {
+  margin: 4px 0 0;
+  color: var(--ssxz-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.admin-page-header__actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+</style>

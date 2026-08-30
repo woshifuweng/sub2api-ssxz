@@ -9,15 +9,12 @@ import type { BillingMode } from '@/constants/channel'
 export interface UserAvailableGroup {
   id: number
   name: string
+  description?: string
   platform: string
   /** 'standard' | 'subscription' — 订阅分组视觉加深，和 API 密钥页保持一致。 */
   subscription_type: string
   /** 分组默认倍率。用户专属倍率（若有）通过 /groups/rates 获取后在前端 join。 */
   rate_multiplier: number
-  peak_rate_enabled: boolean
-  peak_start: string
-  peak_end: string
-  peak_rate_multiplier: number
   /** true = 专属分组（小范围授权）；false = 公开分组。 */
   is_exclusive: boolean
 }
@@ -39,7 +36,6 @@ export interface UserSupportedModelPricing {
   output_price: number | null
   cache_write_price: number | null
   cache_read_price: number | null
-  image_input_price: number | null
   image_output_price: number | null
   per_request_price: number | null
   intervals: UserPricingInterval[]
@@ -49,6 +45,18 @@ export interface UserSupportedModel {
   name: string
   platform: string
   pricing: UserSupportedModelPricing | null
+  context_length?: number | null
+  max_output_tokens?: number | null
+  pricing_status?: string
+  usage_support?: string[]
+  capabilities?: string[]
+  provider_label?: string
+  provider?: string
+  capability_source?: string
+  model_catalog_source?: string
+  fake?: boolean
+  test_only?: boolean
+  staging_only?: boolean
 }
 
 /**

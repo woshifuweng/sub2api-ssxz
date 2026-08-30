@@ -5,16 +5,16 @@
     width="wide"
     @close="emit('close')"
   >
-    <div v-if="loading" class="py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+    <div v-if="loading" class="py-12 text-center text-sm text-[var(--ssxz-text-muted)]">
       正在加载 Agent 详情
     </div>
     <div v-else-if="agent" class="space-y-5">
       <header class="detail-header">
         <div class="min-w-0">
-          <h4 class="truncate text-base font-semibold text-gray-900 dark:text-white">
+          <h4 class="truncate text-base font-semibold text-[var(--ssxz-text)]">
             {{ agent.username || `用户 ${agent.user_id}` }}
           </h4>
-          <p class="truncate text-sm text-gray-500 dark:text-gray-400">{{ agent.email }}</p>
+          <p class="truncate text-sm text-[var(--ssxz-text-muted)]">{{ agent.email }}</p>
         </div>
         <span :class="['status-badge', `status-badge--${agent.status}`]">
           {{ statusLabel(agent.status) }}
@@ -84,7 +84,7 @@
           <div class="summary-card"><span>本页贡献佣金</span><strong>${{ formatMoney(recruitSummary.commission) }}</strong></div>
         </div>
 
-        <div v-if="recruitsError" class="empty-state text-red-600 dark:text-red-400">
+        <div v-if="recruitsError" class="empty-state text-[var(--ssxz-danger)]">
           {{ recruitsError }}
         </div>
         <DataTable
@@ -170,10 +170,10 @@
           <a class="subtle-link" href="/admin/reseller/withdrawals">查看全部提现</a>
         </div>
 
-        <div v-if="withdrawalsLoading" class="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+        <div v-if="withdrawalsLoading" class="py-10 text-center text-sm text-[var(--ssxz-text-muted)]">
           正在加载提现记录
         </div>
-        <div v-else-if="withdrawalsError" class="empty-state text-red-600 dark:text-red-400">
+        <div v-else-if="withdrawalsError" class="empty-state text-[var(--ssxz-danger)]">
           {{ withdrawalsError }}
         </div>
         <div v-else-if="withdrawals.items.length === 0" class="empty-state">
@@ -418,7 +418,7 @@ function formatDate(value?: string | null): string {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid light-dark(#e5e7eb, #374151);
+  border-bottom: 1px solid var(--ssxz-border);
   padding-bottom: 1rem;
 }
 
@@ -426,7 +426,7 @@ function formatDate(value?: string | null): string {
   display: flex;
   gap: 0.25rem;
   overflow-x: auto;
-  border-bottom: 1px solid light-dark(#e5e7eb, #374151);
+  border-bottom: 1px solid var(--ssxz-border);
 }
 
 .detail-tab {
@@ -434,20 +434,20 @@ function formatDate(value?: string | null): string {
   min-height: 2.5rem;
   border-bottom: 2px solid transparent;
   padding: 0 0.8rem;
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.8rem;
   font-weight: 600;
 }
 
 .detail-tab:hover,
 .detail-tab--active {
-  border-bottom-color: light-dark(#111827, #f9fafb);
-  color: light-dark(#111827, #f9fafb);
+  border-bottom-color: var(--ssxz-text);
+  color: var(--ssxz-text);
 }
 
 .section-title {
   margin-bottom: 0.75rem;
-  color: light-dark(#111827, #f9fafb);
+  color: var(--ssxz-text);
   font-size: 0.8rem;
   font-weight: 700;
 }
@@ -463,26 +463,26 @@ function formatDate(value?: string | null): string {
   display: grid;
   gap: 1px;
   overflow: hidden;
-  border: 1px solid light-dark(#e5e7eb, #374151);
-  border-radius: 0.75rem;
-  background: light-dark(#e5e7eb, #374151);
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-border);
 }
 
 .detail-grid > div {
   min-width: 0;
-  background: light-dark(#ffffff, #1f2937);
+  background: var(--ssxz-surface);
   padding: 0.85rem;
 }
 
 .detail-grid dt {
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.72rem;
 }
 
 .detail-grid dd {
   margin-top: 0.35rem;
   overflow-wrap: anywhere;
-  color: light-dark(#111827, #f9fafb);
+  color: var(--ssxz-text);
   font-size: 0.875rem;
   font-weight: 500;
 }
@@ -501,25 +501,25 @@ function formatDate(value?: string | null): string {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  border: 1px solid light-dark(#e5e7eb, #374151);
-  border-radius: 0.75rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
   padding: 0.75rem;
 }
 
 .summary-card span {
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.72rem;
 }
 
 .summary-card strong {
-  color: light-dark(#111827, #f9fafb);
+  color: var(--ssxz-text);
   font-size: 1rem;
 }
 
 .table-scroll {
   overflow-x: auto;
-  border: 1px solid light-dark(#e5e7eb, #374151);
-  border-radius: 0.75rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
 }
 
 .detail-table {
@@ -531,15 +531,15 @@ function formatDate(value?: string | null): string {
 
 .detail-table th,
 .detail-table td {
-  border-bottom: 1px solid light-dark(#e5e7eb, #374151);
+  border-bottom: 1px solid var(--ssxz-border);
   padding: 0.7rem 0.75rem;
   text-align: left;
   white-space: nowrap;
 }
 
 .detail-table th {
-  background: light-dark(#ffffff, #1f2937);
-  color: light-dark(#6b7280, #9ca3af);
+  background: var(--ssxz-surface-raised);
+  color: var(--ssxz-text-muted);
   font-size: 0.7rem;
   font-weight: 700;
 }
@@ -552,7 +552,7 @@ function formatDate(value?: string | null): string {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  color: light-dark(#111827, #f9fafb);
+  color: var(--ssxz-text);
   font-weight: 600;
 }
 
@@ -562,7 +562,7 @@ function formatDate(value?: string | null): string {
 }
 
 .user-link small {
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.68rem;
   font-weight: 400;
 }
@@ -571,7 +571,7 @@ function formatDate(value?: string | null): string {
 .status-badge {
   display: inline-flex;
   align-items: center;
-  border: 1px solid light-dark(#e5e7eb, #374151);
+  border: 1px solid var(--ssxz-border);
   border-radius: 999px;
   padding: 0.2rem 0.55rem;
   font-size: 0.7rem;
@@ -579,23 +579,23 @@ function formatDate(value?: string | null): string {
 }
 
 .role-badge {
-  color: light-dark(#4b5563, #d1d5db);
+  color: var(--ssxz-text-secondary);
 }
 
 .status-badge--active {
-  border-color: color-mix(in srgb, #22c55e 35%, light-dark(#e5e7eb, #374151));
-  color: #22c55e;
+  border-color: color-mix(in srgb, var(--ssxz-success) 35%, var(--ssxz-border));
+  color: var(--ssxz-success);
 }
 
 .status-badge--pending {
-  border-color: color-mix(in srgb, #f59e0b 35%, light-dark(#e5e7eb, #374151));
-  color: #f59e0b;
+  border-color: color-mix(in srgb, var(--ssxz-warning) 35%, var(--ssxz-border));
+  color: var(--ssxz-warning);
 }
 
 .status-badge--disabled,
 .status-badge--muted,
 .status-badge--revoked {
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
 }
 
 .pagination-row {
@@ -603,7 +603,7 @@ function formatDate(value?: string | null): string {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.75rem;
 }
 
@@ -615,12 +615,12 @@ function formatDate(value?: string | null): string {
 .empty-state {
   padding: 2.5rem 1rem;
   text-align: center;
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.8rem;
 }
 
 .subtle-link {
-  color: light-dark(#4b5563, #d1d5db);
+  color: var(--ssxz-text-secondary);
   font-size: 0.75rem;
 }
 

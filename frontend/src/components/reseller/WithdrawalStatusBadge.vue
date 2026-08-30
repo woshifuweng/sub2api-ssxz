@@ -6,19 +6,17 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useI18n } from 'vue-i18n'
 import type { WithdrawStatus } from '@/api/reseller'
 
 const props = defineProps<{
   status: WithdrawStatus
 }>()
-const { t } = useI18n()
 
 const label = computed(() => ({
-  pending: t('reseller.status.pending'),
-  approved: t('reseller.status.approved'),
-  rejected: t('reseller.status.rejected'),
-  cancelled: t('reseller.status.cancelled')
+  pending: '待审核',
+  approved: '已完成',
+  rejected: '已拒绝',
+  cancelled: '已撤销'
 })[props.status])
 </script>
 
@@ -27,27 +25,27 @@ const label = computed(() => ({
   display: inline-flex;
   min-height: 1.5rem;
   align-items: center;
-  border: 1px solid light-dark(#e5e7eb, #374151);
+  border: 1px solid var(--ssxz-border);
   border-radius: 999px;
   padding: 0 0.55rem;
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.72rem;
   font-weight: 600;
   white-space: nowrap;
 }
 
 .reseller-status-badge--pending {
-  border-color: #d97706;
-  color: #f59e0b;
+  border-color: var(--ssxz-warning-border, #854d0e);
+  color: var(--ssxz-warning-text, #f59e0b);
 }
 
 .reseller-status-badge--approved {
-  border-color: #16a34a;
-  color: #22c55e;
+  border-color: var(--ssxz-success-border, #166534);
+  color: var(--ssxz-success-text, #22c55e);
 }
 
 .reseller-status-badge--rejected {
-  border-color: #dc2626;
-  color: #ef4444;
+  border-color: var(--ssxz-danger-border, #991b1b);
+  color: var(--ssxz-danger-text, #ef4444);
 }
 </style>

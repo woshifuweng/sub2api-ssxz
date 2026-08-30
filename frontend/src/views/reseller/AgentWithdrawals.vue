@@ -1,7 +1,9 @@
 <template>
-  <ResellerPageLayout
-    :title="t('reseller.pages.withdrawals.title')"
-    :description="t('reseller.pages.withdrawals.description')"
+  <AppSectionShell
+    title="兑换记录"
+    subtitle="将返利转入账户余额，并查看处理进度"
+    eyebrow="RESELLER"
+    icon="swap"
   >
     <div class="withdrawal-page">
       <section class="card conversion-panel">
@@ -88,7 +90,7 @@
             </thead>
             <tbody>
               <tr v-for="item in requests.items" :key="item.id">
-                <td class="font-medium text-gray-900 dark:text-white">
+                <td class="font-medium text-[var(--ssxz-text)]">
                   {{ formatNumber(item.amount) }} 额度
                 </td>
                 <td><WithdrawalStatusBadge :status="item.status" /></td>
@@ -108,7 +110,7 @@
                 </td>
               </tr>
               <tr v-if="requests.items.length === 0">
-                <td colspan="5" class="py-10 text-center text-gray-500 dark:text-gray-400">
+                <td colspan="5" class="py-10 text-center text-[var(--ssxz-text-muted)]">
                   暂无兑换记录
                 </td>
               </tr>
@@ -186,13 +188,12 @@
       @confirm="confirmCancel"
       @cancel="cancelTarget = null"
     />
-  </ResellerPageLayout>
+  </AppSectionShell>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import ResellerPageLayout from '@/components/reseller/ResellerPageLayout.vue'
+import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -207,7 +208,6 @@ import { formatNumber, formatRelativeTime } from '@/utils/format'
 import { extractApiErrorMessage } from '@/utils/apiError'
 
 const appStore = useAppStore()
-const { t } = useI18n()
 const resellerStore = useResellerStore()
 const amount = ref('')
 const submitting = ref(false)
@@ -314,12 +314,12 @@ onMounted(() => void loadPage(1))
 .conversion-copy span,
 .conversion-copy p,
 .conversion-form small {
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.8rem;
 }
 
 .conversion-copy strong {
-  color: light-dark(#111827, #f9fafb);
+  color: var(--ssxz-text);
   font-size: 2rem;
   line-height: 1.2;
 }
@@ -336,18 +336,18 @@ onMounted(() => void loadPage(1))
 }
 
 .withdraw-form label {
-  color: light-dark(#4b5563, #d1d5db);
+  color: var(--ssxz-text-secondary);
   font-size: 0.82rem;
   font-weight: 600;
 }
 
 .withdraw-form small {
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.78rem;
 }
 
 .conversion-form label {
-  color: light-dark(#4b5563, #d1d5db);
+  color: var(--ssxz-text-secondary);
   font-size: 0.82rem;
   font-weight: 600;
 }
@@ -364,19 +364,19 @@ onMounted(() => void loadPage(1))
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid light-dark(#e5e7eb, #374151);
+  border-bottom: 1px solid var(--ssxz-border);
   padding: 1rem 1.25rem;
 }
 
 .withdrawal-header h2 {
-  color: light-dark(#111827, #f9fafb);
+  color: var(--ssxz-text);
   font-size: 1rem;
   font-weight: 600;
 }
 
 .withdrawal-header p {
   margin-top: 0.25rem;
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.8rem;
 }
 
@@ -387,21 +387,21 @@ onMounted(() => void loadPage(1))
 }
 
 .withdrawal-table th {
-  background: light-dark(#f9fafb, #111827);
+  background: var(--ssxz-surface-sunken);
   padding: 0.75rem 1rem;
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-weight: 500;
 }
 
 .withdrawal-table td {
-  border-top: 1px solid light-dark(#e5e7eb, #374151);
+  border-top: 1px solid var(--ssxz-border);
   padding: 0.85rem 1rem;
-  color: light-dark(#4b5563, #d1d5db);
+  color: var(--ssxz-text-secondary);
 }
 
 .withdrawal-empty {
   padding: 2.5rem;
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   text-align: center;
 }
 

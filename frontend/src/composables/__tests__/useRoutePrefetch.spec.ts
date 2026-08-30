@@ -31,10 +31,10 @@ const createMockRouter = (): Router => {
     { path: '/admin/subscriptions', components: { default: mockImportFn } },
     { path: '/admin/redeem', components: { default: mockImportFn } },
     { path: '/dashboard', components: { default: mockImportFn } },
-    { path: '/keys', components: { default: mockImportFn } },
-    { path: '/usage', components: { default: mockImportFn } },
-    { path: '/redeem', components: { default: mockImportFn } },
-    { path: '/profile', components: { default: mockImportFn } }
+    { path: '/app/keys', components: { default: mockImportFn } },
+    { path: '/app/usage', components: { default: mockImportFn } },
+    { path: '/app/redeem', components: { default: mockImportFn } },
+    { path: '/app/profile', components: { default: mockImportFn } }
   ]
 
   return {

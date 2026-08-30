@@ -1,9 +1,6 @@
 <template>
   <AppLayout>
-    <ResellerAdminHeader
-      :title="t('reseller.admin.agents.title')"
-      :description="t('reseller.admin.agents.description')"
-    >
+    <AdminPageHeader title="Reseller 管理" description="管理 Agent 合作关系、返利策略与生命周期">
       <template #actions>
         <LiquidButton
           type="button"
@@ -26,7 +23,7 @@
           <span>刷新</span>
         </LiquidButton>
       </template>
-    </ResellerAdminHeader>
+    </AdminPageHeader>
 
     <div class="space-y-5">
       <nav class="flex flex-wrap gap-2" aria-label="Reseller 管理导航">
@@ -117,7 +114,7 @@
                 >
                   {{ row.username || `用户 ${row.user_id}` }}
                 </button>
-                <div class="truncate text-xs text-gray-500 dark:text-gray-400">
+                <div class="truncate text-xs text-[var(--ssxz-text-muted)]">
                   {{ row.email || '--' }}
                 </div>
               </div>
@@ -228,8 +225,8 @@
 
             <template #empty>
               <div class="py-10 text-center">
-                <p class="font-medium text-gray-900 dark:text-white">暂无 Agent 数据</p>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                <p class="font-medium text-[var(--ssxz-text)]">暂无 Agent 数据</p>
+                <p class="mt-1 text-sm text-[var(--ssxz-text-muted)]">
                   {{ hasFilters ? '没有匹配当前筛选条件的记录。' : '当前没有已授权的 Agent。' }}
                 </p>
               </div>
@@ -279,7 +276,7 @@
       @close="closeDisableDialog"
     >
       <div class="space-y-4">
-        <p class="text-sm text-gray-600 dark:text-gray-300">
+        <p class="text-sm text-[var(--ssxz-text-secondary)]">
           停用后，该 Agent 不再产生新返利，但历史数据和合作配置会保留。
         </p>
         <label class="block">
@@ -326,14 +323,14 @@
       @close="closeRevokeDialog"
     >
       <div class="space-y-3">
-        <p class="text-sm text-gray-600 dark:text-gray-300">
+        <p class="text-sm text-[var(--ssxz-text-secondary)]">
           确认最终撤销
-          <strong class="text-gray-900 dark:text-white">
+          <strong class="text-[var(--ssxz-text)]">
             {{ revokeTarget?.email || `用户 ${revokeTarget?.user_id ?? ''}` }}
           </strong>
           的 {{ revokeTarget ? roleLabel(revokeTarget.role) : '' }} 角色？
         </p>
-        <p class="text-xs text-red-600 dark:text-red-400">
+        <p class="text-xs text-[var(--ssxz-danger)]">
           这不是临时停用。若该账号仍有直属 Agent 或待处理兑换，系统会拒绝操作。
         </p>
       </div>
@@ -369,9 +366,9 @@
       :close-on-escape="!actionSubmitting"
       @close="closeReauthorizeDialog"
     >
-      <p class="text-sm text-gray-600 dark:text-gray-300">
+      <p class="text-sm text-[var(--ssxz-text-secondary)]">
         将按原角色重新授权
-        <strong class="text-gray-900 dark:text-white">{{ reauthorizeTarget?.email }}</strong>
+        <strong class="text-[var(--ssxz-text)]">{{ reauthorizeTarget?.email }}</strong>
         。重新授权后状态恢复为启用，上级关系需在编辑中重新设置。
       </p>
       <template #footer>
@@ -412,8 +409,7 @@ import resellerAPI, {
 import type { AdminUser, PaginatedResponse } from '@/types'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import { useI18n } from 'vue-i18n'
-import ResellerAdminHeader from '@/components/reseller/ResellerAdminHeader.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -430,7 +426,6 @@ import { formatDateTime } from '@/utils/format'
 type StatusTabValue = '' | ResellerStatus
 
 const route = useRoute()
-const { t } = useI18n()
 const appStore = useAppStore()
 const loading = ref(true)
 const search = ref('')
@@ -452,8 +447,8 @@ const actionSubmitting = ref(false)
 const busyAgentId = ref<number | null>(null)
 
 const sectionLinks = [
-  { to: '/admin/reseller/agents', label: t('reseller.admin.nav.agents') },
-  { to: '/admin/reseller/withdrawals', label: t('reseller.admin.nav.withdrawals') }
+  { to: '/admin/reseller/agents', label: 'Agent 列表' },
+  { to: '/admin/reseller/withdrawals', label: '兑换审批' }
 ]
 
 const statusTabs: Array<{ value: StatusTabValue; label: string }> = [
@@ -752,8 +747,8 @@ onBeforeUnmount(() => {
 .filter-panel {
   display: grid;
   gap: 1rem;
-  border: 1px solid light-dark(#e5e7eb, #374151);
-  border-radius: 0.75rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
   padding: 1rem;
 }
 
@@ -761,25 +756,25 @@ onBeforeUnmount(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
-  border-bottom: 1px solid light-dark(#e5e7eb, #374151);
+  border-bottom: 1px solid var(--ssxz-border);
 }
 
 .status-tab {
   min-height: 2.25rem;
   border-bottom: 2px solid transparent;
   padding: 0 0.75rem;
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.8rem;
   font-weight: 600;
 }
 
 .status-tab:hover {
-  color: light-dark(#111827, #f9fafb);
+  color: var(--ssxz-text);
 }
 
 .status-tab--active {
-  border-bottom-color: light-dark(#111827, #f9fafb);
-  color: light-dark(#111827, #f9fafb);
+  border-bottom-color: var(--ssxz-text);
+  color: var(--ssxz-text);
 }
 
 .filter-grid {
@@ -791,7 +786,7 @@ onBeforeUnmount(() => {
   display: block;
   max-width: 13rem;
   overflow: hidden;
-  color: light-dark(#111827, #f9fafb);
+  color: var(--ssxz-text);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -806,7 +801,7 @@ onBeforeUnmount(() => {
   display: inline-flex;
   min-height: 1.5rem;
   align-items: center;
-  border: 1px solid light-dark(#e5e7eb, #374151);
+  border: 1px solid var(--ssxz-border);
   border-radius: 999px;
   padding: 0 0.55rem;
   font-size: 0.72rem;
@@ -814,21 +809,21 @@ onBeforeUnmount(() => {
 }
 
 .role-badge {
-  color: light-dark(#4b5563, #d1d5db);
+  color: var(--ssxz-text-secondary);
 }
 
 .status-badge--active {
-  border-color: color-mix(in srgb, #22c55e 35%, light-dark(#e5e7eb, #374151));
-  color: #22c55e;
+  border-color: color-mix(in srgb, var(--ssxz-success) 35%, var(--ssxz-border));
+  color: var(--ssxz-success);
 }
 
 .status-badge--disabled {
-  border-color: color-mix(in srgb, #f59e0b 35%, light-dark(#e5e7eb, #374151));
-  color: #f59e0b;
+  border-color: color-mix(in srgb, var(--ssxz-warning) 35%, var(--ssxz-border));
+  color: var(--ssxz-warning);
 }
 
 .status-badge--revoked {
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
 }
 
 .action-group {
@@ -857,7 +852,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  color: light-dark(#4b5563, #d1d5db);
+  color: var(--ssxz-text-secondary);
 }
 
 .action-menu summary::-webkit-details-marker {
@@ -865,8 +860,8 @@ onBeforeUnmount(() => {
 }
 
 .action-menu summary:hover {
-  background: light-dark(#ffffff, #1f2937);
-  color: light-dark(#111827, #f9fafb);
+  background: var(--ssxz-surface-raised);
+  color: var(--ssxz-text);
 }
 
 .action-menu__panel {
@@ -876,10 +871,10 @@ onBeforeUnmount(() => {
   right: 0;
   min-width: 9.5rem;
   overflow: hidden;
-  border: 1px solid light-dark(#e5e7eb, #374151);
-  border-radius: 0.75rem;
-  background: light-dark(#ffffff, #1f2937);
-  box-shadow: 0 10px 25px rgb(0 0 0 / 0.15);
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-card);
+  background: var(--ssxz-surface-raised);
+  box-shadow: var(--ssxz-shadow-lg);
 }
 
 /* The actions column is sticky and each row paints its own stacking level. */
@@ -896,13 +891,13 @@ onBeforeUnmount(() => {
 .action-menu__panel button {
   width: 100%;
   padding: 0.7rem 0.85rem;
-  color: #ef4444;
+  color: var(--ssxz-danger);
   font-size: 0.78rem;
   text-align: left;
 }
 
 .action-menu__panel button:hover {
-  background: color-mix(in srgb, #ef4444 10%, transparent);
+  background: color-mix(in srgb, var(--ssxz-danger) 10%, transparent);
 }
 
 @media (min-width: 768px) {

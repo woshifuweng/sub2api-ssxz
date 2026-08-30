@@ -1,7 +1,9 @@
 <template>
-  <ResellerPageLayout
-    :title="t('reseller.pages.recruits.title')"
-    :description="t('reseller.pages.recruits.description')"
+  <AppSectionShell
+    :title="'&#x62DB;&#x52DF;&#x7528;&#x6237;'"
+    :subtitle="'&#x67E5;&#x770B;&#x901A;&#x8FC7;&#x9080;&#x8BF7;&#x52A0;&#x5165;&#x7684;&#x7528;&#x6237;&#x53CA;&#x5176;&#x8FD4;&#x5229;&#x6982;&#x51B5;'"
+    eyebrow="RESELLER"
+    icon="users"
   >
     <section class="card overflow-hidden">
       <header class="recruits-header">
@@ -41,7 +43,7 @@
                 <small>{{ maskEmail(item.email) }}</small>
               </td>
               <td>{{ formatRelativeTime(item.joined_at) }}</td>
-              <td class="font-medium text-gray-900 dark:text-white">
+              <td class="font-medium text-[var(--ssxz-text)]">
                 {{ formatNumber(item.total_rebate) }} &#x989D;&#x5EA6;
               </td>
               <td>
@@ -51,7 +53,7 @@
               </td>
             </tr>
             <tr v-if="recruits.items.length === 0">
-              <td colspan="4" class="py-10 text-center text-gray-500 dark:text-gray-400">
+              <td colspan="4" class="py-10 text-center text-[var(--ssxz-text-muted)]">
                 &#x6682;&#x65E0;&#x62DB;&#x52DF;&#x7528;&#x6237;
               </td>
             </tr>
@@ -75,13 +77,12 @@
       :recruit="selectedRecruit"
       @close="drawerOpen = false"
     />
-  </ResellerPageLayout>
+  </AppSectionShell>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import ResellerPageLayout from '@/components/reseller/ResellerPageLayout.vue'
+import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import RecruitDetailDrawer from '@/components/reseller/RecruitDetailDrawer.vue'
 import Icon from '@/components/icons/Icon.vue'
 import LiquidButton from '@/components/common/LiquidButton.vue'
@@ -92,7 +93,6 @@ import { formatNumber, formatRelativeTime } from '@/utils/format'
 import { extractApiErrorMessage } from '@/utils/apiError'
 
 const loading = ref(true)
-const { t } = useI18n()
 const loadError = ref('')
 const recruits = ref<PaginatedResponse<RecruitRecord>>(emptyPage())
 const drawerOpen = ref(false)
@@ -142,19 +142,19 @@ onMounted(() => void loadPage(1))
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid light-dark(#e5e7eb, #374151);
+  border-bottom: 1px solid var(--ssxz-border);
   padding: 1.25rem 1.5rem;
 }
 
 .recruits-header h2 {
   margin: 0;
-  color: light-dark(#111827, #f9fafb);
+  color: var(--ssxz-text);
   font-size: 1rem;
 }
 
 .recruits-header p,
 .recruits-empty {
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.8rem;
 }
 
@@ -174,20 +174,20 @@ onMounted(() => void loadPage(1))
 
 .recruits-table th,
 .recruits-table td {
-  border-bottom: 1px solid light-dark(#e5e7eb, #374151);
+  border-bottom: 1px solid var(--ssxz-border);
   padding: 0.85rem 1.5rem;
   text-align: left;
   white-space: nowrap;
 }
 
 .recruits-table th {
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.75rem;
   font-weight: 500;
 }
 
 .recruits-table td {
-  color: light-dark(#4b5563, #d1d5db);
+  color: var(--ssxz-text-secondary);
   font-size: 0.85rem;
 }
 
@@ -202,18 +202,18 @@ onMounted(() => void loadPage(1))
 
 .recruit-row:hover,
 .recruit-row:focus-visible {
-  background: light-dark(#ffffff, #1f2937);
+  background: var(--ssxz-surface-raised);
   outline: none;
 }
 
 .recruits-table td strong {
-  color: light-dark(#111827, #f9fafb);
+  color: var(--ssxz-text);
   font-weight: 600;
 }
 
 .recruits-table td small {
   margin-top: 0.25rem;
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
 }
 
 .status-active,
@@ -226,12 +226,12 @@ onMounted(() => void loadPage(1))
 }
 
 .status-active {
-  background: color-mix(in srgb, #22c55e 12%, transparent);
-  color: #22c55e;
+  background: color-mix(in srgb, var(--ssxz-success) 12%, transparent);
+  color: var(--ssxz-success);
 }
 
 .status-muted {
-  background: color-mix(in srgb, light-dark(#6b7280, #9ca3af) 12%, transparent);
-  color: light-dark(#6b7280, #9ca3af);
+  background: color-mix(in srgb, var(--ssxz-text-muted) 12%, transparent);
+  color: var(--ssxz-text-muted);
 }
 </style>

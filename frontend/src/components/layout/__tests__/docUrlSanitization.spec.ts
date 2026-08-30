@@ -10,12 +10,9 @@ const homeViewSource = readFileSync(resolve(dir, '../../../views/HomeView.vue'),
 const keyUsageViewSource = readFileSync(resolve(dir, '../../../views/KeyUsageView.vue'), 'utf8')
 
 describe('doc_url sanitization', () => {
-  it('AppHeader imports sanitizeUrl', () => {
-    expect(headerSource).toContain("import { sanitizeUrl } from '@/utils/url'")
-  })
-
-  it('AppHeader applies sanitizeUrl to docUrl', () => {
-    expect(headerSource).toContain('sanitizeUrl(appStore.docUrl)')
+  it('AppHeader keeps docs on a trusted internal route', () => {
+    expect(headerSource).toMatch(/<RouterLink\s+[\s\S]*?to="\/docs"/)
+    expect(headerSource).not.toContain(':href="appStore.docUrl"')
   })
 
   it('HomeView imports sanitizeUrl', () => {
@@ -23,7 +20,7 @@ describe('doc_url sanitization', () => {
   })
 
   it('HomeView applies sanitizeUrl to docUrl', () => {
-    expect(homeViewSource).toContain('sanitizeUrl(appStore.cachedPublicSettings?.doc_url || appStore.docUrl')
+    expect(homeViewSource).toMatch(/sanitizeUrl\([\s\S]{0,120}cachedPublicSettings\?\.doc_url\s*\|\|\s*appStore\.docUrl/)
   })
 
   it('KeyUsageView imports sanitizeUrl', () => {
@@ -31,6 +28,6 @@ describe('doc_url sanitization', () => {
   })
 
   it('KeyUsageView applies sanitizeUrl to docUrl', () => {
-    expect(keyUsageViewSource).toContain('sanitizeUrl(appStore.cachedPublicSettings?.doc_url || appStore.docUrl')
+    expect(keyUsageViewSource).toMatch(/sanitizeUrl\([\s\S]{0,120}cachedPublicSettings\?\.doc_url\s*\|\|\s*appStore\.docUrl/)
   })
 })

@@ -98,7 +98,6 @@ import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import { getLocale } from '@/i18n'
 import { sanitizeUrl } from '@/utils/url'
-import { normalizeSiteLogo, normalizeSiteName } from '@/utils/branding'
 import { useAppStore } from '@/stores/app'
 import type { LoginAgreementDocument } from '@/types'
 import zhAdminCompliance from '../../../../docs/legal/admin-compliance.zh.md?raw'
@@ -121,8 +120,8 @@ marked.setOptions({
 const documentId = computed(() => String(route.params.documentId || ''))
 const isAdminComplianceDocument = computed(() => documentId.value === 'admin-compliance')
 const documents = computed(() => settings.value?.login_agreement_documents ?? [])
-const siteName = computed(() => normalizeSiteName(settings.value?.site_name))
-const siteLogo = computed(() => sanitizeUrl(normalizeSiteLogo(settings.value?.site_logo), {
+const siteName = computed(() => settings.value?.site_name || 'Sub2API')
+const siteLogo = computed(() => sanitizeUrl(settings.value?.site_logo || '', {
   allowRelative: true,
   allowDataUrl: true,
 }))

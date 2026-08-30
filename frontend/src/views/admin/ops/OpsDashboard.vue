@@ -1,6 +1,12 @@
 <template>
   <component :is="isFullscreen ? 'div' : AppLayout" :class="isFullscreen ? 'flex min-h-screen flex-col justify-center bg-gray-50 dark:bg-dark-950' : ''">
-    <div :class="[isFullscreen ? 'p-4 md:p-6' : '', 'space-y-6 pb-12']">
+    <div :class="[isFullscreen ? 'p-4 md:p-6' : '', 'admin-b5-ops-scope space-y-6 pb-12']">
+      <AdminPageHeader
+        v-if="!isFullscreen"
+        title="运行监控"
+        description="实时网关性能与错误追踪"
+      />
+
       <div
         v-if="errorMessage"
         class="rounded-2xl bg-red-50 p-4 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400"
@@ -23,6 +29,7 @@
         :auto-refresh-enabled="autoRefreshEnabled"
         :auto-refresh-countdown="autoRefreshCountdown"
         :fullscreen="isFullscreen"
+        :show-title="isFullscreen"
         :custom-start-time="customStartTime"
         :custom-end-time="customEndTime"
         @update:time-range="onTimeRangeChange"
@@ -44,7 +51,7 @@
         <div class="lg:col-span-1 min-h-[360px]">
           <OpsConcurrencyCard :platform-filter="platform" :group-id-filter="groupId" :refresh-token="dashboardRefreshToken" />
         </div>
-        <div class="lg:col-span-1 h-[360px]">
+        <div class="lg:col-span-1 min-h-[360px]">
           <OpsSwitchRateTrendChart
             :points="switchTrend?.points ?? []"
             :loading="loadingSwitchTrend"
@@ -52,7 +59,7 @@
             :fullscreen="isFullscreen"
           />
         </div>
-        <div class="lg:col-span-2 h-[360px]">
+        <div class="lg:col-span-2 min-h-[360px]">
           <OpsThroughputTrendChart
             :points="throughputTrend?.points ?? []"
             :by-platform="throughputTrend?.by_platform ?? []"
@@ -93,6 +100,25 @@
         />
       </div>
 
+      <div
+        v-if="opsEnabled && !(loading && !hasLoadedOnce)"
+        ref="runtimeCardsSection"
+        class="grid grid-cols-1 gap-6 xl:grid-cols-2"
+      >
+        <OpsGatewaySchedulerCard
+          :platform-filter="platform"
+          :group-id-filter="groupId"
+          :refresh-token="dashboardRefreshToken"
+          :active="runtimeCardsActive"
+          :summary-limit="runtimeSummaryLimit"
+        />
+        <OpsOpenAIWSRuntimeCard
+          :platform-filter="platform"
+          :refresh-token="dashboardRefreshToken"
+          :active="runtimeCardsActive"
+        />
+      </div>
+
       <!-- Alert Events -->
       <OpsAlertEventsCard v-if="opsEnabled && showAlertEvents && !(loading && !hasLoadedOnce)" />
 
@@ -119,12 +145,11 @@
           :platform="platform"
           :group-id="groupId"
           :error-type="errorDetailsType"
-          :resume-state="resumeListState"
           @update:show="showErrorDetails = $event"
           @openErrorDetail="openError"
         />
 
-        <OpsErrorDetailModal v-model:show="showErrorModal" :error-id="selectedErrorId" :error-type="errorDetailsType" :back-to-list="detailReturnTarget !== null" @back="handleBackToList" />
+        <OpsErrorDetailModal v-model:show="showErrorModal" :error-id="selectedErrorId" :error-type="errorDetailsType" />
 
         <OpsRequestDetailsModal
           v-model="showRequestDetails"
@@ -132,7 +157,6 @@
           :preset="requestDetailsPreset"
           :platform="platform"
           :group-id="groupId"
-          :resume-state="resumeListState"
           @openErrorDetail="openError"
         />
       </template>
@@ -146,6 +170,7 @@ import { useDebounceFn, useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import {
   opsAPI,
@@ -154,7 +179,9 @@ import {
   type OpsErrorTrendResponse,
   type OpsLatencyHistogramResponse,
   type OpsThroughputTrendResponse,
-  type OpsMetricThresholds
+  type OpsMetricThresholds,
+  type OpsRequestDetailsKind,
+  type OpsRequestDetailsSort
 } from '@/api/admin/ops'
 import { useAdminSettingsStore, useAppStore } from '@/stores'
 import OpsDashboardHeader from './components/OpsDashboardHeader.vue'
@@ -169,6 +196,8 @@ import OpsThroughputTrendChart from './components/OpsThroughputTrendChart.vue'
 import OpsSwitchRateTrendChart from './components/OpsSwitchRateTrendChart.vue'
 import OpsAlertEventsCard from './components/OpsAlertEventsCard.vue'
 import OpsOpenAITokenStatsCard from './components/OpsOpenAITokenStatsCard.vue'
+import OpsGatewaySchedulerCard from './components/OpsGatewaySchedulerCard.vue'
+import OpsOpenAIWSRuntimeCard from './components/OpsOpenAIWSRuntimeCard.vue'
 import OpsSystemLogTable from './components/OpsSystemLogTable.vue'
 import OpsRequestDetailsModal, { type OpsRequestDetailsPreset } from './components/OpsRequestDetailsModal.vue'
 import OpsSettingsDialog from './components/OpsSettingsDialog.vue'
@@ -187,6 +216,8 @@ const allowedTimeRanges = new Set<TimeRange>(['5m', '30m', '1h', '6h', '24h', 'c
 
 type QueryMode = 'auto' | 'raw' | 'preagg'
 const allowedQueryModes = new Set<QueryMode>(['auto', 'raw', 'preagg'])
+const allowedRequestDetailsKinds = new Set<OpsRequestDetailsKind>(['all', 'success', 'error'])
+const allowedRequestDetailsSorts = new Set<OpsRequestDetailsSort>(['created_at_desc', 'duration_desc', 'first_token_desc'])
 
 const loading = ref(true)
 const hasLoadedOnce = ref(false)
@@ -213,6 +244,12 @@ const QUERY_KEYS = {
   // Deep links
   openErrorDetails: 'open_error_details',
   errorType: 'error_type',
+  openRequestDetails: 'open_request_details',
+  requestUserId: 'user_id',
+  requestApiKeyId: 'api_key_id',
+  requestId: 'request_id',
+  requestKind: 'request_kind',
+  requestSort: 'request_sort',
   alertRuleId: 'alert_rule_id',
   openAlertRules: 'open_alert_rules'
 } as const
@@ -312,6 +349,29 @@ const applyRouteQueryToState = () => {
     errorDetailsType.value = typ === 'upstream' ? 'upstream' : 'request'
     showErrorDetails.value = true
   }
+
+  const openReq = readQueryString(QUERY_KEYS.openRequestDetails)
+  if (openReq === '1' || openReq === 'true') {
+    const kindRaw = readQueryString(QUERY_KEYS.requestKind)
+    const sortRaw = readQueryString(QUERY_KEYS.requestSort)
+    const requestID = readQueryString(QUERY_KEYS.requestId).trim()
+    const userID = readQueryNumber(QUERY_KEYS.requestUserId)
+    const apiKeyID = readQueryNumber(QUERY_KEYS.requestApiKeyId)
+    const preset: OpsRequestDetailsPreset = {
+      title: t('admin.ops.requestDetails.title'),
+      kind: allowedRequestDetailsKinds.has(kindRaw as OpsRequestDetailsKind) ? (kindRaw as OpsRequestDetailsKind) : 'all',
+      sort: allowedRequestDetailsSorts.has(sortRaw as OpsRequestDetailsSort) ? (sortRaw as OpsRequestDetailsSort) : 'created_at_desc'
+    }
+
+    if (typeof userID === 'number' && userID > 0) preset.user_id = userID
+    if (typeof apiKeyID === 'number' && apiKeyID > 0) preset.api_key_id = apiKeyID
+    if (requestID) preset.request_id = requestID
+
+    requestDetailsPreset.value = preset
+    showErrorDetails.value = false
+    showErrorModal.value = false
+    showRequestDetails.value = true
+  }
 }
 
 const buildQueryFromState = () => {
@@ -379,17 +439,8 @@ const requestDetailsPreset = ref<OpsRequestDetailsPreset>({
   sort: 'created_at_desc'
 })
 
-// 记录单条错误详情来自哪个列表，便于"返回列表"时重新打开对应弹窗并保留状态。
-type DetailReturnTarget = 'errorList' | 'requestList' | null
-const detailReturnTarget = ref<DetailReturnTarget>(null)
-
-// 从详情返回时，列表弹窗应保留上一次的筛选/分页状态而非重置。
-const resumeListState = ref(false)
-
 const showSettingsDialog = ref(false)
 const showAlertRulesCard = ref(false)
-
-applyRouteQueryToState()
 
 // Auto refresh settings
 const showAlertEvents = ref(true)
@@ -397,15 +448,31 @@ const showOpenAITokenStats = ref(false)
 const autoRefreshEnabled = ref(false)
 const autoRefreshIntervalMs = ref(30000) // default 30 seconds
 const autoRefreshCountdown = ref(0)
+const lazyRuntimeCards = ref(true)
+const runtimeSummaryLimit = ref(6)
+const pauseRefreshWhenHidden = ref(true)
+const pageVisible = ref(typeof document === 'undefined' ? true : document.visibilityState !== 'hidden')
+const runtimeCardsVisible = ref(false)
+const runtimeCardsSection = ref<HTMLElement | null>(null)
+let runtimeCardsObserver: IntersectionObserver | null = null
+const runtimeCardsActive = computed(() => {
+  const visibleForRefresh = !pauseRefreshWhenHidden.value || pageVisible.value
+  if (!visibleForRefresh) return false
+  if (!lazyRuntimeCards.value) return true
+  return runtimeCardsVisible.value
+})
 
 // Used to trigger child component refreshes in a single shared cadence.
 const dashboardRefreshToken = ref(0)
+
+applyRouteQueryToState()
 
 // Countdown timer (drives auto refresh; updates every second)
 const { pause: pauseCountdown, resume: resumeCountdown } = useIntervalFn(
   () => {
     if (!autoRefreshEnabled.value) return
     if (!opsEnabled.value) return
+    if (pauseRefreshWhenHidden.value && !pageVisible.value) return
     if (loading.value) return
 
     if (autoRefreshCountdown.value <= 0) {
@@ -430,6 +497,9 @@ async function loadDashboardAdvancedSettings() {
     autoRefreshEnabled.value = settings.auto_refresh_enabled
     autoRefreshIntervalMs.value = settings.auto_refresh_interval_seconds * 1000
     autoRefreshCountdown.value = settings.auto_refresh_interval_seconds
+    lazyRuntimeCards.value = settings.lazy_runtime_cards
+    runtimeSummaryLimit.value = settings.realtime_summary_limit
+    pauseRefreshWhenHidden.value = settings.pause_refresh_when_hidden
   } catch (err) {
     console.error('[OpsDashboard] Failed to load dashboard advanced settings', err)
     showAlertEvents.value = true
@@ -437,7 +507,42 @@ async function loadDashboardAdvancedSettings() {
     autoRefreshEnabled.value = false
     autoRefreshIntervalMs.value = 30000
     autoRefreshCountdown.value = 0
+    lazyRuntimeCards.value = true
+    runtimeSummaryLimit.value = 6
+    pauseRefreshWhenHidden.value = true
   }
+}
+
+function handleVisibilityChange() {
+  pageVisible.value = document.visibilityState !== 'hidden'
+  if (pageVisible.value && opsEnabled.value) {
+    fetchData()
+  }
+}
+
+function resetRuntimeCardsObserver() {
+  runtimeCardsObserver?.disconnect()
+  runtimeCardsObserver = null
+
+  if (!lazyRuntimeCards.value) {
+    runtimeCardsVisible.value = true
+    return
+  }
+
+  const target = runtimeCardsSection.value
+  if (!target || typeof window === 'undefined' || !('IntersectionObserver' in window)) {
+    runtimeCardsVisible.value = true
+    return
+  }
+
+  runtimeCardsObserver = new IntersectionObserver((entries) => {
+    if (entries.some(entry => entry.isIntersecting)) {
+      runtimeCardsVisible.value = true
+      runtimeCardsObserver?.disconnect()
+      runtimeCardsObserver = null
+    }
+  }, { rootMargin: '200px 0px' })
+  runtimeCardsObserver.observe(target)
 }
 
 function handleThroughputSelectPlatform(nextPlatform: string) {
@@ -517,32 +622,10 @@ function onQueryModeChange(v: string | number | boolean | null) {
 
 function openError(id: number) {
   selectedErrorId.value = id
-  // 记录来源列表，便于详情页"返回列表"。
-  detailReturnTarget.value = showRequestDetails.value ? 'requestList' : showErrorDetails.value ? 'errorList' : null
   // Ensure only one modal visible at a time.
   showErrorDetails.value = false
   showRequestDetails.value = false
   showErrorModal.value = true
-}
-
-// 从单条错误详情返回其来源列表，重新打开关联弹窗（保留筛选/分页状态）。
-function handleBackToList() {
-  const target = detailReturnTarget.value
-  resumeListState.value = true
-  if (target === 'requestList') {
-    showErrorModal.value = false
-    showErrorDetails.value = false
-    showRequestDetails.value = true
-  } else if (target === 'errorList') {
-    showErrorModal.value = false
-    showRequestDetails.value = false
-    showErrorDetails.value = true
-  }
-  detailReturnTarget.value = null
-  // 子组件 watch 在本次 show 变化中消费 resumeState 后复位，保证下次手动打开仍会重置筛选。
-  window.setTimeout(() => {
-    resumeListState.value = false
-  }, 0)
 }
 
 function buildApiParams() {
@@ -806,6 +889,7 @@ watch(
 onMounted(async () => {
   // Fullscreen mode: listen for ESC key
   window.addEventListener('keydown', handleKeydown)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
 
   await adminSettingsStore.fetch()
   if (!adminSettingsStore.opsMonitoringEnabled) {
@@ -818,6 +902,7 @@ onMounted(async () => {
 
   // Load auto refresh settings
   await loadDashboardAdvancedSettings()
+  resetRuntimeCardsObserver()
 
   if (opsEnabled.value) {
     await fetchData()
@@ -841,6 +926,9 @@ async function loadThresholds() {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  runtimeCardsObserver?.disconnect()
+  runtimeCardsObserver = null
   abortDashboardFetch()
   pauseCountdown()
 })
@@ -860,6 +948,19 @@ watch(autoRefreshEnabled, (enabled) => {
 watch(showSettingsDialog, async (show) => {
   if (!show) {
     await loadDashboardAdvancedSettings()
+    resetRuntimeCardsObserver()
   }
 })
+
+watch([lazyRuntimeCards, runtimeCardsSection], () => {
+  resetRuntimeCardsObserver()
+})
 </script>
+
+<style scoped>
+.admin-b5-ops-scope :deep(.admin-b5-outline-panel) {
+  background: transparent !important;
+  border: 1px solid var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+</style>

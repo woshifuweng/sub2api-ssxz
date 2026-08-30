@@ -94,15 +94,6 @@
         </div>
 
         <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-900">
-          <div class="text-xs font-bold uppercase tracking-wider text-gray-400">{{ t('admin.ops.errorDetail.upstreamStatus') }}</div>
-          <div class="mt-1">
-            <span :class="['inline-flex items-center rounded-lg px-2 py-1 text-xs font-black ring-1 ring-inset shadow-sm', upstreamStatusClass]">
-              {{ detail.upstream_status_code ?? '—' }}
-            </span>
-          </div>
-        </div>
-
-        <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-900">
           <div class="text-xs font-bold uppercase tracking-wider text-gray-400">{{ t('admin.ops.errorDetail.requestType') }}</div>
           <div class="mt-1 text-sm font-medium text-gray-900 dark:text-white">
             {{ formatRequestTypeLabel(detail.request_type) }}
@@ -111,8 +102,8 @@
 
         <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-900">
           <div class="text-xs font-bold uppercase tracking-wider text-gray-400">{{ t('admin.ops.errorDetail.message') }}</div>
-          <div class="mt-1 break-words text-sm font-medium text-gray-900 dark:text-white" :title="rootCauseMessage">
-            {{ rootCauseMessage || '—' }}
+          <div class="mt-1 truncate text-sm font-medium text-gray-900 dark:text-white" :title="detail.message">
+            {{ detail.message || '—' }}
           </div>
         </div>
 
@@ -125,20 +116,10 @@
 
       </div>
 
-      <div v-if="rootCauseMessage" class="rounded-xl bg-amber-50 p-6 dark:bg-amber-900/10">
-        <h3 class="text-sm font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">{{ t('admin.ops.errorDetail.rootCause') }}</h3>
-        <div class="mt-3 break-words text-sm font-medium text-amber-900 dark:text-amber-100">{{ rootCauseMessage }}</div>
-      </div>
-
+      <!-- Response content (client request -> error_body; upstream -> upstream_error_detail/message) -->
       <div class="rounded-xl bg-gray-50 p-6 dark:bg-dark-900">
-        <h3 class="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">{{ t('admin.ops.errorDetail.diagnosticPayloads') }}</h3>
-        <div v-if="!diagnosticPayloadSections.length" class="mt-4 text-sm text-gray-500 dark:text-gray-400">{{ t('common.noData') }}</div>
-        <div v-else class="mt-4 space-y-4">
-          <div v-for="section in diagnosticPayloadSections" :key="section.key">
-            <div class="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{{ diagnosticPayloadLabel(section.key) }}</div>
-            <pre class="max-h-[520px] overflow-auto rounded-xl border border-gray-200 bg-white p-4 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100"><code>{{ prettyJSON(section.value) }}</code></pre>
-          </div>
-        </div>
+        <h3 class="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">{{ t('admin.ops.errorDetail.responseBody') }}</h3>
+        <pre class="mt-4 max-h-[520px] overflow-auto rounded-xl border border-gray-200 bg-white p-4 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100"><code>{{ prettyJSON(primaryResponseBody || '') }}</code></pre>
       </div>
 
       <!-- Upstream errors list (only for request errors) -->
@@ -155,33 +136,33 @@
         <div v-else class="mt-4 space-y-3">
           <div
             v-for="(ev, idx) in correlatedUpstreamErrors"
-            :key="ev.id"
+            :key="getUpstreamEventKey(ev, idx)"
             class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-800"
           >
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div class="text-xs font-black text-gray-900 dark:text-white">
                 #{{ idx + 1 }}
-                <span v-if="ev.type" class="ml-2 rounded-md bg-gray-100 px-2 py-0.5 font-mono text-[10px] font-bold text-gray-700 dark:bg-dark-700 dark:text-gray-200">{{ ev.type }}</span>
+                <span v-if="getUpstreamEventKind(ev)" class="ml-2 rounded-md bg-gray-100 px-2 py-0.5 font-mono text-[10px] font-bold text-gray-700 dark:bg-dark-700 dark:text-gray-200">{{ getUpstreamEventKind(ev) }}</span>
               </div>
               <div class="flex items-center gap-2">
                 <div class="font-mono text-xs text-gray-500 dark:text-gray-400">
-                  {{ ev.status_code ?? '—' }}
+                  {{ getUpstreamEventStatus(ev) ?? '—' }}
                 </div>
                 <button
                   type="button"
                   class="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[10px] font-bold text-primary-700 hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-60 dark:text-primary-200 dark:hover:bg-dark-700"
                   :disabled="!getUpstreamResponsePreview(ev)"
                   :title="getUpstreamResponsePreview(ev) ? '' : t('common.noData')"
-                  @click="toggleUpstreamDetail(ev.id)"
+                  @click="toggleUpstreamDetail(getUpstreamEventKey(ev, idx))"
                 >
                   <Icon
-                    :name="expandedUpstreamDetailIds.has(ev.id) ? 'chevronDown' : 'chevronRight'"
+                    :name="expandedUpstreamDetailIds.has(getUpstreamEventKey(ev, idx)) ? 'chevronDown' : 'chevronRight'"
                     size="xs"
                     :stroke-width="2"
                   />
                   <span>
                     {{
-                      expandedUpstreamDetailIds.has(ev.id)
+                      expandedUpstreamDetailIds.has(getUpstreamEventKey(ev, idx))
                         ? t('admin.ops.errorDetail.responsePreview.collapse')
                         : t('admin.ops.errorDetail.responsePreview.expand')
                     }}
@@ -192,35 +173,33 @@
 
             <div class="mt-3 grid grid-cols-1 gap-2 text-xs text-gray-600 dark:text-gray-300 sm:grid-cols-2">
               <div>
+                <span class="text-gray-400">{{ t('admin.ops.errorDetail.account') }}:</span>
+                <span class="ml-1 font-mono">{{ getUpstreamEventAccountLabel(ev) }}</span>
+              </div>
+              <div>
                 <span class="text-gray-400">{{ t('admin.ops.errorDetail.upstreamEvent.status') }}:</span>
-                <span class="ml-1 font-mono">{{ ev.status_code ?? '—' }}</span>
+                <span class="ml-1 font-mono">{{ getUpstreamEventStatus(ev) ?? '—' }}</span>
               </div>
               <div>
                 <span class="text-gray-400">{{ t('admin.ops.errorDetail.upstreamEvent.requestId') }}:</span>
-                <span class="ml-1 font-mono">{{ ev.request_id || ev.client_request_id || '—' }}</span>
+                <span class="ml-1 font-mono">{{ getUpstreamEventRequestId(ev) || '—' }}</span>
+              </div>
+              <div>
+                <span class="text-gray-400">{{ t('admin.ops.errorDetail.time') }}:</span>
+                <span class="ml-1 font-mono">{{ getUpstreamEventTime(ev) }}</span>
               </div>
             </div>
 
-            <div v-if="ev.message" class="mt-3 break-words text-sm font-medium text-gray-900 dark:text-white">{{ ev.message }}</div>
+            <div v-if="getUpstreamEventMessage(ev)" class="mt-3 break-words text-sm font-medium text-gray-900 dark:text-white">{{ getUpstreamEventMessage(ev) }}</div>
 
             <pre
-              v-if="expandedUpstreamDetailIds.has(ev.id)"
+              v-if="expandedUpstreamDetailIds.has(getUpstreamEventKey(ev, idx))"
               class="mt-3 max-h-[240px] overflow-auto rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-100"
             ><code>{{ prettyJSON(getUpstreamResponsePreview(ev)) }}</code></pre>
           </div>
         </div>
       </div>
     </div>
-    <template v-if="backToList" #footer>
-      <button
-        type="button"
-        class="btn btn-secondary"
-        data-testid="error-detail-back-to-list"
-        @click="goBack"
-      >
-        {{ t('admin.ops.errorDetail.backToList') }}
-      </button>
-    </template>
   </BaseDialog>
 </template>
 
@@ -232,18 +211,16 @@ import Icon from '@/components/icons/Icon.vue'
 import { useAppStore } from '@/stores'
 import { opsAPI, type OpsErrorDetail } from '@/api/admin/ops'
 import { formatDateTime } from '@/utils/format'
-import { resolveUpstreamPayload } from '../utils/errorDetailResponse'
+import { parseUpstreamEventsPayload, resolvePrimaryResponseBody, resolveUpstreamPayload, type ParsedUpstreamEvent } from '../utils/errorDetailResponse'
 
 interface Props {
   show: boolean
   errorId: number | null
   errorType?: 'request' | 'upstream'
-  backToList?: boolean
 }
 
 interface Emits {
   (e: 'update:show', value: boolean): void
-  (e: 'back'): void
 }
 
 const props = defineProps<Props>()
@@ -259,41 +236,12 @@ const showUpstreamList = computed(() => props.errorType === 'request')
 
 const requestId = computed(() => detail.value?.request_id || detail.value?.client_request_id || '')
 
-type DiagnosticPayloadKey = 'client' | 'upstream_message' | 'upstream_detail' | 'upstream_events'
-
-const rootCauseMessage = computed(() => {
-  const current = detail.value
-  if (!current) return ''
-  for (const candidate of [current.upstream_error_message, current.upstream_error_detail, current.message, current.error_body]) {
-    const value = meaningfulPayload(candidate)
-    if (value) return value
-  }
-  return ''
+const primaryResponseBody = computed(() => {
+  return resolvePrimaryResponseBody(detail.value, props.errorType)
 })
 
-const diagnosticPayloadSections = computed(() => {
-  const current = detail.value
-  if (!current) return []
-  const candidates: Array<{ key: DiagnosticPayloadKey; value: string }> = [
-    { key: 'client', value: meaningfulPayload(current.error_body) },
-    { key: 'upstream_message', value: meaningfulPayload(current.upstream_error_message) },
-    { key: 'upstream_detail', value: meaningfulPayload(current.upstream_error_detail) },
-    { key: 'upstream_events', value: meaningfulPayload(current.upstream_errors) }
-  ]
-  return candidates.filter((section, index, all) => {
-    return section.value && all.findIndex(candidate => candidate.value === section.value) === index
-  })
-})
 
-function meaningfulPayload(candidate: unknown): string {
-  const value = String(candidate || '').trim()
-  if (!value || value === '[]' || value === '{}' || value.toLowerCase() === 'null') return ''
-  return value
-}
 
-function diagnosticPayloadLabel(key: DiagnosticPayloadKey): string {
-  return t(`admin.ops.errorDetail.payloads.${key}`)
-}
 
 const title = computed(() => {
   if (!props.errorId) return t('admin.ops.errorDetail.title')
@@ -337,17 +285,75 @@ function displayModel(d: OpsErrorDetail | null): string {
 const correlatedUpstream = ref<OpsErrorDetail[]>([])
 const correlatedUpstreamLoading = ref(false)
 
-const correlatedUpstreamErrors = computed<OpsErrorDetail[]>(() => correlatedUpstream.value)
+type UpstreamEventRow = OpsErrorDetail | ParsedUpstreamEvent
 
-const expandedUpstreamDetailIds = ref(new Set<number>())
+const inlineUpstreamErrors = computed<ParsedUpstreamEvent[]>(() => {
+  if (!detail.value?.upstream_errors) return []
+  return parseUpstreamEventsPayload(detail.value.upstream_errors)
+})
 
-function getUpstreamResponsePreview(ev: OpsErrorDetail): string {
+const correlatedUpstreamErrors = computed<UpstreamEventRow[]>(() => {
+  if (correlatedUpstream.value.length > 0) return correlatedUpstream.value
+  return inlineUpstreamErrors.value
+})
+
+const expandedUpstreamDetailIds = ref(new Set<string>())
+
+function isInlineUpstreamEvent(ev: UpstreamEventRow): ev is ParsedUpstreamEvent {
+  return !('id' in ev)
+}
+
+function getUpstreamEventKey(ev: UpstreamEventRow, idx: number): string {
+  if (isInlineUpstreamEvent(ev)) {
+    return `inline:${ev.accountId ?? 'na'}:${ev.requestId || idx}:${idx}`
+  }
+  return `detail:${ev.id}`
+}
+
+function getUpstreamEventKind(ev: UpstreamEventRow): string {
+  return isInlineUpstreamEvent(ev) ? ev.kind : String(ev.type || '').trim()
+}
+
+function getUpstreamEventStatus(ev: UpstreamEventRow): number | null {
+  return isInlineUpstreamEvent(ev) ? ev.statusCode : (ev.status_code ?? null)
+}
+
+function getUpstreamEventRequestId(ev: UpstreamEventRow): string {
+  return isInlineUpstreamEvent(ev)
+    ? ev.requestId
+    : String(ev.request_id || ev.client_request_id || '').trim()
+}
+
+function getUpstreamEventMessage(ev: UpstreamEventRow): string {
+  return isInlineUpstreamEvent(ev) ? ev.message : String(ev.message || '').trim()
+}
+
+function getUpstreamEventAccountLabel(ev: UpstreamEventRow): string {
+  if (isInlineUpstreamEvent(ev)) {
+    if (ev.accountName) return ev.accountName
+    if (ev.accountId != null) return String(ev.accountId)
+    return '—'
+  }
+  return ev.account_name || (ev.account_id != null ? String(ev.account_id) : '—')
+}
+
+function getUpstreamEventTime(ev: UpstreamEventRow): string {
+  if (isInlineUpstreamEvent(ev)) {
+    return ev.occurredAt ? formatDateTime(ev.occurredAt) : '—'
+  }
+  return ev.created_at ? formatDateTime(ev.created_at) : '—'
+}
+
+function getUpstreamResponsePreview(ev: UpstreamEventRow): string {
+  if (isInlineUpstreamEvent(ev)) {
+    return ev.detail || ev.upstreamRequestBody || ev.message || ''
+  }
   const upstreamPayload = resolveUpstreamPayload(ev)
   if (upstreamPayload) return upstreamPayload
   return String(ev.error_body || '').trim()
 }
 
-function toggleUpstreamDetail(id: number) {
+function toggleUpstreamDetail(id: string) {
   const next = new Set(expandedUpstreamDetailIds.value)
   if (next.has(id)) next.delete(id)
   else next.add(id)
@@ -373,11 +379,6 @@ async function fetchCorrelatedUpstreamErrors(requestErrorId: number) {
 
 function close() {
   emit('update:show', false)
-}
-
-function goBack() {
-  emit('update:show', false)
-  emit('back')
 }
 
 function prettyJSON(raw?: string): string {
@@ -423,15 +424,12 @@ watch(
   { immediate: true }
 )
 
-function statusBadgeClass(code: number): string {
+const statusClass = computed(() => {
+  const code = detail.value?.status_code ?? 0
   if (code >= 500) return 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-900/30 dark:text-red-400 dark:ring-red-500/30'
   if (code === 429) return 'bg-purple-50 text-purple-700 ring-purple-600/20 dark:bg-purple-900/30 dark:text-purple-400 dark:ring-purple-500/30'
   if (code >= 400) return 'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-900/30 dark:text-amber-400 dark:ring-amber-500/30'
   return 'bg-gray-50 text-gray-700 ring-gray-600/20 dark:bg-gray-900/30 dark:text-gray-400 dark:ring-gray-500/30'
-}
-
-const statusClass = computed(() => statusBadgeClass(detail.value?.status_code ?? 0))
-
-const upstreamStatusClass = computed(() => statusBadgeClass(detail.value?.upstream_status_code ?? 0))
+})
 
 </script>

@@ -9,13 +9,83 @@
       </div>
       <div v-if="loading" class="flex justify-center py-8"><svg class="h-8 w-8 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div>
       <div v-else-if="apiKeys.length === 0" class="py-8 text-center"><p class="text-sm text-gray-500">{{ t('admin.users.noApiKeys') }}</p></div>
-      <div v-else ref="scrollContainerRef" class="max-h-96 space-y-3 overflow-y-auto" @scroll="closeGroupSelector">
+      <div v-else class="space-y-3">
+        <div
+          class="flex flex-wrap items-center gap-2 rounded-xl border border-blue-100 bg-blue-50/70 p-3 text-xs text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-100"
+          data-testid="api-key-readiness-summary"
+        >
+          <span class="font-semibold">客户 Key 可用性</span>
+          <span>可交付 {{ readinessTotals.ready }} 个</span>
+          <span>需处理 {{ readinessTotals.blocked }} 个</span>
+          <span>需留意 {{ readinessTotals.warning }} 个</span>
+        </div>
+        <div ref="scrollContainerRef" class="max-h-96 space-y-3 overflow-y-auto" @scroll="closeGroupSelector">
         <div v-for="key in apiKeys" :key="key.id" class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-600 dark:bg-dark-800">
           <div class="flex items-start justify-between">
             <div class="min-w-0 flex-1">
-              <div class="mb-1 flex items-center gap-2"><span class="font-medium text-gray-900 dark:text-white">{{ key.name }}</span><span :class="['badge text-xs', key.status === 'active' ? 'badge-success' : 'badge-danger']">{{ key.status }}</span></div>
+              <div class="mb-1 flex flex-wrap items-center gap-2">
+                <span class="font-medium text-gray-900 dark:text-white">{{ key.name }}</span>
+                <span :class="['badge text-xs', key.status === 'active' ? 'badge-success' : 'badge-danger']">{{ key.status }}</span>
+                <span
+                  :class="[
+                    'rounded-full px-2 py-0.5 text-xs font-semibold',
+                    keyReadiness(key).level === 'ready'
+                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                      : keyReadiness(key).level === 'warning'
+                        ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
+                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                  ]"
+                  data-testid="api-key-readiness-label"
+                >
+                  {{ keyReadiness(key).label }}
+                </span>
+              </div>
               <p class="truncate font-mono text-sm text-gray-500">{{ key.key.substring(0, 20) }}...{{ key.key.substring(key.key.length - 8) }}</p>
             </div>
+          </div>
+          <div
+            class="mt-3 rounded-lg border border-gray-100 bg-gray-50 p-3 text-xs dark:border-dark-700 dark:bg-dark-900/50"
+            data-testid="api-key-readiness-row"
+          >
+            <p class="mb-2 font-semibold text-gray-700 dark:text-dark-100">运营判断</p>
+            <div class="grid gap-2 sm:grid-cols-2">
+              <div>
+                <span class="text-gray-400">账户余额：</span>
+                <span
+                  :class="(user?.balance || 0) > 0 ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-300'"
+                  :title="formatCurrencyTitle(user?.balance || 0)"
+                >
+                  {{ (user?.balance || 0) > 0 ? formatCurrency(user?.balance || 0) : '余额不足' }}
+                </span>
+              </div>
+              <div>
+                <span class="text-gray-400">最近使用：</span>
+                <span class="text-gray-700 dark:text-dark-100">{{ key.last_used_at ? formatDateTime(key.last_used_at) : '暂无记录' }}</span>
+              </div>
+              <div>
+                <span class="text-gray-400">Key 额度：</span>
+                <span class="text-gray-700 dark:text-dark-100" :title="formatQuotaTitle(key)">{{ formatQuotaLine(key) }}</span>
+              </div>
+              <div>
+                <span class="text-gray-400">限速：</span>
+                <span class="text-gray-700 dark:text-dark-100">{{ formatRateLimitLine(key) }}</span>
+              </div>
+              <div>
+                <span class="text-gray-400">模型限制：</span>
+                <span class="text-gray-700 dark:text-dark-100">{{ key.allowed_models?.length ? `${key.allowed_models.length} 个模型` : '不额外限制' }}</span>
+              </div>
+              <div>
+                <span class="text-gray-400">IP 限制：</span>
+                <span class="text-gray-700 dark:text-dark-100">{{ formatIPRestrictionLine(key) }}</span>
+              </div>
+            </div>
+            <ul
+              v-if="keyReadiness(key).notes.length > 0"
+              class="mt-2 space-y-1 text-gray-600 dark:text-dark-200"
+              data-testid="api-key-readiness-notes"
+            >
+              <li v-for="note in keyReadiness(key).notes" :key="note">• {{ note }}</li>
+            </ul>
           </div>
           <div class="mt-3 flex flex-wrap gap-4 text-xs text-gray-500">
             <div class="flex items-center gap-1">
@@ -44,6 +114,7 @@
             </div>
             <div class="flex items-center gap-1"><span>{{ t('admin.users.columns.created') }}: {{ formatDateTime(key.created_at) }}</span></div>
           </div>
+        </div>
         </div>
       </div>
     </div>
@@ -110,7 +181,7 @@ import { ref, computed, watch, onMounted, onUnmounted, type ComponentPublicInsta
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
-import { formatDateTime } from '@/utils/format'
+import { formatCurrency, formatCurrencyTitle, formatDateTime } from '@/utils/format'
 import type { AdminUser, AdminGroup, ApiKey } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
@@ -131,10 +202,127 @@ const dropdownRef = ref<HTMLElement | null>(null)
 const scrollContainerRef = ref<HTMLElement | null>(null)
 const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
 
+type ReadinessLevel = 'ready' | 'warning' | 'blocked'
+
+interface KeyReadiness {
+  level: ReadinessLevel
+  label: string
+  notes: string[]
+}
+
 const selectedKeyForGroup = computed(() => {
   if (groupSelectorKeyId.value === null) return null
   return apiKeys.value.find((k) => k.id === groupSelectorKeyId.value) || null
 })
+
+const readinessTotals = computed(() => {
+  return apiKeys.value.reduce(
+    (acc, key) => {
+      const level = keyReadiness(key).level
+      if (level === 'ready') acc.ready += 1
+      if (level === 'warning') acc.warning += 1
+      if (level === 'blocked') acc.blocked += 1
+      return acc
+    },
+    { ready: 0, warning: 0, blocked: 0 }
+  )
+})
+
+const hasGroupBinding = (key: ApiKey) => {
+  return Boolean(
+    key.group_id ||
+    (key.group_ids && key.group_ids.length > 0) ||
+    (key.groups && key.groups.length > 0)
+  )
+}
+
+const isExpired = (value: string | null) => {
+  return Boolean(value && new Date(value).getTime() <= Date.now())
+}
+
+const isExpiringSoon = (value: string | null) => {
+  if (!value) return false
+  const expiresAt = new Date(value).getTime()
+  const sevenDays = 7 * 24 * 60 * 60 * 1000
+  return expiresAt > Date.now() && expiresAt - Date.now() <= sevenDays
+}
+
+const isQuotaExhausted = (key: ApiKey) => key.quota > 0 && key.quota_used >= key.quota
+const isQuotaNearLimit = (key: ApiKey) => key.quota > 0 && key.quota_used >= key.quota * 0.8 && !isQuotaExhausted(key)
+
+const rateLimitWindows = (key: ApiKey) => [
+  { label: '5小时', limit: key.rate_limit_5h, usage: key.usage_5h },
+  { label: '1天', limit: key.rate_limit_1d, usage: key.usage_1d },
+  { label: '7天', limit: key.rate_limit_7d, usage: key.usage_7d }
+]
+
+const exhaustedRateLimitWindows = (key: ApiKey) => {
+  return rateLimitWindows(key).filter((window) => window.limit > 0 && window.usage >= window.limit)
+}
+
+const nearRateLimitWindows = (key: ApiKey) => {
+  return rateLimitWindows(key).filter((window) => window.limit > 0 && window.usage >= window.limit * 0.8 && window.usage < window.limit)
+}
+
+const keyReadiness = (key: ApiKey): KeyReadiness => {
+  const blockers: string[] = []
+  const warnings: string[] = []
+
+  if ((props.user?.balance || 0) <= 0) blockers.push('账户余额不足，客户调用会被拒绝')
+  if (key.status !== 'active') blockers.push(`Key 状态为 ${key.status}`)
+  if (!hasGroupBinding(key)) blockers.push('未绑定分组，先确认客户应使用哪个模型分组')
+  if (isExpired(key.expires_at)) blockers.push('Key 已过期')
+  if (isQuotaExhausted(key)) blockers.push('Key 额度已用完')
+
+  const exhaustedWindows = exhaustedRateLimitWindows(key)
+  if (exhaustedWindows.length > 0) {
+    blockers.push(`${exhaustedWindows.map((window) => window.label).join('、')} 限额已用完`)
+  }
+
+  if (isExpiringSoon(key.expires_at)) warnings.push('Key 即将过期')
+  if (isQuotaNearLimit(key)) warnings.push('Key 额度接近上限')
+
+  const nearWindows = nearRateLimitWindows(key)
+  if (nearWindows.length > 0) {
+    warnings.push(`${nearWindows.map((window) => window.label).join('、')} 限额接近上限`)
+  }
+  if (key.allowed_models?.length) warnings.push('已限制可用模型，客户需选择匹配模型')
+  if ((key.ip_whitelist?.length || 0) > 0 || (key.ip_blacklist?.length || 0) > 0) {
+    warnings.push('已配置 IP 限制，客户换网络可能无法调用')
+  }
+  if (!key.last_used_at) warnings.push('暂无调用记录，交付前建议做一次 smoke test')
+
+  if (blockers.length > 0) {
+    return { level: 'blocked', label: '需处理', notes: [...blockers, ...warnings] }
+  }
+  if (warnings.length > 0) {
+    return { level: 'warning', label: '需留意', notes: warnings }
+  }
+  return { level: 'ready', label: '可交付', notes: ['状态、余额、分组、额度看起来可用'] }
+}
+
+const formatQuotaLine = (key: ApiKey) => {
+  if (key.quota <= 0) return '不额外限制'
+  return `${formatCurrency(key.quota_used || 0)} / ${formatCurrency(key.quota)}`
+}
+
+const formatQuotaTitle = (key: ApiKey) => {
+  if (key.quota <= 0) return undefined
+  return `已用 ${formatCurrencyTitle(key.quota_used || 0)}；额度 ${formatCurrencyTitle(key.quota)}`
+}
+
+const formatRateLimitLine = (key: ApiKey) => {
+  const active = rateLimitWindows(key).filter((window) => window.limit > 0)
+  if (active.length === 0) return '不额外限制'
+  return active.map((window) => `${window.label} $${(window.usage || 0).toFixed(2)}/$${window.limit.toFixed(2)}`).join('，')
+}
+
+const formatIPRestrictionLine = (key: ApiKey) => {
+  const whitelistCount = key.ip_whitelist?.length || 0
+  const blacklistCount = key.ip_blacklist?.length || 0
+  if (whitelistCount === 0 && blacklistCount === 0) return '未设置'
+  return `白名单 ${whitelistCount} / 黑名单 ${blacklistCount}`
+}
 
 const setGroupButtonRef = (keyId: number, el: Element | ComponentPublicInstance | null) => {
   if (el instanceof HTMLElement) {
@@ -144,16 +332,20 @@ const setGroupButtonRef = (keyId: number, el: Element | ComponentPublicInstance 
   }
 }
 
-watch(() => props.show, (v) => {
-  if (v && props.user) {
-    load()
-    loadGroups()
-  } else {
-    closeGroupSelector()
-  }
-})
+watch(
+  () => props.show,
+  (v) => {
+    if (v && props.user) {
+      load()
+      loadGroups()
+    } else {
+      closeGroupSelector()
+    }
+  },
+  { immediate: true }
+)
 
-const load = async () => {
+async function load() {
   if (!props.user) return
   loading.value = true
   groupButtonRefs.value.clear()
@@ -167,7 +359,7 @@ const load = async () => {
   }
 }
 
-const loadGroups = async () => {
+async function loadGroups() {
   try {
     const groups = await adminAPI.groups.getAll()
     allGroups.value = groups
@@ -197,7 +389,7 @@ const openGroupSelector = (key: ApiKey) => {
   }
 }
 
-const closeGroupSelector = () => {
+function closeGroupSelector() {
   groupSelectorKeyId.value = null
   dropdownPosition.value = null
 }

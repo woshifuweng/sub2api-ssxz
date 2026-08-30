@@ -189,8 +189,6 @@
           </div>
 
           <MonitorAdvancedRequestConfig
-            :provider="form.provider"
-            :api-mode="form.api_mode"
             :extra-headers="form.extra_headers"
             :body-override-mode="form.body_override_mode"
             :body-override="form.body_override"
@@ -369,14 +367,14 @@ const templatesCache = ref<ChannelMonitorTemplate[]>([])
 const templatesLoading = ref(false)
 
 const templateOptions = computed(() => {
-  const items = templatesCache.value.filter((t) => {
-    if (t.provider !== form.provider) return false
+  const items = templatesCache.value.filter((tpl) => {
+    if (tpl.provider !== form.provider) return false
     if (form.provider !== PROVIDER_OPENAI) return true
-    return normalizeAPIMode(t.api_mode) === form.api_mode
+    return normalizeAPIMode(tpl.api_mode) === form.api_mode
   })
   return [
     { value: '', label: t('admin.channelMonitor.templateField.none') },
-    ...items.map((t) => ({ value: String(t.id), label: templateOptionLabel(t) })),
+    ...items.map((tpl) => ({ value: String(tpl.id), label: templateOptionLabel(tpl) })),
   ]
 })
 

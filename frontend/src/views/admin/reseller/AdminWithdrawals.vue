@@ -1,8 +1,8 @@
 <template>
   <AppLayout>
-    <ResellerAdminHeader
-      :title="t('reseller.admin.withdrawals.title')"
-      :description="t('reseller.admin.withdrawals.description')"
+    <AdminPageHeader
+      title="兑换审批"
+      description="审核 Agent 转入账户余额的申请"
     >
       <template #actions>
         <LiquidButton
@@ -16,7 +16,7 @@
           <span>刷新</span>
         </LiquidButton>
       </template>
-    </ResellerAdminHeader>
+    </AdminPageHeader>
 
     <div class="space-y-5">
       <nav class="flex flex-wrap gap-2" aria-label="Reseller 管理导航">
@@ -194,8 +194,7 @@ import resellerAPI, { type WithdrawRequest, type WithdrawStatus } from '@/api/re
 import type { PaginatedResponse } from '@/types'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import { useI18n } from 'vue-i18n'
-import ResellerAdminHeader from '@/components/reseller/ResellerAdminHeader.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -210,7 +209,6 @@ import { formatCurrency, formatDateTime } from '@/utils/format'
 type StatusFilter = Extract<WithdrawStatus, 'pending' | 'approved' | 'rejected' | 'cancelled'> | ''
 
 const route = useRoute()
-const { t } = useI18n()
 const appStore = useAppStore()
 const loading = ref(true)
 const statusFilter = ref<StatusFilter>('pending')
@@ -228,8 +226,8 @@ const statusTabs: Array<{ value: StatusFilter; label: string }> = [
 ]
 
 const sectionLinks = [
-  { to: '/admin/reseller/agents', label: t('reseller.admin.nav.agents') },
-  { to: '/admin/reseller/withdrawals', label: t('reseller.admin.nav.withdrawals') }
+  { to: '/admin/reseller/agents', label: 'Agent 列表' },
+  { to: '/admin/reseller/withdrawals', label: '兑换审批' }
 ]
 
 const columns: Column[] = [

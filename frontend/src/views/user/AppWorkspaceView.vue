@@ -1,231 +1,771 @@
 <template>
-  <AppLayout>
-    <div class="space-y-6">
-      <header>
-        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary-600 dark:text-primary-400">
-          {{ t('chat.eyebrow') }}
-        </p>
-        <h1 class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{{ t('chat.title') }}</h1>
-        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('chat.description') }}</p>
-      </header>
-
-      <div class="grid min-h-[68vh] gap-5 xl:grid-cols-[17rem_minmax(0,1fr)]">
-        <aside class="card flex min-h-0 flex-col p-4">
-          <button type="button" class="btn btn-primary w-full justify-center" @click="startNewChat">
-            <Icon name="plus" size="sm" />
-            {{ t('chat.newConversation') }}
-          </button>
-
-          <div class="mt-4 min-h-0 flex-1 space-y-1 overflow-y-auto" :aria-label="t('chat.history')">
-            <p v-if="workspace.loadingHistory.value" class="px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
-              {{ t('chat.loadingHistory') }}
-            </p>
-            <button
-              v-for="conversation in workspace.conversations.value"
-              :key="conversation.id"
-              type="button"
-              class="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm transition-colors"
-              :class="conversation.id === workspace.activeConversationId.value
-                ? 'bg-primary-50 font-medium text-primary-700 dark:bg-primary-950/40 dark:text-primary-300'
-                : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-800'"
-              @click="selectConversation(conversation.id)"
-            >
-              <Icon name="chat" size="sm" class="shrink-0" />
-              <span class="truncate">{{ conversation.title || t('chat.untitled') }}</span>
-            </button>
-            <p
-              v-if="!workspace.loadingHistory.value && workspace.conversations.value.length === 0"
-              class="px-3 py-4 text-sm text-gray-500 dark:text-gray-400"
-            >
-              {{ t('chat.noHistory') }}
-            </p>
-          </div>
-        </aside>
-
-        <section class="card flex min-h-[68vh] min-w-0 flex-col overflow-hidden">
-          <div class="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 md:p-6">
-            <div
-              v-if="workspace.messages.value.length === 0 && !workspace.loadingMessages.value"
-              class="m-auto max-w-lg py-16 text-center"
-            >
-              <span class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-50 text-primary-600 dark:bg-primary-950/40 dark:text-primary-300">
-                <Icon name="chat" size="lg" />
-              </span>
-              <h2 class="mt-4 text-xl font-semibold text-gray-900 dark:text-white">{{ t('chat.emptyTitle') }}</h2>
-              <p class="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">{{ t('chat.emptyDescription') }}</p>
-            </div>
-
-            <p v-if="workspace.loadingMessages.value" class="m-auto text-sm text-gray-500 dark:text-gray-400">
-              {{ t('chat.loadingMessages') }}
-            </p>
-
-            <div v-else class="mx-auto w-full max-w-4xl space-y-4" aria-live="polite">
-              <article
-                v-for="message in workspace.messages.value"
-                :key="message.id"
-                class="flex gap-3"
-                :class="message.role === 'user' ? 'justify-end' : 'justify-start'"
-              >
-                <div
-                  class="max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 md:max-w-[78%]"
-                  :class="message.role === 'user'
-                    ? 'rounded-br-md bg-primary-600 text-white'
-                    : 'rounded-bl-md bg-gray-100 text-gray-800 dark:bg-dark-800 dark:text-gray-100'"
-                >
-                  <p class="whitespace-pre-wrap break-words">{{ message.content }}</p>
-                  <span
-                    v-if="message.state === 'sending' || message.state === 'generating'"
-                    class="mt-1 block text-xs opacity-70"
-                  >
-                    {{ message.state === 'sending' ? t('chat.sending') : t('chat.generating') }}
-                  </span>
-                </div>
-              </article>
-            </div>
-          </div>
-
-          <div class="border-t border-gray-200 p-4 dark:border-dark-700 md:p-5">
-            <div v-if="workspace.errorMessage.value" class="mb-3 flex items-center justify-between gap-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300" role="alert">
-              <span>{{ workspace.errorMessage.value }}</span>
-              <button
-                v-if="workspace.canRetryLastFailedSend.value"
-                type="button"
-                class="shrink-0 font-medium underline"
-                :disabled="workspace.sending.value"
-                @click="retryLastFailedSend"
-              >
-                {{ t('chat.retry') }}
-              </button>
-            </div>
-
-            <form class="mx-auto max-w-4xl" @submit.prevent="submitDraft">
-              <div class="mb-3 flex flex-wrap items-center gap-3">
-                <label for="chat-model" class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('chat.model') }}</label>
-                <select
-                  id="chat-model"
-                  v-model="selectedModelId"
-                  class="input min-w-52 flex-1 sm:flex-none"
-                  :disabled="capabilities.loading.value || chatModels.length === 0"
-                >
-                  <option v-if="chatModels.length === 0" value="">{{ t('chat.noModel') }}</option>
-                  <option v-for="model in chatModels" :key="model.id" :value="model.id">
-                    {{ model.name || model.id }}
-                  </option>
-                </select>
-                <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('chat.textOnly') }}</span>
-              </div>
-              <div class="flex items-end gap-3 rounded-2xl border border-gray-300 bg-white p-2 shadow-sm focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-500/20 dark:border-dark-600 dark:bg-dark-850">
-                <textarea
-                  v-model="draft"
-                  rows="2"
-                  class="min-h-14 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-white"
-                  :placeholder="t('chat.placeholder')"
-                  :disabled="workspace.sending.value"
-                  @keydown.enter.exact.prevent="submitDraft"
-                />
-                <button
-                  type="submit"
-                  class="btn btn-primary h-10 w-10 shrink-0 justify-center p-0"
-                  :disabled="!canSend"
-                  :aria-label="t('chat.send')"
-                  :title="t('chat.send')"
-                >
-                  <Icon :name="workspace.sending.value ? 'sync' : 'arrowUp'" size="sm" />
-                </button>
-              </div>
-            </form>
-          </div>
+  <AppSectionShell
+    :title="activeContent.shellTitle"
+    :subtitle="activeContent.shellSubtitle"
+    :eyebrow="activeContent.eyebrow"
+    :icon="activeContent.icon"
+    :history-items="workspace.conversations.value"
+    :active-conversation-id="workspace.activeConversationId.value"
+    :history-loading="workspace.loadingHistory.value"
+    @new-chat="startNewChat"
+    @select-conversation="selectConversation"
+  >
+    <section class="workspace-page" :data-section="activeSection">
+      <div class="workspace-main" :class="{ 'has-messages': workspace.messages.value.length > 0 }">
+        <section
+          v-if="workspace.messages.value.length === 0"
+          class="empty-state"
+          aria-label="开始对话"
+        >
+          <h1>{{ emptyStateTitle }}</h1>
+          <p>{{ emptyStateCopy }}</p>
         </section>
+
+        <WorkspaceMessageList
+          v-else
+          :messages="workspace.messages.value"
+          :loading="workspace.loadingMessages.value"
+        />
       </div>
-    </div>
-  </AppLayout>
+
+      <div v-if="workspace.errorMessage.value" class="workspace-error" role="alert">
+        <span>{{ workspace.errorMessage.value }}</span>
+        <button
+          v-if="workspace.canRetryLastFailedSend.value"
+          type="button"
+          class="workspace-error-retry"
+          :disabled="workspace.sending.value || assets.registering.value"
+          @click="retryLastFailedSend"
+        >
+          重试
+        </button>
+      </div>
+      <p v-else-if="!workspace.backendEnabled.value" class="workspace-notice" role="status">
+        模型测试服务暂不可用，暂不可发送。当前仅展示轻量测试入口。
+      </p>
+
+      <section class="composer-zone" aria-label="模型测试输入框">
+        <WorkspaceComposer
+          v-model="draft"
+          :selected-model="activeChatModel"
+          :models="chatModels"
+          :intent="workspaceIntent"
+          :image-capability-available="imageCapabilityAvailable"
+          :backend-enabled="workspace.backendEnabled.value"
+          :sending="workspace.sending.value || assets.registering.value"
+          :asset-previews="assets.previews.value"
+          :rejected-files="assets.rejectedFiles.value"
+          :web-search-available="webSearchAvailable"
+          :web-search-enabled="webSearchRequested"
+          @update:selected-model="selectedModelId = $event"
+          @toggle-web-search="toggleWebSearch"
+          @files="handleFiles"
+          @unsupported-files="handleUnsupportedFiles"
+          @remove-asset="assets.removePreview"
+          @submit="submitDraft"
+        />
+      </section>
+    </section>
+  </AppSectionShell>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
+import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import { useUserCapabilities } from '@/composables/useUserCapabilities'
-import { useWorkspaceConversation } from './workspace/useWorkspaceConversation'
+import { useAppStore } from '@/stores/app'
+import WorkspaceComposer from './workspace/WorkspaceComposer.vue'
+import WorkspaceMessageList from './workspace/WorkspaceMessageList.vue'
+import { useWorkspaceAssets } from './workspace/useWorkspaceAssets'
+import {
+  WORKSPACE_TEXT_ONLY_MESSAGE,
+  useWorkspaceConversation,
+  type WorkspaceIntent
+} from './workspace/useWorkspaceConversation'
 
-const { t } = useI18n()
+type IconName = InstanceType<typeof Icon>['$props']['name']
+type SectionKey = 'home' | 'chat' | 'image'
+
+interface SectionContent {
+  shellTitle: string
+  shellSubtitle: string
+  eyebrow: string
+  icon: IconName
+}
+
 const route = useRoute()
 const router = useRouter()
+const appStore = useAppStore()
 const draft = ref('')
 const selectedModelId = ref('')
+const webSearchRequested = ref(false)
 const workspace = useWorkspaceConversation()
+const assets = useWorkspaceAssets()
 const capabilities = useUserCapabilities()
-const chatModels = computed(() => capabilities.chatModels.value)
-const canSend = computed(() =>
-  !workspace.sending.value &&
-  draft.value.trim().length > 0 &&
-  selectedModelId.value.length > 0
+const {
+  chatModels,
+  hasChat,
+  loadCapabilities
+} = capabilities
+const defaultTextModel = capabilities.defaultTextModel ?? ref('')
+const ACTIVE_CONVERSATION_QUERY_KEY = 'conversation_id'
+
+const sectionKeys: readonly SectionKey[] = ['home', 'chat', 'image']
+
+const sectionContent: Record<SectionKey, SectionContent> = {
+  home: {
+    shellTitle: '模型测试入口',
+    shellSubtitle: '用于轻量验证文本模型和 API 可用性，不作为默认首页或主产品入口。',
+    eyebrow: '轻量体验入口',
+    icon: 'chat'
+  },
+  chat: {
+    shellTitle: '模型测试入口',
+    shellSubtitle: '当前只做轻量文本模型测试，真实能力以账号可用模型和分组为准。',
+    eyebrow: '轻量体验入口',
+    icon: 'chat'
+  },
+  image: {
+    shellTitle: '模型测试入口',
+    shellSubtitle: '当前只做轻量文本模型测试，图片能力请到图片内测入口查看。',
+    eyebrow: '轻量体验入口',
+    icon: 'chat'
+  }
+}
+
+const activeSection = computed<SectionKey>(() => {
+  const section = route.meta.appSection
+  return isSectionKey(section) ? section : 'home'
+})
+const availableModelIds = computed(() => chatModels.value.map((model) => model.id))
+const activeChatModel = computed(() => {
+  if (!hasChat.value) return ''
+  if (selectedModelId.value && availableModelIds.value.includes(selectedModelId.value)) return selectedModelId.value
+  return defaultTextModel.value || availableModelIds.value[0] || ''
+})
+const imageCapabilityAvailable = computed(() => false)
+const webSearchAvailable = computed(() => appStore.cachedPublicSettings?.web_search?.available === true)
+const textBetaMode = computed(() => hasChat.value)
+const activeModelLabel = computed(() =>
+  chatModels.value.find((model) => model.id === activeChatModel.value)?.name || 'Deepseek-V4-Flash'
 )
+const textBetaCapabilityCopy = computed(() =>
+  `当前开放 ${activeModelLabel.value} 文本对话。图片理解和多图分析暂未接入。`
+)
+const workspaceIntent = computed<WorkspaceIntent>(() =>
+  textBetaMode.value ? 'chat' : activeSection.value
+)
+const activeContent = computed<SectionContent>(() => {
+  if (textBetaMode.value) {
+    return {
+      shellTitle: '模型测试入口',
+      shellSubtitle: `${textBetaCapabilityCopy.value} 这里仅用于验证模型/API 可用性。`,
+      eyebrow: '轻量体验入口',
+      icon: 'chat'
+    }
+  }
+  return sectionContent[activeSection.value]
+})
+const emptyStateTitle = computed(() => '模型测试入口')
+const emptyStateCopy = computed(() => {
+  if (textBetaMode.value) return `${textBetaCapabilityCopy.value} 需要图片能力请到图片内测入口；这里仅保留轻量模型测试能力。`
+  if (activeSection.value === 'image') return '输入你想处理的图像需求。'
+  if (activeSection.value === 'chat') return '输入问题后，这段对话会进入左侧历史，刷新页面也不会丢失。'
+  return '直接输入问题，开始对话。'
+})
+
+function isSectionKey(value: unknown): value is SectionKey {
+  return typeof value === 'string' && sectionKeys.includes(value as SectionKey)
+}
+
+async function handleFiles(files: File[]) {
+  if (!imageCapabilityAvailable.value) {
+    assets.clearPreviews()
+    workspace.errorMessage.value = WORKSPACE_TEXT_ONLY_MESSAGE
+    return
+  }
+
+  await assets.addFiles(files)
+}
+
+function handleUnsupportedFiles() {
+  assets.clearPreviews()
+  workspace.errorMessage.value = WORKSPACE_TEXT_ONLY_MESSAGE
+}
 
 async function submitDraft() {
-  if (!canSend.value) return
   const text = draft.value.trim()
+  if (!text && assets.previews.value.length === 0) return
+  if (!activeChatModel.value || workspace.sending.value || assets.registering.value) return
+  if (assets.previews.value.length > 0 && !imageCapabilityAvailable.value) {
+    workspace.errorMessage.value = WORKSPACE_TEXT_ONLY_MESSAGE
+    return
+  }
+
   const sent = await workspace.sendTextMessage({
     text,
-    model: selectedModelId.value,
-    intent: 'chat',
-    attachments: []
+    model: activeChatModel.value,
+    intent: workspaceIntent.value,
+    attachments: assets.getLocalAttachments(),
+    webSearchRequested: webSearchAvailable.value && webSearchRequested.value
   })
-  if (!sent) return
-  draft.value = ''
-  await syncConversationQuery(workspace.activeConversationId.value)
+  if (sent) {
+    await finishSuccessfulSend()
+  }
 }
 
 async function retryLastFailedSend() {
   const sent = await workspace.retryLastFailedSend()
   if (sent) {
-    await syncConversationQuery(workspace.activeConversationId.value)
+    await finishSuccessfulSend()
+  }
+}
+
+async function finishSuccessfulSend() {
+  draft.value = ''
+  assets.clearPreviews()
+  webSearchRequested.value = false
+  const activeConversationId = workspace.activeConversationId.value
+  if (activeConversationId !== null) {
+    await replaceActiveConversationQuery(activeConversationId)
   }
 }
 
 async function selectConversation(id: number) {
+  draft.value = ''
+  assets.clearPreviews()
+  webSearchRequested.value = false
   await workspace.selectConversation(id)
   if (workspace.activeConversationId.value === id) {
-    await syncConversationQuery(id)
+    await replaceActiveConversationQuery(id)
   }
 }
 
 async function startNewChat() {
   draft.value = ''
+  assets.clearPreviews()
+  webSearchRequested.value = false
   await workspace.startNewChat()
-  await syncConversationQuery(null)
+  await replaceActiveConversationQuery(null)
 }
 
-async function syncConversationQuery(id: number | null) {
-  const query = { ...route.query }
+function toggleWebSearch() {
+  if (!webSearchAvailable.value) return
+  webSearchRequested.value = !webSearchRequested.value
+}
+
+function routeConversationId() {
+  const raw = route.query?.[ACTIVE_CONVERSATION_QUERY_KEY]
+  const value = Array.isArray(raw) ? raw[0] : raw
+  if (typeof value !== 'string' || value.trim() === '') return null
+  const id = Number(value)
+  return Number.isInteger(id) && id > 0 ? id : null
+}
+
+async function replaceActiveConversationQuery(id: number | null) {
+  const query = { ...(route.query ?? {}) }
   if (id === null) {
-    delete query.conversation_id
+    delete query[ACTIVE_CONVERSATION_QUERY_KEY]
   } else {
-    query.conversation_id = String(id)
+    query[ACTIVE_CONVERSATION_QUERY_KEY] = String(id)
   }
   await router.replace({ query })
 }
 
-function routeConversationID() {
-  const raw = Array.isArray(route.query.conversation_id)
-    ? route.query.conversation_id[0]
-    : route.query.conversation_id
-  const id = Number(raw)
-  return Number.isInteger(id) && id > 0 ? id : null
-}
-
-watch(chatModels, (models) => {
-  if (models.some((model) => model.id === selectedModelId.value)) return
-  selectedModelId.value = capabilities.defaultTextModel.value || models[0]?.id || ''
-}, { immediate: true })
-
 onMounted(async () => {
-  await Promise.all([capabilities.loadCapabilities(), workspace.loadHistory()])
-  const conversationID = routeConversationID()
-  if (conversationID !== null) {
-    await selectConversation(conversationID)
+  await Promise.all([
+    loadCapabilities(),
+    workspace.loadHistory()
+  ])
+  const conversationId = routeConversationId()
+  if (conversationId === null || !workspace.backendEnabled.value) return
+  await workspace.selectConversation(conversationId)
+  if (workspace.activeConversationId.value !== conversationId) {
+    await replaceActiveConversationQuery(null)
   }
 })
+
+watch(chatModels, (models) => {
+  if (!models.length) {
+    selectedModelId.value = ''
+    return
+  }
+  if (!models.some((model) => model.id === selectedModelId.value)) {
+    selectedModelId.value = defaultTextModel.value || models[0].id
+  }
+}, { immediate: true })
+
+watch(webSearchAvailable, (available) => {
+  if (!available) {
+    webSearchRequested.value = false
+  }
+}, { immediate: true })
 </script>
+
+<style scoped>
+:deep(.ssxz-page-heading) {
+  display: none;
+}
+
+.workspace-page {
+  display: grid;
+  min-height: calc(100vh - 4rem);
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  gap: 1rem;
+  padding: 1rem 0 max(2rem, env(safe-area-inset-bottom));
+}
+
+.workspace-main {
+  display: grid;
+  align-items: center;
+  justify-items: center;
+  min-height: 24rem;
+}
+
+.workspace-main.has-messages {
+  align-items: end;
+}
+
+.empty-state {
+  width: min(46rem, 100%);
+  padding: 1rem;
+  text-align: center;
+}
+
+.empty-state h1 {
+  margin: 0;
+  color: var(--ssxz-text);
+  font-size: clamp(2.25rem, 4.6vw, 3.6rem);
+  font-weight: 760;
+  line-height: 1.06;
+  text-wrap: balance;
+  word-break: keep-all;
+}
+
+.empty-state p,
+.workspace-error {
+  margin: 1rem auto 0;
+  max-width: 42rem;
+  color: var(--ssxz-subtle);
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.workspace-error {
+  margin-top: 0;
+  border: 1px solid color-mix(in srgb, #ef4444 36%, transparent);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, #ef4444 9%, var(--ssxz-surface));
+  color: #b91c1c;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.workspace-error-retry {
+  border: 1px solid color-mix(in srgb, #b91c1c 42%, transparent);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #b91c1c;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0.25rem 0.6rem;
+}
+
+.workspace-error-retry:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.workspace-notice {
+  margin: 0 auto;
+  max-width: 42rem;
+  border: 1px solid color-mix(in srgb, var(--ssxz-primary) 28%, transparent);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--ssxz-primary) 8%, var(--ssxz-surface));
+  color: var(--ssxz-text);
+  padding: 0.75rem 1rem;
+  text-align: center;
+}
+
+.composer-zone {
+  position: sticky;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  z-index: 6;
+  width: min(56rem, 100%);
+  margin: 0 auto;
+}
+
+:deep(.message-list) {
+  display: grid;
+  width: min(56rem, 100%);
+  gap: 1rem;
+}
+
+:deep(.workspace-loading) {
+  color: var(--ssxz-subtle);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+:deep(.message-row) {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+  width: min(48rem, 100%);
+}
+
+:deep(.message-row[data-role='user']) {
+  grid-template-columns: minmax(0, 1fr) 2.25rem;
+  justify-self: end;
+}
+
+:deep(.message-row[data-role='user'] .message-avatar) {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+:deep(.message-row[data-role='user'] .message-bubble) {
+  grid-column: 1;
+  justify-self: end;
+  background: var(--ssxz-primary);
+  color: #fff;
+}
+
+:deep(.message-avatar) {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  background: var(--ssxz-surface);
+  color: var(--ssxz-text);
+}
+
+:deep(.message-bubble) {
+  max-width: min(40rem, 100%);
+  border: 1px solid var(--ssxz-border);
+  border-radius: 1rem;
+  background: var(--ssxz-surface);
+  color: var(--ssxz-text);
+  padding: 0.9rem 1rem;
+  box-shadow: 0 16px 45px color-mix(in srgb, #0f172a 8%, transparent);
+}
+
+:deep(.message-row[data-state='failed'] .message-bubble) {
+  border-color: color-mix(in srgb, #ef4444 34%, transparent);
+}
+
+:deep(.message-row[data-state='sending'] .message-bubble),
+:deep(.message-row[data-state='generating'] .message-bubble) {
+  border-color: color-mix(in srgb, var(--ssxz-primary) 28%, transparent);
+}
+
+:deep(.message-state) {
+  margin: 0 0 0.35rem;
+  color: var(--ssxz-subtle);
+  font-size: 0.74rem;
+  line-height: 1.3;
+}
+
+:deep(.message-bubble p) {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.75;
+}
+
+:deep(.message-attachments) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.65rem;
+}
+
+:deep(.message-attachments figure) {
+  margin: 0;
+}
+
+:deep(.message-attachments img) {
+  width: 9rem;
+  height: 6.5rem;
+  object-fit: cover;
+  border-radius: 0.75rem;
+}
+
+:deep(.message-attachments figcaption) {
+  max-width: 9rem;
+  margin-top: 0.25rem;
+  overflow: hidden;
+  color: var(--ssxz-subtle);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:deep(.composer-card) {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 1.25rem;
+  background: color-mix(in srgb, var(--ssxz-surface) 94%, transparent);
+  box-shadow: 0 24px 70px color-mix(in srgb, #0f172a 16%, transparent);
+  padding: 0.8rem;
+  backdrop-filter: blur(18px);
+}
+
+:deep(.composer-card textarea) {
+  width: 100%;
+  min-height: 4.25rem;
+  resize: vertical;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ssxz-text);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+:deep(.composer-card textarea::placeholder) {
+  color: var(--ssxz-subtle);
+}
+
+:deep(.attachment-preview-list) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+:deep(.attachment-preview-card) {
+  position: relative;
+  display: grid;
+  grid-template-columns: 3.75rem minmax(0, 8rem) auto;
+  gap: 0.55rem;
+  align-items: center;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 0.85rem;
+  background: var(--ssxz-surface-muted);
+  padding: 0.4rem 0.5rem;
+}
+
+:deep(.attachment-preview-card img) {
+  width: 3.75rem;
+  height: 3rem;
+  object-fit: cover;
+  border-radius: 0.6rem;
+}
+
+:deep(.attachment-preview-card span) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ssxz-text);
+  font-size: 0.8rem;
+}
+
+:deep(.attachment-preview-card small) {
+  color: var(--ssxz-subtle);
+  font-size: 0.72rem;
+}
+
+:deep(.remove-preview) {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ssxz-surface) 85%, transparent);
+  color: var(--ssxz-subtle);
+  cursor: pointer;
+}
+
+:deep(.asset-panel) {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 1rem;
+  background: var(--ssxz-surface-muted);
+  padding: 0.65rem;
+}
+
+:deep(.asset-option) {
+  position: relative;
+  display: flex;
+  min-height: 4rem;
+  gap: 0.6rem;
+  align-items: center;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 0.75rem;
+  background: var(--ssxz-surface);
+  color: var(--ssxz-text);
+  cursor: pointer;
+  padding: 0.65rem;
+  text-align: left;
+}
+
+:deep(.asset-option small),
+:deep(.asset-panel-note),
+:deep(.asset-panel-error) {
+  color: var(--ssxz-subtle);
+  font-size: 0.74rem;
+}
+
+:deep(.asset-panel-error) {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #b91c1c;
+}
+
+:deep(.asset-panel-note) {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+:deep(.asset-file-input) {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+:deep(.composer-tool-row) {
+  display: flex;
+  min-height: 2.6rem;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+:deep(.model-selector) {
+  position: relative;
+}
+
+:deep(.model-trigger),
+:deep(.toolbar-tool),
+:deep(.send-button) {
+  display: inline-flex;
+  min-height: 2.35rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  background: var(--ssxz-surface);
+  color: var(--ssxz-text);
+  cursor: pointer;
+  padding: 0 0.75rem;
+  font-size: 0.84rem;
+}
+
+:deep(.model-menu) {
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 20;
+  display: grid;
+  min-width: 14rem;
+  gap: 0.25rem;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 0.9rem;
+  background: var(--ssxz-surface);
+  box-shadow: 0 20px 55px color-mix(in srgb, #0f172a 18%, transparent);
+  padding: 0.45rem;
+}
+
+:deep(.model-option) {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 0;
+  border-radius: 0.65rem;
+  background: transparent;
+  color: var(--ssxz-text);
+  cursor: pointer;
+  padding: 0.55rem 0.65rem;
+  text-align: left;
+}
+
+:deep(.model-option.is-selected),
+:deep(.model-option:hover),
+:deep(.toolbar-tool:hover),
+:deep(.model-trigger:hover) {
+  background: color-mix(in srgb, var(--ssxz-primary) 10%, transparent);
+}
+
+:deep(.toolbar-tool.is-unavailable),
+:deep(.toolbar-tool:disabled),
+:deep(.asset-option.is-unavailable) {
+  cursor: not-allowed;
+  opacity: 0.72;
+  background: color-mix(in srgb, var(--ssxz-surface-muted) 88%, transparent);
+  color: var(--ssxz-subtle);
+}
+
+:deep(.toolbar-tool.is-unavailable:hover),
+:deep(.toolbar-tool:disabled:hover),
+:deep(.asset-option.is-unavailable:hover) {
+  background: color-mix(in srgb, var(--ssxz-surface-muted) 88%, transparent);
+}
+
+:deep(.toolbar-tool.is-active) {
+  border-color: color-mix(in srgb, var(--ssxz-primary) 50%, transparent);
+  background: color-mix(in srgb, var(--ssxz-primary) 12%, transparent);
+  color: var(--ssxz-primary);
+}
+
+:deep(.toolbar-tool small) {
+  color: var(--ssxz-subtle);
+  font-size: 0.68rem;
+}
+
+:deep(.send-button) {
+  margin-left: auto;
+  width: 2.45rem;
+  padding: 0;
+  background: var(--ssxz-primary);
+  color: #fff;
+}
+
+:deep(.send-button:disabled),
+:deep(.model-trigger:disabled) {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+@media (max-width: 720px) {
+  .workspace-page {
+    min-height: calc(100dvh - 4rem);
+    padding: 0.5rem 0 1rem;
+  }
+
+  .empty-state h1 {
+    font-size: 2.35rem;
+  }
+
+  .composer-zone {
+    width: min(100%, calc(100vw - 1rem));
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+
+  :deep(.asset-panel) {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  :deep(.message-row),
+  :deep(.message-row[data-role='user']) {
+    grid-template-columns: 1fr;
+  }
+
+  :deep(.message-avatar) {
+    display: none;
+  }
+}
+</style>

@@ -106,6 +106,21 @@ export interface PaymentOrder {
   provider_instance_id?: string
 }
 
+export interface PublicPaymentOrder {
+  id: number
+  amount: number
+  pay_amount: number
+  fee_rate: number
+  payment_type: string
+  out_trade_no: string
+  status: OrderStatus
+  order_type: OrderType
+  created_at: string
+  expires_at: string
+  paid_at?: string
+  completed_at?: string
+}
+
 // ==================== Plans & Channels ====================
 
 export interface SubscriptionPlan {
@@ -176,6 +191,7 @@ export interface CreateOrderRequest {
   openid?: string
   wechat_resume_token?: string
   is_mobile?: boolean
+  turnstile_token?: string
 }
 
 export type CreateOrderResultType = 'order_created' | 'oauth_required' | 'jsapi_ready'

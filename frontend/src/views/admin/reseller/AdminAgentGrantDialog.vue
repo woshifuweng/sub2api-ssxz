@@ -32,14 +32,14 @@
             <span>{{ searching ? '搜索中' : '搜索用户' }}</span>
           </LiquidButton>
         </div>
-        <p class="text-xs text-gray-500 dark:text-gray-400">
+        <p class="text-xs text-[var(--ssxz-text-muted)]">
           至少输入 3 个字符。授权前请核对用户邮箱，避免选错账号。
         </p>
       </section>
 
       <section
         v-if="searchAttempted"
-        class="max-h-56 overflow-y-auto rounded-md border border-gray-200 dark:border-dark-700"
+        class="max-h-56 overflow-y-auto rounded-md border border-[var(--ssxz-border)]"
         aria-label="用户搜索结果"
       >
         <button
@@ -61,7 +61,7 @@
         </button>
         <div
           v-if="!searching && results.length === 0"
-          class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400"
+          class="px-4 py-8 text-center text-sm text-[var(--ssxz-text-muted)]"
         >
           没有找到可授权的启用用户
         </div>
@@ -228,7 +228,7 @@ async function grantRole(): Promise<void> {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid light-dark(#e5e7eb, #374151);
+  border-bottom: 1px solid var(--ssxz-border);
   padding: 0.75rem 1rem;
   text-align: left;
   transition:
@@ -242,11 +242,11 @@ async function grantRole(): Promise<void> {
 
 .user-result:hover,
 .user-result--selected {
-  background: light-dark(#ffffff, #1f2937);
+  background: var(--ssxz-surface-raised);
 }
 
 .user-result--selected {
-  box-shadow: inset 3px 0 0 light-dark(#111827, #f9fafb);
+  box-shadow: inset 3px 0 0 var(--ssxz-text);
 }
 
 .user-result strong,
@@ -258,13 +258,13 @@ async function grantRole(): Promise<void> {
 }
 
 .user-result strong {
-  color: light-dark(#111827, #f9fafb);
+  color: var(--ssxz-text);
   font-size: 0.85rem;
 }
 
 .user-result small,
 .user-result__status {
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.72rem;
 }
 

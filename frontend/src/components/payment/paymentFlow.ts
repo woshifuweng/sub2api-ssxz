@@ -57,9 +57,7 @@ export interface PaymentLaunchContext {
   orderType: OrderType
   isMobile: boolean
   isWechatBrowser?: boolean
-  /** When true, Alipay payments always use QR code regardless of device type */
   forceQRCode?: boolean
-  /** When true, the new mobile Alipay precreate flow takes priority over forceQRCode */
   mobilePrecreateDeepLink?: boolean
   now?: number
   stripePopupUrl?: string
@@ -84,10 +82,9 @@ export interface BuildCreateOrderPayloadInput {
   origin?: string
   isMobile: boolean
   isWechatBrowser: boolean
-  /** When true, Alipay payments always use QR code (passes is_mobile: false to backend) */
   forceQRCode?: boolean
-  /** When true, keep the real mobile signal so the backend can select precreate */
   mobilePrecreateDeepLink?: boolean
+  turnstileToken?: string
 }
 
 type CreateOrderFlowResult = CreateOrderResult & {
@@ -121,9 +118,9 @@ export function getVisibleMethods(methods: Record<string, MethodLimit>): Record<
 export function buildCreateOrderPayload(input: BuildCreateOrderPayloadInput): CreateOrderRequest {
   const visibleMethod = normalizeVisibleMethod(input.paymentType) || input.paymentType.trim()
   const normalizedOrigin = (input.origin || '').trim().replace(/\/+$/, '')
-  // When forceQRCode is enabled for alipay, always tell the backend this is not a mobile
-  // request so it generates a QR code instead of a mobile-redirect URL.
-  const effectiveMobile = (input.forceQRCode && !input.mobilePrecreateDeepLink && visibleMethod === 'alipay')
+  const effectiveMobile = input.forceQRCode
+    && !input.mobilePrecreateDeepLink
+    && visibleMethod === 'alipay'
     ? false
     : input.isMobile
   const payload: CreateOrderRequest = {
@@ -134,6 +131,10 @@ export function buildCreateOrderPayload(input: BuildCreateOrderPayloadInput): Cr
     payment_source: visibleMethod === 'wxpay' && input.isWechatBrowser
       ? 'wechat_in_app_resume'
       : 'hosted_redirect',
+  }
+
+  if (input.turnstileToken) {
+    payload.turnstile_token = input.turnstileToken
   }
 
   if (input.planId) {
@@ -175,13 +176,11 @@ export function decidePaymentLaunch(
     if (!context.airwallexRouteUrl) {
       return { kind: 'unhandled', paymentState: baseState, recovery: baseState }
     }
-    const paymentState = { ...baseState, payUrl: context.airwallexRouteUrl || '' }
+    const paymentState = { ...baseState, payUrl: context.airwallexRouteUrl }
     return { kind: 'airwallex_route', paymentState, recovery: paymentState }
   }
 
   if (baseState.clientSecret) {
-    // visibleMethod === 'stripe' means the user clicked the dedicated Stripe button
-    // and should land on the full Payment Element to choose a sub-method themselves.
     const isStripeButton = visibleMethod === 'stripe'
     const stripeMethod: StripeVisibleMethod | undefined = isStripeButton
       ? undefined
@@ -215,9 +214,9 @@ export function decidePaymentLaunch(
   }
 
   const normalizedPaymentMode = baseState.paymentMode.trim().toLowerCase()
-  // When forceQRCode is on for alipay, treat the device as desktop so the mobile-redirect
-  // branch is bypassed and we fall through to qr_waiting.
-  const effectiveMobile = (context.forceQRCode && !context.mobilePrecreateDeepLink && visibleMethod === 'alipay')
+  const effectiveMobile = context.forceQRCode
+    && !context.mobilePrecreateDeepLink
+    && visibleMethod === 'alipay'
     ? false
     : context.isMobile
   const prefersRedirect = normalizedPaymentMode === 'redirect'

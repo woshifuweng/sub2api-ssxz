@@ -1,21 +1,33 @@
 /**
- * Vue Router configuration for Sub2API frontend
+ * Vue Router configuration for the SSXZ AI frontend
  * Defines all application routes with lazy loading and navigation guards
  */
 
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { createRouter, createWebHistory, type RouteLocationGeneric, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useResellerStore } from '@/stores/reseller'
 import { useAppStore } from '@/stores/app'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
-import { useAdminComplianceStore } from '@/stores/adminCompliance'
 import { useNavigationLoadingState } from '@/composables/useNavigationLoading'
 import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
-import { getSetupStatus } from '@/api/setup'
-import { resolveCompletedSetupRedirectPath } from './setupRedirect'
-import { resolveRouteDocumentTitle } from './title'
-import { redirectLegacyRoute } from './legacyRedirect'
-import { hasRequiredResellerRole, resellerAccessFallback } from './resellerAccess'
+import { resolveDocumentTitle } from './title'
+import { DEFAULT_AUTH_REDIRECT, resolveAuthRedirect, resolveRouteAuthRedirect } from '@/utils/authRedirect'
+import { normalizeSiteName } from '@/utils/brand'
+import { getSafeSessionStorageItem, setSafeSessionStorageItem } from '@/utils/safeStorage'
+
+const redirectLegacyRoute = (path: string) => (to: RouteLocationGeneric) => ({
+  path,
+  query: to.query,
+  hash: to.hash
+})
+
+function isAppRoutePath(path: string): boolean {
+  return path === '/app' || path.startsWith('/app/')
+}
+
+function resolveLoginReturnTo(to: RouteLocationGeneric): string {
+  return isAppRoutePath(to.path) ? resolveAuthRedirect(to.fullPath) : to.fullPath
+}
 
 /**
  * Route definitions with lazy loading
@@ -34,8 +46,17 @@ const routes: RouteRecordRaw[] = [
 
   // ==================== Public Routes ====================
   {
-    path: '/home',
+    path: '/',
     name: 'Home',
+    component: () => import('@/views/HomeView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Home'
+    }
+  },
+  {
+    path: '/home',
+    name: 'PublicHome',
     component: () => import('@/views/HomeView.vue'),
     meta: {
       requiresAuth: false,
@@ -48,8 +69,8 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/public/PublicDocsView.vue'),
     meta: {
       requiresAuth: false,
-      title: 'Documentation',
-      titleKey: 'docs.title'
+      title: '文档',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -59,7 +80,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: false,
       title: 'Login',
-      titleKey: 'home.login'
+      titleKey: 'common.login'
     }
   },
   {
@@ -84,12 +105,10 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/auth/callback',
     name: 'OAuthCallback',
-    alias: '/auth/oauth/callback',
     component: () => import('@/views/auth/OAuthCallbackView.vue'),
     meta: {
       requiresAuth: false,
-      title: 'OAuth Callback',
-      titleKey: 'auth.oauthCallbackPageTitle'
+      title: 'OAuth Callback'
     }
   },
   {
@@ -98,8 +117,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/auth/LinuxDoCallbackView.vue'),
     meta: {
       requiresAuth: false,
-      title: 'LinuxDo OAuth Callback',
-      titleKey: 'auth.linuxdoCallbackPageTitle'
+      title: 'LinuxDo OAuth Callback'
     }
   },
   {
@@ -108,8 +126,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/auth/WechatCallbackView.vue'),
     meta: {
       requiresAuth: false,
-      title: 'WeChat OAuth Callback',
-      titleKey: 'auth.wechatCallbackPageTitle'
+      title: 'WeChat OAuth Callback'
     }
   },
   {
@@ -118,37 +135,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/auth/WechatPaymentCallbackView.vue'),
     meta: {
       requiresAuth: false,
-      title: 'WeChat Payment Callback',
-      titleKey: 'auth.wechatPaymentCallbackPageTitle'
-    }
-  },
-  {
-    path: '/auth/dingtalk/callback',
-    name: 'DingTalkOAuthCallback',
-    component: () => import('@/views/auth/DingTalkCallbackView.vue'),
-    meta: {
-      requiresAuth: false,
-      title: 'DingTalk OAuth Callback',
-      titleKey: 'auth.dingtalkCallbackPageTitle'
-    }
-  },
-  {
-    path: '/auth/dingtalk/email-completion',
-    name: 'dingtalk-email-completion',
-    component: () => import('@/views/auth/DingTalkEmailCompletionView.vue'),
-    meta: {
-      requiresAuth: false,
-      title: 'DingTalk Email Completion'
-    }
-  },
-  {
-    path: '/auth/oidc/callback',
-    name: 'OIDCOAuthCallback',
-    component: () => import('@/views/auth/OidcCallbackView.vue'),
-    meta: {
-      requiresAuth: false,
-      title: 'OIDC OAuth Callback',
-      titleKey: 'auth.oidcCallbackPageTitle'
+      title: 'WeChat Payment Callback'
     }
   },
   {
@@ -201,123 +188,102 @@ const routes: RouteRecordRaw[] = [
 
   // ==================== User Routes ====================
   {
-    path: '/',
-    redirect: redirectLegacyRoute('/home')
-  },
-  {
     path: '/app',
     redirect: redirectLegacyRoute('/app/dashboard')
   },
   {
     path: '/app/dashboard',
-    name: 'Dashboard',
+    name: 'AppDashboard',
     component: () => import('@/views/user/DashboardView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Dashboard',
-      titleKey: 'dashboard.title',
-      descriptionKey: 'dashboard.welcomeMessage'
+      title: '仪表盘',
+      appSection: 'dashboard',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
-    path: '/dashboard',
-    redirect: redirectLegacyRoute('/app/dashboard')
-  },
-  {
     path: '/app/chat',
-    name: 'ChatWorkspace',
+    name: 'AppChat',
     component: () => import('@/views/user/AppWorkspaceView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Chat',
-      titleKey: 'chat.title',
-      descriptionKey: 'chat.description'
+        title: '模型测试入口',
+      appSection: 'chat',
+      titleSiteName: 'SSXZ AI'
     }
-  },
-  {
-    path: '/chat',
-    redirect: redirectLegacyRoute('/app/chat')
-  },
-  {
-    path: '/app/keys',
-    name: 'Keys',
-    component: () => import('@/views/user/KeysView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'API Keys',
-      titleKey: 'keys.title',
-      descriptionKey: 'keys.description'
-    }
-  },
-  {
-    path: '/keys',
-    redirect: redirectLegacyRoute('/app/keys')
   },
   {
     path: '/app/image',
-    name: 'BatchImageGuide',
-    component: () => import('@/views/user/BatchImageGuideView.vue'),
+    name: 'AppImage',
+    component: () => import('@/views/user/AppImageWorkbenchView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Batch Image Guide',
-      titleKey: 'batchImageGuide.title',
-      descriptionKey: 'batchImageGuide.description'
+        title: '图片工作台',
+      titleSiteName: 'SSXZ AI'
     }
-  },
-  {
-    path: '/batch-image',
-    redirect: redirectLegacyRoute('/app/image')
-  },
-  {
-    path: '/docs/batch-image',
-    redirect: redirectLegacyRoute('/app/image')
   },
   {
     path: '/app/usage',
-    name: 'Usage',
-    component: () => import('@/views/user/UsageView.vue'),
+    name: 'AppUsage',
+    component: () => import('@/views/user/AppUsageView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Usage Records',
-      titleKey: 'usage.title',
-      descriptionKey: 'usage.description'
+      title: '使用记录',
+      appSection: 'usage',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
-    path: '/usage',
-    redirect: redirectLegacyRoute('/app/usage')
+    path: '/app/purchase',
+    name: 'AppPurchase',
+    component: () => import('@/views/user/AppPurchaseView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: '充值 / 订阅',
+      appSection: 'purchase',
+      titleSiteName: 'SSXZ AI'
+    }
+  },
+  {
+    path: '/app/orders',
+    name: 'AppOrders',
+    component: () => import('@/views/user/AppOrdersView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: '我的订单',
+      appSection: 'orders',
+      titleSiteName: 'SSXZ AI'
+    }
   },
   {
     path: '/app/redeem',
-    name: 'Redeem',
+    name: 'AppRedeem',
     component: () => import('@/views/user/RedeemView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Redeem Code',
-      titleKey: 'redeem.title',
-      descriptionKey: 'redeem.description'
+      title: '兑换码',
+      appSection: 'redeem',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
-    path: '/redeem',
-    redirect: redirectLegacyRoute('/app/redeem')
-  },
-  {
     path: '/app/affiliate',
-    name: 'Affiliate',
+    name: 'AppAffiliate',
     component: () => import('@/views/user/AffiliateView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Affiliate',
-      titleKey: 'affiliate.title',
-      descriptionKey: 'affiliate.description'
+      title: '邀请返利',
+      appSection: 'affiliate',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -328,8 +294,9 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: false,
       resellerRole: 'agent',
-      title: 'Reseller Dashboard',
-      titleKey: 'reseller.pages.dashboard.title'
+      title: '我的返利',
+      appSection: 'reseller',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -340,8 +307,9 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: false,
       resellerRole: 'agent',
-      title: 'Reseller Withdrawals',
-      titleKey: 'reseller.pages.withdrawals.title'
+      title: '兑换记录',
+      appSection: 'reseller-withdrawals',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -352,8 +320,9 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: false,
       resellerRole: 'agent',
-      title: 'Reseller Recruits',
-      titleKey: 'reseller.pages.recruits.title'
+      title: '招募用户',
+      appSection: 'reseller-recruits',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -364,8 +333,9 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: false,
       resellerRole: 'agent',
-      title: 'Reseller Commission',
-      titleKey: 'reseller.pages.commission.title'
+      title: '佣金明细',
+      appSection: 'reseller-commission',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -376,8 +346,9 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: false,
       resellerRole: 'agent',
-      title: 'Reseller Invite Tools',
-      titleKey: 'reseller.pages.invite.title'
+      title: '推广工具',
+      appSection: 'reseller-invite',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -388,35 +359,48 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: false,
       resellerRole: 'agent_manager',
-      title: 'Reseller Manager',
-      titleKey: 'reseller.pages.manager.title'
+      title: '管理 Agent',
+      appSection: 'reseller-manager',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
-    path: '/affiliate',
-    redirect: redirectLegacyRoute('/app/affiliate')
-  },
-  {
     path: '/app/available-channels',
-    name: 'UserAvailableChannels',
-    component: () => import('@/views/user/AvailableChannelsView.vue'),
+    name: 'AppAvailableChannels',
+    component: () => import('@/views/user/ModelPricingView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Available Channels',
+      title: '模型价格',
       titleKey: 'availableChannels.title',
-      descriptionKey: 'availableChannels.description'
+      descriptionKey: 'availableChannels.description',
+      appSection: 'available-channels',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
     path: '/app/channel-status',
-    name: 'UserChannelStatus',
+    name: 'AppChannelStatus',
     component: () => import('@/views/user/ChannelStatusView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Channel Status',
-      titleKey: 'nav.channelStatus'
+      title: '渠道状态',
+      titleKey: 'nav.channelStatus',
+      appSection: 'channel-status',
+      titleSiteName: 'SSXZ AI'
+    }
+  },
+  {
+    path: '/app/keys',
+    name: 'AppKeys',
+    component: () => import('@/views/user/KeysView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'API Key / 第三方接入',
+      appSection: 'keys',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -426,26 +410,54 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Documentation',
-      titleKey: 'docs.title',
-      descriptionKey: 'docs.description'
+      title: '文档',
+      appSection: 'docs',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
-    path: '/available-channels',
-    redirect: redirectLegacyRoute('/app/available-channels')
-  },
-  {
     path: '/app/profile',
-    name: 'Profile',
+    name: 'AppProfile',
     component: () => import('@/views/user/ProfileView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
-      title: 'Profile',
-      titleKey: 'profile.title',
-      descriptionKey: 'profile.description'
+      title: '个人资料',
+      appSection: 'profile',
+      titleSiteName: 'SSXZ AI'
     }
+  },
+  {
+    path: '/dashboard',
+    redirect: redirectLegacyRoute('/app/dashboard')
+  },
+  {
+    path: '/ai-chat',
+    redirect: redirectLegacyRoute('/app/chat')
+  },
+  {
+    path: '/image-studio',
+    redirect: redirectLegacyRoute('/app/image')
+  },
+  {
+    path: '/keys',
+    redirect: redirectLegacyRoute('/app/keys')
+  },
+  {
+    path: '/usage',
+    redirect: redirectLegacyRoute('/app/usage')
+  },
+  {
+    path: '/redeem',
+    redirect: redirectLegacyRoute('/app/redeem')
+  },
+  {
+    path: '/affiliate',
+    redirect: redirectLegacyRoute('/app/affiliate')
+  },
+  {
+    path: '/available-channels',
+    redirect: redirectLegacyRoute('/app/available-channels')
   },
   {
     path: '/profile',
@@ -453,44 +465,11 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/subscriptions',
-    name: 'Subscriptions',
-    component: () => import('@/views/user/SubscriptionsView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'My Subscriptions',
-      titleKey: 'userSubscriptions.title',
-      descriptionKey: 'userSubscriptions.description'
-    }
-  },
-  {
-    path: '/app/purchase',
-    name: 'PurchaseSubscription',
-    component: () => import('@/views/user/PaymentView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Purchase Subscription',
-      titleKey: 'nav.buySubscription',
-      descriptionKey: 'purchase.description',
-      requiresPayment: true
-    }
+    redirect: redirectLegacyRoute('/app/purchase')
   },
   {
     path: '/purchase',
     redirect: redirectLegacyRoute('/app/purchase')
-  },
-  {
-    path: '/app/orders',
-    name: 'OrderList',
-    component: () => import('@/views/user/UserOrdersView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'My Orders',
-      titleKey: 'nav.myOrders',
-      requiresPayment: true
-    }
   },
   {
     path: '/orders',
@@ -505,6 +484,7 @@ const routes: RouteRecordRaw[] = [
       requiresAdmin: false,
       title: 'Payment',
       titleKey: 'payment.qr.scanToPay',
+      titleSiteName: 'SSXZ AI',
       requiresPayment: true
     }
   },
@@ -516,8 +496,8 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: false,
       requiresAdmin: false,
       title: 'Payment Result',
-      titleKey: 'payment.result.success',
-      requiresPayment: false
+      titleKey: 'payment.result.title',
+      titleSiteName: 'SSXZ AI'
     }
   },
   {
@@ -529,18 +509,7 @@ const routes: RouteRecordRaw[] = [
       requiresAdmin: false,
       title: 'Stripe Payment',
       titleKey: 'payment.stripePay',
-      requiresPayment: false
-    }
-  },
-  {
-    path: '/payment/airwallex',
-    name: 'AirwallexPayment',
-    component: () => import('@/views/user/AirwallexPaymentView.vue'),
-    meta: {
-      requiresAuth: false,
-      requiresAdmin: false,
-      title: 'Airwallex Payment',
-      titleKey: 'payment.airwallexPay',
+      titleSiteName: 'SSXZ AI',
       requiresPayment: false
     }
   },
@@ -552,8 +521,30 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: false,
       requiresAdmin: false,
       title: 'Payment',
+      titleSiteName: 'SSXZ AI',
       requiresPayment: false
     }
+  },
+  {
+    path: '/monitor',
+    name: 'LegacyMonitor',
+    component: () => import('@/views/user/ChannelStatusView.vue'),
+    meta: {
+      requiresAuth: true,
+      title: 'Channel Status'
+    },
+    beforeEnter: (to) => {
+      const authStore = useAuthStore()
+      return {
+        path: authStore.isAdmin ? '/admin/channels/monitor' : '/app/channel-status',
+        query: to.query,
+        hash: to.hash
+      }
+    }
+  },
+  {
+    path: '/sora',
+    redirect: redirectLegacyRoute('/app/image')
   },
   {
     path: '/custom/:id',
@@ -570,7 +561,7 @@ const routes: RouteRecordRaw[] = [
   // ==================== Admin Routes ====================
   {
     path: '/admin',
-    redirect: redirectLegacyRoute('/admin/dashboard')
+    redirect: '/admin/dashboard'
   },
   {
     path: '/admin/dashboard',
@@ -597,18 +588,6 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/admin/audit-logs',
-    name: 'AdminAuditLogs',
-    component: () => import('@/views/admin/AuditLogView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: 'Audit Logs',
-      titleKey: 'admin.audit.title',
-      descriptionKey: 'admin.audit.description'
-    }
-  },
-  {
     path: '/admin/users',
     name: 'AdminUsers',
     component: () => import('@/views/admin/UsersView.vue'),
@@ -618,18 +597,6 @@ const routes: RouteRecordRaw[] = [
       title: 'User Management',
       titleKey: 'admin.users.title',
       descriptionKey: 'admin.users.description'
-    }
-  },
-  {
-    path: '/admin/api-keys',
-    name: 'AdminAPIKeys',
-    component: () => import('@/views/admin/ApiKeysView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: 'API Key Inventory',
-      titleKey: 'admin.apiKeyInventory.title',
-      descriptionKey: 'admin.apiKeyInventory.description'
     }
   },
   {
@@ -646,7 +613,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/admin/channels',
-    redirect: redirectLegacyRoute('/admin/channels/pricing')
+    redirect: '/admin/channels/pricing'
   },
   {
     path: '/admin/channels/pricing',
@@ -663,18 +630,6 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/admin/channels/monitor',
     name: 'AdminChannelMonitor',
-    component: () => import('@/views/admin/ChannelMonitorView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: 'Channel Monitor',
-      titleKey: 'admin.channelMonitor.title',
-      descriptionKey: 'admin.channelMonitor.description'
-    }
-  },
-  {
-    path: '/monitor',
-    name: 'AdminChannelMonitorLegacy',
     component: () => import('@/views/admin/ChannelMonitorView.vue'),
     meta: {
       requiresAuth: true,
@@ -706,18 +661,6 @@ const routes: RouteRecordRaw[] = [
       title: 'Account Management',
       titleKey: 'admin.accounts.title',
       descriptionKey: 'admin.accounts.description'
-    }
-  },
-  {
-    path: '/admin/plugins',
-    name: 'AdminPlugins',
-    component: () => import('@/views/admin/PluginsView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: 'Plugin Management',
-      titleKey: 'admin.plugins.title',
-      descriptionKey: 'admin.plugins.description'
     }
   },
   {
@@ -766,6 +709,38 @@ const routes: RouteRecordRaw[] = [
       title: 'Promo Code Management',
       titleKey: 'admin.promo.title',
       descriptionKey: 'admin.promo.description'
+    }
+  },
+  {
+    path: '/admin/affiliates',
+    name: 'AdminAffiliates',
+    component: () => import('@/views/admin/AffiliatesView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Affiliate Management',
+      titleKey: 'nav.affiliates'
+    }
+  },
+  {
+    path: '/admin/reseller/agents',
+    name: 'AdminResellerAgents',
+    component: () => import('@/views/admin/reseller/AdminAgents.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Reseller Management',
+      titleKey: 'nav.resellerAdmin'
+    }
+  },
+  {
+    path: '/admin/reseller/withdrawals',
+    name: 'AdminResellerWithdrawals',
+    component: () => import('@/views/admin/reseller/AdminWithdrawals.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Reseller Conversion Reviews'
     }
   },
   {
@@ -819,76 +794,27 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/admin/affiliates',
-    redirect: redirectLegacyRoute('/admin/affiliates/invites')
-  },
-  {
-    path: '/admin/affiliates/invites',
-    name: 'AdminAffiliateInvites',
-    component: () => import('@/views/admin/affiliates/AdminAffiliateInvitesView.vue'),
+    path: '/admin/api-keys',
+    name: 'AdminAPIKeys',
+    component: () => import('@/views/admin/ApiKeysView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Affiliate Invite Records',
-      titleKey: 'nav.affiliateInviteRecords',
-      descriptionKey: 'admin.affiliates.invitesDescription'
+      title: 'Full-site API Keys',
+      titleKey: 'admin.apiKeyInventory.title',
+      descriptionKey: 'admin.apiKeyInventory.description'
     }
   },
   {
-    path: '/admin/affiliates/rebates',
-    name: 'AdminAffiliateRebates',
-    component: () => import('@/views/admin/affiliates/AdminAffiliateRebatesView.vue'),
+    path: '/admin/orders/settings',
+    name: 'AdminPaymentSettings',
+    component: () => import('@/views/admin/orders/AdminPaymentSettingsView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Affiliate Rebate Records',
-      titleKey: 'nav.affiliateRebateRecords',
-      descriptionKey: 'admin.affiliates.rebatesDescription'
+      title: 'Payment Settings'
     }
   },
-  {
-    path: '/admin/affiliates/transfers',
-    name: 'AdminAffiliateTransfers',
-    component: () => import('@/views/admin/affiliates/AdminAffiliateTransfersView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: 'Affiliate Transfer Records',
-      titleKey: 'nav.affiliateTransferRecords',
-      descriptionKey: 'admin.affiliates.transfersDescription'
-    }
-  },
-  {
-    path: '/admin/reseller',
-    redirect: redirectLegacyRoute('/admin/reseller/agents')
-  },
-  {
-    path: '/admin/reseller/agents',
-    name: 'AdminResellerAgents',
-    component: () => import('@/views/admin/reseller/AdminAgents.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: 'Reseller Management',
-      titleKey: 'reseller.admin.agents.title',
-      descriptionKey: 'reseller.admin.agents.description'
-    }
-  },
-  {
-    path: '/admin/reseller/withdrawals',
-    name: 'AdminResellerWithdrawals',
-    component: () => import('@/views/admin/reseller/AdminWithdrawals.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: 'Reseller Withdrawals',
-      titleKey: 'reseller.admin.withdrawals.title',
-      descriptionKey: 'reseller.admin.withdrawals.description'
-    }
-  },
-
-
-  // ==================== Payment Admin Routes ====================
   {
     path: '/admin/orders/dashboard',
     name: 'AdminPaymentDashboard',
@@ -962,32 +888,40 @@ let authInitialized = false
 const navigationLoading = useNavigationLoadingState()
 // 延迟初始化预加载，传入 router 实例
 let routePrefetch: ReturnType<typeof useRoutePrefetch> | null = null
-const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/docs', '/key-usage', '/setup', '/payment/result', '/payment/airwallex', '/legal']
-const BACKEND_MODE_CALLBACK_PATHS = [
-  '/auth/callback',
-  '/auth/linuxdo/callback',
-  '/auth/dingtalk/callback',
-  '/auth/dingtalk/email-completion',
-  '/auth/oidc/callback',
-  '/auth/wechat/callback',
-  '/auth/wechat/payment/callback',
+const BACKEND_MODE_ALLOWED_PATHS = [
+  '/login',
+  '/docs',
+  '/key-usage',
+  '/setup',
+  '/app/dashboard',
+  '/app/image',
+  '/app/usage',
+  '/app/purchase',
+  '/app/orders',
+  '/app/redeem',
+  '/app/affiliate',
+  '/app/reseller',
+  '/app/available-channels',
+  '/app/channel-status',
+  '/app/keys',
+  '/app/profile',
+  '/app/chat',
+  '/usage',
+  '/purchase',
+  '/orders',
+  '/profile',
+  '/payment/qrcode',
+  '/payment/result',
+  '/payment/stripe',
+  '/payment/stripe-popup'
 ]
-const BACKEND_MODE_PENDING_AUTH_PATHS = ['/register', '/email-verify']
 
-function isBackendModePublicRouteAllowed(path: string, hasPendingAuthSession: boolean): boolean {
-  if (BACKEND_MODE_ALLOWED_PATHS.some((allowedPath) => path === allowedPath || path.startsWith(allowedPath))) {
+function isBackendModeAllowedPath(path: string): boolean {
+  if (path === '/' || path === '/home') {
     return true
   }
 
-  if (BACKEND_MODE_CALLBACK_PATHS.some((callbackPath) => path === callbackPath)) {
-    return true
-  }
-
-  if (hasPendingAuthSession && BACKEND_MODE_PENDING_AUTH_PATHS.some((allowedPath) => path === allowedPath)) {
-    return true
-  }
-
-  return false
+  return BACKEND_MODE_ALLOWED_PATHS.some((p) => path === p || path.startsWith(p))
 }
 
 router.beforeEach(async (to, _from, next) => {
@@ -995,6 +929,7 @@ router.beforeEach(async (to, _from, next) => {
   navigationLoading.startNavigation()
 
   const authStore = useAuthStore()
+  const resellerStore = useResellerStore()
 
   // Restore auth state from localStorage on first navigation (page refresh)
   if (!authInitialized) {
@@ -1004,28 +939,26 @@ router.beforeEach(async (to, _from, next) => {
 
   // Set page title
   const appStore = useAppStore()
-  const adminSettingsStore = useAdminSettingsStore()
-  const customMenuItems = [
-    ...(appStore.cachedPublicSettings?.custom_menu_items ?? []),
-    ...(authStore.isAdmin ? adminSettingsStore.customMenuItems : []),
-  ]
-  document.title = resolveRouteDocumentTitle(to, appStore.siteName, customMenuItems)
+  // For custom pages, use menu item label as document title
+  if (to.name === 'CustomPage') {
+    const id = to.params.id as string
+    const publicItems = appStore.cachedPublicSettings?.custom_menu_items ?? []
+    const adminSettingsStore = useAdminSettingsStore()
+    const menuItem = publicItems.find((item) => item.id === id)
+      ?? (authStore.isAdmin ? adminSettingsStore.customMenuItems.find((item) => item.id === id) : undefined)
+    if (menuItem?.label) {
+      const siteName = normalizeSiteName(appStore.siteName)
+      document.title = `${menuItem.label} - ${siteName}`
+    } else {
+      document.title = resolveDocumentTitle(to.meta.title, appStore.siteName, to.meta.titleKey as string, to.meta.titleSiteName)
+    }
+  } else {
+    document.title = resolveDocumentTitle(to.meta.title, appStore.siteName, to.meta.titleKey as string, to.meta.titleSiteName)
+  }
 
   // Check if route requires authentication
   const requiresAuth = to.meta.requiresAuth !== false // Default to true
   const requiresAdmin = to.meta.requiresAdmin === true
-
-  if (to.path === '/setup') {
-    try {
-      const status = await getSetupStatus()
-      if (!status.needs_setup) {
-        next(resolveCompletedSetupRedirectPath(authStore.isAuthenticated, authStore.isAdmin))
-        return
-      }
-    } catch {
-      // If setup status cannot be determined, keep the setup page reachable.
-    }
-  }
 
   // If route doesn't require auth, allow access
   if (!requiresAuth) {
@@ -1037,8 +970,7 @@ router.beforeEach(async (to, _from, next) => {
         next()
         return
       }
-      // Admin users go to admin dashboard, regular users go to user dashboard
-      next(authStore.isAdmin ? '/admin/dashboard' : '/app/dashboard')
+      next(resolveRouteAuthRedirect(to.query, authStore.isAdmin ? '/admin/dashboard' : DEFAULT_AUTH_REDIRECT))
       return
     }
     // Model Plaza:公开路由但受「启用开关 + 可选强制登录」双重控制(后端同口径 fail-closed)
@@ -1057,7 +989,7 @@ router.beforeEach(async (to, _from, next) => {
           authStore.isAuthenticated
             ? authStore.isAdmin
               ? '/admin/dashboard'
-              : '/app/dashboard'
+              : '/dashboard'
             : '/home'
         )
         return
@@ -1074,7 +1006,7 @@ router.beforeEach(async (to, _from, next) => {
     }
     // Backend mode: block public pages for unauthenticated users (except login, key-usage, setup)
     if (appStore.backendModeEnabled && !authStore.isAuthenticated) {
-      const isAllowed = isBackendModePublicRouteAllowed(to.path, authStore.hasPendingAuthSession)
+      const isAllowed = isBackendModeAllowedPath(to.path)
       if (!isAllowed) {
         next('/login')
         return
@@ -1089,7 +1021,7 @@ router.beforeEach(async (to, _from, next) => {
     // Not authenticated, redirect to login
     next({
       path: '/login',
-      query: { redirect: to.fullPath } // Save intended destination
+      query: { returnTo: resolveLoginReturnTo(to) } // Save intended destination
     })
     return
   }
@@ -1097,39 +1029,28 @@ router.beforeEach(async (to, _from, next) => {
   // Check admin requirement
   if (requiresAdmin && !authStore.isAdmin) {
     // User is authenticated but not admin, redirect to user dashboard
-    next('/app/dashboard')
+    next(DEFAULT_AUTH_REDIRECT)
     return
   }
 
   if (to.meta.resellerRole && authStore.user) {
-    const resellerStore = useResellerStore()
-    const resellerRole = await resellerStore.fetchRole(authStore.user.id)
-    const allowed = hasRequiredResellerRole(to.meta.resellerRole, resellerRole)
+    const role = await resellerStore.fetchRole(authStore.user.id)
+    if (!role) {
+      next('/app')
+      return
+    }
 
+    const allowed = to.meta.resellerRole === 'agent_manager'
+      ? resellerStore.isManager
+      : resellerStore.isAgent
     if (!allowed) {
-      next(resellerAccessFallback(resellerRole))
+      next(to.meta.resellerRole === 'agent_manager' ? '/app/reseller' : '/app')
       return
     }
   }
 
-  if (requiresAdmin && authStore.isAdmin) {
-    const adminComplianceStore = useAdminComplianceStore()
-    if (!adminComplianceStore.initialized) {
-      try {
-        await adminComplianceStore.fetchStatus()
-      } catch (error) {
-        const err = error as { status?: number; code?: string; metadata?: Record<string, string> }
-        if (err.status === 423 && err.code === 'ADMIN_COMPLIANCE_ACK_REQUIRED') {
-          adminComplianceStore.requireAcknowledgement(err.metadata)
-        }
-      }
-    }
-  }
-
-
-  // 公共设置可能尚未加载（App.vue 的 onMounted 异步拉取晚于首次导航，且纯静态部署
-  // 无 __APP_CONFIG__ 注入）。此时 cachedPublicSettings 为空会把 payment/risk_control
-  // 误判为“未启用”而错误拦截，故这里先确保设置加载完成。
+  // Public settings are loaded asynchronously after application startup. A missing cache is
+  // therefore an unknown state, not proof that payment or risk control is disabled.
   if ((to.meta.requiresPayment || to.meta.requiresRiskControl) && !appStore.publicSettingsLoaded) {
     try {
       await appStore.fetchPublicSettings()
@@ -1138,14 +1059,12 @@ router.beforeEach(async (to, _from, next) => {
     }
   }
 
-  // Only an explicit value from successfully loaded settings can disable a route.
-  // A transient settings failure is unknown state, not a confirmed feature toggle.
   if (
     to.meta.requiresPayment &&
     appStore.publicSettingsLoaded &&
     appStore.cachedPublicSettings?.payment_enabled === false
   ) {
-    next(authStore.isAdmin ? '/admin/dashboard' : '/app/dashboard')
+    next(authStore.isAdmin ? '/admin/dashboard' : DEFAULT_AUTH_REDIRECT)
     return
   }
 
@@ -1154,7 +1073,25 @@ router.beforeEach(async (to, _from, next) => {
     appStore.publicSettingsLoaded &&
     appStore.cachedPublicSettings?.risk_control_enabled === false
   ) {
-    next(authStore.isAdmin ? '/admin/settings' : '/app/dashboard')
+    next(authStore.isAdmin ? '/admin/settings' : DEFAULT_AUTH_REDIRECT)
+    return
+  }
+
+  if (
+    to.path.startsWith('/app/affiliate') &&
+    appStore.cachedPublicSettings &&
+    !appStore.cachedPublicSettings.affiliate_enabled
+  ) {
+    next(DEFAULT_AUTH_REDIRECT)
+    return
+  }
+
+  if (
+    to.path.startsWith('/app/channel-status') &&
+    appStore.cachedPublicSettings &&
+    !appStore.cachedPublicSettings.channel_monitor_enabled
+  ) {
+    next(DEFAULT_AUTH_REDIRECT)
     return
   }
 
@@ -1165,13 +1102,11 @@ router.beforeEach(async (to, _from, next) => {
       '/admin/subscriptions',
       '/admin/redeem',
       '/subscriptions',
-      '/redeem',
-      '/app/redeem'
     ]
 
     if (restrictedPaths.some((path) => to.path.startsWith(path))) {
       // 简易模式下访问受限页面,重定向到仪表板
-      next(authStore.isAdmin ? '/admin/dashboard' : '/app/dashboard')
+      next(authStore.isAdmin ? '/admin/dashboard' : DEFAULT_AUTH_REDIRECT)
       return
     }
   }
@@ -1182,7 +1117,7 @@ router.beforeEach(async (to, _from, next) => {
       next()
       return
     }
-    const isAllowed = isBackendModePublicRouteAllowed(to.path, authStore.hasPendingAuthSession)
+    const isAllowed = isBackendModeAllowedPath(to.path)
     if (!isAllowed) {
       next('/login')
       return
@@ -1225,12 +1160,12 @@ router.onError((error) => {
   if (isChunkLoadError) {
     // Avoid infinite reload loop by checking sessionStorage
     const reloadKey = 'chunk_reload_attempted'
-    const lastReload = sessionStorage.getItem(reloadKey)
+    const lastReload = getSafeSessionStorageItem(reloadKey)
     const now = Date.now()
 
     // Allow reload if never attempted or more than 10 seconds ago
     if (!lastReload || now - parseInt(lastReload) > 10000) {
-      sessionStorage.setItem(reloadKey, now.toString())
+      setSafeSessionStorageItem(reloadKey, now.toString())
       console.warn('Chunk load error detected, reloading page to fetch latest version...')
       window.location.reload()
     } else {

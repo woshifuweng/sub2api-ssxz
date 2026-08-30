@@ -55,9 +55,6 @@ declare module 'vue-router' {
      */
     requiresRiskControl?: boolean
 
-    /** Required reseller role for agent-facing routes. */
-    resellerRole?: 'agent' | 'agent_manager'
-
     /**
      * i18n key for the page title
      */

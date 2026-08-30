@@ -1,19 +1,31 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
+    <AdminPageHeader title="管理控制台" description="系统概况与实时统计数据" />
+
+    <div class="space-y-6 admin-b1-outline-scope">
       <!-- Loading State -->
       <div v-if="loading" class="flex items-center justify-center py-12">
         <LoadingSpinner />
       </div>
 
       <template v-else-if="stats">
+        <AdminOperationsSummary
+          :summary="operationsSummary"
+          :range="operationsRange"
+          :loading="operationsLoading"
+          :error="operationsError"
+          @update:range="setOperationsRange"
+          @refresh="loadOperationsSummary"
+          @drilldown="openOperationsDrilldown"
+        />
+
         <!-- Row 1: Core Stats -->
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <!-- Total API Keys -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30">
-                <Icon name="key" size="md" class="text-blue-600 dark:text-blue-400" :stroke-width="2" />
+              <div class="rounded-lg bg-primary-100 p-2 dark:bg-primary-900/30">
+                <Icon name="key" size="md" class="text-primary-700 dark:text-primary-300" :stroke-width="2" />
               </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -32,8 +44,8 @@
           <!-- Service Accounts -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-purple-100 p-2 dark:bg-purple-900/30">
-                <Icon name="server" size="md" class="text-purple-600 dark:text-purple-400" :stroke-width="2" />
+              <div class="rounded-lg bg-primary-100 p-2 dark:bg-primary-900/30">
+                <Icon name="server" size="md" class="text-primary-700 dark:text-primary-300" :stroke-width="2" />
               </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -57,8 +69,8 @@
           <!-- Today Requests -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-green-100 p-2 dark:bg-green-900/30">
-                <Icon name="chart" size="md" class="text-green-600 dark:text-green-400" :stroke-width="2" />
+              <div class="rounded-lg bg-amber-100 p-2 dark:bg-amber-900/30">
+                <Icon name="chart" size="md" class="text-amber-700 dark:text-amber-300" :stroke-width="2" />
               </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -77,14 +89,14 @@
           <!-- New Users Today -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-emerald-100 p-2 dark:bg-emerald-900/30">
-                <Icon name="userPlus" size="md" class="text-emerald-600 dark:text-emerald-400" :stroke-width="2" />
+              <div class="rounded-lg bg-primary-100 p-2 dark:bg-primary-900/30">
+                <Icon name="userPlus" size="md" class="text-primary-700 dark:text-primary-300" :stroke-width="2" />
               </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.users') }}
                 </p>
-                <p class="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                <p class="text-xl font-bold text-primary-700 dark:text-primary-300">
                   +{{ stats.today_new_users }}
                 </p>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -112,21 +124,15 @@
                 </p>
                 <p class="text-xs">
                   <span
-                    class="text-green-600 dark:text-green-400"
-                    :title="t('admin.dashboard.actual')"
-                    >${{ formatCost(stats.today_actual_cost) }}</span
+                    class="text-amber-600 dark:text-amber-400"
+                    :title="`${t('admin.dashboard.actual')}: ${formatCurrencyExact(stats.today_actual_cost)}`"
+                    >{{ formatCurrency(stats.today_actual_cost) }}</span
                   >
-                  <span class="text-gray-400 dark:text-gray-500"> / </span>
-                  <span
-                    class="text-orange-500 dark:text-orange-400"
-                    :title="t('admin.dashboard.accountCost')"
-                    >${{ formatCost(stats.today_account_cost) }}</span
-                  >
-                  <span class="text-gray-400 dark:text-gray-500"> / </span>
                   <span
                     class="text-gray-400 dark:text-gray-500"
-                    :title="t('admin.dashboard.standard')"
-                    >${{ formatCost(stats.today_cost) }}</span
+                    :title="`${t('admin.dashboard.standard')}: ${formatCurrencyExact(stats.today_cost)}`"
+                  >
+                    / {{ formatCurrency(stats.today_cost) }}</span
                   >
                 </p>
               </div>
@@ -136,8 +142,8 @@
           <!-- Total Tokens -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-indigo-100 p-2 dark:bg-indigo-900/30">
-                <Icon name="database" size="md" class="text-indigo-600 dark:text-indigo-400" :stroke-width="2" />
+              <div class="rounded-lg bg-primary-100 p-2 dark:bg-primary-900/30">
+                <Icon name="database" size="md" class="text-primary-700 dark:text-primary-300" :stroke-width="2" />
               </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -148,21 +154,15 @@
                 </p>
                 <p class="text-xs">
                   <span
-                    class="text-green-600 dark:text-green-400"
-                    :title="t('admin.dashboard.actual')"
-                    >${{ formatCost(stats.total_actual_cost) }}</span
+                    class="text-primary-700 dark:text-primary-300"
+                    :title="`${t('admin.dashboard.actual')}: ${formatCurrencyExact(stats.total_actual_cost)}`"
+                    >{{ formatCurrency(stats.total_actual_cost) }}</span
                   >
-                  <span class="text-gray-400 dark:text-gray-500"> / </span>
-                  <span
-                    class="text-orange-500 dark:text-orange-400"
-                    :title="t('admin.dashboard.accountCost')"
-                    >${{ formatCost(stats.total_account_cost) }}</span
-                  >
-                  <span class="text-gray-400 dark:text-gray-500"> / </span>
                   <span
                     class="text-gray-400 dark:text-gray-500"
-                    :title="t('admin.dashboard.standard')"
-                    >${{ formatCost(stats.total_cost) }}</span
+                    :title="`${t('admin.dashboard.standard')}: ${formatCurrencyExact(stats.total_cost)}`"
+                  >
+                    / {{ formatCurrency(stats.total_cost) }}</span
                   >
                 </p>
               </div>
@@ -172,8 +172,8 @@
           <!-- Performance (RPM/TPM) -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-violet-100 p-2 dark:bg-violet-900/30">
-                <Icon name="bolt" size="md" class="text-violet-600 dark:text-violet-400" :stroke-width="2" />
+              <div class="rounded-lg bg-primary-100 p-2 dark:bg-primary-900/30">
+                <Icon name="bolt" size="md" class="text-primary-700 dark:text-primary-300" :stroke-width="2" />
               </div>
               <div class="flex-1">
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -186,7 +186,7 @@
                   <span class="text-xs text-gray-500 dark:text-gray-400">RPM</span>
                 </div>
                 <div class="flex items-baseline gap-2">
-                  <p class="text-sm font-semibold text-violet-600 dark:text-violet-400">
+                  <p class="text-sm font-semibold text-primary-700 dark:text-primary-300">
                     {{ formatTokens(stats.tpm) }}
                   </p>
                   <span class="text-xs text-gray-500 dark:text-gray-400">TPM</span>
@@ -216,54 +216,6 @@
           </div>
         </div>
 
-        <!-- Quick Actions -->
-        <div class="card p-4">
-          <div class="mb-3 flex items-center justify-between">
-            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">
-              {{ t('admin.dashboard.quickActions') }}
-            </h2>
-          </div>
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <button
-              v-if="canUseBatchImage"
-              type="button"
-              class="group flex items-center gap-3 rounded-lg bg-gray-50 p-3 text-left transition-colors hover:bg-sky-50 dark:bg-dark-800/50 dark:hover:bg-sky-900/20"
-              @click="router.push('/batch-image')"
-            >
-              <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400">
-                <Icon name="sparkles" size="md" :stroke-width="2" />
-              </span>
-              <span class="min-w-0 flex-1">
-                <span class="block text-sm font-medium text-gray-900 dark:text-white">
-                  {{ t('admin.dashboard.batchImage') }}
-                </span>
-                <span class="block text-xs text-gray-500 dark:text-gray-400">
-                  {{ t('admin.dashboard.batchImageDesc') }}
-                </span>
-              </span>
-              <Icon name="chevronRight" size="sm" class="text-gray-400 group-hover:text-sky-500" />
-            </button>
-            <button
-              type="button"
-              class="group flex items-center gap-3 rounded-lg bg-gray-50 p-3 text-left transition-colors hover:bg-emerald-50 dark:bg-dark-800/50 dark:hover:bg-emerald-900/20"
-              @click="router.push('/admin/groups')"
-            >
-              <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
-                <Icon name="grid" size="md" :stroke-width="2" />
-              </span>
-              <span class="min-w-0 flex-1">
-                <span class="block text-sm font-medium text-gray-900 dark:text-white">
-                  {{ t('admin.dashboard.groupPricing') }}
-                </span>
-                <span class="block text-xs text-gray-500 dark:text-gray-400">
-                  {{ t('admin.dashboard.groupPricingDesc') }}
-                </span>
-              </span>
-              <Icon name="chevronRight" size="sm" class="text-gray-400 group-hover:text-emerald-500" />
-            </button>
-          </div>
-        </div>
-
         <!-- Charts Section -->
         <div class="space-y-6">
           <!-- Date Range Filter -->
@@ -279,9 +231,6 @@
                   @change="onDateRangeChange"
                 />
               </div>
-              <button @click="loadDashboardStats" :disabled="chartsLoading" class="btn btn-secondary">
-                {{ t('common.refresh') }}
-              </button>
               <div class="ml-auto flex items-center gap-2">
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-300"
                   >{{ t('admin.dashboard.granularity') }}:</span
@@ -355,14 +304,21 @@ import type {
   UserUsageTrendPoint,
   UserSpendingRankingItem
 } from '@/types'
+import type {
+  DashboardOperationsDrilldown,
+  DashboardOperationsRange,
+  DashboardOperationsSummary
+} from '@/api/admin/dashboard'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AdminPageHeader from '@/components/admin/AdminPageHeader.vue'
+import AdminOperationsSummary from '@/components/admin/dashboard/AdminOperationsSummary.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Select from '@/components/common/Select.vue'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'
 import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
-import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
+import { formatCurrency, formatCurrencyExact } from '@/utils/format'
 
 import {
   Chart as ChartJS,
@@ -389,13 +345,16 @@ ChartJS.register(
 
 const appStore = useAppStore()
 const router = useRouter()
-const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
 const stats = ref<DashboardStats | null>(null)
 const loading = ref(false)
 const chartsLoading = ref(false)
 const userTrendLoading = ref(false)
 const rankingLoading = ref(false)
 const rankingError = ref(false)
+const operationsSummary = ref<DashboardOperationsSummary | null>(null)
+const operationsRange = ref<DashboardOperationsRange>('30d')
+const operationsLoading = ref(false)
+const operationsError = ref(false)
 
 // Chart data
 const trendData = ref<TrendDataPoint[]>([])
@@ -541,18 +500,18 @@ const userTrendChartData = computed(() => {
 
   const sortedDates = Array.from(allDates).sort()
   const colors = [
-    '#3b82f6',
-    '#10b981',
+    '#f2b84b',
+    '#d99b3d',
+    '#a9742a',
     '#f59e0b',
+    '#78716c',
+    '#57534e',
     '#ef4444',
-    '#8b5cf6',
-    '#ec4899',
-    '#14b8a6',
     '#f97316',
-    '#6366f1',
-    '#84cc16',
-    '#06b6d4',
-    '#a855f7'
+    '#eab308',
+    '#fb7185',
+    '#a78bfa',
+    '#facc15'
   ]
 
   const datasets = Array.from(userGroups.values()).map((group, idx) => ({
@@ -583,25 +542,8 @@ const formatTokens = (value: number | undefined): string => {
   return value.toLocaleString()
 }
 
-const toFiniteNumber = (value: unknown): number => {
-  const numberValue = Number(value)
-  return Number.isFinite(numberValue) ? numberValue : 0
-}
-
-const formatNumber = (value: number | null | undefined): string => {
-  return toFiniteNumber(value).toLocaleString()
-}
-
-const formatCost = (value: number | null | undefined): string => {
-  const safeValue = toFiniteNumber(value)
-  if (safeValue >= 1000) {
-    return (safeValue / 1000).toFixed(2) + 'K'
-  } else if (safeValue >= 1) {
-    return safeValue.toFixed(2)
-  } else if (safeValue >= 0.01) {
-    return safeValue.toFixed(3)
-  }
-  return safeValue.toFixed(4)
+const formatNumber = (value: number): string => {
+  return value.toLocaleString()
 }
 
 const formatDuration = (ms: number): string => {
@@ -620,6 +562,64 @@ const goToUserUsage = (item: UserSpendingRankingItem) => {
       end_date: endDate.value
     }
   })
+}
+
+const getOperationsDates = (range: DashboardOperationsRange): { start: string; end: string } => {
+  const end = new Date()
+  const start = new Date(end)
+  const daysBack = range === 'today' ? 0 : range === '7d' ? 6 : 29
+  start.setDate(start.getDate() - daysBack)
+  return { start: formatLocalDate(start), end: formatLocalDate(end) }
+}
+
+const loadOperationsSummary = async () => {
+  operationsLoading.value = true
+  operationsError.value = false
+  const range = getOperationsDates(operationsRange.value)
+  try {
+    operationsSummary.value = await adminAPI.dashboard.getOperationsSummary({
+      start_date: range.start,
+      end_date: range.end,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      limit: 10
+    })
+  } catch (error) {
+    operationsError.value = true
+    console.error('Error loading operations summary:', error)
+  } finally {
+    operationsLoading.value = false
+  }
+}
+
+const setOperationsRange = (range: DashboardOperationsRange) => {
+  if (operationsRange.value === range) return
+  operationsRange.value = range
+  void loadOperationsSummary()
+}
+
+const openOperationsDrilldown = (target: DashboardOperationsDrilldown, userId?: number) => {
+  const range = getOperationsDates(operationsRange.value)
+  const dateQuery = { start_date: range.start, end_date: range.end }
+  const destinations: Record<
+    Exclude<DashboardOperationsDrilldown, 'customer'>,
+    { path: string; query?: Record<string, string> }
+  > = {
+    users: { path: '/admin/users', query: { created_from: range.start, created_to: range.end } },
+    usage: { path: '/admin/usage', query: dateQuery },
+    orders: { path: '/admin/orders', query: { status: 'COMPLETED', ...dateQuery } },
+    apiKeys: {
+      path: '/admin/api-keys',
+      query: { sort_by: 'last_30_days_actual_cost', sort_order: 'desc' }
+    },
+    affiliates: { path: '/admin/affiliates' }
+  }
+  if (target === 'customer' && userId) {
+    void router.push({ path: '/admin/usage', query: { user_id: String(userId), ...dateQuery } })
+    return
+  }
+  if (target !== 'customer') {
+    void router.push(destinations[target])
+  }
 }
 
 // Date range change handler
@@ -736,7 +736,8 @@ const loadDashboardStats = async () => {
   await Promise.all([
     loadDashboardSnapshot(true),
     loadUsersTrend(),
-    loadUserSpendingRanking()
+    loadUserSpendingRanking(),
+    loadOperationsSummary()
   ])
 }
 
@@ -749,10 +750,20 @@ const loadChartData = async () => {
 }
 
 onMounted(() => {
-  void refreshBatchImageAccess()
   loadDashboardStats()
 })
 </script>
 
 <style scoped>
+.admin-b1-outline-scope :deep(.card),
+.admin-b1-outline-scope :deep(.token-usage-trend),
+.admin-b1-outline-scope :deep([data-testid='operations-summary']) {
+  background: transparent !important;
+  border: 1px solid var(--ssxz-border) !important;
+  box-shadow: none !important;
+}
+
+.admin-b1-outline-scope :deep([data-testid='operations-summary'] [class*='border-']) {
+  border-color: var(--ssxz-border) !important;
+}
 </style>

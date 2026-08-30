@@ -53,6 +53,14 @@ vi.mock('@/stores/adminSettings', () => ({
   useAdminSettingsStore: () => ({ customMenuItems: [] }),
 }))
 
+vi.mock('@/stores/reseller', () => ({
+  useResellerStore: () => ({
+    fetchMyRole: vi.fn(),
+    isReseller: false,
+    isAgent: false,
+  }),
+}))
+
 vi.mock('@/stores/adminCompliance', () => ({
   useAdminComplianceStore: () => ({
     initialized: true,

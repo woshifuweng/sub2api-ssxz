@@ -1,12 +1,14 @@
 <template>
-  <ResellerPageLayout
-    :title="t('reseller.pages.dashboard.title')"
-    :description="t('reseller.pages.dashboard.description')"
+  <AppSectionShell
+    title="我的返利"
+    subtitle="查看可兑换余额、累计佣金与推广进展"
+    eyebrow="RESELLER"
+    icon="users"
   >
     <div class="reseller-page">
       <div
         v-if="loading"
-        class="card p-10 text-center text-sm text-gray-500 dark:text-gray-400"
+        class="card p-10 text-center text-sm text-[var(--ssxz-text-muted)]"
       >
         正在加载返利数据...
       </div>
@@ -96,14 +98,14 @@
               <tbody>
                 <tr v-for="item in recentRequests" :key="item.id">
                   <td>{{ formatRelativeTime(item.requested_at) }}</td>
-                  <td class="font-medium text-gray-900 dark:text-white">
+                  <td class="font-medium text-[var(--ssxz-text)]">
                     {{ formatNumber(item.amount) }} 额度
                   </td>
                   <td><WithdrawalStatusBadge :status="item.status" /></td>
                   <td>{{ item.status === 'rejected' ? item.note || '未提供原因' : '--' }}</td>
                 </tr>
                 <tr v-if="recentRequests.length === 0">
-                  <td colspan="4" class="py-10 text-center text-gray-500 dark:text-gray-400">
+                  <td colspan="4" class="py-10 text-center text-[var(--ssxz-text-muted)]">
                     暂无兑换记录
                   </td>
                 </tr>
@@ -124,13 +126,12 @@
         </div>
       </template>
     </div>
-  </ResellerPageLayout>
+  </AppSectionShell>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import ResellerPageLayout from '@/components/reseller/ResellerPageLayout.vue'
+import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import LiquidButton from '@/components/common/LiquidButton.vue'
 import WithdrawalStatusBadge from '@/components/reseller/WithdrawalStatusBadge.vue'
@@ -141,7 +142,6 @@ import { formatNumber, formatRelativeTime } from '@/utils/format'
 import { extractApiErrorMessage } from '@/utils/apiError'
 
 const resellerStore = useResellerStore()
-const { t } = useI18n()
 const { copyToClipboard } = useClipboard()
 const loading = ref(true)
 const loadError = ref('')
@@ -215,12 +215,12 @@ onMounted(() => void loadPage())
 
 .reseller-stat span,
 .reseller-stat small {
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.8rem;
 }
 
 .reseller-stat strong {
-  color: light-dark(#111827, #f9fafb);
+  color: var(--ssxz-text);
   font-size: 1.55rem;
   line-height: 1.2;
 }
@@ -235,19 +235,19 @@ onMounted(() => void loadPage())
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid light-dark(#e5e7eb, #374151);
+  border-bottom: 1px solid var(--ssxz-border);
   padding: 1rem 1.25rem;
 }
 
 .reseller-panel__header h2 {
-  color: light-dark(#111827, #f9fafb);
+  color: var(--ssxz-text);
   font-size: 1rem;
   font-weight: 600;
 }
 
 .reseller-panel__header p {
   margin-top: 0.25rem;
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.8rem;
 }
 
@@ -262,11 +262,11 @@ onMounted(() => void loadPage())
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  border: 1px solid light-dark(#e5e7eb, #374151);
-  border-radius: 0.75rem;
-  background: light-dark(#f9fafb, #111827);
+  border: 1px solid var(--ssxz-border);
+  border-radius: var(--ssxz-radius-button);
+  background: var(--ssxz-surface-sunken);
   padding: 0.75rem;
-  color: light-dark(#4b5563, #d1d5db);
+  color: var(--ssxz-text-secondary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -278,16 +278,16 @@ onMounted(() => void loadPage())
 }
 
 .reseller-table th {
-  background: light-dark(#f9fafb, #111827);
+  background: var(--ssxz-surface-sunken);
   padding: 0.75rem 1rem;
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-weight: 500;
 }
 
 .reseller-table td {
-  border-top: 1px solid light-dark(#e5e7eb, #374151);
+  border-top: 1px solid var(--ssxz-border);
   padding: 0.85rem 1rem;
-  color: light-dark(#4b5563, #d1d5db);
+  color: var(--ssxz-text-secondary);
 }
 
 .reseller-footer-action {
@@ -295,7 +295,7 @@ onMounted(() => void loadPage())
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-top: 1px solid light-dark(#e5e7eb, #374151);
+  border-top: 1px solid var(--ssxz-border);
   padding-top: 1.25rem;
 }
 
@@ -305,12 +305,12 @@ onMounted(() => void loadPage())
 }
 
 .reseller-footer-action strong {
-  color: light-dark(#111827, #f9fafb);
+  color: var(--ssxz-text);
   font-size: 0.92rem;
 }
 
 .reseller-footer-action span {
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   font-size: 0.8rem;
 }
 
@@ -319,7 +319,7 @@ onMounted(() => void loadPage())
   justify-items: center;
   gap: 1rem;
   padding: 2.5rem;
-  color: light-dark(#6b7280, #9ca3af);
+  color: var(--ssxz-text-muted);
   text-align: center;
 }
 
