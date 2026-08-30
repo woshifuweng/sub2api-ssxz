@@ -185,7 +185,7 @@
               />
               <Icon v-else name="dollar" size="sm" />
               <span>{{
-                transferring ? t("affiliate.settling") : t("affiliate.transfer")
+                transferring ? t("affiliate.transfer.transferring") : t("affiliate.transfer.button")
               }}</span>
             </LiquidButton>
           </div>

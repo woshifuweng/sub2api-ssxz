@@ -748,7 +748,7 @@ export interface ApiKey {
   group_id: number | null
   group_ids?: number[]
   allowed_models?: string[]
-  status: 'active' | 'inactive' | 'quota_exhausted' | 'expired'
+  status: 'active' | 'disabled' | 'inactive' | 'quota_exhausted' | 'expired'
   ip_whitelist: string[]
   ip_blacklist: string[]
   last_used_at: string | null

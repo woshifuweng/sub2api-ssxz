@@ -51,6 +51,7 @@ const messages: Record<string, string> = {
   'keys.rateLimitColumn': 'Rate Limit',
   'keys.searchPlaceholder': 'Search name or key...',
   'keys.status.active': 'Active',
+  'keys.status.disabled': 'Disabled',
   'keys.status.expired': 'Expired',
   'keys.status.inactive': 'Inactive',
   'keys.status.quota_exhausted': 'Quota exhausted',
@@ -318,6 +319,21 @@ describe('user KeysView column settings', () => {
     ])
     expect(visibleColumnKeys(wrapper)).not.toContain('rate_limit')
     expect(visibleColumnKeys(wrapper)).not.toContain('last_used_at')
+  })
+
+  it('renders the backend disabled status as a translated label', async () => {
+    listKeys.mockResolvedValue({
+      items: [{ ...createApiKey(), status: 'disabled' }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+
+    const wrapper = await mountView()
+
+    expect((wrapper.vm as unknown as { statusFilterOptions: Array<{ value: string; label: string }> }).statusFilterOptions)
+      .toContainEqual({ value: 'disabled', label: 'Disabled' })
   })
 
   it('loads every bindable group for key creation instead of only groups exposed by channels', async () => {

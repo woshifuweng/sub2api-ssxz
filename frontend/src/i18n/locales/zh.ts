@@ -955,6 +955,7 @@ export default {
     noExpiration: '永久有效',
     status: {
       active: '活跃',
+      disabled: '已停用',
       inactive: '已停用',
       quota_exhausted: '额度耗尽',
       expired: '已过期'

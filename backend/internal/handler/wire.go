@@ -9,6 +9,16 @@ import (
 	"github.com/google/wire"
 )
 
+func ProvideDashboardHandler(
+	dashboardService *service.DashboardService,
+	aggregationService *service.DashboardAggregationService,
+	operationsService *service.DashboardOperationsService,
+) *admin.DashboardHandler {
+	handler := admin.NewDashboardHandler(dashboardService, aggregationService)
+	handler.SetOperationsService(operationsService)
+	return handler
+}
+
 // ProvideAdminHandlers creates the AdminHandlers struct
 func ProvideAdminHandlers(
 	dashboardHandler *admin.DashboardHandler,
@@ -255,7 +265,7 @@ var ProviderSet = wire.NewSet(
 	NewChatWorkspaceHandler,
 
 	// Admin handlers
-	admin.NewDashboardHandler,
+	ProvideDashboardHandler,
 	admin.NewUserHandler,
 	admin.NewGroupHandler,
 	admin.ProvideAccountHandler,

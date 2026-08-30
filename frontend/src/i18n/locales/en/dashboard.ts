@@ -616,6 +616,10 @@ export default {
   affiliate: {
     title: 'Affiliate Rebates',
     description: 'Invite new users and convert your rebate quota into account balance',
+    rateClosedValue: 'Not available',
+    notOpenTitle: 'The referral program is not currently open',
+    notOpenBody: 'Existing historical rewards remain available. New rates and your referral link will appear here when the program reopens.',
+    noRecordsTitle: 'No invite history yet',
     yourCode: 'Your Affiliate Code',
     inviteLink: 'Invite Link',
     copyCode: 'Copy Code',

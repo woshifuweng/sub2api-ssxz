@@ -5,8 +5,9 @@ import { createPinia, setActivePinia } from 'pinia'
 import type { DashboardStats } from '@/types'
 import DashboardView from '../DashboardView.vue'
 
-const { getSnapshotV2, getUserUsageTrend, getUserSpendingRanking } = vi.hoisted(() => ({
+const { getSnapshotV2, getOperationsSummary, getUserUsageTrend, getUserSpendingRanking } = vi.hoisted(() => ({
   getSnapshotV2: vi.fn(),
+  getOperationsSummary: vi.fn(),
   getUserUsageTrend: vi.fn(),
   getUserSpendingRanking: vi.fn()
 }))
@@ -15,6 +16,7 @@ vi.mock('@/api/admin', () => ({
   adminAPI: {
     dashboard: {
       getSnapshotV2,
+      getOperationsSummary,
       getUserUsageTrend,
       getUserSpendingRanking
     }
@@ -91,6 +93,7 @@ describe('admin DashboardView', () => {
     setActivePinia(createPinia())
 
     getSnapshotV2.mockReset()
+    getOperationsSummary.mockReset()
     getUserUsageTrend.mockReset()
     getUserSpendingRanking.mockReset()
 
@@ -98,6 +101,19 @@ describe('admin DashboardView', () => {
       stats: createDashboardStats(),
       trend: [],
       models: []
+    })
+    getOperationsSummary.mockResolvedValue({
+      start_date: '',
+      end_date: '',
+      new_customers: 0,
+      customer_actual_cost: 0,
+      invitee_recharge_amount: 0,
+      rebate_pending: 0,
+      rebate_available: 0,
+      rebate_transferred: 0,
+      active_customers: 0,
+      active_api_keys: 0,
+      top_customers: []
     })
     getUserUsageTrend.mockResolvedValue({
       trend: [],

@@ -416,7 +416,7 @@ interface Props {
   platform: GroupPlatform | null
   allowedModels?: string[]
   allowMessagesDispatch?: boolean
-  keyStatus?: 'active' | 'inactive' | 'quota_exhausted' | 'expired'
+  keyStatus?: 'active' | 'disabled' | 'inactive' | 'quota_exhausted' | 'expired'
 }
 
 interface Emits {
@@ -612,6 +612,7 @@ const isMaskedApiKey = (key: string) => key === '[redacted]' || key.includes('..
 const hasUsableApiKey = computed(() => props.apiKey !== '' && !isMaskedApiKey(props.apiKey))
 const keyStatusWarning = computed(() => {
   switch (props.keyStatus) {
+    case 'disabled':
     case 'inactive':
       return {
         titleKey: 'keys.useKeyModal.statusWarning.inactiveTitle',

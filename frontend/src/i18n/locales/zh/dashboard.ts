@@ -621,6 +621,10 @@ export default {
   affiliate: {
     title: '邀请返利',
     description: '邀请新用户注册，并将返利额度转入账户余额',
+    rateClosedValue: '暂未开放',
+    notOpenTitle: '当前邀请活动暂未开放',
+    notOpenBody: '现有历史奖励会继续保留；活动重新开放后，这里会显示新的邀请比例和专属链接。',
+    noRecordsTitle: '暂无邀请记录',
     yourCode: '我的邀请码',
     inviteLink: '邀请链接',
     copyCode: '复制邀请码',

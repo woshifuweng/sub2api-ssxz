@@ -2140,6 +2140,7 @@ const groupFilterOptions = computed(() => [
 const statusFilterOptions = computed(() => [
   { value: "", label: t("keys.allStatus") },
   { value: "active", label: t("keys.status.active") },
+  { value: "disabled", label: t("keys.status.disabled") },
   { value: "inactive", label: t("keys.status.inactive") },
   { value: "quota_exhausted", label: t("keys.status.quota_exhausted") },
   { value: "expired", label: t("keys.status.expired") },
@@ -2490,7 +2491,7 @@ const editKey = (key: ApiKey) => {
     enable_model_restriction: (key.allowed_models?.length || 0) > 0,
     allowed_models: [...(key.allowed_models || [])],
     status:
-      key.status === "quota_exhausted" || key.status === "expired"
+      key.status === "disabled" || key.status === "quota_exhausted" || key.status === "expired"
         ? "inactive"
         : key.status,
     use_custom_key: false,

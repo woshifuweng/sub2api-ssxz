@@ -953,6 +953,7 @@ export default {
     noExpiration: 'Never',
     status: {
       active: 'Active',
+      disabled: 'Disabled',
       inactive: 'Inactive',
       quota_exhausted: 'Quota Exhausted',
       expired: 'Expired',
