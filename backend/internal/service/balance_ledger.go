@@ -8,16 +8,19 @@ import (
 )
 
 const (
-	BalanceLedgerEventAdminCredit = "admin_credit"
-	BalanceLedgerEventAdminDebit  = "admin_debit"
-	BalanceLedgerEventAdminSet    = "admin_set"
-	BalanceLedgerEventRedeemCode  = "redeem_code"
-	BalanceLedgerEventAdminRedeem = "admin_redeem"
+	BalanceLedgerEventAdminCredit    = "admin_credit"
+	BalanceLedgerEventAdminDebit     = "admin_debit"
+	BalanceLedgerEventAdminSet       = "admin_set"
+	BalanceLedgerEventRedeemCode     = "redeem_code"
+	BalanceLedgerEventAdminRedeem    = "admin_redeem"
+	BalanceLedgerEventUsageShortfall = "usage_shortfall"
 
-	BalanceLedgerActorAdmin = "admin"
-	BalanceLedgerActorUser  = "user"
+	BalanceLedgerActorAdmin  = "admin"
+	BalanceLedgerActorUser   = "user"
+	BalanceLedgerActorSystem = "system"
 
-	BalanceLedgerSourceRedeemCode = "redeem_code"
+	BalanceLedgerSourceRedeemCode   = "redeem_code"
+	BalanceLedgerSourceUsageBilling = "usage_billing"
 )
 
 // BalanceLedgerRepository stores and reads immutable balance changes.
