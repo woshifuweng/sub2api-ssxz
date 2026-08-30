@@ -11,17 +11,21 @@
           <Icon name="menu" size="md" />
         </button>
 
-        <div class="flex items-start gap-3">
-          <div class="hidden lg:block">
-            <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
+        <div class="app-header-title-cluster">
+          <div class="app-header-title-copy hidden lg:block">
+            <h1 class="text-gray-900 dark:text-white">
               {{ pageTitle }}
             </h1>
-            <p v-if="pageDescription" class="text-xs text-gray-500 dark:text-dark-400">
+            <p v-if="pageDescription" class="text-gray-500 dark:text-dark-400">
               {{ pageDescription }}
             </p>
           </div>
 
-          <VersionBadge v-if="authStore.isAdmin" :runtime-actions-enabled="false" class="mt-0.5" />
+          <VersionBadge
+            v-if="authStore.isAdmin"
+            :runtime-actions-enabled="false"
+            class="app-header-version"
+          />
         </div>
       </div>
 
@@ -324,14 +328,44 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .app-header-shell {
-  min-height: var(--ssxz-header-height, 56px);
+  box-sizing: border-box;
+  height: var(--ssxz-header-height, 56px);
   background: var(--ssxz-surface-raised);
   border-color: var(--ssxz-border);
   color: var(--ssxz-text);
 }
 
 .app-header-inner {
-  min-height: var(--ssxz-header-height, 56px);
+  height: var(--ssxz-header-height, 56px);
+}
+
+.app-header-title-cluster {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.app-header-title-copy {
+  min-width: 0;
+}
+
+.app-header-title-copy h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.app-header-title-copy p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.app-header-version {
+  flex: none;
+  align-self: center;
 }
 
 .header-action-link {
