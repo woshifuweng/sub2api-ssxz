@@ -196,6 +196,68 @@ func TestEstimateOpenAITokenRequestCostUsesServerCapPricingWithoutCap(t *testing
 	require.Greater(t, oversizedCost.ActualCost, 3.0)
 }
 
+func TestOpenAIPreflightCostAllowsFiveDollarCustomerAtGroupRate(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Default.RateMultiplier = 1
+	openAISvc := &OpenAIGatewayService{billingService: NewBillingService(cfg, nil), cfg: cfg}
+	groupID := int64(305)
+	apiKey := &APIKey{
+		UserID:  1,
+		GroupID: &groupID,
+		Group: &Group{
+			ID:             groupID,
+			RateMultiplier: 0.35,
+		},
+	}
+	user := &User{ID: 1}
+	body := []byte(`{"model":"gpt-5.5","input":"hello"}`)
+
+	groupCost, err := openAISvc.EstimateOpenAITokenRequestCost(context.Background(), "gpt-5.5", body, apiKey, user)
+	require.NoError(t, err)
+	require.NotNil(t, groupCost)
+
+	fullPriceCost, err := openAISvc.EstimateOpenAITokenRequestCost(context.Background(), "gpt-5.5", body, nil, user)
+	require.NoError(t, err)
+	require.NotNil(t, fullPriceCost)
+	require.InDelta(t, fullPriceCost.ActualCost*0.35, groupCost.ActualCost, 0.000001)
+	require.Greater(t, groupCost.ActualCost, 0.01)
+	require.Less(t, groupCost.ActualCost, 5.0)
+
+	tests := []struct {
+		name    string
+		balance float64
+		wantErr bool
+	}{
+		{name: "zero balance", balance: 0, wantErr: true},
+		{name: "one cent below estimate", balance: groupCost.ActualCost - 0.01, wantErr: true},
+		{name: "exact estimate", balance: groupCost.ActualCost},
+		{name: "five dollar customer", balance: 5},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			billingPreflight := &BillingCacheService{
+				userRepo: &estimatedCostEligibilityUserRepo{user: &User{ID: user.ID, Balance: tt.balance}},
+				cfg:      cfg,
+			}
+			err := billingPreflight.CheckBillingEligibilityForCost(
+				context.Background(),
+				user,
+				apiKey,
+				apiKey.Group,
+				nil,
+				PlatformOpenAI,
+				groupCost.ActualCost,
+			)
+			if tt.wantErr {
+				require.ErrorIs(t, err, ErrInsufficientBalance)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestEstimateOpenAIImageCostUsesResolvedGroupPrice(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Default.RateMultiplier = 1
