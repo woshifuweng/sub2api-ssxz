@@ -9,6 +9,11 @@ set -a
 . "$env_file"
 set +a
 
+# The script may be launched from /root while PostgreSQL runs as an unprivileged
+# user. Use a traversable directory so sudo does not emit misleading chdir
+# warnings before every query.
+cd /
+
 if [[ -z "${DATABASE_DBNAME:-}" || "$DATABASE_DBNAME" == "$prod_db" ]]; then
   echo "invalid staging database selection" >&2
   exit 1
