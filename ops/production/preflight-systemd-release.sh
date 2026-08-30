@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 release_root="${RELEASE_ROOT:-/opt/sub2api/releases}"
 current_link="${CURRENT_LINK:-/opt/sub2api/current}"
 binary_relative="${BINARY_RELATIVE:-sub2api}"
@@ -12,6 +13,8 @@ preflight_port="${PREFLIGHT_PORT:-18081}"
 preflight_health_url="${PREFLIGHT_HEALTH_URL:-http://127.0.0.1:${preflight_port}/health}"
 production_health_url="${PRODUCTION_HEALTH_URL:-http://127.0.0.1:8080/health}"
 health_timeout="${HEALTH_TIMEOUT_SECONDS:-30}"
+backup_file="${BACKUP_FILE:-}"
+restore_verify_script="${RESTORE_VERIFY_SCRIPT:-$script_dir/verify-backup-restore.sh}"
 
 log() { printf '[release] %s\n' "$*"; }
 die() { printf '[release] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -21,6 +24,9 @@ die() { printf '[release] ERROR: %s\n' "$*" >&2; exit 1; }
 [[ "$preflight_port" =~ ^[1-9][0-9]{0,4}$ ]] || die "PREFLIGHT_PORT must be a valid port"
 preflight_port_number=$((10#$preflight_port))
 (( preflight_port_number <= 65535 )) || die "PREFLIGHT_PORT must be at most 65535"
+[[ -n "$backup_file" ]] || die "BACKUP_FILE is required; release requires a verified restorable backup"
+[[ -f "$backup_file" ]] || die "release backup file not found: $backup_file"
+[[ -x "$restore_verify_script" ]] || die "backup restore verifier is missing or not executable: $restore_verify_script"
 
 for command_name in realpath runuser curl systemctl ln mv readlink chown; do
   command -v "$command_name" >/dev/null 2>&1 || die "required command not found: $command_name"
@@ -60,6 +66,9 @@ run_as_service() {
 run_as_service test -r "$production_env_file" || die "production environment is unreadable by $service_user"
 run_as_service test -r "$preflight_env_file" || die "preflight environment is unreadable by $service_user"
 run_as_service test -x "$candidate_binary" || die "candidate binary is not executable by $service_user"
+
+"$restore_verify_script" "$backup_file" || die "backup restore verification failed"
+log "backup restore verification passed"
 
 version_output="$(run_as_service "$candidate_binary" -version 2>&1)" || die "candidate version check failed"
 [[ -n "$version_output" ]] || die "candidate version output is empty"
