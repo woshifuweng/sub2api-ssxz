@@ -3,20 +3,20 @@
 > 这份文件只回答一个问题：**生产现在跑的是哪条代码线。**
 > 它是唯一权威。与 `HANDOFF.md`、memory、`VERSION` 文件冲突时**以本文件为准**；
 > 本文件与生产实测冲突时**以实测为准**，并立刻回来改这份文件。
-> 最后核验：2026-08-31 生产 `.14` 低余额预检修复保持在线，staging `.15` 完成数据、凭据、Redis、网络和自主后台任务隔离；两套服务分别验收后（核验方法见文末，任何人可自行复跑）
+> 最后核验：2026-08-31 生产已正式切换到 `.16` 全站护栏版，staging `.15` 继续保持数据、凭据、Redis、网络和自主后台任务隔离；两套服务均为 active、`NRestarts=0`，生产公网健康页与管理页为 HTTP 200（核验方法见文末，任何人可自行复跑）。
 
 ## 当前生产与预发布摘要（2026-08-31）
 
-- 生产版本：`0.1.183-ssxz.20260830.14`；源码 commit `1e0707afe4407e6f72d68eb6968e59e999721eef`，远端分支 `fork/codex/fix-production-balance-preflight`。
-- 生产二进制：SHA256 `ea9497b974aa9e94ecdf0812d4f06da3e7e666b19c0afb20d2c95cbd18bf3bea`，MD5 `f528ea7f3d869f787d2a3a19d2c9123d`，`120,979,616` bytes。
-- 生产连续性：本轮隔离预发布期间没有替换或重启生产；最终 MainPID `2067320`，启动时间 `2026-08-31 00:06:35 CST`，公网 `/health` 为 HTTP 200。
-- `.14` 修复边界：余额预检改为按模型实际价格、`16384` 输出上限和客户分组倍率估算；不再用固定 `$10` 门槛误拦低余额客户，同时保留真实余额不足拦截、实际扣费和欠费保护。
+- 生产版本：`0.1.183-ssxz.20260831.16`；源码 commit `2e0483442dd53b5c2f34d7cef0eb2e35433d98fb`，远端分支 `fork/codex/staging-isolation-20260831`。
+- 生产二进制：SHA256 `09352b3ebb8c58a9df40d81fc92565388a873225c9b327b906adf183ff35324a`，`121,102,496` bytes；嵌入式前端入口 `assets/index-CIu9QCgZ.js`。
+- 生产连续性：`/opt/sub2api/current` 原子指向 `/opt/sub2api/releases/0.1.183-ssxz.20260831.16`；MainPID `2200355`，启动时间 `2026-08-31 05:59:31 CST`，`active` / `NRestarts=0` / `ExecMainStatus=0`，公网健康页与管理页均为 HTTP 200。
+- `.16` 发布边界：保留 `.14` 的低余额按真实预估费用放行修复，并正式纳入支付/提现幂等、计费欠款台账、API Key 空分组与失效主分组 fail-closed、数据库字段宽度收敛及完整发布门禁；没有改变客户余额、分组倍率或现有 Key。
 - 预发布版本：`0.1.183-ssxz.20260831.15`；运行代码 commit `1f7beef9bcc7bd42c80daf29d11a0d9692888aa6`，隔离验收脚本最终 commit `5bd1b2bae`，远端分支 `fork/codex/staging-isolation-20260831`。
-- 预发布二进制：SHA256 `4a770dfdb2fa7ac4716aa24e3bc3a036196cb5f2591f35b01958dd6273f925e8`，`113,393,824` bytes；MainPID `2109534`，启动时间 `2026-08-31 01:45:57 CST`，本机 `/health` 为 HTTP 200。
+- 预发布二进制：SHA256 `4a770dfdb2fa7ac4716aa24e3bc3a036196cb5f2591f35b01958dd6273f925e8`，`113,393,824` bytes；MainPID `2175037`，启动时间 `2026-08-31 04:55:02 CST`，`active` / `NRestarts=0` / `ExecMainStatus=0`，本机 `/health` 为 HTTP 200。
 - 隔离结果：预发布使用独立数据库和 `6380` Redis；systemd 只允许 loopback 网络；生产/预发布 API Key 与密码哈希重叠均为 0；除两个专用测试账号外，真实账号、登录凭据、会话、Provider、支付、通知和监控配置均被清除或禁用。
 - 后台任务：增加 `BACKGROUND_JOBS_ENABLED` 总开关；预发布显式关闭定价拉取、版本同步、备份、探测、刷新、报表等自主任务。启动日志错误 0、禁止任务启动痕迹 0、非本机连接 0；生产未配置该开关，原有行为不变。
-- 回滚基线：完整隔离前快照在 `/opt/sub2api/backups/staging-isolation-before-20260831-0100`；`.15` 替换前二进制在 `/opt/sub2api/backups/staging-code-gate-before-20260831-0145`，两套校验清单均已通过。
-- 数据边界：本轮只修改预发布数据和运行配置，没有修改生产数据库、客户余额、Key、分组、倍率、使用记录或 Provider；没有发送付费模型或图片请求。
+- 回滚基线：生产旧版保留在 `/opt/sub2api/releases/0.1.183-ssxz.20260830.14`，生产数据库、二进制、配置和 systemd 快照在 `/opt/sub2api/backups/release-20260831T0555-v14-to-v15`；预发布隔离快照继续位于 `/opt/sub2api/backups/staging-isolation-before-20260831-0100` 和 `/opt/sub2api/backups/staging-code-gate-before-20260831-0145`。
+- 数据边界：生产只执行 4 条向后兼容 migration，`schema_migrations` 从 308 增至 312；上线前后用户、API Key、分组、账号与余额总和一致，没有发送付费模型或图片请求。
 
 ## 上一次生产摘要（2026-08-30 v0.1.183 SSXZ `.12` 合并版，已被 `.14` 覆盖）
 
@@ -1066,4 +1066,48 @@ ssh ssxz-server "cp -a /opt/sub2api/backups/sub2api-pre-i18nfix-20260817 /opt/su
 
 ```bash
 ssh ssxz-server "cp -a /opt/sub2api/backups/sub2api-pre-chatcompat-20260817-070746 /opt/sub2api/sub2api && systemctl restart sub2api"
+```
+
+## v0.1.183 全站护栏正式发布（2026-08-31）
+
+| 项目 | 值 |
+|---|---|
+| 正式版本 | `0.1.183-ssxz.20260831.16` |
+| 源码提交 | `2e0483442dd53b5c2f34d7cef0eb2e35433d98fb` |
+| 发布分支 | `codex/staging-isolation-20260831`（fork 已推送） |
+| 正式二进制 SHA-256 | `09352b3ebb8c58a9df40d81fc92565388a873225c9b327b906adf183ff35324a` |
+| 正式二进制大小 | `121,102,496 bytes` |
+| 前端入口 | `assets/index-CIu9QCgZ.js` |
+| 当前链接 | `/opt/sub2api/current -> /opt/sub2api/releases/0.1.183-ssxz.20260831.16` |
+| 旧版回滚目录 | `/opt/sub2api/releases/0.1.183-ssxz.20260830.14` |
+| 数据与配置快照 | `/opt/sub2api/backups/release-20260831T0555-v14-to-v15`（约 152MB） |
+| 数据库快照 SHA-256 | `e580b69553df7513e2cff07fb0f924a7c4e7b5d703bef043565474632139c429` |
+| PostgreSQL globals SHA-256 | `62e4e390a86f3d66671d96fd6d05eb44b13ffe97a5d229a74825539c6788d697` |
+| 服务状态 | `active` / `NRestarts=0` / `ExecMainStatus=0` |
+
+发布门禁与验收：
+
+- GitHub CI 全绿：前端 lint/typecheck/全量测试、Go 单元测试、PostgreSQL/Redis 集成测试、golangci-lint、发布脚本测试全部通过。
+- Security Scan 全绿：后端 `govulncheck`、前端生产依赖审计通过。
+- 正式 `/health`、公网管理页和图片工作台均返回 200；管理页确认加载 `assets/index-CIu9QCgZ.js`。
+- 企业现有 Key 调用无计费 `/v1/models` 返回 200；活跃 Key 指向失效主分组的数量为 0。
+- 上线前后用户、API Key、分组、账号、余额总和均一致：`338 / 493 / 22 / 118 / 1212.56897219`。
+- 启动后无 panic、fatal、error、持续 5xx；未发起任何会产生模型或图片费用的请求。
+
+数据库升级：
+
+- 新增并执行 `232_reseller_withdrawal_idempotency.sql`、`233_payment_order_idempotency.sql`、`234_usage_billing_shortfall_ledger.sql`、`235_align_signup_source_width.sql`。
+- `schema_migrations` 从 308 增至 312；`users.signup_source` 从生产历史路径的 `VARCHAR(20)` 安全扩宽到 `VARCHAR(32)`，与新装数据库一致。
+- 支付订单 3 个幂等字段、返利结算幂等字段和 `usage_shortfall` 台账类型均已落库。
+
+发布过程说明：
+
+- 首个手工候选 `.15` 漏加官方发布配置要求的 `-tags=embed`，API 健康但新打开管理页返回 404。发现后立即将 `current` 原子切回 `.14`，管理页恢复 200；数据库新增字段均向后兼容，不需要回滚数据。
+- 随后严格按 GoReleaser/Dockerfile 的 `-tags=embed` 生成 `.16`，先在隔离端口确认健康页、管理页及前端入口，再正式切换。
+- 错误的 `.15` 已移出 releases，隔离保存在本次快照目录；临时上传文件已清理。
+
+回滚方式（数据库新增项保持，不做破坏性降级）：
+
+```bash
+ssh ssxz-server "sudo ln -s /opt/sub2api/releases/0.1.183-ssxz.20260830.14 /opt/sub2api/current.rollback && sudo mv -Tf /opt/sub2api/current.rollback /opt/sub2api/current && sudo systemctl restart sub2api"
 ```
