@@ -9,6 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const publicPaymentMaxBodySize = 64 << 10
+
 // RegisterPaymentRoutes registers all payment-related routes:
 // user-facing endpoints, webhook endpoints, and admin endpoints.
 func RegisterPaymentRoutes(
@@ -52,6 +54,8 @@ func RegisterPaymentRoutes(
 	// The legacy anonymous out_trade_no verify endpoint remains available as a
 	// persisted-state compatibility path for staggered upgrades.
 	public := v1.Group("/payment/public")
+	public.Use(middleware.RequestBodyLimit(publicPaymentMaxBodySize))
+	public.Use(panelRateLimiter.PublicIP())
 	{
 		public.POST("/orders/verify", paymentHandler.VerifyOrderPublic)
 		public.POST("/orders/resolve", paymentHandler.ResolveOrderPublicByResumeToken)
