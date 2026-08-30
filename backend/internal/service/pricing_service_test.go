@@ -1,7 +1,9 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,6 +12,50 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
 )
+
+type countingPricingRemoteClient struct {
+	calls int
+}
+
+func (c *countingPricingRemoteClient) FetchPricingJSON(context.Context, string) ([]byte, error) {
+	c.calls++
+	return nil, errors.New("unexpected remote pricing request")
+}
+
+func (c *countingPricingRemoteClient) FetchHashText(context.Context, string) (string, error) {
+	c.calls++
+	return "", errors.New("unexpected remote hash request")
+}
+
+func TestPricingPassiveInitializationNeverUsesRemote(t *testing.T) {
+	dataDir := t.TempDir()
+	fallbackDir := t.TempDir()
+	fallbackFile := filepath.Join(fallbackDir, "fallback.json")
+	require.NoError(t, os.WriteFile(fallbackFile, []byte(`{"test-model":{"input_cost_per_token":0.000001,"output_cost_per_token":0.000002}}`), 0o600))
+
+	remote := &countingPricingRemoteClient{}
+	svc := NewPricingService(&config.Config{Pricing: config.PricingConfig{
+		DataDir:      dataDir,
+		FallbackFile: fallbackFile,
+		RemoteURL:    "https://example.invalid/pricing.json",
+		HashURL:      "https://example.invalid/pricing.sha256",
+	}}, remote)
+
+	require.NoError(t, svc.InitializePassive())
+	require.Zero(t, remote.calls)
+	require.NotNil(t, svc.GetModelPricing("test-model"))
+
+	done := make(chan struct{})
+	go func() {
+		svc.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("passive pricing initialization must not start a scheduler")
+	}
+}
 
 func TestPricingSchedulerBlankRemoteURLDoesNotStart(t *testing.T) {
 	svc := NewPricingService(&config.Config{Pricing: config.PricingConfig{RemoteURL: "  \t  "}}, nil)
