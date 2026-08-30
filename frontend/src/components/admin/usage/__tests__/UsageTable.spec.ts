@@ -677,7 +677,8 @@ describe('admin UsageTable grouped details', () => {
           id: 801,
           request_id: 'req-mobile-grouped-801',
           api_key: { name: 'mobile-key' },
-          model: 'gpt-5.6-sol',
+          model: 'requested-model',
+          model_mapping_chain: 'requested-model→upstream-model',
           reasoning_effort: 'high',
           inbound_endpoint: '/v1/responses',
           ip_address: '121.35.47.43',
@@ -729,7 +730,8 @@ describe('admin UsageTable grouped details', () => {
         'latency',
         'created_at',
       ])
-      expect(wrapper.get('[data-field="model"]').text()).toContain('gpt-5.6-sol')
+      expect(wrapper.get('[data-field="model"]').text()).toContain('requested-model')
+      expect(wrapper.get('[data-field="model"]').text()).toContain('upstream-model')
       expect(wrapper.get('[data-field="model"]').text()).toContain('High')
       expect(wrapper.get('[data-field="endpoint"]').text()).toContain('/v1/responses')
       expect(wrapper.get('[data-field="endpoint"]').text()).toContain('121.35.47.43')
