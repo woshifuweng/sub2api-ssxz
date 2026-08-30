@@ -34,6 +34,7 @@ const {
 }))
 
 const messages: Record<string, string> = {
+  'admin.users.columnSettings': 'Column Settings',
   'common.actions': 'Actions',
   'common.name': 'Name',
   'common.refresh': 'Refresh',
@@ -60,6 +61,10 @@ const messages: Record<string, string> = {
   'keys.status.quota_exhausted': 'Quota exhausted',
   'keys.usage': 'Usage',
 }
+
+const HIDDEN_COLUMNS_STORAGE_KEY_V1 = 'ssxz-api-key-hidden-columns-v1'
+const HIDDEN_COLUMNS_STORAGE_KEY_V2 = 'ssxz-api-key-hidden-columns-v2'
+const LEGACY_HIDE_EXPIRATION_SUMMARY_KEY = 'ssxz-api-key-hide-expiration-summary-legacy-v1'
 
 vi.mock('@/api', () => ({
   keysAPI: {
@@ -400,8 +405,10 @@ describe('user KeysView column settings', () => {
     const wrapper = await mountView()
     const cell = wrapper.get('[data-test="status-expiry-cell"]')
 
+    expect(visibleColumnKeys(wrapper)).not.toContain('expires_at')
     expect(cell.text()).toContain('Active')
     expect(cell.text()).toContain('2030')
+    expect(localStorage.getItem(LEGACY_HIDE_EXPIRATION_SUMMARY_KEY)).toBeNull()
   })
 
   it('renders every combined default field in the native 390px mobile cards without a wide table', async () => {
@@ -426,6 +433,31 @@ describe('user KeysView column settings', () => {
     expect(wrapper.get('[data-field="status"]').text()).toContain('Status / Expires')
     expect(wrapper.get('[data-field="status"]').text()).toContain('No expiration')
     expect(wrapper.findAll('[data-field]').every((field) => field.classes().includes('min-w-0'))).toBe(true)
+    expect(source).not.toContain('overflow-x: clip')
+
+    wrapper.unmount()
+    viewport.remove()
+  })
+
+  it('lets the three English mobile page actions wrap within a 390px container without clipping', async () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/user/KeysView.vue'), 'utf8')
+    stubMobileMatchMedia()
+    const viewport = document.createElement('div')
+    viewport.style.width = '390px'
+    document.body.appendChild(viewport)
+    const wrapper = await mountView({ attachTo: viewport })
+
+    const actions = wrapper.get('.keys-page-actions')
+    expect(viewport.style.width).toBe('390px')
+    expect(actions.element.children).toHaveLength(3)
+    expect(actions.text()).toContain('Column Settings')
+    expect(actions.text()).toContain('Create API Key')
+    expect(source).toMatch(
+      /@media \(max-width: 767px\)[\s\S]*\.keys-page-actions\s*\{[\s\S]*width:\s*100%[\s\S]*flex-wrap:\s*wrap[\s\S]*justify-content:\s*flex-end/
+    )
+    expect(source).toMatch(
+      /\.keys-page-actions > :not\(:first-child\)[\s\S]*max-width:\s*100%[\s\S]*flex:\s*1 1 10rem/
+    )
     expect(source).not.toContain('overflow-x: clip')
 
     wrapper.unmount()
@@ -523,15 +555,18 @@ describe('user KeysView column settings', () => {
     await nextTick()
 
     expect(visibleColumnKeys(wrapper)).toContain('rate_limit')
-    expect(localStorage.getItem('ssxz-api-key-hidden-columns-v1')).toBe(
+    expect(localStorage.getItem(HIDDEN_COLUMNS_STORAGE_KEY_V2)).toBe(
       JSON.stringify(['expires_at', 'last_used_at'])
     )
   })
 
   it('keeps expiration as a default-hidden sortable column that can be enabled', async () => {
     listKeys.mockResolvedValue({
-      items: [{ ...createApiKey(), expires_at: '2030-01-02T03:04:05Z' }],
-      total: 1,
+      items: [
+        { ...createApiKey(), id: 1, expires_at: '2030-01-02T03:04:05Z' },
+        { ...createApiKey(), id: 2, expires_at: '2029-01-02T03:04:05Z' },
+      ],
+      total: 2,
       page: 1,
       page_size: 20,
       pages: 1,
@@ -548,16 +583,30 @@ describe('user KeysView column settings', () => {
     const expirationHeader = wrapper.get('th.keys-col-expires')
     expect(expirationHeader.text()).toContain('Expires')
     expect(expirationHeader.attributes('aria-sort')).toBe('none')
-    expect(wrapper.get('td.keys-col-expires').text()).toContain('2030')
+    expect(wrapper.findAll('td.keys-col-expires').map((cell) => cell.text())).toEqual([
+      expect.stringContaining('2030'),
+      expect.stringContaining('2029'),
+    ])
 
     await expirationHeader.trigger('click')
     expect(expirationHeader.attributes('aria-sort')).toBe('ascending')
+    expect(wrapper.findAll('td.keys-col-expires').map((cell) => cell.text())).toEqual([
+      expect.stringContaining('2029'),
+      expect.stringContaining('2030'),
+    ])
+
+    await expirationHeader.trigger('click')
+    expect(expirationHeader.attributes('aria-sort')).toBe('descending')
+    expect(wrapper.findAll('td.keys-col-expires').map((cell) => cell.text())).toEqual([
+      expect.stringContaining('2030'),
+      expect.stringContaining('2029'),
+    ])
     expect(table.classes()).toContain('keys-data-table--optional-columns-1')
   })
 
   it('expands the table by the number of enabled optional columns', async () => {
     const source = readFileSync(resolve(process.cwd(), 'src/views/user/KeysView.vue'), 'utf8')
-    const wrapper = await mountView()
+    const wrapper = await mountView({ realDataTable: true })
     const table = wrapper.findComponent({ name: 'DataTable' })
 
     expect(table.classes()).toContain('keys-data-table--optional-columns-0')
@@ -581,7 +630,7 @@ describe('user KeysView column settings', () => {
   })
 
   it('restores column preferences from localStorage on mount', async () => {
-    localStorage.setItem('ssxz-api-key-hidden-columns-v1', JSON.stringify(['group', 'created_at']))
+    localStorage.setItem(HIDDEN_COLUMNS_STORAGE_KEY_V2, JSON.stringify(['group', 'created_at']))
 
     const wrapper = await mountView()
 
@@ -597,37 +646,72 @@ describe('user KeysView column settings', () => {
   })
 
   it('migrates an old preference that hid status but kept expiration visible', async () => {
-    localStorage.setItem(
-      'ssxz-api-key-hidden-columns-v1',
-      JSON.stringify(['status'])
-    )
+    listKeys.mockResolvedValue({
+      items: [{ ...createApiKey(), expires_at: '2030-01-02T03:04:05Z' }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    localStorage.setItem(HIDDEN_COLUMNS_STORAGE_KEY_V1, JSON.stringify(['status']))
 
-    const wrapper = await mountView()
+    const wrapper = await mountView({ realDataTable: true })
 
-    expect(visibleColumnKeys(wrapper)).toEqual([
-      'name',
-      'group',
-      'usage',
-      'rate_limit',
-      'status',
-      'expires_at',
-      'last_used_at',
-      'created_at',
-      'actions',
-    ])
-    expect(localStorage.getItem('ssxz-api-key-hidden-columns-v1')).toBe(JSON.stringify([]))
+    expect(wrapper.get('td.keys-col-status').text()).toContain('Active')
+    expect(wrapper.get('td.keys-col-status').text()).not.toContain('2030')
+    expect(wrapper.get('td.keys-col-expires').text()).toContain('2030')
+    expect(localStorage.getItem(HIDDEN_COLUMNS_STORAGE_KEY_V2)).toBe(JSON.stringify([]))
+    expect(localStorage.getItem(LEGACY_HIDE_EXPIRATION_SUMMARY_KEY)).toBe('true')
   })
 
-  it('migrates the reverse old preference while keeping expiration hidden and status visible', async () => {
-    localStorage.setItem('ssxz-api-key-hidden-columns-v1', JSON.stringify(['expires_at']))
+  it('migrates an old hidden expiration preference without exposing its summary', async () => {
+    listKeys.mockResolvedValue({
+      items: [{ ...createApiKey(), expires_at: '2030-01-02T03:04:05Z' }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    localStorage.setItem(HIDDEN_COLUMNS_STORAGE_KEY_V1, JSON.stringify(['expires_at']))
 
     const wrapper = await mountView()
 
     expect(visibleColumnKeys(wrapper)).toContain('status')
     expect(visibleColumnKeys(wrapper)).not.toContain('expires_at')
-    expect(localStorage.getItem('ssxz-api-key-hidden-columns-v1')).toBe(
+    expect(wrapper.get('[data-test="status-expiry-cell"]').text()).not.toContain('2030')
+    expect(localStorage.getItem(HIDDEN_COLUMNS_STORAGE_KEY_V2)).toBe(
       JSON.stringify(['expires_at'])
     )
+    expect(localStorage.getItem(LEGACY_HIDE_EXPIRATION_SUMMARY_KEY)).toBe('true')
+  })
+
+  it('clears the legacy summary marker when expiration is toggled and never duplicates the date', async () => {
+    listKeys.mockResolvedValue({
+      items: [{ ...createApiKey(), expires_at: '2030-01-02T03:04:05Z' }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    localStorage.setItem(HIDDEN_COLUMNS_STORAGE_KEY_V1, JSON.stringify(['expires_at']))
+    const wrapper = await mountView({ realDataTable: true })
+
+    await wrapper.get('[data-testid="keys-column-settings-trigger"]').trigger('click')
+    await getButtonByText(wrapper, 'Expires').trigger('click')
+    await nextTick()
+
+    expect(wrapper.get('td.keys-col-status').text()).not.toContain('2030')
+    expect(wrapper.get('td.keys-col-expires').text()).toContain('2030')
+    expect(wrapper.get('tbody').text().match(/2030/g)).toHaveLength(1)
+    expect(localStorage.getItem(LEGACY_HIDE_EXPIRATION_SUMMARY_KEY)).toBeNull()
+
+    await getButtonByText(wrapper, 'Expires').trigger('click')
+    await nextTick()
+
+    expect(wrapper.find('td.keys-col-expires').exists()).toBe(false)
+    expect(wrapper.get('td.keys-col-status').text()).toContain('2030')
+    expect(wrapper.get('tbody').text().match(/2030/g)).toHaveLength(1)
+    expect(localStorage.getItem(LEGACY_HIDE_EXPIRATION_SUMMARY_KEY)).toBeNull()
   })
 
   it('does not include always-visible columns in the toggleable menu', async () => {

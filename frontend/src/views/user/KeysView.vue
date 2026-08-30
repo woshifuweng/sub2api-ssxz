@@ -85,7 +85,7 @@
         </template>
 
         <template #actions>
-          <div class="flex justify-end gap-3">
+          <div class="keys-page-actions">
             <LiquidButton
               @click="loadApiKeys"
               :disabled="loading"
@@ -387,20 +387,25 @@
                     {{ t("keys.status." + value) }}
                   </span>
                 </span>
-                <span
-                  v-if="row.expires_at"
-                  :class="[
-                    'text-xs',
-                    new Date(row.expires_at) < new Date()
-                      ? 'text-red-500 dark:text-red-400'
-                      : 'text-gray-400 dark:text-dark-400',
-                  ]"
-                >
-                  {{ formatDateTime(row.expires_at) }}
-                </span>
-                <span v-else class="text-xs text-gray-400 dark:text-dark-500">
-                  {{ t("keys.noExpiration") }}
-                </span>
+                <template v-if="showExpirationInStatusSummary">
+                  <span
+                    v-if="row.expires_at"
+                    :class="[
+                      'text-xs',
+                      new Date(row.expires_at) < new Date()
+                        ? 'text-red-500 dark:text-red-400'
+                        : 'text-gray-400 dark:text-dark-400',
+                    ]"
+                  >
+                    {{ formatDateTime(row.expires_at) }}
+                  </span>
+                  <span
+                    v-else
+                    class="text-xs text-gray-400 dark:text-dark-500"
+                  >
+                    {{ t("keys.noExpiration") }}
+                  </span>
+                </template>
               </div>
             </template>
 
@@ -1791,8 +1796,12 @@ const OPTIONAL_COLUMN_KEYS = [
   "last_used_at",
 ] as const;
 const DEFAULT_HIDDEN_COLUMNS = [...OPTIONAL_COLUMN_KEYS];
-const HIDDEN_COLUMNS_STORAGE_KEY = "ssxz-api-key-hidden-columns-v1";
+const HIDDEN_COLUMNS_STORAGE_KEY_V1 = "ssxz-api-key-hidden-columns-v1";
+const HIDDEN_COLUMNS_STORAGE_KEY_V2 = "ssxz-api-key-hidden-columns-v2";
+const LEGACY_HIDE_EXPIRATION_SUMMARY_KEY =
+  "ssxz-api-key-hide-expiration-summary-legacy-v1";
 const hiddenColumns = reactive<Set<string>>(new Set());
+const legacyHideExpirationSummary = ref(false);
 
 const toggleableColumns = computed(() =>
   allColumns.value.filter(
@@ -1809,44 +1818,81 @@ const visibleOptionalColumnCount = computed(
     OPTIONAL_COLUMN_KEYS.filter((key) => !hiddenColumns.has(key)).length,
 );
 
+const showExpirationInStatusSummary = computed(
+  () =>
+    !legacyHideExpirationSummary.value && hiddenColumns.has("expires_at"),
+);
+
+const normalizeHiddenColumns = (parsed: unknown): string[] => {
+  if (!Array.isArray(parsed))
+    throw new Error("Invalid API key column settings");
+  const hideableColumnKeys = new Set(
+    toggleableColumns.value.map((column) => column.key),
+  );
+  return [
+    ...new Set(
+      parsed.filter(
+        (key): key is string =>
+          typeof key === "string" && hideableColumnKeys.has(key),
+      ),
+    ),
+  ];
+};
+
 const loadSavedColumns = () => {
   hiddenColumns.clear();
+  legacyHideExpirationSummary.value = false;
   try {
-    const saved = localStorage.getItem(HIDDEN_COLUMNS_STORAGE_KEY);
-    const parsed = saved ? JSON.parse(saved) : DEFAULT_HIDDEN_COLUMNS;
-    if (!Array.isArray(parsed))
-      throw new Error("Invalid API key column settings");
-    const hideableColumnKeys = new Set(
-      toggleableColumns.value.map((column) => column.key),
-    );
-    const normalized = [
-      ...new Set(
-        parsed.filter(
-          (key): key is string =>
-            typeof key === "string" && hideableColumnKeys.has(key),
-        ),
-      ),
-    ];
-    normalized.forEach((key) => hiddenColumns.add(key));
-    if (saved && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
+    const savedV2 = localStorage.getItem(HIDDEN_COLUMNS_STORAGE_KEY_V2);
+    if (savedV2) {
+      const parsed = JSON.parse(savedV2);
+      const normalized = normalizeHiddenColumns(parsed);
+      normalized.forEach((key) => hiddenColumns.add(key));
+      if (JSON.stringify(parsed) !== JSON.stringify(normalized)) {
+        localStorage.setItem(
+          HIDDEN_COLUMNS_STORAGE_KEY_V2,
+          JSON.stringify(normalized),
+        );
+      }
+      legacyHideExpirationSummary.value =
+        localStorage.getItem(LEGACY_HIDE_EXPIRATION_SUMMARY_KEY) === "true";
+      return;
+    }
+
+    const savedV1 = localStorage.getItem(HIDDEN_COLUMNS_STORAGE_KEY_V1);
+    if (savedV1) {
+      const normalized = normalizeHiddenColumns(JSON.parse(savedV1));
+      normalized.forEach((key) => hiddenColumns.add(key));
       localStorage.setItem(
-        HIDDEN_COLUMNS_STORAGE_KEY,
+        HIDDEN_COLUMNS_STORAGE_KEY_V2,
         JSON.stringify(normalized),
       );
+      legacyHideExpirationSummary.value = true;
+      localStorage.setItem(LEGACY_HIDE_EXPIRATION_SUMMARY_KEY, "true");
+      return;
     }
+
+    DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key));
+    localStorage.removeItem(LEGACY_HIDE_EXPIRATION_SUMMARY_KEY);
   } catch {
     DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key));
+    legacyHideExpirationSummary.value = false;
+    localStorage.removeItem(LEGACY_HIDE_EXPIRATION_SUMMARY_KEY);
   }
 };
 
 const saveColumns = () => {
   localStorage.setItem(
-    HIDDEN_COLUMNS_STORAGE_KEY,
+    HIDDEN_COLUMNS_STORAGE_KEY_V2,
     JSON.stringify([...hiddenColumns]),
   );
 };
 
 const toggleColumn = (key: string) => {
+  if (key === "expires_at") {
+    legacyHideExpirationSummary.value = false;
+    localStorage.removeItem(LEGACY_HIDE_EXPIRATION_SUMMARY_KEY);
+  }
   if (hiddenColumns.has(key)) hiddenColumns.delete(key);
   else hiddenColumns.add(key);
   saveColumns();
@@ -3336,6 +3382,13 @@ onUnmounted(() => {
   gap: 0.75rem;
 }
 
+.keys-page-actions {
+  display: flex;
+  min-width: 0;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
 .keys-page-surface--workbench :deep(.table-page-layout) {
   height: auto;
   gap: 1rem;
@@ -3754,6 +3807,25 @@ onUnmounted(() => {
 }
 
 @media (max-width: 767px) {
+  .keys-page-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .keys-page-actions > :not(:first-child) {
+    min-width: 0;
+    max-width: 100%;
+    flex: 1 1 10rem;
+  }
+
+  .keys-page-actions > .relative > button,
+  .keys-page-actions > button:not(:first-child) {
+    width: 100%;
+    max-width: 100%;
+    justify-content: center;
+  }
+
   .keys-access-row {
     align-items: flex-start;
     flex-direction: column;
