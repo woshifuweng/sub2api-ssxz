@@ -337,6 +337,34 @@ describe('useAppStore', () => {
   // --- 版本检查 ---
 
   describe('版本检查', () => {
+    it('普通 rc 构建升级到正式版时保留后端更新判断', async () => {
+      vi.mocked(checkUpdates).mockResolvedValue(createVersionInfo({
+        current_version: '1.2.3-rc.1',
+        latest_version: '1.2.3',
+        has_update: true,
+      }))
+      const store = useAppStore()
+
+      const result = await store.fetchVersion()
+
+      expect(store.hasUpdate).toBe(true)
+      expect(result?.has_update).toBe(true)
+    })
+
+    it('普通 alpha 构建升级到 beta 时保留后端更新判断', async () => {
+      vi.mocked(checkUpdates).mockResolvedValue(createVersionInfo({
+        current_version: '1.2.3-alpha.1',
+        latest_version: '1.2.4-beta.1',
+        has_update: false,
+      }))
+      const store = useAppStore()
+
+      const result = await store.fetchVersion()
+
+      expect(store.hasUpdate).toBe(false)
+      expect(result?.has_update).toBe(false)
+    })
+
     it('当前 SSXZ 构建与 latest 数字基础版相同时不提示更新', async () => {
       vi.mocked(checkUpdates).mockResolvedValue(createVersionInfo({
         current_version: '0.1.183-ssxz.20260830.10',
@@ -381,7 +409,7 @@ describe('useAppStore', () => {
 
     it('按数字而不是字符串比较多位版本号', async () => {
       vi.mocked(checkUpdates).mockResolvedValue(createVersionInfo({
-        current_version: '1.9.9',
+        current_version: '1.9.9-ssxz.20260830.10',
         latest_version: '1.10.0',
         has_update: false,
       }))
@@ -394,9 +422,9 @@ describe('useAppStore', () => {
     })
 
     it.each([
-      ['dev-build', '1.2.3', true],
-      ['1.2.3', 'latest', false],
-    ])('版本无法解析时回退后端判断（current=%s, latest=%s）', async (current, latest, fallback) => {
+      ['dev-build', '1.2.3', false],
+      ['1.2.3-ssxz.1', 'latest', true],
+    ])('非 SSXZ current 或 latest 无法解析时回退后端判断（current=%s, latest=%s）', async (current, latest, fallback) => {
       vi.mocked(checkUpdates).mockResolvedValue(createVersionInfo({
         current_version: current,
         latest_version: latest,

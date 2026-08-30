@@ -27,8 +27,13 @@ function parseBaseVersion(version: string): number[] | null {
   return match ? match[1].split('.').map(Number) : null
 }
 
+function parseSsxzBaseVersion(version: string): number[] | null {
+  const match = version.trim().match(/^v?(\d+(?:\.\d+)*)-ssxz(?:[.-][0-9a-z]+)*$/i)
+  return match ? match[1].split('.').map(Number) : null
+}
+
 function resolveHasUpdate(current: string, latest: string, fallback: boolean): boolean {
-  const currentParts = parseBaseVersion(current)
+  const currentParts = parseSsxzBaseVersion(current)
   const latestParts = parseBaseVersion(latest)
   if (!currentParts || !latestParts) return fallback
 
