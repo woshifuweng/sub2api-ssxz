@@ -266,6 +266,15 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 			return
 		}
 	}
+	idempotencyKey, err := service.NormalizeIdempotencyKey(c.GetHeader("Idempotency-Key"))
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if idempotencyKey == "" {
+		response.ErrorFrom(c, service.ErrIdempotencyKeyRequired)
+		return
+	}
 
 	mobile := isMobile(c)
 	if req.IsMobile != nil {
@@ -286,10 +295,17 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 		OrderType:       req.OrderType,
 		PlanID:          req.PlanID,
 		Locale:          c.GetHeader("Accept-Language"),
+		IdempotencyKey:  idempotencyKey,
 	})
 	if err != nil {
+		if retryAfter := service.RetryAfterSecondsFromError(err); retryAfter > 0 {
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+		}
 		response.ErrorFrom(c, err)
 		return
+	}
+	if result.IdempotencyReplayed {
+		c.Header("X-Idempotency-Replayed", "true")
 	}
 	response.Success(c, result)
 }

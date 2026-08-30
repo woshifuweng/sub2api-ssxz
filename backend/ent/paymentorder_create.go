@@ -155,6 +155,40 @@ func (_c *PaymentOrderCreate) SetNillableQrCodeImg(v *string) *PaymentOrderCreat
 	return _c
 }
 
+// SetIdempotencyKey sets the "idempotency_key" field.
+func (_c *PaymentOrderCreate) SetIdempotencyKey(v string) *PaymentOrderCreate {
+	_c.mutation.SetIdempotencyKey(v)
+	return _c
+}
+
+// SetNillableIdempotencyKey sets the "idempotency_key" field if the given value is not nil.
+func (_c *PaymentOrderCreate) SetNillableIdempotencyKey(v *string) *PaymentOrderCreate {
+	if v != nil {
+		_c.SetIdempotencyKey(*v)
+	}
+	return _c
+}
+
+// SetIdempotencyRequestHash sets the "idempotency_request_hash" field.
+func (_c *PaymentOrderCreate) SetIdempotencyRequestHash(v string) *PaymentOrderCreate {
+	_c.mutation.SetIdempotencyRequestHash(v)
+	return _c
+}
+
+// SetNillableIdempotencyRequestHash sets the "idempotency_request_hash" field if the given value is not nil.
+func (_c *PaymentOrderCreate) SetNillableIdempotencyRequestHash(v *string) *PaymentOrderCreate {
+	if v != nil {
+		_c.SetIdempotencyRequestHash(*v)
+	}
+	return _c
+}
+
+// SetIdempotencyResponse sets the "idempotency_response" field.
+func (_c *PaymentOrderCreate) SetIdempotencyResponse(v map[string]interface{}) *PaymentOrderCreate {
+	_c.mutation.SetIdempotencyResponse(v)
+	return _c
+}
+
 // SetOrderType sets the "order_type" field.
 func (_c *PaymentOrderCreate) SetOrderType(v string) *PaymentOrderCreate {
 	_c.mutation.SetOrderType(v)
@@ -609,6 +643,16 @@ func (_c *PaymentOrderCreate) check() error {
 			return &ValidationError{Name: "payment_trade_no", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.payment_trade_no": %w`, err)}
 		}
 	}
+	if v, ok := _c.mutation.IdempotencyKey(); ok {
+		if err := paymentorder.IdempotencyKeyValidator(v); err != nil {
+			return &ValidationError{Name: "idempotency_key", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.idempotency_key": %w`, err)}
+		}
+	}
+	if v, ok := _c.mutation.IdempotencyRequestHash(); ok {
+		if err := paymentorder.IdempotencyRequestHashValidator(v); err != nil {
+			return &ValidationError{Name: "idempotency_request_hash", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.idempotency_request_hash": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.OrderType(); !ok {
 		return &ValidationError{Name: "order_type", err: errors.New(`ent: missing required field "PaymentOrder.order_type"`)}
 	}
@@ -752,6 +796,18 @@ func (_c *PaymentOrderCreate) createSpec() (*PaymentOrder, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.QrCodeImg(); ok {
 		_spec.SetField(paymentorder.FieldQrCodeImg, field.TypeString, value)
 		_node.QrCodeImg = &value
+	}
+	if value, ok := _c.mutation.IdempotencyKey(); ok {
+		_spec.SetField(paymentorder.FieldIdempotencyKey, field.TypeString, value)
+		_node.IdempotencyKey = &value
+	}
+	if value, ok := _c.mutation.IdempotencyRequestHash(); ok {
+		_spec.SetField(paymentorder.FieldIdempotencyRequestHash, field.TypeString, value)
+		_node.IdempotencyRequestHash = &value
+	}
+	if value, ok := _c.mutation.IdempotencyResponse(); ok {
+		_spec.SetField(paymentorder.FieldIdempotencyResponse, field.TypeJSON, value)
+		_node.IdempotencyResponse = value
 	}
 	if value, ok := _c.mutation.OrderType(); ok {
 		_spec.SetField(paymentorder.FieldOrderType, field.TypeString, value)
@@ -1129,6 +1185,60 @@ func (u *PaymentOrderUpsert) UpdateQrCodeImg() *PaymentOrderUpsert {
 // ClearQrCodeImg clears the value of the "qr_code_img" field.
 func (u *PaymentOrderUpsert) ClearQrCodeImg() *PaymentOrderUpsert {
 	u.SetNull(paymentorder.FieldQrCodeImg)
+	return u
+}
+
+// SetIdempotencyKey sets the "idempotency_key" field.
+func (u *PaymentOrderUpsert) SetIdempotencyKey(v string) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldIdempotencyKey, v)
+	return u
+}
+
+// UpdateIdempotencyKey sets the "idempotency_key" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdateIdempotencyKey() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldIdempotencyKey)
+	return u
+}
+
+// ClearIdempotencyKey clears the value of the "idempotency_key" field.
+func (u *PaymentOrderUpsert) ClearIdempotencyKey() *PaymentOrderUpsert {
+	u.SetNull(paymentorder.FieldIdempotencyKey)
+	return u
+}
+
+// SetIdempotencyRequestHash sets the "idempotency_request_hash" field.
+func (u *PaymentOrderUpsert) SetIdempotencyRequestHash(v string) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldIdempotencyRequestHash, v)
+	return u
+}
+
+// UpdateIdempotencyRequestHash sets the "idempotency_request_hash" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdateIdempotencyRequestHash() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldIdempotencyRequestHash)
+	return u
+}
+
+// ClearIdempotencyRequestHash clears the value of the "idempotency_request_hash" field.
+func (u *PaymentOrderUpsert) ClearIdempotencyRequestHash() *PaymentOrderUpsert {
+	u.SetNull(paymentorder.FieldIdempotencyRequestHash)
+	return u
+}
+
+// SetIdempotencyResponse sets the "idempotency_response" field.
+func (u *PaymentOrderUpsert) SetIdempotencyResponse(v map[string]interface{}) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldIdempotencyResponse, v)
+	return u
+}
+
+// UpdateIdempotencyResponse sets the "idempotency_response" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdateIdempotencyResponse() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldIdempotencyResponse)
+	return u
+}
+
+// ClearIdempotencyResponse clears the value of the "idempotency_response" field.
+func (u *PaymentOrderUpsert) ClearIdempotencyResponse() *PaymentOrderUpsert {
+	u.SetNull(paymentorder.FieldIdempotencyResponse)
 	return u
 }
 
@@ -1827,6 +1937,69 @@ func (u *PaymentOrderUpsertOne) UpdateQrCodeImg() *PaymentOrderUpsertOne {
 func (u *PaymentOrderUpsertOne) ClearQrCodeImg() *PaymentOrderUpsertOne {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.ClearQrCodeImg()
+	})
+}
+
+// SetIdempotencyKey sets the "idempotency_key" field.
+func (u *PaymentOrderUpsertOne) SetIdempotencyKey(v string) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetIdempotencyKey(v)
+	})
+}
+
+// UpdateIdempotencyKey sets the "idempotency_key" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdateIdempotencyKey() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateIdempotencyKey()
+	})
+}
+
+// ClearIdempotencyKey clears the value of the "idempotency_key" field.
+func (u *PaymentOrderUpsertOne) ClearIdempotencyKey() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearIdempotencyKey()
+	})
+}
+
+// SetIdempotencyRequestHash sets the "idempotency_request_hash" field.
+func (u *PaymentOrderUpsertOne) SetIdempotencyRequestHash(v string) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetIdempotencyRequestHash(v)
+	})
+}
+
+// UpdateIdempotencyRequestHash sets the "idempotency_request_hash" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdateIdempotencyRequestHash() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateIdempotencyRequestHash()
+	})
+}
+
+// ClearIdempotencyRequestHash clears the value of the "idempotency_request_hash" field.
+func (u *PaymentOrderUpsertOne) ClearIdempotencyRequestHash() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearIdempotencyRequestHash()
+	})
+}
+
+// SetIdempotencyResponse sets the "idempotency_response" field.
+func (u *PaymentOrderUpsertOne) SetIdempotencyResponse(v map[string]interface{}) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetIdempotencyResponse(v)
+	})
+}
+
+// UpdateIdempotencyResponse sets the "idempotency_response" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdateIdempotencyResponse() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateIdempotencyResponse()
+	})
+}
+
+// ClearIdempotencyResponse clears the value of the "idempotency_response" field.
+func (u *PaymentOrderUpsertOne) ClearIdempotencyResponse() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearIdempotencyResponse()
 	})
 }
 
@@ -2759,6 +2932,69 @@ func (u *PaymentOrderUpsertBulk) UpdateQrCodeImg() *PaymentOrderUpsertBulk {
 func (u *PaymentOrderUpsertBulk) ClearQrCodeImg() *PaymentOrderUpsertBulk {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.ClearQrCodeImg()
+	})
+}
+
+// SetIdempotencyKey sets the "idempotency_key" field.
+func (u *PaymentOrderUpsertBulk) SetIdempotencyKey(v string) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetIdempotencyKey(v)
+	})
+}
+
+// UpdateIdempotencyKey sets the "idempotency_key" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdateIdempotencyKey() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateIdempotencyKey()
+	})
+}
+
+// ClearIdempotencyKey clears the value of the "idempotency_key" field.
+func (u *PaymentOrderUpsertBulk) ClearIdempotencyKey() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearIdempotencyKey()
+	})
+}
+
+// SetIdempotencyRequestHash sets the "idempotency_request_hash" field.
+func (u *PaymentOrderUpsertBulk) SetIdempotencyRequestHash(v string) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetIdempotencyRequestHash(v)
+	})
+}
+
+// UpdateIdempotencyRequestHash sets the "idempotency_request_hash" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdateIdempotencyRequestHash() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateIdempotencyRequestHash()
+	})
+}
+
+// ClearIdempotencyRequestHash clears the value of the "idempotency_request_hash" field.
+func (u *PaymentOrderUpsertBulk) ClearIdempotencyRequestHash() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearIdempotencyRequestHash()
+	})
+}
+
+// SetIdempotencyResponse sets the "idempotency_response" field.
+func (u *PaymentOrderUpsertBulk) SetIdempotencyResponse(v map[string]interface{}) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetIdempotencyResponse(v)
+	})
+}
+
+// UpdateIdempotencyResponse sets the "idempotency_response" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdateIdempotencyResponse() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateIdempotencyResponse()
+	})
+}
+
+// ClearIdempotencyResponse clears the value of the "idempotency_response" field.
+func (u *PaymentOrderUpsertBulk) ClearIdempotencyResponse() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearIdempotencyResponse()
 	})
 }
 

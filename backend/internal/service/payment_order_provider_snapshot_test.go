@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/stretchr/testify/require"
 )
@@ -68,11 +69,12 @@ func TestCreateOrderInTx_WritesProviderSnapshot(t *testing.T) {
 	order, err := svc.createOrderInTx(
 		ctx,
 		CreateOrderRequest{
-			UserID:      user.ID,
-			PaymentType: payment.TypeAlipay,
-			OrderType:   payment.OrderTypeBalance,
-			ClientIP:    "127.0.0.1",
-			SrcHost:     "app.example.com",
+			UserID:         user.ID,
+			PaymentType:    payment.TypeAlipay,
+			OrderType:      payment.OrderTypeBalance,
+			ClientIP:       "127.0.0.1",
+			SrcHost:        "app.example.com",
+			IdempotencyKey: "payment-order-snapshot-1",
 		},
 		&User{
 			ID:       user.ID,
@@ -105,10 +107,49 @@ func TestCreateOrderInTx_WritesProviderSnapshot(t *testing.T) {
 	require.Equal(t, strconv.FormatInt(instance.ID, 10), order.ProviderSnapshot["provider_instance_id"])
 	require.Equal(t, payment.TypeAlipay, order.ProviderSnapshot["provider_key"])
 	require.Equal(t, "redirect", order.ProviderSnapshot["payment_mode"])
+	require.NotNil(t, order.IdempotencyKey)
+	require.Equal(t, "payment-order-snapshot-1", *order.IdempotencyKey)
+	require.NotNil(t, order.IdempotencyRequestHash)
+	require.Len(t, *order.IdempotencyRequestHash, 64)
 	require.NotContains(t, order.ProviderSnapshot, "config")
 	require.NotContains(t, order.ProviderSnapshot, "secretKey")
 	require.NotContains(t, order.ProviderSnapshot, "supported_types")
 	require.NotContains(t, order.ProviderSnapshot, "instance_name")
+}
+
+func TestCreateOrderInTxRejectsDuplicateUserIdempotencyKey(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	user, err := client.User.Create().
+		SetEmail("idempotency@example.com").
+		SetPasswordHash("hash").
+		SetUsername("idempotency-user").
+		Save(ctx)
+	require.NoError(t, err)
+
+	svc := &PaymentService{entClient: client}
+	req := CreateOrderRequest{
+		UserID:         user.ID,
+		Amount:         10,
+		PaymentType:    payment.TypeAlipay,
+		OrderType:      payment.OrderTypeBalance,
+		ClientIP:       "127.0.0.1",
+		SrcHost:        "app.example.com",
+		IdempotencyKey: "payment-order-duplicate-1",
+	}
+	userRecord := &User{ID: user.ID, Email: user.Email, Username: user.Username}
+	cfg := &PaymentConfig{MaxPendingOrders: 3, OrderTimeoutMin: 30}
+
+	_, err = svc.createOrderInTx(ctx, req, userRecord, nil, cfg, 10, 10, 0, 10, nil)
+	require.NoError(t, err)
+	_, err = svc.createOrderInTx(ctx, req, userRecord, nil, cfg, 10, 10, 0, 10, nil)
+	require.Error(t, err)
+
+	count, err := client.PaymentOrder.Query().
+		Where(paymentorder.UserIDEQ(user.ID), paymentorder.IdempotencyKeyEQ(req.IdempotencyKey)).
+		Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
 }
 
 func TestBuildPaymentOrderProviderSnapshot_UsesWxpayJSAPIAppIDForOpenIDOrders(t *testing.T) {

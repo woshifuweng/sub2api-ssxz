@@ -37,4 +37,22 @@ describe('payment api', () => {
       resume_token: 'resume-token-123',
     })
   })
+
+  it('forwards the create-order idempotency key', async () => {
+    await paymentAPI.createOrder({
+      amount: 10,
+      payment_type: 'alipay',
+      order_type: 'balance',
+    }, { idempotencyKey: 'payment-order-1' })
+
+    expect(post).toHaveBeenCalledWith(
+      '/payment/orders',
+      {
+        amount: 10,
+        payment_type: 'alipay',
+        order_type: 'balance',
+      },
+      { headers: { 'Idempotency-Key': 'payment-order-1' } },
+    )
+  })
 })

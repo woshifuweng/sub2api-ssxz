@@ -73,6 +73,20 @@ func (PaymentOrder) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "text"}),
+		field.String("idempotency_key").
+			Optional().
+			Nillable().
+			MaxLen(128).
+			StructTag(`json:"-"`),
+		field.String("idempotency_request_hash").
+			Optional().
+			Nillable().
+			MaxLen(64).
+			StructTag(`json:"-"`),
+		field.JSON("idempotency_response", map[string]any{}).
+			Optional().
+			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
+			StructTag(`json:"-"`),
 
 		// 订单类型 & 订阅关联
 		field.String("order_type").
@@ -188,6 +202,9 @@ func (PaymentOrder) Indexes() []ent.Index {
 		index.Fields("out_trade_no").
 			Unique().
 			Annotations(entsql.IndexWhere("out_trade_no <> ''")),
+		index.Fields("user_id", "idempotency_key").
+			Unique().
+			Annotations(entsql.IndexWhere("idempotency_key IS NOT NULL AND idempotency_key <> ''")),
 		index.Fields("user_id"),
 		index.Fields("status"),
 		index.Fields("expires_at"),
