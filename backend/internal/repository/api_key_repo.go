@@ -1004,6 +1004,9 @@ func (r *apiKeyRepository) persistAPIKeyGroupIDs(ctx context.Context, keyID int6
 	if keyID <= 0 {
 		return nil
 	}
+	if groupIDs == nil {
+		groupIDs = []int64{}
+	}
 	_, err := r.sql.ExecContext(ctx, `UPDATE api_keys SET group_ids = $2 WHERE id = $1`, keyID, pq.Array(groupIDs))
 	return err
 }
