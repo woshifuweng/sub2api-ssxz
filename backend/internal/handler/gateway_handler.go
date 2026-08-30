@@ -2089,7 +2089,7 @@ func (h *GatewayHandler) CountTokens(c *gin.Context) {
 	sessionHash := h.gatewayService.GenerateSessionHash(parsedReq)
 
 	// 选择支持该模型的账号
-	selectedAPIKey, account, err := selectAccountForModelAcrossAPIKeyGroups(apiKey, sessionHash+":"+parsedReq.Model, func(groupID *int64) (*service.Account, error) {
+	_, account, err := selectAccountForModelAcrossAPIKeyGroups(apiKey, sessionHash+":"+parsedReq.Model, func(groupID *int64) (*service.Account, error) {
 		return h.gatewayService.SelectAccountForModel(c.Request.Context(), groupID, sessionHash, parsedReq.Model)
 	})
 	if err != nil {
@@ -2101,7 +2101,6 @@ func (h *GatewayHandler) CountTokens(c *gin.Context) {
 		h.errorResponse(c, cls.Status, cls.ErrType, cls.Message)
 		return
 	}
-	apiKey = selectedAPIKey
 	setOpsSelectedAccount(c, account.ID, account.Platform)
 
 	// 转发请求（不记录使用量）

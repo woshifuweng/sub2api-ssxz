@@ -184,7 +184,9 @@ func TestMigrationsRunner_AuthIdentityAndPaymentSchemaStayAligned(t *testing.T) 
 	tx := testTx(t)
 
 	requireColumn(t, tx, "auth_identity_migration_reports", "report_type", "character varying", 80, false)
-	requireColumn(t, tx, "users", "signup_source", "character varying", 20, false)
+	// Migration 085 creates the column first at VARCHAR(32); migration 108's
+	// ADD COLUMN IF NOT EXISTS intentionally preserves that established width.
+	requireColumn(t, tx, "users", "signup_source", "character varying", 32, false)
 	requireColumnDefaultContains(t, tx, "users", "signup_source", "email")
 	requireConstraintDefinitionContains(
 		t,

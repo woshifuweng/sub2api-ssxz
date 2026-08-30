@@ -367,7 +367,7 @@ func (r *resellerRepository) ListAgents(ctx context.Context, filter service.Agen
 	if err != nil {
 		return nil, 0, fmt.Errorf("reseller ListAgents query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []service.AgentSummary
 	for rows.Next() {
@@ -657,7 +657,7 @@ func (r *resellerRepository) ListMyRecruits(ctx context.Context, agentUserID int
 	if err != nil {
 		return nil, 0, fmt.Errorf("reseller ListMyRecruits query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []service.RecruitRecord
 	for rows.Next() {
@@ -763,7 +763,7 @@ SELECT ua.user_id,
 	if err != nil {
 		return nil, 0, fmt.Errorf("reseller ListAdminAgentRecruits query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make([]service.AdminRecruitRecord, 0, pageSize)
 	for rows.Next() {
@@ -904,7 +904,7 @@ LIMIT $3 OFFSET $4`, agentUserID, recruitUserID, pageSize, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("reseller ListRecruitUsageLogs query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	items := make([]service.RecruitUsageLog, 0)
 	for rows.Next() {
@@ -954,7 +954,7 @@ LIMIT $3 OFFSET $4`, agentUserID, recruitUserID, pageSize, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("reseller ListRecruitRecharges query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	items := make([]service.RecruitRecharge, 0)
 	for rows.Next() {
@@ -1032,7 +1032,7 @@ LIMIT $`+fmt.Sprint(len(args)-1)+` OFFSET $`+fmt.Sprint(len(args)), args...)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("reseller ListCommission query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	items := make([]service.CommissionRecord, 0)
 	for rows.Next() {
@@ -1266,7 +1266,7 @@ func (r *resellerRepository) ListWithdrawRequests(ctx context.Context, filter se
 	if err != nil {
 		return nil, 0, fmt.Errorf("reseller ListWithdrawRequests query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make([]service.WithdrawRequest, 0)
 	for rows.Next() {

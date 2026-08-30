@@ -83,16 +83,6 @@ func filterGeminiModelsForAPIKey(apiKey *service.APIKey, models []gemini.Model) 
 	return out
 }
 
-func filterAntigravityClaudeModelsForAPIKey(apiKey *service.APIKey, models []antigravity.ClaudeModel) []antigravity.ClaudeModel {
-	out := make([]antigravity.ClaudeModel, 0, len(models))
-	for _, model := range models {
-		if apiKeyAllowsRequestedModel(apiKey, model.ID) {
-			out = append(out, model)
-		}
-	}
-	return out
-}
-
 func filterAntigravityGeminiModelsForAPIKey(apiKey *service.APIKey, models []antigravity.GeminiModel) []antigravity.GeminiModel {
 	out := make([]antigravity.GeminiModel, 0, len(models))
 	for _, model := range models {

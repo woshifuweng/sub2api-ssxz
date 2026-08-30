@@ -11,7 +11,7 @@ import (
 )
 
 func fillRouteHandlerPointers(v reflect.Value) {
-	if v.Kind() != reflect.Ptr {
+	if v.Kind() != reflect.Pointer {
 		return
 	}
 	if v.IsNil() {
@@ -26,7 +26,7 @@ func fillRouteHandlerPointers(v reflect.Value) {
 	}
 	for i := 0; i < elem.NumField(); i++ {
 		field := elem.Field(i)
-		if field.Kind() == reflect.Ptr && field.CanSet() {
+		if field.Kind() == reflect.Pointer && field.CanSet() {
 			if field.IsNil() {
 				field.Set(reflect.New(field.Type().Elem()))
 			}

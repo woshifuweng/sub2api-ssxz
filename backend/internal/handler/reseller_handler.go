@@ -331,9 +331,9 @@ func (h *ResellerHandler) GetMyWithdrawals(c *gin.Context) {
 }
 
 type resellerWithdrawBody struct {
-	Amount      float64                `json:"amount"      binding:"required,gt=0"`
-	Method      string                 `json:"method"`
-	AccountInfo map[string]interface{} `json:"account_info"`
+	Amount      float64        `json:"amount" binding:"required,gt=0"`
+	Method      string         `json:"method"`
+	AccountInfo map[string]any `json:"account_info"`
 }
 
 // RequestWithdraw POST /api/v1/user/reseller/withdrawals
