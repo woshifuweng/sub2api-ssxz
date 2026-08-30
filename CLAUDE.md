@@ -11,7 +11,7 @@
   本地工作树：F:\CodexTemp\upstream-v183-ssxz-20260830\
   分支：codex/upstream-v183-ssxz-20260830
   远端：github.com/woshifuweng/sub2api-ssxz.git
-  当前生产 HEAD：c8f237129（版本 0.1.183-ssxz.20260830.11；上游 v0.1.183 底座 + SSXZ UI/业务覆盖、企业专属分组兼容、用户使用记录/API Key/后台顶部比例/版本提示完整性修复；生产身份仍以 DEPLOYED.md 为准）
+  当前生产 HEAD：b8cc97e50（版本 0.1.183-ssxz.20260830.12；上游 v0.1.183 底座 + SSXZ UI/业务覆盖、企业专属分组兼容、用户使用记录/API Key/后台顶部比例/版本提示完整性修复、图片工作台独立域名入口；生产身份仍以 DEPLOYED.md 为准）
 同名分支历史 P 线（已退役）：.codex-work/fix-client-brand-announcements2/
 ← backend/仍是空壳，P 线的路径规则不变；P 不再修改，只做回滚基线。
 ```
