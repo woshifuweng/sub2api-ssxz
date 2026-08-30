@@ -1,0 +1,800 @@
+// Package handler — ResellerHandler implements the 3-tier affiliate reseller system.
+//
+// Role routing:
+//   - Agent routes    /api/v1/user/reseller/           jwt_auth + agent role check in handler
+//   - Manager routes  /api/v1/user/reseller/manager/   jwt_auth + manager role check in handler
+//   - Owner routes    /api/v1/admin/reseller/           admin_auth (no extra role check)
+package handler
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
+	"github.com/Wei-Shaw/sub2api/internal/service"
+
+	"github.com/gin-gonic/gin"
+)
+
+// ResellerHandler handles reseller/affiliate hierarchy endpoints.
+type ResellerHandler struct {
+	svc            *service.ResellerService
+	totpService    *service.TotpService
+	userService    *service.UserService
+	settingService *service.SettingService
+}
+
+// NewResellerHandler constructs the handler. Called from wire.go.
+func NewResellerHandler(
+	svc *service.ResellerService,
+	totpService *service.TotpService,
+	userService *service.UserService,
+	settingService *service.SettingService,
+) *ResellerHandler {
+	return &ResellerHandler{
+		svc:            svc,
+		totpService:    totpService,
+		userService:    userService,
+		settingService: settingService,
+	}
+}
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+func (h *ResellerHandler) requireAdminUserSession(c *gin.Context) (int64, bool) {
+	if c.GetString("auth_method") == service.AuditAuthMethodAdminAPIKey {
+		response.Error(c, http.StatusForbidden, "admin API key cannot perform this operation")
+		return 0, false
+	}
+	sub, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok || sub.UserID <= 0 {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return 0, false
+	}
+	return sub.UserID, true
+}
+
+// requireAgent returns the caller's userID if they hold the agent role.
+func (h *ResellerHandler) requireAgent(c *gin.Context) (int64, bool) {
+	sub, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return 0, false
+	}
+	role, err := h.svc.GetUserRole(c.Request.Context(), sub.UserID)
+	if err != nil || (role != service.ResellerRoleAgent && role != service.ResellerRoleManager) {
+		response.Error(c, http.StatusForbidden, "requires agent role")
+		return 0, false
+	}
+	return sub.UserID, true
+}
+
+// requireManager returns the caller's userID if they hold the manager role.
+func (h *ResellerHandler) requireManager(c *gin.Context) (int64, bool) {
+	sub, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return 0, false
+	}
+	role, err := h.svc.GetUserRole(c.Request.Context(), sub.UserID)
+	if err != nil || role != service.ResellerRoleManager {
+		response.Error(c, http.StatusForbidden, "requires manager role")
+		return 0, false
+	}
+	return sub.UserID, true
+}
+
+// ── Agent endpoints (jwt_auth + agent role) ───────────────────────────────────
+
+// GetMyRole GET /api/v1/user/reseller/role — safe for any logged-in user.
+func parseCommissionDate(value string, endOfDay bool) (*time.Time, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, nil
+	}
+	if parsed, err := time.Parse(time.RFC3339, value); err == nil {
+		return &parsed, nil
+	}
+	parsed, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return nil, err
+	}
+	if endOfDay {
+		parsed = parsed.Add(24 * time.Hour)
+	}
+	return &parsed, nil
+}
+
+func fallbackInviteCode(userID int64) string {
+	return fmt.Sprintf("AGENT-%X", uint64(userID))
+}
+
+// InviteHandler GET /api/v1/user/reseller/invite.
+func (h *ResellerHandler) InviteHandler(c *gin.Context) {
+	userID, ok := h.requireAgent(c)
+	if !ok {
+		return
+	}
+	summary, err := h.svc.GetInviteSummary(c.Request.Context(), userID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	inviteCode := strings.TrimSpace(summary.InviteCode)
+	if inviteCode == "" {
+		inviteCode = fallbackInviteCode(userID)
+	}
+
+	baseURL := ""
+	if h.settingService != nil {
+		baseURL = strings.TrimRight(strings.TrimSpace(h.settingService.GetFrontendURL(c.Request.Context())), "/")
+	}
+	if baseURL == "" {
+		baseURL = strings.TrimRight(strings.TrimSpace(c.GetHeader("Origin")), "/")
+	}
+	if baseURL == "" {
+		if req := c.Request; req != nil {
+			scheme := "http"
+			if req.TLS != nil {
+				scheme = "https"
+			}
+			baseURL = scheme + "://" + req.Host
+		}
+	}
+	if baseURL == "" {
+		response.Error(c, http.StatusInternalServerError, "frontend URL is not configured")
+		return
+	}
+
+	response.Success(c, gin.H{
+		"invite_code":          inviteCode,
+		"invite_link":          baseURL + "/register?ref=" + url.QueryEscape(inviteCode),
+		"total_recruited":      summary.TotalRecruited,
+		"recruited_this_month": summary.RecruitedThisMonth,
+	})
+}
+
+// CommissionHandler GET /api/v1/user/reseller/commission.
+func (h *ResellerHandler) CommissionHandler(c *gin.Context) {
+	userID, ok := h.requireAgent(c)
+	if !ok {
+		return
+	}
+	page, pageSize := response.ParsePagination(c)
+	startAt, err := parseCommissionDate(c.Query("start_date"), false)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "invalid start_date")
+		return
+	}
+	endAt, err := parseCommissionDate(c.Query("end_date"), true)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "invalid end_date")
+		return
+	}
+	items, total, totalCommission, err := h.svc.ListCommission(c.Request.Context(), service.CommissionFilter{
+		AgentUserID: userID,
+		Page:        page,
+		PageSize:    pageSize,
+		StartAt:     startAt,
+		EndAt:       endAt,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	pages := (total + int64(pageSize) - 1) / int64(pageSize)
+	if pages < 1 {
+		pages = 1
+	}
+	response.Success(c, gin.H{
+		"items":                items,
+		"total":                total,
+		"total_commission_usd": totalCommission,
+		"page":                 page,
+		"page_size":            pageSize,
+		"pages":                pages,
+	})
+}
+
+func (h *ResellerHandler) GetMyRole(c *gin.Context) {
+	sub, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	role, err := h.svc.GetUserRole(c.Request.Context(), sub.UserID)
+	if errors.Is(err, service.ErrResellerRoleNotFound) {
+		response.Success(c, gin.H{"role": nil})
+		return
+	}
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"role": role})
+}
+
+// GetMyDashboard GET /api/v1/user/reseller/dashboard
+func (h *ResellerHandler) GetMyDashboard(c *gin.Context) {
+	userID, ok := h.requireAgent(c)
+	if !ok {
+		return
+	}
+	dash, err := h.svc.AgentDashboard(c.Request.Context(), userID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dash)
+}
+
+// GetMyRecruits GET /api/v1/user/reseller/recruits
+func (h *ResellerHandler) GetMyRecruits(c *gin.Context) {
+	userID, ok := h.requireAgent(c)
+	if !ok {
+		return
+	}
+	page, pageSize := response.ParsePagination(c)
+	items, total, err := h.svc.ListMyRecruits(c.Request.Context(), userID, page, pageSize)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, items, total, page, pageSize)
+}
+
+func parseRecruitUserID(c *gin.Context) (int64, bool) {
+	recruitUserID, err := strconv.ParseInt(c.Param("userId"), 10, 64)
+	if err != nil || recruitUserID <= 0 {
+		response.Error(c, http.StatusBadRequest, "invalid recruit user id")
+		return 0, false
+	}
+	return recruitUserID, true
+}
+
+// GetRecruitDetail GET /api/v1/user/reseller/recruits/:userId.
+func (h *ResellerHandler) GetRecruitDetail(c *gin.Context) {
+	userID, ok := h.requireAgent(c)
+	if !ok {
+		return
+	}
+	recruitUserID, ok := parseRecruitUserID(c)
+	if !ok {
+		return
+	}
+	detail, err := h.svc.GetRecruitDetail(c.Request.Context(), userID, recruitUserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, detail)
+}
+
+// GetRecruitLogs GET /api/v1/user/reseller/recruits/:userId/logs.
+func (h *ResellerHandler) GetRecruitLogs(c *gin.Context) {
+	userID, ok := h.requireAgent(c)
+	if !ok {
+		return
+	}
+	recruitUserID, ok := parseRecruitUserID(c)
+	if !ok {
+		return
+	}
+	page, pageSize := response.ParsePagination(c)
+	items, total, err := h.svc.ListRecruitUsageLogs(c.Request.Context(), userID, recruitUserID, page, pageSize)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, items, total, page, pageSize)
+}
+
+// GetRecruitRecharges GET /api/v1/user/reseller/recruits/:userId/recharges.
+func (h *ResellerHandler) GetRecruitRecharges(c *gin.Context) {
+	userID, ok := h.requireAgent(c)
+	if !ok {
+		return
+	}
+	recruitUserID, ok := parseRecruitUserID(c)
+	if !ok {
+		return
+	}
+	page, pageSize := response.ParsePagination(c)
+	items, total, err := h.svc.ListRecruitRecharges(c.Request.Context(), userID, recruitUserID, page, pageSize)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, items, total, page, pageSize)
+}
+
+// GetMyWithdrawals GET /api/v1/user/reseller/withdrawals
+func (h *ResellerHandler) GetMyWithdrawals(c *gin.Context) {
+	userID, ok := h.requireAgent(c)
+	if !ok {
+		return
+	}
+	page, pageSize := response.ParsePagination(c)
+	items, total, err := h.svc.GetWithdrawHistory(c.Request.Context(), userID, page, pageSize)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, items, total, page, pageSize)
+}
+
+type resellerWithdrawBody struct {
+	Amount      float64                `json:"amount"      binding:"required,gt=0"`
+	Method      string                 `json:"method"`
+	AccountInfo map[string]interface{} `json:"account_info"`
+}
+
+// RequestWithdraw POST /api/v1/user/reseller/withdraw
+func (h *ResellerHandler) RequestWithdraw(c *gin.Context) {
+	userID, ok := h.requireAgent(c)
+	if !ok {
+		return
+	}
+	var body resellerWithdrawBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Error(c, http.StatusBadRequest, "invalid request")
+		return
+	}
+	req, err := h.svc.RequestWithdraw(c.Request.Context(), userID, service.WithdrawInput{
+		Amount:      body.Amount,
+		Method:      body.Method,
+		AccountInfo: body.AccountInfo,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, req)
+}
+
+// CancelWithdrawal POST /api/v1/user/reseller/withdrawals/:id/cancel
+func (h *ResellerHandler) CancelWithdrawal(c *gin.Context) {
+	sub, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok || sub.UserID <= 0 {
+		response.Error(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	withdrawalID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || withdrawalID <= 0 {
+		response.Error(c, http.StatusBadRequest, "invalid withdrawal id")
+		return
+	}
+	if err := h.svc.CancelWithdrawal(c.Request.Context(), sub.UserID, withdrawalID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{
+		"id":     withdrawalID,
+		"status": service.WithdrawStatusCancelled,
+	})
+}
+
+// ── Manager endpoints (jwt_auth + manager role) ───────────────────────────────
+
+// GetManagerDashboard GET /api/v1/user/reseller/manager/dashboard
+func (h *ResellerHandler) GetManagerDashboard(c *gin.Context) {
+	managerID, ok := h.requireManager(c)
+	if !ok {
+		return
+	}
+	dash, err := h.svc.ManagerDashboard(c.Request.Context(), managerID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dash)
+}
+
+// ManagerListAgents GET /api/v1/user/reseller/manager/agents
+func (h *ResellerHandler) ManagerListAgents(c *gin.Context) {
+	managerID, ok := h.requireManager(c)
+	if !ok {
+		return
+	}
+	page, pageSize := response.ParsePagination(c)
+	items, total, err := h.svc.ListManagedAgents(c.Request.Context(), managerID, service.AgentFilter{
+		Search:   c.Query("search"),
+		Page:     page,
+		PageSize: pageSize,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, items, total, page, pageSize)
+}
+
+// ManagerGetAgentDetail GET /api/v1/user/reseller/manager/agents/:id
+func (h *ResellerHandler) ManagerGetAgentDetail(c *gin.Context) {
+	managerID, ok := h.requireManager(c)
+	if !ok {
+		return
+	}
+	agentID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || agentID <= 0 {
+		response.Error(c, http.StatusBadRequest, "invalid agent id")
+		return
+	}
+	detail, err := h.svc.GetManagedAgentDetail(c.Request.Context(), managerID, agentID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, detail)
+}
+
+type resellerGrantBody struct {
+	Notes string `json:"notes"`
+}
+
+// ManagerGrantAgent POST /api/v1/user/reseller/manager/agents/:id/grant
+// Manager can only grant the "agent" role.
+func (h *ResellerHandler) ManagerGrantAgent(c *gin.Context) {
+	managerID, ok := h.requireManager(c)
+	if !ok {
+		return
+	}
+	targetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || targetID <= 0 {
+		response.Error(c, http.StatusBadRequest, "invalid user id")
+		return
+	}
+	var body resellerGrantBody
+	_ = c.ShouldBindJSON(&body)
+	if err := h.svc.GrantManagedAgent(c.Request.Context(), targetID, managerID, body.Notes); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"user_id": targetID, "role": service.ResellerRoleAgent})
+}
+
+// ManagerRevokeAgent DELETE /api/v1/user/reseller/manager/agents/:id/role
+func (h *ResellerHandler) ManagerRevokeAgent(c *gin.Context) {
+	managerID, ok := h.requireManager(c)
+	if !ok {
+		return
+	}
+	targetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || targetID <= 0 {
+		response.Error(c, http.StatusBadRequest, "invalid user id")
+		return
+	}
+	if err := h.svc.RevokeManagedAgent(c.Request.Context(), targetID, managerID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"user_id": targetID})
+}
+
+// ManagerListWithdrawals GET /api/v1/user/reseller/manager/withdrawals (view only)
+func (h *ResellerHandler) ManagerListWithdrawals(c *gin.Context) {
+	managerID, ok := h.requireManager(c)
+	if !ok {
+		return
+	}
+	page, pageSize := response.ParsePagination(c)
+	items, total, err := h.svc.ListManagedWithdrawRequests(c.Request.Context(), managerID, service.WithdrawFilter{
+		Status:   c.Query("status"),
+		Page:     page,
+		PageSize: pageSize,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, items, total, page, pageSize)
+}
+
+// ── Owner (admin_auth) endpoints ──────────────────────────────────────────────
+
+type reviewWithdrawalBody struct {
+	Action string `json:"action" binding:"required"`
+	Reason string `json:"reason"`
+}
+
+// AdminReviewWithdrawal POST /api/v1/admin/reseller/withdrawals/:id/review
+func (h *ResellerHandler) AdminReviewWithdrawal(c *gin.Context) {
+	reviewerID, ok := h.requireAdminUserSession(c)
+	if !ok {
+		return
+	}
+	wid, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || wid <= 0 {
+		response.Error(c, http.StatusBadRequest, "invalid withdrawal id")
+		return
+	}
+	var body reviewWithdrawalBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Error(c, http.StatusBadRequest, "invalid request")
+		return
+	}
+	if err := h.svc.ReviewWithdrawRequest(
+		c.Request.Context(),
+		wid,
+		reviewerID,
+		body.Action,
+		body.Reason,
+	); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	status := service.WithdrawStatusRejected
+	if body.Action == service.WithdrawReviewActionApprove {
+		status = service.WithdrawStatusApproved
+	}
+	response.Success(c, gin.H{"id": wid, "status": status})
+}
+
+type adminGrantRoleBody struct {
+	Role  string `json:"role"  binding:"required"`
+	Notes string `json:"notes"`
+}
+
+// AdminGrantRole POST /api/v1/admin/reseller/agents/:id/role
+// Owner can grant any valid role (agent or agent_manager).
+func (h *ResellerHandler) AdminGrantRole(c *gin.Context) {
+	grantedBy, ok := h.requireAdminUserSession(c)
+	if !ok {
+		return
+	}
+	if !middleware2.EnforceStepUp(c, h.totpService, h.userService, h.settingService) {
+		return
+	}
+	targetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || targetID <= 0 {
+		response.Error(c, http.StatusBadRequest, "invalid user id")
+		return
+	}
+	var body adminGrantRoleBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Error(c, http.StatusBadRequest, "invalid request")
+		return
+	}
+	if err := h.svc.GrantRole(c.Request.Context(), targetID, grantedBy, body.Role, body.Notes); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"user_id": targetID, "role": body.Role})
+}
+
+// AdminRevokeRole DELETE /api/v1/admin/reseller/agents/:id/role
+func (h *ResellerHandler) AdminRevokeRole(c *gin.Context) {
+	updatedBy, ok := h.requireAdminUserSession(c)
+	if !ok {
+		return
+	}
+	if !middleware2.EnforceStepUp(c, h.totpService, h.userService, h.settingService) {
+		return
+	}
+	targetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || targetID <= 0 {
+		response.Error(c, http.StatusBadRequest, "invalid user id")
+		return
+	}
+	if err := h.svc.RevokeRole(c.Request.Context(), targetID, updatedBy); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"user_id": targetID})
+}
+
+// AdminListWithdrawals GET /api/v1/admin/reseller/withdrawals
+func (h *ResellerHandler) AdminListWithdrawals(c *gin.Context) {
+	page, pageSize := response.ParsePagination(c)
+	userID, err := parseOptionalPositiveInt64(c.Query("user_id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "invalid user id")
+		return
+	}
+	items, total, err := h.svc.ListAllWithdrawRequests(c.Request.Context(), service.WithdrawFilter{
+		UserID:   userID,
+		Status:   c.Query("status"),
+		Page:     page,
+		PageSize: pageSize,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, items, total, page, pageSize)
+}
+
+// AdminListAgents GET /api/v1/admin/reseller/agents
+func (h *ResellerHandler) AdminListAgents(c *gin.Context) {
+	page, pageSize := response.ParsePagination(c)
+	managerID, err := parseOptionalPositiveInt64(c.Query("manager_id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "invalid manager id")
+		return
+	}
+	items, total, err := h.svc.ListAgents(c.Request.Context(), service.AgentFilter{
+		IncludeAllRoles: true,
+		Search:          c.Query("search"),
+		Status:          c.Query("status"),
+		Role:            c.Query("role"),
+		ManagerID:       managerID,
+		Page:            page,
+		PageSize:        pageSize,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, items, total, page, pageSize)
+}
+
+// AdminGetAgentDetail GET /api/v1/admin/reseller/agents/:id
+func (h *ResellerHandler) AdminGetAgentDetail(c *gin.Context) {
+	targetID, ok := h.adminAgentTargetID(c)
+	if !ok {
+		return
+	}
+	detail, err := h.svc.GetAdminAgentDetail(c.Request.Context(), targetID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, detail)
+}
+
+// AdminGetAgentRecruits GET /api/v1/admin/reseller/agents/:id/recruits
+func (h *ResellerHandler) AdminGetAgentRecruits(c *gin.Context) {
+	targetID, ok := h.adminAgentTargetID(c)
+	if !ok {
+		return
+	}
+	page, pageSize := response.ParsePagination(c)
+	items, total, err := h.svc.AdminListAgentRecruits(c.Request.Context(), targetID, page, pageSize)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, items, total, page, pageSize)
+}
+
+type adminUpdateAgentBody struct {
+	Role         *string                    `json:"role"`
+	ManagerID    service.OptionalInt64      `json:"-"`
+	Notes        *string                    `json:"notes"`
+	RebatePolicy *service.RebatePolicyInput `json:"rebate_policy"`
+	Reason       string                     `json:"reason"`
+}
+
+func (b *adminUpdateAgentBody) UnmarshalJSON(data []byte) error {
+	type bodyAlias adminUpdateAgentBody
+	var alias bodyAlias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+	*b = adminUpdateAgentBody(alias)
+
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	raw, exists := fields["manager_id"]
+	if !exists {
+		return nil
+	}
+	b.ManagerID.Set = true
+	if string(raw) == "null" {
+		return nil
+	}
+	var managerID int64
+	if err := json.Unmarshal(raw, &managerID); err != nil {
+		return err
+	}
+	b.ManagerID.Value = &managerID
+	return nil
+}
+
+// AdminUpdateAgent PATCH /api/v1/admin/reseller/agents/:id
+func (h *ResellerHandler) AdminUpdateAgent(c *gin.Context) {
+	updatedBy, ok := h.requireAdminUserSession(c)
+	if !ok {
+		return
+	}
+	targetID, ok := h.adminAgentTargetID(c)
+	if !ok {
+		return
+	}
+	var body adminUpdateAgentBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Error(c, http.StatusBadRequest, "invalid request")
+		return
+	}
+	if body.Role != nil || body.ManagerID.Set || body.RebatePolicy != nil {
+		if !middleware2.EnforceStepUp(c, h.totpService, h.userService, h.settingService) {
+			return
+		}
+	}
+	detail, err := h.svc.UpdateAgent(c.Request.Context(), targetID, updatedBy, service.UpdateAgentInput{
+		Role:         body.Role,
+		ManagerID:    body.ManagerID,
+		Notes:        body.Notes,
+		RebatePolicy: body.RebatePolicy,
+		Reason:       body.Reason,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, detail)
+}
+
+type adminDisableAgentBody struct {
+	Reason string `json:"reason"`
+}
+
+// AdminDisableAgent POST /api/v1/admin/reseller/agents/:id/disable
+func (h *ResellerHandler) AdminDisableAgent(c *gin.Context) {
+	updatedBy, ok := h.requireAdminUserSession(c)
+	if !ok {
+		return
+	}
+	targetID, ok := h.adminAgentTargetID(c)
+	if !ok {
+		return
+	}
+	var body adminDisableAgentBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Error(c, http.StatusBadRequest, "invalid request")
+		return
+	}
+	detail, err := h.svc.DisableAgent(c.Request.Context(), targetID, updatedBy, body.Reason)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, detail)
+}
+
+// AdminEnableAgent POST /api/v1/admin/reseller/agents/:id/enable
+func (h *ResellerHandler) AdminEnableAgent(c *gin.Context) {
+	updatedBy, ok := h.requireAdminUserSession(c)
+	if !ok {
+		return
+	}
+	targetID, ok := h.adminAgentTargetID(c)
+	if !ok {
+		return
+	}
+	detail, err := h.svc.EnableAgent(c.Request.Context(), targetID, updatedBy)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, detail)
+}
+
+func (h *ResellerHandler) adminAgentTargetID(c *gin.Context) (int64, bool) {
+	targetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || targetID <= 0 {
+		response.Error(c, http.StatusBadRequest, "invalid agent id")
+		return 0, false
+	}
+	return targetID, true
+}
+
+func parseOptionalPositiveInt64(raw string) (int64, error) {
+	if raw == "" {
+		return 0, nil
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value <= 0 {
+		return 0, errors.New("invalid positive integer")
+	}
+	return value, nil
+}

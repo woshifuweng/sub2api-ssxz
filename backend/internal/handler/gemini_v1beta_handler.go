@@ -48,17 +48,23 @@ func (h *GatewayHandler) GeminiV1BetaListModels(c *gin.Context) {
 
 	// 强制 antigravity 模式：返回 antigravity 支持的模型列表
 	if forcePlatform == service.PlatformAntigravity {
-		c.JSON(http.StatusOK, antigravity.FallbackGeminiModelsList())
+		fallback := antigravity.FallbackGeminiModelsList()
+		fallback.Models = filterAntigravityGeminiModelsForAPIKey(apiKey, fallback.Models)
+		c.JSON(http.StatusOK, fallback)
 		return
 	}
 
-	account, err := h.geminiCompatService.SelectAccountForAIStudioEndpoints(c.Request.Context(), apiKey.GroupID)
+	_, account, err := selectAccountForModelAcrossAPIKeyGroups(apiKey, "gemini-ai-studio:list", func(groupID *int64) (*service.Account, error) {
+		return h.geminiCompatService.SelectAccountForAIStudioEndpoints(c.Request.Context(), groupID)
+	})
 	if err != nil {
 		// 没有 gemini 账户，检查是否有 antigravity 账户可用
 		hasAntigravity, _ := h.geminiCompatService.HasAntigravityAccounts(c.Request.Context(), apiKey.GroupID)
 		if hasAntigravity {
 			// antigravity 账户使用静态模型列表
-			c.JSON(http.StatusOK, gemini.FallbackModelsList())
+			fallback := gemini.FallbackModelsList()
+			fallback.Models = filterGeminiModelsForAPIKey(apiKey, fallback.Models)
+			c.JSON(http.StatusOK, fallback)
 			return
 		}
 		markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
@@ -72,8 +78,19 @@ func (h *GatewayHandler) GeminiV1BetaListModels(c *gin.Context) {
 		return
 	}
 	if shouldFallbackGeminiModels(res) {
-		c.JSON(http.StatusOK, gemini.FallbackModelsList())
+		fallback := gemini.FallbackModelsList()
+		fallback.Models = filterGeminiModelsForAPIKey(apiKey, fallback.Models)
+		c.JSON(http.StatusOK, fallback)
 		return
+	}
+	if len(apiKey.AllowedModels) > 0 {
+		var payload gemini.ModelsListResponse
+		if err := json.Unmarshal(res.Body, &payload); err == nil {
+			payload.Models = filterGeminiModelsForAPIKey(apiKey, payload.Models)
+			if body, marshalErr := json.Marshal(payload); marshalErr == nil {
+				res.Body = body
+			}
+		}
 	}
 	writeUpstreamResponse(c, res)
 }
@@ -104,6 +121,10 @@ func (h *GatewayHandler) GeminiV1BetaGetModel(c *gin.Context) {
 		googleError(c, http.StatusBadRequest, "Invalid model in URL")
 		return
 	}
+	if !apiKeyAllowsRequestedModel(apiKey, modelName) {
+		googleError(c, http.StatusForbidden, apiKeyModelNotAllowedMessage(modelName))
+		return
+	}
 	if resolvedModel, ok := service.ResolvedUpstreamModelFromContext(c.Request.Context()); ok && strings.TrimSpace(resolvedModel) != "" {
 		modelName = strings.TrimSpace(resolvedModel)
 	}
@@ -114,7 +135,9 @@ func (h *GatewayHandler) GeminiV1BetaGetModel(c *gin.Context) {
 		return
 	}
 
-	account, err := h.geminiCompatService.SelectAccountForAIStudioEndpoints(c.Request.Context(), apiKey.GroupID)
+	_, account, err := selectAccountForModelAcrossAPIKeyGroups(apiKey, "gemini-ai-studio:"+modelName, func(groupID *int64) (*service.Account, error) {
+		return h.geminiCompatService.SelectAccountForAIStudioEndpoints(c.Request.Context(), groupID)
+	})
 	if err != nil {
 		// 没有 gemini 账户，检查是否有 antigravity 账户可用
 		hasAntigravity, _ := h.geminiCompatService.HasAntigravityAccounts(c.Request.Context(), apiKey.GroupID)
@@ -181,6 +204,10 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		googleError(c, http.StatusBadRequest, "Invalid model in URL")
 		return
 	}
+	if !apiKeyAllowsRequestedModel(apiKey, modelName) {
+		googleError(c, http.StatusForbidden, apiKeyModelNotAllowedMessage(modelName))
+		return
+	}
 	if resolvedModel, ok := service.ResolvedUpstreamModelFromContext(c.Request.Context()); ok && strings.TrimSpace(resolvedModel) != "" {
 		modelName = strings.TrimSpace(resolvedModel)
 	}
@@ -243,7 +270,19 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	}
 
 	// 2) billing eligibility check (after wait)
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
+	estimatedActualCost := 0.0
+	parsedReq, parseErr := service.ParseGatewayRequest(service.NewRequestBodyRef(body), domain.PlatformGemini)
+	if parseErr != nil {
+		reqLog.Warn("gemini.request_cost_parse_failed", zap.Error(parseErr))
+	} else if parsedReq != nil {
+		parsedReq.Model = modelName
+		if estimatedCost, estimateErr := h.gatewayService.EstimateGatewayTokenRequestCost(c.Request.Context(), parsedReq, apiKey, apiKey.User); estimateErr != nil {
+			reqLog.Warn("gemini.request_cost_estimate_failed", zap.Error(estimateErr))
+		} else if estimatedCost != nil {
+			estimatedActualCost = estimatedCost.ActualCost
+		}
+	}
+	if err := h.billingCacheService.CheckBillingEligibilityForCost(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey), estimatedActualCost); err != nil {
 		reqLog.Info("gemini.billing_eligibility_check_failed", zap.Error(err))
 		status, _, message, retryAfter := billingErrorDetails(err)
 		if retryAfter > 0 {
@@ -258,7 +297,6 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	sessionHash := extractGeminiCLISessionHash(c, body)
 	if sessionHash == "" {
 		// Fallback: 使用通用的会话哈希生成逻辑（适用于其他客户端）
-		parsedReq, _ := service.ParseGatewayRequest(service.NewRequestBodyRef(body), domain.PlatformGemini)
 		if parsedReq != nil {
 			parsedReq.SessionContext = &service.SessionContext{
 				ClientIP:  ip.GetClientIP(c),
@@ -367,7 +405,9 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	}
 
 	for {
-		selection, err := h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), apiKey.GroupID, sessionKey, modelName, fs.FailedAccountIDs, "", int64(0)) // Gemini 不使用会话限制
+		groupSelection, err := selectGatewayAPIKeyGroup(apiKey, sessionKey+":"+modelName, func(groupID *int64) (*service.AccountSelectionResult, error) {
+			return h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), groupID, sessionKey, modelName, fs.FailedAccountIDs, "", int64(0)) // Gemini 不使用会话限制
+		})
 		if err != nil {
 			if len(fs.FailedAccountIDs) == 0 {
 				cls := classifyNoAccountErrorFromGin(c, h.gatewayService, apiKey, modelName, modelName, service.PlatformGemini)
@@ -395,6 +435,8 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 				return
 			}
 		}
+		apiKey = groupSelection.APIKey
+		selection := groupSelection.Selection
 		account := selection.Account
 		setOpsSelectedAccount(c, account.ID, account.Platform)
 

@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 20 // v20: group long-context and model pricing fields (force refresh of pre-fix snapshots)
+const apiKeyAuthSnapshotVersion = 21 // v21: API key model allowlist and multi-group routing fields
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -336,20 +336,22 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 		return nil
 	}
 	snapshot := &APIKeyAuthSnapshot{
-		Version:     apiKeyAuthSnapshotVersion,
-		APIKeyID:    apiKey.ID,
-		UserID:      apiKey.UserID,
-		GroupID:     apiKey.GroupID,
-		Name:        apiKey.Name,
-		Status:      apiKey.Status,
-		IPWhitelist: apiKey.IPWhitelist,
-		IPBlacklist: apiKey.IPBlacklist,
-		Quota:       apiKey.Quota,
-		QuotaUsed:   apiKey.QuotaUsed,
-		ExpiresAt:   apiKey.ExpiresAt,
-		RateLimit5h: apiKey.RateLimit5h,
-		RateLimit1d: apiKey.RateLimit1d,
-		RateLimit7d: apiKey.RateLimit7d,
+		Version:       apiKeyAuthSnapshotVersion,
+		APIKeyID:      apiKey.ID,
+		UserID:        apiKey.UserID,
+		GroupID:       apiKey.GroupID,
+		GroupIDs:      append([]int64(nil), apiKey.GroupIDs...),
+		AllowedModels: append([]string(nil), apiKey.AllowedModels...),
+		Name:          apiKey.Name,
+		Status:        apiKey.Status,
+		IPWhitelist:   apiKey.IPWhitelist,
+		IPBlacklist:   apiKey.IPBlacklist,
+		Quota:         apiKey.Quota,
+		QuotaUsed:     apiKey.QuotaUsed,
+		ExpiresAt:     apiKey.ExpiresAt,
+		RateLimit5h:   apiKey.RateLimit5h,
+		RateLimit1d:   apiKey.RateLimit1d,
+		RateLimit7d:   apiKey.RateLimit7d,
 		User: APIKeyAuthUserSnapshot{
 			ID:                         apiKey.User.ID,
 			Status:                     apiKey.User.Status,
@@ -432,6 +434,22 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			ProfitSafetyBuffer:              apiKey.Group.ProfitSafetyBuffer,
 		}
 	}
+	for _, group := range apiKey.Groups {
+		if group == nil {
+			continue
+		}
+		if snapshot.Group != nil && group.ID == snapshot.Group.ID {
+			snapshot.Groups = append(snapshot.Groups, *snapshot.Group)
+			continue
+		}
+		clone := *apiKey
+		clone.Group = group
+		clone.Groups = nil
+		secondary := s.snapshotFromAPIKey(ctx, &clone)
+		if secondary != nil && secondary.Group != nil {
+			snapshot.Groups = append(snapshot.Groups, *secondary.Group)
+		}
+	}
 	return snapshot
 }
 
@@ -440,20 +458,22 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 		return nil
 	}
 	apiKey := &APIKey{
-		ID:          snapshot.APIKeyID,
-		UserID:      snapshot.UserID,
-		GroupID:     snapshot.GroupID,
-		Key:         key,
-		Name:        snapshot.Name,
-		Status:      snapshot.Status,
-		IPWhitelist: snapshot.IPWhitelist,
-		IPBlacklist: snapshot.IPBlacklist,
-		Quota:       snapshot.Quota,
-		QuotaUsed:   snapshot.QuotaUsed,
-		ExpiresAt:   snapshot.ExpiresAt,
-		RateLimit5h: snapshot.RateLimit5h,
-		RateLimit1d: snapshot.RateLimit1d,
-		RateLimit7d: snapshot.RateLimit7d,
+		ID:            snapshot.APIKeyID,
+		UserID:        snapshot.UserID,
+		GroupID:       snapshot.GroupID,
+		GroupIDs:      append([]int64(nil), snapshot.GroupIDs...),
+		AllowedModels: append([]string(nil), snapshot.AllowedModels...),
+		Key:           key,
+		Name:          snapshot.Name,
+		Status:        snapshot.Status,
+		IPWhitelist:   snapshot.IPWhitelist,
+		IPBlacklist:   snapshot.IPBlacklist,
+		Quota:         snapshot.Quota,
+		QuotaUsed:     snapshot.QuotaUsed,
+		ExpiresAt:     snapshot.ExpiresAt,
+		RateLimit5h:   snapshot.RateLimit5h,
+		RateLimit1d:   snapshot.RateLimit1d,
+		RateLimit7d:   snapshot.RateLimit7d,
 		User: &User{
 			ID:                         snapshot.User.ID,
 			Status:                     snapshot.User.Status,
@@ -528,6 +548,21 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			ProfitMinMargin:                 snapshot.Group.ProfitMinMargin,
 			ProfitSafetyBuffer:              snapshot.Group.ProfitSafetyBuffer,
 		}
+	}
+	for i := range snapshot.Groups {
+		groupSnapshot := snapshot.Groups[i]
+		secondary := *snapshot
+		secondary.Group = &groupSnapshot
+		secondary.Groups = nil
+		converted := s.snapshotToAPIKey("", &secondary)
+		if converted != nil && converted.Group != nil {
+			apiKey.Groups = append(apiKey.Groups, converted.Group)
+		}
+	}
+	if apiKey.Group == nil && len(apiKey.Groups) > 0 {
+		apiKey.Group = apiKey.Groups[0]
+		groupID := apiKey.Group.ID
+		apiKey.GroupID = &groupID
 	}
 	s.compileAPIKeyIPRules(apiKey)
 	return apiKey

@@ -2,6 +2,7 @@ package dto
 
 import (
 	"encoding/json"
+	"sort"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -95,7 +96,9 @@ func TestUsageLogFromService_IncludesServiceTierForUserAndAdmin(t *testing.T) {
 	require.Equal(t, serviceTier, *userDTO.ServiceTier)
 	require.NotNil(t, userDTO.InboundEndpoint)
 	require.Equal(t, inboundEndpoint, *userDTO.InboundEndpoint)
-	require.Nil(t, userDTO.UpstreamEndpoint)
+	userJSON, err := json.Marshal(userDTO)
+	require.NoError(t, err)
+	require.NotContains(t, string(userJSON), "upstream_endpoint")
 	require.NotNil(t, adminDTO.ServiceTier)
 	require.Equal(t, serviceTier, *adminDTO.ServiceTier)
 	require.NotNil(t, adminDTO.InboundEndpoint)
@@ -251,6 +254,218 @@ func TestUsageLogFromService_PreservesHistoricalMissingImageSize(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(body), `"image_size":null`)
 	require.NotContains(t, string(body), `"image_size":"2K"`)
+}
+
+func TestUsageLogFromService_UserResponseIsExplicitWhitelist(t *testing.T) {
+	t.Parallel()
+
+	groupID := int64(17)
+	serviceTier := "priority"
+	reasoningEffort := "high"
+	inboundEndpoint := "/v1/chat/completions"
+	durationMs := 1200
+	firstTokenMs := 80
+	imageSize := "1024x1024"
+	imageInputSize := "512x512"
+	imageOutputSize := "1024x1024"
+	imageSizeSource := "output"
+	mediaType := "image"
+	userAgent := "safe-client/1.0"
+	ipAddress := "203.0.113.10"
+	sessionID := "session-safe"
+	billingMode := "token"
+	log := &service.UsageLog{
+		ID:                        99,
+		UserID:                    42,
+		APIKeyID:                  7,
+		AccountID:                 5,
+		RequestID:                 "req-safe",
+		Model:                     "served-private-model",
+		RequestedModel:            "gpt-5",
+		ServiceTier:               &serviceTier,
+		ReasoningEffort:           &reasoningEffort,
+		InboundEndpoint:           &inboundEndpoint,
+		GroupID:                   &groupID,
+		InputTokens:               10,
+		OutputTokens:              20,
+		CacheCreationTokens:       3,
+		CacheReadTokens:           4,
+		CacheCreation5mTokens:     1,
+		CacheCreation1hTokens:     2,
+		InputCost:                 0.01,
+		OutputCost:                0.02,
+		CacheCreationCost:         0.03,
+		CacheReadCost:             0.04,
+		TotalCost:                 0.10,
+		ActualCost:                0.08,
+		RateMultiplier:            0.8,
+		LongContextBillingApplied: true,
+		BillingType:               1,
+		RequestType:               service.RequestTypeSync,
+		DurationMs:                &durationMs,
+		FirstTokenMs:              &firstTokenMs,
+		ImageCount:                1,
+		ImageSize:                 &imageSize,
+		ImageInputSize:            &imageInputSize,
+		ImageOutputSize:           &imageOutputSize,
+		ImageInputTokens:          11,
+		ImageInputCost:            0.11,
+		ImageOutputTokens:         12,
+		ImageOutputCost:           0.12,
+		ImageSizeSource:           &imageSizeSource,
+		ImageSizeBreakdown:        map[string]int{"1024x1024": 1},
+		MediaType:                 &mediaType,
+		UserAgent:                 &userAgent,
+		IPAddress:                 &ipAddress,
+		SessionID:                 &sessionID,
+		CacheTTLOverridden:        true,
+		BillingMode:               &billingMode,
+		APIKey: &service.APIKey{
+			ID:   7,
+			Name: "safe-key-name",
+			Key:  "sk-secret-must-not-leak",
+		},
+		Group: &service.Group{
+			ID:              17,
+			Name:            "safe-group-name",
+			RateMultiplier:  1.7,
+			FallbackGroupID: &groupID,
+		},
+	}
+
+	body, err := json.Marshal(UsageLogFromService(log))
+	require.NoError(t, err)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(body, &payload))
+	keys := make([]string, 0, len(payload))
+	for key := range payload {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	expectedKeys := []string{
+		"actual_cost", "api_key", "billing_mode", "billing_type", "cache_creation_1h_tokens",
+		"cache_creation_5m_tokens", "cache_creation_cost", "cache_creation_tokens", "cache_read_cost",
+		"cache_read_tokens", "cache_ttl_overridden", "created_at", "duration_ms", "first_token_ms",
+		"group", "group_id", "id", "image_count", "image_input_cost", "image_input_size",
+		"image_input_tokens", "image_output_cost", "image_output_size", "image_output_tokens", "image_size",
+		"image_size_breakdown", "image_size_source", "inbound_endpoint", "input_cost", "input_tokens",
+		"ip_address", "long_context_billing_applied", "media_type", "model", "openai_ws_mode",
+		"output_cost", "output_tokens", "rate_multiplier", "reasoning_effort", "request_id", "request_type",
+		"service_tier", "session_id", "stream", "total_cost", "user_agent",
+	}
+	sort.Strings(expectedKeys)
+	require.Equal(t, expectedKeys, keys)
+	require.Equal(t, "gpt-5", payload["model"])
+	require.Equal(t, map[string]any{"id": float64(7), "name": "safe-key-name"}, payload["api_key"])
+	require.Equal(t, map[string]any{"id": float64(17), "name": "safe-group-name"}, payload["group"])
+}
+
+func TestUsageLogFromService_UserResponseForbidsOperationalFields(t *testing.T) {
+	t.Parallel()
+
+	upstreamModel := "upstream-private-model"
+	upstreamEndpoint := "/internal/upstream"
+	upstreamMismatch := true
+	channelID := int64(88)
+	mappingChain := "public-model→private-model"
+	billingTier := "internal-tier"
+	accountRateMultiplier := 1.5
+	accountStatsCost := 0.07
+	log := &service.UsageLog{
+		UserID:                42,
+		APIKeyID:              7,
+		AccountID:             5,
+		Model:                 "served-private-model",
+		RequestedModel:        "public-model",
+		UpstreamModel:         &upstreamModel,
+		UpstreamResponseModel: &upstreamModel,
+		UpstreamModelMismatch: &upstreamMismatch,
+		UpstreamEndpoint:      &upstreamEndpoint,
+		ChannelID:             &channelID,
+		ModelMappingChain:     &mappingChain,
+		BillingTier:           &billingTier,
+		AccountRateMultiplier: &accountRateMultiplier,
+		AccountStatsCost:      &accountStatsCost,
+		APIKey:                &service.APIKey{ID: 7, Name: "key", Key: "sk-secret"},
+		Group:                 &service.Group{ID: 17, Name: "group", FallbackGroupID: &channelID},
+		Account:               &service.Account{ID: 5, Name: "internal-account"},
+		User:                  &service.User{ID: 42},
+		Subscription:          &service.UserSubscription{ID: 3},
+	}
+
+	body, err := json.Marshal(UsageLogFromService(log))
+	require.NoError(t, err)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(body, &payload))
+	for _, forbidden := range []string{
+		"user_id", "api_key_id", "account_id", "account", "subscription_id", "subscription", "user",
+		"served_model", "upstream_model", "upstream_response_model", "upstream_model_mismatch", "upstream_endpoint",
+		"channel_id", "model_mapping_chain", "billing_tier", "account_rate_multiplier", "account_stats_cost",
+	} {
+		require.NotContains(t, payload, forbidden)
+	}
+	require.NotContains(t, string(body), "sk-secret")
+	require.NotContains(t, string(body), "fallback_group_id")
+}
+
+func TestUsageLogFromService_PreservesDeletedGroupID(t *testing.T) {
+	t.Parallel()
+
+	groupID := int64(404)
+	dto := UsageLogFromService(&service.UsageLog{GroupID: &groupID})
+	require.Equal(t, &groupID, dto.GroupID)
+	require.Nil(t, dto.Group)
+}
+
+func TestUsageLogFromServiceAdmin_RetainsOperationalFields(t *testing.T) {
+	t.Parallel()
+
+	groupID := int64(17)
+	subscriptionID := int64(3)
+	upstreamModel := "upstream-model"
+	upstreamEndpoint := "/v1/responses"
+	upstreamMismatch := true
+	channelID := int64(88)
+	mappingChain := "public→upstream"
+	billingTier := "internal-tier"
+	accountRateMultiplier := 1.5
+	accountStatsCost := 0.07
+	adminDTO := UsageLogFromServiceAdmin(&service.UsageLog{
+		UserID:                42,
+		APIKeyID:              7,
+		AccountID:             5,
+		GroupID:               &groupID,
+		SubscriptionID:        &subscriptionID,
+		UpstreamModel:         &upstreamModel,
+		UpstreamResponseModel: &upstreamModel,
+		UpstreamModelMismatch: &upstreamMismatch,
+		UpstreamEndpoint:      &upstreamEndpoint,
+		ChannelID:             &channelID,
+		ModelMappingChain:     &mappingChain,
+		BillingTier:           &billingTier,
+		AccountRateMultiplier: &accountRateMultiplier,
+		AccountStatsCost:      &accountStatsCost,
+		User:                  &service.User{ID: 42},
+		APIKey:                &service.APIKey{ID: 7, Name: "admin-key", Key: "sk-admin-visible"},
+		Account:               &service.Account{ID: 5, Name: "admin-account"},
+		Group:                 &service.Group{ID: 17, Name: "admin-group", FallbackGroupID: &groupID},
+		Subscription:          &service.UserSubscription{ID: 3},
+	})
+
+	body, err := json.Marshal(adminDTO)
+	require.NoError(t, err)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(body, &payload))
+	for _, retained := range []string{
+		"user_id", "api_key_id", "account_id", "subscription_id", "user", "api_key", "account", "group", "subscription",
+		"upstream_model", "upstream_response_model", "upstream_model_mismatch", "upstream_endpoint", "channel_id",
+		"model_mapping_chain", "billing_tier", "account_rate_multiplier", "account_stats_cost",
+	} {
+		require.Contains(t, payload, retained)
+	}
+	require.Contains(t, string(body), "sk-admin-visible")
+	require.Contains(t, string(body), "fallback_group_id")
 }
 
 func f64Ptr(value float64) *float64 {

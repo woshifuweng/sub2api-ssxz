@@ -241,35 +241,53 @@ func incrementUsageBillingSubscription(ctx context.Context, tx *sql.Tx, subscrip
 }
 
 func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, amount float64) (float64, bool, error) {
-	var newBalance float64
+	var currentBalance float64
 	err := tx.QueryRowContext(ctx, `
-		UPDATE users
-		SET balance = balance - $1,
-			updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL AND balance >= $1
-		RETURNING balance
-	`, amount, userID).Scan(&newBalance)
-	if err == nil {
-		return newBalance, true, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return 0, false, err
-	}
-
-	err = tx.QueryRowContext(ctx, `
-		UPDATE users
-		SET balance = balance - $1,
-			updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL
-		RETURNING balance
-	`, amount, userID).Scan(&newBalance)
+		SELECT balance
+		FROM users
+		WHERE id = $1 AND deleted_at IS NULL
+		FOR UPDATE
+	`, userID).Scan(&currentBalance)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, false, service.ErrUserNotFound
 	}
 	if err != nil {
 		return 0, false, err
 	}
-	return newBalance, false, nil
+
+	available := currentBalance
+	if available < 0 {
+		available = 0
+	}
+	charged := amount
+	if charged > available {
+		charged = available
+	}
+	if charged < 0 {
+		charged = 0
+	}
+	newBalance := available - charged
+	if newBalance < 0 {
+		newBalance = 0
+	}
+
+	result, err := tx.ExecContext(ctx, `
+		UPDATE users
+		SET balance = $1,
+			updated_at = NOW()
+		WHERE id = $2 AND deleted_at IS NULL
+	`, newBalance, userID)
+	if err != nil {
+		return 0, false, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, false, err
+	}
+	if affected == 0 {
+		return 0, false, service.ErrUserNotFound
+	}
+	return newBalance, amount <= available, nil
 }
 
 func reserveUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *service.BatchImageBalanceHoldCommand) (*service.BatchImageBalanceHoldResult, error) {

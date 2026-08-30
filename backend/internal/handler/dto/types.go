@@ -51,21 +51,23 @@ type AdminUser struct {
 }
 
 type APIKey struct {
-	ID          int64      `json:"id"`
-	UserID      int64      `json:"user_id"`
-	Key         string     `json:"key"`
-	Name        string     `json:"name"`
-	GroupID     *int64     `json:"group_id"`
-	Status      string     `json:"status"`
-	IPWhitelist []string   `json:"ip_whitelist"`
-	IPBlacklist []string   `json:"ip_blacklist"`
-	LastUsedAt  *time.Time `json:"last_used_at"`
-	LastUsedIP  *string    `json:"last_used_ip"`
-	Quota       float64    `json:"quota"`      // Quota limit in USD (0 = unlimited)
-	QuotaUsed   float64    `json:"quota_used"` // Used quota amount in USD
-	ExpiresAt   *time.Time `json:"expires_at"` // Expiration time (nil = never expires)
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ID            int64      `json:"id"`
+	UserID        int64      `json:"user_id"`
+	Key           string     `json:"key"`
+	Name          string     `json:"name"`
+	GroupID       *int64     `json:"group_id"`
+	GroupIDs      []int64    `json:"group_ids,omitempty"`
+	AllowedModels []string   `json:"allowed_models"`
+	Status        string     `json:"status"`
+	IPWhitelist   []string   `json:"ip_whitelist"`
+	IPBlacklist   []string   `json:"ip_blacklist"`
+	LastUsedAt    *time.Time `json:"last_used_at"`
+	LastUsedIP    *string    `json:"last_used_ip"`
+	Quota         float64    `json:"quota"`      // Quota limit in USD (0 = unlimited)
+	QuotaUsed     float64    `json:"quota_used"` // Used quota amount in USD
+	ExpiresAt     *time.Time `json:"expires_at"` // Expiration time (nil = never expires)
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 	// CurrentConcurrency is the real-time active request count for this API key.
 	CurrentConcurrency int `json:"current_concurrency"`
 
@@ -83,8 +85,9 @@ type APIKey struct {
 	Reset1dAt     *time.Time `json:"reset_1d_at,omitempty"`
 	Reset7dAt     *time.Time `json:"reset_7d_at,omitempty"`
 
-	User  *User  `json:"user,omitempty"`
-	Group *Group `json:"group,omitempty"`
+	User   *User   `json:"user,omitempty"`
+	Group  *Group  `json:"group,omitempty"`
+	Groups []Group `json:"groups,omitempty"`
 }
 
 type Group struct {
@@ -476,12 +479,19 @@ type BatchUpdateRedeemCodesRequest struct {
 	Fields BatchUpdateRedeemCodeFields `json:"fields" binding:"required"`
 }
 
-// UsageLog 是普通用户接口使用的 usage log DTO（不包含管理员字段）。
+type UsageLogAPIKeySummary struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+type UsageLogGroupSummary struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+// UsageLog 是普通用户接口使用的显式白名单 DTO。
 type UsageLog struct {
 	ID        int64  `json:"id"`
-	UserID    int64  `json:"user_id"`
-	APIKeyID  int64  `json:"api_key_id"`
-	AccountID int64  `json:"account_id"`
 	RequestID string `json:"request_id"`
 	Model     string `json:"model"`
 	// ServiceTier records the OpenAI service tier used for billing, e.g. "priority" / "flex".
@@ -491,11 +501,7 @@ type UsageLog struct {
 	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
 	// InboundEndpoint is the client-facing API endpoint path, e.g. /v1/chat/completions.
 	InboundEndpoint *string `json:"inbound_endpoint,omitempty"`
-	// UpstreamEndpoint is the normalized upstream endpoint path, e.g. /v1/responses.
-	UpstreamEndpoint *string `json:"upstream_endpoint,omitempty"`
-
-	GroupID        *int64 `json:"group_id"`
-	SubscriptionID *int64 `json:"subscription_id"`
+	GroupID         *int64  `json:"group_id"`
 
 	InputTokens         int `json:"input_tokens"`
 	OutputTokens        int `json:"output_tokens"`
@@ -550,15 +556,21 @@ type UsageLog struct {
 
 	CreatedAt time.Time `json:"created_at"`
 
-	User         *User             `json:"user,omitempty"`
-	APIKey       *APIKey           `json:"api_key,omitempty"`
-	Group        *Group            `json:"group,omitempty"`
-	Subscription *UserSubscription `json:"subscription,omitempty"`
+	APIKey *UsageLogAPIKeySummary `json:"api_key,omitempty"`
+	Group  *UsageLogGroupSummary  `json:"group,omitempty"`
 }
 
 // AdminUsageLog 是管理员接口使用的 usage log DTO（包含管理员字段）。
 type AdminUsageLog struct {
 	UsageLog
+
+	UserID         int64  `json:"user_id"`
+	APIKeyID       int64  `json:"api_key_id"`
+	AccountID      int64  `json:"account_id"`
+	SubscriptionID *int64 `json:"subscription_id"`
+
+	// UpstreamEndpoint is the normalized upstream endpoint path, e.g. /v1/responses.
+	UpstreamEndpoint *string `json:"upstream_endpoint,omitempty"`
 
 	// UpstreamModel is the actual model sent to the upstream provider after mapping.
 	// Omitted when no mapping was applied (requested model was used as-is).
@@ -585,6 +597,11 @@ type AdminUsageLog struct {
 
 	// Account 最小账号信息（避免泄露敏感字段）
 	Account *AccountSummary `json:"account,omitempty"`
+
+	User         *User             `json:"user,omitempty"`
+	APIKey       *APIKey           `json:"api_key,omitempty"`
+	Group        *Group            `json:"group,omitempty"`
+	Subscription *UserSubscription `json:"subscription,omitempty"`
 }
 
 type UsageCleanupFilters struct {

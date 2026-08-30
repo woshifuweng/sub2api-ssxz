@@ -128,6 +128,9 @@ func RegisterAdminRoutes(
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
 
+		// 经销商、运营管理员与提现审核
+		registerAdminResellerRoutes(admin, h)
+
 		// 操作审计日志
 		registerAuditLogRoutes(admin, h, stepUpAuth)
 	}
@@ -184,7 +187,10 @@ func registerContentModerationRoutes(admin *gin.RouterGroup, h *handler.Handlers
 func registerAdminAPIKeyRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	apiKeys := admin.Group("/api-keys")
 	{
+		apiKeys.GET("", h.Admin.APIKey.List)
 		apiKeys.PUT("/:id", h.Admin.APIKey.UpdateGroup)
+		apiKeys.PATCH("/:id/status", h.Admin.APIKey.SetEnabled)
+		apiKeys.DELETE("/:id", h.Admin.APIKey.Delete)
 	}
 }
 
@@ -816,6 +822,26 @@ func registerAffiliateRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 			users.PUT("/:user_id", h.Admin.Affiliate.UpdateUserSettings)
 			users.DELETE("/:user_id", h.Admin.Affiliate.ClearUserSettings)
 		}
+	}
+}
+
+func registerAdminResellerRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	if h == nil || h.Reseller == nil {
+		return
+	}
+
+	reseller := admin.Group("/reseller")
+	{
+		reseller.GET("/agents", h.Reseller.AdminListAgents)
+		reseller.GET("/agents/:id", h.Reseller.AdminGetAgentDetail)
+		reseller.GET("/agents/:id/recruits", h.Reseller.AdminGetAgentRecruits)
+		reseller.PATCH("/agents/:id", h.Reseller.AdminUpdateAgent)
+		reseller.POST("/agents/:id/disable", h.Reseller.AdminDisableAgent)
+		reseller.POST("/agents/:id/enable", h.Reseller.AdminEnableAgent)
+		reseller.POST("/agents/:id/role", h.Reseller.AdminGrantRole)
+		reseller.DELETE("/agents/:id/role", h.Reseller.AdminRevokeRole)
+		reseller.GET("/withdrawals", h.Reseller.AdminListWithdrawals)
+		reseller.POST("/withdrawals/:id/review", h.Reseller.AdminReviewWithdrawal)
 	}
 }
 

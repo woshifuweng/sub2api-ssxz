@@ -424,26 +424,72 @@ func abortIfAPIKeyGroupNotAllowed(c *gin.Context, apiKey *service.APIKey) bool {
 }
 
 func validateAPIKeyGroupAllowed(apiKey *service.APIKey) bool {
-	if apiKey == nil || apiKey.GroupID == nil || apiKey.User == nil || apiKey.Group == nil {
+	if apiKey == nil {
 		return true
 	}
-	group := apiKey.Group
-	if group.IsSubscriptionType() {
+	if len(service.NormalizeAPIKeyGroupIDs(apiKey.GroupID, apiKey.GroupIDs)) == 0 {
 		return true
 	}
-	return apiKey.User.CanBindGroup(group.ID, group.IsExclusive)
+	groups, ok := boundAPIKeyGroups(apiKey)
+	if !ok || apiKey.User == nil {
+		return false
+	}
+	for _, group := range groups {
+		if !group.IsSubscriptionType() && !apiKey.User.CanBindGroup(group.ID, group.IsExclusive) {
+			return false
+		}
+	}
+	return true
 }
 
 func validateAPIKeyGroupAvailable(apiKey *service.APIKey) (string, string, bool) {
-	if apiKey == nil || apiKey.GroupID == nil {
+	if apiKey == nil || len(service.NormalizeAPIKeyGroupIDs(apiKey.GroupID, apiKey.GroupIDs)) == 0 {
 		return "", "", true
 	}
-	group := apiKey.Group
-	if group == nil || strings.EqualFold(group.Status, "deleted") {
-		return "GROUP_DELETED", "API Key 所属分组已删除", false
+	groups, ok := boundAPIKeyGroups(apiKey)
+	if !ok {
+		return "GROUP_DELETED", "API Key 所属分组不存在或绑定不完整", false
 	}
-	if !group.IsActive() {
-		return "GROUP_DISABLED", "API Key 所属分组已停用", false
+	for _, group := range groups {
+		if strings.EqualFold(group.Status, "deleted") {
+			return "GROUP_DELETED", "API Key 所属分组已删除", false
+		}
+		if !group.IsActive() {
+			return "GROUP_DISABLED", "API Key 所属分组已停用", false
+		}
 	}
 	return "", "", true
+}
+
+func boundAPIKeyGroups(apiKey *service.APIKey) ([]*service.Group, bool) {
+	if apiKey == nil {
+		return nil, false
+	}
+	groupIDs := service.NormalizeAPIKeyGroupIDs(apiKey.GroupID, apiKey.GroupIDs)
+	if len(groupIDs) == 0 {
+		return nil, false
+	}
+	byID := make(map[int64]*service.Group, len(apiKey.Groups)+1)
+	for _, group := range apiKey.Groups {
+		if group != nil && group.ID > 0 {
+			byID[group.ID] = group
+		}
+	}
+	if apiKey.Group != nil && apiKey.Group.ID > 0 {
+		byID[apiKey.Group.ID] = apiKey.Group
+	}
+	groups := make([]*service.Group, 0, len(groupIDs))
+	for _, groupID := range groupIDs {
+		group := byID[groupID]
+		if group == nil {
+			return nil, false
+		}
+		groups = append(groups, group)
+	}
+	apiKey.GroupIDs = groupIDs
+	apiKey.Groups = groups
+	apiKey.Group = groups[0]
+	primaryGroupID := groups[0].ID
+	apiKey.GroupID = &primaryGroupID
+	return groups, true
 }

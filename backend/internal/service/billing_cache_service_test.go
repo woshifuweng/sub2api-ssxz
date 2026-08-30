@@ -130,3 +130,25 @@ func TestBillingCacheServiceEnqueueAfterStopReturnsFalse(t *testing.T) {
 	})
 	require.False(t, enqueued)
 }
+
+type estimatedCostEligibilityUserRepo struct {
+	UserRepository
+	user *User
+}
+
+func (r *estimatedCostEligibilityUserRepo) GetByID(context.Context, int64) (*User, error) {
+	return r.user, nil
+}
+
+func TestBillingCacheServiceCheckBillingEligibilityForCostUsesEstimatedBalance(t *testing.T) {
+	svc := &BillingCacheService{
+		userRepo: &estimatedCostEligibilityUserRepo{user: &User{ID: 1, Balance: 1}},
+		cfg:      &config.Config{},
+	}
+
+	err := svc.CheckBillingEligibilityForCost(context.Background(), &User{ID: 1}, nil, nil, nil, PlatformOpenAI, 2)
+	require.ErrorIs(t, err, ErrInsufficientBalance)
+
+	err = svc.CheckBillingEligibilityForCost(context.Background(), &User{ID: 1}, nil, nil, nil, PlatformOpenAI, 1)
+	require.NoError(t, err)
+}

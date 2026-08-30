@@ -74,6 +74,10 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		return
 	}
 	requestModel := parsed.Model
+	if !apiKeyAllowsRequestedModel(apiKey, requestModel) {
+		h.errorResponse(c, http.StatusForbidden, "permission_error", apiKeyModelNotAllowedMessage(requestModel))
+		return
+	}
 	ensureCompositeTargetPlatform(c, apiKey, requestModel)
 	clientRequestModel := clientRequestedModel(c, requestModel)
 	routingModel := requestModel
@@ -133,7 +137,13 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		defer userReleaseFunc()
 	}
 
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
+	estimatedActualCost := 0.0
+	if h.gatewayService != nil {
+		if estimatedCost := h.gatewayService.EstimateOpenAIImageCost(c.Request.Context(), requestModel, parsed.SizeTier, parsed.N, apiKey, apiKey.User); estimatedCost != nil {
+			estimatedActualCost = estimatedCost.ActualCost
+		}
+	}
+	if err := h.billingCacheService.CheckBillingEligibilityForCost(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey), estimatedActualCost); err != nil {
 		reqLog.Info("openai.images.billing_eligibility_check_failed", zap.Error(err))
 		status, code, message, retryAfter := billingErrorDetails(err)
 		if retryAfter > 0 {
@@ -159,14 +169,26 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 
 	for {
 		reqLog.Debug("openai.images.account_selecting", zap.Int("excluded_account_count", len(failedAccountIDs)))
-		selection, scheduleDecision, err := h.gatewayService.SelectAccountWithSchedulerForImages(
-			requestCtx,
-			apiKey.GroupID,
-			sessionHash,
-			routingModel,
-			failedAccountIDs,
-			parsed.RequiredCapability,
+		groupSelection, err := selectOpenAIAPIKeyGroup(apiKey, sessionHash+":"+routingModel, func(groupID *int64) (*service.AccountSelectionResult, service.OpenAIAccountScheduleDecision, error) {
+			return h.gatewayService.SelectAccountWithSchedulerForImages(
+				requestCtx,
+				groupID,
+				sessionHash,
+				routingModel,
+				failedAccountIDs,
+				parsed.RequiredCapability,
+			)
+		})
+		var (
+			selection        *service.AccountSelectionResult
+			scheduleDecision service.OpenAIAccountScheduleDecision
+			selectedAPIKey   = apiKey
 		)
+		if err == nil && groupSelection != nil {
+			selection = groupSelection.Selection
+			scheduleDecision = groupSelection.Decision
+			selectedAPIKey = groupSelection.APIKey
+		}
 		if err != nil {
 			if failoverClientGone(c) {
 				reqLog.Info("openai.images.account_select_aborted_client_disconnected", zap.Error(err))
@@ -222,7 +244,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		reqLog.Debug("openai.images.account_selected", zap.Int64("account_id", account.ID), zap.String("account_name", account.Name))
 		setOpsSelectedAccount(c, account.ID, account.Platform)
 
-		accountReleaseFunc, slotResult := h.acquireResponsesAccountSlot(c, apiKey.GroupID, sessionHash, selection, parsed.Stream, &streamStarted, reqLog)
+		accountReleaseFunc, slotResult := h.acquireResponsesAccountSlot(c, selectedAPIKey.GroupID, sessionHash, selection, parsed.Stream, &streamStarted, reqLog)
 		if slotResult == openAISlotAcquireProfitVetoed {
 			// Images 调度不装利润门，此分支实际不可达；防御性排除重选并受同一否决上限约束。
 			if !recordOpenAIProfitVeto(failedAccountIDs, account.ID, &profitVetoCount) {
@@ -385,7 +407,8 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		}
 		inboundEndpoint := GetInboundEndpoint(c)
 		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
-		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
+		quotaPlatform := service.QuotaPlatform(c.Request.Context(), selectedAPIKey)
+		usageChannelMapping := usageChannelMappingForAPIKey(c.Request.Context(), h.gatewayService, selectedAPIKey, requestModel)
 
 		upstreamModel := ""
 		if result != nil {
@@ -395,8 +418,8 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		h.submitMandatoryUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
 				Result:             result,
-				APIKey:             apiKey,
-				User:               apiKey.User,
+				APIKey:             selectedAPIKey,
+				User:               selectedAPIKey.User,
 				Account:            account,
 				Subscription:       subscription,
 				InboundEndpoint:    inboundEndpoint,
@@ -407,13 +430,13 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 				APIKeyService:      h.apiKeyService,
 				QuotaPlatform:      quotaPlatform,
 				SessionID:          sessionID,
-				ChannelUsageFields: clientRequestedUsageFields(c, channelMapping, requestModel, upstreamModel),
+				ChannelUsageFields: clientRequestedUsageFields(c, usageChannelMapping, requestModel, upstreamModel),
 			}); err != nil {
 				logger.L().With(
 					zap.String("component", "handler.openai_gateway.images"),
 					zap.Int64("user_id", subject.UserID),
-					zap.Int64("api_key_id", apiKey.ID),
-					zap.Any("group_id", apiKey.GroupID),
+					zap.Int64("api_key_id", selectedAPIKey.ID),
+					zap.Any("group_id", selectedAPIKey.GroupID),
 					zap.String("model", clientRequestModel),
 					zap.Int64("account_id", account.ID),
 				).Error("openai.images.record_usage_failed", zap.Error(err))

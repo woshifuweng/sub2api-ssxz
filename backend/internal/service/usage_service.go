@@ -157,6 +157,23 @@ func (s *UsageService) GetByID(ctx context.Context, id int64) (*UsageLog, error)
 	return log, nil
 }
 
+type userScopedUsageLogReader interface {
+	GetByIDForUser(ctx context.Context, id, userID int64) (*UsageLog, error)
+}
+
+// GetByIDForUser returns a usage log only when it belongs to userID.
+func (s *UsageService) GetByIDForUser(ctx context.Context, id, userID int64) (*UsageLog, error) {
+	reader, ok := s.usageRepo.(userScopedUsageLogReader)
+	if !ok {
+		return nil, fmt.Errorf("get user usage log: scoped lookup unavailable")
+	}
+	log, err := reader.GetByIDForUser(ctx, id, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get user usage log: %w", err)
+	}
+	return log, nil
+}
+
 // ListByUser 获取用户的使用日志列表
 func (s *UsageService) ListByUser(ctx context.Context, userID int64, params pagination.PaginationParams) ([]UsageLog, *pagination.PaginationResult, error) {
 	logs, pagination, err := s.usageRepo.ListByUser(ctx, userID, params)

@@ -76,6 +76,10 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		return
 	}
 	reqModel := modelResult.String()
+	if !apiKeyAllowsRequestedModel(apiKey, reqModel) {
+		h.errorResponse(c, http.StatusForbidden, "permission_error", apiKeyModelNotAllowedMessage(reqModel))
+		return
+	}
 	ensureCompositeTargetPlatform(c, apiKey, reqModel)
 	if !openAICompatibleTextTargetAllowed(c, apiKey, reqModel) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by this OpenAI-compatible endpoint for composite groups")
@@ -132,7 +136,8 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		defer userReleaseFunc()
 	}
 
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
+	estimatedActualCost := h.estimatedOpenAITokenRequestCost(c.Request.Context(), reqLog, reqModel, body, apiKey)
+	if err := h.billingCacheService.CheckBillingEligibilityForCost(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey), estimatedActualCost); err != nil {
 		reqLog.Info("openai_chat_completions.billing_eligibility_check_failed", zap.Error(err))
 		status, code, message, retryAfter := billingErrorDetails(err)
 		if retryAfter > 0 {
@@ -162,20 +167,32 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 			return
 		}
 		reqLog.Debug("openai_chat_completions.account_selecting", zap.Int("excluded_account_count", len(failedAccountIDs)))
-		selection, scheduleDecision, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
-			c.Request.Context(),
-			apiKey.GroupID,
-			"",
-			sessionHash,
-			reqModel,
-			failedAccountIDs,
-			service.OpenAIUpstreamTransportAny,
-			service.OpenAIEndpointCapabilityChatCompletions,
-			false,
-			false,
-			true,
-			requestPlatform,
+		groupSelection, err := selectOpenAIAPIKeyGroup(apiKey, sessionHash+":"+reqModel, func(groupID *int64) (*service.AccountSelectionResult, service.OpenAIAccountScheduleDecision, error) {
+			return h.gatewayService.SelectAccountWithSchedulerForCapability(
+				c.Request.Context(),
+				groupID,
+				"",
+				sessionHash,
+				reqModel,
+				failedAccountIDs,
+				service.OpenAIUpstreamTransportAny,
+				service.OpenAIEndpointCapabilityChatCompletions,
+				false,
+				false,
+				true,
+				requestPlatform,
+			)
+		})
+		var (
+			selection        *service.AccountSelectionResult
+			scheduleDecision service.OpenAIAccountScheduleDecision
+			selectedAPIKey   = apiKey
 		)
+		if err == nil && groupSelection != nil {
+			selection = groupSelection.Selection
+			scheduleDecision = groupSelection.Decision
+			selectedAPIKey = groupSelection.APIKey
+		}
 		if err != nil {
 			if failoverClientGone(c) {
 				reqLog.Info("openai_chat_completions.account_select_aborted_client_disconnected", zap.Error(err))
@@ -216,7 +233,10 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		_ = scheduleDecision
 		setOpsSelectedAccount(c, account.ID, account.Platform)
 
-		accountReleaseFunc, slotResult := h.acquireResponsesAccountSlot(c, apiKey.GroupID, sessionHash, selection, reqStream, &streamStarted, reqLog)
+		selectedPricingCtx, selectedPricingAt := h.gatewayService.WithOpenAIRequestPricingContext(c.Request.Context(), selectedAPIKey.GroupID)
+		c.Request = c.Request.WithContext(selectedPricingCtx)
+		pricingAt = selectedPricingAt
+		accountReleaseFunc, slotResult := h.acquireResponsesAccountSlot(c, selectedAPIKey.GroupID, sessionHash, selection, reqStream, &streamStarted, reqLog)
 		if slotResult == openAISlotAcquireProfitVetoed {
 			// 利润终检否决：排除该账号重新选号；否决次数达上限则按无可用账号终止。
 			if !recordOpenAIProfitVeto(failedAccountIDs, account.ID, &profitVetoCount) {
@@ -249,7 +269,8 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		if service.GetOpsCyberPolicy(c) != nil {
 			cyberBlockBodyChat = body
 		}
-		h.recordCyberPolicyIfMarked(c, apiKey, account, subscription, reqModel, err != nil, cyberBlockBodyChat, clientRequestedUsageFields(c, channelMapping, reqModel, ""), service.HashUsageRequestPayload(body))
+		usageChannelMapping := usageChannelMappingForAPIKey(c.Request.Context(), h.gatewayService, selectedAPIKey, reqModel)
+		h.recordCyberPolicyIfMarked(c, selectedAPIKey, account, subscription, reqModel, err != nil, cyberBlockBodyChat, clientRequestedUsageFields(c, usageChannelMapping, reqModel, ""), service.HashUsageRequestPayload(body))
 
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()
 		upstreamLatencyMs, _ := getContextInt64(c, service.OpsUpstreamLatencyMsKey)
@@ -271,14 +292,14 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 			clientIP := ip.GetClientIP(c)
 			inboundEndpoint := GetInboundEndpoint(c)
 			upstreamEndpoint := resolveOpenAIUpstreamEndpoint(c, account, res)
-			quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
+			quotaPlatform := service.QuotaPlatform(c.Request.Context(), selectedAPIKey)
 			sessionID := service.ExtractClientSessionID(c)
 			cyberBlocked := service.GetOpsCyberPolicy(c) != nil
 			h.submitOpenAIUsageRecordTask(c.Request.Context(), res, func(ctx context.Context) {
 				if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
 					Result:             res,
-					APIKey:             apiKey,
-					User:               apiKey.User,
+					APIKey:             selectedAPIKey,
+					User:               selectedAPIKey.User,
 					Account:            account,
 					Subscription:       subscription,
 					InboundEndpoint:    inboundEndpoint,
@@ -288,15 +309,15 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 					APIKeyService:      h.apiKeyService,
 					QuotaPlatform:      quotaPlatform,
 					SessionID:          sessionID,
-					ChannelUsageFields: clientRequestedUsageFields(c, channelMapping, reqModel, res.UpstreamModel),
+					ChannelUsageFields: clientRequestedUsageFields(c, usageChannelMapping, reqModel, res.UpstreamModel),
 					PricingAt:          pricingAt,
 					CyberBlocked:       cyberBlocked,
 				}); err != nil {
 					logger.L().With(
 						zap.String("component", "handler.openai_gateway.chat_completions"),
 						zap.Int64("user_id", subject.UserID),
-						zap.Int64("api_key_id", apiKey.ID),
-						zap.Any("group_id", apiKey.GroupID),
+						zap.Int64("api_key_id", selectedAPIKey.ID),
+						zap.Any("group_id", selectedAPIKey.GroupID),
 						zap.String("model", reqModel),
 						zap.Int64("account_id", account.ID),
 					).Error("openai_chat_completions.record_usage_failed", zap.Error(err))

@@ -377,15 +377,9 @@ func (h *UsageHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	record, err := h.usageService.GetByID(c.Request.Context(), usageID)
+	record, err := h.usageService.GetByIDForUser(c.Request.Context(), usageID, subject.UserID)
 	if err != nil {
 		response.ErrorFrom(c, err)
-		return
-	}
-
-	// 验证所有权
-	if record.UserID != subject.UserID {
-		response.Forbidden(c, "Not authorized to access this record")
 		return
 	}
 

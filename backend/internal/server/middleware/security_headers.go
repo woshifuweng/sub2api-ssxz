@@ -47,6 +47,9 @@ const (
 	AirwallexDemoStaticDomain = "https://static-demo.airwallex.com"
 	// AirwallexDemoCheckoutDomain 是 Airwallex 沙箱环境收银台元素和 iframe 域名。
 	AirwallexDemoCheckoutDomain = "https://checkout-demo.airwallex.com"
+	// PermissionsPolicyHeaderValue disables browser capabilities that the product
+	// does not use, limiting the impact of injected or embedded third-party code.
+	PermissionsPolicyHeaderValue = "camera=(), geolocation=(), microphone=(), usb=()"
 )
 
 var requiredCSPDirectiveValues = []struct {
@@ -130,6 +133,7 @@ func SecurityHeaders(cfg config.CSPConfig, getFrameSrcOrigins func() []string) g
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("X-Frame-Options", "DENY")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+		c.Header("Permissions-Policy", PermissionsPolicyHeaderValue)
 		if isAPIRoutePath(c) {
 			c.Next()
 			return

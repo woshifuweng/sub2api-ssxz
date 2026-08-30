@@ -76,6 +76,10 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		return
 	}
 	reqModel := modelResult.String()
+	if !apiKeyAllowsRequestedModel(apiKey, reqModel) {
+		h.responsesErrorResponse(c, http.StatusForbidden, "permission_error", apiKeyModelNotAllowedMessage(reqModel))
+		return
+	}
 	ensureCompositeTargetPlatform(c, apiKey, reqModel)
 	if !compositeTargetPlatformResolved(c, apiKey, reqModel) {
 		h.responsesErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by composite groups")
@@ -172,7 +176,9 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		if requestCtx.Err() != nil {
 			return
 		}
-		selection, err := h.gatewayService.SelectAccountWithLoadAwareness(requestCtx, apiKey.GroupID, sessionHash, reqModel, fs.FailedAccountIDs, "", int64(0))
+		groupSelection, err := selectGatewayAPIKeyGroup(apiKey, sessionHash+":"+reqModel, func(groupID *int64) (*service.AccountSelectionResult, error) {
+			return h.gatewayService.SelectAccountWithLoadAwareness(requestCtx, groupID, sessionHash, reqModel, fs.FailedAccountIDs, "", int64(0))
+		})
 		if err != nil {
 			if len(fs.FailedAccountIDs) == 0 {
 				cls := classifyNoAccountErrorFromGin(c, h.gatewayService, apiKey, reqModel, reqModel, effectiveAPIKeyPlatform(c, apiKey))
@@ -203,6 +209,8 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 				return
 			}
 		}
+		apiKey = groupSelection.APIKey
+		selection := groupSelection.Selection
 		account := selection.Account
 		setOpsSelectedAccount(c, account.ID, account.Platform)
 
@@ -322,6 +330,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
 
 		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
+		usageChannelMapping := usageChannelMappingForAPIKey(requestCtx, h.gatewayService, apiKey, reqModel)
 		sessionID := service.ExtractClientSessionID(c)
 		h.submitUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
@@ -339,7 +348,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 				RequestPayloadHash: requestPayloadHash,
 				APIKeyService:      h.apiKeyService,
 				SessionID:          sessionID,
-				ChannelUsageFields: clientRequestedUsageFields(c, channelMapping, reqModel, result.UpstreamModel),
+				ChannelUsageFields: clientRequestedUsageFields(c, usageChannelMapping, reqModel, result.UpstreamModel),
 			}); err != nil {
 				reqLog.Error("gateway.responses.record_usage_failed",
 					zap.Int64("account_id", account.ID),

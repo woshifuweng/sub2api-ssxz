@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -33,8 +34,28 @@ func TestPluginPackageInstallerInstallUnsignedDevelopmentPackage(t *testing.T) {
 	assert.FileExists(t, installation.ArtifactPath)
 	info, statErr := os.Stat(installation.BinaryPath)
 	require.NoError(t, statErr)
-	assert.NotZero(t, info.Mode()&0o100)
+	assert.False(t, info.ModTime().IsZero())
+	if runtime.GOOS == "windows" {
+		assert.True(t, info.Mode().IsRegular())
+		assert.NotZero(t, info.Size())
+	} else {
+		assert.NotZero(t, info.Mode()&0o100)
+	}
 	assert.Contains(t, installation.InstallPath, filepath.Join("installed", "com.example.openai-transport"))
+}
+
+func TestPluginPackageInstallerClosesPackageBeforeWindowsRename(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows-specific open-file rename regression")
+	}
+	cfg := testPluginConfig(t.TempDir(), true)
+	installer := NewPluginPackageInstaller(cfg, PluginHostInfo{Version: "0.1.183", BuildType: "release"})
+	archive := buildTestPluginArchive(t, nil, "")
+
+	installation, err := installer.Install(context.Background(), bytes.NewReader(archive), nil)
+
+	require.NoError(t, err)
+	assert.FileExists(t, installation.ArtifactPath)
 }
 
 func TestPluginPackageInstallerAllowsRepeatedIdenticalUpload(t *testing.T) {

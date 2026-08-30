@@ -272,6 +272,15 @@ func TestContentModerationRuntimeSnapshotRefreshFailureKeepsStaleConfig(t *testi
 	require.NoError(t, err)
 	require.True(t, decision.Blocked)
 
+	// Force expiry instead of relying on a one-nanosecond TTL. Windows clock
+	// resolution can return the same timestamp for consecutive time.Now calls,
+	// making the refresh assertion nondeterministic in the full package suite.
+	current := svc.runtimeSnapshot.Load()
+	require.NotNil(t, current)
+	expired := *current
+	expired.loadedAt = time.Now().Add(-time.Minute)
+	svc.runtimeSnapshot.Store(&expired)
+
 	repo.failMultiple(errors.New("database unavailable"))
 	decision, err = svc.Check(context.Background(), input)
 	require.NoError(t, err)

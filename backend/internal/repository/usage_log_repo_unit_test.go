@@ -3,13 +3,29 @@
 package repository
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 )
+
+func TestUsageLogRepositoryGetByIDForUserScopesQueryByOwner(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := newUsageLogRepositoryWithSQL(nil, db)
+
+	mock.ExpectQuery(`FROM usage_logs WHERE id = \$1 AND user_id = \$2`).
+		WithArgs(int64(91), int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	log, err := repo.GetByIDForUser(context.Background(), 91, 42)
+	require.Nil(t, log)
+	require.ErrorIs(t, err, service.ErrUsageLogNotFound)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
 
 func TestSafeDateFormat(t *testing.T) {
 	tests := []struct {

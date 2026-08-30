@@ -58,17 +58,20 @@ func isValidAffiliateCodeFormat(code string) bool {
 }
 
 type AffiliateSummary struct {
-	UserID               int64     `json:"user_id"`
-	AffCode              string    `json:"aff_code"`
-	AffCodeCustom        bool      `json:"aff_code_custom"`
-	AffRebateRatePercent *float64  `json:"aff_rebate_rate_percent,omitempty"`
-	InviterID            *int64    `json:"inviter_id,omitempty"`
-	AffCount             int       `json:"aff_count"`
-	AffQuota             float64   `json:"aff_quota"`
-	AffFrozenQuota       float64   `json:"aff_frozen_quota"`
-	AffHistoryQuota      float64   `json:"aff_history_quota"`
-	CreatedAt            time.Time `json:"created_at"`
-	UpdatedAt            time.Time `json:"updated_at"`
+	UserID               int64      `json:"user_id"`
+	AffCode              string     `json:"aff_code"`
+	AffCodeCustom        bool       `json:"aff_code_custom"`
+	AffRebateRatePercent *float64   `json:"aff_rebate_rate_percent,omitempty"`
+	InviterID            *int64     `json:"inviter_id,omitempty"`
+	AffCount             int        `json:"aff_count"`
+	AffQuota             float64    `json:"aff_quota"`
+	AffFrozenQuota       float64    `json:"aff_frozen_quota"`
+	AffHistoryQuota      float64    `json:"aff_history_quota"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+	HasResellerRole      bool       `json:"-"`
+	ResellerStatus       string     `json:"-"`
+	ResellerRevokedAt    *time.Time `json:"-"`
 }
 
 type AffiliateInvitee struct {
@@ -339,6 +342,10 @@ func (s *AffiliateService) AccrueInviteRebateForOrder(ctx context.Context, invit
 	inviterSummary, err := s.repo.EnsureUserAffiliate(ctx, *inviteeSummary.InviterID)
 	if err != nil {
 		return 0, err
+	}
+	if inviterSummary.HasResellerRole &&
+		(inviterSummary.ResellerStatus != ResellerStatusActive || inviterSummary.ResellerRevokedAt != nil) {
+		return 0, nil
 	}
 	// 有效期检查：超过返利有效期后不再产生返利
 	if s.settingService != nil {

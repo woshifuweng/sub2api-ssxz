@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -78,6 +79,62 @@ func TestUsageBillingRepositoryApply_DeduplicatesBalanceBilling(t *testing.T) {
 	var dedupCount int
 	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM usage_billing_dedup WHERE request_id = $1 AND api_key_id = $2", requestID, apiKey.ID).Scan(&dedupCount))
 	require.Equal(t, 1, dedupCount)
+}
+
+func TestUsageBillingRepositoryApply_ConcurrentShortfallsNeverGoNegative(t *testing.T) {
+	ctx := context.Background()
+	client := testEntClient(t)
+	repo := NewUsageBillingRepository(client, integrationDB)
+
+	user := mustCreateUser(t, client, &service.User{
+		Email:        fmt.Sprintf("usage-billing-concurrent-shortfall-%d@example.com", time.Now().UnixNano()),
+		PasswordHash: "hash",
+		Balance:      1,
+	})
+	apiKey := mustCreateApiKey(t, client, &service.APIKey{
+		UserID: user.ID,
+		Key:    "sk-usage-billing-concurrent-shortfall-" + uuid.NewString(),
+		Name:   "billing-concurrent-shortfall",
+	})
+
+	const requestCount = 5
+	type applyOutcome struct {
+		result *service.UsageBillingApplyResult
+		err    error
+	}
+	outcomes := make(chan applyOutcome, requestCount)
+	var wg sync.WaitGroup
+	for index := 0; index < requestCount; index++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			result, err := repo.Apply(ctx, &service.UsageBillingCommand{
+				RequestID:   fmt.Sprintf("concurrent-shortfall-%d-%s", index, uuid.NewString()),
+				APIKeyID:    apiKey.ID,
+				UserID:      user.ID,
+				BalanceCost: 0.4,
+			})
+			outcomes <- applyOutcome{result: result, err: err}
+		}(index)
+	}
+	wg.Wait()
+	close(outcomes)
+
+	for outcome := range outcomes {
+		require.NoError(t, outcome.err)
+		require.NotNil(t, outcome.result)
+		require.True(t, outcome.result.Applied)
+		require.NotNil(t, outcome.result.NewBalance)
+		require.GreaterOrEqual(t, *outcome.result.NewBalance, 0.0)
+	}
+
+	var balance float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT balance FROM users WHERE id = $1", user.ID).Scan(&balance))
+	require.InDelta(t, 0, balance, 0.000001)
+
+	var dedupCount int
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM usage_billing_dedup WHERE api_key_id = $1 AND request_id LIKE 'concurrent-shortfall-%'", apiKey.ID).Scan(&dedupCount))
+	require.Equal(t, requestCount, dedupCount)
 }
 
 func TestUsageBillingRepositoryApply_DeduplicatesSubscriptionBilling(t *testing.T) {

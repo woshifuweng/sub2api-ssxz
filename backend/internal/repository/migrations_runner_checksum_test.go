@@ -161,4 +161,18 @@ func TestIsMigrationChecksumCompatible(t *testing.T) {
 		)
 		require.False(t, ok)
 	})
+
+	t.Run("200生产旧checksum仅兼容已核验的当前文件", func(t *testing.T) {
+		const (
+			productionChecksum = "27bccebd382fc52fdc938367e43566a673088b8461edb2ad4f9bd2b05d18543d"
+			currentChecksum    = "4c4719ac44f4b12a425d3844f3ab555cb9f7f704bfba6ea609d389b8698dd49a"
+			unknownChecksum    = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+		)
+
+		require.True(t, isMigrationChecksumCompatible("200_reseller_roles.sql", productionChecksum, currentChecksum))
+		require.True(t, isMigrationChecksumCompatible("200_reseller_roles.sql", currentChecksum, productionChecksum))
+		require.False(t, isMigrationChecksumCompatible("200_reseller_roles.sql", productionChecksum, unknownChecksum))
+		require.False(t, isMigrationChecksumCompatible("200_reseller_roles.sql", unknownChecksum, currentChecksum))
+		require.False(t, isMigrationChecksumCompatible("201_reseller_fields_hardening.sql", productionChecksum, currentChecksum))
+	})
 }

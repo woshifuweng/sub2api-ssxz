@@ -667,6 +667,8 @@ type adminServiceImpl struct {
 	affiliateService     adminRechargeAffiliateAccruer
 	compositeRouteRepo   CompositeModelRouteRepository
 	compositeResolver    *CompositeRouteResolver
+	ledgerRepo           BalanceLedgerRepository
+	runBalanceTx         func(context.Context, func(context.Context) error) error
 	// 分组平台变更后用来失效渠道缓存；可为 nil（缓存会在 TTL 到期后自然重建）
 	channelCacheInvalidator ChannelCacheInvalidator
 }
@@ -709,7 +711,12 @@ func NewAdminService(
 	compositeRouteRepo CompositeModelRouteRepository,
 	compositeResolver *CompositeRouteResolver,
 	channelCacheInvalidator ChannelCacheInvalidator,
+	ledgerRepos ...BalanceLedgerRepository,
 ) AdminService {
+	var ledgerRepo BalanceLedgerRepository
+	if len(ledgerRepos) > 0 {
+		ledgerRepo = ledgerRepos[0]
+	}
 	return &adminServiceImpl{
 		userRepo:             userRepo,
 		groupRepo:            groupRepo,
@@ -735,6 +742,7 @@ func NewAdminService(
 		affiliateService:     affiliateService,
 		compositeRouteRepo:   compositeRouteRepo,
 		compositeResolver:    compositeResolver,
+		ledgerRepo:           ledgerRepo,
 
 		channelCacheInvalidator: channelCacheInvalidator,
 	}

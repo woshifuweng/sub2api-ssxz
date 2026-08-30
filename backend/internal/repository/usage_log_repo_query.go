@@ -51,6 +51,21 @@ func (r *usageLogRepository) GetByID(ctx context.Context, id int64) (log *servic
 	return log, nil
 }
 
+func (r *usageLogRepository) GetByIDForUser(ctx context.Context, id, userID int64) (*service.UsageLog, error) {
+	query := "SELECT " + usageLogSelectColumns + " FROM usage_logs WHERE id = $1 AND user_id = $2"
+	logs, err := r.queryUsageLogs(ctx, query, id, userID)
+	if err != nil {
+		return nil, err
+	}
+	if len(logs) == 0 {
+		return nil, service.ErrUsageLogNotFound
+	}
+	if err := r.hydrateUsageLogAssociations(ctx, logs); err != nil {
+		return nil, err
+	}
+	return &logs[0], nil
+}
+
 func (r *usageLogRepository) ListByUser(ctx context.Context, userID int64, params pagination.PaginationParams) ([]service.UsageLog, *pagination.PaginationResult, error) {
 	return r.listUsageLogsWithPagination(ctx, "WHERE user_id = $1", []any{userID}, params)
 }

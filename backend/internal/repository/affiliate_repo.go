@@ -780,19 +780,23 @@ ON CONFLICT (user_id) DO NOTHING`, userID, code)
 
 func queryAffiliateByUserID(ctx context.Context, client affiliateQueryExecer, userID int64) (*service.AffiliateSummary, error) {
 	rows, err := client.QueryContext(ctx, `
-SELECT user_id,
-       aff_code,
-       aff_code_custom,
-       aff_rebate_rate_percent,
-       inviter_id,
-       aff_count,
-       aff_quota::double precision,
-       aff_frozen_quota::double precision,
-       aff_history_quota::double precision,
-       created_at,
-       updated_at
-FROM user_affiliates
-WHERE user_id = $1`, userID)
+SELECT ua.user_id,
+       ua.aff_code,
+       ua.aff_code_custom,
+       ua.aff_rebate_rate_percent,
+       ua.inviter_id,
+       ua.aff_count,
+       ua.aff_quota::double precision,
+       ua.aff_frozen_quota::double precision,
+       ua.aff_history_quota::double precision,
+       ua.created_at,
+       ua.updated_at,
+       (rr.user_id IS NOT NULL),
+       COALESCE(rr.status, ''),
+       rr.revoked_at
+FROM user_affiliates ua
+LEFT JOIN user_reseller_roles rr ON rr.user_id = ua.user_id
+WHERE ua.user_id = $1`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -807,6 +811,7 @@ WHERE user_id = $1`, userID)
 	var out service.AffiliateSummary
 	var inviterID sql.NullInt64
 	var rebateRate sql.NullFloat64
+	var resellerRevokedAt sql.NullTime
 	if err := rows.Scan(
 		&out.UserID,
 		&out.AffCode,
@@ -819,6 +824,9 @@ WHERE user_id = $1`, userID)
 		&out.AffHistoryQuota,
 		&out.CreatedAt,
 		&out.UpdatedAt,
+		&out.HasResellerRole,
+		&out.ResellerStatus,
+		&resellerRevokedAt,
 	); err != nil {
 		return nil, err
 	}
@@ -829,24 +837,31 @@ WHERE user_id = $1`, userID)
 		v := rebateRate.Float64
 		out.AffRebateRatePercent = &v
 	}
+	if resellerRevokedAt.Valid {
+		out.ResellerRevokedAt = &resellerRevokedAt.Time
+	}
 	return &out, nil
 }
 
 func queryAffiliateByCode(ctx context.Context, client affiliateQueryExecer, code string) (*service.AffiliateSummary, error) {
 	rows, err := client.QueryContext(ctx, `
-SELECT user_id,
-       aff_code,
-       aff_code_custom,
-       aff_rebate_rate_percent,
-       inviter_id,
-       aff_count,
-       aff_quota::double precision,
-       aff_frozen_quota::double precision,
-       aff_history_quota::double precision,
-       created_at,
-       updated_at
-FROM user_affiliates
-WHERE aff_code = $1
+SELECT ua.user_id,
+       ua.aff_code,
+       ua.aff_code_custom,
+       ua.aff_rebate_rate_percent,
+       ua.inviter_id,
+       ua.aff_count,
+       ua.aff_quota::double precision,
+       ua.aff_frozen_quota::double precision,
+       ua.aff_history_quota::double precision,
+       ua.created_at,
+       ua.updated_at,
+       (rr.user_id IS NOT NULL),
+       COALESCE(rr.status, ''),
+       rr.revoked_at
+FROM user_affiliates ua
+LEFT JOIN user_reseller_roles rr ON rr.user_id = ua.user_id
+WHERE ua.aff_code = $1
 LIMIT 1`, strings.ToUpper(strings.TrimSpace(code)))
 	if err != nil {
 		return nil, err
@@ -863,6 +878,7 @@ LIMIT 1`, strings.ToUpper(strings.TrimSpace(code)))
 	var out service.AffiliateSummary
 	var inviterID sql.NullInt64
 	var rebateRate sql.NullFloat64
+	var resellerRevokedAt sql.NullTime
 	if err := rows.Scan(
 		&out.UserID,
 		&out.AffCode,
@@ -875,6 +891,9 @@ LIMIT 1`, strings.ToUpper(strings.TrimSpace(code)))
 		&out.AffHistoryQuota,
 		&out.CreatedAt,
 		&out.UpdatedAt,
+		&out.HasResellerRole,
+		&out.ResellerStatus,
+		&resellerRevokedAt,
 	); err != nil {
 		return nil, err
 	}
@@ -884,6 +903,9 @@ LIMIT 1`, strings.ToUpper(strings.TrimSpace(code)))
 	if rebateRate.Valid {
 		v := rebateRate.Float64
 		out.AffRebateRatePercent = &v
+	}
+	if resellerRevokedAt.Valid {
+		out.ResellerRevokedAt = &resellerRevokedAt.Time
 	}
 	return &out, nil
 }

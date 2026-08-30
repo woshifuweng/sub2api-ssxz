@@ -227,9 +227,7 @@ func (h *OpenAIGatewayHandler) LiveSideband(c *gin.Context) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Live call not found")
 		return
 	}
-	downstream, err := coderws.Accept(c.Writer, c.Request, &coderws.AcceptOptions{
-		InsecureSkipVerify: true,
-	})
+	downstream, err := coderws.Accept(c.Writer, c.Request, liveSidebandAcceptOptions())
 	if err != nil {
 		return
 	}
@@ -239,6 +237,12 @@ func (h *OpenAIGatewayHandler) LiveSideband(c *gin.Context) {
 		return
 	}
 	_ = downstream.Close(coderws.StatusNormalClosure, "")
+}
+
+func liveSidebandAcceptOptions() *coderws.AcceptOptions {
+	// The websocket library's default origin policy accepts non-browser API
+	// clients and same-origin browsers while rejecting cross-site browsers.
+	return &coderws.AcceptOptions{}
 }
 
 func liveEnabledForAPIKey(apiKey *service.APIKey) bool {

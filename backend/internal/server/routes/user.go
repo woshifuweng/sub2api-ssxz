@@ -154,5 +154,54 @@ func RegisterUserRoutes(
 			monitorV2.GET("/errors", h.ChannelMonitorV2.Errors)
 			monitorV2.GET("/users", h.ChannelMonitorV2.Users)
 		}
+
+		registerUserResellerRoutes(authenticated, h)
+		registerChatWorkspaceRoutes(authenticated, h, panelRateLimiter)
+	}
+}
+
+func registerChatWorkspaceRoutes(authenticated *gin.RouterGroup, h *handler.Handlers, panelRateLimiter *middleware.PanelRateLimiter) {
+	if h == nil || h.ChatWorkspace == nil {
+		return
+	}
+	workspace := authenticated.Group("/chat-workspace")
+	workspace.Use(panelRateLimiter.Heavy())
+	{
+		workspace.GET("/conversations", h.ChatWorkspace.ListConversations)
+		workspace.POST("/conversations", h.ChatWorkspace.CreateConversation)
+		workspace.GET("/conversations/:id", h.ChatWorkspace.GetConversation)
+		workspace.GET("/conversations/:id/messages", h.ChatWorkspace.ListMessages)
+		workspace.POST("/conversations/:id/messages", h.ChatWorkspace.AppendMessage)
+	}
+}
+
+func registerUserResellerRoutes(authenticated *gin.RouterGroup, h *handler.Handlers) {
+	if h == nil || h.Reseller == nil {
+		return
+	}
+
+	reseller := authenticated.Group("/user/reseller")
+	{
+		reseller.GET("/role", h.Reseller.GetMyRole)
+		reseller.GET("/dashboard", h.Reseller.GetMyDashboard)
+		reseller.GET("/recruits", h.Reseller.GetMyRecruits)
+		reseller.GET("/recruits/:userId", h.Reseller.GetRecruitDetail)
+		reseller.GET("/recruits/:userId/logs", h.Reseller.GetRecruitLogs)
+		reseller.GET("/recruits/:userId/recharges", h.Reseller.GetRecruitRecharges)
+		reseller.GET("/withdrawals", h.Reseller.GetMyWithdrawals)
+		reseller.POST("/withdraw", h.Reseller.RequestWithdraw)
+		reseller.POST("/withdrawals/:id/cancel", h.Reseller.CancelWithdrawal)
+		reseller.GET("/invite", h.Reseller.InviteHandler)
+		reseller.GET("/commission", h.Reseller.CommissionHandler)
+
+		manager := reseller.Group("/manager")
+		{
+			manager.GET("/dashboard", h.Reseller.GetManagerDashboard)
+			manager.GET("/agents", h.Reseller.ManagerListAgents)
+			manager.GET("/agents/:id", h.Reseller.ManagerGetAgentDetail)
+			manager.POST("/agents/:id/grant", h.Reseller.ManagerGrantAgent)
+			manager.DELETE("/agents/:id/role", h.Reseller.ManagerRevokeAgent)
+			manager.GET("/withdrawals", h.Reseller.ManagerListWithdrawals)
+		}
 	}
 }

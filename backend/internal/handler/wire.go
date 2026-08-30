@@ -194,6 +194,8 @@ func ProvideHandlers(
 	modelPlazaHandler *ModelPlazaHandler,
 	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
+	resellerHandler *ResellerHandler,
+	chatWorkspaceHandler *ChatWorkspaceHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 	_ *service.OpenAIQuotaAutoResetService,
@@ -220,6 +222,8 @@ func ProvideHandlers(
 		ModelPlaza:       modelPlazaHandler,
 		AsyncImage:       asyncImageHandler,
 		BatchImage:       batchImageHandler,
+		Reseller:         resellerHandler,
+		ChatWorkspace:    chatWorkspaceHandler,
 	}
 }
 
@@ -246,6 +250,9 @@ var ProviderSet = wire.NewSet(
 	NewModelPlazaHandler,
 	NewAsyncImageHandler,
 	ProvideBatchImageHandler,
+	NewResellerHandler,
+	ProvideChatWorkspaceService,
+	NewChatWorkspaceHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,

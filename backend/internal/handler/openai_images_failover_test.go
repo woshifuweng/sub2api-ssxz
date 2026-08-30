@@ -65,6 +65,15 @@ type openAIImagesFailoverHTTPUpstream struct {
 	accountIDs []int64
 }
 
+type openAIImagesBillingUserRepo struct {
+	service.UserRepository
+	user *service.User
+}
+
+func (r *openAIImagesBillingUserRepo) GetByID(context.Context, int64) (*service.User, error) {
+	return r.user, nil
+}
+
 func (u *openAIImagesFailoverHTTPUpstream) Do(_ *http.Request, _ string, accountID int64, _ int) (*http.Response, error) {
 	u.mu.Lock()
 	u.accountIDs = append(u.accountIDs, accountID)
@@ -200,4 +209,61 @@ func TestOpenAIGatewayHandlerImages_ServerErrorFailsOverAndReturnsClearErrorWhen
 	require.Len(t, events, 2)
 	require.Equal(t, "failover", events[0].Kind)
 	require.Equal(t, "failover", events[1].Kind)
+}
+
+func TestOpenAIGatewayHandlerImages_EstimatedCostOverBalanceStopsBeforeUpstream(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	groupID := int64(3131)
+	imagePrice := 2.0
+	user := &service.User{ID: 101, Status: service.StatusActive, Balance: 1}
+	group := &service.Group{
+		ID:                   groupID,
+		Platform:             service.PlatformOpenAI,
+		Status:               service.StatusActive,
+		RateMultiplier:       1,
+		AllowImageGeneration: true,
+		ImagePrice1K:         &imagePrice,
+		ImagePrice2K:         &imagePrice,
+		ImagePrice4K:         &imagePrice,
+	}
+	accountRepo := openAIImagesFailoverAccountRepo{accounts: []service.Account{{
+		ID: 1, Name: "image-account", Platform: service.PlatformOpenAI,
+		Type: service.AccountTypeAPIKey, Status: service.StatusActive, Schedulable: true,
+		Credentials: map[string]any{"api_key": "test", "base_url": "https://api.example.test"},
+	}}}
+	upstream := &openAIImagesFailoverHTTPUpstream{}
+	cfg := &config.Config{}
+	cfg.Default.RateMultiplier = 1
+	userRepo := &openAIImagesBillingUserRepo{user: user}
+	billingCache := service.NewBillingCacheService(nil, userRepo, nil, nil, nil, nil, cfg, nil)
+	t.Cleanup(billingCache.Stop)
+	gatewayService := service.NewOpenAIGatewayService(
+		accountRepo, nil, nil, userRepo, nil, nil, nil, cfg, nil, nil,
+		service.NewBillingService(cfg, nil), nil, billingCache, upstream, nil, nil,
+		nil, nil, nil, nil, nil, nil,
+	)
+	handler := NewOpenAIGatewayHandler(
+		gatewayService,
+		service.NewConcurrencyService(nil),
+		billingCache,
+		service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, cfg),
+		nil, nil, nil, nil, cfg,
+	)
+
+	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","size":"1024x1024"}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+	c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{
+		ID: 100, UserID: user.ID, GroupID: &groupID, User: user, Group: group,
+	})
+	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: user.ID})
+
+	handler.Images(c)
+
+	require.Empty(t, upstream.calls())
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.Contains(t, rec.Body.String(), "insufficient balance")
 }

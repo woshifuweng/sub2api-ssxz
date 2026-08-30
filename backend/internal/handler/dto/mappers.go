@@ -85,6 +85,8 @@ func APIKeyFromService(k *service.APIKey) *APIKey {
 		Key:                k.Key,
 		Name:               k.Name,
 		GroupID:            k.GroupID,
+		GroupIDs:           append([]int64(nil), k.GroupIDs...),
+		AllowedModels:      append([]string{}, k.AllowedModels...),
 		Status:             k.Status,
 		IPWhitelist:        k.IPWhitelist,
 		IPBlacklist:        k.IPBlacklist,
@@ -107,6 +109,11 @@ func APIKeyFromService(k *service.APIKey) *APIKey {
 		Window7dStart:      k.Window7dStart,
 		User:               UserFromServiceShallow(k.User),
 		Group:              GroupFromServiceShallow(k.Group),
+	}
+	for _, group := range k.Groups {
+		if group != nil {
+			out.Groups = append(out.Groups, *GroupFromServiceShallow(group))
+		}
 	}
 	if k.Window5hStart != nil && !service.IsWindowExpired(k.Window5hStart, service.RateLimitWindow5h) {
 		t := k.Window5hStart.Add(service.RateLimitWindow5h)
@@ -628,7 +635,7 @@ func AccountSummaryFromService(a *service.Account) *AccountSummary {
 }
 
 func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
-	// 普通用户 DTO：严禁包含管理员字段（例如 account_rate_multiplier、account、upstream_model）。
+	// 普通用户 DTO：只映射用户可见字段，避免 service model 新增字段时被动扩大响应面。
 	requestType := l.EffectiveRequestType()
 	stream, openAIWSMode := service.ApplyLegacyRequestFields(requestType, l.Stream, l.OpenAIWSMode)
 	requestedModel := l.RequestedModel
@@ -637,16 +644,12 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 	}
 	return UsageLog{
 		ID:                        l.ID,
-		UserID:                    l.UserID,
-		APIKeyID:                  l.APIKeyID,
-		AccountID:                 l.AccountID,
 		RequestID:                 l.RequestID,
 		Model:                     requestedModel,
 		ServiceTier:               l.ServiceTier,
 		ReasoningEffort:           l.ReasoningEffort,
 		InboundEndpoint:           l.InboundEndpoint,
 		GroupID:                   l.GroupID,
-		SubscriptionID:            l.SubscriptionID,
 		InputTokens:               l.InputTokens,
 		OutputTokens:              l.OutputTokens,
 		CacheCreationTokens:       l.CacheCreationTokens,
@@ -684,11 +687,23 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 		CacheTTLOverridden:        l.CacheTTLOverridden,
 		BillingMode:               l.BillingMode,
 		CreatedAt:                 l.CreatedAt,
-		User:                      UserFromServiceShallow(l.User),
-		APIKey:                    APIKeyFromService(l.APIKey),
-		Group:                     GroupFromServiceShallow(l.Group),
-		Subscription:              UserSubscriptionFromService(l.Subscription),
+		APIKey:                    usageLogAPIKeySummaryFromService(l.APIKey),
+		Group:                     usageLogGroupSummaryFromService(l.Group),
 	}
+}
+
+func usageLogAPIKeySummaryFromService(k *service.APIKey) *UsageLogAPIKeySummary {
+	if k == nil {
+		return nil
+	}
+	return &UsageLogAPIKeySummary{ID: k.ID, Name: k.Name}
+}
+
+func usageLogGroupSummaryFromService(g *service.Group) *UsageLogGroupSummary {
+	if g == nil {
+		return nil
+	}
+	return &UsageLogGroupSummary{ID: g.ID, Name: g.Name}
 }
 
 // UsageLogFromService converts a service UsageLog to DTO for regular users.
@@ -708,9 +723,13 @@ func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
 		return nil
 	}
 	usageLog := usageLogFromServiceUser(l)
-	usageLog.UpstreamEndpoint = l.UpstreamEndpoint
 	return &AdminUsageLog{
 		UsageLog:              usageLog,
+		UserID:                l.UserID,
+		APIKeyID:              l.APIKeyID,
+		AccountID:             l.AccountID,
+		SubscriptionID:        l.SubscriptionID,
+		UpstreamEndpoint:      l.UpstreamEndpoint,
 		UpstreamModel:         l.UpstreamModel,
 		UpstreamResponseModel: l.UpstreamResponseModel,
 		UpstreamModelMismatch: l.UpstreamModelMismatch,
@@ -721,6 +740,10 @@ func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
 		AccountStatsCost:      l.AccountStatsCost,
 		IPAddress:             l.IPAddress,
 		Account:               AccountSummaryFromService(l.Account),
+		User:                  UserFromServiceShallow(l.User),
+		APIKey:                APIKeyFromService(l.APIKey),
+		Group:                 GroupFromServiceShallow(l.Group),
+		Subscription:          UserSubscriptionFromService(l.Subscription),
 	}
 }
 

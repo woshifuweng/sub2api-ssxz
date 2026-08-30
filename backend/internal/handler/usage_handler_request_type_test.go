@@ -19,6 +19,8 @@ type userUsageRepoCapture struct {
 	service.UsageLogRepository
 	listParams   pagination.PaginationParams
 	listFilters  usagestats.UsageLogFilters
+	getByID      int64
+	getByIDUser  int64
 	statsFilters usagestats.UsageLogFilters
 	trendFilters usagestats.UsageLogFilters
 	groupFilters usagestats.UsageLogFilters
@@ -26,6 +28,7 @@ type userUsageRepoCapture struct {
 	stats        *usagestats.UsageStats
 	modelStats   []usagestats.ModelStat
 	groupStats   []usagestats.GroupStat
+	detailRows   map[int64]service.UsageLog
 }
 
 func (s *userUsageRepoCapture) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters usagestats.UsageLogFilters) ([]service.UsageLog, *pagination.PaginationResult, error) {
@@ -37,6 +40,16 @@ func (s *userUsageRepoCapture) ListWithFilters(ctx context.Context, params pagin
 		PageSize: params.PageSize,
 		Pages:    0,
 	}, nil
+}
+
+func (s *userUsageRepoCapture) GetByIDForUser(_ context.Context, id, userID int64) (*service.UsageLog, error) {
+	s.getByID = id
+	s.getByIDUser = userID
+	row, ok := s.detailRows[id]
+	if !ok || row.UserID != userID {
+		return nil, service.ErrUsageLogNotFound
+	}
+	return &row, nil
 }
 
 func (s *userUsageRepoCapture) GetStatsWithFilters(ctx context.Context, filters usagestats.UsageLogFilters) (*usagestats.UsageStats, error) {
@@ -88,10 +101,83 @@ func newUserUsageRequestTypeTestRouter(repo *userUsageRepoCapture) *gin.Engine {
 		c.Next()
 	})
 	router.GET("/usage", handler.List)
+	router.GET("/usage/:id", handler.GetByID)
 	router.GET("/usage/stats", handler.Stats)
 	router.GET("/usage/dashboard/models", handler.DashboardModels)
 	router.GET("/usage/dashboard/snapshot-v2", handler.DashboardSnapshotV2)
 	return router
+}
+
+func TestUserUsageListIgnoresCrossUserAndAdminOnlyFilters(t *testing.T) {
+	repo := &userUsageRepoCapture{}
+	router := newUserUsageRequestTypeTestRouter(repo)
+
+	req := httptest.NewRequest(http.MethodGet, "/usage?user_id=999&account_id=888&request_id=other-user-request&group_id=7", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(42), repo.listFilters.UserID)
+	require.Zero(t, repo.listFilters.AccountID)
+	require.Empty(t, repo.listFilters.RequestID)
+	require.Equal(t, int64(7), repo.listFilters.GroupID)
+}
+
+func TestUserUsageDetailScopesLookupByAuthenticatedUser(t *testing.T) {
+	repo := &userUsageRepoCapture{
+		detailRows: map[int64]service.UsageLog{
+			10: {ID: 10, UserID: 42, RequestID: "owned"},
+			11: {ID: 11, UserID: 99, RequestID: "other-user"},
+		},
+	}
+	router := newUserUsageRequestTypeTestRouter(repo)
+
+	req := httptest.NewRequest(http.MethodGet, "/usage/10", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(10), repo.getByID)
+	require.Equal(t, int64(42), repo.getByIDUser)
+	require.Contains(t, rec.Body.String(), `"request_id":"owned"`)
+
+	req = httptest.NewRequest(http.MethodGet, "/usage/11", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusNotFound, rec.Code)
+	require.Equal(t, int64(11), repo.getByID)
+	require.Equal(t, int64(42), repo.getByIDUser)
+	require.NotContains(t, rec.Body.String(), "other-user")
+}
+
+type userUsageAPIKeyRepoStub struct {
+	service.APIKeyRepository
+	keys map[int64]*service.APIKey
+}
+
+func (s *userUsageAPIKeyRepoStub) GetByID(_ context.Context, id int64) (*service.APIKey, error) {
+	return s.keys[id], nil
+}
+
+func TestUserUsageAPIKeyFilterRejectsAnotherUsersKey(t *testing.T) {
+	repo := &userUsageRepoCapture{}
+	apiKeyService := service.NewAPIKeyService(&userUsageAPIKeyRepoStub{keys: map[int64]*service.APIKey{
+		7: {ID: 7, UserID: 99, Name: "other-user-key"},
+	}}, nil, nil, nil, nil, nil, nil)
+	usageSvc := service.NewUsageService(repo, nil, nil, nil)
+	handler := NewUsageHandler(usageSvc, apiKeyService, nil, nil)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 42})
+		c.Next()
+	})
+	router.GET("/usage", handler.List)
+
+	req := httptest.NewRequest(http.MethodGet, "/usage?api_key_id=7", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.Zero(t, repo.listFilters.UserID, "repository must not run after a cross-user API-key filter")
 }
 
 func TestUserUsageListRequestTypePriority(t *testing.T) {
