@@ -3,7 +3,7 @@
 > 这份文件只回答一个问题：**生产现在跑的是哪条代码线。**
 > 它是唯一权威。与 `HANDOFF.md`、memory、`VERSION` 文件冲突时**以本文件为准**；
 > 本文件与生产实测冲突时**以实测为准**，并立刻回来改这份文件。
-> 最后核验：2026-08-31 生产已正式切换到 `.16` 全站护栏版，staging `.15` 继续保持数据、凭据、Redis、网络和自主后台任务隔离；两套服务均为 active、`NRestarts=0`，生产公网健康页与管理页为 HTTP 200（核验方法见文末，任何人可自行复跑）。
+> 最后核验：2026-08-31 生产与 staging 均已同步到 `.16` 全站护栏版；staging 继续保持数据、凭据、Redis、网络和自主后台任务隔离。两套服务均为 active、`NRestarts=0`，生产公网及 staging 本机健康页与管理页均为 HTTP 200（核验方法见文末，任何人可自行复跑）。
 
 ## 当前生产与预发布摘要（2026-08-31）
 
@@ -11,11 +11,11 @@
 - 生产二进制：SHA256 `09352b3ebb8c58a9df40d81fc92565388a873225c9b327b906adf183ff35324a`，`121,102,496` bytes；嵌入式前端入口 `assets/index-CIu9QCgZ.js`。
 - 生产连续性：`/opt/sub2api/current` 原子指向 `/opt/sub2api/releases/0.1.183-ssxz.20260831.16`；MainPID `2200355`，启动时间 `2026-08-31 05:59:31 CST`，`active` / `NRestarts=0` / `ExecMainStatus=0`，公网健康页与管理页均为 HTTP 200。
 - `.16` 发布边界：保留 `.14` 的低余额按真实预估费用放行修复，并正式纳入支付/提现幂等、计费欠款台账、API Key 空分组与失效主分组 fail-closed、数据库字段宽度收敛及完整发布门禁；没有改变客户余额、分组倍率或现有 Key。
-- 预发布版本：`0.1.183-ssxz.20260831.15`；运行代码 commit `1f7beef9bcc7bd42c80daf29d11a0d9692888aa6`，隔离验收脚本最终 commit `5bd1b2bae`，远端分支 `fork/codex/staging-isolation-20260831`。
-- 预发布二进制：SHA256 `4a770dfdb2fa7ac4716aa24e3bc3a036196cb5f2591f35b01958dd6273f925e8`，`113,393,824` bytes；MainPID `2175037`，启动时间 `2026-08-31 04:55:02 CST`，`active` / `NRestarts=0` / `ExecMainStatus=0`，本机 `/health` 为 HTTP 200。
+- 预发布版本：`0.1.183-ssxz.20260831.16`；与生产运行相同源码 commit `2e0483442dd53b5c2f34d7cef0eb2e35433d98fb`，远端分支 `fork/codex/staging-isolation-20260831`。
+- 预发布二进制：SHA256 `09352b3ebb8c58a9df40d81fc92565388a873225c9b327b906adf183ff35324a`，`121,102,496` bytes，与生产逐字节一致；MainPID `2207293`，启动时间 `2026-08-31 06:16:00 CST`，`active` / `NRestarts=0` / `ExecMainStatus=0`，本机 `/health`、`/admin/dashboard` 及前端入口 `assets/index-CIu9QCgZ.js` 均通过。
 - 隔离结果：预发布使用独立数据库和 `6380` Redis；systemd 只允许 loopback 网络；生产/预发布 API Key 与密码哈希重叠均为 0；除两个专用测试账号外，真实账号、登录凭据、会话、Provider、支付、通知和监控配置均被清除或禁用。
 - 后台任务：增加 `BACKGROUND_JOBS_ENABLED` 总开关；预发布显式关闭定价拉取、版本同步、备份、探测、刷新、报表等自主任务。启动日志错误 0、禁止任务启动痕迹 0、非本机连接 0；生产未配置该开关，原有行为不变。
-- 回滚基线：生产旧版保留在 `/opt/sub2api/releases/0.1.183-ssxz.20260830.14`，生产数据库、二进制、配置和 systemd 快照在 `/opt/sub2api/backups/release-20260831T0555-v14-to-v15`；预发布隔离快照继续位于 `/opt/sub2api/backups/staging-isolation-before-20260831-0100` 和 `/opt/sub2api/backups/staging-code-gate-before-20260831-0145`。
+- 回滚基线：生产旧版保留在 `/opt/sub2api/releases/0.1.183-ssxz.20260830.14`，生产数据库、二进制、配置和 systemd 快照在 `/opt/sub2api/backups/release-20260831T0555-v14-to-v15`；预发布同步 `.16` 前的数据库、二进制、配置和 systemd 快照在 `/opt/sub2api/backups/staging-sync-v16-20260831-061551`，更早的隔离快照继续保留。
 - 数据边界：生产只执行 4 条向后兼容 migration，`schema_migrations` 从 308 增至 312；上线前后用户、API Key、分组、账号与余额总和一致，没有发送付费模型或图片请求。
 
 ## 上一次生产摘要（2026-08-30 v0.1.183 SSXZ `.12` 合并版，已被 `.14` 覆盖）
