@@ -336,7 +336,7 @@ type resellerWithdrawBody struct {
 	AccountInfo map[string]interface{} `json:"account_info"`
 }
 
-// RequestWithdraw POST /api/v1/user/reseller/withdraw
+// RequestWithdraw POST /api/v1/user/reseller/withdrawals
 func (h *ResellerHandler) RequestWithdraw(c *gin.Context) {
 	userID, ok := h.requireAgent(c)
 	if !ok {
@@ -348,9 +348,10 @@ func (h *ResellerHandler) RequestWithdraw(c *gin.Context) {
 		return
 	}
 	req, err := h.svc.RequestWithdraw(c.Request.Context(), userID, service.WithdrawInput{
-		Amount:      body.Amount,
-		Method:      body.Method,
-		AccountInfo: body.AccountInfo,
+		Amount:         body.Amount,
+		Method:         body.Method,
+		AccountInfo:    body.AccountInfo,
+		IdempotencyKey: strings.TrimSpace(c.GetHeader("Idempotency-Key")),
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)

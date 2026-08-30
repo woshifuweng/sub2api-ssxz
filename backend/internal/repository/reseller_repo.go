@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -1098,6 +1099,31 @@ func (r *resellerRepository) CreateWithdrawRequest(ctx context.Context, userID i
 	if _, _, err := lockResellerRole(ctx, tx, userID); err != nil {
 		return nil, err
 	}
+
+	var req service.WithdrawRequest
+	var accountRaw []byte
+	err = tx.QueryRowContext(ctx, `
+		SELECT id, user_id, amount::double precision, method, account_info, status, note, requested_at
+		FROM affiliate_withdraw_requests
+		WHERE user_id = $1 AND idempotency_key = $2
+		FOR UPDATE`, userID, input.IdempotencyKey,
+	).Scan(&req.ID, &req.UserID, &req.Amount, &req.Method, &accountRaw, &req.Status, &req.Note, &req.RequestedAt)
+	if err == nil {
+		if math.Abs(req.Amount-input.Amount) > 1e-9 || req.Method != input.Method {
+			return nil, service.ErrWithdrawIdempotencyConflict
+		}
+		if len(accountRaw) > 0 {
+			_ = json.Unmarshal(accountRaw, &req.AccountInfo)
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("reseller CreateWithdrawRequest idempotent commit: %w", err)
+		}
+		return &req, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("reseller CreateWithdrawRequest find idempotency key: %w", err)
+	}
+
 	var availableQuota float64
 	if err := tx.QueryRowContext(ctx, `
 		SELECT aff_quota::double precision
@@ -1121,13 +1147,11 @@ func (r *resellerRepository) CreateWithdrawRequest(ctx context.Context, userID i
 		return nil, service.ErrWithdrawInsufficientBalance
 	}
 
-	var req service.WithdrawRequest
-	var accountRaw []byte
 	err = tx.QueryRowContext(ctx, `
-		INSERT INTO affiliate_withdraw_requests (user_id, amount, method, account_info, status)
-		VALUES ($1, $2, $3, $4, 'pending')
+		INSERT INTO affiliate_withdraw_requests (user_id, amount, method, account_info, status, idempotency_key)
+		VALUES ($1, $2, $3, $4, 'pending', $5)
 		RETURNING id, user_id, amount, method, account_info, status, note, requested_at`,
-		userID, input.Amount, input.Method, accountJSON,
+		userID, input.Amount, input.Method, accountJSON, input.IdempotencyKey,
 	).Scan(&req.ID, &req.UserID, &req.Amount, &req.Method, &accountRaw, &req.Status, &req.Note, &req.RequestedAt)
 	if err != nil {
 		return nil, fmt.Errorf("reseller CreateWithdrawRequest: %w", err)

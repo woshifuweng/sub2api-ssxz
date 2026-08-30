@@ -189,7 +189,7 @@ func registerUserResellerRoutes(authenticated *gin.RouterGroup, h *handler.Handl
 		reseller.GET("/recruits/:userId/logs", h.Reseller.GetRecruitLogs)
 		reseller.GET("/recruits/:userId/recharges", h.Reseller.GetRecruitRecharges)
 		reseller.GET("/withdrawals", h.Reseller.GetMyWithdrawals)
-		reseller.POST("/withdraw", h.Reseller.RequestWithdraw)
+		reseller.POST("/withdrawals", h.Reseller.RequestWithdraw)
 		reseller.POST("/withdrawals/:id/cancel", h.Reseller.CancelWithdrawal)
 		reseller.GET("/invite", h.Reseller.InviteHandler)
 		reseller.GET("/commission", h.Reseller.CommissionHandler)

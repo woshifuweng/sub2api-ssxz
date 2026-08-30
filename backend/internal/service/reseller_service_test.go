@@ -163,6 +163,26 @@ func TestResellerServiceWithdrawalLifecycleValidation(t *testing.T) {
 	require.Empty(t, repo.reviewStatus)
 }
 
+func TestResellerServiceRejectsBalanceConversionBelowFiveDollars(t *testing.T) {
+	repo := &resellerRepositoryStub{role: &ResellerRoleRecord{Role: ResellerRoleAgent, Status: ResellerStatusActive}}
+	svc := NewResellerService(repo)
+
+	_, err := svc.RequestWithdraw(context.Background(), 7, WithdrawInput{Amount: 4.99, IdempotencyKey: "withdraw-1"})
+
+	require.ErrorIs(t, err, ErrWithdrawBelowMinimum)
+	require.Empty(t, repo.createdInput)
+}
+
+func TestResellerServiceRequiresIdempotencyKeyForBalanceConversion(t *testing.T) {
+	repo := &resellerRepositoryStub{role: &ResellerRoleRecord{Role: ResellerRoleAgent, Status: ResellerStatusActive}}
+	svc := NewResellerService(repo)
+
+	_, err := svc.RequestWithdraw(context.Background(), 7, WithdrawInput{Amount: 5})
+
+	require.ErrorIs(t, err, ErrWithdrawIdempotencyKeyRequired)
+	require.Empty(t, repo.createdInput)
+}
+
 func TestResellerServiceCancelWithdrawalDelegatesOwnershipCheck(t *testing.T) {
 	repo := &resellerRepositoryStub{}
 	svc := NewResellerService(repo)
