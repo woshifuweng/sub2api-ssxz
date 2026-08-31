@@ -11,7 +11,9 @@ legacy direct `/opt/sub2api/sub2api` unit automatically.
   current -> /opt/sub2api/releases/<active-version>
   releases/
     <active-version>/sub2api
+    <active-version>/config.yaml -> /opt/sub2api/config.yaml
     <candidate-version>/sub2api
+    <candidate-version>/config.yaml -> /opt/sub2api/config.yaml
 ```
 
 The production unit should use:
@@ -23,10 +25,14 @@ EnvironmentFile=/etc/sub2api/sub2api.env
 ```
 
 Create a separate `/etc/sub2api/preflight.env` backed by an isolated database
-and Redis. It must not contain production provider, payment, SMTP, storage,
-OAuth, monitoring, or customer credentials. The script forces loopback, a
-temporary port, and `BACKGROUND_JOBS_ENABLED=false`, but isolation of the
-preflight database/Redis is still mandatory.
+and Redis. It must declare either `DATA_DIR` or `CONFIG_FILE`, pointing to a
+separate readable config that contains only the local database, Redis, server,
+JWT and logging fields needed to start the candidate. The script refuses to
+reuse the candidate's production config for preflight. Neither the isolated
+environment nor config may contain production provider, payment, SMTP,
+storage, OAuth, monitoring, or customer credentials. The script forces
+loopback, a temporary port, and `BACKGROUND_JOBS_ENABLED=false`, but isolation
+of the preflight database/Redis is still mandatory.
 
 Every release also requires a recent PostgreSQL custom-format backup that has
 been restored successfully into a uniquely named disposable database. The

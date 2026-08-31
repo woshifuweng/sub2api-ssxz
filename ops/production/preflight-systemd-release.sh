@@ -5,6 +5,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 release_root="${RELEASE_ROOT:-/opt/sub2api/releases}"
 current_link="${CURRENT_LINK:-/opt/sub2api/current}"
 binary_relative="${BINARY_RELATIVE:-sub2api}"
+production_config_relative="${PRODUCTION_CONFIG_RELATIVE:-config.yaml}"
 service_name="${SERVICE_NAME:-sub2api.service}"
 service_user="${SERVICE_USER:-sub2api}"
 production_env_file="${PRODUCTION_ENV_FILE:-/etc/sub2api/sub2api.env}"
@@ -54,6 +55,8 @@ candidate_binary="$(realpath -m "$candidate_dir/$binary_relative")"
 path_must_be_below_release_root "$candidate_binary"
 [[ -f "$candidate_binary" ]] || die "candidate binary not found: $candidate_binary"
 [[ -x "$candidate_binary" ]] || die "candidate binary is not executable: $candidate_binary"
+candidate_config="$candidate_dir/$production_config_relative"
+[[ -f "$candidate_config" ]] || die "candidate production config not found: $candidate_config"
 [[ -f "$production_env_file" ]] || die "production environment file not found: $production_env_file"
 [[ -f "$preflight_env_file" ]] || die "isolated preflight environment file not found: $preflight_env_file"
 [[ "$(realpath -m "$production_env_file")" != "$(realpath -m "$preflight_env_file")" ]] || \
@@ -66,6 +69,29 @@ run_as_service() {
 run_as_service test -r "$production_env_file" || die "production environment is unreadable by $service_user"
 run_as_service test -r "$preflight_env_file" || die "preflight environment is unreadable by $service_user"
 run_as_service test -x "$candidate_binary" || die "candidate binary is not executable by $service_user"
+run_as_service test -r "$candidate_config" || die "candidate production config is unreadable by $service_user"
+
+preflight_config="$(run_as_service /bin/bash -c '
+  set -euo pipefail
+  set -a
+  . "$1"
+  set +a
+  if [[ -n "${CONFIG_FILE:-}" ]]; then
+    printf "%s\n" "$CONFIG_FILE"
+  elif [[ -n "${DATA_DIR:-}" ]]; then
+    printf "%s/config.yaml\n" "$DATA_DIR"
+  else
+    exit 1
+  fi
+' preflight-config "$preflight_env_file")" || \
+  die "preflight environment must declare CONFIG_FILE or DATA_DIR for an isolated config"
+preflight_config="$(realpath -e "$preflight_config" 2>/dev/null)" || \
+  die "isolated preflight config not found"
+candidate_config_real="$(realpath -e "$candidate_config" 2>/dev/null)" || \
+  die "candidate production config cannot be resolved"
+[[ "$preflight_config" != "$candidate_config_real" ]] || \
+  die "preflight must use an isolated config, not the candidate production config"
+run_as_service test -r "$preflight_config" || die "isolated preflight config is unreadable by $service_user"
 
 "$restore_verify_script" "$backup_file" || die "backup restore verification failed"
 log "backup restore verification passed"

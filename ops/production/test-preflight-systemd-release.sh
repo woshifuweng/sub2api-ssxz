@@ -18,9 +18,12 @@ assert_contains() {
 setup_fixture() {
   local name="$1"
   fixture="$test_root/$name"
-  mkdir -p "$fixture/bin" "$fixture/releases/old" "$fixture/releases/new"
+  mkdir -p "$fixture/bin" "$fixture/releases/old" "$fixture/releases/new" "$fixture/preflight-data"
   : >"$fixture/production.env"
-  : >"$fixture/preflight.env"
+  printf 'DATA_DIR=%s\n' "$fixture/preflight-data" >"$fixture/preflight.env"
+  : >"$fixture/preflight-data/config.yaml"
+  : >"$fixture/releases/new/config.yaml"
+  : >"$fixture/releases/old/config.yaml"
   printf 'PGDMP fake release backup\n' >"$fixture/backup.dump"
   ln -s "$fixture/releases/old" "$fixture/current"
 
@@ -130,6 +133,18 @@ setup_fixture unreadable-config
 export RUNUSER_DENY_READ="$PREFLIGHT_ENV_FILE"
 run_expect_failure "$fixture/output" "$release_script" "$fixture/releases/new"
 assert_contains "$fixture/output" "preflight environment is unreadable"
+[[ ! -e "$SYSTEMCTL_LOG" ]]
+
+setup_fixture missing-candidate-config
+rm -f "$fixture/releases/new/config.yaml"
+run_expect_failure "$fixture/output" "$release_script" "$fixture/releases/new"
+assert_contains "$fixture/output" "candidate production config not found"
+[[ ! -e "$SYSTEMCTL_LOG" ]]
+
+setup_fixture shared-preflight-config
+printf 'DATA_DIR=%s\n' "$fixture/releases/new" >"$PREFLIGHT_ENV_FILE"
+run_expect_failure "$fixture/output" "$release_script" "$fixture/releases/new"
+assert_contains "$fixture/output" "preflight must use an isolated config"
 [[ ! -e "$SYSTEMCTL_LOG" ]]
 
 setup_fixture non-executable
