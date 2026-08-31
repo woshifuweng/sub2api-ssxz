@@ -134,9 +134,16 @@ assert_contains "$fixture/output" "preflight environment is unreadable"
 
 setup_fixture non-executable
 chmod -x "$fixture/releases/new/sub2api"
-run_expect_failure "$fixture/output" "$release_script" "$fixture/releases/new"
-assert_contains "$fixture/output" "candidate binary is not executable"
-[[ "$(readlink -f "$CURRENT_LINK")" == "$fixture/releases/old" ]]
+if [[ ! -x "$fixture/releases/new/sub2api" ]]; then
+  run_expect_failure "$fixture/output" "$release_script" "$fixture/releases/new"
+  assert_contains "$fixture/output" "candidate binary is not executable"
+  [[ "$(readlink -f "$CURRENT_LINK")" == "$fixture/releases/old" ]]
+else
+  # Git Bash on Windows does not expose the NTFS executable bit. Linux release
+  # hosts still run this case; Windows source gates skip only the unsupported
+  # permission assertion.
+  printf 'skipping non-executable case: filesystem does not expose chmod -x\n'
+fi
 
 setup_fixture invalid-port
 export PREFLIGHT_PORT=70000

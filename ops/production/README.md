@@ -95,8 +95,10 @@ sequentially while bounding the internal Go and Vitest worker counts. A failure
 stops the gate immediately.
 
 Source mode verifies shell release tooling, all normal/unit/integration Go
-tests, Go vet, frontend lint/typecheck/full Vitest, and the production frontend
-build:
+tests, Go vet, frontend lint/typecheck/full Vitest, the production frontend
+build, and a Go production build with the frontend embedded. The explicit
+embedded build prevents a healthy API binary from shipping with every browser
+route returning 404:
 
 ```bash
 GATE_MODE=source GATE_PARALLELISM=4 \

@@ -36,7 +36,7 @@ die() {
 (( vitest_min_workers <= vitest_max_workers )) || \
   die "VITEST_MIN_WORKERS cannot exceed VITEST_MAX_WORKERS"
 
-for command_name in "$go_bin" "$pnpm_bin" "$bash_bin" date mkdir chmod tee git; do
+for command_name in "$go_bin" "$pnpm_bin" "$bash_bin" date mkdir chmod tee git rm uname; do
   command -v "$command_name" >/dev/null 2>&1 || \
     die "required command not found: $command_name"
 done
@@ -93,6 +93,18 @@ run_step() {
   fi
 }
 
+run_guarded_release_self_test() {
+  case "$(uname -s)" in
+    Linux*) "$bash_bin" "$script_dir/test-preflight-systemd-release.sh" ;;
+    *)
+      # Git Bash on Windows cannot faithfully model Linux executable bits and
+      # atomic symlink replacement. Syntax is still checked above; the complete
+      # release self-test remains mandatory on the Linux release host.
+      printf '[commercial-gate] skipped: Linux filesystem semantics required\n'
+      ;;
+  esac
+}
+
 cd "$repo_root"
 run_step shell-syntax-restore "$bash_bin" -n "$script_dir/verify-backup-restore.sh"
 run_step shell-syntax-restore-test "$bash_bin" -n "$script_dir/test-verify-backup-restore.sh"
@@ -100,7 +112,7 @@ run_step shell-syntax-release "$bash_bin" -n "$script_dir/preflight-systemd-rele
 run_step shell-syntax-release-test "$bash_bin" -n "$script_dir/test-preflight-systemd-release.sh"
 run_step shell-syntax-commercial-gate "$bash_bin" -n "$script_dir/run-commercial-regression-gate.sh"
 run_step restore-verifier-self-test "$bash_bin" "$script_dir/test-verify-backup-restore.sh"
-run_step guarded-release-self-test "$bash_bin" "$script_dir/test-preflight-systemd-release.sh"
+run_step guarded-release-self-test run_guarded_release_self_test
 
 cd "$repo_root/backend"
 run_step backend-tests "$go_bin" test -p "$parallelism" ./...
@@ -115,7 +127,18 @@ run_step frontend-tests "$pnpm_bin" --dir frontend exec vitest run \
   --minWorkers="$vitest_min_workers" --maxWorkers="$vitest_max_workers"
 run_step frontend-production-build "$pnpm_bin" --dir frontend run build
 
+# The public/admin UI is served from the Go binary in production. A normal Go
+# build succeeds without those assets, so explicitly compile the embedded
+# variant to prevent shipping a healthy API with every browser route returning
+# "Frontend not embedded".
+embedded_smoke_binary="$evidence_dir/sub2api-embed-smoke"
+cd "$repo_root/backend"
+run_step backend-embedded-production-build "$go_bin" build \
+  -p "$parallelism" -tags=embed -trimpath -o "$embedded_smoke_binary" ./cmd/server
+rm -f -- "$embedded_smoke_binary"
+
 if [[ "$mode" == "release" ]]; then
+  cd "$repo_root"
   run_step staging-isolation "$staging_verify_script" \
     "$staging_env_file" "$production_database_name"
   run_step backup-restore "$restore_verify_script" "$backup_file"
