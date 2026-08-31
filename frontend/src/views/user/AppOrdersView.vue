@@ -226,6 +226,7 @@
         </template>
       </BaseDialog>
     </template>
+    <TotpStepUpDialog :controller="stepUp" />
   </AppSectionShell>
 </template>
 
@@ -236,12 +237,15 @@ import AppSectionShell from '@/components/user/AppSectionShell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
+import { isStepUpCancelled, useStepUp } from '@/composables/useStepUp'
 import { paymentAPI } from '@/api/payment'
 import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
 import type { PaymentOrder } from '@/types/payment'
 
 const appStore = useAppStore()
+const stepUp = useStepUp()
 const authStore = useAuthStore()
 
 const loading = ref(false)
@@ -365,12 +369,13 @@ async function confirmRefund() {
   if (!paymentEnabled.value || !refundTarget.value || !refundReason.value.trim()) return
   actionLoading.value = true
   try {
-    await paymentAPI.requestRefund(refundTarget.value.id, { reason: refundReason.value.trim() })
+    await stepUp.run(() => paymentAPI.requestRefund(refundTarget.value!.id, { reason: refundReason.value.trim() }))
     appStore.showSuccess('退款申请已提交')
     refundTarget.value = null
     refundReason.value = ''
     await loadOrders()
-  } catch {
+  } catch (error) {
+    if (isStepUpCancelled(error)) return
     appStore.showError('退款申请提交失败，请稍后重试')
   } finally {
     actionLoading.value = false

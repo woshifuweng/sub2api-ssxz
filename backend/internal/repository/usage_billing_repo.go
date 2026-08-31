@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -179,12 +180,18 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 	}
 
 	if cmd.BalanceCost > 0 {
-		newBalance, sufficient, err := deductUsageBillingBalance(ctx, tx, cmd.UserID, cmd.BalanceCost)
+		deduction, err := deductUsageBillingBalance(ctx, tx, cmd.UserID, cmd.BalanceCost)
 		if err != nil {
 			return err
 		}
-		result.NewBalance = &newBalance
-		result.BalanceOverdrafted = !sufficient
+		result.NewBalance = &deduction.BalanceAfter
+		result.BalanceShortfall = deduction.Shortfall
+		result.BalanceOverdrafted = deduction.Shortfall > 0.00000001
+		if result.BalanceOverdrafted {
+			if err := recordUsageBillingShortfall(ctx, tx, cmd, deduction); err != nil {
+				return err
+			}
+		}
 	}
 
 	if cmd.APIKeyQuotaCost > 0 {
@@ -240,7 +247,14 @@ func incrementUsageBillingSubscription(ctx context.Context, tx *sql.Tx, subscrip
 	return service.ErrSubscriptionNotFound
 }
 
-func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, amount float64) (float64, bool, error) {
+type usageBillingBalanceDeduction struct {
+	BalanceBefore float64
+	BalanceAfter  float64
+	Charged       float64
+	Shortfall     float64
+}
+
+func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, amount float64) (usageBillingBalanceDeduction, error) {
 	var currentBalance float64
 	err := tx.QueryRowContext(ctx, `
 		SELECT balance
@@ -249,10 +263,10 @@ func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, am
 		FOR UPDATE
 	`, userID).Scan(&currentBalance)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, false, service.ErrUserNotFound
+		return usageBillingBalanceDeduction{}, service.ErrUserNotFound
 	}
 	if err != nil {
-		return 0, false, err
+		return usageBillingBalanceDeduction{}, err
 	}
 
 	available := currentBalance
@@ -270,6 +284,10 @@ func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, am
 	if newBalance < 0 {
 		newBalance = 0
 	}
+	shortfall := amount - charged
+	if shortfall < 0 {
+		shortfall = 0
+	}
 
 	result, err := tx.ExecContext(ctx, `
 		UPDATE users
@@ -278,16 +296,56 @@ func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, am
 		WHERE id = $2 AND deleted_at IS NULL
 	`, newBalance, userID)
 	if err != nil {
-		return 0, false, err
+		return usageBillingBalanceDeduction{}, err
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return 0, false, err
+		return usageBillingBalanceDeduction{}, err
 	}
 	if affected == 0 {
-		return 0, false, service.ErrUserNotFound
+		return usageBillingBalanceDeduction{}, service.ErrUserNotFound
 	}
-	return newBalance, amount <= available, nil
+	return usageBillingBalanceDeduction{
+		BalanceBefore: currentBalance,
+		BalanceAfter:  newBalance,
+		Charged:       charged,
+		Shortfall:     shortfall,
+	}, nil
+}
+
+func recordUsageBillingShortfall(ctx context.Context, tx *sql.Tx, cmd *service.UsageBillingCommand, deduction usageBillingBalanceDeduction) error {
+	note := fmt.Sprintf(
+		"requested=%.8f charged=%.8f shortfall=%.8f",
+		cmd.BalanceCost,
+		deduction.Charged,
+		deduction.Shortfall,
+	)
+	_, err := tx.ExecContext(ctx, `
+		INSERT INTO account_balance_ledger (
+			user_id,
+			event_type,
+			amount_delta,
+			balance_before,
+			balance_after,
+			actor_type,
+			actor_id,
+			source_type,
+			source_id,
+			note
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, NULL, $7, $8, $9)
+	`,
+		cmd.UserID,
+		service.BalanceLedgerEventUsageShortfall,
+		-deduction.Shortfall,
+		deduction.BalanceBefore,
+		deduction.BalanceAfter,
+		service.BalanceLedgerActorSystem,
+		service.BalanceLedgerSourceUsageBilling,
+		cmd.RequestID,
+		note,
+	)
+	return err
 }
 
 func reserveUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *service.BatchImageBalanceHoldCommand) (*service.BatchImageBalanceHoldResult, error) {

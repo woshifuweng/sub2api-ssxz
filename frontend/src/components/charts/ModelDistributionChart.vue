@@ -1,6 +1,6 @@
 <template>
-  <div class="card p-4">
-    <div class="mb-4 flex items-center justify-between gap-3">
+  <div class="distribution-card card p-4">
+    <div class="distribution-header mb-4 flex items-center justify-between gap-3">
       <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
         {{ !enableRankingView || activeView === 'model_distribution'
           ? t('admin.dashboard.modelDistribution')
@@ -101,13 +101,13 @@
     </div>
     <div
       v-else-if="activeView === 'model_distribution' && displayModelStats.length > 0 && chartData"
-      class="flex items-center gap-6"
+      class="distribution-layout"
     >
-      <div class="h-48 w-48">
+      <div class="distribution-chart h-48 w-48 shrink-0">
         <Doughnut :data="chartData" :options="doughnutOptions" />
       </div>
-      <div class="max-h-48 flex-1 overflow-y-auto">
-        <table class="w-full text-xs">
+      <div class="distribution-table max-h-48 w-full min-w-0 flex-1 overflow-auto">
+        <table class="w-full min-w-[30rem] table-fixed text-xs">
           <thead>
             <tr class="text-gray-500 dark:text-gray-400">
               <th class="pb-2 text-left">{{ t('admin.dashboard.model') }}</th>
@@ -175,12 +175,12 @@
     >
       {{ t('admin.dashboard.failedToLoad') }}
     </div>
-    <div v-else-if="rankingDisplayItems.length > 0 && rankingChartData" class="flex items-center gap-6">
-      <div class="h-48 w-48">
+    <div v-else-if="rankingDisplayItems.length > 0 && rankingChartData" class="distribution-layout">
+      <div class="distribution-chart h-48 w-48 shrink-0">
         <Doughnut :data="rankingChartData" :options="rankingDoughnutOptions" />
       </div>
-      <div class="max-h-48 flex-1 overflow-y-auto">
-        <table class="w-full text-xs">
+      <div class="distribution-table max-h-48 w-full min-w-0 flex-1 overflow-auto">
+        <table class="w-full min-w-[26rem] table-fixed text-xs">
           <thead>
             <tr class="text-gray-500 dark:text-gray-400">
               <th class="pb-2 text-left">{{ t('admin.dashboard.spendingRankingUser') }}</th>
@@ -505,3 +505,40 @@ const formatCost = (value: number): string => {
   return value.toFixed(4)
 }
 </script>
+
+<style scoped>
+.distribution-card {
+  container-type: inline-size;
+}
+
+.distribution-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1rem;
+}
+
+.distribution-chart {
+  align-self: center;
+}
+
+@container (min-width: 44rem) {
+  .distribution-layout {
+    flex-direction: row;
+    align-items: center;
+    gap: 1.5rem;
+  }
+}
+
+@container (max-width: 31rem) {
+  .distribution-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .distribution-header > :last-child {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+</style>

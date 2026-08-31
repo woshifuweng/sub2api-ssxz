@@ -125,6 +125,16 @@ func QrCodeImg(v string) predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldEQ(FieldQrCodeImg, v))
 }
 
+// IdempotencyKey applies equality check predicate on the "idempotency_key" field. It's identical to IdempotencyKeyEQ.
+func IdempotencyKey(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldIdempotencyKey, v))
+}
+
+// IdempotencyRequestHash applies equality check predicate on the "idempotency_request_hash" field. It's identical to IdempotencyRequestHashEQ.
+func IdempotencyRequestHash(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldIdempotencyRequestHash, v))
+}
+
 // OrderType applies equality check predicate on the "order_type" field. It's identical to OrderTypeEQ.
 func OrderType(v string) predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldEQ(FieldOrderType, v))
@@ -1073,6 +1083,166 @@ func QrCodeImgEqualFold(v string) predicate.PaymentOrder {
 // QrCodeImgContainsFold applies the ContainsFold predicate on the "qr_code_img" field.
 func QrCodeImgContainsFold(v string) predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldContainsFold(FieldQrCodeImg, v))
+}
+
+// IdempotencyKeyEQ applies the EQ predicate on the "idempotency_key" field.
+func IdempotencyKeyEQ(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldIdempotencyKey, v))
+}
+
+// IdempotencyKeyNEQ applies the NEQ predicate on the "idempotency_key" field.
+func IdempotencyKeyNEQ(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNEQ(FieldIdempotencyKey, v))
+}
+
+// IdempotencyKeyIn applies the In predicate on the "idempotency_key" field.
+func IdempotencyKeyIn(vs ...string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIn(FieldIdempotencyKey, vs...))
+}
+
+// IdempotencyKeyNotIn applies the NotIn predicate on the "idempotency_key" field.
+func IdempotencyKeyNotIn(vs ...string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotIn(FieldIdempotencyKey, vs...))
+}
+
+// IdempotencyKeyGT applies the GT predicate on the "idempotency_key" field.
+func IdempotencyKeyGT(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGT(FieldIdempotencyKey, v))
+}
+
+// IdempotencyKeyGTE applies the GTE predicate on the "idempotency_key" field.
+func IdempotencyKeyGTE(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGTE(FieldIdempotencyKey, v))
+}
+
+// IdempotencyKeyLT applies the LT predicate on the "idempotency_key" field.
+func IdempotencyKeyLT(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLT(FieldIdempotencyKey, v))
+}
+
+// IdempotencyKeyLTE applies the LTE predicate on the "idempotency_key" field.
+func IdempotencyKeyLTE(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLTE(FieldIdempotencyKey, v))
+}
+
+// IdempotencyKeyContains applies the Contains predicate on the "idempotency_key" field.
+func IdempotencyKeyContains(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldContains(FieldIdempotencyKey, v))
+}
+
+// IdempotencyKeyHasPrefix applies the HasPrefix predicate on the "idempotency_key" field.
+func IdempotencyKeyHasPrefix(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldHasPrefix(FieldIdempotencyKey, v))
+}
+
+// IdempotencyKeyHasSuffix applies the HasSuffix predicate on the "idempotency_key" field.
+func IdempotencyKeyHasSuffix(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldHasSuffix(FieldIdempotencyKey, v))
+}
+
+// IdempotencyKeyIsNil applies the IsNil predicate on the "idempotency_key" field.
+func IdempotencyKeyIsNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIsNull(FieldIdempotencyKey))
+}
+
+// IdempotencyKeyNotNil applies the NotNil predicate on the "idempotency_key" field.
+func IdempotencyKeyNotNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotNull(FieldIdempotencyKey))
+}
+
+// IdempotencyKeyEqualFold applies the EqualFold predicate on the "idempotency_key" field.
+func IdempotencyKeyEqualFold(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEqualFold(FieldIdempotencyKey, v))
+}
+
+// IdempotencyKeyContainsFold applies the ContainsFold predicate on the "idempotency_key" field.
+func IdempotencyKeyContainsFold(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldContainsFold(FieldIdempotencyKey, v))
+}
+
+// IdempotencyRequestHashEQ applies the EQ predicate on the "idempotency_request_hash" field.
+func IdempotencyRequestHashEQ(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldIdempotencyRequestHash, v))
+}
+
+// IdempotencyRequestHashNEQ applies the NEQ predicate on the "idempotency_request_hash" field.
+func IdempotencyRequestHashNEQ(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNEQ(FieldIdempotencyRequestHash, v))
+}
+
+// IdempotencyRequestHashIn applies the In predicate on the "idempotency_request_hash" field.
+func IdempotencyRequestHashIn(vs ...string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIn(FieldIdempotencyRequestHash, vs...))
+}
+
+// IdempotencyRequestHashNotIn applies the NotIn predicate on the "idempotency_request_hash" field.
+func IdempotencyRequestHashNotIn(vs ...string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotIn(FieldIdempotencyRequestHash, vs...))
+}
+
+// IdempotencyRequestHashGT applies the GT predicate on the "idempotency_request_hash" field.
+func IdempotencyRequestHashGT(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGT(FieldIdempotencyRequestHash, v))
+}
+
+// IdempotencyRequestHashGTE applies the GTE predicate on the "idempotency_request_hash" field.
+func IdempotencyRequestHashGTE(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGTE(FieldIdempotencyRequestHash, v))
+}
+
+// IdempotencyRequestHashLT applies the LT predicate on the "idempotency_request_hash" field.
+func IdempotencyRequestHashLT(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLT(FieldIdempotencyRequestHash, v))
+}
+
+// IdempotencyRequestHashLTE applies the LTE predicate on the "idempotency_request_hash" field.
+func IdempotencyRequestHashLTE(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLTE(FieldIdempotencyRequestHash, v))
+}
+
+// IdempotencyRequestHashContains applies the Contains predicate on the "idempotency_request_hash" field.
+func IdempotencyRequestHashContains(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldContains(FieldIdempotencyRequestHash, v))
+}
+
+// IdempotencyRequestHashHasPrefix applies the HasPrefix predicate on the "idempotency_request_hash" field.
+func IdempotencyRequestHashHasPrefix(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldHasPrefix(FieldIdempotencyRequestHash, v))
+}
+
+// IdempotencyRequestHashHasSuffix applies the HasSuffix predicate on the "idempotency_request_hash" field.
+func IdempotencyRequestHashHasSuffix(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldHasSuffix(FieldIdempotencyRequestHash, v))
+}
+
+// IdempotencyRequestHashIsNil applies the IsNil predicate on the "idempotency_request_hash" field.
+func IdempotencyRequestHashIsNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIsNull(FieldIdempotencyRequestHash))
+}
+
+// IdempotencyRequestHashNotNil applies the NotNil predicate on the "idempotency_request_hash" field.
+func IdempotencyRequestHashNotNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotNull(FieldIdempotencyRequestHash))
+}
+
+// IdempotencyRequestHashEqualFold applies the EqualFold predicate on the "idempotency_request_hash" field.
+func IdempotencyRequestHashEqualFold(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEqualFold(FieldIdempotencyRequestHash, v))
+}
+
+// IdempotencyRequestHashContainsFold applies the ContainsFold predicate on the "idempotency_request_hash" field.
+func IdempotencyRequestHashContainsFold(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldContainsFold(FieldIdempotencyRequestHash, v))
+}
+
+// IdempotencyResponseIsNil applies the IsNil predicate on the "idempotency_response" field.
+func IdempotencyResponseIsNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIsNull(FieldIdempotencyResponse))
+}
+
+// IdempotencyResponseNotNil applies the NotNil predicate on the "idempotency_response" field.
+func IdempotencyResponseNotNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotNull(FieldIdempotencyResponse))
 }
 
 // OrderTypeEQ applies the EQ predicate on the "order_type" field.

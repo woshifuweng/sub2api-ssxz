@@ -606,6 +606,7 @@
         </div>
       </div>
     </Teleport>
+    <TotpStepUpDialog :controller="stepUp" />
   </AppLayout>
 </template>
 
@@ -655,9 +656,12 @@ import Select from "@/components/common/Select.vue";
 import GroupBadge from "@/components/common/GroupBadge.vue";
 import GroupOptionItem from "@/components/common/GroupOptionItem.vue";
 import Icon from "@/components/icons/Icon.vue";
+import TotpStepUpDialog from "@/components/auth/TotpStepUpDialog.vue";
+import { isStepUpCancelled, useStepUp } from "@/composables/useStepUp";
 
 const { t } = useI18n();
 const appStore = useAppStore();
+const stepUp = useStepUp();
 const { copyToClipboard: clipboardCopy } = useClipboard();
 const route = useRoute();
 
@@ -1009,7 +1013,7 @@ const handleGenerateCodes = async () => {
 
   generating.value = true;
   try {
-    const result = await adminAPI.redeem.generate(
+    const result = await stepUp.run(() => adminAPI.redeem.generate(
       generateForm.count,
       generateForm.type,
       generateForm.value,
@@ -1017,7 +1021,7 @@ const handleGenerateCodes = async () => {
       generateForm.type === "subscription"
         ? generateForm.validity_days
         : undefined,
-    );
+    ));
     showGenerateDialog.value = false;
     generatedCodes.value = result;
     showResultDialog.value = true;
@@ -1026,6 +1030,7 @@ const handleGenerateCodes = async () => {
     generateForm.validity_days = 30;
     loadCodes();
   } catch (error: any) {
+    if (isStepUpCancelled(error)) return;
     appStore.showError(
       error.response?.data?.detail || t("admin.redeem.failedToGenerate"),
     );

@@ -4,9 +4,24 @@ import {
   buildCreateOrderPayload,
   decidePaymentLaunch,
   getVisibleMethods,
+  isTerminalPaymentIdempotencyError,
   readPaymentRecoverySnapshot,
   type PaymentRecoverySnapshot,
 } from '@/components/payment/paymentFlow'
+
+describe('isTerminalPaymentIdempotencyError', () => {
+  it('only requests a fresh key after the server confirms the previous order is terminal', () => {
+    expect(isTerminalPaymentIdempotencyError({
+      reason: 'PAYMENT_GATEWAY_ERROR',
+      metadata: { idempotency_terminal: 'true' },
+    })).toBe(true)
+    expect(isTerminalPaymentIdempotencyError({
+      reason: 'IDEMPOTENCY_IN_PROGRESS',
+      metadata: { retry_after: '2' },
+    })).toBe(false)
+    expect(isTerminalPaymentIdempotencyError(new Error('network timeout'))).toBe(false)
+  })
+})
 
 function methodLimit(overrides: Partial<MethodLimit> = {}): MethodLimit {
   return {

@@ -29994,6 +29994,9 @@ type PaymentOrderMutation struct {
 	pay_url                  *string
 	qr_code                  *string
 	qr_code_img              *string
+	idempotency_key          *string
+	idempotency_request_hash *string
+	idempotency_response     *map[string]interface{}
 	order_type               *string
 	plan_id                  *int64
 	addplan_id               *int64
@@ -30743,6 +30746,153 @@ func (m *PaymentOrderMutation) QrCodeImgCleared() bool {
 func (m *PaymentOrderMutation) ResetQrCodeImg() {
 	m.qr_code_img = nil
 	delete(m.clearedFields, paymentorder.FieldQrCodeImg)
+}
+
+// SetIdempotencyKey sets the "idempotency_key" field.
+func (m *PaymentOrderMutation) SetIdempotencyKey(s string) {
+	m.idempotency_key = &s
+}
+
+// IdempotencyKey returns the value of the "idempotency_key" field in the mutation.
+func (m *PaymentOrderMutation) IdempotencyKey() (r string, exists bool) {
+	v := m.idempotency_key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIdempotencyKey returns the old "idempotency_key" field's value of the PaymentOrder entity.
+// If the PaymentOrder object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PaymentOrderMutation) OldIdempotencyKey(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIdempotencyKey is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIdempotencyKey requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIdempotencyKey: %w", err)
+	}
+	return oldValue.IdempotencyKey, nil
+}
+
+// ClearIdempotencyKey clears the value of the "idempotency_key" field.
+func (m *PaymentOrderMutation) ClearIdempotencyKey() {
+	m.idempotency_key = nil
+	m.clearedFields[paymentorder.FieldIdempotencyKey] = struct{}{}
+}
+
+// IdempotencyKeyCleared returns if the "idempotency_key" field was cleared in this mutation.
+func (m *PaymentOrderMutation) IdempotencyKeyCleared() bool {
+	_, ok := m.clearedFields[paymentorder.FieldIdempotencyKey]
+	return ok
+}
+
+// ResetIdempotencyKey resets all changes to the "idempotency_key" field.
+func (m *PaymentOrderMutation) ResetIdempotencyKey() {
+	m.idempotency_key = nil
+	delete(m.clearedFields, paymentorder.FieldIdempotencyKey)
+}
+
+// SetIdempotencyRequestHash sets the "idempotency_request_hash" field.
+func (m *PaymentOrderMutation) SetIdempotencyRequestHash(s string) {
+	m.idempotency_request_hash = &s
+}
+
+// IdempotencyRequestHash returns the value of the "idempotency_request_hash" field in the mutation.
+func (m *PaymentOrderMutation) IdempotencyRequestHash() (r string, exists bool) {
+	v := m.idempotency_request_hash
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIdempotencyRequestHash returns the old "idempotency_request_hash" field's value of the PaymentOrder entity.
+// If the PaymentOrder object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PaymentOrderMutation) OldIdempotencyRequestHash(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIdempotencyRequestHash is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIdempotencyRequestHash requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIdempotencyRequestHash: %w", err)
+	}
+	return oldValue.IdempotencyRequestHash, nil
+}
+
+// ClearIdempotencyRequestHash clears the value of the "idempotency_request_hash" field.
+func (m *PaymentOrderMutation) ClearIdempotencyRequestHash() {
+	m.idempotency_request_hash = nil
+	m.clearedFields[paymentorder.FieldIdempotencyRequestHash] = struct{}{}
+}
+
+// IdempotencyRequestHashCleared returns if the "idempotency_request_hash" field was cleared in this mutation.
+func (m *PaymentOrderMutation) IdempotencyRequestHashCleared() bool {
+	_, ok := m.clearedFields[paymentorder.FieldIdempotencyRequestHash]
+	return ok
+}
+
+// ResetIdempotencyRequestHash resets all changes to the "idempotency_request_hash" field.
+func (m *PaymentOrderMutation) ResetIdempotencyRequestHash() {
+	m.idempotency_request_hash = nil
+	delete(m.clearedFields, paymentorder.FieldIdempotencyRequestHash)
+}
+
+// SetIdempotencyResponse sets the "idempotency_response" field.
+func (m *PaymentOrderMutation) SetIdempotencyResponse(value map[string]interface{}) {
+	m.idempotency_response = &value
+}
+
+// IdempotencyResponse returns the value of the "idempotency_response" field in the mutation.
+func (m *PaymentOrderMutation) IdempotencyResponse() (r map[string]interface{}, exists bool) {
+	v := m.idempotency_response
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIdempotencyResponse returns the old "idempotency_response" field's value of the PaymentOrder entity.
+// If the PaymentOrder object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PaymentOrderMutation) OldIdempotencyResponse(ctx context.Context) (v map[string]interface{}, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIdempotencyResponse is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIdempotencyResponse requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIdempotencyResponse: %w", err)
+	}
+	return oldValue.IdempotencyResponse, nil
+}
+
+// ClearIdempotencyResponse clears the value of the "idempotency_response" field.
+func (m *PaymentOrderMutation) ClearIdempotencyResponse() {
+	m.idempotency_response = nil
+	m.clearedFields[paymentorder.FieldIdempotencyResponse] = struct{}{}
+}
+
+// IdempotencyResponseCleared returns if the "idempotency_response" field was cleared in this mutation.
+func (m *PaymentOrderMutation) IdempotencyResponseCleared() bool {
+	_, ok := m.clearedFields[paymentorder.FieldIdempotencyResponse]
+	return ok
+}
+
+// ResetIdempotencyResponse resets all changes to the "idempotency_response" field.
+func (m *PaymentOrderMutation) ResetIdempotencyResponse() {
+	m.idempotency_response = nil
+	delete(m.clearedFields, paymentorder.FieldIdempotencyResponse)
 }
 
 // SetOrderType sets the "order_type" field.
@@ -31997,7 +32147,7 @@ func (m *PaymentOrderMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *PaymentOrderMutation) Fields() []string {
-	fields := make([]string, 0, 39)
+	fields := make([]string, 0, 42)
 	if m.user != nil {
 		fields = append(fields, paymentorder.FieldUserID)
 	}
@@ -32039,6 +32189,15 @@ func (m *PaymentOrderMutation) Fields() []string {
 	}
 	if m.qr_code_img != nil {
 		fields = append(fields, paymentorder.FieldQrCodeImg)
+	}
+	if m.idempotency_key != nil {
+		fields = append(fields, paymentorder.FieldIdempotencyKey)
+	}
+	if m.idempotency_request_hash != nil {
+		fields = append(fields, paymentorder.FieldIdempotencyRequestHash)
+	}
+	if m.idempotency_response != nil {
+		fields = append(fields, paymentorder.FieldIdempotencyResponse)
 	}
 	if m.order_type != nil {
 		fields = append(fields, paymentorder.FieldOrderType)
@@ -32151,6 +32310,12 @@ func (m *PaymentOrderMutation) Field(name string) (ent.Value, bool) {
 		return m.QrCode()
 	case paymentorder.FieldQrCodeImg:
 		return m.QrCodeImg()
+	case paymentorder.FieldIdempotencyKey:
+		return m.IdempotencyKey()
+	case paymentorder.FieldIdempotencyRequestHash:
+		return m.IdempotencyRequestHash()
+	case paymentorder.FieldIdempotencyResponse:
+		return m.IdempotencyResponse()
 	case paymentorder.FieldOrderType:
 		return m.OrderType()
 	case paymentorder.FieldPlanID:
@@ -32238,6 +32403,12 @@ func (m *PaymentOrderMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldQrCode(ctx)
 	case paymentorder.FieldQrCodeImg:
 		return m.OldQrCodeImg(ctx)
+	case paymentorder.FieldIdempotencyKey:
+		return m.OldIdempotencyKey(ctx)
+	case paymentorder.FieldIdempotencyRequestHash:
+		return m.OldIdempotencyRequestHash(ctx)
+	case paymentorder.FieldIdempotencyResponse:
+		return m.OldIdempotencyResponse(ctx)
 	case paymentorder.FieldOrderType:
 		return m.OldOrderType(ctx)
 	case paymentorder.FieldPlanID:
@@ -32394,6 +32565,27 @@ func (m *PaymentOrderMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetQrCodeImg(v)
+		return nil
+	case paymentorder.FieldIdempotencyKey:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIdempotencyKey(v)
+		return nil
+	case paymentorder.FieldIdempotencyRequestHash:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIdempotencyRequestHash(v)
+		return nil
+	case paymentorder.FieldIdempotencyResponse:
+		v, ok := value.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIdempotencyResponse(v)
 		return nil
 	case paymentorder.FieldOrderType:
 		v, ok := value.(string)
@@ -32699,6 +32891,15 @@ func (m *PaymentOrderMutation) ClearedFields() []string {
 	if m.FieldCleared(paymentorder.FieldQrCodeImg) {
 		fields = append(fields, paymentorder.FieldQrCodeImg)
 	}
+	if m.FieldCleared(paymentorder.FieldIdempotencyKey) {
+		fields = append(fields, paymentorder.FieldIdempotencyKey)
+	}
+	if m.FieldCleared(paymentorder.FieldIdempotencyRequestHash) {
+		fields = append(fields, paymentorder.FieldIdempotencyRequestHash)
+	}
+	if m.FieldCleared(paymentorder.FieldIdempotencyResponse) {
+		fields = append(fields, paymentorder.FieldIdempotencyResponse)
+	}
 	if m.FieldCleared(paymentorder.FieldPlanID) {
 		fields = append(fields, paymentorder.FieldPlanID)
 	}
@@ -32772,6 +32973,15 @@ func (m *PaymentOrderMutation) ClearField(name string) error {
 		return nil
 	case paymentorder.FieldQrCodeImg:
 		m.ClearQrCodeImg()
+		return nil
+	case paymentorder.FieldIdempotencyKey:
+		m.ClearIdempotencyKey()
+		return nil
+	case paymentorder.FieldIdempotencyRequestHash:
+		m.ClearIdempotencyRequestHash()
+		return nil
+	case paymentorder.FieldIdempotencyResponse:
+		m.ClearIdempotencyResponse()
 		return nil
 	case paymentorder.FieldPlanID:
 		m.ClearPlanID()
@@ -32870,6 +33080,15 @@ func (m *PaymentOrderMutation) ResetField(name string) error {
 		return nil
 	case paymentorder.FieldQrCodeImg:
 		m.ResetQrCodeImg()
+		return nil
+	case paymentorder.FieldIdempotencyKey:
+		m.ResetIdempotencyKey()
+		return nil
+	case paymentorder.FieldIdempotencyRequestHash:
+		m.ResetIdempotencyRequestHash()
+		return nil
+	case paymentorder.FieldIdempotencyResponse:
+		m.ResetIdempotencyResponse()
 		return nil
 	case paymentorder.FieldOrderType:
 		m.ResetOrderType()

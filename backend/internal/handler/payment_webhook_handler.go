@@ -74,8 +74,15 @@ func (h *PaymentWebhookHandler) handleNotify(c *gin.Context, providerKey string)
 		// GET callbacks (e.g. EasyPay) pass params as URL query string
 		rawBody = c.Request.URL.RawQuery
 	} else {
-		body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxWebhookBodySize))
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxWebhookBodySize)
+		body, err := io.ReadAll(c.Request.Body)
 		if err != nil {
+			var maxErr *http.MaxBytesError
+			if errors.As(err, &maxErr) {
+				slog.Warn("[Payment Webhook] body too large", "provider", providerKey, "limit", maxErr.Limit)
+				c.String(http.StatusRequestEntityTooLarge, "body too large")
+				return
+			}
 			slog.Error("[Payment Webhook] failed to read body", "provider", providerKey, "error", err)
 			c.String(http.StatusBadRequest, "failed to read body")
 			return

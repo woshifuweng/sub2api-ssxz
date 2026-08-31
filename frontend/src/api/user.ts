@@ -11,7 +11,6 @@ import {
 } from './auth'
 import type {
   User,
-  UserAvatar,
   ChangePasswordRequest,
   NotifyEmailEntry,
   UserAuthProvider,
@@ -60,16 +59,6 @@ export async function changePassword(
   }
 
   const { data } = await apiClient.put<{ message: string }>('/user/password', payload)
-  return data
-}
-
-export async function getAvatar(): Promise<UserAvatar | null> {
-  const { data } = await apiClient.get<UserAvatar | null>('/user/avatar')
-  return data
-}
-
-export async function updateAvatar(avatar: string): Promise<UserAvatar | null> {
-  const { data } = await apiClient.put<UserAvatar | null>('/user/avatar', { avatar })
   return data
 }
 
@@ -209,8 +198,6 @@ export const userAPI = {
   getProfile,
   updateProfile,
   changePassword,
-  getAvatar,
-  updateAvatar,
   sendNotifyEmailCode,
   verifyNotifyEmail,
   removeNotifyEmail,

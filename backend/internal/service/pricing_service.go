@@ -209,6 +209,24 @@ func (s *PricingService) Initialize() error {
 	return nil
 }
 
+// InitializePassive loads local pricing without any remote check or scheduler.
+// It is used by isolated staging when autonomous background work is disabled.
+func (s *PricingService) InitializePassive() error {
+	if err := os.MkdirAll(s.cfg.Pricing.DataDir, 0755); err != nil {
+		logger.LegacyPrintf("service.pricing", "[Pricing] Failed to create data directory: %v", err)
+	}
+
+	if err := s.loadPricingData(s.getPricingFilePath()); err != nil {
+		logger.LegacyPrintf("service.pricing", "[Pricing] Passive local load failed, using fallback: %v", err)
+		if fallbackErr := s.useFallbackPricing(); fallbackErr != nil {
+			return fmt.Errorf("failed to load passive pricing data: %w", fallbackErr)
+		}
+	}
+
+	logger.LegacyPrintf("service.pricing", "[Pricing] Passive mode initialized with %d models", len(s.pricingData))
+	return nil
+}
+
 // Stop 停止价格服务
 func (s *PricingService) Stop() {
 	close(s.stopCh)

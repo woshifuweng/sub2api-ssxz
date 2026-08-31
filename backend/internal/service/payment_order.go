@@ -2,6 +2,9 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -22,12 +25,90 @@ import (
 
 // --- Order Creation ---
 
+type paymentOrderIdempotencyPayload struct {
+	UserID          int64   `json:"user_id"`
+	Amount          float64 `json:"amount"`
+	PaymentType     string  `json:"payment_type"`
+	OpenID          string  `json:"openid,omitempty"`
+	IsMobile        bool    `json:"is_mobile"`
+	IsWeChatBrowser bool    `json:"is_wechat_browser"`
+	ReturnURL       string  `json:"return_url,omitempty"`
+	PaymentSource   string  `json:"payment_source,omitempty"`
+	OrderType       string  `json:"order_type"`
+	PlanID          int64   `json:"plan_id,omitempty"`
+}
+
+func paymentOrderIdempotencyFingerprint(req CreateOrderRequest) (string, error) {
+	raw, err := json.Marshal(paymentOrderIdempotencyPayload{
+		UserID:          req.UserID,
+		Amount:          req.Amount,
+		PaymentType:     strings.TrimSpace(req.PaymentType),
+		OpenID:          strings.TrimSpace(req.OpenID),
+		IsMobile:        req.IsMobile,
+		IsWeChatBrowser: req.IsWeChatBrowser,
+		ReturnURL:       strings.TrimSpace(req.ReturnURL),
+		PaymentSource:   NormalizePaymentSource(req.PaymentSource),
+		OrderType:       strings.TrimSpace(req.OrderType),
+		PlanID:          req.PlanID,
+	})
+	if err != nil {
+		return "", infraerrors.BadRequest("PAYMENT_IDEMPOTENCY_PAYLOAD_INVALID", "failed to normalize payment request").WithCause(err)
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+func paymentOrderResponseSnapshot(resp *CreateOrderResponse) (map[string]any, error) {
+	if resp == nil {
+		return nil, infraerrors.InternalServer("PAYMENT_IDEMPOTENCY_RESPONSE_INVALID", "payment response is missing")
+	}
+	raw, err := json.Marshal(resp)
+	if err != nil {
+		return nil, infraerrors.InternalServer("PAYMENT_IDEMPOTENCY_RESPONSE_INVALID", "failed to serialize payment response").WithCause(err)
+	}
+	var snapshot map[string]any
+	if err := json.Unmarshal(raw, &snapshot); err != nil {
+		return nil, infraerrors.InternalServer("PAYMENT_IDEMPOTENCY_RESPONSE_INVALID", "failed to store payment response").WithCause(err)
+	}
+	return snapshot, nil
+}
+
+func decodePaymentOrderResponseSnapshot(snapshot map[string]any) (*CreateOrderResponse, error) {
+	if len(snapshot) == 0 {
+		return nil, nil
+	}
+	raw, err := json.Marshal(snapshot)
+	if err != nil {
+		return nil, infraerrors.InternalServer("PAYMENT_IDEMPOTENCY_RESPONSE_INVALID", "failed to read payment response").WithCause(err)
+	}
+	var resp CreateOrderResponse
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return nil, infraerrors.InternalServer("PAYMENT_IDEMPOTENCY_RESPONSE_INVALID", "stored payment response is invalid").WithCause(err)
+	}
+	return &resp, nil
+}
+
 func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest) (*CreateOrderResponse, error) {
 	if req.OrderType == "" {
 		req.OrderType = payment.OrderTypeBalance
 	}
 	if normalized := NormalizeVisibleMethod(req.PaymentType); normalized != "" {
 		req.PaymentType = normalized
+	}
+	idempotencyKey, err := NormalizeIdempotencyKey(req.IdempotencyKey)
+	if err != nil {
+		return nil, err
+	}
+	if idempotencyKey == "" {
+		return nil, ErrIdempotencyKeyRequired
+	}
+	req.IdempotencyKey = idempotencyKey
+	idempotencyFingerprint, err := paymentOrderIdempotencyFingerprint(req)
+	if err != nil {
+		return nil, err
+	}
+	if replay, found, err := s.findPaymentOrderIdempotencyReplay(ctx, req.UserID, idempotencyKey, idempotencyFingerprint); found || err != nil {
+		return replay, err
 	}
 	cfg, err := s.configService.GetPaymentConfig(ctx)
 	if err != nil {
@@ -102,16 +183,81 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	}
 	order, err := s.createOrderInTx(ctx, req, user, plan, cfg, orderAmount, limitAmount, feeRate, payAmount, sel)
 	if err != nil {
+		if replay, found, replayErr := s.findPaymentOrderIdempotencyReplay(ctx, req.UserID, idempotencyKey, idempotencyFingerprint); found || replayErr != nil {
+			return replay, replayErr
+		}
 		return nil, err
 	}
 	resp, err := s.invokeProvider(ctx, order, req, cfg, limitAmount, payAmountStr, payAmount, plan, sel)
 	if err != nil {
+		reason := infraerrors.Reason(err)
+		if reason == "" {
+			reason = "PAYMENT_ORDER_CREATE_FAILED"
+		}
 		_, _ = s.entClient.PaymentOrder.UpdateOneID(order.ID).
 			SetStatus(OrderStatusFailed).
+			SetFailedAt(time.Now()).
+			SetFailedReason(reason).
 			Save(ctx)
-		return nil, err
+		return nil, paymentOrderTerminalError(err, order.ID)
 	}
 	return resp, nil
+}
+
+func (s *PaymentService) findPaymentOrderIdempotencyReplay(ctx context.Context, userID int64, key, fingerprint string) (*CreateOrderResponse, bool, error) {
+	order, err := s.entClient.PaymentOrder.Query().
+		Where(paymentorder.UserIDEQ(userID), paymentorder.IdempotencyKeyEQ(key)).
+		Only(ctx)
+	if dbent.IsNotFound(err) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("find idempotent payment order: %w", err)
+	}
+	resp, err := resolvePaymentOrderIdempotencyReplay(order, fingerprint)
+	return resp, true, err
+}
+
+func resolvePaymentOrderIdempotencyReplay(order *dbent.PaymentOrder, fingerprint string) (*CreateOrderResponse, error) {
+	if order == nil || order.IdempotencyRequestHash == nil || *order.IdempotencyRequestHash != fingerprint {
+		return nil, ErrIdempotencyKeyConflict
+	}
+	if len(order.IdempotencyResponse) > 0 {
+		resp, err := decodePaymentOrderResponseSnapshot(order.IdempotencyResponse)
+		if err != nil {
+			return nil, err
+		}
+		resp.IdempotencyReplayed = true
+		return resp, nil
+	}
+	if order.Status == OrderStatusFailed {
+		return nil, infraerrors.Conflict("PAYMENT_ORDER_CREATE_FAILED", "the previous payment submission failed; submit again to start a new order").
+			WithMetadata(map[string]string{
+				"order_id":             strconv.FormatInt(order.ID, 10),
+				"idempotency_terminal": "true",
+			})
+	}
+	return nil, ErrIdempotencyInProgress.WithMetadata(map[string]string{
+		"order_id":    strconv.FormatInt(order.ID, 10),
+		"retry_after": "2",
+	})
+}
+
+func paymentOrderTerminalError(err error, orderID int64) error {
+	metadata := map[string]string{
+		"order_id":             strconv.FormatInt(orderID, 10),
+		"idempotency_terminal": "true",
+	}
+	var appErr *infraerrors.ApplicationError
+	if errors.As(err, &appErr) && appErr != nil {
+		for key, value := range appErr.Metadata {
+			metadata[key] = value
+		}
+		return appErr.WithMetadata(metadata)
+	}
+	return infraerrors.ServiceUnavailable("PAYMENT_ORDER_CREATE_FAILED", "payment provider did not create the order").
+		WithCause(err).
+		WithMetadata(metadata)
 }
 
 func (s *PaymentService) validateOrderInput(ctx context.Context, req CreateOrderRequest, cfg *PaymentConfig) (*dbent.SubscriptionPlan, error) {
@@ -150,6 +296,10 @@ func (s *PaymentService) validateSubOrder(ctx context.Context, req CreateOrderRe
 }
 
 func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderRequest, user *User, plan *dbent.SubscriptionPlan, cfg *PaymentConfig, orderAmount, limitAmount, feeRate, payAmount float64, sel *payment.InstanceSelection) (*dbent.PaymentOrder, error) {
+	idempotencyFingerprint, err := paymentOrderIdempotencyFingerprint(req)
+	if err != nil {
+		return nil, err
+	}
 	tx, err := s.entClient.Tx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
@@ -194,6 +344,10 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 		SetExpiresAt(exp).
 		SetClientIP(req.ClientIP).
 		SetSrcHost(req.SrcHost)
+	if req.IdempotencyKey != "" {
+		b.SetIdempotencyKey(req.IdempotencyKey).
+			SetIdempotencyRequestHash(idempotencyFingerprint)
+	}
 	if req.SrcURL != "" {
 		b.SetSrcURL(req.SrcURL)
 	}
@@ -483,6 +637,15 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 	resp := buildCreateOrderResponse(order, req, payAmount, sel, pr, resultType)
 	resp.ResumeToken = resumeToken
 	resp.AlipayMobilePrecreateDeepLink = providerReq.AlipayMobilePrecreate && strings.TrimSpace(pr.QRCode) != ""
+	snapshot, err := paymentOrderResponseSnapshot(resp)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.entClient.PaymentOrder.UpdateOneID(order.ID).
+		SetIdempotencyResponse(snapshot).
+		Save(ctx); err != nil {
+		return nil, fmt.Errorf("store idempotent payment response: %w", err)
+	}
 	return resp, nil
 }
 

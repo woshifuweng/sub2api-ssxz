@@ -354,6 +354,7 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 		deps.deferredService.ScheduleLastUsedUpdate(p.Account.ID)
 		return false, nil
 	}
+	logUsageBillingShortfall(cmd, result)
 
 	if result.APIKeyQuotaExhausted {
 		if invalidator, ok := p.APIKeyService.(apiKeyAuthCacheInvalidator); ok && p.APIKey != nil && p.APIKey.Key != "" {
@@ -363,6 +364,28 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 
 	finalizePostUsageBilling(billingCtx, p, deps, result)
 	return true, nil
+}
+
+func logUsageBillingShortfall(cmd *UsageBillingCommand, result *UsageBillingApplyResult) {
+	if cmd == nil || result == nil || !result.BalanceOverdrafted || result.BalanceShortfall <= 0.00000001 {
+		return
+	}
+	charged := cmd.BalanceCost - result.BalanceShortfall
+	if charged < 0 {
+		charged = 0
+	}
+	attrs := []any{
+		"user_id", cmd.UserID,
+		"api_key_id", cmd.APIKeyID,
+		"request_id", cmd.RequestID,
+		"balance_cost", cmd.BalanceCost,
+		"balance_charged", charged,
+		"balance_shortfall", result.BalanceShortfall,
+	}
+	if result.NewBalance != nil {
+		attrs = append(attrs, "new_balance", *result.NewBalance)
+	}
+	slog.Warn("usage billing balance shortfall", attrs...)
 }
 
 func finalizePostUsageBilling(ctx context.Context, p *postUsageBillingParams, deps *billingDeps, result *UsageBillingApplyResult) {

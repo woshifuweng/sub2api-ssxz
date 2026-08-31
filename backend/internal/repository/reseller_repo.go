@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -366,7 +367,7 @@ func (r *resellerRepository) ListAgents(ctx context.Context, filter service.Agen
 	if err != nil {
 		return nil, 0, fmt.Errorf("reseller ListAgents query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []service.AgentSummary
 	for rows.Next() {
@@ -656,7 +657,7 @@ func (r *resellerRepository) ListMyRecruits(ctx context.Context, agentUserID int
 	if err != nil {
 		return nil, 0, fmt.Errorf("reseller ListMyRecruits query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []service.RecruitRecord
 	for rows.Next() {
@@ -762,7 +763,7 @@ SELECT ua.user_id,
 	if err != nil {
 		return nil, 0, fmt.Errorf("reseller ListAdminAgentRecruits query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make([]service.AdminRecruitRecord, 0, pageSize)
 	for rows.Next() {
@@ -903,7 +904,7 @@ LIMIT $3 OFFSET $4`, agentUserID, recruitUserID, pageSize, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("reseller ListRecruitUsageLogs query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	items := make([]service.RecruitUsageLog, 0)
 	for rows.Next() {
@@ -953,7 +954,7 @@ LIMIT $3 OFFSET $4`, agentUserID, recruitUserID, pageSize, offset)
 	if err != nil {
 		return nil, 0, fmt.Errorf("reseller ListRecruitRecharges query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	items := make([]service.RecruitRecharge, 0)
 	for rows.Next() {
@@ -1031,7 +1032,7 @@ LIMIT $`+fmt.Sprint(len(args)-1)+` OFFSET $`+fmt.Sprint(len(args)), args...)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("reseller ListCommission query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	items := make([]service.CommissionRecord, 0)
 	for rows.Next() {
@@ -1098,6 +1099,31 @@ func (r *resellerRepository) CreateWithdrawRequest(ctx context.Context, userID i
 	if _, _, err := lockResellerRole(ctx, tx, userID); err != nil {
 		return nil, err
 	}
+
+	var req service.WithdrawRequest
+	var accountRaw []byte
+	err = tx.QueryRowContext(ctx, `
+		SELECT id, user_id, amount::double precision, method, account_info, status, note, requested_at
+		FROM affiliate_withdraw_requests
+		WHERE user_id = $1 AND idempotency_key = $2
+		FOR UPDATE`, userID, input.IdempotencyKey,
+	).Scan(&req.ID, &req.UserID, &req.Amount, &req.Method, &accountRaw, &req.Status, &req.Note, &req.RequestedAt)
+	if err == nil {
+		if math.Abs(req.Amount-input.Amount) > 1e-9 || req.Method != input.Method {
+			return nil, service.ErrWithdrawIdempotencyConflict
+		}
+		if len(accountRaw) > 0 {
+			_ = json.Unmarshal(accountRaw, &req.AccountInfo)
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("reseller CreateWithdrawRequest idempotent commit: %w", err)
+		}
+		return &req, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("reseller CreateWithdrawRequest find idempotency key: %w", err)
+	}
+
 	var availableQuota float64
 	if err := tx.QueryRowContext(ctx, `
 		SELECT aff_quota::double precision
@@ -1121,13 +1147,11 @@ func (r *resellerRepository) CreateWithdrawRequest(ctx context.Context, userID i
 		return nil, service.ErrWithdrawInsufficientBalance
 	}
 
-	var req service.WithdrawRequest
-	var accountRaw []byte
 	err = tx.QueryRowContext(ctx, `
-		INSERT INTO affiliate_withdraw_requests (user_id, amount, method, account_info, status)
-		VALUES ($1, $2, $3, $4, 'pending')
+		INSERT INTO affiliate_withdraw_requests (user_id, amount, method, account_info, status, idempotency_key)
+		VALUES ($1, $2, $3, $4, 'pending', $5)
 		RETURNING id, user_id, amount, method, account_info, status, note, requested_at`,
-		userID, input.Amount, input.Method, accountJSON,
+		userID, input.Amount, input.Method, accountJSON, input.IdempotencyKey,
 	).Scan(&req.ID, &req.UserID, &req.Amount, &req.Method, &accountRaw, &req.Status, &req.Note, &req.RequestedAt)
 	if err != nil {
 		return nil, fmt.Errorf("reseller CreateWithdrawRequest: %w", err)
@@ -1242,7 +1266,7 @@ func (r *resellerRepository) ListWithdrawRequests(ctx context.Context, filter se
 	if err != nil {
 		return nil, 0, fmt.Errorf("reseller ListWithdrawRequests query: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := make([]service.WithdrawRequest, 0)
 	for rows.Next() {

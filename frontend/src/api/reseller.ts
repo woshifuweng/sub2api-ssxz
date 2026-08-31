@@ -247,8 +247,16 @@ export const resellerAPI = {
     return data
   },
 
-  async requestBalanceConversion(amount: number): Promise<WithdrawRequest> {
-    const { data } = await apiClient.post<WithdrawRequest>('/user/reseller/withdrawals', { amount })
+  async requestBalanceConversion(
+    amount: number,
+    options?: { idempotencyKey?: string }
+  ): Promise<WithdrawRequest> {
+    const idempotencyKey = options?.idempotencyKey?.trim()
+    const { data } = await apiClient.post<WithdrawRequest>(
+      '/user/reseller/withdrawals',
+      { amount },
+      idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : undefined
+    )
     return data
   },
 

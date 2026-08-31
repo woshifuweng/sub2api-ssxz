@@ -135,6 +135,19 @@ func TestUsageBillingRepositoryApply_ConcurrentShortfallsNeverGoNegative(t *test
 	var dedupCount int
 	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM usage_billing_dedup WHERE api_key_id = $1 AND request_id LIKE 'concurrent-shortfall-%'", apiKey.ID).Scan(&dedupCount))
 	require.Equal(t, requestCount, dedupCount)
+
+	var shortfallCount int
+	var totalShortfall float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `
+		SELECT COUNT(*), COALESCE(SUM(-amount_delta), 0)::double precision
+		FROM account_balance_ledger
+		WHERE user_id = $1
+		  AND event_type = $2
+		  AND source_type = $3
+		  AND source_id LIKE 'concurrent-shortfall-%'
+	`, user.ID, service.BalanceLedgerEventUsageShortfall, service.BalanceLedgerSourceUsageBilling).Scan(&shortfallCount, &totalShortfall))
+	require.Equal(t, 3, shortfallCount)
+	require.InDelta(t, 1.0, totalShortfall, 0.000001)
 }
 
 func TestUsageBillingRepositoryApply_DeduplicatesSubscriptionBilling(t *testing.T) {

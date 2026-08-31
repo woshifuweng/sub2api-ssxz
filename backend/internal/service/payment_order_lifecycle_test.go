@@ -200,12 +200,14 @@ func TestVerifyOrderByOutTradeNoBackfillsTradeNoFromPaidQuery(t *testing.T) {
 			Balance:  0,
 		},
 	}
-	userRepo.updateBalanceFn = func(ctx context.Context, id int64, amount float64) error {
+	userRepo.adjustBalanceFn = func(ctx context.Context, id int64, amount float64) (BalanceChange, error) {
 		require.Equal(t, user.ID, id)
+		change := BalanceChange{Old: userRepo.getByIDUser.Balance}
 		if userRepo.getByIDUser != nil {
 			userRepo.getByIDUser.Balance += amount
 		}
-		return nil
+		change.New = userRepo.getByIDUser.Balance
+		return change, nil
 	}
 	redeemRepo := &paymentOrderLifecycleRedeemRepo{
 		codesByCode: map[string]*RedeemCode{
@@ -218,6 +220,7 @@ func TestVerifyOrderByOutTradeNoBackfillsTradeNoFromPaidQuery(t *testing.T) {
 			},
 		},
 	}
+	ledgerRepo := &balanceLedgerRepoStub{}
 	redeemService := NewRedeemService(
 		redeemRepo,
 		userRepo,
@@ -227,6 +230,7 @@ func TestVerifyOrderByOutTradeNoBackfillsTradeNoFromPaidQuery(t *testing.T) {
 		client,
 		nil,
 		nil,
+		ledgerRepo,
 	)
 	registry := payment.NewRegistry()
 	provider := &paymentOrderLifecycleQueryProvider{
@@ -261,6 +265,7 @@ func TestVerifyOrderByOutTradeNoBackfillsTradeNoFromPaidQuery(t *testing.T) {
 	require.Len(t, redeemRepo.useCalls, 1)
 	require.Equal(t, int64(1), redeemRepo.useCalls[0].id)
 	require.Equal(t, user.ID, redeemRepo.useCalls[0].userID)
+	require.Len(t, ledgerRepo.inserted, 1)
 }
 
 func TestVerifyOrderByOutTradeNoRetriesZeroAmountPaidQueryOnce(t *testing.T) {
@@ -301,12 +306,14 @@ func TestVerifyOrderByOutTradeNoRetriesZeroAmountPaidQueryOnce(t *testing.T) {
 			Balance:  0,
 		},
 	}
-	userRepo.updateBalanceFn = func(ctx context.Context, id int64, amount float64) error {
+	userRepo.adjustBalanceFn = func(ctx context.Context, id int64, amount float64) (BalanceChange, error) {
 		require.Equal(t, user.ID, id)
+		change := BalanceChange{Old: userRepo.getByIDUser.Balance}
 		if userRepo.getByIDUser != nil {
 			userRepo.getByIDUser.Balance += amount
 		}
-		return nil
+		change.New = userRepo.getByIDUser.Balance
+		return change, nil
 	}
 	redeemRepo := &paymentOrderLifecycleRedeemRepo{
 		codesByCode: map[string]*RedeemCode{
@@ -319,6 +326,7 @@ func TestVerifyOrderByOutTradeNoRetriesZeroAmountPaidQueryOnce(t *testing.T) {
 			},
 		},
 	}
+	ledgerRepo := &balanceLedgerRepoStub{}
 	redeemService := NewRedeemService(
 		redeemRepo,
 		userRepo,
@@ -328,6 +336,7 @@ func TestVerifyOrderByOutTradeNoRetriesZeroAmountPaidQueryOnce(t *testing.T) {
 		client,
 		nil,
 		nil,
+		ledgerRepo,
 	)
 	registry := payment.NewRegistry()
 	provider := &paymentOrderLifecycleQueryProvider{
@@ -605,12 +614,14 @@ func TestReconcilePendingWxpayOrdersBackfillsPaidOrder(t *testing.T) {
 			Balance:  0,
 		},
 	}
-	userRepo.updateBalanceFn = func(ctx context.Context, id int64, amount float64) error {
+	userRepo.adjustBalanceFn = func(ctx context.Context, id int64, amount float64) (BalanceChange, error) {
 		require.Equal(t, user.ID, id)
+		change := BalanceChange{Old: userRepo.getByIDUser.Balance}
 		if userRepo.getByIDUser != nil {
 			userRepo.getByIDUser.Balance += amount
 		}
-		return nil
+		change.New = userRepo.getByIDUser.Balance
+		return change, nil
 	}
 	redeemRepo := &paymentOrderLifecycleRedeemRepo{
 		codesByCode: map[string]*RedeemCode{
@@ -623,6 +634,7 @@ func TestReconcilePendingWxpayOrdersBackfillsPaidOrder(t *testing.T) {
 			},
 		},
 	}
+	ledgerRepo := &balanceLedgerRepoStub{}
 	redeemService := NewRedeemService(
 		redeemRepo,
 		userRepo,
@@ -632,6 +644,7 @@ func TestReconcilePendingWxpayOrdersBackfillsPaidOrder(t *testing.T) {
 		client,
 		nil,
 		nil,
+		ledgerRepo,
 	)
 	registry := payment.NewRegistry()
 	provider := &paymentOrderLifecycleQueryProvider{
@@ -667,6 +680,7 @@ func TestReconcilePendingWxpayOrdersBackfillsPaidOrder(t *testing.T) {
 	require.Equal(t, "wxpay-upstream-trade-123", reloaded.PaymentTradeNo)
 	require.Equal(t, 50.0, userRepo.getByIDUser.Balance)
 	require.Len(t, redeemRepo.useCalls, 1)
+	require.Len(t, ledgerRepo.inserted, 1)
 }
 
 func TestVerifyOrderByOutTradeNoUsesOutTradeNoWhenPaymentTradeNoAlreadyExistsForAlipay(t *testing.T) {
@@ -707,12 +721,14 @@ func TestVerifyOrderByOutTradeNoUsesOutTradeNoWhenPaymentTradeNoAlreadyExistsFor
 			Balance:  0,
 		},
 	}
-	userRepo.updateBalanceFn = func(ctx context.Context, id int64, amount float64) error {
+	userRepo.adjustBalanceFn = func(ctx context.Context, id int64, amount float64) (BalanceChange, error) {
 		require.Equal(t, user.ID, id)
+		change := BalanceChange{Old: userRepo.getByIDUser.Balance}
 		if userRepo.getByIDUser != nil {
 			userRepo.getByIDUser.Balance += amount
 		}
-		return nil
+		change.New = userRepo.getByIDUser.Balance
+		return change, nil
 	}
 	redeemRepo := &paymentOrderLifecycleRedeemRepo{
 		codesByCode: map[string]*RedeemCode{
@@ -725,6 +741,7 @@ func TestVerifyOrderByOutTradeNoUsesOutTradeNoWhenPaymentTradeNoAlreadyExistsFor
 			},
 		},
 	}
+	ledgerRepo := &balanceLedgerRepoStub{}
 	redeemService := NewRedeemService(
 		redeemRepo,
 		userRepo,
@@ -734,6 +751,7 @@ func TestVerifyOrderByOutTradeNoUsesOutTradeNoWhenPaymentTradeNoAlreadyExistsFor
 		client,
 		nil,
 		nil,
+		ledgerRepo,
 	)
 	registry := payment.NewRegistry()
 	provider := &paymentOrderLifecycleQueryProvider{
@@ -757,6 +775,7 @@ func TestVerifyOrderByOutTradeNoUsesOutTradeNoWhenPaymentTradeNoAlreadyExistsFor
 	require.NoError(t, err)
 	require.Equal(t, order.OutTradeNo, provider.lastQueryTradeNo)
 	require.Equal(t, "upstream-trade-existing", got.PaymentTradeNo)
+	require.Len(t, ledgerRepo.inserted, 1)
 }
 
 func TestPaymentOrderAllowsRegistryFallbackOnlyForLegacyOrdersWithoutPinnedProviderState(t *testing.T) {

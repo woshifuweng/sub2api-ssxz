@@ -142,7 +142,7 @@ LEFT JOIN usage_30d ON usage_30d.api_key_id = fk.id`
 	if err != nil {
 		return service.AdminAPIKeyListSummary{}, fmt.Errorf("query admin API key summary: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var summary service.AdminAPIKeyListSummary
 	if !rows.Next() {
@@ -200,7 +200,7 @@ LIMIT $` + fmt.Sprint(limitPosition) + ` OFFSET $` + fmt.Sprint(offsetPosition)
 	if err != nil {
 		return nil, fmt.Errorf("query admin API keys: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	items := make([]service.AdminAPIKeyListItem, 0, params.Limit())
 	for rows.Next() {

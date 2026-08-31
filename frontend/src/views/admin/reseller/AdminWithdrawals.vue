@@ -184,6 +184,7 @@
         </div>
       </template>
     </BaseDialog>
+    <TotpStepUpDialog :controller="stepUp" />
   </AppLayout>
 </template>
 
@@ -202,14 +203,17 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import LiquidButton from '@/components/common/LiquidButton.vue'
 import WithdrawalStatusBadge from '@/components/reseller/WithdrawalStatusBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
+import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatCurrency, formatDateTime } from '@/utils/format'
+import { isStepUpCancelled, useStepUp } from '@/composables/useStepUp'
 
 type StatusFilter = Extract<WithdrawStatus, 'pending' | 'approved' | 'rejected' | 'cancelled'> | ''
 
 const route = useRoute()
 const appStore = useAppStore()
+const stepUp = useStepUp()
 const loading = ref(true)
 const statusFilter = ref<StatusFilter>('pending')
 const reviewingId = ref<number | null>(null)
@@ -277,10 +281,11 @@ function setStatusFilter(status: StatusFilter): void {
 async function approveRequest(request: WithdrawRequest): Promise<void> {
   reviewingId.value = request.id
   try {
-    await resellerAPI.reviewWithdrawal(request.id, { action: 'approve' })
+    await stepUp.run(() => resellerAPI.reviewWithdrawal(request.id, { action: 'approve' }))
     appStore.showSuccess('兑换申请已批准')
     await loadRequests(requests.value.page)
   } catch (error) {
+    if (isStepUpCancelled(error)) return
     appStore.showError(extractApiErrorMessage(error, '批准失败'))
   } finally {
     reviewingId.value = null
@@ -308,12 +313,13 @@ async function rejectRequest(): Promise<void> {
 
   reviewingId.value = target.id
   try {
-    await resellerAPI.reviewWithdrawal(target.id, { action: 'reject', reason })
+    await stepUp.run(() => resellerAPI.reviewWithdrawal(target.id, { action: 'reject', reason }))
     appStore.showSuccess('兑换申请已拒绝')
     rejectTarget.value = null
     rejectReason.value = ''
     await loadRequests(requests.value.page)
   } catch (error) {
+    if (isStepUpCancelled(error)) return
     appStore.showError(extractApiErrorMessage(error, '拒绝失败'))
   } finally {
     reviewingId.value = null

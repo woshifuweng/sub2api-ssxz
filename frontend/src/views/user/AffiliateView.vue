@@ -256,6 +256,7 @@
       </template>
     </div>
   </component>
+  <TotpStepUpDialog :controller="stepUp" />
 </template>
 
 <script setup lang="ts">
@@ -266,6 +267,7 @@ import { useI18n } from "vue-i18n";
 import AppLayout from "@/components/layout/AppLayout.vue";
 import AppSectionShell from "@/components/user/AppSectionShell.vue";
 import Icon from "@/components/icons/Icon.vue";
+import TotpStepUpDialog from "@/components/auth/TotpStepUpDialog.vue";
 import userAPI from "@/api/user";
 import type { UserAffiliateDetail } from "@/types";
 import { useAppStore } from "@/stores/app";
@@ -273,12 +275,14 @@ import { useAuthStore } from "@/stores/auth";
 import { useClipboard } from "@/composables/useClipboard";
 import { formatCurrency, formatDateTime } from "@/utils/format";
 import { extractApiErrorMessage } from "@/utils/apiError";
+import { isStepUpCancelled, useStepUp } from "@/composables/useStepUp";
 
 const appStore = useAppStore();
 const authStore = useAuthStore();
 const route = useRoute();
 const { t } = useI18n();
 const { copyToClipboard } = useClipboard();
+const stepUp = useStepUp();
 
 const useWorkbenchShell = computed(() => route.path === "/app/affiliate");
 const pageShell = computed(() =>
@@ -345,7 +349,7 @@ async function transferQuota(): Promise<void> {
     return;
   transferring.value = true;
   try {
-    const resp = await userAPI.transferAffiliateQuota();
+    const resp = await stepUp.run(() => userAPI.transferAffiliateQuota());
     appStore.showSuccess(
       t("affiliate.transferSuccess", {
         amount: formatCurrency(resp.transferred_quota),
@@ -356,6 +360,7 @@ async function transferQuota(): Promise<void> {
       authStore.refreshUser().catch(() => undefined),
     ]);
   } catch (error) {
+    if (isStepUpCancelled(error)) return;
     appStore.showError(
       extractApiErrorMessage(error, t("affiliate.transferFailed")),
     );

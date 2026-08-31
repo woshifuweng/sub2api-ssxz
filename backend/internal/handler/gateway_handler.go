@@ -156,6 +156,12 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Request body is empty")
 		return
 	}
+	body, _, err = service.EnforceUnboundedTokenRequestLimit(body, "max_tokens", "max_tokens")
+	if err != nil {
+		logRequestBodyParseFailure(reqLog, body, err)
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to apply output token limit")
+		return
+	}
 
 	setOpsRequestContext(c, "", false)
 
@@ -2083,7 +2089,7 @@ func (h *GatewayHandler) CountTokens(c *gin.Context) {
 	sessionHash := h.gatewayService.GenerateSessionHash(parsedReq)
 
 	// 选择支持该模型的账号
-	selectedAPIKey, account, err := selectAccountForModelAcrossAPIKeyGroups(apiKey, sessionHash+":"+parsedReq.Model, func(groupID *int64) (*service.Account, error) {
+	_, account, err := selectAccountForModelAcrossAPIKeyGroups(apiKey, sessionHash+":"+parsedReq.Model, func(groupID *int64) (*service.Account, error) {
 		return h.gatewayService.SelectAccountForModel(c.Request.Context(), groupID, sessionHash, parsedReq.Model)
 	})
 	if err != nil {
@@ -2095,7 +2101,6 @@ func (h *GatewayHandler) CountTokens(c *gin.Context) {
 		h.errorResponse(c, cls.Status, cls.ErrType, cls.Message)
 		return
 	}
-	apiKey = selectedAPIKey
 	setOpsSelectedAccount(c, account.ID, account.Platform)
 
 	// 转发请求（不记录使用量）

@@ -68,7 +68,7 @@ VALUES ($1, $2, 'migration-231', $3, $4)
 SELECT group_id FROM user_allowed_groups WHERE user_id = $1 ORDER BY group_id
 `, userID)
 	require.NoError(t, err)
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var groupID int64
 		require.NoError(t, rows.Scan(&groupID))

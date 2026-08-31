@@ -42,6 +42,12 @@ const (
 	FieldQrCode = "qr_code"
 	// FieldQrCodeImg holds the string denoting the qr_code_img field in the database.
 	FieldQrCodeImg = "qr_code_img"
+	// FieldIdempotencyKey holds the string denoting the idempotency_key field in the database.
+	FieldIdempotencyKey = "idempotency_key"
+	// FieldIdempotencyRequestHash holds the string denoting the idempotency_request_hash field in the database.
+	FieldIdempotencyRequestHash = "idempotency_request_hash"
+	// FieldIdempotencyResponse holds the string denoting the idempotency_response field in the database.
+	FieldIdempotencyResponse = "idempotency_response"
 	// FieldOrderType holds the string denoting the order_type field in the database.
 	FieldOrderType = "order_type"
 	// FieldPlanID holds the string denoting the plan_id field in the database.
@@ -122,6 +128,9 @@ var Columns = []string{
 	FieldPayURL,
 	FieldQrCode,
 	FieldQrCodeImg,
+	FieldIdempotencyKey,
+	FieldIdempotencyRequestHash,
+	FieldIdempotencyResponse,
 	FieldOrderType,
 	FieldPlanID,
 	FieldSubscriptionGroupID,
@@ -176,6 +185,10 @@ var (
 	PaymentTypeValidator func(string) error
 	// PaymentTradeNoValidator is a validator for the "payment_trade_no" field. It is called by the builders before save.
 	PaymentTradeNoValidator func(string) error
+	// IdempotencyKeyValidator is a validator for the "idempotency_key" field. It is called by the builders before save.
+	IdempotencyKeyValidator func(string) error
+	// IdempotencyRequestHashValidator is a validator for the "idempotency_request_hash" field. It is called by the builders before save.
+	IdempotencyRequestHashValidator func(string) error
 	// DefaultOrderType holds the default value on creation for the "order_type" field.
 	DefaultOrderType string
 	// OrderTypeValidator is a validator for the "order_type" field. It is called by the builders before save.
@@ -282,6 +295,16 @@ func ByQrCode(opts ...sql.OrderTermOption) OrderOption {
 // ByQrCodeImg orders the results by the qr_code_img field.
 func ByQrCodeImg(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldQrCodeImg, opts...).ToFunc()
+}
+
+// ByIdempotencyKey orders the results by the idempotency_key field.
+func ByIdempotencyKey(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldIdempotencyKey, opts...).ToFunc()
+}
+
+// ByIdempotencyRequestHash orders the results by the idempotency_request_hash field.
+func ByIdempotencyRequestHash(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldIdempotencyRequestHash, opts...).ToFunc()
 }
 
 // ByOrderType orders the results by the order_type field.

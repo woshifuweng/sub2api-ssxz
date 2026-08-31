@@ -28,7 +28,7 @@ type RefreshTokenData struct {
 //   - user_refresh_tokens:{user_id}  -> Set<token_hash>
 //   - token_family:{family_id}       -> Set<token_hash>
 type RefreshTokenCache interface {
-	// StoreRefreshToken 存储Refresh Token
+	// StoreRefreshToken 原子存储Refresh Token，并加入用户与会话家族索引。
 	// tokenHash: Token的SHA256哈希值（不存储原始Token）
 	// data: Token关联的数据
 	// ttl: Token过期时间
@@ -39,6 +39,10 @@ type RefreshTokenCache interface {
 	// 返回 (nil, ErrRefreshTokenNotFound) 如果Token不存在
 	// 返回 (nil, err) 如果发生其他错误
 	GetRefreshToken(ctx context.Context, tokenHash string) (*RefreshTokenData, error)
+
+	// RotateRefreshToken 原子消费旧Token并存储替代Token。
+	// 旧Token已被其他请求消费时返回 false，且不得写入替代Token。
+	RotateRefreshToken(ctx context.Context, oldTokenHash, newTokenHash string, newData *RefreshTokenData, ttl time.Duration) (bool, error)
 
 	// DeleteRefreshToken 删除单个Refresh Token
 	// 用于Token轮转时使旧Token失效
@@ -52,12 +56,10 @@ type RefreshTokenCache interface {
 	// 用于检测到Token重放攻击时，撤销整个会话链
 	DeleteTokenFamily(ctx context.Context, familyID string) error
 
-	// AddToUserTokenSet 将Token添加到用户的Token集合
-	// 用于跟踪用户的所有活跃Refresh Token
+	// AddToUserTokenSet 将Token添加到用户的Token集合（兼容旧调用）。
 	AddToUserTokenSet(ctx context.Context, userID int64, tokenHash string, ttl time.Duration) error
 
-	// AddToFamilyTokenSet 将Token添加到家族Token集合
-	// 用于跟踪同一登录会话的所有Token
+	// AddToFamilyTokenSet 将Token添加到家族Token集合（兼容旧调用）。
 	AddToFamilyTokenSet(ctx context.Context, familyID string, tokenHash string, ttl time.Duration) error
 
 	// GetUserTokenHashes 获取用户的所有Token哈希

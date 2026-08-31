@@ -166,7 +166,8 @@ type UsageBillingApplyResult struct {
 	Applied              bool
 	APIKeyQuotaExhausted bool
 	NewBalance           *float64           // post-deduction balance (nil = no balance deduction)
-	BalanceOverdrafted   bool               // true when the sufficient-balance guard missed and debt was still recorded
+	BalanceOverdrafted   bool               // true when actual usage cost exceeded the available balance
+	BalanceShortfall     float64            // uncollected actual usage cost recorded in the audit ledger
 	QuotaState           *AccountQuotaState // post-increment quota state (nil = no quota increment)
 }
 

@@ -270,6 +270,58 @@ func (_u *PaymentOrderUpdate) ClearQrCodeImg() *PaymentOrderUpdate {
 	return _u
 }
 
+// SetIdempotencyKey sets the "idempotency_key" field.
+func (_u *PaymentOrderUpdate) SetIdempotencyKey(v string) *PaymentOrderUpdate {
+	_u.mutation.SetIdempotencyKey(v)
+	return _u
+}
+
+// SetNillableIdempotencyKey sets the "idempotency_key" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableIdempotencyKey(v *string) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetIdempotencyKey(*v)
+	}
+	return _u
+}
+
+// ClearIdempotencyKey clears the value of the "idempotency_key" field.
+func (_u *PaymentOrderUpdate) ClearIdempotencyKey() *PaymentOrderUpdate {
+	_u.mutation.ClearIdempotencyKey()
+	return _u
+}
+
+// SetIdempotencyRequestHash sets the "idempotency_request_hash" field.
+func (_u *PaymentOrderUpdate) SetIdempotencyRequestHash(v string) *PaymentOrderUpdate {
+	_u.mutation.SetIdempotencyRequestHash(v)
+	return _u
+}
+
+// SetNillableIdempotencyRequestHash sets the "idempotency_request_hash" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableIdempotencyRequestHash(v *string) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetIdempotencyRequestHash(*v)
+	}
+	return _u
+}
+
+// ClearIdempotencyRequestHash clears the value of the "idempotency_request_hash" field.
+func (_u *PaymentOrderUpdate) ClearIdempotencyRequestHash() *PaymentOrderUpdate {
+	_u.mutation.ClearIdempotencyRequestHash()
+	return _u
+}
+
+// SetIdempotencyResponse sets the "idempotency_response" field.
+func (_u *PaymentOrderUpdate) SetIdempotencyResponse(v map[string]interface{}) *PaymentOrderUpdate {
+	_u.mutation.SetIdempotencyResponse(v)
+	return _u
+}
+
+// ClearIdempotencyResponse clears the value of the "idempotency_response" field.
+func (_u *PaymentOrderUpdate) ClearIdempotencyResponse() *PaymentOrderUpdate {
+	_u.mutation.ClearIdempotencyResponse()
+	return _u
+}
+
 // SetOrderType sets the "order_type" field.
 func (_u *PaymentOrderUpdate) SetOrderType(v string) *PaymentOrderUpdate {
 	_u.mutation.SetOrderType(v)
@@ -798,6 +850,16 @@ func (_u *PaymentOrderUpdate) check() error {
 			return &ValidationError{Name: "payment_trade_no", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.payment_trade_no": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.IdempotencyKey(); ok {
+		if err := paymentorder.IdempotencyKeyValidator(v); err != nil {
+			return &ValidationError{Name: "idempotency_key", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.idempotency_key": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.IdempotencyRequestHash(); ok {
+		if err := paymentorder.IdempotencyRequestHashValidator(v); err != nil {
+			return &ValidationError{Name: "idempotency_request_hash", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.idempotency_request_hash": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.OrderType(); ok {
 		if err := paymentorder.OrderTypeValidator(v); err != nil {
 			return &ValidationError{Name: "order_type", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.order_type": %w`, err)}
@@ -910,6 +972,24 @@ func (_u *PaymentOrderUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if _u.mutation.QrCodeImgCleared() {
 		_spec.ClearField(paymentorder.FieldQrCodeImg, field.TypeString)
+	}
+	if value, ok := _u.mutation.IdempotencyKey(); ok {
+		_spec.SetField(paymentorder.FieldIdempotencyKey, field.TypeString, value)
+	}
+	if _u.mutation.IdempotencyKeyCleared() {
+		_spec.ClearField(paymentorder.FieldIdempotencyKey, field.TypeString)
+	}
+	if value, ok := _u.mutation.IdempotencyRequestHash(); ok {
+		_spec.SetField(paymentorder.FieldIdempotencyRequestHash, field.TypeString, value)
+	}
+	if _u.mutation.IdempotencyRequestHashCleared() {
+		_spec.ClearField(paymentorder.FieldIdempotencyRequestHash, field.TypeString)
+	}
+	if value, ok := _u.mutation.IdempotencyResponse(); ok {
+		_spec.SetField(paymentorder.FieldIdempotencyResponse, field.TypeJSON, value)
+	}
+	if _u.mutation.IdempotencyResponseCleared() {
+		_spec.ClearField(paymentorder.FieldIdempotencyResponse, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.OrderType(); ok {
 		_spec.SetField(paymentorder.FieldOrderType, field.TypeString, value)
@@ -1330,6 +1410,58 @@ func (_u *PaymentOrderUpdateOne) SetNillableQrCodeImg(v *string) *PaymentOrderUp
 // ClearQrCodeImg clears the value of the "qr_code_img" field.
 func (_u *PaymentOrderUpdateOne) ClearQrCodeImg() *PaymentOrderUpdateOne {
 	_u.mutation.ClearQrCodeImg()
+	return _u
+}
+
+// SetIdempotencyKey sets the "idempotency_key" field.
+func (_u *PaymentOrderUpdateOne) SetIdempotencyKey(v string) *PaymentOrderUpdateOne {
+	_u.mutation.SetIdempotencyKey(v)
+	return _u
+}
+
+// SetNillableIdempotencyKey sets the "idempotency_key" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableIdempotencyKey(v *string) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetIdempotencyKey(*v)
+	}
+	return _u
+}
+
+// ClearIdempotencyKey clears the value of the "idempotency_key" field.
+func (_u *PaymentOrderUpdateOne) ClearIdempotencyKey() *PaymentOrderUpdateOne {
+	_u.mutation.ClearIdempotencyKey()
+	return _u
+}
+
+// SetIdempotencyRequestHash sets the "idempotency_request_hash" field.
+func (_u *PaymentOrderUpdateOne) SetIdempotencyRequestHash(v string) *PaymentOrderUpdateOne {
+	_u.mutation.SetIdempotencyRequestHash(v)
+	return _u
+}
+
+// SetNillableIdempotencyRequestHash sets the "idempotency_request_hash" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableIdempotencyRequestHash(v *string) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetIdempotencyRequestHash(*v)
+	}
+	return _u
+}
+
+// ClearIdempotencyRequestHash clears the value of the "idempotency_request_hash" field.
+func (_u *PaymentOrderUpdateOne) ClearIdempotencyRequestHash() *PaymentOrderUpdateOne {
+	_u.mutation.ClearIdempotencyRequestHash()
+	return _u
+}
+
+// SetIdempotencyResponse sets the "idempotency_response" field.
+func (_u *PaymentOrderUpdateOne) SetIdempotencyResponse(v map[string]interface{}) *PaymentOrderUpdateOne {
+	_u.mutation.SetIdempotencyResponse(v)
+	return _u
+}
+
+// ClearIdempotencyResponse clears the value of the "idempotency_response" field.
+func (_u *PaymentOrderUpdateOne) ClearIdempotencyResponse() *PaymentOrderUpdateOne {
+	_u.mutation.ClearIdempotencyResponse()
 	return _u
 }
 
@@ -1874,6 +2006,16 @@ func (_u *PaymentOrderUpdateOne) check() error {
 			return &ValidationError{Name: "payment_trade_no", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.payment_trade_no": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.IdempotencyKey(); ok {
+		if err := paymentorder.IdempotencyKeyValidator(v); err != nil {
+			return &ValidationError{Name: "idempotency_key", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.idempotency_key": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.IdempotencyRequestHash(); ok {
+		if err := paymentorder.IdempotencyRequestHashValidator(v); err != nil {
+			return &ValidationError{Name: "idempotency_request_hash", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.idempotency_request_hash": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.OrderType(); ok {
 		if err := paymentorder.OrderTypeValidator(v); err != nil {
 			return &ValidationError{Name: "order_type", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.order_type": %w`, err)}
@@ -2003,6 +2145,24 @@ func (_u *PaymentOrderUpdateOne) sqlSave(ctx context.Context) (_node *PaymentOrd
 	}
 	if _u.mutation.QrCodeImgCleared() {
 		_spec.ClearField(paymentorder.FieldQrCodeImg, field.TypeString)
+	}
+	if value, ok := _u.mutation.IdempotencyKey(); ok {
+		_spec.SetField(paymentorder.FieldIdempotencyKey, field.TypeString, value)
+	}
+	if _u.mutation.IdempotencyKeyCleared() {
+		_spec.ClearField(paymentorder.FieldIdempotencyKey, field.TypeString)
+	}
+	if value, ok := _u.mutation.IdempotencyRequestHash(); ok {
+		_spec.SetField(paymentorder.FieldIdempotencyRequestHash, field.TypeString, value)
+	}
+	if _u.mutation.IdempotencyRequestHashCleared() {
+		_spec.ClearField(paymentorder.FieldIdempotencyRequestHash, field.TypeString)
+	}
+	if value, ok := _u.mutation.IdempotencyResponse(); ok {
+		_spec.SetField(paymentorder.FieldIdempotencyResponse, field.TypeJSON, value)
+	}
+	if _u.mutation.IdempotencyResponseCleared() {
+		_spec.ClearField(paymentorder.FieldIdempotencyResponse, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.OrderType(); ok {
 		_spec.SetField(paymentorder.FieldOrderType, field.TypeString, value)

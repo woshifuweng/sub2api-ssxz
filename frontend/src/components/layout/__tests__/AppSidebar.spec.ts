@@ -149,7 +149,7 @@ describe('AppSidebar header styles', () => {
 
     expect(headerSource).toContain(`:class="{ 'is-admin-header': authStore.isAdmin }"`)
     expect(headerSource).toContain('class="app-header-title-cluster flex items-start gap-3"')
-    expect(headerSource).toContain('class="app-header-title-copy hidden lg:block"')
+    expect(headerSource).toContain('class="app-header-title-copy hidden xl:block"')
     expect(headerSource).toContain(
       'class="text-lg font-semibold text-gray-900 dark:text-white"',
     )

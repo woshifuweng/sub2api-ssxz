@@ -26,6 +26,56 @@ permissions:
   packages: write
 
 jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          check-latest: false
+          cache-dependency-path: backend/go.sum
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Verify toolchain and dependency locks
+        run: |
+          go version | grep -q 'go1.27.0'
+          (cd backend && go mod verify)
+          pnpm --dir frontend install --frozen-lockfile
+
+      - name: Backend unit and contract tests
+        working-directory: backend
+        run: go test -p 1 -tags=unit ./...
+
+      - name: Backend vet
+        working-directory: backend
+        run: go vet ./...
+
+      - name: Frontend full quality gate
+        run: make test-frontend
+
+      - name: Frontend production build
+        run: make build-frontend
+
+      - name: Frontend production dependency audit
+        run: pnpm --dir frontend audit --prod --audit-level high
+
   # Update VERSION file with tag version
   update-version:
     runs-on: ubuntu-latest
@@ -52,6 +102,7 @@ jobs:
           retention-days: 1
 
   build-frontend:
+    needs: [quality-gate]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -85,7 +136,7 @@ jobs:
           retention-days: 1
 
   release:
-    needs: [update-version, build-frontend]
+    needs: [quality-gate, update-version, build-frontend]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

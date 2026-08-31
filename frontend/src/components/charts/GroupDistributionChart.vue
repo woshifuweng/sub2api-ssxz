@@ -1,6 +1,6 @@
 <template>
-  <div class="card p-4">
-    <div class="mb-4 flex items-center justify-between gap-3">
+  <div class="distribution-card card p-4">
+    <div class="distribution-header mb-4 flex items-center justify-between gap-3">
       <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
         {{ t('admin.dashboard.groupDistribution') }}
       </h3>
@@ -33,20 +33,20 @@
     <div v-if="loading" class="flex h-48 items-center justify-center">
       <LoadingSpinner />
     </div>
-    <div v-else-if="displayGroupStats.length > 0 && chartData" class="flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
-      <div class="h-48 w-48 shrink-0">
+    <div v-else-if="displayGroupStats.length > 0 && chartData" class="distribution-layout">
+      <div class="distribution-chart h-48 w-48 shrink-0">
         <Doughnut :data="chartData" :options="doughnutOptions" />
       </div>
-      <div class="max-h-48 w-full min-w-0 flex-1 overflow-auto">
-        <table class="w-full text-xs">
+      <div class="distribution-table max-h-48 w-full min-w-0 flex-1 overflow-auto">
+        <table class="w-full min-w-[31rem] table-fixed text-xs">
           <thead>
             <tr class="text-gray-500 dark:text-gray-400">
-              <th class="pb-2 text-left">{{ t('admin.dashboard.group') }}</th>
-              <th class="pb-2 text-right">{{ t('admin.dashboard.requests') }}</th>
-              <th class="pb-2 text-right">{{ t('admin.dashboard.tokens') }}</th>
-              <th class="pb-2 text-right">{{ t('admin.dashboard.actual') }}</th>
-              <th v-if="showAccountCost" class="pb-2 text-right">{{ t('admin.dashboard.accountCost') }}</th>
-              <th class="pb-2 text-right">{{ t('admin.dashboard.standard') }}</th>
+              <th class="w-[24%] pb-2 text-left">{{ t('admin.dashboard.group') }}</th>
+              <th class="w-[12%] pb-2 text-right">{{ t('admin.dashboard.requests') }}</th>
+              <th class="w-[16%] pb-2 text-right">{{ t('admin.dashboard.tokens') }}</th>
+              <th class="w-[16%] pb-2 text-right">{{ t('admin.dashboard.actual') }}</th>
+              <th v-if="showAccountCost" class="w-[16%] pb-2 text-right">{{ t('admin.dashboard.accountCost') }}</th>
+              <th class="w-[16%] pb-2 text-right">{{ t('admin.dashboard.standard') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -265,3 +265,35 @@ const formatCost = (value: number | null | undefined): string => {
   return safeValue.toFixed(4)
 }
 </script>
+
+<style scoped>
+.distribution-card {
+  container-type: inline-size;
+}
+
+.distribution-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1rem;
+}
+
+.distribution-chart {
+  align-self: center;
+}
+
+@container (min-width: 44rem) {
+  .distribution-layout {
+    flex-direction: row;
+    align-items: center;
+    gap: 1.5rem;
+  }
+}
+
+@container (max-width: 31rem) {
+  .distribution-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+</style>

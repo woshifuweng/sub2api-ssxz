@@ -265,7 +265,11 @@ func (r *apiKeyRepository) Update(ctx context.Context, key *service.APIKey, fiel
 
 	var normalizedGroupIDs []int64
 	if fields.GroupID {
-		normalizedGroupIDs = service.NormalizeAPIKeyGroupIDs(key.GroupID, key.GroupIDs)
+		// A nil primary explicitly clears the binding. Do not resurrect a stale
+		// hydrated group_ids snapshot when legacy callers clear GroupID only.
+		if key.GroupID != nil {
+			normalizedGroupIDs = service.NormalizeAPIKeyGroupIDs(key.GroupID, key.GroupIDs)
+		}
 		key.GroupIDs = normalizedGroupIDs
 		key.GroupID = service.PrimaryAPIKeyGroupID(normalizedGroupIDs)
 	}
@@ -1000,6 +1004,9 @@ func (r *apiKeyRepository) persistAPIKeyGroupIDs(ctx context.Context, keyID int6
 	if keyID <= 0 {
 		return nil
 	}
+	if groupIDs == nil {
+		groupIDs = []int64{}
+	}
 	_, err := r.sql.ExecContext(ctx, `UPDATE api_keys SET group_ids = $2 WHERE id = $1`, keyID, pq.Array(groupIDs))
 	return err
 }
@@ -1098,14 +1105,16 @@ func (r *apiKeyRepository) hydrateAPIKeysGroupState(ctx context.Context, keys []
 				key.Groups = append(key.Groups, group)
 			}
 		}
-		if len(key.Groups) == 0 {
-			key.Group = nil
-			key.GroupID = nil
-			continue
+		// Keep the persisted primary binding even when its group was soft-deleted.
+		// Authentication must see the incomplete binding and fail closed instead of
+		// silently treating the key as ungrouped or promoting a secondary group.
+		key.Group = nil
+		if key.GroupID == nil {
+			key.GroupID = service.PrimaryAPIKeyGroupID(key.GroupIDs)
 		}
-		key.Group = key.Groups[0]
-		groupID := key.Group.ID
-		key.GroupID = &groupID
+		if key.GroupID != nil {
+			key.Group = groupsByID[*key.GroupID]
+		}
 	}
 	return nil
 }

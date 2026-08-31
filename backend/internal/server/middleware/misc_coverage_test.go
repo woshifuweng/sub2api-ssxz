@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
@@ -70,6 +71,27 @@ func TestRequestBodyLimit_LimitsBody(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/t", bytes.NewBufferString("12345"))
 	r.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestStrictRequestBodyLimit_RejectsOversizedChunkedBodyBeforeHandler(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	called := false
+	r := gin.New()
+	r.Use(StrictRequestBodyLimit(4))
+	r.POST("/t", func(c *gin.Context) {
+		called = true
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/t", bytes.NewBufferString("12345"))
+	req.ContentLength = -1 // Exercise chunked/unknown-length requests too.
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+	require.False(t, called)
+	require.True(t, strings.Contains(w.Body.String(), "REQUEST_BODY_TOO_LARGE"))
 }
 
 func TestForcePlatform_SetsContextAndGinValue(t *testing.T) {

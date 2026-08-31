@@ -3,12 +3,14 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/payment"
@@ -145,6 +147,25 @@ func TestWebhookConstants(t *testing.T) {
 	t.Run("webhookLogTruncateLen is 200", func(t *testing.T) {
 		assert.Equal(t, 200, webhookLogTruncateLen)
 	})
+}
+
+func TestPaymentWebhookRejectsOversizedBodyBeforeProviderLookup(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(gin.Recovery())
+	h := NewPaymentWebhookHandler(nil, nil)
+	router.POST("/webhook/stripe", h.StripeWebhook)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/webhook/stripe",
+		bytes.NewBufferString(strings.Repeat("x", maxWebhookBodySize+1)),
+	)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusRequestEntityTooLarge, recorder.Code)
+	require.Contains(t, recorder.Body.String(), "body too large")
 }
 
 func TestExtractOutTradeNo(t *testing.T) {

@@ -2,30 +2,43 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 const (
-	// Requests without an explicit output cap still need a conservative balance
-	// budget before they are allowed to reach a provider.
-	unboundedTokenRequestSafetyOutputTokens = 500000
-	unboundedTokenRequestMinimumSafetyCost  = 10.0
+	// Requests that omit an output limit receive this platform cap before forwarding.
+	// Explicit client limits remain untouched.
+	unboundedTokenRequestMaxOutputTokens = 16384
 )
 
-func applyUnboundedTokenRequestSafetyFloor(cost *CostBreakdown) *CostBreakdown {
-	if cost == nil {
-		return nil
+// EnforceUnboundedTokenRequestLimit injects a platform cap only when clients omit
+// every recognized output-token field. Explicit values, including malformed ones,
+// are left to the normal validation path instead of being silently rewritten.
+func EnforceUnboundedTokenRequestLimit(body []byte, targetPath string, recognizedPaths ...string) ([]byte, bool, error) {
+	if !gjson.ValidBytes(body) {
+		return nil, false, fmt.Errorf("invalid json")
 	}
-	if cost.TotalCost < unboundedTokenRequestMinimumSafetyCost {
-		cost.TotalCost = unboundedTokenRequestMinimumSafetyCost
+	if len(recognizedPaths) == 0 {
+		recognizedPaths = []string{targetPath}
 	}
-	if cost.ActualCost < unboundedTokenRequestMinimumSafetyCost {
-		cost.ActualCost = unboundedTokenRequestMinimumSafetyCost
+	for _, path := range recognizedPaths {
+		result := gjson.GetBytes(body, path)
+		if !result.Exists() || result.Type == gjson.Null {
+			continue
+		}
+		return body, false, nil
 	}
-	return cost
+
+	limited, err := sjson.SetBytes(body, targetPath, unboundedTokenRequestMaxOutputTokens)
+	if err != nil {
+		return nil, false, fmt.Errorf("set output token limit: %w", err)
+	}
+	return limited, true, nil
 }
 
 func (s *GatewayService) EstimateGatewayTokenRequestCost(ctx context.Context, parsed *ParsedRequest, apiKey *APIKey, user *User) (*CostBreakdown, error) {
@@ -42,9 +55,8 @@ func (s *GatewayService) EstimateGatewayTokenRequestCostWithLongContext(ctx cont
 	}
 
 	outputTokens := estimateGatewayRequestOutputTokens(parsed)
-	usesSafetyBudget := outputTokens <= 0
-	if usesSafetyBudget {
-		outputTokens = unboundedTokenRequestSafetyOutputTokens
+	if outputTokens <= 0 {
+		outputTokens = unboundedTokenRequestMaxOutputTokens
 	}
 	defaultMultiplier := 0.0
 	if s.cfg != nil {
@@ -58,9 +70,6 @@ func (s *GatewayService) EstimateGatewayTokenRequestCostWithLongContext(ctx cont
 	if err != nil {
 		return nil, err
 	}
-	if usesSafetyBudget {
-		return applyUnboundedTokenRequestSafetyFloor(cost), nil
-	}
 	return cost, nil
 }
 
@@ -69,9 +78,8 @@ func (s *OpenAIGatewayService) EstimateOpenAITokenRequestCost(ctx context.Contex
 		return nil, nil
 	}
 	outputTokens := estimateOpenAIRequestOutputTokenLimit(body)
-	usesSafetyBudget := outputTokens <= 0
-	if usesSafetyBudget {
-		outputTokens = unboundedTokenRequestSafetyOutputTokens
+	if outputTokens <= 0 {
+		outputTokens = unboundedTokenRequestMaxOutputTokens
 	}
 	defaultMultiplier := 0.0
 	if s.cfg != nil {
@@ -95,9 +103,6 @@ func (s *OpenAIGatewayService) EstimateOpenAITokenRequestCost(ctx context.Contex
 	)
 	if err != nil {
 		return nil, err
-	}
-	if usesSafetyBudget {
-		return applyUnboundedTokenRequestSafetyFloor(cost), nil
 	}
 	return cost, nil
 }
@@ -140,7 +145,14 @@ func estimateGatewayRequestOutputTokens(parsed *ParsedRequest) int {
 	if parsed.MaxTokens > 0 {
 		return parsed.MaxTokens
 	}
-	for _, path := range []string{"generationConfig.maxOutputTokens", "generation_config.max_output_tokens", "maxOutputTokens"} {
+	for _, path := range []string{
+		"max_completion_tokens",
+		"max_output_tokens",
+		"generationConfig.maxOutputTokens",
+		"generation_config.max_output_tokens",
+		"maxOutputTokens",
+		"output_config.max_tokens",
+	} {
 		if value := positiveJSONInt(parsed.Body.Bytes(), path); value > 0 {
 			return value
 		}

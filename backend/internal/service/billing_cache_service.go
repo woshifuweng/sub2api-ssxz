@@ -888,11 +888,6 @@ func (s *BillingCacheService) balanceBelowEligibilityThreshold(balance float64) 
 	return minimumReserve > 0 && balance < minimumReserve
 }
 
-// checkBalanceEligibility 检查余额模式资格
-func (s *BillingCacheService) checkBalanceEligibility(ctx context.Context, userID int64) error {
-	return s.checkBalanceEligibilityForCost(ctx, userID, 0)
-}
-
 func (s *BillingCacheService) checkBalanceEligibilityForCost(ctx context.Context, userID int64, estimatedCost float64) error {
 	balance, err := s.GetUserBalance(ctx, userID)
 	if err != nil {

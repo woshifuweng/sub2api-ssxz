@@ -34,33 +34,38 @@ const (
 
 	WithdrawReviewActionApprove = "approve"
 	WithdrawReviewActionReject  = "reject"
+	MinimumBalanceConversionUSD = 5.0
 )
 
 var (
-	ErrResellerRoleNotFound        = infraerrors.NotFound("RESELLER_ROLE_NOT_FOUND", "reseller role not found")
-	ErrResellerNotAgent            = infraerrors.Forbidden("NOT_AN_AGENT", "user is not a registered agent")
-	ErrResellerNotManager          = infraerrors.Forbidden("NOT_A_MANAGER", "user is not a manager")
-	ErrResellerInvalidRole         = infraerrors.BadRequest("INVALID_RESELLER_ROLE", "role must be 'agent' or 'agent_manager'")
-	ErrWithdrawInsufficientBalance = infraerrors.BadRequest("INSUFFICIENT_BALANCE", "insufficient affiliate balance for withdrawal")
-	ErrWithdrawRequestNotFound     = infraerrors.NotFound("WITHDRAW_REQUEST_NOT_FOUND", "withdraw request not found")
-	ErrWithdrawAlreadyReviewed     = infraerrors.Conflict("WITHDRAW_ALREADY_REVIEWED", "request already reviewed")
-	ErrWithdrawInvalidMethod       = infraerrors.BadRequest("INVALID_WITHDRAW_METHOD", "unsupported withdrawal method")
-	ErrWithdrawInvalidAccount      = infraerrors.BadRequest("INVALID_WITHDRAW_ACCOUNT", "withdrawal account is required")
-	ErrWithdrawInvalidStatus       = infraerrors.BadRequest("INVALID_WITHDRAW_STATUS", "status must be 'approved' or 'rejected'")
-	ErrWithdrawInvalidAction       = infraerrors.BadRequest("INVALID_WITHDRAW_ACTION", "action must be 'approve' or 'reject'")
-	ErrWithdrawReasonRequired      = infraerrors.BadRequest("WITHDRAW_REASON_REQUIRED", "reason is required when rejecting a withdrawal")
-	ErrWithdrawNotOwner            = infraerrors.Forbidden("WITHDRAW_NOT_OWNER", "withdrawal does not belong to the current user")
-	ErrWithdrawNotPending          = infraerrors.Conflict("WITHDRAW_NOT_PENDING", "only pending withdrawals can be changed")
-	ErrResellerAgentNotManaged     = infraerrors.Forbidden("AGENT_NOT_MANAGED", "agent is not managed by this manager")
-	ErrResellerCannotManageSelf    = infraerrors.BadRequest("CANNOT_MANAGE_SELF", "manager cannot grant or revoke their own role")
-	ErrResellerInvalidStatus       = infraerrors.BadRequest("INVALID_RESELLER_STATUS", "status must be active, disabled, revoked, or all")
-	ErrResellerInvalidRebatePolicy = infraerrors.BadRequest("INVALID_REBATE_POLICY", "invalid rebate policy")
-	ErrResellerManagerInvalid      = infraerrors.New(422, "INVALID_RESELLER_MANAGER", "manager must be an active agent manager")
-	ErrResellerManagerCycle        = infraerrors.New(422, "RESELLER_MANAGER_CYCLE", "manager assignment creates a hierarchy cycle")
-	ErrResellerHasDirectAgents     = infraerrors.Conflict("RESELLER_HAS_DIRECT_AGENTS", "agent manager still has direct agents")
-	ErrResellerHasPendingWithdraw  = infraerrors.Conflict("RESELLER_HAS_PENDING_WITHDRAWALS", "agent still has pending balance conversions")
-	ErrResellerStateConflict       = infraerrors.Conflict("RESELLER_STATE_CONFLICT", "reseller state does not allow this operation")
-	ErrResellerDisableReason       = infraerrors.BadRequest("DISABLE_REASON_REQUIRED", "disable reason is required")
+	ErrResellerRoleNotFound           = infraerrors.NotFound("RESELLER_ROLE_NOT_FOUND", "reseller role not found")
+	ErrResellerNotAgent               = infraerrors.Forbidden("NOT_AN_AGENT", "user is not a registered agent")
+	ErrResellerNotManager             = infraerrors.Forbidden("NOT_A_MANAGER", "user is not a manager")
+	ErrResellerInvalidRole            = infraerrors.BadRequest("INVALID_RESELLER_ROLE", "role must be 'agent' or 'agent_manager'")
+	ErrWithdrawInsufficientBalance    = infraerrors.BadRequest("INSUFFICIENT_BALANCE", "insufficient affiliate balance for withdrawal")
+	ErrWithdrawBelowMinimum           = infraerrors.BadRequest("WITHDRAW_BELOW_MINIMUM", "balance conversion amount must be at least 5 USD")
+	ErrWithdrawIdempotencyKeyRequired = infraerrors.BadRequest("IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required for balance conversion")
+	ErrWithdrawIdempotencyKeyInvalid  = infraerrors.BadRequest("IDEMPOTENCY_KEY_INVALID", "Idempotency-Key must be at most 128 characters")
+	ErrWithdrawIdempotencyConflict    = infraerrors.Conflict("IDEMPOTENCY_KEY_REUSED", "Idempotency-Key was already used for a different balance conversion")
+	ErrWithdrawRequestNotFound        = infraerrors.NotFound("WITHDRAW_REQUEST_NOT_FOUND", "withdraw request not found")
+	ErrWithdrawAlreadyReviewed        = infraerrors.Conflict("WITHDRAW_ALREADY_REVIEWED", "request already reviewed")
+	ErrWithdrawInvalidMethod          = infraerrors.BadRequest("INVALID_WITHDRAW_METHOD", "unsupported withdrawal method")
+	ErrWithdrawInvalidAccount         = infraerrors.BadRequest("INVALID_WITHDRAW_ACCOUNT", "withdrawal account is required")
+	ErrWithdrawInvalidStatus          = infraerrors.BadRequest("INVALID_WITHDRAW_STATUS", "status must be 'approved' or 'rejected'")
+	ErrWithdrawInvalidAction          = infraerrors.BadRequest("INVALID_WITHDRAW_ACTION", "action must be 'approve' or 'reject'")
+	ErrWithdrawReasonRequired         = infraerrors.BadRequest("WITHDRAW_REASON_REQUIRED", "reason is required when rejecting a withdrawal")
+	ErrWithdrawNotOwner               = infraerrors.Forbidden("WITHDRAW_NOT_OWNER", "withdrawal does not belong to the current user")
+	ErrWithdrawNotPending             = infraerrors.Conflict("WITHDRAW_NOT_PENDING", "only pending withdrawals can be changed")
+	ErrResellerAgentNotManaged        = infraerrors.Forbidden("AGENT_NOT_MANAGED", "agent is not managed by this manager")
+	ErrResellerCannotManageSelf       = infraerrors.BadRequest("CANNOT_MANAGE_SELF", "manager cannot grant or revoke their own role")
+	ErrResellerInvalidStatus          = infraerrors.BadRequest("INVALID_RESELLER_STATUS", "status must be active, disabled, revoked, or all")
+	ErrResellerInvalidRebatePolicy    = infraerrors.BadRequest("INVALID_REBATE_POLICY", "invalid rebate policy")
+	ErrResellerManagerInvalid         = infraerrors.New(422, "INVALID_RESELLER_MANAGER", "manager must be an active agent manager")
+	ErrResellerManagerCycle           = infraerrors.New(422, "RESELLER_MANAGER_CYCLE", "manager assignment creates a hierarchy cycle")
+	ErrResellerHasDirectAgents        = infraerrors.Conflict("RESELLER_HAS_DIRECT_AGENTS", "agent manager still has direct agents")
+	ErrResellerHasPendingWithdraw     = infraerrors.Conflict("RESELLER_HAS_PENDING_WITHDRAWALS", "agent still has pending balance conversions")
+	ErrResellerStateConflict          = infraerrors.Conflict("RESELLER_STATE_CONFLICT", "reseller state does not allow this operation")
+	ErrResellerDisableReason          = infraerrors.BadRequest("DISABLE_REASON_REQUIRED", "disable reason is required")
 )
 
 // --- Domain types ---
@@ -240,9 +245,10 @@ type WithdrawRequest struct {
 
 // WithdrawInput is sent by the agent when requesting a withdrawal.
 type WithdrawInput struct {
-	Amount      float64        `json:"amount"`
-	Method      string         `json:"method"`
-	AccountInfo map[string]any `json:"account_info"`
+	Amount         float64        `json:"amount"`
+	Method         string         `json:"method"`
+	AccountInfo    map[string]any `json:"account_info"`
+	IdempotencyKey string         `json:"-"`
 }
 
 // AgentFilter is used by manager when listing agents.
@@ -485,8 +491,15 @@ func (s *ResellerService) RequestWithdraw(ctx context.Context, agentUserID int64
 	if role != ResellerRoleAgent && role != ResellerRoleManager {
 		return nil, ErrResellerNotAgent
 	}
-	if input.Amount <= 0 {
-		return nil, ErrWithdrawInsufficientBalance
+	if input.Amount < MinimumBalanceConversionUSD {
+		return nil, ErrWithdrawBelowMinimum.WithMetadata(map[string]string{"minimum": "5.00"})
+	}
+	input.IdempotencyKey = strings.TrimSpace(input.IdempotencyKey)
+	if input.IdempotencyKey == "" {
+		return nil, ErrWithdrawIdempotencyKeyRequired
+	}
+	if len(input.IdempotencyKey) > 128 {
+		return nil, ErrWithdrawIdempotencyKeyInvalid
 	}
 	input.Method = strings.ToLower(strings.TrimSpace(input.Method))
 	if input.Method == "" {

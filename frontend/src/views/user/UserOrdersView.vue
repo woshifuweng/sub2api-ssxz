@@ -77,6 +77,7 @@
         </div>
       </template>
     </BaseDialog>
+    <TotpStepUpDialog :controller="stepUp" />
   </AppLayout>
 </template>
 
@@ -94,10 +95,13 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import OrderTable from '@/components/payment/OrderTable.vue'
+import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
+import { isStepUpCancelled, useStepUp } from '@/composables/useStepUp'
 
 const { t } = useI18n()
 const router = useRouter()
 const appStore = useAppStore()
+const stepUp = useStepUp()
 
 const loading = ref(false)
 const actionLoading = ref(false)
@@ -160,12 +164,13 @@ async function confirmRefund() {
   if (!refundTarget.value || !refundReason.value.trim()) return
   actionLoading.value = true
   try {
-    await paymentAPI.requestRefund(refundTarget.value.id, { reason: refundReason.value.trim() })
+    await stepUp.run(() => paymentAPI.requestRefund(refundTarget.value!.id, { reason: refundReason.value.trim() }))
     appStore.showSuccess(t('common.success'))
     refundTarget.value = null
     refundReason.value = ''
     await fetchOrders()
   } catch (err: unknown) {
+    if (isStepUpCancelled(err)) return
     appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
   } finally {
     actionLoading.value = false

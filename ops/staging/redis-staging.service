@@ -1,0 +1,22 @@
+[Unit]
+Description=Redis cache dedicated to sub2api staging
+After=network.target
+
+[Service]
+Type=notify
+User=redis
+Group=redis
+RuntimeDirectory=redis-staging
+RuntimeDirectoryMode=0750
+ExecStart=/usr/bin/redis-server /etc/redis/redis-staging.conf --supervised systemd --daemonize no
+ExecStop=/usr/bin/redis-cli -h 127.0.0.1 -p 6380 shutdown nosave
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/redis-staging /run/redis-staging
+
+[Install]
+WantedBy=multi-user.target

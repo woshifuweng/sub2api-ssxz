@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -31,12 +32,66 @@ func expectActiveResellerRoleLock(mock sqlmock.Sqlmock, userID int64, role strin
 			AddRow(role, service.ResellerStatusActive, nil))
 }
 
+func TestResellerRepositoryCreateWithdrawRequestReturnsExistingIdempotentRequest(t *testing.T) {
+	repo, mock := newResellerRepoMock(t)
+	requestedAt := time.Now()
+
+	mock.ExpectBegin()
+	expectResellerMutationLock(mock)
+	expectActiveResellerRoleLock(mock, 7, service.ResellerRoleAgent)
+	mock.ExpectQuery(`SELECT id, user_id, amount::double precision, method, account_info, status, note, requested_at.*idempotency_key = \$2.*FOR UPDATE`).
+		WithArgs(int64(7), "withdraw-1").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "amount", "method", "account_info", "status", "note", "requested_at",
+		}).AddRow(int64(12), int64(7), 5.0, "balance_transfer", []byte(`{}`), service.WithdrawStatusPending, "", requestedAt))
+	mock.ExpectCommit()
+
+	req, err := repo.CreateWithdrawRequest(context.Background(), 7, service.WithdrawInput{
+		Amount:         5,
+		Method:         "balance_transfer",
+		AccountInfo:    map[string]any{},
+		IdempotencyKey: "withdraw-1",
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(12), req.ID)
+	require.Equal(t, requestedAt, req.RequestedAt)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResellerRepositoryCreateWithdrawRequestRejectsReusedKeyWithDifferentAmount(t *testing.T) {
+	repo, mock := newResellerRepoMock(t)
+
+	mock.ExpectBegin()
+	expectResellerMutationLock(mock)
+	expectActiveResellerRoleLock(mock, 7, service.ResellerRoleAgent)
+	mock.ExpectQuery(`SELECT id, user_id, amount::double precision, method, account_info, status, note, requested_at.*idempotency_key = \$2.*FOR UPDATE`).
+		WithArgs(int64(7), "withdraw-1").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "amount", "method", "account_info", "status", "note", "requested_at",
+		}).AddRow(int64(12), int64(7), 6.0, "balance_transfer", []byte(`{}`), service.WithdrawStatusPending, "", time.Now()))
+	mock.ExpectRollback()
+
+	_, err := repo.CreateWithdrawRequest(context.Background(), 7, service.WithdrawInput{
+		Amount:         5,
+		Method:         "balance_transfer",
+		AccountInfo:    map[string]any{},
+		IdempotencyKey: "withdraw-1",
+	})
+
+	require.ErrorIs(t, err, service.ErrWithdrawIdempotencyConflict)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestResellerRepositoryCreateWithdrawRequestUsesLocksAndReservedBalance(t *testing.T) {
 	repo, mock := newResellerRepoMock(t)
 
 	mock.ExpectBegin()
 	expectResellerMutationLock(mock)
 	expectActiveResellerRoleLock(mock, 7, service.ResellerRoleAgent)
+	mock.ExpectQuery(`SELECT id, user_id, amount::double precision, method, account_info, status, note, requested_at.*idempotency_key = \$2.*FOR UPDATE`).
+		WithArgs(int64(7), "withdraw-2").
+		WillReturnError(sql.ErrNoRows)
 	mock.ExpectQuery(`SELECT aff_quota::double precision.*FOR UPDATE`).
 		WithArgs(int64(7)).
 		WillReturnRows(sqlmock.NewRows([]string{"aff_quota"}).AddRow(100.0))
@@ -45,7 +100,11 @@ func TestResellerRepositoryCreateWithdrawRequestUsesLocksAndReservedBalance(t *t
 		WillReturnRows(sqlmock.NewRows([]string{"pending"}).AddRow(80.0))
 	mock.ExpectRollback()
 
-	_, err := repo.CreateWithdrawRequest(context.Background(), 7, service.WithdrawInput{Amount: 30, Method: "balance_transfer"})
+	_, err := repo.CreateWithdrawRequest(context.Background(), 7, service.WithdrawInput{
+		Amount:         30,
+		Method:         "balance_transfer",
+		IdempotencyKey: "withdraw-2",
+	})
 
 	require.ErrorIs(t, err, service.ErrWithdrawInsufficientBalance)
 	require.NoError(t, mock.ExpectationsWereMet())

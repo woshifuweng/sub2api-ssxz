@@ -31,3 +31,41 @@ func TestAPIKeyMultiGroupAuthorizationFailsClosedWhenHydrationIsIncomplete(t *te
 	_, _, available := validateAPIKeyGroupAvailable(key)
 	require.False(t, available)
 }
+
+func TestAPIKeyMultiGroupAvailabilityRejectsAnyUnavailableBinding(t *testing.T) {
+	tests := []struct {
+		name     string
+		groups   []*service.Group
+		wantCode string
+	}{
+		{
+			name: "disabled secondary group",
+			groups: []*service.Group{
+				{ID: 10, Status: service.StatusActive},
+				{ID: 20, Status: service.StatusDisabled},
+			},
+			wantCode: "GROUP_DISABLED",
+		},
+		{
+			name: "deleted secondary group",
+			groups: []*service.Group{
+				{ID: 10, Status: service.StatusActive},
+				{ID: 20, Status: "deleted"},
+			},
+			wantCode: "GROUP_DELETED",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key := &service.APIKey{
+				GroupIDs: []int64{10, 20},
+				Groups:   tt.groups,
+			}
+
+			code, _, available := validateAPIKeyGroupAvailable(key)
+			require.False(t, available)
+			require.Equal(t, tt.wantCode, code)
+		})
+	}
+}

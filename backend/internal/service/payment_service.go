@@ -85,6 +85,7 @@ type CreateOrderRequest struct {
 	OrderType       string
 	PlanID          int64
 	Locale          string
+	IdempotencyKey  string
 }
 
 type CreateOrderResponse struct {
@@ -110,6 +111,7 @@ type CreateOrderResponse struct {
 	PaymentMode                   string                          `json:"payment_mode,omitempty"`
 	ResumeToken                   string                          `json:"resume_token,omitempty"`
 	AlipayMobilePrecreateDeepLink bool                            `json:"alipay_mobile_precreate_deep_link,omitempty"`
+	IdempotencyReplayed           bool                            `json:"-"`
 }
 
 type OrderListParams struct {

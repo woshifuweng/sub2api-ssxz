@@ -175,7 +175,6 @@ import ProfilePasswordForm from "@/components/user/profile/ProfilePasswordForm.v
 import ProfileTotpCard from "@/components/user/profile/ProfileTotpCard.vue";
 import ProfilePasskeyCard from "@/components/user/profile/ProfilePasskeyCard.vue";
 import AvatarCropDialog from "@/components/user/profile/AvatarCropDialog.vue";
-import type { UserAvatar } from "@/types";
 import { Icon } from "@/components/icons";
 
 const { t } = useI18n();
@@ -202,7 +201,10 @@ const linuxdoOAuthEnabled = ref(false);
 const balanceLowNotifyEnabled = ref(false);
 const systemDefaultThreshold = ref(0);
 const passkeyEnabled = ref(false);
-const avatar = ref<UserAvatar | null>(null);
+const avatar = computed(() => {
+  const url = user.value?.avatar_url?.trim();
+  return url ? { url } : null;
+});
 const avatarDialogOpen = ref(false);
 const avatarSaving = ref(false);
 const displayName = computed(
@@ -230,17 +232,13 @@ onMounted(async () => {
     systemDefaultThreshold.value = 0;
     passkeyEnabled.value = false;
   }
-  try {
-    avatar.value = await userAPI.getAvatar();
-  } catch {
-    avatar.value = null;
-  }
 });
 
 const handleAvatarSave = async (dataUrl: string) => {
   avatarSaving.value = true;
   try {
-    avatar.value = await userAPI.updateAvatar(dataUrl);
+    const updatedUser = await userAPI.updateProfile({ avatar_url: dataUrl });
+    authStore.user = updatedUser;
     avatarDialogOpen.value = false;
     appStore.showSuccess(t("profile.avatar.saved"));
   } catch (error: any) {

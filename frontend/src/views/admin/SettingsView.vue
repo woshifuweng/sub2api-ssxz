@@ -1327,6 +1327,29 @@
           </div>
 
           <div class="card">
+            <div class="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+              <div class="min-w-0">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                  {{ t("admin.settings.tlsFingerprint.title") }}
+                </h2>
+                <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.tlsFingerprint.description") }}
+                </p>
+              </div>
+              <LiquidButton
+                type="button"
+                data-testid="native-tls-profiles-button"
+                class="shrink-0"
+                variant="outline"
+                size="sm"
+                @click="showNativeTLSFingerprintProfilesModal = true"
+              >
+                {{ t("admin.tlsFingerprintProfiles.title") }}
+              </LiquidButton>
+            </div>
+          </div>
+
+          <div v-if="false" class="card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -1581,7 +1604,7 @@
         <!-- /Tab: Gateway -->
 
         <div
-          v-if="showTLSFingerprintModal"
+          v-if="false && showTLSFingerprintModal"
           class="fixed inset-0 z-50 flex items-center justify-center p-4"
           @mousedown.self="closeTLSFingerprintModal"
         >
@@ -1753,6 +1776,12 @@
             </div>
           </div>
         </div>
+
+        <TLSFingerprintProfilesModal
+          v-if="showNativeTLSFingerprintProfilesModal"
+          :show="showNativeTLSFingerprintProfilesModal"
+          @close="showNativeTLSFingerprintProfilesModal = false"
+        />
 
         <!-- Tab: Security — Registration, Turnstile, LinuxDo -->
         <div v-show="activeTab === 'security'" class="space-y-6">
@@ -5833,7 +5862,7 @@
         </div>
 
         <!-- Tab: Data Management -->
-        <div v-show="activeTab === 'data'">
+        <div v-if="activeTab === 'data'">
           <DataManagementSettings />
         </div>
 
@@ -5908,6 +5937,7 @@
         </div>
       </div>
     </div>
+    <TotpStepUpDialog :controller="stepUp" />
   </AppLayout>
 </template>
 
@@ -5959,12 +5989,15 @@ import ImageUpload from "@/components/common/ImageUpload.vue";
 import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
 import PaymentProviderDialog from "@/components/payment/PaymentProviderDialog.vue";
 import PaymentProviderList from "@/components/payment/PaymentProviderList.vue";
+import TotpStepUpDialog from "@/components/auth/TotpStepUpDialog.vue";
 import BackupSettings from "@/views/admin/BackupView.vue";
 import DataManagementSettings from "@/views/admin/DataManagementView.vue";
+import TLSFingerprintProfilesModal from "@/components/admin/TLSFingerprintProfilesModal.vue";
 import OpenAIFastPolicyUserSelector from "@/views/admin/settings/OpenAIFastPolicyUserSelector.vue";
 import type { ProviderInstance } from "@/types/payment";
 import type { TypeOption } from "@/components/payment/providerConfig";
 import { useClipboard } from "@/composables/useClipboard";
+import { isStepUpCancelled, useStepUp } from "@/composables/useStepUp";
 import { useAppStore } from "@/stores";
 import { useAdminSettingsStore } from "@/stores/adminSettings";
 import {
@@ -5983,6 +6016,7 @@ import {
 
 const { t, locale } = useI18n();
 const appStore = useAppStore();
+const stepUp = useStepUp();
 const adminSettingsStore = useAdminSettingsStore();
 const isZhLocale = computed(() => locale.value.startsWith("zh"));
 
@@ -6009,7 +6043,7 @@ const settingsTabs = [
   { key: "gateway" as SettingsTab, icon: "server" as const },
   { key: "email" as SettingsTab, icon: "mail" as const },
   { key: "backup" as SettingsTab, icon: "database" as const },
-  { key: "data" as SettingsTab, icon: "cube" as const },
+  // The retired data-agent tab is intentionally not advertised until its backend capability returns.
 ];
 const { copyToClipboard } = useClipboard();
 
@@ -6361,6 +6395,7 @@ const tlsFingerprintSaving = ref(false);
 const tlsFingerprintProfiles = ref<TLSFingerprintProfile[]>([]);
 const tlsFingerprintGlobalEnabled = ref(true);
 const showTLSFingerprintModal = ref(false);
+const showNativeTLSFingerprintProfilesModal = ref(false);
 const editingTLSFingerprintProfileID = ref("");
 const tlsFingerprintForm = reactive({
   profile_id: "",
@@ -7761,10 +7796,11 @@ async function deleteProvider() {
   const provider = deletingProvider.value;
   if (!provider) return;
   try {
-    await adminAPI.payment.deleteProvider(provider.id);
+    await stepUp.run(() => adminAPI.payment.deleteProvider(provider.id));
     appStore.showSuccess(t("admin.settings.settingsSaved"));
     await loadPaymentProviders();
   } catch (error: any) {
+    if (isStepUpCancelled(error)) return;
     appStore.showError(error?.message || t("common.unknownError"));
   } finally {
     deletingProvider.value = null;
@@ -7775,14 +7811,15 @@ async function saveProvider(payload: ProviderPayload) {
   savingProvider.value = true;
   try {
     if (editingProvider.value) {
-      await adminAPI.payment.updateProvider(editingProvider.value.id, payload);
+      await stepUp.run(() => adminAPI.payment.updateProvider(editingProvider.value!.id, payload));
     } else {
-      await adminAPI.payment.createProvider(payload);
+      await stepUp.run(() => adminAPI.payment.createProvider(payload));
     }
     appStore.showSuccess(t("admin.settings.settingsSaved"));
     closeProviderDialog();
     await loadPaymentProviders();
   } catch (error: any) {
+    if (isStepUpCancelled(error)) return;
     appStore.showError(error?.message || t("common.unknownError"));
   } finally {
     savingProvider.value = false;
@@ -7794,11 +7831,12 @@ async function toggleProviderField(
   field: "enabled" | "refund_enabled" | "allow_user_refund",
 ) {
   try {
-    await adminAPI.payment.updateProvider(provider.id, {
+    await stepUp.run(() => adminAPI.payment.updateProvider(provider.id, {
       [field]: !provider[field],
-    });
+    }));
     await loadPaymentProviders();
   } catch (error: any) {
+    if (isStepUpCancelled(error)) return;
     appStore.showError(error?.message || t("common.unknownError"));
   }
 }
@@ -7811,24 +7849,26 @@ async function toggleProviderType(provider: ProviderInstance, type: string) {
     ? supportedTypes.filter((value) => value !== type)
     : [...supportedTypes, type];
   try {
-    await adminAPI.payment.updateProvider(provider.id, {
+    await stepUp.run(() => adminAPI.payment.updateProvider(provider.id, {
       supported_types: nextTypes,
-    });
+    }));
     await loadPaymentProviders();
   } catch (error: any) {
+    if (isStepUpCancelled(error)) return;
     appStore.showError(error?.message || t("common.unknownError"));
   }
 }
 
 async function reorderProviders(items: { id: number; sort_order: number }[]) {
   try {
-    await Promise.all(
+    await stepUp.run(() => Promise.all(
       items.map((item) =>
         adminAPI.payment.updateProvider(item.id, { sort_order: item.sort_order }),
       ),
-    );
+    ));
     await loadPaymentProviders();
   } catch (error: any) {
+    if (isStepUpCancelled(error)) return;
     appStore.showError(error?.message || t("common.unknownError"));
   }
 }
@@ -8302,7 +8342,7 @@ async function saveSettings() {
       form.account_scheduling_thresholds,
     );
     appendAuthSourceDefaultsToUpdateRequest(payload, authSourceDefaults);
-    const updated = await adminAPI.settings.updateSettings(payload);
+    const updated = await stepUp.run(() => adminAPI.settings.updateSettings(payload));
     if (!(await saveWebSearchConfig())) return;
     Object.assign(form, updated);
     form.account_scheduling_thresholds = normalizeAccountSchedulingThresholdsMap(
@@ -8345,6 +8385,7 @@ async function saveSettings() {
     await adminSettingsStore.fetch(true);
     appStore.showSuccess(t("admin.settings.settingsSaved"));
   } catch (error: any) {
+    if (isStepUpCancelled(error)) return;
     appStore.showError(
       t("admin.settings.failedToSave") +
         ": " +
@@ -8902,7 +8943,6 @@ onMounted(() => {
   loadStreamTimeoutSettings();
   loadRectifierSettings();
   loadBetaPolicySettings();
-  loadTLSFingerprintSettings();
   loadWebSearchConfig();
 });
 </script>

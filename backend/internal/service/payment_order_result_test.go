@@ -9,6 +9,7 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"github.com/stretchr/testify/require"
 )
 
 func TestShouldUseAlipayMobilePrecreate(t *testing.T) {
@@ -301,6 +302,115 @@ func TestCalculateCreateOrderPayAmountRejectsFractionalZeroDecimal(t *testing.T)
 	if appErr := infraerrors.FromError(err); appErr.Reason != "INVALID_AMOUNT" {
 		t.Fatalf("reason = %q, want INVALID_AMOUNT", appErr.Reason)
 	}
+}
+
+func TestPaymentOrderIdempotencyFingerprintUsesBusinessInputsOnly(t *testing.T) {
+	base := CreateOrderRequest{
+		UserID:          42,
+		Amount:          9.99,
+		PaymentType:     payment.TypeAlipay,
+		ClientIP:        "203.0.113.10",
+		IsMobile:        true,
+		IsWeChatBrowser: false,
+		SrcHost:         "pay.example.com",
+		SrcURL:          "https://pay.example.com/purchase?from=campaign-a",
+		ReturnURL:       "https://pay.example.com/payment/result",
+		PaymentSource:   "hosted_redirect",
+		OrderType:       payment.OrderTypeBalance,
+	}
+
+	first, err := paymentOrderIdempotencyFingerprint(base)
+	require.NoError(t, err)
+
+	transportRetry := base
+	transportRetry.ClientIP = "203.0.113.11"
+	transportRetry.SrcHost = "www.example.com"
+	transportRetry.SrcURL = "https://www.example.com/purchase?from=campaign-b"
+	transportRetry.Locale = "zh-CN"
+	second, err := paymentOrderIdempotencyFingerprint(transportRetry)
+	require.NoError(t, err)
+	require.Equal(t, first, second)
+
+	differentAmount := base
+	differentAmount.Amount = 19.99
+	third, err := paymentOrderIdempotencyFingerprint(differentAmount)
+	require.NoError(t, err)
+	require.NotEqual(t, first, third)
+
+	differentMethod := base
+	differentMethod.PaymentType = payment.TypeStripe
+	fourth, err := paymentOrderIdempotencyFingerprint(differentMethod)
+	require.NoError(t, err)
+	require.NotEqual(t, first, fourth)
+}
+
+func TestPaymentOrderIdempotencySnapshotPreservesCheckoutCredentials(t *testing.T) {
+	want := &CreateOrderResponse{
+		OrderID:      81,
+		Amount:       9.99,
+		PayAmount:    71.43,
+		Status:       OrderStatusPending,
+		PaymentType:  payment.TypeStripe,
+		ClientSecret: "pi_secret_for_checkout",
+		IntentID:     "pi_81",
+		ExpiresAt:    time.Unix(1_800_000_000, 0).UTC(),
+	}
+
+	snapshot, err := paymentOrderResponseSnapshot(want)
+	require.NoError(t, err)
+	got, err := decodePaymentOrderResponseSnapshot(snapshot)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+}
+
+func TestResolvePaymentOrderIdempotencyReplayReturnsStoredResponse(t *testing.T) {
+	hash := strings.Repeat("a", 64)
+	want := &CreateOrderResponse{
+		OrderID:      81,
+		Status:       OrderStatusPending,
+		PaymentType:  payment.TypeStripe,
+		ClientSecret: "pi_secret_for_checkout",
+		ExpiresAt:    time.Unix(1_800_000_000, 0).UTC(),
+	}
+	snapshot, err := paymentOrderResponseSnapshot(want)
+	require.NoError(t, err)
+
+	got, err := resolvePaymentOrderIdempotencyReplay(&dbent.PaymentOrder{
+		ID:                     want.OrderID,
+		Status:                 OrderStatusPending,
+		IdempotencyRequestHash: &hash,
+		IdempotencyResponse:    snapshot,
+	}, hash)
+
+	require.NoError(t, err)
+	require.True(t, got.IdempotencyReplayed)
+	want.IdempotencyReplayed = true
+	require.Equal(t, want, got)
+}
+
+func TestResolvePaymentOrderIdempotencyReplayRejectsChangedPayload(t *testing.T) {
+	hash := strings.Repeat("a", 64)
+
+	_, err := resolvePaymentOrderIdempotencyReplay(&dbent.PaymentOrder{
+		ID:                     81,
+		Status:                 OrderStatusPending,
+		IdempotencyRequestHash: &hash,
+	}, strings.Repeat("b", 64))
+
+	require.ErrorIs(t, err, ErrIdempotencyKeyConflict)
+}
+
+func TestPaymentOrderTerminalErrorPreservesReasonAndSignalsFreshRetry(t *testing.T) {
+	original := infraerrors.ServiceUnavailable("PAYMENT_GATEWAY_ERROR", "provider unavailable").
+		WithMetadata(map[string]string{"provider": "alipay"})
+
+	err := paymentOrderTerminalError(original, 81)
+	var appErr *infraerrors.ApplicationError
+	require.ErrorAs(t, err, &appErr)
+	require.Equal(t, "PAYMENT_GATEWAY_ERROR", appErr.Reason)
+	require.Equal(t, "alipay", appErr.Metadata["provider"])
+	require.Equal(t, "81", appErr.Metadata["order_id"])
+	require.Equal(t, "true", appErr.Metadata["idempotency_terminal"])
 }
 
 func TestComputeValidityDaysSupportsSingularAndPluralUnits(t *testing.T) {

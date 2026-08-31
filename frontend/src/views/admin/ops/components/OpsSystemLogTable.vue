@@ -416,7 +416,7 @@ onMounted(async () => {
           t("common.loading")
         }}</span>
       </div>
-      <div class="grid grid-cols-1 gap-3 md:grid-cols-6">
+      <div class="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <label class="text-xs text-gray-600 dark:text-gray-300">
           {{ systemLogT("level") }}
           <select v-model="runtimeConfig.level" class="input mt-1">
@@ -462,7 +462,9 @@ onMounted(async () => {
             class="input mt-1"
           />
         </label>
-        <div class="flex items-end gap-2">
+        <div
+          class="flex min-w-0 flex-wrap items-end gap-2 sm:col-span-2 xl:col-span-3 2xl:col-span-1"
+        >
           <label
             class="inline-flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300"
           >

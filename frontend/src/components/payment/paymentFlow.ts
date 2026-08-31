@@ -31,6 +31,13 @@ export type PaymentLaunchKind =
   | 'wechat_jsapi'
   | 'unhandled'
 
+export function isTerminalPaymentIdempotencyError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const metadata = (error as { metadata?: unknown }).metadata
+  if (!metadata || typeof metadata !== 'object') return false
+  return (metadata as Record<string, unknown>).idempotency_terminal === 'true'
+}
+
 export interface PaymentRecoverySnapshot {
   orderId: number
   amount: number

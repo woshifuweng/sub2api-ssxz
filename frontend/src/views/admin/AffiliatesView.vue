@@ -217,6 +217,7 @@
         </template>
       </TablePageLayout>
     </div>
+    <TotpStepUpDialog :controller="stepUp" />
   </AppLayout>
 </template>
 
@@ -260,6 +261,8 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Icon from '@/components/icons/Icon.vue'
+import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
+import { isStepUpCancelled, useStepUp } from '@/composables/useStepUp'
 
 type SelectedAffiliateUser = AffiliateUserSummary | {
   id: number
@@ -268,6 +271,7 @@ type SelectedAffiliateUser = AffiliateUserSummary | {
 }
 
 const appStore = useAppStore()
+const stepUp = useStepUp()
 const route = useRoute()
 const { copyToClipboard } = useClipboard()
 
@@ -428,10 +432,11 @@ async function saveSelectedUser() {
   }
   saving.value = true
   try {
-    await adminAPI.affiliate.updateUserSettings(selectedUser.value.id, payload)
+    await stepUp.run(() => adminAPI.affiliate.updateUserSettings(selectedUser.value!.id, payload))
     appStore.showSuccess('推广返利设置已保存')
     await loadEntries()
   } catch (error: any) {
+    if (isStepUpCancelled(error)) return
     appStore.showError(error?.message || '保存失败')
   } finally {
     saving.value = false

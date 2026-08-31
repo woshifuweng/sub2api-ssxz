@@ -1,7 +1,10 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
+	"log/slog"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -266,6 +269,15 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 			return
 		}
 	}
+	idempotencyKey, err := service.NormalizeIdempotencyKey(c.GetHeader("Idempotency-Key"))
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if idempotencyKey == "" {
+		response.ErrorFrom(c, service.ErrIdempotencyKeyRequired)
+		return
+	}
 
 	mobile := isMobile(c)
 	if req.IsMobile != nil {
@@ -286,10 +298,17 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 		OrderType:       req.OrderType,
 		PlanID:          req.PlanID,
 		Locale:          c.GetHeader("Accept-Language"),
+		IdempotencyKey:  idempotencyKey,
 	})
 	if err != nil {
+		if retryAfter := service.RetryAfterSecondsFromError(err); retryAfter > 0 {
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+		}
 		response.ErrorFrom(c, err)
 		return
+	}
+	if result.IdempotencyReplayed {
+		c.Header("X-Idempotency-Replayed", "true")
 	}
 	response.Success(c, result)
 }
@@ -568,9 +587,13 @@ func publicOrderStatusPaid(status string) bool {
 func (h *PaymentHandler) VerifyOrderPublic(c *gin.Context) {
 	var req VerifyOrderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+		if writePublicPaymentBindError(c, err) {
+			return
+		}
+		response.BadRequest(c, "Invalid request")
 		return
 	}
+	slog.Info("legacy public payment order verification used", "client_ip", middleware2.SecurityClientIP(c))
 
 	order, err := h.paymentService.VerifyOrderPublic(c.Request.Context(), req.OutTradeNo)
 	if err != nil {
@@ -585,7 +608,10 @@ func (h *PaymentHandler) VerifyOrderPublic(c *gin.Context) {
 func (h *PaymentHandler) ResolveOrderPublicByResumeToken(c *gin.Context) {
 	var req ResolveOrderByResumeTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
+		if writePublicPaymentBindError(c, err) {
+			return
+		}
+		response.BadRequest(c, "Invalid request")
 		return
 	}
 
@@ -595,6 +621,21 @@ func (h *PaymentHandler) ResolveOrderPublicByResumeToken(c *gin.Context) {
 		return
 	}
 	response.Success(c, buildPublicOrderResult(order))
+}
+
+func writePublicPaymentBindError(c *gin.Context, err error) bool {
+	var maxErr *http.MaxBytesError
+	if !errors.As(err, &maxErr) {
+		return false
+	}
+	response.ErrorWithDetails(
+		c,
+		http.StatusRequestEntityTooLarge,
+		"Request body too large",
+		"REQUEST_BODY_TOO_LARGE",
+		map[string]string{"limit_bytes": strconv.FormatInt(maxErr.Limit, 10)},
+	)
+	return true
 }
 
 // requireAuth extracts the authenticated subject from the context.

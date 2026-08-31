@@ -1684,6 +1684,13 @@ type TokenPairWithUser struct {
 	UserRole string
 }
 
+type refreshTokenCandidate struct {
+	RawToken string
+	Hash     string
+	Data     *RefreshTokenData
+	TTL      time.Duration
+}
+
 // GenerateTokenPair 生成Access Token和Refresh Token对
 // familyID: 可选的Token家族ID，用于Token轮转时保持家族关系
 func (s *AuthService) GenerateTokenPair(ctx context.Context, user *User, familyID string) (*TokenPair, error) {
@@ -1723,10 +1730,23 @@ func (s *AuthService) GenerateTokenPair(ctx context.Context, user *User, familyI
 
 // generateRefreshToken 生成并存储Refresh Token
 func (s *AuthService) generateRefreshToken(ctx context.Context, user *User, familyID string) (string, error) {
+	candidate, err := s.newRefreshTokenCandidate(ctx, user, familyID)
+	if err != nil {
+		return "", err
+	}
+
+	if err := s.refreshTokenCache.StoreRefreshToken(ctx, candidate.Hash, candidate.Data, candidate.TTL); err != nil {
+		return "", fmt.Errorf("store refresh token: %w", err)
+	}
+
+	return candidate.RawToken, nil
+}
+
+func (s *AuthService) newRefreshTokenCandidate(ctx context.Context, user *User, familyID string) (*refreshTokenCandidate, error) {
 	// 生成随机Token
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
-		return "", fmt.Errorf("generate random bytes: %w", err)
+		return nil, fmt.Errorf("generate random bytes: %w", err)
 	}
 	rawToken := refreshTokenPrefix + hex.EncodeToString(tokenBytes)
 
@@ -1737,7 +1757,7 @@ func (s *AuthService) generateRefreshToken(ctx context.Context, user *User, fami
 	if familyID == "" {
 		familyBytes := make([]byte, 16)
 		if _, err := rand.Read(familyBytes); err != nil {
-			return "", fmt.Errorf("generate family id: %w", err)
+			return nil, fmt.Errorf("generate family id: %w", err)
 		}
 		familyID = hex.EncodeToString(familyBytes)
 	}
@@ -1754,24 +1774,12 @@ func (s *AuthService) generateRefreshToken(ctx context.Context, user *User, fami
 		ExpiresAt:    now.Add(ttl),
 	}
 
-	// 存储Token数据
-	if err := s.refreshTokenCache.StoreRefreshToken(ctx, tokenHash, data, ttl); err != nil {
-		return "", fmt.Errorf("store refresh token: %w", err)
-	}
-
-	// 添加到用户Token集合
-	if err := s.refreshTokenCache.AddToUserTokenSet(ctx, user.ID, tokenHash, ttl); err != nil {
-		logger.LegacyPrintf("service.auth", "[Auth] Failed to add token to user set: %v", err)
-		// 不影响主流程
-	}
-
-	// 添加到家族Token集合
-	if err := s.refreshTokenCache.AddToFamilyTokenSet(ctx, familyID, tokenHash, ttl); err != nil {
-		logger.LegacyPrintf("service.auth", "[Auth] Failed to add token to family set: %v", err)
-		// 不影响主流程
-	}
-
-	return rawToken, nil
+	return &refreshTokenCandidate{
+		RawToken: rawToken,
+		Hash:     tokenHash,
+		Data:     data,
+		TTL:      ttl,
+	}, nil
 }
 
 // RefreshTokenPair 使用Refresh Token刷新Token对
@@ -1844,20 +1852,31 @@ func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string)
 		}
 	}
 
-	// Token轮转：立即使旧Token失效
-	if err := s.refreshTokenCache.DeleteRefreshToken(ctx, tokenHash); err != nil {
-		logger.LegacyPrintf("service.auth", "[Auth] Failed to delete old refresh token: %v", err)
-		// 继续处理，不影响主流程
+	accessToken, err := s.generateAccessToken(user, data.FamilyID, sessionBindingHashFromContext(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("generate access token: %w", err)
 	}
-
-	// 生成新的Token对，保持同一个家族ID
-	pair, err := s.GenerateTokenPair(ctx, user, data.FamilyID)
+	candidate, err := s.newRefreshTokenCandidate(ctx, user, data.FamilyID)
 	if err != nil {
 		return nil, err
 	}
+	rotated, err := s.refreshTokenCache.RotateRefreshToken(ctx, tokenHash, candidate.Hash, candidate.Data, candidate.TTL)
+	if err != nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Atomic refresh token rotation failed: %v", err)
+		return nil, ErrServiceUnavailable
+	}
+	if !rotated {
+		_ = s.refreshTokenCache.DeleteTokenFamily(ctx, data.FamilyID)
+		logger.LegacyPrintf("service.auth", "[Auth] Concurrent refresh token reuse detected; family revoked for user %d", data.UserID)
+		return nil, ErrRefreshTokenReused
+	}
 	return &TokenPairWithUser{
-		TokenPair: *pair,
-		UserRole:  user.Role,
+		TokenPair: TokenPair{
+			AccessToken:  accessToken,
+			RefreshToken: candidate.RawToken,
+			ExpiresIn:    s.GetAccessTokenExpiresIn(),
+		},
+		UserRole: user.Role,
 	}, nil
 }
 

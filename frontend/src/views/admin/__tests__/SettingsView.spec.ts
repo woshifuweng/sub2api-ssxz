@@ -575,6 +575,9 @@ function mountView() {
         ImageUpload: ImageUploadStub,
         BackupSettings: true,
         DataManagementSettings: true,
+        TLSFingerprintProfilesModal: {
+          template: '<div data-testid="native-tls-profiles-modal" />',
+        },
       },
     },
   });
@@ -744,6 +747,20 @@ describe("admin SettingsView payment visible method controls", () => {
     });
     fetchPublicSettings.mockResolvedValue(undefined);
     adminSettingsFetch.mockResolvedValue(undefined);
+  });
+
+  it("hides the retired data-agent tab and opens the supported TLS profiles manager", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain("admin.settings.tabs.data");
+    expect(getTLSFingerprintSettings).not.toHaveBeenCalled();
+
+    await openGatewayTab(wrapper);
+    await wrapper.get('[data-testid="native-tls-profiles-button"]').trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="native-tls-profiles-modal"]').exists()).toBe(true);
   });
 
   it("submits the compact home page toggle", async () => {

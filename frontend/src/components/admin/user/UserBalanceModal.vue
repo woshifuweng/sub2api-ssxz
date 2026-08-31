@@ -22,6 +22,7 @@
       </div>
     </template>
   </BaseDialog>
+  <TotpStepUpDialog :controller="stepUp" />
 </template>
 
 <script setup lang="ts">
@@ -31,9 +32,12 @@ import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import type { AdminUser } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
+import { isStepUpCancelled, useStepUp } from '@/composables/useStepUp'
 
 const props = defineProps<{ show: boolean, user: AdminUser | null, operation: 'add' | 'subtract' }>()
 const emit = defineEmits(['close', 'success']); const { t } = useI18n(); const appStore = useAppStore()
+const stepUp = useStepUp()
 
 const submitting = ref(false); const form = reactive({ amount: 0, notes: '' })
 watch(() => props.show, (v) => { if(v) { form.amount = 0; form.notes = '' } })
@@ -76,9 +80,10 @@ const handleBalanceSubmit = async () => {
   }
   submitting.value = true
   try {
-    await adminAPI.users.updateBalance(props.user.id, form.amount, props.operation, form.notes)
+    await stepUp.run(() => adminAPI.users.updateBalance(props.user!.id, form.amount, props.operation, form.notes))
     appStore.showSuccess(t('common.success')); emit('success'); emit('close')
   } catch (e: any) {
+    if (isStepUpCancelled(e)) return
     console.error('Failed to update balance:', e)
     appStore.showError(e.response?.data?.detail || t('common.error'))
   } finally { submitting.value = false }
