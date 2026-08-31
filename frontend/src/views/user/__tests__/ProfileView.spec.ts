@@ -5,10 +5,16 @@ import ProfileView from '@/views/user/ProfileView.vue'
 const {
   fetchPublicSettingsMock,
   refreshUserMock,
+  updateProfileMock,
+  showSuccessMock,
+  showErrorMock,
   authState
 } = vi.hoisted(() => ({
   fetchPublicSettingsMock: vi.fn(),
   refreshUserMock: vi.fn(),
+  updateProfileMock: vi.fn(),
+  showSuccessMock: vi.fn(),
+  showErrorMock: vi.fn(),
   authState: {
     user: null as Record<string, unknown> | null,
     refreshUser: vi.fn()
@@ -21,8 +27,19 @@ vi.mock('@/stores/auth', () => ({
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
-    fetchPublicSettings: fetchPublicSettingsMock
+    fetchPublicSettings: fetchPublicSettingsMock,
+    showSuccess: showSuccessMock,
+    showError: showErrorMock,
   })
+}))
+
+vi.mock('@/api', () => ({
+  authAPI: {
+    getPublicSettings: fetchPublicSettingsMock,
+  },
+  userAPI: {
+    updateProfile: updateProfileMock,
+  },
 }))
 
 vi.mock('@/utils/format', () => ({
@@ -47,6 +64,9 @@ describe('ProfileView', () => {
   beforeEach(() => {
     refreshUserMock.mockReset()
     fetchPublicSettingsMock.mockReset()
+    updateProfileMock.mockReset()
+    showSuccessMock.mockReset()
+    showErrorMock.mockReset()
     refreshUserMock.mockResolvedValue(undefined)
     authState.refreshUser = refreshUserMock
     authState.user = {
@@ -61,6 +81,7 @@ describe('ProfileView', () => {
       balance_notify_enabled: true,
       balance_notify_threshold: null,
       balance_notify_extra_emails: [],
+      avatar_url: 'https://cdn.example.com/avatar-before.png',
       created_at: '2026-04-20T00:00:00Z',
       updated_at: '2026-04-20T00:00:00Z'
     }
@@ -104,5 +125,50 @@ describe('ProfileView', () => {
     expect(workbench.html()).toContain('profile-edit-form')
     expect(workbench.html()).toContain('profile-password-form')
     expect(workbench.html()).toContain('profile-totp-card')
+  })
+
+  it('saves avatars through the supported profile endpoint and updates auth state', async () => {
+    const updatedUser = {
+      ...authState.user,
+      avatar_url: 'data:image/png;base64,updated-avatar',
+    }
+    updateProfileMock.mockResolvedValue(updatedUser)
+
+    const wrapper = mount(ProfileView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Avatar: {
+            props: ['src'],
+            template: '<div class="avatar-stub" :data-src="src" />',
+          },
+          LiquidButton: { template: '<button><slot /></button>' },
+          ProfileEditForm: true,
+          ProfileBalanceNotifyCard: true,
+          ProfilePasswordForm: true,
+          ProfileTotpCard: true,
+          ProfilePasskeyCard: true,
+          AvatarCropDialog: {
+            emits: ['save'],
+            template: '<button data-testid="save-avatar" @click="$emit(\'save\', \'data:image/png;base64,updated-avatar\')" />',
+          },
+          Icon: true,
+        },
+      },
+    })
+
+    await flushPromises()
+    expect(wrapper.get('.avatar-stub').attributes('data-src')).toBe(
+      'https://cdn.example.com/avatar-before.png',
+    )
+
+    await wrapper.get('[data-testid="save-avatar"]').trigger('click')
+    await flushPromises()
+
+    expect(updateProfileMock).toHaveBeenCalledWith({
+      avatar_url: 'data:image/png;base64,updated-avatar',
+    })
+    expect(authState.user).toEqual(updatedUser)
+    expect(showSuccessMock).toHaveBeenCalledWith('profile.avatar.saved')
   })
 })

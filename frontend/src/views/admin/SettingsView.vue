@@ -1327,6 +1327,29 @@
           </div>
 
           <div class="card">
+            <div class="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+              <div class="min-w-0">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                  {{ t("admin.settings.tlsFingerprint.title") }}
+                </h2>
+                <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.tlsFingerprint.description") }}
+                </p>
+              </div>
+              <LiquidButton
+                type="button"
+                data-testid="native-tls-profiles-button"
+                class="shrink-0"
+                variant="outline"
+                size="sm"
+                @click="showNativeTLSFingerprintProfilesModal = true"
+              >
+                {{ t("admin.tlsFingerprintProfiles.title") }}
+              </LiquidButton>
+            </div>
+          </div>
+
+          <div v-if="false" class="card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -1581,7 +1604,7 @@
         <!-- /Tab: Gateway -->
 
         <div
-          v-if="showTLSFingerprintModal"
+          v-if="false && showTLSFingerprintModal"
           class="fixed inset-0 z-50 flex items-center justify-center p-4"
           @mousedown.self="closeTLSFingerprintModal"
         >
@@ -1753,6 +1776,12 @@
             </div>
           </div>
         </div>
+
+        <TLSFingerprintProfilesModal
+          v-if="showNativeTLSFingerprintProfilesModal"
+          :show="showNativeTLSFingerprintProfilesModal"
+          @close="showNativeTLSFingerprintProfilesModal = false"
+        />
 
         <!-- Tab: Security — Registration, Turnstile, LinuxDo -->
         <div v-show="activeTab === 'security'" class="space-y-6">
@@ -5833,7 +5862,7 @@
         </div>
 
         <!-- Tab: Data Management -->
-        <div v-show="activeTab === 'data'">
+        <div v-if="activeTab === 'data'">
           <DataManagementSettings />
         </div>
 
@@ -5963,6 +5992,7 @@ import PaymentProviderList from "@/components/payment/PaymentProviderList.vue";
 import TotpStepUpDialog from "@/components/auth/TotpStepUpDialog.vue";
 import BackupSettings from "@/views/admin/BackupView.vue";
 import DataManagementSettings from "@/views/admin/DataManagementView.vue";
+import TLSFingerprintProfilesModal from "@/components/admin/TLSFingerprintProfilesModal.vue";
 import OpenAIFastPolicyUserSelector from "@/views/admin/settings/OpenAIFastPolicyUserSelector.vue";
 import type { ProviderInstance } from "@/types/payment";
 import type { TypeOption } from "@/components/payment/providerConfig";
@@ -6013,7 +6043,7 @@ const settingsTabs = [
   { key: "gateway" as SettingsTab, icon: "server" as const },
   { key: "email" as SettingsTab, icon: "mail" as const },
   { key: "backup" as SettingsTab, icon: "database" as const },
-  { key: "data" as SettingsTab, icon: "cube" as const },
+  // The retired data-agent tab is intentionally not advertised until its backend capability returns.
 ];
 const { copyToClipboard } = useClipboard();
 
@@ -6365,6 +6395,7 @@ const tlsFingerprintSaving = ref(false);
 const tlsFingerprintProfiles = ref<TLSFingerprintProfile[]>([]);
 const tlsFingerprintGlobalEnabled = ref(true);
 const showTLSFingerprintModal = ref(false);
+const showNativeTLSFingerprintProfilesModal = ref(false);
 const editingTLSFingerprintProfileID = ref("");
 const tlsFingerprintForm = reactive({
   profile_id: "",
@@ -8912,7 +8943,6 @@ onMounted(() => {
   loadStreamTimeoutSettings();
   loadRectifierSettings();
   loadBetaPolicySettings();
-  loadTLSFingerprintSettings();
   loadWebSearchConfig();
 });
 </script>

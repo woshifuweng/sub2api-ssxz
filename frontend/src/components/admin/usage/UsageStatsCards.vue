@@ -1,10 +1,10 @@
 <template>
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
     <div class="card p-4 flex items-center gap-3">
       <div class="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30 text-blue-600">
         <Icon name="document" size="md" />
       </div>
-      <div>
+      <div class="min-w-0">
         <p class="text-xs font-medium text-gray-500">{{ t('usage.totalRequests') }}</p>
         <p class="text-xl font-bold">{{ stats?.total_requests?.toLocaleString() || '0' }}</p>
         <p class="text-xs text-gray-400">{{ t('usage.inSelectedRange') }}</p>
@@ -22,7 +22,7 @@
         <p class="text-xs text-gray-500">
           {{ t('usage.cacheTotal') }}: {{ formatTokens(stats?.total_cache_tokens || 0) }}
         </p>
-        <p class="text-[11px] text-gray-400" :title="t('usage.cacheBreakdown')">
+        <p class="break-words text-[11px] leading-4 text-gray-400" :title="t('usage.cacheBreakdown')">
           {{ t('usage.cacheBreakdown') }}:
           {{ t('usage.cacheCreationTokensLabel') }} {{ formatTokens(stats?.total_cache_creation_tokens || 0) }} /
           {{ t('usage.cacheReadTokensLabel') }} {{ formatTokens(stats?.total_cache_read_tokens || 0) }}

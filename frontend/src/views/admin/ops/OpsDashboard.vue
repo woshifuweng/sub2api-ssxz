@@ -47,11 +47,11 @@
       />
 
       <!-- Row: Concurrency + Throughput -->
-      <div v-if="opsEnabled && !(loading && !hasLoadedOnce)" class="grid grid-cols-1 gap-6 lg:grid-cols-4">
-        <div class="lg:col-span-1 min-h-[360px]">
+      <div v-if="opsEnabled && !(loading && !hasLoadedOnce)" class="grid grid-cols-1 gap-6 xl:grid-cols-4">
+        <div class="min-h-[360px] xl:col-span-1">
           <OpsConcurrencyCard :platform-filter="platform" :group-id-filter="groupId" :refresh-token="dashboardRefreshToken" />
         </div>
-        <div class="lg:col-span-1 min-h-[360px]">
+        <div class="min-h-[360px] xl:col-span-1">
           <OpsSwitchRateTrendChart
             :points="switchTrend?.points ?? []"
             :loading="loadingSwitchTrend"
@@ -59,7 +59,7 @@
             :fullscreen="isFullscreen"
           />
         </div>
-        <div class="lg:col-span-2 min-h-[360px]">
+        <div class="min-h-[360px] xl:col-span-2">
           <OpsThroughputTrendChart
             :points="throughputTrend?.points ?? []"
             :by-platform="throughputTrend?.by_platform ?? []"
@@ -75,7 +75,7 @@
       </div>
 
       <!-- Row: Visual Analysis (baseline 3-up grid) -->
-      <div v-if="opsEnabled && !(loading && !hasLoadedOnce)" class="grid grid-cols-1 gap-6 md:grid-cols-3">
+      <div v-if="opsEnabled && !(loading && !hasLoadedOnce)" class="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <OpsLatencyChart :latency-data="latencyHistogram" :loading="loadingLatency" />
         <OpsErrorDistributionChart
           :data="errorDistribution"
@@ -97,25 +97,6 @@
           :platform-filter="platform"
           :group-id-filter="groupId"
           :refresh-token="dashboardRefreshToken"
-        />
-      </div>
-
-      <div
-        v-if="opsEnabled && !(loading && !hasLoadedOnce)"
-        ref="runtimeCardsSection"
-        class="grid grid-cols-1 gap-6 xl:grid-cols-2"
-      >
-        <OpsGatewaySchedulerCard
-          :platform-filter="platform"
-          :group-id-filter="groupId"
-          :refresh-token="dashboardRefreshToken"
-          :active="runtimeCardsActive"
-          :summary-limit="runtimeSummaryLimit"
-        />
-        <OpsOpenAIWSRuntimeCard
-          :platform-filter="platform"
-          :refresh-token="dashboardRefreshToken"
-          :active="runtimeCardsActive"
         />
       </div>
 
@@ -196,8 +177,6 @@ import OpsThroughputTrendChart from './components/OpsThroughputTrendChart.vue'
 import OpsSwitchRateTrendChart from './components/OpsSwitchRateTrendChart.vue'
 import OpsAlertEventsCard from './components/OpsAlertEventsCard.vue'
 import OpsOpenAITokenStatsCard from './components/OpsOpenAITokenStatsCard.vue'
-import OpsGatewaySchedulerCard from './components/OpsGatewaySchedulerCard.vue'
-import OpsOpenAIWSRuntimeCard from './components/OpsOpenAIWSRuntimeCard.vue'
 import OpsSystemLogTable from './components/OpsSystemLogTable.vue'
 import OpsRequestDetailsModal, { type OpsRequestDetailsPreset } from './components/OpsRequestDetailsModal.vue'
 import OpsSettingsDialog from './components/OpsSettingsDialog.vue'
@@ -448,19 +427,8 @@ const showOpenAITokenStats = ref(false)
 const autoRefreshEnabled = ref(false)
 const autoRefreshIntervalMs = ref(30000) // default 30 seconds
 const autoRefreshCountdown = ref(0)
-const lazyRuntimeCards = ref(true)
-const runtimeSummaryLimit = ref(6)
 const pauseRefreshWhenHidden = ref(true)
 const pageVisible = ref(typeof document === 'undefined' ? true : document.visibilityState !== 'hidden')
-const runtimeCardsVisible = ref(false)
-const runtimeCardsSection = ref<HTMLElement | null>(null)
-let runtimeCardsObserver: IntersectionObserver | null = null
-const runtimeCardsActive = computed(() => {
-  const visibleForRefresh = !pauseRefreshWhenHidden.value || pageVisible.value
-  if (!visibleForRefresh) return false
-  if (!lazyRuntimeCards.value) return true
-  return runtimeCardsVisible.value
-})
 
 // Used to trigger child component refreshes in a single shared cadence.
 const dashboardRefreshToken = ref(0)
@@ -497,9 +465,7 @@ async function loadDashboardAdvancedSettings() {
     autoRefreshEnabled.value = settings.auto_refresh_enabled
     autoRefreshIntervalMs.value = settings.auto_refresh_interval_seconds * 1000
     autoRefreshCountdown.value = settings.auto_refresh_interval_seconds
-    lazyRuntimeCards.value = settings.lazy_runtime_cards
-    runtimeSummaryLimit.value = settings.realtime_summary_limit
-    pauseRefreshWhenHidden.value = settings.pause_refresh_when_hidden
+    pauseRefreshWhenHidden.value = settings.pause_refresh_when_hidden ?? true
   } catch (err) {
     console.error('[OpsDashboard] Failed to load dashboard advanced settings', err)
     showAlertEvents.value = true
@@ -507,8 +473,6 @@ async function loadDashboardAdvancedSettings() {
     autoRefreshEnabled.value = false
     autoRefreshIntervalMs.value = 30000
     autoRefreshCountdown.value = 0
-    lazyRuntimeCards.value = true
-    runtimeSummaryLimit.value = 6
     pauseRefreshWhenHidden.value = true
   }
 }
@@ -518,31 +482,6 @@ function handleVisibilityChange() {
   if (pageVisible.value && opsEnabled.value) {
     fetchData()
   }
-}
-
-function resetRuntimeCardsObserver() {
-  runtimeCardsObserver?.disconnect()
-  runtimeCardsObserver = null
-
-  if (!lazyRuntimeCards.value) {
-    runtimeCardsVisible.value = true
-    return
-  }
-
-  const target = runtimeCardsSection.value
-  if (!target || typeof window === 'undefined' || !('IntersectionObserver' in window)) {
-    runtimeCardsVisible.value = true
-    return
-  }
-
-  runtimeCardsObserver = new IntersectionObserver((entries) => {
-    if (entries.some(entry => entry.isIntersecting)) {
-      runtimeCardsVisible.value = true
-      runtimeCardsObserver?.disconnect()
-      runtimeCardsObserver = null
-    }
-  }, { rootMargin: '200px 0px' })
-  runtimeCardsObserver.observe(target)
 }
 
 function handleThroughputSelectPlatform(nextPlatform: string) {
@@ -902,8 +841,6 @@ onMounted(async () => {
 
   // Load auto refresh settings
   await loadDashboardAdvancedSettings()
-  resetRuntimeCardsObserver()
-
   if (opsEnabled.value) {
     await fetchData()
   }
@@ -927,8 +864,6 @@ async function loadThresholds() {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
-  runtimeCardsObserver?.disconnect()
-  runtimeCardsObserver = null
   abortDashboardFetch()
   pauseCountdown()
 })
@@ -948,12 +883,7 @@ watch(autoRefreshEnabled, (enabled) => {
 watch(showSettingsDialog, async (show) => {
   if (!show) {
     await loadDashboardAdvancedSettings()
-    resetRuntimeCardsObserver()
   }
-})
-
-watch([lazyRuntimeCards, runtimeCardsSection], () => {
-  resetRuntimeCardsObserver()
 })
 </script>
 

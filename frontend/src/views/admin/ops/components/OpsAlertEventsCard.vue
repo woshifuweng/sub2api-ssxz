@@ -401,10 +401,10 @@ const empty = computed(() => events.value.length === 0 && !loading.value);
 
 <template>
   <div
-    class="admin-b5-outline-panel rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700"
+    class="admin-b5-outline-panel min-w-0 rounded-3xl bg-white p-4 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700 sm:p-6"
   >
-    <div class="mb-4 flex items-start justify-between gap-4">
-      <div>
+    <div class="mb-4 flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+      <div class="min-w-0">
         <h3 class="text-sm font-bold text-gray-900 dark:text-white">
           {{ t("admin.ops.alertEvents.title") }}
         </h3>
@@ -413,33 +413,35 @@ const empty = computed(() => events.value.length === 0 && !loading.value);
         </p>
       </div>
 
-      <div class="flex items-center gap-2">
+      <div
+        class="grid w-full min-w-0 grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap xl:w-auto xl:justify-end"
+      >
         <Select
           :model-value="timeRange"
           :options="timeRangeOptions"
-          class="w-[120px]"
+          class="w-full sm:w-[120px]"
           @change="timeRange = String($event || '24h')"
         />
         <Select
           :model-value="severity"
           :options="severityOptions"
-          class="w-[88px]"
+          class="w-full sm:w-[88px]"
           @change="severity = String($event || '')"
         />
         <Select
           :model-value="status"
           :options="statusOptions"
-          class="w-[110px]"
+          class="w-full sm:w-[110px]"
           @change="status = String($event || '')"
         />
         <Select
           :model-value="emailSent"
           :options="emailSentOptions"
-          class="w-[110px]"
+          class="w-full sm:w-[110px]"
           @change="emailSent = String($event || '')"
         />
         <LiquidButton
-          class="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600"
+          class="col-span-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600 sm:w-auto"
           :disabled="loading"
           @click="loadFirstPage"
           variant="plain"
@@ -495,10 +497,14 @@ const empty = computed(() => events.value.length === 0 && !loading.value);
 
     <div
       v-else
-      class="overflow-hidden rounded-xl border border-gray-200 dark:border-dark-700"
+      class="min-w-0 overflow-hidden rounded-xl border border-gray-200 dark:border-dark-700"
     >
-      <div class="max-h-[600px] overflow-y-auto" @scroll="onScroll">
-        <table class="min-w-full divide-y divide-gray-200 dark:divide-dark-700">
+      <div
+        class="max-h-[600px] w-full max-w-full overflow-auto"
+        style="contain: inline-size"
+        @scroll="onScroll"
+      >
+        <table class="w-max min-w-full divide-y divide-gray-200 dark:divide-dark-700">
           <thead class="sticky top-0 z-10 bg-gray-50 dark:bg-dark-900">
             <tr>
               <th

@@ -7,7 +7,8 @@
       :title="currentLocale?.name"
       :aria-label="currentLocale?.name"
     >
-      <span>{{ currentLocale?.name }}</span>
+      <Icon v-if="compact" name="globe" size="sm" />
+      <span :class="{ 'hidden xl:inline': compact }">{{ currentLocale?.name }}</span>
       <Icon
         name="chevronDown"
         size="xs"
@@ -48,6 +49,12 @@ import Icon from '@/components/icons/Icon.vue'
 import { setLocale, availableLocales } from '@/i18n'
 
 const { locale } = useI18n()
+
+withDefaults(defineProps<{
+  compact?: boolean
+}>(), {
+  compact: false,
+})
 
 const isOpen = ref(false)
 const dropdownRef = ref<HTMLElement | null>(null)

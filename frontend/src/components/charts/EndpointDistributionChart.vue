@@ -1,6 +1,6 @@
 <template>
-  <div class="card p-4">
-    <div class="mb-4 flex items-center justify-between gap-3">
+  <div class="distribution-card card p-4">
+    <div class="distribution-header mb-4 flex items-center justify-between gap-3">
       <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
         {{ title || t('usage.endpointDistribution') }}
       </h3>
@@ -71,12 +71,12 @@
     <div v-if="loading" class="flex h-48 items-center justify-center">
       <LoadingSpinner />
     </div>
-    <div v-else-if="displayEndpointStats.length > 0 && chartData" class="flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
-      <div class="h-48 w-48 shrink-0">
+    <div v-else-if="displayEndpointStats.length > 0 && chartData" class="distribution-layout">
+      <div class="distribution-chart h-48 w-48 shrink-0">
         <Doughnut :data="chartData" :options="doughnutOptions" />
       </div>
-      <div class="max-h-48 w-full min-w-0 flex-1 overflow-auto">
-        <table class="w-full text-xs">
+      <div class="distribution-table max-h-48 w-full min-w-0 flex-1 overflow-auto">
+        <table class="w-full min-w-[30rem] table-fixed text-xs">
           <thead>
             <tr class="text-gray-500 dark:text-gray-400">
               <th class="pb-2 text-left">{{ t('usage.endpoint') }}</th>
@@ -304,3 +304,40 @@ const formatCost = (value: number): string => {
   return value.toFixed(4)
 }
 </script>
+
+<style scoped>
+.distribution-card {
+  container-type: inline-size;
+}
+
+.distribution-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1rem;
+}
+
+.distribution-chart {
+  align-self: center;
+}
+
+@container (min-width: 44rem) {
+  .distribution-layout {
+    flex-direction: row;
+    align-items: center;
+    gap: 1.5rem;
+  }
+}
+
+@container (max-width: 31rem) {
+  .distribution-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .distribution-header > :last-child {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+</style>
