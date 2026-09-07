@@ -49,6 +49,10 @@ const (
 	StripeRDomain   = "https://r.stripe.com"
 	// ChainDianShopDomain is the hosted recharge shop embedded by SSXZ.
 	ChainDianShopDomain = "https://pay.ldxp.cn"
+	// ChainDianShopFinalDomain is the final hosted recharge shop origin after
+	// the legacy payment URL redirects. Both origins must be allowed because
+	// browsers evaluate frame-src after following the redirect.
+	ChainDianShopFinalDomain = "https://wzyp.cn"
 	// AirwallexStaticDomain 是 Airwallex 生产环境 SDK 脚本域名。
 	AirwallexStaticDomain = "https://static.airwallex.com"
 	// AirwallexCheckoutDomain 是 Airwallex 生产环境收银台元素和 iframe 域名。
@@ -93,6 +97,7 @@ var requiredCSPDirectiveValues = []struct {
 	{"connect-src", StripeQDomain},
 	{"connect-src", StripeRDomain},
 	{"frame-src", ChainDianShopDomain},
+	{"frame-src", ChainDianShopFinalDomain},
 	{"script-src", AirwallexStaticDomain},
 	{"script-src", AirwallexCheckoutDomain},
 	{"style-src", AirwallexStaticDomain},

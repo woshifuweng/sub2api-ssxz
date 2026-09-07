@@ -432,6 +432,7 @@ func TestEnhanceCSPPolicy(t *testing.T) {
 		assert.Equal(t, 1, countDirectiveValue(enhanced, "connect-src", StripeQDomain))
 		assert.Equal(t, 1, countDirectiveValue(enhanced, "connect-src", StripeRDomain))
 		assert.Equal(t, 1, countDirectiveValue(enhanced, "frame-src", ChainDianShopDomain))
+		assert.Equal(t, 1, countDirectiveValue(enhanced, "frame-src", ChainDianShopFinalDomain))
 	})
 
 	t.Run("does_not_duplicate_airwallex_domains", func(t *testing.T) {
