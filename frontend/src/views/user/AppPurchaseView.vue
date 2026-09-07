@@ -7,7 +7,7 @@
   >
     <div class="purchase-workbench">
       <iframe
-        src="https://pay.ldxp.cn/shop/VT7XKDFI"
+        src="https://wzyp.cn/shop/VT7XKDFI"
         class="purchase-embed-frame"
         title="充值中心"
         referrerpolicy="no-referrer"
