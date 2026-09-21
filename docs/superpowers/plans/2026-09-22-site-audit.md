@@ -56,3 +56,19 @@ remove only the duplicated scroll offset; test hover and scroll repositioning.
   release blocker for this repair.
 - No customer balance, group, account, model price, Luna, or inspection-owned
   upstream account was changed by this audit.
+
+## Final live evidence
+
+- Production is serving `0.2.7-ssxz.4` from
+  `/opt/sub2api/releases/0.2.7-ssxz.4.20260922.audit`; the deployed binary
+  matches SHA-256 `1f6a7a7dc59d8265184f425c33dff2a3d8e741757f6d418199deccec7431c974`.
+- `sub2api` and nginx are active, Redis returns `PONG`, `NRestarts=0`, health is
+  `{"status":"ok"}`, and no systemd error-level entries were emitted after the
+  release window.
+- Public routes and authenticated browser routes for dashboard, usage, API keys,
+  affiliate, profile, admin dashboard, admin usage, admin keys, groups, and
+  accounts rendered with a real `<main>` and no horizontal overflow at 1280px.
+  Usage records visibly include group and locator-code fields; the admin error
+  table has zero literal `<el-tooltip>` tags.
+- The image workbench primary domain, workers.dev fallback, and API health endpoint
+  all returned HTTP 200. No paid image-generation smoke request was issued.
