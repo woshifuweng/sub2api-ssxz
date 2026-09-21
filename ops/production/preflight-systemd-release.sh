@@ -130,7 +130,10 @@ done
 }
 candidate_pid="$(cat "$candidate_pid_file")"
 [[ "$candidate_pid" =~ ^[1-9][0-9]*$ ]] || die "candidate process id is invalid"
-kill -0 "$candidate_pid" 2>/dev/null || die "candidate process is not running"
+kill -0 "$candidate_pid" 2>/dev/null || {
+  tail -n 80 "$candidate_log" >&2 || true
+  die "candidate process is not running"
+}
 
 probe_health() {
   local url="$1"
