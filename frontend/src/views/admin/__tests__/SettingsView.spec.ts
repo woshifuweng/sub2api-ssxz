@@ -761,6 +761,33 @@ describe("admin SettingsView payment visible method controls", () => {
     wrapper.unmount();
   });
 
+  it("keeps the settings page usable when legacy TLS profiles omit list fields", async () => {
+    getTLSFingerprintSettings.mockResolvedValueOnce({
+      enabled: true,
+      items: [
+        {
+          profile_id: "legacy-profile",
+          name: "旧版指纹",
+          enabled: true,
+          enable_grease: false,
+          cipher_suites: null,
+          curves: undefined,
+          point_formats: null,
+          updated_at: null,
+        },
+      ],
+    });
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("旧版指纹");
+    expect(wrapper.find('[data-testid="settings-load-error"]').exists()).toBe(false);
+    expect(showError).not.toHaveBeenCalled();
+
+    wrapper.unmount();
+  });
+
   it("loads and saves the open button visibility for each custom menu", async () => {
     const menuItems = [
       { id: "docs", label: "Docs", url: "https://example.com/docs", icon_svg: "", visibility: "user", sort_order: 0 },

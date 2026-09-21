@@ -8909,14 +8909,34 @@ async function loadTLSFingerprintSettings() {
   tlsFingerprintLoading.value = true;
   try {
     const result = await adminAPI.settings.getTLSFingerprintSettings();
-    tlsFingerprintGlobalEnabled.value = result.enabled;
-    tlsFingerprintProfiles.value = result.items;
+    tlsFingerprintGlobalEnabled.value = Boolean(result?.enabled);
+    tlsFingerprintProfiles.value = (Array.isArray(result?.items) ? result.items : [])
+      .map(normalizeTLSFingerprintProfile);
   } catch (error: any) {
     console.error("Failed to load TLS fingerprint settings:", error);
     markOptionalLoadFailed("tlsFingerprint");
   } finally {
     tlsFingerprintLoading.value = false;
   }
+}
+
+function normalizeTLSFingerprintProfile(
+  profile: Partial<TLSFingerprintProfile>,
+): TLSFingerprintProfile {
+  return {
+    profile_id: String(profile.profile_id ?? ""),
+    name: String(profile.name ?? ""),
+    enabled: Boolean(profile.enabled),
+    enable_grease: Boolean(profile.enable_grease),
+    cipher_suites: Array.isArray(profile.cipher_suites)
+      ? profile.cipher_suites
+      : [],
+    curves: Array.isArray(profile.curves) ? profile.curves : [],
+    point_formats: Array.isArray(profile.point_formats)
+      ? profile.point_formats
+      : [],
+    updated_at: String(profile.updated_at ?? ""),
+  };
 }
 
 async function saveTLSFingerprintGlobalSettings() {
