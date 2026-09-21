@@ -65,6 +65,36 @@ function mountTable(props: Record<string, unknown> = {}) {
 }
 
 describe('AvailableChannelsTable model catalog', () => {
+  it('shows image per-request prices before legacy image_output_price and honors independent image rates', () => {
+    const images = structuredClone(rows)
+    Object.assign(images[0].platforms[0].groups[0], { image_rate_independent: true, image_rate_multiplier: 1 })
+    Object.assign(images[0].platforms[0].supported_models[0].pricing!, { billing_mode: 'image', per_request_price: .15, image_output_price: .15 })
+    const wrapper = mountTable({ rows: images })
+    expect(wrapper.text()).toContain('$0.15 / availableChannels.perRequestShort')
+    expect(wrapper.text()).not.toContain('$120,000')
+  })
+
+  it('shows each image size price', () => {
+    const images = structuredClone(rows)
+    Object.assign(images[0].platforms[0].supported_models[0].pricing!, { billing_mode: 'image', intervals: [
+      { tier_label: '1K', per_request_price: .15 }, { tier_label: '4K', per_request_price: .3 },
+    ] })
+    const wrapper = mountTable({ rows: images, userGroupRates: { 1: 1 } })
+    expect(wrapper.text()).toContain('1K $0.15 · 4K $0.3')
+  })
+  it('respects an explicitly configured zero personal multiplier', () => {
+    const wrapper = mountTable({ userGroupRates: { 1: 0 } })
+    expect(wrapper.text()).toContain('$0 / 1M token')
+    expect(wrapper.text()).not.toContain('$1,200,000')
+  })
+  it('keeps an unpriced model visible without advertising it as free', () => {
+    const unpriced = structuredClone(rows)
+    unpriced[0].platforms[0].supported_models[0].pricing = null
+    const wrapper = mountTable({ rows: unpriced })
+    expect(wrapper.findAll('[data-testid="model-row"]')).toHaveLength(1)
+    expect(wrapper.text()).toContain('availableChannels.pricingPending')
+    expect(wrapper.text()).not.toContain('$0')
+  })
   it('renders the eight-column catalog and provider tab', () => {
     const wrapper = mountTable()
     expect(wrapper.findAll('thead th')).toHaveLength(8)

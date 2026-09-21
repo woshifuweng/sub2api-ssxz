@@ -7,6 +7,8 @@ import { apiClient } from './client'
 import type { BillingMode } from '@/constants/channel'
 
 export interface UserAvailableGroup {
+  image_rate_independent?: boolean
+  image_rate_multiplier?: number
   id: number
   name: string
   description?: string

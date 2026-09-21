@@ -31,6 +31,7 @@
       </template>
 
       <template #table>
+        <p class="pricing-note">{{ t('availableChannels.catalogPriceNote') }}</p>
         <AvailableChannelsTable
           :rows="channels"
           :loading="loading"
@@ -93,18 +94,16 @@ const emptyLabel = computed(() =>
 async function loadChannels() {
   loading.value = true;
   try {
-    // 渠道列表和用户专属倍率并发拉取。专属倍率失败不阻塞模型目录展示，
-    // 价格会降级为按分组默认倍率计算。
+    // A missing personal rate must not silently turn into a different quote.
     const [list, rates] = await Promise.all([
       userChannelsAPI.getAvailable(),
-      userGroupsAPI.getUserGroupRates().catch((err: unknown) => {
-        console.error("Failed to load user group rates:", err);
-        return {} as Record<number, number>;
-      }),
+      userGroupsAPI.getUserGroupRates(),
     ]);
     channels.value = list;
     userGroupRates.value = rates;
   } catch (err: unknown) {
+    channels.value = [];
+    userGroupRates.value = {};
     appStore.showError(extractApiErrorMessage(err, t("common.error")));
   } finally {
     loading.value = false;
@@ -115,6 +114,7 @@ onMounted(loadChannels);
 </script>
 
 <style scoped>
+.pricing-note { color: var(--ssxz-text-secondary); font-size: 0.8rem; line-height: 1.65; margin: 0 0 1rem; }
 .pricing-toolbar {
   display: block;
 }

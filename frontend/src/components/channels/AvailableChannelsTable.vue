@@ -57,6 +57,8 @@
             >
               <td class="model-catalog__model">
                 <strong>{{ row.name }}</strong>
+                <small v-if="!selectedOption(row)?.pricing" class="model-catalog__pricing-warning">{{ t('availableChannels.pricingPending') }}</small>
+                <small v-if="selectedOption(row)?.pricing?.max_reasoning_effort_multiplier" class="model-catalog__pricing-warning">{{ t('availableChannels.maxEffortRate', { rate: selectedOption(row)?.pricing?.max_reasoning_effort_multiplier }) }}</small>
               </td>
               <td>
                 <span :class="['model-catalog__provider', providerToneClass(row.platform)]">
@@ -101,13 +103,13 @@
                   </template>
                 </Select>
               </td>
-              <td class="model-catalog__price">{{ formatTokenPrice(selectedOption(row)?.pricing.input_price, selectedOption(row)?.effectiveRate) }}</td>
-              <td class="model-catalog__price">{{ formatTokenPrice(selectedOption(row)?.pricing.output_price, selectedOption(row)?.effectiveRate) }}</td>
+              <td class="model-catalog__price">{{ formatTokenPrice(selectedOption(row)?.pricing?.input_price, selectedOption(row)?.effectiveRate) }}</td>
+              <td class="model-catalog__price">{{ formatTokenPrice(selectedOption(row)?.pricing?.output_price, selectedOption(row)?.effectiveRate) }}</td>
               <td class="model-catalog__price model-catalog__price--stacked">
-                <span>{{ t('availableChannels.cacheWriteShort') }} {{ formatTokenPrice(selectedOption(row)?.pricing.cache_write_price, selectedOption(row)?.effectiveRate) }}</span>
-                <span>{{ t('availableChannels.cacheReadShort') }} {{ formatTokenPrice(selectedOption(row)?.pricing.cache_read_price, selectedOption(row)?.effectiveRate) }}</span>
+                <span>{{ t('availableChannels.cacheWriteShort') }} {{ formatTokenPrice(selectedOption(row)?.pricing?.cache_write_price, selectedOption(row)?.effectiveRate) }}</span>
+                <span>{{ t('availableChannels.cacheReadShort') }} {{ formatTokenPrice(selectedOption(row)?.pricing?.cache_read_price, selectedOption(row)?.effectiveRate) }}</span>
               </td>
-              <td class="model-catalog__price">{{ formatImagePrice(selectedOption(row)) }}</td>
+              <td class="model-catalog__price model-catalog__image-price">{{ formatImagePrice(selectedOption(row)) }}</td>
               <td class="model-catalog__context">
                 <strong>{{ formatTokenLimit(row.contextLength) }}</strong>
                 <small v-if="row.maxOutputTokens">{{ t('availableChannels.maxOutputShort') }} {{ formatTokenLimit(row.maxOutputTokens) }}</small>
@@ -137,7 +139,7 @@ interface ModelGroupOption extends Record<string, unknown> {
   label: string
   description: string
   group: UserAvailableGroup
-  pricing: UserSupportedModelPricing
+  pricing: UserSupportedModelPricing | null
   effectiveRate: number
 }
 
@@ -174,7 +176,6 @@ const flatRows = computed<ModelCatalogRow[]>(() => {
   for (const channel of props.rows) {
     for (const section of channel.platforms) {
       for (const model of section.supported_models) {
-        if (!model.pricing) continue
         const platform = (model.platform || section.platform).toLowerCase()
         const key = `${platform}:${model.name.toLowerCase()}`
         let row = models.get(key)
@@ -259,8 +260,8 @@ const visibleRows = computed(() => {
 
 function resolveEffectiveRate(group: UserAvailableGroup): number {
   const override = props.userGroupRates[group.id]
-  if (Number.isFinite(override) && override > 0) return override
-  return Number.isFinite(group.rate_multiplier) && group.rate_multiplier > 0 ? group.rate_multiplier : 1
+  if (Number.isFinite(override) && override >= 0) return override
+  return Number.isFinite(group.rate_multiplier) && group.rate_multiplier >= 0 ? group.rate_multiplier : 1
 }
 
 function compareGroupOptions(a: ModelGroupOption, b: ModelGroupOption): number {
@@ -291,12 +292,18 @@ function formatTokenPrice(price: number | null | undefined, rate = 1): string {
 
 function formatImagePrice(option: ModelGroupOption | undefined): string {
   if (!option) return '—'
-  if (option.pricing.image_output_price != null) {
-    return formatTokenPrice(option.pricing.image_output_price, option.effectiveRate)
+  const imageRate = option.group.image_rate_independent && option.group.image_rate_multiplier != null
+    ? option.group.image_rate_multiplier : option.effectiveRate
+  const tiers = option.pricing?.intervals.filter((tier) => tier.tier_label && tier.per_request_price != null) || []
+  if (tiers.length) {
+    return tiers.map((tier) => `${tier.tier_label} $${new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 }).format(tier.per_request_price! * imageRate)}`).join(' · ')
   }
-  if (option.pricing.per_request_price != null) {
-    const price = option.pricing.per_request_price * option.effectiveRate
+  if (option.pricing?.per_request_price != null) {
+    const price = option.pricing.per_request_price * imageRate
     return `$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 }).format(price)} / ${t('availableChannels.perRequestShort')}`
+  }
+  if (option.pricing?.billing_mode === 'token' && option.pricing.image_output_price != null && option.pricing.image_output_price > 0) {
+    return formatTokenPrice(option.pricing.image_output_price, option.effectiveRate)
   }
   return '—'
 }
@@ -351,6 +358,9 @@ function providerIconModel(platform: string): string {
   display: grid;
   gap: 1rem;
 }
+
+.model-catalog__pricing-warning { display: block; color: var(--ssxz-text-muted); margin-top: 0.25rem; }
+.model-catalog__image-price { white-space: normal; overflow-wrap: anywhere; line-height: 1.65; }
 
 .model-catalog__tabs {
   display: flex;

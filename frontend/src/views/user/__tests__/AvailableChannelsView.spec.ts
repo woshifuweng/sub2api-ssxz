@@ -56,4 +56,12 @@ describe('canonical SSXZ available channels', () => {
     expect(mocks.showError).toHaveBeenCalledTimes(1)
     expect(wrapper.getComponent({ name: 'AvailableChannelsTable' }).props('loading')).toBe(false)
   })
+
+  it('does not show default prices when personal rates fail to load', async () => {
+    mocks.getRates.mockRejectedValue(new Error('Rates unavailable'))
+    const wrapper = render()
+    await flushPromises()
+    expect(mocks.showError).toHaveBeenCalledTimes(1)
+    expect(wrapper.getComponent({ name: 'AvailableChannelsTable' }).props('rows')).toEqual([])
+  })
 })

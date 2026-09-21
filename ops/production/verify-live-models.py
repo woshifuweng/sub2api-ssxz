@@ -24,19 +24,23 @@ def query(sql):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--key-id", required=True, type=int)
-    parser.add_argument("--models", nargs="+", choices=["gpt-6", "gpt-6-astra", "gpt-5.1"], required=True)
+    parser.add_argument("--models", nargs="+", choices=["gpt-6", "gpt-6-astra", "claude-fable-5-1", "claude-opus-5"], required=True)
     parser.add_argument("--execute-approved-paid-smoke", action="store_true")
     args = parser.parse_args()
     if not args.execute_approved_paid_smoke or args.key_id <= 0:
         raise SystemExit("Explicit paid-smoke flag and positive key ID required")
+    platforms = {"anthropic" if model.startswith("claude-") else "openai" for model in args.models}
+    if len(platforms) != 1:
+        raise SystemExit("Use separate eligible keys for each platform")
+    platform = platforms.pop()
     key = query(f"""SELECT k.key FROM api_keys k JOIN users u ON u.id=k.user_id
         JOIN groups g ON g.id=k.group_id WHERE k.id={args.key_id}
         AND u.role='admin' AND u.deleted_at IS NULL AND u.status='active'
         AND k.status='active' AND k.deleted_at IS NULL
         AND (k.expires_at IS NULL OR k.expires_at>NOW())
-        AND g.status='active' AND g.deleted_at IS NULL AND g.platform='openai';""")
+        AND g.status='active' AND g.deleted_at IS NULL AND g.platform='{platform}';""")
     if not key or "\n" in key:
-        raise SystemExit("Key is not an eligible admin-owned OpenAI test key")
+        raise SystemExit("Key is not an eligible admin-owned test key for this platform")
     failed = False
     for model in dict.fromkeys(args.models):
         body = json.dumps({
@@ -45,8 +49,14 @@ def main():
             "max_output_tokens": 128, "reasoning": {"effort": "low"},
             "stream": False, "store": False,
         }).encode()
-        request = urllib.request.Request("https://api.ssxzapi.com/v1/responses", data=body, headers={
+        endpoint = "/v1/responses"
+        if platform == "anthropic":
+            endpoint = "/v1/messages"
+            body = json.dumps({"model": model, "max_tokens": 32, "stream": False,
+                               "messages": [{"role": "user", "content": "Reply with exactly OK."}]}).encode()
+        request = urllib.request.Request("https://api.ssxzapi.com" + endpoint, data=body, headers={
             "Authorization": "Bearer " + key, "Content-Type": "application/json",
+            "anthropic-version": "2023-06-01",
             "User-Agent": "SSXZ-approved-release-smoke/0.2.7",
         })
         result = {"requested_model": model, "started_utc": datetime.datetime.now(datetime.timezone.utc).isoformat()}
@@ -56,12 +66,17 @@ def main():
                 data = json.loads(response.read(2 * 1024 * 1024))
             texts = [content.get("text", "") for output in data.get("output", [])
                      for content in output.get("content", []) if content.get("type") == "output_text"]
+            complete = data.get("status") == "completed"
+            if platform == "anthropic":
+                texts = [content.get("text", "") for content in data.get("content", [])
+                         if content.get("type") == "text"]
+                complete = data.get("type") == "message" and data.get("stop_reason") == "end_turn"
             result.update({"response_status": data.get("status"), "returned_model": data.get("model"),
                            "exact_ok_text": "".join(texts).strip() == "OK", "usage": data.get("usage"),
                            "response_id": data.get("id")})
             returned = data.get("model") or ""
             result["model_family_matches"] = returned == model or returned.startswith(model + "-")
-            result["passed"] = (result["http_status"] == 200 and data.get("status") == "completed"
+            result["passed"] = (result["http_status"] == 200 and complete
                                 and result["exact_ok_text"] and result["model_family_matches"]
                                 and not data.get("error"))
         except urllib.error.HTTPError as error:
