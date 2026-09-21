@@ -5895,14 +5895,9 @@
           <BackupSettings />
         </div>
 
-        <!-- Tab: Data Management -->
-        <div v-show="activeTab === 'data'">
-          <DataManagementSettings />
-        </div>
-
         <!-- Save Button -->
         <div
-          v-show="activeTab !== 'backup' && activeTab !== 'data'"
+          v-show="activeTab !== 'backup'"
           class="flex justify-end"
         >
           <LiquidButton
@@ -6029,7 +6024,6 @@ import PaymentProviderDialog from "@/components/payment/PaymentProviderDialog.vu
 import PaymentProviderList from "@/components/payment/PaymentProviderList.vue";
 import TotpStepUpDialog from "@/components/auth/TotpStepUpDialog.vue";
 import BackupSettings from "@/views/admin/BackupView.vue";
-import DataManagementSettings from "@/views/admin/DataManagementView.vue";
 import OpenAIFastPolicyUserSelector from "@/views/admin/settings/OpenAIFastPolicyUserSelector.vue";
 import type { ProviderInstance } from "@/types/payment";
 import type { TypeOption } from "@/components/payment/providerConfig";
@@ -6068,8 +6062,7 @@ type SettingsTab =
   | "payment"
   | "gateway"
   | "email"
-  | "backup"
-  | "data";
+  | "backup";
 const activeTab = ref<SettingsTab>("general");
 const channelMonitorModes = ["v2", "v1"] as const;
 const settingsTabs = [
@@ -6080,7 +6073,6 @@ const settingsTabs = [
   { key: "gateway" as SettingsTab, icon: "server" as const },
   { key: "email" as SettingsTab, icon: "mail" as const },
   { key: "backup" as SettingsTab, icon: "database" as const },
-  { key: "data" as SettingsTab, icon: "cube" as const },
 ];
 const { copyToClipboard } = useClipboard();
 
