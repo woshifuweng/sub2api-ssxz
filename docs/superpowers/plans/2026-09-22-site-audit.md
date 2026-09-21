@@ -91,3 +91,24 @@ remove only the duplicated scroll offset; test hover and scroll repositioning.
   balance; provider generation remains the one unverified paid edge.
 - Made `probe-live-model-catalogs.py` safely refresh its evidence file on repeat
   runs instead of failing when the prior evidence exists.
+
+## Final execution follow-up
+
+- Added a visible "模型与计费体检" panel to the admin channel-pricing page. It
+  reports configured active channels, priced models, image-billing models, and
+  actionable gaps; it explicitly distinguishes site configuration from live
+  upstream success.
+- Added a regression test proving a $5 balance is checked against the actual
+  bounded request estimate, not a fixed $10 preflight floor.
+- Hardened the guarded release script to reject matching preflight database or
+  file-state declarations, and added a read-only runtime-isolation inspector.
+- The isolated staging database was backed up before permission repair. Its
+  schema ownership was corrected from the acceptance role to the staging service
+  role, then the staging isolation verifier passed with zero API-key, password,
+  account, session, or provider-credential overlap.
+- Published `0.2.7-ssxz.5` with the admin panel. Candidate startup on the
+  isolated database, production health, public ingress, Redis 6.0.16 runtime,
+  and the live admin JavaScript asset were verified after the atomic switch.
+- The paid image-generation smoke test remains intentionally unissued; image
+  2.5 admission and billing configuration were verified without spending a
+  customer balance.
