@@ -13,4 +13,13 @@ describe('Composite channel platform options', () => {
     expect(declaration).toContain("'minimax'")
     expect(declaration).toContain("'opencode_go'")
   })
+
+  it('keeps the model and billing health check visible on the channel page', () => {
+    const source = readFileSync(resolve('src/views/admin/ChannelsView.vue'), 'utf8')
+
+    expect(source).toContain('模型与计费体检')
+    expect(source).toContain('const modelHealth = computed')
+    expect(source).toContain('entry.billing_mode === "image"')
+    expect(source).toContain('图片模型，但没有图片输出价或按次价格')
+  })
 })

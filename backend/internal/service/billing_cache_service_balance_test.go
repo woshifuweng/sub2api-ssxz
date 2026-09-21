@@ -63,6 +63,26 @@ func TestCheckBillingEligibility_AllowsBalanceAtMinimumReserve(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestCheckBillingEligibilityForCost_UsesActualEstimatedCostInsteadOfFixedFloor(t *testing.T) {
+	cache := &balanceEligibilityCacheStub{balance: 5}
+	cfg := &config.Config{}
+	cfg.Billing.MinimumBalanceReserve = 0.000001
+	svc := NewBillingCacheService(cache, nil, nil, nil, nil, nil, cfg, nil)
+	t.Cleanup(svc.Stop)
+
+	// A five-dollar account remains eligible when the bounded request estimate
+	// is below five dollars. This guards against reintroducing a fixed $10 floor.
+	err := svc.CheckBillingEligibilityForCost(
+		context.Background(), &User{ID: 1}, nil, nil, nil, "", 0.35,
+	)
+	require.NoError(t, err)
+
+	err = svc.CheckBillingEligibilityForCost(
+		context.Background(), &User{ID: 1}, nil, nil, nil, "", 5.01,
+	)
+	require.ErrorIs(t, err, ErrInsufficientBalance)
+}
+
 func TestSyncBalanceCacheAfterDeduction_InvalidatesExhaustedBalance(t *testing.T) {
 	cache := &balanceEligibilityCacheStub{
 		balance:                  0.50,

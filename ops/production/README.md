@@ -26,7 +26,11 @@ Create a separate `/etc/sub2api/preflight.env` backed by an isolated database
 and Redis. It must not contain production provider, payment, SMTP, storage,
 OAuth, monitoring, or customer credentials. The script forces loopback, a
 temporary port, and `BACKGROUND_JOBS_ENABLED=false`, but isolation of the
-preflight database/Redis is still mandatory.
+preflight database/Redis is still mandatory. If `DATABASE_DBNAME` or `DATA_DIR`
+is declared in both environment files, the release gate rejects a matching
+value. Missing declarations are warned about rather than guessed; verify the
+actual `DATABASE_URL`, Redis database/prefix, and file-backed state before
+releasing.
 
 ## Run
 

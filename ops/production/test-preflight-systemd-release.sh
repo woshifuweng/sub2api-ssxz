@@ -128,6 +128,13 @@ run_expect_failure "$fixture/output" "$release_script" "$fixture/releases/new"
 assert_contains "$fixture/output" "preflight must use an isolated environment file"
 [[ ! -e "$SYSTEMCTL_LOG" ]]
 
+setup_fixture shared-database
+printf 'DATABASE_DBNAME=shared\n' >"$PRODUCTION_ENV_FILE"
+printf 'DATABASE_DBNAME=shared\n' >"$PREFLIGHT_ENV_FILE"
+run_expect_failure "$fixture/output" "$release_script" "$fixture/releases/new"
+assert_contains "$fixture/output" "preflight database name matches production"
+[[ ! -e "$SYSTEMCTL_LOG" ]]
+
 setup_fixture failed-preflight
 export FAIL_PREFLIGHT_HEALTH=true
 run_expect_failure "$fixture/output" "$release_script" "$fixture/releases/new"

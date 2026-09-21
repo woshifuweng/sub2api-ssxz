@@ -17,13 +17,50 @@ health_timeout="${HEALTH_TIMEOUT_SECONDS:-30}"
 log() { printf '[release] %s\n' "$*"; }
 die() { printf '[release] ERROR: %s\n' "$*" >&2; exit 1; }
 
+env_assignment() {
+  local file="$1"
+  local key="$2"
+  local line
+  line="$(grep -E "^[[:space:]]*(export[[:space:]]+)?${key}=" "$file" | tail -n 1 || true)"
+  [[ -n "$line" ]] || return 0
+  local value="${line#*=}"
+  value="${value#\"}"
+  value="${value%\"}"
+  value="${value#\'}"
+  value="${value%\'}"
+  printf '%s' "$value"
+}
+
+verify_preflight_isolation() {
+  local production_db preflight_db production_data preflight_data preflight_role
+  production_db="$(env_assignment "$production_env_file" DATABASE_DBNAME)"
+  preflight_db="$(env_assignment "$preflight_env_file" DATABASE_DBNAME)"
+  if [[ -n "$production_db" && -n "$preflight_db" && "$production_db" == "$preflight_db" ]]; then
+    die "preflight database name matches production; isolated database is required"
+  fi
+
+  production_data="$(env_assignment "$production_env_file" DATA_DIR)"
+  preflight_data="$(env_assignment "$preflight_env_file" DATA_DIR)"
+  if [[ -n "$production_data" && -n "$preflight_data" && "$production_data" == "$preflight_data" ]]; then
+    die "preflight DATA_DIR matches production; isolated storage is required"
+  fi
+
+  preflight_role="$(env_assignment "$preflight_env_file" APP_RUNTIME_ROLE)"
+  if [[ -n "$preflight_role" && "$preflight_role" != "staging" && "$preflight_role" != "preflight" ]]; then
+    die "preflight APP_RUNTIME_ROLE must be staging or preflight"
+  fi
+
+  [[ -n "$preflight_db" ]] || log "WARNING: preflight DATABASE_DBNAME is not declared; verify DATABASE_URL points to an isolated database"
+  [[ -n "$preflight_data" ]] || log "WARNING: preflight DATA_DIR is not declared; verify file-backed state is isolated"
+}
+
 [[ $# -eq 1 ]] || die "usage: $0 <candidate-release-directory>"
 [[ "$health_timeout" =~ ^[1-9][0-9]*$ ]] || die "HEALTH_TIMEOUT_SECONDS must be a positive integer"
 [[ "$preflight_port" =~ ^[1-9][0-9]{0,4}$ ]] || die "PREFLIGHT_PORT must be a valid port"
 preflight_port_number=$((10#$preflight_port))
 (( preflight_port_number <= 65535 )) || die "PREFLIGHT_PORT must be at most 65535"
 
-for command_name in realpath runuser curl systemctl ln mv readlink chown; do
+for command_name in realpath runuser curl systemctl ln mv readlink chown grep tail sed; do
   command -v "$command_name" >/dev/null 2>&1 || die "required command not found: $command_name"
 done
 
@@ -67,6 +104,7 @@ if [[ -n "$preflight_config_file" ]]; then
   run_as_service test -r "$preflight_config_file" || die "preflight config file is unreadable by $service_user"
 fi
 run_as_service test -x "$candidate_binary" || die "candidate binary is not executable by $service_user"
+verify_preflight_isolation
 
 version_output="$(run_as_service "$candidate_binary" -version 2>&1)" || die "candidate version check failed"
 [[ -n "$version_output" ]] || die "candidate version output is empty"
