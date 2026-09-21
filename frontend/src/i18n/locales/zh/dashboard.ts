@@ -611,6 +611,7 @@ export default {
     providerTabsLabel: '服务商筛选',
     pricingPending: '价格待确认，请先联系支持',
     maxEffortRate: 'Max 推理：×{rate}',
+    loadFailed: '模型目录或专属价格加载失败，请点击上方刷新重试。这不代表您的账号没有可用模型。',
     catalogPriceNote: '按已启用账号与当前可访问分组展示，价格已计入所选分组及个人倍率。表内为标准档基础单价；长上下文、Fast/Flex、Max 推理、分时及图片规格可能另有计费规则。实际调用还受 Key 权限、余额和上游状态影响。',
     allProviders: '全部服务商',
     groupSearchPlaceholder: '搜索分组...',

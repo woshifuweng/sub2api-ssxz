@@ -606,6 +606,7 @@ export default {
     providerTabsLabel: 'Provider filters',
     pricingPending: 'Pricing unconfirmed — contact support first',
     maxEffortRate: 'Max reasoning: ×{rate}',
+    loadFailed: 'The model catalog or your personal prices could not be loaded. Use Refresh above to retry. This does not mean your account has no available models.',
     catalogPriceNote: 'Based on enabled accounts and your accessible groups. Prices include the selected group and personal multiplier and show standard base rates. Long context, Fast/Flex, Max reasoning, time bands and image size may change billing. Requests also depend on key permissions, balance and provider status.',
     allProviders: 'All providers',
     groupSearchPlaceholder: 'Search groups...',

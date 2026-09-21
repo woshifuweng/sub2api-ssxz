@@ -7,6 +7,7 @@ import { useAppStore } from '@/stores/app'
 import { DEFAULT_SITE_NAME } from '@/utils/brand'
 import { getSafeLocalStorageItem } from '@/utils/safeStorage'
 import './style.css'
+import { showPageLoadFailure } from '@/utils/pageLoadRecovery'
 
 function initThemeClass() {
   const savedTheme = getSafeLocalStorageItem('theme')
@@ -42,4 +43,7 @@ async function bootstrap() {
   app.mount('#app')
 }
 
-bootstrap()
+bootstrap().catch((error: unknown) => {
+  console.error('Application startup failed:', error)
+  showPageLoadFailure()
+})

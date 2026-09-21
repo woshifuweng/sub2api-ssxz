@@ -54,7 +54,8 @@ describe('canonical SSXZ available channels', () => {
     const wrapper = render()
     await flushPromises()
     expect(mocks.showError).toHaveBeenCalledTimes(1)
-    expect(wrapper.getComponent({ name: 'AvailableChannelsTable' }).props('loading')).toBe(false)
+    expect(wrapper.get('[role="alert"]').text()).toContain('availableChannels.loadFailed')
+    expect(wrapper.findComponent({ name: 'AvailableChannelsTable' }).exists()).toBe(false)
   })
 
   it('does not show default prices when personal rates fail to load', async () => {
@@ -62,6 +63,12 @@ describe('canonical SSXZ available channels', () => {
     const wrapper = render()
     await flushPromises()
     expect(mocks.showError).toHaveBeenCalledTimes(1)
-    expect(wrapper.getComponent({ name: 'AvailableChannelsTable' }).props('rows')).toEqual([])
+    expect(wrapper.get('[role="alert"]').exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'AvailableChannelsTable' }).exists()).toBe(false)
+    mocks.getRates.mockResolvedValue({ 3: 0.75 })
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(wrapper.getComponent({ name: 'AvailableChannelsTable' }).props('rows')).toEqual(rows)
   })
 })

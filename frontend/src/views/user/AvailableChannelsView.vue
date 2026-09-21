@@ -32,7 +32,9 @@
 
       <template #table>
         <p class="pricing-note">{{ t('availableChannels.catalogPriceNote') }}</p>
+        <p v-if="loadFailed" role="alert" class="pricing-note">{{ t('availableChannels.loadFailed') }}</p>
         <AvailableChannelsTable
+          v-else
           :rows="channels"
           :loading="loading"
           :user-group-rates="userGroupRates"
@@ -83,6 +85,7 @@ const pageShellProps = computed(() =>
 const channels = ref<UserAvailableChannel[]>([]);
 const userGroupRates = ref<Record<number, number>>({});
 const loading = ref(false);
+const loadFailed = ref(false);
 const searchQuery = ref("");
 
 const emptyLabel = computed(() =>
@@ -93,6 +96,7 @@ const emptyLabel = computed(() =>
 
 async function loadChannels() {
   loading.value = true;
+  loadFailed.value = false;
   try {
     // A missing personal rate must not silently turn into a different quote.
     const [list, rates] = await Promise.all([
@@ -102,6 +106,7 @@ async function loadChannels() {
     channels.value = list;
     userGroupRates.value = rates;
   } catch (err: unknown) {
+    loadFailed.value = true;
     channels.value = [];
     userGroupRates.value = {};
     appStore.showError(extractApiErrorMessage(err, t("common.error")));

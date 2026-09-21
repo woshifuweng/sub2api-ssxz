@@ -13,7 +13,7 @@ import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { resolveDocumentTitle } from './title'
 import { DEFAULT_AUTH_REDIRECT, resolveAuthRedirect, resolveRouteAuthRedirect } from '@/utils/authRedirect'
 import { normalizeSiteName } from '@/utils/brand'
-import { getSafeSessionStorageItem, setSafeSessionStorageItem } from '@/utils/safeStorage'
+import { showPageLoadFailure } from '@/utils/pageLoadRecovery'
 import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 
 const redirectLegacyRoute = (path: string) => (to: RouteLocationGeneric) => ({
@@ -1264,19 +1264,10 @@ router.onError((error) => {
     error.name === 'ChunkLoadError'
 
   if (isChunkLoadError) {
-    // Avoid infinite reload loop by checking sessionStorage
-    const reloadKey = 'chunk_reload_attempted'
-    const lastReload = getSafeSessionStorageItem(reloadKey)
-    const now = Date.now()
-
-    // Allow reload if never attempted or more than 10 seconds ago
-    if (!lastReload || now - parseInt(lastReload) > 10000) {
-      setSafeSessionStorageItem(reloadKey, now.toString())
-      console.warn('Chunk load error detected, reloading page to fetch latest version...')
-      window.location.reload()
-    } else {
-      console.error('Chunk load error persists after reload. Please clear browser cache.')
-    }
+    // A slow failure may exceed any timestamp-based retry window indefinitely.
+    // Never discard unsaved work or loop; make recovery an explicit user action.
+    navigationLoading.endNavigation()
+    showPageLoadFailure()
   }
 })
 
