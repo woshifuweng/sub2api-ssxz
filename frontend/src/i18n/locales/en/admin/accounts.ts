@@ -595,6 +595,8 @@ export default {
       },
       // OpenAI specific hints
       openai: {
+        disabledModels: 'Permanently disabled models',
+        disabledModelsHint: 'Enter one full model ID per line. Disabled only for this account, including passthrough mode. Does not expire automatically; clear the list to restore access.',
         baseUrlHint: 'Leave default for official OpenAI API',
         apiKeyHint: 'Your OpenAI API Key',
         oauthPassthrough: 'Auto passthrough (auth only)',

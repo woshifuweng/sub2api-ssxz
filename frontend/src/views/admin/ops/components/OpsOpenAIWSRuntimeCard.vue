@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { opsAPI, type OpenAIWSRuntimeResponse } from '@/api/admin/ops'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -15,6 +15,8 @@ const { t } = useI18n()
 
 const loading = ref(false)
 const errorMessage = ref('')
+const unsupported = ref(false)
+let requestVersion = 0
 const runtime = ref<OpenAIWSRuntimeResponse | null>(null)
 const gnetRuntime = computed(() => runtime.value?.gnet_http1 ?? null)
 
@@ -52,16 +54,24 @@ const reuseRate = computed(() => {
 })
 
 async function fetchData() {
-  if (props.active === false) return
-  loading.value = true
-  errorMessage.value = ''
-  try {
-    runtime.value = await opsAPI.getOpenAIWSRuntime(props.platformFilter)
-  } catch (err: any) {
-    runtime.value = null
-    errorMessage.value = err?.response?.data?.detail || err?.message || t('common.loadFailed')
-  } finally {
+  const version = ++requestVersion
+  if (props.active === false || unsupported.value) {
     loading.value = false
+    return
+  }
+  loading.value = true
+  try {
+    const response = await opsAPI.getOpenAIWSRuntime(props.platformFilter)
+    if (version !== requestVersion) return
+    runtime.value = response
+    errorMessage.value = ''
+  } catch (err: any) {
+    if (version !== requestVersion) return
+    runtime.value = null
+    unsupported.value = (err?.status ?? err?.response?.status) === 404
+    errorMessage.value = unsupported.value ? '' : t('common.loadFailed')
+  } finally {
+    if (version === requestVersion) loading.value = false
   }
 }
 
@@ -81,6 +91,7 @@ onMounted(() => {
     fetchData()
   }
 })
+onUnmounted(() => { requestVersion += 1 })
 </script>
 
 <template>
@@ -92,10 +103,19 @@ onMounted(() => {
       </div>
     </div>
 
-    <div v-if="errorMessage" class="mb-4 rounded-2xl bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">
+    <div v-if="unsupported" role="status" class="rounded-2xl bg-gray-50 px-3 py-4 text-sm text-gray-600 dark:bg-dark-700 dark:text-gray-300">
+      {{ t('admin.ops.runtimeUnsupported') }}
+    </div>
+    <div v-else-if="errorMessage" role="alert" class="mb-4 rounded-2xl bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">
       {{ errorMessage }}
+      <button type="button" class="btn btn-secondary ml-2" :disabled="loading || props.active === false" @click="fetchData">
+        {{ t('common.tryAgain') }}
+      </button>
     </div>
 
+    <template v-if="!unsupported && !errorMessage">
+    <div v-if="loading && !runtime" class="py-4 text-sm text-gray-400">{{ t('common.loading') }}</div>
+    <template v-if="runtime">
     <div class="grid grid-cols-2 gap-3 text-sm">
       <div class="rounded-2xl bg-gray-50 p-3 dark:bg-dark-700">
         <div class="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Reuse Rate</div>
@@ -250,5 +270,7 @@ onMounted(() => {
         </div>
       </div>
     </div>
+    </template>
+    </template>
   </div>
 </template>

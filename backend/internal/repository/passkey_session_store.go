@@ -15,6 +15,15 @@ import (
 
 const passkeySessionPrefix = "passkey:session:"
 
+// GETDEL requires Redis 6.2. Lua keeps consumption atomic on Redis 6.0.
+var consumePasskeySessionScript = redis.NewScript(`
+local payload = redis.call('GET', KEYS[1])
+if payload ~= false then
+    redis.call('DEL', KEYS[1])
+end
+return payload
+`)
+
 type passkeySessionStore struct {
 	redis *redis.Client
 }
@@ -54,7 +63,7 @@ func (s *passkeySessionStore) Consume(
 	if token == "" || len(token) > 128 {
 		return nil, service.ErrPasskeySession
 	}
-	payload, err := s.redis.GetDel(ctx, passkeySessionPrefix+token).Bytes()
+	payload, err := consumePasskeySessionScript.Run(ctx, s.redis, []string{passkeySessionPrefix + token}).Text()
 	if err == redis.Nil {
 		return nil, service.ErrPasskeySession
 	}
@@ -62,7 +71,7 @@ func (s *passkeySessionStore) Consume(
 		return nil, fmt.Errorf("consume passkey session: %w", err)
 	}
 	var session service.PasskeySession
-	if err = json.Unmarshal(payload, &session); err != nil {
+	if err = json.Unmarshal([]byte(payload), &session); err != nil {
 		return nil, service.ErrPasskeySession
 	}
 	return &session, nil

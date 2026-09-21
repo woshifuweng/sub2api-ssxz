@@ -1772,6 +1772,13 @@
         </div>
       </div>
 
+      <div v-if="account?.platform === 'openai'" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <label for="edit-disabled-models" class="input-label">{{ t('admin.accounts.openai.disabledModels') }}</label>
+        <textarea id="edit-disabled-models" v-model="openaiDisabledModelsText" rows="3" class="input font-mono"
+          aria-describedby="edit-disabled-models-hint" data-testid="edit-disabled-models" />
+        <p id="edit-disabled-models-hint" class="input-hint">{{ t('admin.accounts.openai.disabledModelsHint') }}</p>
+      </div>
+
       <!-- OpenAI Codex namespace 工具摊平（兼容开关，仅 OAuth） -->
       <div
         v-if="account?.platform === 'openai' && account?.type === 'oauth'"
@@ -2897,6 +2904,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { parseOpenAIDisabledModels, readOpenAIDisabledModels } from '@/utils/openaiDisabledModels'
 import { useAppStore } from '@/stores/app'
 
 import { adminAPI } from '@/api/admin'
@@ -3400,6 +3408,7 @@ const customBaseUrl = ref('')
 
 // OpenAI 自动透传开关（OAuth/API Key）
 const openaiPassthroughEnabled = ref(false)
+const openaiDisabledModelsText = ref('')
 // OpenAI Codex namespace 工具摊平兼容开关（仅 OAuth），缺省关闭即原样保留
 const openaiFlattenNamespacesEnabled = ref(false)
 const openAILongContextBillingEnabled = ref(false)
@@ -3894,6 +3903,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
 
   // Load OpenAI passthrough toggle (OpenAI OAuth/SetupToken/API Key)
   openaiPassthroughEnabled.value = false
+  openaiDisabledModelsText.value = readOpenAIDisabledModels(extra)
   openaiFlattenNamespacesEnabled.value = false
   openAILongContextBillingEnabled.value = false
   editPlanType.value = ''
@@ -5463,6 +5473,7 @@ const handleSubmit = async () => {
       const currentExtra = (props.account.extra as Record<string, unknown>) || {}
       const newExtra: Record<string, unknown> = { ...currentExtra }
       const hadCodexCLIOnlyEnabled = currentExtra.codex_cli_only === true
+      newExtra.openai_disabled_models = parseOpenAIDisabledModels(openaiDisabledModelsText.value)
       if (props.account.type === 'oauth' || props.account.type === 'setup-token') {
         newExtra.openai_oauth_responses_websockets_v2_mode = openaiOAuthResponsesWebSocketV2Mode.value
         newExtra.openai_oauth_responses_websockets_v2_enabled = isOpenAIWSModeEnabled(openaiOAuthResponsesWebSocketV2Mode.value)

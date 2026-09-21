@@ -164,7 +164,9 @@ func standardOpenAIModelsBody(body []byte, fromManifest bool) ([]byte, error) {
 // representations while retaining the source entry's metadata. It never changes
 // the shared response and never synthesizes models absent from this account.
 func projectAccountModelsBody(body []byte, account *Account, group *Group, codex bool) ([]byte, error) {
-	if account.IsOpenAIPassthroughEnabled() || len(account.GetModelMapping()) == 0 {
+	unmapped := account.IsOpenAIPassthroughEnabled() || len(account.GetModelMapping()) == 0
+	_, hasQuarantine := account.Extra[openAIDisabledModelsKey]
+	if unmapped && !hasQuarantine {
 		return body, nil
 	}
 	field, idField := "data", "id"
@@ -209,7 +211,9 @@ func projectAccountModelsBody(body []byte, account *Account, group *Group, codex
 		aliases = append(aliases, alias)
 	}
 	sort.Strings(aliases)
-	candidates = append(candidates, aliases...)
+	if !unmapped {
+		candidates = append(candidates, aliases...)
+	}
 	if group.ModelAllowlistEnabled() {
 		candidates = append(candidates, group.ModelAllowlist.Models...)
 	}
@@ -223,7 +227,13 @@ func projectAccountModelsBody(body []byte, account *Account, group *Group, codex
 		if _, ok := seen[id]; ok {
 			continue
 		}
-		target, matched := account.ResolveMappedModel(id)
+		if !account.IsModelSupported(id) {
+			continue
+		}
+		target, matched := id, true
+		if !unmapped {
+			target, matched = account.ResolveMappedModel(id)
+		}
 		raw, available := byID[strings.TrimSpace(target)]
 		if !matched || !available {
 			continue

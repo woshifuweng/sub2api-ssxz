@@ -33,6 +33,7 @@ export default {
     disable: '停用',
     enable: '启用',
     loadFailed: '加载失败',
+    showingPreviousData: '当前显示上次成功加载的数据，可能已过期或不符合当前筛选条件、页码。',
     required: '必填',
     back: '返回',
     next: '下一步',

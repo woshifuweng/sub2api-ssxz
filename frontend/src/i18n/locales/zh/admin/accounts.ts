@@ -672,6 +672,8 @@ export default {
       },
       // OpenAI specific hints
       openai: {
+        disabledModels: '长期禁用的模型',
+        disabledModelsHint: '每行一个完整模型 ID。仅此账号禁用，透传模式同样生效；不会自动到期，清空后恢复。',
         baseUrlHint: '留空使用官方 OpenAI API',
         apiKeyHint: '您的 OpenAI API Key',
         oauthPassthrough: '自动透传（仅替换认证）',

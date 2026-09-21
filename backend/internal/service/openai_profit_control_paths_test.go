@@ -171,8 +171,9 @@ func TestProfitControl_PostSlotRecheckVetoes(t *testing.T) {
 		concurrencyService: NewConcurrencyService(cache),
 	}}
 	ctx := context.WithValue(context.Background(), openAIProfitControlGateCtxKey{}, &openAIProfitControlGate{
-		threshold: 0.5,
-		pricingAt: now,
+		downstream: 1,
+		threshold:  0.5,
+		pricingAt:  now,
 	})
 	selectionOrder := []openAIAccountCandidateScore{{
 		account:  expensive,
@@ -304,8 +305,9 @@ func TestProfitControl_CompositeUsesBillingGroupRate(t *testing.T) {
 func TestProfitControl_EligibilityFunctionVetoes(t *testing.T) {
 	now := time.Now()
 	gateCtx := context.WithValue(context.Background(), openAIProfitControlGateCtxKey{}, &openAIProfitControlGate{
-		threshold: 0.5,
-		pricingAt: now,
+		downstream: 1,
+		threshold:  0.5,
+		pricingAt:  now,
 	})
 	cheap := upstreamCostTestAccount(81, UpstreamBillingProbeStatusOK, 0.3, now.Add(-time.Minute), 30*time.Minute)
 	expensive := upstreamCostTestAccount(82, UpstreamBillingProbeStatusOK, 0.8, now.Add(-time.Minute), 30*time.Minute)

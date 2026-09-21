@@ -121,9 +121,10 @@ func TestGatewayProfitControlGroupLoadFailureClearsForeignGate(t *testing.T) {
 	targetGroupID := int64(212)
 	ctx := gatewayProfitTestContext(billingGroup)
 	ctx = context.WithValue(ctx, openAIProfitControlGateCtxKey{}, &openAIProfitControlGate{
-		groupID:   210,
-		platform:  PlatformAnthropic,
-		threshold: 0.1,
+		downstream: 0.4,
+		groupID:    210,
+		platform:   PlatformAnthropic,
+		threshold:  0.1,
 	})
 	svc := &GatewayService{
 		schedulerSnapshot: NewSchedulerSnapshotService(
@@ -252,6 +253,44 @@ func TestGatewayProfitControlLoadAwareSelectionAndFailover(t *testing.T) {
 	require.ErrorIs(t, err, ErrNoAvailableAccounts)
 }
 
+func TestGatewayProfitControlStrictBreakEvenSelection(t *testing.T) {
+	group := gatewayProfitTestGroup(951, PlatformGrok)
+	account := gatewayProfitTestAccount(952, PlatformGrok, group.RateMultiplier, group.ID)
+	repo := &mockAccountRepoForPlatform{
+		accounts: []Account{account}, accountsByID: map[int64]*Account{account.ID: &account},
+	}
+	cfg := &config.Config{RunMode: config.RunModeStandard}
+	cfg.Gateway.Scheduling.LoadBatchEnabled = true
+	svc := &GatewayService{
+		accountRepo: repo, cache: &mockGatewayCacheForPlatform{}, cfg: cfg,
+		concurrencyService: NewConcurrencyService(stubConcurrencyCache{}),
+	}
+	ctx := gatewayProfitTestContext(group)
+	selected, err := svc.SelectAccountForModelWithExclusions(ctx, &group.ID, "", "", nil)
+	require.ErrorIs(t, err, ErrNoAvailableAccounts)
+	require.Nil(t, selected)
+	selection, err := svc.SelectAccountWithLoadAwareness(ctx, &group.ID, "", "", nil, "", 0)
+	require.ErrorIs(t, err, ErrNoAvailableAccounts)
+	require.Nil(t, selection)
+
+	cheapRate := 0.2
+	account.RateMultiplier = &cheapRate
+	repo.accounts[0] = account
+	selection, err = svc.SelectAccountWithLoadAwareness(ctx, &group.ID, "", "", nil, "", 0)
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	if selection.ReleaseFunc != nil {
+		defer selection.ReleaseFunc()
+	}
+	handlerCtx := ContextWithSelectionProfitGate(context.Background(), selection)
+	_, vetoed, _ := svc.GatewayProfitControlVetoLatest(handlerCtx, selection.Account)
+	require.False(t, vetoed)
+	profitControlTestAccountWithRate(selection.Account, group.RateMultiplier)
+	_, vetoed, reason := svc.GatewayProfitControlVetoLatest(handlerCtx, selection.Account)
+	require.True(t, vetoed)
+	require.Equal(t, openAIProfitFilterReasonThreshold, reason)
+}
+
 func TestGatewayProfitControlStickyVetoKeepsBindingUntilRateRecovers(t *testing.T) {
 	group := gatewayProfitTestGroup(131, PlatformAnthropic)
 	expensive := gatewayProfitTestAccount(1, PlatformAnthropic, 0.8, group.ID)
@@ -330,9 +369,10 @@ func TestGatewayProfitControlTerminalRefreshUsesReplacementObject(t *testing.T) 
 		nil,
 	)
 	ctx := context.WithValue(context.Background(), openAIProfitControlGateCtxKey{}, &openAIProfitControlGate{
-		groupID:   1,
-		platform:  PlatformGemini,
-		threshold: 0.5,
+		downstream: 1,
+		groupID:    1,
+		platform:   PlatformGemini,
+		threshold:  0.5,
 	})
 
 	latest, vetoed, reason := profitControlVetoLatest(ctx, &selected, snapshot)
@@ -356,9 +396,10 @@ func TestGatewayProfitControlTerminalRefreshFallsBackFromCacheToDatabase(t *test
 		nil,
 	)
 	ctx := context.WithValue(context.Background(), openAIProfitControlGateCtxKey{}, &openAIProfitControlGate{
-		groupID:   1,
-		platform:  PlatformAnthropic,
-		threshold: 0.5,
+		downstream: 1,
+		groupID:    1,
+		platform:   PlatformAnthropic,
+		threshold:  0.5,
 	})
 
 	latest, vetoed, reason := profitControlVetoLatest(ctx, &selected, snapshot)
@@ -377,9 +418,10 @@ func TestGatewayProfitControlTerminalRefreshFailureFallsBackToSelectedObject(t *
 		nil,
 	)
 	ctx := context.WithValue(context.Background(), openAIProfitControlGateCtxKey{}, &openAIProfitControlGate{
-		groupID:   1,
-		platform:  PlatformAntigravity,
-		threshold: 0.5,
+		downstream: 1,
+		groupID:    1,
+		platform:   PlatformAntigravity,
+		threshold:  0.5,
 	})
 
 	latest, vetoed, reason := profitControlVetoLatest(ctx, &selected, snapshot)
@@ -448,7 +490,7 @@ func TestGatewayProfitControlAfterAdmissionBindSemantics(t *testing.T) {
 		// mock 的 miss 返回非 sentinel 错误，等价于 Redis 读失败：门下保守不写。
 		cache := &mockGatewayCacheForPlatform{sessionBindings: map[string]int64{}}
 		svc := &GatewayService{cache: cache}
-		gate := &openAIProfitControlGate{groupID: groupID, platform: PlatformAnthropic, threshold: 0.5}
+		gate := &openAIProfitControlGate{groupID: groupID, platform: PlatformAnthropic, downstream: 1, threshold: 0.5}
 		gateCtx := context.WithValue(context.Background(), openAIProfitControlGateCtxKey{}, gate)
 		require.NoError(t, svc.BindStickySessionAfterProfitAdmission(gateCtx, &groupID, "absent", cheapID))
 		require.NotContains(t, cache.sessionBindings, "absent")
@@ -457,7 +499,7 @@ func TestGatewayProfitControlAfterAdmissionBindSemantics(t *testing.T) {
 	t.Run("gated sentinel miss binds", func(t *testing.T) {
 		cache := &sentinelMissGatewayCache{mockGatewayCacheForPlatform: &mockGatewayCacheForPlatform{sessionBindings: map[string]int64{}}}
 		svc := &GatewayService{cache: cache}
-		gate := &openAIProfitControlGate{groupID: groupID, platform: PlatformAnthropic, threshold: 0.5}
+		gate := &openAIProfitControlGate{groupID: groupID, platform: PlatformAnthropic, downstream: 1, threshold: 0.5}
 		gateCtx := context.WithValue(context.Background(), openAIProfitControlGateCtxKey{}, gate)
 		require.NoError(t, svc.BindStickySessionAfterProfitAdmission(gateCtx, &groupID, "fresh", cheapID))
 		require.Equal(t, cheapID, cache.sessionBindings["fresh"], "门下无既有绑定（sentinel miss）应建立粘性")

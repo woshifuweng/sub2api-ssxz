@@ -55,13 +55,16 @@ func TestProfitControl_GateReuseKeepsThresholdAcrossFailover(t *testing.T) {
 	gate, ok := ctx.Value(openAIProfitControlGateCtxKey{}).(*openAIProfitControlGate)
 	require.True(t, ok)
 	require.InDelta(t, 0.5, gate.threshold, 1e-12)
+	require.Equal(t, 1.0, gate.downstream)
 
 	// 模拟请求进行中管理员改配置（ctx 分组为同一指针，与 auth 快照语义一致）。
 	group.ProfitMinMargin = 0.9
+	group.RateMultiplier = 0
 	reCtx := svc.withOpenAIProfitControlGate(ctx, &groupID)
 	reGate, ok := reCtx.Value(openAIProfitControlGateCtxKey{}).(*openAIProfitControlGate)
 	require.True(t, ok)
 	require.Same(t, gate, reGate, "failover 重入必须复用同一门，阈值不得中途变化")
+	require.Equal(t, 1.0, reGate.downstream, "failover 必须同时保留原请求的有效 D")
 
 	// 换分组（composite/模型路由成员调度）重新解析；成员分组无门时必须清除
 	// 父分组门，阈值不得跨组泄漏。
@@ -100,7 +103,7 @@ func TestProfitControl_PricingAtFixesDownstreamPeakFactor(t *testing.T) {
 
 // U 只取账号倍率：探测快照内容和新鲜度不再直接参与利润判断。
 func TestProfitControl_UsesAccountRateInsteadOfProbeSnapshot(t *testing.T) {
-	gate := &openAIProfitControlGate{threshold: 0.5, pricingAt: time.Now().Add(-12 * time.Hour)}
+	gate := &openAIProfitControlGate{downstream: 1, threshold: 0.5, pricingAt: time.Now().Add(-12 * time.Hour)}
 	ctx := context.WithValue(context.Background(), openAIProfitControlGateCtxKey{}, gate)
 	account := upstreamCostTestAccount(9, UpstreamBillingProbeStatusOK, 0.1, time.Now().Add(-3*time.Hour), 30*time.Minute)
 	profitControlTestAccountWithRate(account, 0.8)
@@ -181,9 +184,10 @@ func TestOpenAIProfitControlStickyBindingOccursOnlyAfterTerminalAdmission(t *tes
 	}
 	svc := &OpenAIGatewayService{cache: cache}
 	ctx := context.WithValue(context.Background(), openAIProfitControlGateCtxKey{}, &openAIProfitControlGate{
-		groupID:   groupID,
-		platform:  PlatformOpenAI,
-		threshold: 0.5,
+		downstream: 1,
+		groupID:    groupID,
+		platform:   PlatformOpenAI,
+		threshold:  0.5,
 	})
 
 	require.NoError(t, svc.bindOpenAIStickySessionDuringSelection(ctx, &groupID, sessionHash, cheapID))

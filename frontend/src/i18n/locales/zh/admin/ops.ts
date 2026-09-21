@@ -1,5 +1,6 @@
 export default {
     ops: {
+      runtimeUnsupported: '当前服务端暂不支持此运行监控，已停止自动轮询。',
       title: '运维监控',
       description: '运维监控与排障',
       // Dashboard

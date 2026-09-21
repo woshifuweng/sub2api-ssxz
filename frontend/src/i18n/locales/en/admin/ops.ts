@@ -1,5 +1,6 @@
 export default {
     ops: {
+      runtimeUnsupported: 'This runtime monitor is not supported by the current server. Automatic polling has stopped.',
       title: 'Ops Monitoring',
       description: 'Operational monitoring and troubleshooting',
       // Dashboard

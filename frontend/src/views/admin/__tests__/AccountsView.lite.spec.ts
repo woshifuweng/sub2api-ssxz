@@ -4,6 +4,7 @@ import { defineComponent } from 'vue'
 
 import AccountsView from '../AccountsView.vue'
 import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
+import AccountTableFilters from '@/components/admin/account/AccountTableFilters.vue'
 
 const {
   listAccounts,
@@ -174,6 +175,85 @@ describe('admin AccountsView lite account list', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
+  })
+
+  it('shows initial list errors and retries without an empty-list illusion', async () => {
+    listAccounts.mockRejectedValueOnce({ status: 500 })
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('admin.accounts.failedToLoad')
+    expect(wrapper.findComponent(DataTableStub).exists()).toBe(false)
+    await wrapper.get('[role="alert"] button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(wrapper.get('[data-account-name]').attributes('data-account-name')).toBe('compact row')
+    wrapper.unmount()
+  })
+
+  it('keeps rows after a pagination request fails and allows retry', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    listAccounts.mockRejectedValueOnce({ status: 500 })
+    wrapper.getComponent({ name: 'Pagination' }).vm.$emit('update:page', 1)
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('common.showingPreviousData')
+    expect(wrapper.get('[data-account-name]').attributes('data-account-name')).toBe('compact row')
+    expect(wrapper.getComponent({ name: 'Pagination' }).attributes('total')).toBe('1')
+    await wrapper.get('[role="alert"] button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it.each(['resolve', 'reject'])('ignores a superseded list request that later %ss', async outcome => {
+    let resolveOld!: (result: unknown) => void
+    let rejectOld!: (error: unknown) => void
+    listAccounts.mockImplementationOnce(() => new Promise((resolve, reject) => { resolveOld = resolve; rejectOld = reject }))
+    const wrapper = mountView()
+    wrapper.getComponent(DataTableStub).vm.$emit('sort', 'name', 'asc')
+    await flushPromises()
+    if (outcome === 'resolve') resolveOld({ items: [], total: 0, pages: 0 })
+    else rejectOld({ status: 500 })
+    await flushPromises()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(wrapper.get('[data-account-name]').attributes('data-account-name')).toBe('compact row')
+    wrapper.unmount()
+  })
+
+  it('shows automatic refresh errors without removing old rows', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
+    localStorage.setItem('account-auto-refresh', JSON.stringify({ enabled: true, interval_seconds: 5 }))
+    listWithEtag.mockRejectedValueOnce({ status: 500 })
+    const wrapper = mountView()
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(6000)
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('common.showingPreviousData')
+    expect(wrapper.get('[data-account-name]').attributes('data-account-name')).toBe('compact row')
+    await wrapper.get('[role="alert"] button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('does not let an old automatic refresh overwrite a new filtered list', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
+    localStorage.setItem('account-auto-refresh', JSON.stringify({ enabled: true, interval_seconds: 5 }))
+    let resolveRefresh!: (result: unknown) => void
+    listWithEtag.mockImplementationOnce(() => new Promise(resolve => { resolveRefresh = resolve }))
+    const wrapper = mountView()
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(6000)
+    listAccounts.mockResolvedValueOnce({ items: [{ ...listRow, name: 'new filtered row' }], total: 1, pages: 1 })
+    wrapper.getComponent(AccountTableFilters).vm.$emit('change')
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+    resolveRefresh({ notModified: false, etag: 'old', data: { items: [], total: 0, pages: 0 } })
+    await flushPromises()
+    expect(wrapper.get('[data-account-name]').attributes('data-account-name')).toBe('new filtered row')
+    wrapper.unmount()
   })
 
   it('keeps lite=1 on the initial list request', async () => {

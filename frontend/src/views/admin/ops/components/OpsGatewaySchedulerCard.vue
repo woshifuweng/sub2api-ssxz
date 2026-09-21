@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { opsAPI, type GatewaySchedulerRuntimeEntry, type GatewaySchedulerRuntimeResponse } from '@/api/admin/ops'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -17,6 +17,8 @@ const { t } = useI18n()
 
 const loading = ref(false)
 const errorMessage = ref('')
+const unsupported = ref(false)
+let requestVersion = 0
 const runtime = ref<GatewaySchedulerRuntimeResponse | null>(null)
 
 const rows = computed<GatewaySchedulerRuntimeEntry[]>(() => runtime.value?.items?.slice(0, 6) ?? [])
@@ -29,16 +31,24 @@ const cacheHitRate = computed(() => {
 })
 
 async function fetchData() {
-  if (props.active === false) return
-  loading.value = true
-  errorMessage.value = ''
-  try {
-    runtime.value = await opsAPI.getGatewaySchedulerRuntime(props.platformFilter, props.groupIdFilter ?? null, props.summaryLimit ?? 6)
-  } catch (err: any) {
-    runtime.value = null
-    errorMessage.value = err?.response?.data?.detail || err?.message || t('common.loadFailed')
-  } finally {
+  const version = ++requestVersion
+  if (props.active === false || unsupported.value) {
     loading.value = false
+    return
+  }
+  loading.value = true
+  try {
+    const response = await opsAPI.getGatewaySchedulerRuntime(props.platformFilter, props.groupIdFilter ?? null, props.summaryLimit ?? 6)
+    if (version !== requestVersion) return
+    runtime.value = response
+    errorMessage.value = ''
+  } catch (err: any) {
+    if (version !== requestVersion) return
+    runtime.value = null
+    unsupported.value = (err?.status ?? err?.response?.status) === 404
+    errorMessage.value = unsupported.value ? '' : t('common.loadFailed')
+  } finally {
+    if (version === requestVersion) loading.value = false
   }
 }
 
@@ -65,6 +75,7 @@ onMounted(() => {
     fetchData()
   }
 })
+onUnmounted(() => { requestVersion += 1 })
 </script>
 
 <template>
@@ -74,7 +85,7 @@ onMounted(() => {
         <h3 class="text-sm font-bold text-gray-900 dark:text-white">Gateway Scheduler</h3>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Generic path runtime selection and transport reuse</p>
       </div>
-      <div class="text-right text-xs text-gray-500 dark:text-gray-400">
+      <div v-if="runtime && !unsupported && !errorMessage" class="text-right text-xs text-gray-500 dark:text-gray-400">
         <div>{{ runtime?.active_scheduling_accounts ?? 0 }} scheduling</div>
         <div>{{ runtime?.pool_accounts_total ?? 0 }} in pool</div>
         <div>{{ runtime?.metrics?.runtime_stats_account_count ?? 0 }} tracked</div>
@@ -82,10 +93,19 @@ onMounted(() => {
       </div>
     </div>
 
-    <div v-if="errorMessage" class="mb-4 rounded-2xl bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">
+    <div v-if="unsupported" role="status" class="rounded-2xl bg-gray-50 px-3 py-4 text-sm text-gray-600 dark:bg-dark-700 dark:text-gray-300">
+      {{ t('admin.ops.runtimeUnsupported') }}
+    </div>
+    <div v-else-if="errorMessage" role="alert" class="mb-4 rounded-2xl bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">
       {{ errorMessage }}
+      <button type="button" class="btn btn-secondary ml-2" :disabled="loading || props.active === false" @click="fetchData">
+        {{ t('common.tryAgain') }}
+      </button>
     </div>
 
+    <template v-if="!unsupported && !errorMessage">
+    <div v-if="loading && !runtime" class="py-4 text-sm text-gray-400">{{ t('common.loading') }}</div>
+    <template v-if="runtime">
     <div class="grid grid-cols-2 gap-3 text-sm">
       <div class="rounded-2xl bg-gray-50 p-3 dark:bg-dark-700">
         <div class="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Sticky Hit</div>
@@ -138,5 +158,7 @@ onMounted(() => {
         </tbody>
       </table>
     </div>
+    </template>
+    </template>
   </div>
 </template>

@@ -33,6 +33,7 @@ export default {
     disable: 'Disable',
     enable: 'Enable',
     loadFailed: 'Failed to load',
+    showingPreviousData: 'Showing previously loaded data; it may be out of date or not match the current filters or page.',
     required: 'Required',
     back: 'Back',
     next: 'Next',

@@ -71,7 +71,7 @@ return 0
 `)
 
 // Lua 脚本：校验锁 TTL 状态，PTTL == -1 时原子删除异常锁。
-// 返回状态: -2=锁不存在，-1=无 TTL 的异常锁已删除，1=锁仍存活并返回剩余 PTTL。
+// 返回状态: -2=锁不存在，-1=无 TTL 的异常锁已删除，1=锁仍存活并返回绝对到期时间毫秒。
 var reconcileLockScript = redis.NewScript(`
 local pttl = redis.call('PTTL', KEYS[1])
 if pttl == -2 then
@@ -81,7 +81,9 @@ if pttl == -1 then
     redis.call('DEL', KEYS[1])
     return {-1, 0}
 end
-return {1, pttl}
+local t = redis.call('TIME')
+local ms = tonumber(t[1])*1000 + math.floor(tonumber(t[2])/1000)
+return {1, ms + pttl}
 `)
 
 type userMsgQueueCache struct {
@@ -186,12 +188,11 @@ func (c *userMsgQueueCache) ReconcileExpiredLockCandidates(ctx context.Context, 
 	if err != nil {
 		return 0, err
 	}
-	members, err := c.rdb.ZRangeArgs(ctx, redis.ZRangeArgs{
-		Key:     umqLockIndexKey,
-		Start:   "-inf",
-		Stop:    strconv.FormatInt(nowMs, 10),
-		ByScore: true,
-		Count:   int64(maxCount),
+	// ZRANGE ... BYSCORE requires Redis 6.2; keep Redis 6.0 compatibility.
+	members, err := c.rdb.ZRangeByScore(ctx, umqLockIndexKey, &redis.ZRangeBy{
+		Min:   "-inf",
+		Max:   strconv.FormatInt(nowMs, 10),
+		Count: int64(maxCount),
 	}).Result()
 	if err != nil {
 		return 0, fmt.Errorf("umq read lock index: %w", err)
@@ -213,9 +214,9 @@ func (c *userMsgQueueCache) ReconcileExpiredLockCandidates(ctx context.Context, 
 		if err != nil {
 			return cleaned, fmt.Errorf("umq parse reconcile status: %w", err)
 		}
-		pttl, err := redisScriptInt64At(result, 1)
+		expireAtMs, err := redisScriptInt64At(result, 1)
 		if err != nil {
-			return cleaned, fmt.Errorf("umq parse reconcile pttl: %w", err)
+			return cleaned, fmt.Errorf("umq parse reconcile expiry: %w", err)
 		}
 
 		switch status {
@@ -227,9 +228,9 @@ func (c *userMsgQueueCache) ReconcileExpiredLockCandidates(ctx context.Context, 
 			c.removeLockIndexMember(ctx, member)
 			cleaned++
 		case 1:
-			// 锁仍存活，说明索引过期时间滞后；按剩余 PTTL 重新排期。
+			// 用 Lua 同次读取的 TIME + PTTL 重新排期，避免批次耗时使索引提前。
 			if err := c.rdb.ZAdd(ctx, umqLockIndexKey, redis.Z{
-				Score:  float64(nowMs + pttl),
+				Score:  float64(expireAtMs),
 				Member: member,
 			}).Err(); err != nil {
 				logger.LegacyPrintf("repository.umq", "Warning: reschedule lock index member %s failed: %v", member, err)

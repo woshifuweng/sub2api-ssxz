@@ -106,8 +106,9 @@ func TestOpenAIProfitControlVetoReason(t *testing.T) {
 	now := time.Now()
 	gateCtx := func(threshold float64) context.Context {
 		return context.WithValue(context.Background(), openAIProfitControlGateCtxKey{}, &openAIProfitControlGate{
-			threshold: threshold,
-			pricingAt: now,
+			downstream: 1,
+			threshold:  threshold,
+			pricingAt:  now,
 		})
 	}
 

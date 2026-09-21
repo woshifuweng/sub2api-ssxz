@@ -200,6 +200,13 @@
         </div>
       </template>
       <template #table>
+        <div v-if="listLoadFailed" role="alert" class="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
+          <p>{{ t("admin.accounts.failedToLoad") }}</p>
+          <p v-if="accounts.length > 0" class="mt-1">{{ t("common.showingPreviousData") }}</p>
+          <button type="button" class="btn btn-secondary mt-3" :disabled="loading" @click="handleManualRefresh">
+            {{ t("common.tryAgain") }}
+          </button>
+        </div>
         <AccountBulkActionsBar
           :selected-ids="selIds"
           :total-results="pagination.total"
@@ -223,10 +230,11 @@
           class="flex min-h-0 flex-1 flex-col overflow-hidden"
         >
           <DataTable
+            v-if="!listLoadFailed || accounts.length > 0"
             ref="dataTableRef"
             :columns="cols"
             :data="accounts"
-            :loading="loading"
+            :loading="loading && accounts.length === 0"
             row-key="id"
             :server-side-sort="true"
             @sort="handleSort"
@@ -747,7 +755,7 @@ import { extractApiErrorMessage } from '@/utils/apiError'
 import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfilesModal.vue'
 import { formatMultiplier } from '@/utils/formatters'
 import { sanitizeUrl } from '@/utils/url'
-import type { Account, AccountListItem, AccountPlatform, AccountSchedulerGroupScore, AccountType, AccountUsageInfo, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel, UpstreamBillingProbeSnapshot } from '@/types'
+import type { Account, AccountListItem, AccountPlatform, AccountSchedulerGroupScore, AccountType, AccountUsageInfo, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel, UpstreamBillingProbeSnapshot, BasePaginationResponse } from '@/types'
 
 const { t } = useI18n();
 const appStore = useAppStore();
@@ -1310,6 +1318,9 @@ const syncAccountListDerivedParams = () => {
   requestParams.include_scheduler_score = shouldIncludeSchedulerScore() ? '1' : '0'
 }
 
+const listLoadFailed = ref(false)
+let listRequestVersion = 0
+
 const {
   items: accounts,
   loading,
@@ -1321,7 +1332,22 @@ const {
   handlePageChange: baseHandlePageChange,
   handlePageSizeChange: baseHandlePageSizeChange,
 } = useTableLoader<Account, any>({
-  fetchFn: adminAPI.accounts.list,
+  // Handle list errors here without changing the shared loader used by other views.
+  fetchFn: async (page, pageSize, requestParams, options): Promise<BasePaginationResponse<Account>> => {
+    const version = ++listRequestVersion
+    const isCurrent = () => !options?.signal?.aborted && !detailsDisposed && version === listRequestVersion
+    try {
+      const response = await adminAPI.accounts.list(page, pageSize, { ...requestParams }, options)
+      if (!isCurrent()) throw new DOMException('Superseded list request', 'AbortError')
+      listLoadFailed.value = false
+      return response
+    } catch {
+      if (!isCurrent()) throw new DOMException('Superseded list request', 'AbortError')
+      listLoadFailed.value = true
+      // Preserve the last successful rows/counts; the error banner distinguishes this from success.
+      return { items: accounts.value, total: pagination.total, pages: pagination.pages, page, page_size: pageSize }
+    }
+  },
   initialParams: {
     lite: "1",
     platform: "",
@@ -1388,6 +1414,7 @@ useSwipeSelect(accountTableRef, {
 }, swipeVirtualContext);
 
 const resetAutoRefreshCache = () => {
+  listRequestVersion += 1;
   autoRefreshETag.value = null;
 };
 
@@ -1681,14 +1708,18 @@ const refreshAccountsIncrementally = async () => {
   if (autoRefreshFetching.value) return;
   syncAccountListDerivedParams()
   autoRefreshFetching.value = true;
+  const version = ++listRequestVersion;
+  const contextKey = upstreamBillingRateContextKey();
+  const isCurrent = () => !detailsDisposed && version === listRequestVersion && contextKey === upstreamBillingRateContextKey();
   try {
     const result = await adminAPI.accounts.listWithEtag(
       pagination.page,
       pagination.page_size,
-      toRaw(params) as Record<string, unknown>,
+      { ...toRaw(params) } as Record<string, unknown>,
       { etag: autoRefreshETag.value },
     );
-
+    if (!isCurrent()) return;
+    listLoadFailed.value = false;
     if (result.etag) {
       autoRefreshETag.value = result.etag;
     }
@@ -1703,8 +1734,8 @@ const refreshAccountsIncrementally = async () => {
     upstreamBillingNow.value = Date.now()
 
     await refreshTodayStatsBatch();
-  } catch (error) {
-    console.error("Auto refresh failed:", error);
+  } catch {
+    if (isCurrent()) listLoadFailed.value = true;
   } finally {
     autoRefreshFetching.value = false;
   }
@@ -3075,6 +3106,7 @@ onMounted(async () => {
     adminAPI.proxies.getAll(),
     adminAPI.groups.getAll(),
   ]);
+  if (detailsDisposed) return;
   if (proxiesResult.status === "fulfilled") {
     proxies.value = proxiesResult.value;
   } else {

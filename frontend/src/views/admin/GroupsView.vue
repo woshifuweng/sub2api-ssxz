@@ -115,10 +115,18 @@
       </template>
 
       <template #table>
+        <div v-if="listLoadFailed" role="alert" class="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
+          <p>{{ t("admin.groups.failedToLoad") }}</p>
+          <p v-if="groups.length > 0" class="mt-1">{{ t("common.showingPreviousData") }}</p>
+          <button type="button" class="btn btn-secondary mt-3" :disabled="loading" @click="loadGroups">
+            {{ t("common.tryAgain") }}
+          </button>
+        </div>
         <DataTable
+          v-if="!listLoadFailed || groups.length > 0"
           :columns="columns"
           :data="groups"
-          :loading="loading"
+          :loading="loading && groups.length === 0"
           :server-side-sort="true"
           default-sort-key="sort_order"
           default-sort-order="asc"
@@ -1245,7 +1253,7 @@
               <input
                 v-model.number="createForm.profit_min_margin_percent"
                 type="number"
-                step="0.1"
+                step="0.01"
                 min="0"
                 max="99.99"
                 class="input"
@@ -2879,7 +2887,7 @@
               <input
                 v-model.number="editForm.profit_min_margin_percent"
                 type="number"
-                step="0.1"
+                step="0.01"
                 min="0"
                 max="99.99"
                 class="input"
@@ -4767,6 +4775,7 @@ const copyAccountsGroupOptionsForEdit = computed(() => {
 
 const groups = ref<AdminGroup[]>([]);
 const loading = ref(false);
+const listLoadFailed = ref(false);
 type GroupUsageSummary = {
   today_cost: number;
   yesterday_cost: number;
@@ -5608,6 +5617,7 @@ const loadGroups = async () => {
       { signal },
     );
     if (signal.aborted) return;
+    listLoadFailed.value = false;
     groups.value = response.items;
     pagination.total = response.total;
     pagination.pages = response.pages;
@@ -5627,8 +5637,8 @@ const loadGroups = async () => {
     ) {
       return;
     }
+    listLoadFailed.value = true;
     appStore.showError(t("admin.groups.failedToLoad"));
-    console.error("Error loading groups:", error);
   } finally {
     if (abortController === currentController && !signal.aborted) {
       loading.value = false;
@@ -6292,7 +6302,11 @@ const handleUpdateGroup = async () => {
       profit_control_enabled:
         isProfitControlPlatform(editForm.platform) &&
         editForm.profit_control_enabled,
-      profit_min_margin: percentToDecimal(editForm.profit_min_margin_percent),
+      profit_min_margin:
+        editingGroup.value.profit_min_margin != null &&
+        editForm.profit_min_margin_percent === decimalToPercent(editingGroup.value.profit_min_margin)
+          ? editingGroup.value.profit_min_margin
+          : percentToDecimal(editForm.profit_min_margin_percent),
       profit_safety_buffer: percentToDecimal(
         editForm.profit_safety_buffer_percent,
       ),
@@ -6854,6 +6868,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  abortController?.abort();
+  clearTimeout(searchTimeout);
   document.removeEventListener("click", handleClickOutside);
   accountSearchRunner.clearAll();
   clearAllAccountSearchState();

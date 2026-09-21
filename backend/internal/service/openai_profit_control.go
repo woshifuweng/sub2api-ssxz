@@ -7,6 +7,7 @@ package service
 //
 // 准入条件：
 //
+//	U(尝试时刻) < D(pricingAt)，且
 //	U(尝试时刻) <= D(pricingAt) × (1 − profit_min_margin − profit_safety_buffer)
 //
 //   - D（用户售价倍率）固定在请求开始的 pricingAt：同一请求的全部 failover 与
@@ -98,7 +99,7 @@ type openAIPricingAtCtxKey struct{}
 
 // clampProfitControlThreshold 归一化利润门阈值。Validate/Normalize 已保证
 // margin+buffer < 1，这里只对存量脏数据兜底：阈值非有限或为负时按 0 处理
-// （等价于只放行免费上游）。装门点与 profit-preview 共用，避免口径漂移。
+// （仅在 D > 0 时可放行免费上游）。装门点与 profit-preview 共用，避免口径漂移。
 func clampProfitControlThreshold(threshold float64) float64 {
 	if math.IsNaN(threshold) || math.IsInf(threshold, 0) || threshold < 0 {
 		return 0
@@ -106,21 +107,30 @@ func clampProfitControlThreshold(threshold float64) float64 {
 	return threshold
 }
 
-// profitControlOverThreshold 是"上游倍率越线"的唯一定义：相对 epsilon 吸收
-// decimal(10,4) 落库与浮点乘法的边界误差，U == 阈值 判定为合格。
-// 线上否决点与 profit-preview 共用，两者不得各自实现。
+// profitControlOverThreshold 比较折扣后的阈值：相对 epsilon 吸收
+// decimal(10,4) 落库与浮点乘法的边界误差，U == 阈值不越线。
+// 准入还必须通过 profitControlRejectsRate 的严格 U < D 检查。
 func profitControlOverThreshold(upstream, threshold float64) bool {
 	return upstream-threshold > profitControlRateEpsilon*math.Max(1, math.Abs(threshold))
 }
 
+// profitControlRejectsRate 是线上与预演共用的成本边界。D 不使用 epsilon：
+// 即使 margin=buffer=0，也不能放行零利润或亏损账号；折扣阈值仍保留原容差。
+func profitControlRejectsRate(upstream, downstream, threshold float64) bool {
+	return upstream >= downstream || profitControlOverThreshold(upstream, threshold)
+}
+
 // openAIProfitControlGate 是一个请求的利润准入门。除 pricingAt 外全部为预计算
-// 标量：候选过滤热路径上每账号只做一次快照解码与一次浮点比较。
+// 标量：候选过滤热路径不再解析价格。
 type openAIProfitControlGate struct {
 	// groupID 是门配置来源的被调度分组；请求内按分组复用（failover 阈值稳定），
 	// composite 等跨分组调度切换分组时重新解析。
 	groupID int64
 	// platform 是利润配置所在分组的平台，用于按平台观测门是否真实生效。
 	platform string
+	// downstream 是与计费同源的有效 D（个人覆盖/默认倍率 × 请求时刻高峰因子）。
+	// 账号倍率必须严格小于它，不能以折扣阈值代替。
+	downstream float64
 	// threshold = D(pricingAt) × (1 − margin − buffer)，账号倍率必须 <= 它。
 	threshold float64
 	// pricingAt 是本请求的统一定价时刻（D 侧）。
@@ -262,10 +272,11 @@ func (s *OpenAIGatewayService) resolveOpenAIProfitControlGate(ctx context.Contex
 	deduction := group.ProfitMinMargin + group.ProfitSafetyBuffer
 	threshold := clampProfitControlThreshold(downstream * (1 - deduction))
 	return &openAIProfitControlGate{
-		groupID:   *groupID,
-		platform:  group.Platform,
-		threshold: threshold,
-		pricingAt: pricingAt,
+		groupID:    *groupID,
+		platform:   group.Platform,
+		downstream: downstream,
+		threshold:  threshold,
+		pricingAt:  pricingAt,
 	}
 }
 
@@ -312,7 +323,7 @@ func openAIProfitControlVetoReason(ctx context.Context, account *Account) (bool,
 		return true, openAIProfitFilterReasonInvalidAccountRate
 	}
 	upstream := *account.RateMultiplier
-	if profitControlOverThreshold(upstream, gate.threshold) {
+	if profitControlRejectsRate(upstream, gate.downstream, gate.threshold) {
 		openAIProfitControlObserverInstance.recordVeto(gate.groupID, gate.platform, gate.threshold, openAIProfitFilterReasonThreshold)
 		return true, openAIProfitFilterReasonThreshold
 	}
