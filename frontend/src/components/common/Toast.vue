@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <div
-      class="pointer-events-none fixed left-4 right-4 top-4 z-[9999] space-y-3 sm:left-auto sm:right-4"
+      class="pointer-events-none fixed left-3 right-3 top-3 z-[9999] space-y-3 sm:left-auto sm:right-4 sm:top-4"
       aria-live="polite"
       aria-atomic="true"
     >
@@ -17,12 +17,12 @@
           v-for="toast in toasts"
           :key="toast.id"
           :class="[
-            'ssxz-toast pointer-events-auto w-full max-w-md overflow-hidden sm:min-w-[320px]',
+            'ssxz-toast pointer-events-auto w-full max-w-[min(28rem,calc(100vw-1.5rem))] overflow-hidden sm:min-w-[320px]',
             getToastClass(toast.type)
           ]"
           :role="toast.type === 'error' ? 'alert' : 'status'"
         >
-          <div class="p-4">
+          <div class="max-h-[min(14rem,calc(100vh-2rem))] overflow-y-auto p-4 [overscroll-behavior:contain]">
             <div class="flex items-start gap-3">
               <!-- Icon -->
               <div class="mt-0.5 flex-shrink-0">
@@ -44,7 +44,7 @@
                 </p>
                 <p
                   :class="[
-                    'text-sm leading-relaxed',
+                  'break-words text-sm leading-relaxed',
                     toast.title || toast.subtitle
                       ? 'ssxz-toast-message mt-1'
                       : 'ssxz-toast-message'
@@ -57,7 +57,7 @@
               <!-- Close button -->
               <button
                 @click="removeToast(toast.id)"
-                class="ssxz-toast-close -m-1 flex-shrink-0 rounded p-1 transition-colors"
+                class="ssxz-toast-close -m-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded p-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/70"
                 aria-label="Close notification"
               >
                 <Icon name="x" size="sm" />
@@ -146,14 +146,14 @@ const removeToast = (id: string) => {
 .ssxz-toast {
   border: 1px solid var(--ssxz-border-strong);
   border-radius: var(--ssxz-radius-card);
-  background: color-mix(in srgb, var(--ssxz-surface-raised) 96%, transparent);
+  background: var(--ssxz-surface-raised);
   box-shadow: var(--ssxz-shadow);
   color: var(--ssxz-text);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(16px);
 }
 
 .ssxz-toast-success { border-color: color-mix(in srgb, var(--ssxz-success) 38%, var(--ssxz-border)); }
-.ssxz-toast-error { border-color: color-mix(in srgb, var(--ssxz-error) 42%, var(--ssxz-border)); }
+.ssxz-toast-error { border-color: color-mix(in srgb, var(--ssxz-error) 48%, var(--ssxz-border)); border-left-width: 3px; }
 .ssxz-toast-warning { border-color: color-mix(in srgb, var(--ssxz-warning) 40%, var(--ssxz-border)); }
 .ssxz-toast-info { border-color: color-mix(in srgb, var(--ssxz-accent) 34%, var(--ssxz-border)); }
 
