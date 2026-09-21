@@ -42,6 +42,7 @@ export default {
 
     // Proxies
     proxies: {
+      statusExpired: 'Expired',
       title: 'Proxy Management',
       description: 'Manage proxy servers for accounts',
       createProxy: 'Create Proxy',
@@ -329,6 +330,8 @@ export default {
       customExpiry: 'Custom',
       customExpiryDays: 'Custom days',
       expiryDaysRequired: 'Please enter a valid expiry day count',
+      expiryDateRequired: 'Please enter a valid expiry date and time',
+      localTimeZoneHint: 'Custom time is interpreted in your browser time zone ({timezone}).',
       groupRequired: 'Please select a subscription group',
       days: ' days',
       status: {
@@ -519,7 +522,9 @@ export default {
       account: 'Account',
       group: 'Group',
       requestId: 'Request ID',
+      upstreamRequestId: 'Upstream ID',
       requestIdCopied: 'Request ID copied',
+      upstreamRequestIdCopied: 'Upstream ID copied',
       allModels: 'All Models',
       allAccounts: 'All Accounts',
       allGroups: 'All Groups',

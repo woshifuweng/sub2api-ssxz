@@ -75,7 +75,7 @@
                 </h3>
                 <div class="mt-2 space-y-1 text-sm text-[var(--ssxz-text-secondary)]">
                   <p class="font-medium">
-                    {{ getRedeemResultMessage(redeemResult) }}
+                    {{ redeemResult.message || getRedeemResultMessage(redeemResult) }}
                   </p>
                   <p v-if="redeemResult.type === 'balance'" class="text-xs">
                     {{ t('redeem.balanceRefreshHint') }}
@@ -174,7 +174,7 @@
               type="button"
               data-testid="redeem-history-retry"
               class="btn btn-secondary btn-sm"
-              @click="fetchHistory"
+              @click="fetchHistory(1)"
             >
               {{ t('redeem.retryHistory') }}
             </button>
@@ -266,6 +266,30 @@
               {{ t('redeem.redeemButton') }}
             </a>
           </div>
+          <div class="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+            <span>{{ t('common.total') }}: {{ historyTotal }} {{ t('pagination.results') }}</span>
+            <label>
+              {{ t('pagination.perPage') }}
+              <select
+                v-model="historyPageSize"
+                class="input w-20"
+                :disabled="loadingHistory || submitting"
+                @change="fetchHistory(1)"
+              >
+                <option v-for="size in [20, 50, 100]" :key="size" :value="size">{{ size }}</option>
+              </select>
+            </label>
+            <button
+              class="btn btn-secondary"
+              :disabled="loadingHistory || submitting || historyPage <= 1"
+              @click="fetchHistory(historyPage - 1)"
+            >{{ t('pagination.previous') }}</button>
+            <button
+              class="btn btn-secondary"
+              :disabled="loadingHistory || submitting || historyPage * historyPageSize >= historyTotal"
+              @click="fetchHistory(historyPage + 1)"
+            >{{ t('pagination.next') }}</button>
+          </div>
         </div>
       </div>
     </div>
@@ -284,6 +308,7 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 import { extractApiErrorCode } from '@/utils/apiError'
+import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatDateTime } from '@/utils/format'
 
 const { t } = useI18n()
@@ -293,7 +318,7 @@ const appStore = useAppStore()
 const subscriptionStore = useSubscriptionStore()
 
 const user = computed(() => authStore.user)
-const useWorkbenchShell = computed(() => route.path === '/app/redeem')
+const useWorkbenchShell = computed(() => route?.path === '/app/redeem')
 const pageShell = computed(() => (useWorkbenchShell.value ? AppSectionShell : AppLayout))
 const pageShellProps = computed(() =>
   useWorkbenchShell.value
@@ -313,6 +338,11 @@ const errorMessage = ref('')
 const history = ref<RedeemHistoryItem[]>([])
 const loadingHistory = ref(false)
 const historyLoadFailed = ref(false)
+const historyPage = ref(1)
+const historyPageSize = ref(20)
+const loadedHistoryPageSize = ref(20)
+const historyTotal = ref(0)
+let historyRequest = 0
 const contactInfo = ref('')
 
 const redeemErrorKeyByReason: Record<string, string> = {
@@ -346,7 +376,7 @@ const getRedeemErrorMessage = (error: unknown) => {
     return t('redeem.errors.REDEEM_RATE_LIMITED')
   }
 
-  return t('redeem.failedToRedeem')
+  return extractApiErrorMessage(error, t('redeem.failedToRedeem'))
 }
 
 const isBalanceType = (type: string) => type === 'balance' || type === 'admin_balance'
@@ -397,17 +427,37 @@ const getRedeemResultMessage = (item: RedeemResult) => {
   return t('redeem.codeRedeemSuccess')
 }
 
-const fetchHistory = async () => {
+const fetchHistory = async (page = 1) => {
+  const request = ++historyRequest
+  const previousState = {
+    history: history.value,
+    historyPage: historyPage.value,
+    historyPageSize: loadedHistoryPageSize.value,
+    historyTotal: historyTotal.value,
+  }
+  const pageSize = historyPageSize.value
   loadingHistory.value = true
   historyLoadFailed.value = false
 
   try {
-    history.value = await redeemAPI.getHistory()
+    const result = await redeemAPI.getHistory(page, pageSize)
+    if (request !== historyRequest) return
+    history.value = result.items
+    historyTotal.value = result.total
+    historyPage.value = page
+    historyPageSize.value = pageSize
+    loadedHistoryPageSize.value = pageSize
   } catch {
-    history.value = []
-    historyLoadFailed.value = true
+    if (request !== historyRequest) return
+    history.value = previousState.history
+    historyPage.value = previousState.historyPage
+    historyPageSize.value = previousState.historyPageSize
+    loadedHistoryPageSize.value = previousState.historyPageSize
+    historyTotal.value = previousState.historyTotal
+    historyLoadFailed.value = previousState.history.length === 0 && previousState.historyTotal === 0
+    appStore.showError(t('redeem.historyLoadFailed'))
   } finally {
-    loadingHistory.value = false
+    if (request === historyRequest) loadingHistory.value = false
   }
 }
 
@@ -427,7 +477,13 @@ const handleRedeem = async () => {
     const result = await redeemAPI.redeem(code)
     redeemResult.value = result
 
-    await authStore.refreshUser()
+    try {
+      await authStore.refreshUser()
+    } catch {
+      // The redeem operation already succeeded; keep the result visible even
+      // when the profile refresh is temporarily unavailable.
+      appStore.showWarning(t('redeem.userRefreshFailed'))
+    }
 
     if (result.type === 'subscription') {
       try {

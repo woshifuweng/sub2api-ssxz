@@ -70,16 +70,35 @@
               />
               <Select
                 :model-value="filterGroupId"
+                :aria-label="t('keys.groupLabel')"
                 class="w-40"
                 :options="groupFilterOptions"
                 @update:model-value="onGroupFilterChange"
               />
               <Select
                 :model-value="filterStatus"
+                :aria-label="t('keys.statusLabel')"
                 class="w-40"
                 :options="statusFilterOptions"
                 @update:model-value="onStatusFilterChange"
               />
+            </div>
+            <div v-if="selectedIds.length" class="flex flex-wrap items-center gap-3 text-sm">
+              <span class="text-gray-600 dark:text-gray-300">
+                {{ t('keys.bulkEdit.selectedCount', { count: selectedIds.length }) }}
+              </span>
+              <LiquidButton
+                type="button"
+                size="sm"
+                :disabled="loading"
+                data-test="bulk-edit-keys"
+                @click="showBulkEditModal = true"
+              >
+                {{ t('keys.bulkEdit.title') }}
+              </LiquidButton>
+              <LiquidButton type="button" variant="outline" size="sm" @click="selectedIds = []">
+                {{ t('keys.bulkEdit.clearSelection') }}
+              </LiquidButton>
             </div>
           </div>
         </template>
@@ -90,6 +109,7 @@
               @click="loadApiKeys"
               :disabled="loading"
               :title="t('common.refresh')"
+              :aria-label="t('common.refresh')"
               variant="outline"
               size="icon"
             >
@@ -99,13 +119,14 @@
                 :class="loading ? 'animate-spin' : ''"
               />
             </LiquidButton>
-            <div ref="columnDropdownRef" class="relative">
+            <div ref="columnDropdownRef" class="relative" @keydown.esc.stop.prevent="closeColumnMenu">
               <LiquidButton
                 type="button"
                 data-testid="keys-column-settings-trigger"
                 :title="t('admin.users.columnSettings')"
                 :aria-label="t('admin.users.columnSettings')"
                 :aria-expanded="showColumnDropdown"
+                aria-controls="keys-column-menu"
                 @click.stop="showColumnDropdown = !showColumnDropdown"
                 variant="outline"
                 size="default"
@@ -116,15 +137,17 @@
               <div
                 v-if="showColumnDropdown"
                 class="keys-column-menu"
+                id="keys-column-menu"
                 data-testid="keys-column-settings-menu"
-                role="menu"
+                role="group"
+                :aria-label="t('keys.columnSettings')"
               >
                 <button
                   v-for="column in toggleableColumns"
                   :key="column.key"
                   type="button"
                   class="keys-column-menu__item"
-                  role="menuitemcheckbox"
+                  role="checkbox"
                   :data-column-key="column.key"
                   :aria-checked="isColumnVisible(column.key)"
                   @click="toggleColumn(column.key)"
@@ -141,7 +164,6 @@
             </div>
             <LiquidButton
               @click="openCreateModal"
-              :disabled="groups.length === 0"
               data-tour="keys-create-btn"
               :title="
                 groups.length === 0
@@ -164,7 +186,16 @@
             :class="`keys-data-table--optional-columns-${visibleOptionalColumnCount}`"
             :sticky-first-column="false"
             :sticky-actions-column="false"
+            :selectable="true"
+            :selected-keys="selectedIds"
+            :selection-label="(key) => t('keys.bulkEdit.selectKey', { name: key.name })"
+            @selection-change="handleSelectionChange"
+            :server-side-sort="true"
+            @sort="handleSort"
           >
+            <template #cell-id="{ value }">{{ value }}</template>
+            <template #cell-current_concurrency="{ value }">{{ value ?? 0 }}</template>
+            <template #cell-last_used_ip="{ value }">{{ value || '-' }}</template>
             <template #cell-name="{ value, row }">
               <div class="keys-name-key-cell" data-testid="keys-name-key-cell">
                 <div class="flex min-w-0 items-center gap-1.5">
@@ -258,7 +289,7 @@
 
             <template #cell-usage="{ row }">
               <div
-                class="keys-usage-cell"
+                class="keys-usage-cell keys-usage-cell--quota"
                 data-testid="keys-usage-cell"
                 :title="usageCellTitle(row)"
               >
@@ -464,8 +495,9 @@
                   v-if="!publicSettings?.hide_ccs_import_button"
                   type="button"
                   data-testid="api-key-ccs-import"
+                  :disabled="!resolveCcsImportPlatform(row)"
                   @click="importToCcswitch(row)"
-                  :title="t('keys.importToCcSwitch')"
+                  :title="resolveCcsImportPlatform(row) ? t('keys.importToCcSwitch') : t('keys.noGroupFound')"
                   :aria-label="t('keys.importToCcSwitch')"
                   class="keys-action-button"
                   variant="plain"
@@ -564,12 +596,15 @@
       :show="showCreateModal || showEditModal"
       :title="showEditModal ? t('keys.editKey') : t('keys.createKey')"
       width="normal"
+      :close-on-escape="!submitting"
       @close="closeModals"
     >
       <form id="key-form" @submit.prevent="handleSubmit" class="space-y-5">
+        <fieldset :disabled="submitting" class="space-y-5">
         <div>
-          <label class="input-label">{{ t("keys.nameLabel") }}</label>
+          <label for="key-name" class="input-label">{{ t("keys.nameLabel") }}</label>
           <input
+            id="key-name"
             v-model="formData.name"
             type="text"
             required
@@ -579,8 +614,56 @@
           />
         </div>
 
+        <fieldset v-if="!showEditModal" data-tour="key-form-provider">
+          <legend class="input-label">{{ t('keys.providerLabel') }}</legend>
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <label
+              v-for="provider in createProviderOptions"
+              :key="provider.value"
+              class="relative min-w-0"
+              :class="provider.count === 0 ? 'cursor-not-allowed' : 'cursor-pointer'"
+            >
+              <input
+                type="radio"
+                name="key-provider"
+                :value="provider.value"
+                :checked="createProvider === provider.value"
+                :disabled="provider.count === 0"
+                class="peer sr-only"
+                @change="selectCreateProvider(provider.value)"
+              />
+              <span
+                class="flex h-full flex-col items-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-3 text-center transition-colors peer-checked:border-primary-500 peer-checked:bg-primary-50/60 peer-checked:ring-1 peer-checked:ring-primary-500 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary-500 peer-disabled:opacity-40 dark:border-dark-600 dark:bg-dark-800 dark:peer-checked:border-primary-500 dark:peer-checked:bg-primary-500/10"
+                :class="provider.count > 0 && 'hover:border-primary-300 dark:hover:border-primary-700'"
+              >
+                <span class="flex h-8 items-center justify-center gap-1.5" aria-hidden="true">
+                  <span
+                    v-for="platform in KEY_GROUP_PROVIDER_ICONS[provider.value]"
+                    :key="platform"
+                    class="flex h-8 w-8 items-center justify-center rounded-lg"
+                    :class="platformBadgeLightClass(platform)"
+                  >
+                    <PlatformIcon :platform="platform" size="lg" />
+                  </span>
+                </span>
+                <span class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ provider.label }}</span>
+              </span>
+              <span
+                v-if="createProvider === provider.value"
+                class="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary-500 text-white"
+                aria-hidden="true"
+              >
+                <Icon name="check" size="xs" :stroke-width="3" />
+              </span>
+            </label>
+          </div>
+          <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400" aria-live="polite">
+            {{ groups.length === 0 ? t('common.noGroupsAvailable') : t(`keys.providerHints.${createProvider}`) }}
+          </p>
+        </fieldset>
+
         <div>
-          <label class="input-label">{{ t("keys.groupLabel") }}</label>
+          <label for="key-primary-group" class="input-label">{{ t("keys.groupLabel") }}</label>
           <p class="mb-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
             {{ t("keys.groupClientHint") }}
           </p>
@@ -592,12 +675,15 @@
             {{ t("keys.noAvailableGroups") }}
           </div>
           <Select
-            v-else
+            id="key-primary-group"
+            :aria-label="t('keys.groupLabel')"
             :model-value="selectedFormGroupId"
-            :options="groupOptions"
+            :options="formGroupOptions"
+            :disabled="groups.length === 0"
             :placeholder="t('keys.selectGroup')"
             :search-placeholder="t('keys.searchGroup')"
             searchable
+            clearable
             data-tour="key-form-group"
             data-testid="key-form-group-select"
             @update:model-value="selectFormGroup"
@@ -685,6 +771,25 @@
               </div>
             </template>
           </Select>
+          <details v-if="formData.group_ids.length" class="mt-3 rounded-lg border border-gray-200 p-3 dark:border-dark-600">
+            <summary class="cursor-pointer text-sm font-medium">
+              {{ t('keys.groupLabel') }} ({{ formData.group_ids.length }})
+            </summary>
+            <div class="mt-2 max-h-48 space-y-2 overflow-y-auto">
+              <label v-for="group in groupOptions" :key="group.value" class="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  class="checkbox"
+                  :checked="formData.group_ids.includes(group.value)"
+                  :disabled="!formData.group_ids.includes(group.value) && !isCompatibleGroupSelection([...formData.group_ids, group.value])"
+                  :data-test="`key-group-${group.value}`"
+                  @change="toggleFormGroup(group.value)"
+                />
+                <span>{{ group.label }}</span>
+                <span class="text-gray-500">{{ formatGroupRate(group) }}x</span>
+              </label>
+            </div>
+          </details>
         </div>
 
         <div class="space-y-3">
@@ -730,6 +835,7 @@
           <div v-if="formData.use_custom_key">
             <input
               v-model="formData.custom_key"
+              :aria-label="t('keys.customKeyLabel')"
               type="text"
               class="input font-mono"
               :placeholder="t('keys.customKeyPlaceholder')"
@@ -746,6 +852,8 @@
           <label class="input-label">{{ t("keys.statusLabel") }}</label>
           <Select
             v-model="formData.status"
+            @update:model-value="statusEdited = true"
+            :aria-label="t('keys.statusLabel')"
             :options="statusOptions"
             :placeholder="t('keys.selectStatus')"
           />
@@ -765,6 +873,7 @@
               <label class="input-label">{{ t("keys.ipWhitelist") }}</label>
               <textarea
                 v-model="formData.ip_whitelist"
+                :aria-label="t('keys.ipWhitelist')"
                 rows="3"
                 class="input font-mono text-sm"
                 :placeholder="t('keys.ipWhitelistPlaceholder')"
@@ -776,6 +885,7 @@
               <label class="input-label">{{ t("keys.ipBlacklist") }}</label>
               <textarea
                 v-model="formData.ip_blacklist"
+                :aria-label="t('keys.ipBlacklist')"
                 rows="3"
                 class="input font-mono text-sm"
                 :placeholder="t('keys.ipBlacklistPlaceholder')"
@@ -798,6 +908,7 @@
                 >
                 <input
                   v-model.number="formData.quota"
+                  :aria-label="t('keys.quotaLimit')"
                   type="number"
                   step="0.01"
                   min="0"
@@ -862,6 +973,7 @@
                 >
                 <input
                   v-model.number="formData.rate_limit_5h"
+                  :aria-label="t('keys.rateLimit5h')"
                   type="number"
                   step="0.01"
                   min="0"
@@ -936,6 +1048,7 @@
                 >
                 <input
                   v-model.number="formData.rate_limit_1d"
+                  :aria-label="t('keys.rateLimit1d')"
                   type="number"
                   step="0.01"
                   min="0"
@@ -1010,6 +1123,7 @@
                 >
                 <input
                   v-model.number="formData.rate_limit_7d"
+                  :aria-label="t('keys.rateLimit7d')"
                   type="number"
                   step="0.01"
                   min="0"
@@ -1148,6 +1262,7 @@
               <label class="input-label">{{ t("keys.expirationDate") }}</label>
               <input
                 v-model="formData.expiration_date"
+                :aria-label="t('keys.expirationDate')"
                 type="datetime-local"
                 class="input"
               />
@@ -1168,11 +1283,13 @@
             </div>
           </div>
         </div>
+        </fieldset>
       </form>
       <template #footer>
         <div class="flex justify-end gap-3">
           <LiquidButton
             @click="closeModals"
+            :disabled="submitting"
             type="button"
             variant="outline"
             size="sm"
@@ -1182,7 +1299,7 @@
           <LiquidButton
             form="key-form"
             type="submit"
-            :disabled="submitting || formData.group_ids.length === 0"
+            :disabled="submitting || !isCompatibleGroupSelection(formData.group_ids)"
             data-tour="key-form-submit"
             size="default"
           >
@@ -1451,6 +1568,14 @@
       </template>
     </BaseDialog>
 
+    <BulkEditKeysModal
+      :show="showBulkEditModal"
+      :selected-keys="selectedApiKeys"
+      :groups="groups"
+      @close="showBulkEditModal = false"
+      @updated="handleBulkUpdated"
+    />
+
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog
       :show="showDeleteDialog"
@@ -1718,6 +1843,7 @@ import Select from "@/components/common/Select.vue";
 import SearchInput from "@/components/common/SearchInput.vue";
 import Icon from "@/components/icons/Icon.vue";
 import UseKeyModal from "@/components/keys/UseKeyModal.vue";
+import BulkEditKeysModal from "@/components/keys/BulkEditKeysModal.vue";
 import GroupBadge from "@/components/common/GroupBadge.vue";
 import GroupOptionItem from "@/components/common/GroupOptionItem.vue";
 import PlatformIcon from "@/components/common/PlatformIcon.vue";
@@ -1731,6 +1857,13 @@ import {
   formatDateTime,
 } from "@/utils/format";
 import { DEFAULT_SITE_NAME, normalizeSiteName } from "@/utils/brand";
+import { platformBadgeLightClass } from "@/utils/platformColors";
+import {
+  KEY_GROUP_PROVIDERS,
+  KEY_GROUP_PROVIDER_ICONS,
+  getKeyGroupProvider,
+  type KeyGroupProvider,
+} from "@/utils/keyGroupProviders";
 
 // Helper to format date for datetime-local input
 const formatDateTimeLocal = (isoDate: string): string => {
@@ -1759,6 +1892,7 @@ const pageShellProps = computed(() =>
 );
 
 const allColumns = computed<Column[]>(() => [
+  { key: "id", label: t("keys.id"), sortable: true, class: "keys-col-id" },
   {
     key: "name",
     label: `${t("common.name")} / ${t("keys.apiKey")}`,
@@ -1766,6 +1900,7 @@ const allColumns = computed<Column[]>(() => [
     class: "keys-col-name",
   },
   { key: "group", label: t("keys.group"), sortable: false, class: "keys-col-group" },
+  { key: "current_concurrency", label: t("keys.currentConcurrency"), sortable: true, class: "keys-col-concurrency" },
   { key: "usage", label: t("keys.usage"), sortable: false, class: "keys-col-usage" },
   { key: "rate_limit", label: t("keys.rateLimitColumn"), sortable: false, class: "keys-col-rate" },
   {
@@ -1781,6 +1916,7 @@ const allColumns = computed<Column[]>(() => [
     class: "keys-col-expires",
   },
   { key: "last_used_at", label: t("keys.lastUsedAt"), sortable: true, class: "keys-col-last-used" },
+  { key: "last_used_ip", label: t("keys.lastUsedIP"), sortable: false, class: "keys-col-last-ip" },
   { key: "created_at", label: t("keys.created"), sortable: true, class: "keys-col-created" },
   {
     key: "actions",
@@ -1794,6 +1930,9 @@ const OPTIONAL_COLUMN_KEYS = [
   "rate_limit",
   "expires_at",
   "last_used_at",
+  "id",
+  "current_concurrency",
+  "last_used_ip",
 ] as const;
 const DEFAULT_HIDDEN_COLUMNS = [...OPTIONAL_COLUMN_KEYS];
 const HIDDEN_COLUMNS_STORAGE_KEY_V1 = "ssxz-api-key-hidden-columns-v1";
@@ -1901,11 +2040,28 @@ const toggleColumn = (key: string) => {
 const isColumnVisible = (key: string) => !hiddenColumns.has(key);
 
 const apiKeys = ref<ApiKey[]>([]);
+const selectedIds = ref<number[]>([]);
+const showBulkEditModal = ref(false);
+const selectedApiKeys = computed(() => apiKeys.value.filter((key) => selectedIds.value.includes(key.id)));
+
+const handleSelectionChange = (ids: Array<string | number>) => {
+  if (loading.value) return;
+  const visibleIds = new Set(apiKeys.value.map((key) => key.id));
+  selectedIds.value = [...new Set(ids.map(Number))].filter((id) => visibleIds.has(id));
+};
+
+const handleBulkUpdated = (succeededIds: number[]) => {
+  const succeeded = new Set(succeededIds);
+  selectedIds.value = selectedIds.value.filter((id) => !succeeded.has(id));
+  void loadApiKeys();
+};
 const groups = ref<Group[]>([]);
 const loading = ref(false);
 const submitting = ref(false);
 const now = ref(new Date());
 let resetTimer: ReturnType<typeof setInterval> | null = null;
+let disposed = false;
+let keyCopyTimer: ReturnType<typeof setTimeout> | null = null;
 let createdKeyCopyTimer: ReturnType<typeof setTimeout> | null = null;
 let baseUrlCopyTimer: ReturnType<typeof setTimeout> | null = null;
 let baseUrlRootCopyTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1925,6 +2081,7 @@ const pagination = ref({
 const filterSearch = ref("");
 const filterStatus = ref("");
 const filterGroupId = ref<string | number>("");
+const sortState = ref({ sort_by: "created_at", sort_order: "desc" as "asc" | "desc" });
 
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
@@ -1933,6 +2090,7 @@ const showStatusDialog = ref(false);
 const showResetQuotaDialog = ref(false);
 const showResetRateLimitDialog = ref(false);
 const showUseKeyModal = ref(false);
+let useKeyRequestId = 0;
 const useKeyPlaintext = ref("");
 const showCcsClientSelect = ref(false);
 const pendingCcsRow = ref<ApiKey | null>(null);
@@ -1955,6 +2113,10 @@ const publicSettings = ref<PublicSettings | null>(null);
 const dropdownRef = ref<HTMLElement | null>(null);
 const columnDropdownRef = ref<HTMLElement | null>(null);
 const showColumnDropdown = ref(false);
+const closeColumnMenu = () => {
+  showColumnDropdown.value = false;
+  columnDropdownRef.value?.querySelector<HTMLButtonElement>('[data-testid="keys-column-settings-trigger"]')?.focus();
+};
 const dropdownPosition = ref<{
   top?: number;
   bottom?: number;
@@ -2120,13 +2282,10 @@ const formData = ref({
   expiration_preset: "30" as "7" | "30" | "90" | "custom",
   expiration_date: "",
 });
-
-const getDefaultCreateGroupIds = (): number[] => {
-  const firstGroup = groups.value[0];
-  return firstGroup ? [firstGroup.id] : [];
-};
+const statusEdited = ref(false);
 
 const resetFormData = (groupIds: number[] = []) => {
+  statusEdited.value = false;
   formData.value = {
     name: "",
     group_ids: groupIds,
@@ -2152,7 +2311,10 @@ const resetFormData = (groupIds: number[] = []) => {
 
 const openCreateModal = () => {
   selectedKey.value = null;
-  resetFormData(getDefaultCreateGroupIds());
+  createProvider.value = groups.value.length
+    ? getKeyGroupProvider(groups.value[0].platform)
+    : "anthropic";
+  resetFormData();
   showCreateModal.value = true;
 };
 
@@ -2263,6 +2425,7 @@ const statusFilterOptions = computed(() => [
 ]);
 
 const onFilterChange = () => {
+  selectedIds.value = [];
   pagination.value.page = 1;
   loadApiKeys();
 };
@@ -2290,10 +2453,69 @@ const groupOptions = computed<GroupSelectOption[]>(() =>
   })),
 );
 
+const createProvider = ref<KeyGroupProvider>("anthropic");
+const createProviderOptions = computed(() =>
+  KEY_GROUP_PROVIDERS.map((value) => ({
+    value,
+    label: t(`keys.providers.${value}`),
+    count: groups.value.filter(
+      (group) => getKeyGroupProvider(group.platform) === value,
+    ).length,
+  })),
+);
+// Mirror validateAPIKeyGroups: bindable active groups, and for multiple groups,
+// only standard groups from one platform. Provider categories are not platforms.
+const isCompatibleGroupSelection = (ids: number[]) => {
+  if (ids.length === 0) return false;
+  const selectedGroups = ids.map((id) => groups.value.find((group) => group.id === id));
+  if (selectedGroups.some((group) => !group || group.status !== "active")) return false;
+  return ids.length === 1 || selectedGroups.every((group) =>
+    group?.subscription_type === "standard" && group.platform === selectedGroups[0]?.platform,
+  );
+};
+const primaryGroupSelection = (id: number) => [...new Set([id, ...formData.value.group_ids.slice(1)])];
+const formGroupOptions = computed(() =>
+  (showEditModal.value
+    ? groupOptions.value
+    : groupOptions.value.filter(
+        (group) => getKeyGroupProvider(group.platform) === createProvider.value,
+      )).map((group) => ({
+        ...group,
+        disabled: !isCompatibleGroupSelection(primaryGroupSelection(group.value)),
+      })),
+);
+const selectCreateProvider = (provider: KeyGroupProvider) => {
+  if (submitting.value) return;
+  createProvider.value = provider;
+  if (
+    !formGroupOptions.value.some(
+      (group) => group.value === formData.value.group_ids[0],
+    )
+  ) {
+    formData.value.group_ids = [];
+  }
+};
+
 const selectedFormGroupId = computed(() => formData.value.group_ids[0] ?? null);
 
 const selectFormGroup = (value: string | number | boolean | null) => {
-  formData.value.group_ids = typeof value === "number" ? [value] : [];
+  if (submitting.value) return;
+  if (typeof value !== "number") {
+    formData.value.group_ids = [];
+    return;
+  }
+  const ids = primaryGroupSelection(value);
+  if (isCompatibleGroupSelection(ids)) formData.value.group_ids = ids;
+};
+
+const toggleFormGroup = (id: number) => {
+  if (submitting.value) return;
+  const ids = formData.value.group_ids;
+  if (ids.includes(id)) {
+    formData.value.group_ids = ids.filter((value) => value !== id);
+  } else if (isCompatibleGroupSelection([...ids, id])) {
+    formData.value.group_ids = [...ids, id];
+  }
 };
 
 const selectedGroupPlatforms = computed(() => {
@@ -2329,7 +2551,7 @@ const isMaskedApiKey = (key?: string | null): boolean => {
   return key === "[redacted]" || key.includes("...");
 };
 
-type CcsImportPlatform = "openai" | "gemini" | "anthropic" | "antigravity";
+type CcsImportPlatform = "openai" | "gemini" | "anthropic" | "antigravity" | "grok";
 
 const CCS_CLAUDE_MODELS = {
   fable: "claude-fable-5",
@@ -2346,6 +2568,7 @@ const normalizeCcsImportPlatform = (
     platform === "openai" ||
     platform === "gemini" ||
     platform === "anthropic" ||
+    platform === "grok" ||
     platform === "antigravity"
   ) {
     return platform;
@@ -2354,12 +2577,8 @@ const normalizeCcsImportPlatform = (
 };
 
 const resolveCcsImportPlatform = (row: ApiKey): CcsImportPlatform | null => {
-  const candidates = [
-    normalizeCcsImportPlatform(row.group?.platform),
-    ...(row.groups || []).map((group) =>
-      normalizeCcsImportPlatform(group.platform),
-    ),
-  ].filter((platform): platform is CcsImportPlatform => Boolean(platform));
+  const candidates = keyGroups(row).map((group) => normalizeCcsImportPlatform(group.platform));
+  if (candidates.some((platform) => platform === null)) return null;
   const uniquePlatforms = Array.from(new Set(candidates));
   return uniquePlatforms.length === 1 ? uniquePlatforms[0] : null;
 };
@@ -2369,24 +2588,26 @@ const resolvePlaintextApiKey = async (row: ApiKey): Promise<string | null> => {
 
   try {
     const revealed = await keysAPI.reveal(row.id);
+    if (disposed) return null;
     if (!revealed.key || isMaskedApiKey(revealed.key)) {
       throw new Error("API key reveal returned no plaintext key");
     }
     return revealed.key;
   } catch {
-    appStore.showError(t("keys.failedToReveal"));
+    if (!disposed) appStore.showError(t("keys.failedToReveal"));
     return null;
   }
 };
 
 const copyToClipboard = async (row: ApiKey) => {
   const plaintextKey = await resolvePlaintextApiKey(row);
-  if (!plaintextKey) return;
+  if (!plaintextKey || disposed) return;
 
   const success = await clipboardCopy(plaintextKey, t("keys.copied"));
-  if (success) {
+  if (success && !disposed) {
     copiedKeyId.value = row.id;
-    setTimeout(() => {
+    if (keyCopyTimer) clearTimeout(keyCopyTimer);
+    keyCopyTimer = setTimeout(() => {
       copiedKeyId.value = null;
     }, 800);
   }
@@ -2400,7 +2621,7 @@ const copyCreatedKey = async () => {
     key,
     t("keys.createdKeyReveal.fullKeyCopied"),
   );
-  if (success) {
+  if (success && !disposed) {
     createdKeyCopied.value = true;
     if (createdKeyCopyTimer) clearTimeout(createdKeyCopyTimer);
     createdKeyCopyTimer = setTimeout(() => {
@@ -2415,7 +2636,7 @@ const copyBaseUrl = async () => {
     openAICompatibleBaseUrl.value,
     t("keys.workbenchGuide.baseUrlCopied"),
   );
-  if (success) {
+  if (success && !disposed) {
     baseUrlCopied.value = true;
     if (baseUrlCopyTimer) clearTimeout(baseUrlCopyTimer);
     baseUrlCopyTimer = setTimeout(() => {
@@ -2430,7 +2651,7 @@ const copyBaseUrlRoot = async () => {
     apiBaseRoot.value,
     t("keys.workbenchGuide.baseUrlRootCopied"),
   );
-  if (success) {
+  if (success && !disposed) {
     baseUrlRootCopied.value = true;
     if (baseUrlRootCopyTimer) clearTimeout(baseUrlRootCopyTimer);
     baseUrlRootCopyTimer = setTimeout(() => {
@@ -2448,7 +2669,7 @@ const copyCreatedKeyExample = async () => {
     text,
     t("keys.createdKeyReveal.quickStart.exampleCopied"),
   );
-  if (success) {
+  if (success && !disposed) {
     createdKeyExampleCopied.value = true;
     if (createdKeyExampleCopyTimer) clearTimeout(createdKeyExampleCopyTimer);
     createdKeyExampleCopyTimer = setTimeout(() => {
@@ -2480,6 +2701,7 @@ const isAbortError = (error: unknown) => {
 };
 
 const loadApiKeys = async () => {
+  if (disposed) return;
   abortController?.abort();
   const controller = new AbortController();
   abortController = controller;
@@ -2491,7 +2713,9 @@ const loadApiKeys = async () => {
       search?: string;
       status?: string;
       group_id?: number | string;
-    } = {};
+      sort_by: string;
+      sort_order: 'asc' | 'desc';
+    } = { ...sortState.value };
     if (filterSearch.value) filters.search = filterSearch.value;
     if (filterStatus.value) filters.status = filterStatus.value;
     if (filterGroupId.value !== "") filters.group_id = filterGroupId.value;
@@ -2506,6 +2730,9 @@ const loadApiKeys = async () => {
     );
     if (signal.aborted) return;
     apiKeys.value = response.items;
+    const visibleIds = new Set(response.items.map((key) => key.id));
+    selectedIds.value = selectedIds.value.filter((id) => visibleIds.has(id));
+    usageStats.value = {};
     pagination.value.total = response.total;
     pagination.value.pages = response.pages;
 
@@ -2520,12 +2747,12 @@ const loadApiKeys = async () => {
         usageStats.value = usageResponse.stats ?? {};
       } catch (e) {
         if (!isAbortError(e)) {
-          console.error("Failed to load usage stats:", e);
+          if (!signal.aborted) appStore.showError(t("keys.failedToLoad"));
         }
       }
     }
   } catch (error) {
-    if (isAbortError(error)) {
+    if (signal.aborted || isAbortError(error)) {
       return;
     }
     appStore.showError(t("keys.failedToLoad"));
@@ -2538,72 +2765,83 @@ const loadApiKeys = async () => {
 
 const loadGroups = async () => {
   try {
-    groups.value = await userGroupsAPI.getAvailable();
-    if (
-      showCreateModal.value &&
-      !showEditModal.value &&
-      formData.value.group_ids.length === 0
-    ) {
-      formData.value.group_ids = getDefaultCreateGroupIds();
+    const available = await userGroupsAPI.getAvailable();
+    if (disposed) return;
+    groups.value = available;
+    if (showCreateModal.value && !showEditModal.value && groups.value.length > 0) {
+      createProvider.value = getKeyGroupProvider(groups.value[0].platform);
     }
   } catch (error) {
-    console.error("Failed to load groups:", error);
+    if (!disposed) appStore.showError(t("keys.failedToLoad"));
   }
 };
 
 const loadUserGroupRates = async () => {
   try {
-    userGroupRates.value = await userGroupsAPI.getUserGroupRates();
+    const rates = await userGroupsAPI.getUserGroupRates();
+    if (!disposed) userGroupRates.value = rates;
   } catch (error) {
-    console.error("Failed to load user group rates:", error);
+    if (!disposed) appStore.showError(t("keys.failedToLoad"));
   }
 };
 
 const loadPublicSettings = async () => {
   try {
-    publicSettings.value = await authAPI.getPublicSettings();
+    const settings = await authAPI.getPublicSettings();
+    if (!disposed) publicSettings.value = settings;
   } catch (error) {
-    console.error("Failed to load public settings:", error);
+    if (!disposed) appStore.showError(t("keys.failedToLoad"));
   }
 };
 
 const openUseKeyModal = async (key: ApiKey) => {
+  const requestId = ++useKeyRequestId;
   selectedKey.value = key;
   useKeyPlaintext.value = "";
   showUseKeyModal.value = true;
   // Resolve plaintext async; guard against stale updates if modal was closed or key changed
   const plaintext = await resolvePlaintextApiKey(key);
-  if (plaintext && showUseKeyModal.value && selectedKey.value?.id === key.id) {
+  if (!disposed && requestId === useKeyRequestId && plaintext && showUseKeyModal.value && selectedKey.value?.id === key.id) {
     useKeyPlaintext.value = plaintext;
   }
 };
 
 const closeUseKeyModal = () => {
+  useKeyRequestId++;
   showUseKeyModal.value = false;
   selectedKey.value = null;
   useKeyPlaintext.value = "";
 };
 
 const handlePageChange = (page: number) => {
+  selectedIds.value = [];
   pagination.value.page = page;
   loadApiKeys();
 };
 
 const handlePageSizeChange = (pageSize: number) => {
+  selectedIds.value = [];
   pagination.value.page_size = pageSize;
   pagination.value.page = 1;
   loadApiKeys();
 };
 
+const handleSort = (key: string, order: "asc" | "desc") => {
+  sortState.value = { sort_by: key, sort_order: order };
+  onFilterChange();
+};
+
 const editKey = (key: ApiKey) => {
+  statusEdited.value = false;
   selectedKey.value = key;
   const hasIPRestriction =
     key.ip_whitelist?.length > 0 || key.ip_blacklist?.length > 0;
   const hasExpiration = !!key.expires_at;
-  const selectedGroupId = key.group_id ?? key.group_ids?.[0] ?? null;
+  const groupIds = key.group_ids?.length ? key.group_ids : key.groups?.length
+    ? key.groups.map((group) => group.id) : key.group_id == null ? [] : [key.group_id];
   formData.value = {
     name: key.name,
-    group_ids: selectedGroupId === null ? [] : [selectedGroupId],
+    group_ids: [...groupIds],
     enable_model_restriction: (key.allowed_models?.length || 0) > 0,
     allowed_models: [...(key.allowed_models || [])],
     status:
@@ -2644,12 +2882,13 @@ const cancelToggleKeyStatus = () => {
 
 const handleToggleKeyStatus = async () => {
   const action = pendingStatusAction.value;
-  if (!action) return;
+  if (!action || statusUpdatingKeyId.value !== null || disposed) return;
 
   showStatusDialog.value = false;
   statusUpdatingKeyId.value = action.key.id;
   try {
     await keysAPI.toggleStatus(action.key.id, action.status);
+    if (disposed) return;
     appStore.showSuccess(
       action.status === "active"
         ? t("keys.keyEnabledSuccess")
@@ -2657,7 +2896,7 @@ const handleToggleKeyStatus = async () => {
     );
     loadApiKeys();
   } catch (error) {
-    appStore.showError(t("keys.failedToUpdateStatus"));
+    if (!disposed) appStore.showError(t("keys.failedToUpdateStatus"));
   } finally {
     statusUpdatingKeyId.value = null;
     pendingStatusAction.value = null;
@@ -2712,9 +2951,9 @@ function createApiKeyCreateIdempotencyKey() {
 }
 
 const handleSubmit = async () => {
-  if (submitting.value) return;
+  if (submitting.value || disposed || (!showCreateModal.value && !showEditModal.value)) return;
 
-  if (formData.value.group_ids.length === 0) {
+  if (!isCompatibleGroupSelection(formData.value.group_ids)) {
     appStore.showError(t("keys.groupRequired"));
     return;
   }
@@ -2804,7 +3043,8 @@ const handleSubmit = async () => {
         group_id: formData.value.group_ids[0] ?? null,
         group_ids: formData.value.group_ids,
         allowed_models: allowedModels,
-        status: formData.value.status,
+        ...((selectedKey.value.status === "expired" || selectedKey.value.status === "quota_exhausted") && formData.value.status !== "active" && !statusEdited.value
+          ? {} : { status: formData.value.status }),
         ip_whitelist: ipWhitelist,
         ip_blacklist: ipBlacklist,
         quota: quota,
@@ -2813,6 +3053,7 @@ const handleSubmit = async () => {
         rate_limit_1d: rateLimitData.rate_limit_1d,
         rate_limit_7d: rateLimitData.rate_limit_7d,
       });
+      if (disposed) return;
       appStore.showSuccess(t("keys.keyUpdatedSuccess"));
     } else {
       const customKey = formData.value.use_custom_key
@@ -2831,6 +3072,7 @@ const handleSubmit = async () => {
         rateLimitData,
         { idempotencyKey: createApiKeyCreateIdempotencyKey() },
       );
+      if (disposed) return;
       if (createdKey?.key) {
         createdKeyToReveal.value = createdKey;
       }
@@ -2840,10 +3082,12 @@ const handleSubmit = async () => {
         onboardingStore.nextStep(500);
       }
     }
+    submitting.value = false;
     closeModals();
     loadApiKeys();
   } catch (error: any) {
-    const errorMsg = error.response?.data?.detail || t("keys.failedToSave");
+    if (disposed) return;
+    const errorMsg = error?.response?.data?.detail || t("keys.failedToSave");
     appStore.showError(errorMsg);
     // Don't advance tour on error
   } finally {
@@ -2872,6 +3116,7 @@ const handleDelete = async () => {
 };
 
 const closeModals = () => {
+  if (submitting.value) return;
   showCreateModal.value = false;
   showEditModal.value = false;
   selectedKey.value = null;
@@ -2897,18 +3142,24 @@ const resetQuotaUsed = async () => {
   const keyId = selectedKey.value.id;
   showResetQuotaDialog.value = false;
   try {
-    await keysAPI.update(keyId, { reset_quota: true });
+    const updatedKey = await keysAPI.update(keyId, { reset_quota: true });
+    if (disposed) return;
+    if (selectedKey.value?.id === keyId && showEditModal.value) {
+      selectedKey.value = updatedKey;
+      if (!statusEdited.value) formData.value.status = updatedKey.status === "active" ? "active" : "inactive";
+    }
     appStore.showSuccess(t("keys.quotaResetSuccess"));
     // Refresh key data so backend-calculated status and quota fields stay authoritative.
     await loadApiKeys();
     const refreshedKey = apiKeys.value.find((k) => k.id === keyId);
-    if (refreshedKey) {
+    if (refreshedKey && selectedKey.value?.id === keyId && showEditModal.value) {
       selectedKey.value = refreshedKey;
+      if (!statusEdited.value) formData.value.status = refreshedKey.status === "active" ? "active" : "inactive";
     }
   } catch (error: any) {
     const errorMsg =
-      error.response?.data?.detail || t("keys.failedToResetQuota");
-    appStore.showError(errorMsg);
+      error?.response?.data?.detail || t("keys.failedToResetQuota");
+    if (!disposed) appStore.showError(errorMsg);
   }
 };
 
@@ -2926,25 +3177,27 @@ const confirmResetRateLimitFromTable = (row: ApiKey) => {
 // Reset rate limit usage for an API key
 const resetRateLimitUsage = async () => {
   if (!selectedKey.value) return;
+  const keyId = selectedKey.value.id;
   showResetRateLimitDialog.value = false;
   try {
-    await keysAPI.update(selectedKey.value.id, {
+    await keysAPI.update(keyId, {
       reset_rate_limit_usage: true,
     });
+    if (disposed) return;
     appStore.showSuccess(t("keys.rateLimitResetSuccess"));
     // Refresh key data
     await loadApiKeys();
     // Update the editing key with fresh data
     const refreshedKey = apiKeys.value.find(
-      (k) => k.id === selectedKey.value!.id,
+      (k) => k.id === keyId,
     );
-    if (refreshedKey) {
+    if (refreshedKey && selectedKey.value?.id === keyId && showEditModal.value) {
       selectedKey.value = refreshedKey;
     }
   } catch (error: any) {
     const errorMsg =
-      error.response?.data?.detail || t("keys.failedToResetRateLimit");
-    appStore.showError(errorMsg);
+      error?.response?.data?.detail || t("keys.failedToResetRateLimit");
+    if (!disposed) appStore.showError(errorMsg);
   }
 };
 
@@ -2956,7 +3209,7 @@ const importToCcswitch = async (row: ApiKey) => {
   }
 
   const plaintextKey = await resolvePlaintextApiKey(row);
-  if (!plaintextKey) return;
+  if (!plaintextKey || disposed) return;
   const importRow = { ...row, key: plaintextKey };
 
   // For antigravity platform, show client selection dialog
@@ -2978,6 +3231,8 @@ const resolveCcsDefaultModel = (
   const preferred =
     platform === "openai"
       ? "gpt-5.5"
+      : platform === "grok"
+        ? "grok-4.5"
       : platform === "anthropic" ||
           (platform === "antigravity" && clientType === "claude")
         ? CCS_CLAUDE_MODELS.fable
@@ -3054,6 +3309,10 @@ const executeCcsImport = (row: ApiKey, clientType: "claude" | "gemini") => {
     endpoint = `${baseUrl}/antigravity`;
   } else {
     switch (platform) {
+      case "grok":
+        app = "grokbuild";
+        endpoint = openAICompatibleBaseUrl.value;
+        break;
       case "openai":
         app = "codex";
         endpoint = openAICompatibleBaseUrl.value;
@@ -3256,6 +3515,12 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  disposed = true;
+  abortController?.abort();
+  closeUseKeyModal();
+  closeCcsClientSelect();
+  createdKeyToReveal.value = null;
+  if (keyCopyTimer) clearTimeout(keyCopyTimer);
   document.removeEventListener("click", closeGroupSelector);
   if (resetTimer) clearInterval(resetTimer);
   if (createdKeyCopyTimer) clearTimeout(createdKeyCopyTimer);
@@ -3448,6 +3713,10 @@ onUnmounted(() => {
   min-width: 99rem;
 }
 
+.keys-page-surface--workbench :deep(.keys-data-table--optional-columns-4 table) { min-width: 109rem; }
+.keys-page-surface--workbench :deep(.keys-data-table--optional-columns-5 table) { min-width: 119rem; }
+.keys-page-surface--workbench :deep(.keys-data-table--optional-columns-6 table) { min-width: 129rem; }
+
 .keys-page-surface--workbench :deep(.table-scroll-container .table-wrapper) {
   max-height: none;
   overflow-x: auto;
@@ -3479,6 +3748,9 @@ onUnmounted(() => {
 .keys-page-surface--workbench :deep(.keys-col-status) { width: 9rem; }
 .keys-page-surface--workbench :deep(.keys-col-expires) { width: 9.5rem; }
 .keys-page-surface--workbench :deep(.keys-col-last-used) { width: 10rem; }
+.keys-page-surface--workbench :deep(.keys-col-id) { width: 5rem; }
+.keys-page-surface--workbench :deep(.keys-col-concurrency) { width: 10rem; }
+.keys-page-surface--workbench :deep(.keys-col-last-ip) { width: 15rem; overflow-wrap: anywhere; }
 .keys-page-surface--workbench :deep(.keys-col-created) { width: 9.5rem; }
 
 .keys-page-surface--workbench :deep(.keys-actions-column) {
@@ -3553,7 +3825,7 @@ onUnmounted(() => {
 
 .keys-group-badge {
   min-width: 0;
-  max-width: calc(100% - 2.5rem);
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3583,6 +3855,22 @@ onUnmounted(() => {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.keys-usage-cell--quota {
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.keys-usage-cell--quota > span:last-child {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.keys-usage-cell--quota .keys-usage-bar {
+  width: 100%;
 }
 
 .keys-usage-bar {

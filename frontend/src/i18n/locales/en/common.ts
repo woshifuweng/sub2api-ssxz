@@ -12,6 +12,8 @@ export default {
     delete: 'Delete',
     edit: 'Edit',
     create: 'Create',
+    sending: 'Sending...',
+    tryAgain: 'Please try again',
     update: 'Update',
     confirm: 'Confirm',
     reset: 'Reset',
@@ -164,6 +166,8 @@ export default {
 
   // Navigation
   nav: {
+    shop: 'External Shop',
+    plugins: 'Plugins',
     dashboard: 'Dashboard',
     announcements: 'Announcements',
     apiKeys: 'API Keys',
@@ -197,6 +201,8 @@ export default {
     github: 'GitHub',
     mySubscriptions: 'My Subscriptions',
     buySubscription: 'Recharge / Subscription',
+    recharge: 'Recharge',
+    subscribe: 'Subscription',
     docs: 'Docs',
     myOrders: 'My Orders',
     orderManagement: 'Orders',

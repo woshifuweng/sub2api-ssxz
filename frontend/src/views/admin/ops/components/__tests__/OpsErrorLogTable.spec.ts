@@ -75,6 +75,62 @@ describe('OpsErrorLogTable user/api-key/account columns', () => {
   })
 })
 
+describe('OpsErrorLogTable column order', () => {
+  it('honors explicit order without restoring hidden or unknown columns', async () => {
+    const wrapper = mountTable({})
+    await wrapper.setProps({
+      visibleColumnKeys: ['user', 'message', 'status'],
+      columnOrder: ['message', 'message', 'created_at', 'unknown', 'user'],
+      summaryFirst: true,
+    })
+    expect(wrapper.findAll('thead th').map((header) => header.text())).toEqual([
+      'admin.ops.errorLog.message', 'admin.ops.errorLog.user', 'admin.ops.errorLog.status',
+    ])
+    expect(wrapper.findAll('tbody td')[0].text()).toBe('boom')
+    await wrapper.findAll('thead th')[2].get('button').trigger('click')
+    expect(wrapper.emitted('sort')).toEqual([['status_code', 'asc']])
+    wrapper.unmount()
+  })
+
+  it('opens the user action without opening the error row', async () => {
+    const wrapper = mountTable({ user_id: 2, user_email: 'alice@test.com' })
+    await wrapper.setProps({ userClickable: true })
+    await wrapper.get('button[title="admin.usage.clickToViewBalance"]').trigger('click')
+    expect(wrapper.emitted('userClick')).toEqual([[2, 'alice@test.com']])
+    expect(wrapper.emitted('openErrorDetail')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('puts time and response content first for ops without changing time sorting', async () => {
+    const wrapper = mountTable({})
+    await wrapper.setProps({ summaryFirst: true })
+
+    const headers = wrapper.findAll('thead th')
+    expect(headers.slice(0, 3).map((header) => header.text())).toEqual([
+      'admin.ops.errorLog.time',
+      'admin.ops.errorLog.message',
+      'admin.ops.errorLog.user',
+    ])
+    expect(wrapper.findAll('tbody td')[1].text()).toBe('boom')
+
+    await headers[0].trigger('click')
+    expect(wrapper.emitted('sort')).toEqual([['created_at', 'asc']])
+    wrapper.unmount()
+  })
+
+  it('preserves the usage column order and visibility by default', async () => {
+    const wrapper = mountTable({})
+    await wrapper.setProps({ visibleColumnKeys: ['created_at', 'user', 'message'] })
+
+    expect(wrapper.findAll('thead th').map((header) => header.text())).toEqual([
+      'admin.ops.errorLog.user',
+      'admin.ops.errorLog.message',
+      'admin.ops.errorLog.time',
+    ])
+    wrapper.unmount()
+  })
+})
+
 // 防回归:组件用 admin.ops.errorLog.* 命名空间。若 i18n 键写错命名空间(如误放到
 // errorDetail),真实 vue-i18n 会回退返回 key 本身 → 界面显示原始路径字符串。
 // 这里用真实 locale 校验键确实可解析(返回译文而非 key)。

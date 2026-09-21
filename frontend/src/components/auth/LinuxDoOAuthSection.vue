@@ -5,7 +5,7 @@
       {{ t('auth.linuxdo.signIn') }}
     </FoundationButton>
 
-    <div class="auth-oauth-divider">
+    <div v-if="showDivider" class="auth-oauth-divider">
       <span></span>
       <small>{{ t('auth.linuxdo.orContinue') }}</small>
       <span></span>
@@ -15,6 +15,7 @@
 
 <script setup lang="ts">
 import { ScanLine } from '@lucide/vue'
+import FoundationButton from '@/components/foundation/FoundationButton.vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import type { OAuthLoginStart } from '@/api/auth'
@@ -23,6 +24,7 @@ import { resolveAffiliateReferralCode, storeOAuthAffiliateCode } from '@/utils/o
 const props = withDefaults(defineProps<{
   disabled?: boolean
   affCode?: string
+  promoCode?: string
   showDivider?: boolean
 }>(), {
   showDivider: true
@@ -35,9 +37,15 @@ const route = useRoute()
 const { t } = useI18n()
 
 function startLogin(): void {
+  if (props.disabled) return
   const redirectTo = (route.query.redirect as string) || '/dashboard'
   storeOAuthAffiliateCode(resolveAffiliateReferralCode(props.affCode, route.query.aff, route.query.aff_code))
-  emit('start', { provider: 'linuxdo', params: { redirect: redirectTo } })
+  const params: Record<string, string> = { redirect: redirectTo }
+  const promoCode = props.promoCode?.trim()
+  if (promoCode) {
+    params.promo_code = promoCode
+  }
+  emit('start', { provider: 'linuxdo', params })
 }
 </script>
 

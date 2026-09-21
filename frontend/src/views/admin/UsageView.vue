@@ -42,6 +42,7 @@
             :model-stats="requestedModelStats"
             :upstream-model-stats="upstreamModelStats"
             :mapping-model-stats="mappingModelStats"
+            :filters="breakdownFilters"
             :loading="modelStatsLoading"
             :show-source-toggle="true"
             :show-metric-toggle="true"
@@ -51,6 +52,7 @@
           <GroupDistributionChart
             v-model:metric="groupDistributionMetric"
             :group-stats="groupStats"
+            :filters="breakdownFilters"
             :loading="chartsLoading"
             :show-metric-toggle="true"
             :start-date="startDate"
@@ -64,6 +66,7 @@
             :endpoint-stats="inboundEndpointStats"
             :upstream-endpoint-stats="upstreamEndpointStats"
             :endpoint-path-stats="endpointPathStats"
+            :filters="breakdownFilters"
             :loading="endpointStatsLoading"
             :show-source-toggle="true"
             :show-metric-toggle="true"
@@ -107,6 +110,7 @@
         <template #after-reset>
           <div class="relative" ref="columnDropdownRef">
             <LiquidButton
+              data-testid="usage-column-settings"
               @click="showColumnDropdown = !showColumnDropdown"
               class="px-2 md:px-3"
               :title="t('admin.users.columnSettings')"
@@ -135,16 +139,17 @@
               class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
             >
               <LiquidButton
-                v-for="col in toggleableColumns"
+                v-for="col in currentToggleableColumns"
                 :key="col.key"
-                @click="toggleColumn(col.key)"
+                :data-testid="`usage-column-toggle-${col.key}`"
+                @click="toggleCurrentColumn(col.key)"
                 class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
                 variant="plain"
                 size="sm"
               >
                 <span>{{ col.label }}</span>
                 <Icon
-                  v-if="isColumnVisible(col.key)"
+                  v-if="isCurrentColumnVisible(col.key)"
                   name="check"
                   size="sm"
                   class="text-primary-500"
@@ -193,6 +198,7 @@
         :loading="errLoading"
         :page="errPage"
         :page-size="errPageSize"
+        :visible-column-keys="errVisibleColumnKeys"
         user-clickable
         @userClick="handleUserClick"
         @openErrorDetail="openError"
@@ -398,6 +404,7 @@ const filters = ref<AdminUsageQueryParams>({
   request_id: undefined,
   group_id: undefined,
   request_type: undefined,
+  native_compaction_v2: null,
   billing_type: null,
   start_date: startDate.value,
   end_date: endDate.value,
@@ -422,6 +429,14 @@ const detailTabs = computed<Array<{ key: DetailTab; label: string; icon: IconNam
 ]);
 const rankingMounted = ref(false);
 const rankingFilters = computed<Record<string, unknown>>(() => ({ ...filters.value }));
+const breakdownFilters = computed(() => {
+  const result: Record<string, unknown> = {};
+  for (const key of ["user_id", "api_key_id", "account_id", "group_id", "request_type", "native_compaction_v2", "billing_type"] as const) {
+    const value = filters.value[key];
+    if (value != null) result[key] = value;
+  }
+  return result;
+});
 
 const errRows = ref<OpsErrorLog[]>([]);
 const errLoading = ref(false);
@@ -681,6 +696,7 @@ const loadModelStats = async (
       group_id: filters.value.group_id,
       request_type: requestType,
       stream: legacyStream === null ? undefined : legacyStream,
+      native_compaction_v2: filters.value.native_compaction_v2,
       billing_type: filters.value.billing_type,
     };
 
@@ -735,6 +751,7 @@ const loadChartData = async () => {
       group_id: filters.value.group_id,
       request_type: requestType,
       stream: legacyStream === null ? undefined : legacyStream,
+      native_compaction_v2: filters.value.native_compaction_v2,
       billing_type: filters.value.billing_type,
       include_stats: false,
       include_trend: true,
@@ -773,6 +790,7 @@ const resetFilters = () => {
     start_date: startDate.value,
     end_date: endDate.value,
     request_type: undefined,
+    native_compaction_v2: null,
     billing_type: null,
   };
   granularity.value = getGranularityForRange(startDate.value, endDate.value);
@@ -841,6 +859,7 @@ const exportToExcel = async () => {
       t("usage.firstToken"),
       t("usage.duration"),
       t("admin.usage.requestId"),
+      t("admin.usage.upstreamRequestId"),
       t("usage.userAgent"),
       t("admin.usage.ipAddress"),
     ];
@@ -897,6 +916,7 @@ const exportToExcel = async () => {
         log.first_token_ms ?? "",
         log.duration_ms,
         log.request_id || "",
+        log.upstream_request_id || "",
         log.user_agent || "",
         log.ip_address || "",
       ]);
@@ -937,10 +957,11 @@ const exportToExcel = async () => {
 
 // Column visibility
 const ALWAYS_VISIBLE = ["user", "created_at"];
-const DEFAULT_HIDDEN_COLUMNS = ["reasoning_effort", "request_id", "user_agent"];
+const DEFAULT_HIDDEN_COLUMNS = ["reasoning_effort", "request_id", "upstream_request_id", "user_agent"];
 const HIDDEN_COLUMNS_KEY = "usage-hidden-columns";
 const HIDDEN_COLUMNS_VERSION_KEY = "usage-hidden-columns-version";
-const HIDDEN_COLUMNS_CURRENT_VERSION = "request-id-hidden-by-default";
+const HIDDEN_COLUMNS_PREV_VERSION = "request-id-hidden-by-default";
+const HIDDEN_COLUMNS_CURRENT_VERSION = "upstream-request-id-hidden-by-default";
 
 const allColumns = computed(() => [
   { key: "user", label: t("admin.usage.user"), sortable: false },
@@ -962,6 +983,7 @@ const allColumns = computed(() => [
   { key: "duration", label: t("usage.duration"), sortable: false },
   { key: "latency", label: t("usage.latency"), sortable: false },
   { key: "request_id", label: t("admin.usage.requestId"), sortable: false },
+  { key: "upstream_request_id", label: t("admin.usage.upstreamRequestId"), sortable: false },
   { key: "created_at", label: t("usage.time"), sortable: true },
   { key: "user_agent", label: t("usage.userAgent"), sortable: false },
   { key: "ip_address", label: t("admin.usage.ipAddress"), sortable: false },
@@ -998,6 +1020,73 @@ const toggleColumn = (key: string) => {
   }
 };
 
+const ERR_ALWAYS_VISIBLE = ['user', 'status', 'created_at', 'actions']
+const ERR_DEFAULT_HIDDEN_COLUMNS = ['user_agent']
+const ERR_HIDDEN_COLUMNS_KEY = 'usage-error-hidden-columns'
+
+// key 集合须与 OpsErrorLogTable 内部 allColumns 一致
+const errAllColumns = computed(() => [
+  { key: 'user', label: t('admin.ops.errorLog.user') },
+  { key: 'api_key', label: t('admin.ops.errorLog.apiKey') },
+  { key: 'account', label: t('admin.ops.errorLog.account') },
+  { key: 'platform', label: t('admin.ops.errorLog.platform') },
+  { key: 'model', label: t('admin.ops.errorLog.model') },
+  { key: 'endpoint', label: t('admin.ops.errorLog.endpoint') },
+  { key: 'group', label: t('admin.ops.errorLog.group') },
+  { key: 'type', label: t('admin.ops.errorLog.type') },
+  { key: 'category', label: t('usage.errors.category') },
+  { key: 'status', label: t('admin.ops.errorLog.status') },
+  { key: 'message', label: t('admin.ops.errorLog.message') },
+  { key: 'created_at', label: t('admin.ops.errorLog.time') },
+  { key: 'user_agent', label: t('usage.userAgent') },
+  { key: 'client_ip', label: t('admin.ops.errorLog.ip') },
+  { key: 'actions', label: t('admin.ops.errorLog.action') },
+])
+
+const errHiddenColumns = reactive<Set<string>>(new Set())
+
+const errToggleableColumns = computed(() =>
+  errAllColumns.value.filter(col => !ERR_ALWAYS_VISIBLE.includes(col.key))
+)
+
+const errVisibleColumnKeys = computed(() =>
+  errAllColumns.value
+    .filter(col => ERR_ALWAYS_VISIBLE.includes(col.key) || !errHiddenColumns.has(col.key))
+    .map(col => col.key)
+)
+
+const toggleErrColumn = (key: string) => {
+  if (errHiddenColumns.has(key)) {
+    errHiddenColumns.delete(key)
+  } else {
+    errHiddenColumns.add(key)
+  }
+  try {
+    localStorage.setItem(ERR_HIDDEN_COLUMNS_KEY, JSON.stringify([...errHiddenColumns]))
+  } catch (e) {
+    console.error('Failed to save error columns:', e)
+  }
+}
+
+const loadSavedErrColumns = () => {
+  try {
+    const saved = localStorage.getItem(ERR_HIDDEN_COLUMNS_KEY)
+    const keys = saved ? (JSON.parse(saved) as string[]) : ERR_DEFAULT_HIDDEN_COLUMNS
+    keys.forEach((key) => errHiddenColumns.add(key))
+  } catch {
+    ERR_DEFAULT_HIDDEN_COLUMNS.forEach((key) => errHiddenColumns.add(key))
+  }
+}
+
+// 列设置下拉按当前 tab 分发
+const currentToggleableColumns = computed(() =>
+  activeTab.value === 'errors' ? errToggleableColumns.value : toggleableColumns.value
+)
+const isCurrentColumnVisible = (key: string) =>
+  activeTab.value === 'errors' ? !errHiddenColumns.has(key) : isColumnVisible(key)
+const toggleCurrentColumn = (key: string) =>
+  activeTab.value === 'errors' ? toggleErrColumn(key) : toggleColumn(key)
+
 const loadSavedColumns = () => {
   try {
     const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY);
@@ -1006,7 +1095,10 @@ const loadSavedColumns = () => {
         hiddenColumns.add(key);
       });
       if (localStorage.getItem(HIDDEN_COLUMNS_VERSION_KEY) !== HIDDEN_COLUMNS_CURRENT_VERSION) {
-        hiddenColumns.add("request_id");
+        if (localStorage.getItem(HIDDEN_COLUMNS_VERSION_KEY) !== HIDDEN_COLUMNS_PREV_VERSION) {
+          hiddenColumns.add("request_id");
+        }
+        hiddenColumns.add("upstream_request_id");
         localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]));
         localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION);
       }
@@ -1045,6 +1137,7 @@ onMounted(() => {
     void loadChartData();
   }, 120);
   loadSavedColumns();
+  loadSavedErrColumns();
   document.addEventListener("click", handleColumnClickOutside);
 });
 onUnmounted(() => {

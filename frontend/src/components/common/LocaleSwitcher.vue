@@ -7,7 +7,7 @@
       :title="currentLocale?.name"
       :aria-label="currentLocale?.name"
     >
-      <span>{{ currentLocale?.name }}</span>
+      <span class="whitespace-nowrap">{{ currentLocale?.name }}</span>
       <Icon
         name="chevronDown"
         size="xs"

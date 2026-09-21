@@ -87,6 +87,15 @@ describe('AppSidebar scroll position persistence', () => {
   })
 })
 
+describe('AppSidebar collapsible groups', () => {
+  it('lets the user collapse a group even while a child route is active', () => {
+    // The expand state must come from the user's override first, falling back
+    // to the active-route heuristic only when the user has not clicked yet.
+    expect(componentSource).toContain('const groupExpandOverrides = ref<Map<string, boolean>>(new Map())')
+    expect(componentSource).not.toContain('expandedGroups.value.has(item.path) || isGroupActive(item)')
+  })
+})
+
 describe('AppSidebar header styles', () => {
   it('prevents the shared 56px header height from regressing to 57px', () => {
     const tokenName = '--ssxz-header-height'
@@ -193,5 +202,23 @@ describe('AppSidebar header styles', () => {
     expect(sidebarHeaderBlockMatch?.[0]).not.toContain('@apply overflow-hidden;')
     expect(sidebarBrandBlockMatch?.[0]).not.toContain('overflow: hidden;')
     expect(appHeaderBlockMatch?.[0]).not.toContain('overflow: hidden;')
+  })
+})
+
+describe('AppSidebar subscription feature flag', () => {
+  it('gates the My Subscriptions entry behind the subscription public-settings flag', () => {
+    expect(componentSource).toContain("resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags[flag])")
+    expect(componentSource).toMatch(/flagEnabled\('subscription'\)[^\n]*path: '\/app\/subscriptions'/)
+  })
+
+  it('also hides the admin Subscription Management entry on recharge-only sites', () => {
+    expect(componentSource).toMatch(/flagEnabled\('subscription'\)[^\n]*path: '\/admin\/subscriptions'/)
+  })
+
+  it('derives the purchase entry label from the site billing mode', () => {
+    expect(componentSource).toContain("import { resolveSiteBillingMode } from '@/utils/siteBillingMode'")
+    expect(componentSource).toMatch(/case 'recharge_only':\s*return t\('nav\.recharge'\)/)
+    expect(componentSource).toMatch(/case 'subscription_only':\s*return t\('nav\.subscribe'\)/)
+    expect(componentSource).toMatch(/path: '\/app\/purchase'[^\n]*label: purchaseNavLabel\.value/)
   })
 })

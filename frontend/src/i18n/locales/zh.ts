@@ -4,8 +4,36 @@ import adminOverviewLocale from './zh/admin/overview'
 import adminOpsLocale from './zh/admin/ops'
 import adminSettingsLocale from './zh/admin/settings'
 import adminChannelsLocale from './zh/admin/channels'
+import modularLocale from './zh/index'
 
-export default {
+type LocaleMessages = Record<string, unknown>
+
+function mergeLocaleMessages(base: LocaleMessages, additions: LocaleMessages): LocaleMessages {
+  const merged: LocaleMessages = { ...base }
+  for (const [key, value] of Object.entries(additions)) {
+    const existing = merged[key]
+    if (
+      existing && typeof existing === 'object' && !Array.isArray(existing) &&
+      value && typeof value === 'object' && !Array.isArray(value)
+    ) {
+      merged[key] = mergeLocaleMessages(existing as LocaleMessages, value as LocaleMessages)
+    } else {
+      merged[key] = value
+    }
+  }
+  return merged
+}
+
+const legacyLocale = {
+  balanceWarning: {
+    message: '当前余额不足，暂时无法发起新的请求。',
+    action: '去充值'
+  },
+  lowBalanceWarning: {
+    message: '当前余额低于 ${threshold}，部分请求可能会被拒绝。',
+    action: '去充值'
+  },
+
   // Home Page
   home: {
     viewOnGithub: '在 GitHub 上查看',
@@ -668,6 +696,9 @@ export default {
       baseUrlLabel: 'Base URL',
       copyBaseUrl: '复制 Base URL',
       baseUrlCopied: 'Base URL 已复制',
+      baseUrlRootLabel: '官网地址',
+      copyBaseUrlRoot: '复制官网地址',
+      baseUrlRootCopied: '官网地址已复制',
       stepsAriaLabel: '第三方客户端接入步骤',
       stepCreateTitle: '创建一个 API Key',
       stepCreateDescription: '先选择可用分组并创建 Key。列表默认只展示脱敏值。',
@@ -696,6 +727,18 @@ export default {
       modelLabel: '模型',
       modelHint: '可用模型以后端配置和当前 Key 分组为准；Codex 默认 gpt-5.5，Claude 默认 claude-opus-4-8。',
       readinessHint: '如果客户端提示额度不足、模型不可用或服务繁忙，先换推荐模型或稍后再试；复杂任务启动慢属于正常现象。',
+      quickStart: {
+        title: '快速配置示例',
+        description: '把下面字段复制到兼容的客户端中。',
+        cherryHeading: 'Cherry Studio',
+        cherryProvider: '服务商：OpenAI-compatible',
+        cherryBaseUrl: 'Base URL：',
+        cherryApiKey: 'API Key：',
+        cherryModel: '模型：',
+        copyAll: '全部复制',
+        copied: '已复制',
+        exampleCopied: '示例已复制'
+      },
       acknowledge: '我已保存'
     },
     searchPlaceholder: '搜索名称...',
@@ -969,7 +1012,8 @@ export default {
     description: '查看和分析您的 API 使用历史',
     workbench: {
       title: '用量信息',
-      subtitle: '查看账户余额、本月消耗和最近使用明细。没有用量记录时只显示空状态，不跳转到旧版用量页。',
+      manageKeys: '管理 API Key',
+      subtitle: '查看余额与本月消耗，按密钥、分组核对用量，并排查请求错误。',
       eyebrow: '账户计量',
       balanceTitle: '账户余额',
       balanceDescription: '可用于站内聊天、图片生成和 API Key / 第三方接入调用。',
@@ -1157,6 +1201,8 @@ export default {
     codeRule3: '如有兑换问题，请先核对兑换码后再试',
     codeRule4: '兑换成功后，页面会刷新账户额度，订单记录会保留本次变化',
     recentActivity: '最近活动',
+    historyLoadFailedTitle: '活动记录暂时无法加载',
+    noHistoryTitle: '暂无兑换历史',
     historyWillAppear: '兑换成功后，余额、并发或订阅变动会显示在这里。',
     balanceAddedRedeem: '余额充值（兑换）',
     balanceAddedAdmin: '余额充值（管理员）',
@@ -6676,3 +6722,5 @@ export default {
     examplePrompt4: '水墨画风格，一叶扁舟在山水间漂泊，薄雾缭绕，中国古典意境'
   }
 }
+
+export default mergeLocaleMessages(legacyLocale, modularLocale)

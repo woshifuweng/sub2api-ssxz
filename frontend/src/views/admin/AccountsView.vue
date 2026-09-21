@@ -90,6 +90,11 @@
               </div>
 
               <!-- Error Passthrough Rules -->
+              <LiquidButton @click="showTLSFingerprintProfiles = true" variant="outline" size="sm">
+                {{ t('admin.tlsFingerprintProfiles.title') }}
+              </LiquidButton>
+
+              <!-- Error Passthrough Rules -->
               <LiquidButton
                 @click="showErrorPassthrough = true"
                 :title="t('admin.errorPassthrough.title')"
@@ -346,7 +351,7 @@
             />
           </template>
           <template #cell-groups="{ row }">
-            <AccountGroupsCell :groups="row.groups" :max-display="4" />
+            <AccountGroupsCell :groups="accountGroupsForRow(row)" :max-display="4" />
           </template>
           <template #header-usage="{ column }">
             <div class="flex items-center">
@@ -601,7 +606,7 @@
     <AccountActionMenu
       :show="menu.show"
       :account="menu.acc"
-      :position="menu.pos"
+      :anchor-rect="menu.anchorRect"
       @close="menu.show = false"
       @test="handleTest"
       @refresh-models="handleRefreshModels"
@@ -612,6 +617,7 @@
       @refresh-token="handleRefresh"
       @recover-state="handleRecoverState"
       @reset-quota="handleResetQuota"
+      @set-privacy="handleSetPrivacy"
       @create-spark-shadow="handleCreateSparkShadow"
     />
     <SyncFromCrsModal
@@ -619,6 +625,7 @@
       @close="showSync = false"
       @synced="reload"
     />
+    <TLSFingerprintProfilesModal :show="showTLSFingerprintProfiles" @close="showTLSFingerprintProfiles = false" />
     <ImportDataModal
       :show="showImportData"
       :groups="groups"
@@ -737,9 +744,10 @@ import { buildGrokUsageRefreshKey, buildOpenAIUsageRefreshKey } from '@/utils/ac
 import { formatDateTime, formatRelativeTime } from '@/utils/format'
 import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
 import { extractApiErrorMessage } from '@/utils/apiError'
+import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfilesModal.vue'
 import { formatMultiplier } from '@/utils/formatters'
 import { sanitizeUrl } from '@/utils/url'
-import type { Account, AccountPlatform, AccountSchedulerGroupScore, AccountType, AccountUsageInfo, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel, UpstreamBillingProbeSnapshot } from '@/types'
+import type { Account, AccountListItem, AccountPlatform, AccountSchedulerGroupScore, AccountType, AccountUsageInfo, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel, UpstreamBillingProbeSnapshot } from '@/types'
 
 const { t } = useI18n();
 const appStore = useAppStore();
@@ -747,6 +755,13 @@ const authStore = useAuthStore();
 
 const proxies = ref<AccountProxy[]>([]);
 const groups = ref<AdminGroup[]>([]);
+const groupsByID = computed(() => new Map(groups.value.map(group => [group.id, group])));
+const accountGroupsForRow = (account: Pick<AccountListItem, 'group_ids'>): AdminGroup[] => {
+  const groupIDs = account.group_ids ?? [];
+  return groupIDs
+    .map((id) => groupsByID.value.get(id))
+    .filter((group): group is AdminGroup => Boolean(group));
+};
 const accountTableRef = ref<HTMLElement | null>(null);
 const dataTableRef = ref<InstanceType<typeof DataTable> | null>(null);
 type AccountBulkEditTarget =
@@ -800,6 +815,7 @@ const showReAuth = ref(false);
 const showTest = ref(false);
 const showStats = ref(false);
 const showErrorPassthrough = ref(false);
+const showTLSFingerprintProfiles = ref(false);
 const edAcc = ref<Account | null>(null);
 const tempUnschedAcc = ref<Account | null>(null);
 const deletingAcc = ref<Account | null>(null);
@@ -814,14 +830,19 @@ const togglingSchedulable = ref<number | null>(null);
 const menu = reactive<{
   show: boolean;
   acc: Account | null;
-  pos: { top: number; left: number } | null;
-}>({ show: false, acc: null, pos: null });
+  anchorRect: DOMRect | null;
+}>({ show: false, acc: null, anchorRect: null });
 const exportingData = ref(false);
 const probingUpstreamBilling = reactive(new Set<number>())
 const upstreamBillingProbeGloballyEnabled = ref<boolean | undefined>(undefined)
 const upstreamBillingNow = ref(Date.now())
+const upstreamBillingRateETag = ref<string | null>(null)
+const upstreamBillingRateRefreshing = ref(false)
+let upstreamBillingRateAbortController: AbortController | null = null
 let lastUpstreamBillingSortRefreshMinute = -1
 useIntervalFn(() => { upstreamBillingNow.value = Date.now() }, 60_000)
+
+const showAccountToolsDropdown = ref(false)
 
 // Column settings
 const showColumnDropdown = ref(false);
@@ -831,7 +852,6 @@ const DEFAULT_HIDDEN_COLUMNS = [
   "today_stats",
   "proxy",
   "notes",
-  "priority",
   "scheduler_score",
   "rate_multiplier",
 ];
@@ -1303,6 +1323,7 @@ const {
 } = useTableLoader<Account, any>({
   fetchFn: adminAPI.accounts.list,
   initialParams: {
+    lite: "1",
     platform: "",
     type: "",
     status: "",
@@ -1328,7 +1349,7 @@ const {
   toggleVisible,
   selectVisible: selectCurrentPage,
   batchUpdate
-} = useTableSelection<Account>({
+} = useTableSelection<AccountListItem>({
   rows: accounts,
   getId: (account) => account.id
 })
@@ -1370,34 +1391,23 @@ const resetAutoRefreshCache = () => {
   autoRefreshETag.value = null;
 };
 
-const isFirstLoad = ref(true);
-
 function markUpstreamBillingSortRefresh() {
   if (sortState.sort_by === 'upstream_billing_rate') {
     lastUpstreamBillingSortRefreshMinute = Math.floor(Date.now() / 60_000)
   }
 }
 
-const load = async () => {
-  const requestParams = params as any;
+const load = async (options: { refreshTodayStats?: boolean } = {}) => {
   markUpstreamBillingSortRefresh()
   syncAccountListDerivedParams()
   hasPendingListSync.value = false;
   resetAutoRefreshCache();
   pendingTodayStatsRefresh.value = false;
-  if (isFirstLoad.value) {
-    requestParams.lite = "1";
-  }
   await baseLoad();
-  if (isFirstLoad.value) {
-    isFirstLoad.value = false;
-    delete requestParams.lite;
-  }
-  await refreshTodayStatsBatch();
+  if (options.refreshTodayStats !== false) await refreshTodayStatsBatch();
 };
 
 const reload = async () => {
-  markUpstreamBillingSortRefresh()
   syncAccountListDerivedParams()
   hasPendingListSync.value = false;
   resetAutoRefreshCache();
@@ -1405,6 +1415,120 @@ const reload = async () => {
   await baseReload();
   await refreshTodayStatsBatch();
 };
+
+const sameAccountIDOrder = (left: number[], right: number[]) =>
+  left.length === right.length && left.every((id, index) => id === right[index])
+
+const buildUpstreamBillingRateFilters = () => {
+  const rawParams = toRaw(params) as Record<string, unknown>;
+  return {
+    platform: typeof rawParams.platform === 'string' ? rawParams.platform : '',
+    type: typeof rawParams.type === 'string' ? rawParams.type : '',
+    status: typeof rawParams.status === 'string' ? rawParams.status : '',
+    group: typeof rawParams.group === 'string' ? rawParams.group : '',
+    search: typeof rawParams.search === 'string' ? rawParams.search : '',
+    privacy_mode: typeof rawParams.privacy_mode === 'string' ? rawParams.privacy_mode : '',
+    sort_by: sortState.sort_by,
+    sort_order: sortState.sort_order,
+  };
+};
+
+const upstreamBillingRateContextKey = () => JSON.stringify({
+  page: pagination.page,
+  pageSize: pagination.page_size,
+  filters: buildUpstreamBillingRateFilters()
+})
+
+const applyUpstreamBillingRateSnapshots = async (
+  result: NonNullable<Awaited<ReturnType<typeof adminAPI.accounts.getUpstreamBillingRatesWithEtag>>['data']>
+) => {
+  const nextIDs = result.items.map(item => item.account_id)
+  const currentIDs = accounts.value.map(account => account.id)
+
+  // The compact response cannot fill a row that crossed a page boundary.
+  // Only that case needs the expensive, full account-list request.
+  if (result.total !== pagination.total || !sameAccountIDOrder(nextIDs, currentIDs)) {
+    try {
+      await load({ refreshTodayStats: false })
+    } catch (error) {
+      console.error('Failed to reconcile upstream billing sort:', error)
+    }
+    return
+  }
+
+  const itemsByID = new Map(result.items.map(item => [item.account_id, item]))
+  let changed = false
+  const nextAccounts = accounts.value.map(account => {
+    const item = itemsByID.get(account.id)
+    if (!item) return account
+    const nextSnapshot = item.snapshot ?? null
+    const previousSnapshot = account.extra?.upstream_billing_probe ?? null
+    if (JSON.stringify(previousSnapshot) === JSON.stringify(nextSnapshot)) return account
+
+    const nextExtra = { ...(account.extra ?? {}) }
+    if (nextSnapshot) nextExtra.upstream_billing_probe = nextSnapshot
+    else delete nextExtra.upstream_billing_probe
+    const nextAccount = {
+      ...account,
+      ...(typeof nextSnapshot?.synced_rate_multiplier === 'number'
+        ? { rate_multiplier: nextSnapshot.synced_rate_multiplier }
+        : {}),
+      extra: nextExtra
+    }
+    syncAccountRefs(nextAccount)
+    changed = true
+    return nextAccount
+  })
+
+  if (changed) {
+    accounts.value = nextAccounts
+    upstreamBillingNow.value = Date.now()
+  }
+}
+
+const refreshUpstreamBillingRates = async (force = false) => {
+  if (upstreamBillingRateRefreshing.value || loading.value || accounts.value.length === 0) return
+  if (!force && (
+    probingUpstreamBilling.size > 0 ||
+    isAnyModalOpen.value ||
+    menu.show ||
+    showAccountToolsDropdown.value ||
+    showAutoRefreshDropdown.value ||
+    (typeof document !== 'undefined' && document.hidden)
+  )) return
+
+  const controller = new AbortController()
+  upstreamBillingRateAbortController = controller
+  upstreamBillingRateRefreshing.value = true
+  try {
+    syncAccountListDerivedParams()
+    const requestContextKey = upstreamBillingRateContextKey()
+    const result = await adminAPI.accounts.getUpstreamBillingRatesWithEtag(
+      pagination.page,
+      pagination.page_size,
+      buildUpstreamBillingRateFilters(),
+      { etag: force ? null : upstreamBillingRateETag.value, signal: controller.signal }
+    )
+    if (loading.value || requestContextKey !== upstreamBillingRateContextKey()) return
+    if (result.etag) upstreamBillingRateETag.value = result.etag
+    if (!result.notModified && result.data) await applyUpstreamBillingRateSnapshots(result.data)
+  } catch (error) {
+    const refreshError = error as { name?: string; code?: string }
+    if (refreshError.name !== 'AbortError' && refreshError.name !== 'CanceledError' && refreshError.code !== 'ERR_CANCELED') {
+      console.error('Failed to refresh upstream billing rates:', error)
+    }
+  } finally {
+    if (upstreamBillingRateAbortController === controller) upstreamBillingRateAbortController = null
+    upstreamBillingRateRefreshing.value = false
+  }
+}
+
+const refreshUpstreamBillingSortedList = async (force = false) => {
+  if (!force && sortState.sort_by !== 'upstream_billing_rate') return
+  await refreshUpstreamBillingRates(force)
+}
+
+useIntervalFn(() => { void refreshUpstreamBillingRates() }, 5 * 60_000, { immediate: false })
 
 const debouncedReload = () => {
   clearSelection()
@@ -1481,7 +1605,7 @@ const isAnyModalOpen = computed(() => {
     showTest.value ||
     showStats.value ||
     showSchedulePanel.value ||
-    showErrorPassthrough.value
+    showErrorPassthrough.value || showTLSFingerprintProfiles.value
   );
 });
 
@@ -1969,62 +2093,32 @@ const cols = computed(() =>
   ),
 );
 
-const handleEdit = (a: Account) => {
-  edAcc.value = a;
+const accountDetailLoading = new Set<number>();
+let detailsDisposed = false;
+const loadAccountDetails = async (account: Pick<AccountListItem, 'id'>): Promise<Account | null> => {
+  if (accountDetailLoading.has(account.id)) return null;
+  accountDetailLoading.add(account.id);
+  try {
+    const details = await adminAPI.accounts.getById(account.id);
+    return detailsDisposed ? null : details;
+  } catch (error) {
+    if (!detailsDisposed) appStore.showError(extractApiErrorMessage(error, t('common.error')));
+    return null;
+  } finally {
+    accountDetailLoading.delete(account.id);
+  }
+};
+
+const handleEdit = async (a: AccountListItem) => {
+  const account = await loadAccountDetails(a);
+  if (!account) return;
+  edAcc.value = account;
   showEdit.value = true;
 };
 const openMenu = (a: Account, e: MouseEvent) => {
   menu.acc = a;
-
   const target = e.currentTarget as HTMLElement;
-  if (target) {
-    const rect = target.getBoundingClientRect();
-    const menuWidth = 200;
-    const menuHeight = 240;
-    const padding = 8;
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-
-    let left: number;
-    let top: number;
-
-    if (viewportWidth < 768) {
-      // 居中显示,水平位置
-      left = Math.max(
-        padding,
-        Math.min(
-          rect.left + rect.width / 2 - menuWidth / 2,
-          viewportWidth - menuWidth - padding,
-        ),
-      );
-
-      // 优先显示在按钮下方
-      top = rect.bottom + 4;
-
-      // 如果下方空间不够,显示在上方
-      if (top + menuHeight > viewportHeight - padding) {
-        top = rect.top - menuHeight - 4;
-        // 如果上方也不够,就贴在视口顶部
-        if (top < padding) {
-          top = padding;
-        }
-      }
-    } else {
-      left = Math.max(
-        padding,
-        Math.min(e.clientX - menuWidth, viewportWidth - menuWidth - padding),
-      );
-      top = e.clientY;
-      if (top + menuHeight > viewportHeight - padding) {
-        top = viewportHeight - menuHeight - padding;
-      }
-    }
-
-    menu.pos = { top, left };
-  } else {
-    menu.pos = { top: e.clientY, left: e.clientX - 200 };
-  }
-
+  menu.anchorRect = target ? target.getBoundingClientRect() : null;
   menu.show = true;
 };
 const toggleSelectAllVisible = (event: Event) => {
@@ -2079,8 +2173,9 @@ const handleBulkResetStatus = async () => {
 };
 const handleBulkRefreshToken = async () => {
   if (!confirm(t("common.confirm"))) return;
+  const accountIds = [...selIds.value];
   try {
-    const result = await adminAPI.accounts.batchRefresh(selIds.value);
+    const result = await adminAPI.accounts.batchRefresh(accountIds);
     if (result.failed > 0) {
       appStore.showError(
         t("admin.accounts.bulkActions.partialSuccess", {
@@ -2088,6 +2183,8 @@ const handleBulkRefreshToken = async () => {
           failed: result.failed,
         }),
       );
+      const failedIds = result.errors?.map(error => error.account_id) ?? [];
+      setSelectedIds(failedIds.length ? failedIds : accountIds);
     } else {
       appStore.showSuccess(
         t("admin.accounts.bulkActions.refreshTokenSuccess", {
@@ -2474,19 +2571,17 @@ const patchAccountInList = (updatedAccount: Account) => {
 const patchUpstreamBillingSnapshot = (accountID: number, snapshot: UpstreamBillingProbeSnapshot) => {
   const account = accounts.value.find(item => item.id === accountID)
   if (!account) return
-  markUpstreamBillingSortRefresh()
   upstreamBillingNow.value = Date.now()
   patchAccountInList({
     ...account,
+    ...(typeof snapshot.synced_rate_multiplier === 'number'
+      ? { rate_multiplier: snapshot.synced_rate_multiplier }
+      : {}),
     extra: { ...account.extra, upstream_billing_probe: snapshot }
   })
 }
 const refreshAccountsAfterUpstreamBillingProbe = async () => {
-  try {
-    await load()
-  } catch (error) {
-    console.error('Failed to refresh accounts after upstream billing probe:', error)
-  }
+  await refreshUpstreamBillingSortedList(true)
 }
 const handleProbeUpstreamBilling = async (account: Account) => {
   if (probingUpstreamBilling.has(account.id)) return
@@ -2669,12 +2764,16 @@ const closeReAuthModal = () => {
   showReAuth.value = false;
   reAuthAcc.value = null;
 };
-const handleTest = (a: Account) => {
-  testingAcc.value = a;
+const handleTest = async (a: AccountListItem) => {
+  const account = await loadAccountDetails(a);
+  if (!account) return;
+  testingAcc.value = account;
   showTest.value = true;
 };
-const handleViewStats = (a: Account) => {
-  statsAcc.value = a;
+const handleViewStats = async (a: AccountListItem) => {
+  const account = await loadAccountDetails(a);
+  if (!account) return;
+  statsAcc.value = account;
   showStats.value = true;
 };
 const handleSchedule = async (a: Account) => {
@@ -2740,13 +2839,51 @@ const patchAccountModelsMetadata = (
 };
 const handleRefresh = async (a: Account) => {
   try {
-    const updated = await adminAPI.accounts.refreshCredentials(a.id);
-    patchAccountInList(updated);
+    const result = await adminAPI.accounts.refreshCredentials(a.id);
+    patchAccountInList(result.account);
     enterAutoRefreshSilentWindow();
+    if (result.warning) appStore.showWarning(result.message);
   } catch (error) {
     console.error("Failed to refresh credentials:", error);
   }
 };
+const privacyResultMessageKey = (account: Account): { type: 'success' | 'error'; key: string } => {
+  const mode = typeof account.extra?.privacy_mode === 'string' ? account.extra.privacy_mode : ''
+  if (account.platform === 'openai') {
+    switch (mode) {
+      case 'training_off':
+        return { type: 'success', key: 'admin.accounts.privacyTrainingOff' }
+      case 'training_set_cf_blocked':
+        return { type: 'error', key: 'admin.accounts.privacyCfBlocked' }
+      default:
+        return { type: 'error', key: 'admin.accounts.privacyFailed' }
+    }
+  }
+  if (account.platform === 'antigravity') {
+    if (mode === 'privacy_set') {
+      return { type: 'success', key: 'admin.accounts.privacyAntigravitySet' }
+    }
+    return { type: 'error', key: 'admin.accounts.privacyAntigravityFailed' }
+  }
+  return { type: 'error', key: 'admin.accounts.privacyFailed' }
+}
+
+const handleSetPrivacy = async (a: Account) => {
+  try {
+    const updated = await adminAPI.accounts.setPrivacy(a.id)
+    patchAccountInList(updated)
+    enterAutoRefreshSilentWindow()
+    const result = privacyResultMessageKey(updated)
+    if (result.type === 'success') {
+      appStore.showSuccess(t(result.key))
+    } else {
+      appStore.showError(t(result.key))
+    }
+  } catch (error: any) {
+    console.error('Failed to set privacy:', error)
+    appStore.showError(error?.response?.data?.message || t('admin.accounts.privacyFailed'))
+  }
+}
 const handleRefreshModels = async (a: Account) => {
   if (!canRefreshAccountModels(a)) return;
   try {
@@ -2896,7 +3033,8 @@ const loadUpstreamBillingProbeGlobalState = async () => {
 }
 
 // 滚动时关闭操作菜单（不关闭列设置下拉菜单）
-const handleScroll = () => {
+const handleScroll = (event: Event) => {
+  if (event.target instanceof Element && event.target.closest('.action-menu-content')) return;
   menu.show = false;
 };
 
@@ -2959,6 +3097,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  detailsDisposed = true;
+  upstreamBillingRateAbortController?.abort()
   if (usageBatchFlushTimer !== null) {
     clearTimeout(usageBatchFlushTimer);
     usageBatchFlushTimer = null;

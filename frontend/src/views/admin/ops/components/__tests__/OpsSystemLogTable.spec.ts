@@ -9,6 +9,8 @@ const mockListSystemLogs = vi.fn()
 const mockCleanupSystemLogs = vi.fn()
 const mockGetSystemLogSinkHealth = vi.fn()
 const mockGetRuntimeLogConfig = vi.fn()
+const mockUpdateRuntimeLogConfig = vi.fn()
+const mockResetRuntimeLogConfig = vi.fn()
 
 vi.mock('@/api/admin/ops', () => ({
   opsAPI: {
@@ -16,6 +18,8 @@ vi.mock('@/api/admin/ops', () => ({
     cleanupSystemLogs: (...args: any[]) => mockCleanupSystemLogs(...args),
     getSystemLogSinkHealth: (...args: any[]) => mockGetSystemLogSinkHealth(...args),
     getRuntimeLogConfig: (...args: any[]) => mockGetRuntimeLogConfig(...args),
+    updateRuntimeLogConfig: (...args: any[]) => mockUpdateRuntimeLogConfig(...args),
+    resetRuntimeLogConfig: (...args: any[]) => mockResetRuntimeLogConfig(...args),
   },
 }))
 
@@ -53,6 +57,7 @@ const PaginationStub = defineComponent({
 
 const runtimeConfig = {
   level: 'info',
+  persist_access_logs: false,
   enable_sampling: false,
   sampling_initial: 100,
   sampling_thereafter: 100,
@@ -92,6 +97,8 @@ describe('OpsSystemLogTable host support', () => {
     mockCleanupSystemLogs.mockResolvedValue({ deleted: 1 })
     mockGetSystemLogSinkHealth.mockResolvedValue(sinkHealth)
     mockGetRuntimeLogConfig.mockResolvedValue(runtimeConfig)
+    mockUpdateRuntimeLogConfig.mockImplementation(async (config) => config)
+    mockResetRuntimeLogConfig.mockResolvedValue(runtimeConfig)
   })
 
   it('renders the host and sends it with list and cleanup filters', async () => {
@@ -124,6 +131,57 @@ describe('OpsSystemLogTable host support', () => {
     await flushPromises()
 
     expect(mockCleanupSystemLogs).toHaveBeenCalledWith(expect.objectContaining({ host: 'api-node-2' }))
+  })
+
+  it('keeps database access-log persistence opt-in', async () => {
+    const wrapper = mount(OpsSystemLogTable, {
+      global: {
+        stubs: {
+          Select: SelectStub,
+          Pagination: PaginationStub,
+        },
+      },
+    })
+    await flushPromises()
+
+    const label = wrapper.findAll('label').find((item) => item.text().includes('admin.ops.systemLogs.persistAccessLogs'))
+    expect(label).toBeDefined()
+    expect((label!.find('input').element as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('loads, saves, and resets access-log persistence without implicitly enabling it', async () => {
+    mockGetRuntimeLogConfig.mockResolvedValue({ ...runtimeConfig, persist_access_logs: true })
+    const wrapper = mount(OpsSystemLogTable, {
+      global: { stubs: { Select: SelectStub, Pagination: PaginationStub } },
+    })
+    await flushPromises()
+    const input = wrapper.findAll('label').find((item) => item.text().includes('admin.ops.systemLogs.persistAccessLogs'))!.get('input')
+    const save = wrapper.findAll('button').find((button) => button.text() === 'admin.ops.systemLogs.saveAndApply')!
+    expect((input.element as HTMLInputElement).checked).toBe(true)
+    await save.trigger('click')
+    await flushPromises()
+    expect(mockUpdateRuntimeLogConfig).toHaveBeenLastCalledWith(expect.objectContaining({ persist_access_logs: true }))
+    await input.setValue(false)
+    await save.trigger('click')
+    await flushPromises()
+    expect(mockUpdateRuntimeLogConfig).toHaveBeenLastCalledWith(expect.objectContaining({ persist_access_logs: false }))
+    await input.setValue(true)
+    await wrapper.findAll('button').find((button) => button.text() === 'admin.ops.systemLogs.rollbackDefaults')!.trigger('click')
+    await flushPromises()
+    expect(mockResetRuntimeLogConfig).toHaveBeenCalledOnce()
+    expect((input.element as HTMLInputElement).checked).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('treats an omitted persistence flag as disabled', async () => {
+    mockGetRuntimeLogConfig.mockResolvedValue({ ...runtimeConfig, persist_access_logs: undefined })
+    const wrapper = mount(OpsSystemLogTable, {
+      global: { stubs: { Select: SelectStub, Pagination: PaginationStub } },
+    })
+    await flushPromises()
+    const input = wrapper.findAll('label').find((item) => item.text().includes('admin.ops.systemLogs.persistAccessLogs'))!.get('input')
+    expect((input.element as HTMLInputElement).checked).toBe(false)
+    wrapper.unmount()
   })
 
   it.each([

@@ -48,6 +48,7 @@ const runtimeLoading = ref(false);
 const runtimeSaving = ref(false);
 const runtimeConfig = reactive<OpsRuntimeLogConfig>({
   level: "info",
+  persist_access_logs: false,
   enable_sampling: false,
   sampling_initial: 100,
   sampling_thereafter: 100,
@@ -209,6 +210,7 @@ const loadRuntimeConfig = async () => {
   try {
     const cfg = await opsAPI.getRuntimeLogConfig();
     runtimeConfig.level = cfg.level;
+    runtimeConfig.persist_access_logs = cfg.persist_access_logs === true;
     runtimeConfig.enable_sampling = cfg.enable_sampling;
     runtimeConfig.sampling_initial = cfg.sampling_initial;
     runtimeConfig.sampling_thereafter = cfg.sampling_thereafter;
@@ -223,10 +225,12 @@ const loadRuntimeConfig = async () => {
 };
 
 const saveRuntimeConfig = async () => {
+  if (runtimeLoading.value || runtimeSaving.value) return;
   runtimeSaving.value = true;
   try {
     const saved = await opsAPI.updateRuntimeLogConfig({ ...runtimeConfig });
     runtimeConfig.level = saved.level;
+    runtimeConfig.persist_access_logs = saved.persist_access_logs === true;
     runtimeConfig.enable_sampling = saved.enable_sampling;
     runtimeConfig.sampling_initial = saved.sampling_initial;
     runtimeConfig.sampling_thereafter = saved.sampling_thereafter;
@@ -243,6 +247,7 @@ const saveRuntimeConfig = async () => {
 };
 
 const resetRuntimeConfig = async () => {
+  if (runtimeLoading.value || runtimeSaving.value) return;
   const ok = window.confirm(systemLogT("resetConfirm"));
   if (!ok) return;
 
@@ -250,6 +255,7 @@ const resetRuntimeConfig = async () => {
   try {
     const saved = await opsAPI.resetRuntimeLogConfig();
     runtimeConfig.level = saved.level;
+    runtimeConfig.persist_access_logs = saved.persist_access_logs === true;
     runtimeConfig.enable_sampling = saved.enable_sampling;
     runtimeConfig.sampling_initial = saved.sampling_initial;
     runtimeConfig.sampling_thereafter = saved.sampling_thereafter;
@@ -477,7 +483,7 @@ onMounted(async () => {
           </label>
           <LiquidButton
             type="button"
-            :disabled="runtimeSaving"
+            :disabled="runtimeLoading || runtimeSaving"
             @click="saveRuntimeConfig"
             size="sm"
           >
@@ -487,7 +493,7 @@ onMounted(async () => {
           </LiquidButton>
           <LiquidButton
             type="button"
-            :disabled="runtimeSaving"
+            :disabled="runtimeLoading || runtimeSaving"
             @click="resetRuntimeConfig"
             variant="outline"
             size="sm"
@@ -496,6 +502,17 @@ onMounted(async () => {
           </LiquidButton>
         </div>
       </div>
+      <label class="mt-3 flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+        <input
+          v-model="runtimeConfig.persist_access_logs"
+          type="checkbox"
+          :disabled="runtimeLoading || runtimeSaving"
+        />
+        {{ systemLogT("persistAccessLogs") }}
+      </label>
+      <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        {{ systemLogT("persistAccessLogsHint") }}
+      </p>
       <p
         v-if="health.last_error"
         class="mt-2 text-xs text-red-600 dark:text-red-400"

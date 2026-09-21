@@ -107,7 +107,7 @@ export interface OpsThroughputTrendResponse {
 
 export type OpsRequestKind = 'success' | 'error'
 export type OpsRequestDetailsKind = OpsRequestKind | 'all'
-export type OpsRequestDetailsSort = 'created_at_desc' | 'duration_desc' | 'first_token_desc'
+export type OpsRequestDetailsSort = 'created_at_desc' | 'duration_desc' | 'first_token_desc' | 'ttft_desc'
 
 export interface OpsRequestDetail {
   kind: OpsRequestKind
@@ -977,6 +977,7 @@ export interface OpsAggregationSettings {
 
 export interface OpsRuntimeLogConfig {
   level: 'debug' | 'info' | 'warn' | 'error'
+  persist_access_logs: boolean
   enable_sampling: boolean
   sampling_initial: number
   sampling_thereafter: number

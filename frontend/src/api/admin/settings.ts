@@ -498,6 +498,7 @@ export interface SystemSettings {
   model_plaza_description: string
 
   // Gateway forwarding behavior
+  openai_ttft_mode: string;
   enable_fingerprint_unification: boolean;
   enable_metadata_passthrough: boolean;
   enable_cch_signing: boolean;
@@ -556,6 +557,7 @@ export interface SystemSettings {
   payment_visible_method_alipay_enabled?: boolean;
   payment_visible_method_wxpay_enabled?: boolean;
   purchase_subscription_enabled: boolean;
+  subscription_enabled?: boolean;
   purchase_subscription_url: string;
   purchase_link_cny_10: string;
   purchase_link_cny_30: string;
@@ -603,6 +605,7 @@ export interface SystemSettings {
   channel_monitor_default_interval_seconds: number;
   channel_monitor_hide_throughput?: boolean;
   channel_monitor_show_quota?: boolean;
+  channel_monitor_hide_user_ranking?: boolean;
 
   // Available Channels feature switch
   available_channels_enabled: boolean;
@@ -809,6 +812,7 @@ export interface UpdateSettingsRequest {
   min_claude_code_version?: string;
   max_claude_code_version?: string;
   allow_ungrouped_key_scheduling?: boolean;
+  openai_ttft_mode?: string;
   enable_fingerprint_unification?: boolean;
   enable_metadata_passthrough?: boolean;
   enable_cch_signing?: boolean;
@@ -899,9 +903,13 @@ export interface UpdateSettingsRequest {
   channel_monitor_default_interval_seconds?: number;
   channel_monitor_hide_throughput?: boolean;
   channel_monitor_show_quota?: boolean;
+  channel_monitor_hide_user_ranking?: boolean;
 
   // Available Channels feature switch
   available_channels_enabled?: boolean;
+
+  // Subscription feature switch
+  subscription_enabled?: boolean;
 
   // Model Plaza feature switches + description
   model_plaza_enabled?: boolean;
@@ -1246,7 +1254,7 @@ export async function updateRectifierSettings(
  * Matches backend dto.OpenAIFastPolicyRule.
  */
 export interface OpenAIFastPolicyRule {
-  service_tier: 'all' | 'priority' | 'flex'
+  service_tier: 'all' | 'priority' | 'flex' | 'missing'
   action: 'pass' | 'filter' | 'block' | 'force_priority'
   scope: 'all' | 'oauth' | 'apikey' | 'bedrock'
   user_ids?: number[]

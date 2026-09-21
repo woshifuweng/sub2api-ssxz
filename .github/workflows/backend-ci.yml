@@ -45,6 +45,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Fetch reviewed upstream baseline
+        run: git fetch --no-tags --depth=1 https://github.com/Wei-Shaw/sub2api.git aea725f2ea644d5592d0bbb1d63b607efa7e200a
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
@@ -58,6 +60,9 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile
+      - name: Verify upstream feature and test inventory
+        working-directory: frontend
+        run: pnpm run check:upstream
       - name: Frontend lint, typecheck, and full test suite
         run: make test-frontend
 

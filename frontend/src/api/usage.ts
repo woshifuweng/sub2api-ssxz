@@ -64,6 +64,7 @@ export interface TrendParams {
   group_id?: number
   request_type?: UsageRequestType
   stream?: boolean
+  native_compaction_v2?: boolean | null
   billing_type?: number | null
   billing_mode?: string | null
   timezone?: string
@@ -192,18 +193,15 @@ export async function getStats(
  * @returns Usage statistics
  */
 export async function getStatsByDateRange(
-  startDate: string,
-  endDate: string,
+  startDateOrParams: string | (UsageQueryParams & { timezone?: string }),
+  endDate?: string,
   apiKeyId?: number
 ): Promise<UsageStatsResponse> {
-  const params: Record<string, unknown> = {
-    start_date: startDate,
-    end_date: endDate
-  }
+  const params: Record<string, unknown> = typeof startDateOrParams === 'string'
+    ? { start_date: startDateOrParams, end_date: endDate }
+    : { ...startDateOrParams }
 
-  if (apiKeyId !== undefined) {
-    params.api_key_id = apiKeyId
-  }
+  if (typeof startDateOrParams === 'string' && apiKeyId !== undefined) params.api_key_id = apiKeyId
 
   const { data } = await apiClient.get<UsageStatsResponse>('/usage/stats', {
     params
@@ -285,6 +283,7 @@ export async function getDashboardModels(params?: {
   group_id?: number
   request_type?: UsageRequestType
   stream?: boolean
+  native_compaction_v2?: boolean | null
   billing_type?: number | null
   billing_mode?: string | null
   timezone?: string

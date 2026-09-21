@@ -1812,7 +1812,8 @@ function handleToolbarRefresh() {
               @click="
                 openDetails({
                   title: t('admin.ops.ttftLabel'),
-                  sort: 'first_token_desc',
+                  kind: 'success',
+                  sort: 'ttft_desc',
                 })
               "
               variant="plain"

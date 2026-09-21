@@ -1,7 +1,7 @@
 <template>
   <AppSectionShell
-    title="补充额度 / 订阅"
-    subtitle="在充值中心选择适合你的商品，账户变化以账户记录为准。"
+    :title="t('nav.shop')"
+    subtitle="第三方商店是独立购买入口；站内充值与订阅请使用对应菜单。"
     eyebrow="账户计费"
     icon="creditCard"
   >
@@ -9,7 +9,7 @@
       <iframe
         src="https://wzyp.cn/shop/VT7XKDFI"
         class="purchase-embed-frame"
-        title="充值中心"
+        :title="t('nav.shop')"
         referrerpolicy="no-referrer"
       ></iframe>
     </div>
@@ -18,6 +18,8 @@
 
 <script setup lang="ts">
 import AppSectionShell from '@/components/user/AppSectionShell.vue'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 </script>
 
 <style scoped>

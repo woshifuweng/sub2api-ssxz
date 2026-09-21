@@ -1,719 +1,283 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import en from '@/i18n/locales/en'
-import zh from '@/i18n/locales/zh'
-
-const { usageAPI, keysAPI, authStore, appStore } = vi.hoisted(() => ({
-  usageAPI: {
-    getStatsByDateRange: vi.fn(),
-    query: vi.fn(),
-    getDashboardTrend: vi.fn()
-  },
-  keysAPI: {
-    list: vi.fn()
-  },
-  authStore: {
-    user: {
-      balance: 8.53,
-      username: 'real-user',
-      email: 'real@example.com'
-    },
-    refreshUser: vi.fn()
-  },
-  appStore: {
-    showSuccess: vi.fn(),
-    showError: vi.fn()
-  }
-}))
-
-const messages: Record<string, string> = {
-  'usage.workbench.createdAt': 'Created at',
-  'usage.workbench.model': 'Model',
-  'usage.workbench.amount': 'Usage',
-  'usage.workbench.duration': 'Duration',
-  'usage.workbench.fee': 'Fee',
-  'usage.workbench.feeTooltip': 'Final charged amount',
-  'usage.workbench.expandRow': 'Show details',
-  'usage.workbench.collapseRow': 'Hide details',
-  'usage.workbench.kind': 'Type',
-  'usage.workbench.endpoint': 'Endpoint',
-  'usage.workbench.group': 'Group',
-  'usage.workbench.noGroup': 'No group recorded',
-  'usage.workbench.billingBasis': 'Billing',
-  'usage.type': 'Type',
-  'admin.usage.group': 'Group',
-  'usage.workbench.performance': 'Processing time',
-  'usage.workbench.supportCode': 'Support code',
-  'usage.workbench.copySupportCode': 'Copy support code',
-  'usage.workbench.supportCodeCopied': 'Support code copied',
-  'usage.workbench.copy': 'Copy',
-  'usage.workbench.copied': 'Copied',
-  'usage.workbench.detailNote': 'Note',
-  'usage.workbench.tokenBreakdown': 'Input {input} · Output {output} · Cache write {cacheWrite} · Cache read {cacheRead}',
-  'usage.tokenDetails': 'Token breakdown',
-  'usage.workbench.billingBalance': 'Balance charge',
-  'usage.workbench.billingSubscription': 'Subscription quota',
-  'usage.workbench.billingNoCharge': 'No balance charged',
-  'usage.workbench.standardVsActual': 'Actual charge {actual}',
-  'usage.workbench.actualChargeBasis': 'Actual charge {amount}',
-  'usage.workbench.noChargeBasis': 'No balance was deducted for this row.',
-  'usage.workbench.performanceHealthy': 'Normal',
-  'usage.workbench.performanceUnknown': 'No record',
-  'usage.workbench.performanceSlowFirstToken': 'Slightly slower start',
-  'usage.workbench.performanceSlowTotal': 'Longer processing',
-  'usage.workbench.performanceNoRecord': 'No displayable timing yet',
-  'usage.workbench.performanceSummary': 'Started in {firstToken}; total time {duration}',
-  'usage.workbench.performanceSlowFirstTokenHint': 'This request started slowly.',
-  'usage.workbench.performanceSlowTotalHint': 'This request took longer to finish.',
-  'usage.workbench.noCharge': 'No charge',
-  'usage.workbench.zeroTokenCharged': 'Image / fixed-fee item',
-  'usage.workbench.usageKindImage': 'Image generation',
-  'usage.workbench.usageKindChat': 'Chat',
-  'usage.workbench.usageKindThirdParty': 'Third-party access',
-  'usage.workbench.usageKindWeb': 'Web app',
-  'usage.workbench.imageAmount': '{count} images',
-  'usage.workbench.imageAmountWithSize': '{count} images / {size}',
-  'usage.workbench.tokenAmount': '{count} tokens',
-  'usage.workbench.monthlyUsageSummary': 'This month: {requests} requests and {tokens} usage units.',
-  'usage.workbench.monthLabel': 'Month {month}'
-}
-
-function translate(key: string, params?: Record<string, unknown>) {
-  let value = messages[key] ?? key
-  for (const [paramKey, paramValue] of Object.entries(params || {})) {
-    value = value.replaceAll(`{${paramKey}}`, String(paramValue))
-  }
-  return value
-}
-
-vi.mock('@/api', () => ({ usageAPI, keysAPI }))
-vi.mock('@/stores/app', () => ({ useAppStore: () => appStore }))
-vi.mock('@/stores/auth', () => ({ useAuthStore: () => authStore }))
-vi.mock('vue-i18n', async () => {
-  const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
-  return { ...actual, useI18n: () => ({ t: translate }) }
-})
-vi.mock('@/components/user/AppSectionShell.vue', () => ({
-  default: {
-    props: ['title', 'subtitle', 'eyebrow', 'icon'],
-    template: '<main><slot /></main>'
-  }
-}))
-vi.mock('@/components/icons/Icon.vue', () => ({
-  default: {
-    props: ['name', 'size'],
-    template: '<span class="icon-stub" />'
-  }
-}))
-vi.mock('@/components/common/Select.vue', () => ({
-  default: {
-    name: 'SelectStub',
-    props: ['modelValue', 'options', 'disabled'],
-    emits: ['update:modelValue'],
-    template: '<select :disabled="disabled" />'
-  }
-}))
-
 import AppUsageView from '../AppUsageView.vue'
+import UsageView from '../UsageView.vue'
+import UsageBalanceSummary from '@/components/user/UsageBalanceSummary.vue'
+import UsageTable from '@/components/admin/usage/UsageTable.vue'
+import DateRangePicker from '@/components/common/DateRangePicker.vue'
+import UserErrorRequestsTable from '@/components/user/UserErrorRequestsTable.vue'
 
-function mountView() {
-  return mount(AppUsageView, {
-    global: {
-      stubs: {
-        RouterLink: {
-          props: ['to'],
-          template: '<a :href="to"><slot /></a>'
-        }
-      }
-    }
-  })
+const { api, auth, app, groups } = vi.hoisted(() => ({
+  api: { query: vi.fn(), getStats: vi.fn(), getStatsByDateRange: vi.fn(), getDashboardModels: vi.fn(), getDashboardSnapshotV2: vi.fn(), listMyErrorRequests: vi.fn() },
+  auth: { user: { balance: 8.53 }, refreshUser: vi.fn() },
+  app: { cachedPublicSettings: { allow_user_view_error_requests: true }, showSuccess: vi.fn(), showError: vi.fn(), showWarning: vi.fn(), showInfo: vi.fn() },
+  groups: vi.fn(),
+}))
+vi.mock('@/api', () => ({ usageAPI: api, keysAPI: { list: vi.fn(async () => ({ items: [], pages: 0 })) }, userGroupsAPI: { getAvailable: groups } }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => auth }))
+vi.mock('@/stores/app', () => ({ useAppStore: () => app }))
+vi.mock('vue-i18n', async () => ({
+  ...await vi.importActual<typeof import('vue-i18n')>('vue-i18n'),
+  useI18n: () => ({ t: (key: string) => key }),
+}))
+const row = {
+  id: 101, request_id: 'req-usage-1', api_key: { id: 7, name: 'enterprise-key' },
+  group_id: 23, group: { id: 23, name: 'Enterprise 70%' }, model: 'gpt-6',
+  inbound_endpoint: '/v1/responses', ip_address: '203.0.113.10',
+  input_tokens: 60, output_tokens: 24, cache_creation_tokens: 0, cache_read_tokens: 0,
+  total_cost: 0.00384, actual_cost: 0.00384, billing_type: 0, billing_mode: 'token',
+  image_count: 0, duration_ms: 119999, first_token_ms: 460, created_at: '2026-09-21T08:00:00Z',
 }
-
+const response = { items: [row], total: 1, pages: 1 }
+const stats = { total_requests: 1, total_tokens: 84, total_actual_cost: .00384, endpoints: [] }
+const wrappers: ReturnType<typeof mount>[] = []
+function mountPage() {
+  const wrapper = mount(AppUsageView, { global: { stubs: {
+    AppSectionShell: { template: '<main data-testid="ssxz-shell"><slot /></main>' },
+    RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+    Icon: true, Select: true, DateRangePicker: true, Pagination: true,
+    UsageStatsCards: true, UserErrorRequestsTable: true,
+    ModelDistributionChart: true, GroupDistributionChart: true, EndpointDistributionChart: true, TokenUsageTrend: true,
+  } } })
+  wrappers.push(wrapper)
+  return { wrapper, page: wrapper.findComponent(UsageView), summary: wrapper.findComponent(UsageBalanceSummary) }
+}
 function deferred<T>() {
-  let resolve!: (value: T | PromiseLike<T>) => void
-  let reject!: (reason?: unknown) => void
-  const promise = new Promise<T>((next, fail) => {
-    resolve = next
-    reject = fail
-  })
-  return { promise, resolve, reject }
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((next) => { resolve = next })
+  return { promise, resolve }
 }
+beforeEach(() => {
+  vi.clearAllMocks()
+  localStorage.clear()
+  api.query.mockResolvedValue(response)
+  api.getStats.mockResolvedValue(stats)
+  api.getStatsByDateRange.mockResolvedValue(stats)
+  api.getDashboardModels.mockResolvedValue({ models: [] })
+  api.getDashboardSnapshotV2.mockResolvedValue({ trend: [], groups: [] })
+  api.listMyErrorRequests.mockResolvedValue({ items: [], total: 0 })
+  auth.refreshUser.mockResolvedValue(auth.user)
+  groups.mockResolvedValue([{ id: 23, name: 'Enterprise 70%' }])
+  app.cachedPublicSettings.allow_user_view_error_requests = true
+})
+afterEach(async () => {
+  wrappers.splice(0).forEach((wrapper) => wrapper.unmount())
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
 
-function mockObjectURLs() {
-  const createObjectURLDescriptor = Object.getOwnPropertyDescriptor(window.URL, 'createObjectURL')
-  const revokeObjectURLDescriptor = Object.getOwnPropertyDescriptor(window.URL, 'revokeObjectURL')
-  const createObjectURL = vi.fn((blob: Blob) => {
-    void blob
-    return 'blob:usage-export'
+describe('actual /app/usage route integration', () => {
+  it('routes the customer menu to one upstream-backed workspace with SSXZ shell and new controls', async () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/router/index.ts'), 'utf8')
+    expect(source).toContain("path: '/app/usage'")
+    expect(source).toContain("import('@/views/user/AppUsageView.vue')")
+    const { wrapper } = mountPage()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="ssxz-shell"]').exists()).toBe(true)
+    expect(wrapper.findAllComponents(UsageView)).toHaveLength(1)
+    expect(wrapper.find('[data-testid="usage-column-settings"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('usage.tabs.errors')
   })
-  const revokeObjectURL = vi.fn()
-
-  Object.defineProperty(window.URL, 'createObjectURL', {
-    configurable: true,
-    value: createObjectURL
+  it('keeps eight grouped columns with group, endpoint, IP, support code and copy control', async () => {
+    const { wrapper } = mountPage()
+    await flushPromises()
+    const table = wrapper.findComponent(UsageTable)
+    expect(table.props('columns').map((c: { key: string }) => c.key)).toEqual(['api_key', 'model', 'endpoint', 'group', 'tokens', 'cost', 'latency', 'created_at'])
+    expect(table.props('serverSideSort')).toBe(true)
+    expect(table.props('showAccountBilling')).toBe(false)
+    expect(table.props('showUpstreamEndpoint')).toBe(false)
+    for (const value of ['enterprise-key', 'gpt-6', '/v1/responses', '203.0.113.10', 'Enterprise 70%', 'req-usage-1']) expect(table.text()).toContain(value)
+    expect(table.find('[data-testid="grouped-detail-copy"]').exists()).toBe(true)
+    expect(table.get('thead .usage-col-group-context').text()).toContain('admin.usage.group')
   })
-  Object.defineProperty(window.URL, 'revokeObjectURL', {
-    configurable: true,
-    value: revokeObjectURL
+  it('preserves sub-cent fees and rounds duration at the next minute', async () => {
+    const { wrapper } = mountPage()
+    await flushPromises()
+    const tr = wrapper.get('tbody tr[data-row-id="101"]')
+    expect(tr.get('.usage-col-cost').text()).toContain('$0.003840')
+    expect(tr.get('.usage-col-latency').text()).toContain('2m 0s')
   })
-
-  return {
-    createObjectURL,
-    revokeObjectURL,
-    restore() {
-      if (createObjectURLDescriptor) {
-        Object.defineProperty(window.URL, 'createObjectURL', createObjectURLDescriptor)
-      } else {
-        Reflect.deleteProperty(window.URL, 'createObjectURL')
-      }
-      if (revokeObjectURLDescriptor) {
-        Object.defineProperty(window.URL, 'revokeObjectURL', revokeObjectURLDescriptor)
-      } else {
-        Reflect.deleteProperty(window.URL, 'revokeObjectURL')
-      }
-    }
-  }
-}
-
-function waitForZeroDelayCleanup() {
-  return new Promise<void>((resolve) => window.setTimeout(resolve, 0))
-}
-
-function readBlobText(blob: Blob) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.addEventListener('load', () => resolve(String(reader.result)))
-    reader.addEventListener('error', () => reject(reader.error))
-    reader.readAsText(blob)
+  it('exposes optional columns and persists settings while time remains mandatory', async () => {
+    const { wrapper } = mountPage()
+    await flushPromises()
+    await wrapper.get('[data-testid="usage-column-settings"]').trigger('click')
+    expect(wrapper.find('[data-testid="usage-column-toggle-created_at"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="usage-column-toggle-user_agent"]').trigger('click')
+    expect(wrapper.findComponent(UsageTable).props('columns').some((c: { key: string }) => c.key === 'user_agent')).toBe(true)
+    expect(JSON.parse(localStorage.getItem('user-usage-hidden-columns')!)).not.toContain('user_agent')
   })
-}
-
-function usageRow(id: number, model: string) {
-  return {
-    id,
-    request_id: `req-${id}`,
-    api_key_id: 7,
-    model,
-    inbound_endpoint: '/v1/responses',
-    input_tokens: 1,
-    output_tokens: 0,
-    cache_creation_tokens: 0,
-    cache_read_tokens: 0,
-    total_cost: 0.01,
-    actual_cost: 0.01,
-    billing_type: 0,
-    image_count: 0,
-    image_size: null,
-    duration_ms: 1000,
-    first_token_ms: 500,
-    created_at: '2026-08-29T08:03:00Z'
-  }
-}
-
-describe('AppUsageView compact usage details', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    keysAPI.list.mockResolvedValue({ items: [], total: 0, pages: 0 })
-    authStore.refreshUser.mockResolvedValue(authStore.user)
-    usageAPI.getStatsByDateRange.mockResolvedValue({
-      total_requests: 2,
-      total_tokens: 94,
-      total_actual_cost: 0.43
-    })
-    usageAPI.getDashboardTrend.mockResolvedValue({
-      trend: [],
-      start_date: '2026-08-01',
-      end_date: '2026-08-29',
-      granularity: 'day'
-    })
-    usageAPI.query.mockResolvedValue({
-      items: [
-        {
-          id: 101,
-          request_id: 'req-usage-1',
-          api_key: { id: 7, name: 'enterprise-key' },
-          group_id: 23,
-          group: { id: 23, name: 'Enterprise 70%' },
-          model: 'gpt-5.5',
-          inbound_endpoint: '/v1/responses',
-          input_tokens: 60,
-          output_tokens: 24,
-          cache_creation_tokens: 0,
-          cache_read_tokens: 0,
-          total_cost: 0.28,
-          actual_cost: 0.28,
-          billing_type: 0,
-          image_count: 0,
-          image_size: null,
-          duration_ms: 3200,
-          first_token_ms: 460,
-          created_at: '2026-08-29T08:00:00Z'
-        },
-        {
-          id: 102,
-          request_id: 'req-usage-2',
-          api_key_id: 7,
-          model: 'gpt-5.5',
-          inbound_endpoint: '/v1/responses',
-          input_tokens: 10,
-          output_tokens: 0,
-          cache_creation_tokens: 0,
-          cache_read_tokens: 0,
-          total_cost: 0,
-          actual_cost: 0,
-          billing_type: 0,
-          image_count: 0,
-          image_size: null,
-          duration_ms: 76000,
-          first_token_ms: 6200,
-          created_at: '2026-08-29T08:01:00Z'
-        }
-      ],
-      total: 2,
-      pages: 1
-    })
+  it('keeps account-wide monthly summary independent of selected detail dates', async () => {
+    const { wrapper } = mountPage()
+    await flushPromises()
+    const initial = [...api.getStatsByDateRange.mock.calls]
+    wrapper.findComponent(DateRangePicker).vm.$emit('change', { startDate: '2026-08-01', endDate: '2026-08-15', preset: null })
+    await flushPromises()
+    expect(api.query).toHaveBeenLastCalledWith(expect.objectContaining({ start_date: '2026-08-01', end_date: '2026-08-15' }), expect.anything())
+    expect(api.getStatsByDateRange.mock.calls).toEqual(initial)
+    expect(api.getStats).toHaveBeenLastCalledWith(expect.objectContaining({ start_date: '2026-08-01' }))
   })
-
-  it('uses eight grouped columns without hiding any usage details', () => {
-    const source = readFileSync(resolve(process.cwd(), 'src/views/user/AppUsageView.vue'), 'utf8')
-    const columnsSource = source.match(/const usageTableColumns = computed<Column\[\]>\(\(\) => \[([\s\S]*?)\n\]\)/)?.[1]
-
-    expect(source).toContain("import UsageTable from '@/components/admin/usage/UsageTable.vue'")
-    expect(source).toContain('<UsageTable')
-    expect(source).toContain(':grouped-details="true"')
-    expect(columnsSource).toBeDefined()
-    expect([...columnsSource!.matchAll(/key:\s*'([^']+)'/g)].map((match) => match[1])).toEqual([
-      'api_key',
-      'model',
-      'endpoint',
-      'group',
-      'tokens',
-      'cost',
-      'latency',
-      'created_at'
-    ])
-
-    for (const key of ['reasoning_effort', 'ip_address', 'stream', 'billing_mode', 'request_id']) {
-      expect(columnsSource).not.toContain(`key: '${key}'`)
-    }
+  it('loads records independently and deduplicates overlapping balance refreshes', async () => {
+    const balance = deferred<typeof auth.user>()
+    auth.refreshUser.mockReturnValue(balance.promise)
+    const { wrapper, summary } = mountPage()
+    await flushPromises()
+    expect(wrapper.find('tbody tr[data-row-id="101"]').exists()).toBe(true)
+    await summary.get('button').trigger('click')
+    expect(auth.refreshUser).toHaveBeenCalledTimes(1)
+    balance.resolve(auth.user)
+    await flushPromises()
+    auth.refreshUser.mockRejectedValueOnce(new Error('offline'))
+    await summary.get('button').trigger('click')
+    await flushPromises()
+    expect(summary.text()).toContain('usage.workbench.balanceRefreshError')
   })
-
-  it('uses translated group, type and billing labels in the grouped column title', async () => {
-    const source = readFileSync(resolve(process.cwd(), 'src/views/user/AppUsageView.vue'), 'utf8')
-
-    expect(zh.admin.usage.group).toBe('分组')
-    expect(en.admin.usage.group).toBe('Group')
-    expect(zh.usage.type).toBe('类型')
-    expect(en.usage.type).toBe('Type')
-    expect(zh.usage.workbench.billingBasis).toBe('计费方式')
-    expect(en.usage.workbench.billingBasis).toBe('Billing')
-    expect(source).toContain("`${t('admin.usage.group')} / ${t('usage.type')} / ${t('usage.workbench.billingBasis')}`")
-    expect(source).not.toContain("t('admin.usage.billingMode')")
-
-    const wrapper = mountView()
+  it('does not turn failed monthly statistics into a fake zero', async () => {
+    api.getStatsByDateRange.mockRejectedValue(new Error('offline'))
+    const { wrapper, summary } = mountPage()
     await flushPromises()
-    expect(wrapper.get('thead .usage-col-group-context').text()).toBe('Group / Type / Billing')
+    expect(summary.text()).toContain('usage.workbench.unavailable')
+    expect(wrapper.find('tbody tr[data-row-id="101"]').exists()).toBe(true)
   })
-
-  it('keeps complete scan-critical fields in the main desktop row', async () => {
-    const wrapper = mountView()
+  it('cancels obsolete requests and preserves newest filter results', async () => {
+    const old = deferred<typeof response>()
+    const { page } = mountPage()
     await flushPromises()
-
-    const headers = wrapper.findAll('thead th').map((header) => header.text())
-    expect(headers).toHaveLength(8)
-    expect(wrapper.findAll('tbody tr[data-row-id]')).toHaveLength(2)
-
-    const tableText = wrapper.get('[data-testid="usage-native-table"]').text()
-    expect(tableText).toContain('enterprise-key')
-    expect(tableText).toContain('/v1/responses')
-    expect(tableText).toContain('Enterprise 70%')
-    expect(tableText).toContain('req-usage-1')
-    expect(tableText).toContain('$0.280000')
-    expect(tableText).toContain('60')
-    expect(usageAPI.query).toHaveBeenCalledWith(expect.objectContaining({
-      page: 1,
-      page_size: 20
-    }))
+    api.query.mockReturnValueOnce(old.promise)
+    const vm = page.vm as any
+    vm.filters.model = 'old-model'
+    vm.applyFilters()
+    const oldSignal = api.query.mock.calls.at(-1)![1].signal
+    vm.filters.model = 'gpt-6'
+    vm.applyFilters()
+    await flushPromises()
+    expect(oldSignal.aborted).toBe(true)
+    old.resolve({ ...response, items: [{ ...row, model: 'old-model' }] })
+    await flushPromises()
+    expect(page.findComponent(UsageTable).props('data')[0].model).toBe('gpt-6')
   })
-
-  it('preserves sub-cent fees and rounds durations at the next minute', async () => {
-    usageAPI.query.mockResolvedValue({
-      items: [
-        {
-          id: 103,
-          request_id: 'req-usage-3',
-          api_key_id: 7,
-          model: 'gpt-5.5',
-          inbound_endpoint: '/v1/responses',
-          input_tokens: 4,
-          output_tokens: 0,
-          cache_creation_tokens: 0,
-          cache_read_tokens: 0,
-          total_cost: 0.00384,
-          actual_cost: 0.00384,
-          billing_type: 0,
-          image_count: 0,
-          image_size: null,
-          duration_ms: 119999,
-          first_token_ms: 700,
-          created_at: '2026-08-29T08:02:00Z'
-        }
-      ],
-      total: 1,
-      pages: 1
-    })
-
-    const wrapper = mountView()
+  it('paginates and sorts on the server, not just the loaded page', async () => {
+    const { wrapper, page } = mountPage()
     await flushPromises()
-
-    const row = wrapper.get('tbody tr[data-row-id="103"]')
-    expect.soft(row.get('.usage-col-latency').text()).toContain('2m 0s')
-    expect.soft(row.get('.usage-col-cost').text()).toContain('$0.003840')
+    ;(page.vm as any).handlePageChange(2)
+    await flushPromises()
+    expect(api.query).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }), expect.anything())
+    wrapper.findComponent(UsageTable).vm.$emit('sort', 'model', 'asc')
+    await flushPromises()
+    expect(api.query).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, sort_by: 'model', sort_order: 'asc' }), expect.anything())
   })
-
-  it('keeps summary statistics on the current month when detail dates change', async () => {
-    const wrapper = mountView()
+  it('shows a failure state instead of stale records after an unsuccessful refresh', async () => {
+    const { page } = mountPage()
     await flushPromises()
-    const initialStatsCall = usageAPI.getStatsByDateRange.mock.calls[0]
-
-    await wrapper.findAll('input[type="date"]')[0].setValue('2026-08-15')
+    api.query.mockRejectedValueOnce(new Error('offline'))
+    ;(page.vm as any).refreshData()
     await flushPromises()
-
-    expect(usageAPI.query).toHaveBeenLastCalledWith(expect.objectContaining({ start_date: '2026-08-15' }))
-    expect(usageAPI.getStatsByDateRange).toHaveBeenLastCalledWith(...initialStatsCall)
+    expect(page.findComponent(UsageTable).exists()).toBe(false)
+    expect(page.find('[role="alert"]').text()).toContain('usage.failedToLoad')
   })
-
-  it('loads usage independently and deduplicates overlapping balance refreshes', async () => {
-    const balanceRefresh = deferred<typeof authStore.user>()
-    authStore.refreshUser.mockReturnValue(balanceRefresh.promise)
-
-    const wrapper = mountView()
+  it('discards stale error responses and respects server-controlled visibility', async () => {
+    const { wrapper, page } = mountPage()
     await flushPromises()
-
-    expect(wrapper.findAll('tbody tr[data-row-id]')).toHaveLength(2)
-    expect(authStore.refreshUser).toHaveBeenCalledTimes(1)
-
-    await wrapper.get('.refresh-button').trigger('click')
+    const old = deferred<{ items: unknown[]; total: number }>()
+    api.listMyErrorRequests.mockReturnValueOnce(old.promise)
+    ;(page.vm as any).switchToErrors()
+    ;(page.vm as any).errorFilter.model = 'gpt-6'
+    ;(page.vm as any).applyErrorFilters()
     await flushPromises()
-    expect(usageAPI.query).toHaveBeenCalledTimes(2)
-    expect(authStore.refreshUser).toHaveBeenCalledTimes(1)
-
-    const modelInput = wrapper.get('input[type="search"]')
-    await modelInput.setValue('filtered-model')
-    await modelInput.trigger('keyup.enter')
+    old.resolve({ items: [{ model: 'old' }], total: 1 })
     await flushPromises()
-    expect(usageAPI.query).toHaveBeenCalledTimes(3)
-    expect(authStore.refreshUser).toHaveBeenCalledTimes(1)
-
-    balanceRefresh.resolve(authStore.user)
+    expect(wrapper.findComponent(UserErrorRequestsTable).props('rows')).toEqual([])
+    wrapper.unmount()
+    app.cachedPublicSettings.allow_user_view_error_requests = false
+    const hidden = mountPage()
     await flushPromises()
-    authStore.refreshUser.mockRejectedValueOnce(new Error('balance refresh failed'))
-    await wrapper.get('.refresh-button').trigger('click')
-    await flushPromises()
-    expect(authStore.refreshUser).toHaveBeenCalledTimes(2)
-    expect(wrapper.find('.usage-summary-card p.is-warning').exists()).toBe(true)
-
-    await modelInput.setValue('second-filter')
-    await modelInput.trigger('keyup.enter')
-    await flushPromises()
-    expect(authStore.refreshUser).toHaveBeenCalledTimes(2)
-    expect(wrapper.find('.usage-summary-card p.is-warning').exists()).toBe(true)
+    const count = api.listMyErrorRequests.mock.calls.length
+    ;(hidden.page.vm as any).switchToErrors()
+    expect(api.listMyErrorRequests).toHaveBeenCalledTimes(count)
+    expect(hidden.wrapper.text()).not.toContain('usage.tabs.errors')
   })
-
-  it('blocks filter, reset, refresh and page actions while a filter load is pending', async () => {
-    const pendingQuery = deferred<{ items: ReturnType<typeof usageRow>[], total: number, pages: number }>()
-    usageAPI.query
-      .mockResolvedValueOnce({ items: [usageRow(201, 'initial-model')], total: 41, pages: 3 })
-      .mockImplementationOnce(() => pendingQuery.promise)
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    const modelInput = wrapper.get('input[type="search"]')
-    const dateInputs = wrapper.findAll('input[type="date"]')
-    const apiKeySelect = wrapper.getComponent({ name: 'SelectStub' })
-    const filterButtons = wrapper.findAll('.filter-actions button')
-    const paginationButtons = wrapper.findAll('.usage-pagination button')
-    await modelInput.setValue('held-model')
-    await modelInput.trigger('keyup.enter')
-    await wrapper.vm.$nextTick()
-
-    expect.soft(usageAPI.query).toHaveBeenLastCalledWith(expect.objectContaining({ model: 'held-model' }))
-    expect.soft(modelInput.attributes('disabled')).toBeDefined()
-    expect.soft(dateInputs.every((input) => input.attributes('disabled') !== undefined)).toBe(true)
-    expect.soft(apiKeySelect.attributes('disabled')).toBeDefined()
-    expect.soft(filterButtons[0].attributes('disabled')).toBeDefined()
-    expect.soft(wrapper.get('.refresh-button').attributes('disabled')).toBeDefined()
-    expect.soft(wrapper.find('.usage-pagination').exists()).toBe(false)
-
-    await modelInput.setValue('blocked-model')
-    await modelInput.trigger('keyup.enter')
-    await dateInputs[0].setValue('2026-01-01')
-    apiKeySelect.vm.$emit('update:modelValue', 7)
-    await filterButtons[0].trigger('click')
-    await wrapper.get('.refresh-button').trigger('click')
-    await paginationButtons[1].trigger('click')
-    await wrapper.vm.$nextTick()
-
-    expect.soft(usageAPI.query).toHaveBeenCalledTimes(2)
-    expect.soft(authStore.refreshUser).toHaveBeenCalledTimes(1)
-
-    pendingQuery.resolve({ items: [usageRow(202, 'held-model-result')], total: 41, pages: 3 })
-    await flushPromises()
-
-    expect.soft(wrapper.get('.refresh-button').attributes('disabled')).toBeUndefined()
-    expect.soft(wrapper.get('tbody tr[data-row-id] .usage-col-model-context').text()).toContain('held-model-result')
-    expect(wrapper.get('.usage-pagination').text()).toContain('1 / 3')
+  it('aborts active requests on unmount', async () => {
+    const { wrapper } = mountPage()
+    const signal = api.query.mock.calls.at(-1)![1].signal
+    wrapper.unmount()
+    expect(signal.aborted).toBe(true)
   })
-
-  it('blocks repeated page, filter and refresh actions while pagination is pending', async () => {
-    const pendingPage = deferred<{ items: ReturnType<typeof usageRow>[], total: number, pages: number }>()
-    usageAPI.query
-      .mockResolvedValueOnce({ items: [usageRow(203, 'page-one')], total: 41, pages: 3 })
-      .mockImplementationOnce(() => pendingPage.promise)
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    const paginationButtons = wrapper.findAll('.usage-pagination button')
-    await paginationButtons[1].trigger('click')
-    await wrapper.vm.$nextTick()
-
-    expect.soft(usageAPI.query).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }))
-    expect.soft(wrapper.get('.refresh-button').attributes('disabled')).toBeDefined()
-    expect.soft(wrapper.find('.usage-pagination').exists()).toBe(false)
-
-    const modelInput = wrapper.get('input[type="search"]')
-    await modelInput.setValue('blocked-model')
-    await modelInput.trigger('keyup.enter')
-    await wrapper.get('.refresh-button').trigger('click')
-    await paginationButtons[0].trigger('click')
-    await paginationButtons[1].trigger('click')
-    await wrapper.vm.$nextTick()
-
-    expect.soft(usageAPI.query).toHaveBeenCalledTimes(2)
-    expect.soft(authStore.refreshUser).toHaveBeenCalledTimes(1)
-
-    pendingPage.resolve({ items: [usageRow(204, 'page-two-result')], total: 41, pages: 3 })
-    await flushPromises()
-
-    expect.soft(wrapper.get('tbody tr[data-row-id] .usage-col-model-context').text()).toContain('page-two-result')
-    expect(wrapper.get('.usage-pagination').text()).toContain('2 / 3')
-  })
-
-  it('disables conflicting controls and freezes export filters and page count', async () => {
-    const firstExportPage = deferred<{ items: ReturnType<typeof usageRow>[], total: number, pages: number }>()
-    usageAPI.query
-      .mockResolvedValueOnce({ items: [usageRow(301, 'visible-model')], total: 101, pages: 6 })
-      .mockImplementationOnce(() => firstExportPage.promise)
-      .mockResolvedValueOnce({ items: [usageRow(302, 'export-page-2')], total: 101, pages: 2 })
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    const modelInput = wrapper.get('input[type="search"]')
-    const dateInputs = wrapper.findAll('input[type="date"]')
-    await modelInput.setValue('original-model')
-    const originalStartDate = (dateInputs[0].element as HTMLInputElement).value
-    const originalEndDate = (dateInputs[1].element as HTMLInputElement).value
-    const objectURLs = mockObjectURLs()
-    const appendChildSpy = vi.spyOn(document.body, 'appendChild')
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
-
-    try {
-      const filterButtons = wrapper.findAll('.filter-actions button')
-      await filterButtons[1].trigger('click')
-      await wrapper.vm.$nextTick()
-
-      const apiKeySelect = wrapper.getComponent({ name: 'SelectStub' })
-      const paginationButtons = wrapper.findAll('.usage-pagination button')
-      expect.soft(apiKeySelect.attributes('disabled')).toBeDefined()
-      expect.soft(modelInput.attributes('disabled')).toBeDefined()
-      expect.soft(dateInputs.every((input) => input.attributes('disabled') !== undefined)).toBe(true)
-      expect.soft(filterButtons[0].attributes('disabled')).toBeDefined()
-      expect.soft(filterButtons[1].attributes('disabled')).toBeDefined()
-      expect.soft(wrapper.get('.refresh-button').attributes('disabled')).toBeDefined()
-      expect.soft(paginationButtons).toHaveLength(2)
-      expect.soft(paginationButtons.every((button) => button.attributes('disabled') !== undefined)).toBe(true)
-
-      await modelInput.setValue('changed-model')
-      await modelInput.trigger('keyup.enter')
-      await dateInputs[0].setValue('2026-01-01')
-      await dateInputs[1].setValue('2026-01-31')
-      apiKeySelect.vm.$emit('update:modelValue', 7)
-      await filterButtons[0].trigger('click')
-      await wrapper.get('.refresh-button').trigger('click')
-      await paginationButtons[1].trigger('click')
-      await wrapper.vm.$nextTick()
-
-      expect.soft(usageAPI.query).toHaveBeenCalledTimes(2)
-      expect.soft(authStore.refreshUser).toHaveBeenCalledTimes(1)
-
-      firstExportPage.resolve({ items: [usageRow(303, 'export-page-1')], total: 101, pages: 2 })
-      await flushPromises()
-
-      expect(usageAPI.query.mock.calls.slice(1).map(([query]) => query)).toEqual([
-        {
-          page: 1,
-          page_size: 100,
-          api_key_id: undefined,
-          model: 'original-model',
-          start_date: originalStartDate,
-          end_date: originalEndDate
-        },
-        {
-          page: 2,
-          page_size: 100,
-          api_key_id: undefined,
-          model: 'original-model',
-          start_date: originalStartDate,
-          end_date: originalEndDate
-        }
-      ])
-      const anchor = appendChildSpy.mock.calls
-        .map(([node]) => node)
-        .find((node): node is HTMLAnchorElement => node instanceof HTMLAnchorElement)
-      expect.soft(anchor?.download).toBe(`usage_${originalStartDate}_to_${originalEndDate}.csv`)
-      expect.soft(document.body.contains(anchor || null)).toBe(false)
-      expect.soft(clickSpy).toHaveBeenCalledTimes(1)
-      expect.soft(appStore.showSuccess).toHaveBeenCalledTimes(1)
-      await waitForZeroDelayCleanup()
-      expect(objectURLs.revokeObjectURL).toHaveBeenCalledWith('blob:usage-export')
-    } finally {
-      wrapper.unmount()
-      clickSpy.mockRestore()
-      appendChildSpy.mockRestore()
-      objectURLs.restore()
-    }
-  })
-
-  it('still schedules object URL cleanup when clicking and removing the anchor throw', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    const objectURLs = mockObjectURLs()
-    const appendChildSpy = vi.spyOn(document.body, 'appendChild')
-    const removeSpy = vi.spyOn(Element.prototype, 'remove').mockImplementation(() => {
-      throw new Error('anchor removal failed')
-    })
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {
-      throw new Error('download click failed')
-    })
-    let anchor: HTMLAnchorElement | undefined
-
-    try {
-      await wrapper.findAll('.filter-actions button')[1].trigger('click')
-      await flushPromises()
-
-      anchor = appendChildSpy.mock.calls
-        .map(([node]) => node)
-        .find((node): node is HTMLAnchorElement => node instanceof HTMLAnchorElement)
-      expect(anchor).toBeDefined()
-      expect.soft(anchor?.href).toBe('blob:usage-export')
-      expect.soft(anchor?.download).toMatch(/^usage_\d{4}-\d{2}-\d{2}_to_\d{4}-\d{2}-\d{2}\.csv$/)
-      expect.soft(clickSpy).toHaveBeenCalledTimes(1)
-      expect.soft(removeSpy.mock.instances).toContain(anchor)
-      expect.soft(appStore.showError).toHaveBeenCalledTimes(1)
-
-      await waitForZeroDelayCleanup()
-
-      expect(objectURLs.revokeObjectURL).toHaveBeenCalledWith('blob:usage-export')
-    } finally {
-      clickSpy.mockRestore()
-      removeSpy.mockRestore()
-      appendChildSpy.mockRestore()
-      anchor?.remove()
-      wrapper.unmount()
-      objectURLs.restore()
-    }
-  })
-
-  it('still schedules object URL cleanup when creating the download anchor throws', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    const objectURLs = mockObjectURLs()
-    const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation(() => {
-      throw new Error('anchor creation failed')
-    })
-
-    try {
-      await wrapper.findAll('.filter-actions button')[1].trigger('click')
-      await flushPromises()
-      await waitForZeroDelayCleanup()
-
-      expect.soft(objectURLs.createObjectURL).toHaveBeenCalledTimes(1)
-      expect.soft(createElementSpy).toHaveBeenCalledWith('a')
-      expect.soft(objectURLs.revokeObjectURL).toHaveBeenCalledWith('blob:usage-export')
-      expect(appStore.showError).toHaveBeenCalledTimes(1)
-    } finally {
-      createElementSpy.mockRestore()
-      wrapper.unmount()
-      objectURLs.restore()
-    }
-  })
-
-  it('keeps formula-like values escaped in the generated CSV Blob', async () => {
-    usageAPI.query
-      .mockResolvedValueOnce({ items: [usageRow(305, 'visible-model')], total: 1, pages: 1 })
-      .mockResolvedValueOnce({ items: [usageRow(306, '=2+2')], total: 1, pages: 1 })
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    const objectURLs = mockObjectURLs()
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
-
-    try {
-      await wrapper.findAll('.filter-actions button')[1].trigger('click')
-      await flushPromises()
-
-      const [blob] = objectURLs.createObjectURL.mock.calls[0]
-      const csv = await readBlobText(blob)
-      expect(csv).toContain(",'=2+2,")
-
-      await waitForZeroDelayCleanup()
-      expect(objectURLs.revokeObjectURL).toHaveBeenCalledWith('blob:usage-export')
-    } finally {
-      clickSpy.mockRestore()
-      wrapper.unmount()
-      objectURLs.restore()
-    }
-  })
-
-  it('keeps the support code visible with a copy control in the grouped activity column', async () => {
-    const wrapper = mountView()
-    await flushPromises()
-
-    const supportCell = wrapper.get('tbody tr[data-row-id="101"] .usage-col-activity [data-testid="grouped-detail-created-at"]')
-    expect(supportCell.text()).toContain('req-usage-1')
-    expect(supportCell.find('button').exists()).toBe(true)
-  })
-
-  it('keeps wide data inside the table and delegates mobile rendering to the native DataTable cards', () => {
-    const source = readFileSync(resolve(process.cwd(), 'src/views/user/AppUsageView.vue'), 'utf8')
-    const nativeTableSource = readFileSync(resolve(process.cwd(), 'src/components/admin/usage/UsageTable.vue'), 'utf8')
-    const dataTableSource = readFileSync(resolve(process.cwd(), 'src/components/common/DataTable.vue'), 'utf8')
-
-    expect(source).toMatch(/\.usage-native-table\s+:deep\(\.table-wrapper\)[\s\S]*overflow-x:\s*auto/)
-    expect(source).toMatch(/\.usage-native-table\s+:deep\(table\)[\s\S]*min-width:\s*86\.5rem/)
-    expect(source).toContain('.usage-native-table :deep(.usage-col-api-key) { width: 10rem; }')
-    expect(source).toContain('.usage-native-table :deep(.usage-col-model-context) { width: 8.5rem; }')
-    expect(source).toContain('.usage-native-table :deep(.usage-col-route) { width: 16rem; }')
-    expect(source).toContain('.usage-native-table :deep(.usage-col-group-context) { width: 14rem; }')
-    expect(source).toContain('.usage-native-table :deep(.usage-col-tokens) { width: 10.5rem; }')
-    expect(source).toContain('.usage-native-table :deep(.usage-col-cost) { width: 7.5rem; }')
-    expect(source).toContain('.usage-native-table :deep(.usage-col-latency) { width: 8.5rem; }')
-    expect(source).toContain('.usage-native-table :deep(.usage-col-activity) { width: 11.5rem; }')
-    expect(source).toMatch(/\.usage-native-table\s+:deep\(td\)[\s\S]*overflow:\s*hidden/)
-    expect(nativeTableSource).toContain('<DataTable')
-    expect(nativeTableSource).toContain('block max-w-full truncate')
-    expect(nativeTableSource).toContain(':sticky-first-column="stickyFirstColumn"')
+  it('keeps overflow inside the table and delegates mobile cards to DataTable', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/user/UsageView.vue'), 'utf8')
+    expect(source).toContain('min-width: 1320px')
     expect(source).toContain(':sticky-first-column="false"')
-    expect(source).toContain(':sticky-actions-column="false"')
-    expect(dataTableSource).toContain('v-if="!isDesktopViewport"')
-    expect(dataTableSource).toContain(':data-field="column.key"')
+    const table = readFileSync(resolve(process.cwd(), 'src/components/admin/usage/UsageTable.vue'), 'utf8')
+    expect(table).toContain('class="overflow-auto"')
+    expect(table).toContain('<DataTable')
+  })
+})
+
+describe('customer export safeguards', () => {
+  function downloadMocks() {
+    const create = vi.fn((_blob: Blob) => 'blob:usage-export')
+    const revoke = vi.fn()
+    Object.defineProperty(window.URL, 'createObjectURL', { configurable: true, value: create })
+    Object.defineProperty(window.URL, 'revokeObjectURL', { configurable: true, value: revoke })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    return { create, revoke }
+  }
+  it('deduplicates exports and freezes filters, sort, dates and total pages', async () => {
+    downloadMocks()
+    api.query.mockResolvedValue({ ...response, total: 101, pages: 2 })
+    const { page } = mountPage()
+    await flushPromises()
+    const first = deferred<typeof response>()
+    api.query.mockReturnValueOnce(first.promise)
+    const vm = page.vm as any
+    const task = vm.exportToCSV()
+    const snapshot = { ...api.query.mock.calls.at(-1)![0] }
+    const count = api.query.mock.calls.length
+    await vm.exportToCSV()
+    expect(api.query).toHaveBeenCalledTimes(count)
+    vm.filters.model = 'changed-during-export'
+    vm.pagination.total = 1
+    vm.sortState.sort_by = 'model'
+    first.resolve(response)
+    await task
+    expect(api.query).toHaveBeenLastCalledWith({ ...snapshot, page: 2 })
+    expect(app.showSuccess).toHaveBeenCalled()
+  })
+  it.each(['click', 'remove', 'createElement'] as const)('releases download URLs when %s fails', async (operation) => {
+    const { revoke } = downloadMocks()
+    const { page } = mountPage()
+    await flushPromises()
+    if (operation === 'createElement') {
+      const realCreate = document.createElement.bind(document)
+      vi.spyOn(document, 'createElement').mockImplementation((tag, options) => {
+        if (tag === 'a') throw new Error('cannot create anchor')
+        return realCreate(tag, options)
+      })
+    } else {
+      vi.spyOn(HTMLAnchorElement.prototype, operation).mockImplementation(() => { throw new Error('download failed') })
+    }
+    await (page.vm as any).exportToCSV()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(revoke).toHaveBeenCalledWith('blob:usage-export')
+    expect(app.showSuccess).not.toHaveBeenCalled()
+    expect(app.showError).toHaveBeenCalledWith('usage.exportFailed')
+  })
+  it('escapes spreadsheet formulas and exports groups and support codes without admin costs', async () => {
+    const { create } = downloadMocks()
+    api.query.mockResolvedValue({ ...response, items: [{ ...row, model: '=1+1', group: { ...row.group, name: '@group' } }] })
+    const { page } = mountPage()
+    await flushPromises()
+    await (page.vm as any).exportToCSV()
+    const csv = await new Promise<string>((resolve) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.readAsText(create.mock.calls[0][0])
+    })
+    expect(csv).toContain("'=1+1")
+    expect(csv).toContain("'@group")
+    expect(csv).toContain('Support Code')
+    expect(csv).toContain('req-usage-1')
+    expect(csv).not.toContain('account_cost')
   })
 })

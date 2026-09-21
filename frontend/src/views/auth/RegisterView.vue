@@ -67,6 +67,19 @@
         </FoundationInput>
       </div>
 
+      <FoundationInput
+        id="confirmPassword"
+        v-model="confirmPassword"
+        :type="showPassword ? 'text' : 'password'"
+        name="confirmPassword"
+        autocomplete="new-password"
+        required
+        :label="t('auth.confirmPassword')"
+        :placeholder="t('auth.confirmPasswordPlaceholder')"
+        :error="errors.confirmPassword"
+        :disabled="registrationActionDisabled"
+      />
+
       <div v-if="invitationCodeEnabled" class="auth-code-slot auth-code-field">
         <FoundationInput
           id="invitation_code"
@@ -350,7 +363,8 @@ const showPassword = ref(false)
 
 const registrationEnabled = ref(true)
 const emailVerifyEnabled = ref(false)
-const promoCodeEnabled = ref(true)
+const promoCodeEnabled = ref(appStore.cachedPublicSettings?.promo_code_enabled === true)
+const confirmPassword = ref('')
 const invitationCodeEnabled = ref(false)
 const affiliateEnabled = ref(false)
 const turnstileEnabled = ref(false)
@@ -421,6 +435,7 @@ if (typeof formData.invitation_code !== 'string') formData.invitation_code = ''
 const errors = reactive({
   email: '',
   password: '',
+  confirmPassword: '',
   turnstile: '',
   invitation_code: ''
 })
@@ -778,6 +793,7 @@ function buildEmailSuffixNotAllowedMessage(): string {
 function validateForm(): boolean {
   errors.email = ''
   errors.password = ''
+  errors.confirmPassword = ''
   errors.turnstile = ''
   errors.invitation_code = ''
   let isValid = true
@@ -815,6 +831,14 @@ function validateForm(): boolean {
     isValid = false
   }
 
+  if (!confirmPassword.value) {
+    errors.confirmPassword = t('auth.confirmPasswordRequired')
+    isValid = false
+  } else if (confirmPassword.value !== formData.password) {
+    errors.confirmPassword = t('auth.passwordsDoNotMatch')
+    isValid = false
+  }
+
   if (turnstileEnabled.value && !captchaToken.value) {
     errors.turnstile = t('auth.completeVerification')
     isValid = false
@@ -824,6 +848,7 @@ function validateForm(): boolean {
 }
 
 function clearRegisterDraft(): void {
+  confirmPassword.value = ''
   clearAuthPortalDraft()
   formData.promo_code = ''
   formData.invitation_code = ''
@@ -831,7 +856,10 @@ function clearRegisterDraft(): void {
 
 async function handleRegister(): Promise<void> {
   errorMessage.value = ''
-  if (!validateForm()) return
+  if (!validateForm()) {
+    if (errors.confirmPassword) appStore.showError(errors.confirmPassword)
+    return
+  }
 
   if (formData.promo_code.trim()) {
     if (promoValidating.value) {

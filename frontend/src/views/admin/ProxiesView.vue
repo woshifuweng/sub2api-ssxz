@@ -26,7 +26,7 @@
               v-model="filters.protocol"
               :options="protocolOptions"
               :placeholder="t('admin.proxies.allProtocols')"
-              @change="loadProxies"
+              @change="handleFilterChange"
             />
           </div>
           <div class="w-full sm:w-36">
@@ -34,7 +34,7 @@
               v-model="filters.status"
               :options="statusOptions"
               :placeholder="t('admin.proxies.allStatus')"
-              @change="loadProxies"
+              @change="handleFilterChange"
             />
           </div>
 
@@ -1499,6 +1499,7 @@ const statusOptions = computed(() => [
   { value: "", label: t("admin.proxies.allStatus") },
   { value: "active", label: t("admin.accounts.status.active") },
   { value: "inactive", label: t("admin.accounts.status.inactive") },
+  { value: "expired", label: t("admin.proxies.statusExpired") },
 ]);
 
 // Form options
@@ -1520,7 +1521,7 @@ const visiblePasswordIds = reactive(new Set<number>());
 const copyMenuProxyId = ref<number | null>(null);
 const loading = ref(false);
 const searchQuery = ref("");
-const filters = reactive({
+const filters = reactive<{ protocol: string; status: '' | 'active' | 'inactive' | 'expired' }>({
   protocol: "",
   status: "",
 });
@@ -1530,6 +1531,11 @@ const pagination = reactive({
   total: 0,
   pages: 0,
 });
+
+const handleFilterChange = () => {
+  pagination.page = 1;
+  loadProxies();
+};
 
 const showCreateModal = ref(false);
 const createPasswordVisible = ref(false);
@@ -1664,7 +1670,7 @@ const loadProxies = async () => {
       pagination.page_size,
       {
         protocol: filters.protocol || undefined,
-        status: filters.status as any,
+        status: filters.status || undefined,
         search: searchQuery.value || undefined,
       },
       { signal: currentAbortController.signal },
@@ -1750,12 +1756,13 @@ const parseProxyUrl = (
 
   // Regex to parse proxy URL (supports http, https, socks4, socks5, socks5h)
   const regex =
-    /^(https?|socks4|socks5h?):\/\/(?:([^:@]+):([^@]+)@)?([^:]+):(\d+)$/i;
+    /^(https?|socks4|socks5h?):\/\/(?:([^:@\[\]]+):([^@\[\]]+)@)?(\[[0-9a-f:.]+\]|[^:\[\]]+):(\d+)$/i
   const match = trimmed.match(regex);
 
   if (!match) return null;
 
-  const [, protocol, username, password, host, port] = match;
+  const [, protocol, username, password, rawHost, port] = match;
+  const host = rawHost.replace(/^\[|\]$/g, '').trim();
   const portNum = parseInt(port, 10);
 
   if (portNum < 1 || portNum > 65535) return null;
@@ -1908,13 +1915,13 @@ const handleUpdateProxy = async () => {
       protocol: editForm.protocol,
       host: editForm.host.trim(),
       port: editForm.port,
-      username: editForm.username.trim() || null,
+      username: editForm.username.trim(),
       status: editForm.status,
     };
 
     // Only include password if user actually modified the field
     if (editPasswordDirty.value) {
-      updateData.password = editForm.password.trim() || null;
+      updateData.password = editForm.password.trim();
     }
 
     await adminAPI.proxies.update(editingProxy.value.id, updateData);

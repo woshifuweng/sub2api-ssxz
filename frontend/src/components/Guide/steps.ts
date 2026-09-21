@@ -1,4 +1,5 @@
 import { DriveStep } from 'driver.js'
+import { DEFAULT_SITE_NAME } from '@/utils/brand'
 
 const TOUR_EMOJI_PATTERN = /[\p{Extended_Pictographic}\uFE0F\u200D]/gu
 
@@ -13,7 +14,7 @@ export const normalizeTourCopy = (value: string) => {
 
   return styleReplacements.reduce(
     (copy, [from, to]) => copy.split(from).join(to),
-    value.replace(TOUR_EMOJI_PATTERN, '')
+    value.replace(TOUR_EMOJI_PATTERN, '').replace(/\bSub2API\b/g, DEFAULT_SITE_NAME)
   ).replace(/\s{2,}/g, ' ').trim()
 }
 

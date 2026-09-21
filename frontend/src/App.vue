@@ -19,7 +19,11 @@ const announcementStore = useAnnouncementStore()
 
 const isAuthPortalRoute = computed(() => ['/login', '/register', '/forgot-password'].includes(route.path))
 const authActiveTab = computed<'login' | 'register'>(() => (route.path === '/register' ? 'register' : 'login'))
-const authShowRegisterTab = computed(() => route.path !== '/forgot-password' && appStore.cachedPublicSettings?.backend_mode_enabled !== true)
+const authShowRegisterTab = computed(() =>
+  route.path !== '/forgot-password' &&
+  appStore.cachedPublicSettings?.registration_enabled === true &&
+  appStore.cachedPublicSettings?.backend_mode_enabled !== true,
+)
 
 /**
  * Update favicon dynamically

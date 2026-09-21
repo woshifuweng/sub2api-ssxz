@@ -14,6 +14,7 @@ import { resolveDocumentTitle } from './title'
 import { DEFAULT_AUTH_REDIRECT, resolveAuthRedirect, resolveRouteAuthRedirect } from '@/utils/authRedirect'
 import { normalizeSiteName } from '@/utils/brand'
 import { getSafeSessionStorageItem, setSafeSessionStorageItem } from '@/utils/safeStorage'
+import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 
 const redirectLegacyRoute = (path: string) => (to: RouteLocationGeneric) => ({
   path,
@@ -104,12 +105,31 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/auth/callback',
+    alias: '/auth/oauth/callback',
     name: 'OAuthCallback',
     component: () => import('@/views/auth/OAuthCallbackView.vue'),
     meta: {
       requiresAuth: false,
       title: 'OAuth Callback'
     }
+  },
+  {
+    path: '/auth/dingtalk/callback',
+    name: 'DingTalkOAuthCallback',
+    component: () => import('@/views/auth/DingTalkCallbackView.vue'),
+    meta: { requiresAuth: false, titleKey: 'auth.dingtalkCallbackPageTitle' }
+  },
+  {
+    path: '/auth/dingtalk/email-completion',
+    name: 'dingtalk-email-completion',
+    component: () => import('@/views/auth/DingTalkEmailCompletionView.vue'),
+    meta: { requiresAuth: false, titleKey: 'auth.dingtalk.createAccountTitle' }
+  },
+  {
+    path: '/auth/oidc/callback',
+    name: 'OIDCOAuthCallback',
+    component: () => import('@/views/auth/OidcCallbackView.vue'),
+    meta: { requiresAuth: false, titleKey: 'auth.oidcCallbackPageTitle' }
   },
   {
     path: '/auth/linuxdo/callback',
@@ -241,14 +261,34 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/app/purchase',
     name: 'AppPurchase',
-    component: () => import('@/views/user/AppPurchaseView.vue'),
+    component: () => import('@/views/user/PaymentView.vue'),
     meta: {
+      requiresPayment: true,
       requiresAuth: true,
       requiresAdmin: false,
       title: '充值 / 订阅',
       appSection: 'purchase',
       titleSiteName: 'SSXZ AI'
     }
+  },
+  {
+    path: '/app/subscriptions',
+    name: 'AppSubscriptions',
+    component: () => import('@/views/user/SubscriptionsView.vue'),
+    meta: { requiresAuth: true, requiresSubscription: true, titleKey: 'nav.mySubscriptions' }
+  },
+  {
+    path: '/app/shop',
+    name: 'AppShop',
+    component: () => import('@/views/user/AppPurchaseView.vue'),
+    meta: { requiresAuth: true, titleKey: 'nav.shop', titleSiteName: 'SSXZ AI' }
+  },
+  {
+    path: '/batch-image',
+    alias: '/docs/batch-image',
+    name: 'BatchImageGuide',
+    component: () => import('@/views/user/BatchImageGuideView.vue'),
+    meta: { requiresAuth: true, titleKey: 'batchImageGuide.title' }
   },
   {
     path: '/app/orders',
@@ -367,7 +407,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/app/available-channels',
     name: 'AppAvailableChannels',
-    component: () => import('@/views/user/ModelPricingView.vue'),
+    component: () => import('@/views/user/AvailableChannelsView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
@@ -465,7 +505,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/subscriptions',
-    redirect: redirectLegacyRoute('/app/purchase')
+    redirect: redirectLegacyRoute('/app/subscriptions')
   },
   {
     path: '/purchase',
@@ -499,6 +539,12 @@ const routes: RouteRecordRaw[] = [
       titleKey: 'payment.result.title',
       titleSiteName: 'SSXZ AI'
     }
+  },
+  {
+    path: '/payment/airwallex',
+    name: 'AirwallexPayment',
+    component: () => import('@/views/user/AirwallexPaymentView.vue'),
+    meta: { requiresAuth: false, requiresPayment: false, titleKey: 'payment.airwallexPay' }
   },
   {
     path: '/payment/stripe',
@@ -712,6 +758,36 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/plugins',
+    name: 'AdminPlugins',
+    component: () => import('@/views/admin/PluginsView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'admin.plugins.title', descriptionKey: 'admin.plugins.description' }
+  },
+  {
+    path: '/admin/audit-logs',
+    name: 'AdminAuditLogs',
+    component: () => import('@/views/admin/AuditLogView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'admin.audit.title', descriptionKey: 'admin.audit.description' }
+  },
+  {
+    path: '/admin/affiliates/invites',
+    name: 'AdminAffiliateInvites',
+    component: () => import('@/views/admin/affiliates/AdminAffiliateInvitesView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'nav.affiliateInviteRecords' }
+  },
+  {
+    path: '/admin/affiliates/rebates',
+    name: 'AdminAffiliateRebates',
+    component: () => import('@/views/admin/affiliates/AdminAffiliateRebatesView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'nav.affiliateRebateRecords' }
+  },
+  {
+    path: '/admin/affiliates/transfers',
+    name: 'AdminAffiliateTransfers',
+    component: () => import('@/views/admin/affiliates/AdminAffiliateTransfersView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, titleKey: 'nav.affiliateTransferRecords' }
+  },
+  {
     path: '/admin/affiliates',
     name: 'AdminAffiliates',
     component: () => import('@/views/admin/AffiliatesView.vue'),
@@ -889,6 +965,19 @@ const navigationLoading = useNavigationLoadingState()
 // 延迟初始化预加载，传入 router 实例
 let routePrefetch: ReturnType<typeof useRoutePrefetch> | null = null
 const BACKEND_MODE_ALLOWED_PATHS = [
+  '/auth/callback',
+  '/auth/oauth/callback',
+  '/auth/linuxdo/callback',
+  '/auth/wechat/callback',
+  '/auth/wechat/payment/callback',
+  '/auth/dingtalk/callback',
+  '/auth/dingtalk/email-completion',
+  '/auth/oidc/callback',
+  '/payment/airwallex',
+  '/batch-image',
+  '/app/subscriptions',
+  '/app/shop',
+  '/custom',
   '/login',
   '/docs',
   '/key-usage',
@@ -921,7 +1010,22 @@ function isBackendModeAllowedPath(path: string): boolean {
     return true
   }
 
-  return BACKEND_MODE_ALLOWED_PATHS.some((p) => path === p || path.startsWith(p))
+  return BACKEND_MODE_ALLOWED_PATHS.some((p) => path === p || path.startsWith(p + '/'))
+}
+
+// Route names remain canonical for aliases, case variants and trailing slashes.
+const ROUTE_FEATURE_FLAGS: Partial<Record<string, keyof typeof FeatureFlags>> = {
+  AdminPlugins: 'pluginManagement',
+  AppAvailableChannels: 'availableChannels',
+  AppChannelStatus: 'channelMonitor',
+  AdminChannelMonitor: 'channelMonitor',
+  LegacyMonitor: 'channelMonitor',
+  AppAffiliate: 'affiliate',
+  AdminAffiliates: 'affiliate',
+  AdminAffiliateInvites: 'affiliate',
+  AdminAffiliateRebates: 'affiliate',
+  AdminAffiliateTransfers: 'affiliate',
+  AdminSubscriptions: 'subscription',
 }
 
 router.beforeEach(async (to, _from, next) => {
@@ -1007,6 +1111,7 @@ router.beforeEach(async (to, _from, next) => {
     // Backend mode: block public pages for unauthenticated users (except login, key-usage, setup)
     if (appStore.backendModeEnabled && !authStore.isAuthenticated) {
       const isAllowed = isBackendModeAllowedPath(to.path)
+        || (authStore.hasPendingAuthSession && ['/register', '/email-verify'].includes(to.path))
       if (!isAllowed) {
         next('/login')
         return
@@ -1051,7 +1156,9 @@ router.beforeEach(async (to, _from, next) => {
 
   // Public settings are loaded asynchronously after application startup. A missing cache is
   // therefore an unknown state, not proof that payment or risk control is disabled.
-  if ((to.meta.requiresPayment || to.meta.requiresRiskControl) && !appStore.publicSettingsLoaded) {
+  const routeFeature = typeof to.name === 'string' ? ROUTE_FEATURE_FLAGS[to.name] : undefined
+  const routeFlag = routeFeature ? FeatureFlags[routeFeature] : undefined
+  if ((to.meta.requiresPayment || to.meta.requiresRiskControl || to.meta.requiresSubscription || routeFlag) && !appStore.publicSettingsLoaded) {
     try {
       await appStore.fetchPublicSettings()
     } catch (error) {
@@ -1077,31 +1184,30 @@ router.beforeEach(async (to, _from, next) => {
     return
   }
 
-  if (
-    to.path.startsWith('/app/affiliate') &&
-    appStore.cachedPublicSettings &&
-    !appStore.cachedPublicSettings.affiliate_enabled
-  ) {
-    next(DEFAULT_AUTH_REDIRECT)
+  if (routeFlag && !resolveFeatureFlag(appStore.cachedPublicSettings, routeFlag)) {
+    next(authStore.isAdmin ? '/admin/dashboard' : DEFAULT_AUTH_REDIRECT)
     return
   }
 
+  // 订阅功能是 opt-out 开关：只有显式 false 才拦截「我的订阅」页直达。
   if (
-    to.path.startsWith('/app/channel-status') &&
-    appStore.cachedPublicSettings &&
-    !appStore.cachedPublicSettings.channel_monitor_enabled
+    to.meta.requiresSubscription &&
+    appStore.publicSettingsLoaded &&
+    appStore.cachedPublicSettings?.subscription_enabled === false
   ) {
-    next(DEFAULT_AUTH_REDIRECT)
+    next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
     return
   }
 
   // 简易模式下限制访问某些页面
   if (authStore.isSimpleMode) {
     const restrictedPaths = [
-      '/admin/groups',
       '/admin/subscriptions',
       '/admin/redeem',
       '/subscriptions',
+      '/app/subscriptions',
+      '/app/redeem',
+      '/redeem',
     ]
 
     if (restrictedPaths.some((path) => to.path.startsWith(path))) {

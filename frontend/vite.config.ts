@@ -94,8 +94,9 @@ export default defineConfig(({ mode }) => {
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
-      // 使用 vue-i18n 运行时版本，避免 CSP unsafe-eval 问题
-      'vue-i18n': 'vue-i18n/dist/vue-i18n.runtime.esm-bundler.js'
+      // Raw lazy-loaded locale strings need the compiler. JIT below produces
+      // message ASTs, not new Function, so a strict CSP remains supported.
+      'vue-i18n': 'vue-i18n/dist/vue-i18n.esm-bundler.js'
     }
   },
   define: {

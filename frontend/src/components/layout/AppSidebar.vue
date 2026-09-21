@@ -21,9 +21,24 @@
       <!-- Admin Console remains separate from the user workspace. -->
       <template v-if="isAdmin">
         <div class="sidebar-section">
-          <router-link
-            v-for="item in adminNavItems"
-            :key="item.path"
+          <template v-for="item in adminNavItems" :key="item.path">
+          <template v-if="item.children?.length">
+            <button type="button" class="sidebar-link mb-1 w-full text-left"
+              :aria-expanded="isGroupExpanded(item)" :aria-controls="`nav-group-${item.path}`"
+              :title="item.label" @click="toggleGroup(item)">
+              <component :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+              <span v-if="!sidebarCollapsed">{{ item.label }}</span>
+            </button>
+            <div v-if="isGroupExpanded(item)" :id="`nav-group-${item.path}`" class="pl-3">
+              <router-link v-for="child in item.children" :key="child.path" :to="child.path"
+                class="sidebar-link mb-1" :class="{ 'sidebar-link-active': isActive(child.path) }"
+                :title="child.label" @click="handleMenuItemClick(child.path)">
+                <component :is="child.icon" class="h-5 w-5 flex-shrink-0" />
+                <span v-if="!sidebarCollapsed">{{ child.label }}</span>
+              </router-link>
+            </div>
+          </template>
+          <router-link v-else
             :to="item.path"
             class="sidebar-link mb-1"
             :class="{ 'sidebar-link-active': isActive(item.path) }"
@@ -45,12 +60,13 @@
               <span v-if="!sidebarCollapsed">{{ item.label }}</span>
             </transition>
           </router-link>
+          </template>
         </div>
 
       </template>
 
       <!-- Regular User View -->
-      <template v-else-if="!appStore.backendModeEnabled">
+      <template v-else>
         <div class="sidebar-section">
           <template
             v-for="item in userNavItems"
@@ -125,6 +141,9 @@ import BrandLogo from '@/components/common/BrandLogo.vue'
 import { IMAGE_WORKBENCH_URL } from '@/constants/imageWorkbench'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore, useResellerStore } from '@/stores'
 import { sanitizeSvg } from '@/utils/sanitize'
+import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
+import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
+import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
 
 interface NavItem {
   path: string
@@ -145,11 +164,20 @@ const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
 const adminSettingsStore = useAdminSettingsStore()
 const resellerStore = useResellerStore()
+const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
+const groupExpandOverrides = ref<Map<string, boolean>>(new Map())
+function isGroupExpanded(item: NavItem): boolean {
+  return groupExpandOverrides.value.get(item.path) ?? !!item.children?.some(child => isActive(child.path))
+}
+function toggleGroup(item: NavItem) {
+  groupExpandOverrides.value.set(item.path, !isGroupExpanded(item))
+}
 
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const mobileOpen = computed(() => appStore.mobileOpen)
 const isAdmin = computed(() => authStore.isAdmin)
 const sidebarNavRef = ref<HTMLElement | null>(null)
+let closeMobileTimer: ReturnType<typeof setTimeout> | undefined
 
 // Site settings from appStore (cached, no flicker)
 const siteName = computed(() => appStore.siteName)
@@ -486,24 +514,34 @@ const ChevronDoubleRightIcon = {
     )
 }
 
-const paymentEnabled = computed(() => !!appStore.cachedPublicSettings?.payment_enabled)
-const channelMonitorEnabled = computed(() => !!appStore.cachedPublicSettings?.channel_monitor_enabled)
-const affiliateEnabled = computed(() => !!appStore.cachedPublicSettings?.affiliate_enabled)
-const riskControlEnabled = computed(() => !!appStore.cachedPublicSettings?.risk_control_enabled)
+const flagEnabled = (flag: keyof typeof FeatureFlags) => resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags[flag])
+const paymentEnabled = computed(() => flagEnabled('payment'))
+const channelMonitorEnabled = computed(() => flagEnabled('channelMonitor'))
+const affiliateEnabled = computed(() => flagEnabled('affiliate'))
+const riskControlEnabled = computed(() => flagEnabled('riskControl'))
+const purchaseNavLabel = computed(() => {
+  switch (resolveSiteBillingMode(appStore.cachedPublicSettings)) {
+    case 'recharge_only': return t('nav.recharge')
+    case 'subscription_only': return t('nav.subscribe')
+    default: return t('nav.buySubscription')
+  }
+})
 // User navigation items (for regular users)
 const userNavItems = computed((): NavItem[] => [
   { path: '/app/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
   { path: '/app/keys', label: t('nav.apiKeys'), icon: KeyIcon },
   { path: '/image/', label: t('nav.imageWorkbench'), icon: Images, action: 'image-workbench' },
-  { path: '/app/available-channels', label: t('nav.models'), icon: ChannelIcon },
+  ...(canUseBatchImage.value ? [{ path: '/batch-image', label: t('nav.batchImage'), icon: Images }] : []),
+  ...(flagEnabled('availableChannels') ? [{ path: '/app/available-channels', label: t('nav.models'), icon: ChannelIcon }] : []),
   { path: '/app/usage', label: t('nav.usage'), icon: ChartIcon },
   ...(channelMonitorEnabled.value
     ? [{ path: '/app/channel-status', label: t('nav.channelStatus'), icon: SignalIcon }]
     : []),
-  { path: '/app/purchase', label: t('nav.billing'), icon: RechargeSubscriptionIcon },
-  // 在线支付关闭时，「订单」实际展示兑换码入账（账单记录），并入口合一，隐藏单独的「兑换」入口
+  ...(paymentEnabled.value ? [{ path: '/app/purchase', label: purchaseNavLabel.value, icon: RechargeSubscriptionIcon }] : []),
+  ...(!authStore.isSimpleMode && flagEnabled('subscription') ? [{ path: '/app/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon }] : []),
+  { path: '/app/shop', label: t('nav.shop'), icon: RechargeSubscriptionIcon },
   { path: '/app/orders', label: paymentEnabled.value ? t('nav.orders') : t('nav.billingRecords'), icon: OrderIcon },
-  ...(paymentEnabled.value ? [{ path: '/app/redeem', label: t('nav.redeem'), icon: TicketIcon }] : []),
+  ...(!authStore.isSimpleMode ? [{ path: '/app/redeem', label: t('nav.redeem'), icon: TicketIcon }] : []),
   ...(affiliateEnabled.value ? [{ path: '/app/affiliate', label: t('nav.affiliate'), icon: UsersIcon }] : []),
   ...(resellerStore.isAgent
     ? [
@@ -513,7 +551,11 @@ const userNavItems = computed((): NavItem[] => [
       ]
     : []),
   ...(resellerStore.isManager ? [{ path: '/app/reseller/manager', label: t('nav.resellerManager'), icon: UsersIcon }] : []),
-  { path: '/app/profile', label: t('nav.account'), icon: UserIcon }
+  { path: '/app/profile', label: t('nav.account'), icon: UserIcon },
+  ...(appStore.cachedPublicSettings?.custom_menu_items ?? [])
+    .filter(item => item.visibility === 'user')
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(item => ({ path: `/custom/${encodeURIComponent(item.id)}`, label: item.label, icon: null, iconSvg: item.icon_svg }))
 ])
 
 const customMenuItemsForAdmin = computed(() => {
@@ -531,15 +573,17 @@ const adminNavItems = computed((): NavItem[] => {
       : []),
     { path: '/admin/users', label: t('nav.users'), icon: UsersIcon, hideInSimpleMode: true },
     { path: '/admin/api-keys', label: t('nav.adminApiKeys'), icon: KeyIcon, hideInSimpleMode: true },
-    { path: '/admin/groups', label: t('nav.groups'), icon: FolderIcon, hideInSimpleMode: true },
+    { path: '/admin/groups', label: t('nav.groups'), icon: FolderIcon },
     { path: '/admin/channels/pricing', label: t('nav.channelPricing'), icon: ChannelIcon, hideInSimpleMode: true },
     ...(channelMonitorEnabled.value
       ? [{ path: '/admin/channels/monitor', label: t('nav.channelMonitor'), icon: SignalIcon, hideInSimpleMode: true }]
       : []),
-    { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
+    ...(flagEnabled('subscription') ? [{ path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true }] : []),
     { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },
     { path: '/admin/proxies', label: t('nav.proxies'), icon: ServerIcon },
+    { path: '/admin/audit-logs', label: t('nav.auditLogs'), icon: ShieldIcon },
+    ...(flagEnabled('pluginManagement') ? [{ path: '/admin/plugins', label: t('nav.plugins'), icon: CogIcon }] : []),
     ...(riskControlEnabled.value
       ? [{
           path: '/admin/security-audit',
@@ -554,7 +598,12 @@ const adminNavItems = computed((): NavItem[] => {
       : []),
     { path: '/admin/redeem', label: t('nav.redeemCodes'), icon: TicketIcon, hideInSimpleMode: true },
     { path: '/admin/promo-codes', label: t('nav.promoCodes'), icon: GiftIcon, hideInSimpleMode: true },
-    { path: '/admin/affiliates', label: t('nav.affiliates'), icon: UsersIcon, hideInSimpleMode: true },
+    ...(affiliateEnabled.value ? [
+      { path: '/admin/affiliates', label: t('nav.affiliates'), icon: UsersIcon, hideInSimpleMode: true },
+      { path: '/admin/affiliates/invites', label: t('nav.affiliateInviteRecords'), icon: UsersIcon, hideInSimpleMode: true },
+      { path: '/admin/affiliates/rebates', label: t('nav.affiliateRebateRecords'), icon: UsersIcon, hideInSimpleMode: true },
+      { path: '/admin/affiliates/transfers', label: t('nav.affiliateTransferRecords'), icon: UsersIcon, hideInSimpleMode: true },
+    ] : []),
     { path: '/admin/reseller/agents', label: t('nav.resellerAdmin'), icon: UsersIcon, hideInSimpleMode: true },
     { path: '/admin/reseller/withdrawals', label: t('nav.resellerAdminWithdrawals'), icon: TicketIcon, hideInSimpleMode: true },
     { path: '/admin/orders/settings', label: t('nav.paymentSettings'), icon: CreditCardIcon, hideInSimpleMode: true },
@@ -602,7 +651,8 @@ function openImageWorkbench() {
 
 function handleMenuItemClick(itemPath: string) {
   if (mobileOpen.value) {
-    setTimeout(() => {
+    clearTimeout(closeMobileTimer)
+    closeMobileTimer = setTimeout(() => {
       appStore.setMobileOpen(false)
     }, 150)
   }
@@ -644,6 +694,7 @@ watch(
   () => authStore.user?.id,
   (userId) => {
     if (userId && !isAdmin.value) {
+      void refreshBatchImageAccess(true)
       void resellerStore.fetchRole(userId).catch(() => undefined)
     } else {
       resellerStore.reset()
@@ -667,6 +718,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  clearTimeout(closeMobileTimer)
   if (sidebarNavRef.value) {
     appStore.sidebarScrollTop = sidebarNavRef.value.scrollTop
   }

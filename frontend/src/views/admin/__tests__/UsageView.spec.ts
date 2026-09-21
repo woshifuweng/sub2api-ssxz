@@ -33,6 +33,7 @@ const messages: Record<string, string> = {
   'admin.dashboard.hour': 'Hour',
   'admin.usage.failedToLoadUser': 'Failed to load user',
 	'admin.usage.requestId': 'Request ID',
+	'admin.usage.upstreamRequestId': 'Upstream ID',
 	'usage.requestedModel': 'Requested model',
 	'usage.sentUpstreamModel': 'Sent upstream model',
 	'usage.upstreamResponseModel': 'Upstream response model',
@@ -272,6 +273,79 @@ describe('admin UsageView route filters', () => {
   })
 })
 
+describe('admin UsageView native compaction filter', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    list.mockReset().mockResolvedValue({ items: [], total: 0, pages: 0 })
+    getStats.mockReset().mockResolvedValue({
+      total_requests: 0,
+      total_input_tokens: 0,
+      total_output_tokens: 0,
+      total_cache_tokens: 0,
+      total_tokens: 0,
+      total_cost: 0,
+      total_actual_cost: 0,
+      average_duration_ms: 0,
+    })
+    getSnapshotV2.mockReset().mockResolvedValue({ trend: [], models: [], groups: [] })
+    getModelStats.mockReset().mockResolvedValue({ models: [] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('propagates the filter to list/stats/model/snapshot requests and clears it on reset', async () => {
+    const wrapper = mountRouteFilteredUsageView()
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+
+    list.mockClear()
+    getStats.mockClear()
+    getModelStats.mockClear()
+    getSnapshotV2.mockClear()
+
+    ;(wrapper.vm as any).filters.native_compaction_v2 = true
+    ;(wrapper.vm as any).applyFilters()
+    await flushPromises()
+
+    expect((wrapper.vm as any).breakdownFilters.native_compaction_v2).toBe(true)
+    expect(list).toHaveBeenCalledWith(
+      expect.objectContaining({ native_compaction_v2: true }),
+      expect.anything()
+    )
+    expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ native_compaction_v2: true }))
+    expect(getModelStats).toHaveBeenCalledWith(expect.objectContaining({ native_compaction_v2: true }))
+    expect(getSnapshotV2).toHaveBeenCalledWith(expect.objectContaining({ native_compaction_v2: true }))
+
+    ;(wrapper.vm as any).filters.native_compaction_v2 = false
+    ;(wrapper.vm as any).applyFilters()
+    await flushPromises()
+    expect((wrapper.vm as any).breakdownFilters.native_compaction_v2).toBe(false)
+    expect(getStats).toHaveBeenLastCalledWith(expect.objectContaining({ native_compaction_v2: false }))
+    expect(getModelStats).toHaveBeenLastCalledWith(expect.objectContaining({ native_compaction_v2: false }))
+    expect(getSnapshotV2).toHaveBeenLastCalledWith(expect.objectContaining({ native_compaction_v2: false }))
+
+    list.mockClear()
+    getStats.mockClear()
+    getModelStats.mockClear()
+    getSnapshotV2.mockClear()
+
+    ;(wrapper.vm as any).resetFilters()
+    await flushPromises()
+
+    expect((wrapper.vm as any).filters.native_compaction_v2).toBeNull()
+    expect((wrapper.vm as any).breakdownFilters).not.toHaveProperty('native_compaction_v2')
+    expect(list).toHaveBeenCalledWith(
+      expect.objectContaining({ native_compaction_v2: null }),
+      expect.anything()
+    )
+    expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ native_compaction_v2: null }))
+    expect(getModelStats).toHaveBeenCalledWith(expect.objectContaining({ native_compaction_v2: null }))
+    expect(getSnapshotV2).toHaveBeenCalledWith(expect.objectContaining({ native_compaction_v2: null }))
+  })
+})
+
 describe('admin UsageView distribution metric toggles', () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -455,7 +529,79 @@ describe('admin UsageView request ID column visibility', () => {
     )
     expect(localStorage.setItem).toHaveBeenCalledWith(
       'usage-hidden-columns-version',
-      'request-id-hidden-by-default',
+      'upstream-request-id-hidden-by-default',
+    )
+  })
+
+  it('keeps an explicitly enabled request ID when migrating the upstream ID column', async () => {
+    vi.mocked(localStorage.getItem).mockImplementation((key) => {
+      if (key === 'usage-hidden-columns') return JSON.stringify(['reasoning_effort', 'user_agent'])
+      if (key === 'usage-hidden-columns-version') return 'request-id-hidden-by-default'
+      return null
+    })
+    const wrapper = mountRouteFilteredUsageView()
+    await flushPromises()
+    const columns = wrapper.findComponent(UsageTableStub).props('columns').map((column: { key: string }) => column.key)
+    expect(columns).toContain('request_id')
+    expect(columns).not.toContain('upstream_request_id')
+    expect(localStorage.setItem).toHaveBeenCalledWith('usage-hidden-columns', JSON.stringify(['reasoning_effort', 'user_agent', 'upstream_request_id']))
+    wrapper.unmount()
+  })
+
+  it('applies error-tab column settings independently of usage columns', async () => {
+    listErrorLogs.mockResolvedValue({ items: [], total: 0 })
+    const wrapper = mountRouteFilteredUsageView()
+    await flushPromises()
+    const tabs = wrapper.findAll('[data-testid="usage-detail-tab"]')
+    await tabs[1].trigger('click')
+    await wrapper.get('button[title="admin.users.columnSettings"]').trigger('click')
+    await wrapper.get('[data-testid="usage-column-toggle-message"]').trigger('click')
+    const errorTable = wrapper.findComponent({ name: 'OpsErrorLogTable' })
+    expect(errorTable.props('visibleColumnKeys')).not.toContain('message')
+    expect(errorTable.props('visibleColumnKeys')).toContain('user')
+    expect(localStorage.setItem).toHaveBeenCalledWith('usage-error-hidden-columns', expect.stringContaining('message'))
+    expect(wrapper.findComponent(UsageTableStub).props('columns')).toEqual(expect.arrayContaining([expect.objectContaining({ key: 'user' })]))
+    wrapper.unmount()
+  })
+
+  it('keeps upstream ID hidden by default and allows enabling it from column settings', async () => {
+    const wrapper = mount(UsageView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          UsageStatsCards: true,
+          UsageFilters: UsageFiltersStub,
+          UsageTable: UsageTableStub,
+          UsageExportProgress: true,
+          UsageCleanupDialog: true,
+          UserBalanceHistoryModal: true,
+          AuditLogModal: true,
+          Pagination: true,
+          Select: true,
+          DateRangePicker: true,
+          Icon: true,
+          TokenUsageTrend: true,
+          ModelDistributionChart: true,
+          GroupDistributionChart: true,
+          EndpointDistributionChart: true,
+          UserTokenRanking: true,
+        },
+      },
+    })
+    await wrapper.vm.$nextTick()
+
+    const usageTable = wrapper.findComponent(UsageTableStub)
+    expect(usageTable.props('columns')).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ key: 'upstream_request_id' })]),
+    )
+
+    await wrapper.get('button[title="admin.users.columnSettings"]').trigger('click')
+    const upstreamToggle = wrapper.findAll('button').find((button) => button.text() === 'Upstream ID')
+    expect(upstreamToggle).toBeDefined()
+    await upstreamToggle!.trigger('click')
+
+    expect(usageTable.props('columns')).toEqual(
+      expect.arrayContaining([expect.objectContaining({ key: 'upstream_request_id', label: 'Upstream ID' })]),
     )
   })
 })
@@ -642,6 +788,8 @@ describe('admin UsageView model audit export', () => {
 				upstream_model: 'gpt-5.5',
 				upstream_response_model: 'gpt-5.4',
 				upstream_model_mismatch: true,
+				request_id: 'request-1',
+				upstream_request_id: 'upstream-1',
 				request_type: 'sync',
 				input_tokens: 1,
 				output_tokens: 1,
@@ -672,9 +820,15 @@ describe('admin UsageView model audit export', () => {
 		const wrapper = mountRouteFilteredUsageView()
 		vi.advanceTimersByTime(120)
 		await flushPromises()
+		;(wrapper.vm as any).filters.native_compaction_v2 = true
 
 		await (wrapper.vm as any).exportToExcel()
 		await flushPromises()
+
+		expect(exportList).toHaveBeenCalledWith(
+			expect.objectContaining({ native_compaction_v2: true }),
+			expect.anything()
+		)
 
 		const headers = aoaToSheet.mock.calls[0][0][0]
 		expect(headers.slice(4, 8)).toEqual([
@@ -685,6 +839,8 @@ describe('admin UsageView model audit export', () => {
 		])
 		const row = sheetAddAoa.mock.calls[0][1][0]
 		expect(row.slice(4, 8)).toEqual(['gpt-5.6-sol', 'gpt-5.5', 'gpt-5.4', 'Yes'])
+		expect(row[headers.indexOf('Request ID')]).toBe('request-1')
+		expect(row[headers.indexOf('Upstream ID')]).toBe('upstream-1')
 		expect(saveAs).toHaveBeenCalledTimes(1)
 	})
 })

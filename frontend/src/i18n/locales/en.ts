@@ -4,8 +4,36 @@ import adminOverviewLocale from './en/admin/overview'
 import adminOpsLocale from './en/admin/ops'
 import adminSettingsLocale from './en/admin/settings'
 import adminChannelsLocale from './en/admin/channels'
+import modularLocale from './en/index'
 
-export default {
+type LocaleMessages = Record<string, unknown>
+
+function mergeLocaleMessages(base: LocaleMessages, additions: LocaleMessages): LocaleMessages {
+  const merged: LocaleMessages = { ...base }
+  for (const [key, value] of Object.entries(additions)) {
+    const existing = merged[key]
+    if (
+      existing && typeof existing === 'object' && !Array.isArray(existing) &&
+      value && typeof value === 'object' && !Array.isArray(value)
+    ) {
+      merged[key] = mergeLocaleMessages(existing as LocaleMessages, value as LocaleMessages)
+    } else {
+      merged[key] = value
+    }
+  }
+  return merged
+}
+
+const legacyLocale = {
+  balanceWarning: {
+    message: 'Your balance is unavailable for new requests.',
+    action: 'Add balance'
+  },
+  lowBalanceWarning: {
+    message: 'Your balance is below ${threshold}. Some requests may be rejected.',
+    action: 'Add balance'
+  },
+
   // Home Page
   home: {
     viewOnGithub: 'View on GitHub',
@@ -668,6 +696,9 @@ export default {
       baseUrlLabel: 'Base URL',
       copyBaseUrl: 'Copy Base URL',
       baseUrlCopied: 'Base URL copied',
+      baseUrlRootLabel: 'Homepage',
+      copyBaseUrlRoot: 'Copy homepage',
+      baseUrlRootCopied: 'Homepage copied',
       stepsAriaLabel: 'Third-party client connection steps',
       stepCreateTitle: 'Create an API Key',
       stepCreateDescription: 'Choose an available group and create a key. The list shows a masked value by default.',
@@ -701,6 +732,18 @@ export default {
       modelHint: 'Available models follow backend configuration and the current key group. Codex defaults to gpt-5.5 and Claude to claude-opus-4-8.',
       readinessHint:
         'If the client reports insufficient balance, unavailable model, or temporary service pressure, switch to a recommended model or retry later; complex tasks may take longer to start.',
+      quickStart: {
+        title: 'Quick start examples',
+        description: 'Copy the fields below into a compatible client.',
+        cherryHeading: 'Cherry Studio',
+        cherryProvider: 'Provider: OpenAI-compatible',
+        cherryBaseUrl: 'Base URL: ',
+        cherryApiKey: 'API Key: ',
+        cherryModel: 'Model: ',
+        copyAll: 'Copy all',
+        copied: 'Copied',
+        exampleCopied: 'Example copied'
+      },
       acknowledge: 'I saved it',
     },
     searchPlaceholder: 'Search name...',
@@ -815,6 +858,7 @@ export default {
         ccSwitchQuickApiKey: 'API Key: paste the full sk-... key.',
         ccSwitchQuickModel: 'Model: choose a model available to the current key. If the list is empty, refresh models or check the key group.',
         ccSwitchQuickRestart: 'After saving changes, fully quit CC Switch and Codex, then reopen them.',
+        ccSwitch: 'CC Switch',
         ccSwitchHomepageLabel: 'Homepage',
         ccSwitchRequestUrlLabel: 'API request URL',
         cherryStudio: 'Choose OpenAI-compatible / custom OpenAI in provider settings, enter the Base URL and API Key, then select an available model.',
@@ -967,7 +1011,8 @@ export default {
     description: 'View and analyze your API usage history',
     workbench: {
       title: 'Usage information',
-      subtitle: 'Review account balance, current-month spend, and recent usage. When no usage records exist, this page shows an empty state and never jumps to the legacy usage page.',
+      manageKeys: 'Manage API Keys',
+      subtitle: 'Review balance, monthly spend, usage by key and group, and request errors.',
       eyebrow: 'Account metering',
       balanceTitle: 'Account balance',
       balanceDescription: 'Available for in-app chat, image generation, and API Key / third-party client calls.',
@@ -1155,6 +1200,8 @@ export default {
     codeRule3: 'If redemption fails, check the code and try again',
     codeRule4: 'After successful redemption, the page refreshes account credit and keeps the change in account records',
     recentActivity: 'Recent Activity',
+    historyLoadFailedTitle: 'Activity could not be loaded',
+    noHistoryTitle: 'No redemption history yet',
     historyWillAppear: 'Successful balance, concurrency, or subscription redemptions will appear here.',
     balanceAddedRedeem: 'Balance Added (Redeem)',
     balanceAddedAdmin: 'Balance Added (Admin)',
@@ -6492,3 +6539,5 @@ export default {
     examplePrompt4: 'Chinese ink painting style, a small boat drifting among misty mountains and rivers, classical atmosphere'
   }
 }
+
+export default mergeLocaleMessages(legacyLocale, modularLocale)

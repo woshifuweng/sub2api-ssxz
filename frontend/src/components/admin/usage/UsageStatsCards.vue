@@ -15,17 +15,46 @@
       <div>
         <p class="text-xs font-medium text-gray-500">{{ t('usage.totalTokens') }}</p>
         <p class="text-xl font-bold">{{ formatTokens(stats?.total_tokens || 0) }}</p>
-        <p class="text-xs text-gray-500">
-          {{ t('usage.in') }}: {{ formatTokens(stats?.total_input_tokens || 0) }} /
-          {{ t('usage.out') }}: {{ formatTokens(stats?.total_output_tokens || 0) }}
-        </p>
-        <p class="text-xs text-gray-500">
-          {{ t('usage.cacheTotal') }}: {{ formatTokens(stats?.total_cache_tokens || 0) }}
-        </p>
-        <p class="text-[11px] text-gray-400" :title="t('usage.cacheBreakdown')">
-          {{ t('usage.cacheBreakdown') }}:
-          {{ t('usage.cacheCreationTokensLabel') }} {{ formatTokens(stats?.total_cache_creation_tokens || 0) }} /
-          {{ t('usage.cacheReadTokensLabel') }} {{ formatTokens(stats?.total_cache_read_tokens || 0) }}
+        <p class="flex flex-wrap items-center gap-x-1 text-xs text-gray-500">
+          <span>{{ t('usage.in') }}: {{ formatTokens(stats?.total_input_tokens || 0) }}</span>
+          <span>/</span>
+          <span>{{ t('usage.out') }}: {{ formatTokens(stats?.total_output_tokens || 0) }}</span>
+          <span>/</span>
+          <span class="group relative inline-flex cursor-help items-center gap-0.5" tabindex="0">
+            <span>{{ t('usage.cacheTotal') }}: {{ formatTokens(stats?.total_cache_tokens || 0) }}</span>
+            <svg
+              class="h-3.5 w-3.5 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <span
+              class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-56 -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-3 text-left text-xs text-gray-700 shadow-lg group-hover:block group-focus:block dark:border-dark-600 dark:bg-dark-800 dark:text-dark-200"
+            >
+              <span class="mb-2 block font-medium text-gray-900 dark:text-white">
+                {{ t('usage.cacheBreakdown') }}
+              </span>
+              <span class="flex items-center justify-between gap-3">
+                <span>{{ t('usage.cacheCreationTokensLabel') }}</span>
+                <span class="tabular-nums">
+                  {{ formatTokens(stats?.total_cache_creation_tokens || 0) }}
+                </span>
+              </span>
+              <span class="mt-1 flex items-center justify-between gap-3">
+                <span>{{ t('usage.cacheReadTokensLabel') }}</span>
+                <span class="tabular-nums">
+                  {{ formatTokens(stats?.total_cache_read_tokens || 0) }}
+                </span>
+              </span>
+            </span>
+          </span>
         </p>
       </div>
     </div>
@@ -37,11 +66,11 @@
         <p class="text-xs font-medium text-gray-500">{{ t('usage.totalCost') }}</p>
         <p
           class="text-xl font-bold text-green-600"
-          :title="formatCurrencyTitle((stats?.total_account_cost ?? stats?.total_actual_cost) || 0)"
+          :title="formatCurrencyTitle(displayCost)"
         >
-          {{ formatCurrency((stats?.total_account_cost ?? stats?.total_actual_cost) || 0) }}
+          {{ formatCurrency(displayCost) }}
         </p>
-        <p class="text-xs text-gray-400" v-if="stats?.total_account_cost != null">
+        <p class="text-xs text-gray-400" v-if="showAccountCost && stats?.total_account_cost != null">
           {{ t('usage.userBilled') }}:
           <span class="text-gray-300" :title="formatCurrencyTitle(stats?.total_actual_cost || 0)">{{ formatCurrency(stats?.total_actual_cost || 0) }}</span>
           · {{ t('usage.standardCost') }}:
@@ -49,7 +78,7 @@
         </p>
         <p class="text-xs text-gray-400" v-else>
           {{ t('usage.standardCost') }}:
-          <span class="line-through" :title="formatCurrencyTitle(stats?.total_cost || 0)">{{ formatCurrency(stats?.total_cost || 0) }}</span>
+          <span :class="{ 'line-through': strikeStandardCost }" :title="formatCurrencyTitle(stats?.total_cost || 0)">{{ formatCurrency(stats?.total_cost || 0) }}</span>
         </p>
       </div>
     </div>
@@ -64,11 +93,20 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import { computed } from 'vue'
 import type { AdminUsageStatsResponse } from '@/api/admin/usage'
+import type { UsageStatsResponse } from '@/types'
 import Icon from '@/components/icons/Icon.vue'
 import { formatCurrency, formatCurrencyTitle } from '@/utils/format'
 
-defineProps<{ stats: AdminUsageStatsResponse | null }>()
+const props = withDefaults(defineProps<{
+  stats: (UsageStatsResponse & Partial<AdminUsageStatsResponse>) | null
+  showAccountCost?: boolean
+  strikeStandardCost?: boolean
+}>(), { showAccountCost: true, strikeStandardCost: true })
+const displayCost = computed(() => props.showAccountCost
+  ? (props.stats?.total_account_cost ?? props.stats?.total_actual_cost) || 0
+  : props.stats?.total_actual_cost || 0)
 
 const { t } = useI18n()
 

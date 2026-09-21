@@ -153,6 +153,7 @@ func (r *userRepository) create(ctx context.Context, userIn *service.User, guard
 		SetNillableLastLoginAt(userIn.LastLoginAt).
 		SetNillableLastActiveAt(userIn.LastActiveAt).
 		SetRpmLimit(userIn.RPMLimit).
+		SetRestrictPublicGroups(userIn.RestrictPublicGroups).
 		Save(txCtx)
 	if err != nil {
 		return translatePersistenceError(err, nil, service.ErrEmailExists)
@@ -315,6 +316,9 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User, field
 	}
 	if fields.Status {
 		updateOp = updateOp.SetStatus(userIn.Status)
+	}
+	if fields.RestrictPublicGroups {
+		updateOp = updateOp.SetRestrictPublicGroups(userIn.RestrictPublicGroups)
 	}
 	if fields.BalanceNotifySettings {
 		updateOp = updateOp.
@@ -933,14 +937,15 @@ func (r *userRepository) DeductAvailableBalance(ctx context.Context, id int64, a
 	return deducted, rows.Err()
 }
 
-// AdjustBalance 原子地把 delta 累加到余额上，结果为负时整条语句不生效。
+// AdjustBalance 原子地把 delta 累加到余额上，仅拒绝扣减后仍为负的负数调整。
+// 正数入账允许减少已有欠款；普通调账不增加累计充值。
 // 相比"读余额 → 算新值 → 整行写回"，这里把读与写压进同一条 UPDATE，
 // 并发的计费扣款不会被旧快照覆盖。
 func (r *userRepository) AdjustBalance(ctx context.Context, id int64, delta float64) (service.BalanceChange, error) {
 	const updateSQL = `
 		UPDATE users
 		SET balance = balance + $1, updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL AND balance + $1 >= 0
+		WHERE id = $2 AND deleted_at IS NULL AND ($1 >= 0 OR balance + $1 >= 0)
 		RETURNING balance - $1, balance
 	`
 	change, ok, err := scanBalanceChange(ctx, clientFromContext(ctx, r.client), updateSQL, delta, id)

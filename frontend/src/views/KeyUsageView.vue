@@ -422,9 +422,11 @@ import { buildGatewayUrl } from '@/api/client'
 import { DEFAULT_SITE_NAME, normalizeSiteName, resolveCustomSiteLogo } from '@/utils/brand'
 import { formatDateLocalInput } from '@/utils/format'
 import { sanitizeUrl } from '@/utils/url'
+import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 
 const { t, locale } = useI18n()
 const appStore = useAppStore()
+const subscriptionFeatureEnabled = computed(() => resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags.subscription))
 
 const isZhLocale = computed(() => String(locale.value || '').toLowerCase().startsWith('zh'))
 const displayLocale = computed(() => (isZhLocale.value ? 'zh-CN' : 'en-US'))
@@ -734,7 +736,9 @@ const detailRows = computed<DetailRow[]>(() => {
   } else {
     rows.push({
       iconBg: 'bg-emerald-500/10', iconColor: 'text-emerald-500', iconSvg: ICON_CHECK,
-      label: t('keyUsage.subscriptionType'), value: data.planName || t('keyUsage.walletBalance'), valueClass: '',
+      // 订阅功能关闭后这一行只会是「钱包余额」，标签改用不带「订阅」字样的「计费方式」。
+      label: subscriptionFeatureEnabled.value ? t('keyUsage.subscriptionType') : t('keyUsage.billingType'),
+      value: data.planName || t('keyUsage.walletBalance'), valueClass: '',
     })
 
     if (data.subscription) {

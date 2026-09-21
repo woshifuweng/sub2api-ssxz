@@ -68,6 +68,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AccountPlatform, AccountType } from '@/types'
+import { normalizePlanType, openAIPlanTypeLabel } from '@/utils/planType'
 import GrokFreeIcon from './GrokFreeIcon.vue'
 import PlatformIcon from './PlatformIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -94,7 +95,10 @@ const platformLabel = computed(() => {
   if (props.platform === 'kimi') return 'Kimi'
   if (props.platform === 'zhipu') return 'Zhipu GLM'
   if (props.platform === 'deepseek') return 'DeepSeek'
-  return 'Gemini'
+  if (props.platform === 'minimax') return 'MiniMax'
+  if (props.platform === 'opencode_go') return 'OpenCode Go'
+  if (props.platform === 'gemini') return 'Gemini'
+  return props.platform
 })
 
 const normalizedAuthMode = computed(() =>
@@ -122,12 +126,16 @@ const typeLabel = computed(() => {
   }
 })
 
-const normalizedPlanType = computed(() =>
-  (props.planType || '').trim().toLowerCase().replace(/[\s_-]+/g, '')
-)
+const normalizedPlanType = computed(() => normalizePlanType(props.planType))
 
 const planLabel = computed(() => {
   if (!normalizedPlanType.value) return ''
+  // ChatGPT 档位命名（Pro 5x / Pro 20x、Business Standard / Business Premium）只适用于
+  // OpenAI：Antigravity 与 Grok 各自的 pro/team 沿用下面的通用标签。
+  if (props.platform === 'openai') {
+    const label = openAIPlanTypeLabel(props.planType)
+    if (label) return label
+  }
   switch (normalizedPlanType.value) {
     case 'plus':
       return 'Plus'
@@ -180,6 +188,9 @@ const planIconName = computed<'bolt' | null>(() => {
 })
 
 const platformClass = computed(() => {
+  if (props.platform === 'minimax') {
+    return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+  }
   if (props.platform === 'anthropic') {
     return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
   }
@@ -208,6 +219,9 @@ const platformClass = computed(() => {
 })
 
 const typeClass = computed(() => {
+  if (props.platform === 'minimax') {
+    return 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'
+  }
   if (props.platform === 'anthropic') {
     return 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400'
   }
@@ -263,10 +277,14 @@ const planBadgeClass = computed(() => {
   if (normalizedPlanType.value === 'plus') {
     return 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
   }
-  if (normalizedPlanType.value === 'team') {
+  if (normalizedPlanType.value === 'team' || normalizedPlanType.value === 'selfservebusinessprolite') {
     return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
   }
-  if (normalizedPlanType.value === 'pro' || normalizedPlanType.value === 'chatgptpro') {
+  if (
+    normalizedPlanType.value === 'pro' ||
+    normalizedPlanType.value === 'chatgptpro' ||
+    normalizedPlanType.value === 'prolite'
+  ) {
     return 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
   }
   return typeClass.value

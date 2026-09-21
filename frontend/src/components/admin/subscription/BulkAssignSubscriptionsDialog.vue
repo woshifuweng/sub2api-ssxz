@@ -168,9 +168,9 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
+import type { BulkAssignSubscriptionResult } from '@/api/admin/subscriptions'
 import type { SimpleUser } from '@/api/admin/usage'
 import type {
-  BulkAssignSubscriptionResult,
   Group,
   GroupPlatform,
   SubscriptionType
@@ -328,7 +328,7 @@ const submit = async () => {
         })
       )
       selectedUsers.value = selectedUsers.value.filter(
-        (user) => result.statuses[String(user.id)] === 'failed'
+        (user) => result.statuses?.[String(user.id)] === 'failed'
       )
       return
     }

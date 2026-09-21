@@ -73,17 +73,18 @@ import type { PublicSettings } from '@/types'
 import { DEFAULT_INTERVAL_SECONDS } from '@/constants/channelMonitor'
 
 export type FeatureFlagMode = 'opt-in' | 'opt-out'
+type FeatureFlagSettings = Partial<PublicSettings> & { plugin_management_enabled?: boolean }
 
 export interface FeatureFlagDefinition {
   /** Public-settings key used for lookup. */
-  readonly key: keyof PublicSettings
+  readonly key: keyof FeatureFlagSettings
   /** Resolution mode when the key is missing/undefined. */
   readonly mode: FeatureFlagMode
   /** Short human label for logs and debug tooling. */
   readonly label: string
 }
 
-function defineFlag<K extends keyof PublicSettings>(
+function defineFlag<K extends keyof FeatureFlagSettings>(
   def: { key: K; mode: FeatureFlagMode; label: string },
 ): FeatureFlagDefinition {
   return def
@@ -94,6 +95,7 @@ function defineFlag<K extends keyof PublicSettings>(
  * public-settings-driven switch; see the "Adding a new flag" checklist above.
  */
 export const FeatureFlags = {
+  pluginManagement: defineFlag({ key: 'plugin_management_enabled', mode: 'opt-in', label: 'Plugins' }),
   channelMonitor: defineFlag({
     key: 'channel_monitor_enabled',
     mode: 'opt-out',
@@ -103,6 +105,11 @@ export const FeatureFlags = {
     key: 'available_channels_enabled',
     mode: 'opt-in',
     label: 'Available Channels',
+  }),
+  subscription: defineFlag({
+    key: 'subscription_enabled',
+    mode: 'opt-out',
+    label: 'Subscription',
   }),
   modelPlaza: defineFlag({
     key: 'model_plaza_enabled',
@@ -135,9 +142,19 @@ export type RegisteredFeatureFlag = keyof typeof FeatureFlags
  */
 export function isFeatureFlagEnabled(flag: FeatureFlagDefinition): boolean {
   const appStore = useAppStore()
-  const raw = appStore.cachedPublicSettings?.[flag.key] as
-    | boolean
-    | undefined
+  return resolveFeatureFlag(appStore.cachedPublicSettings, flag)
+}
+
+/**
+ * Pure resolver behind `isFeatureFlagEnabled`. Use it when the caller already
+ * holds a settings object (e.g. a store instance from `@/stores`) and should
+ * not reach for `useAppStore` itself — keeps views testable without Pinia.
+ */
+export function resolveFeatureFlag(
+  settings: FeatureFlagSettings | null | undefined,
+  flag: FeatureFlagDefinition,
+): boolean {
+  const raw = settings?.[flag.key] as boolean | undefined
   if (typeof raw === 'boolean') return raw
   // Settings not yet loaded → fall back to the flag's declared mode:
   //   opt-out → visible by default, opt-in → hidden by default.
@@ -196,4 +213,10 @@ export function isChannelMonitorThroughputHidden(): boolean {
 export function isChannelMonitorQuotaVisible(): boolean {
   const appStore = useAppStore()
   return appStore.cachedPublicSettings?.channel_monitor_show_quota === true
+}
+
+/** Hide the user ranking tab on user-facing monitor v2. Admin always keeps it. */
+export function isChannelMonitorUserRankingHidden(): boolean {
+  const appStore = useAppStore()
+  return Boolean(appStore.cachedPublicSettings?.channel_monitor_hide_user_ranking)
 }

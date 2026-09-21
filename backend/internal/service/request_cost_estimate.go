@@ -63,10 +63,20 @@ func (s *GatewayService) EstimateGatewayTokenRequestCostWithLongContext(ctx cont
 		defaultMultiplier = s.cfg.Default.RateMultiplier
 	}
 	multiplier := requestEstimateRateMultiplier(ctx, defaultMultiplier, apiKey, user, s.getUserGroupRateMultiplier)
-	cost, err := s.billingService.CalculateCostWithLongContext(model, UsageTokens{
+	tokens := UsageTokens{
 		InputTokens:  estimateRequestInputTokens(parsed.Body.Bytes()),
 		OutputTokens: outputTokens,
-	}, multiplier, longContextThreshold, longContextMultiplier)
+	}
+	var group *Group
+	if apiKey != nil {
+		group = apiKey.Group
+	}
+	// Use the same pricing resolver as actual usage billing. The legacy threshold
+	// parameters remain for callers, while the current model catalog owns tiers.
+	cost, err := s.billingService.CalculateTokenCostForRequest(TokenCostRequest{
+		Ctx: ctx, Model: model, Group: group, Tokens: tokens,
+		RateMultiplier: multiplier, PricingAt: time.Now(), Resolver: s.resolver,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -91,6 +101,19 @@ func (s *OpenAIGatewayService) EstimateOpenAITokenRequestCost(ctx context.Contex
 		}
 		return s.userGroupRateResolver.Resolve(ctx, userID, groupID, fallback)
 	})
+	serviceTier := normalizeBillingServiceTier(gjson.GetBytes(body, "service_tier").String())
+	// Preflight checks the customer charge, not the upstream cost. Apply the
+	// group-forced tier before the Free Fast discount, just as forwarding and
+	// RecordUsage do. Composite groups must have resolved to an OpenAI target;
+	// their Grok/other targets must not receive an OpenAI-only discount.
+	if apiKey != nil && apiKey.Group != nil && groupSupportsOpenAIFast(apiKey.Group.Platform) && QuotaPlatform(ctx, apiKey) == PlatformOpenAI {
+		if IsGroupContextValid(apiKey.Group) && apiKey.Group.ForceOpenAIFast {
+			serviceTier = OpenAIFastTierPriority
+		}
+		if apiKey.Group.FreeOpenAIFast && (serviceTier == "priority" || serviceTier == "fast") {
+			serviceTier = ""
+		}
+	}
 	cost, err := s.calculateOpenAIRecordUsageTokenCost(
 		ctx,
 		apiKey,
@@ -98,7 +121,8 @@ func (s *OpenAIGatewayService) EstimateOpenAITokenRequestCost(ctx context.Contex
 		multiplier,
 		time.Now(),
 		UsageTokens{InputTokens: estimateRequestInputTokens(body), OutputTokens: outputTokens},
-		strings.TrimSpace(gjson.GetBytes(body, "service_tier").String()),
+		serviceTier,
+		strings.TrimSpace(gjson.GetBytes(body, "reasoning.effort").String()),
 		nil,
 	)
 	if err != nil {

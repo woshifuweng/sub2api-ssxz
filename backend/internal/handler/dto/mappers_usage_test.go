@@ -29,6 +29,27 @@ func TestUsageLogFromService_IncludesOpenAIWSMode(t *testing.T) {
 	require.False(t, UsageLogFromServiceAdmin(httpLog).OpenAIWSMode)
 }
 
+func TestUsageLogFromService_PreservesNativeCompactionAndStream(t *testing.T) {
+	t.Parallel()
+
+	log := &service.UsageLog{
+		RequestID:          "resp_compaction",
+		Model:              "gpt-5.6-sol",
+		RequestType:        service.RequestTypeStream,
+		Stream:             true,
+		NativeCompactionV2: true,
+	}
+
+	userDTO := UsageLogFromService(log)
+	adminDTO := UsageLogFromServiceAdmin(log)
+	require.Equal(t, "stream", userDTO.RequestType)
+	require.True(t, userDTO.Stream)
+	require.True(t, userDTO.NativeCompactionV2)
+	require.Equal(t, "stream", adminDTO.RequestType)
+	require.True(t, adminDTO.Stream)
+	require.True(t, adminDTO.NativeCompactionV2)
+}
+
 func TestUsageLogFromService_PrefersRequestTypeForLegacyFields(t *testing.T) {
 	t.Parallel()
 
@@ -182,6 +203,61 @@ func TestUsageLogFromService_KeepsUserBillingAndIPWithoutAdminCostFields(t *test
 	require.NotContains(t, string(userJSON), "account_cost")
 }
 
+func TestUsageLogFromService_UsersSeeRequestedReasoningEffortOnly(t *testing.T) {
+	t.Parallel()
+
+	requested := "max"
+	forwarded := "xhigh"
+	log := &service.UsageLog{
+		RequestID:                "req_effort",
+		Model:                    "gpt-5.4",
+		ReasoningEffort:          &forwarded,
+		RequestedReasoningEffort: &requested,
+	}
+
+	userDTO := UsageLogFromService(log)
+	adminDTO := UsageLogFromServiceAdmin(log)
+
+	require.NotNil(t, userDTO.ReasoningEffort)
+	require.Equal(t, requested, *userDTO.ReasoningEffort)
+	require.NotNil(t, adminDTO.ReasoningEffort)
+	require.Equal(t, requested, *adminDTO.ReasoningEffort)
+	require.NotNil(t, adminDTO.UpstreamReasoningEffort)
+	require.Equal(t, forwarded, *adminDTO.UpstreamReasoningEffort)
+
+	userJSON, err := json.Marshal(userDTO)
+	require.NoError(t, err)
+	require.Contains(t, string(userJSON), `"reasoning_effort":"max"`)
+	require.NotContains(t, string(userJSON), "upstream_reasoning_effort")
+	require.NotContains(t, string(userJSON), "requested_reasoning_effort")
+
+	adminJSON, err := json.Marshal(adminDTO)
+	require.NoError(t, err)
+	require.Contains(t, string(adminJSON), `"reasoning_effort":"max"`)
+	require.Contains(t, string(adminJSON), `"upstream_reasoning_effort":"xhigh"`)
+}
+
+func TestUsageLogFromService_OmitsUpstreamReasoningEffortWhenUnmapped(t *testing.T) {
+	t.Parallel()
+
+	effort := "high"
+	log := &service.UsageLog{
+		RequestID:                "req_effort_same",
+		Model:                    "gpt-5.4",
+		ReasoningEffort:          &effort,
+		RequestedReasoningEffort: &effort,
+	}
+
+	adminDTO := UsageLogFromServiceAdmin(log)
+	require.NotNil(t, adminDTO.ReasoningEffort)
+	require.Equal(t, effort, *adminDTO.ReasoningEffort)
+	require.Nil(t, adminDTO.UpstreamReasoningEffort)
+
+	adminJSON, err := json.Marshal(adminDTO)
+	require.NoError(t, err)
+	require.NotContains(t, string(adminJSON), "upstream_reasoning_effort")
+}
+
 func TestUsageLogFromService_FallsBackToLegacyModelWhenRequestedModelMissing(t *testing.T) {
 	t.Parallel()
 
@@ -280,6 +356,7 @@ func TestUsageLogFromService_UserResponseIsExplicitWhitelist(t *testing.T) {
 		APIKeyID:                  7,
 		AccountID:                 5,
 		RequestID:                 "req-safe",
+		NativeCompactionV2:        true,
 		Model:                     "served-private-model",
 		RequestedModel:            "gpt-5",
 		ServiceTier:               &serviceTier,
@@ -350,13 +427,14 @@ func TestUsageLogFromService_UserResponseIsExplicitWhitelist(t *testing.T) {
 		"group", "group_id", "id", "image_count", "image_input_cost", "image_input_size",
 		"image_input_tokens", "image_output_cost", "image_output_size", "image_output_tokens", "image_size",
 		"image_size_breakdown", "image_size_source", "inbound_endpoint", "input_cost", "input_tokens",
-		"ip_address", "long_context_billing_applied", "media_type", "model", "openai_ws_mode",
+		"ip_address", "long_context_billing_applied", "media_type", "model", "native_compaction_v2", "openai_ws_mode",
 		"output_cost", "output_tokens", "rate_multiplier", "reasoning_effort", "request_id", "request_type",
 		"service_tier", "session_id", "stream", "total_cost", "user_agent",
 	}
 	sort.Strings(expectedKeys)
 	require.Equal(t, expectedKeys, keys)
 	require.Equal(t, "gpt-5", payload["model"])
+	require.Equal(t, true, payload["native_compaction_v2"])
 	require.Equal(t, map[string]any{"id": float64(7), "name": "safe-key-name"}, payload["api_key"])
 	require.Equal(t, map[string]any{"id": float64(17), "name": "safe-group-name"}, payload["group"])
 }

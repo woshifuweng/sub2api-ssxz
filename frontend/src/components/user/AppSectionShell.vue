@@ -155,6 +155,9 @@ import type { ChatConversation } from '@/api/chatWorkspace'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { useResellerNavRole } from '@/composables/useResellerNavRole'
+import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
+import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
+import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { getSafeLocalStorageItem, setSafeLocalStorageItem } from '@/utils/safeStorage'
 import { formatCurrency, formatCurrencyTitle } from '@/utils/format'
 
@@ -189,6 +192,8 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const { isAgent: isResellerAgent, isManager: isResellerManager } = useResellerNavRole()
+const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
+const flagEnabled = (flag: keyof typeof FeatureFlags) => resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags[flag])
 const userMenuOpen = ref(false)
 const SIDEBAR_COLLAPSED_KEY = 'ssxz.app.sidebar.collapsed'
 const sidebarCollapsed = ref(readSidebarCollapsed())
@@ -197,12 +202,19 @@ const isDesktopViewport = ref(false)
 let desktopMediaQuery: MediaQueryList | null = null
 
 const mainNavGroups = computed<NavGroup[]>(() => {
+  const billingMode = resolveSiteBillingMode(appStore.cachedPublicSettings)
+  const purchaseLabel = billingMode === 'recharge_only' ? t('nav.recharge')
+    : billingMode === 'subscription_only' ? t('nav.subscribe') : t('nav.buySubscription')
   const billingItems: NavItem[] = [
-    { label: t('nav.billing'), to: '/app/purchase', icon: 'creditCard' },
-    { label: t('nav.orders'), to: '/app/orders', icon: 'document' },
-    { label: t('nav.redeem'), to: '/app/redeem', icon: 'gift' },
+    { label: flagEnabled('payment') ? t('nav.orders') : t('nav.billingRecords'), to: '/app/orders', icon: 'document' },
+    { label: t('nav.shop'), to: '/app/shop', icon: 'creditCard' },
   ]
-  if (appStore.cachedPublicSettings?.affiliate_enabled) {
+  if (flagEnabled('payment')) billingItems.unshift({ label: purchaseLabel, to: '/app/purchase', icon: 'creditCard' })
+  if (!authStore.isSimpleMode) {
+    if (flagEnabled('subscription')) billingItems.push({ label: t('nav.mySubscriptions'), to: '/app/subscriptions', icon: 'creditCard' })
+    billingItems.push({ label: t('nav.redeem'), to: '/app/redeem', icon: 'gift' })
+  }
+  if (flagEnabled('affiliate')) {
     billingItems.push({ label: t('nav.affiliate'), to: '/app/affiliate', icon: 'users' as IconName })
   }
   const accountItems: NavItem[] = []
@@ -213,6 +225,19 @@ const mainNavGroups = computed<NavGroup[]>(() => {
     accountItems.push({ label: t('nav.resellerManager'), to: '/app/reseller/manager', icon: 'users' as IconName })
   }
   accountItems.push({ label: t('nav.account'), to: '/app/profile', icon: 'userCircle' })
+  for (const item of (appStore.cachedPublicSettings?.custom_menu_items ?? []).filter(item => item.visibility === 'user').sort((a, b) => a.sort_order - b.sort_order)) {
+    accountItems.push({ label: item.label, to: `/custom/${encodeURIComponent(item.id)}`, icon: 'document' })
+  }
+  const useItems: NavItem[] = [
+    { label: t('nav.chat'), to: '/app/chat', icon: 'chat' },
+    { label: t('nav.image'), to: '/app/image', icon: 'photo' },
+    { label: t('nav.apiKeys'), to: '/app/keys', icon: 'key' },
+  ]
+  if (canUseBatchImage.value) useItems.push({ label: t('nav.batchImage'), to: '/batch-image', icon: 'photo' })
+  const informationItems: NavItem[] = []
+  if (flagEnabled('availableChannels')) informationItems.push({ label: t('nav.models'), to: '/app/available-channels', icon: 'calculator' })
+  if (flagEnabled('channelMonitor')) informationItems.push({ label: t('nav.channelStatus'), to: '/app/channel-status', icon: 'server' })
+  informationItems.push({ label: t('nav.usage'), to: '/app/usage', icon: 'chartBar' })
   return [
     {
       groupLabel: t('nav.groupOverview'),
@@ -220,19 +245,11 @@ const mainNavGroups = computed<NavGroup[]>(() => {
     },
     {
       groupLabel: t('nav.groupUse'),
-      items: [
-        { label: t('nav.chat'), to: '/app/chat', icon: 'chat' },
-        { label: t('nav.image'), to: '/app/image', icon: 'photo' },
-        { label: t('nav.apiKeys'), to: '/app/keys', icon: 'key' },
-      ]
+      items: useItems
     },
     {
       groupLabel: t('nav.groupInformation'),
-      items: [
-        { label: t('nav.models'), to: '/app/available-channels', icon: 'calculator' },
-        { label: t('nav.channelStatus'), to: '/app/channel-status', icon: 'server' },
-        { label: t('nav.usage'), to: '/app/usage', icon: 'chartBar' },
-      ]
+      items: informationItems
     },
     {
       groupLabel: t('nav.groupBilling'),
@@ -352,6 +369,9 @@ onBeforeUnmount(() => {
 })
 
 watch(() => route.fullPath || route.path, closeMobileNav)
+watch(() => authStore.user?.id, (id) => {
+  if (id && !authStore.isAdmin) void refreshBatchImageAccess(true)
+}, { immediate: true })
 </script>
 
 <style scoped>

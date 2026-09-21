@@ -317,6 +317,17 @@
               {{ t("admin.users.bulkLimits.action", { count: selectedCount }) }}
             </LiquidButton>
 
+            <button
+              v-if="selectedCount > 0"
+              class="btn btn-danger flex-1 md:flex-initial"
+              data-test="bulk-delete-users"
+              :disabled="bulkDeleting"
+              @click="bulkDeleteIds = [...selectedIds]"
+            >
+              <Icon name="trash" size="md" class="mr-2" />
+              {{ t('admin.users.bulkDelete.action', { count: selectedCount }) }}
+            </button>
+
             <!-- Create User Button (full width on mobile, auto width on desktop) -->
             <LiquidButton
               @click="showCreateModal = true"
@@ -1033,6 +1044,15 @@
       :danger="true"
       @confirm="confirmDelete"
       @cancel="showDeleteDialog = false"
+    />
+    <ConfirmDialog
+      :show="bulkDeleteIds.length > 0"
+      :title="t('admin.users.bulkDelete.title')"
+      :message="t('admin.users.bulkDelete.confirm', { count: bulkDeleteIds.length })"
+      :confirm-text="t('common.delete')"
+      :danger="true"
+      @confirm="confirmBulkDelete"
+      @cancel="bulkDeleteIds = []"
     />
     <BaseDialog
       :show="showCustomerHandoffModal"
@@ -1850,11 +1870,14 @@ const {
   selectedCount,
   setSelectedIds,
   clear: clearSelection,
+  removeMany: removeSelectedIds,
 } = useTableSelection<AdminUser>({
   rows: sortedUsers,
   getId: (user) => user.id,
 });
 const showBulkEditModal = ref(false);
+const bulkDeleteIds = ref<number[]>([]);
+const bulkDeleting = ref(false);
 const handleSelectedKeysUpdate = (keys: Array<string | number>) => {
   setSelectedIds(keys.filter((key): key is number => typeof key === "number"));
 };
@@ -2562,6 +2585,30 @@ const confirmDelete = async () => {
     console.error("Error deleting user:", error);
   }
 };
+
+const confirmBulkDelete = async () => {
+  const ids = bulkDeleteIds.value
+  bulkDeleteIds.value = []
+  bulkDeleting.value = true
+  const deletedIds: number[] = []
+  for (const id of ids) {
+    try {
+      await adminAPI.users.delete(id)
+      deletedIds.push(id)
+    } catch (error) {
+      console.error('Error deleting user:', error)
+    }
+  }
+  removeSelectedIds(deletedIds)
+  if (deletedIds.length > 0) {
+    appStore.showSuccess(t('admin.users.bulkDelete.success', { count: deletedIds.length }))
+    pagination.page = 1
+  }
+  const failed = ids.length - deletedIds.length
+  if (failed > 0) appStore.showError(t('admin.users.bulkDelete.failed', { count: failed }))
+  await loadUsers()
+  bulkDeleting.value = false
+}
 
 const handleDeposit = (user: AdminUser) => {
   balanceUser.value = user;

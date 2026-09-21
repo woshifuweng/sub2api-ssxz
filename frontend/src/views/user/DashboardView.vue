@@ -73,7 +73,11 @@
               :is-simple="authStore.isSimpleMode"
               :trend="trendData"
               :today-trend="todayTrendData"
+              :platform-quotas="platformQuotas"
             />
+            <p v-if="platformQuotasError" role="status" class="mt-3 text-sm text-amber-600 dark:text-amber-400">
+              平台额度暂时无法读取，请稍后刷新；当前显示不代表没有额度限制。
+            </p>
           </section>
 
           <UserDashboardCharts
@@ -175,7 +179,8 @@ import UserDashboardStats from "@/components/user/dashboard/UserDashboardStats.v
 import UserDashboardCharts from "@/components/user/dashboard/UserDashboardCharts.vue";
 import UserDashboardRecentUsage from "@/components/user/dashboard/UserDashboardRecentUsage.vue";
 import Icon from "@/components/icons/Icon.vue";
-import type { ModelStat, TrendDataPoint, UsageLog } from "@/types";
+import type { ModelStat, TrendDataPoint, UsageLog, PlatformQuotaItem } from "@/types";
+import { getMyPlatformQuotas } from "@/api/user";
 
 function getInitialTheme(): "light" | "dark" {
   if (typeof document === "undefined") return "dark";
@@ -191,6 +196,21 @@ const paymentEnabled = computed(
 );
 const theme = ref<"light" | "dark">(getInitialTheme());
 const stats = ref<UserStatsType | null>(null);
+const platformQuotas = ref<PlatformQuotaItem[] | null>(null);
+const platformQuotasError = ref(false);
+let disposed = false;
+
+async function loadPlatformQuotas() {
+  if (authStore.isSimpleMode) return;
+  try {
+    const data = await getMyPlatformQuotas();
+    if (disposed) return;
+    platformQuotas.value = data.platform_quotas ?? [];
+    platformQuotasError.value = false;
+  } catch {
+    if (!disposed) platformQuotasError.value = true;
+  }
+}
 const loading = ref(false);
 const statsLoadError = ref(false);
 const loadingUsage = ref(false);
@@ -375,12 +395,15 @@ onMounted(() => {
     attributeFilter: ["class"],
   });
   void loadStats();
+  void loadPlatformQuotas();
   void loadCharts();
   void loadTodayTrend();
   void loadRecent();
 });
 
 onBeforeUnmount(() => {
+  disposed = true;
+  chartsRequestSeq++;
   themeObserver?.disconnect();
 });
 </script>

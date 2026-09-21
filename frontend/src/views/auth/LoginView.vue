@@ -5,11 +5,6 @@
         <p>{{ t('auth.signInToAccount') }}</p>
       </header>
 
-      <LinuxDoOAuthSection
-        v-if="linuxdoOAuthEnabled && !backendModeEnabled"
-        :disabled="authActionDisabled"
-      />
-
       <form class="auth-form" @submit.prevent="handleLogin">
         <FoundationInput
           id="email"

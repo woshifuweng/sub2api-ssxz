@@ -18,14 +18,14 @@ type balanceUserRepoStub struct {
 }
 
 func (s *balanceUserRepoStub) AdjustBalance(ctx context.Context, id int64, delta float64) (BalanceChange, error) {
-	return s.apply(func(current float64) float64 { return current + delta })
+	return s.apply(func(current float64) float64 { return current + delta }, delta >= 0)
 }
 
 func (s *balanceUserRepoStub) SetBalance(ctx context.Context, id int64, value float64) (BalanceChange, error) {
-	return s.apply(func(float64) float64 { return value })
+	return s.apply(func(float64) float64 { return value }, false)
 }
 
-func (s *balanceUserRepoStub) apply(next func(current float64) float64) (BalanceChange, error) {
+func (s *balanceUserRepoStub) apply(next func(current float64) float64, allowDebt bool) (BalanceChange, error) {
 	if s.adjustErr != nil {
 		return BalanceChange{}, s.adjustErr
 	}
@@ -34,7 +34,7 @@ func (s *balanceUserRepoStub) apply(next func(current float64) float64) (Balance
 	}
 	change := BalanceChange{Old: s.userRepoStub.user.Balance}
 	change.New = next(change.Old)
-	if change.New < 0 {
+	if change.New < 0 && !allowDebt {
 		return change, ErrBalanceNegative
 	}
 	s.userRepoStub.user.Balance = change.New
@@ -158,6 +158,35 @@ func TestAdminService_UpdateUserBalance_RejectsNegativeResult(t *testing.T) {
 	require.Contains(t, err.Error(), "balance cannot be negative")
 	require.Empty(t, repo.changes, "refused adjustment must not be applied")
 	require.Equal(t, 3.0, repo.userRepoStub.user.Balance)
+	require.Empty(t, ledger.inserted)
+}
+
+func TestAdminService_UpdateUserBalance_CreditExistingDebt(t *testing.T) {
+	for _, amount := range []float64{5, 10, 15} {
+		repo := &balanceUserRepoStub{userRepoStub: &userRepoStub{user: &User{ID: 7, Balance: -10, TotalRecharged: 30}}}
+		ledger := &balanceLedgerRepoStub{}
+		svc := newBalanceAdminService(repo, ledger)
+		user, err := svc.UpdateUserBalance(context.Background(), 7, amount, "add", "debt credit")
+		require.NoError(t, err)
+		require.Equal(t, -10+amount, user.Balance)
+		require.Equal(t, 30.0, user.TotalRecharged)
+		require.Equal(t, []BalanceLedgerEntry{{
+			UserID: 7, EventType: BalanceLedgerEventAdminCredit,
+			AmountDelta: amount, BalanceBefore: -10, BalanceAfter: -10 + amount,
+			ActorType: BalanceLedgerActorAdmin, Note: "debt credit",
+		}}, ledger.inserted)
+	}
+}
+
+func TestAdminService_UpdateUserBalance_DebtCreditLedgerFailureRollsBack(t *testing.T) {
+	repo := &balanceUserRepoStub{userRepoStub: &userRepoStub{user: &User{ID: 7, Balance: -10, TotalRecharged: 30}}}
+	ledgerErr := errors.New("ledger unavailable")
+	ledger := &balanceLedgerRepoStub{err: ledgerErr}
+	_, err := newBalanceAdminService(repo, ledger).UpdateUserBalance(context.Background(), 7, 5, "add", "")
+	require.ErrorIs(t, err, ledgerErr)
+	require.Equal(t, -10.0, repo.userRepoStub.user.Balance)
+	require.Equal(t, 30.0, repo.userRepoStub.user.TotalRecharged)
+	require.Empty(t, repo.changes)
 	require.Empty(t, ledger.inserted)
 }
 

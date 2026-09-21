@@ -12,6 +12,8 @@ export default {
     delete: '删除',
     edit: '编辑',
     create: '创建',
+    sending: '发送中...',
+    tryAgain: '请重试',
     update: '更新',
     confirm: '确认',
     reset: '重置',
@@ -164,6 +166,8 @@ export default {
 
   // Navigation
   nav: {
+    shop: '外部商店',
+    plugins: '插件管理',
     dashboard: '仪表盘',
     announcements: '公告',
     apiKeys: 'API 密钥',
@@ -197,6 +201,8 @@ export default {
     github: 'GitHub',
     mySubscriptions: '我的订阅',
     buySubscription: '充值/订阅',
+    recharge: '充值',
+    subscribe: '订阅',
     docs: '文档',
     myOrders: '我的订单',
     orderManagement: '订单管理',
