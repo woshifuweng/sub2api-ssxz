@@ -1353,7 +1353,7 @@ export interface UpdateTLSFingerprintProfileRequest {
 }
 
 export async function getTLSFingerprintSettings(): Promise<ListTLSFingerprintProfilesResponse> {
-  const { data } = await apiClient.get<ListTLSFingerprintProfilesResponse>('/admin/settings/tls-fingerprint')
+  const { data } = await apiClient.get<ListTLSFingerprintProfilesResponse>('/admin/tls-fingerprint-profiles')
   return data
 }
 
@@ -1361,21 +1361,21 @@ export async function updateTLSFingerprintSettings(
   settings: TLSFingerprintSettings
 ): Promise<TLSFingerprintSettings> {
   const { data } = await apiClient.put<TLSFingerprintSettings>(
-    '/admin/settings/tls-fingerprint',
+    '/admin/tls-fingerprint-profiles',
     settings
   )
   return data
 }
 
 export async function listTLSFingerprintProfiles(): Promise<ListTLSFingerprintProfilesResponse> {
-  const { data } = await apiClient.get<ListTLSFingerprintProfilesResponse>('/admin/settings/tls-fingerprint/profiles')
+  const { data } = await apiClient.get<ListTLSFingerprintProfilesResponse>('/admin/tls-fingerprint-profiles')
   return data
 }
 
 export async function createTLSFingerprintProfile(
   request: CreateTLSFingerprintProfileRequest
 ): Promise<TLSFingerprintProfile> {
-  const { data } = await apiClient.post<TLSFingerprintProfile>('/admin/settings/tls-fingerprint/profiles', request)
+  const { data } = await apiClient.post<TLSFingerprintProfile>('/admin/tls-fingerprint-profiles', request)
   return data
 }
 
@@ -1384,14 +1384,14 @@ export async function updateTLSFingerprintProfile(
   request: UpdateTLSFingerprintProfileRequest
 ): Promise<TLSFingerprintProfile> {
   const { data } = await apiClient.put<TLSFingerprintProfile>(
-    `/admin/settings/tls-fingerprint/profiles/${profileID}`,
+    `/admin/tls-fingerprint-profiles/${profileID}`,
     request
   )
   return data
 }
 
 export async function deleteTLSFingerprintProfile(profileID: string): Promise<void> {
-  await apiClient.delete(`/admin/settings/tls-fingerprint/profiles/${profileID}`)
+  await apiClient.delete(`/admin/tls-fingerprint-profiles/${profileID}`)
 }
 
 // ==================== Sora S3 Settings ====================
