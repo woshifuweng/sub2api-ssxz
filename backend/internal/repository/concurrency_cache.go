@@ -1102,12 +1102,11 @@ func (c *concurrencyCache) reconcileExpiredIndexCandidates(ctx context.Context, 
 	if err != nil {
 		return err
 	}
-	members, err := c.rdb.ZRangeArgs(ctx, redis.ZRangeArgs{
-		Key:     spec.indexKey,
-		Start:   "-inf",
-		Stop:    strconv.FormatInt(now, 10),
-		ByScore: true,
-		Count:   activeIndexCleanupBatchSize,
+	// ZRANGE ... BYSCORE requires Redis 6.2; production also supports 6.0.
+	members, err := c.rdb.ZRangeByScore(ctx, spec.indexKey, &redis.ZRangeBy{
+		Min:   "-inf",
+		Max:   strconv.FormatInt(now, 10),
+		Count: activeIndexCleanupBatchSize,
 	}).Result()
 	if err != nil {
 		return fmt.Errorf("read expired index %s: %w", spec.indexKey, err)
