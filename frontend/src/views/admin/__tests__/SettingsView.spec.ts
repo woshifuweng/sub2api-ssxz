@@ -747,6 +747,20 @@ describe("admin SettingsView payment visible method controls", () => {
     adminSettingsFetch.mockResolvedValue(undefined);
   });
 
+  it("blocks the form when required site settings fail to load", async () => {
+    getSettings.mockRejectedValueOnce({ status: 503, message: "temporary" });
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="settings-load-error"]').text()).toContain("站点设置暂时无法加载");
+    expect(wrapper.find("form").exists()).toBe(false);
+    expect(wrapper.find('[data-testid="settings-loading"]').exists()).toBe(false);
+    expect(showError).not.toHaveBeenCalled();
+
+    wrapper.unmount();
+  });
+
   it("loads and saves the open button visibility for each custom menu", async () => {
     const menuItems = [
       { id: "docs", label: "Docs", url: "https://example.com/docs", icon_svg: "", visibility: "user", sort_order: 0 },

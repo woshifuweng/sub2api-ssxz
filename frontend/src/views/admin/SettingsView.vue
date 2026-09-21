@@ -5,16 +5,55 @@
       description="全局参数、注册策略与认证配置"
     />
 
-    <div class="mx-auto max-w-4xl space-y-6 admin-b4-settings-scope">
+    <div class="mx-auto w-full min-w-0 max-w-6xl space-y-6 admin-b4-settings-scope">
       <!-- Loading State -->
-      <div v-if="loading" class="flex items-center justify-center py-12">
+      <div v-if="loading" class="flex items-center justify-center py-12" data-testid="settings-loading">
         <div
           class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"
         ></div>
+        <span class="ml-3 text-sm text-gray-500 dark:text-gray-400">{{ localText("正在读取站点设置…", "Loading site settings…") }}</span>
+      </div>
+
+      <div
+        v-else-if="requiredSettingsLoadState === 'error'"
+        data-testid="settings-load-error"
+        class="rounded-2xl border border-red-500/30 bg-red-500/5 p-6 text-center"
+      >
+        <h2 class="text-base font-semibold text-gray-900 dark:text-white">
+          {{ localText("站点设置暂时无法加载", "Site settings could not be loaded") }}
+        </h2>
+        <p class="mx-auto mt-2 max-w-xl text-sm text-gray-600 dark:text-gray-400">
+          {{ settingsLoadError }}
+        </p>
+        <button
+          type="button"
+          class="mt-4 rounded-lg border border-red-500/40 px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-500/10 dark:text-red-300"
+          @click="loadSettings"
+        >
+          {{ localText("重新加载", "Try again") }}
+        </button>
       </div>
 
       <!-- Settings Form -->
       <form v-else @submit.prevent="saveSettings" class="space-y-6" novalidate>
+        <div
+          v-if="optionalLoadErrors.length > 0"
+          data-testid="optional-settings-load-errors"
+          class="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-800 dark:text-amber-200"
+        >
+          <div class="font-medium">{{ localText("部分附加设置暂时不可用", "Some optional settings are temporarily unavailable") }}</div>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <button
+              v-for="key in optionalLoadErrors"
+              :key="key"
+              type="button"
+              class="rounded-md border border-amber-500/40 px-2.5 py-1 text-xs font-medium hover:bg-amber-500/10"
+              @click="retryOptionalSetting(key)"
+            >
+              {{ optionalSettingsLoadLabels[key] }} · {{ localText("重试", "Retry") }}
+            </button>
+          </div>
+        </div>
         <!-- Tab Navigation -->
         <div class="sticky top-0 z-10 overflow-x-auto settings-tabs-scroll">
           <nav class="settings-tabs">
@@ -5866,7 +5905,11 @@
           v-show="activeTab !== 'backup' && activeTab !== 'data'"
           class="flex justify-end"
         >
-          <LiquidButton type="submit" :disabled="saving" size="default">
+          <LiquidButton
+            type="submit"
+            :disabled="saving || requiredSettingsLoadState !== 'ready'"
+            size="default"
+          >
             <svg
               v-if="saving"
               class="h-4 w-4 animate-spin"
@@ -6042,6 +6085,65 @@ const settingsTabs = [
 const { copyToClipboard } = useClipboard();
 
 const loading = ref(true);
+type RequiredSettingsLoadState = "loading" | "ready" | "error";
+type OptionalSettingsLoadKey =
+  | "payment"
+  | "groups"
+  | "adminApiKey"
+  | "gateway"
+  | "webSearch"
+  | "tlsFingerprint";
+const requiredSettingsLoadState = ref<RequiredSettingsLoadState>("loading");
+const settingsLoadError = ref("");
+const optionalLoadErrors = ref<OptionalSettingsLoadKey[]>([]);
+const optionalSettingsLoadLabels: Record<OptionalSettingsLoadKey, string> = {
+  payment: localText("支付提供商", "Payment providers"),
+  groups: localText("订阅分组", "Subscription groups"),
+  adminApiKey: localText("管理员 API Key", "Admin API key"),
+  gateway: localText("网关运行策略", "Gateway runtime policies"),
+  webSearch: localText("网页搜索模拟", "Web search emulation"),
+  tlsFingerprint: localText("TLS 指纹", "TLS fingerprint"),
+};
+
+function markOptionalLoadStarted(key: OptionalSettingsLoadKey) {
+  optionalLoadErrors.value = optionalLoadErrors.value.filter((item) => item !== key);
+}
+
+function markOptionalLoadFailed(key: OptionalSettingsLoadKey) {
+  if (!optionalLoadErrors.value.includes(key)) optionalLoadErrors.value.push(key);
+}
+
+async function retryOptionalSetting(key: OptionalSettingsLoadKey) {
+  switch (key) {
+    case "payment":
+      await loadPaymentProviders();
+      break;
+    case "groups":
+      await loadSubscriptionGroups();
+      break;
+    case "adminApiKey":
+      await loadAdminApiKey();
+      break;
+    case "gateway":
+      markOptionalLoadStarted("gateway");
+      await Promise.all([
+        loadUpstreamBillingProbeSettings(),
+        loadOllamaCloudUsageSettings(),
+        loadOverloadCooldownSettings(),
+        loadPanelRateLimitSettings(),
+        loadStreamTimeoutSettings(),
+        loadRectifierSettings(),
+        loadBetaPolicySettings(),
+      ]);
+      break;
+    case "webSearch":
+      await loadWebSearchConfig();
+      break;
+    case "tlsFingerprint":
+      await loadTLSFingerprintSettings();
+      break;
+  }
+}
 const saving = ref(false);
 const testingSmtp = ref(false);
 const sendingTestEmail = ref(false);
@@ -7049,6 +7151,7 @@ async function testWebSearchProvider() {
 }
 
 async function loadWebSearchConfig() {
+  markOptionalLoadStarted("webSearch");
   try {
     const [config, proxies] = await Promise.all([
       adminAPI.settings.getWebSearchEmulationConfig(),
@@ -7059,6 +7162,7 @@ async function loadWebSearchConfig() {
     webSearchProxies.value = Array.isArray(proxies) ? proxies : (proxies as { data?: Proxy[] }).data || [];
   } catch (error) {
     console.error("Failed to load web search emulation settings:", error);
+    markOptionalLoadFailed("webSearch");
   }
 }
 
@@ -7580,6 +7684,8 @@ const currentOrigin = typeof window !== "undefined" ? window.location.origin : "
 
 async function loadSettings() {
   loading.value = true;
+  requiredSettingsLoadState.value = "loading";
+  settingsLoadError.value = "";
   try {
     const settings = await adminAPI.settings.getSettings();
     const rawSettings = settings as SystemSettings & Record<string, unknown>;
@@ -7717,18 +7823,21 @@ async function loadSettings() {
     form.tencent_captcha_cloud_secret_key = "";
     form.aliyun_captcha_access_key_secret = "";
     form.linuxdo_connect_client_secret = "";
+    requiredSettingsLoadState.value = "ready";
   } catch (error: any) {
-    appStore.showError(
-      t("admin.settings.failedToLoad") +
-        ": " +
-        (error.message || t("common.unknownError")),
+    requiredSettingsLoadState.value = "error";
+    settingsLoadError.value = localText(
+      "请检查网络后重试。当前没有保存任何设置。",
+      "Check your connection and try again. No settings were saved.",
     );
+    console.error("Failed to load required site settings:", error);
   } finally {
     loading.value = false;
   }
 }
 
 async function loadSubscriptionGroups() {
+  markOptionalLoadStarted("groups");
   try {
     const groups = await adminAPI.groups.getAll();
     subscriptionGroups.value = groups.filter(
@@ -7737,7 +7846,7 @@ async function loadSubscriptionGroups() {
     );
   } catch (error) {
     console.error("Failed to load subscription groups:", error);
-    subscriptionGroups.value = [];
+    markOptionalLoadFailed("groups");
   }
 }
 
@@ -7751,13 +7860,14 @@ function normalizePaymentProvider(provider: ProviderInstance): ProviderInstance 
 }
 
 async function loadPaymentProviders() {
+  markOptionalLoadStarted("payment");
   providersLoading.value = true;
   try {
     const response = await adminAPI.payment.getProviders();
     providers.value = (response.data ?? []).map(normalizePaymentProvider);
   } catch (error) {
     console.error("Failed to load payment providers:", error);
-    providers.value = [];
+    markOptionalLoadFailed("payment");
   } finally {
     providersLoading.value = false;
   }
@@ -7880,6 +7990,7 @@ async function loadUpstreamBillingProbeSettings() {
     );
   } catch (error) {
     console.error("Failed to load upstream billing probe settings:", error);
+    markOptionalLoadFailed("gateway");
   } finally {
     upstreamBillingProbeLoading.value = false;
   }
@@ -7912,6 +8023,7 @@ async function loadOllamaCloudUsageSettings() {
     );
   } catch (error) {
     console.error("Failed to load Ollama Cloud usage settings:", error);
+    markOptionalLoadFailed("gateway");
   } finally {
     ollamaCloudUsageLoading.value = false;
   }
@@ -8346,7 +8458,8 @@ async function saveSettings() {
     );
     appendAuthSourceDefaultsToUpdateRequest(payload, authSourceDefaults);
     const updated = await stepUp.run(() => adminAPI.settings.updateSettings(payload));
-    if (!(await saveWebSearchConfig())) return;
+    // Never overwrite an unreadable optional setting with its local default.
+    if (!optionalLoadErrors.value.includes("webSearch") && !(await saveWebSearchConfig())) return;
     Object.assign(form, updated);
     form.account_scheduling_thresholds = normalizeAccountSchedulingThresholdsMap(
       updated.account_scheduling_thresholds,
@@ -8457,6 +8570,7 @@ async function sendTestEmail() {
 
 // Admin API Key 方法
 async function loadAdminApiKey() {
+  markOptionalLoadStarted("adminApiKey");
   adminApiKeyLoading.value = true;
   try {
     const status = await adminAPI.settings.getAdminApiKey();
@@ -8464,6 +8578,7 @@ async function loadAdminApiKey() {
     adminApiKeyMasked.value = status.masked_key;
   } catch (error: any) {
     console.error("Failed to load admin API key status:", error);
+    markOptionalLoadFailed("adminApiKey");
   } finally {
     adminApiKeyLoading.value = false;
   }
@@ -8525,6 +8640,7 @@ async function loadOverloadCooldownSettings() {
     Object.assign(overloadCooldownForm, settings);
   } catch (error: any) {
     console.error("Failed to load overload cooldown settings:", error);
+    markOptionalLoadFailed("gateway");
   } finally {
     overloadCooldownLoading.value = false;
   }
@@ -8558,6 +8674,7 @@ async function loadStreamTimeoutSettings() {
     Object.assign(streamTimeoutForm, settings);
   } catch (error: any) {
     console.error("Failed to load stream timeout settings:", error);
+    markOptionalLoadFailed("gateway");
   } finally {
     streamTimeoutLoading.value = false;
   }
@@ -8593,6 +8710,7 @@ async function loadPanelRateLimitSettings() {
     Object.assign(panelRateLimitForm, settings);
   } catch (error: any) {
     console.error("Failed to load panel rate limit settings:", error);
+    markOptionalLoadFailed("gateway");
   } finally {
     panelRateLimitLoading.value = false;
   }
@@ -8629,6 +8747,7 @@ async function loadRectifierSettings() {
     Object.assign(rectifierForm, settings);
   } catch (error: any) {
     console.error("Failed to load rectifier settings:", error);
+    markOptionalLoadFailed("gateway");
   } finally {
     rectifierLoading.value = false;
   }
@@ -8685,6 +8804,7 @@ async function loadBetaPolicySettings() {
     betaPolicyForm.rules = settings.rules;
   } catch (error: any) {
     console.error("Failed to load beta policy settings:", error);
+    markOptionalLoadFailed("gateway");
   } finally {
     betaPolicyLoading.value = false;
   }
@@ -8785,6 +8905,7 @@ async function saveBetaPolicySettings() {
 }
 
 async function loadTLSFingerprintSettings() {
+  markOptionalLoadStarted("tlsFingerprint");
   tlsFingerprintLoading.value = true;
   try {
     const result = await adminAPI.settings.getTLSFingerprintSettings();
@@ -8792,6 +8913,7 @@ async function loadTLSFingerprintSettings() {
     tlsFingerprintProfiles.value = result.items;
   } catch (error: any) {
     console.error("Failed to load TLS fingerprint settings:", error);
+    markOptionalLoadFailed("tlsFingerprint");
   } finally {
     tlsFingerprintLoading.value = false;
   }
@@ -8942,6 +9064,7 @@ async function deleteTLSFingerprintProfile(profile: TLSFingerprintProfile) {
 onMounted(() => {
   loadSettings();
   loadPaymentProviders();
+  markOptionalLoadStarted("gateway");
   loadUpstreamBillingProbeSettings();
   loadOllamaCloudUsageSettings();
   loadSubscriptionGroups();
@@ -9004,6 +9127,16 @@ onMounted(() => {
     0 1px 2px rgb(0 0 0 / 0.02);
 }
 
+.admin-b4-settings-scope :deep(.card),
+.admin-b4-settings-scope :deep(form),
+.admin-b4-settings-scope :deep(.settings-tabs-scroll) {
+  min-width: 0;
+}
+
+.admin-b4-settings-scope :deep(.settings-tabs) {
+  min-width: max-content;
+}
+
 @media (min-width: 640px) {
   .settings-tabs {
     @apply flex;
@@ -9044,6 +9177,20 @@ onMounted(() => {
     rgba(45, 212, 191, 0.05)
   );
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+}
+
+@media (max-width: 639px) {
+  .admin-b4-settings-scope :deep(.flex.items-start.justify-between) {
+    flex-wrap: wrap;
+  }
+
+  .admin-b4-settings-scope :deep(.flex.items-start.justify-between > .inline-flex) {
+    margin-left: auto;
+  }
+
+  .admin-b4-settings-scope :deep(.card) {
+    overflow: hidden;
+  }
 }
 
 .settings-tab-icon {

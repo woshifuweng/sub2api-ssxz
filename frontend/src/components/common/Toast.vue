@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <div
-      class="pointer-events-none fixed right-4 top-4 z-[9999] space-y-3"
+      class="pointer-events-none fixed left-4 right-4 top-4 z-[9999] space-y-3 sm:left-auto sm:right-4"
       aria-live="polite"
       aria-atomic="true"
     >
@@ -17,9 +17,10 @@
           v-for="toast in toasts"
           :key="toast.id"
           :class="[
-            'ssxz-toast pointer-events-auto min-w-[320px] max-w-md overflow-hidden',
+            'ssxz-toast pointer-events-auto w-full max-w-md overflow-hidden sm:min-w-[320px]',
             getToastClass(toast.type)
           ]"
+          :role="toast.type === 'error' ? 'alert' : 'status'"
         >
           <div class="p-4">
             <div class="flex items-start gap-3">
