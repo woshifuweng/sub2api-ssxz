@@ -145,6 +145,12 @@ export default defineConfig(({ mode }) => {
               return 'vendor-stripe'
             }
 
+            // Keep the lazy payment SDK and its tracker out of the shared
+            // entry chunk. Importing it starts third-party script loads.
+            if (id.includes('/@airwallex/')) {
+              return 'vendor-airwallex'
+            }
+
             // 其他小型第三方库合并
             return 'vendor-misc'
           }
