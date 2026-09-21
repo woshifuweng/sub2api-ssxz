@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -33,6 +34,7 @@ type userRepository struct {
 }
 
 var _ service.RedeemUserAdjustmentRepository = (*userRepository)(nil)
+var _ service.PaidRechargeRepository = (*userRepository)(nil)
 
 func NewUserRepository(client *dbent.Client, sqlDB *sql.DB) service.UserRepository {
 	return newUserRepositoryWithSQL(client, sqlDB)
@@ -830,10 +832,7 @@ func (r *userRepository) filterUsersByAttributes(ctx context.Context, attrs map[
 func (r *userRepository) UpdateBalance(ctx context.Context, id int64, amount float64) error {
 	client := clientFromContext(ctx, r.client)
 	update := client.User.Update().Where(dbuser.IDEQ(id)).AddBalance(amount)
-	// Track cumulative recharge amount for percentage-based notifications
-	if amount > 0 {
-		update = update.AddTotalRecharged(amount)
-	}
+	// Generic credits include gifts and refund restoration, not paid recharge.
 	n, err := update.Save(ctx)
 	if err != nil {
 		return translatePersistenceError(err, service.ErrUserNotFound, nil)
@@ -935,6 +934,29 @@ func (r *userRepository) DeductAvailableBalance(ctx context.Context, id int64, a
 		return 0, err
 	}
 	return deducted, rows.Err()
+}
+
+// CreditPaidRecharge credits a verified paid balance order in balance units.
+// The caller must include this in the same transaction as conditional code use
+// and ledger insertion; this primitive alone is not an idempotency boundary.
+func (r *userRepository) CreditPaidRecharge(ctx context.Context, id int64, amount float64) (service.BalanceChange, error) {
+	if amount <= 0 || math.IsNaN(amount) || math.IsInf(amount, 0) {
+		return service.BalanceChange{}, service.ErrInvalidPaidRechargeAmount
+	}
+	const updateSQL = `
+		UPDATE users
+		SET balance = balance + $1, total_recharged = total_recharged + $1, updated_at = NOW()
+		WHERE id = $2 AND deleted_at IS NULL
+		RETURNING balance - $1, balance
+	`
+	change, ok, err := scanBalanceChange(ctx, clientFromContext(ctx, r.client), updateSQL, amount, id)
+	if err != nil {
+		return service.BalanceChange{}, err
+	}
+	if !ok {
+		return service.BalanceChange{}, service.ErrUserNotFound
+	}
+	return change, nil
 }
 
 // AdjustBalance 原子地把 delta 累加到余额上，仅拒绝扣减后仍为负的负数调整。

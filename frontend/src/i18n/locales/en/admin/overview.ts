@@ -679,7 +679,7 @@ export default {
       typeSubscription: 'Subscription',
       failedToLoadBalanceHistory: 'Failed to load balance history',
       createdAt: 'Created',
-      totalRecharged: 'Total Recharged',
+      totalRecharged: 'Redeemed / adjusted credits (not receipts)',
       roles: {
         admin: 'Admin',
         user: 'User'

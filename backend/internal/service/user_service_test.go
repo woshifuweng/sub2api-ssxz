@@ -26,6 +26,7 @@ type mockUserRepo struct {
 	updateBalanceErr         error
 	updateBalanceFn          func(ctx context.Context, id int64, amount float64) error
 	adjustBalanceFn          func(ctx context.Context, id int64, delta float64) (BalanceChange, error)
+	creditPaidRechargeFn     func(ctx context.Context, id int64, amount float64) (BalanceChange, error)
 	deductBalanceFn          func(ctx context.Context, id int64, amount float64) error
 	deductAvailableBalanceFn func(ctx context.Context, id int64, amount float64) (float64, error)
 	getByIDUser              *User
@@ -218,6 +219,13 @@ func (m *mockUserRepo) AdjustBalance(ctx context.Context, id int64, delta float6
 		return m.adjustBalanceFn(ctx, id, delta)
 	}
 	panic("unexpected AdjustBalance call")
+}
+
+func (m *mockUserRepo) CreditPaidRecharge(ctx context.Context, id int64, amount float64) (BalanceChange, error) {
+	if m.creditPaidRechargeFn != nil {
+		return m.creditPaidRechargeFn(ctx, id, amount)
+	}
+	panic("unexpected CreditPaidRecharge call")
 }
 
 func (m *mockUserRepo) SetBalance(ctx context.Context, id int64, value float64) (BalanceChange, error) {

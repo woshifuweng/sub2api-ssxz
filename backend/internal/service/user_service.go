@@ -29,17 +29,18 @@ import (
 )
 
 var (
-	ErrUserNotFound             = infraerrors.NotFound("USER_NOT_FOUND", "user not found")
-	ErrPasswordIncorrect        = infraerrors.BadRequest("PASSWORD_INCORRECT", "current password is incorrect")
-	ErrBalanceNegative          = infraerrors.BadRequest("BALANCE_NEGATIVE", "balance cannot be negative")
-	ErrInsufficientPerms        = infraerrors.Forbidden("INSUFFICIENT_PERMISSIONS", "insufficient permissions")
-	ErrNotifyCodeUserRateLimit  = infraerrors.TooManyRequests("NOTIFY_CODE_USER_RATE_LIMIT", "too many verification codes requested, please try again later")
-	ErrAvatarInvalid            = infraerrors.BadRequest("AVATAR_INVALID", "avatar must be a valid image data URL or http(s) URL")
-	ErrAvatarTooLarge           = infraerrors.BadRequest("AVATAR_TOO_LARGE", "avatar image must be 100KB or smaller")
-	ErrAvatarNotImage           = infraerrors.BadRequest("AVATAR_NOT_IMAGE", "avatar content must be an image")
-	ErrIdentityProviderInvalid  = infraerrors.BadRequest("IDENTITY_PROVIDER_INVALID", "identity provider is invalid")
-	ErrIdentityRedirectInvalid  = infraerrors.BadRequest("IDENTITY_REDIRECT_INVALID", "identity redirect path is invalid")
-	ErrIdentityUnbindLastMethod = infraerrors.Conflict(
+	ErrUserNotFound              = infraerrors.NotFound("USER_NOT_FOUND", "user not found")
+	ErrPasswordIncorrect         = infraerrors.BadRequest("PASSWORD_INCORRECT", "current password is incorrect")
+	ErrBalanceNegative           = infraerrors.BadRequest("BALANCE_NEGATIVE", "balance cannot be negative")
+	ErrInvalidPaidRechargeAmount = infraerrors.BadRequest("INVALID_PAID_RECHARGE_AMOUNT", "paid recharge amount must be finite and positive")
+	ErrInsufficientPerms         = infraerrors.Forbidden("INSUFFICIENT_PERMISSIONS", "insufficient permissions")
+	ErrNotifyCodeUserRateLimit   = infraerrors.TooManyRequests("NOTIFY_CODE_USER_RATE_LIMIT", "too many verification codes requested, please try again later")
+	ErrAvatarInvalid             = infraerrors.BadRequest("AVATAR_INVALID", "avatar must be a valid image data URL or http(s) URL")
+	ErrAvatarTooLarge            = infraerrors.BadRequest("AVATAR_TOO_LARGE", "avatar image must be 100KB or smaller")
+	ErrAvatarNotImage            = infraerrors.BadRequest("AVATAR_NOT_IMAGE", "avatar content must be an image")
+	ErrIdentityProviderInvalid   = infraerrors.BadRequest("IDENTITY_PROVIDER_INVALID", "identity provider is invalid")
+	ErrIdentityRedirectInvalid   = infraerrors.BadRequest("IDENTITY_REDIRECT_INVALID", "identity redirect path is invalid")
+	ErrIdentityUnbindLastMethod  = infraerrors.Conflict(
 		"IDENTITY_UNBIND_LAST_METHOD",
 		"bind another sign-in method before unbinding this provider",
 	)
@@ -196,6 +197,14 @@ type RegistrationEmailDomainRepository interface {
 type RedeemUserAdjustmentRepository interface {
 	ApplyRedeemBalanceAdjustment(ctx context.Context, id int64, delta float64) error
 	ApplyRedeemConcurrencyAdjustment(ctx context.Context, id int64, delta int) error
+}
+
+// PaidRechargeRepository is restricted to verified paid balance fulfillment.
+// TotalRecharged is gross fulfilled balance units, not cash revenue. Generic
+// credits and internal transfers must not call this method. The caller owns
+// the transaction and conditional redemption that prevent duplicate credits.
+type PaidRechargeRepository interface {
+	CreditPaidRecharge(ctx context.Context, id int64, amount float64) (BalanceChange, error)
 }
 
 type UserAuthIdentityRecord struct {

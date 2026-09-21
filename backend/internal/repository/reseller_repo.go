@@ -1332,7 +1332,6 @@ func (r *resellerRepository) ReviewWithdrawRequest(ctx context.Context, id, revi
 		if err := tx.QueryRowContext(ctx, `
 			UPDATE users
 			SET balance = balance + $1,
-			    total_recharged = total_recharged + $1,
 			    updated_at = NOW()
 			WHERE id = $2 AND deleted_at IS NULL
 			RETURNING balance::double precision`,

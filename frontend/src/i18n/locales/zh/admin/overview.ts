@@ -680,7 +680,7 @@ export default {
       typeSubscription: '订阅',
       failedToLoadBalanceHistory: '加载余额记录失败',
       createdAt: '创建时间',
-      totalRecharged: '总充值',
+      totalRecharged: '兑换及调账入账（非实收）',
       // Settings Dropdowns
       filterSettings: '筛选设置',
       columnSettings: '列设置',

@@ -36,12 +36,12 @@
           </div>
         </div>
         <!-- Row 2: notes + total recharged -->
-        <div class="mt-2.5 flex items-center justify-between border-t border-gray-200/60 pt-2.5 dark:border-dark-600/60">
+        <div class="mt-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-gray-200/60 pt-2.5 dark:border-dark-600/60">
           <p class="min-w-0 flex-1 truncate text-xs text-gray-500 dark:text-dark-400" :title="user.notes || ''">
             <template v-if="user.notes">{{ t('admin.users.notes') }}: {{ user.notes }}</template>
             <template v-else>&nbsp;</template>
           </p>
-          <p class="ml-4 flex-shrink-0 text-xs text-gray-500 dark:text-dark-400">
+          <p class="text-xs text-gray-500 dark:text-dark-400">
             {{ t('admin.users.totalRecharged') }}: <span class="font-semibold text-emerald-600 dark:text-emerald-400">${{ totalRecharged.toFixed(2) }}</span>
           </p>
         </div>

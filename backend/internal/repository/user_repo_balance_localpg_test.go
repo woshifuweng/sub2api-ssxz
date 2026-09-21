@@ -22,7 +22,8 @@ import (
 
 // Explicit opt-in, independent of the Docker integration TestMain. Never accepts
 // a DSN: initdb creates a fresh cluster inside t.TempDir, bound only to loopback.
-func TestAdjustBalance_LocalPostgres(t *testing.T) {
+func isolatedLocalPostgres(t *testing.T) *sql.DB {
+	t.Helper()
 	bin := os.Getenv("SUB2API_LOCAL_PG_BIN")
 	require.NotEmpty(t, bin, "set SUB2API_LOCAL_PG_BIN to the PostgreSQL bin directory")
 	dir := t.TempDir()
@@ -62,10 +63,15 @@ func TestAdjustBalance_LocalPostgres(t *testing.T) {
 	require.NoError(t, err)
 	db.SetMaxOpenConns(4)
 	t.Cleanup(func() { require.NoError(t, db.Close()) })
+	return db
+}
+
+func TestAdjustBalance_LocalPostgres(t *testing.T) {
+	db := isolatedLocalPostgres(t)
 	ctx := context.Background()
 	// Minimal schema for this repository method; no application migrations or
 	// existing databases are touched. NUMERIC matches the production money columns.
-	_, err = db.ExecContext(ctx, `CREATE TABLE users (
+	_, err := db.ExecContext(ctx, `CREATE TABLE users (
 		id BIGINT PRIMARY KEY, balance NUMERIC(20,8) NOT NULL,
 		total_recharged NUMERIC(20,8) NOT NULL DEFAULT 30,
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), deleted_at TIMESTAMPTZ)`)

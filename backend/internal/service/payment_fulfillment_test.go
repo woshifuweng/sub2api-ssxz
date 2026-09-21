@@ -835,10 +835,11 @@ func TestExecuteBalanceFulfillmentBypassesUserRedeemRateLimit(t *testing.T) {
 		credited += amount
 		return nil
 	}
-	userRepo.adjustBalanceFn = func(_ context.Context, id int64, amount float64) (BalanceChange, error) {
+	userRepo.creditPaidRechargeFn = func(_ context.Context, id int64, amount float64) (BalanceChange, error) {
 		require.Equal(t, order.UserID, id)
 		before := credited
 		credited += amount
+		userRepo.getByIDUser.TotalRecharged += amount
 		return BalanceChange{Old: before, New: credited}, nil
 	}
 	cache := &paymentFulfillmentRedeemCacheStub{count: redeemMaxFailedAttempts}
@@ -847,6 +848,7 @@ func TestExecuteBalanceFulfillmentBypassesUserRedeemRateLimit(t *testing.T) {
 
 	require.NoError(t, svc.ExecuteBalanceFulfillment(ctx, order.ID))
 	require.InDelta(t, order.Amount, credited, 1e-8)
+	require.InDelta(t, order.Amount, userRepo.getByIDUser.TotalRecharged, 1e-8)
 	require.Zero(t, cache.getCalls, "trusted payment fulfillment must not read the public failure counter")
 	require.Zero(t, cache.incrementCalls, "trusted payment fulfillment must not mutate the public failure counter")
 	require.Equal(t, 1, cache.acquireCalls)
