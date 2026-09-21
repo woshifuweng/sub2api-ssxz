@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Read-only provider model discovery. Never print credentials or base URLs."""
 import json
+import os
 import subprocess
 import urllib.request
 import urllib.error
@@ -50,6 +51,11 @@ with ThreadPoolExecutor(max_workers=2) as pool:
     for result in pool.map(probe,accounts):
         results.append(result)
         print(json.dumps({key:value for key,value in result.items() if key!='models'}),flush=True)
-    evidence=Path('/opt/sub2api/backups/v027-release-20260921/all-active-model-catalogs.json')
-    with evidence.open('x') as output:
-        json.dump(results,output,indent=2)
+    evidence=Path(os.environ.get(
+        'MODEL_CATALOG_EVIDENCE',
+        '/opt/sub2api/backups/v027-release-20260921/all-active-model-catalogs.json',
+    ))
+    evidence.parent.mkdir(parents=True, exist_ok=True)
+    temp=evidence.with_name(evidence.name + '.tmp')
+    temp.write_text(json.dumps(results, ensure_ascii=False, indent=2) + '\n')
+    temp.replace(evidence)

@@ -72,3 +72,22 @@ remove only the duplicated scroll offset; test hover and scroll repositioning.
   table has zero literal `<el-tooltip>` tags.
 - The image workbench primary domain, workers.dev fallback, and API health endpoint
   all returned HTTP 200. No paid image-generation smoke request was issued.
+
+## Final model-catalog follow-up
+
+- A second read-only provider catalog sweep confirmed the image-capable upstream
+  accounts return `gpt-image-2.5-flare` and `gpt-image-2.5-sunburst`; the earlier
+  absence was a site catalog/mapping omission, not an upstream outage.
+- Applied the idempotent production catalog repair from
+  `ops/production/enable-verified-image25.sql`: seven verified accounts now map
+  both aliases, dedicated image groups 18/19 list both aliases, and channel 4
+  has one image-billing entry so `restrict_models` does not reject them.
+- Existing group image prices were not changed: 1K/2K remains $0.15 and 4K
+  remains $0.30. The generic `gpt-image-2.5` alias remains intentionally hidden
+  because this site has no explicit price contract for that alias.
+- Post-change read-only `/v1/models` checks returned HTTP 200 and both aliases
+  for representative keys in groups 10, 18, and 19. No generation request was
+  sent, so this verifies catalog/routing admission without spending customer
+  balance; provider generation remains the one unverified paid edge.
+- Made `probe-live-model-catalogs.py` safely refresh its evidence file on repeat
+  runs instead of failing when the prior evidence exists.
