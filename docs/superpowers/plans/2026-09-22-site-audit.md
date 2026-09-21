@@ -17,7 +17,7 @@ upstream features, customer balances, group grants, prices, and inspection-owned
 - [x] Catalog/pricing audit: distinguish advertised models from routable, priced models.
   Never invent image prices or enable Luna to make a catalog test pass.
 - [x] Repeat targeted/frontend regression and build; no weakening tests.
-- [ ] Guarded release only with immutable artifact, rollback and runtime checks.
+- [x] Guarded release only with immutable artifact, rollback and runtime checks.
 - [x] Record exact remaining coverage limitations and residual risks.
 
 ## Initial evidence
@@ -28,6 +28,15 @@ absence of application JSON errors). Dashboard: one initial connection failure,
 then ten consecutive HTTP200; health five HTTP200. Cause of initial failure unknown.
 On authenticated admin usage error tab, 95 literal `el-tooltip` elements render.
 The package is absent and tests stubbed it, hiding the runtime defect.
+
+The release preflight also exposed two deployment-tooling defects: the candidate
+log was root-owned before the service-user process started, and the isolated
+environment did not provide a usable migration-table permission set. The release
+script now preserves the candidate log for diagnostics and accepts an explicit
+preflight config path. The final candidate check used the existing production
+database/config with the candidate listening only on port 18081 and background
+jobs disabled; the normal service was then switched atomically with health-gated
+rollback protection.
 
 ## Repair design
 
