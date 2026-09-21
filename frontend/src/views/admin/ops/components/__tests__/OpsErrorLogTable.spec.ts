@@ -13,7 +13,6 @@ vi.mock('vue-i18n', async (importOriginal) => {
   }
 })
 
-const TooltipStub = { template: '<div><slot /></div>' }
 const PaginationStub = { template: '<div class="pagination-stub" />' }
 
 function mountTable(row: Partial<OpsErrorLog>) {
@@ -40,11 +39,26 @@ function mountTable(row: Partial<OpsErrorLog>) {
 
   return mount(OpsErrorLogTable, {
     props: { rows: [base], total: 1, loading: false, page: 1, pageSize: 20 },
-    global: { stubs: { 'el-tooltip': TooltipStub, Pagination: PaginationStub } },
+    global: { stubs: { Pagination: PaginationStub } },
   })
 }
 
 describe('OpsErrorLogTable user/api-key/account columns', () => {
+  it('renders real detail hints without relying on an uninstalled component', () => {
+    const wrapper = mountTable({
+      user_id: 2, account_id: 9, group_id: 3,
+      inbound_endpoint: '/v1/responses', upstream_endpoint: '/responses',
+      requested_model: 'client-model', upstream_model: 'provider-model',
+    })
+    expect(wrapper.find('el-tooltip').exists()).toBe(false)
+    const titles = wrapper.findAll('[title]').map((el) => el.attributes('title'))
+    expect(titles).toEqual(expect.arrayContaining([
+      'req-1', 'Inbound: /v1/responses\nUpstream: /responses',
+      'client-model → provider-model', 'admin.ops.errorLog.id 3',
+      'admin.ops.errorLog.userId 2', 'admin.ops.errorLog.accountId 9',
+    ]))
+    wrapper.unmount()
+  })
   // 回归:上游错误行(phase=upstream, owner=provider)以前在单一「用户」列里只显示账号、
   // 丢失用户;现在用户/API Key/账号各占独立列,三者同时可见。
   it('renders user, api key and account in separate columns for an upstream row', () => {

@@ -50,17 +50,15 @@
               <template v-for="column in columns" :key="column.key">
               <!-- Time -->
               <td v-if="column.key === 'created_at'" class="whitespace-nowrap px-4 py-2">
-                <el-tooltip
-                  :content="log.request_id || log.client_request_id"
-                  placement="top"
-                  :show-after="500"
+                <span
+                  :title="log.request_id || log.client_request_id"
                 >
                   <span
                     class="font-mono text-xs font-medium text-gray-900 dark:text-gray-200"
                   >
                     {{ formatDateTime(log.created_at).split(" ")[1] }}
                   </span>
-                </el-tooltip>
+                </span>
               </td>
 
               <!-- Type -->
@@ -78,18 +76,17 @@
               <!-- Endpoint -->
               <td v-if="column.key === 'endpoint'" class="px-4 py-2">
                 <div class="max-w-[160px]">
-                  <el-tooltip
+                  <span
                     v-if="log.inbound_endpoint"
-                    :content="formatEndpointTooltip(log)"
-                    placement="top"
-                    :show-after="500"
+                    :title="formatEndpointTooltip(log)"
+                    class="block truncate"
                   >
                     <span
                       class="truncate font-mono text-[11px] text-gray-700 dark:text-gray-300"
                     >
                       {{ log.inbound_endpoint }}
                     </span>
-                  </el-tooltip>
+                  </span>
                   <span v-else class="text-xs text-gray-400">-</span>
                 </div>
               </td>
@@ -107,10 +104,9 @@
               <td v-if="column.key === 'model'" class="px-4 py-2">
                 <div class="max-w-[160px]">
                   <template v-if="hasModelMapping(log)">
-                    <el-tooltip
-                      :content="modelMappingTooltip(log)"
-                      placement="top"
-                      :show-after="500"
+                    <span
+                      :title="modelMappingTooltip(log)"
+                      class="block truncate"
                     >
                       <span
                         class="flex items-center gap-1 truncate font-mono text-[11px] text-gray-700 dark:text-gray-300"
@@ -122,7 +118,7 @@
                           >{{ log.upstream_model }}</span
                         >
                       </span>
-                    </el-tooltip>
+                    </span>
                   </template>
                   <template v-else>
                     <span
@@ -139,28 +135,26 @@
 
               <!-- Group -->
               <td v-if="column.key === 'group'" class="px-4 py-2">
-                <el-tooltip
+                <span
                   v-if="log.group_id"
-                  :content="t('admin.ops.errorLog.id') + ' ' + log.group_id"
-                  placement="top"
-                  :show-after="500"
+                  :title="t('admin.ops.errorLog.id') + ' ' + log.group_id"
+                  class="inline-block max-w-[100px] truncate align-middle"
                 >
                   <span
                     class="max-w-[100px] truncate text-xs font-medium text-gray-900 dark:text-gray-200"
                   >
                     {{ log.group_name || "-" }}
                   </span>
-                </el-tooltip>
+                </span>
                 <span v-else class="text-xs text-gray-400">-</span>
               </td>
 
               <!-- User -->
               <td v-if="column.key === 'user'" class="px-4 py-2">
-                <el-tooltip
+                <span
                   v-if="log.user_id"
-                  :content="t('admin.ops.errorLog.userId') + ' ' + log.user_id"
-                  placement="top"
-                  :show-after="500"
+                  :title="t('admin.ops.errorLog.userId') + ' ' + log.user_id"
+                  class="inline-block max-w-[100px] truncate align-middle"
                 >
                   <button
                     v-if="userClickable && log.user_email"
@@ -172,7 +166,7 @@
                   <span v-else class="max-w-[100px] truncate text-xs font-medium text-gray-900 dark:text-gray-200">
                     {{ log.user_email || '#' + log.user_id }}
                   </span>
-                </el-tooltip>
+                </span>
                 <span v-else class="text-xs text-gray-400">-</span>
               </td>
 
@@ -194,18 +188,17 @@
 
               <!-- Account -->
               <td v-if="column.key === 'account'" class="px-4 py-2">
-                <el-tooltip
+                <span
                   v-if="log.account_id"
-                  :content="t('admin.ops.errorLog.accountId') + ' ' + log.account_id"
-                  placement="top"
-                  :show-after="500"
+                  :title="t('admin.ops.errorLog.accountId') + ' ' + log.account_id"
+                  class="inline-block max-w-[140px] truncate align-middle"
                 >
                   <span
                     class="max-w-[140px] truncate text-xs font-medium text-gray-900 dark:text-gray-200"
                   >
                     {{ log.account_name || "#" + log.account_id }}
                   </span>
-                </el-tooltip>
+                </span>
                 <span v-else class="text-xs text-gray-400">-</span>
               </td>
 
