@@ -1267,7 +1267,7 @@ router.onError((error) => {
     // A slow failure may exceed any timestamp-based retry window indefinitely.
     // Never discard unsaved work or loop; make recovery an explicit user action.
     navigationLoading.endNavigation()
-    showPageLoadFailure()
+    showPageLoadFailure({ stage: '页面资源' })
   }
 })
 

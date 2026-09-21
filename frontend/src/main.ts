@@ -45,5 +45,5 @@ async function bootstrap() {
 
 bootstrap().catch((error: unknown) => {
   console.error('Application startup failed:', error)
-  showPageLoadFailure()
+  showPageLoadFailure({ stage: '应用启动' })
 })
