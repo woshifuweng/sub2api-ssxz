@@ -1,5 +1,17 @@
 # SSXZ / Sub2 feature parity and overlay contract
 
+## Latest execution status — 2026-09-21 22:43 CST
+
+Production is now `0.2.7-ssxz.2`, source `659ea5e23c684b9bf7dd92ce6a4c0a0281644164`.
+The HOLD/read-only statements below describe earlier audit checkpoints, not the
+current release. See [production acceptance](2026-09-21-v027-production-acceptance.md).
+Three requested model families passed paid minimal text calls on the running
+release at 22:40 CST. Final rendered-page acceptance is BLOCKED by observed
+Cloudflare 520/525 failures from the client (not merely browser-control timeouts).
+Server-side public HTML/assets and the three real calls pass. Do not equate these
+with all-client availability. Cloudflare account access was requested for read-only
+origin/DNS/TLS/error investigation. No SSL/firewall protection has been disabled.
+
 ## Product decision
 
 Use upstream functionality as the default, not a frozen SSXZ copy of each page.
@@ -202,7 +214,7 @@ blob equals upstream (`0dcbce2fddd604dca9bb5361b0cc92980c96ed4b`). All other cha
 files pass `git diff --check`. Do not alter a vendor prompt merely to remove
 whitespace without a reason and separate review.
 
-**Release status: HOLD.** Local acceptance is not production acceptance. Complete
+**Historical pre-release checkpoint: HOLD.** Local acceptance is not production acceptance. Complete
 the legacy-list migration decision, quota-history preservation and schema rollback
 rehearsal, isolated staging gates and separate release approval before any rollout.
 No production files, accounts, configuration, database or service were modified;

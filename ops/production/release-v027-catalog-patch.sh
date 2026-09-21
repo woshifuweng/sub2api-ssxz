@@ -5,8 +5,7 @@ cd /
 candidate=${1:?candidate directory required}
 expected=${2:?SHA256 required}
 previous=/opt/sub2api/releases/0.2.7-ssxz.20260921.ac2923c5e
-original=/opt/sub2api/backups/v027-release-20260921
-backup=/opt/sub2api/backups/v027-catalog-patch-20260921
+backup=/opt/sub2api/backups/v027-catalog-patch-20260921-v4
 flag=/var/lib/ssxz-v027-maintenance
 next=/opt/sub2api/current.catalog-next
 switched=0
@@ -23,8 +22,8 @@ health() {
 }
 set_link() { ln -s "$1" "$next"; mv -Tf "$next" /opt/sub2api/current; }
 restore_ingress() {
-  install -m 644 "$backup/nginx-sub2api.conf" /etc/nginx/sites-available/sub2api
-  install -m 644 "$backup/nginx-default.conf" /etc/nginx/sites-available/default
+  install -m 644 "$backup/nginx-sub2api.conf" /etc/nginx/sites-enabled/sub2api
+  install -m 644 "$backup/nginx-default.conf" /etc/nginx/sites-enabled/default
   nginx -t && systemctl reload nginx
 }
 cleanup() {
@@ -45,24 +44,38 @@ cleanup() {
   exit "$code"
 }
 [[ "$EUID" == 0 ]] || die 'root required'
-[[ "$candidate" == /opt/sub2api/releases/0.2.7-ssxz.1.20260921.* && "$(realpath "$candidate")" == "$candidate" ]] || die 'candidate path'
+[[ "$candidate" == /opt/sub2api/releases/0.2.7-ssxz.2.20260921.659ea5e23 && "$(realpath "$candidate")" == "$candidate" ]] || die 'candidate path'
 [[ "$expected" =~ ^[a-f0-9]{64}$ ]] || die 'hash format'
 [[ "$(readlink -f /opt/sub2api/current)" == "$previous" ]] || die 'current release changed'
 [[ ! -e "$flag" && ! -e "$next" && ! -e "$backup" ]] || die 'existing operation or receipt'
 [[ "$(sha256sum "$candidate/sub2api" | cut -d' ' -f1)" == "$expected" ]] || die 'candidate hash'
 [[ "$(tr -d '\r\n' < "$candidate/PATCH_ACCEPTED.sha256")" == "$expected" ]] || die 'server acceptance missing'
-cmp -s /etc/nginx/sites-available/sub2api "$original/nginx-sub2api.conf" || die 'nginx changed'
-cmp -s /etc/nginx/sites-available/default "$original/nginx-default.conf" || die 'nginx changed'
+[[ -L "$candidate/config.yaml" && "$(readlink -f "$candidate/config.yaml")" == /opt/sub2api/config.yaml ]] || die 'production config link missing'
+[[ -L "$candidate/data" && "$(readlink -f "$candidate/data")" == "$(readlink -f "$previous/data")" ]] || die 'production data link missing'
+[[ -f "$candidate/config.yaml" && -d "$candidate/data" ]] || die 'runtime path target missing'
+[[ -f /etc/nginx/sites-enabled/sub2api && ! -L /etc/nginx/sites-enabled/sub2api ]] || die 'nginx api layout changed'
+[[ -f /etc/nginx/sites-enabled/default && ! -L /etc/nginx/sites-enabled/default ]] || die 'nginx root layout changed'
 install -d -m 700 "$backup"
-install -m 600 /etc/nginx/sites-available/sub2api "$backup/nginx-sub2api.conf"
-install -m 600 /etc/nginx/sites-available/default "$backup/nginx-default.conf"
+install -m 600 /etc/nginx/sites-enabled/sub2api "$backup/nginx-sub2api.conf"
+install -m 600 /etc/nginx/sites-enabled/default "$backup/nginx-default.conf"
+python3 /opt/ssxz-acceptance-20260921/prepare-patch-ingress.py "$backup"
 trap cleanup EXIT
 maintenance=1
 install -m 644 /dev/null "$flag"
-install -m 644 "$previous/server-nginx-sub2api.conf" /etc/nginx/sites-available/sub2api
-install -m 644 "$previous/server-nginx-default.conf" /etc/nginx/sites-available/default
+install -m 644 "$backup/maintenance-sub2api.conf" /etc/nginx/sites-enabled/sub2api
+install -m 644 "$backup/maintenance-default.conf" /etc/nginx/sites-enabled/default
 nginx -t
 systemctl reload nginx
+# Confirm the actual loaded virtual hosts reject new requests before draining.
+for host in api.ssxzapi.com ssxzapi.com www.ssxzapi.com; do
+  blocked=0
+  for _ in {1..10}; do
+    code=$(curl -s --max-time 3 -o /dev/null -w '%{http_code}' --resolve "$host:443:127.0.0.1" "https://$host/health")
+    if [[ "$code" == 503 ]]; then blocked=1; break; fi
+    sleep 1
+  done
+  ((blocked==1)) || die "maintenance gate ineffective: $host"
+done
 for _ in {1..36}; do
   [[ "$(ss -Htn state established '( sport = :8080 )' | wc -l)" -eq 0 ]] && break
   sleep 5
@@ -78,7 +91,8 @@ switched=1
 systemctl start sub2api
 health || die 'candidate health'
 for page in / /admin/dashboard /app/available-channels /app/usage /app/keys; do
-  curl -fsS --max-time 10 "http://127.0.0.1:8080$page" | grep -q '<html' || die "page $page"
+  html=$(curl -fsS --max-time 10 "http://127.0.0.1:8080$page")
+  [[ "$html" == *'/assets/index-D2XpKt6e.js'* && "$html" == *'ssxz-startup-status'* ]] || die "page $page"
 done
 pid=$(systemctl show sub2api -p MainPID --value)
 [[ "$(sha256sum "/proc/$pid/exe" | cut -d' ' -f1)" == "$expected" ]] || die 'running binary mismatch'

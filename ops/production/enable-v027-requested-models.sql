@@ -1,6 +1,6 @@
 -- Explicit user request: make GPT-6 Astra available, retaining existing
 -- group multipliers, account/model restrictions, and all existing prices.
--- Rates match the shipped pricing_service.go fallback (GPT-6 Astra) and
+-- Rates match the shipped pricing_service.go fallback (GPT-6 Astra).
 -- The original operator run mistakenly also inserted GPT-5.1. That unrelated
 -- row was removed by enable-verified-fable51.sql after user clarification.
 BEGIN;
