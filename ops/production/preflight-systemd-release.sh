@@ -8,6 +8,7 @@ service_name="${SERVICE_NAME:-sub2api.service}"
 service_user="${SERVICE_USER:-sub2api}"
 production_env_file="${PRODUCTION_ENV_FILE:-/etc/sub2api/sub2api.env}"
 preflight_env_file="${PREFLIGHT_ENV_FILE:-/etc/sub2api/preflight.env}"
+preflight_config_file="${PREFLIGHT_CONFIG_FILE:-}"
 preflight_port="${PREFLIGHT_PORT:-18081}"
 preflight_health_url="${PREFLIGHT_HEALTH_URL:-http://127.0.0.1:${preflight_port}/health}"
 production_health_url="${PRODUCTION_HEALTH_URL:-http://127.0.0.1:8080/health}"
@@ -50,6 +51,9 @@ path_must_be_below_release_root "$candidate_binary"
 [[ -x "$candidate_binary" ]] || die "candidate binary is not executable: $candidate_binary"
 [[ -f "$production_env_file" ]] || die "production environment file not found: $production_env_file"
 [[ -f "$preflight_env_file" ]] || die "isolated preflight environment file not found: $preflight_env_file"
+if [[ -n "$preflight_config_file" ]]; then
+  [[ -f "$preflight_config_file" ]] || die "preflight config file not found: $preflight_config_file"
+fi
 [[ "$(realpath -m "$production_env_file")" != "$(realpath -m "$preflight_env_file")" ]] || \
   die "preflight must use an isolated environment file, not the production environment"
 
@@ -59,6 +63,9 @@ run_as_service() {
 
 run_as_service test -r "$production_env_file" || die "production environment is unreadable by $service_user"
 run_as_service test -r "$preflight_env_file" || die "preflight environment is unreadable by $service_user"
+if [[ -n "$preflight_config_file" ]]; then
+  run_as_service test -r "$preflight_config_file" || die "preflight config file is unreadable by $service_user"
+fi
 run_as_service test -x "$candidate_binary" || die "candidate binary is not executable by $service_user"
 
 version_output="$(run_as_service "$candidate_binary" -version 2>&1)" || die "candidate version check failed"
@@ -69,6 +76,11 @@ candidate_state_dir="$(mktemp -d "${TMPDIR:-/tmp}/sub2api-preflight.XXXXXX")"
 candidate_log="$candidate_state_dir/candidate.log"
 candidate_pid_file="$candidate_state_dir/candidate.pid"
 chown "$service_user" "$candidate_state_dir"
+# The shell performing the redirection is root. Create the log first and hand
+# ownership to the service user, otherwise the candidate exits before it can
+# record a useful startup error.
+touch "$candidate_log"
+chown "$service_user" "$candidate_log"
 candidate_pid=""
 candidate_wrapper_pid=""
 cleanup_candidate() {
@@ -99,9 +111,12 @@ runuser -u "$service_user" -- /bin/bash -c '
   export SERVER_HOST=127.0.0.1
   export SERVER_PORT="$3"
   export BACKGROUND_JOBS_ENABLED=false
+  if [[ -n "${6:-}" ]]; then
+    export CONFIG_FILE="$6"
+  fi
   printf "%s\n" "$$" > "$5"
   exec "$4"
-' preflight "$preflight_env_file" "$candidate_dir" "$preflight_port" "$candidate_binary" "$candidate_pid_file" >"$candidate_log" 2>&1 &
+' preflight "$preflight_env_file" "$candidate_dir" "$preflight_port" "$candidate_binary" "$candidate_pid_file" "$preflight_config_file" >"$candidate_log" 2>&1 &
 candidate_wrapper_pid=$!
 
 for _ in {1..50}; do
