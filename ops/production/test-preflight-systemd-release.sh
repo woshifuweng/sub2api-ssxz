@@ -152,6 +152,7 @@ assert_contains "$fixture/output" "previous release restored"
 setup_fixture success
 "$release_script" "$fixture/releases/new" >"$fixture/output" 2>&1
 assert_contains "$fixture/output" "release activated"
+assert_contains "$fixture/output" "candidate page checks passed"
 [[ "$(readlink -f "$CURRENT_LINK")" == "$fixture/releases/new" ]]
 [[ "$(wc -l <"$SYSTEMCTL_LOG" | tr -d ' ')" == "1" ]]
 

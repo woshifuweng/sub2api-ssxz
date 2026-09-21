@@ -11,6 +11,8 @@ preflight_env_file="${PREFLIGHT_ENV_FILE:-/etc/sub2api/preflight.env}"
 preflight_config_file="${PREFLIGHT_CONFIG_FILE:-}"
 preflight_port="${PREFLIGHT_PORT:-18081}"
 preflight_health_url="${PREFLIGHT_HEALTH_URL:-http://127.0.0.1:${preflight_port}/health}"
+preflight_page_base_url="${PREFLIGHT_PAGE_BASE_URL:-http://127.0.0.1:${preflight_port}}"
+preflight_page_paths="${PREFLIGHT_PAGE_PATHS:-/ /admin/dashboard /app/usage /app/keys}"
 production_health_url="${PRODUCTION_HEALTH_URL:-http://127.0.0.1:8080/health}"
 health_timeout="${HEALTH_TIMEOUT_SECONDS:-30}"
 
@@ -194,6 +196,14 @@ if ! probe_health "$preflight_health_url" "$candidate_pid"; then
   die "candidate failed isolated startup health check"
 fi
 log "candidate isolated health check passed"
+for page_path in $preflight_page_paths; do
+  [[ "$page_path" == /* ]] || die "PREFLIGHT_PAGE_PATHS contains a path without a leading slash: $page_path"
+  if ! curl --fail --silent --show-error --max-time 5 "${preflight_page_base_url}${page_path}" >/dev/null; then
+    tail -n 80 "$candidate_log" >&2 || true
+    die "candidate page check failed: $page_path"
+  fi
+done
+log "candidate page checks passed"
 cleanup_candidate
 candidate_pid=""
 candidate_wrapper_pid=""

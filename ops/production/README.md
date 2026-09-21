@@ -4,6 +4,11 @@
 and `ExecStart` resolve through `/opt/sub2api/current`. It does not retrofit the
 legacy direct `/opt/sub2api/sub2api` unit automatically.
 
+Release binaries must be built with the `embed` build tag so the frontend is
+included in the executable. The release gate checks the health endpoint and
+the main SPA routes before switching the production symlink; a healthy API
+with a missing frontend is not a valid release.
+
 ## Required layout
 
 ```text
@@ -45,9 +50,9 @@ sudo RELEASE_ROOT=/opt/sub2api/releases \
 ```
 
 The candidate binary and both environment files are checked as the service
-user. The candidate first starts on a temporary loopback port. Only after that
-health check passes is the `current` symlink replaced atomically and systemd
-restarted. A failed restart or production health check restores the prior link,
+user. The candidate first starts on a temporary loopback port. Only after the
+health and page checks pass is the `current` symlink replaced atomically and
+systemd restarted. A failed restart or production health check restores the prior link,
 restarts it, and verifies rollback health.
 
 Run the self-contained tests before using the script:
