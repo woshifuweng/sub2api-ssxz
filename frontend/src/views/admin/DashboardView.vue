@@ -644,20 +644,22 @@ const onDateRangeChange = (range: {
 }
 
 // Load data
-const loadDashboardSnapshot = async (includeStats: boolean) => {
+const loadDashboardSnapshot = async (includeStats: boolean, includeCharts = true) => {
   const currentSeq = ++chartLoadSeq
   if (includeStats && !stats.value) {
     loading.value = true
   }
-  chartsLoading.value = true
+  if (includeCharts) {
+    chartsLoading.value = true
+  }
   try {
     const response = await adminAPI.dashboard.getSnapshotV2({
       start_date: startDate.value,
       end_date: endDate.value,
       granularity: granularity.value,
       include_stats: includeStats,
-      include_trend: true,
-      include_model_stats: true,
+      include_trend: includeCharts,
+      include_model_stats: includeCharts,
       include_group_stats: false,
       include_users_trend: false
     })
@@ -665,8 +667,10 @@ const loadDashboardSnapshot = async (includeStats: boolean) => {
     if (includeStats && response.stats) {
       stats.value = response.stats
     }
-    trendData.value = response.trend || []
-    modelStats.value = response.models || []
+    if (includeCharts) {
+      trendData.value = response.trend || []
+      modelStats.value = response.models || []
+    }
   } catch (error) {
     if (currentSeq !== chartLoadSeq) return
     appStore.showError(t('admin.dashboard.failedToLoad'))
@@ -674,7 +678,9 @@ const loadDashboardSnapshot = async (includeStats: boolean) => {
   } finally {
     if (currentSeq === chartLoadSeq) {
       loading.value = false
-      chartsLoading.value = false
+      if (includeCharts) {
+        chartsLoading.value = false
+      }
     }
   }
 }
@@ -733,8 +739,11 @@ const loadUserSpendingRanking = async () => {
 }
 
 const loadDashboardStats = async () => {
+  chartsLoading.value = true
+  const statsRequest = loadDashboardSnapshot(true, false)
+  void statsRequest.then(() => loadDashboardSnapshot(false, true))
   await Promise.all([
-    loadDashboardSnapshot(true),
+    statsRequest,
     loadUsersTrend(),
     loadUserSpendingRanking(),
     loadOperationsSummary()
