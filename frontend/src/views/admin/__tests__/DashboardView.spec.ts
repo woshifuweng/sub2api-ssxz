@@ -152,11 +152,24 @@ describe('admin DashboardView', () => {
     const now = new Date()
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
 
-    expect(getSnapshotV2).toHaveBeenCalledTimes(1)
-    expect(getSnapshotV2).toHaveBeenCalledWith(expect.objectContaining({
+    const commonRange = {
       start_date: formatLocalDate(yesterday),
       end_date: formatLocalDate(now),
       granularity: 'hour'
+    }
+
+    expect(getSnapshotV2).toHaveBeenCalledTimes(2)
+    expect(getSnapshotV2).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      ...commonRange,
+      include_stats: true,
+      include_trend: false,
+      include_model_stats: false
+    }))
+    expect(getSnapshotV2).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      ...commonRange,
+      include_stats: false,
+      include_trend: true,
+      include_model_stats: true
     }))
   })
 })
