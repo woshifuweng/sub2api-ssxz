@@ -326,7 +326,7 @@
 
         <!-- Code Blocks (Stacked for multi-file platforms) -->
         <div
-          v-else-if="!hasUsableApiKey"
+          v-if="!isThirdPartyTab && !hasUsableApiKey"
           class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
           data-testid="full-key-missing-warning"
         >
@@ -340,7 +340,8 @@
             </p>
           </div>
         </div>
-        <div v-else class="space-y-4">
+        <!-- OpenAI-compatible keys also keep the existing quick-start config visible beside the guide. -->
+        <div v-if="hasUsableApiKey && (!isThirdPartyTab || props.platform === 'openai')" class="space-y-4">
           <div
             v-for="(file, index) in currentFiles"
             :key="index"
@@ -546,9 +547,9 @@ const defaultClientTab = computed(() => {
     case 'grok':
       return 'grok'
     case 'gemini':
-      return 'third-party'
+      return 'gemini'
     case 'antigravity':
-      return 'third-party'
+      return 'claude'
     default:
       return 'third-party'
   }
@@ -566,7 +567,7 @@ watch(() => props.show, (show) => {
   } else {
     resetCodexModelManifest()
   }
-})
+}, { immediate: true })
 
 watch(codexManifestContext, (context, previousContext) => {
   if (context !== previousContext) {
@@ -1054,12 +1055,14 @@ const currentFiles = computed((): FileConfig[] => {
       return generateAnthropicFiles(baseUrl, apiKey)
     case 'openai':
       if (activeClientTab.value === 'claude') {
-        return generateAnthropicFiles(baseUrl, apiKey)
+        // Anthropic clients append /v1/messages themselves.
+        return generateAnthropicFiles(baseRoot, apiKey)
       }
       if (activeClientTab.value === 'codex-ws') {
-        return generateOpenAIWsFiles(baseUrl, apiKey)
+        return generateOpenAIWsFiles(apiBase, apiKey)
       }
-      return generateOpenAIFiles(baseUrl, apiKey)
+      // Codex appends /responses directly and does not add /v1.
+      return generateOpenAIFiles(apiBase, apiKey)
     case 'gemini':
       if (activeClientTab.value === 'codex') {
         return generateRoutedCodexFiles(apiBase, apiKey, 'gemini')
@@ -1727,6 +1730,24 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
         max: {}
       }
     },
+    'gpt-6-sol': {
+      name: 'GPT-6 Sol',
+      limit: {
+        context: 1050000,
+        output: 128000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        none: {},
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {},
+        max: {}
+      }
+    },
     'gpt-5.6-sol': {
       name: 'GPT-5.6 Sol',
       limit: {
@@ -1754,6 +1775,24 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
         store: false
       },
       variants: {
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {},
+        max: {}
+      }
+    },
+    'gpt-6-luna': {
+      name: 'GPT-6 Luna',
+      limit: {
+        context: 1050000,
+        output: 128000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        none: {},
         low: {},
         medium: {},
         high: {},
@@ -2192,6 +2231,21 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     provider[platform].models = geminiModels
   } else if (platform === 'anthropic') {
     provider[platform].npm = '@ai-sdk/anthropic'
+    provider[platform].models = {
+      'claude-opus-5-5': {
+        name: 'Claude Opus 5.5',
+        limit: { context: 1000000, output: 128000 },
+        modalities: { input: ['text', 'image', 'pdf'], output: ['text'] },
+        options: { thinking: { type: 'adaptive' }, effort: 'medium' },
+        variants: {
+          low: { effort: 'low' },
+          medium: { effort: 'medium' },
+          high: { effort: 'high' },
+          xhigh: { effort: 'xhigh' },
+          max: { effort: 'max' }
+        }
+      }
+    }
   } else if (platform === 'antigravity-claude') {
     provider[platform].npm = '@ai-sdk/anthropic'
     provider[platform].name = 'Antigravity (Claude)'

@@ -272,13 +272,14 @@ const memberSinceLabel = computed(() => {
   }).format(date)
 })
 
-type DisplayAuthProvider = 'email' | 'linuxdo' | 'oidc' | 'wechat'
+type DisplayAuthProvider = 'email' | 'linuxdo' | 'oidc' | 'wechat' | 'dingtalk'
 
 const providerLabels = computed<Record<DisplayAuthProvider, string>>(() => ({
   email: t('profile.authBindings.providers.email'),
   linuxdo: t('profile.authBindings.providers.linuxdo'),
   oidc: t('profile.authBindings.providers.oidc', { providerName: props.oidcProviderName }),
-  wechat: t('profile.authBindings.providers.wechat')
+  wechat: t('profile.authBindings.providers.wechat'),
+  dingtalk: t('profile.authBindings.providers.dingtalk')
 }))
 
 function formatCurrency(value: number): string {
@@ -287,7 +288,7 @@ function formatCurrency(value: number): string {
 
 function normalizeProvider(value: string): DisplayAuthProvider | null {
   const normalized = value.trim().toLowerCase()
-  if (normalized === 'email' || normalized === 'linuxdo' || normalized === 'wechat') {
+  if (normalized === 'email' || normalized === 'linuxdo' || normalized === 'wechat' || normalized === 'dingtalk') {
     return normalized
   }
   if (normalized === 'oidc' || normalized.startsWith('oidc:') || normalized.startsWith('oidc/')) {

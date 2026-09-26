@@ -303,7 +303,7 @@ func TestEstimateOpenAITokenRequestCostFastFlagsPlatformScope(t *testing.T) {
 						RateMultiplier: 0.35, ForceOpenAIFast: true, FreeOpenAIFast: free,
 						ModelPricing: []ChannelModelPricing{{Models: []string{"gpt-6-astra"}, BillingMode: BillingModeToken,
 							InputPrice: &inputPrice, OutputPrice: &outputPrice, FastMultiplier: &fastMultiplier,
-							MaxReasoningEffortMultiplier: &effortMultiplier}}}
+							ReasoningEffortMultipliers: map[string]float64{"max": effortMultiplier}}}}
 					user := &User{ID: 1}
 					key := &APIKey{GroupID: &group.ID, Group: group, User: user}
 					ctx := WithResolvedTargetPlatform(context.Background(), target)

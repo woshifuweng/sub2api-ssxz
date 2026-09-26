@@ -738,6 +738,7 @@ func (s *BillingCacheService) CheckBillingEligibility(ctx context.Context, user 
 
 // CheckBillingEligibilityForCost applies the normal billing checks and also
 // requires enough available balance for a request whose preflight cost is known.
+// The estimate is only a guard; final billing still uses the actual upstream usage.
 func (s *BillingCacheService) CheckBillingEligibilityForCost(ctx context.Context, user *User, apiKey *APIKey, group *Group, subscription *UserSubscription, platform string, estimatedCost float64) error {
 	if estimatedCost < 0 {
 		estimatedCost = 0
@@ -746,8 +747,13 @@ func (s *BillingCacheService) CheckBillingEligibilityForCost(ctx context.Context
 }
 
 func (s *BillingCacheService) checkBillingEligibility(ctx context.Context, user *User, apiKey *APIKey, group *Group, subscription *UserSubscription, platform string, estimatedCost float64) error {
-	// 简易模式：跳过所有计费检查
-	if s.cfg.RunMode == config.RunModeSimple {
+	// 简易模式默认跳过所有计费检查. An explicit key-window opt-in keeps
+	// balance/subscription/platform checks bypassed while enforcing the three
+	// API-key monetary windows from the database source of truth.
+	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
+		if s.cfg.SimpleModeKeyRateLimitEnabled {
+			return s.checkSimpleModeAPIKeyRateLimits(ctx, apiKey)
+		}
 		return nil
 	}
 	if s.circuitBreaker != nil && !s.circuitBreaker.Allow() {
@@ -786,6 +792,34 @@ func (s *BillingCacheService) checkBillingEligibility(ctx context.Context, user 
 		return err
 	}
 
+	return nil
+}
+
+// checkSimpleModeAPIKeyRateLimits is deliberately DB-authoritative. Redis
+// updates are asynchronous and can be dropped or missed after a committed
+// transaction, so using the cache here could let a limited simple-mode key
+// continue past its configured window. A read failure fails closed because
+// the operator explicitly opted into enforcement.
+func (s *BillingCacheService) checkSimpleModeAPIKeyRateLimits(ctx context.Context, apiKey *APIKey) error {
+	if apiKey == nil || !apiKey.HasRateLimits() {
+		return nil
+	}
+	if s.apiKeyRateLimitLoader == nil {
+		return ErrBillingServiceUnavailable
+	}
+	data, err := s.apiKeyRateLimitLoader.GetRateLimitData(ctx, apiKey.ID)
+	if err != nil || data == nil {
+		return ErrBillingServiceUnavailable
+	}
+	if apiKey.RateLimit5h > 0 && data.EffectiveUsage5h() >= apiKey.RateLimit5h {
+		return ErrAPIKeyRateLimit5hExceeded
+	}
+	if apiKey.RateLimit1d > 0 && data.EffectiveUsage1d() >= apiKey.RateLimit1d {
+		return ErrAPIKeyRateLimit1dExceeded
+	}
+	if apiKey.RateLimit7d > 0 && data.EffectiveUsage7d() >= apiKey.RateLimit7d {
+		return ErrAPIKeyRateLimit7dExceeded
+	}
 	return nil
 }
 
@@ -886,6 +920,11 @@ func (s *BillingCacheService) balanceBelowEligibilityThreshold(balance float64) 
 	}
 	minimumReserve := s.minimumBalanceReserve()
 	return minimumReserve > 0 && balance < minimumReserve
+}
+
+// checkBalanceEligibility 检查余额模式资格
+func (s *BillingCacheService) checkBalanceEligibility(ctx context.Context, userID int64) error {
+	return s.checkBalanceEligibilityForCost(ctx, userID, 0)
 }
 
 func (s *BillingCacheService) checkBalanceEligibilityForCost(ctx context.Context, userID int64, estimatedCost float64) error {

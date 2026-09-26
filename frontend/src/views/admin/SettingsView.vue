@@ -7689,6 +7689,9 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value;
       }
     }
+    if (settings.openai_oauth_scheduling_rate_multiplier === null) {
+      form.openai_oauth_scheduling_rate_multiplier = null;
+    }
     syncCaptchaProviderSelection();
     if (!form.claude_oauth_system_prompt_blocks?.trim()) {
       form.claude_oauth_system_prompt_blocks =
@@ -8112,6 +8115,20 @@ async function saveSettings() {
       return;
     }
 
+    const oauthRate = form.openai_oauth_scheduling_rate_multiplier as
+      | number
+      | string
+      | null
+      | undefined;
+    if (
+      oauthRate !== "" &&
+      oauthRate != null &&
+      (!Number.isFinite(Number(oauthRate)) || Number(oauthRate) < 0)
+    ) {
+      appStore.showError("OAuth 调度参考倍率必须是非负数字，或留空以使用账号倍率。");
+      return;
+    }
+
     // Optional URL fields: auto-clear invalid values so they don't cause backend 400 errors
     if (!isValidHttpUrl(form.doc_url)) form.doc_url = "";
     if (!isValidHttpUrl(form.purchase_link_cny_10))
@@ -8359,7 +8376,9 @@ async function saveSettings() {
       openai_low_upstream_rate_priority_enabled:
         form.openai_low_upstream_rate_priority_enabled,
       openai_oauth_scheduling_rate_multiplier:
-        form.openai_oauth_scheduling_rate_multiplier,
+        oauthRate === "" || oauthRate == null
+          ? null
+          : Number(oauthRate),
       openai_advanced_scheduler_enabled: form.openai_advanced_scheduler_enabled,
       openai_advanced_scheduler_sticky_weighted_enabled:
         form.openai_advanced_scheduler_sticky_weighted_enabled,

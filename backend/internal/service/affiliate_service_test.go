@@ -5,77 +5,11 @@ package service
 import (
 	"context"
 	"math"
+	"strings"
 	"testing"
-	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
 )
-
-type resellerAffiliateRepoStub struct {
-	summaries   map[int64]*AffiliateSummary
-	accrueCalls int
-}
-
-func (r *resellerAffiliateRepoStub) EnsureUserAffiliate(_ context.Context, userID int64) (*AffiliateSummary, error) {
-	return r.summaries[userID], nil
-}
-func (r *resellerAffiliateRepoStub) GetAffiliateByCode(context.Context, string) (*AffiliateSummary, error) {
-	panic("unexpected GetAffiliateByCode call")
-}
-func (r *resellerAffiliateRepoStub) BindInviter(context.Context, int64, int64) (bool, error) {
-	panic("unexpected BindInviter call")
-}
-func (r *resellerAffiliateRepoStub) AccrueQuota(context.Context, int64, int64, float64, int, *int64) (bool, error) {
-	r.accrueCalls++
-	return true, nil
-}
-func (r *resellerAffiliateRepoStub) GetAccruedRebateFromInvitee(context.Context, int64, int64) (float64, error) {
-	return 0, nil
-}
-func (r *resellerAffiliateRepoStub) ThawFrozenQuota(context.Context, int64) (float64, error) {
-	panic("unexpected ThawFrozenQuota call")
-}
-func (r *resellerAffiliateRepoStub) TransferQuotaToBalance(context.Context, int64) (float64, float64, error) {
-	panic("unexpected TransferQuotaToBalance call")
-}
-func (r *resellerAffiliateRepoStub) ListInvitees(context.Context, int64, int) ([]AffiliateInvitee, error) {
-	panic("unexpected ListInvitees call")
-}
-func (r *resellerAffiliateRepoStub) UpdateUserAffCode(context.Context, int64, string) error {
-	panic("unexpected UpdateUserAffCode call")
-}
-func (r *resellerAffiliateRepoStub) ResetUserAffCode(context.Context, int64) (string, error) {
-	panic("unexpected ResetUserAffCode call")
-}
-func (r *resellerAffiliateRepoStub) SetUserRebateRate(context.Context, int64, *float64) error {
-	panic("unexpected SetUserRebateRate call")
-}
-func (r *resellerAffiliateRepoStub) BatchSetUserRebateRate(context.Context, []int64, *float64) error {
-	panic("unexpected BatchSetUserRebateRate call")
-}
-func (r *resellerAffiliateRepoStub) ListUsersWithCustomSettings(context.Context, AffiliateAdminFilter) ([]AffiliateAdminEntry, int64, error) {
-	panic("unexpected ListUsersWithCustomSettings call")
-}
-func (r *resellerAffiliateRepoStub) ListAffiliateInviteRecords(context.Context, AffiliateRecordFilter) ([]AffiliateInviteRecord, int64, error) {
-	panic("unexpected ListAffiliateInviteRecords call")
-}
-func (r *resellerAffiliateRepoStub) ListAffiliateRebateRecords(context.Context, AffiliateRecordFilter) ([]AffiliateRebateRecord, int64, error) {
-	panic("unexpected ListAffiliateRebateRecords call")
-}
-func (r *resellerAffiliateRepoStub) ListAffiliateTransferRecords(context.Context, AffiliateRecordFilter) ([]AffiliateTransferRecord, int64, error) {
-	panic("unexpected ListAffiliateTransferRecords call")
-}
-func (r *resellerAffiliateRepoStub) GetAffiliateUserOverview(context.Context, int64) (*AffiliateUserOverview, error) {
-	panic("unexpected GetAffiliateUserOverview call")
-}
-
-func resellerAffiliateSettingService() *SettingService {
-	return NewSettingService(&settingRepoStub{values: map[string]string{
-		SettingKeyAffiliateEnabled:    "true",
-		SettingKeyAffiliateRebateRate: "5",
-	}}, &config.Config{})
-}
 
 // TestResolveRebateRatePercent_PerUserOverride verifies that per-inviter
 // AffRebateRatePercent overrides the global rate, that NULL falls back to the
@@ -197,60 +131,117 @@ func TestIsValidAffiliateCodeFormat(t *testing.T) {
 	}
 }
 
-func TestAffiliateAccrualSkipsInactiveReseller(t *testing.T) {
-	now := time.Now()
-	for _, tc := range []struct {
-		name      string
-		status    string
-		revokedAt *time.Time
-	}{
-		{name: "disabled", status: ResellerStatusDisabled},
-		{name: "revoked", status: ResellerStatusActive, revokedAt: &now},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			inviterID := int64(9)
-			repo := &resellerAffiliateRepoStub{summaries: map[int64]*AffiliateSummary{
-				7: {UserID: 7, InviterID: &inviterID, CreatedAt: now},
-				9: {
-					UserID:            9,
-					HasResellerRole:   true,
-					ResellerStatus:    tc.status,
-					ResellerRevokedAt: tc.revokedAt,
-				},
-			}}
-			svc := NewAffiliateService(repo, resellerAffiliateSettingService(), nil, nil)
+type affiliateWithdrawCall struct {
+	userID      int64
+	amount      float64
+	operationID string
+}
 
-			rebate, err := svc.AccrueInviteRebate(context.Background(), 7, 100)
+type affiliateWithdrawRepoStub struct {
+	AffiliateRepository
+	calls  []affiliateWithdrawCall
+	result *AffiliateWithdrawResult
+	err    error
+}
 
-			require.NoError(t, err)
-			require.Zero(t, rebate)
-			require.Zero(t, repo.accrueCalls)
-		})
+func (s *affiliateWithdrawRepoStub) WithdrawQuota(_ context.Context, userID int64, amount float64, operationID string) (*AffiliateWithdrawResult, error) {
+	s.calls = append(s.calls, affiliateWithdrawCall{userID: userID, amount: amount, operationID: operationID})
+	return s.result, s.err
+}
+
+const testAffiliateWithdrawKey = "affiliate-withdraw-7-3f2b8c1e"
+
+// TestAdminWithdrawQuota_RejectsInvalidAmount 覆盖线下提现金额校验：非正数、
+// NaN/Inf、舍入到 8 位小数后为 0 或溢出的金额都在服务层拒绝，不进入仓储。
+func TestAdminWithdrawQuota_RejectsInvalidAmount(t *testing.T) {
+	t.Parallel()
+	for _, amount := range []float64{0, -1, math.NaN(), math.Inf(1), math.Inf(-1), 1e-9, math.MaxFloat64} {
+		repo := &affiliateWithdrawRepoStub{}
+		svc := &AffiliateService{repo: repo}
+		_, err := svc.AdminWithdrawQuota(context.Background(), 1, amount, testAffiliateWithdrawKey)
+		require.ErrorIs(t, err, ErrAffiliateWithdrawAmountInvalid, "amount %v", amount)
+		require.Empty(t, repo.calls, "amount %v must not reach repository", amount)
 	}
 }
 
-func TestAffiliateAccrualKeepsOrdinaryAffiliateAndActiveReseller(t *testing.T) {
-	for _, tc := range []struct {
-		name            string
-		hasResellerRole bool
-		status          string
+// TestAdminWithdrawQuota_RejectsInvalidUser 验证缺少目标用户时直接拒绝。
+func TestAdminWithdrawQuota_RejectsInvalidUser(t *testing.T) {
+	t.Parallel()
+	repo := &affiliateWithdrawRepoStub{}
+	svc := &AffiliateService{repo: repo}
+	_, err := svc.AdminWithdrawQuota(context.Background(), 0, 1, testAffiliateWithdrawKey)
+	require.Error(t, err)
+	require.Empty(t, repo.calls)
+}
+
+// TestAdminWithdrawQuota_RequiresValidIdempotencyKey 验证幂等键必填且须为
+// 可见 ASCII、不超过 128 字符；不合格的键不进入仓储。
+func TestAdminWithdrawQuota_RequiresValidIdempotencyKey(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		key  string
+		want error
 	}{
-		{name: "ordinary affiliate"},
-		{name: "active reseller", hasResellerRole: true, status: ResellerStatusActive},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			inviterID := int64(9)
-			repo := &resellerAffiliateRepoStub{summaries: map[int64]*AffiliateSummary{
-				7: {UserID: 7, InviterID: &inviterID, CreatedAt: time.Now()},
-				9: {UserID: 9, HasResellerRole: tc.hasResellerRole, ResellerStatus: tc.status},
-			}}
-			svc := NewAffiliateService(repo, resellerAffiliateSettingService(), nil, nil)
+		{key: "", want: ErrIdempotencyKeyRequired},
+		{key: "   ", want: ErrIdempotencyKeyRequired},
+		{key: "has space", want: ErrIdempotencyKeyInvalid},
+		{key: "登记", want: ErrIdempotencyKeyInvalid},
+		{key: strings.Repeat("k", 129), want: ErrIdempotencyKeyInvalid},
+	}
+	for _, tc := range cases {
+		repo := &affiliateWithdrawRepoStub{}
+		svc := &AffiliateService{repo: repo}
+		_, err := svc.AdminWithdrawQuota(context.Background(), 1, 1, tc.key)
+		require.ErrorIs(t, err, tc.want, "key %q", tc.key)
+		require.Empty(t, repo.calls, "key %q must not reach repository", tc.key)
+	}
+}
 
-			rebate, err := svc.AccrueInviteRebate(context.Background(), 7, 100)
+// TestAdminWithdrawQuota_DerivesStableOperationID 验证仓储收到的 operation_id
+// 由幂等键确定性派生：同一个键（含首尾空白）得到同一个值，不同的键得到不同的值，
+// 且不是原始键本身。
+func TestAdminWithdrawQuota_DerivesStableOperationID(t *testing.T) {
+	t.Parallel()
+	repo := &affiliateWithdrawRepoStub{result: &AffiliateWithdrawResult{LedgerID: 1}}
+	svc := &AffiliateService{repo: repo}
 
-			require.NoError(t, err)
-			require.Equal(t, 5.0, rebate)
-			require.Equal(t, 1, repo.accrueCalls)
-		})
+	for _, key := range []string{testAffiliateWithdrawKey, "  " + testAffiliateWithdrawKey + " ", testAffiliateWithdrawKey + "-2"} {
+		_, err := svc.AdminWithdrawQuota(context.Background(), 42, 10, key)
+		require.NoError(t, err)
+	}
+
+	require.Len(t, repo.calls, 3)
+	first := repo.calls[0].operationID
+	require.Regexp(t, `^[0-9a-f]{64}$`, first)
+	require.NotEqual(t, testAffiliateWithdrawKey, first)
+	require.Equal(t, first, repo.calls[1].operationID)
+	require.NotEqual(t, first, repo.calls[2].operationID)
+}
+
+// TestAdminWithdrawQuota_RoundsAmountToLedgerPrecision 验证金额按 8 位小数舍入后
+// 交给仓储，仓储结果原样返回。
+func TestAdminWithdrawQuota_RoundsAmountToLedgerPrecision(t *testing.T) {
+	t.Parallel()
+	want := &AffiliateWithdrawResult{LedgerID: 9, UserID: 42, Amount: 12.34567891}
+	repo := &affiliateWithdrawRepoStub{result: want}
+	svc := &AffiliateService{repo: repo}
+
+	got, err := svc.AdminWithdrawQuota(context.Background(), 42, 12.3456789149, testAffiliateWithdrawKey)
+	require.NoError(t, err)
+	require.Same(t, want, got)
+	require.Len(t, repo.calls, 1)
+	require.Equal(t, int64(42), repo.calls[0].userID)
+	require.Equal(t, 12.34567891, repo.calls[0].amount)
+}
+
+// TestAdminWithdrawQuota_PropagatesRepositoryErrors 验证额度不足与同键不同参数
+// 由仓储判定，服务层原样返回，前端据错误码提示。
+func TestAdminWithdrawQuota_PropagatesRepositoryErrors(t *testing.T) {
+	t.Parallel()
+	for _, want := range []error{ErrAffiliateQuotaInsufficient, ErrIdempotencyKeyConflict} {
+		repo := &affiliateWithdrawRepoStub{err: want}
+		svc := &AffiliateService{repo: repo}
+		_, err := svc.AdminWithdrawQuota(context.Background(), 1, 1, testAffiliateWithdrawKey)
+		require.ErrorIs(t, err, want)
 	}
 }

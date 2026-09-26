@@ -332,14 +332,18 @@ const setGroupButtonRef = (keyId: number, el: Element | ComponentPublicInstance 
   }
 }
 
+let requestVersion = 0
+
 watch(
-  () => props.show,
-  (v) => {
-    if (v && props.user) {
-      load()
-      loadGroups()
-    } else {
-      closeGroupSelector()
+  () => [props.show, props.user?.id] as const,
+  ([show], _previous, onCleanup) => {
+    onCleanup(() => {
+      requestVersion += 1
+    })
+    closeGroupSelector()
+    if (show && props.user) {
+      void load()
+      void loadGroups()
     }
   },
   { immediate: true }
@@ -347,15 +351,20 @@ watch(
 
 async function load() {
   if (!props.user) return
+  const userId = props.user.id
+  const version = ++requestVersion
   loading.value = true
+  apiKeys.value = []
   groupButtonRefs.value.clear()
   try {
-    const res = await adminAPI.users.getUserApiKeys(props.user.id)
-    apiKeys.value = res.items || []
+    const res = await adminAPI.users.getUserApiKeys(userId)
+    if (version === requestVersion && props.user?.id === userId) {
+      apiKeys.value = res.items || []
+    }
   } catch (error) {
     console.error('Failed to load API keys:', error)
   } finally {
-    loading.value = false
+    if (version === requestVersion) loading.value = false
   }
 }
 

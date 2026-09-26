@@ -962,7 +962,9 @@ import {
   apiTimePricingToForm,
   createDefaultTimePricingForm,
   formTimePricingToAPI,
+  formReasoningEffortMultipliersToAPI,
   isValidPositiveMultiplier,
+  validateReasoningEffortMultipliers,
   validateTimePricing,
 } from "@/components/admin/channel/types";
 import type { AdminGroup, GroupPlatform } from "@/types";
@@ -1536,6 +1538,12 @@ function clearAllRuleAccountSearchState() {
   showRuleAccountDropdown.value = {};
 }
 
+function reasoningEffortPricingFields(entry: PricingFormEntry): Record<string, unknown> {
+  if (entry.reasoning_effort_multipliers === undefined) return {}
+  const multipliers = formReasoningEffortMultipliersToAPI(entry.reasoning_effort_multipliers)
+  return { reasoning_effort_multipliers: multipliers }
+}
+
 function accountStatsRulesToAPI(): AccountStatsPricingRule[] {
   const rules: AccountStatsPricingRule[] = [];
   for (const section of form.platforms) {
@@ -1559,6 +1567,7 @@ function accountStatsRulesToAPI(): AccountStatsPricingRule[] {
             fast_multiplier: toNullableNumber(p.fast_multiplier),
             flex_multiplier: toNullableNumber(p.flex_multiplier),
             max_reasoning_effort_multiplier: toNullableNumber(p.max_reasoning_effort_multiplier),
+            ...reasoningEffortPricingFields(p),
             image_input_price: mTokToPerToken(p.image_input_price),
             image_output_price: mTokToPerToken(p.image_output_price),
             per_request_price:
@@ -1614,6 +1623,7 @@ function formToAPI(): {
         fast_multiplier: entry.fast_multiplier == null || entry.fast_multiplier === "" ? null : Number(entry.fast_multiplier),
         flex_multiplier: entry.flex_multiplier == null || entry.flex_multiplier === "" ? null : Number(entry.flex_multiplier),
         max_reasoning_effort_multiplier: entry.max_reasoning_effort_multiplier == null || entry.max_reasoning_effort_multiplier === "" ? null : Number(entry.max_reasoning_effort_multiplier),
+        ...reasoningEffortPricingFields(entry),
         image_input_price: mTokToPerToken(entry.image_input_price),
         image_output_price: mTokToPerToken(entry.image_output_price),
         per_request_price:
@@ -1706,6 +1716,11 @@ function apiToForm(channel: Channel): PlatformSection[] {
         fast_multiplier: p.fast_multiplier,
         flex_multiplier: p.flex_multiplier,
         max_reasoning_effort_multiplier: p.max_reasoning_effort_multiplier,
+        reasoning_effort_multipliers: p.reasoning_effort_multipliers
+          ? { ...p.reasoning_effort_multipliers }
+          : p.reasoning_effort_multipliers === null
+            ? null
+            : undefined,
         time_pricing: apiTimePricingToForm(p.time_pricing),
       }) as PricingFormEntry);
 
@@ -1908,6 +1923,11 @@ function distributeRulesToPlatforms(apiRules: AccountStatsPricingRule[]) {
         fast_multiplier: p.fast_multiplier,
         flex_multiplier: p.flex_multiplier,
         max_reasoning_effort_multiplier: p.max_reasoning_effort_multiplier,
+        reasoning_effort_multipliers: p.reasoning_effort_multipliers
+          ? { ...p.reasoning_effort_multipliers }
+          : p.reasoning_effort_multipliers === null
+            ? null
+            : undefined,
         time_pricing: apiTimePricingToForm(p.time_pricing),
       }) as PricingFormEntry),
     };
@@ -2039,9 +2059,14 @@ async function handleSubmit() {
   for (const section of form.platforms.filter((s) => s.enabled)) {
     for (const entry of section.model_pricing) {
       if (!isValidPositiveMultiplier(entry.fast_multiplier) ||
-          !isValidPositiveMultiplier(entry.flex_multiplier) ||
-          !isValidPositiveMultiplier(entry.max_reasoning_effort_multiplier)) {
+          !isValidPositiveMultiplier(entry.flex_multiplier)) {
         appStore.showError(t("admin.channels.form.multiplierPositive"));
+        activeTab.value = section.platform;
+        return;
+      }
+      const reasoningError = validateReasoningEffortMultipliers(entry.reasoning_effort_multipliers, t);
+      if (reasoningError) {
+        appStore.showError(reasoningError);
         activeTab.value = section.platform;
         return;
       }

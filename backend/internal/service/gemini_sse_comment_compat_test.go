@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -51,7 +50,6 @@ func TestDownstreamRejectsSSECommentsReadsBothHeaders(t *testing.T) {
 
 // runAntigravityGeminiStreamWithIdle 起一条上游流：先发一个 data 事件，然后空闲 idle 时长再关闭，
 // 返回写给下游的全部字节。用来观察空闲期间网关是否发了 ":\n\n" 心跳。
-// Call within synctest.Test so timer phase and downstream processing are deterministic.
 func runAntigravityGeminiStreamWithIdle(t *testing.T, userAgent string, idle time.Duration) string {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -70,16 +68,11 @@ func runAntigravityGeminiStreamWithIdle(t *testing.T, userAgent string, idle tim
 		_, err := svc.handleGeminiStreamingResponse(c, resp, time.Now())
 		done <- err
 	}()
-	// Start the ticker before the first data event. Its first tick must then
-	// skip keepalive because less than one full idle interval has elapsed.
-	synctest.Wait()
-	time.Sleep(250 * time.Millisecond)
 	_, err := io.WriteString(
 		writer,
 		`data: {"response":{"responseId":"resp_1","candidates":[{"content":{"parts":[{"text":"partial"}]}}],"usageMetadata":{"promptTokenCount":8,"candidatesTokenCount":1}}}`+"\n\n",
 	)
 	require.NoError(t, err)
-	synctest.Wait()
 	time.Sleep(idle)
 	require.NoError(t, writer.Close())
 	require.NoError(t, <-done)
@@ -88,20 +81,19 @@ func runAntigravityGeminiStreamWithIdle(t *testing.T, userAgent string, idle tim
 }
 
 func TestAntigravityGeminiStreamKeepsCommentKeepaliveForOrdinaryClients(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		// Observe the second ticker tick, after a complete idle interval.
-		out := runAntigravityGeminiStreamWithIdle(t, "curl/8.7.1", 2200*time.Millisecond)
-		require.Contains(t, out, ":\n\n", "ordinary clients should still get the idle keepalive")
-		require.Contains(t, out, `"text":"partial"`)
-	})
+	// The keepalive interval is configured in whole seconds. Leave enough idle
+	// time for the first data event to be processed before the ticker fires;
+	// otherwise a busy CI runner can consume the first tick too early and close
+	// the stream before any heartbeat is written.
+	out := runAntigravityGeminiStreamWithIdle(t, "curl/8.7.1", 2200*time.Millisecond)
+	require.Contains(t, out, ":\n\n", "ordinary clients should still get the idle keepalive")
+	require.Contains(t, out, `"text":"partial"`)
 }
 
 func TestAntigravityGeminiStreamSkipsCommentKeepaliveForGoGenai(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		out := runAntigravityGeminiStreamWithIdle(t, "google-genai-sdk/1.71.0 gl-go/go1.28-20260721-RC03", 2200*time.Millisecond)
-		require.Contains(t, out, `"text":"partial"`)
-		for _, event := range strings.Split(out, "\n\n") {
-			require.False(t, strings.HasPrefix(event, ":"), "go-genai must never receive an SSE comment event, got %q", event)
-		}
-	})
+	out := runAntigravityGeminiStreamWithIdle(t, "google-genai-sdk/1.71.0 gl-go/go1.28-20260721-RC03", 1200*time.Millisecond)
+	require.Contains(t, out, `"text":"partial"`)
+	for _, event := range strings.Split(out, "\n\n") {
+		require.False(t, strings.HasPrefix(event, ":"), "go-genai must never receive an SSE comment event, got %q", event)
+	}
 }

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 )
@@ -127,7 +128,6 @@ func buildGroupCatalog(ctx context.Context, channels []Channel, groups []Group, 
 			if sched, err := billing.ResolveContextPricingSchedule(modelCtx, resolver, ContextPricingScheduleInput{Model: billingModel, Group: g, Platform: model.Platform}); err == nil && sched != nil && len(sched.Tiers) > 0 {
 				model.Pricing = plazaPricingFromSchedule(model.Pricing, sched)
 			}
-			model.Pricing = withDefaultMaxReasoningEffortMultiplier(model.Pricing, billingModel)
 			if resolved.Mode == BillingModeToken && pricingNeedsFallback(resolved.channelPricing) {
 				if _, err := billing.GetModelPricing(billingModel); err != nil {
 					model.Pricing = nil // An empty price card is not an explicit free model.
@@ -173,6 +173,6 @@ func catalogResolvedPricing(resolved *ResolvedPricing) *ChannelModelPricing {
 	p.CacheWrite1hPrice = nonZeroPtr(b.CacheCreation1hPrice)
 	p.ImageInputPrice, p.ImageOutputPrice = nonZeroPtr(b.ImageInputPricePerToken), nonZeroPtr(b.ImageOutputPricePerToken)
 	p.FastMultiplier, p.FlexMultiplier = b.FastMultiplier, b.FlexMultiplier
-	p.MaxReasoningEffortMultiplier = b.MaxReasoningEffortMultiplier
+	p.ReasoningEffortMultipliers = maps.Clone(b.ReasoningEffortMultipliers)
 	return p
 }

@@ -4308,6 +4308,9 @@ import {
   createDefaultTimePricingForm,
   formTimePricingToAPI,
   formIntervalsToAPI,
+  formReasoningEffortMultipliersToAPI,
+  isValidPositiveMultiplier,
+  validateReasoningEffortMultipliers,
   mTokToPerToken,
   perTokenToMTok,
   toNullableNumber,
@@ -4408,6 +4411,11 @@ const groupPricingFromAPI = (
     fast_multiplier: entry.fast_multiplier,
     flex_multiplier: entry.flex_multiplier,
     max_reasoning_effort_multiplier: entry.max_reasoning_effort_multiplier,
+    reasoning_effort_multipliers: entry.reasoning_effort_multipliers
+      ? { ...entry.reasoning_effort_multipliers }
+      : entry.reasoning_effort_multipliers === null
+        ? null
+        : undefined,
     image_input_price: perTokenToMTok(entry.image_input_price),
     image_output_price: perTokenToMTok(entry.image_output_price),
     per_request_price: entry.per_request_price,
@@ -4433,6 +4441,9 @@ const groupPricingToAPI = (
       fast_multiplier: toNullableNumber(entry.fast_multiplier),
       flex_multiplier: toNullableNumber(entry.flex_multiplier),
       max_reasoning_effort_multiplier: toNullableNumber(entry.max_reasoning_effort_multiplier),
+      ...(entry.reasoning_effort_multipliers === undefined
+        ? {}
+        : { reasoning_effort_multipliers: formReasoningEffortMultipliersToAPI(entry.reasoning_effort_multipliers) }),
       image_input_price: mTokToPerToken(entry.image_input_price),
       image_output_price: mTokToPerToken(entry.image_output_price),
       per_request_price: toNullableNumber(entry.per_request_price),
@@ -5868,6 +5879,24 @@ const validateProfitControlForm = (form: ProfitControlFormState): boolean => {
   return true;
 };
 
+const validateModelPricing = (entries: PricingFormEntry[]): boolean => {
+  for (const entry of entries) {
+    if (!isValidPositiveMultiplier(entry.max_reasoning_effort_multiplier)) {
+      appStore.showError(t("admin.channels.form.multiplierPositive"));
+      return false;
+    }
+    const reasoningError = validateReasoningEffortMultipliers(
+      entry.reasoning_effort_multipliers,
+      t,
+    );
+    if (reasoningError) {
+      appStore.showError(reasoningError);
+      return false;
+    }
+  }
+  return true;
+};
+
 const handleCreateGroup = async () => {
   if (!createForm.name.trim()) {
     appStore.showError(t("admin.groups.nameRequired"));
@@ -5881,6 +5910,9 @@ const handleCreateGroup = async () => {
     return;
   }
   if (!validateProfitControlForm(createForm)) {
+    return;
+  }
+  if (!validateModelPricing(createForm.model_pricing)) {
     return;
   }
   // 模型白名单：开启且没有任何条目时阻止提交，与后端 400 对齐。
@@ -6212,6 +6244,9 @@ const handleUpdateGroup = async () => {
     return;
   }
   if (!validateProfitControlForm(editForm)) {
+    return;
+  }
+  if (!validateModelPricing(editForm.model_pricing)) {
     return;
   }
   // 模型白名单：开启且没有任何条目时阻止提交，与后端 400 对齐。

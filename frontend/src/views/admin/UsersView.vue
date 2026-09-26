@@ -2307,7 +2307,11 @@ const handleToggleStatus = async (user: AdminUser) => {
         ? t("admin.users.userEnabled")
         : t("admin.users.userDisabled"),
     );
-    loadUsers();
+    const rowIndex = users.value.findIndex((row) => row.id === user.id);
+    if (rowIndex >= 0) {
+      users.value[rowIndex] = { ...users.value[rowIndex], status: newStatus };
+    }
+    if (loading.value) await loadUsers();
   } catch (error: any) {
     appStore.showError(
       error.response?.data?.detail || t("admin.users.failedToToggle"),

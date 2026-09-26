@@ -828,6 +828,7 @@ func registerAffiliateRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUp
 			users.GET("/lookup", h.Admin.Affiliate.LookupUsers)
 			users.POST("/batch-rate", gin.HandlerFunc(stepUpAuth), h.Admin.Affiliate.BatchSetRate)
 			users.GET("/:user_id/overview", h.Admin.Affiliate.GetUserOverview)
+			users.POST("/:user_id/withdraw", gin.HandlerFunc(stepUpAuth), h.Admin.Affiliate.WithdrawQuota)
 			users.PUT("/:user_id", gin.HandlerFunc(stepUpAuth), h.Admin.Affiliate.UpdateUserSettings)
 			users.DELETE("/:user_id", h.Admin.Affiliate.ClearUserSettings)
 		}
