@@ -1,0 +1,9 @@
+{
+  "upstream_repo": "https://github.com/Wei-Shaw/sub2api.git",
+  "upstream_tag": "v0.2.8",
+  "upstream_commit": "fd80b08c90b55edcad5b00171b53f08721d30da1",
+  "merge_commit": "9b4b053d73d8f92815d73304f83d2818c4159eda",
+  "custom_parent": "3a4eed55b7f6cb5c41f247d927c30449ff5afab2",
+  "source_scope": "official v0.2.8 plus SSXZ customizations",
+  "business_data_changed": false
+}
