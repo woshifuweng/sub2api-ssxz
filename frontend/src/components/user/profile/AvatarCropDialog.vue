@@ -1,13 +1,25 @@
 <template>
   <BaseDialog :show="show" :title="t('profile.avatar.dialogTitle')" width="normal" @close="emit('close')">
     <div class="avatar-crop-dialog">
-      <div class="avatar-crop-stage" aria-live="polite">
+      <div
+        ref="stageRef"
+        data-testid="avatar-crop-stage"
+        class="avatar-crop-stage"
+        aria-live="polite"
+        @pointerdown="startPan"
+        @pointermove="movePan"
+        @pointerup="endPan"
+        @pointercancel="endPan"
+        @lostpointercapture="endPan"
+      >
         <img
           v-if="previewUrl"
           :src="previewUrl"
           :style="previewStyle"
           alt=""
           class="avatar-crop-preview"
+          draggable="false"
+          @dragstart.prevent
         />
         <div v-else class="avatar-crop-empty">{{ t('profile.avatar.chooseHint') }}</div>
         <div class="avatar-crop-window" aria-hidden="true" />
@@ -73,7 +85,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -92,22 +104,119 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const fileInput = ref<HTMLInputElement | null>(null)
+const stageRef = ref<HTMLElement | null>(null)
 const previewUrl = ref('')
 const sourceImage = ref<HTMLImageElement | null>(null)
 const zoom = ref(1)
+const panX = ref(0)
+const panY = ref(0)
 const errorMessage = ref('')
 const selectedFileName = ref('')
+let imageLoadToken = 0
+let panSession: {
+  pointerId: number
+  startX: number
+  startY: number
+  startPanX: number
+  startPanY: number
+} | null = null
 
 const previewStyle = computed(() => ({
-  width: `${zoom.value * 100}%`,
-  height: `${zoom.value * 100}%`
+  width: `${getImageLayout().width}px`,
+  height: `${getImageLayout().height}px`,
+  left: `${getImageLayout().left}px`,
+  top: `${getImageLayout().top}px`
 }))
 
+function getImageLayout() {
+  const image = sourceImage.value
+  const stageSize = stageRef.value?.getBoundingClientRect().width || 320
+  const cropSize = stageSize * 0.72
+  if (!image?.naturalWidth || !image.naturalHeight) {
+    return {
+      stageSize,
+      cropSize,
+      scale: 1,
+      width: cropSize,
+      height: cropSize,
+      left: (stageSize - cropSize) / 2,
+      top: (stageSize - cropSize) / 2
+    }
+  }
+
+  const scale = cropSize / Math.min(image.naturalWidth, image.naturalHeight) * zoom.value
+  const width = image.naturalWidth * scale
+  const height = image.naturalHeight * scale
+  const maxPanX = Math.max(0, (width - cropSize) / 2)
+  const maxPanY = Math.max(0, (height - cropSize) / 2)
+  const boundedPanX = Math.max(-maxPanX, Math.min(maxPanX, panX.value))
+  const boundedPanY = Math.max(-maxPanY, Math.min(maxPanY, panY.value))
+  return {
+    stageSize,
+    cropSize,
+    scale,
+    width,
+    height,
+    left: (stageSize - width) / 2 + boundedPanX,
+    top: (stageSize - height) / 2 + boundedPanY
+  }
+}
+
+function clampPan(nextX: number, nextY: number) {
+  const layout = getImageLayout()
+  return {
+    x: Math.max(-(layout.width - layout.cropSize) / 2, Math.min((layout.width - layout.cropSize) / 2, nextX)),
+    y: Math.max(-(layout.height - layout.cropSize) / 2, Math.min((layout.height - layout.cropSize) / 2, nextY))
+  }
+}
+
+function startPan(event: PointerEvent) {
+  if (!sourceImage.value || (event.pointerType !== 'touch' && event.button !== 0)) return
+  panSession = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    startPanX: panX.value,
+    startPanY: panY.value
+  }
+  stageRef.value?.setPointerCapture?.(event.pointerId)
+  event.preventDefault()
+}
+
+function movePan(event: PointerEvent) {
+  if (!panSession || event.pointerId !== panSession.pointerId) return
+  const next = clampPan(
+    panSession.startPanX + event.clientX - panSession.startX,
+    panSession.startPanY + event.clientY - panSession.startY
+  )
+  panX.value = next.x
+  panY.value = next.y
+  event.preventDefault()
+}
+
+function endPan(event: PointerEvent) {
+  if (!panSession || event.pointerId !== panSession.pointerId) return
+  if (stageRef.value?.hasPointerCapture?.(event.pointerId)) {
+    stageRef.value.releasePointerCapture(event.pointerId)
+  }
+  panSession = null
+}
+
+watch(zoom, () => {
+  const next = clampPan(panX.value, panY.value)
+  panX.value = next.x
+  panY.value = next.y
+})
+
 function resetPreview() {
+  imageLoadToken += 1
+  panSession = null
   if (previewUrl.value.startsWith('blob:')) URL.revokeObjectURL(previewUrl.value)
   previewUrl.value = ''
   sourceImage.value = null
   zoom.value = 1
+  panX.value = 0
+  panY.value = 0
   errorMessage.value = ''
   selectedFileName.value = ''
   if (fileInput.value) fileInput.value.value = ''
@@ -137,10 +246,15 @@ function processFile(file?: File) {
   resetPreview()
   selectedFileName.value = file.name
   const url = URL.createObjectURL(file)
+  const loadToken = imageLoadToken
   previewUrl.value = url
   const image = new Image()
-  image.onload = () => { sourceImage.value = image }
+  image.onload = () => {
+    if (loadToken !== imageLoadToken || previewUrl.value !== url) return
+    sourceImage.value = image
+  }
   image.onerror = () => {
+    if (loadToken !== imageLoadToken || previewUrl.value !== url) return
     errorMessage.value = t('profile.avatar.invalidType')
     resetPreview()
   }
@@ -159,9 +273,12 @@ function createCroppedDataUrl(): string | null {
   const image = sourceImage.value
   if (!image) return null
 
-  const side = Math.min(image.naturalWidth, image.naturalHeight) / zoom.value
-  const sourceX = (image.naturalWidth - side) / 2
-  const sourceY = (image.naturalHeight - side) / 2
+  const layout = getImageLayout()
+  const cropLeft = (layout.stageSize - layout.cropSize) / 2
+  const cropTop = (layout.stageSize - layout.cropSize) / 2
+  const side = layout.cropSize / layout.scale
+  const sourceX = Math.max(0, Math.min(image.naturalWidth - side, (cropLeft - layout.left) / layout.scale))
+  const sourceY = Math.max(0, Math.min(image.naturalHeight - side, (cropTop - layout.top) / layout.scale))
   const canvas = document.createElement('canvas')
   const outputSide = 256
   canvas.width = outputSide
@@ -202,8 +319,18 @@ onUnmounted(resetPreview)
   border: 1px solid var(--ssxz-border-strong);
   border-radius: 1rem;
   background: var(--ssxz-surface-sunken);
+  touch-action: none;
+  user-select: none;
 }
-.avatar-crop-preview { max-width: none; object-fit: cover; }
+.avatar-crop-preview {
+  position: absolute;
+  max-width: none;
+  object-fit: cover;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.avatar-crop-preview:active { cursor: grabbing; }
 .avatar-crop-window {
   position: absolute;
   width: 72%;

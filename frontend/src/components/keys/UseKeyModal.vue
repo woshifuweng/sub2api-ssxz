@@ -747,6 +747,9 @@ const firstAllowedModel = computed(() =>
     ?.map((model) => model.trim())
     .find(Boolean) || ''
 )
+function selectedModelForKey(fallback: string): string {
+  return firstAllowedModel.value || fallback
+}
 const openAIExampleModel = computed(() => firstAllowedModel.value || 'your-model-name')
 const geminiExampleModel = computed(() => firstAllowedModel.value || 'gemini-2.0-flash')
 
@@ -985,6 +988,10 @@ function selectCodexCatalogModel(preferredModel: string): string {
   return codexCatalogModelSlugs.value[0] || preferredModel
 }
 
+function selectCodexModelForKey(preferredModel: string): string {
+  return firstAllowedModel.value || selectCodexCatalogModel(preferredModel)
+}
+
 function codexReasoningEffortTomlLine(modelSlug: string): string {
   return formatCodexReasoningEffortTomlLine(
     selectCodexConfigReasoningEffort(findCodexCatalogModel(codexModelManifestContent.value, modelSlug))
@@ -1159,15 +1166,16 @@ $env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
 }
 
 function generateGrokClaudeFiles(baseUrl: string, apiKey: string): FileConfig[] {
+  const model = selectedModelForKey('grok-4.5')
   const environment = {
     ANTHROPIC_BASE_URL: baseUrl,
     ANTHROPIC_AUTH_TOKEN: apiKey,
-    ANTHROPIC_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_OPUS_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_SONNET_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_HAIKU_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_FABLE_MODEL: 'grok-4.5',
-    CLAUDE_CODE_SUBAGENT_MODEL: 'grok-4.5',
+    ANTHROPIC_MODEL: model,
+    ANTHROPIC_DEFAULT_OPUS_MODEL: model,
+    ANTHROPIC_DEFAULT_SONNET_MODEL: model,
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: model,
+    ANTHROPIC_DEFAULT_FABLE_MODEL: model,
+    CLAUDE_CODE_SUBAGENT_MODEL: model,
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
   }
   let path: string
@@ -1342,6 +1350,7 @@ function generateGrokFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const shell = activeTab.value
   const isWindowsPath = shell === 'windows' || shell === 'cmd' || shell === 'powershell'
   const configDir = isWindowsPath ? '%userprofile%\\.grok' : '~/.grok'
+  const model = selectedModelForKey('grok-4.5')
 
   let envPath: string
   let envContent: string
@@ -1407,6 +1416,15 @@ context_window = 500000                     # drives auto-compaction timing
 # Server-side (backend) web_search tools — only if your gateway exposes them:
 supports_backend_search = true
 
+[model."grok-4.7"]
+model = "grok-4.7"
+name = "Grok 4.7"
+description = "Grok 4.7 via Sub2API (Responses)"
+env_key = "XAI_API_KEY"
+api_backend = "responses"
+context_window = 500000
+supports_backend_search = true
+
 [model."grok-build-0.1"]
 model = "grok-build-0.1"
 name = "Grok Build"
@@ -1444,10 +1462,10 @@ supports_backend_search = true
 # supports_backend_search = true
 
 [models]
-# xAI recommends grok-build* for coding/agent sessions; use grok-4.5 for general chat.
-default = "grok-4.5"
-web_search = "grok-4.5"                     # client-side web_search tool model (must exist as [model.*])
-image_description = "grok-4.5"              # vision/describe-image helper model
+# xAI recommends grok-build* for coding/agent sessions; use the selected key model by default.
+default = "${model}"
+web_search = "${model}"                     # client-side web_search tool model (must exist as [model.*])
+image_description = "${model}"              # vision/describe-image helper model
 # Optional environment-wide sampling defaults (per-model values win):
 # temperature = 0.7
 # top_p = 0.95
@@ -1485,7 +1503,7 @@ function generateGrokCodexFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const shell = activeTab.value
   const isWindowsPath = shell === 'windows' || shell === 'cmd' || shell === 'powershell'
   const configDir = isWindowsPath ? '%userprofile%\\.codex' : '~/.codex'
-  const model = selectCodexCatalogModel('grok-4.5')
+  const model = selectCodexModelForKey('grok-4.5')
 
   let envPath: string
   let envContent: string
@@ -1571,7 +1589,7 @@ function generateRoutedCodexFiles(
     kiro: 'claude-sonnet-4-6'
   }
   const preferredModel = preferredModels[platform] || ''
-  const model = selectCodexCatalogModel(preferredModel)
+  const model = selectCodexModelForKey(preferredModel)
   const labels: Record<GroupPlatform, string> = {
     anthropic: 'Anthropic',
     openai: 'OpenAI',
@@ -2204,6 +2222,10 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
   // Align context_window with Grok Build official sample (docs.x.ai/build/settings) where known.
   // Image/video: grok-imagine-image / grok-imagine-video on media endpoints — not this list.
   const grokModels = {
+    'grok-4.7': {
+      name: 'Grok 4.7',
+      limit: { context: 500000, output: 64000 }
+    },
     'grok-4.5': {
       name: 'Grok 4.5',
       limit: { context: 500000, output: 64000 }

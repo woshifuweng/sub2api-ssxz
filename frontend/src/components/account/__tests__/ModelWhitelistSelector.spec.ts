@@ -118,6 +118,20 @@ describe('ModelWhitelistSelector', () => {
     expect(copyToClipboard).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['openai', 'gpt-6-sol'],
+    ['openai', 'gpt-6-luna'],
+    ['anthropic', 'claude-opus-5-5'],
+    ['grok', 'grok-4.7']
+  ] as const)('emits the exact allowed model for %s', async (platform, modelId) => {
+    const wrapper = mountSelector({ platform })
+    await wrapper.get('div.cursor-pointer').trigger('click')
+
+    await findModelRow(wrapper, modelId).get('[data-testid="select-model"]').trigger('click')
+
+    expect(wrapper.emitted('update:modelValue')).toEqual([[[modelId]]])
+  })
+
   it('warns when model IDs sync but capability metadata is incomplete', async () => {
     syncUpstreamModels.mockResolvedValue({
       models: ['x-preview-f-free'],

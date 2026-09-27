@@ -128,6 +128,7 @@ describe('UseKeyModal', () => {
     expect(allCode).toContain('[model."grok-build-0.1"]')
     expect(allCode).toContain('[model."grok-4.20-multi-agent-0309"]')
     expect(allCode).toContain('[model."grok-4.3"]')
+    expect(allCode).toContain('[model."grok-4.7"]')
     expect(allCode).toContain('default = "grok-4.5"')
     expect(allCode).toContain('models_base_url = "https://example.com/v1"')
     expect(allCode).toContain('models_list_url = "https://example.com/v1/models"')
@@ -1041,5 +1042,98 @@ describe('UseKeyModal', () => {
       .find((content) => content.includes('model_provider = "OpenAI"'))
     expect(configToml).toContain('model = "glm-5.3"')
     expect(configToml).not.toContain('model_reasoning_effort')
+  })
+
+  it.each([
+    ['openai', 'gpt-6-sol'],
+    ['openai', 'gpt-6-luna'],
+    ['anthropic', 'claude-opus-5-5'],
+    ['grok', 'grok-4.7']
+  ] as const)('keeps the API Key model %s in the generated request config', async (platform, model) => {
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: `sk-${model}`,
+        baseUrl: 'https://example.com/v1',
+        platform,
+        allowedModels: [model]
+      },
+      global: {
+        stubs: {
+          BaseDialog: { template: '<div><slot /><slot name="footer" /></div>' },
+          Icon: { template: '<span />' }
+        }
+      }
+    })
+
+    const clientTab = wrapper.findAll('button').find((button) =>
+      button.text().includes(
+        platform === 'grok'
+          ? 'keys.useKeyModal.cliTabs.grokCli'
+          : platform === 'anthropic'
+            ? 'keys.useKeyModal.cliTabs.codexCli'
+            : 'keys.useKeyModal.cliTabs.codexCli'
+      )
+    )
+    expect(clientTab).toBeDefined()
+    await clientTab!.trigger('click')
+    await nextTick()
+
+    const code = wrapper.findAll('pre code').map((item) => item.text()).join('\n')
+    if (platform === 'openai') {
+      expect(code).toContain(`model = "${model}"`)
+      expect(code).toContain(`review_model = "${model}"`)
+    } else if (platform === 'grok') {
+      expect(code).toContain(`default = "${model}"`)
+      expect(code).toContain(`[model."${model}"]`)
+    } else {
+      const codexTab = wrapper.findAll('button').find((button) =>
+        button.text().trim() === 'keys.useKeyModal.cliTabs.codexCli'
+      )
+      expect(codexTab).toBeDefined()
+      await codexTab!.trigger('click')
+      await nextTick()
+      expect(wrapper.findAll('pre code').map((item) => item.text()).join('\n'))
+        .toContain(`model = "${model}"`)
+    }
+  })
+
+  it('does not let an older downloaded Codex catalog replace an allowed routed model', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ models: [{ slug: 'claude-sonnet-4-6' }] })
+    }))
+
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-opus-55',
+        baseUrl: 'https://example.com/v1',
+        platform: 'anthropic',
+        allowedModels: ['claude-opus-5-5']
+      },
+      global: {
+        stubs: {
+          BaseDialog: { template: '<div><slot /><slot name="footer" /></div>' },
+          Icon: { template: '<span />' }
+        }
+      }
+    })
+
+    const codexTab = wrapper.findAll('button').find((button) =>
+      button.text().trim() === 'keys.useKeyModal.cliTabs.codexCli'
+    )
+    expect(codexTab).toBeDefined()
+    await codexTab!.trigger('click')
+    await wrapper.get('[data-testid="codex-model-catalog-fetch"]').trigger('click')
+    await flushPromises()
+
+    const config = wrapper.findAll('pre code')
+      .map((item) => item.text())
+      .find((content) => content.includes('[model_providers.sub2api]'))
+    expect(config).toContain('model = "claude-opus-5-5"')
+    expect(config).toContain('review_model = "claude-opus-5-5"')
+    expect(config).not.toContain('model = "claude-sonnet-4-6"')
   })
 })

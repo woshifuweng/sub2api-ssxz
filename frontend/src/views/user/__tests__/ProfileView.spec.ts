@@ -4,10 +4,18 @@ import ProfileView from '@/views/user/ProfileView.vue'
 
 const {
   fetchPublicSettingsMock,
+  getAvatarMock,
+  updateAvatarMock,
+  showSuccessMock,
+  showErrorMock,
   refreshUserMock,
   authState
 } = vi.hoisted(() => ({
   fetchPublicSettingsMock: vi.fn(),
+  getAvatarMock: vi.fn(),
+  updateAvatarMock: vi.fn(),
+  showSuccessMock: vi.fn(),
+  showErrorMock: vi.fn(),
   refreshUserMock: vi.fn(),
   authState: {
     user: null as Record<string, unknown> | null,
@@ -21,8 +29,20 @@ vi.mock('@/stores/auth', () => ({
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
-    fetchPublicSettings: fetchPublicSettingsMock
+    fetchPublicSettings: fetchPublicSettingsMock,
+    showSuccess: showSuccessMock,
+    showError: showErrorMock
   })
+}))
+
+vi.mock('@/api', () => ({
+  authAPI: {
+    getPublicSettings: fetchPublicSettingsMock
+  },
+  userAPI: {
+    getAvatar: getAvatarMock,
+    updateAvatar: updateAvatarMock
+  }
 }))
 
 vi.mock('@/utils/format', () => ({
@@ -47,6 +67,10 @@ describe('ProfileView', () => {
   beforeEach(() => {
     refreshUserMock.mockReset()
     fetchPublicSettingsMock.mockReset()
+    getAvatarMock.mockReset()
+    updateAvatarMock.mockReset()
+    showSuccessMock.mockReset()
+    showErrorMock.mockReset()
     refreshUserMock.mockResolvedValue(undefined)
     authState.refreshUser = refreshUserMock
     authState.user = {
@@ -75,6 +99,7 @@ describe('ProfileView', () => {
       oidc_oauth_enabled: true,
       oidc_oauth_provider_name: 'OIDC'
     })
+    getAvatarMock.mockResolvedValue(null)
   })
 
   it('renders the profile workbench without the retired stat-card surface', async () => {
@@ -104,5 +129,37 @@ describe('ProfileView', () => {
     expect(workbench.html()).toContain('profile-edit-form')
     expect(workbench.html()).toContain('profile-password-form')
     expect(workbench.html()).toContain('profile-totp-card')
+  })
+
+  it('persists a cropped avatar and synchronizes the current user avatar', async () => {
+    updateAvatarMock.mockResolvedValue({ url: 'https://cdn.example/avatar.webp' })
+    const wrapper = mount(ProfileView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Avatar: true,
+          LiquidButton: { template: '<button @click="$emit(\'click\')"><slot /></button>' },
+          ProfileEditForm: { template: '<div />' },
+          ProfileBalanceNotifyCard: true,
+          ProfilePasswordForm: true,
+          ProfileTotpCard: true,
+          ProfilePasskeyCard: true,
+          AvatarCropDialog: {
+            props: ['show', 'saving'],
+            emits: ['save', 'close'],
+            template: '<button data-testid="avatar-dialog-save" @click="$emit(\'save\', \'data:image/webp;base64,YXZhdGFy\')">save</button>'
+          },
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    await wrapper.get('[data-testid="avatar-dialog-save"]').trigger('click')
+    await flushPromises()
+
+    expect(updateAvatarMock).toHaveBeenCalledWith('data:image/webp;base64,YXZhdGFy')
+    expect(authState.user?.avatar_url).toBe('https://cdn.example/avatar.webp')
+    expect(showSuccessMock).toHaveBeenCalledWith('profile.avatar.saved')
   })
 })
