@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 
 import ModelPricingView from '../ModelPricingView.vue'
+import { classifyModelSource, modelPricingStatus, modelSourceLabel } from '../modelPricing'
 
 const { getAvailable, getUserGroupRates, showError } = vi.hoisted(() => ({
   getAvailable: vi.fn(),
@@ -99,5 +100,32 @@ describe('ModelPricingView subscription type', () => {
 
   it('falls back to standard for unknown subscription types', async () => {
     expect(await renderedSubscriptionType('legacy')).toBe('standard')
+  })
+})
+
+describe('model source labels', () => {
+  it('does not confuse official release names with live availability', () => {
+    const official = { name: 'gpt-6-sol', platform: 'openai', pricing: null }
+    const configured = { name: 'gpt-6-astra', platform: 'openai', pricing: null }
+
+    expect(classifyModelSource(official)).toBe('upstream-release')
+    expect(modelSourceLabel(classifyModelSource(official))).toBe('官方 v0.2.8')
+    expect(modelPricingStatus(official)).toBe('unpriced')
+    expect(modelPricingStatus({
+      ...official,
+      pricing: {
+        billing_mode: 'token',
+        input_price: null,
+        output_price: null,
+        cache_write_price: null,
+        cache_read_price: null,
+        image_input_price: null,
+        image_output_price: null,
+        per_request_price: null,
+        intervals: [],
+      },
+    })).toBe('unpriced')
+    expect(classifyModelSource(configured)).toBe('live-channel')
+    expect(modelSourceLabel(classifyModelSource(configured))).toBe('线上已配置')
   })
 })

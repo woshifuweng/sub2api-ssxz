@@ -5,6 +5,14 @@ import type {
 } from '@/api/channels'
 
 export type PricingPlatform = 'anthropic' | 'openai'
+export type ModelSource = 'upstream-release' | 'ssxz-custom' | 'live-channel' | 'unverified'
+
+const OFFICIAL_V028_MODELS = new Set([
+  'gpt-6-sol',
+  'gpt-6-luna',
+  'claude-opus-5-5',
+  'grok-4.7',
+])
 
 export interface ModelPricingRow {
   key: string
@@ -13,6 +21,46 @@ export interface ModelPricingRow {
   providerLabel: string
   model: UserSupportedModel
   groups: UserAvailableGroup[]
+  source: ModelSource
+}
+
+export function classifyModelSource(model: UserSupportedModel): ModelSource {
+  const declared = model.model_catalog_source?.trim().toLowerCase()
+  if (declared === 'upstream-release' || declared === 'ssxz-custom' || declared === 'live-channel' || declared === 'unverified') {
+    return declared
+  }
+  if (OFFICIAL_V028_MODELS.has(model.name.trim().toLowerCase())) return 'upstream-release'
+  if (model.capability_source?.trim().toLowerCase() === 'ssxz-custom') return 'ssxz-custom'
+  return 'live-channel'
+}
+
+export function modelSourceLabel(source: ModelSource): string {
+  switch (source) {
+    case 'upstream-release': return '官方 v0.2.8'
+    case 'ssxz-custom': return 'SSXZ 定制'
+    case 'unverified': return '来源待确认'
+    default: return '线上已配置'
+  }
+}
+
+export function modelPricingStatus(model: UserSupportedModel): 'priced' | 'unpriced' {
+  const pricing = model.pricing
+  if (!pricing) return 'unpriced'
+  const scalarPrices = [
+    pricing.input_price,
+    pricing.output_price,
+    pricing.cache_write_price,
+    pricing.cache_read_price,
+    pricing.image_input_price,
+    pricing.image_output_price,
+    pricing.per_request_price,
+  ]
+  if (scalarPrices.some((value) => typeof value === 'number' && Number.isFinite(value))) return 'priced'
+  if (pricing.intervals.some((interval) => (
+    [interval.input_price, interval.output_price, interval.cache_write_price, interval.cache_read_price, interval.per_request_price]
+      .some((value) => typeof value === 'number' && Number.isFinite(value))
+  ))) return 'priced'
+  return 'unpriced'
 }
 
 const ANTHROPIC_PREFIX = /^claude-/i
@@ -56,6 +104,7 @@ export function flattenPricingRows(channels: UserAvailableChannel[]): ModelPrici
           providerLabel: platform === 'anthropic' ? 'Anthropic' : 'OpenAI',
           model,
           groups: [...section.groups],
+          source: classifyModelSource(model),
         })
       }
     }

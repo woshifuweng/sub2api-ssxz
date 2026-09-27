@@ -68,6 +68,7 @@
                     <Icon name="chevronDown" size="xs" :class="sortDirection === 'desc' ? 'rotate-180' : ''" />
                   </button>
                 </th>
+                <th scope="col">来源</th>
                 <th scope="col">供应商</th>
                 <th scope="col">分组</th>
                 <th scope="col">输入</th>
@@ -80,6 +81,12 @@
               <tr v-for="row in visibleRows" :key="row.key">
                 <td class="model-cell">
                   <code>{{ row.name }}</code>
+                </td>
+                <td class="source-cell">
+                  <span :class="['source-badge', `source-badge--${row.source}`]">
+                    {{ modelSourceLabel(row.source) }}
+                  </span>
+                  <span v-if="modelPricingStatus(row.model) === 'unpriced'" class="source-status">暂无线上定价</span>
                 </td>
                 <td>
                   <span :class="['provider-label', row.platform]">
@@ -168,6 +175,8 @@ import {
   flattenPricingRows,
   formatContext,
   formatPrice,
+  modelPricingStatus,
+  modelSourceLabel,
   type ModelPricingRow,
   type PricingPlatform,
 } from './modelPricing'
@@ -423,6 +432,41 @@ onMounted(loadChannels)
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.82rem;
   font-weight: 750;
+}
+
+.source-cell {
+  min-width: 8.5rem;
+}
+
+.source-badge,
+.source-status {
+  display: block;
+}
+
+.source-badge {
+  width: max-content;
+  border: 1px solid var(--ssxz-border);
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  color: var(--ssxz-text-muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.source-badge--upstream-release {
+  border-color: color-mix(in srgb, var(--ssxz-primary) 45%, var(--ssxz-border));
+  color: var(--ssxz-primary);
+}
+
+.source-badge--ssxz-custom {
+  border-color: color-mix(in srgb, #f59e0b 45%, var(--ssxz-border));
+  color: #f59e0b;
+}
+
+.source-status {
+  margin-top: 0.25rem;
+  color: var(--ssxz-subtle);
+  font-size: 0.72rem;
 }
 
 .provider-label {
