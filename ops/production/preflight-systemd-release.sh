@@ -12,7 +12,8 @@ preflight_config_file="${PREFLIGHT_CONFIG_FILE:-}"
 preflight_port="${PREFLIGHT_PORT:-18081}"
 preflight_health_url="${PREFLIGHT_HEALTH_URL:-http://127.0.0.1:${preflight_port}/health}"
 preflight_page_base_url="${PREFLIGHT_PAGE_BASE_URL:-http://127.0.0.1:${preflight_port}}"
-preflight_page_paths="${PREFLIGHT_PAGE_PATHS:-/ /admin/dashboard /app/usage /app/keys}"
+preflight_page_paths="${PREFLIGHT_PAGE_PATHS:-/ /login /admin/dashboard /app/available-channels /app/usage /app/keys /model-plaza}"
+provenance_manifest="${PROVENANCE_MANIFEST:-}"
 production_health_url="${PRODUCTION_HEALTH_URL:-http://127.0.0.1:8080/health}"
 health_timeout="${HEALTH_TIMEOUT_SECONDS:-30}"
 
@@ -68,6 +69,9 @@ done
 
 release_root="$(realpath -m "$release_root")"
 candidate_dir="$(realpath -m "$1")"
+provenance_manifest="${provenance_manifest:-$candidate_dir/release-provenance.json}"
+candidate_config_path="${CANDIDATE_CONFIG_PATH:-$candidate_dir/config.yaml}"
+candidate_data_path="${CANDIDATE_DATA_PATH:-$candidate_dir/data}"
 # Resolve only the parent: resolving the link itself would follow it to the old
 # release and make the later atomic replacement target the wrong path.
 current_link_parent="$(realpath -m "$(dirname "$current_link")")"
@@ -88,6 +92,19 @@ candidate_binary="$(realpath -m "$candidate_dir/$binary_relative")"
 path_must_be_below_release_root "$candidate_binary"
 [[ -f "$candidate_binary" ]] || die "candidate binary not found: $candidate_binary"
 [[ -x "$candidate_binary" ]] || die "candidate binary is not executable: $candidate_binary"
+[[ -f "$provenance_manifest" ]] || die "release provenance manifest not found: $provenance_manifest"
+for required_provenance_key in upstream_repo upstream_tag upstream_commit merge_commit custom_parent; do
+  grep -Eq "\"${required_provenance_key}\"[[:space:]]*:[[:space:]]*\"[^\"]+\"" "$provenance_manifest" || \
+    die "release provenance manifest is missing: $required_provenance_key"
+done
+grep -Eq '"upstream_commit"[[:space:]]*:[[:space:]]*"[0-9a-f]{40}"' "$provenance_manifest" || \
+  die "release provenance upstream_commit is not a 40-character SHA"
+grep -Eq '"merge_commit"[[:space:]]*:[[:space:]]*"[0-9a-f]{40}"' "$provenance_manifest" || \
+  die "release provenance merge_commit is not a 40-character SHA"
+[[ -L "$candidate_config_path" ]] || die "candidate config.yaml must be a symlink: $candidate_config_path"
+[[ -f "$(realpath -m "$candidate_config_path")" ]] || die "candidate config target is missing: $candidate_config_path"
+[[ -L "$candidate_data_path" ]] || die "candidate data must be a symlink: $candidate_data_path"
+[[ -d "$(realpath -m "$candidate_data_path")" ]] || die "candidate data target is missing: $candidate_data_path"
 [[ -f "$production_env_file" ]] || die "production environment file not found: $production_env_file"
 [[ -f "$preflight_env_file" ]] || die "isolated preflight environment file not found: $preflight_env_file"
 if [[ -n "$preflight_config_file" ]]; then
@@ -111,6 +128,7 @@ verify_preflight_isolation
 version_output="$(run_as_service "$candidate_binary" -version 2>&1)" || die "candidate version check failed"
 [[ -n "$version_output" ]] || die "candidate version output is empty"
 log "candidate version: $version_output"
+log "provenance manifest: $provenance_manifest"
 
 candidate_state_dir="$(mktemp -d "${TMPDIR:-/tmp}/sub2api-preflight.XXXXXX")"
 candidate_log="$candidate_state_dir/candidate.log"
@@ -198,10 +216,11 @@ fi
 log "candidate isolated health check passed"
 for page_path in $preflight_page_paths; do
   [[ "$page_path" == /* ]] || die "PREFLIGHT_PAGE_PATHS contains a path without a leading slash: $page_path"
-  if ! curl --fail --silent --show-error --max-time 5 "${preflight_page_base_url}${page_path}" >/dev/null; then
+  page_body="$(curl --fail --silent --show-error --max-time 5 "${preflight_page_base_url}${page_path}")" || {
     tail -n 80 "$candidate_log" >&2 || true
     die "candidate page check failed: $page_path"
-  fi
+  }
+  grep -Eiq '<!doctype html|<html([[:space:]>]|$)' <<<"$page_body" || die "candidate page is not HTML: $page_path"
 done
 log "candidate page checks passed"
 cleanup_candidate

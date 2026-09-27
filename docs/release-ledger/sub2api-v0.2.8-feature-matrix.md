@@ -27,6 +27,12 @@
 | HostService 只读账号数据 | `backend/pkg/pluginapi/v1` 已存在 | 无普通页面入口 | 代码已合并，插件端到端未验证 |
 | GPT-6 Astra / Claude Fable 5 | 白名单和线上数据存在 | 后台仪表盘、用户模型页可见 | 线上历史/定制配置，不能算 v0.2.8 官方新增 |
 
+## 本次审计工程变更
+
+- 客户模型定价页新增“来源”列：官方 v0.2.8、SSXZ 定制、线上已配置、来源待确认；没有线上价格时额外显示“暂无线上定价”。
+- 发布预检现在要求候选版本携带 `release-provenance.json`，并检查 `config.yaml`、`data` 链接和 `/login`、`/app/available-channels`、`/model-plaza` 等页面返回 HTML 后才允许切换版本。
+- 这些改动已在本地构建和单元测试中验证；本次没有重新发布生产站，因此线上页面不会立即出现“来源”列。
+
 ## 线上事实
 
 - 真实用户模型页面是 `/app/available-channels`；`/app/models` 不是项目路由，直接访问 404 属于错误地址，不是线上坏链路。

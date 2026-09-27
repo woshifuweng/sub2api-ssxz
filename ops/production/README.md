@@ -17,7 +17,15 @@ with a missing frontend is not a valid release.
   releases/
     <active-version>/sub2api
     <candidate-version>/sub2api
+    <candidate-version>/release-provenance.json
+    <candidate-version>/config.yaml -> /opt/sub2api/config.yaml
+    <candidate-version>/data -> <isolated-or-production-data>
 ```
+
+Every candidate must carry `release-provenance.json` with the official
+upstream repository/tag, upstream commit, merge commit, and SSXZ custom parent
+commit. This manifest records the artifact; it does not replace the read-only
+`audit-upstream-release.py` check against GitHub.
 
 The production unit should use:
 
@@ -49,8 +57,9 @@ sudo RELEASE_ROOT=/opt/sub2api/releases \
   /opt/sub2api/releases/<candidate-version>
 ```
 
-The candidate binary and both environment files are checked as the service
-user. The candidate first starts on a temporary loopback port. Only after the
+The candidate binary, provenance manifest, config/data links, and both
+environment files are checked as the service user. The candidate first starts
+on a temporary loopback port. Only after the
 health and page checks pass is the `current` symlink replaced atomically and
 systemd restarted. A failed restart or production health check restores the prior link,
 restarts it, and verifies rollback health.

@@ -18,9 +18,10 @@ assert_contains() {
 setup_fixture() {
   local name="$1"
   fixture="$test_root/$name"
-  mkdir -p "$fixture/bin" "$fixture/releases/old" "$fixture/releases/new"
+  mkdir -p "$fixture/bin" "$fixture/releases/old" "$fixture/releases/new" "$fixture/shared/data"
   : >"$fixture/production.env"
   : >"$fixture/preflight.env"
+  : >"$fixture/shared/config.yaml"
   ln -s "$fixture/releases/old" "$fixture/current"
 
   cat >"$fixture/releases/new/sub2api" <<'EOF'
@@ -34,6 +35,19 @@ while :; do sleep 1; done
 EOF
   chmod +x "$fixture/releases/new/sub2api"
   cp "$fixture/releases/new/sub2api" "$fixture/releases/old/sub2api"
+  ln -s "$fixture/shared/config.yaml" "$fixture/releases/new/config.yaml"
+  ln -s "$fixture/shared/config.yaml" "$fixture/releases/old/config.yaml"
+  ln -s "$fixture/shared/data" "$fixture/releases/new/data"
+  ln -s "$fixture/shared/data" "$fixture/releases/old/data"
+  cat >"$fixture/releases/new/release-provenance.json" <<'EOF'
+{
+  "upstream_repo": "https://github.com/Wei-Shaw/sub2api.git",
+  "upstream_tag": "v0.2.8",
+  "upstream_commit": "fd80b08c90b55edcad5b00171b53f08721d30da1",
+  "merge_commit": "9b4b053d73d8f92815d73304f83d2818c4159eda",
+  "custom_parent": "3a4eed55b7f6cb5c41f247d927c30449ff5afab2"
+}
+EOF
 
   cat >"$fixture/bin/runuser" <<'EOF'
 #!/usr/bin/env bash
@@ -61,6 +75,7 @@ EOF
 url=""
 for arg in "$@"; do url="$arg"; done
 if [[ "$url" == *":18081/"* ]]; then
+  printf '<!doctype html><html></html>'
   [[ "${FAIL_PREFLIGHT_HEALTH:-false}" != "true" ]]
 else
   count=0
@@ -68,6 +83,7 @@ else
   count=$((count + 1))
   printf '%s' "$count" >"$PRODUCTION_CURL_COUNT"
   if [[ "${FAIL_FIRST_PRODUCTION_HEALTH:-false}" == "true" && "$count" -eq 1 ]]; then exit 1; fi
+  printf '<!doctype html><html></html>'
 fi
 EOF
 
@@ -115,6 +131,18 @@ chmod -x "$fixture/releases/new/sub2api"
 run_expect_failure "$fixture/output" "$release_script" "$fixture/releases/new"
 assert_contains "$fixture/output" "candidate binary is not executable"
 [[ "$(readlink -f "$CURRENT_LINK")" == "$fixture/releases/old" ]]
+
+setup_fixture missing-provenance
+rm "$fixture/releases/new/release-provenance.json"
+run_expect_failure "$fixture/output" "$release_script" "$fixture/releases/new"
+assert_contains "$fixture/output" "release provenance manifest not found"
+[[ ! -e "$SYSTEMCTL_LOG" ]]
+
+setup_fixture missing-runtime-link
+rm "$fixture/releases/new/config.yaml"
+run_expect_failure "$fixture/output" "$release_script" "$fixture/releases/new"
+assert_contains "$fixture/output" "candidate config.yaml must be a symlink"
+[[ ! -e "$SYSTEMCTL_LOG" ]]
 
 setup_fixture invalid-port
 export PREFLIGHT_PORT=70000
