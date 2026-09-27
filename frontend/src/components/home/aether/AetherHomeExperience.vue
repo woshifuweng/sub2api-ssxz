@@ -1200,9 +1200,20 @@ onUnmounted(() => {
 
   .aether-brand__copy small,
   .aether-locale,
-  .aether-header__login,
   .aether-header__cta {
     display: none;
+  }
+
+  /* Keep one obvious entry point on small screens. Hiding both the login link
+     and primary CTA left unauthenticated visitors without a discoverable way
+     into the product. */
+  .aether-header__login {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.25rem;
+    padding: 0 0.625rem;
+    color: hsl(var(--foreground));
+    background: hsl(var(--accent));
   }
 
   .logo-container {
