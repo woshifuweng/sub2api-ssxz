@@ -74,3 +74,15 @@ bash ops/production/test-preflight-systemd-release.sh
 
 The test suite uses temporary directories and fake `runuser`, `curl`, and
 `systemctl`; it never touches a real service.
+## Target model probe
+
+`probe-target-models.sh` performs one minimal `/v1/chat/completions` request for each target model. It is intentionally opt-in because it can consume real quota. Use only an isolated QA API key, never a customer key:
+
+```bash
+MODEL_PROBE_CONFIRM=YES \
+MODEL_PROBE_BASE_URL=https://api.example.com \
+MODEL_PROBE_API_KEY='[redacted]' \
+./ops/production/probe-target-models.sh
+```
+
+The script prints only model, HTTP status, latency and PASS/FAIL; it does not print the key or response body. `MODEL_PROBE_DRY_RUN=1` verifies the selected model list without sending requests. A PASS proves the endpoint returned HTTP 2xx for that key; it does not by itself replace the customer-facing PC/mobile acceptance test.
