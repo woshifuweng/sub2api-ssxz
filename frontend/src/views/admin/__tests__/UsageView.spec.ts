@@ -687,4 +687,35 @@ describe('admin UsageView model audit export', () => {
 		expect(row.slice(4, 8)).toEqual(['gpt-5.6-sol', 'gpt-5.5', 'gpt-5.4', 'Yes'])
 		expect(saveAs).toHaveBeenCalledTimes(1)
 	})
+
+	it('exports account billing from the account pricing override when present', async () => {
+		exportList.mockResolvedValue({
+			items: [{
+				id: 2,
+				created_at: '2026-08-04T00:00:00Z',
+				model: 'gpt-5.6-sol',
+				total_cost: 0.04,
+				actual_cost: 0.14,
+				account_stats_cost: 0.01,
+				account_rate_multiplier: 2,
+				input_tokens: 1,
+				output_tokens: 1,
+				cache_read_tokens: 0,
+				cache_creation_tokens: 0,
+			}],
+			total: 1,
+			pages: 1,
+		})
+
+		const wrapper = mountRouteFilteredUsageView()
+		vi.advanceTimersByTime(120)
+		await flushPromises()
+
+		await (wrapper.vm as any).exportToExcel()
+		await flushPromises()
+
+		const row = sheetAddAoa.mock.calls[0][1][0]
+		expect(row[24]).toBe('0.140000')
+		expect(row[25]).toBe('0.020000')
+	})
 })

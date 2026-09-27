@@ -800,6 +800,13 @@ const getRequestTypeLabel = (log: AdminUsageLog): string => {
   return t("usage.unknown");
 };
 
+/** Keep exported account billing aligned with the detail table and dashboard. */
+const accountBilled = (log: Pick<AdminUsageLog, "total_cost" | "account_stats_cost" | "account_rate_multiplier">): number => {
+  const base = log.account_stats_cost != null ? log.account_stats_cost : (log.total_cost ?? 0);
+  const result = base * (log.account_rate_multiplier ?? 1);
+  return Number.isFinite(result) ? result : 0;
+};
+
 const exportToExcel = async () => {
   if (exporting.value) return;
   exporting.value = true;
@@ -893,7 +900,7 @@ const exportToExcel = async () => {
         (log.account_rate_multiplier ?? 1).toFixed(2),
         log.total_cost?.toFixed(6) || "0.000000",
         log.actual_cost?.toFixed(6) || "0.000000",
-        (log.total_cost * (log.account_rate_multiplier ?? 1)).toFixed(6),
+        accountBilled(log).toFixed(6),
         log.first_token_ms ?? "",
         log.duration_ms,
         log.request_id || "",
