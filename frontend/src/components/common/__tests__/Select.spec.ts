@@ -36,7 +36,7 @@ const mockTriggerRect = (left: number, width: number) => {
   })
 }
 
-const openSelect = async () => {
+const openSelect = async (props: Record<string, unknown> = {}) => {
   const wrapper = mount(Select, {
     props: {
       modelValue: null,
@@ -46,6 +46,7 @@ const openSelect = async () => {
           label: 'very-long-unbroken-option-value-that-must-not-overflow',
         },
       ],
+      ...props,
     },
   })
   unmountWrapper = () => wrapper.unmount()
@@ -66,6 +67,12 @@ afterEach(() => {
 })
 
 describe('Select dropdown viewport constraints', () => {
+  it('supports an optional page-specific portal class', async () => {
+    const dropdown = await openSelect({ portalClass: 'model-catalog-select-dropdown' })
+
+    expect(dropdown?.classList.contains('model-catalog-select-dropdown')).toBe(true)
+  })
+
   it('preserves the existing 200px minimum width when space is available', async () => {
     setViewportWidth(1024)
     mockTriggerRect(20, 80)

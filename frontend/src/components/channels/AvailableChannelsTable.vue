@@ -67,39 +67,42 @@
                 </span>
               </td>
               <td class="model-catalog__group-cell">
-                <Select
-                  :model-value="selectedOption(row)?.value"
-                  :options="row.options"
-                  value-key="value"
-                  label-key="label"
-                  searchable
-                  :search-placeholder="t('availableChannels.groupSearchPlaceholder')"
-                  :empty-text="t('availableChannels.groupSearchEmpty')"
-                  :data-testid="`group-select-${row.key}`"
-                  @update:model-value="selectPlatformGroup(row.platform, $event)"
-                >
-                  <template #selected="{ option }">
-                    <span v-if="option" class="model-group-selected">
-                      <span class="model-group-selected__name">{{ asModelGroupOption(option).group.name }}</span>
-                      <span :class="['model-group-rate', rateToneClass(asModelGroupOption(option).effectiveRate)]">{{ formatRate(asModelGroupOption(option).effectiveRate) }}</span>
-                    </span>
-                  </template>
-                  <template #option="{ option, selected }">
-                    <div class="model-group-option">
-                      <span class="model-catalog__provider-mark model-catalog__provider-mark--small">
-                        <ModelIcon :model="providerIconModel(asModelGroupOption(option).group.platform)" size="16px" />
+                <div class="model-catalog__group-select">
+                  <Select
+                    :model-value="selectedOption(row)?.value"
+                    :options="row.options"
+                    value-key="value"
+                    label-key="label"
+                    searchable
+                    :search-placeholder="t('availableChannels.groupSearchPlaceholder')"
+                    :empty-text="t('availableChannels.groupSearchEmpty')"
+                    portal-class="model-catalog-select-dropdown"
+                    :data-testid="`group-select-${row.key}`"
+                    @update:model-value="selectPlatformGroup(row.platform, $event)"
+                  >
+                    <template #selected="{ option }">
+                      <span v-if="option" class="model-group-selected">
+                        <span class="model-group-selected__name">{{ asModelGroupOption(option).group.name }}</span>
+                        <span :class="['model-group-rate', rateToneClass(asModelGroupOption(option).effectiveRate)]">{{ formatRate(asModelGroupOption(option).effectiveRate) }}</span>
                       </span>
-                      <span class="model-group-option__copy">
-                        <span class="model-group-option__title">
-                          <strong>{{ asModelGroupOption(option).group.name }}</strong>
-                          <span :class="['model-group-rate', rateToneClass(asModelGroupOption(option).effectiveRate)]">{{ formatRate(asModelGroupOption(option).effectiveRate) }}</span>
+                    </template>
+                    <template #option="{ option, selected }">
+                      <div class="model-group-option">
+                        <span class="model-catalog__provider-mark model-catalog__provider-mark--small">
+                          <ModelIcon :model="providerIconModel(asModelGroupOption(option).group.platform)" size="16px" />
                         </span>
-                        <small>{{ asModelGroupOption(option).group.description || t('availableChannels.groupDescriptionFallback') }}</small>
-                      </span>
-                      <Icon v-if="selected" name="check" size="sm" class="model-group-option__check" />
-                    </div>
-                  </template>
-                </Select>
+                        <span class="model-group-option__copy">
+                          <span class="model-group-option__title">
+                            <strong>{{ asModelGroupOption(option).group.name }}</strong>
+                            <span :class="['model-group-rate', rateToneClass(asModelGroupOption(option).effectiveRate)]">{{ formatRate(asModelGroupOption(option).effectiveRate) }}</span>
+                          </span>
+                          <small>{{ asModelGroupOption(option).group.description || t('availableChannels.groupDescriptionFallback') }}</small>
+                        </span>
+                        <Icon v-if="selected" name="check" size="sm" class="model-group-option__check" />
+                      </div>
+                    </template>
+                  </Select>
+                </div>
               </td>
               <td class="model-catalog__price">{{ formatTokenPrice(selectedOption(row)?.pricing.input_price, selectedOption(row)?.effectiveRate) }}</td>
               <td class="model-catalog__price">{{ formatTokenPrice(selectedOption(row)?.pricing.output_price, selectedOption(row)?.effectiveRate) }}</td>
@@ -508,6 +511,19 @@ function providerIconModel(platform: string): string {
 .model-catalog__group-cell :deep(.select-trigger:hover) {
   border-color: var(--ssxz-border-strong);
   background: color-mix(in srgb, var(--ssxz-surface-raised) 38%, transparent);
+}
+
+.model-catalog__group-select {
+  min-width: 0;
+}
+
+:global(.model-catalog-select-dropdown) {
+  max-width: min(26rem, calc(100vw - 1rem));
+  max-height: min(20rem, calc(100vh - 1rem));
+}
+
+:global(.model-catalog-select-dropdown .select-options) {
+  max-height: min(16rem, calc(100vh - 5rem));
 }
 
 .model-group-selected,

@@ -52,7 +52,7 @@
           v-if="isOpen"
           ref="dropdownRef"
           class="select-dropdown-portal"
-          :class="[instanceId]"
+          :class="[instanceId, props.portalClass]"
           :style="dropdownStyle"
           role="listbox"
           @click.stop
@@ -158,6 +158,8 @@ interface Props {
   remote?: boolean
   /** 远程搜索模式下的加载态：options 为空时下拉显示 loading 文案 */
   loading?: boolean
+  /** Optional class for page-specific viewport or stacking adjustments. */
+  portalClass?: string
 }
 
 interface Emits {
@@ -176,7 +178,8 @@ const props = withDefaults(defineProps<Props>(), {
   valueKey: 'value',
   labelKey: 'label',
   remote: false,
-  loading: false
+  loading: false,
+  portalClass: ''
 })
 
 const emit = defineEmits<Emits>()

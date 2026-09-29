@@ -56,8 +56,8 @@ function mountTable(props: Record<string, unknown> = {}) {
         Icon: { props: ['name'], template: '<i :data-icon="name" />' },
         ModelIcon: true,
         Select: {
-          props: ['modelValue', 'options'],
-          template: '<div data-select>{{ options?.[0]?.label }}</div>',
+          props: ['modelValue', 'options', 'portalClass'],
+          template: '<div data-select :data-portal-class="portalClass">{{ options?.[0]?.label }}</div>',
         },
       },
     },
@@ -70,6 +70,8 @@ describe('AvailableChannelsTable model catalog', () => {
     expect(wrapper.findAll('thead th')).toHaveLength(8)
     expect(wrapper.get('[data-provider-tab="anthropic"]').text()).toContain('1')
     expect(wrapper.get('[data-testid="model-row"]').attributes('data-model')).toBe('claude-test')
+    expect(wrapper.get('.model-catalog__group-select').exists()).toBe(true)
+    expect(wrapper.get('[data-select]').attributes('data-portal-class')).toBe('model-catalog-select-dropdown')
     expect(wrapper.text()).toContain('Exclusive Pro')
     expect(wrapper.text()).toContain('200K')
   })
