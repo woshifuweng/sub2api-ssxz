@@ -83,6 +83,21 @@ func TestCheckBillingEligibilityForCost_UsesActualEstimatedCostInsteadOfFixedFlo
 	require.ErrorIs(t, err, ErrInsufficientBalance)
 }
 
+func TestCheckBillingEligibilityForCost_AllowsKnownAffordableRequestBelowReserve(t *testing.T) {
+	cache := &balanceEligibilityCacheStub{balance: 9}
+	cfg := &config.Config{}
+	cfg.Billing.MinimumBalanceReserve = 10
+	svc := NewBillingCacheService(cache, nil, nil, nil, nil, nil, cfg, nil)
+	t.Cleanup(svc.Stop)
+
+	// A configured reserve must not reject a request whose actual preflight
+	// estimate is already known to fit within the user's available balance.
+	err := svc.CheckBillingEligibilityForCost(
+		context.Background(), &User{ID: 1}, nil, nil, nil, "", 0.35,
+	)
+	require.NoError(t, err)
+}
+
 func TestSyncBalanceCacheAfterDeduction_InvalidatesExhaustedBalance(t *testing.T) {
 	cache := &balanceEligibilityCacheStub{
 		balance:                  0.50,

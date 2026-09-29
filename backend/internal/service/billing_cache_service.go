@@ -940,10 +940,16 @@ func (s *BillingCacheService) checkBalanceEligibilityForCost(ctx context.Context
 		s.circuitBreaker.OnSuccess()
 	}
 
-	if s.balanceBelowEligibilityThreshold(balance) {
-		return ErrInsufficientBalance
-	}
-	if estimatedCost > 0 && balance < estimatedCost {
+	// When the request cost is known, the estimate is the authoritative
+	// affordability check. A configured reserve is only a fallback for requests
+	// whose cost cannot be estimated; applying it first would reject affordable
+	// low-balance requests (for example, balance 9 with a reserve of 10 and an
+	// estimated request cost of 0.35).
+	if estimatedCost > 0 {
+		if balance < estimatedCost {
+			return ErrInsufficientBalance
+		}
+	} else if s.balanceBelowEligibilityThreshold(balance) {
 		return ErrInsufficientBalance
 	}
 
