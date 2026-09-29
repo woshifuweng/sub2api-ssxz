@@ -28,9 +28,12 @@
               <Sun v-if="theme === 'dark'" aria-hidden="true" />
               <Moon v-else aria-hidden="true" />
             </FoundationButton>
-            <RouterLink to="/login" class="public-docs-login">登录</RouterLink>
-            <RouterLink to="/register" class="f0-button f0-button--default public-docs-cta">
-              开始使用
+            <RouterLink v-if="!isAuthenticated" to="/login" class="public-docs-login">登录</RouterLink>
+            <RouterLink
+              :to="isAuthenticated ? authenticatedDestination : '/register'"
+              class="f0-button f0-button--default public-docs-cta"
+            >
+              {{ isAuthenticated ? '进入控制台' : '开始使用' }}
             </RouterLink>
           </div>
         </div>
@@ -58,10 +61,10 @@
                 <small>三步一键接入</small>
               </span>
             </a>
-            <RouterLink to="/login">
+            <RouterLink :to="isAuthenticated ? authenticatedDestination : '/login'">
               <KeyRound aria-hidden="true" />
               <span>
-                <strong>登录控制台</strong>
+                <strong>{{ isAuthenticated ? '进入控制台' : '登录控制台' }}</strong>
                 <small>创建或管理 API Key</small>
               </span>
             </RouterLink>
@@ -89,6 +92,7 @@ import BrandLogo from '@/components/common/BrandLogo.vue'
 import PageHeader from '@/components/common/PageHeader.vue'
 import CcSwitchGuide from '@/components/docs/CcSwitchGuide.vue'
 import { FoundationButton, FoundationCard, FoundationProvider } from '@/components/foundation'
+import { useAuthStore } from '@/stores/auth'
 import { setSafeLocalStorageItem } from '@/utils/safeStorage'
 
 function getInitialTheme(): 'light' | 'dark' {
@@ -98,6 +102,9 @@ function getInitialTheme(): 'light' | 'dark' {
 
 const theme = ref<'light' | 'dark'>(getInitialTheme())
 const themeLabel = computed(() => theme.value === 'dark' ? '切换到亮色模式' : '切换到暗色模式')
+const authStore = useAuthStore()
+const isAuthenticated = computed(() => authStore.isAuthenticated)
+const authenticatedDestination = computed(() => authStore.isAdmin ? '/admin/dashboard' : '/app/dashboard')
 let themeObserver: MutationObserver | null = null
 
 function syncTheme(): void {

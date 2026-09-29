@@ -1118,6 +1118,17 @@ describe('user KeysView column settings', () => {
       expect(wrapper.findAllComponents({ name: 'Select' })[0].props('options')).toHaveLength(13)
     })
 
+    it('keeps multi-icon provider cards contained inside their card', async () => {
+      const wrapper = await openCreate()
+      const domesticCard = wrapper.get('input[name="key-provider"][value="domestic"]').element.closest('label')
+      const iconRow = domesticCard?.querySelector<HTMLElement>('.key-provider-icons')
+
+      expect(iconRow).not.toBeNull()
+      expect(iconRow?.className).toContain('min-w-0')
+      expect(iconRow?.className).toContain('max-w-full')
+      expect(iconRow?.className).toContain('flex-wrap')
+    })
+
     it('clears the previous group on provider change and submits only the newly selected group', async () => {
       const wrapper = await openCreate()
       await wrapper.get('[data-tour="key-form-name"]').setValue('My key')
