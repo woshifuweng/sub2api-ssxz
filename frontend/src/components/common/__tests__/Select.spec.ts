@@ -85,9 +85,9 @@ describe('Select dropdown viewport constraints', () => {
     const dropdown = await openSelect()
 
     expect(dropdown).not.toBeNull()
-    expect(dropdown?.style.left).toBe('220px')
-    expect(dropdown?.style.minWidth).toBe('92px')
-    expect(dropdown?.style.maxWidth).toBe('92px')
+    expect(dropdown?.style.left).toBe('112px')
+    expect(dropdown?.style.minWidth).toBe('200px')
+    expect(dropdown?.style.maxWidth).toBe('200px')
   })
 
   it('clamps a trigger left of the viewport to the safe padding', async () => {
@@ -109,9 +109,27 @@ describe('Select dropdown viewport constraints', () => {
     const dropdown = await openSelect()
 
     expect(dropdown).not.toBeNull()
-    expect(dropdown?.style.left).toBe('312px')
-    expect(dropdown?.style.minWidth).toBe('0px')
-    expect(dropdown?.style.maxWidth).toBe('0px')
+    expect(dropdown?.style.left).toBe('112px')
+    expect(dropdown?.style.minWidth).toBe('200px')
+    expect(dropdown?.style.maxWidth).toBe('200px')
+  })
+
+  it('adds a page-specific class without losing the shared portal class', async () => {
+    setViewportWidth(1024)
+    mockTriggerRect(20, 80)
+    const wrapper = mount(Select, {
+      props: {
+        modelValue: null,
+        options: [{ value: 'example', label: 'Example' }],
+        portalClass: 'model-catalog-select-dropdown',
+      },
+    })
+    unmountWrapper = () => wrapper.unmount()
+    await wrapper.get('button').trigger('click')
+    await nextTick()
+
+    const dropdown = document.body.querySelector<HTMLElement>('.select-dropdown-portal')
+    expect(dropdown?.classList.contains('model-catalog-select-dropdown')).toBe(true)
   })
 })
 

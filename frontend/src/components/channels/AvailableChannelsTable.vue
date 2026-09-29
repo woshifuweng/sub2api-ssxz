@@ -69,17 +69,19 @@
                 </span>
               </td>
               <td class="model-catalog__group-cell">
-                <Select
-                  :model-value="selectedOption(row)?.value"
-                  :options="row.options"
-                  value-key="value"
-                  label-key="label"
-                  searchable
-                  :search-placeholder="t('availableChannels.groupSearchPlaceholder')"
-                  :empty-text="t('availableChannels.groupSearchEmpty')"
-                  :data-testid="`group-select-${row.key}`"
-                  @update:model-value="selectPlatformGroup(row.platform, $event)"
-                >
+                <div class="model-catalog__group-select">
+                  <Select
+                    :model-value="selectedOption(row)?.value"
+                    :options="row.options"
+                    value-key="value"
+                    label-key="label"
+                    searchable
+                    portal-class="model-catalog-select-dropdown"
+                    :search-placeholder="t('availableChannels.groupSearchPlaceholder')"
+                    :empty-text="t('availableChannels.groupSearchEmpty')"
+                    :data-testid="`group-select-${row.key}`"
+                    @update:model-value="selectPlatformGroup(row.platform, $event)"
+                  >
                   <template #selected="{ option }">
                     <span v-if="option" class="model-group-selected">
                       <span class="model-group-selected__name">{{ asModelGroupOption(option).group.name }}</span>
@@ -101,7 +103,8 @@
                       <Icon v-if="selected" name="check" size="sm" class="model-group-option__check" />
                     </div>
                   </template>
-                </Select>
+                  </Select>
+                </div>
               </td>
               <td class="model-catalog__price">{{ formatTokenPrice(selectedOption(row)?.pricing?.input_price, selectedOption(row)?.effectiveRate) }}</td>
               <td class="model-catalog__price">{{ formatTokenPrice(selectedOption(row)?.pricing?.output_price, selectedOption(row)?.effectiveRate) }}</td>
@@ -515,6 +518,10 @@ function providerIconModel(platform: string): string {
   transition: border-color 160ms ease, background-color 160ms ease;
 }
 
+.model-catalog__group-select {
+  min-width: 0;
+}
+
 .model-catalog__group-cell :deep(.select-trigger:hover) {
   border-color: var(--ssxz-border-strong);
   background: color-mix(in srgb, var(--ssxz-surface-raised) 38%, transparent);
@@ -577,6 +584,14 @@ function providerIconModel(platform: string): string {
 .model-group-option__copy strong { color: var(--ssxz-text-primary); font-size: 0.78rem; }
 .model-group-option__copy small { overflow: hidden; color: var(--ssxz-text-muted); font-size: 0.68rem; text-overflow: ellipsis; white-space: nowrap; }
 .model-group-option__check { color: var(--ssxz-action); }
+
+:global(.model-catalog-select-dropdown) {
+  width: min(30rem, calc(100vw - 1rem));
+}
+
+:global(.model-catalog-select-dropdown .select-options) {
+  max-height: min(20rem, calc(100vh - 5rem));
+}
 
 .model-catalog__price,
 .model-catalog__context {

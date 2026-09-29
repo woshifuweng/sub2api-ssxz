@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/brand/ssxz-cat-dog-static.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SSXZ AI</title>
+    <script type="module" crossorigin src="/assets/index-Be8uSo1p.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-vue-CT3HRP_Z.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-misc-Czm8xlOJ.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-i18n-CaWs1RFa.js">
+    <link rel="stylesheet" crossorigin href="/assets/vendor-misc-DB0Q8XAf.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-DrnIO2ZU.css">
+  </head>
+  <body>
+    <div id="app">
+      <section id="ssxz-startup" class="ssxz-startup" aria-label="SSXZ AI">
+        <div class="ssxz-startup-card">
+          <div class="ssxz-startup-mark" aria-hidden="true">S</div>
+          <div class="ssxz-startup-copy">
+            <p class="ssxz-startup-eyebrow">SSXZ AI</p>
+            <h1 id="ssxz-startup-title">正在打开管理台</h1>
+            <p id="ssxz-startup-status" class="ssxz-startup-status" role="status">正在加载页面，请稍候…</p>
+            <p id="ssxz-startup-detail" class="ssxz-startup-detail">首次打开可能需要几秒钟。请不要重复提交或刷新。</p>
+            <a id="ssxz-startup-retry" class="ssxz-startup-retry" href="" hidden>重新加载页面</a>
+          </div>
+        </div>
+        <noscript><p class="ssxz-startup-noscript">请启用 JavaScript 后重试 / Please enable JavaScript.</p></noscript>
+      </section>
+    </div>
+    <style>
+      .ssxz-startup { min-height: 100vh; display: grid; place-items: center; padding: 24px; box-sizing: border-box; background: radial-gradient(circle at 50% -10%, rgba(45, 212, 191, .08), transparent 42%), #090a0c; color: #f5f7fa; font: 14px/1.6 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .ssxz-startup-card { display: flex; width: min(100%, 560px); gap: 16px; padding: 26px; box-sizing: border-box; border: 1px solid rgba(148, 163, 184, .24); border-radius: 18px; background: linear-gradient(145deg, rgba(25, 29, 36, .98), rgba(14, 16, 20, .99)); box-shadow: 0 24px 70px rgba(0, 0, 0, .42); }
+      .ssxz-startup-mark { flex: 0 0 40px; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 13px; background: linear-gradient(145deg, #2dd4bf, #2563eb); color: #fff; font-size: 20px; font-weight: 800; box-shadow: 0 8px 22px rgba(37, 99, 235, .22); }
+      .ssxz-startup-copy { min-width: 0; }
+      .ssxz-startup-eyebrow { margin: 0; color: #94a3b8; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+      .ssxz-startup h1 { margin: 4px 0 8px; font-size: 20px; line-height: 1.35; }
+      .ssxz-startup-status { display: flex; align-items: center; gap: 8px; margin: 0; color: #e2e8f0; }
+      .ssxz-startup-status::before { content: ""; width: 12px; height: 12px; flex: 0 0 12px; border: 2px solid rgba(148, 163, 184, .34); border-top-color: #2dd4bf; border-radius: 50%; animation: ssxz-startup-spin 900ms linear infinite; }
+      .ssxz-startup-detail { margin: 8px 0 0; color: #94a3b8; }
+      .ssxz-startup-retry { display: inline-flex; margin-top: 18px; padding: 9px 15px; border: 1px solid rgba(45, 212, 191, .48); border-radius: 9px; color: #f8fafc; text-decoration: none; font-weight: 650; background: rgba(45, 212, 191, .12); transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease; }
+      .ssxz-startup-retry:hover, .ssxz-startup-retry:focus-visible { background: rgba(45, 212, 191, .2); border-color: rgba(45, 212, 191, .78); outline: none; transform: translateY(-1px); }
+      .ssxz-startup-noscript { width: min(100%, 520px); margin: 12px 0 0; color: #fbbf24; text-align: center; }
+      .ssxz-startup[data-state="error"] .ssxz-startup-mark { background: linear-gradient(145deg, #f97316, #dc2626); box-shadow: 0 8px 22px rgba(220, 38, 38, .2); }
+      .ssxz-startup[data-state="error"] .ssxz-startup-status::before { display: none; }
+      @keyframes ssxz-startup-spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) { .ssxz-startup-status::before { animation: none; } .ssxz-startup-retry { transition: none; } }
+      @media (max-width: 520px) { .ssxz-startup { padding: 16px; } .ssxz-startup-card { gap: 13px; padding: 20px; } .ssxz-startup-mark { flex-basis: 36px; width: 36px; height: 36px; } }
+    </style>
+    <script>
+      (() => {
+        const showStartupFailure = () => {
+          const root = document.getElementById('ssxz-startup')
+          const title = document.getElementById('ssxz-startup-title')
+          const status = document.getElementById('ssxz-startup-status')
+          const detail = document.getElementById('ssxz-startup-detail')
+          const retry = document.getElementById('ssxz-startup-retry')
+          if (!root || !status || !retry) return
+          root.dataset.state = 'error'
+          if (title) title.textContent = '页面暂时没有加载完成'
+          status.textContent = '网页资源没有成功启动，请重新加载一次。'
+          if (detail) detail.textContent = '如果问题持续出现，请检查网络或关闭拦截网页资源的浏览器插件。'
+          retry.hidden = false
+        }
+        window.addEventListener('error', (event) => {
+          if (event.target instanceof HTMLScriptElement) showStartupFailure()
+        }, true)
+        window.addEventListener('unhandledrejection', () => showStartupFailure())
+      })()
+    </script>
+  </body>
+</html>

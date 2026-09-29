@@ -272,6 +272,15 @@ describe('SSXZ upstream route parity', () => {
     expect(redirect({ query: { plan: '7' }, hash: '#usage' })).toEqual({ path: '/app/subscriptions', query: { plan: '7' }, hash: '#usage' })
   })
 
+  it('keeps the old /app/account bookmark working', () => {
+    const redirect = routerHarness.routes.find((route) => route.path === '/app/account')?.redirect as Function
+    expect(redirect({ query: { tab: 'security' }, hash: '#password' })).toEqual({
+      path: '/app/profile',
+      query: { tab: 'security' },
+      hash: '#password',
+    })
+  })
+
   it('resolves aliases with the real router without changing OAuth callback paths', async () => {
     const { createRouter, createMemoryHistory } = await vi.importActual<typeof import('vue-router')>('vue-router')
     const router = createRouter({ history: createMemoryHistory(), routes: routerHarness.routes })
