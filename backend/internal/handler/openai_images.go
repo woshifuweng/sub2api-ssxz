@@ -157,6 +157,13 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 	requestCtx := service.WithOpenAIImagesEndpoint(service.WithOpenAIImageGenerationIntent(c.Request.Context()))
 
 	maxAccountSwitches := h.maxAccountSwitches
+	// Image edits are expensive and the image pool is commonly split across
+	// three providers. A global limit of one would stop after two timeouts and
+	// leave the third eligible provider untried. Keep the broader retry policy
+	// local to images so text traffic keeps its configured limit.
+	if maxAccountSwitches < 2 {
+		maxAccountSwitches = 2
+	}
 	switchCount := 0
 	profitVetoCount := 0
 	failedAccountIDs := make(map[int64]struct{})

@@ -211,6 +211,65 @@ func TestOpenAIGatewayHandlerImages_ServerErrorFailsOverAndReturnsClearErrorWhen
 	require.Equal(t, "failover", events[1].Kind)
 }
 
+func TestOpenAIGatewayHandlerImages_TriesThreeEligibleAccountsWhenGlobalLimitIsOne(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	groupID := int64(3132)
+	accounts := []service.Account{
+		{
+			ID: 1, Name: "image-account-1", Platform: service.PlatformOpenAI,
+			Type: service.AccountTypeOAuth, Status: service.StatusActive, Schedulable: true,
+			Credentials: map[string]any{"access_token": "token-1"},
+		},
+		{
+			ID: 2, Name: "image-account-2", Platform: service.PlatformOpenAI,
+			Type: service.AccountTypeOAuth, Status: service.StatusActive, Schedulable: true,
+			Credentials: map[string]any{"access_token": "token-2"},
+		},
+		{
+			ID: 3, Name: "image-account-3", Platform: service.PlatformOpenAI,
+			Type: service.AccountTypeOAuth, Status: service.StatusActive, Schedulable: true,
+			Credentials: map[string]any{"access_token": "token-3"},
+		},
+	}
+	accountRepo := openAIImagesFailoverAccountRepo{accounts: accounts}
+	upstream := &openAIImagesFailoverHTTPUpstream{}
+	cfg := &config.Config{RunMode: config.RunModeSimple}
+	gatewayService := service.NewOpenAIGatewayService(
+		accountRepo, nil, nil, nil, nil, nil, nil, cfg, nil, nil, nil, nil, nil,
+		upstream, nil, nil, nil, nil, nil, nil, nil, nil,
+	)
+	billingService := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	t.Cleanup(billingService.Stop)
+	handler := NewOpenAIGatewayHandler(
+		gatewayService,
+		service.NewConcurrencyService(nil),
+		billingService,
+		service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, cfg),
+		nil, nil, nil, nil, cfg,
+	)
+	// Production currently has this global limit set to one. Image failover
+	// must still cover all three eligible accounts in the image pool.
+	handler.maxAccountSwitches = 1
+
+	body := []byte(`{"model":"gpt-image-1","prompt":"draw a cat"}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+	c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{
+		ID: 99, GroupID: &groupID,
+		Group: &service.Group{ID: groupID, AllowImageGeneration: true},
+		User:  &service.User{ID: 100},
+	})
+	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 100, Concurrency: 0})
+
+	handler.Images(c)
+
+	require.Equal(t, []int64{1, 2, 3}, upstream.calls())
+	require.Equal(t, http.StatusBadGateway, rec.Code)
+}
+
 func TestOpenAIGatewayHandlerImages_EstimatedCostOverBalanceStopsBeforeUpstream(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	groupID := int64(3131)
