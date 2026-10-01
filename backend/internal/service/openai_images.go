@@ -688,7 +688,18 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 			Kind:               "request_error",
 			Message:            safeErr,
 		})
-		return nil, fmt.Errorf("upstream request failed: %s", safeErr)
+		// Keep transport failures on the typed failover path. The image handler
+		// uses UpstreamFailoverError to mark this account failed for this request
+		// and try the next eligible account. Returning a plain error here made a
+		// timeout look terminal, so a single slow API-key account surfaced as a
+		// customer-facing 502 instead of failing over.
+		return nil, newOpenAIUpstreamFailoverError(
+			http.StatusBadGateway,
+			nil,
+			[]byte(safeErr),
+			safeErr,
+			false,
+		)
 	}
 	if resp.StatusCode >= 400 {
 		respBody := s.readUpstreamErrorBody(resp)
