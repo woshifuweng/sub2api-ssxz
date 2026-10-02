@@ -168,6 +168,7 @@ describe('ImageToolsWorkspace', () => {
     auth.isAuthenticated = false
     await flushPromises()
     expect(wrapper.find('iframe').exists()).toBe(false)
+    expect(wrapper.get('button.primary').attributes('disabled')).toBeDefined()
   })
 
   it('does not send an old account key if identity changes during connection', async () => {

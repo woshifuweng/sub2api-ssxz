@@ -17,11 +17,11 @@
       <h2>{{ activeTool === 'canvas' ? '在画布上组织你的创作' : '生成、编辑和整理图片' }}</h2>
       <p>使用本站余额。选择图片分组后，系统会配置只用于图片生成的专用密钥，无需复制或填写。</p>
       <label for="image-tool-group">图片分组</label>
-      <select id="image-tool-group" v-model="selectedGroupId" :disabled="loading || connecting || groups.length === 0">
+      <select id="image-tool-group" v-model="selectedGroupId" :disabled="!authStore.isAuthenticated || loading || connecting || groups.length === 0">
         <option :value="0" disabled>请选择分组</option>
         <option v-for="group in groups" :key="group.id" :value="group.id">{{ group.name }}</option>
       </select>
-      <button type="button" class="tools-button primary" :disabled="!selectedGroupId || loading || connecting" @click="connect">
+      <button type="button" class="tools-button primary" :disabled="!authStore.isAuthenticated || !selectedGroupId || loading || connecting" @click="connect">
         {{ connecting ? '正在连接…' : '进入创作' }}
       </button>
       <p v-if="loading" role="status">正在读取可用分组…</p>
