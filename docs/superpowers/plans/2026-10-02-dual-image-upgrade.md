@@ -1,5 +1,11 @@
 # SSXZ: independent upgrades and two in-site image tools
 
+## Final status — 2026-10-02 production accepted
+
+All three approved releases are live. Backend v0.2.12 with preserved SSXZ fixes; workbench v0.7.14; canvas v0.19.0 as an independent in-site tool. Main fixed a fullscreen stacking bug found only in the full production shell, published `2bb0d1cde`, and verified actual clicks, dialog layering, reload history and the 390px entrance. Canvas final `5ccdfb4` defaults new embedded image nodes to one image. Real generation/edit/download passed in both tools; five requests (including one interrupted-reception retry) cost $0.75, matching the ledger; test Key 574 is disabled. See [final acceptance](2026-10-02-dual-image-acceptance.md) for current versions, failures encountered, proof and limited coverage.
+
+The sections below record the historical preparation sequence, not remaining work. Current production truth supersedes their pre-release statements. Concurrent docs updates are preserved; their later old-root changes mean rollback must reconcile latest docs rather than force an old fingerprint.
+
 ## Approved result
 
 Update Sub2API and the existing image workbench from their official upstreams; add the native infinite canvas as a second independent tool. Keep both complete experiences instead of merging their editors. Reuse station authentication and paid gateway. Do not expose upstream credentials or require customers to configure them. Preserve historical works and existing billing/failover/UI fixes. Do not modify the concurrent documentation task.
@@ -33,7 +39,7 @@ Update Sub2API and the existing image workbench from their official upstreams; a
 - [x] Workbench candidate merged/tested (v0.7.14; 615/615 passing; production dependency audit zero).
 - [x] Canvas candidate integrated/tested (v0.19.0; final production build, web 13/13, SSXZ 10/10 and production audit zero).
 - [x] Two-tool station entry tested with the actual Vue host and synthetic accounts (not live provider/billing acceptance).
-- [ ] Independent production releases and customer-journey acceptance passed.
+- [x] Independent production releases and the bounded customer-journey acceptance passed; evidence/limitations in the final acceptance record.
 
 No production modification has been made by this task at plan creation.
 
