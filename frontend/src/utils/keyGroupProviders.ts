@@ -18,7 +18,8 @@ const PROVIDER_BY_PLATFORM: Record<GroupPlatform, KeyGroupProvider> = {
   sora: 'other',
   kiro: 'other',
   composite: 'other',
-  opencode_go: 'other'
+  opencode_go: 'other',
+  typesafe: 'other'
 }
 
 export function getKeyGroupProvider(platform: GroupPlatform): KeyGroupProvider {

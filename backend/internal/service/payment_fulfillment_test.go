@@ -808,7 +808,7 @@ func TestPaymentRedeemDoesNotIncrementFailureLimit(t *testing.T) {
 	}}
 	svc := &RedeemService{redeemRepo: redeemRepo, cache: cache}
 
-	result, err := svc.redeemForPaymentFulfillment(ctx, 42, redeemRepo.code.Code)
+	result, err := svc.redeemForPaymentFulfillment(ctx, 42, redeemRepo.code.Code, 10)
 
 	require.Nil(t, result)
 	require.ErrorIs(t, err, ErrRedeemCodeExpired)
@@ -816,6 +816,25 @@ func TestPaymentRedeemDoesNotIncrementFailureLimit(t *testing.T) {
 	require.Zero(t, cache.incrementCalls)
 	require.Equal(t, 1, cache.acquireCalls)
 	require.Equal(t, 1, cache.releaseCalls)
+}
+
+func TestBalanceFulfillmentRejectsInvalidBonusSnapshot(t *testing.T) {
+	for name, order := range map[string]*dbent.PaymentOrder{
+		"nil":             nil,
+		"zero_amount":     {Amount: 0},
+		"nan_amount":      {Amount: math.NaN()},
+		"infinite_amount": {Amount: math.Inf(1)},
+		"negative_bonus":  {Amount: 5, BonusAmount: -1},
+		"excess_bonus":    {Amount: 5, BonusAmount: 6},
+		"nan_bonus":       {Amount: 5, BonusAmount: math.NaN()},
+		"infinite_bonus":  {Amount: 5, BonusAmount: math.Inf(1)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			// No repositories: invalid money must fail before code creation or credit.
+			err := (&PaymentService{}).doBalance(context.Background(), order, nil)
+			require.ErrorIs(t, err, ErrInvalidPaidRechargeAmount)
+		})
+	}
 }
 
 func TestExecuteBalanceFulfillmentBypassesUserRedeemRateLimit(t *testing.T) {
@@ -839,11 +858,11 @@ func TestExecuteBalanceFulfillmentBypassesUserRedeemRateLimit(t *testing.T) {
 		credited += amount
 		return nil
 	}
-	userRepo.creditPaidRechargeFn = func(_ context.Context, id int64, amount float64) (BalanceChange, error) {
+	userRepo.creditPaidRechargeFn = func(_ context.Context, id int64, amount, paidAmount float64) (BalanceChange, error) {
 		require.Equal(t, order.UserID, id)
 		before := credited
 		credited += amount
-		userRepo.getByIDUser.TotalRecharged += amount
+		userRepo.getByIDUser.TotalRecharged += paidAmount
 		return BalanceChange{Old: before, New: credited}, nil
 	}
 	cache := &paymentFulfillmentRedeemCacheStub{count: redeemMaxFailedAttempts}

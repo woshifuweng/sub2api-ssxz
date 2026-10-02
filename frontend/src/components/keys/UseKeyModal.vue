@@ -393,7 +393,19 @@
                 {{ t('keys.useKeyModal.codexModelCatalog.description') }}
               </p>
               <p class="mt-1 truncate font-mono text-xs text-gray-700 dark:text-gray-300">
-                {{ codexModelCatalogPath }}
+                {{ codexModelCatalogMode === 'remote' ? codexModelCatalogUrl : codexModelCatalogPath }}
+              </p>
+              <select
+                v-model="codexModelCatalogMode"
+                data-testid="codex-model-catalog-mode"
+                :aria-label="t('keys.useKeyModal.codexModelCatalog.mode')"
+                class="input mt-2 text-sm"
+              >
+                <option value="remote" :disabled="codexModelCatalogOversized">{{ t('keys.useKeyModal.codexModelCatalog.remote') }}</option>
+                <option value="file">{{ t('keys.useKeyModal.codexModelCatalog.local') }}</option>
+              </select>
+              <p v-if="codexModelCatalogOversized" class="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                {{ t('keys.useKeyModal.codexModelCatalog.oversized') }}
               </p>
             </div>
             <button
@@ -468,7 +480,7 @@ import { saveAs } from 'file-saver'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
-import { fetchCodexModelsManifest } from '@/api/codex'
+import { buildCodexModelCatalogUrl, fetchCodexModelsManifest } from '@/api/codex'
 import type { GroupPlatform } from '@/types'
 import {
   findCodexCatalogModel,
@@ -483,6 +495,7 @@ interface Props {
   baseUrl: string
   platform: GroupPlatform | null
   allowedModels?: string[]
+  claudeCodeOnly?: boolean
   allowMessagesDispatch?: boolean
   keyStatus?: 'active' | 'disabled' | 'inactive' | 'quota_exhausted' | 'expired'
 }
@@ -519,11 +532,20 @@ type CodexModelManifestState = 'idle' | 'loading' | 'ready' | 'error'
 const codexModelManifestState = ref<CodexModelManifestState>('idle')
 const codexModelManifestContent = ref('')
 const codexModelManifestModelCount = ref(0)
+const codexModelCatalogMode = ref<'remote' | 'file'>('remote')
+// Restricted keys must not inherit a broader or stale client model catalog.
+const hasModelRestriction = computed(() => Boolean(props.allowedModels?.some(model => model.trim())))
+const codexModelManifestResponseBytes = ref(0)
+const codexModelCatalogOversized = computed(() => codexModelManifestResponseBytes.value > 1024 * 1024)
+const codexModelCatalogUrl = computed(() => buildCodexModelCatalogUrl(props.baseUrl))
+const codexLocalCatalogToml = computed(() => !hasModelRestriction.value && codexModelCatalogMode.value === 'file'
+  ? `model_catalog_json = "${CODEX_MODEL_CATALOG_CONFIG_PATH}"\n`
+  : '')
 let codexModelManifestController: AbortController | null = null
 let codexModelManifestRequestID = 0
 
 const showCodexModelCatalog = computed(() =>
-  props.show &&
+  props.show && !hasModelRestriction.value &&
   (activeClientTab.value === 'codex' ||
     (props.platform === 'openai' && activeClientTab.value === 'codex-ws'))
 )
@@ -534,6 +556,10 @@ const codexModelCatalogPath = computed(() => {
   return joinConfigPath(configDir, 'codex-models.json', isWindows)
 })
 
+// Codex expands a leading ~/ on every platform but not %userprofile%, which it
+// resolves relative to the config directory, so config.toml always uses ~/.
+const CODEX_MODEL_CATALOG_CONFIG_PATH = '~/.codex/codex-models.json'
+
 const codexManifestContext = computed(() => {
   if (!showCodexModelCatalog.value) return ''
   return `${props.platform}|${props.baseUrl}|${props.apiKey}`
@@ -541,6 +567,7 @@ const codexManifestContext = computed(() => {
 
 // Reset tabs when platform changes
 const defaultClientTab = computed(() => {
+  if (props.claudeCodeOnly) return 'claude'
   switch (props.platform) {
     case 'openai':
       return 'third-party'
@@ -550,12 +577,14 @@ const defaultClientTab = computed(() => {
       return 'gemini'
     case 'antigravity':
       return 'claude'
+    case 'typesafe':
+      return 'systemone'
     default:
       return 'third-party'
   }
 })
 
-watch(() => props.platform, () => {
+watch(() => [props.platform, props.claudeCodeOnly], () => {
   activeTab.value = 'unix'
   activeClientTab.value = defaultClientTab.value
   codexAuthMode.value = 'legacy'
@@ -645,6 +674,9 @@ const SparkleIcon = {
 
 const clientTabs = computed((): TabConfig[] => {
   if (!props.platform) return []
+  if (props.claudeCodeOnly) {
+    return [{ id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon }]
+  }
   const thirdPartyTab: TabConfig = {
     id: 'third-party',
     label: t('keys.useKeyModal.cliTabs.thirdParty'),
@@ -684,6 +716,10 @@ const clientTabs = computed((): TabConfig[] => {
         { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
         { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
         { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
+      ]
+    case 'typesafe':
+      return [
+        { id: 'systemone', label: t('keys.useKeyModal.cliTabs.systemOne'), icon: TerminalIcon }
       ]
     case 'deepseek':
     case 'minimax':
@@ -747,6 +783,9 @@ const firstAllowedModel = computed(() =>
     ?.map((model) => model.trim())
     .find(Boolean) || ''
 )
+function selectedModelForKey(fallback: string): string {
+  return firstAllowedModel.value || fallback
+}
 const openAIExampleModel = computed(() => firstAllowedModel.value || 'your-model-name')
 const geminiExampleModel = computed(() => firstAllowedModel.value || 'gemini-2.0-flash')
 
@@ -797,6 +836,8 @@ const platformDescription = computed(() => {
       return activeClientTab.value === 'codex'
         ? t('keys.useKeyModal.composite.codexDescription')
         : t('keys.useKeyModal.composite.description')
+    case 'typesafe':
+      return t('keys.useKeyModal.typesafe.description')
     default:
       return t('keys.useKeyModal.description')
   }
@@ -854,6 +895,8 @@ const platformNote = computed(() => {
       return activeClientTab.value === 'codex'
         ? t('keys.useKeyModal.composite.codexNote')
         : t('keys.useKeyModal.note')
+    case 'typesafe':
+      return t('keys.useKeyModal.typesafe.note')
     default:
       return t('keys.useKeyModal.note')
   }
@@ -938,6 +981,7 @@ function resetCodexModelManifest() {
   codexModelManifestState.value = 'idle'
   codexModelManifestContent.value = ''
   codexModelManifestModelCount.value = 0
+  codexModelManifestResponseBytes.value = 0
 }
 
 async function loadCodexModelManifest() {
@@ -954,6 +998,8 @@ async function loadCodexModelManifest() {
     if (requestID !== codexModelManifestRequestID) return
     codexModelManifestContent.value = result.content
     codexModelManifestModelCount.value = result.modelCount
+    codexModelManifestResponseBytes.value = result.responseBytes
+    if (codexModelCatalogOversized.value) codexModelCatalogMode.value = 'file'
     codexModelManifestState.value = 'ready'
   } catch (error) {
     const errorName = error && typeof error === 'object' && 'name' in error
@@ -983,6 +1029,10 @@ const codexCatalogModelSlugs = computed(() =>
 function selectCodexCatalogModel(preferredModel: string): string {
   if (codexCatalogModelSlugs.value.includes(preferredModel)) return preferredModel
   return codexCatalogModelSlugs.value[0] || preferredModel
+}
+
+function selectCodexModelForKey(preferredModel: string): string {
+  return firstAllowedModel.value || selectCodexCatalogModel(preferredModel)
 }
 
 function codexReasoningEffortTomlLine(modelSlug: string): string {
@@ -1053,6 +1103,8 @@ const currentFiles = computed((): FileConfig[] => {
   switch (props.platform) {
     case 'kiro':
       return generateAnthropicFiles(baseUrl, apiKey)
+    case 'typesafe':
+      return [generateSystemOneCurl(baseRoot, apiKey)]
     case 'openai':
       if (activeClientTab.value === 'claude') {
         // Anthropic clients append /v1/messages themselves.
@@ -1107,6 +1159,46 @@ const currentFiles = computed((): FileConfig[] => {
   }
 })
 
+function generateSystemOneCurl(baseUrl: string, apiKey: string): FileConfig {
+  const endpoint = `${baseUrl}/v1/systemone`
+  const payload = `{
+  "model": "jev-latest",
+  "state": "Text to evaluate",
+  "questions": {
+    "safety": {
+      "type": "noul",
+      "instructions": "Evaluate whether the text is unsafe"
+    }
+  }
+}`
+  if (activeTab.value === 'powershell') {
+    return {
+      path: 'PowerShell',
+      content: `$headers = @{ Authorization = "Bearer ${apiKey}" }
+$body = @'
+${payload}
+'@
+Invoke-RestMethod -Method Post -Uri "${endpoint}" -Headers $headers -ContentType "application/json" -Body $body`
+    }
+  }
+  if (activeTab.value === 'cmd') {
+    return {
+      path: 'Command Prompt',
+      content: `curl -X POST "${endpoint}" ^
+  -H "Authorization: Bearer ${apiKey}" ^
+  -H "Content-Type: application/json" ^
+  --data "{\"model\":\"jev-latest\",\"state\":\"Text to evaluate\",\"questions\":{\"safety\":{\"type\":\"noul\",\"instructions\":\"Evaluate whether the text is unsafe\"}}}"`
+    }
+  }
+  return {
+    path: 'Terminal',
+    content: `curl -X POST "${endpoint}" \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Content-Type: application/json" \\
+  --data '${payload}'`
+  }
+}
+
 function generateAnthropicFiles(baseUrl: string, apiKey: string): FileConfig[] {
   let path: string
   let content: string
@@ -1159,15 +1251,16 @@ $env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
 }
 
 function generateGrokClaudeFiles(baseUrl: string, apiKey: string): FileConfig[] {
+  const model = selectedModelForKey('grok-4.5')
   const environment = {
     ANTHROPIC_BASE_URL: baseUrl,
     ANTHROPIC_AUTH_TOKEN: apiKey,
-    ANTHROPIC_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_OPUS_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_SONNET_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_HAIKU_MODEL: 'grok-4.5',
-    ANTHROPIC_DEFAULT_FABLE_MODEL: 'grok-4.5',
-    CLAUDE_CODE_SUBAGENT_MODEL: 'grok-4.5',
+    ANTHROPIC_MODEL: model,
+    ANTHROPIC_DEFAULT_OPUS_MODEL: model,
+    ANTHROPIC_DEFAULT_SONNET_MODEL: model,
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: model,
+    ANTHROPIC_DEFAULT_FABLE_MODEL: model,
+    CLAUDE_CODE_SUBAGENT_MODEL: model,
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
   }
   let path: string
@@ -1263,7 +1356,7 @@ function generateOpenAIFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
   const model = openAIExampleModel.value
-  const isModelRestricted = Boolean(props.allowedModels?.length)
+  const isModelRestricted = hasModelRestriction.value
   const providerName = isModelRestricted ? 'ssxz' : 'OpenAI'
   const selectedModel = isModelRestricted ? model : 'gpt-5.5'
   const reasoningEffort = isModelRestricted ? 'medium' : 'xhigh'
@@ -1279,14 +1372,13 @@ model = "${isModelRestricted ? selectedModel : catalogModel}"
 review_model = "${isModelRestricted ? selectedModel : catalogModel}"
 ${reasoningEffortLine}
 disable_response_storage = true
-model_catalog_json = "${escapeTomlBasicString(codexModelCatalogPath.value)}"
-network_access = "enabled"
+${codexLocalCatalogToml.value}network_access = "enabled"
 windows_wsl_setup_acknowledged = true
 
-[model_providers.ssxz]
-name = "SSXZ API"
+[model_providers.${providerName}]
+name = "${isModelRestricted ? 'SSXZ API' : 'OpenAI'}"
 base_url = "${baseUrl}"
-wire_api = "responses"
+${!hasModelRestriction.value && codexModelCatalogMode.value === 'remote' ? `model_catalog_url = "${escapeTomlBasicString(buildCodexModelCatalogUrl(baseUrl))}"\n` : ''}wire_api = "responses"
 ${generateCodexProviderAuthConfig(apiKey)}
 
 [features]
@@ -1342,6 +1434,7 @@ function generateGrokFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const shell = activeTab.value
   const isWindowsPath = shell === 'windows' || shell === 'cmd' || shell === 'powershell'
   const configDir = isWindowsPath ? '%userprofile%\\.grok' : '~/.grok'
+  const model = selectedModelForKey('grok-4.5')
 
   let envPath: string
   let envContent: string
@@ -1407,6 +1500,15 @@ context_window = 500000                     # drives auto-compaction timing
 # Server-side (backend) web_search tools — only if your gateway exposes them:
 supports_backend_search = true
 
+[model."grok-4.7"]
+model = "grok-4.7"
+name = "Grok 4.7"
+description = "Grok 4.7 via Sub2API (Responses)"
+env_key = "XAI_API_KEY"
+api_backend = "responses"
+context_window = 500000
+supports_backend_search = true
+
 [model."grok-build-0.1"]
 model = "grok-build-0.1"
 name = "Grok Build"
@@ -1444,10 +1546,10 @@ supports_backend_search = true
 # supports_backend_search = true
 
 [models]
-# xAI recommends grok-build* for coding/agent sessions; use grok-4.5 for general chat.
-default = "grok-4.5"
-web_search = "grok-4.5"                     # client-side web_search tool model (must exist as [model.*])
-image_description = "grok-4.5"              # vision/describe-image helper model
+# xAI recommends grok-build* for coding/agent sessions; use the selected key model by default.
+default = "${model}"
+web_search = "${model}"                     # client-side web_search tool model (must exist as [model.*])
+image_description = "${model}"              # vision/describe-image helper model
 # Optional environment-wide sampling defaults (per-model values win):
 # temperature = 0.7
 # top_p = 0.95
@@ -1485,7 +1587,7 @@ function generateGrokCodexFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const shell = activeTab.value
   const isWindowsPath = shell === 'windows' || shell === 'cmd' || shell === 'powershell'
   const configDir = isWindowsPath ? '%userprofile%\\.codex' : '~/.codex'
-  const model = selectCodexCatalogModel('grok-4.5')
+  const model = selectCodexModelForKey('grok-4.5')
 
   let envPath: string
   let envContent: string
@@ -1512,8 +1614,7 @@ function generateGrokCodexFiles(baseUrl: string, apiKey: string): FileConfig[] {
 
 model_provider = "sub2api"
 model = "${model}"
-model_catalog_json = "${escapeTomlBasicString(codexModelCatalogPath.value)}"
-# Optional:
+${codexLocalCatalogToml.value}# Optional:
 # review_model = "${model}"
 # model_reasoning_effort = "medium"
 # model_context_window = 500000
@@ -1524,7 +1625,7 @@ model_catalog_json = "${escapeTomlBasicString(codexModelCatalogPath.value)}"
 [model_providers.sub2api]
 name = "Sub2API Grok"
 base_url = "${baseUrl}"
-# Prefer env_key (variable NAME). Do not combine with experimental_bearer_token.
+${!hasModelRestriction.value && codexModelCatalogMode.value === 'remote' ? `model_catalog_url = "${escapeTomlBasicString(buildCodexModelCatalogUrl(baseUrl))}"\n` : ''}# Prefer env_key (variable NAME). Do not combine with experimental_bearer_token.
 env_key = "SUB2API_API_KEY"
 # Fallback only if you cannot set env (discouraged — keeps secret on disk):
 # experimental_bearer_token = "${apiKey}"
@@ -1571,7 +1672,7 @@ function generateRoutedCodexFiles(
     kiro: 'claude-sonnet-4-6'
   }
   const preferredModel = preferredModels[platform] || ''
-  const model = selectCodexCatalogModel(preferredModel)
+  const model = selectCodexModelForKey(preferredModel)
   const labels: Record<GroupPlatform, string> = {
     anthropic: 'Anthropic',
     openai: 'OpenAI',
@@ -1583,6 +1684,7 @@ function generateRoutedCodexFiles(
     deepseek: 'DeepSeek',
     minimax: 'MiniMax',
     opencode_go: 'OpenCode',
+    typesafe: 'TypeSafe / Jev',
     composite: 'Composite',
     sora: 'Sora',
     kiro: 'Kiro'
@@ -1597,12 +1699,11 @@ model_provider = "sub2api"
 model = "${model}"
 review_model = "${model}"
 disable_response_storage = true
-model_catalog_json = "${escapeTomlBasicString(codexModelCatalogPath.value)}"
-
+${codexLocalCatalogToml.value}
 [model_providers.sub2api]
 name = "Sub2API ${label}"
 base_url = "${baseUrl}"
-env_key = "SUB2API_API_KEY"
+${!hasModelRestriction.value && codexModelCatalogMode.value === 'remote' ? `model_catalog_url = "${escapeTomlBasicString(buildCodexModelCatalogUrl(baseUrl))}"\n` : ''}env_key = "SUB2API_API_KEY"
 wire_api = "responses"
 requires_openai_auth = false
 supports_websockets = false`
@@ -1625,24 +1726,24 @@ function generateOpenAIWsFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
   const model = openAIExampleModel.value
-  const isModelRestricted = Boolean(props.allowedModels?.length)
+  const isModelRestricted = hasModelRestriction.value
   const providerName = isModelRestricted ? 'ssxz' : 'OpenAI'
-  const selectedModel = isModelRestricted ? model : 'gpt-5.5'
+  const selectedModel = isModelRestricted ? model : selectCodexCatalogModel('gpt-5.5')
   const reasoningEffort = isModelRestricted ? 'medium' : 'xhigh'
 
   // config.toml content with WebSocket v2
   const configContent = `model_provider = "${providerName}"
 model = "${selectedModel}"
 review_model = "${selectedModel}"
-model_reasoning_effort = "${reasoningEffort}"
+${isModelRestricted ? `model_reasoning_effort = "${reasoningEffort}"\n` : codexReasoningEffortTomlLine(selectedModel)}
 disable_response_storage = true
-network_access = "enabled"
+${codexLocalCatalogToml.value}network_access = "enabled"
 windows_wsl_setup_acknowledged = true
 
-[model_providers.ssxz]
-name = "SSXZ API"
+[model_providers.${providerName}]
+name = "${isModelRestricted ? 'SSXZ API' : 'OpenAI'}"
 base_url = "${baseUrl}"
-wire_api = "responses"
+${!hasModelRestriction.value && codexModelCatalogMode.value === 'remote' ? `model_catalog_url = "${escapeTomlBasicString(buildCodexModelCatalogUrl(baseUrl))}"\n` : ''}wire_api = "responses"
 supports_websockets = true
 ${generateCodexProviderAuthConfig(apiKey)}
 
@@ -1715,6 +1816,23 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     },
     'gpt-5.6': {
       name: 'GPT-5.6 (Sol)',
+      limit: {
+        context: 1050000,
+        output: 128000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {},
+        max: {}
+      }
+    },
+    'gpt-6.1-sol': {
+      name: 'GPT-6.1 Sol',
       limit: {
         context: 1050000,
         output: 128000
@@ -2204,6 +2322,10 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
   // Align context_window with Grok Build official sample (docs.x.ai/build/settings) where known.
   // Image/video: grok-imagine-image / grok-imagine-video on media endpoints — not this list.
   const grokModels = {
+    'grok-4.7': {
+      name: 'Grok 4.7',
+      limit: { context: 500000, output: 64000 }
+    },
     'grok-4.5': {
       name: 'Grok 4.5',
       limit: { context: 500000, output: 64000 }
@@ -2237,6 +2359,19 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
         limit: { context: 1000000, output: 128000 },
         modalities: { input: ['text', 'image', 'pdf'], output: ['text'] },
         options: { thinking: { type: 'adaptive' }, effort: 'medium' },
+        variants: {
+          low: { effort: 'low' },
+          medium: { effort: 'medium' },
+          high: { effort: 'high' },
+          xhigh: { effort: 'xhigh' },
+          max: { effort: 'max' }
+        }
+      },
+      'claude-sonnet-5-5': {
+        name: 'Claude Sonnet 5.5',
+        limit: { context: 1000000, output: 128000 },
+        modalities: { input: ['text', 'image', 'pdf'], output: ['text'] },
+        options: { thinking: { type: 'adaptive' }, effort: 'high' },
         variants: {
           low: { effort: 'low' },
           medium: { effort: 'medium' },

@@ -85,9 +85,9 @@ describe('Select dropdown viewport constraints', () => {
     const dropdown = await openSelect()
 
     expect(dropdown).not.toBeNull()
-    expect(dropdown?.style.left).toBe('220px')
-    expect(dropdown?.style.minWidth).toBe('92px')
-    expect(dropdown?.style.maxWidth).toBe('92px')
+    expect(dropdown?.style.left).toBe('112px')
+    expect(dropdown?.style.minWidth).toBe('200px')
+    expect(dropdown?.style.maxWidth).toBe('200px')
   })
 
   it('clamps a trigger left of the viewport to the safe padding', async () => {
@@ -109,9 +109,72 @@ describe('Select dropdown viewport constraints', () => {
     const dropdown = await openSelect()
 
     expect(dropdown).not.toBeNull()
-    expect(dropdown?.style.left).toBe('312px')
-    expect(dropdown?.style.minWidth).toBe('0px')
-    expect(dropdown?.style.maxWidth).toBe('0px')
+    expect(dropdown?.style.left).toBe('112px')
+    expect(dropdown?.style.minWidth).toBe('200px')
+    expect(dropdown?.style.maxWidth).toBe('200px')
+  })
+
+  it('adds a page-specific class without losing the shared portal class', async () => {
+    setViewportWidth(1024)
+    mockTriggerRect(20, 80)
+    const wrapper = mount(Select, {
+      props: {
+        modelValue: null,
+        options: [{ value: 'example', label: 'Example' }],
+        portalClass: 'model-catalog-select-dropdown',
+      },
+    })
+    unmountWrapper = () => wrapper.unmount()
+    await wrapper.get('button').trigger('click')
+    await nextTick()
+
+    const dropdown = document.body.querySelector<HTMLElement>('.select-dropdown-portal')
+    expect(dropdown?.classList.contains('model-catalog-select-dropdown')).toBe(true)
+  })
+
+  it('closes when a surrounding scroll container moves', async () => {
+    const scrollHost = document.createElement('div')
+    scrollHost.style.overflowY = 'auto'
+    Object.defineProperty(scrollHost, 'clientHeight', { configurable: true, value: 100 })
+    Object.defineProperty(scrollHost, 'scrollHeight', { configurable: true, value: 800 })
+    document.body.appendChild(scrollHost)
+
+    const wrapper = mount(Select, {
+      attachTo: scrollHost,
+      props: {
+        modelValue: null,
+        closeOnScroll: true,
+        options: [{ value: 'example', label: 'Example' }],
+      },
+    })
+    unmountWrapper = () => wrapper.unmount()
+
+    await wrapper.get('button').trigger('click')
+    await nextTick()
+    expect(document.body.querySelector('.select-dropdown-portal')).not.toBeNull()
+
+    scrollHost.dispatchEvent(new Event('scroll'))
+    await nextTick()
+
+    expect(wrapper.get('button').attributes('aria-expanded')).toBe('false')
+  })
+
+  it('closes on wheel input before the surrounding container settles', async () => {
+    const wrapper = mount(Select, {
+      props: {
+        modelValue: null,
+        closeOnScroll: true,
+        options: [{ value: 'example', label: 'Example' }],
+      },
+    })
+    unmountWrapper = () => wrapper.unmount()
+
+    await wrapper.get('button').trigger('click')
+    await nextTick()
+    window.dispatchEvent(new Event('wheel'))
+    await nextTick()
+
+    expect(wrapper.get('button').attributes('aria-expanded')).toBe('false')
   })
 })
 

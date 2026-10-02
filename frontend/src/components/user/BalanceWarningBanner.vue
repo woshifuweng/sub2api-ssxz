@@ -43,6 +43,10 @@ const appStore = useAppStore()
 const authStore = useAuthStore()
 const showWarning = computed(() => Boolean(authStore.user) && (authStore.user?.balance ?? 0) <= 0)
 const lowBalanceThreshold = computed(() => {
+  const personalThreshold = Number(authStore.user?.balance_notify_threshold)
+  if (Number.isFinite(personalThreshold) && personalThreshold > 0) {
+    return personalThreshold
+  }
   const configured = Number(appStore.cachedPublicSettings?.balance_low_notify_threshold)
   return Number.isFinite(configured) && configured >= 0 ? configured : 1
 })

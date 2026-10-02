@@ -240,7 +240,14 @@ onMounted(async () => {
 const handleAvatarSave = async (dataUrl: string) => {
   avatarSaving.value = true;
   try {
-    avatar.value = await userAPI.updateAvatar(dataUrl);
+    const updatedAvatar = await userAPI.updateAvatar(dataUrl);
+    avatar.value = updatedAvatar;
+    if (authStore.user) {
+      authStore.user = {
+        ...authStore.user,
+        avatar_url: updatedAvatar?.url || null,
+      };
+    }
     avatarDialogOpen.value = false;
     appStore.showSuccess(t("profile.avatar.saved"));
   } catch (error: any) {

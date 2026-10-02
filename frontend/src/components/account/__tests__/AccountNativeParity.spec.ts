@@ -122,7 +122,7 @@ describe('native account parity through real controls', () => {
     const nativeRow = wrapper.get('[data-tour="account-form-platform"]')
     const providerRow = wrapper.findAll('div.grid').find(row => row.findAll('button').some(button => button.text() === 'Kimi'))!
     expect(nativeRow.findAll('button').map(button => button.text())).toEqual(['Anthropic', 'OpenAI', 'Gemini', 'Grok', 'Antigravity'])
-    expect(providerRow.findAll('button').map(button => button.text())).toEqual(['Kimi', 'Zhipu GLM', 'DeepSeek', 'MiniMax', 'OpenCode'])
+    expect(providerRow.findAll('button').map(button => button.text())).toEqual(['Kimi', 'Zhipu GLM', 'DeepSeek', 'MiniMax', 'OpenCode', 'TypeSafe / Jev'])
     for (const row of [nativeRow, providerRow]) {
       expect(row.classes()).toEqual(expect.arrayContaining(['grid', 'grid-cols-2', 'sm:grid-cols-3', 'lg:grid-cols-5']))
       expect(row.classes()).not.toContain('flex')

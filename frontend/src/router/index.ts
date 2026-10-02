@@ -504,6 +504,13 @@ const routes: RouteRecordRaw[] = [
     redirect: redirectLegacyRoute('/app/profile')
   },
   {
+    // Older customer bookmarks and imported client links used /app/account.
+    // Keep that public URL compatible with the canonical profile page instead of
+    // letting the server fallback render a real 404 page.
+    path: '/app/account',
+    redirect: redirectLegacyRoute('/app/profile')
+  },
+  {
     path: '/subscriptions',
     redirect: redirectLegacyRoute('/app/subscriptions')
   },
@@ -994,6 +1001,7 @@ const BACKEND_MODE_ALLOWED_PATHS = [
   '/app/channel-status',
   '/app/keys',
   '/app/profile',
+  '/app/account',
   '/app/chat',
   '/usage',
   '/purchase',

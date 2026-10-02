@@ -55,6 +55,7 @@ func TestFinanceMutationRoutesRequireStepUp(t *testing.T) {
 		middleware.StepUpAuthMiddleware(stepUpMarker),
 		nil,
 		nil,
+		nil,
 	)
 
 	tests := []struct {

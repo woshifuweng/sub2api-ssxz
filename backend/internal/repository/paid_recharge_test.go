@@ -19,7 +19,21 @@ func TestCreditPaidRecharge_RejectsInvalidAmountBeforeDatabase(t *testing.T) {
 		"positive_infinity": math.Inf(1), "negative_infinity": math.Inf(-1),
 	} {
 		t.Run(name, func(t *testing.T) {
-			change, err := repo.CreditPaidRecharge(context.Background(), 1, amount)
+			change, err := repo.CreditPaidRecharge(context.Background(), 1, amount, amount)
+			require.ErrorIs(t, err, service.ErrInvalidPaidRechargeAmount)
+			require.Equal(t, service.BalanceChange{}, change)
+		})
+	}
+}
+
+func TestCreditPaidRecharge_RejectsInvalidPaidSplitBeforeDatabase(t *testing.T) {
+	repo := &userRepository{}
+	for name, paid := range map[string]float64{
+		"negative": -1, "above_credit": 6, "nan": math.NaN(),
+		"positive_infinity": math.Inf(1), "negative_infinity": math.Inf(-1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			change, err := repo.CreditPaidRecharge(context.Background(), 1, 5, paid)
 			require.ErrorIs(t, err, service.ErrInvalidPaidRechargeAmount)
 			require.Equal(t, service.BalanceChange{}, change)
 		})

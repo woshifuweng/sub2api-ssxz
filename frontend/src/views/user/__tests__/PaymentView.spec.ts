@@ -411,6 +411,40 @@ describe('PaymentView recharge rate preview', () => {
   })
 })
 
+describe('PaymentView recharge promotions with SSXZ currency display', () => {
+  it.each([
+    { mode: 'bonus' as const, credit: '$60.00', actual: '¥110.00', bonus: '+$10.00' },
+    { mode: 'discount' as const, credit: '$50.00', actual: '¥88.00', bonus: '' },
+  ])('preserves the CNY payment / USD credit distinction in $mode mode', async ({ mode, credit, actual, bonus }) => {
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      balance_recharge_multiplier: 0.5,
+      recharge_fee_rate: 10,
+      methods: { wxpay: { ...checkoutInfoFixture().data.methods.wxpay, fee_rate: 10 } },
+      recharge_bonus_mode: mode,
+      recharge_bonus_tiers: [{ min_amount: 100, bonus_percent: 20 }],
+      recharge_bonus_notice: '**Offer** <img src="x" onerror="alert(1)"><script>alert(1)</script>',
+    }))
+    const wrapper = shallowMount(PaymentView, {
+      global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Teleport: true, Transition: false } },
+    })
+    await flushPromises()
+    wrapper.getComponent(AmountInput).vm.$emit('update:modelValue', 100)
+    await flushPromises()
+    expect(wrapper.get('[data-testid="recharge-credited-row"]').text()).toContain(credit)
+    expect(wrapper.get('[data-testid="recharge-actual-pay-row"]').text()).toContain(actual)
+    expect(wrapper.find('[data-testid="recharge-discount-row"]').exists()).toBe(mode === 'discount')
+    if (bonus) expect(wrapper.get('[data-testid="recharge-bonus-row"]').text()).toContain(bonus)
+    else expect(wrapper.find('[data-testid="recharge-bonus-row"]').exists()).toBe(false)
+    const notice = wrapper.get('[data-testid="recharge-bonus-notice"]')
+    expect(notice.get('strong').text()).toBe('Offer')
+    expect(notice.find('script').exists()).toBe(false)
+    expect(notice.get('img').attributes('onerror')).toBeUndefined()
+    wrapper.unmount()
+  })
+})
+
 describe('PaymentView subscription confirmation amounts', () => {
   it('shows converted CNY pay amount using the subscription rate, not the balance multiplier', async () => {
     const wrapper = await mountSubscriptionConfirm({

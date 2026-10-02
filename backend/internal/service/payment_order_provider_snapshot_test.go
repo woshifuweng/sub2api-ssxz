@@ -90,6 +90,7 @@ func TestCreateOrderInTx_WritesProviderSnapshot(t *testing.T) {
 		88,
 		0,
 		88,
+		0,
 		&payment.InstanceSelection{
 			InstanceID:     strconv.FormatInt(instance.ID, 10),
 			ProviderKey:    payment.TypeAlipay,
@@ -140,9 +141,9 @@ func TestCreateOrderInTxRejectsDuplicateUserIdempotencyKey(t *testing.T) {
 	userRecord := &User{ID: user.ID, Email: user.Email, Username: user.Username}
 	cfg := &PaymentConfig{MaxPendingOrders: 3, OrderTimeoutMin: 30}
 
-	_, err = svc.createOrderInTx(ctx, req, userRecord, nil, cfg, 10, 10, 0, 10, nil)
+	_, err = svc.createOrderInTx(ctx, req, userRecord, nil, cfg, 10, 10, 0, 10, 0, nil)
 	require.NoError(t, err)
-	_, err = svc.createOrderInTx(ctx, req, userRecord, nil, cfg, 10, 10, 0, 10, nil)
+	_, err = svc.createOrderInTx(ctx, req, userRecord, nil, cfg, 10, 10, 0, 10, 0, nil)
 	require.Error(t, err)
 
 	count, err := client.PaymentOrder.Query().

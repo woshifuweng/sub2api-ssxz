@@ -633,10 +633,10 @@
                 @change="selectCreateProvider(provider.value)"
               />
               <span
-                class="flex h-full flex-col items-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-3 text-center transition-colors peer-checked:border-primary-500 peer-checked:bg-primary-50/60 peer-checked:ring-1 peer-checked:ring-primary-500 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary-500 peer-disabled:opacity-40 dark:border-dark-600 dark:bg-dark-800 dark:peer-checked:border-primary-500 dark:peer-checked:bg-primary-500/10"
+                class="flex h-full min-w-0 flex-col items-center gap-2 overflow-hidden rounded-xl border border-gray-200 bg-white px-2 py-3 text-center transition-colors peer-checked:border-primary-500 peer-checked:bg-primary-50/60 peer-checked:ring-1 peer-checked:ring-primary-500 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary-500 peer-disabled:opacity-40 dark:border-dark-600 dark:bg-dark-800 dark:peer-checked:border-primary-500 dark:peer-checked:bg-primary-500/10"
                 :class="provider.count > 0 && 'hover:border-primary-300 dark:hover:border-primary-700'"
               >
-                <span class="flex h-8 items-center justify-center gap-1.5" aria-hidden="true">
+                <span class="key-provider-icons flex min-w-0 max-w-full flex-wrap items-center justify-center gap-1.5" aria-hidden="true">
                   <span
                     v-for="platform in KEY_GROUP_PROVIDER_ICONS[provider.value]"
                     :key="platform"
@@ -1658,6 +1658,7 @@
         selectedKey?.group?.allow_messages_dispatch || false
       "
       :key-status="selectedKey?.status"
+      :claude-code-only="selectedKey?.group?.claude_code_only || false"
       @close="closeUseKeyModal"
     />
 
@@ -1864,6 +1865,7 @@ import {
   getKeyGroupProvider,
   type KeyGroupProvider,
 } from "@/utils/keyGroupProviders";
+import { CC_SWITCH_USAGE_SCRIPT } from '@/utils/ccswitchImport';
 
 // Helper to format date for datetime-local input
 const formatDateTimeLocal = (isoDate: string): string => {
@@ -1899,7 +1901,7 @@ const allColumns = computed<Column[]>(() => [
     sortable: true,
     class: "keys-col-name",
   },
-  { key: "group", label: t("keys.group"), sortable: false, class: "keys-col-group" },
+  { key: "group", label: t("keys.group"), sortable: true, class: "keys-col-group" },
   { key: "current_concurrency", label: t("keys.currentConcurrency"), sortable: true, class: "keys-col-concurrency" },
   { key: "usage", label: t("keys.usage"), sortable: false, class: "keys-col-usage" },
   { key: "rate_limit", label: t("keys.rateLimitColumn"), sortable: false, class: "keys-col-rate" },
@@ -3327,22 +3329,7 @@ const executeCcsImport = (row: ApiKey, clientType: "claude" | "gemini") => {
     }
   }
 
-  const usageScript = `({
-    request: {
-      url: "{{baseUrl}}/v1/usage",
-      method: "GET",
-      headers: { "Authorization": "Bearer {{apiKey}}" }
-    },
-    extractor: function(response) {
-      const remaining = response?.remaining ?? response?.quota?.remaining ?? response?.balance;
-      const unit = response?.unit ?? response?.quota?.unit ?? "USD";
-      return {
-        isValid: response?.is_active ?? response?.isValid ?? true,
-        remaining,
-        unit
-      };
-    }
-  })`;
+  const usageScript = CC_SWITCH_USAGE_SCRIPT;
   const providerName = normalizeSiteName(
     publicSettings.value?.site_name || DEFAULT_SITE_NAME,
   );

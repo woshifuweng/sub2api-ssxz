@@ -50,6 +50,7 @@ func newPublicPaymentSecurityRouter(t *testing.T, publicRPM int) *gin.Engine {
 		pass,
 		settings,
 		panelLimiter,
+		redisClient,
 	)
 	return router
 }

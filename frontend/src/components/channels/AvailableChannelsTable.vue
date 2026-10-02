@@ -69,17 +69,20 @@
                 </span>
               </td>
               <td class="model-catalog__group-cell">
-                <Select
-                  :model-value="selectedOption(row)?.value"
-                  :options="row.options"
-                  value-key="value"
-                  label-key="label"
-                  searchable
-                  :search-placeholder="t('availableChannels.groupSearchPlaceholder')"
-                  :empty-text="t('availableChannels.groupSearchEmpty')"
-                  :data-testid="`group-select-${row.key}`"
-                  @update:model-value="selectPlatformGroup(row.platform, $event)"
-                >
+                <div class="model-catalog__group-select">
+                  <Select
+                    :model-value="selectedOption(row)?.value"
+                    :options="row.options"
+                    value-key="value"
+                    label-key="label"
+                    searchable
+                    portal-class="model-catalog-select-dropdown"
+                    :search-placeholder="t('availableChannels.groupSearchPlaceholder')"
+                    :empty-text="t('availableChannels.groupSearchEmpty')"
+                    close-on-scroll
+                    :data-testid="`group-select-${row.key}`"
+                    @update:model-value="selectPlatformGroup(row.platform, $event)"
+                  >
                   <template #selected="{ option }">
                     <span v-if="option" class="model-group-selected">
                       <span class="model-group-selected__name">{{ asModelGroupOption(option).group.name }}</span>
@@ -89,7 +92,7 @@
                   <template #option="{ option, selected }">
                     <div class="model-group-option">
                       <span class="model-catalog__provider-mark model-catalog__provider-mark--small">
-                        <ModelIcon :model="providerIconModel(asModelGroupOption(option).group.platform)" size="16px" />
+                        <ModelIcon :model="providerIconModel(row.platform)" size="16px" />
                       </span>
                       <span class="model-group-option__copy">
                         <span class="model-group-option__title">
@@ -101,7 +104,8 @@
                       <Icon v-if="selected" name="check" size="sm" class="model-group-option__check" />
                     </div>
                   </template>
-                </Select>
+                  </Select>
+                </div>
               </td>
               <td class="model-catalog__price">{{ formatTokenPrice(selectedOption(row)?.pricing?.input_price, selectedOption(row)?.effectiveRate) }}</td>
               <td class="model-catalog__price">{{ formatTokenPrice(selectedOption(row)?.pricing?.output_price, selectedOption(row)?.effectiveRate) }}</td>
@@ -170,13 +174,27 @@ const activeProvider = ref('all')
 // updates all rows of the same platform — page-level selection, not per-row.
 const selectedGroupByPlatform = ref<Record<string, number>>({})
 
+function canonicalModelPlatform(platform: string | undefined, modelName: string): string {
+  const normalizedPlatform = (platform || '').trim().toLowerCase()
+  const normalizedModel = modelName.trim().toLowerCase()
+  if (
+    normalizedModel === 'grok'
+    || normalizedModel.startsWith('grok-')
+    || normalizedModel.startsWith('grok/')
+    || normalizedModel.startsWith('xai/grok-')
+  ) {
+    return 'grok'
+  }
+  return normalizedPlatform
+}
+
 const flatRows = computed<ModelCatalogRow[]>(() => {
   const models = new Map<string, ModelCatalogRow>()
 
   for (const channel of props.rows) {
     for (const section of channel.platforms) {
       for (const model of section.supported_models) {
-        const platform = (model.platform || section.platform).toLowerCase()
+        const platform = canonicalModelPlatform(model.platform || section.platform, model.name)
         const key = `${platform}:${model.name.toLowerCase()}`
         let row = models.get(key)
         if (!row) {
@@ -315,7 +333,7 @@ function formatTokenLimit(value: number | null | undefined): string {
 }
 
 function providerSortOrder(platform: string): number {
-  const order: Record<string, number> = { anthropic: 0, openai: 1, gemini: 2, google: 2 }
+  const order: Record<string, number> = { anthropic: 0, openai: 1, grok: 2, gemini: 3, google: 3 }
   return order[platform] ?? 50
 }
 
@@ -323,6 +341,7 @@ function providerLabel(platform: string): string {
   const labels: Record<string, string> = {
     anthropic: 'Anthropic',
     openai: 'OpenAI',
+    grok: 'Grok',
     gemini: 'Google',
     google: 'Google'
   }
@@ -346,6 +365,7 @@ function providerIconModel(platform: string): string {
   const models: Record<string, string> = {
     anthropic: 'claude',
     openai: 'gpt-5',
+    grok: 'xai',
     gemini: 'gemini',
     google: 'gemini'
   }
@@ -515,6 +535,10 @@ function providerIconModel(platform: string): string {
   transition: border-color 160ms ease, background-color 160ms ease;
 }
 
+.model-catalog__group-select {
+  min-width: 0;
+}
+
 .model-catalog__group-cell :deep(.select-trigger:hover) {
   border-color: var(--ssxz-border-strong);
   background: color-mix(in srgb, var(--ssxz-surface-raised) 38%, transparent);
@@ -577,6 +601,14 @@ function providerIconModel(platform: string): string {
 .model-group-option__copy strong { color: var(--ssxz-text-primary); font-size: 0.78rem; }
 .model-group-option__copy small { overflow: hidden; color: var(--ssxz-text-muted); font-size: 0.68rem; text-overflow: ellipsis; white-space: nowrap; }
 .model-group-option__check { color: var(--ssxz-action); }
+
+:global(.model-catalog-select-dropdown) {
+  width: min(30rem, calc(100vw - 1rem));
+}
+
+:global(.model-catalog-select-dropdown .select-options) {
+  max-height: min(20rem, calc(100vh - 5rem));
+}
 
 .model-catalog__price,
 .model-catalog__context {

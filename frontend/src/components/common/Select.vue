@@ -52,7 +52,7 @@
           v-if="isOpen"
           ref="dropdownRef"
           class="select-dropdown-portal"
-          :class="[instanceId]"
+          :class="[instanceId, props.portalClass]"
           :style="dropdownStyle"
           role="listbox"
           tabindex="-1"
@@ -159,6 +159,10 @@ interface Props {
   remote?: boolean
   /** 远程搜索模式下的加载态：options 为空时下拉显示 loading 文案 */
   loading?: boolean
+  /** Optional class for page-specific viewport constraints on the teleported menu. */
+  portalClass?: string
+  /** Close the teleported menu when its surrounding scroll container moves. */
+  closeOnScroll?: boolean
 }
 
 interface Emits {
@@ -177,7 +181,9 @@ const props = withDefaults(defineProps<Props>(), {
   valueKey: 'value',
   labelKey: 'label',
   remote: false,
-  loading: false
+  loading: false,
+  portalClass: '',
+  closeOnScroll: false
 })
 
 const emit = defineEmits<Emits>()
@@ -203,6 +209,7 @@ const emptyTextDisplay = computed(() => props.emptyText ?? t('common.noOptionsFo
 // 远程搜索的防抖间隔（对齐 OpenAIFastPolicyUserSelector 的 300ms 惯例）。
 const REMOTE_SEARCH_DEBOUNCE_MS = 300
 let remoteSearchTimer: ReturnType<typeof setTimeout> | null = null
+let scrollParents: HTMLElement[] = []
 
 const isSearchable = computed(() => {
   // 远程搜索模式始终显示搜索框（选项只是服务端结果的一页）。
@@ -216,19 +223,23 @@ const dropdownStyle = computed(() => {
   if (!triggerRect.value) return {}
 
   const rect = triggerRect.value
-  const viewportRight = Math.max(dropdownViewportPadding, window.innerWidth - dropdownViewportPadding)
-  const left = Math.min(
-    Math.max(dropdownViewportPadding, rect.left),
-    viewportRight
-  )
+  const viewportWidth = window.visualViewport?.width ?? window.innerWidth
+  const viewportHeight = window.visualViewport?.height ?? window.innerHeight
+  const viewportRight = Math.max(dropdownViewportPadding, viewportWidth - dropdownViewportPadding)
+  const preferredWidth = Math.max(dropdownMinimumWidth, rect.width)
+  // Keep the menu inside the viewport even when its trigger sits near the right edge
+  // of a horizontally scrollable table. max-width alone is not enough: it leaves the
+  // menu's left edge outside the viewport and makes the options appear "穿模".
+  const maxLeft = Math.max(dropdownViewportPadding, viewportRight - preferredWidth)
+  const left = Math.min(Math.max(dropdownViewportPadding, rect.left), maxLeft)
   const availableWidth = Math.max(0, viewportRight - left)
-  const preferredMinWidth = Math.max(dropdownMinimumWidth, rect.width)
-  const minWidth = Math.min(preferredMinWidth, availableWidth)
+  const minWidth = Math.min(preferredWidth, availableWidth)
   const style: Record<string, string> = {
     position: 'fixed',
     left: `${left}px`,
     minWidth: `${minWidth}px`,
     maxWidth: `${availableWidth}px`,
+    maxHeight: `${Math.max(120, viewportHeight - dropdownViewportPadding * 2)}px`,
     zIndex: '100000020'
   }
 
@@ -347,13 +358,55 @@ const handleOptionMouseEnter = (option: any, index: number) => {
 
 // Update trigger rect periodically while open to follow scroll/resize
 const updateTriggerRect = () => {
-  if (containerRef.value) {
-    triggerRect.value = containerRef.value.getBoundingClientRect()
+  if (triggerRef.value) {
+    triggerRect.value = triggerRef.value.getBoundingClientRect()
   }
 }
 
+const findScrollableAncestors = (): HTMLElement[] => {
+  const parents: HTMLElement[] = []
+  let current = triggerRef.value?.parentElement ?? null
+
+  while (current) {
+    const style = window.getComputedStyle(current)
+    const overflow = `${style.overflow} ${style.overflowX} ${style.overflowY}`
+    const canScroll = /(auto|scroll|overlay)/.test(overflow)
+      && (current.scrollHeight > current.clientHeight || current.scrollWidth > current.clientWidth)
+    if (canScroll) parents.push(current)
+    current = current.parentElement
+  }
+
+  return parents
+}
+
+const handleScroll = () => {
+  if (props.closeOnScroll) {
+    isOpen.value = false
+    return
+  }
+  updateTriggerRect()
+}
+
+const handleWheel = () => {
+  if (props.closeOnScroll) isOpen.value = false
+}
+
+const addScrollListeners = () => {
+  scrollParents = findScrollableAncestors()
+  scrollParents.forEach((parent) => parent.addEventListener('scroll', handleScroll, { passive: true }))
+  window.addEventListener('scroll', handleScroll, { capture: true, passive: true })
+  window.addEventListener('wheel', handleWheel, { capture: true, passive: true })
+}
+
+const removeScrollListeners = () => {
+  scrollParents.forEach((parent) => parent.removeEventListener('scroll', handleScroll))
+  scrollParents = []
+  window.removeEventListener('scroll', handleScroll, { capture: true })
+  window.removeEventListener('wheel', handleWheel, { capture: true })
+}
+
 const calculateDropdownPosition = () => {
-  if (!containerRef.value) return
+  if (!triggerRef.value) return
   updateTriggerRect()
 
   nextTick(() => {
@@ -394,9 +447,13 @@ watch(isOpen, (open) => {
     } else {
       nextTick(() => dropdownRef.value?.focus())
     }
-    // Add scroll listener to update position
-    window.addEventListener('scroll', updateTriggerRect, { capture: true, passive: true })
+    // Listen to both the window and the nearest scrollable containers. The
+    // model catalogue scrolls inside its own container, so window-only
+    // listeners leave a teleported menu fixed at its old screen position.
+    addScrollListeners()
     window.addEventListener('resize', calculateDropdownPosition)
+    window.visualViewport?.addEventListener('resize', calculateDropdownPosition)
+    window.visualViewport?.addEventListener('scroll', calculateDropdownPosition)
   } else {
     searchQuery.value = ''
     focusedIndex.value = -1
@@ -405,8 +462,10 @@ watch(isOpen, (open) => {
       clearTimeout(remoteSearchTimer)
       remoteSearchTimer = null
     }
-    window.removeEventListener('scroll', updateTriggerRect, { capture: true })
+    removeScrollListeners()
     window.removeEventListener('resize', calculateDropdownPosition)
+    window.visualViewport?.removeEventListener('resize', calculateDropdownPosition)
+    window.visualViewport?.removeEventListener('scroll', calculateDropdownPosition)
   }
 })
 
@@ -503,8 +562,10 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
-  window.removeEventListener('scroll', updateTriggerRect, { capture: true })
+  removeScrollListeners()
   window.removeEventListener('resize', calculateDropdownPosition)
+  window.visualViewport?.removeEventListener('resize', calculateDropdownPosition)
+  window.visualViewport?.removeEventListener('scroll', calculateDropdownPosition)
   if (remoteSearchTimer) {
     clearTimeout(remoteSearchTimer)
     remoteSearchTimer = null

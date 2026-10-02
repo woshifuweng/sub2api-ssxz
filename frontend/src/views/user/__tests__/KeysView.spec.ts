@@ -244,6 +244,7 @@ const PaginationStub = {
   template: `
     <div>
       <button data-test="page-size-50" @click="$emit('update:pageSize', 50)">50</button>
+      <button data-test="page-2" @click="$emit('update:page', 2)">Page 2</button>
     </div>
   `,
 }
@@ -759,6 +760,21 @@ describe('user KeysView column settings', () => {
     expect(visibleColumnMeta(wrapper).find((column) => column.key === 'name')?.sortable).toBe(true)
   })
 
+  it.each(['asc', 'desc'] as const)('sorts groups %s while preserving the custom table and clearing selection', async (order) => {
+    const wrapper = await mountView({ realDataTable: true })
+    await wrapper.get('[data-test="page-size-50"]').trigger('click')
+    await wrapper.get('[data-test="page-2"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-test="select-all"]').setValue(true)
+    const table = wrapper.findComponent({ name: 'DataTable' })
+    expect(table.props('columns').find((column: { key: string }) => column.key === 'group')?.sortable).toBe(true)
+    table.vm.$emit('sort', 'group', order)
+    await flushPromises()
+    expect(listKeys).toHaveBeenLastCalledWith(1, 50, expect.objectContaining({ sort_by: 'group', sort_order: order }), expect.any(Object))
+    expect(table.props('selectedKeys')).toEqual([])
+    wrapper.unmount()
+  })
+
   it('exposes upstream diagnostic columns and bulk edit in the real app shell', async () => {
     const wrapper = await mountView({ realDataTable: true })
     expect(wrapper.find('[data-test="ssxz-shell"]').exists()).toBe(true)
@@ -1082,7 +1098,7 @@ describe('user KeysView column settings', () => {
   })
 
   describe('create provider selection', () => {
-    const platforms = ['anthropic', 'openai', 'kimi', 'zhipu', 'deepseek', 'minimax', 'gemini', 'grok', 'antigravity', 'composite', 'opencode_go']
+    const platforms = ['anthropic', 'openai', 'kimi', 'zhipu', 'deepseek', 'minimax', 'gemini', 'grok', 'antigravity', 'composite', 'opencode_go', 'typesafe']
     const availableGroups = platforms.map((platform, index) => ({
       id: index + 1,
       // Deliberately ambiguous names: classification must follow the platform.
@@ -1114,8 +1130,19 @@ describe('user KeysView column settings', () => {
       await chooseProvider(wrapper, 'domestic')
       expect(optionIds(wrapper)).toEqual([3, 4, 5, 6])
       await chooseProvider(wrapper, 'other')
-      expect(optionIds(wrapper)).toEqual([7, 8, 9, 10, 11])
-      expect(wrapper.findAllComponents({ name: 'Select' })[0].props('options')).toHaveLength(13)
+      expect(optionIds(wrapper)).toEqual([7, 8, 9, 10, 11, 12])
+      expect(wrapper.findAllComponents({ name: 'Select' })[0].props('options')).toHaveLength(14)
+    })
+
+    it('keeps multi-icon provider cards contained inside their card', async () => {
+      const wrapper = await openCreate()
+      const card = wrapper.get('input[name="key-provider"][value="domestic"]').element.closest('label')
+      const icons = card?.querySelector('.key-provider-icons')
+      expect(icons).not.toBeNull()
+      for (const className of ['min-w-0', 'max-w-full', 'flex-wrap']) {
+        expect(icons?.classList.contains(className)).toBe(true)
+      }
+      wrapper.unmount()
     })
 
     it('clears the previous group on provider change and submits only the newly selected group', async () => {
@@ -1173,36 +1200,36 @@ describe('user KeysView column settings', () => {
       await wrapper.get('[data-test="close-dialog"]').trigger('click')
       await getButtonByText(wrapper, 'common.edit').trigger('click')
       expect(wrapper.find('[data-tour="key-form-provider"]').exists()).toBe(false)
-      expect(optionIds(wrapper)).toHaveLength(11)
+      expect(optionIds(wrapper)).toHaveLength(12)
     })
 
     it('creates a multi-group key only from compatible standard groups', async () => {
-      getAvailableGroups.mockResolvedValue([...availableGroups, { ...availableGroups[0], id: 12, name: 'Custom Anthropic' }])
+      getAvailableGroups.mockResolvedValue([...availableGroups, { ...availableGroups[0], id: 112, name: 'Custom Anthropic' }])
       const wrapper = await openCreate()
       await wrapper.get('[data-tour="key-form-name"]').setValue('Multi group')
       groupSelect(wrapper).vm.$emit('update:modelValue', 1)
       await nextTick()
-      await wrapper.get('[data-test="key-group-12"]').setValue(true)
-      vi.mocked(keysAPI.create).mockResolvedValue({ ...createApiKey(), group_ids: [1, 12] })
+      await wrapper.get('[data-test="key-group-112"]').setValue(true)
+      vi.mocked(keysAPI.create).mockResolvedValue({ ...createApiKey(), group_ids: [1, 112] })
       await wrapper.get('#key-form').trigger('submit')
       await flushPromises()
-      expect(vi.mocked(keysAPI.create).mock.calls[0].slice(0, 3)).toEqual(['Multi group', 1, [1, 12]])
+      expect(vi.mocked(keysAPI.create).mock.calls[0].slice(0, 3)).toEqual(['Multi group', 1, [1, 112]])
     })
 
     it('preserves compatible secondary groups and rejects incompatible primary changes', async () => {
-      getAvailableGroups.mockResolvedValue([...availableGroups, ...[12, 13].map((id) => ({ ...availableGroups[0], id, name: `Custom ${id}` }))])
-      listKeys.mockResolvedValue({ items: [{ ...createApiKey(), group_id: 1, group_ids: [1, 12] }], total: 1, pages: 1 })
+      getAvailableGroups.mockResolvedValue([...availableGroups, ...[112, 113].map((id) => ({ ...availableGroups[0], id, name: `Custom ${id}` }))])
+      listKeys.mockResolvedValue({ items: [{ ...createApiKey(), group_id: 1, group_ids: [1, 112] }], total: 1, pages: 1 })
       const wrapper = await mountView()
       await getButtonByText(wrapper, 'common.edit').trigger('click')
       expect(groupSelect(wrapper).props('options').find((option: { value: number }) => option.value === 2).disabled).toBe(true)
       groupSelect(wrapper).vm.$emit('update:modelValue', 2)
       await nextTick()
       expect(groupSelect(wrapper).props('modelValue')).toBe(1)
-      groupSelect(wrapper).vm.$emit('update:modelValue', 13)
+      groupSelect(wrapper).vm.$emit('update:modelValue', 113)
       await nextTick()
       await wrapper.get('#key-form').trigger('submit')
       await flushPromises()
-      expect(updateKey).toHaveBeenCalledWith(1, expect.objectContaining({ group_id: 13, group_ids: [13, 12] }))
+      expect(updateKey).toHaveBeenCalledWith(1, expect.objectContaining({ group_id: 113, group_ids: [113, 112] }))
     })
 
     it.each([
@@ -1210,11 +1237,11 @@ describe('user KeysView column settings', () => {
       { platform: 'anthropic', subscription_type: 'subscription', status: 'active' },
       { platform: 'anthropic', subscription_type: 'standard', status: 'inactive' },
     ])('disables incompatible or unavailable extra groups: %j', async (invalidGroup) => {
-      getAvailableGroups.mockResolvedValue([...availableGroups, { ...availableGroups[0], ...invalidGroup, id: 12 }])
+      getAvailableGroups.mockResolvedValue([...availableGroups, { ...availableGroups[0], ...invalidGroup, id: 112 }])
       const wrapper = await openCreate()
       groupSelect(wrapper).vm.$emit('update:modelValue', 1)
       await nextTick()
-      const checkbox = wrapper.get<HTMLInputElement>('[data-test="key-group-12"]')
+      const checkbox = wrapper.get<HTMLInputElement>('[data-test="key-group-112"]')
       expect(checkbox.element.disabled).toBe(true)
       await checkbox.trigger('click')
       expect(checkbox.element.checked).toBe(false)
@@ -1226,8 +1253,8 @@ describe('user KeysView column settings', () => {
       { platform: 'anthropic', subscription_type: 'subscription', status: 'active' },
       null,
     ])('rejects invalid existing multi-group selections before saving: %j', async (invalidGroup) => {
-      getAvailableGroups.mockResolvedValue(invalidGroup ? [...availableGroups, { ...availableGroups[0], ...invalidGroup, id: 12 }] : availableGroups)
-      listKeys.mockResolvedValue({ items: [{ ...createApiKey(), group_id: 1, group_ids: [1, 12] }], total: 1, pages: 1 })
+      getAvailableGroups.mockResolvedValue(invalidGroup ? [...availableGroups, { ...availableGroups[0], ...invalidGroup, id: 112 }] : availableGroups)
+      listKeys.mockResolvedValue({ items: [{ ...createApiKey(), group_id: 1, group_ids: [1, 112] }], total: 1, pages: 1 })
       const wrapper = await mountView()
       await getButtonByText(wrapper, 'common.edit').trigger('click')
       expect(wrapper.get<HTMLButtonElement>('[data-tour="key-form-submit"]').element.disabled).toBe(true)
@@ -1237,11 +1264,11 @@ describe('user KeysView column settings', () => {
     })
 
     it('allows subscription groups alone but never combines them with other groups', async () => {
-      getAvailableGroups.mockResolvedValue([{ ...availableGroups[0], subscription_type: 'subscription' }, { ...availableGroups[0], id: 12 }])
+      getAvailableGroups.mockResolvedValue([{ ...availableGroups[0], subscription_type: 'subscription' }, { ...availableGroups[0], id: 112 }])
       const wrapper = await openCreate()
       groupSelect(wrapper).vm.$emit('update:modelValue', 1)
       await nextTick()
-      expect(wrapper.get<HTMLInputElement>('[data-test="key-group-12"]').element.disabled).toBe(true)
+      expect(wrapper.get<HTMLInputElement>('[data-test="key-group-112"]').element.disabled).toBe(true)
       await wrapper.get('[data-tour="key-form-name"]').setValue('Subscription key')
       vi.mocked(keysAPI.create).mockResolvedValue({ ...createApiKey(), group_id: 1 })
       await wrapper.get('#key-form').trigger('submit')
@@ -1259,10 +1286,10 @@ describe('user KeysView column settings', () => {
     })
 
     it('rejects inactive and unknown primary group values even if a selector emits them', async () => {
-      getAvailableGroups.mockResolvedValue([...availableGroups, { ...availableGroups[0], id: 12, status: 'inactive' }])
+      getAvailableGroups.mockResolvedValue([...availableGroups, { ...availableGroups[0], id: 112, status: 'inactive' }])
       const wrapper = await openCreate()
-      expect(groupSelect(wrapper).props('options').find((option: { value: number }) => option.value === 12).disabled).toBe(true)
-      for (const id of [12, 999]) {
+      expect(groupSelect(wrapper).props('options').find((option: { value: number }) => option.value === 112).disabled).toBe(true)
+      for (const id of [112, 999]) {
         groupSelect(wrapper).vm.$emit('update:modelValue', id)
         await nextTick()
         expect(groupSelect(wrapper).props('modelValue')).toBeNull()

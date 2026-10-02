@@ -200,7 +200,7 @@ func TestVerifyOrderByOutTradeNoBackfillsTradeNoFromPaidQuery(t *testing.T) {
 			Balance:  0,
 		},
 	}
-	userRepo.creditPaidRechargeFn = func(ctx context.Context, id int64, amount float64) (BalanceChange, error) {
+	userRepo.creditPaidRechargeFn = func(ctx context.Context, id int64, amount, paidAmount float64) (BalanceChange, error) {
 		require.Equal(t, user.ID, id)
 		change := BalanceChange{Old: userRepo.getByIDUser.Balance}
 		if userRepo.getByIDUser != nil {
@@ -306,7 +306,7 @@ func TestVerifyOrderByOutTradeNoRetriesZeroAmountPaidQueryOnce(t *testing.T) {
 			Balance:  0,
 		},
 	}
-	userRepo.creditPaidRechargeFn = func(ctx context.Context, id int64, amount float64) (BalanceChange, error) {
+	userRepo.creditPaidRechargeFn = func(ctx context.Context, id int64, amount, paidAmount float64) (BalanceChange, error) {
 		require.Equal(t, user.ID, id)
 		change := BalanceChange{Old: userRepo.getByIDUser.Balance}
 		if userRepo.getByIDUser != nil {
@@ -614,7 +614,7 @@ func TestReconcilePendingPaymentOrdersBackfillsPaidOrder(t *testing.T) {
 			Balance:  0,
 		},
 	}
-	userRepo.creditPaidRechargeFn = func(ctx context.Context, id int64, amount float64) (BalanceChange, error) {
+	userRepo.creditPaidRechargeFn = func(ctx context.Context, id int64, amount, paidAmount float64) (BalanceChange, error) {
 		require.Equal(t, user.ID, id)
 		change := BalanceChange{Old: userRepo.getByIDUser.Balance}
 		if userRepo.getByIDUser != nil {
@@ -774,7 +774,7 @@ func TestVerifyOrderByOutTradeNoUsesOutTradeNoWhenPaymentTradeNoAlreadyExistsFor
 			Balance:  0,
 		},
 	}
-	userRepo.creditPaidRechargeFn = func(ctx context.Context, id int64, amount float64) (BalanceChange, error) {
+	userRepo.creditPaidRechargeFn = func(ctx context.Context, id int64, amount, paidAmount float64) (BalanceChange, error) {
 		require.Equal(t, user.ID, id)
 		change := BalanceChange{Old: userRepo.getByIDUser.Balance}
 		if userRepo.getByIDUser != nil {

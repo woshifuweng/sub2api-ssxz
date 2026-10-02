@@ -362,6 +362,12 @@ func validatePaymentRedeemCode(o *dbent.PaymentOrder, code *RedeemCode) error {
 }
 
 func (s *PaymentService) doBalance(ctx context.Context, o *dbent.PaymentOrder, lease *paymentFulfillmentLease) error {
+	// Use the immutable order snapshot, not today's promotion settings. Reject
+	// malformed splits instead of silently clamping them into paid recharge.
+	if o == nil || o.Amount <= 0 || math.IsNaN(o.Amount) || math.IsInf(o.Amount, 0) ||
+		o.BonusAmount < 0 || o.BonusAmount > o.Amount || math.IsNaN(o.BonusAmount) || math.IsInf(o.BonusAmount, 0) {
+		return ErrInvalidPaidRechargeAmount
+	}
 	// Idempotency: check if redeem code already exists (from a previous partial run)
 	existing, lookupErr := s.redeemService.GetByCode(ctx, o.RechargeCode)
 	action, err := resolveRedeemAction(existing, lookupErr)
@@ -389,7 +395,7 @@ func (s *PaymentService) doBalance(ctx context.Context, o *dbent.PaymentOrder, l
 	case redeemActionRedeem:
 		// Code exists but unused — skip creation, proceed to redeem
 	}
-	if _, err := s.redeemService.redeemForPaymentFulfillment(ctx, o.UserID, o.RechargeCode); err != nil {
+	if _, err := s.redeemService.redeemForPaymentFulfillment(ctx, o.UserID, o.RechargeCode, paymentOrderAmountWithoutBonus(o)); err != nil {
 		return fmt.Errorf("redeem balance: %w", err)
 	}
 	if err := s.applyAffiliateRebateForOrder(ctx, o); err != nil {
@@ -741,7 +747,10 @@ func affiliateRebateBaseAmount(o *dbent.PaymentOrder) float64 {
 		return 0
 	}
 	switch o.OrderType {
-	case payment.OrderTypeBalance, payment.OrderTypeSubscription:
+	case payment.OrderTypeBalance:
+		// 返利只按实充部分计算，赠送额度不参与
+		return paymentOrderAmountWithoutBonus(o)
+	case payment.OrderTypeSubscription:
 		return o.Amount
 	default:
 		return 0

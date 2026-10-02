@@ -17,8 +17,8 @@
           <a href="#cc-switch-guide" class="docs-index__item" aria-current="page">
             <BookOpen aria-hidden="true" />
             <span>
-              <strong>CC Switch</strong>
-              <small>三步一键接入</small>
+              <strong>新手图文教程</strong>
+              <small>Codex · Claude Code · 图片</small>
             </span>
           </a>
 

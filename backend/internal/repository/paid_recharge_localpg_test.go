@@ -90,9 +90,38 @@ func TestPaidRecharge_LocalPostgres(t *testing.T) {
 		require.NoError(t, payments.ExecuteBalanceFulfillment(ctx, o.ID))
 		check(t, -5, 35) // Recovery after committed redemption must not add again.
 	})
+	t.Run("paid_bonus_credits_balance_but_not_total_recharged", func(t *testing.T) {
+		reset(t)
+		o := orderFor(t, "paid-bonus")
+		o, err = client.PaymentOrder.UpdateOneID(o.ID).SetBonusAmount(1).Save(ctx)
+		require.NoError(t, err)
+		require.NoError(t, payments.ExecuteBalanceFulfillment(ctx, o.ID))
+		check(t, -5, 34) // Amount=5 includes bonus=1; PayAmount=9 is a different currency.
+		require.NoError(t, payments.ExecuteBalanceFulfillment(ctx, o.ID))
+		check(t, -5, 34)
+		_, err = client.PaymentOrder.UpdateOneID(o.ID).SetStatus(service.OrderStatusRecharging).
+			SetUpdatedAt(time.Now().Add(-24 * time.Hour)).Save(ctx)
+		require.NoError(t, err)
+		require.NoError(t, payments.ExecuteBalanceFulfillment(ctx, o.ID))
+		check(t, -5, 34)
+		entries, _, err := ledger.ListByUser(ctx, u.ID, 0, 20)
+		require.NoError(t, err)
+		code, err := codes.GetByCode(ctx, o.RechargeCode)
+		require.NoError(t, err)
+		var bonusEntries int
+		for _, entry := range entries {
+			if entry.SourceID != nil && *entry.SourceID == fmt.Sprint(code.ID) {
+				bonusEntries++
+				require.Equal(t, 5.0, entry.AmountDelta)
+			}
+		}
+		require.Equal(t, 1, bonusEntries)
+	})
 	t.Run("ledger_failure_rolls_back_code_balance_and_total", func(t *testing.T) {
 		reset(t)
 		o := orderFor(t, "paid-rollback")
+		o, err = client.PaymentOrder.UpdateOneID(o.ID).SetBonusAmount(1).Save(ctx)
+		require.NoError(t, err)
 		_, err := db.ExecContext(ctx, `ALTER TABLE account_balance_ledger ADD CONSTRAINT reject_fixture_credit CHECK (amount_delta <> 5) NOT VALID`)
 		require.NoError(t, err)
 		err = payments.ExecuteBalanceFulfillment(ctx, o.ID)
@@ -104,11 +133,13 @@ func TestPaidRecharge_LocalPostgres(t *testing.T) {
 		_, err = db.ExecContext(ctx, `ALTER TABLE account_balance_ledger DROP CONSTRAINT reject_fixture_credit`)
 		require.NoError(t, err)
 		require.NoError(t, payments.ExecuteBalanceFulfillment(ctx, o.ID))
-		check(t, -5, 35)
+		check(t, -5, 34)
 	})
 	t.Run("concurrent_fulfillment_counts_once", func(t *testing.T) {
 		reset(t)
 		o := orderFor(t, "paid-concurrent")
+		o, err = client.PaymentOrder.UpdateOneID(o.ID).SetBonusAmount(1).Save(ctx)
+		require.NoError(t, err)
 		var wg sync.WaitGroup
 		results := make(chan error, 2)
 		for i := 0; i < 2; i++ {
@@ -124,7 +155,7 @@ func TestPaidRecharge_LocalPostgres(t *testing.T) {
 			}
 		}
 		require.True(t, succeeded)
-		check(t, -5, 35)
+		check(t, -5, 34)
 	})
 	for _, admin := range []bool{false, true} {
 		t.Run(fmt.Sprintf("unverified_redeem_admin_%t", admin), func(t *testing.T) {
@@ -152,13 +183,13 @@ func TestPaidRecharge_LocalPostgres(t *testing.T) {
 	for _, value := range []float64{0, -1, math.NaN(), math.Inf(1), math.Inf(-1)} {
 		t.Run(fmt.Sprintf("invalid_paid_amount_%v", value), func(t *testing.T) {
 			reset(t)
-			_, err := repo.CreditPaidRecharge(ctx, u.ID, value)
+			_, err := repo.CreditPaidRecharge(ctx, u.ID, value, value)
 			require.ErrorIs(t, err, service.ErrInvalidPaidRechargeAmount)
 			check(t, -10, 30)
 		})
 	}
 	t.Run("missing_user", func(t *testing.T) {
-		_, err := repo.CreditPaidRecharge(ctx, u.ID+99999, 5)
+		_, err := repo.CreditPaidRecharge(ctx, u.ID+99999, 5, 5)
 		require.ErrorIs(t, err, service.ErrUserNotFound)
 	})
 	t.Run("promo_gift_does_not_count", func(t *testing.T) {
@@ -225,7 +256,7 @@ func TestPaidRecharge_LocalPostgres(t *testing.T) {
 	t.Run("deleted_user", func(t *testing.T) {
 		_, err := client.User.UpdateOneID(u.ID).SetDeletedAt(time.Now()).Save(ctx)
 		require.NoError(t, err)
-		_, err = repo.CreditPaidRecharge(ctx, u.ID, 5)
+		_, err = repo.CreditPaidRecharge(ctx, u.ID, 5, 5)
 		require.ErrorIs(t, err, service.ErrUserNotFound)
 	})
 }

@@ -104,6 +104,46 @@ describe('AvailableChannelsTable model catalog', () => {
     expect(wrapper.text()).toContain('200K')
   })
 
+  it('classifies Grok-named models under the Grok provider tab', () => {
+    const grokChannels: UserAvailableChannel[] = [{
+      name: 'Grok channel',
+      description: '',
+      platforms: [
+        {
+          platform: 'openai',
+          groups: [{
+            id: 10,
+            name: 'Grok via OpenAI-compatible pool',
+            platform: 'openai',
+            subscription_type: 'standard',
+            rate_multiplier: 1,
+            is_exclusive: false,
+          }],
+          supported_models: [{ name: 'grok-4.6', platform: 'openai', pricing: null }],
+        },
+        {
+          platform: 'grok',
+          groups: [{
+            id: 11,
+            name: 'Grok native pool',
+            platform: 'grok',
+            subscription_type: 'standard',
+            rate_multiplier: 1,
+            is_exclusive: false,
+          }],
+          supported_models: [{ name: 'grok-4.5', platform: 'grok', pricing: null }],
+        },
+      ],
+    }]
+
+    const wrapper = mountTable({ rows: grokChannels })
+
+    expect(wrapper.find('[data-provider-tab="openai"]').exists()).toBe(false)
+    expect(wrapper.get('[data-provider-tab="grok"]').text()).toContain('2')
+    expect(wrapper.findAll('.model-catalog__provider')).toHaveLength(2)
+    expect(wrapper.findAll('.model-catalog__provider').every((node) => node.text() === 'Grok')).toBe(true)
+  })
+
   it('filters models with the optional search query', async () => {
     const wrapper = mountTable()
     expect(wrapper.findAll('[data-testid="model-row"]')).toHaveLength(1)

@@ -405,7 +405,7 @@ func unsupportedRedeemTypeError(codeType string) error {
 
 // Redeem 使用兑换码
 func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (*RedeemCode, error) {
-	return s.redeem(ctx, userID, code, enforceRedeemRateLimit, redeemCreditUnverified)
+	return s.redeem(ctx, userID, code, enforceRedeemRateLimit, redeemCreditUnverified, 0)
 }
 
 // Credit source is independent of rate-limit and affiliate policies: admin
@@ -421,8 +421,8 @@ const (
 // Payment retries must not be blocked by, or contribute to, a user's public
 // redeem failure counter. All code validation and transactional updates remain
 // identical to the public redemption path.
-func (s *RedeemService) redeemForPaymentFulfillment(ctx context.Context, userID int64, code string) (*RedeemCode, error) {
-	return s.redeem(ContextSkipRedeemAffiliate(ctx), userID, code, bypassRedeemRateLimit, redeemCreditPaidOrder)
+func (s *RedeemService) redeemForPaymentFulfillment(ctx context.Context, userID int64, code string, paidAmount float64) (*RedeemCode, error) {
+	return s.redeem(ContextSkipRedeemAffiliate(ctx), userID, code, bypassRedeemRateLimit, redeemCreditPaidOrder, paidAmount)
 }
 
 // RedeemForAdminFulfillment is restricted to trusted admin fulfillment.
@@ -430,10 +430,10 @@ func (s *RedeemService) redeemForPaymentFulfillment(ctx context.Context, userID 
 // redeem failure counter. Unlike payment fulfillment, the normal redeem-level
 // affiliate rebate remains enabled.
 func (s *RedeemService) RedeemForAdminFulfillment(ctx context.Context, userID int64, code string) (*RedeemCode, error) {
-	return s.redeem(ctx, userID, code, bypassRedeemRateLimit, redeemCreditUnverified)
+	return s.redeem(ctx, userID, code, bypassRedeemRateLimit, redeemCreditUnverified, 0)
 }
 
-func (s *RedeemService) redeem(ctx context.Context, userID int64, code string, rateLimitPolicy redeemRateLimitPolicy, creditSource redeemCreditSource) (*RedeemCode, error) {
+func (s *RedeemService) redeem(ctx context.Context, userID int64, code string, rateLimitPolicy redeemRateLimitPolicy, creditSource redeemCreditSource, paidAmount float64) (*RedeemCode, error) {
 	if rateLimitPolicy == enforceRedeemRateLimit {
 		if err := s.checkRedeemRateLimit(ctx, userID); err != nil {
 			return nil, err
@@ -527,7 +527,7 @@ func (s *RedeemService) redeem(ctx context.Context, userID int64, code string, r
 			if !ok {
 				return nil, errors.New("user repository does not support paid recharge credits")
 			}
-			balanceChange, err = paidRepo.CreditPaidRecharge(txCtx, userID, redeemCode.Value)
+			balanceChange, err = paidRepo.CreditPaidRecharge(txCtx, userID, redeemCode.Value, paidAmount)
 		} else {
 			balanceChange, err = s.userRepo.AdjustBalance(txCtx, userID, redeemCode.Value)
 		}

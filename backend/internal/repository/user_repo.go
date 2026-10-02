@@ -937,19 +937,21 @@ func (r *userRepository) DeductAvailableBalance(ctx context.Context, id int64, a
 }
 
 // CreditPaidRecharge credits a verified paid balance order in balance units.
+// amount includes bonuses; paidAmount excludes them (neither is fiat PayAmount).
 // The caller must include this in the same transaction as conditional code use
 // and ledger insertion; this primitive alone is not an idempotency boundary.
-func (r *userRepository) CreditPaidRecharge(ctx context.Context, id int64, amount float64) (service.BalanceChange, error) {
-	if amount <= 0 || math.IsNaN(amount) || math.IsInf(amount, 0) {
+func (r *userRepository) CreditPaidRecharge(ctx context.Context, id int64, amount, paidAmount float64) (service.BalanceChange, error) {
+	if amount <= 0 || math.IsNaN(amount) || math.IsInf(amount, 0) ||
+		paidAmount < 0 || paidAmount > amount || math.IsNaN(paidAmount) || math.IsInf(paidAmount, 0) {
 		return service.BalanceChange{}, service.ErrInvalidPaidRechargeAmount
 	}
 	const updateSQL = `
 		UPDATE users
-		SET balance = balance + $1, total_recharged = total_recharged + $1, updated_at = NOW()
+		SET balance = balance + $1, total_recharged = total_recharged + $3, updated_at = NOW()
 		WHERE id = $2 AND deleted_at IS NULL
 		RETURNING balance - $1, balance
 	`
-	change, ok, err := scanBalanceChange(ctx, clientFromContext(ctx, r.client), updateSQL, amount, id)
+	change, ok, err := scanBalanceChange(ctx, clientFromContext(ctx, r.client), updateSQL, amount, id, paidAmount)
 	if err != nil {
 		return service.BalanceChange{}, err
 	}

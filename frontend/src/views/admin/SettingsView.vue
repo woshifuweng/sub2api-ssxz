@@ -1796,6 +1796,11 @@
 
         <!-- Tab: Security — Registration, Turnstile, LinuxDo -->
         <div v-show="activeTab === 'security'" class="space-y-6">
+          <div class="card p-6" data-testid="risk-control-allowlist">
+            <label class="input-label">{{ t('admin.settings.features.riskControl.riskControlUserAllowlist') }}</label>
+            <OpenAIFastPolicyUserSelector v-model="riskControlAllowlistedUserIds" />
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.features.riskControl.riskControlUserAllowlistHint') }}</p>
+          </div>
           <!-- Registration Settings -->
           <div class="card">
             <div
@@ -3931,6 +3936,12 @@
               </div>
             </div>
           </div>
+          <RechargeBonusTierEditor
+            v-if="form.payment_enabled"
+            v-model="form.payment_recharge_bonus_tiers"
+            v-model:mode="form.payment_recharge_bonus_mode"
+            v-model:notice="form.payment_recharge_bonus_notice"
+          />
           <PaymentProviderList
             :providers="providers"
             :loading="providersLoading"
@@ -6022,6 +6033,14 @@ import ImageUpload from "@/components/common/ImageUpload.vue";
 import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
 import PaymentProviderDialog from "@/components/payment/PaymentProviderDialog.vue";
 import PaymentProviderList from "@/components/payment/PaymentProviderList.vue";
+import RechargeBonusTierEditor from "@/components/admin/settings/RechargeBonusTierEditor.vue";
+import {
+  normalizeRechargeBonusMode,
+  normalizeRechargeBonusTiers,
+  sanitizeRechargeBonusTiersForSubmit,
+  type RechargeBonusMode,
+  type RechargeBonusTierDraft,
+} from "@/utils/rechargeBonus";
 import TotpStepUpDialog from "@/components/auth/TotpStepUpDialog.vue";
 import BackupSettings from "@/views/admin/BackupView.vue";
 import OpenAIFastPolicyUserSelector from "@/views/admin/settings/OpenAIFastPolicyUserSelector.vue";
@@ -6157,6 +6176,7 @@ const platformQuotaPlatforms: PlatformType[] = [
   "gemini",
   "antigravity",
   "grok",
+  "typesafe",
 ];
 const schedulingThresholdPlatforms = SCHEDULING_THRESHOLD_PLATFORMS;
 
@@ -6512,6 +6532,7 @@ type SettingsForm = Omit<
   | "channel_monitor_mode"
   | "channel_monitor_hide_throughput"
   | "channel_monitor_show_quota"
+  | "payment_recharge_bonus_tiers"
 > & {
   channel_monitor_mode: "v1" | "v2";
   channel_monitor_hide_throughput: boolean;
@@ -6572,6 +6593,9 @@ type SettingsForm = Omit<
   oidc_connect_userinfo_email_path: string;
   oidc_connect_userinfo_id_path: string;
   oidc_connect_userinfo_username_path: string;
+  payment_recharge_bonus_tiers: RechargeBonusTierDraft[];
+  payment_recharge_bonus_mode: RechargeBonusMode;
+  payment_recharge_bonus_notice: string;
 }
 
 type OIDCTextFieldKey =
@@ -6640,6 +6664,10 @@ const form = reactive<SettingsForm>({
   purchase_link_cny_30: "",
   purchase_link_cny_100: "",
   sora_client_enabled: false,
+  payment_recharge_bonus_tiers: [],
+  payment_recharge_bonus_mode: "bonus",
+  payment_recharge_bonus_notice: "",
+  cyber_policy_user_allowlist: "",
   custom_menu_items: [] as Array<{
     id: string;
     label: string;
@@ -6829,6 +6857,19 @@ function applyCaptchaSelection(provider: CaptchaProviderSelection | null): void 
   form.tencent_captcha_enabled = provider === "tencent";
   form.aliyun_captcha_enabled = provider === "aliyun";
 }
+
+// Keep the settings API representation as user IDs; the selector displays emails.
+const riskControlAllowlistedUserIds = computed<number[]>({
+  get: () => Array.from(new Set(
+    (form.cyber_policy_user_allowlist || "")
+      .split(/[,\s]+/)
+      .map(Number)
+      .filter((id) => Number.isSafeInteger(id) && id > 0),
+  )),
+  set: (ids) => {
+    form.cyber_policy_user_allowlist = ids.join(",");
+  },
+});
 
 const captchaMasterEnabled = computed({
   get: () =>
@@ -7721,6 +7762,13 @@ async function loadSettings() {
     form.channel_monitor_show_quota = Boolean(
       settings.channel_monitor_show_quota
     );
+    form.payment_recharge_bonus_tiers = normalizeRechargeBonusTiers(
+      settings.payment_recharge_bonus_tiers,
+    );
+    form.payment_recharge_bonus_mode = normalizeRechargeBonusMode(
+      settings.payment_recharge_bonus_mode,
+    );
+    form.payment_recharge_bonus_notice = settings.payment_recharge_bonus_notice || "";
     form.account_scheduling_thresholds = normalizeAccountSchedulingThresholdsMap(
       settings.account_scheduling_thresholds,
     );
@@ -8341,6 +8389,7 @@ async function saveSettings() {
       // Payment configuration
       payment_enabled: form.payment_enabled,
       risk_control_enabled: form.risk_control_enabled,
+      cyber_policy_user_allowlist: form.cyber_policy_user_allowlist,
       cyber_session_block_enabled: form.cyber_session_block_enabled,
       cyber_session_block_ttl_seconds:
         Number(form.cyber_session_block_ttl_seconds) || 3600,
@@ -8356,6 +8405,11 @@ async function saveSettings() {
       payment_subscription_usd_to_cny_rate:
         Number(form.payment_subscription_usd_to_cny_rate) || 0,
       payment_recharge_fee_rate: Number(form.payment_recharge_fee_rate) || 0,
+      payment_recharge_bonus_tiers: sanitizeRechargeBonusTiersForSubmit(
+        form.payment_recharge_bonus_tiers,
+      ),
+      payment_recharge_bonus_mode: form.payment_recharge_bonus_mode,
+      payment_recharge_bonus_notice: form.payment_recharge_bonus_notice,
       payment_enabled_types: form.payment_enabled_types,
       payment_load_balance_strategy: form.payment_load_balance_strategy,
       payment_product_name_prefix: form.payment_product_name_prefix,
