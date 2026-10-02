@@ -53,12 +53,13 @@ describe('AppSidebar custom SVG styles', () => {
 })
 
 describe('AppSidebar image workbench link', () => {
-  it('opens the formal workbench domain without putting an API key in the URL', () => {
+  it('opens in-site image tools without putting an API key in the URL', () => {
     expect(imageWorkbenchConfigSource).toContain("https://image.ssxzapi.com/")
-    expect(componentSource).toContain("window.open(IMAGE_WORKBENCH_URL, '_blank', 'noopener,noreferrer')")
+    expect(componentSource).toContain("router.push('/app/image')")
     expect(componentSource).not.toContain('/image/?apiKey=')
     expect(componentSource).not.toContain('keysAPI')
-    expect(imageWorkbenchViewSource).toContain('window.location.replace(IMAGE_WORKBENCH_URL)')
+    expect(imageWorkbenchViewSource).toContain('<ImageToolsWorkspace />')
+    expect(imageWorkbenchViewSource).not.toContain('window.location.replace')
     expect(imageWorkbenchViewSource).not.toContain('apiKey=')
     expect(imageWorkbenchViewSource).not.toContain('revealKey')
   })

@@ -134,11 +134,10 @@
 
 <script setup lang="ts">
 import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Images } from '@lucide/vue'
 import BrandLogo from '@/components/common/BrandLogo.vue'
-import { IMAGE_WORKBENCH_URL } from '@/constants/imageWorkbench'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore, useResellerStore } from '@/stores'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
@@ -159,6 +158,7 @@ interface NavItem {
 const { t } = useI18n()
 
 const route = useRoute()
+const router = useRouter()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
@@ -530,7 +530,7 @@ const purchaseNavLabel = computed(() => {
 const userNavItems = computed((): NavItem[] => [
   { path: '/app/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
   { path: '/app/keys', label: t('nav.apiKeys'), icon: KeyIcon },
-  { path: '/image/', label: t('nav.imageWorkbench'), icon: Images, action: 'image-workbench' },
+  { path: '/app/image', label: t('nav.imageWorkbench'), icon: Images, action: 'image-workbench' },
   ...(canUseBatchImage.value ? [{ path: '/batch-image', label: t('nav.batchImage'), icon: Images }] : []),
   ...(flagEnabled('availableChannels') ? [{ path: '/app/available-channels', label: t('nav.models'), icon: ChannelIcon }] : []),
   { path: '/app/usage', label: t('nav.usage'), icon: ChartIcon },
@@ -645,7 +645,7 @@ function closeMobile() {
 }
 
 function openImageWorkbench() {
-  window.open(IMAGE_WORKBENCH_URL, '_blank', 'noopener,noreferrer')
+  void router.push('/app/image')
   closeMobile()
 }
 
