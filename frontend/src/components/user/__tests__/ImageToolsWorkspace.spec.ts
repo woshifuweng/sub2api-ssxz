@@ -38,6 +38,57 @@ beforeEach(() => {
 afterEach(() => { cleanup?.(); cleanup = undefined; vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('ImageToolsWorkspace', () => {
+  it('keeps both iframe nodes, windows and sessions in place across repeated fullscreen toggles', async () => {
+    const wrapper = render()
+    await flushPromises()
+    await wrapper.find('.primary').trigger('click')
+    await flushPromises()
+    await wrapper.get('#tab-canvas').trigger('click')
+    const frames = wrapper.findAll('iframe').map(frame => frame.element)
+    const windows = frames.map(frame => frame.contentWindow)
+    const parents = frames.map(frame => frame.parentNode)
+    const sources = frames.map(frame => frame.src)
+    const posts = windows.map(child => {
+      if (!child) throw new Error('Expected iframe window')
+      return vi.spyOn(child, 'postMessage')
+    })
+    function ready() {
+      frames.forEach((frame, index) => window.dispatchEvent(new MessageEvent('message', {
+        source: windows[index], origin: new URL(frame.src).origin,
+        data: { type: 'ssxz:image-tool:ready', version: 1 },
+      })))
+    }
+    ready()
+    const sessions = posts.map(post => post.mock.calls[0][0].sessionId)
+    expect(sessions).toEqual([expect.any(String), expect.any(String)])
+    expect(sessions[0]).toBeTruthy()
+    expect(sessions[1]).toBe(sessions[0])
+    const mutations: MutationRecord[] = []
+    const observer = new MutationObserver(records => mutations.push(...records))
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['src'] })
+    try {
+      for (let index = 0; index < 4; index++) {
+        await wrapper.get('.tools-header > .tools-button').trigger('click')
+        expect(wrapper.get('section.image-tools').classes().includes('is-expanded')).toBe(index % 2 === 0)
+        expect(wrapper.findAll('iframe').map(frame => frame.element)).toEqual(frames)
+        frames.forEach((frame, frameIndex) => {
+          expect(frame.contentWindow).toBe(windows[frameIndex])
+          expect(frame.parentNode).toBe(parents[frameIndex])
+          expect(frame.src).toBe(sources[frameIndex])
+        })
+      }
+      ready()
+      expect(posts.map(post => post.mock.calls.at(-1)?.[0].sessionId)).toEqual(sessions)
+      expect(api.list).toHaveBeenCalledTimes(1)
+      expect(api.create).not.toHaveBeenCalled()
+      expect(fetch).toHaveBeenCalledTimes(1)
+      const frameMoved = mutations.some(record =>
+        record.type === 'attributes' || [...record.addedNodes, ...record.removedNodes].some(node =>
+          frames.some(frame => node === frame || node.contains(frame))))
+      expect(frameMoved).toBe(false)
+    } finally { observer.disconnect() }
+  })
+
   it('uses native reveal for eligible masked keys on subsequent visits', async () => {
     api.list.mockResolvedValue({ items: [{ ...imageKey, key: 'sk-abc...xyz' }], total: 1, page_size: 100 })
     const wrapper = render()

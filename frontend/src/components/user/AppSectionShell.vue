@@ -447,6 +447,14 @@ watch(() => authStore.user?.id, (id) => {
   padding: var(--ssxz-space-page-y) var(--ssxz-space-page-x);
 }
 
+/* Lift both stacking contexts above sidebar/header only during image fullscreen.
+   Keep the iframe DOM in place: moving it between containers can reload a session.
+   Stay below the body-teleported image group dialog (z-index: 110). */
+.ssxz-app-content:has(.image-tools.is-expanded),
+.ssxz-app-main:has(.image-tools.is-expanded) {
+  z-index: 100;
+}
+
 .ssxz-page-heading {
   margin-bottom: 1.5rem;
   padding: 0.25rem 0;
