@@ -31,7 +31,7 @@ Update Sub2API and the existing image workbench from their official upstreams; a
 - [x] Upstream inventories and safe baselines recorded.
 - [x] Sub2 candidate merged/tested (`7e45bd449`; final frontend 2881/2881 passing).
 - [x] Workbench candidate merged/tested (v0.7.14; 615/615 passing; production dependency audit zero).
-- [x] Canvas candidate integrated/tested (v0.19.0; final production build verification in progress).
+- [x] Canvas candidate integrated/tested (v0.19.0; final production build, web 13/13, SSXZ 10/10 and production audit zero).
 - [x] Two-tool station entry tested with the actual Vue host and synthetic accounts (not live provider/billing acceptance).
 - [ ] Independent production releases and customer-journey acceptance passed.
 
@@ -61,4 +61,7 @@ No production modification has been made by this task at plan creation.
 - Real Vue-host Chrome acceptance now passed: both children connected and host wait banners disappeared; `DataCloneError=0`; same-account refresh/tool switching reused the connection; A→B→A kept each account's works separate; logout removed frames. Real BaseDialog confirmed group change and remained visible over fullscreen. 390×844 entrance/fullscreen canvas passed the inspected layout, then viewport reset.
 - Logout controls are disabled (`84b2f8106`), with a regression assertion and browser recheck. Two image-tool suites pass 18/18.
 - Main production dependency audit is now zero after exact colord/query-string/decode-uri-component fixes (`2ed44a513`). Updated full frontend suite 2881/2881 and final `pnpm run build` passed, including i18n, types and payment-entry isolation.
-- Canvas web production dependency audit found 24 advisories; targeted dependency review/repair is in progress and remains a publication gate. Do not treat the earlier build as approval to publish.
+- Canvas web production dependency audit originally found 24 advisories. Minimal reviewed fixes now pass frozen install, production audit zero, typecheck/build, web 13/13 and SSXZ 10/10. One documented scoped Prism override has actual seven-language React rendering/escaping checks; no top-level major upgrade. Main restarted the guarded child and rechecked real Vue connection, old project navigation and retained image/text. This does not replace live generation/billing acceptance.
+- Linux isolated rehearsal PASS (`F:/CodexHome/artifacts/sub2-v0212-7e45bd449-20261002/rehearsal-result.json`): protected server-only snapshot restored, original 333 migration/hash pairs retained, two migrations added, restart idempotent, old binary healthy against additive schema with no bonus/TypeSafe use. Sampled full account-balance and order financial fingerprints unchanged; no real provider/payment calls. Exact canvas/image CORS preflights 204 and stranger origins 403. Temporary units/processes stopped and cloned sensitive data sealed root-only. Production binary/PID/schema/watchdog witnesses unchanged.
+- Final traced Linux non-embedded candidate SHA256 `cd5728b4fabb7c3d1043112e802d0302a0fd7b412117a5ba8e42dc070409fdb5` (backend commit `7e45bd449`). This supersedes the earlier pre-commit build fingerprint.
+- Workbench minimal dependency follow-up `b388a408`: frozen install/build, 615/615 and complete audit zero; final browser reconnect and historical-image detail rechecked. No upstream major-version upgrade or audit-gate bypass.
