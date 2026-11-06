@@ -1858,7 +1858,7 @@ import {
   formatDateTime,
 } from "@/utils/format";
 import { DEFAULT_SITE_NAME, normalizeSiteName } from "@/utils/brand";
-import { platformBadgeLightClass } from "@/utils/platformColors";
+import { platformBadgeLightClass, platformIconTileClass } from "@/utils/platformColors";
 import {
   KEY_GROUP_PROVIDERS,
   KEY_GROUP_PROVIDER_ICONS,
@@ -2398,13 +2398,7 @@ function getGroupRateBadgeClass(option: Record<string, unknown>) {
 }
 
 function getGroupProviderIconClass(platform: Group["platform"]) {
-  if (platform === "openai") {
-    return "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-300";
-  }
-  if (platform === "anthropic") {
-    return "bg-orange-50 text-orange-600 dark:bg-orange-950/50 dark:text-orange-300";
-  }
-  return "bg-gray-100 text-gray-600 dark:bg-dark-600 dark:text-gray-300";
+  return platformIconTileClass(platform);
 }
 
 // Filter dropdown options

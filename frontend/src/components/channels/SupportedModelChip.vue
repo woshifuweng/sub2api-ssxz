@@ -14,7 +14,14 @@
       @focusout="onLeave"
       tabindex="0"
     >
-      <ModelIcon :model="model.name" size="14px" />
+      <span
+        :class="[
+          'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md',
+          effectivePlatform ? platformIconTileClass(effectivePlatform) : 'border border-slate-500/20 bg-slate-500/10 text-slate-300'
+        ]"
+      >
+        <ModelIcon :model="model.name" size="13px" />
+      </span>
       <span
         v-if="showPlatform && model.platform"
         class="rounded bg-gray-200/60 px-1 text-[10px] uppercase text-gray-600 dark:bg-dark-700 dark:text-gray-400"
@@ -176,7 +183,7 @@ import {
 // admin 侧 ChannelModelPricing 字段更多，但结构上是用户 DTO 的超集，admin 视图传入可直接通过结构化子类型检查。
 import type { UserPricingInterval, UserSupportedModel, UserSupportedModelPricing } from '@/api/channels'
 import ModelIcon from '@/components/common/ModelIcon.vue'
-import { platformBadgeClass, platformBorderClass, platformBadgeLightClass } from '@/utils/platformColors'
+import { platformBadgeClass, platformBorderClass, platformBadgeLightClass, platformIconTileClass } from '@/utils/platformColors'
 
 const props = withDefaults(
   defineProps<{

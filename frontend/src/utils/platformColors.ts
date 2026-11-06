@@ -155,6 +155,25 @@ const ICON: Record<Platform, string> = {
 }
 const ICON_DEFAULT = 'text-primary-500 dark:text-primary-400'
 
+// Small branded tile used next to model/group names. The tint is intentionally
+// subtle so the actual logo carries the identity without turning the row into a
+// saturated color block.
+const ICON_TILE: Record<Platform, string> = {
+  anthropic: 'border border-orange-500/20 bg-orange-500/10 text-orange-400',
+  openai: 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400',
+  antigravity: 'border border-purple-500/20 bg-purple-500/10 text-purple-400',
+  gemini: 'border border-blue-500/20 bg-blue-500/10 text-blue-400',
+  grok: 'border border-slate-400/20 bg-slate-400/10 text-slate-200',
+  kimi: 'border border-pink-500/20 bg-pink-500/10 text-pink-400',
+  zhipu: 'border border-indigo-500/20 bg-indigo-500/10 text-indigo-400',
+  deepseek: 'border border-teal-500/20 bg-teal-500/10 text-teal-400',
+  minimax: 'border border-rose-500/20 bg-rose-500/10 text-rose-400',
+  opencode_go: 'border border-amber-500/20 bg-amber-500/10 text-amber-300',
+  typesafe: 'border border-sky-500/20 bg-sky-500/10 text-sky-300',
+  composite: 'border border-cyan-500/20 bg-cyan-500/10 text-cyan-300',
+}
+const ICON_TILE_DEFAULT = 'border border-slate-500/20 bg-slate-500/10 text-slate-300'
+
 // ── Button (solid bg) ───────────────────────────────────────────────
 const BUTTON: Record<Platform, string> = {
   anthropic: 'bg-orange-500 text-white hover:bg-orange-600 active:bg-orange-700 dark:bg-orange-500/80 dark:hover:bg-orange-500',
@@ -288,6 +307,10 @@ export function platformTextClass(p: string): string {
 
 export function platformIconClass(p: string): string {
   return isPlatform(p) ? ICON[p] : ICON_DEFAULT
+}
+
+export function platformIconTileClass(p: string): string {
+  return isPlatform(p) ? ICON_TILE[p] : ICON_TILE_DEFAULT
 }
 
 export function platformButtonClass(p: string): string {

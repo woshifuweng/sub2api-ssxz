@@ -141,7 +141,7 @@ describe('AvailableChannelsTable model catalog', () => {
     expect(wrapper.find('[data-provider-tab="openai"]').exists()).toBe(false)
     expect(wrapper.get('[data-provider-tab="grok"]').text()).toContain('2')
     expect(wrapper.findAll('.model-catalog__provider')).toHaveLength(2)
-    expect(wrapper.findAll('.model-catalog__provider').every((node) => node.text() === 'Grok')).toBe(true)
+    expect(wrapper.findAll('.model-catalog__provider').every((node) => node.text().includes('Grok'))).toBe(true)
   })
 
   it('filters models with the optional search query', async () => {
