@@ -60,8 +60,8 @@
               </td>
               <td>
                 <span :class="['model-catalog__provider', providerToneClass(row.platform)]">
-                  <span class="model-catalog__provider-mark">
-                    <ModelIcon :model="providerIconModel(row.platform)" size="18px" />
+                  <span :class="['model-catalog__provider-mark', platformIconTileClass(row.platform)]">
+                    <PlatformIcon :platform="row.platform" size="lg" />
                   </span>
                   {{ providerLabel(row.platform) }}
                 </span>
@@ -86,8 +86,8 @@
                   </template>
                   <template #option="{ option, selected }">
                     <div class="model-group-option">
-                      <span class="model-catalog__provider-mark model-catalog__provider-mark--small">
-                        <ModelIcon :model="providerIconModel(asModelGroupOption(option).group.platform)" size="16px" />
+                      <span :class="['model-catalog__provider-mark model-catalog__provider-mark--small', platformIconTileClass(row.platform)]">
+                        <PlatformIcon :platform="row.platform" size="md" />
                       </span>
                       <span class="model-group-option__copy">
                         <span class="model-group-option__title">
@@ -128,7 +128,8 @@ import type {
   UserAvailableGroup,
   UserSupportedModelPricing
 } from '@/api/channels'
-import ModelIcon from '@/components/common/ModelIcon.vue'
+import PlatformIcon from '@/components/common/PlatformIcon.vue'
+import { platformIconTileClass } from '@/utils/platformColors'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 
@@ -335,15 +336,6 @@ function rateToneClass(rate: number): string {
   return 'model-group-rate--standard'
 }
 
-function providerIconModel(platform: string): string {
-  const models: Record<string, string> = {
-    anthropic: 'claude',
-    openai: 'gpt-5',
-    gemini: 'gemini',
-    google: 'gemini'
-  }
-  return models[platform] || platform
-}
 </script>
 
 <style scoped>
